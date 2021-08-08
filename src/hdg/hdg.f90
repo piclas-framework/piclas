@@ -12,12 +12,11 @@
 !==================================================================================================================================
 #include "piclas.h"
 
+!===================================================================================================================================
+!> Module for the HDG method
+!===================================================================================================================================
 MODULE MOD_HDG
-!===================================================================================================================================
-! Module for the HDG method
-!===================================================================================================================================
 ! MODULES
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -37,21 +36,23 @@ END INTERFACE
 PUBLIC :: InitHDG,FinalizeHDG
 PUBLIC :: HDG, RestartHDG
 PUBLIC :: DefineParametersHDG
-PUBLIC :: UpdateNonlinVolumeFac
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
 CONTAINS
 
 #if USE_HDG
-!==================================================================================================================================
+!===================================================================================================================================
 !> Define parameters for HDG (Hubridized Discontinous Galerkin)
-!==================================================================================================================================
+!===================================================================================================================================
 SUBROUTINE DefineParametersHDG()
 ! MODULES
-USE MOD_ReadInTools ,ONLY: prms
+USE MOD_ReadInTools           ,ONLY: prms
+#if defined(PARTICLES)
+USE MOD_Part_BR_Elecron_Fluid ,ONLY: DefineParametersBR
+#endif /*defined(PARTICLES)*/
 IMPLICIT NONE
-!==================================================================================================================================
+!===================================================================================================================================
 CALL prms%SetSection("HDG")
 
 CALL prms%CreateIntOption(    'HDGNonLinSolver'        ,'Select Newton or Fix Point algorithm (default is Newton and Fix Point is not implemented)', '1')
@@ -82,38 +83,17 @@ CALL prms%CreateIntOption(    'HDGZeroPotentialDir'    ,'Direction in which a Di
                                                        ,'-1')
 
 ! --- BR electron fluid
-CALL prms%CreateIntOption(      'BRNbrOfRegions'                , 'Number of regions to be mapped to Elements', '0')
-
-CALL prms%CreateStringOption(   'BRVariableElectronTemp', 'Variable electron reference temperature when using Boltzmann relation'//&
-                                                          ' electron model (default is using a constant temperature)','constant')
-CALL prms%CreateRealArrayOption('BRRegionBounds[$]'     , 'BRRegionBounds ((xmin,xmax,ymin,...)'//&
-                                                                '|1:BRNbrOfRegions)'&
-                                                                , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_ref, and Te[eV] for Region#'&
-                                                              , '0. , 0. , 1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
-                                                                '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
-
 #if defined(PARTICLES)
-CALL prms%CreateLogicalOption(  'BRConvertElectronsToFluid'   , 'Remove all electrons when using BR electron fluid', '.FALSE.')
-CALL prms%CreateLogicalOption(  'BRConvertFluidToElectrons'   , 'Create electrons from BR electron fluid (requires'//&
-                                                                ' ElectronDensityCell ElectronTemperatureCell from .h5 state file)'&
-                                                              , '.FALSE.')
-CALL prms%CreateRealOption(     'BRConvertFluidToElectronsTime', "Time when BR fluid electrons are to be converted to kinetic particles", '-1.0')
-CALL prms%CreateRealOption(     'BRConvertElectronsToFluidTime', "Time when kinetic electrons should be converted to BR fluid electrons", '-1.0')
-CALL prms%CreateLogicalOption(  'BRConvertModelRepeatedly'     , 'Repeat the switch between BR and kinetic multiple times', '.FALSE.')
-CALL prms%CreateRealOption(     'BRTimeStepMultiplier'         , "Factor that is multiplied with the ManualTimeStep when using BR model", '1.0')
+CALL DefineParametersBR()
 #endif /*defined(PARTICLES)*/
-
-
-
 
 END SUBROUTINE DefineParametersHDG
 
+
+!===================================================================================================================================
+!> Initialize variables of the HDG module
+!===================================================================================================================================
 SUBROUTINE InitHDG()
-!===================================================================================================================================
-! Initialize variables of the HDG module
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -132,7 +112,9 @@ USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_Basis              ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
 USE MOD_FillMortar_HDG     ,ONLY: InitMortar_HDG
 USE MOD_HDG_Vars           ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectronRef
-! IMPLICIT VARIABLE HANDLING
+#if defined(PARTICLES)
+USE MOD_Part_BR_Elecron_Fluid ,ONLY: UpdateNonlinVolumeFac
+#endif /*defined(PARTICLES)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -166,6 +148,7 @@ END IF
 
 HDGNonLinSolver = -1 ! init
 
+#if defined(PARTICLES)
 ! BR electron fluid model
 IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
   HDGNonLinSolver=GETINT('HDGNonLinSolver')
@@ -180,7 +163,8 @@ IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so fa
     IF (DoRestart) NewtonAdaptStartValue=.FALSE.
     ALLOCATE(NonlinVolumeFac(nGP_vol,PP_nElems))
 
-    ! Set NonlinVolumeFac for each element. Set zero if
+    ! Set NonlinVolumeFac = RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0) for each element.
+    ! Set zero if
     !  a) NewtonAdaptStartValue is activated
     !  b) fully kinetic currently active and variable electron temperature activated (skips calculation when starting from
     !     a simulation that was fully kinetic and will be switched)
@@ -191,6 +175,7 @@ IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so fa
   MaxIterNewton = GETINT('MaxIterNewton')
   EpsNonLinear  = GETREAL('EpsNonLinear')
 END IF
+#endif /*defined(PARTICLES)*/
 
 !CG parameters
 PrecondType          = GETINT('PrecondType')
@@ -352,38 +337,6 @@ END SUBROUTINE InitHDG
 
 
 !===================================================================================================================================
-! Set NonlinVolumeFac for each element depending on
-!===================================================================================================================================
-SUBROUTINE UpdateNonlinVolumeFac(NullifyField)
-! MODULES
-USE MOD_PreProc
-USE MOD_HDG_Vars     ,ONLY: NonlinVolumeFac,RegionElectronRef,ElemToBRRegion
-USE MOD_Globals_Vars ,ONLY: eps0
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES
-LOGICAL,INTENT(IN)      :: NullifyField ! Set NonlinVolumeFac = 0 if this variable is true
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER           :: i,j,k,r,iElem,RegionID
-!===================================================================================================================================
-IF(NullifyField) THEN
-  NonlinVolumeFac = 0.
-ELSE
-  DO iElem=1,PP_nElems
-    RegionID=ElemToBRRegion(iElem)
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-      NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
-    END DO; END DO; END DO !i,j,k
-  END DO !iElem
-END IF ! NewtonAdaptStartValue
-
-END SUBROUTINE UpdateNonlinVolumeFac
-
-
-!===================================================================================================================================
 !> Check if any Dirichlet BCs are present (globally, not only on the local processor).
 !> If there are none, an arbitrary potential is set at one of the boundaries to ensure
 !> convergence of the HDG solver. This is required for setups where fully periodic and/or Neumann boundaries are solely used.
@@ -397,7 +350,6 @@ USE MOD_HDG_Vars    ,ONLY: ZeroPotentialSideID,HDGZeroPotentialDir
 USE MOD_Mesh        ,ONLY: GetMeshMinMaxBoundaries
 USE MOD_Mesh_Vars   ,ONLY: nBCs,BoundaryType,nSides,BC,xyzMinMax,NGeo,Face_xGP
 USE MOD_ReadInTools ,ONLY: PrintOption,GETINT
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -503,9 +455,10 @@ END IF ! ZeroPotentialSideID.EQ.0
 END SUBROUTINE InitZeroPotential
 
 
+!===================================================================================================================================
+!> HDG solver for linear or non-linear systems
+!===================================================================================================================================
 SUBROUTINE HDG(t,U_out,iter,ForceCGSolverIteration_opt)
-!===================================================================================================================================
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -513,7 +466,6 @@ USE MOD_HDG_Vars
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars, ONLY: iStage
 #endif
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -567,10 +519,10 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 END SUBROUTINE HDG
 
 
+!===================================================================================================================================
+!> Linear HDG solver
+!===================================================================================================================================
 SUBROUTINE HDGLinear(time,U_out)
-!===================================================================================================================================
-! Linear HDG solver
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -593,7 +545,6 @@ USE MOD_Equation_Vars          ,ONLY: B, E
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -828,10 +779,10 @@ CALL LBPauseTime(LB_DG,tLBStart)
 END SUBROUTINE HDGLinear
 
 
+!===================================================================================================================================
+!> HDG non-linear solver via Newton's method
+!===================================================================================================================================
 SUBROUTINE HDGNewton(time,U_out,td_iter,ForceCGSolverIteration_opt)
-!===================================================================================================================================
-! HDG non-linear solver via Newton's method
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -857,7 +808,6 @@ USE MOD_Equation_Vars          ,ONLY: E
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_HDG_Vars               ,ONLY: ElemToBRRegion,RegionElectronRef
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1183,26 +1133,26 @@ CALL LBPauseTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 END SUBROUTINE HDGNewton
 
-SUBROUTINE CheckNonLinRes(RHS,lambda, converged,Norm_R2)
+
 !===================================================================================================================================
-!
+!> Determine the residual of the HDG solution
 !===================================================================================================================================
+SUBROUTINE CheckNonLinRes(RHS,lambda,converged,Norm_R2)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_HDG_Vars           ,ONLY: nGP_face
 USE MOD_HDG_Vars           ,ONLY: EpsNonLinear
 USE MOD_Mesh_Vars          ,ONLY: nSides,nMPISides_YOUR
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL, INTENT(IN)    :: RHS(nGP_face*nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(INOUT) :: lambda(nGP_face*nSides)
+REAL, INTENT(INOUT)    :: lambda(nGP_face*nSides)
 LOGICAL, INTENT(INOUT) :: converged
-REAL, INTENT(OUT) :: Norm_r2
+REAL, INTENT(OUT)      :: Norm_r2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(nGP_face*nSides) :: R
@@ -1226,10 +1176,11 @@ INTEGER                         :: VecSize
 #endif /*USE_MPI*/
 END SUBROUTINE CheckNonLinRes
 
+
+!===================================================================================================================================
+!> Continuous Gradient solver
+!===================================================================================================================================
 SUBROUTINE CG_solver(RHS,lambda,iVar)
-!===================================================================================================================================
-!
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -1240,7 +1191,6 @@ USE MOD_Mesh_Vars         ,ONLY: nSides,nMPISides_YOUR
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1381,12 +1331,11 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE CG_solver
 
 
+!===================================================================================================================================
+!> Set the global convergence properties of the HDG (CG) Solver and print then to StdOut)
+!===================================================================================================================================
 SUBROUTINE DisplayConvergence(ElapsedTime, iteration, Norm_R2)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Set the global convergence properties of the HDG (CG) Solver and print then to StdOut)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES
 USE MOD_HDG_Vars      ,ONLY: HDGDisplayConvergence,HDGNorm,RunTime,RunTimePerIteration
 USE MOD_Globals       ,ONLY: UNIT_StdOut
 USE MOD_TimeDisc_Vars ,ONLY: iter,IterDisplayStep
@@ -1418,15 +1367,14 @@ END IF
 END SUBROUTINE DisplayConvergence
 
 
+!===================================================================================================================================
+!>
+!===================================================================================================================================
 SUBROUTINE EvalResidual(RHS,lambda,R,iVar)
-!===================================================================================================================================
-!
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC,ZeroPotentialSideID,ZeroPotentialValue
 USE MOD_Mesh_Vars          ,ONLY: nSides
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1454,9 +1402,9 @@ IF (iVar.EQ.4) THEN
 #endif
 
   ! Dirichlet BCs
-DO BCsideID=1,nDirichletBCSides
-  R(:,DirichletBC(BCsideID))=0.
-END DO ! SideID=1,nSides
+  DO BCsideID=1,nDirichletBCSides
+    R(:,DirichletBC(BCsideID))=0.
+  END DO ! SideID=1,nSides
 
   ! Set potential to zero
   IF(ZeroPotentialSideID.GT.0) R(:,ZeroPotentialSideID)= ZeroPotentialValue
@@ -1469,7 +1417,6 @@ END IF
 END SUBROUTINE EvalResidual
 
 
-SUBROUTINE MatVec(lambda, mv, iVar)
 !===================================================================================================================================
 !> Performs matrix-vector multiplication for lambda system
 !>   Parallel Mortar concept:
@@ -1479,6 +1426,7 @@ SUBROUTINE MatVec(lambda, mv, iVar)
 !>   4) call mask_MPIsides: send  mv contribution from slave MPI sides to master MPI sides and add to master MPI sides
 !>   5) MORTAR, SmallToBig: add contribution of finalized small mortar sides to big mortar, via Transpose of interpolation operator
 !===================================================================================================================================
+SUBROUTINE MatVec(lambda, mv, iVar)
 ! MODULES
 USE MOD_Globals
 USE MOD_HDG_Vars          ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC,ZeroPotentialSideID,ZeroPotentialValue
@@ -1492,7 +1440,6 @@ USE MOD_HDG_Vars          ,ONLY: Mask_MPIsides
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1644,17 +1591,16 @@ dummy=iVar
 END SUBROUTINE MatVec
 
 
+!===================================================================================================================================
+!> Computes Dot Product for vectors a and b: resu=a.b
+!===================================================================================================================================
 SUBROUTINE VectorDotProduct(dim1,A,B,Resu)
-!===================================================================================================================================
-! Computes Dot Product for vectors a and b: resu=a.b
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1694,18 +1640,16 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 END SUBROUTINE VectorDotProduct
 
 
-
+!===================================================================================================================================
+!> Apply the block-diagonal preconditioner for the lambda system
+!===================================================================================================================================
 SUBROUTINE ApplyPrecond(R, V)
-!===================================================================================================================================
-! Apply the block-diagonal preconditioner for the lambda system
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_HDG_Vars  ,ONLY: nGP_face, Precond, PrecondType,InvPrecondDiag
 USE MOD_HDG_Vars  ,ONLY: MaskedSide
 USE MOD_Mesh_Vars ,ONLY: nSides
 USE MOD_Mesh_Vars ,ONLY: nMPIsides_YOUR
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1748,13 +1692,11 @@ END SUBROUTINE ApplyPrecond
 
 
 
+!===================================================================================================================================
+!> Solve a symmetrical positive definite linear system of dimension dims
+!===================================================================================================================================
 SUBROUTINE solveSPD(dimA,A,nRHS,RHS, X)
-!===================================================================================================================================
-! Solve a symmetrical positive definite linear system of dimension dims
-!===================================================================================================================================
 ! MODULES
-
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1770,10 +1712,7 @@ REAL,INTENT(INOUT):: X(dimA,nRHS)
 INTEGER           :: lapack_info
 !===================================================================================================================================
 X = RHS
-
 CALL DPOTRS('U',dimA,nRHS,A,dimA,X,dimA,lapack_info)
-
-
 !IF (lapack_info .NE. 0) THEN
 !  STOP 'LAPACK ERROR IN SOLVE CHOLESKY!'
 !END IF
@@ -1781,9 +1720,10 @@ END SUBROUTINE solveSPD
 
 
 
+!===================================================================================================================================
+!> During restart, recalculate the gradient of the HDG solution
+!===================================================================================================================================
 SUBROUTINE RestartHDG(U_out)
-!===================================================================================================================================
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -1800,7 +1740,6 @@ USE MOD_Equation_Vars ,ONLY: B
 #else
 USE MOD_Equation_Vars ,ONLY: B, E
 #endif
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
@@ -1839,12 +1778,12 @@ END SUBROUTINE RestartHDG
 #endif /*USE_HDG*/
 
 
+!===================================================================================================================================
+!> Finalizes variables necessary for HDG subroutines
+!===================================================================================================================================
 SUBROUTINE FinalizeHDG()
-!===================================================================================================================================
-! Finalizes variables necessary for hdg subroutines
-!===================================================================================================================================
+! MODULES
 USE MOD_HDG_Vars
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES

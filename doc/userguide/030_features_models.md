@@ -195,8 +195,8 @@ For each boundary of type *5* (reference state boundary *RefState*), e.g., by se
     BoundaryName = BC_WALL ! BC name in the mesh.h5 file
     BoundaryType = (/5,1/) ! (/ Type, curveIndex, State, alpha /)
 
-the corresponding *RefState* number must also be supplied in the parameter.ini file (here 1) and is selected from its position 
-in the parameter file. 
+the corresponding *RefState* number must also be supplied in the parameter.ini file (here 1) and is selected from its position
+in the parameter file.
 Each *RefState* is defined in the *parameter.ini* file by supplying a value for the voltage an alternating frequency for the cosine
 function (a frequency of 0 results in a fixed potential over time) and phase shift
 
@@ -221,7 +221,7 @@ selected and on those boundaries an additional Dirichlet boundary condition with
 HDG solver. The boundary conditions selected by the user are only altered at these locations and not removed.
 The information regarding the direction that is selected for this purpose is printed to std.out with the following line
 
-     |      Zero potential side activated in direction (1: x, 2: y, 3: z) |        1 |  OUTPUT | 
+     |      Zero potential side activated in direction (1: x, 2: y, 3: z) |        1 |  OUTPUT |
 
 To selected the direction by hand, simply supply the desired direction via
 
@@ -358,7 +358,7 @@ Between these two points the temperature will be interpolated, where the start v
 
 #### Radiative equilibrium
 
-Another option is to adapt the wall temperature based on the heat flux assuming that the wall is in radiative equilibrium. The temperature is then calculated from 
+Another option is to adapt the wall temperature based on the heat flux assuming that the wall is in radiative equilibrium. The temperature is then calculated from
 
 $$ q_w = \varepsilon \sigma T_w^4,$$
 
@@ -509,6 +509,13 @@ Regardless whether a standalone PIC, DSMC, or a coupled simulation is performed,
     Part-Species1-MacroParticleFactor=5E2
 
 Species that are not part of the initialization or emission but might occur as a result of e.g. chemical reactions should also be defined with these parameters.
+
+Due to the often repetitive definitions, the default value for a given parameter can be set using the wildcard `$`. Different values for individual parameters can be specified by explicitly specifying the numbered parameter, irrespective of the ordering in the parameter file.
+
+    Part-Species1-Init1-VeloIC = 1.
+    Part-Species$-Init$-VeloIC = 2.
+
+Due to runtime considerations, the evaluation of the wildcard character is performed from left to right. Thus, a parameter like `Part-Species1-Init$-VeloIC` will not work.
 
 Different velocity distributions are available for the initialization/emission of particles.
 
@@ -690,9 +697,12 @@ An overview over the available types is given below.
 Depending of the type of the chosen boundary type either the mass flow [kg/s] or the static pressure [Pa] have to be given
 
     Part-Species1-Surfaceflux1-Adaptive-Massflow=1.00E-14
+    ! or
     Part-Species1-Surfaceflux1-Adaptive-Pressure=10
 
-The adaptive boundaries require the sampling of macroscopic properties such as flow velocity at the boundary. To compensate for the statistical fluctuations, three possible sampling approaches are available. The first approach uses a relaxation factor $f_{\mathrm{relax}}$, where the current value of the sampled variable $v^{n}$ is updated according to
+The temperature and velocity vector are defined by the regular surface flux parameters as described in the beginning of Section \ref{sec:particle_surface_flux}. The velocity provided is utilized as the initial value for the determination of particles to be inserted, where a very low velocity results in a high number of particles for a given massflow. In the subsequent iterations, the sampled velocity in the adjacent cells is utilized.
+
+The adaptive boundaries require the sampling of macroscopic properties such as the flow velocity at the boundary. To compensate for the statistical fluctuations, three possible sampling approaches are available. The first approach uses a relaxation factor $f_{\mathrm{relax}}$, where the current value of the sampled variable $v^{n}$ is updated according to
 
 $$v^{n}= (1-f_{\mathrm{relax}})\,v^{n-1} + f_{\mathrm{relax}} v^{\mathrm{samp}} $$
 
@@ -700,12 +710,16 @@ The relaxation factor $f_{\mathrm{relax}}$ is defined by
 
     AdaptiveBC-RelaxationFactor = 0.001
 
-The second and third approach allows to sample over a certain number of iterations. If the truncated running average option is enabled, the macroscopic properties will be continuously updated while the oldest sample will be replaced with the most recent. If the truncated running average option is disabled, the macroscopic properties will be only updated every given number of iterations, and the complete sample will be resetted afterwads. If a number of iterations is given, it will be used instead of the first approach with the relaxation factor.
+The second and third approach allows to sample over a certain number of iterations. If the truncated running average option is enabled (per default), the macroscopic properties will be continuously updated while the oldest sample will be replaced with the most recent. If the truncated running average option is disabled, the macroscopic properties will be only updated every given number of iterations, and the complete sample will be resetted afterwads. If a number of iterations is given, it will be used instead of the first approach with the relaxation factor.
 
     AdaptiveBC-SamplingIteration      = 100
-    AdaptiveBC-TruncateRunningAverage = T       ! DEFAULT: F
+    AdaptiveBC-TruncateRunningAverage = T       ! DEFAULT: T
 
-The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to over predict the given mass flow, when the emission area is very small and large sample size would be required to have enough particles that leave the domain through the emission area. For the `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted and the mass flow adapted accordingly, thus the correct mass flow can be reproduced.
+The adaptive particle emission can be combined with the circular inflow feature. In this context when the area of the actual emission circle/ring is very small, it is preferable to utilize the `Type=4` constant mass flow condition. `Type=3` assumes an open boundary and accounts for particles leaving the domain through that boundary already when determining the number of particles to be inserted. As a result, this method tends to over predict the given mass flow, when the emission area is very small and large sample size would be required to have enough particles that leave the domain through the emission area. For the `Type=4` method, the actual number of particles leaving the domain through the circular inflow is counted and the mass flow adapted accordingly, thus the correct mass flow can be reproduced. However, as `Type=4` relies on the counter during the previous time step, the mass flow will not be correct during the first iteration of a simulation.
+
+In order to utilize averaged macroscopic values for the whole boundary (instead of cell-local sampled values), the following option can be enabled:
+
+    AdaptiveBC-AverageValuesOverBC = T      ! DEFAULT: F
 
 Additionally, the `Type=4` method can be utilized in combination with a reflective boundary condition to model diffusion and leakage (e.g. in vacuum tanks) based on a diffusion rate $Q$ [Pa m$^3$ s$^{-1}$]. The input mass flow [kg s$^{-1}$] for the simulation is then determined by
 
@@ -718,6 +732,10 @@ To verify the resulting mass flow rate of an adaptive surface flux, the followin
     CalcAdaptiveBCInfo = T
 
 This will output a species-specific mass flow rate [kg s$^{-1}$] and the average pressure in the adjacent cells [Pa] for each surface flux condition in the `PartAnalyze.csv`, which gives the current values for the time step. For the former, positive values correspond to a net mass flux into the domain and negative values vice versa. It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
+
+The sampled macroscopic values such as number density and velocity are stored in each `_State_` file and can be converted with the `piclas2vtk` tool to the VTK format for visualization. For this purpose, the conversion has to be enabled by
+
+    VisuAdaptiveInfo = T
 
 #### Missing descriptions
 
@@ -777,7 +795,7 @@ The direct influence of only the neibouring elements can be extended further by 
 
     PIC-shapefunction-adaptive-smoothing = T
 
-which increases the radius of influence and therefore takes more elements into account for the calculation of the shape function 
+which increases the radius of influence and therefore takes more elements into account for the calculation of the shape function
 radius in each element, hence, leading to a smoother transition in regions, where the element sizes rapidly change.
 
 This shape function method also is numerically charge conserving by integrating each particle's deposited charge and

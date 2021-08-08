@@ -82,7 +82,7 @@ iter_macsurfvalout=0
 IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) MacroValSampTime = Time
 #endif /*PARTICLES*/
 iAnalyze=1
-! Determine analyze Time
+! Determine the first analyze time
 tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd)
 
 ! fill initial analyze stuff
@@ -284,12 +284,10 @@ USE MOD_HDG_Vars              ,ONLY: BRTimeStepMultiplier,UseBRElectronFluid,BRT
 USE MOD_Part_BR_Elecron_Fluid ,ONLY: GetNextBRSwitchTime
 #endif /*defined(PARTICLES) && USE_HDG*/
 #if USE_LOADBALANCE
-USE MOD_TimeDisc_Vars         ,ONLY: Time,TEnd,dt,dt_Min,tAnalyze
+USE MOD_TimeDisc_Vars         ,ONLY: dt,dt_Min
 USE MOD_LoadBalance_Vars      ,ONLY: IAR_DoLoadBalance,IAR_LoadBalanceSample,DoLoadBalance
 USE MOD_LoadBalance_Vars      ,ONLY: LoadBalanceSample
 USE MOD_Restart_Vars          ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample,IAR_PerformPartWeightLB
-USE MOD_Restart_Vars          ,ONLY: RestartTime
-USE MOD_Analyze_Vars          ,ONLY: Analyze_dt,iAnalyze
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -330,7 +328,6 @@ IF(UseBRElectronFluid) dt_Min(DT_MIN) = BRTimeStepMultiplier*dt_Min(DT_MIN)
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_StdOut,'(A,ES16.7)')'Initial Timestep  : ', dt_Min(DT_MIN)
 ! using sub-cycling requires an addional time step
-SWRITE(UNIT_StdOut,*)'CALCULATION RUNNING...'
 
 ! --- Adjustments for first analysis step and/or initial auto restart
 dt=MINVAL(dt_Min) ! quick fix: set dt for initial write DSMCHOState (WriteMacroVolumeValues=T)
@@ -345,11 +342,11 @@ IF (DoInitialAutoRestart) THEN
   ! LoadBalanceSample still needs to be zero
   IF (IAR_PerformPartWeightLB) InitialAutoRestartSample=1
   ! Correction for first analysis time due to auto initial restart
-  IF (MIN( RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt ).LT.tAnalyze) THEN
-    tAnalyze           = MIN(RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt )
-    dt_Min(DT_ANALYZE) = tAnalyze-Time
-    dt                 = MINVAL(dt_Min)
-  END IF
+  !IF (MIN( RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt ).LT.tAnalyze) THEN
+  !  tAnalyze           = MIN(RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt )
+  !  dt_Min(DT_ANALYZE) = tAnalyze-Time
+  !  dt                 = MINVAL(dt_Min)
+  !END IF
 END IF
 #endif /*USE_LOADBALANCE*/
 END SUBROUTINE InitTimeStep

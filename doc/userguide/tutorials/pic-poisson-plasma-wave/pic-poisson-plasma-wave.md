@@ -366,6 +366,26 @@ After a successful completion, the last lines in this file should look as shown 
     PICLAS FINISHED! [           60.42 sec ] [     0:00:01:00]
     ============================================================================================
 
+The temporal and spatial resolution of the setup can be controlled via the parameters that are summarized in Table \ref{tab:pic_poisson_plasma_wave_resolution}.
+Note that the time integration method also has a strong impact and dictates the required time step size. Other time discretization
+methods that can be used for this example are, e.g., `PICLAS_TIMEDISCMETHOD = Leapfrog` or `PICLAS_TIMEDISCMETHOD = RK4`. Simply
+recompile the executable with a different time discretization method at see the effect on the time step size. The number of
+particles for each species as well as the abort residual for the HDG solver and the number of elements also have an enormous impact
+on the quality of the solution (and the required computational time to solve the system).
+
+Table: Numerical resolution parameters \label{tab:pic_poisson_plasma_wave_resolution}
+
+|        Property       |   Symbol   |               Parameter Name              |   Parameter File  |
+| --------------------- |    :---:   |    :---------------------------------:    | :---------------: |
+|     Time step size    | $\Delta t$ |              `ManualTimeStep`             |   parameter.ini   |
+|   Polynomial degree   |     $N$    |                    `N`                    |   parameter.ini   |
+|  Number of particles  | $N_{part}$ |    `Part-Species1-Init1-ParticleNumber`   |   parameter.ini   |
+|                       |            | `Part-Species1-Init1-maxParticleNumber-x` |   parameter.ini   |
+|                       |            |    `Part-Species2-Init1-ParticleNumber`   |   parameter.ini   |
+|                       |            | `Part-Species2-Init1-maxParticleNumber-x` |   parameter.ini   |
+|   HDG abort residual  | $\epsilon$ |                  `epsCG`                  |   parameter.ini   |
+|   Number of elements  | $N_{elem}$ |                  `nElems`                 |      hopr.ini     |
+
 ### Visualization (post-processing)
 
 To visualize the solution, the *State*-files must be converted into a format suitable for **ParaView**, **VisIt** or any other

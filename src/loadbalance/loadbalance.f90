@@ -49,7 +49,7 @@ CALL prms%SetSection("LoadBalance")
 
 #if USE_LOADBALANCE
 CALL prms%CreateLogicalOption('DoLoadBalance'           , 'Set flag for doing dynamic LoadBalance.', '.FALSE.')
-CALL prms%CreateIntOption(    'LoadBalanceSample'       , 'Define number of iterations (before analyze_dt)'//&
+CALL prms%CreateIntOption(    'LoadBalanceSample'       , 'Define number of iterations (before Analyze_dt)'//&
                                                           ' that are used for calculation of elemtime information', value='1')
 CALL prms%CreateIntOption(    'LoadBalanceMaxSteps'     , 'Define number of maximum load balacing steps'//&
                                                           ' that are allowed.', value='1')
@@ -417,7 +417,7 @@ IF( NewImbalance.GT.CurrentImbalance ) THEN
 ELSE
   SWRITE(UNIT_stdOut,'(A)') ' LoadBalance successful! Determined new (theoretical) imbalance from elem distribution'
 END IF
-SWRITE(UNIT_stdOut,'(A,ES9.3,A,ES9.3,A,ES9.3,A,ES9.3)')&
+SWRITE(UNIT_stdOut,'(A,ES10.3,A,ES10.3,A,ES10.3,A,ES10.3)')&
   ' MinWeight: ', MinWeight, '    MaxWeight: ', MaxWeight, '    OldImbalance: ', CurrentImbalance,'    NewImbalance: ', NewImbalance
 
 #ifdef PARTICLES
@@ -536,7 +536,7 @@ ELSE
   ELSE
     CurrentImbalance =  (MaxWeight-TargetWeight)/TargetWeight
   END IF
-  SWRITE(UNIT_stdOut,'(A,ES9.3,A,ES9.3,A,ES9.3,A,ES9.3,A,ES8.2,A)')&
+  SWRITE(UNIT_stdOut,'(A,ES10.3,A,ES10.3,A,ES10.3,A,ES10.3,A,ES8.2,A)')&
       ' MinWeight: ', MinWeight, '    MaxWeight: ', MaxWeight, '    TargetWeight: ', TargetWeight,'    CurrentImbalance: ',&
         CurrentImbalance, '    (Threshold: ', DeviationThreshold, ')'
 END IF

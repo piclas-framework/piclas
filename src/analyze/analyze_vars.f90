@@ -23,7 +23,12 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL              :: Analyze_dt                  !< time difference to trigger analyze output
-INTEGER(KIND=8)   :: iAnalyze                    !> count number of next analyze
+INTEGER(KIND=8)   :: nSkipAnalyze                !< Skip Analyze_dt
+REAL              :: SkipAnalyzeWindow           !< Reoccurring time frame when switching between nSkipAnalyze and SkipAnalyzeWindow
+REAL              :: SkipAnalyzeSwitchTime       !< Time within the reoccurring time frame, when using nSkipAnalyzeSwitch instead of
+                                                 !< nSkipAnalyze
+INTEGER(KIND=8)   :: nSkipAnalyzeSwitch          !< Skip Analyze_dt with a different values as nSkipAnalyze
+INTEGER(KIND=8)   :: iAnalyze                    !< count number of next analyze
 REAL              :: OutputTimeFixed             !< fixed time for writing state to .h5
 LOGICAL           :: CalcMeshInfo                !< Output myrank, ElemID and tracking info to ElemData
 LOGICAL           :: CalcHaloInfo                !< Output halo element information to ElemData

@@ -37,10 +37,10 @@ INTEGER                     :: nUniqueNodes
 ! Mapping of nodes and surface sides, required for connectivity of elements
 !----------------------------------------------------------------------------------------------------------------------------------
 TYPE tSurfaceConnect
-  INTEGER                         :: nSurfaceNode                 ! Number of Nodes on Surface (reflective)
-  INTEGER                         :: nSurfaceBCSides              ! Number of Sides on Surface (reflective)
+  INTEGER                         :: nSurfaceNode                 !< Number of Nodes on Surface (reflective)
+  INTEGER                         :: nSurfaceBCSides              !< Number of Sides on Surface (reflective)
   REAL, ALLOCATABLE               :: NodeCoords(:,:)
-  INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)         ! Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceBCSides)
+  INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)         !< Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceBCSides)
 END TYPE
 
 TYPE (tSurfaceConnect)               :: SurfConnect
@@ -85,6 +85,7 @@ CHARACTER(LEN=2)               :: NVisuString                       ! String con
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
 LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists, VisuParticles, PartDataExists
 LOGICAL                        :: BGFieldExists
+LOGICAL                        :: VisuAdaptiveInfo, AdaptiveInfoExists
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
 #ifdef PARTICLES
 INTEGER                        :: iElem, iNode
@@ -101,6 +102,7 @@ CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization bas
                                              "VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO", 'VISU')
 CALL prms%CreateIntOption(    'NVisu',       "Number of points at which solution is sampled for visualization.")
 CALL prms%CreateLogicalOption('VisuParticles',  "Visualize particles (velocity, species, internal energy).", '.FALSE.')
+CALL prms%CreateLogicalOption('VisuAdaptiveInfo', "Visualize the sampled values utilized for the adaptive surface flux and porous BC (velocity, density, pumping speed)", '.FALSE.')
 CALL prms%CreateIntOption(    'TimeStampLength', 'Length of the floating number time stamp', '21')
 CALL prms%CreateLogicalOption( 'meshCheckWeirdElements'&
   , 'Abort when weird elements are found: it means that part of the element is turned inside-out. ','.TRUE.')
@@ -205,6 +207,7 @@ END IF
 ! If no parameter file has been set, the standard values will be used
 NodeTypeVisuOut  = GETSTR('NodeTypeVisu','VISU')    ! Node type of visualization basis
 VisuParticles    = GETLOGICAL('VisuParticles','.FALSE.')
+VisuAdaptiveInfo    = GETLOGICAL('VisuAdaptiveInfo','.FALSE.')
 ! Initialization of I/O routines
 CALL InitIOHDF5()
 ! Get length of the floating number time stamp
@@ -251,10 +254,15 @@ DO iArgs = iArgsStart,nArgs
 
   ! Open .h5 file
   DGSolutionExists = .FALSE.; ElemDataExists = .FALSE.; SurfaceDataExists = .FALSE.; PartDataExists = .FALSE.
+  AdaptiveInfoExists = .FALSE.
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  ! Get the type of the .h5 file
+  CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
   ! Check which containers are present
   CALL DatasetExists(File_ID,'DG_Solution',DGSolutionExists)
+  IF(TRIM(File_Type).EQ.'PartStateBoundary') DGSolutionExists = .FALSE.
   CALL DatasetExists(File_ID,'ElemData',ElemDataExists)
+  CALL DatasetExists(File_ID,'AdaptiveInfo',AdaptiveInfoExists)
   CALL DatasetExists(File_ID,'SurfaceData',SurfaceDataExists)
   CALL DatasetExists(File_ID,'PartData',PartDataExists)
   CALL DatasetExists(File_ID,'BGField',BGFieldExists) ! deprecated, but allow for backward compatibility
@@ -266,7 +274,6 @@ DO iArgs = iArgsStart,nArgs
   END IF ! BGFieldExists
   ! Get the name of the mesh file
   CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
-  CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
   CALL CloseDataFile()
 
   ! Read-in of the mesh
@@ -323,7 +330,7 @@ DO iArgs = iArgsStart,nArgs
   END IF
   ! === ElemData ===================================================================================================================
   IF(ElemDataExists) THEN
-    CALL ConvertElemData(InputStateFile)
+    CALL ConvertElemData(InputStateFile,'ElemData','VarNamesAdd')
   END IF
   ! === SurfaceData ================================================================================================================
   IF(SurfaceDataExists) THEN
@@ -333,6 +340,12 @@ DO iArgs = iArgsStart,nArgs
   IF(VisuParticles) THEN
     IF(PartDataExists) THEN
       CALL ConvertPartData(InputStateFile)
+    END IF
+  END IF
+  ! === AdaptiveInfo
+  IF(VisuAdaptiveInfo) THEN
+    IF(AdaptiveInfoExists) THEN
+      CALL ConvertElemData(InputStateFile,'AdaptiveInfo','VarNamesAdaptive')
     END IF
   END IF
 END DO ! iArgs = 2, nArgs
@@ -352,20 +365,21 @@ SWRITE(UNIT_stdOut,'(132("="))')
 
 END PROGRAM piclas2vtk
 
+
+!===================================================================================================================================
+!> Subroutine to write 3D point data to VTK format
+!===================================================================================================================================
 SUBROUTINE WriteDataToVTK_PICLas(data_size,FileString,nVar,VarNameVisu,nNodes,Coords,nElems,Value,ConnectInfo)
-!===================================================================================================================================
-! Subroutine to write 3D point data to VTK format
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)            :: nVar,nElems,nNodes,data_size                                 ! Number of nodal output variables
+INTEGER,INTENT(IN)            :: nVar,nElems,nNodes,data_size           !> Number of nodal output variables
 REAL,INTENT(IN)               :: Coords(1:3,nNodes), Value(nVar,nElems)
-CHARACTER(LEN=*),INTENT(IN)   :: FileString, VarNameVisu(nVar)   ! Output file name
-INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nElems)      ! Statevector
+CHARACTER(LEN=*),INTENT(IN)   :: FileString, VarNameVisu(nVar)          !> Output file name
+INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nElems)          !> Statevector
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -539,10 +553,11 @@ SDEALLOCATE(VarNameCombineLen)
 
 END SUBROUTINE WriteDataToVTK_PICLas
 
-SUBROUTINE ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,OutputName,DGSolutionDataset)
+
 !===================================================================================================================================
 !> Convert the output of the field solver to a VTK output format
 !===================================================================================================================================
+SUBROUTINE ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,OutputName,DGSolutionDataset)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: ProjectName
@@ -568,14 +583,14 @@ INTEGER                         :: iElem, iDG, nVar_State, N_State, nElems_State
 CHARACTER(LEN=255)              :: MeshFile, NodeType_State, FileString_DG, StrVarNamesTemp(4)
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:), StrVarNamesTemp2(:)
 REAL                            :: OutputTime
-REAL,ALLOCATABLE                :: U(:,:,:,:,:)                      ! Solution from state file
-REAL,ALLOCATABLE,TARGET         :: U_Visu(:,:,:,:,:)                 ! Solution on visualization nodes
-REAL,POINTER                    :: U_Visu_p(:,:,:,:,:)               ! Solution on visualization nodes
-REAL,ALLOCATABLE                :: Coords_NVisu(:,:,:,:,:)           ! Coordinates of visualization nodes
+REAL,ALLOCATABLE                :: U(:,:,:,:,:)                      !< Solution from state file
+REAL,ALLOCATABLE,TARGET         :: U_Visu(:,:,:,:,:)                 !< Solution on visualization nodes
+REAL,POINTER                    :: U_Visu_p(:,:,:,:,:)               !< Solution on visualization nodes
+REAL,ALLOCATABLE                :: Coords_NVisu(:,:,:,:,:)           !< Coordinates of visualization nodes
 REAL,ALLOCATABLE,TARGET         :: Coords_DG(:,:,:,:,:)
 REAL,POINTER                    :: Coords_DG_p(:,:,:,:,:)
-REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             ! Vandermonde from equidistant mesh to visualization nodes
-REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  ! Vandermonde from state to visualization nodes
+REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             !< Vandermonde from equidistant mesh to visualization nodes
+REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  !< Vandermonde from state to visualization nodes
 LOGICAL                         :: DGSourceExists
 !===================================================================================================================================
 ! 1.) Open given file to get the number of elements, the order and the name of the mesh file
@@ -675,10 +690,10 @@ CALL WriteDataToVTK(nVar_State,NVisu,iDG,StrVarNames,Coords_DG_p,U_Visu_p,TRIM(F
 END SUBROUTINE ConvertDGSolution
 
 
-SUBROUTINE ConvertPartData(InputStateFile)
 !===================================================================================================================================
 !> Convert particle data (output of each particle) to the VTK format
 !===================================================================================================================================
+SUBROUTINE ConvertPartData(InputStateFile)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars ,ONLY: ProjectName
@@ -782,7 +797,7 @@ CALL CloseDataFile()
 END SUBROUTINE ConvertPartData
 
 
-SUBROUTINE ConvertElemData(InputStateFile)
+SUBROUTINE ConvertElemData(InputStateFile,ArrayName,VarName)
 !===================================================================================================================================
 !> Convert element/volume data (single value per cell, e.g. DSMC/BGK results) to a VTK format
 !===================================================================================================================================
@@ -798,6 +813,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
+CHARACTER(LEN=*),INTENT(IN)     :: ArrayName
+CHARACTER(LEN=*),INTENT(IN)     :: VarName
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -814,13 +831,13 @@ CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,c
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
-CALL GetDataSize(File_ID,'ElemData',nDims,HSize)
+CALL GetDataSize(File_ID,TRIM(ArrayName),nDims,HSize)
 nVarAdd=INT(HSize(1),4)
 DEALLOCATE(HSize)
 
 IF (nVarAdd.GT.0) THEN
   ALLOCATE(VarNamesAdd(1:nVarAdd))
-  CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd,StrArray=VarNamesAdd(1:nVarAdd))
+  CALL ReadAttribute(File_ID,TRIM(VarName),nVarAdd,StrArray=VarNamesAdd(1:nVarAdd))
   ALLOCATE(ElemData(1:nVarAdd,1:nElems))
 
   ! Associate construct for integer KIND=8 possibility
@@ -828,11 +845,11 @@ IF (nVarAdd.GT.0) THEN
         nVarAdd => INT(nVarAdd,IK) ,&
         offsetElem => INT(offsetElem,IK),&
         nElems     => INT(nElems,IK)    )
-    CALL ReadArray('ElemData',2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData(1:nVarAdd,1:nElems))
+    CALL ReadArray(TRIM(ArrayName),2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData(1:nVarAdd,1:nElems))
   END ASSOCIATE
   SELECT CASE(TRIM(File_Type))
     CASE('State')
-      FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution_ElemData',OutputTime))//'.vtu'
+      FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution_'//TRIM(ArrayName),OutputTime))//'.vtu'
     CASE('DSMCState','DSMCHOState')
       FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuDSMC',OutputTime))//'.vtu'
   END SELECT
@@ -849,10 +866,10 @@ CALL CloseDataFile()
 END SUBROUTINE ConvertElemData
 
 
-SUBROUTINE ConvertSurfaceData(InputStateFile)
 !===================================================================================================================================
 !> Convert surface results to a VTK format
 !===================================================================================================================================
+SUBROUTINE ConvertSurfaceData(InputStateFile)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars    ,ONLY: ProjectName
@@ -933,10 +950,10 @@ CALL CloseDataFile()
 END SUBROUTINE ConvertSurfaceData
 
 
+!===================================================================================================================================
+!> Create connectivities for matching sides
+!===================================================================================================================================
 SUBROUTINE BuildSurfMeshConnectivity(InputStateFile)
-!===================================================================================================================================
-!
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_IO_HDF5            ,ONLY: HSize
