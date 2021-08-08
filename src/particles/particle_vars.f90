@@ -336,7 +336,10 @@ LOGICAL                                  :: WriteMacroSurfaceValues=.FALSE.   ! 
 INTEGER                                  :: MacroValSamplIterNum              ! Number of iterations for sampling
                                                                               ! macroscopic values
 
-INTEGER                                  :: vMPFNewPartNum
+INTEGER, ALLOCATABLE                     :: vMPFNewPartNum(:)                 ! Max particle number per cell and (iSpec)
+LOGICAL                                  :: UseParticleMerge                  ! Flag for particle merge
+REAL, ALLOCATABLE                        :: CellEelec_vMPF(:,:)
+REAL, ALLOCATABLE                        :: CellEvib_vMPF(:,:)
 REAL                                     :: MacroValSampTime                  ! Sampling time for WriteMacroVal. (e.g., for td201)
 LOGICAL                                  :: usevMPF                           ! use the vMPF per particle
 LOGICAL                                  :: enableParticleMerge               ! enables the particle merge routines

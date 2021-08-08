@@ -157,8 +157,9 @@ CALL prms%CreateLogicalOption(  'Part-vMPF'                      , 'TODO-DEFINE-
 CALL prms%CreateLogicalOption(  'Part-vMPFPartMerge'              , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Enable Particle Merge routines.'&
                                                               , '.FALSE.')
-CALL prms%CreateIntOption(      'Part-vMPFNewPartNum'         , 'Particle target value for merge routines.'&
-                                                              , '0')
+CALL prms%CreateIntOption(      'Part-Species[$]-vMPFNewPartNum'         , 'Particle target value for merge routines' //& 
+                                                               'per cell and species.'&
+                                                              , '0',numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-vMPFMergePolOrder'      , 'TODO-DEFINE-PARAMETER\n'//&
                                                                 'Polynomial degree for vMPF particle merge.'&
                                                               , '2')
@@ -599,6 +600,7 @@ IF (useDSMC) THEN
            PEM%pEnd(1:nElems)                           , &
            PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT)
            !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
+
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
 __STAMP__&
@@ -860,11 +862,23 @@ USE MOD_Part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: ALLOCSTAT
+INTEGER               :: ALLOCSTAT, iSpec
+CHARACTER(32)         :: hilf
 !===================================================================================================================================
 ! init varibale MPF per particle
 IF (usevMPF) THEN
-  vMPFNewPartNum = GETINT('Part-vMPFNewPartNum','0')
+  ALLOCATE(vMPFNewPartNum(nSpecies))
+  vMPFNewPartNum = 0
+  DO iSpec=1, nSpecies
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    vMPFNewPartNum(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-vMPFNewPartNum')
+  END DO
+  ALLOCATE(CellEelec_vMPF(nSpecies,nElems))
+  CellEelec_vMPF = 0.0
+  ALLOCATE(CellEvib_vMPF(nSpecies,nElems))
+  CellEvib_vMPF = 0.0
+  UseParticleMerge = .FALSE.
+  IF(ANY(vMPFNewPartNum.GT.0)) UseParticleMerge = .TRUE.
   enableParticleMerge = GETLOGICAL('Part-vMPFPartMerge','.FALSE.')
   IF (enableParticleMerge) THEN
     vMPFMergePolyOrder = GETINT('Part-vMPFMergePolOrder','2')
@@ -1332,7 +1346,9 @@ SDEALLOCATE(PDM%nextFreePosition)
 SDEALLOCATE(PDM%nextFreePosition)
 SDEALLOCATE(PDM%dtFracPush)
 SDEALLOCATE(PDM%IsNewPart)
+SDEALLOCATE(vMPFNewPartNum)
 SDEALLOCATE(vMPF_SpecNumElem)
+SDEALLOCATE(CellEelec_vMPF)
 SDEALLOCATE(PartMPF)
 SDEALLOCATE(Species)
 SDEALLOCATE(SpecReset)

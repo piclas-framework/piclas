@@ -30,8 +30,8 @@ INTERFACE DSMC_pairing_bggas
   MODULE PROCEDURE DSMC_pairing_bggas
 END INTERFACE
 
-INTERFACE BGGas_ControlParticles
-  MODULE PROCEDURE BGGas_ControlParticles
+INTERFACE BGGas_DeleteParticles
+  MODULE PROCEDURE BGGas_DeleteParticles
 END INTERFACE
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -39,7 +39,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: BGGas_Initialize, BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_ControlParticles
+PUBLIC :: BGGas_Initialize, BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
 PUBLIC :: BGGas_PhotoIonization
 !===================================================================================================================================
 
@@ -931,15 +931,14 @@ END IF
 END SUBROUTINE MCC_pairing_bggas
 
 
-SUBROUTINE BGGas_ControlParticles()
+SUBROUTINE BGGas_DeleteParticles()
 !===================================================================================================================================
 ! Deletes all background gas particles and updates the particle index list
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars,          ONLY : BGGas
-USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies,vMPFNewPartNum
+USE MOD_PARTICLE_Vars,      ONLY : PDM, PartSpecies
 USE MOD_part_tools,         ONLY : UpdateNextFreePosition
-USE MOD_vMPF,               ONLY : SplitMerge_main
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -957,11 +956,9 @@ DO iPart = 1, PDM%ParticleVecLength
 END DO
 BGGas%PairingPartner = 0
 
-IF(vMPFNewPartNum.NE.0) CALL SplitMerge_main
-
 CALL UpdateNextFreePosition()
 
-END SUBROUTINE BGGas_ControlParticles
+END SUBROUTINE BGGas_DeleteParticles
 
 
 SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
