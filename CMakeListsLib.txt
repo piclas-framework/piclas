@@ -16,7 +16,8 @@ MARK_AS_ADVANCED(FORCE LIBS_EXTERNAL_LIB_DIR)
 # =========================================================================
 EXECUTE_PROCESS(COMMAND git ls-remote --get-url OUTPUT_VARIABLE GIT_ORIGIN)
 
-# Origin pointing to IAG
+# Origin pointing to gitlab?
+MESSAGE(STATUS "Checking git origin: " ${GIT_ORIGIN})
 IF("${GIT_ORIGIN}" MATCHES "gitlab.com")
   # Checked out using SSH
   IF("${GIT_ORIGIN}" MATCHES "^git@")
