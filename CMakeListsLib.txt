@@ -160,6 +160,20 @@ ELSE()
       SET(LIBS_HDF5CC ${CMAKE_C_COMPILER} )
     ENDIF()
 
+    # Optional Features:
+    #   --enable-silent-rules   less verbose build output (undo: "make V=1")
+    #   --enable-build-mode=(debug|production|clean)
+    #                           Sets the build mode. Debug turns on symbols, API
+    #                           tracing, asserts, and debug optimization, as well as
+    #                           several other minor configure options that aid in
+    #                           debugging. Production turns high optimizations on.
+    #                           Clean turns nothing on and disables optimization
+    #                           (i.e.: a 'clean slate' configuration). All these
+    #                           settings can be overridden by using specific
+    #                           configure flags. [default=production]
+    #   --disable-dependency-tracking
+    #                           speeds up one-time build
+
     # Let CMake take care of download, configure and build
     ExternalProject_Add(HDF5
       GIT_REPOSITORY ${HDF5_DOWNLOAD}
@@ -168,7 +182,7 @@ ELSE()
       ${${GITSHALLOW}}
       PREFIX ${LIBS_HDF5_DIR}
       UPDATE_COMMAND ""
-      CONFIGURE_COMMAND FC=${LIBS_HDF5FC} CC=${LIBS_HDF5CC} ${LIBS_HDF5_DIR}/src/HDF5/configure --prefix=${LIBS_HDF5_DIR} --with-pic --enable-fortran ${LIBS_HDF5PARALLEL} --libdir=${LIBS_HDF5_DIR}/lib
+      CONFIGURE_COMMAND FC=${LIBS_HDF5FC} CC=${LIBS_HDF5CC} ${LIBS_HDF5_DIR}/src/HDF5/configure --prefix=${LIBS_HDF5_DIR} --with-pic --enable-fortran ${LIBS_HDF5PARALLEL} --libdir=${LIBS_HDF5_DIR}/lib --enable-build-mode=production --enable-silent-rules --disable-dependency-tracking
       BUILD_COMMAND ${MAKE}
     )
     SET(LIBS_HDF5_CMAKE FALSE)

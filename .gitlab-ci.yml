@@ -169,7 +169,7 @@ build:
   script:
     - mkdir -p build ; cd build
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DLIBS_BUILD_HDF5=ON -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; make -j all
+    - cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; make -j all
     - if [ -n "${DO_NIGHTLY}" ] || [ -n "${DO_WEEKLY}" ]; then
         git clone https://github.com/flexi-framework/hopr.git hopr;
         cd hopr ; mkdir -p build ; cd build;
