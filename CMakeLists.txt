@@ -19,7 +19,7 @@ ENDIF()
 # =========================================================================
 # Project definition
 # =========================================================================
-PROJECT(PICLas Fortran C CXX)
+#PROJECT(PICLas Fortran C CXX)
 
 # Folder for custom CMake source files
 LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -36,6 +36,9 @@ OPTION(PICLAS_PERFORMANCE "Enable performance optimizations (e.g. PGO for GNU)" 
 # Machine environment
 # =========================================================================
 INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/CMakeListsMachine.txt)
+
+# Hawk requires this after specifying CMAKE_COMPILER
+PROJECT(PICLas)
 
 # =========================================================================
 # Store the current commit information
