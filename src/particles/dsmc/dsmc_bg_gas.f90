@@ -51,9 +51,10 @@ SUBROUTINE BGGas_Initialize()
 !> calculation of the molar fraction
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort
-USE MOD_DSMC_Vars              ,ONLY: BGGas
-USE MOD_Particle_Vars          ,ONLY: PDM, Symmetry, Species, nSpecies, VarTimeStep
+USE MOD_Globals       ,ONLY: Abort
+USE MOD_DSMC_Vars     ,ONLY: BGGas,UseBGGasSplit
+USE MOD_Particle_Vars ,ONLY: PDM, Symmetry, Species, nSpecies, VarTimeStep, usevMPF
+USE MOD_ReadInTools   ,ONLY: GETLOGICAL
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -114,6 +115,11 @@ DO iSpec = 1, nSpecies
     END IF
   END IF
 END DO
+
+! Check if particle splitting is required for the BGGas (trace species)
+IF(usevMPF)THEN
+  UseBGGasSplit = GETLOGICAL('Part-BGGasSplit')
+END IF ! usevMPF
 
 END SUBROUTINE BGGas_Initialize
 
@@ -247,7 +253,7 @@ USE MOD_Globals
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
-USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, VibQuantsPar, PolyatomMolDSMC
+USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, VibQuantsPar, PolyatomMolDSMC, UseBGGasSplit
 USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_emission_tools   ,ONLY: DSMC_SetInternalEnr_LauxVFD, CalcVelocity_maxwell_lpn
 USE MOD_Particle_Vars         ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species, WriteMacroVolumeValues
@@ -279,7 +285,7 @@ INTEGER, ALLOCATABLE          :: TempIndxArray(:)
 !===================================================================================================================================
 nPart = PEM%pNumber(iElem)
 NeedToSplit = .FALSE.
-IF(usevMPF) THEN
+IF(usevMPF.AND.UseBGGasSplit) THEN
   iPart = PEM%pStart(iElem)
   DO iLoop = 1, nPart
     iSpec  = PartSpecies(iPart)! Skip background particles that have been created within this loop
@@ -566,7 +572,7 @@ USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles, XSec_NullCollision
-USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar
+USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar, UseBGGasSplit
 USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticleVelocity
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
@@ -756,7 +762,7 @@ DO iSpec = 1,nSpecies
       ! Species-specific vMPF
       IF(usevMPF) THEN
         ! Set the background gas species and mark it for split
-        IF(PartMPF(PartIndex).GT.Species(jSpec)%MacroParticleFactor) THEN
+        IF((PartMPF(PartIndex).GT.Species(jSpec)%MacroParticleFactor).AND.UseBGGasSplit) THEN
           PartMPF(bggPartIndex)   = Species(jSpec)%MacroParticleFactor
           NeedToSplit(PairCount)  = .TRUE.
           SplitPartNum(PairCount) = NINT(PartMPF(PartIndex) / PartMPF(bggPartIndex)) - 1
@@ -968,7 +974,7 @@ SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 !> 0.) Determine the total ionization cross-section
 !> 1.) Compute the number of photoionization events in the local domain of each proc
 !> 2.) Delete left-over inserted particles
-!> 3.) Insert the products of the photoionization rections
+!> 3.) Insert the products of the photoionization reactions
 !> 4.) Perform the reaction, distribute the collision energy (including photon energy) and emit electrons perpendicular
 !>     to the photon's path
 !===================================================================================================================================

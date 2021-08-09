@@ -307,6 +307,8 @@ END TYPE tBGGas
 
 TYPE(tBGGas)                    :: BGGas
 
+LOGICAL                         :: UseBGGasSplit            ! Check if particle splitting is required for the BGGas (trace species)
+
 LOGICAL                             :: UseMCC               ! Flag (set automatically) to differentiate between MCC/XSec and regular DSMC
 CHARACTER(LEN=256)                  :: XSec_Database        ! Name of the cross-section database
 LOGICAL                             :: XSec_NullCollision   ! Flag (read-in) whether null collision method (determining number of pairs based on maximum relaxation frequency)

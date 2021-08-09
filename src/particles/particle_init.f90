@@ -151,10 +151,9 @@ CALL prms%CreateStringOption(   'IMDInputFile'                , 'Laser data file
 CALL prms%SetSection("VMPF")
 
 ! vmpf stuff
-CALL prms%CreateLogicalOption(  'Part-vMPF'                      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Flag to use variable '//&
-                                                                'Macro Particle Factor.', '.FALSE.')
-CALL prms%CreateLogicalOption(  'Part-vMPFPartMerge'              , 'TODO-DEFINE-PARAMETER\n'//&
+CALL prms%CreateLogicalOption(  'Part-vMPF'                   , 'Flag to use variable Macro Particle Factor.'    , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-BGGasSplit'             , 'Flag to use variable vMPF splitting for BGGas.' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-vMPFPartMerge'          , 'DEPRECATED: DELETE THIS\n'//&
                                                                 'Enable Particle Merge routines.'&
                                                               , '.FALSE.')
 CALL prms%CreateIntOption(      'Part-Species[$]-vMPFNewPartNum'         , 'Particle target value for merge routines' //& 

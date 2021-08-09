@@ -216,7 +216,7 @@ IF((E_elec + CellEelec_vMPF(iSpec, iElem)).GT.0.0) THEN
 END IF
 
 
-! 2.2) Calc temperature and degree of fredoms
+! 2.2) Calc temperature and degree of freedoms
 IF(CollisMode.GT.1) THEN
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
@@ -262,7 +262,7 @@ DO iLoop = 1, nDelete
   nTemp = nTemp - 1
 END DO
 
-! 4.) calc bulkvelocity after deleting and set new MPF
+! 4.) calc bulk velocity after deleting and set new MPF
 DO iLoop = 1, nPartNew
   PartMPF(iPartIndx_Node(iLoop)) = totalWeight / REAL(nPartNew) ! Set new particle weight
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))

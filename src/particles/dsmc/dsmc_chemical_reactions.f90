@@ -1488,9 +1488,9 @@ INTEGER, INTENT(IN)           :: iPair, iReac, iInit, InitSpec
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iSpec, iProd, NumProd, NumElec
+INTEGER                       :: iPart, iSpec, iProd, NumProd
 INTEGER                       :: ReactInx(1:4), EductReac(1:3), ProductReac(1:4)
-REAL                          :: Weight(1:4), SumWeightProd, Mass_Electron, CRela2_Electron, RandVal
+REAL                          :: Weight(1:4), SumWeightProd, Mass_Electron, CRela2_Electron, RandVal, NumElec
 REAL                          :: VeloCOM(1:3), Temp_Trans, Temp_Rot, Temp_Vib, Temp_Elec
 !===================================================================================================================================
 
@@ -1625,12 +1625,12 @@ IF(DSMC%ElectronicModel.GT.0) Temp_Elec = SpecDSMC(EductReac(1))%Init(1)%TElec
 !-------------------------------------------------------------------------------------------------------------------------------
 ! Insert the heavy species at the properties of the background gas
 !-------------------------------------------------------------------------------------------------------------------------------
-NumElec = 0
+NumElec = 0.
 DO iProd = 1, NumProd
   iPart = ReactInx(iProd)
   iSpec = ProductReac(iProd)
   IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
-    NumElec = NumElec + 1
+    NumElec = NumElec + Weight(iProd)
     Mass_Electron = Species(iSpec)%MassIC
     CYCLE
   END IF
@@ -1658,7 +1658,8 @@ END DO
 !--------------------------------------------------------------------------------------------------!
 ! Calculation of new electron velocities 
 !--------------------------------------------------------------------------------------------------!
-CRela2_Electron  = 2. * (Coll_pData(iPair)%Ec / REAL(NumElec)) / Mass_Electron
+CRela2_Electron = NumElec * Mass_Electron
+CRela2_Electron = 2. * Coll_pData(iPair)%Ec / CRela2_Electron
 DO iProd = 1, NumProd
   iPart = ReactInx(iProd)
   iSpec = ProductReac(iProd)
