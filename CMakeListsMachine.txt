@@ -8,15 +8,16 @@ MARK_AS_ADVANCED(FORCE CMAKE_HOSTNAME)
 SITE_NAME(CMAKE_HOSTNAME)
 SET(FORCE_VDM_ANALYTICAL OFF)
 
-# HLRS HAWK / SuperMUC
+# Hawk requires setting the compilers by hand and invoking ENABLE_LANGUAGE afterwards, which is required for CMAKE_Fortran_COMPILER_ID that is used below
 IF ("${CMAKE_HOSTNAME}" MATCHES "login")
-  # Hawk requires setting the compilers by hand and invoking ENABLE_LANGUAGE afterwards, which is required for CMAKE_Fortran_COMPILER_ID that is used below
   SET(CMAKE_C_COMPILER       mpicc)
   SET(CMAKE_CXX_COMPILER     mpicxx)
   SET(CMAKE_Fortran_COMPILER mpif90) # mpif08 wrapper seems to have issue
-  IF("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "")
-    ENABLE_LANGUAGE(Fortran C CXX)
-  ENDIF()
+ENDIF()
+ENABLE_LANGUAGE(Fortran C CXX)
+
+# HLRS HAWK / SuperMUC
+IF ("${CMAKE_HOSTNAME}" MATCHES "login")
   MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
 
   # HAWK and SuperMUC name their login nodes identically, so use OS distribution to identify
@@ -141,9 +142,6 @@ ENDIF()
 # =========================================================================
 # COMPILER FLAGS
 # =========================================================================
-IF("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "")
-  ENABLE_LANGUAGE(Fortran C CXX)
-ENDIF()
 
 # FFLAGS depend on the compiler
 GET_FILENAME_COMPONENT (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
