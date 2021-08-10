@@ -73,15 +73,19 @@ DO iElem = 1, nElems
     iPart = PEM%pNext(iPart)
   END DO
   DO iSpec = 1, nSpecies
-    IF ((vMPFNewPartNum(iSpec).EQ.0).OR.(nPart(iSpec).LE.vMPFNewPartNum(iSpec))) CYCLE
+!    IF ((vMPFNewPartNum(iSpec).EQ.0).OR.(nPart(iSpec).LE.vMPFNewPartNum(iSpec))) CYCLE
+    IF ((vMPFNewPartNum(iSpec).EQ.0).OR.(nPart(iSpec).EQ.vMPFNewPartNum(iSpec))) CYCLE
   ! 2.) build partindx list for species
     ALLOCATE(iPartIndx_Node(nPart(iSpec)))
     DO iLoop = 1, nPart(iSpec)
       iPartIndx_Node(iLoop) = iPartIndx_Node_Temp(iSpec,iLoop)
     END DO
   ! 3.) Call split or merge routine
-!    CALL MergeParticles(iPartIndx_Node, nPart(iSpec), vMPFNewPartNum)
-    CALL MergeParticles(iPartIndx_Node, nPart(iSpec), vMPFNewPartNum(iSpec),iElem)
+    IF(nPart(iSpec).GT.vMPFNewPartNum(iSpec)) THEN  ! Merge
+      CALL MergeParticles(iPartIndx_Node, nPart(iSpec), vMPFNewPartNum(iSpec),iElem)
+    ELSE  ! nPart(iSpec).LT.vMPFNewPartNum(iSpec) => Split
+      CALL SplitParticles(iPartIndx_Node, nPart(iSpec), vMPFNewPartNum(iSpec))
+    END IF
     DEALLOCATE(iPartIndx_Node)
   END DO
   DEALLOCATE(iPartIndx_Node_Temp)
@@ -496,8 +500,86 @@ END DO
   END DO
 #endif /* CODE_ANALYZE */
 
-
 END SUBROUTINE MergeParticles
+
+SUBROUTINE SplitParticles(iPartIndx_Node, nPart, nPartNew)
+!===================================================================================================================================
+!> Routine for split particles
+!> Split particle == clone particle randomly until new particle number is reached and adjust MPF accordingly
+
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, PEM, PartPosRef, VarTimeStep
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
+USE MOD_Particle_Tracking_Vars,ONLY: TrackingMethod
+!#ifdef CODE_ANALYZE
+!USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
+!USE MOD_Particle_Vars         ,ONLY: Symmetry
+!#endif /* CODE_ANALYZE */
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)                  :: nPart, nPartNew
+INTEGER, INTENT(INOUT)               :: iPartIndx_Node(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                  :: iRan
+INTEGER               :: nSplit, iLoop, iPart, iNewPart, PartIndx, PositionNbr, LocalElemID
+REAL, ALLOCATABLE     :: DOF_vib_poly(:), EnergyTemp_vibPoly(:,:)
+
+!#ifdef CODE_ANALYZE
+!REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3)
+!INTEGER               :: iMomDim, iMom
+!#endif /* CODE_ANALYZE */
+!===================================================================================================================================
+! split particles randomly (until nPartNew is reached)
+iNewPart = 0
+nSplit = nPartNew - nPart
+DO WHILE(iNewPart.LT.nSplit)
+  CALL RANDOM_NUMBER(iRan)
+  iPart = INT(iRan*nPart) + 1
+  PartIndx = iPartIndx_Node(iPart)
+  PartMPF(PartIndx) = PartMPF(PartIndx) / 2.   ! split particle
+  iNewPart = iNewPart + 1
+  PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
+  IF (PositionNbr.EQ.0) THEN
+    CALL Abort(&
+      __STAMP__&
+      ,'ERROR in particle split: MaxParticleNumber reached!')
+  END IF
+  PartState(1:3,PositionNbr) = PartState(1:3,PartIndx)
+  IF(TrackingMethod.EQ.REFMAPPING)THEN ! here Nearst-GP is missing
+    PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,PartIndx)
+  END IF
+  PartState(4:6,PositionNbr) = PartState(4:6,PartIndx)
+  PartSpecies(PositionNbr) = PartSpecies(PartIndx)
+  IF(CollisMode.GT.1) THEN
+    PartStateIntEn(1:2,PositionNbr) = PartStateIntEn(1:2,PartIndx)
+    IF(SpecDSMC(PartSpecies(PositionNbr))%PolyatomicMol) THEN
+      IF(ALLOCATED(VibQuantsPar(PositionNbr)%Quants)) DEALLOCATE(VibQuantsPar(PositionNbr)%Quants)
+      ALLOCATE(VibQuantsPar(PositionNbr)%Quants(PolyatomMolDSMC(SpecDSMC(PartSpecies(PositionNbr))%SpecToPolyArray)%VibDOF))
+      VibQuantsPar(PositionNbr)%Quants(:) = VibQuantsPar(PartIndx)%Quants(:)
+    END IF
+    IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,PositionNbr) = PartStateIntEn(3,PartIndx)
+  END IF
+  PartMPF(PositionNbr) = PartMPF(PartIndx)
+  IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(PositionNbr) = VarTimeStep%ParticleTimeStep(PartIndx)
+  PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(PartIndx)
+  PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PartIndx)
+  LocalElemID = PEM%LocalElemID(PositionNbr)
+  PDM%ParticleInside(PositionNbr) = .TRUE.
+  PDM%IsNewPart(PositionNbr)       = .TRUE.
+  PDM%dtFracPush(PositionNbr)      = .FALSE.
+  PEM%pNext(PEM%pEnd(LocalElemID)) = PositionNbr     ! Next Particle of same Elem (Linked List)
+  PEM%pEnd(LocalElemID) = PositionNbr
+  PEM%pNumber(LocalElemID) = PEM%pNumber(LocalElemID) + 1
+END DO
+
+END SUBROUTINE SplitParticles
 
 #ifdef WIP
 SUBROUTINE CalculateDistMoments(iPartIndx_Node, nPart, vBulk, Vtherm2, PressTens, HeatVec, Energy)
