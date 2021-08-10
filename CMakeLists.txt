@@ -26,7 +26,6 @@ LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON)
 INCLUDE(ExternalProject)
 INCLUDE(CMakeDependentOption)
-INCLUDE(GNUInstallDirs)
 
 # =========================================================================
 # Performance mode
