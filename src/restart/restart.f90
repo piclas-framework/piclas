@@ -396,7 +396,7 @@ REAL                               :: det(6,2)
 INTEGER                            :: NbrOfMissingParticles, CounterPoly
 INTEGER, ALLOCATABLE               :: VibQuantData(:,:)
 REAL, ALLOCATABLE                  :: ElecDistriData(:,:), AD_Data(:,:)
-INTEGER                            :: MaxQuantNum, iPolyatMole, iSpec, iPart, iVar, MaxElecQuant, CounterElec, CounterAmbi
+INTEGER                            :: MaxQuantNum, iPolyatMole, iSpec, iPart, iVar, MaxElecQuant, CounterElec, CounterAmbi, SpecID
 #if USE_MPI
 INTEGER,ALLOCATABLE                :: IndexOfFoundParticles(:),CompleteIndexOfFoundParticles(:)
 INTEGER                            :: CompleteNbrOfLost,CompleteNbrOfFound,CompleteNbrOfDuplicate
@@ -837,15 +837,22 @@ IF(DoRestart)THEN
 
         iPart=0
         DO iLoop = 1_IK,locnPart
-          IF(SpecReset(INT(PartData(7,offsetnPart+iLoop),4))) CYCLE
+          ! Sanity check: SpecID > 0
+          SpecID=INT(PartData(7,offsetnPart+iLoop),4)
+          IF(SpecID.LE.0)THEN
+            IPWRITE(UNIT_StdOut,'(I0,A,I0,A)') "Warning: Found particle in restart file with SpecID =", SpecID,", which will be deleted."
+            CYCLE
+          END IF ! SpecID
+          ! Check if species is to be removed during restart
+          IF(SpecReset(SpecID)) CYCLE
           iPart = iPart + 1
-          PartState(1,iPart)   = PartData(1,offsetnPart+iLoop)
-          PartState(2,iPart)   = PartData(2,offsetnPart+iLoop)
-          PartState(3,iPart)   = PartData(3,offsetnPart+iLoop)
-          PartState(4,iPart)   = PartData(4,offsetnPart+iLoop)
-          PartState(5,iPart)   = PartData(5,offsetnPart+iLoop)
-          PartState(6,iPart)   = PartData(6,offsetnPart+iLoop)
-          PartSpecies(iPart)= INT(PartData(7,offsetnPart+iLoop),4)
+          PartState(1,iPart) = PartData(1,offsetnPart+iLoop)
+          PartState(2,iPart) = PartData(2,offsetnPart+iLoop)
+          PartState(3,iPart) = PartData(3,offsetnPart+iLoop)
+          PartState(4,iPart) = PartData(4,offsetnPart+iLoop)
+          PartState(5,iPart) = PartData(5,offsetnPart+iLoop)
+          PartState(6,iPart) = PartData(6,offsetnPart+iLoop)
+          PartSpecies(iPart) = SpecID
           IF (useDSMC) THEN
             IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0)) THEN
               PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
@@ -871,8 +878,10 @@ IF(DoRestart)THEN
                 PartStateIntEn(1,iPart)=0.
                 PartStateIntEn(2,iPart)=0.
               ELSE
-                CALL Abort(__STAMP__,"resetting inner DOF for molecules is not implemented yet!"&
-                ,SpecDSMC(PartSpecies(iPart))%InterID , PartData(7,offsetnPart+iLoop))
+                IPWRITE(UNIT_StdOut,*) "SpecDSMC(PartSpecies(iPart))%InterID =", SpecDSMC(PartSpecies(iPart))%InterID
+                IPWRITE(UNIT_StdOut,*) "SpecID =", SpecID
+                IPWRITE(UNIT_StdOut,*) "iPart =", iPart
+                CALL Abort(__STAMP__,"resetting inner DOF for molecules is not implemented yet!")
               END IF ! readVarFromState(8).AND.readVarFromState(9)
             ELSE IF (usevMPF) THEN
               PartMPF(iPart)=PartData(8,offsetnPart+iLoop)
@@ -910,11 +919,16 @@ IF(DoRestart)THEN
 
           PDM%ParticleInside(iPart) = .TRUE.
         END DO ! iLoop = 1_IK,locnPart
+
         iPart = 0
         DO iElem=FirstElemInd,LastElemInd
           IF (PartInt(iElem,ELEM_LastPartInd).GT.PartInt(iElem,ELEM_FirstPartInd)) THEN
             DO iLoop = PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1_IK , PartInt(iElem,ELEM_LastPartInd)- offsetnPart
-              IF(SpecReset(INT(PartData(7,offsetnPart+iLoop),4))) CYCLE
+              ! Sanity check: SpecID > 0
+              SpecID=INT(PartData(7,offsetnPart+iLoop),4)
+              IF(SpecID.LE.0) CYCLE
+              ! Check if species is to be removed during restart
+              IF(SpecReset(SpecID)) CYCLE
               iPart = iPart +1
               PEM%GlobalElemID(iPart)  = iElem
               PEM%LastGlobalElemID(iPart)  = iElem
