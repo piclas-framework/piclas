@@ -506,6 +506,7 @@ NIG_Photoionization_debug:
 # Stage "reggie_nightly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
 #                                    - sanitizer for maxwell/poisson (CMAKE_BUILD_TYPE=Sanitize,Profile)
+#                                    - math tools Lapack and OpenBlas with LIBS_BUILD_MATH_LIB = ON and LIBS_BUILD_MATH_LIB_VENDOR = LAPACK,OpenBLAS
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 build_all:
   <<: *defaults_nightly
@@ -517,7 +518,13 @@ build_sanitize:
   <<: *defaults_nightly
   stage: reggie_nightly_build_all
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/sanitize ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_sanitize ; fi
+
+build_math_tools:
+  <<: *defaults_nightly
+  stage: reggie_nightly_build_all
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_math_libs ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week
