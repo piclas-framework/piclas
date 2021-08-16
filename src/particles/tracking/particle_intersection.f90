@@ -3173,6 +3173,7 @@ CASE ('plane')
 !  END IF
   isHit=.TRUE.
 CASE ('cylinder','cone','parabol')
+  inwards=.FALSE. ! Initialize
   IF(PRESENT(opt_CriticalParallelInSide)) opt_CriticalParallelInSide=.FALSE. !not used for cylinder and cone
   IF (TRIM(AuxBCType(AuxBCIdx)).EQ.'cylinder') THEN
     r_vec=AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
@@ -3256,9 +3257,8 @@ __STAMP__&
     !- solve quadratic equation from trajectory inserted in parabol-equation
     CALL QuadraticSolver(A(1,1),B(1,1),C(1,1),nRoot,roots(1),roots(2))
   ELSE
-    CALL abort(&
-      __STAMP__&
-      ,'AuxBC does not exist')
+    CALL abort(__STAMP__,'AuxBC does not exist')
+    stop
   END IF !cylinder, cone, or paraboloid
   SELECT CASE (nRoot)
   CASE (1)

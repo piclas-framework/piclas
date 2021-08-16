@@ -957,7 +957,7 @@ ASSOCIATE (&
   CALL ReadArray('ElemData',2,(/nVar_HDF5,nElems/),offsetElem,2,RealArray=ElemData_HDF5(:,:))
 END ASSOCIATE
 
-CALL ReadAttribute(File_ID,'NSpecies',1,IntegerScalar=nSpecReadin)
+CALL ReadAttribute(File_ID,'NSpecies',1,IntScalar=nSpecReadin)
 
 ! Loop over all the read-in species and map them to the background gas species
 iVar = 1

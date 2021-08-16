@@ -169,7 +169,7 @@ build:
   script:
     - mkdir -p build ; cd build
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DPICLAS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; make -j all
+    - cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; make -j all
     - if [ -n "${DO_NIGHTLY}" ] || [ -n "${DO_WEEKLY}" ]; then
         git clone https://github.com/flexi-framework/hopr.git hopr;
         cd hopr ; mkdir -p build ; cd build;
@@ -195,7 +195,7 @@ build_maxwell:
   script:
     - mkdir -p build_maxwell ; cd build_maxwell
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DPICLAS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; make -j all
+    - cmake .. -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; make -j all
 
 build_poisson:
   tags:
@@ -217,11 +217,11 @@ build_poisson:
   script:
     - mkdir -p build_poisson_release ; cd build_poisson_release
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; make -j all
     - cd ..
     - mkdir -p build_poisson_debug ; cd build_poisson_debug
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; make -j all
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
@@ -505,7 +505,7 @@ NIG_Photoionization_debug:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
-#                                    - sanitizer for maxwell/poisson (CMAKE_BUILD_TYPE=SANI,Profile)
+#                                    - sanitizer for maxwell/poisson (CMAKE_BUILD_TYPE=Sanitize,Profile)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 build_all:
   <<: *defaults_nightly

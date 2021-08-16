@@ -4,9 +4,9 @@
 
 is this chapter required? what should be the content? should not be just a list of compiler options
 
-* RELEASE: optimized with -O3 for execution runs
-* DEBUG: debugger options
-* SANI: GNU sanitizer for further debugging
+* Release: optimized with -O3 for execution runs
+* Debug: debugger options
+* Sanitize: GNU sanitizer for further debugging
   
 |            Compiler-Flag           |     Options,List     |                                                                                                                                                                                                  What does it do?                                                                                                                                                                                                  |
 | ---------------------------------- | -------------------- |                                                                                                                                                 -------------------------------------------------------------------------------------------------------------------                                                                                                                                                |
