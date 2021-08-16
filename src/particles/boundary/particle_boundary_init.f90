@@ -622,8 +622,8 @@ DO iSide=1, nRotPeriodicSides
     DO jSide=1, nRotPeriodicSides
       SideID2 = RotPeriodicSide2GlobalSide(jSide)
       ! is on same RotPeriodicBC?
-      IF(PartBound%RotPeriodicDir(SideInfo_Shared(SIDE_BCID,SideID)).EQ. &
-        PartBound%RotPeriodicDir(SideInfo_Shared(SIDE_BCID,SideID2))) CYCLE
+      IF(PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ. &
+        PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2)))) CYCLE
       isMapped = .FALSE.
       ! check wether RotPeriodicSides is already mapped
       IF(NumRotPeriodicNeigh(jSide).GT. 0) THEN
