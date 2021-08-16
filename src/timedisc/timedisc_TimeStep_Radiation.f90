@@ -32,7 +32,8 @@ SUBROUTINE TimeStep_Radiation()
 !> Radiation Solver and Radiative Transfer Solver
 !===================================================================================================================================
 ! MODULES
-
+USE MOD_RadTransport, ONLY: RadTrans_main
+USE MOD_RadTrans_Output, ONLY: WriteRadiationToHDF5 !, WriteSurfSampleToHDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -42,6 +43,9 @@ IMPLICIT NONE
 
 !===================================================================================================================================
 
+CALL RadTrans_main()
+CALL WriteRadiationToHDF5()
+!CALL WriteSurfSampleToHDF5()
 
 END SUBROUTINE TimeStep_Radiation
 

@@ -92,6 +92,12 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RotACC'  &
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ElecACC '  &
                                 , 'Electronic accommodation coefficient of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-PhotonEnACC'  &
+                                , 'Energy accommodation coefficient of reflective photon boundary [$].' &
+                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(   'Part-Boundary[$]-PhotonSpecularReflection'  &
+                                , 'Momentum accommodation coefficient of reflective particle boundary [$].' &
+                                , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Resample', &
                                   'Sample particle properties from equilibrium distribution after reflection', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
@@ -278,6 +284,9 @@ ALLOCATE(PartBound%RotACC(           1:nPartBound))
 PartBound%RotACC = -1.
 ALLOCATE(PartBound%ElecACC(          1:nPartBound))
 PartBound%ElecACC = -1.
+ALLOCATE(PartBound%PhotonEnACC(      1:nPartBound))
+PartBound%PhotonEnACC = -1.
+ALLOCATE(PartBound%PhotonSpecularReflection(1:nPartBound))
 ALLOCATE(PartBound%Resample(         1:nPartBound))
 PartBound%Resample = .FALSE.
 ALLOCATE(PartBound%WallVelo(     1:3,1:nPartBound))
@@ -362,6 +371,8 @@ DO iPartBound=1,nPartBound
     PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
     PartBound%RotVelo(iPartBound)         = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-RotVelo')
+    PartBound%PhotonEnACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonEnACC')
+    PartBound%PhotonSpecularReflection(iPartBound)     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-PhotonSpecularReflection')
     IF(PartBound%RotVelo(iPartBound)) THEN
       PartBound%RotFreq(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotFreq')
       PartBound%RotOrg(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotOrg',3)
@@ -1081,6 +1092,8 @@ SDEALLOCATE(PartBound%ElecACC)
 SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
 SDEALLOCATE(PartBound%RotVelo)
+SDEALLOCATE(PartBound%PhotonEnACC)
+SDEALLOCATE(PartBound%PhotonSpecularReflection)
 SDEALLOCATE(PartBound%RotFreq)
 SDEALLOCATE(PartBound%RotOrg)
 SDEALLOCATE(PartBound%RotAxi)

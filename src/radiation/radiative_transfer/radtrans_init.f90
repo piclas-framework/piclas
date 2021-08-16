@@ -62,13 +62,18 @@ USE MOD_Globals_Vars,           ONLY : Pi, c
 USE MOD_ReadInTools
 USE MOD_RadiationTrans_Vars
 USE MOD_Mesh_Vars,              ONLY : nElems, nGlobalElems
-USE MOD_Particle_Mesh_Vars,     ONLY : GEO!, nTotalElems
+USE MOD_Particle_Mesh_Vars,     ONLY : ElemVolume_Shared,ElemMidPoint_Shared, GEO, nComputeNodeElems
 USE MOD_Globals_Vars,           ONLY : BoltzmannConst, PlanckConst
 USE MOD_Particle_Boundary_Sampling, ONLY : InitParticleBoundarySampling
-USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh
+USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh,nComputeNodeSurfTotalSides
 USE MOD_Radiation_Vars,         ONLY : RadiationParameter, Radiation_Emission_spec, Radiation_Absorption_spec, RadiationSwitches
+USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_Spec_Shared, Radiation_Absorption_Spec_Shared_Win
+USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radiation_Emission_Spec_Shared
 USE MOD_Radiation,              ONLY : radiation_main
 USE MOD_DSMC_Vars,              ONLY: RadialWeighting
+USE MOD_Output,                 ONLY: PrintStatusLineRadiation
+USE MOD_MPI_Shared_Vars
+USE MOD_MPI_Shared
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -77,14 +82,14 @@ USE MOD_DSMC_Vars,              ONLY: RadialWeighting
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iWave, iElem, iNode
+INTEGER               :: iWave, iElem, iNode, firstElem, lastElem
 REAL                  :: LocTemp
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RADIATION TRANSPORT SOLVER ...'
 
-!ALLOCATE(RadiationElemEnergy(1:2,1:nTotalElems))
-!RadiationElemEnergy=0.0
+ALLOCATE(RadiationElemAbsEnergy(1:nGlobalElems))
+RadiationElemAbsEnergy=0.0
 
 RadiationDirectionModel = GETINT('Radiation-DirectionModel','1')
 RadTrans%NumPhotonsPerCell = GETINT('Radiation-NumPhotonsPerCell','1')
@@ -92,50 +97,84 @@ RadiationAbsorptionModel = GETINT('Radiation-AbsorptionModel','1')
 RadiationPhotonPosModel = GETINT('Radiation-PhotonPosModel','1')
 RadEmiAdaptPhotonNum = GETLOGICAL('Radiation-AdaptivePhotonNumEmission','.FALSE.')
 
-ALLOCATE(Radiation_Emission_Spec_Total(nElems), RadTrans%PhotPerCell(nElems))
-Radiation_Emission_Spec_Total=0.0
-RadTrans%PhotPerCell=0.0
+#if USE_MPI
+  ! allocate shared array for Radiation_Emission/Absorption_Spec
+CALL Allocate_Shared((/nGlobalElems/),RadiationElemAbsEnergy_Shared_Win,RadiationElemAbsEnergy_Shared)
+CALL MPI_WIN_LOCK_ALL(0,RadiationElemAbsEnergy_Shared_Win,IERROR)
 
+IF (myComputeNodeRank.EQ.0) RadiationElemAbsEnergy_Shared = 0.
+CALL BARRIER_AND_SYNC(RadiationElemAbsEnergy_Shared_Win,MPI_COMM_SHARED)  
+  
+CALL Allocate_Shared((/nComputeNodeElems/), RadTransPhotPerCell_Shared_Win,RadTransPhotPerCell_Shared)
+CALL MPI_WIN_LOCK_ALL(0,RadTransPhotPerCell_Shared_Win,IERROR)
+CALL Allocate_Shared((/nComputeNodeElems/), Radiation_Emission_Spec_Total_Shared_Win,Radiation_Emission_Spec_Total_Shared)
+CALL MPI_WIN_LOCK_ALL(0,Radiation_Emission_Spec_Total_Shared_Win,IERROR)
+
+RadTransPhotPerCell => RadTransPhotPerCell_Shared
+Radiation_Emission_Spec_Total => Radiation_Emission_Spec_Total_Shared
+IF (myComputeNodeRank.EQ.0) THEN
+  RadTransPhotPerCell         = 0
+  Radiation_Emission_Spec_Total = 0.0
+END IF
+CALL BARRIER_AND_SYNC(RadTransPhotPerCell_Shared_Win ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(Radiation_Emission_Spec_Total_Shared_Win ,MPI_COMM_SHARED)
+ALLOCATE(RadTransPhotPerCellLoc(nComputeNodeElems))
+RadTransPhotPerCellLoc = 0
+#else
+! allocate local array for ElemInfo
+ALLOCATE(RadTransPhotPerCell(nElems),Radiation_Emission_Spec_Total(nElems),RadTransPhotPerCellLoc(nELems))
+RadTransPhotPerCell = 0
+RadTransPhotPerCellLoc = 0
+Radiation_Emission_Spec_Total=0.0
+#endif  /*USE_MPI*/
+
+
+#if USE_MPI
+  firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeElems)/REAL(nComputeNodeProcessors))+1
+  lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeElems)/REAL(nComputeNodeProcessors))
+#else
+  firstElem = 1
+  lastElem  = nElems
+#endif
 SELECT CASE(RadiationSwitches%RadType)
 CASE(1) !calls radition solver module
-!  DO iElem = 1, nElems    
-!    CALL radiation_main(iElem)
-!!    DO iWave = 1, RadiationParameter%WaveLenDiscr
-!!      Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &
-!!          + 4.*Pi*Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr
-!!    END DO
-!  END DO
-
-CASE(2) ! Black body radiation
-!  DO iElem = 1, nElems
-!    IF (GEO%ElemMidPoint(1,iElem).LT.1) THEN
-!      LocTemp = 10000. !GEO%ElemMidPoint(2,iElem)/GEO%ymaxglob*10000.
-!    ELSE
-!      LocTemp = 10000. !GEO%ElemMidPoint(2,iElem)/GEO%ymaxglob*10000
-!    END IF
-!    DO iWave = 1, RadiationParameter%WaveLenDiscr
-!      IF (LocTemp.GT.0.0) Radiation_Emission_Spec(iWave, iElem) = 2.*PlanckConst*c*c/(RadiationParameter%WaveLen(iWave)**5. &
-!          *(EXP(PlanckConst*c/(RadiationParameter%WaveLen(iWave)*BoltzmannConst*LocTemp))-1.) )
-!      Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &
-!          + 4.*Pi*Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr
-!    END DO
-!  END DO
-!  DO iElem = 1, nTotalElems
-!    DO iWave = 1, RadiationParameter%WaveLenDiscr
-!      Radiation_Absorption_Spec(iWave, iElem) = 1.
-!    END DO
-!  END DO
-
-CASE(3) !only radiation
-  ALLOCATE(Radiation_Absorption_Spec_Total(nElems))
-  Radiation_Absorption_Spec_Total = 0.0
-  DO iElem = 1, nElems
+  SWRITE(UNIT_stdOut,'(A)') ' Calculate Radiation Data per Cell ...'
+  DO iElem = firstElem, lastElem
+    IF(MPIroot.AND.(MOD(iElem,10).EQ.0)) CALL PrintStatusLineRadiation(REAL(iElem),REAL(firstElem),REAL(lastElem),.FALSE.)
     CALL radiation_main(iElem)
     DO iWave = 1, RadiationParameter%WaveLenDiscr
       Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &
           + 4.*Pi*Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr
-      Radiation_Absorption_Spec_Total(iElem) = Radiation_Absorption_Spec_Total(iElem) &
-          + Radiation_Absorption_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr
+    END DO
+  END DO
+CASE(2) ! Black body radiation
+
+  DO iElem = firstElem, lastElem
+    IF (ElemMidPoint_Shared(1,iElem).LT.1) THEN
+      LocTemp = 10000. !GEO%ElemMidPoint(2,iElem)/GEO%ymaxglob*10000.
+    ELSE
+      LocTemp = 10000. !GEO%ElemMidPoint(2,iElem)/GEO%ymaxglob*10000
+    END IF
+    DO iWave = 1, RadiationParameter%WaveLenDiscr
+      IF (LocTemp.GT.0.0) Radiation_Emission_Spec(iWave, iElem) = 2.*PlanckConst*c*c/(RadiationParameter%WaveLen(iWave)**5. &
+          *(EXP(PlanckConst*c/(RadiationParameter%WaveLen(iWave)*BoltzmannConst*LocTemp))-1.) )
+      Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &
+          + 4.*Pi*Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr
+    END DO
+  END DO
+  DO iElem = firstElem, lastElem
+    DO iWave = 1, RadiationParameter%WaveLenDiscr
+      Radiation_Absorption_Spec(iWave, iElem) = 1.
+    END DO
+  END DO  
+CASE(3) !only radiation
+  SWRITE(UNIT_stdOut,'(A)') ' Calculate Radiation Data per Cell ...'
+  DO iElem = firstElem, lastElem
+    IF(MPIroot.AND.(MOD(iElem,10).EQ.0)) CALL PrintStatusLineRadiation(REAL(iElem),REAL(firstElem),REAL(lastElem),.FALSE.)
+    CALL radiation_main(iElem)
+    DO iWave = 1, RadiationParameter%WaveLenDiscr
+      Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &
+          + 4.*Pi*Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr
     END DO
 
   END DO
@@ -145,27 +184,58 @@ CASE DEFAULT
       ,' ERROR: Radiation type is not implemented! (unknown case)')
 END SELECT
 
-!  RadTrans%GlobalRadiationPower = 0.0
-!  RadTrans%ScaledGlobalRadiationPower = 0.0
-!  DO iElem = 1, nElems
-!    RadTrans%GlobalRadiationPower = RadTrans%GlobalRadiationPower + Radiation_Emission_Spec_Total(iElem)*GEO%Volume(iElem)
-!    IF (RadialWeighting%DoRadialWeighting) THEN
-!      RadTrans%ScaledGlobalRadiationPower = RadTrans%ScaledGlobalRadiationPower  &
-!        + Radiation_Emission_Spec_Total(iElem)*GEO%Volume(iElem) &
-!        /(1. + GEO%ElemMidPoint(2,iElem)/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))
-!    END IF
-!  END DO
-!#if USE_MPI
-!  CALL MPI_ALLREDUCE(MPI_IN_PLACE,RadTrans%GlobalRadiationPower,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
-!  IF (RadialWeighting%DoRadialWeighting) THEN
-!    CALL MPI_ALLREDUCE(MPI_IN_PLACE,RadTrans%ScaledGlobalRadiationPower,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
-!  END IF
-!#endif /*USE_MPI*/  
-!  RadTrans%GlobalPhotonNum = RadTrans%NumPhotonsPerCell * nGlobalElems
+
+#if USE_MPI
+  CALL BARRIER_AND_SYNC(Radiation_Emission_Spec_Total_Shared_Win,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(Radiation_Emission_Spec_Shared_Win ,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(Radiation_Absorption_Spec_Shared_Win ,MPI_COMM_SHARED)
+  IF(nLeaderGroupProcs.GT.1)THEN
+    IF(myComputeNodeRank.EQ.0)THEN
+      CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
+                     , 0                             &
+                     , MPI_DATATYPE_NULL             &
+                     , Radiation_Absorption_Spec_Shared  &
+                     , RadiationParameter%WaveLenDiscr *recvcountElem   &
+                     , RadiationParameter%WaveLenDiscr *displsElem      &
+                     , MPI_DOUBLE_PRECISION          &
+                     , MPI_COMM_LEADERS_SHARED       &
+                     , IERROR)
+    END IF
+  END IF  
+  CALL BARRIER_AND_SYNC(Radiation_Absorption_Spec_Shared_Win ,MPI_COMM_SHARED)
+#endif
+  RadTrans%GlobalRadiationPower = 0.0
+  RadTrans%ScaledGlobalRadiationPower = 0.0
+  DO iElem = firstElem, lastElem
+    RadTrans%GlobalRadiationPower = RadTrans%GlobalRadiationPower + Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)
+    IF (RadialWeighting%DoRadialWeighting) THEN
+      RadTrans%ScaledGlobalRadiationPower = RadTrans%ScaledGlobalRadiationPower  &
+        + Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem) &
+        /(1. + ElemMidPoint_Shared(2,iElem)/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))
+    END IF
+  END DO
+#if USE_MPI
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,RadTrans%GlobalRadiationPower,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+  IF (RadialWeighting%DoRadialWeighting) THEN
+    CALL MPI_ALLREDUCE(MPI_IN_PLACE,RadTrans%ScaledGlobalRadiationPower,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+  END IF
+#endif /*USE_MPI*/  
+  RadTrans%GlobalPhotonNum = RadTrans%NumPhotonsPerCell * nGlobalElems
+
+
 
 !IF (.NOT.ALLOCATED(SurfMesh%SideIDToSurfID)) CALL InitParticleBoundarySampling()
-!ALLOCATE(PhotonSampWall(2,1:SurfMesh%nTotalSides))
-!PhotonSampWall=0.0
+ALLOCATE(PhotonSampWall(2,1:nComputeNodeSurfTotalSides))
+PhotonSampWall=0.0
+
+#if USE_MPI
+!> Then shared arrays for boundary sampling
+CALL Allocate_Shared((/2,nComputeNodeSurfTotalSides/),PhotonSampWall_Shared_Win,PhotonSampWall_Shared)
+CALL MPI_WIN_LOCK_ALL(0,PhotonSampWall_Shared_Win,IERROR)
+
+IF (myComputeNodeRank.EQ.0) PhotonSampWall_Shared = 0.
+CALL BARRIER_AND_SYNC(PhotonSampWall_Shared_Win,MPI_COMM_SHARED)
+#endif
 
 SWRITE(UNIT_stdOut,'(A)')' INIT RADIATION TRANSPORT SOLVER DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')

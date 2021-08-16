@@ -105,6 +105,7 @@ USE MOD_Radiation_ReadIn,      ONLY : Radiation_readin_atoms, Radiation_readin_m
 #if USE_MPI
 !USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -115,7 +116,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf
-  INTEGER               :: iSpec, iWaveLen
+  INTEGER               :: iSpec, iWaveLen, firstElem, lastElem, iElem
 #if USE_MPI
   INTEGER(KIND=MPI_ADDRESS_KIND)  :: MPISharedSize
 #endif /*USE_MPI*/
@@ -195,28 +196,58 @@ TElectrons       = GETREAL('Radiation-TElectrons',      '0.0')
 
 #if USE_MPI
   ! allocate shared array for Radiation_Emission/Absorption_Spec
-  MPISharedSize = INT((RadiationParameter%WaveLenDiscr)*nComputeNodeElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/RadiationParameter%WaveLenDiscr,nComputeNodeElems/), &
-    Radiation_Emission_Spec_Shared_Win,Radiation_Emission_Spec_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,Radiation_Emission_Spec_Shared_Win,IERROR)
+CALL Allocate_Shared((/RadiationParameter%WaveLenDiscr,nComputeNodeElems/), Radiation_Emission_Spec_Shared_Win,Radiation_Emission_Spec_Shared)
+CALL MPI_WIN_LOCK_ALL(0,Radiation_Emission_Spec_Shared_Win,IERROR)
 
-  MPISharedSize = INT((RadiationParameter%WaveLenDiscr)*nGlobalElems,MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-  CALL Allocate_Shared(MPISharedSize,(/RadiationParameter%WaveLenDiscr,nGlobalElems/), &
-    Radiation_Absorption_Spec_Shared_Win,Radiation_Absorption_Spec_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,Radiation_Absorption_Spec_Shared_Win,IERROR)
+CALL Allocate_Shared((/RadiationParameter%WaveLenDiscr*nGlobalElems/),Radiation_Absorption_Spec_Shared_Win,Radiation_Absorption_Spec_Shared)
+CALL MPI_WIN_LOCK_ALL(0,Radiation_Absorption_Spec_Shared_Win,IERROR)
+
+CALL Allocate_Shared((/nSpecies,nComputeNodeElems,2/), Radiation_ElemEnergy_Species_Shared_Win,Radiation_ElemEnergy_Species_Shared)
+CALL MPI_WIN_LOCK_ALL(0,Radiation_ElemEnergy_Species_Shared_Win,IERROR)
 
 Radiation_Emission_spec => Radiation_Emission_spec_Shared
-Radiation_Absorption_spec => Radiation_Absorption_spec_Shared
+Radiation_Absorption_spec(1:RadiationParameter%WaveLenDiscr ,1:nGlobalElems) => Radiation_Absorption_spec_Shared
+Radiation_ElemEnergy_Species => Radiation_ElemEnergy_Species_Shared
 #else
 ! allocate local array for ElemInfo
 ALLOCATE(Radiation_Emission_spec(RadiationParameter%WaveLenDiscr,nElems))
 ALLOCATE(Radiation_Absorption_spec(RadiationParameter%WaveLenDiscr,nElems))
+ALLOCATE(Radiation_ElemEnergy_Species(nSpecies,nElems,2))
 #endif  /*USE_MPI*/
 
-ALLOCATE(Radiation_ElemEnergy_Species(nSpecies,nElems,2))
-Radiation_Emission_spec = 0.0
-Radiation_Absorption_spec = 0.0
-Radiation_ElemEnergy_Species = 0.0
+#if USE_MPI
+  firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeElems)/REAL(nComputeNodeProcessors))+1
+  lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeElems)/REAL(nComputeNodeProcessors))
+#else
+  firstElem = 1
+  lastElem  = nElems
+#endif
+
+DO iElem = firstElem, lastElem
+  Radiation_Emission_spec(:,iElem) = 0.0
+  Radiation_Absorption_spec(:,iElem) = 0.0
+  Radiation_ElemEnergy_Species(:,iElem,:) =0.0
+END DO
+#if USE_MPI
+  CALL BARRIER_AND_SYNC(Radiation_Emission_Spec_Shared_Win ,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(Radiation_ElemEnergy_Species_Shared_Win ,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(Radiation_Absorption_Spec_Shared_Win ,MPI_COMM_SHARED)
+  IF(nLeaderGroupProcs.GT.1)THEN
+    IF(myComputeNodeRank.EQ.0)THEN
+      CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
+                     , 0                             &
+                     , MPI_DATATYPE_NULL             &
+                     , Radiation_Absorption_Spec_Shared  &
+                     , RadiationParameter%WaveLenDiscr *recvcountElem   &
+                     , RadiationParameter%WaveLenDiscr *displsElem      &
+                     , MPI_DOUBLE_PRECISION          &
+                     , MPI_COMM_LEADERS_SHARED       &
+                     , IERROR)
+    END IF
+  END IF  
+  CALL BARRIER_AND_SYNC(Radiation_Absorption_Spec_Shared_Win ,MPI_COMM_SHARED)
+#endif
+
 
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT RADIATION SOLVER DONE!'
@@ -335,16 +366,15 @@ IMPLICIT NONE
 SDEALLOCATE(RadiationInput)
 SDEALLOCATE(SpeciesRadiation)
 SDEALLOCATE(RadiationParameter%WaveLen)
-SDEALLOCATE(Radiation_ElemEnergy_Species)
 
 #if USE_MPI
 CALL UNLOCK_AND_FREE(Radiation_Emission_Spec_Shared_Win)
 CALL UNLOCK_AND_FREE(Radiation_Absorption_Spec_Shared_Win)
-ADEALLOCATE(Radiation_Emission_Spec_Shared)
-ADEALLOCATE(Radiation_Absorption_Spec_Shared)
+CALL UNLOCK_AND_FREE(Radiation_ElemEnergy_Species_Shared_Win)
 #endif /*USE_MPI*/
 ADEALLOCATE(Radiation_Emission_Spec)
 ADEALLOCATE(Radiation_Absorption_Spec)
+ADEALLOCATE(Radiation_ElemEnergy_Species)
 
 END SUBROUTINE FinalizeRadiation
 

@@ -10,6 +10,8 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
+#include "piclas.h"
+
 MODULE MOD_RadiationTrans_Vars
 !===================================================================================================================================
 ! Contains the tadiation transport variables
@@ -25,7 +27,6 @@ SAVE
 LOGICAL                                  :: useParticleRadiationSolver
 TYPE tRadTrans
   INTEGER                                :: NumPhotonsPerCell
-  INTEGER, ALLOCATABLE                   :: PhotPerCell(:)
   REAL                                   :: GlobalRadiationPower
   REAL                                   :: ScaledGlobalRadiationPower
   INTEGER                                :: GlobalPhotonNum
@@ -45,16 +46,25 @@ END TYPE
 
 TYPE (tPhotonProps)           :: PhotonProps
 
-REAL    , ALLOCATABLE :: RadiationElemEnergy(:,:)
-
-REAL    , ALLOCATABLE :: Radiation_Emission_Spec_Total(:)
-REAL    , ALLOCATABLE :: Radiation_Absorption_Spec_Total(:)
-
-REAL    , ALLOCATABLE :: PhotonSampWall(:,:)
-
 INTEGER               :: RadiationAbsorptionModel
 INTEGER               :: RadiationDirectionModel
 INTEGER               :: RadiationPhotonPosModel
 LOGICAL               :: RadEmiAdaptPhotonNum
+
+REAL, ALLOCATABLE               :: RadiationElemAbsEnergy(:)
+REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Total(:)
+INTEGER,ALLOCPOINT              :: RadTransPhotPerCell(:)     ! (WaveLen(:), number of mesh elements)
+INTEGER, ALLOCATABLE            :: RadTransPhotPerCellLoc(:)
+REAL, ALLOCATABLE               :: PhotonSampWall(:,:)
+#if USE_MPI
+INTEGER                         :: RadTransPhotPerCell_Shared_Win
+INTEGER,ALLOCPOINT              :: RadTransPhotPerCell_Shared(:)
+INTEGER                         :: Radiation_Emission_Spec_Total_Shared_Win
+REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Total_Shared(:)
+INTEGER                         :: PhotonSampWall_Shared_Win
+REAL,POINTER                    :: PhotonSampWall_Shared(:,:)
+INTEGER                         :: RadiationElemAbsEnergy_Shared_Win
+REAL,POINTER                    :: RadiationElemAbsEnergy_Shared(:)
+#endif
 !===================================================================================================================================
 END MODULE MOD_RadiationTrans_Vars

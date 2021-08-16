@@ -234,6 +234,8 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: ElecACC(:)
   REAL    , ALLOCATABLE                  :: WallVelo(:,:)
   REAL    , ALLOCATABLE                  :: Voltage(:)
+  REAL    , ALLOCATABLE                  :: PhotonEnACC(:)
+  LOGICAL , ALLOCATABLE                  :: PhotonSpecularReflection(:) 
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
   REAL    , ALLOCATABLE                  :: RotFreq(:)                    ! Rotation frequency of the wall
   REAL    , ALLOCATABLE                  :: RotAxi(:,:)                   ! Direction of rotation axis

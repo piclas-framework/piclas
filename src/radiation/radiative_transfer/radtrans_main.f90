@@ -1,0 +1,386 @@
+!==================================================================================================================================
+! Copyright (c) 2018 - 2019 Marcel Pfeiffer
+!
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+#include "piclas.h"
+
+MODULE MOD_RadTransport
+!===================================================================================================================================
+! Module for the main radiation transport routines
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+PRIVATE
+
+INTERFACE RadTrans_main
+  MODULE PROCEDURE RadTrans_main
+END INTERFACE
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! GLOBAL VARIABLES 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Private Part ---------------------------------------------------------------------------------------------------------------------
+! Public Part ----------------------------------------------------------------------------------------------------------------------
+PUBLIC :: RadTrans_main
+!===================================================================================================================================
+
+CONTAINS
+
+SUBROUTINE RadTrans_main()
+!===================================================================================================================================
+!> Main routine for the Radiation Transport
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars               ,ONLY : nElems
+USE MOD_Particle_Mesh_Vars      ,ONLY : GEO, nComputeNodeElems, ElemMidPoint_Shared, ElemVolume_Shared
+USE MOD_RadiationTrans_Vars     ,ONLY : Radiation_Emission_Spec_Total, RadTrans, RadEmiAdaptPhotonNum
+USE MOD_RadiationTrans_Vars     ,ONLY : PhotonProps, RadiationDirectionModel, RadTransPhotPerCellLoc
+USE MOD_RadiationTrans_Vars     ,ONLY : RadTransPhotPerCell, RadTransPhotPerCell_Shared_Win
+USE MOD_Photon_Tracking         ,ONLY : PhotonTriaTracking!, Photon2DSymTracking
+USE MOD_Radiation_Vars          ,ONLY : RadiationSwitches
+USE MOD_DSMC_Vars               ,ONLY : RadialWeighting
+USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
+USE MOD_Output,                 ONLY: PrintStatusLineRadiation
+USE MOD_MPI_Shared_Vars
+USE MOD_MPI_Shared
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iElem, nPhotons, iPhot, globPhotNum, nPhotonsCN, photonCount, iPhotLoc, photVisCount, LocPhotNum
+INTEGER             :: firstElem, lastElem, firstPhoton, lastPhoton
+REAL                :: Bounds(1:2,1:3) ! Bounds(1,1:3) --> maxCoords , Bounds(2,1:3) --> minCoords
+REAL                :: RandRot(3,3) !, PartPos(1:3)
+!===================================================================================================================================
+  IF (RadiationSwitches%RadType.EQ.3) RETURN
+
+#if USE_MPI
+  firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeElems)/REAL(nComputeNodeProcessors))+1
+  lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeElems)/REAL(nComputeNodeProcessors))
+#else
+  firstElem = 1
+  lastElem  = nElems
+#endif
+  SWRITE(UNIT_stdOut,'(A)') ' Distribute Photons to Processors ...'
+  IF (RadEmiAdaptPhotonNum) THEN
+    DO iElem = firstElem, lastElem
+      IF (RadTrans%GlobalRadiationPower .EQ. 0.0) THEN !!!!TODO: check!!!
+        RadTransPhotPerCell(iElem) = 0
+      ELSE
+        IF (RadialWeighting%DoRadialWeighting) THEN
+          RadTransPhotPerCell(iElem) = INT(Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem) &
+            /(1. + ElemMidPoint_Shared(2,iElem)/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.)) &
+            / RadTrans%ScaledGlobalRadiationPower*RadTrans%GlobalPhotonNum + 0.5)
+        ELSE
+          RadTransPhotPerCell(iElem) = INT(Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem) &
+            / RadTrans%GlobalRadiationPower*RadTrans%GlobalPhotonNum + 0.5)
+        END IF
+      END IF
+    END DO
+#if USE_MPI   
+    CALL BARRIER_AND_SYNC(RadTransPhotPerCell_Shared_Win ,MPI_COMM_SHARED)
+    IF(myComputeNodeRank.EQ.0) nPhotons = SUM(RadTransPhotPerCell(:))      
+    IF(nLeaderGroupProcs.GT.1)THEN
+      IF(myComputeNodeRank.EQ.0)THEN
+         CALL MPI_ALLREDUCE(MPI_IN_PLACE,nPhotons,1,MPI_INTEGER,MPI_SUM,MPI_COMM_LEADERS_SHARED,iError)
+      END IF
+    END IF
+    CALL MPI_BCAST(nPhotons,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+    nPhotonsCN = SUM(RadTransPhotPerCell(:)) 
+    firstPhoton = INT(REAL( myComputeNodeRank   *nPhotonsCN)/REAL(nComputeNodeProcessors))+1
+    lastPhoton = INT(REAL((myComputeNodeRank+1)*nPhotonsCN)/REAL(nComputeNodeProcessors))
+    photonCount = 0
+    DO iELem = 1, nComputeNodeElems
+      IF (photonCount.GT.lastPhoton) THEN
+        RadTransPhotPerCellLoc(iELem) = 0        
+      ELSE IF ((photonCount.GT.firstPhoton).AND.((photonCount+RadTransPhotPerCell(iElem)).LE.lastPhoton)) THEN
+        RadTransPhotPerCellLoc(iELem) = RadTransPhotPerCell(iElem)
+      ELSE IF ((photonCount.LT.firstPhoton).AND.((photonCount+RadTransPhotPerCell(iElem)).GT.lastPhoton)) THEN
+        RadTransPhotPerCellLoc(iELem) = lastPhoton - firstPhoton + 1
+      ELSE IF ((photonCount+RadTransPhotPerCell(iElem)).GT.lastPhoton) THEN
+        RadTransPhotPerCellLoc(iELem) = lastPhoton - photonCount
+      ELSE IF ((photonCount+RadTransPhotPerCell(iElem)).GT.firstPhoton) THEN
+        RadTransPhotPerCellLoc(iELem) = photonCount+RadTransPhotPerCell(iElem) - firstPhoton + 1
+      ELSE
+        RadTransPhotPerCellLoc(iELem) = 0
+      END IF
+      photonCount = photonCount + RadTransPhotPerCell(iELem)
+    END DO
+#else
+    RadTransPhotPerCellLoc(:) = RadTransPhotPerCell(:)  
+    nPhotons = SUM(RadTransPhotPerCell(:))
+#endif /*USE_MPI*/
+    RadTrans%GlobalPhotonNum = nPhotons
+  ELSE
+#if USE_MPI 
+    IF(myComputeNodeRank.EQ.0) RadTransPhotPerCell(:) = RadTrans%NumPhotonsPerCell
+    CALL BARRIER_AND_SYNC(RadTransPhotPerCell_Shared_Win ,MPI_COMM_SHARED)
+#else
+    RadTransPhotPerCell(:) = RadTrans%NumPhotonsPerCell
+#endif
+    RadTransPhotPerCellLoc(:) = RadTransPhotPerCell(:)
+  END IF
+  
+  SWRITE(UNIT_stdOut,'(A)') ' Start Radiative Transport Calculation ...'
+  globPhotNum = 0
+  photonCount = 0
+  photVisCount = 0
+  LocPhotNum = SUM(RadTransPhotPerCellLoc(:))
+  DO iElem = 1, nComputeNodeElems
+    IF (RadTransPhotPerCellLoc(iElem).GT.0) THEN
+      IF (RadiationDirectionModel.EQ.2) RandRot = RandomRotMatrix()
+      DO iPhot = 1, RadTransPhotPerCellLoc(iElem)
+        IF(MPIroot.AND.(MOD(photVisCount,20000).EQ.0)) CALL PrintStatusLineRadiation(REAL(photVisCount),REAL(1),REAL(LocPhotNum),.TRUE.)
+        photVisCount = photVisCount + 1
+        PhotonProps%PhotonEnergy = SetPhotonEnergy(iElem) 
+        PhotonProps%PhotonPos(1:3) = SetPhotonPos(iElem, globPhotNum)
+        PhotonProps%PhotonLastPos(1:3) = PhotonProps%PhotonPos(1:3)
+        PhotonProps%ElemID = GetGlobalElemID(iElem)
+        IF ((photonCount.LT.firstPhoton)) THEN             
+          iPhotLoc = firstPhoton - photonCount + iPhot - 1
+        ELSE 
+          iPhotLoc = iPhot
+        END IF
+        PhotonProps%PhotonDirection(1:3) = SetPhotonStartDirection(iElem, iPhotLoc, RandRot)
+        PhotonProps%WaveLength = SetParticleWavelength(iElem)
+!        IF (Symmetry2DAxisymmetric) THEN 
+!          CALL Photon2DSymTracking()
+!        ELSE
+          CALL PhotonTriaTracking()
+!        END IF
+      END DO    
+    END IF
+    photonCount = photonCount + RadTransPhotPerCell(iELem)
+  END DO
+
+END SUBROUTINE RadTrans_main
+
+FUNCTION SetPhotonEnergy(iElem)
+!===================================================================================================================================
+!> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
+!===================================================================================================================================
+! MODULES
+USE MOD_RadiationTrans_Vars     ,ONLY : RadEmiAdaptPhotonNum, Radiation_Emission_Spec_Total, RadTrans, RadTransPhotPerCell
+USE MOD_Particle_Mesh_Vars      ,ONLY : GEO, ElemVolume_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES  
+INTEGER, INTENT(IN)       :: iElem       
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                      :: SetPhotonEnergy      
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF (RadEmiAdaptPhotonNum) THEN
+  SetPhotonEnergy = Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem) / RadTransPhotPerCell(iElem)
+ELSE
+  SetPhotonEnergy = Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem) / (RadTrans%NumPhotonsPerCell)
+END IF
+
+END FUNCTION SetPhotonEnergy
+
+FUNCTION SetPhotonPos(iElem, globPhotNum)
+!===================================================================================================================================
+!> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_RadiationTrans_Vars,   ONLY : RadiationPhotonPosModel
+USE MOD_Particle_Mesh_Tools,   ONLY : ParticleInsideQuad3D
+USE MOD_RadiationTrans_Init,   ONLY : HALTON
+!USE MOD_PARTICLE_Vars,         ONLY : Symmetry2DAxisymmetric
+USE MOD_Particle_Mesh_Vars,    ONLY : BoundsOfElem_Shared
+USE MOD_Mesh_Tools,            ONLY: GetGlobalElemID
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES  
+INTEGER, INTENT(IN)       :: iElem
+INTEGER, INTENT(INOUT)    :: globPhotNum       
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                      :: SetPhotonPos(3)       
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                   :: InsideFlag
+INTEGER                   :: globElemID
+!===================================================================================================================================
+  InsideFlag=.FALSE.
+  globElemID = GetGlobalElemID(iElem)
+  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,globElemID) ) 
+    DO WHILE(.NOT.InsideFlag)
+      SELECT CASE(RadiationPhotonPosModel)
+      CASE(1)
+        CALL RANDOM_NUMBER(SetPhotonPos)
+      CASE(2)
+        globPhotNum = globPhotNum + 1
+        CALL HALTON(globPhotNum,3,SetPhotonPos)
+      CASE DEFAULT
+        CALL abort(&
+        __STAMP__&
+        ,' ERROR: Radiation-PhotonPosModel not implemented!. (unknown case)')
+      END SELECT !PartBound%MapToPartBC(BC(SideID)
+      SetPhotonPos = Bounds(1,:) + SetPhotonPos*(Bounds(2,:)-Bounds(1,:))
+  !    IF (Symmetry2DAxisymmetric) SetPhotonPos(3) = 0.0
+      CALL ParticleInsideQuad3D(SetPhotonPos,globElemID,InsideFlag)
+    END DO
+  END ASSOCIATE
+END FUNCTION SetPhotonPos
+
+FUNCTION SetPhotonStartDirection(iElem, iPhot, RandRot)
+!===================================================================================================================================
+! modified particle emmission for LD case
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars,         ONLY : Pi 
+USE MOD_RadiationTrans_Vars  ,ONLY : RadiationDirectionModel, RadTrans, RadTransPhotPerCell
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iElem, iPhot
+REAL, INTENT(IN)                :: RandRot(3,3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INOUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                             :: SetPhotonStartDirection(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                             :: iRan,RandomDirection(2), X_new, Y_new, start, incr, SpiralPos, SpiralStep
+INTEGER                          :: RadMod
+!===================================================================================================================================
+  SELECT CASE(RadiationDirectionModel)
+  CASE(1)
+    RadMod = RadiationDirectionModel
+  CASE(2)
+    IF (RadTransPhotPerCell(iElem).EQ.1) THEN
+      RadMod = 1
+    ELSE
+      RadMod = RadiationDirectionModel
+    END IF
+  CASE DEFAULT
+    CALL abort(&
+    __STAMP__&
+    ,' ERROR: Radiation-DirectionModel not implemented!. (unknown case)')
+  END SELECT !PartBound%MapToPartBC(BC(SideID)
+
+  SELECT CASE(RadMod)
+  CASE(1)
+    CALL RANDOM_NUMBER(iRan)
+    RandomDirection(1) = 2.*iRan - 1.
+    CALL RANDOM_NUMBER(iRan)
+    RandomDirection(2) = 2.*Pi*iRan - Pi
+    SetPhotonStartDirection(1)  = SIN(RandomDirection(2))*SQRT(1.-RandomDirection(1)**2.)
+    SetPhotonStartDirection(2)  = COS(RandomDirection(2))*SQRT(1.-RandomDirection(1)**2.)
+    SetPhotonStartDirection(3)  = RandomDirection(1)
+  CASE(2)  
+    SpiralStep = 0.1+1.2*REAL(RadTransPhotPerCell(iElem))
+    start = (-1. + 1./(REAL(RadTransPhotPerCell(iElem))-1.))
+    incr = (2.-2./(REAL(RadTransPhotPerCell(iElem))-1.))/(REAL(RadTransPhotPerCell(iElem))-1.)
+    SpiralPos = start + (REAL(iPhot)-1.) *incr
+    X_new = SpiralPos * SpiralStep
+    Y_new = Pi/2.*SIGN(1.,SpiralPos)*(1.-SQRT(1.-ABS(SpiralPos)))
+    SetPhotonStartDirection(1)  = COS(X_new)*COS(Y_new)
+    SetPhotonStartDirection(2)  = SIN(X_new)*COS(Y_new)
+    SetPhotonStartDirection(3)  = SIN(Y_new) 
+    SetPhotonStartDirection(1:3)  = MATMUL(RandRot, SetPhotonStartDirection(1:3))
+  CASE DEFAULT
+    CALL abort(&
+    __STAMP__&
+    ,' ERROR: Radiation-DirectionModel not implemented!. (unknown case)')
+  END SELECT !PartBound%MapToPartBC(BC(SideID)
+
+END FUNCTION SetPhotonStartDirection
+
+FUNCTION RandomRotMatrix()
+!===================================================================================================================================
+! Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
+!===================================================================================================================================
+! MODULES  
+  USE MOD_Globals_Vars,         ONLY : Pi 
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+  REAL                    :: RandomRotMatrix(3,3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  REAL                    :: alpha(3) , A(3,3)
+!===================================================================================================================================
+  CALL RANDOM_NUMBER(alpha)
+  alpha(1:3) = 2.*alpha(1:3)*Pi
+  RandomRotMatrix = RESHAPE((/1.,0.,0.,0.,COS(alpha(1)),SIN(alpha(1)),0.,-SIN(alpha(1)), COS(alpha(1))/),(/3,3/))
+  A = RESHAPE((/COS(alpha(2)),0.,-SIN(alpha(2)),0.,1.,0.,SIN(alpha(2)),0.0, COS(alpha(2))/),(/3,3/))
+  RandomRotMatrix = MATMUL(A,RandomRotMatrix)
+  A = RESHAPE((/COS(alpha(3)),SIN(alpha(3)),0.,-SIN(alpha(3)),COS(alpha(3)),0.,0.,0.0, 1./),(/3,3/))
+  RandomRotMatrix = MATMUL(A, RandomRotMatrix)
+
+END FUNCTION RandomRotMatrix
+
+
+FUNCTION SetParticleWavelength(iElem)
+!===================================================================================================================================
+! modified particle emmission for LD case
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars,          ONLY : Pi
+USE MOD_RadiationTrans_Vars,   ONLY : Radiation_Emission_Spec_Total
+USE MOD_Radiation_Vars,        ONLY: Radiation_Emission_spec, RadiationParameter
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INOUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER                         :: SetParticleWavelength
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: iWaveLength, iWave
+REAL                             :: iRan, iRadPower
+!===================================================================================================================================
+ 
+  CALL RANDOM_NUMBER(iRan)
+  iWaveLength = INT(RadiationParameter%WaveLenDiscr*iRan) + 1
+  iRadPower = 0.0
+  DO iWave = 1,  iWaveLength
+    iRadPower = iRadPower + 4.*Pi*Radiation_Emission_Spec(iWave,iElem)*RadiationParameter%WaveLenIncr
+  END DO
+  CALL RANDOM_NUMBER(iRan)
+  DO WHILE (iRan.GT.(iRadPower/Radiation_Emission_Spec_Total(iElem)))
+    CALL RANDOM_NUMBER(iRan)
+    iWaveLength = INT(RadiationParameter%WaveLenDiscr*iRan) + 1
+    iRadPower = 0.0
+    DO iWave = 1,  iWaveLength
+      iRadPower = iRadPower + 4.*Pi*Radiation_Emission_Spec(iWave,iElem)*RadiationParameter%WaveLenIncr
+    END DO
+    CALL RANDOM_NUMBER(iRan)
+  END DO
+  SetParticleWavelength = iWaveLength
+
+END FUNCTION SetParticleWavelength
+
+END MODULE MOD_RadTransport

@@ -319,13 +319,13 @@ DO !iter_t=0,MaxIter
 #else
   CALL TimeStepPoissonByLSERK() ! Runge Kutta Explicit, Poisson
 #endif
-#elif (PP_TimeDiscMethod==600)
-  CALL TimeStep_Radiation()
 #else
   CALL abort(&
   __STAMP__&
   ,'Timedisc 50x only available for EQNSYS Poisson!',PP_N,999.)
 #endif /*USE_HDG*/
+#elif (PP_TimeDiscMethod==600)
+  CALL TimeStep_Radiation()
 #endif
   ! calling the analyze routines
   iter=iter+1

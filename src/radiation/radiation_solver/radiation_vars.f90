@@ -90,18 +90,20 @@ END TYPE tSpeciesRadiation
 TYPE(tSpeciesRadiation), ALLOCATABLE     :: SpeciesRadiation(:)         ! (nSpec)
 
 !REAL, ALLOCATABLE       :: Radiation_NumDens
-REAL, ALLOCATABLE       :: Radiation_ElemEnergy_Species(:,:,:)! (number of species, number of mesh elements, 2(Emission,Absorption))
-
+REAL, ALLOCPOINT       :: Radiation_ElemEnergy_Species(:,:,:)! (number of species, number of mesh elements, 2(Emission,Absorption))
 
 
 
 REAL,ALLOCPOINT                 :: Radiation_Emission_spec(:,:)     ! (WaveLen(:), number of mesh elements)
 REAL,ALLOCPOINT                 :: Radiation_Absorption_spec(:,:)     ! (WaveLen(:), number of mesh elements)
+
 #if USE_MPI
 INTEGER                         :: Radiation_Emission_Spec_Shared_Win
 REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Shared(:,:)
 INTEGER                         :: Radiation_Absorption_Spec_Shared_Win
-REAL,ALLOCPOINT                 :: Radiation_Absorption_Spec_Shared(:,:)
+REAL,ALLOCPOINT                 :: Radiation_Absorption_Spec_Shared(:)
+INTEGER                         :: Radiation_ElemEnergy_Species_Shared_Win
+REAL,ALLOCPOINT                 :: Radiation_ElemEnergy_Species_Shared(:,:,:)
 #endif
 !===================================================================================================================================
 END MODULE MOD_Radiation_Vars
