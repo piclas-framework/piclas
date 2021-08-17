@@ -33,7 +33,7 @@ SUBROUTINE TimeStep_Radiation()
 !===================================================================================================================================
 ! MODULES
 USE MOD_RadTransport, ONLY: RadTrans_main
-USE MOD_RadTrans_Output, ONLY: WriteRadiationToHDF5 !, WriteSurfSampleToHDF5
+USE MOD_RadTrans_Output, ONLY: WriteRadiationToHDF5, WriteSurfSampleToHDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -45,7 +45,7 @@ IMPLICIT NONE
 
 CALL RadTrans_main()
 CALL WriteRadiationToHDF5()
-!CALL WriteSurfSampleToHDF5()
+CALL WriteSurfSampleToHDF5()
 
 END SUBROUTINE TimeStep_Radiation
 
