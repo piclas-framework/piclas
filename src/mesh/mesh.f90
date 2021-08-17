@@ -211,7 +211,7 @@ IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-CALL ReadAttribute(File_ID,'Ngeo',1,IntegerScalar=NGeo)
+CALL ReadAttribute(File_ID,'Ngeo',1,IntScalar=NGeo)
 SWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
 
 CALL CloseDataFile()
