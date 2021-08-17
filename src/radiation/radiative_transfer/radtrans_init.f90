@@ -72,6 +72,7 @@ USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radia
 USE MOD_Radiation,              ONLY : radiation_main
 USE MOD_DSMC_Vars,              ONLY: RadialWeighting
 USE MOD_Output,                 ONLY: PrintStatusLineRadiation
+USE MOD_Mesh_Tools,             ONLY : GetGlobalElemID
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 ! IMPLICIT VARIABLE HANDLING
@@ -164,7 +165,7 @@ CASE(2) ! Black body radiation
   END DO
   DO iElem = firstElem, lastElem
     DO iWave = 1, RadiationParameter%WaveLenDiscr
-      Radiation_Absorption_Spec(iWave, iElem) = 1.
+      Radiation_Absorption_Spec(iWave, GetGlobalElemID(iElem)) = 1.
     END DO
   END DO  
 CASE(3) !only radiation

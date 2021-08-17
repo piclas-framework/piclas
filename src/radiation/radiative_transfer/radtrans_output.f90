@@ -345,18 +345,15 @@ END SUBROUTINE MPI_ExchangeRadiationInfo
 !REAL                                :: tstart,tend
 !REAL, ALLOCATABLE                   :: helpArray(:,:)
 !!===================================================================================================================================
-!IF (nSurfBC.EQ.0) THEN
-!  IF(SurfCOMM%MPIOutputROOT)THEN
-!    WRITE(UNIT_stdOut,'(A)') 'No boundary found for surface sampling!'
-!  END IF
-!  RETURN
-!END IF
 !#if USE_MPI
-!CALL MPI_BARRIER(SurfCOMM%COMM,iERROR)
-!CALL MPI_ExchangeRadiationSurfData()
-!IF(SurfMesh%nSides.EQ.0) RETURN
+!! Return if not a sampling leader
+!IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
+!CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
+
+!! Return if no sampling sides
+!IF (nSurfTotalSides      .EQ.0) RETURN
 !#endif /*USE_MPI*/
-!IF(SurfCOMM%MPIOutputRoot)THEN
+!IF (mySurfRank.EQ.0) THEN
 !  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE Radiation SurfSTATE TO HDF5 FILE...'
 !  tstart=LOCALTIME()
 !END IF
@@ -366,7 +363,7 @@ END SUBROUTINE MPI_ExchangeRadiationInfo
 
 !! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 !#if USE_MPI
-!IF(SurfCOMM%MPIOutputRoot)THEN
+!IF (mySurfRank.EQ.0) THEN
 !#endif /*USE_MPI*/
 !  CALL OpenDataFile(FileString,create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
 !  Statedummy = 'RadiationSurfState'
@@ -390,8 +387,8 @@ END SUBROUTINE MPI_ExchangeRadiationInfo
 !  DEALLOCATE(Str2DVarNames)
 !#if USE_MPI
 !END IF
-!CALL MPI_BARRIER(SurfCOMM%OutputCOMM,iERROR)
-!CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=SurfCOMM%OutputCOMM)
+!CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
+!CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_LEADERS_SURF)
 !#else
 !CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.)
 !#endif /*USE_MPI*/
@@ -399,16 +396,16 @@ END SUBROUTINE MPI_ExchangeRadiationInfo
 
 !WRITE(H5_Name,'(A)') 'SurfaceData'
 !ASSOCIATE (&
-!      nGlobalSides         => INT(SurfMesh%nGlobalSides,IK) ,&
-!      LocalnBCSides        => INT(SurfMesh%nBCSides,IK)     ,&
-!      offsetSurfSide       => INT(offsetSurfSide,IK)        ,&
+!      nGlobalSides         => INT(nOutputSides,IK) ,&
+!      LocalnBCSides        => INT(nComputeNodeSurfOutputSides,IK)     ,&
+!      offsetSurfSide       => INT(offsetComputeNodeSurfOutputSide,IK)        ,&
 !      nVar2D               => INT(nVar2D,IK))
 
 !  ALLOCATE(helpArray(nVar2D,LocalnBCSides))
 
 !  helpArray(1,1:LocalnBCSides)= PhotonSampWall(1,1:LocalnBCSides)
 !  !  SurfaceArea should be changed to 1:SurfMesh%nSides if inner sampling sides exist...
-!  helpArray(2,1:LocalnBCSides)= PhotonSampWall(2,1:LocalnBCSides)/SurfMesh%SurfaceArea(1,1,1:LocalnBCSides)
+!  helpArray(2,1:LocalnBCSides)= PhotonSampWall(2,1:LocalnBCSides)/SurfSideArea(1,1,1:LocalnBCSides)
 !  CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                                     , &
 !                        nValGlobal =(/nVar2D     , 1, 1 , nGlobalSides/)  , &
 !                        nVal       =(/nVar2D           , 1, 1 , LocalnBCSides/)        , &
@@ -420,7 +417,7 @@ END SUBROUTINE MPI_ExchangeRadiationInfo
 
 !CALL CloseDataFile()
 
-!IF(SurfCOMM%MPIOutputROOT)THEN
+!IF (mySurfRank.EQ.0) THEN
 !  tend=LOCALTIME()
 !  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',tend-tstart,'s]'
 !END IF

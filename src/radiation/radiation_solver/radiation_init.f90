@@ -102,6 +102,7 @@ USE MOD_PARTICLE_Vars,         ONLY : nSpecies
 USE MOD_Radiation_Vars
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC
 USE MOD_Radiation_ReadIn,      ONLY : Radiation_readin_atoms, Radiation_readin_molecules
+USE MOD_Mesh_Tools,            ONLY : GetGlobalElemID
 #if USE_MPI
 !USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
@@ -225,7 +226,7 @@ ALLOCATE(Radiation_ElemEnergy_Species(nSpecies,nElems,2))
 
 DO iElem = firstElem, lastElem
   Radiation_Emission_spec(:,iElem) = 0.0
-  Radiation_Absorption_spec(:,iElem) = 0.0
+  Radiation_Absorption_spec(:,GetGlobalElemID(iElem)) = 0.0
   Radiation_ElemEnergy_Species(:,iElem,:) =0.0
 END DO
 #if USE_MPI

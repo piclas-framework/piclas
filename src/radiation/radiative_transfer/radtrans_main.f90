@@ -61,7 +61,7 @@ USE MOD_MPI_Shared
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem, nPhotons, iPhot, globPhotNum, nPhotonsCN, photonCount, iPhotLoc, photVisCount, LocPhotNum
+INTEGER             :: iElem, nPhotons, iPhot, globPhotNum, nPhotonsCN, photonCount, iPhotLoc, photVisCount, LocPhotNum, PhotDisp
 INTEGER             :: firstElem, lastElem, firstPhoton, lastPhoton
 REAL                :: Bounds(1:2,1:3) ! Bounds(1,1:3) --> maxCoords , Bounds(2,1:3) --> minCoords
 REAL                :: RandRot(3,3) !, PartPos(1:3)
@@ -140,11 +140,12 @@ REAL                :: RandRot(3,3) !, PartPos(1:3)
   photonCount = 0
   photVisCount = 0
   LocPhotNum = SUM(RadTransPhotPerCellLoc(:))
+  PhotDisp = INT(LocPhotNum/20)
   DO iElem = 1, nComputeNodeElems
     IF (RadTransPhotPerCellLoc(iElem).GT.0) THEN
       IF (RadiationDirectionModel.EQ.2) RandRot = RandomRotMatrix()
       DO iPhot = 1, RadTransPhotPerCellLoc(iElem)
-        IF(MPIroot.AND.(MOD(photVisCount,20000).EQ.0)) CALL PrintStatusLineRadiation(REAL(photVisCount),REAL(1),REAL(LocPhotNum),.TRUE.)
+        IF(MPIroot.AND.(MOD(photVisCount,PhotDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(photVisCount),REAL(1),REAL(LocPhotNum),.TRUE.)
         photVisCount = photVisCount + 1
         PhotonProps%PhotonEnergy = SetPhotonEnergy(iElem) 
         PhotonProps%PhotonPos(1:3) = SetPhotonPos(iElem, globPhotNum)
