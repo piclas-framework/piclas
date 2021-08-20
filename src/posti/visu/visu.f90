@@ -79,6 +79,7 @@ CHARACTER(LEN=255),ALLOCATABLE                      :: tmp(:)
 CHARACTER(LEN=255)                                  :: MeshFile_loc
 INTEGER                                             :: Offset=0 ! Every process reads all BCs
 !===================================================================================================================================
+sameVars=.FALSE.
 
 IF (ISVALIDMESHFILE(statefile)) THEN      ! MESH
   SDEALLOCATE(varnames_loc)

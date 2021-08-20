@@ -522,6 +522,7 @@ DO iSide = firstSide,lastSide
 END DO
 
 ! We should never arrive here
+GetGlobalNonUniqueSideID=-1
 CALL ABORT(__STAMP__,'GlobalSideID not found for Elem',ElemID)
 END FUNCTION GetGlobalNonUniqueSideID
 
