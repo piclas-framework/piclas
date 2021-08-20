@@ -140,10 +140,6 @@ TotalNbrOfMissingParticlesSum = 0
 ! Set the DG solution to zero (ignore the DG solution in the state file)
 RestartNullifySolution = GETLOGICAL('RestartNullifySolution','F')
 
-! Macroscopic restart
-DoMacroscopicRestart = GETLOGICAL('Particles-MacroscopicRestart')
-IF(DoMacroscopicRestart) MacroRestartFileName = GETSTR('Particles-MacroscopicRestart-Filename')
-
 ! Check if we want to perform a restart
 IF (LEN_TRIM(RestartFile).GT.0) THEN
   ! Read in the state file we want to restart from
@@ -215,6 +211,12 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
 ELSE
   RestartTime = 0.
   SWRITE(UNIT_StdOut,'(A)')' | No restart wanted, doing a fresh computation!'
+END IF
+
+! Macroscopic restart
+IF(DoRestart) THEN
+  DoMacroscopicRestart = GETLOGICAL('Particles-MacroscopicRestart')
+  IF(DoMacroscopicRestart) MacroRestartFileName = GETSTR('Particles-MacroscopicRestart-Filename')
 END IF
 
 ! Automatically do a load balance step at the beginning of a new simulation or a user-restarted simulation
