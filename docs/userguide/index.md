@@ -5,7 +5,7 @@
 % ---
 % ```
 
-# Welcome to PICLas Testing's documentation!
+# Welcome to the PICLas Documentation!
 
 ![alt](../logo.png)
 
