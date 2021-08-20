@@ -92,8 +92,8 @@ IF (PerformLoadBalance) RETURN
 #endif /*USE_LOADBALANCE*/
 
 !CALL ReadAttribute(File_ID,'nUniqueSides',1,IntScalar=nGlobalUniqueSidesFromMesh)
-CALL ReadAttribute(File_ID,'nSides'      ,1,IntegerScalar=nNonUniqueGlobalSides)
-CALL ReadAttribute(File_ID,'nNodes'      ,1,IntegerScalar=nNonUniqueGlobalNodes)
+CALL ReadAttribute(File_ID,'nSides'      ,1,IntScalar=nNonUniqueGlobalSides)
+CALL ReadAttribute(File_ID,'nNodes'      ,1,IntScalar=nNonUniqueGlobalNodes)
 
 END SUBROUTINE ReadMeshBasics
 

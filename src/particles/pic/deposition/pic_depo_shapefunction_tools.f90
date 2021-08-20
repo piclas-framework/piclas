@@ -871,6 +871,8 @@ CASE (2)
   SFNorm = SQRT(v1(dim_sf_dir1)**2+v1(dim_sf_dir2)**2)
 CASE (3)
   SFNorm = VECNORM(v1)
+CASE DEFAULT
+  SFNorm = 0.
 END SELECT
 
 END FUNCTION SFNorm
@@ -901,6 +903,8 @@ CASE (2)
   SFRadius2 = v1(dim_sf_dir1)**2 + v1(dim_sf_dir2)**2
 CASE (3)
   SFRadius2 = SUM(v1(1:3)**2)
+CASE DEFAULT
+  SFRadius2 = 0.
 END SELECT
 
 END FUNCTION SFRadius2
