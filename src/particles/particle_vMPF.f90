@@ -30,7 +30,7 @@ PUBLIC :: SplitMerge_main
 
 CONTAINS
 
-SUBROUTINE SplitMerge_main()
+
 !===================================================================================================================================
 !> Main routine for split and merge particles
 !> Loop over all elements:
@@ -38,6 +38,7 @@ SUBROUTINE SplitMerge_main()
 !> 2.) build partindx list for species
 !> 3.) Call split or merge routine
 !===================================================================================================================================
+SUBROUTINE SplitMerge_main()
 ! MODULES
 USE MOD_PARTICLE_Vars         ,ONLY: vMPFNewPartNum, PEM, nSpecies, PartSpecies,PDM
 USE MOD_Mesh_Vars             ,ONLY: nElems
@@ -62,6 +63,7 @@ DO iElem = 1, nElems
     iPartIndx_Node_Temp(iSpec,1:nPartCell) = 0
   END DO
   iPart = PEM%pStart(iElem)
+
   ! 1.) build partindx list for cell
   DO iLoop = 1, nPartCell
     IF (.NOT.PDM%ParticleInside(iPart)) THEN
@@ -72,30 +74,37 @@ DO iElem = 1, nElems
     iPartIndx_Node_Temp(PartSpecies(iPart),nPart(PartSpecies(iPart))) = iPart
     iPart = PEM%pNext(iPart)
   END DO
+
   DO iSpec = 1, nSpecies
 !    IF ((vMPFNewPartNum(iSpec).EQ.0).OR.(nPart(iSpec).LE.vMPFNewPartNum(iSpec))) CYCLE
-    IF ((vMPFNewPartNum(iSpec).EQ.0).OR.(nPart(iSpec).EQ.vMPFNewPartNum(iSpec))) CYCLE
-  ! 2.) build partindx list for species
+    IF(vMPFNewPartNum(iSpec).EQ.0) CYCLE            ! Skip default value
+    IF(nPart(iSpec).EQ.0) CYCLE                     ! Skip when no particles are present
+    IF(nPart(iSpec).EQ.vMPFNewPartNum(iSpec)) CYCLE ! Skip number of particles equal target value
+
+    ! 2.) build partindx list for species
     ALLOCATE(iPartIndx_Node(nPart(iSpec)))
     DO iLoop = 1, nPart(iSpec)
       iPartIndx_Node(iLoop) = iPartIndx_Node_Temp(iSpec,iLoop)
     END DO
-  ! 3.) Call split or merge routine
+
+    ! 3.) Call split or merge routine
     IF(nPart(iSpec).GT.vMPFNewPartNum(iSpec)) THEN  ! Merge
       CALL MergeParticles(iPartIndx_Node, nPart(iSpec), vMPFNewPartNum(iSpec),iElem)
     ELSE  ! nPart(iSpec).LT.vMPFNewPartNum(iSpec) => Split
       CALL SplitParticles(iPartIndx_Node, nPart(iSpec), vMPFNewPartNum(iSpec))
     END IF
     DEALLOCATE(iPartIndx_Node)
+
   END DO
   DEALLOCATE(iPartIndx_Node_Temp)
+
 END DO
 CALL UpdateNextFreePosition()
 DEALLOCATE(nPart)
 
 END SUBROUTINE SplitMerge_main
 
-SUBROUTINE MergeParticles(iPartIndx_Node, nPart, nPartNew, iElem)
+
 !===================================================================================================================================
 !> Routine for merge particles
 !> 1.) Calc bulkvelocity v_bulk (for momentum conservation)
@@ -115,6 +124,7 @@ SUBROUTINE MergeParticles(iPartIndx_Node, nPart, nPartNew, iElem)
 !> 6.3) E_rot
 !> 6.4) E_trans
 !===================================================================================================================================
+SUBROUTINE MergeParticles(iPartIndx_Node, nPart, nPartNew, iElem)
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, Species, CellEelec_vMPF, CellEvib_vMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -502,12 +512,12 @@ END DO
 
 END SUBROUTINE MergeParticles
 
-SUBROUTINE SplitParticles(iPartIndx_Node, nPart, nPartNew)
+
 !===================================================================================================================================
 !> Routine for split particles
 !> Split particle == clone particle randomly until new particle number is reached and adjust MPF accordingly
-
 !===================================================================================================================================
+SUBROUTINE SplitParticles(iPartIndx_Node, nPart, nPartNew)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, PEM, PartPosRef, VarTimeStep
@@ -528,9 +538,7 @@ INTEGER, INTENT(INOUT)               :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: iRan
-INTEGER               :: nSplit, iLoop, iPart, iNewPart, PartIndx, PositionNbr, LocalElemID
-REAL, ALLOCATABLE     :: DOF_vib_poly(:), EnergyTemp_vibPoly(:,:)
-
+INTEGER               :: nSplit, iPart, iNewPart, PartIndx, PositionNbr, LocalElemID
 !#ifdef CODE_ANALYZE
 !REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3)
 !INTEGER               :: iMomDim, iMom
@@ -581,14 +589,15 @@ END DO
 
 END SUBROUTINE SplitParticles
 
+
 #ifdef WIP
-SUBROUTINE CalculateDistMoments(iPartIndx_Node, nPart, vBulk, Vtherm2, PressTens, HeatVec, Energy)
 !===================================================================================================================================
 !> Calculation of distribution moments
 !> 1.) Calc bulk velocity
 !> 2.) Summing up the relative velocities and their squares to calculate the moments (PressTens, HeatVec)
 !> 3.) Fill missing entries in PressTens
 !===================================================================================================================================
+SUBROUTINE CalculateDistMoments(iPartIndx_Node, nPart, vBulk, Vtherm2, PressTens, HeatVec, Energy)
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartState
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -647,5 +656,6 @@ PressTens = PressTens/totalWeight
 
 END SUBROUTINE CalculateDistMoments
 #endif /*WIP*/
+
 
 END MODULE MOD_vMPF
