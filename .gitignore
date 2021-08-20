@@ -26,6 +26,8 @@ userguide.pdf
 developerguide.pdf
 # when building the user/dev guide, a new template might be created
 template.tex
+# read the docs stuff
+_build/
 
 # regression test
 regressioncheck/reggie/*
