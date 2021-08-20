@@ -549,8 +549,9 @@ END SUBROUTINE DSMC_chemical_init
 SUBROUTINE InitReactionPaths()
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars ,ONLY: ChemReac,SpecDSMC,CollInf
+USE MOD_DSMC_Vars ,ONLY: ChemReac,CollInf
 #if USE_HDG
+USE MOD_DSMC_Vars ,ONLY: SpecDSMC
 USE MOD_HDG_Vars  ,ONLY: UseBRElectronFluid ! Used for skipping reactions involving electrons as products
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING

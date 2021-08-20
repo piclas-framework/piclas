@@ -1357,7 +1357,7 @@ USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_Particle_Vars          ,ONLY: nSpecies
-USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCMacroVal, AdaptBCSampleElemNum, AdaptBCMapSampleToElem, AdaptiveData
+USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCMacroVal,AdaptBCSampleElemNum,AdaptBCMapSampleToElem,AdaptiveData,AdaptBCTruncAverage
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1370,12 +1370,13 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: H5_Name
 CHARACTER(LEN=255)             :: SpecID
-INTEGER                        :: nVar
+INTEGER                        :: nVar, nVarTotal
 INTEGER                        :: ElemID,iVar,iSpec,SampleElemID
 !===================================================================================================================================
 
 nVar = 7
 iVar = 1
+nVarTotal = nVar*nSpecies
 ALLOCATE(StrVarNames(nVar*nSpecies))
 DO iSpec=1,nSpecies
   WRITE(SpecID,'(I3.3)') iSpec
@@ -1391,17 +1392,18 @@ END DO
 
 IF(MPIRoot)THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdaptive',nVar*nSpecies,StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdaptive',nVarTotal,StrArray=StrVarNames)
   CALL CloseDataFile()
 END IF
 
+iVar = 1
 AdaptiveData = 0.
-DO SampleElemID = 1,AdaptBCSampleElemNum
-  ElemID = AdaptBCMapSampleToElem(SampleElemID)
-  ! Sample values (1-3: Velocity vector [m/s], 4: Number density [1/m3])
-  AdaptiveData(1:4,:,ElemID) = AdaptBCMacroVal(1:4,SampleElemID,:)
-  ! Porous BC parameter (5: Pumping capacity [m3/s], 6: Static pressure [Pa], 7: Integral pressure difference [Pa])
-  AdaptiveData(5:7,:,ElemID) = AdaptBCMacroVal(5:7,SampleElemID,:)
+DO iSpec = 1, nSpecies
+  DO SampleElemID = 1,AdaptBCSampleElemNum
+    ElemID = AdaptBCMapSampleToElem(SampleElemID)
+    AdaptiveData(iVar:iVar-1+nVar,ElemID) = AdaptBCMacroVal(1:7,SampleElemID,iSpec)
+  END DO
+  iVar = iVar + nVar
 END DO
 
 WRITE(H5_Name,'(A)') 'AdaptiveInfo'
@@ -1411,19 +1413,96 @@ CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,commun
 ASSOCIATE (&
       nGlobalElems    => INT(nGlobalElems,IK)    ,&
       nElems          => INT(nElems,IK)          ,&
-      nVar            => INT(nVar,IK)            ,&
+      nVarTotal       => INT(nVarTotal,IK)       ,&
       nSpecies        => INT(nSpecies,IK)        ,&
       offsetElem      => INT(offsetElem,IK)      )
-  CALL WriteArrayToHDF5(DataSetName = H5_Name , rank = 3                   , &
-                        nValGlobal  = (/nVar  , nSpecies  , nGlobalElems/) , &
-                        nVal        = (/nVar  , nSpecies  , nElems      /) , &
-                        offset      = (/0_IK  , 0_IK      , offsetElem  /) , &
-                        collective  = .false. , RealArray = AdaptiveData)
+  CALL WriteArrayToHDF5(DataSetName = H5_Name, rank = 2            , &
+                        nValGlobal  = (/nVarTotal , nGlobalElems/) , &
+                        nVal        = (/nVarTotal , nElems      /) , &
+                        offset      = (/0_IK      , offsetElem  /) , &
+                        collective  = .false., RealArray = AdaptiveData)
 END ASSOCIATE
 CALL CloseDataFile()
 SDEALLOCATE(StrVarNames)
 
+IF(AdaptBCTruncAverage) CALL WriteAdaptiveRunningAverageToHDF5(FileName)
+
 END SUBROUTINE WriteAdaptiveInfoToHDF5
+
+
+SUBROUTINE WriteAdaptiveRunningAverageToHDF5(FileName)
+!===================================================================================================================================
+!> Output of the running average required for the sampling at the adaptive boundary conditions. Required to keep the average
+!> during a load balance step.
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_IO_HDF5
+USE MOD_Timedisc_Vars          ,ONLY: iter
+USE MOD_Restart_Vars           ,ONLY: DoRestart
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCAverage, AdaptBCSampleElemNum, AdaptBCMapSampleToElem, AdaptBCSampIter
+USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCSampleElemNumGlobal, offSetElemAdaptBCSample, AdaptBCSampIterReadIn
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: nVar,ElemID,SampleElemID
+INTEGER, ALLOCATABLE           :: AdaptBCAverageIndex(:)
+!===================================================================================================================================
+
+IF(.NOT.DoRestart.AND.iter.EQ.0) RETURN
+
+nVar = 8
+ALLOCATE(AdaptBCAverageIndex(1:AdaptBCSampleElemNumGlobal))
+
+DO SampleElemID = 1,AdaptBCSampleElemNum
+  ElemID = AdaptBCMapSampleToElem(SampleElemID)
+  AdaptBCAverageIndex(SampleElemID) = ElemID + offsetElem
+END DO
+
+! Store the position in the array for early restarts
+IF(MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  IF(INT(iter,4)+AdaptBCSampIterReadIn.LT.AdaptBCSampIter) THEN
+    CALL WriteAttributeToHDF5(File_ID,'AdaptBCSampIter',1,IntegerScalar=INT(iter,4)+AdaptBCSampIterReadIn)
+  ELSE
+    CALL WriteAttributeToHDF5(File_ID,'AdaptBCSampIter',1,IntegerScalar=AdaptBCSampIter)
+  END IF
+  CALL CloseDataFile()
+END IF
+
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      AdaptBCSampleElemNumGlobal    => INT(AdaptBCSampleElemNumGlobal,IK)    ,&
+      AdaptBCSampleElemNum          => INT(AdaptBCSampleElemNum,IK)          ,&
+      nVar                          => INT(nVar,IK)            ,&
+      nSpecies                      => INT(nSpecies,IK)        ,&
+      AdaptBCSampIter               => INT(AdaptBCSampIter,IK) ,&
+      offSetElemAdaptBCSample       => INT(offSetElemAdaptBCSample,IK)      )
+  CALL WriteArrayToHDF5(DataSetName = 'AdaptiveRunningAverage' , rank = 4                   , &
+                        nValGlobal  = (/nVar  , AdaptBCSampIter  , AdaptBCSampleElemNumGlobal, nSpecies/) , &
+                        nVal        = (/nVar  , AdaptBCSampIter  , AdaptBCSampleElemNum      , nSpecies/) , &
+                        offset      = (/0_IK  , 0_IK             , offSetElemAdaptBCSample   , 0_IK/) , &
+                        collective  = .false. , RealArray = AdaptBCAverage)
+  CALL WriteArrayToHDF5(DataSetName = 'AdaptiveRunningAverageIndex' , rank = 1                   , &
+                        nValGlobal  = (/AdaptBCSampleElemNumGlobal/) , &
+                        nVal        = (/AdaptBCSampleElemNum      /) , &
+                        offset      = (/offSetElemAdaptBCSample  /) , &
+                        collective  = .false. , IntegerArray_i4 = AdaptBCAverageIndex)
+END ASSOCIATE
+CALL CloseDataFile()
+DEALLOCATE(AdaptBCAverageIndex)
+
+END SUBROUTINE WriteAdaptiveRunningAverageToHDF5
 
 
 SUBROUTINE WriteAdaptiveWallTempToHDF5(FileName)

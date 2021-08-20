@@ -169,18 +169,16 @@ REAL                             :: Vdm_loc(0:1,0:PP_N),wGP_loc,xGP_loc(0:1),Det
 REAL                             :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
 INTEGER                          :: j,k,l,iElem, firstElem, lastElem
 #if USE_MPI
-INTEGER(KIND=MPI_ADDRESS_KIND)   :: MPISharedSize
 INTEGER                          :: MessageSize
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
-#endif
 #if USE_DEBUG
 INTEGER                          :: I
 #endif /*USE_DEBUG*/
+#endif
 INTEGER                          :: NodeID(1:8)
 !===================================================================================================================================
 #if USE_MPI
-MPISharedSize = INT((nUniqueGlobalNodes),MPI_ADDRESS_KIND)*MPI_ADDRESS_KIND
-CALL Allocate_Shared(MPISharedSize,(/nUniqueGlobalNodes/),NodeVolume_Shared_Win,NodeVolume_Shared)
+CALL Allocate_Shared((/nUniqueGlobalNodes/),NodeVolume_Shared_Win,NodeVolume_Shared)
 CALL MPI_WIN_LOCK_ALL(0,NodeVolume_Shared_Win,IERROR)
 NodeVolume => NodeVolume_Shared
 firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
@@ -357,7 +355,7 @@ REAL                     :: StartT,EndT
 
   !-- read state
   ALLOCATE(U(nVars,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-  CALL ReadAttribute(File_ID,'N',1,IntegerScalar=N_HDF5)
+  CALL ReadAttribute(File_ID,'N',1,IntScalar=N_HDF5)
   IF(N_HDF5.EQ.PP_N)THEN! No interpolation needed, read solution directly from file
     ! Associate construct for integer KIND=8 possibility
     ASSOCIATE (&
