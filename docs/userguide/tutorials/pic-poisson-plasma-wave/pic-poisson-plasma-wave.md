@@ -1,16 +1,18 @@
-## Plasma Wave (PIC, Poisson's Equation)
-\label{sec:tut_freestream}
+# Plasma Wave (PIC, Poisson's Equation)
 
-The setup considers a 1D plasma oscillation, which is a common and simple electrostatic PIC benchmark [@Birdsall1991],[@Hockney1988],[@Jacobs2006b].
+The setup considers a 1D plasma oscillation, which is a common and simple electrostatic PIC benchmark {cite}`Birdsall1991`,
+{cite}`Hockney1988`,{cite}`Jacobs2006b`.
 In PICLas it can be simulated either with the full Maxwell solver (DGSEM) or with the Poisson solver (HDGSEM), where the latter is
-chosen for this this tutorial. In this setup, electrons oscillate around the almost immobile ions, which creates a fluctuating electric field.
+chosen for this this tutorial. In this setup, electrons oscillate around the almost immobile ions, which creates a fluctuating
+electric field.
 
-Before beginning with the tutorial, copy the `pic-poisson-plasma-wave` directory from the tutorial folder in the top level directory to a separate location
+Before beginning with the tutorial, copy the `pic-poisson-plasma-wave` directory from the tutorial folder in the top level
+directory to a separate location
 
         cp -r $PICLAS_PATH/tutorials/pic-poisson-plasma-wave .
         cd pic-poisson-plasma-wave
 
-### Mesh Generation with HOPR (pre-processing)
+## Mesh Generation with HOPR (pre-processing)
 
 Before the actual simulation is conducted, a mesh file in the correct HDF5 format has to be supplied.
 The mesh files used by **piclas** are created by supplying an input file *hopr.ini* with the required information for a mesh that
@@ -20,10 +22,11 @@ To create the .h5 mesh file, simply run
 
     hopr hopr.ini
 
-This creates the mesh file *plasma_wave_mesh.h5* in HDF5 format. Alternatively, if you do not want to run **hopr** yourself, you can also use the provided mesh.
+This creates the mesh file *plasma_wave_mesh.h5* in HDF5 format and is depicted in {numref}`fig:plasma-wave-mesh`.
+Alternatively, if you do not want to run **hopr** yourself, you can also use the provided mesh.
 
-The size of the simulation domain is set to [$2\pi\times0.2\times0.2$] m$^{3}$ and is defined by the single block information in the line,
-where each node of the hexahedral element is defined
+The size of the simulation domain is set to [$2\pi\times0.2\times0.2$] m$^{3}$ and is defined by the single block information
+in the line, where each node of the hexahedral element is defined
 
     Corner         =   (/0.,0.,0.,,6.2831,0.,0.,,6.2831, ... /)
 
@@ -35,7 +38,8 @@ Each side of the block has to be assigned a boundary index, which corresponds to
 
     BCIndex        = (/5,3,2,4,1,6/)
 
-The field boundaries can directly be defined in the hopr.ini file (contrary to the particle boundary conditions, which are defined in the parameter.ini).
+The field boundaries can directly be defined in the hopr.ini file (contrary to the particle boundary conditions, which are defined
+in the parameter.ini).
 Periodic boundaries always have to be defined in the hopr.ini.
 
     !=============================================================================== !
@@ -73,14 +77,20 @@ first periodic vector that is defined via `VV=(/6.2831 , 0.  , 0./)` that handle
 orientation on the boundary for the vector. Note that each periodic boundary must have one positive and one negative corresponding
 boundary for the same periodic vector.
 
-![Mesh with $60\times1\times1$ elements and a size of [$2\pi\times0.2\times0.2$] m$^{3}$.\label{fig:pic_poisson_plasma_wave}](tutorials/pic-poisson-plasma-wave/mesh/pic.pdf)
+```{figure} mesh/tut-pic-pw-mesh.jpg
+---
+name: fig:plasma-wave-mesh
+---
 
-### PIC Simulation with PICLas
+Mesh with $60\times1\times1$ elements and a size of [$2\pi\times0.2\times0.2$] m$^{3}$.
+```
 
-Install **piclas** by compiling the source code as described in Chapter \ref{chap:installation} and make sure to set the correct compile
-flags
+## PIC Simulation with PICLas
 
-    PICLAS_EQNSYSNAME = poisson
+Install **piclas** by compiling the source code as described in Chapter {ref}`installation:Installation` and make sure to set
+the correct compile flags
+
+    PICLAS_EQNSYSNAME     = poisson
     PICLAS_TIMEDISCMETHOD = RK3
 
 or simply run the following command from inside the *build* directory
@@ -89,7 +99,7 @@ or simply run the following command from inside the *build* directory
 
 to configure the build process and run `make` afterwards to build the executable. For this setup, we have chosen the Poisson solver
 and selected the three-stage, third-order low-storage Runge-Kutta time discretization method. An overview over the available solver
-and discretization options is given in Section \ref{sec:solveroptions}.
+and discretization options is given in Section {ref}`sec:solver-settings`.
 
 The simulation setup is defined in *parameter.ini*. For a specific electron number density, the plasma frequency of the system is
 given by
@@ -113,20 +123,22 @@ The restriction on the spatial resolution is simply the number of elements (and 
 the physical properties of the PIC simulation. If the temporal and spatial constraints are violated, the simulation will not yield
 physical results and might even result in a termination of the simulation.
 
-The physical parameters for this test case are summarized in Table \ref{tab:pic_poisson_plasma_wave_phys}.
+The physical parameters for this test case are summarized in {numref}`tab:pic_poisson_plasma_wave_phys`.
 
-Table: Physical properties \label{tab:pic_poisson_plasma_wave_phys}
+```{table} Physical properties
+---
+name: tab:pic_poisson_plasma_wave_phys
+---
+|             Property            |            Value           |
+| ------------------------------- |  :-----------------------: |
+| electron number density $n_{e}$ |     $\pu{8e11 m^{-3}}$     |
+|      electron mass $m_{e}$      |   $\pu{9.1093826E-31 kg}$  |
+|    ion number density $n_{i}$   |     $\pu{8e11 m^{-3}}$     |
+|         ion mass $m_{i}$        |  $\pu{1.672621637E-27 kg}$ |
+|  electron/ion charge $q_{i,e}$  | $\pm\pu{1.60217653E-19 C}$ |
+```
 
-|             Property            |                Value                |
-| ------------------------------- |       :-----------------------:     |
-| electron number density $n_{e}$ |        \SI{8e11}{\metre^{-3}}       |
-|      electron mass $m_{e}$      |    \SI{9.1093826E-31}{\kilogram}    |
-|    ion number density $n_{i}$   |        \SI{8e11}{\metre^{-3}}       |
-|         ion mass $m_{i}$        |   \SI{1.672621637E-27}{\kilogram}   |
-|  electron/ion charge $q_{i,e}$  | $\pm$\SI{1.60217653E-19}{\coulomb}  |
-
-
-#### General numerical setup
+### General numerical setup
 
 The general numerical parameters are selected by the following
 
@@ -167,7 +179,7 @@ between restart/checkpoint file output `Analyze_dt` (also the output time for sp
 step iterations `IterDisplayStep` between information output regarding the current status of the simulation that is written to std.out.
 The remaining parameters are selected for the field and particle solver as well as run-time analysis.
 
-#### Boundary conditions
+### Boundary conditions
 
 As there are no walls present in the setup, all boundaries are set as periodic boundary conditions for the field as well as the
 particle solver. The particle boundary conditions are set by the following lines
@@ -199,10 +211,10 @@ particle solver. The particle boundary conditions are set by the following lines
 
 where, the number of boundaries `Part-nBounds` (6 in 3D cuboid) is followed by the names of
 the boundaries (given by the hopr.ini file) and the type `periodic`. Furthermore, the periodic vectors must be supplied and the size
-of the Cartesian background mesh `Part-FIBGMdeltas`, which can be accompanied by a division factor (i.e. number of background cells) in each direction given by
-`Part-FactorFIBGM`. Here, the size and number of cells of the background mesh correspond to the actual mesh.
+of the Cartesian background mesh `Part-FIBGMdeltas`, which can be accompanied by a division factor (i.e. number of background cells)
+in each direction given by `Part-FactorFIBGM`. Here, the size and number of cells of the background mesh correspond to the actual mesh.
 
-#### Field solver
+### Field solver
 
 The settings for the field solver (HDGSEM) are given by
 
@@ -233,9 +245,10 @@ from particle locations to the grid) are selected via
 where the interpolation type `PIC-Interpolation-Type = particle_position` is required and currently the only option. For deposition,
 a polynomial shape function with the exponent `PIC-shapefunction-alpha` of the type `PIC-Deposition-Type = shape_function_adaptive` is
 selected. The dimension `PIC-shapefunction-dimension`, here 1D and direction `PIC-shapefunction-direction`, are selected specifically
-for the one-dimensional setup that is simulated here. The different available deposition types are described in more detail in Section \ref{sec:pic_deposition}.
+for the one-dimensional setup that is simulated here. The different available deposition types are described in more detail in
+Section {ref}`sec:PIC-deposition`.
 
-#### Particle solver
+### Particle solver
 
 For the treatment of particles, the maximum number of particles `Part-maxParticleNumber` that each processor can hold has to be supplied and
 the number of particle species `Part-nSpecies` that are used in the simulation (created initially or during the simulation time
@@ -247,7 +260,8 @@ through chemical reactions).
     Part-maxParticleNumber    = 4000
     Part-nSpecies             = 2
 
-The inserting (sometimes labelled emission or initialization) of particles at the beginning or during the course of the simulation is controlled via the following parameters. Here, only
+The inserting (sometimes labelled emission or initialization) of particles at the beginning or during the course of the simulation
+is controlled via the following parameters. Here, only
 the parameters for the electrons are shown, however, the parameters for the ions are set analogously and included in the supplied parameter.ini.
 For each species, the mass (`Part-SpeciesX-MassIC`), charge (`Part-SpeciesX-ChargeIC`) and weighting factor (`Part-SpeciesX-MacroParticleFactor`)
 have to be defined.
@@ -264,7 +278,8 @@ by a block of parameters that starts from `Part-Species1-Init1-SpaceIC` up to `P
 corresponding `-InitX` counter. In this example we have a single initialization set per species definition.
 The `Part-Species1-Init1-SpaceIC =  sin_deviation` flag defines the type of the initialization set, here, the distribution the particles
 equidistantly on a line and sinusoidally dislocates them (representing an initial stage of a plasma wave in 1D).
-Each type of the initialization set might have a different set of parameters and an overview is given in Section \ref{sec:particle_insertion}.
+Each type of the initialization set might have a different set of parameters and an overview is given in Section
+{ref}`sec:particle-initialization-and-emission`.
 
     Part-Species1-nInits=1
 
@@ -279,9 +294,9 @@ Each type of the initialization set might have a different set of parameters and
     Part-Species1-Init1-VeloIC                = 0.
     Part-Species1-Init1-VeloVecIC             = (/1.,0.,0./)
 
-To calculate the number of simulation particles of, e.g. electrons, defined by `Part-Species1-Init1-ParticleNumber`, the given number density $n_{e}$ in Table
-\ref{tab:pic_poisson_plasma_wave_phys}, the selected weighting factor $w_{e}$ and the volume of the complete domain ($V=2\pi\cdot0.2\cdot0.2\si{\cubic\meter}$)
-are utilized.
+To calculate the number of simulation particles of, e.g. electrons, defined by `Part-Species1-Init1-ParticleNumber`, the given
+number density $n_{e}$ in {numref}`tab:pic_poisson_plasma_wave_phys`, the selected weighting factor $w_{e}$ and the volume of the 
+complete domain ($V=2\pi\cdot0.2\cdot0.2\pu{m^{3}}$) are utilized.
 
 $$ N_{e,sim} = \frac{n_{e} V}{w_{e}} $$
 
@@ -293,7 +308,7 @@ In case of the `SpaceIC=sin_deviation`, the number of simulation particles must 
 `Part-Species1-Init1-maxParticleNumber-x/y/z` as this emission type allows distributing the particles not only in one, but in all
 three Cartesian coordinates, which is not required for this 1D example.
 
-#### Analysis setup
+### Analysis setup
 
 Finally, some parameters for run-time analysis are chosen by setting them `T` (true).
 
@@ -316,7 +331,7 @@ running the command
 where each parameter is simply supplied to the *help* module of **piclas**. This help module can also output the complete set of
 parameters via `piclas --help` or a subset of them by supplying a section, e.g., `piclas --help "HDG"` for the HDGSEM solver.
 
-#### Running the code
+### Running the code
 
 The command
 
@@ -366,27 +381,7 @@ After a successful completion, the last lines in this file should look as shown 
     PICLAS FINISHED! [           60.42 sec ] [     0:00:01:00]
     ============================================================================================
 
-The temporal and spatial resolution of the setup can be controlled via the parameters that are summarized in Table \ref{tab:pic_poisson_plasma_wave_resolution}.
-Note that the time integration method also has a strong impact and dictates the required time step size. Other time discretization
-methods that can be used for this example are, e.g., `PICLAS_TIMEDISCMETHOD = Leapfrog` or `PICLAS_TIMEDISCMETHOD = RK4`. Simply
-recompile the executable with a different time discretization method at see the effect on the time step size. The number of
-particles for each species as well as the abort residual for the HDG solver and the number of elements also have an enormous impact
-on the quality of the solution (and the required computational time to solve the system).
-
-Table: Numerical resolution parameters \label{tab:pic_poisson_plasma_wave_resolution}
-
-|        Property       |   Symbol   |               Parameter Name              |   Parameter File  |
-| --------------------- |    :---:   |    :---------------------------------:    | :---------------: |
-|     Time step size    | $\Delta t$ |              `ManualTimeStep`             |   parameter.ini   |
-|   Polynomial degree   |     $N$    |                    `N`                    |   parameter.ini   |
-|  Number of particles  | $N_{part}$ |    `Part-Species1-Init1-ParticleNumber`   |   parameter.ini   |
-|                       |            | `Part-Species1-Init1-maxParticleNumber-x` |   parameter.ini   |
-|                       |            |    `Part-Species2-Init1-ParticleNumber`   |   parameter.ini   |
-|                       |            | `Part-Species2-Init1-maxParticleNumber-x` |   parameter.ini   |
-|   HDG abort residual  | $\epsilon$ |                  `epsCG`                  |   parameter.ini   |
-|   Number of elements  | $N_{elem}$ |                  `nElems`                 |      hopr.ini     |
-
-### Visualization (post-processing)
+## Visualization (post-processing)
 
 To visualize the solution, the *State*-files must be converted into a format suitable for **ParaView**, **VisIt** or any other
 visualisation tool for which the program **piclas2vtk** is used.
@@ -412,7 +407,13 @@ The electric potential field can be viewed, e.g., by opening `plasma_wave_Soluti
 `Phi`, which should look like the following
 
 
-![Electric potential and field strength for the plasma wave test case.](tutorials/pic-poisson-plasma-wave/results/pic.pdf)
+```{figure} results/tut-pic-pw-results.jpg
+---
+name: fig:plasma-wave-results
+---
+
+Resulting electric potential and field.
+```
 
 
 

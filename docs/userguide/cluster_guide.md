@@ -1,13 +1,15 @@
-\hypertarget{cluster_guide}{}
+# Cluster Guidelines
 
-# Cluster guidelines \label{chap:cluster_guide}
+PICLas has been tested on numerous different Linux- and CPU-based clusters and is continuously been developed to run efficiently on
+high-performance systems.
 
-## Simulating at HLRS \label{sec:cloninghlrs}
+## Simulating at HLRS
 
 Unfortunately, the GitHub and GitLab servers are not available on machines at the HLRS, such as the Hawk, due to 
 restricted internet access. The workaround is to use ssh tunneling and proxy jump or remote forwarding to access 
 the repositories.
 
+(sec:cloning-at-hlrs)=
 ### Cloning with the SSH protocol
 
 Two methods for checking out the code are described in the following.
@@ -63,10 +65,6 @@ in `./git/config` to the new number for git fetch/pull operations, which would t
       url = ssh://git@localhost:1827/piclas/piclas.git
       fetch = +refs/heads/*:refs/remotes/origin/*
 
-### Cloning with the HTTPS protocol
-
-The HLRS provides a tutorial for this case in their [https://wickie.hlrs.de](https://wickie.hlrs.de/platforms/index.php/Secure_Shell_ssh#Git). However, this method has not been verified.
-
 ### Compiling and executing PICLas
 
 For building on the hazelhen cluster, certain modules have to be loaded and included in the .bashrc or .profile:
@@ -97,61 +95,9 @@ An example submit script for the test queue is then
     module unload craype-hugepages16M
 
     # restart
-    aprun -n $ncores -N $nodecores -j 1 ./piclas parameter.ini DSMCSpecies.ini restart.h5 1>log 2>log.err
+    aprun -n $ncores -N $nodecores -j 1 ./piclas parameter.ini DSMC.ini restart.h5 1>log 2>log.err
 
 More information on using the queue system can be found in the [HLRS wiki](https://wickie.hlrs.de/platforms/index.php/CRAY_XC40_Using_the_Batch_System).
 
 Section last updated: 27.03.2019
 
-### Profiling with Craypat
-
-* Compile PICLas with
-       module load perftools-base && module load perftools-lite && export CRAYPAT_LITE=event_profile
-* Run PICLas with normal submit script
-* Program has to finish normally! Enough time during execution. Note, that the profiled version is slower, hence, the testqueue is maybe too short.
-* Visualize the *.app2 files
-
-## Simulating at forHLR \label{sec:forhlr}
-
-For building with *CMake* on the forhlr1 cluster, the following modules (Intel compiler) should be loaded and included in the .bashrc or .profile:
-
-    module load devel/cmake
-    module load compiler/intel/18.0
-    module load mpi/impi/2018
-    module load lib/hdf5/1.10
-
-Example submit script:
-
-    #!/bin/bash
-    #SBATCH --nodes=5
-    #SBATCH --ntasks-per-node=20
-    #SBATCH --time=04:00:00
-    #SBATCH --job-name=PLACEHOLDER
-    #SBATCH --partition multinode
-    #SBATCH --mail-user=your@mail.de
-    #SBATCH --mail-type=ALL
-
-    module load mpi/impi/2018
-    module load lib/hdf5/1.10
-
-    mpiexec.hydra -bootstrap slurm ./piclas parameter.ini DSMCSpecies.ini 1>log 2>log.err
-
-More information about the cluster and the batch system can be found at the [ForHLR wiki](https://wiki.scc.kit.edu/hpc/index.php/Category:ForHLR).
-
-Section last updated: 27.03.2019
-
-## Simulating at bwUniCluster \label{sec:bwuni}
-
-For building with *CMake* on the bwUniCluster cluster, the following modules (Intel compiler) should be loaded and included in the .bashrc or .profile:
-
-    module load devel/cmake
-    module load compiler/intel/17.0
-    module load mpi/openmpi/3.1-intel-17.0
-
-During the configuration of PICLas with CMake, the option to build the HDF5 module has to be activated
-
-    PICLAS_BUILD_HDF5 = ON
-
-More information about the cluster and the batch system can be found at the [bwUniCluster wiki](https://www.scc.kit.edu/dienste/bwUniCluster.php).
-
-Section last updated: 05.06.2019

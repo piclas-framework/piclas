@@ -580,15 +580,22 @@ userguide:
   tags:
     - withmodules-concurrent
   script:
-    - cd doc/userguide ; make; cd ../..
-    - cd doc/developerguide ; make; cd ../..
+    - cd docs/userguide
+    - python3 -m pip install --exists-action=w --no-cache-dir -r ../requirements.txt
+    - python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
+    - ls -l _build/html
+    - python3 -m sphinx -b latex -D language=en -d _build/doctrees . _build/latex
+    - ls -l _build/latex
+    - cd _build/latex
+    - latexmk -r latexmkrc -pdf -f -dvi- -ps- -jobname=piclas -interaction=nonstopmode || true
+    - ls -l
+    - ls -l piclas.pdf
   artifacts:
     name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
     expire_in: 1 day
     when: on_failure
     paths:
-      - doc/userguide
-      - doc/developerguide
+      - docs/userguide
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "github": Push the master branch to github

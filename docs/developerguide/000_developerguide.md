@@ -1,7 +1,7 @@
 ---
 title: |
   ![](../logo.png){width=15cm}
-  PICLas v2.1.0
+  PICLas v2.2.1
 subtitle: Developer Guide
 author: 
   - University of Stuttgart, Germany

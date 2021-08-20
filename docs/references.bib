@@ -108,17 +108,7 @@ url = {http://dx.doi.org/10.1016/j.compfluid.2014.06.025},
 volume = {102},
 year = {2014}
 }
-@article{Gorji2014,
-author = {Gorji, M. Hossein and Jenny, Patrick},
-doi = {10.1016/j.jcp.2013.12.046},
-issn = {00219991},
-journal = {Journal of Computational Physics},
-pages = {325--343},
-title = {{An efficient particle Fokker–Planck algorithm for rarefied gas flows}},
-url = {http://linkinghub.elsevier.com/retrieve/pii/S0021999113008541},
-volume = {262},
-year = {2014}
-}
+
 @incollection{Hindenlang2015,
 author = {Hindenlang, F and Bolemann, T and Munz, C-D.},
 booktitle = {IDIHOM: Industrialization of High-Order Methods-A Top-Down Approach},
@@ -142,17 +132,6 @@ title = {{High-order Nodal Discontinuous {\{}G{\}}alerkin Particle-in-cell Metho
 url = {http://dx.doi.org/10.1016/j.jcp.2005.09.008},
 volume = {214},
 year = {2006}
-}
-@article{Jun2019,
-author = {Jun, Eunji and Pfeiffer, Marcel and Mieussens, Luc and Gorji, M. Hossein},
-doi = {10.2514/1.J057935},
-issn = {0001-1452},
-journal = {AIAA Journal},
-month = {mar},
-pages = {1--10},
-title = {{Comparative Study Between Cubic and Ellipsoidal Fokker–Planck Kinetic Models}},
-url = {https://arc.aiaa.org/doi/10.2514/1.J057935},
-year = {2019}
 }
 @article{Kopriva2001,
 author = {Kopriva, David A and Woodruff, Stephen L and Hussaini, M Yousuff},
@@ -200,49 +179,10 @@ title = {{Assessment of Gas-Surface Interaction Models for Computation of Rarefi
 volume = {23},
 year = {2009}
 }
-@article{Pfeiffer2018a,
-abstract = {The Bhatnagar-Gross-Krook (BGK) model as well as its extensions (ellipsoidal statistical BGK, Shakhov BGK, unified BGK) are used in particle-based fluid dynamics and compared with the Direct Simulation Monte Carlo Method (DSMC). To this end, a method based on the Metropolis-Hastings algorithm is presented that allows efficient sampling of the Shakhov and the unified target distribution functions. As a consequence, particle simulations based on the Shakhov BGK and the unified BGK model are possible in an efficient way. The models are validated with a Couette flow problem at different Knudsen numbers and wall velocities. Furthermore, the models are compared with DSMC results of a hypersonic flow around a 70{\$}{\^{}}\backslashcirc{\$} blunted cone. It is shown that the unified BGK model is able to reproduce rarefied gas phenomena and the Shakhov model performs better in the reproduction of shock structures compared with the ellipsoidal statistical BGK model. Additionally, a computational time study is done to show the efficiency of BGK-based simulations for low Knudsen number flows compared with DSMC. This is especially interesting for gas flows which cover a wide range of Knudsen numbers including continuum and rarefied gas regions as in nozzle expansion flows. The fact that DSMC and the utilized BGK methods are both cell local Monte-Carlo based particle methods, makes a coupling very attractive.},
-author = {Pfeiffer, Marcel},
-doi = {10.1063/1.5042016},
-issn = {1070-6631},
-journal = {Physics of Fluids},
-keywords = {bgk,dsmc,ellipsoidal statistical bgk,shakhov},
-number = {10},
-pages = {106106},
-title = {{Particle-based fluid dynamics: Comparison of different Bhatnagar-Gross-Krook models and the direct simulation Monte Carlo method for hypersonic flows}},
-url = {http://aip.scitation.org/doi/10.1063/1.5042016},
-volume = {30},
-year = {2018}
-}
-@article{Pfeiffer2018b,
-abstract = {The particle-based ellipsoidal statistical Bhatnagar-Gross-Krook (ESBGK) model is extended to diatomic molecules and compared with the Direct Simulation Monte Carlo (DSMC) method. For this an efficient method is developed that optionally allows the handling of quantized vibrational energies. The proposed method is verified with a gas in an adiabatic box relaxing from a non-equilibrium state to an equilibrium. It is shown that the analytical Landau-Teller expression as well as DSMC results agree very well with the new method. Furthermore, the method is compared with DSMC results and experimental measurements of a hypersonic flow around a 70{\$}{\^{}}\backslashcirc{\$} blunted cone. It is shown that the ellipsoidal statistical BGK compares very well with the DSMC results while saving up to a factor of {\$}\backslashapprox 35.8{\$} CPU time for this low Knudsen number case.},
-author = {Pfeiffer, Marcel},
-doi = {10.1063/1.5054961},
-issn = {1070-6631},
-journal = {Physics of Fluids},
-keywords = {bgk,dsmc,ellipsoidal statistical bgk},
-number = {11},
-pages = {116103},
-title = {{Extending the particle ellipsoidal statistical Bhatnagar-Gross-Krook method to diatomic molecules including quantized vibrational energies}},
-url = {http://aip.scitation.org/doi/10.1063/1.5054961},
-volume = {30},
-year = {2018}
-}
-@article{Pfeiffer2017,
-author = {Pfeiffer, Marcel and Gorji, M. Hossein},
-doi = {10.1016/j.cpc.2016.11.003},
-issn = {00104655},
-journal = {Computer Physics Communications},
-pages = {1--8},
-publisher = {Elsevier B.V.},
-title = {{Adaptive particle–cell algorithm for Fokker–Planck based rarefied gas flow simulations}},
-url = {http://linkinghub.elsevier.com/retrieve/pii/S0010465516303575},
-volume = {213},
-year = {2017}
-}
 @phdthesis{Sonntag2017,
 author = {Sonntag, Matthias},
-publisher = {PhD thesis, University of Stuttgart},
+school = {University of Stuttgart},
+type = {PhD thesis},
 title = {{Shape derivatives and shock capturing for the Navier-Stokes equations in discontinuous Galerkin methods}},
 year = {2017}
 }
@@ -424,8 +364,13 @@ eprint = {https://doi.org/10.1063/1.857964}
 }
 
 @article{Reschke2019,
+author = {Reschke, Wladimir and Massuti-Ballester, Bartomeu and Pfeiffer, Marcel and Herdrich, Georg and Fasoulas, Stefanos},
 doi = {10.1063/1.5119574},
+journal = {AIP Conference Proceedings},
+pages = {070020},
 title = {{Validation of DSMC and CFD based catalysis modelling using plasma wind tunnel flows}},
+url = {http://aip.scitation.org/doi/abs/10.1063/1.5119574},
+volume = {2132},
 year = {2019}
 }
 
@@ -568,8 +513,10 @@ year = {2017}
 
 @phdthesis{Copplestone2019b,
   author = "S. M. Copplestone",
-  isbn = "978-3-8439-4261-4 ",
-  publisher = "PhD thesis, University of Stuttgart",
+  isbn = "978-3-8439-4261-4",
+  publisher = "Dr. Hut Verlag",
+  school = {University of Stuttgart},
+  type = {PhD thesis},
   title = "{Particle-Based Numerical Methods for the Simulation of Electromagnetic Plasma Interactions}",
   year = "2019"
 }

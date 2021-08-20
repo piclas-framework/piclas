@@ -1,6 +1,4 @@
-\hypertarget{unittest}{}
-
-# Unit tests \label{chap:unittest}
+# Unit tests
 
 Unit tests are used to test individual key units of the source code. Currently these key routines include:
 
