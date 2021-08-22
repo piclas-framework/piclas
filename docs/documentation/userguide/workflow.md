@@ -110,10 +110,10 @@ The concept of the parameter file is described as followed:
 * The order of defined variables is with one exception irrelevant, except for the special case when redefining boundaries.
 However, it is preferable to group similar variables together.
 
-The options and underlying models are discussed in Chapter {ref}`features-and-models/index:Features & Models`, while the available 
-output options are given in Chapter {ref}`visu_output:Visualization & Output`.
+The options and underlying models are discussed in Chapter {ref}`userguide/features-and-models/index:Features & Models`, while the available 
+output options are given in Chapter {ref}`userguide/visu_output:Visualization & Output`.
 Due to the sheer number of parameters available, it is advisable to build upon an existing parameter file from one of the tutorials
-in Chapter {ref}`tutorials/index:Tutorials`.
+in Chapter {ref}`userguide/tutorials/index:Tutorials`.
 
 ## Simulation
 
@@ -161,4 +161,4 @@ piclas2vtk [posti.ini] output.h5
 ~~~~~~~
 
 Multiple HDF5 files can be passed to the piclas2vtk tool at once. The (optional) runtime parameters to be set in `posti.ini` are
-given in Chapter {ref}`visu_output:Visualization & Output`.
+given in Chapter {ref}`userguide/visu_output:Visualization & Output`.

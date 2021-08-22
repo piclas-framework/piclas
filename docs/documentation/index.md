@@ -22,7 +22,7 @@ It is licensed under GPLv3, written in Fortran and parallelized with MPI.
 maxdepth: 1
 caption: User Guide
 ---
-introduction.md
+userguide/index.md
 ```
 
 % ```{toctree}

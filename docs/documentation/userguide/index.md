@@ -40,14 +40,14 @@ appendix.md
 This user guide is organized to both guide the first steps as well as provide a complete overview of
 the simulation code's features from a user and a developer point of view.
 
-* Chapter {ref}`installation:Installation` contains step by step instructions from obtaining the source
+* Chapter {ref}`userguide/installation:Installation` contains step by step instructions from obtaining the source
   code up to running a first simulation and visualizing the simulation results. In addition, it
   provides an overview of the whole simulation framework and the currently implemented features.
-* Chapter {ref}`meshing:Mesh Generation` describes the preprocessing step of creating mesh files via the in-house tool
+* Chapter {ref}`userguide/meshing:Mesh Generation` describes the preprocessing step of creating mesh files via the in-house tool
   [HOPR](https://github.com/hopr-framework/hopr) that also handles mesh formats created with external mesh generators
-* Chapter {ref}`workflow:Workflow` outlines the workflow and the visualization of results produced with **PICLas**.
-* Chapter {ref}`features-and-models/index:Features & Models` shall serve as a reference for the models and features implemented in **PICLas**.
-* Chapter {ref}`visu_output:Visualization & Output` presents the options and parameters for the output of particle data, field and flow variables.
-* Chapter {ref}`tools:Tools` lists tools within the **PICLas** repository, including the post-processing tools.
-* Simulation tutorials are contained in Chapter {ref}`tutorials/index:Tutorials`.
-* Cluster-specific user guidelines are given in Chapter {ref}`cluster_guide:Cluster Guidelines`.
+* Chapter {ref}`userguide/workflow:Workflow` outlines the workflow and the visualization of results produced with **PICLas**.
+* Chapter {ref}`userguide/features-and-models/index:Features & Models` shall serve as a reference for the models and features implemented in **PICLas**.
+* Chapter {ref}`userguide/visu_output:Visualization & Output` presents the options and parameters for the output of particle data, field and flow variables.
+* Chapter {ref}`userguide/tools:Tools` lists tools within the **PICLas** repository, including the post-processing tools.
+* Simulation tutorials are contained in Chapter {ref}`userguide/tutorials/index:Tutorials`.
+* Cluster-specific user guidelines are given in Chapter {ref}`userguide/cluster_guide:Cluster Guidelines`.
