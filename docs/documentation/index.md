@@ -19,19 +19,19 @@ It is licensed under GPLv3, written in Fortran and parallelized with MPI.
 
 ```{toctree}
 ---
-maxdepth: 2
+maxdepth: 1
 caption: User Guide
 ---
 introduction.md
 ```
 
-```{toctree}
----
-maxdepth: 2
-caption: Developer Guide
----
-developerguide/index.md
-```
+% ```{toctree}
+% ---
+% maxdepth: 1
+% caption: Developer Guide
+% ---
+% developerguide/index.md
+% ```
 
 ```{toctree}
 ---
