@@ -1,6 +1,4 @@
-\hypertarget{git_workflow}{}
-
-# GitLab Workflow \label{chap:git_workflow}
+# GitLab Workflow
 
 Code development is performed on the [GitLab platform](https://gitlab.com/piclas/piclas), with the protected `master` and
 `master.dev` branches. The actual development is performed on feature branches, which can be merged to `master.dev` following a

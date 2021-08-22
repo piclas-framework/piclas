@@ -1,8 +1,7 @@
-\hypertarget{compiler}{}
+# Compiler Options
 
-# Compiler Options \label{chap:compiler_options}
-
-is this chapter required? what should be the content? should not be just a list of compiler options
+Todo: scribed current compiler options and what their purpose is (what was encountered in the past in order for the options to be as
+they are now?)
 
 * Release: optimized with -O3 for execution runs
 * Debug: debugger options
