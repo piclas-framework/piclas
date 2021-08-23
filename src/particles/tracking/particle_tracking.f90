@@ -50,6 +50,9 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(50))
+#endif /*EXTRAE*/
 SELECT CASE(TrackingMethod)
 CASE(REFMAPPING)
   CALL ParticleRefTracking()
@@ -60,6 +63,9 @@ CASE(TRIATRACKING)
 CASE DEFAULT
   CALL abort(__STAMP__,'TrackingMethod not implemented! TrackingMethod =',IntInfoOpt=TrackingMethod)
 END SELECT
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 
 END SUBROUTINE PerformTracking
 

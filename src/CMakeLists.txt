@@ -90,19 +90,6 @@ SET(PICLAS_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
 SET_PROPERTY(CACHE PICLAS_EQNSYSNAME PROPERTY STRINGS ${EQNSYSTEMS})
 
 # =========================================================================
-# code development
-# =========================================================================
-OPTION(PICLAS_CODE_ANALYZE "Code Analyze" OFF)
-OPTION(PICLAS_EXTRAE "Extrae instrumentation for code profiling (event tracing)" OFF)
-
-OPTION(PICLAS_READIN_CONSTANTS "Allow read-in of user-defined constants, such as the vacuum speed of light c0, permittivity eps and permeability mu." OFF)
-IF (PICLAS_READIN_CONSTANTS)
-  ADD_DEFINITIONS(-DUSE_READIN_CONSTANTS=1)
-ELSE()
-  ADD_DEFINITIONS(-DUSE_READIN_CONSTANTS=0)
-ENDIF()
-
-# =========================================================================
 # Analytical Vandermonde
 # =========================================================================
 OPTION(PICLAS_VDM_ANALYTICAL "Alternative to matrix inversion: Compute inverse Vandermonde directly (required for inverse of Bezier and Legendre Vdm)" OFF)

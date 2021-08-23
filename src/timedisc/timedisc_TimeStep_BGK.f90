@@ -113,6 +113,9 @@ IF(Symmetry%Order.LT.3) THEN
   PartState(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
 END IF
 
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 #if USE_MPI
 ! open receive buffer for number of particles
 CALL IRecvNbOfParticles()
@@ -136,9 +139,6 @@ CALL MPIParticleSend()
 CALL MPIParticleRecv()
 #endif /*USE_MPI*/
 CALL ParticleInserting()
-#ifdef EXTRAE
-CALL extrae_eventandcounters(int(9000001), int8(0))
-#endif /*EXTRAE*/
 
 
 
