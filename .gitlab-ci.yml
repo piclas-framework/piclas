@@ -27,7 +27,7 @@ stages:
   - reggie_nightly
   - reggie_nightly_build_all
   - reggie_weekly
-  - userguide
+  - documentation
   - deploy
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -573,15 +573,15 @@ WEK_BGKFlow:
     - python ./reggie/reggie.py ../regressioncheck/checks/WEK_BGKFlow
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "userguide": Compile the userguide and developer guide
+# Stage "documentation": Compile the userguide and developer guide
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-userguide:
-  stage: userguide
+documentation:
+  stage: documentation
   tags:
     - withmodules-concurrent
   script:
-    - cd docs/userguide
-    - python3 -m pip install --exists-action=w --no-cache-dir -r ../requirements.txt
+    - cd docs/documentation
+    - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt
     - python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
     - ls -l _build/html
     - python3 -m sphinx -b latex -D language=en -d _build/doctrees . _build/latex
@@ -595,7 +595,7 @@ userguide:
     expire_in: 1 day
     when: on_failure
     paths:
-      - docs/userguide
+      - docs/documentation
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "github": Push the master branch to github

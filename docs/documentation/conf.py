@@ -19,7 +19,7 @@ import sphinx_rtd_theme
 
 # -- Project information -----------------------------------------------------
 
-project = 'PICLas User Guide'
+project = 'PICLas Documentation'
 copyright = '2021, PICLas Developers'
 author = 'Institute for Aerodynamics and Gas Dynamics (University of Stuttgart), Institute for Space Systems (University of Stuttgart), boltzplatz - numerical plasma dynamics GmbH'
 
@@ -83,7 +83,7 @@ html_logo = '../logo.png'
 
 # -- Bibliography ------------------------------------------------------------
 
-bibtex_bibfiles = ['../references.bib']
+bibtex_bibfiles = ['references.bib']
 
 # -- Section labelling -------------------------------------------------------
 # Make sure the target is unique

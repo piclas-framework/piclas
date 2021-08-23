@@ -1,6 +1,4 @@
-\hypertarget{reggie}{}
-
-# Regression Testing \label{chap:reggie}
+# Regression Testing
 
 The purpose of regression testing is summarized by the following quote:
 
