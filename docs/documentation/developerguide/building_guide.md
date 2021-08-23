@@ -13,11 +13,11 @@ If you have an old version of, e.g., Ubuntu visit [this website](https://phoenix
 The following examples shows how to create the html and pdf files for the user guide.
 Navigate to the user guide directory from the PICLas top level directory
 
-    cd docs/userguide
+    cd docs/documentation
 
 Run pip to install the required extensions and packages for compiling the user guide (only once)
 
-    python3 -m pip install --exists-action=w --no-cache-dir -r ../requirements.txt
+    python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt
 
 Make sure that *latexmk* is installed on the system for compiling the PDF version of the user guide. For Ubuntu, follow
 [this link](https://zoomadmin.com/HowToInstall/UbuntuPackage/latexmk) for installation.
@@ -36,7 +36,7 @@ Check that no errors occur during compilation and then navigate to the created h
     cd _build/html
 
 Open index.html to see if everything has worked out correctly (e.g. with your favourite browser).
-Note that you can simply run the script *buildHTML.sh* in the *userguide* directory for this task.
+Note that you can simply run the script *buildHTML.sh* in the *documentation* directory for this task.
 
 
 **PDF Version**
@@ -57,4 +57,4 @@ and check if the pdf exists
 
     ls _build/latex/piclas.pdf
 
-Note that you can simply run the script *buildPDF.sh* in the *userguide* directory for this task.
+Note that you can simply run the script *buildPDF.sh* in the *documentation* directory for this task.
