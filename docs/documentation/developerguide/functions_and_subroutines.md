@@ -1,9 +1,6 @@
-\hypertarget{functions_and_subroutines}{}
+# Useful Functions
 
-# Useful Functions and Subroutines \label{chap:functions_and_subroutines}
-
-This chapter contains a summary of useful functions and subroutines that might be re-used in the
-future.
+This chapter contains a summary of useful functions and subroutines that might be re-used in the future.
 
 ## General Functions and Subroutines
 

@@ -1,4 +1,4 @@
-# test markdown
+# Markdown Examples
 ## hyperlinks
 [one with a title](http://fsf.org "click here for a good time!"). Unclear how to enforce new window.
 
@@ -37,6 +37,18 @@ Hindenlang [bibcite key=Hindenlang2015], Gassner [bibcite key=gassner2011disp]
 
 See figure \ref{mylabel}.
 
+
+```{figure} figures/mpi_shared_mesh/dev_mpi_shared_mesh.png
+---
+name: fig:example
+width: 200px
+align: center
+---
+
+This is an example caption.
+```
+See {numref}`fig:example`.
+
 ## tables
 ## unnumbered section headings
   just add 
@@ -47,7 +59,7 @@ See figure \ref{mylabel}.
 
 ## Code blocks for various languages
 
-``` {.C}
+```{code-block} C
 
 int a = 32;
 int a = 32;

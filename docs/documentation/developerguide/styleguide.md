@@ -1,6 +1,4 @@
-\hypertarget{style_guide}{}
-
-# Style Guide \label{chap:style_guide}
+# Style Guide
 
 * Why do we need a style guide?
     * It creates a unified appearance and coding structure

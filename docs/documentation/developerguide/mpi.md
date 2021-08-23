@@ -1,12 +1,11 @@
-\hypertarget{mpi}{}
+# MPI Implementation
 
-# MPI Implementation \label{chap:mpi}
-
-how to parallelize routines
+This chapter describes how PICLas subroutines and functions are parallelized.
 
 
-## General Remarks: Things to consider \label{chap:mpi_consider}
-In case any new communicator (e.g. SurfCOMM%COMM) is built during init or anywhere else with `CALL MPI_COMM_SPLIT(NEWCOMMUNICATOR,iERROR)` or such, it is necessary to finalize it with `CALL MPI_COMM_FREE(NEWCOMMUNICATOR,iERROR)`.
+## General Remarks: Things to consider
+In case any new communicator (e.g. SurfCOMM%COMM) is built during init or anywhere else with
+`CALL MPI_COMM_SPLIT(NEWCOMMUNICATOR,iERROR)` or such, it is necessary to finalize it with `CALL MPI_COMM_FREE(NEWCOMMUNICATOR,iERROR)`.
 
 Else Loadbalances produce undefined errors that are almost impossible to find.
 
@@ -17,18 +16,29 @@ Debug MPI
 ## Construction of Halo Region (MPI 3.0 Shared Memory)
 The general idea is to have the geometry information in a shared memory array on each node. This
 reduces the memory overhead and removes the need for halo regions between processors on the same
-node. An exemplary unstructured mesh is given in Figure \ref{fig:mesh_halo_region}.
+node. An exemplary unstructured mesh is given in {numref}`fig:dev_mpi_shared_mesh`.
 The workflow is as follows:
 
-1. Load the complete mesh into a shared memory window that is solely allocated by the compute-node root processor of size `1:nTotalElems` (only node coords, not derived properties, such as metric terms).
-1. Load the elements that are assigned to processors on a single compute-node into an array of size `1:nSharedElems` (red elements in Figure \ref{fig:mesh_halo_region}).
-1. Find the compute-node halo elements and store in an array of size `1:nSharedHaloElems` (blue elements in Figure \ref{fig:mesh_halo_region}).
+1. Load the complete mesh into a shared memory window that is solely allocated by the compute-node root processor of size
+   `1:nTotalElems` (only node coords, not derived properties, such as metric terms).
+1. Load the elements that are assigned to processors on a single compute-node into an array of size `1:nSharedElems`
+   (red elements in {numref}`fig:dev_mpi_shared_mesh`).
+1. Find the compute-node halo elements and store in an array of size `1:nSharedHaloElems` (blue elements in
+   {numref}`fig:dev_mpi_shared_mesh`).
    1. Background mesh (BGM) reduction
    2. Shared sides reduction
    3. Halo communicator
 
-![Node local (red), halo (blue) and complete mesh (white). The red and blue geometry information is
-allocated once on each node and available to all processors on that node.\label{fig:mesh_halo_region}](figures/mpi_shared_mesh/pic.pdf)
+```{figure} figures/mpi_shared_mesh/dev_mpi_shared_mesh.png
+---
+name: fig:dev_mpi_shared_mesh
+width: 200px
+align: center
+---
+
+Node local (red), halo (blue) and complete mesh (white). The red and blue geometry information is
+allocated once on each node and available to all processors on that node
+```
 
 ### Mesh Geometry
 

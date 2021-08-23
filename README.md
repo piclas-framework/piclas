@@ -7,10 +7,10 @@ The licence can be found in [LICENCE.md](LICENCE.md) and the list of contributor
 Among other things, PICLas is a scientific project and if you use PICLas for publications or presentations in science, please
 support the project by citing our publications given in [REFERENCE.md](REFERENCE.md).
 
-## PICLas Documentation and Installation
+## Documentation and Installation
 
 The documentation of PICLas can be found in the [User Guide](https://piclas.readthedocs.io/), where the installation procedure is
-described in the 2nd [Chapter](https://piclas.readthedocs.io/en/latest/installation.html).
+described in [Chapter 2](https://piclas.readthedocs.io/en/latest/installation.html).
 
 ## Regression Testing
 
@@ -20,16 +20,18 @@ An overview of the regression tests used for continuous integration is given in 
 
 PICLas uses several external libraries as well as auxiliary functions from open source projects, including:
 
+* [HOPR (High Order Preprocessor)](https://github.com/hopr-framework/hopr)
 * [cmake](https://www.cmake.org)
 * [LAPACK](http://www.netlib.org/lapack/)
-* [MPI](http://www.mcs.anl.gov/research/projects/mpi/)
+* [MPI](https://www.open-mpi.org/)
 * [HDF5](https://www.hdfgroup.org/)
 
 ## I need help or further information:
 
+For bug fixes, code development and application questions, feel free to open an issue. Otherwise, you can reach us through the following channels:
+
 * Academic
-  * [IAG - Numerics Research Group](https://www.iag.uni-stuttgart.de/en/working-groups/numerical-methods/)
-  * [IRS - Numerical Modelling and Simulation Group](https://www.irs.uni-stuttgart.de/en/research/space-transport-technology/numerical-modeling-and-simulations/)
-  * [HOPR (High Order Preprocessor)](https://www.hopr-project.org/index.php/Home)
+  * [Numerical Modelling and Simulation Group, Institute of Space Systems, University of Stuttgart](https://www.irs.uni-stuttgart.de/en/research/space-transport-technology/numerical-modeling-and-simulations/)
+  * [Numerics Research Group, Institute of Aerodynamics and Gas Dynamics, University of Stuttgart](https://www.iag.uni-stuttgart.de/en/working-groups/numerical-methods/)
 * Simulation service & training
   * [boltzplatz - numerical plasma dynamics GmbH](https://boltzplatz.eu)

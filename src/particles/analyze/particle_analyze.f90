@@ -825,7 +825,7 @@ INTEGER             :: iRegions
           END DO
         END IF
         IF(CalcAdaptiveBCInfo) THEN
-          DO iSpec = 1, nSpecAnalyze
+          DO iSpec = 1, nSpecies
             DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
               WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Massflow-Spec-',iSpec,'-SF-',iSF
@@ -1340,7 +1340,7 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF
     IF(CalcAdaptiveBCInfo) THEN
-      DO iSpec = 1, nSpecAnalyze
+      DO iSpec = 1, nSpecies
         DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
           WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MassflowRate(iSpec,iSF)
           WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PressureAdaptiveBC(iSpec,iSF)
