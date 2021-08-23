@@ -42,7 +42,7 @@ On the target system, the extrae software packages must be installed and loaded 
 
 #### Create *tracing.sh* and *extrae.xml* in the simulation directory
 
-Create a shell script *tracing.sh* with the following content
+Create a shell script *tracing.sh* (must be executable) with the following content
 
     #!/bin/bash
 
@@ -51,8 +51,13 @@ Create a shell script *tracing.sh* with the following content
 
     $*
 
-where the path to the current directory must be inserted for *extrae.xml*.
-(WIP: `LD_PRELOAD` might only required when no user-defined instrumentation is used)
+where the path to the directory containing the *extrae.xml* file must be inserted.
+
+```{note}
+`LD_PRELOAD` might only required when no user-defined instrumentation is used. If `PICLAS_EXTRAE=ON` is used during
+compilation, the line with `LD_PRELOAD` can be commented out or removed.
+```
+
 Furthermore, a configuration file *extrae.xml* is required that defines which hardware counters, which should be traced
 
     <?xml version='1.0'?>
@@ -148,7 +153,13 @@ under
 
 Run the application and convert the output to Paraver format
 
-    mpirun -np 32 tracing.sh piclas parameter.ini
+```{note}
+The extrae instrumented executable has a different name, which ends on `_extrae`
+```
+
+Execute `mpirun` and pass the `tracing.sh` script
+
+    mpirun -np 32 tracing.sh piclas_extrae parameter.ini
 
 The following command can be appended to the submit script directly after `mpirun`.
 
