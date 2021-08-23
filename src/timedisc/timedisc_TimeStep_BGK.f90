@@ -61,6 +61,9 @@ REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
 REAL                  :: RandVal, dtVar, NewYPart, NewYVelo
 !===================================================================================================================================
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
 IF (DoSurfaceFlux) THEN
   CALL ParticleSurfaceflux()
 END IF
@@ -133,6 +136,16 @@ CALL MPIParticleSend()
 CALL MPIParticleRecv()
 #endif /*USE_MPI*/
 CALL ParticleInserting()
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
+
+
+
+
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(51))
+#endif /*EXTRAE*/
 IF (CollisMode.NE.0) THEN
   CALL UpdateNextFreePosition()
 ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
@@ -145,6 +158,19 @@ ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleN
 __STAMP__,&
 'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
 END IF
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
+
+
+
+
+
+
+
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(52))
+#endif /*EXTRAE*/
   IF (CoupledBGKDSMC) THEN
     CALL BGK_DSMC_main()
   ELSE
@@ -153,6 +179,9 @@ END IF
 
 PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 END SUBROUTINE TimeStep_BGK
 
 
