@@ -1,7 +1,6 @@
+# Performance Analysis
 
-\hypertarget{performance}{}
-
-# Performance Analysis \label{chap:performance}
+This chapter describes different tools that can be utilized for measuring the computational performance of PICLas.
 
 ## Extrae and Paraver
 Extra is a performance instrumentation tool that generates Paraver trace files that is distributed under LGPL-2.1 License and can be downloaded
@@ -168,7 +167,7 @@ which will create a file containing the tracing events (.prv), list of registere
 ## Intel® VTune™
 Intel® VTune™ is a performance analysis tool with GUI for applications running on x86 systems for Linux and Windows developed by Intel®.
 
-### Installation
+### VTune Installation
 Download the Intel VTune Profiler Source files for Linux and extract the files:
 
  - [https://software.intel.com/en-us/vtune/choose-download#standalone](https://software.intel.com/en-us/vtune/choose-download#standalone)
@@ -214,10 +213,10 @@ be redirected to a shell that is displayed in VTune by Setting: Options → Gene
 ## Valgrind
 Valgrind is a complete suite of tools for debugging/profiling licenced under GPL. The complete documentation can be found [here](https://www.valgrind.org/docs/manual/index.html).
 
-### Installation
+### Installation of Valgrind
 Valgrind is provided through the repository of all major Linux distributions. Install it with the package manager of your choice.
 
-### Usage
+### Execution of Valgrind
 Valgrind is composed of individual tools, each tailered to debug or profil a specific aspect. All tools need PICLas compiled with
 "-g" to produce debugging information in the operating system's native format.
 

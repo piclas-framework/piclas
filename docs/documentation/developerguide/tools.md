@@ -1,12 +1,12 @@
-\hypertarget{tools}{}
+# Developer Tools
 
-# Tools Overview \label{chap:tools}
-
-This section gives an overview over the tools and scripts for developers contained in the **PICLas** repository. It also provides references to the tutorials where their usage is explained.
+This chapter gives an overview over the tools and scripts for developers contained in the **PICLas** repository
+It also provides references to the tutorials where their usage is explained.
 
 ## WarningsCheck
 
-The maximum number of allowed warnings is limited to 10 and can be checked by using the script *test_max_warnings.sh*. Navigate to the top-level directory of the repository and execute
+The maximum number of allowed warnings is limited to 10 and can be checked by using the script *test_max_warnings.sh*.
+Navigate to the top-level directory of the repository and execute
 
 ```
 ./tools/test_max_warnings.sh
