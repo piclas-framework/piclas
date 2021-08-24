@@ -1939,6 +1939,13 @@ IF (myRank.EQ.0) THEN
   DO iVec = 1,GEO%nPeriodicVectors
     WRITE(UNIT_stdOut,'(A,I1,A,F12.8,2(", ",F12.8))') ' | Periodic vector ',iVec,': ', GEO%PeriodicVectors(:,iVec)
   END DO
+
+  ! Sanity check
+  DO iVec = 1,GEO%nPeriodicVectors
+    IF(VECNORM(GEO%PeriodicVectors(:,iVec)).LE.0.)THEN
+      CALL abort(__STAMP__,'Norm of GEO%PeriodicVectors(:,iVec) <= 0 for iVec =',IntInfoOpt=iVec)
+    END IF
+  END DO
 #if USE_MPI
 END IF
 #endif /*USE_MPI*/
