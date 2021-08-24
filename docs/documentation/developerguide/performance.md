@@ -18,6 +18,11 @@ See the `README` and `INSTALL` file in the git repository of the package.
 
 (sec:code-instrumentation)=
 ### Code Instrumentation
+
+```{note}
+Tested with extrae version 3.8.3
+```
+
 In PICLas, the extrae code instrumentation for the very basic modules is already implemented, see the in-code statements, e.g.,
 
     #ifdef EXTRAE
@@ -231,9 +236,13 @@ which will create a file containing the tracing events (.prv), list of registere
 
 #### Analysing the results with Paraver
 
+```{note}
+Tested with wxparaver version 4.9.2
+```
+
 Open Paraver
 
-    wsparaver
+    wxparaver
 
 and load a trace file for Paraver
 
