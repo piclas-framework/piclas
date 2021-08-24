@@ -281,7 +281,7 @@ IF (DoRestart) THEN
     CALL DatasetExists(File_ID,'AdaptiveRunningAverage',RunningAverageExists)
     IF(RunningAverageExists)THEN
       ! Read-in the number of sampling iterations from the restart file (might differ from the current number)
-      IF(.NOT.PerformLoadBalance) CALL ReadAttribute(File_ID,'AdaptBCSampIter',1,IntegerScalar=AdaptBCSampIterReadIn)
+      IF(.NOT.PerformLoadBalance) CALL ReadAttribute(File_ID,'AdaptBCSampIter',1,IntScalar=AdaptBCSampIterReadIn)
       ! Get the data size of the read-in array
       CALL GetDataSize(File_ID,'AdaptiveRunningAverage',nDims,HSize)
       nVar=INT(HSize(2),4)
@@ -446,6 +446,7 @@ ELSE
 END IF
 
 CalcValues = .FALSE.
+RestartSampIter = 0
 
 ! If no particles are present during the initial sampling, leave the routine, otherwise initial variables for the
 ! adaptive inlet surface flux will be overwritten by zero's.
@@ -504,7 +505,7 @@ IF(initSampling) THEN
 ELSE
   RelaxationFactor = AdaptBCRelaxFactor
   IF(AdaptBCSampIter.GT.0) THEN
-    IF(AdaptBCTruncAverage.AND.(RestartSampIter.LT.AdaptBCSampIter)) THEN
+    IF(AdaptBCTruncAverage.AND.(RestartSampIter.GT.0).AND.(RestartSampIter.LT.AdaptBCSampIter)) THEN
       ! Truncated average: get the correct number of samples to calculate the average number density while the 
       ! sampling array is populated
       SamplingIteration = RestartSampIter

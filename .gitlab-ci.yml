@@ -27,7 +27,7 @@ stages:
   - reggie_nightly
   - reggie_nightly_build_all
   - reggie_weekly
-  - userguide
+  - documentation
   - deploy
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -169,7 +169,7 @@ build:
   script:
     - mkdir -p build ; cd build
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DPICLAS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; make -j all
+    - cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; make -j all
     - if [ -n "${DO_NIGHTLY}" ] || [ -n "${DO_WEEKLY}" ]; then
         git clone https://github.com/flexi-framework/hopr.git hopr;
         cd hopr ; mkdir -p build ; cd build;
@@ -195,7 +195,7 @@ build_maxwell:
   script:
     - mkdir -p build_maxwell ; cd build_maxwell
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DPICLAS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; make -j all
+    - cmake .. -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; make -j all
 
 build_poisson:
   tags:
@@ -217,11 +217,11 @@ build_poisson:
   script:
     - mkdir -p build_poisson_release ; cd build_poisson_release
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; make -j all
     - cd ..
     - mkdir -p build_poisson_debug ; cd build_poisson_debug
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_BUILD_HDF5=OFF ; make -j all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; make -j all
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
@@ -505,7 +505,8 @@ NIG_Photoionization_debug:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
-#                                    - sanitizer for maxwell/poisson (CMAKE_BUILD_TYPE=SANI,Profile)
+#                                    - sanitizer for maxwell/poisson (CMAKE_BUILD_TYPE=Sanitize,Profile)
+#                                    - math tools Lapack and OpenBlas with LIBS_BUILD_MATH_LIB = ON and LIBS_BUILD_MATH_LIB_VENDOR = LAPACK,OpenBLAS
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 build_all:
   <<: *defaults_nightly
@@ -517,7 +518,13 @@ build_sanitize:
   <<: *defaults_nightly
   stage: reggie_nightly_build_all
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/sanitize ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_sanitize ; fi
+
+build_math_tools:
+  <<: *defaults_nightly
+  stage: reggie_nightly_build_all
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_math_libs ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week
@@ -566,22 +573,29 @@ WEK_BGKFlow:
     - python ./reggie/reggie.py ../regressioncheck/checks/WEK_BGKFlow
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "userguide": Compile the userguide and developer guide
+# Stage "documentation": Compile the userguide and developer guide
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-userguide:
-  stage: userguide
+documentation:
+  stage: documentation
   tags:
     - withmodules-concurrent
   script:
-    - cd doc/userguide ; make; cd ../..
-    - cd doc/developerguide ; make; cd ../..
+    - cd docs/documentation
+    - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt
+    - python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
+    - ls -l _build/html
+    - python3 -m sphinx -b latex -D language=en -d _build/doctrees . _build/latex
+    - ls -l _build/latex
+    - cd _build/latex
+    - latexmk -r latexmkrc -pdf -f -dvi- -ps- -jobname=piclas -interaction=nonstopmode || true
+    - ls -l
+    - ls -l piclas.pdf
   artifacts:
     name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
     expire_in: 1 day
     when: on_failure
     paths:
-      - doc/userguide
-      - doc/developerguide
+      - docs/documentation
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "github": Push the master branch to github

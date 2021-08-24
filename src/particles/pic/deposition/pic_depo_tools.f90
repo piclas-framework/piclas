@@ -171,10 +171,10 @@ INTEGER                          :: j,k,l,iElem, firstElem, lastElem
 #if USE_MPI
 INTEGER                          :: MessageSize
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
-#endif
 #if USE_DEBUG
 INTEGER                          :: I
 #endif /*USE_DEBUG*/
+#endif
 INTEGER                          :: NodeID(1:8)
 !===================================================================================================================================
 #if USE_MPI
@@ -355,7 +355,7 @@ REAL                     :: StartT,EndT
 
   !-- read state
   ALLOCATE(U(nVars,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-  CALL ReadAttribute(File_ID,'N',1,IntegerScalar=N_HDF5)
+  CALL ReadAttribute(File_ID,'N',1,IntScalar=N_HDF5)
   IF(N_HDF5.EQ.PP_N)THEN! No interpolation needed, read solution directly from file
     ! Associate construct for integer KIND=8 possibility
     ASSOCIATE (&
