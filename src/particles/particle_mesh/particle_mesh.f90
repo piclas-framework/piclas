@@ -287,9 +287,9 @@ PARTOUT            = GETINT('PartOut','0')
 MPIRankOut         = GETINT('MPIRankOut','0')
 #endif /*CODE_ANALYZE*/
 
-MeasureTrackTime  = GETLOGICAL('MeasureTrackTime','.FALSE.')
-CartesianPeriodic = GETLOGICAL('CartesianPeriodic','.FALSE.')
-IF(CartesianPeriodic) FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
+MeasureTrackTime  = GETLOGICAL('MeasureTrackTime')
+CartesianPeriodic = GETLOGICAL('CartesianPeriodic')
+IF(CartesianPeriodic) FastPeriodic = GETLOGICAL('FastPeriodic')
 
 ! method from xPhysic to parameter space
 IF(UseCurveds)THEN ! don't use RefMappingGuess=1, because RefMappingGuess is only best for linear cubical elements
