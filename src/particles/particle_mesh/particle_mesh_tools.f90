@@ -1812,6 +1812,7 @@ LOGICAL,ALLOCPOINT             :: PeriodicFound(:)
 REAL,ALLOCATABLE               :: sendbuf(:),recvbuf(:,:)
 INTEGER                        :: PeriodicFound_Win
 #endif
+INTEGER                        :: iBC,iPartBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
@@ -1872,13 +1873,20 @@ DO ElemID = firstElem,lastElem
   IF (ALL(PeriodicFound(:))) EXIT
 
   DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
-    IF (SideInfo_Shared(SIDE_BCID,SideID).EQ.0) CYCLE
+
+    ! Get BC
+    iBC = SideInfo_Shared(SIDE_BCID,SideID)
+    IF(iBC.EQ.0) CYCLE
+
+    ! Get particle BC
+    iPartBC = PartBound%MapToPartBC(iBC)
+    IF (iPartBC.EQ.0) CYCLE
 
     ! Boundary is a periodic boundary
-    IF (PartBound%TargetBoundCond(SideInfo_Shared(SIDE_BCID,SideID)).NE.3) CYCLE
+    IF (PartBound%TargetBoundCond(iPartBC).NE.3) CYCLE
 
     ! Check if side is master side
-    BCALPHA = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
+    BCALPHA = BoundaryType(iBC,BC_ALPHA)
 
     IF (BCALPHA.GT.0) THEN
       ! Periodic vector already found
