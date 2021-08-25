@@ -40,7 +40,7 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE SplitMerge_main()
 ! MODULES
-USE MOD_PARTICLE_Vars         ,ONLY: vMPFNewPartNum, PEM, nSpecies, PartSpecies,PDM
+USE MOD_PARTICLE_Vars         ,ONLY: vMPFMergeThreshold, vMPFSplitThreshold, PEM, nSpecies, PartSpecies,PDM
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
@@ -76,10 +76,8 @@ DO iElem = 1, nElems
   END DO
 
   DO iSpec = 1, nSpecies
-!    IF ((vMPFNewPartNum(iSpec).EQ.0).OR.(nPart(iSpec).LE.vMPFNewPartNum(iSpec))) CYCLE
-    IF(vMPFNewPartNum(iSpec).EQ.0) CYCLE            ! Skip default value
+    IF((vMPFMergeThreshold(iSpec).EQ.0).AND.(vMPFSplitThreshold(iSpec).EQ.0)) CYCLE            ! Skip default values
     IF(nPart(iSpec).EQ.0) CYCLE                     ! Skip when no particles are present
-    IF(nPart(iSpec).EQ.vMPFNewPartNum(iSpec)) CYCLE ! Skip number of particles equal target value
 
     ! 2.) build partindx list for species
     ALLOCATE(iPartIndx_Node(nPart(iSpec)))
@@ -88,10 +86,10 @@ DO iElem = 1, nElems
     END DO
 
     ! 3.) Call split or merge routine
-    IF(nPart(iSpec).GT.vMPFNewPartNum(iSpec)) THEN  ! Merge
-      CALL MergeParticles(iPartIndx_Node, nPart(iSpec), vMPFNewPartNum(iSpec),iElem)
-    ELSE  ! nPart(iSpec).LT.vMPFNewPartNum(iSpec) => Split
-      CALL SplitParticles(iPartIndx_Node, nPart(iSpec), vMPFNewPartNum(iSpec))
+    IF(nPart(iSpec).GT.vMPFMergeThreshold(iSpec).AND.(vMPFMergeThreshold(iSpec).NE.0)) THEN   ! Merge
+      CALL MergeParticles(iPartIndx_Node, nPart(iSpec), vMPFMergeThreshold(iSpec),iElem)
+    ELSE IF(nPart(iSpec).LT.vMPFSplitThreshold(iSpec)) THEN                                   ! Split
+      CALL SplitParticles(iPartIndx_Node, nPart(iSpec), vMPFSplitThreshold(iSpec))
     END IF
     DEALLOCATE(iPartIndx_Node)
 
@@ -551,6 +549,7 @@ DO WHILE(iNewPart.LT.nSplit)
   CALL RANDOM_NUMBER(iRan)
   iPart = INT(iRan*nPart) + 1
   PartIndx = iPartIndx_Node(iPart)
+  IF((PartMPF(PartIndx) / 2.).LT.1.0) EXIT
   PartMPF(PartIndx) = PartMPF(PartIndx) / 2.   ! split particle
   iNewPart = iNewPart + 1
   PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)

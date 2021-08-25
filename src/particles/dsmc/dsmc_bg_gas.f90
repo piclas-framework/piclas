@@ -690,6 +690,9 @@ DO iSpec = 1,nSpecies
   END DO
 END DO
 
+! Leave the routine if no collision pairs were defined
+IF(MCC_TotalPairNum.EQ.0) RETURN
+
 ALLOCATE(CollpDataPairIndex(1:2,1:MCC_TotalPairNum))
 ALLOCATE(CollpDataMPF(1:MCC_TotalPairNum))
 ! ALLOCATE(PairingPartner(MCC_TotalPairNum))
