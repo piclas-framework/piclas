@@ -21,11 +21,14 @@ MODULE MOD_Options
   IMPLICIT NONE
   PRIVATE
 !================================================
-!> Genereal, abstract OPTION
+!> General, abstract OPTION
 !================================================
   TYPE,PUBLIC  :: OPTION
     CLASS(OPTION),POINTER :: next         !< pointer to next option, used for a linked list of options
     CHARACTER(LEN=255)    :: name         !< name of the option, case-insensitive (part before '=' in parameter file)
+    CHARACTER(LEN=255)    :: namelowercase!< name of the option, lower-case (part before '=' in parameter file), only required for
+                                          !< numberedmulti
+    INTEGER               :: ind          !< index of $ in namelowercase, only required for numberedmulti
     CHARACTER(LEN=1000)   :: description  !< comment in parameter file, after '!' character
     CHARACTER(LEN=255)    :: section      !< section to which the option belongs. Not mandatory.
     LOGICAL               :: isSet        !< default false. Becomes true, if set in parameter file
@@ -166,25 +169,25 @@ CHARACTER(LEN=*),INTENT(IN) :: name !< incoming name, which is compared with the
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL               :: NAMEEQUALSNUMBERED
-INTEGER               :: i,ind,ind2,ind3
+INTEGER               :: j,i,ind,ind2,ind3,jMax
 CHARACTER(LEN=255)    :: thisname,testname
-TYPE(Varying_String)  :: aStr
 !==================================================================================================================================
-CALL LowCase(name,testname)
-
-! Convert character to varying string and remove brackets
-aStr = Var_Str(TRIM(this%name))
-aStr = Replace(aStr,"[]"  ,"$",Every = .true.)
-aStr = Replace(aStr,"[$]" ,"$",Every = .true.)
-aStr = Replace(aStr,"[$$]","$",Every = .true.)
-
-! Convert back to character and convert to lower case
-CALL LowCase(TRIM(CHAR(aStr)),thisname)
-
-! Find index $ occurrence
-ind = INDEX(TRIM(thisname),"$")
+! ind = INDEX(thisname,"$") = INDEX(this%namelowercase,"$")
+CALL LowCase(TRIM(name),testname)
 
 NAMEEQUALSNUMBERED = .FALSE.
+
+! 1. check testname for numbers
+jMax = LEN(TRIM(testname))
+DO j = 1, jMax
+  ind=INDEX('0123456789',testname(j:j))
+  IF(ind.GT.0)  EXIT   ! number found, continue
+  IF(j.EQ.jMax) RETURN ! if no number is found in testname
+END DO ! j
+
+! 2. loop all segments of thisname
+ind = this%ind
+thisname = this%namelowercase ! this is already lower case version of this%name with [] removed
 DO WHILE(ind.GT.0)
   ind2 = INDEX(TRIM(testname), TRIM(thisname(1:ind-1)))
   IF(ind2.GT.0)THEN

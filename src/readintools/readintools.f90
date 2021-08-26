@@ -369,7 +369,6 @@ LOGICAL,INTENT(IN),OPTIONAL           :: numberedmulti    !< marker if numbered 
 ! LOCAL VARIABLES
 CLASS(link), POINTER :: newLink
 TYPE(Varying_String) :: aStr
-INTEGER              :: ind
 !==================================================================================================================================
 !IF(this%check_options(name)) THEN
 !  CALL Abort(__STAMP__, &
@@ -397,15 +396,15 @@ IF(opt%numberedmulti)THEN
   aStr = Replace(aStr,"[]"  ,"$",Every = .true.)
   aStr = Replace(aStr,"[$]" ,"$",Every = .true.)
   aStr = Replace(aStr,"[$$]","$",Every = .true.)
-  ind = INDEX(TRIM(CHAR(aStr)),"$")
-  IF(ind.LE.0)THEN
-    CALL abort(&
-    __STAMP__&
-    ,'[numberedmulti] parameter does not contain "$" symbol, which is required for these kinds of variables for ['//TRIM(opt%name)//']')
-  END IF ! ind.LE.0
+  CALL LowCase(TRIM(CHAR(aStr)),opt%namelowercase)
+  opt%ind = INDEX(TRIM(opt%namelowercase),"$")
+  IF(opt%ind.LE.0)THEN
+    CALL abort(__STAMP__&
+    ,'[numberedmulti] parameter does not contain "$" symbol, which is required for these kinds of variables for ['//TRIM(name)//']')
+  END IF ! opt%ind.LE.0
 END IF ! opt%numberedmulti
-  opt%name = name
 
+opt%name        = name
 opt%isSet       = .FALSE.
 opt%description = description
 opt%section     = this%actualSection
