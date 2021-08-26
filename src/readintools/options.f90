@@ -168,10 +168,21 @@ CHARACTER(LEN=*),INTENT(IN) :: name !< incoming name, which is compared with the
 LOGICAL               :: NAMEEQUALSNUMBERED
 INTEGER               :: i,ind,ind2,ind3
 CHARACTER(LEN=255)    :: thisname,testname
+TYPE(Varying_String)  :: aStr
 !==================================================================================================================================
-ind      = INDEX(TRIM(this%name),"$")
-thisname = this%name ! this is already lower case
 CALL LowCase(name,testname)
+
+! Convert character to varying string and remove brackets
+aStr = Var_Str(TRIM(this%name))
+aStr = Replace(aStr,"[]"  ,"$",Every = .true.)
+aStr = Replace(aStr,"[$]" ,"$",Every = .true.)
+aStr = Replace(aStr,"[$$]","$",Every = .true.)
+
+! Convert back to character and convert to lower case
+CALL LowCase(TRIM(CHAR(aStr)),thisname)
+
+! Find index $ occurrence
+ind = INDEX(TRIM(thisname),"$")
 
 NAMEEQUALSNUMBERED = .FALSE.
 DO WHILE(ind.GT.0)
