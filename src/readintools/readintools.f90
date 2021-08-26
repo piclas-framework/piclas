@@ -815,7 +815,7 @@ DO i=1,nLines
   aStr=Replace(aStr,"/)"," ",Every=.true.)
   ! Lower case
   HelpStr=CHAR(aStr)
-  ! If something remaind, this should be an option
+  ! If something remained, this should be an option
   IF (LEN_TRIM(HelpStr).GT.2) THEN
     ! read the option
     IF (.NOT.this%read_option(HelpStr)) THEN

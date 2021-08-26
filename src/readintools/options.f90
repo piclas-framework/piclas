@@ -172,22 +172,20 @@ LOGICAL               :: NAMEEQUALSNUMBERED
 INTEGER               :: j,i,ind,ind2,ind3,jMax
 CHARACTER(LEN=255)    :: thisname,testname
 !==================================================================================================================================
-! ind = INDEX(thisname,"$") = INDEX(this%namelowercase,"$")
+NAMEEQUALSNUMBERED = .FALSE. ! Initialize
+
+! 1. check testname for numbers and $ (the latter allows setting multiple parameters to the same value)
 CALL LowCase(TRIM(name),testname)
-
-NAMEEQUALSNUMBERED = .FALSE.
-
-! 1. check testname for numbers
 jMax = LEN(TRIM(testname))
 DO j = 1, jMax
-  ind=INDEX('0123456789',testname(j:j))
-  IF(ind.GT.0)  EXIT   ! number found, continue
+  ind2=INDEX('0123456789$',testname(j:j))
+  IF(ind2.GT.0)  EXIT   ! number found, continue
   IF(j.EQ.jMax) RETURN ! if no number is found in testname
 END DO ! j
 
 ! 2. loop all segments of thisname
-ind = this%ind
 thisname = this%namelowercase ! this is already lower case version of this%name with [] removed
+ind      = this%ind
 DO WHILE(ind.GT.0)
   ind2 = INDEX(TRIM(testname), TRIM(thisname(1:ind-1)))
   IF(ind2.GT.0)THEN
@@ -216,7 +214,7 @@ DO WHILE(ind.GT.0)
     ind = 0
     NAMEEQUALSNUMBERED = .FALSE.
   END IF ! ind2.NE.0
-END DO
+END DO ! WHILE ind.GT.0
 
 END FUNCTION NAMEEQUALSNUMBERED
 
