@@ -28,7 +28,7 @@ MODULE MOD_Options
     CHARACTER(LEN=255)    :: name         !< name of the option, case-insensitive (part before '=' in parameter file)
     CHARACTER(LEN=255)    :: namelowercase!< name of the option, lower-case (part before '=' in parameter file), only required for
                                           !< numberedmulti
-    INTEGER               :: ind          !< index of $ in namelowercase, only required for numberedmulti
+    INTEGER               :: ind          !< FIRST index of $ in namelowercase, only required for numberedmulti
     CHARACTER(LEN=1000)   :: description  !< comment in parameter file, after '!' character
     CHARACTER(LEN=255)    :: section      !< section to which the option belongs. Not mandatory.
     LOGICAL               :: isSet        !< default false. Becomes true, if set in parameter file
