@@ -39,8 +39,6 @@ END TYPE
 
 TYPE(tRadiationInput), ALLOCATABLE :: RadiationInput(:)
 
-REAL, ALLOCATABLE       :: MacroRadInputParameters(:,:,:)   ! DSMC Output file (iElem, iSpec, 5 (density, Tvib, Trot, Telec, Ttrans_mean))
-
 REAL                    :: NumDensElectrons                 ! Electron Density
 REAL                    :: TElectrons                       ! Electron Temperature
 
@@ -97,7 +95,11 @@ REAL, ALLOCPOINT       :: Radiation_ElemEnergy_Species(:,:,:)! (number of specie
 REAL,ALLOCPOINT                 :: Radiation_Emission_spec(:,:)     ! (WaveLen(:), number of mesh elements)
 REAL,ALLOCPOINT                 :: Radiation_Absorption_spec(:,:)     ! (WaveLen(:), number of mesh elements)
 
+REAL,ALLOCPOINT                 :: MacroRadInputParameters(:,:,:)   ! DSMC Output file (iElem, iSpec, 5 (density, Tvib, Trot, Telec, Ttrans_mean))
+
 #if USE_MPI
+INTEGER                         :: MacroRadInputParameters_Shared_Win
+REAL,ALLOCPOINT                 :: MacroRadInputParameters_Shared(:,:,:)
 INTEGER                         :: Radiation_Emission_Spec_Shared_Win
 REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Shared(:,:)
 INTEGER                         :: Radiation_Absorption_Spec_Shared_Win

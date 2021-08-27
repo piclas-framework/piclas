@@ -267,8 +267,15 @@ SUBROUTINE MacroscopicRadiationInput()
   USE MOD_HDF5_Input                ,ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray,GetDataProps
   USE MOD_Mesh_Vars                 ,ONLY: offsetElem, nElems
   USE MOD_Particle_Vars             ,ONLY: nSpecies
-  USE MOD_Radiation_Vars            ,ONLY: MacroRadInputParameters
+  USE MOD_Radiation_Vars            ,ONLY: MacroRadInputParameters, MacroRadInputParameters_Shared, MacroRadInputParameters_Shared_Win
+  USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
   USE MOD_ReadInTools
+  USE MOD_Particle_Mesh_Vars        ,ONLY: nComputeNodeElems
+#if USE_MPI
+!USE MOD_MPI_Shared_Vars
+  USE MOD_MPI_Shared
+  USE MOD_MPI_Shared_Vars
+#endif
 !  USE MOD_Utils                     ,ONLY: BubbleSortID !Laux
 !  USE MOD_Particle_Mesh_Vars        ,ONLY: GEO !Laux
   ! IMPLICIT VARIABLE HANDLING
@@ -279,7 +286,7 @@ SUBROUTINE MacroscopicRadiationInput()
   ! OUTPUT VARIABLES
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! LOCAL VARIABLES
-  INTEGER                           :: nVar_HDF5, N_HDF5, nElems_HDF5, iVar, iSpec, iElem
+  INTEGER                           :: nVar_HDF5, N_HDF5, nElems_HDF5, iVar, iSpec, iElem, CNElemID
   REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
   CHARACTER(LEN=300)                :: MacroRadiationInputFile
 !  INTEGER, ALLOCATABLE              :: SortElemInd(:)  !Laux
@@ -292,7 +299,17 @@ SUBROUTINE MacroscopicRadiationInput()
   CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nElems_HDF5)
 
   ALLOCATE(MacroRadInputParameters(1:nElems,1:nSpecies,1:5))
-  MacroRadInputParameters = 0.
+#if USE_MPI
+  ! allocate shared array for Radiation_Emission/Absorption_Spec
+  CALL Allocate_Shared((/nComputeNodeElems,nSpecies,5/), MacroRadInputParameters_Shared_Win,MacroRadInputParameters_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,MacroRadInputParameters_Shared_Win,IERROR)
+
+  MacroRadInputParameters => MacroRadInputParameters_Shared
+#else
+! allocate local array for ElemInfo
+  ALLOCATE(MacroRadInputParameters(1:nElems,1:nSpecies,1:5))
+#endif  /*USE_MPI*/
+  
 
   ALLOCATE(ElemData_HDF5(1:nVar_HDF5,1:nElems))
   ! Associate construct for integer KIND=8 possibility
@@ -331,14 +348,19 @@ SUBROUTINE MacroscopicRadiationInput()
   iVar = 1
   DO iSpec = 1, nSpecies
    DO iElem = 1, nElems
-     MacroRadInputParameters(iElem,iSpec,1) = ElemData_HDF5(iVar+ 6,iElem) !density
-     MacroRadInputParameters(iElem,iSpec,2) = ElemData_HDF5(iVar+ 7,iElem) !T_vib
-     MacroRadInputParameters(iElem,iSpec,3) = ElemData_HDF5(iVar+ 8,iElem) !T_rot
-     MacroRadInputParameters(iElem,iSpec,4) = ElemData_HDF5(iVar+ 9,iElem) !T_elec
-     MacroRadInputParameters(iElem,iSpec,5) = ElemData_HDF5(iVar+11,iElem) !T_mean
+     CNElemID = GetCNElemID(iElem+offsetElem)
+     MacroRadInputParameters(CNElemID,iSpec,1) = ElemData_HDF5(iVar+ 6,iElem) !density
+     MacroRadInputParameters(CNElemID,iSpec,2) = ElemData_HDF5(iVar+ 7,iElem) !T_vib
+     MacroRadInputParameters(CNElemID,iSpec,3) = ElemData_HDF5(iVar+ 8,iElem) !T_rot
+     MacroRadInputParameters(CNElemID,iSpec,4) = ElemData_HDF5(iVar+ 9,iElem) !T_elec
+     MacroRadInputParameters(CNElemID,iSpec,5) = ElemData_HDF5(iVar+11,iElem) !T_mean
    END DO
    iVar = iVar + DSMC_NVARS
   END DO
+
+#if USE_MPI
+  CALL BARRIER_AND_SYNC(MacroRadInputParameters_Shared_Win ,MPI_COMM_SHARED)
+#endif
 
   DEALLOCATE(ElemData_HDF5)
 
