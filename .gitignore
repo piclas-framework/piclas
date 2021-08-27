@@ -29,6 +29,9 @@ template.tex
 # read the docs stuff
 _build/
 
+# Doxygen
+doxygen/
+
 # regression test
 regressioncheck/reggie/*
 output_dir_gitlab_tool/

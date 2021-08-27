@@ -291,6 +291,7 @@ IF(usevMPF.AND.UseBGGasSplit) THEN
     iSpec  = PartSpecies(iPart)! Skip background particles that have been created within this loop
     IF(BGGas%BackgroundSpecies(iSpec)) CYCLE
     iSpec2 = PartSpecies(BGGas%PairingPartner(iPart))
+    ! Split required if particle MPF is larger than BGGas MPF
     IF(PartMPF(iPart).GT.Species(iSpec2)%MacroParticleFactor) THEN 
       NeedToSplit = .TRUE.
       EXIT
@@ -993,7 +994,6 @@ USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
 USE MOD_DSMC_ChemReact         ,ONLY: PhotoIonization_InsertProducts
 USE MOD_DSMC_AmbipolarDiffusion,ONLY: AD_DeleteParticles
 ! IMPLICIT VARIABLE HANDLING
@@ -1083,9 +1083,7 @@ DO iPart = 1, NbrOfParticle
   ! Get a new index for the second product
   NewParticleIndex = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition+NbrOfParticle)
   IF (NewParticleIndex.EQ.0) THEN
-    CALL Abort(&
-      __STAMP__&
-      ,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
+    CALL Abort(__STAMP__,'ERROR in PhotoIonization: MaxParticleNumber should be increased!')
   END IF
   IF (DSMC%DoAmbipolarDiff) THEN
     newAmbiParts = newAmbiParts + 1
@@ -1125,7 +1123,7 @@ DO iPart = 1, NbrOfParticle
   ! Weighting factor
   IF(usevMPF) THEN
     PartMPF(NewParticleIndex) = Species(bgSpec)%MacroParticleFactor
-    PartMPF(ParticleIndex) = Species(iSpec)%MacroParticleFactor
+    PartMPF(ParticleIndex)    = Species(iSpec)%MacroParticleFactor
   END IF
   ! Velocity (set it to zero, as it will be substracted in the chemistry module)
   PartState(4:6,ParticleIndex) = 0.

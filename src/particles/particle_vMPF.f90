@@ -25,7 +25,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: SplitMerge_main
+PUBLIC :: SplitAndMerge
 !===================================================================================================================================
 
 CONTAINS
@@ -38,11 +38,11 @@ CONTAINS
 !> 2.) build partindx list for species
 !> 3.) Call split or merge routine
 !===================================================================================================================================
-SUBROUTINE SplitMerge_main()
+SUBROUTINE SplitAndMerge()
 ! MODULES
-USE MOD_PARTICLE_Vars         ,ONLY: vMPFMergeThreshold, vMPFSplitThreshold, PEM, nSpecies, PartSpecies,PDM
-USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
+USE MOD_PARTICLE_Vars ,ONLY: vMPFMergeThreshold, vMPFSplitThreshold, PEM, nSpecies, PartSpecies,PDM
+USE MOD_Mesh_Vars     ,ONLY: nElems
+USE MOD_part_tools    ,ONLY: UpdateNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -100,7 +100,7 @@ END DO
 CALL UpdateNextFreePosition()
 DEALLOCATE(nPart)
 
-END SUBROUTINE SplitMerge_main
+END SUBROUTINE SplitAndMerge
 
 
 !===================================================================================================================================

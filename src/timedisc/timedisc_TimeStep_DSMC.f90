@@ -48,7 +48,7 @@ USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Particle_Tracking        ,ONLY: PerformTracking
 USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC
-USE MOD_vMPF                     ,ONLY: SplitMerge_main
+USE MOD_vMPF                     ,ONLY: SplitAndMerge
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -199,7 +199,7 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
   PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 
-  IF(UseSplitAndMerge) CALL SplitMerge_main
+  IF(UseSplitAndMerge) CALL SplitAndMerge()
 
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_DSMC,tLBStart)

@@ -78,7 +78,7 @@ END IF
 ! Reset the number of particles created during the DSMC loop
 DSMCSumOfFormedParticles = 0
 ! Insert background gas particles for every simulation particle
-IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_InsertParticles
+IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_InsertParticles()
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)

@@ -63,7 +63,7 @@ USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIPar
 #endif
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
-USE MOD_vMPF                   ,ONLY: SplitMerge_main
+USE MOD_vMPF                   ,ONLY: SplitAndMerge
 USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
 #endif
 #if USE_LOADBALANCE
@@ -258,7 +258,7 @@ IF (useDSMC) THEN
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
     PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
-    IF(UseSplitAndMerge) CALL SplitMerge_main()
+    IF(UseSplitAndMerge) CALL SplitAndMerge()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
