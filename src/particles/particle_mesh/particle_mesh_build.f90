@@ -27,11 +27,155 @@ PRIVATE
 
 PUBLIC:: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildBCElemDistance
 PUBLIC:: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius
-PUBLIC:: BuildSideOriginAndRadius,BuildLinearSideBaseVectors
+PUBLIC:: BuildSideOriginAndRadius,BuildLinearSideBaseVectors, BuildMesh2DInfo
 !===================================================================================================================================
 
 CONTAINS
 
+SUBROUTINE BuildMesh2DInfo()
+!===================================================================================================================================
+!> Routine determines a symmetry side and calculates the 2D (area faces in symmetry plane) and axisymmetric volumes (cells are
+!> revolved around the symmetry axis). The symmetry side will be used later on to determine in which two directions the quadtree
+!> shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars               ,ONLY: nElems
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideIsSymSide, nComputeNodeSides, ElemBaryNGeo
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, ElemInfo_Shared
+USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
+#if USE_MPI
+USE MOD_MPI_Shared             
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED, nComputeNodeTotalElems
+USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides, SideIsSymSide_Shared, SideIsSymSide_Shared_Win
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID2D_Shared, ElemSideNodeID2D_Shared_Win, SideNormalEdge2D_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideNormalEdge2D_Shared_Win
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, nComputeNodeProcessors
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID, iSide, iELem
+REAL                            :: VecCell(2), FaceMidPoint(2), NormVec(2), EdgeVec(2), nVal
+INTEGER                         :: firstElem,lastElem, firstSide, lastSide, GlobalElemID, tmpNode
+LOGICAL                         :: DefineSide
+!===================================================================================================================================
+
+#if USE_MPI
+CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
+
+SideIsSymSide => SideIsSymSide_Shared
+#else
+! allocate local array for ElemInfo
+ALLOCATE(SideIsSymSide(nComputeNodeSides))
+#endif  /*USE_MPI*/
+
+#if USE_MPI
+  firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+  lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+#else
+  firstSide = 1
+  lastSide  = nComputeNodeSides
+#endif
+
+DO iSide = firstSide, lastSide
+  ! ignore non-BC sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) THEN
+    SideIsSymSide(iSide) = .FALSE.
+    CYCLE
+  END IF
+
+#if USE_MPI
+  ! ignore sides outside of halo region
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) THEN
+    SideIsSymSide(iSide) = .FALSE.
+    CYCLE
+  END IF
+#endif /*USE_MPI*/
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%SymmetryBC) THEN
+    SideIsSymSide(iSide) = .TRUE.
+  ELSE
+    SideIsSymSide(iSide) = .FALSE.
+  END IF
+END DO
+#if USE_MPI
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win,MPI_COMM_SHARED)
+
+CALL Allocate_Shared((/2,6,nComputeNodeTotalElems/),ElemSideNodeID2D_Shared_Win,ElemSideNodeID2D_Shared)
+CALL MPI_WIN_LOCK_ALL(0,ElemSideNodeID2D_Shared_Win,IERROR)
+CALL Allocate_Shared((/4,6,nComputeNodeTotalElems/),SideNormalEdge2D_Shared_Win,SideNormalEdge2D_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideNormalEdge2D_Shared_Win,IERROR)
+
+firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+#else
+ALLOCATE(ElemSideNodeID2D_Shared(1:2,1:6,1:nElems))
+ALLOCATE(SideNormalEdge2D_Shared(1:4,1:6,1:nElems))
+firstElem = 1
+lastElem  = nElems
+#endif
+
+DO iElem = firstElem, lastElem
+  GlobalElemID = GetGlobalElemID(iElem)
+  DO iLocSide = 1, 6   
+    DefineSide = .TRUE.
+    SideID=GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
+    IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
+      IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%SymmetryBC) THEN
+        ElemSideNodeID2D_Shared(:,iLocSide, iElem) = -1
+        SideNormalEdge2D_Shared(:,iLocSide, iElem) = 0.
+        DefineSide = .FALSE.
+      END IF
+    END IF
+    
+    IF (DefineSide) THEN
+      tmpNode = 0 
+      DO iNode = 1, 4
+        IF(NodeCoords_Shared(3,ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
+          tmpNode = tmpNode + 1
+          ElemSideNodeID2D_Shared(tmpNode,iLocSide, iElem) = ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1
+        END IF
+      END DO      
+      EdgeVec(1:2) = NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(2,ilocSide,iElem))-NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(1,ilocSide,iElem))
+      NormVec(1) = -EdgeVec(2)
+      NormVec(2) = EdgeVec(1) 
+      FaceMidPoint(1:2) = (NodeCoords_Shared(1:2,ElemSideNodeID_Shared(1,iLocSide,iElem)+1) &
+                        + NodeCoords_Shared(1:2,ElemSideNodeID_Shared(2,iLocSide,iElem)+1)&
+                        + NodeCoords_Shared(1:2,ElemSideNodeID_Shared(3,iLocSide,iElem)+1) &
+                        + NodeCoords_Shared(1:2,ElemSideNodeID_Shared(4,iLocSide,iElem)+1)) / 4.
+      VecCell(1:2) = FaceMidPoint(1:2) - ElemBaryNGeo(1:2,iElem) ! vector from elem bary to side
+      IF (DOT_PRODUCT(VecCell,NormVec).GT.0.0) THEN
+        SideNormalEdge2D_Shared(1:2,iLocSide, iElem) = NormVec(1:2)
+      ELSE
+        SideNormalEdge2D_Shared(1,iLocSide, iElem) = EdgeVec(2)
+        SideNormalEdge2D_Shared(2,iLocSide, iElem) = -EdgeVec(1)
+      END IF
+      nVal = SQRT(SideNormalEdge2D_Shared(1,iLocSide,iElem)**2. + SideNormalEdge2D_Shared(2,iLocSide,iElem)**2.)
+      SideNormalEdge2D_Shared(1,iLocSide,iElem)= SideNormalEdge2D_Shared(1,iLocSide,iElem)/ nVal
+      SideNormalEdge2D_Shared(2,iLocSide,iElem)= SideNormalEdge2D_Shared(2,iLocSide,iElem) / nVal
+      nVal = SQRT(EdgeVec(1)**2. + EdgeVec(2)**2.)
+      SideNormalEdge2D_Shared(3,iLocSide,iElem) = EdgeVec(1) / nVal
+      SideNormalEdge2D_Shared(4,iLocSide,iElem)  = EdgeVec(2) / nVal
+    END IF
+  END DO
+END DO
+
+#if USE_MPI
+CALL BARRIER_AND_SYNC(ElemSideNodeID2D_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(SideNormalEdge2D_Shared_Win,MPI_COMM_SHARED)
+#endif
+
+END SUBROUTINE BuildMesh2DInfo
 
 SUBROUTINE BuildElementRadiusTria()
 !================================================================================================================================

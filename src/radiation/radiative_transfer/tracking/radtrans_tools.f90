@@ -27,7 +27,7 @@ END INTERFACE
 
 PUBLIC :: PhotonThroughSideCheck3DFast, PhotonIntersectionWithSide, CalcAbsoprtion, PerfectPhotonReflection, DiffusePhotonReflection
 PUBLIC :: CalcWallAbsoprtion
-!PUBLIC :: PhotonIntersectionWithSide2D, RotatePhotonIn2DPlane, PerfectPhotonReflection2D,DiffusePhotonReflection2D
+PUBLIC :: PhotonIntersectionWithSide2D, RotatePhotonIn2DPlane, PerfectPhotonReflection2D,DiffusePhotonReflection2D
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
@@ -140,175 +140,177 @@ RETURN
 END SUBROUTINE PhotonThroughSideCheck3DFast
 
 
-!SUBROUTINE PhotonIntersectionWithSide2D(iLocSide,ElemID,ThroughSide,IntersectionPos,isLastSide,Distance)
-!!===================================================================================================================================
-!!> Routine to check whether a photon crossed the given side.
-!!===================================================================================================================================
-!! MODULES
-!USE MOD_Particle_Mesh_Vars, ONLY : GEO, PartElemToSide2D
-!USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps 
-!! IMPLICIT VARIABLE HANDLING
-!IMPLICIT NONE
-!! INPUT VARIABLES
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT/OUTPUT VARIABLES
-!LOGICAL,INTENT(OUT)              :: ThroughSide
-!INTEGER,INTENT(IN)               :: iLocSide, ElemID
-!REAL, INTENT(OUT)                :: IntersectionPos(3)
-!REAL, INTENT(OUT)                :: Distance
-!LOGICAL, INTENT(IN)              :: isLastSide   
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!REAL                             :: y_photon_start,x_photon_start,yNode1,xNode1,yNode2,xNode2,sy,sz,sx
-!REAL                             :: l1,S1,l2,S2,l,S
-!REAL                             :: beta, alpha, deltay, a, b, c, tmpsqrt
-!!===================================================================================================================================
-!  
-!  ThroughSide = .FALSE.
+SUBROUTINE PhotonIntersectionWithSide2D(iLocSide,Element,ThroughSide,IntersectionPos,isLastSide,Distance)
+!===================================================================================================================================
+!> Routine to check whether a photon crossed the given side.
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Mesh_Vars,          ONLY : ElemSideNodeID2D_Shared, NodeCoords_Shared
+USE MOD_RadiationTrans_Vars,         ONLY : PhotonProps 
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)              :: ThroughSide
+INTEGER,INTENT(IN)               :: iLocSide, Element
+REAL, INTENT(OUT)                :: IntersectionPos(3)
+REAL, INTENT(OUT)                :: Distance
+LOGICAL, INTENT(IN)              :: isLastSide   
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID
+REAL                             :: y_photon_start,x_photon_start,yNode1,xNode1,yNode2,xNode2,sy,sz,sx
+REAL                             :: l1,S1,l2,S2,l,S
+REAL                             :: beta, alpha, deltay, a, b, c, tmpsqrt
+!===================================================================================================================================
+  CNElemID = GetCNElemID(Element)
+  ThroughSide = .FALSE.
 
-!  xNode1 = GEO%NodeCoords(1,PartElemToSide2D(iLocSide,2, ElemID))
-!  yNode1 = GEO%NodeCoords(2,PartElemToSide2D(iLocSide,2, ElemID))
-!  xNode2 = GEO%NodeCoords(1,PartElemToSide2D(iLocSide,3, ElemID))
-!  yNode2 = GEO%NodeCoords(2,PartElemToSide2D(iLocSide,3, ElemID))
+  xNode1 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+  yNode1 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+  xNode2 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+  yNode2 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
 
-!  x_photon_start=PhotonProps%PhotonLastPos(1)
-!  y_photon_start=PhotonProps%PhotonLastPos(2) 
+  x_photon_start=PhotonProps%PhotonLastPos(1)
+  y_photon_start=PhotonProps%PhotonLastPos(2) 
 
-!  sx=PhotonProps%PhotonDirection(1)
-!  sy=PhotonProps%PhotonDirection(2)
-!  sz=PhotonProps%PhotonDirection(3)
+  sx=PhotonProps%PhotonDirection(1)
+  sy=PhotonProps%PhotonDirection(2)
+  sz=PhotonProps%PhotonDirection(3)
 
-!  IF (sx .EQ. 0.0) THEN
-!    l = (x_photon_start-xNode1)/(xNode2-xNode1)
-!    a = sy*sy + sz*sz
-!    b = 2*sy*y_photon_start
-!    c = y_photon_start*y_photon_start - yNode1*yNode1 + 2.*l*yNode1*yNode1 - l*l*yNode1*yNode1 &
-!        - 2.*yNode1*yNode2*l + 2.*yNode1*yNode2*l*l - yNode2*yNode2*l*l
-!    tmpsqrt = b*b - 4.*a*c
-!    IF (tmpsqrt.LE.0.0) THEN
-!      RETURN
-!    END IF
-!    S1 = (-b+SQRT(tmpsqrt))/(2.*a)
-!    S2 = (-b-SQRT(tmpsqrt))/(2.*a)
+  IF (sx .EQ. 0.0) THEN
+    l = (x_photon_start-xNode1)/(xNode2-xNode1)
+    a = sy*sy + sz*sz
+    b = 2*sy*y_photon_start
+    c = y_photon_start*y_photon_start - yNode1*yNode1 + 2.*l*yNode1*yNode1 - l*l*yNode1*yNode1 &
+        - 2.*yNode1*yNode2*l + 2.*yNode1*yNode2*l*l - yNode2*yNode2*l*l
+    tmpsqrt = b*b - 4.*a*c
+    IF (tmpsqrt.LE.0.0) THEN
+      RETURN
+    END IF
+    S1 = (-b+SQRT(tmpsqrt))/(2.*a)
+    S2 = (-b-SQRT(tmpsqrt))/(2.*a)
 
-!    IF(isLastSide) THEN
-!      IF (ALMOSTEQUAL(S1,S2)) THEN
-!        RETURN ! TODO
-!      ELSE IF (ABS(S1).GT.ABS(S2)) THEN
-!        S=S1
-!      ELSE
-!        S=S2
-!      END IF
-!    ELSE
-!      IF (S1.LE.0.0) THEN
-!        S = S2
-!      ELSE
-!        IF (S2.GT.0.0) THEN
-!          IF(S2.GT.S1) THEN
-!            S = S1
-!          ELSE
-!            S = S2
-!          END IF
-!        ELSE
-!          S = S1
-!        END IF
-!      END IF
-!    END IF
+    IF(isLastSide) THEN
+      IF (ALMOSTEQUAL(S1,S2)) THEN
+        RETURN ! TODO
+      ELSE IF (ABS(S1).GT.ABS(S2)) THEN
+        S=S1
+      ELSE
+        S=S2
+      END IF
+    ELSE
+      IF (S1.LE.0.0) THEN
+        S = S2
+      ELSE
+        IF (S2.GT.0.0) THEN
+          IF(S2.GT.S1) THEN
+            S = S1
+          ELSE
+            S = S2
+          END IF
+        ELSE
+          S = S1
+        END IF
+      END IF
+    END IF
 
 
-!  ELSE
-!    alpha = (xNode1 - x_photon_start) / sx
-!    beta = (xNode2 - xNode1) / sx
-!    deltay = (yNode2 - yNode1)
-!    a = beta*beta*sy*sy - deltay*deltay + beta*beta*sz*sz
-!    b = 2.*beta*sy*y_photon_start + 2.*alpha*beta*sy*sy - 2.*deltay*yNode1 + 2.*alpha*beta*sz*sz
-!    c = y_photon_start*y_photon_start - yNode1*yNode1 + 2.*alpha*sy*y_photon_start + alpha*alpha*sy*sy + sz*sz*alpha*alpha
-!    tmpsqrt = b*b - 4.*a*c
-!    IF (tmpsqrt.LE.0.0) THEN
-!      RETURN
-!    END IF
-!    l1 = (-b + SQRT(tmpsqrt))/(2.*a)
-!    S1 = (xNode1-x_photon_start+(xNode2-xNode1)*l1)/sx
-!    l2 = (-b - SQRT(tmpsqrt))/(2.*a)
-!    S2 = (xNode1-x_photon_start+(xNode2-xNode1)*l2)/sx
+  ELSE
+    alpha = (xNode1 - x_photon_start) / sx
+    beta = (xNode2 - xNode1) / sx
+    deltay = (yNode2 - yNode1)
+    a = beta*beta*sy*sy - deltay*deltay + beta*beta*sz*sz
+    b = 2.*beta*sy*y_photon_start + 2.*alpha*beta*sy*sy - 2.*deltay*yNode1 + 2.*alpha*beta*sz*sz
+    c = y_photon_start*y_photon_start - yNode1*yNode1 + 2.*alpha*sy*y_photon_start + alpha*alpha*sy*sy + sz*sz*alpha*alpha
+    tmpsqrt = b*b - 4.*a*c
+    IF (tmpsqrt.LE.0.0) THEN
+      RETURN
+    END IF
+    l1 = (-b + SQRT(tmpsqrt))/(2.*a)
+    S1 = (xNode1-x_photon_start+(xNode2-xNode1)*l1)/sx
+    l2 = (-b - SQRT(tmpsqrt))/(2.*a)
+    S2 = (xNode1-x_photon_start+(xNode2-xNode1)*l2)/sx
 
-!    IF (isLastSide) THEN
-!      IF (ALMOSTEQUAL(S1,S2).AND.ALMOSTEQUAL(ABS(l1),ABS(l2))) THEN
-!        RETURN
-!      ELSE IF (ALMOSTEQUAL(S1,S2)) THEN
-!        IF (ABS(l1).GT.ABS(l2)) THEN
-!          l=l1; S=S1
-!        ELSE
-!          l=l2; S=S2
-!        END IF
-!      ELSE IF (ABS(S1).GT.ABS(S2)) THEN       !though same spot again, caused by numerical inaccuray (discard shorter solution)
-!        l=l1; S=S1
-!      ELSE
-!        l=l2; S=S2
-!      END IF
-!    ELSE IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
-!      l = l2; S = S2
-!    ELSE                                      !1 is valid intersection
-!      IF ((S1.LE.0.0)) THEN                   !1 would be moving backwards -> 2
-!        l = l2; S = S2
-!      ELSE
-!        IF ((l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0)) THEN !1 and 2 valid -> chose shorter one
-!          IF (S2.GT.S1) THEN
-!            l=l1; S=S1
-!          ELSE
-!            l=l2; S=S2
-!          END IF
-!        ELSE                                  !1 is only valid intersection -> 1
-!          l=l1; S=S1
-!        END IF
-!      END IF
-!    END IF
+    IF (isLastSide) THEN
+      IF (ALMOSTEQUAL(S1,S2).AND.ALMOSTEQUAL(ABS(l1),ABS(l2))) THEN
+        RETURN
+      ELSE IF (ALMOSTEQUAL(S1,S2)) THEN
+        IF (ABS(l1).GT.ABS(l2)) THEN
+          l=l1; S=S1
+        ELSE
+          l=l2; S=S2
+        END IF
+      ELSE IF (ABS(S1).GT.ABS(S2)) THEN       !though same spot again, caused by numerical inaccuray (discard shorter solution)
+        l=l1; S=S1
+      ELSE
+        l=l2; S=S2
+      END IF
+    ELSE IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
+      l = l2; S = S2
+    ELSE                                      !1 is valid intersection
+      IF ((S1.LE.0.0)) THEN                   !1 would be moving backwards -> 2
+        l = l2; S = S2
+      ELSE
+        IF ((l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0)) THEN !1 and 2 valid -> chose shorter one
+          IF (S2.GT.S1) THEN
+            l=l1; S=S1
+          ELSE
+            l=l2; S=S2
+          END IF
+        ELSE                                  !1 is only valid intersection -> 1
+          l=l1; S=S1
+        END IF
+      END IF
+    END IF
 
-!  END IF
+  END IF
 
-!  IF((S .GT. 0.0) .AND. (0.0 .LE. l) .AND. (l .LE. 1.0)) THEN
-!    ThroughSide = .TRUE.
-!    IntersectionPos(1) = PhotonProps%PhotonLastPos(1) + S*sx
-!    IntersectionPos(2) = PhotonProps%PhotonLastPos(2) + S*sy
-!    IntersectionPos(3) = S*sz
-!    Distance = S
-!  END IF
-!  
-!  RETURN
-!  
-!END SUBROUTINE PhotonIntersectionWithSide2D
+  IF((S .GT. 0.0) .AND. (0.0 .LE. l) .AND. (l .LE. 1.0)) THEN
+    ThroughSide = .TRUE.
+    IntersectionPos(1) = PhotonProps%PhotonLastPos(1) + S*sx
+    IntersectionPos(2) = PhotonProps%PhotonLastPos(2) + S*sy
+    IntersectionPos(3) = S*sz
+    Distance = S
+  END IF
+  
+  RETURN
+  
+END SUBROUTINE PhotonIntersectionWithSide2D
 
-!SUBROUTINE RotatePhotonIn2DPlane(IntersectionPos)
-!!===================================================================================================================================
-!!> Routine to check whether a photon crossed the given side.
-!!===================================================================================================================================
-!! MODULES
-!USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps 
-!! IMPLICIT VARIABLE HANDLING
-!IMPLICIT NONE
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! INPUT/OUTPUT VARIABLES
-!REAL, INTENT(OUT)                :: IntersectionPos(3)
-!!-----------------------------------------------------------------------------------------------------------------------------------
-!! LOCAL VARIABLES
-!REAL                             :: NewYPho, NewYVelo
-!  !===================================================================================================================================
-!PhotonProps%PhotonLastPos(1:3) = IntersectionPos(1:3)  
-!NewYPho = SQRT(PhotonProps%PhotonLastPos(2)**2 + PhotonProps%PhotonLastPos(3)**2)
-!! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
-!!           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
-!! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
-!! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
-!NewYVelo = (PhotonProps%PhotonDirection(2)*PhotonProps%PhotonLastPos(2) & 
-!          + PhotonProps%PhotonDirection(3)*PhotonProps%PhotonLastPos(3))/NewYPho
-!PhotonProps%PhotonDirection(3) = (-PhotonProps%PhotonDirection(2)*PhotonProps%PhotonLastPos(3) & 
-!          + PhotonProps%PhotonDirection(3)*PhotonProps%PhotonLastPos(2))/NewYPho
-!PhotonProps%PhotonLastPos(2) = NewYPho
-!PhotonProps%PhotonLastPos(3) = 0.0
-!PhotonProps%PhotonDirection(2) = NewYVelo
-!PhotonProps%PhotonPos(1:3) = PhotonProps%PhotonLastPos(1:3)
-!  
-!END SUBROUTINE RotatePhotonIn2DPlane
+SUBROUTINE RotatePhotonIn2DPlane(IntersectionPos)
+!===================================================================================================================================
+!> Routine to check whether a photon crossed the given side.
+!===================================================================================================================================
+! MODULES
+USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps 
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+REAL, INTENT(OUT)                :: IntersectionPos(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                             :: NewYPho, NewYVelo
+  !===================================================================================================================================
+PhotonProps%PhotonLastPos(1:3) = IntersectionPos(1:3)  
+NewYPho = SQRT(PhotonProps%PhotonLastPos(2)**2 + PhotonProps%PhotonLastPos(3)**2)
+! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
+!           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
+! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
+! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
+NewYVelo = (PhotonProps%PhotonDirection(2)*PhotonProps%PhotonLastPos(2) & 
+          + PhotonProps%PhotonDirection(3)*PhotonProps%PhotonLastPos(3))/NewYPho
+PhotonProps%PhotonDirection(3) = (-PhotonProps%PhotonDirection(2)*PhotonProps%PhotonLastPos(3) & 
+          + PhotonProps%PhotonDirection(3)*PhotonProps%PhotonLastPos(2))/NewYPho
+PhotonProps%PhotonLastPos(2) = NewYPho
+PhotonProps%PhotonLastPos(3) = 0.0
+PhotonProps%PhotonDirection(2) = NewYVelo
+PhotonProps%PhotonPos(1:3) = PhotonProps%PhotonLastPos(1:3)
+  
+END SUBROUTINE RotatePhotonIn2DPlane
 
 
 
@@ -595,51 +597,52 @@ SUBROUTINE PerfectPhotonReflection(iLocSide,Element,TriNum, IntersectionPos, Int
  RETURN
 END SUBROUTINE PerfectPhotonReflection
 
+SUBROUTINE PerfectPhotonReflection2D(iLocSide,Element, IntersectionPos)
+!--------------------------------------------------------------------------------------------------!
+!Based on PerfectReflection3D
+!--------------------------------------------------------------------------------------------------!
+  USE MOD_Particle_Mesh_Vars,     ONLY : SideNormalEdge2D_Shared
+  USE MOD_RadiationTrans_Vars,    ONLY : PhotonProps 
+  USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+!--------------------------------------------------------------------------------------------------!
+  IMPLICIT NONE                                                                                   !
+!--------------------------------------------------------------------------------------------------!
+! argument list declaration                                                                       !
+   INTEGER,INTENT(IN)              :: iLocSide                                                    !
+   INTEGER,INTENT(IN)              :: Element                                                     !
+   REAL, INTENT(INOUT)             :: IntersectionPos(1:3)    
+  ! Local variable declaration                                                                       !
+   INTEGER                          :: Node1, Node2, CNElemID                                      !
+   REAL                             :: PoldX, PoldY, PoldZ, nx, ny, nz, nVal, nytmp, nValIntersec
+   REAL                             :: xNod, yNod, zNod
+   REAL                             :: VelX, VelY, VelZ
+   REAL                             :: Vector1(1:3), Vector2(1:3), POI_fak, ProjVel
+!---------------------------------------------------------  -----------------------------------------!
+!--------------------------------------------------------------------------------------------------!
+  CNElemID = GetCNElemID(Element) 
 
+  nx = SideNormalEdge2D_Shared(1,iLocSide, CNElemID)
+  nValIntersec = SQRT(IntersectionPos(2)*IntersectionPos(2) + IntersectionPos(3)*IntersectionPos(3))
+  ny = IntersectionPos(2)/nValIntersec * SideNormalEdge2D_Shared(2,iLocSide, CNElemID)
+  nz = IntersectionPos(3)/nValIntersec * SideNormalEdge2D_Shared(2,iLocSide, CNElemID)
 
-!SUBROUTINE PerfectPhotonReflection2D(iLocSide,ElemID, IntersectionPos)
-!!--------------------------------------------------------------------------------------------------!
-!!Based on PerfectReflection3D
-!!--------------------------------------------------------------------------------------------------!
-!  USE MOD_Particle_Mesh_Vars,     ONLY : GEO, Part2DSideNormalEdge
-!  USE MOD_RadiationTrans_Vars,    ONLY : PhotonProps 
-!!--------------------------------------------------------------------------------------------------!
-!  IMPLICIT NONE                                                                                   !
-!!--------------------------------------------------------------------------------------------------!
-!! argument list declaration                                                                       !
-!   INTEGER,INTENT(IN)              :: iLocSide                                                    !
-!   INTEGER,INTENT(IN)              :: ElemID                                                     !
-!   REAL, INTENT(INOUT)             :: IntersectionPos(1:3)    
-!  ! Local variable declaration                                                                       !
-!   INTEGER                          :: Node1, Node2                                             !
-!   REAL                             :: PoldX, PoldY, PoldZ, nx, ny, nz, nVal, nytmp, nValIntersec
-!   REAL                             :: xNod, yNod, zNod
-!   REAL                             :: VelX, VelY, VelZ
-!   REAL                             :: Vector1(1:3), Vector2(1:3), POI_fak, ProjVel
-!!---------------------------------------------------------  -----------------------------------------!
-!!--------------------------------------------------------------------------------------------------!
-!  nx = Part2DSideNormalEdge(iLocSide, 1, ElemID)
-!  nValIntersec = SQRT(IntersectionPos(2)*IntersectionPos(2) + IntersectionPos(3)*IntersectionPos(3))
-!  ny = IntersectionPos(2)/nValIntersec * Part2DSideNormalEdge(iLocSide,2, ElemID)
-!  nz = IntersectionPos(3)/nValIntersec * Part2DSideNormalEdge(iLocSide,2, ElemID)
+  !---- Calculate new velocity vector
+  ProjVel = nx*PhotonProps%PhotonDirection(1)+ny*PhotonProps%PhotonDirection(2) & 
+      +nz*PhotonProps%PhotonDirection(3)
+  VelX=PhotonProps%PhotonDirection(1)-2.*ProjVel*nx
+  VelY=PhotonProps%PhotonDirection(2)-2.*ProjVel*ny
+  VelZ=PhotonProps%PhotonDirection(3)-2.*ProjVel*nz
 
-!  !---- Calculate new velocity vector
-!  ProjVel = nx*PhotonProps%PhotonDirection(1)+ny*PhotonProps%PhotonDirection(2) & 
-!      +nz*PhotonProps%PhotonDirection(3)
-!  VelX=PhotonProps%PhotonDirection(1)-2.*ProjVel*nx
-!  VelY=PhotonProps%PhotonDirection(2)-2.*ProjVel*ny
-!  VelZ=PhotonProps%PhotonDirection(3)-2.*ProjVel*nz
+  !---- Assign new values to "old" variables to continue loop
 
-!  !---- Assign new values to "old" variables to continue loop
+  PhotonProps%PhotonLastPos(1) = IntersectionPos(1)
+  PhotonProps%PhotonLastPos(2) = IntersectionPos(2)
+  PhotonProps%PhotonLastPos(3) = IntersectionPos(3)
 
-!  PhotonProps%PhotonLastPos(1) = IntersectionPos(1)
-!  PhotonProps%PhotonLastPos(2) = IntersectionPos(2)
-!  PhotonProps%PhotonLastPos(3) = IntersectionPos(3)
-
-!  PhotonProps%PhotonDirection(1)   = VelX 
-!  PhotonProps%PhotonDirection(2)   = VelY 
-!  PhotonProps%PhotonDirection(3)   = VelZ 
-!END SUBROUTINE PerfectPhotonReflection2D
+  PhotonProps%PhotonDirection(1)   = VelX 
+  PhotonProps%PhotonDirection(2)   = VelY 
+  PhotonProps%PhotonDirection(3)   = VelZ 
+END SUBROUTINE PerfectPhotonReflection2D
 
 SUBROUTINE DiffusePhotonReflection(iLocSide,Element,TriNum, IntersectionPos, IntersecAlreadyCalc)
 !--------------------------------------------------------------------------------------------------!
@@ -749,56 +752,59 @@ SUBROUTINE DiffusePhotonReflection(iLocSide,Element,TriNum, IntersectionPos, Int
 END SUBROUTINE DiffusePhotonReflection
 
 
-!SUBROUTINE DiffusePhotonReflection2D(iLocSide,ElemID, IntersectionPos)
-!!--------------------------------------------------------------------------------------------------!
-!!Based on PerfectReflection3D
-!!--------------------------------------------------------------------------------------------------!
-!  USE MOD_Particle_Mesh_Vars,     ONLY : GEO, Part2DSideNormalEdge
-!  USE MOD_RadiationTrans_Vars,    ONLY : PhotonProps 
-!  USE Ziggurat
-!!--------------------------------------------------------------------------------------------------!
-!   IMPLICIT NONE                                                                                   !
-!!--------------------------------------------------------------------------------------------------!
-!! argument list declaration                                                                       !
-!   INTEGER,INTENT(IN)              :: iLocSide                                                    !
-!   INTEGER,INTENT(IN)              :: ElemID                                                     !
-!   REAL, INTENT(IN)             :: IntersectionPos(1:3)
-!  ! Local variable declaration                                                                  !
-!   REAL                             :: nx, ny, nz, nValIntersec, VecX, VecY, VecZ
-!   REAL                             :: VelX, VelY, VelZ, VeloCx, VeloCy, VeloCz, NormVec, RanNum
-!!--------------------------------------------------------------------------------------------------!
-!!--------------------------------------------------------------------------------------------------!
-!   nx = Part2DSideNormalEdge(iLocSide, 1, ElemID)
-!   nValIntersec = SQRT(IntersectionPos(2)*IntersectionPos(2) + IntersectionPos(3)*IntersectionPos(3))
-!   ny = IntersectionPos(2)/nValIntersec * Part2DSideNormalEdge(iLocSide,2, ElemID)
-!   nz = IntersectionPos(3)/nValIntersec * Part2DSideNormalEdge(iLocSide,2, ElemID)
+SUBROUTINE DiffusePhotonReflection2D(iLocSide,Element, IntersectionPos)
+!--------------------------------------------------------------------------------------------------!
+!Based on PerfectReflection3D
+!--------------------------------------------------------------------------------------------------!
+  USE MOD_Particle_Mesh_Vars,     ONLY : SideNormalEdge2D_Shared
+  USE MOD_RadiationTrans_Vars,    ONLY : PhotonProps 
+  USE Ziggurat
+  USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+!--------------------------------------------------------------------------------------------------!
+   IMPLICIT NONE                                                                                   !
+!--------------------------------------------------------------------------------------------------!
+! argument list declaration                                                                       !
+   INTEGER,INTENT(IN)              :: iLocSide                                                    !
+   INTEGER,INTENT(IN)              :: Element                                                     !
+   REAL, INTENT(IN)             :: IntersectionPos(1:3)
+  ! Local variable declaration                    
+   INTEGER                          :: CNElemID
+   REAL                             :: nx, ny, nz, nValIntersec, VecX, VecY, VecZ
+   REAL                             :: VelX, VelY, VelZ, VeloCx, VeloCy, VeloCz, NormVec, RanNum
+!--------------------------------------------------------------------------------------------------!
+!--------------------------------------------------------------------------------------------------!
+   CNElemID = GetCNElemID(Element) 
+   nx = SideNormalEdge2D_Shared(1,iLocSide, CNElemID)
+   nValIntersec = SQRT(IntersectionPos(2)*IntersectionPos(2) + IntersectionPos(3)*IntersectionPos(3))
+   ny = IntersectionPos(2)/nValIntersec * SideNormalEdge2D_Shared(2,iLocSide, CNElemID)
+   nz = IntersectionPos(3)/nValIntersec * SideNormalEdge2D_Shared(2,iLocSide, CNElemID)
 
-!   VecX = Part2DSideNormalEdge(iLocSide, 3, ElemID)
-!   VecY = IntersectionPos(2)/nValIntersec * Part2DSideNormalEdge(iLocSide,4, ElemID)
-!   VecZ = IntersectionPos(3)/nValIntersec * Part2DSideNormalEdge(iLocSide,4, ElemID)
-!   !---- Calculate new velocity vector (Extended Maxwellian Model)
+   VecX = SideNormalEdge2D_Shared(3,iLocSide, CNElemID)
+   VecY = IntersectionPos(2)/nValIntersec * SideNormalEdge2D_Shared(4,iLocSide, CNElemID)
+   VecZ = IntersectionPos(3)/nValIntersec * SideNormalEdge2D_Shared(4,iLocSide, CNElemID)
+   !---- Calculate new velocity vector (Extended Maxwellian Model)
 
-!   VeloCx  = rnor()                !normal distri
-!   VeloCy  = rnor()                !normal distri
-!   CALL RANDOM_NUMBER(RanNum)
-!   VeloCz  = SQRT(-2.*LOG(RanNum)) ! rayleigh distri
-!   
-!   VelX = VecX*VeloCx + (nz*VecY-ny*VecZ)*VeloCy - nx*VeloCz
-!   VelY = VecY*VeloCx + (nx*VecZ-nz*VecX)*VeloCy - ny*VeloCz
-!   VelZ = VecZ*VeloCx + (ny*VecX-nx*VecY)*VeloCy - nz*VeloCz
-!   !---- Assign new values to "old" variables to continue loop
+   VeloCx  = rnor()                !normal distri
+   VeloCy  = rnor()                !normal distri
+   CALL RANDOM_NUMBER(RanNum)
+   VeloCz  = SQRT(-2.*LOG(RanNum)) ! rayleigh distri
+   
+   VelX = VecX*VeloCx + (nz*VecY-ny*VecZ)*VeloCy - nx*VeloCz
+   VelY = VecY*VeloCx + (nx*VecZ-nz*VecX)*VeloCy - ny*VeloCz
+   VelZ = VecZ*VeloCx + (ny*VecX-nx*VecY)*VeloCy - nz*VeloCz
+   !---- Assign new values to "old" variables to continue loop
 
-!   PhotonProps%PhotonLastPos(1) = IntersectionPos(1)
-!   PhotonProps%PhotonLastPos(2) = IntersectionPos(2)
-!   PhotonProps%PhotonLastPos(3) = IntersectionPos(3)
-!   
-!   !----  saving new particle velocity
-!   NormVec = SQRT(VelX*VelX + VelY*VelY + VelZ*VelZ)
-!   PhotonProps%PhotonDirection(1)   = VelX / NormVec 
-!   PhotonProps%PhotonDirection(2)   = VelY / NormVec  
-!   PhotonProps%PhotonDirection(3)   = VelZ / NormVec  
+   PhotonProps%PhotonLastPos(1) = IntersectionPos(1)
+   PhotonProps%PhotonLastPos(2) = IntersectionPos(2)
+   PhotonProps%PhotonLastPos(3) = IntersectionPos(3)
+   
+   !----  saving new particle velocity
+   NormVec = SQRT(VelX*VelX + VelY*VelY + VelZ*VelZ)
+   PhotonProps%PhotonDirection(1)   = VelX / NormVec 
+   PhotonProps%PhotonDirection(2)   = VelY / NormVec  
+   PhotonProps%PhotonDirection(3)   = VelZ / NormVec  
 
-!END SUBROUTINE DiffusePhotonReflection2D
+END SUBROUTINE DiffusePhotonReflection2D
 
 SUBROUTINE CalcWallAbsoprtion(GlobSideID, DONE)
   USE MOD_RadiationTrans_Vars,    ONLY : PhotonSampWall, PhotonProps

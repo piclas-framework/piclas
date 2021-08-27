@@ -166,7 +166,18 @@ REAL,ALLOCPOINT    :: ElemCharLengthX_Shared(:)
 REAL,ALLOCPOINT    :: ElemCharLengthY_Shared(:)
 REAL,ALLOCPOINT    :: ElemCharLengthZ_Shared(:)
 
+
+INTEGER,ALLOCPOINT :: ElemSideNodeID2D_Shared(:,:,:)         !> Contains the 4 corner nodes of the local sides in an element
+LOGICAL,ALLOCPOINT :: SideIsSymSide(:)
+REAL,ALLOCPOINT    :: SideNormalEdge2D_Shared(:,:,:)
+
 #if USE_MPI
+INTEGER            :: SideNormalEdge2D_Shared_Win
+INTEGER            :: ElemSideNodeID2D_Shared_Win
+INTEGER            :: SideIsSymSide_Shared_Win
+LOGICAL,ALLOCPOINT :: SideIsSymSide_Shared(:)
+
+
 ! integers to hold shared memory windows
 INTEGER         :: NodeToElemMapping_Shared_Win
 INTEGER         :: NodeToElemInfo_Shared_Win

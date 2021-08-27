@@ -73,8 +73,10 @@ USE MOD_Radiation,              ONLY : radiation_main
 USE MOD_DSMC_Vars,              ONLY: RadialWeighting
 USE MOD_Output,                 ONLY: PrintStatusLineRadiation
 USE MOD_Mesh_Tools,             ONLY : GetGlobalElemID
+USE MOD_Particle_Vars,          ONLY : Symmetry
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
+USE MOD_Particle_Mesh_Build,    ONLY: BuildMesh2DInfo
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -83,7 +85,7 @@ USE MOD_MPI_Shared
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iWave, iElem, iNode, firstElem, lastElem
+INTEGER               :: iWave, iElem, iNode, firstElem, lastElem, ElemDisp
 REAL                  :: LocTemp
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -97,6 +99,8 @@ RadTrans%NumPhotonsPerCell = GETINT('Radiation-NumPhotonsPerCell','1')
 RadiationAbsorptionModel = GETINT('Radiation-AbsorptionModel','1')
 RadiationPhotonPosModel = GETINT('Radiation-PhotonPosModel','1')
 RadEmiAdaptPhotonNum = GETLOGICAL('Radiation-AdaptivePhotonNumEmission','.FALSE.')
+
+IF(Symmetry%Order.EQ.2) CALL BuildMesh2DInfo()
 
 #if USE_MPI
   ! allocate shared array for Radiation_Emission/Absorption_Spec
@@ -140,8 +144,9 @@ Radiation_Emission_Spec_Total=0.0
 SELECT CASE(RadiationSwitches%RadType)
 CASE(1) !calls radition solver module
   SWRITE(UNIT_stdOut,'(A)') ' Calculate Radiation Data per Cell ...'
+  ElemDisp = INT((lastElem-firstElem+1)/20)
   DO iElem = firstElem, lastElem
-    IF(MPIroot.AND.(MOD(iElem,10).EQ.0)) CALL PrintStatusLineRadiation(REAL(iElem),REAL(firstElem),REAL(lastElem),.FALSE.)
+    IF(MPIroot.AND.(MOD(iElem,ElemDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(iElem),REAL(firstElem),REAL(lastElem),.FALSE.)
     CALL radiation_main(iElem)
     DO iWave = 1, RadiationParameter%WaveLenDiscr
       Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &

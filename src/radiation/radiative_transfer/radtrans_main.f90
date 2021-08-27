@@ -46,13 +46,14 @@ USE MOD_Particle_Mesh_Vars      ,ONLY : GEO, nComputeNodeElems, ElemMidPoint_Sha
 USE MOD_RadiationTrans_Vars     ,ONLY : Radiation_Emission_Spec_Total, RadTrans, RadEmiAdaptPhotonNum
 USE MOD_RadiationTrans_Vars     ,ONLY : PhotonProps, RadiationDirectionModel, RadTransPhotPerCellLoc
 USE MOD_RadiationTrans_Vars     ,ONLY : RadTransPhotPerCell, RadTransPhotPerCell_Shared_Win
-USE MOD_Photon_Tracking         ,ONLY : PhotonTriaTracking!, Photon2DSymTracking
+USE MOD_Photon_Tracking         ,ONLY : PhotonTriaTracking, Photon2DSymTracking
 USE MOD_Radiation_Vars          ,ONLY : RadiationSwitches
 USE MOD_DSMC_Vars               ,ONLY : RadialWeighting
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
 USE MOD_Output,                 ONLY: PrintStatusLineRadiation
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
+USE MOD_Particle_Vars           ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -158,11 +159,11 @@ REAL                :: RandRot(3,3) !, PartPos(1:3)
         END IF
         PhotonProps%PhotonDirection(1:3) = SetPhotonStartDirection(iElem, iPhotLoc, RandRot)
         PhotonProps%WaveLength = SetParticleWavelength(iElem)
-!        IF (Symmetry2DAxisymmetric) THEN 
-!          CALL Photon2DSymTracking()
-!        ELSE
+        IF(Symmetry%Axisymmetric) THEN
+          CALL Photon2DSymTracking()
+        ELSE
           CALL PhotonTriaTracking()
-!        END IF
+        END IF
       END DO    
     END IF
     photonCount = photonCount + RadTransPhotPerCell(iELem)
