@@ -42,7 +42,7 @@ SUBROUTINE radiation_excitation()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,      ONLY   : PlanckConst, ElementaryCharge, BoltzmannConst
+USE MOD_Globals_Vars,      ONLY   : ElementaryCharge, BoltzmannConst
 USE MOD_Radiation_Vars,    ONLY   : RadiationInput, SpeciesRadiation, NumDensElectrons
 USE MOD_PARTICLE_Vars,     ONLY   : nSpecies
 USE MOD_DSMC_Vars,         ONLY   : SpecDSMC

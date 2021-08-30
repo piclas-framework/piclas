@@ -41,7 +41,6 @@ SUBROUTINE radiation_continuum(iElem, em_cont)
 ! Main routine of continuum radiation calculation
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals_Vars,      ONLY   : PlanckConst
   USE MOD_Radiation_Vars,    ONLY   : RadiationInput, RadiationParameter, Radiation_Emission_spec, RadiationSwitches
   USE MOD_PARTICLE_Vars,     ONLY   : nSpecies
 

@@ -51,7 +51,7 @@ USE MOD_Radiation_Molecules,           ONLY : radiation_molecules
 USE MOD_Radiation_Continuum,           ONLY : radiation_continuum
 USE MOD_Radiation_InstrBroadening,     ONLY : radiation_instrbroadening
 USE MOD_PARTICLE_Vars,                 ONLY : nSpecies
-USE MOD_Mesh_Vars,                     ONLY: offsetElem
+USE MOD_Mesh_Vars,                     ONLY : nGlobalElems!, offsetElem
 USE MOD_Radiation_ExportSpectrum
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -111,11 +111,13 @@ USE MOD_Radiation_ExportSpectrum
 
   ! READ*
 
-  OPEN(unit=20,file='Radiation_Emission_Absorption.dat',status='replace',action='write', iostat=io_error)
-  DO w=1, RadiationParameter%WaveLenDiscr
-    WRITE(20,*) RadiationParameter%WaveLen(w)*1.E9, Radiation_Emission_spec(w,1), Radiation_Absorption_spec(w,1)
-  END DO
-  CLOSE(unit=20)
+  IF((RadiationSwitches%RadType.EQ.3) .AND. (nGlobalElems.EQ.1)) THEN
+    OPEN(unit=20,file='Radiation_Emission_Absorption.dat',status='replace',action='write', iostat=io_error)
+    DO w=1, RadiationParameter%WaveLenDiscr
+      WRITE(20,*) RadiationParameter%WaveLen(w)*1.E9, Radiation_Emission_spec(w,1), Radiation_Absorption_spec(w,1)
+    END DO
+    CLOSE(unit=20)
+  END IF
 
 !------- Write output .dat-file including spectrally resolved emission and absorption for chosen cells
 ! --- FIRE II Front ---

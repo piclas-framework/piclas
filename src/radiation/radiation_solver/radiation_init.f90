@@ -118,9 +118,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
   CHARACTER(32)         :: hilf
   INTEGER               :: iSpec, iWaveLen, firstElem, lastElem, iElem
-#if USE_MPI
-  INTEGER(KIND=MPI_ADDRESS_KIND)  :: MPISharedSize
-#endif /*USE_MPI*/
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)') ' INIT RADIATION SOLVER...'
 

@@ -246,7 +246,7 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
 
   !          IF(eps .GE. 1.0E-25) THEN
             CALL Radiation_Atomic_Transition_Line_Profile(Radiation_Profile, SpeciesRadiation(iSpec)%LinesReal(k,1), Voigt_int, Voigt_int_distmax, &
-                      Dlaml, Dlamv, epsilon_at, epsilon_iSpec, etot, Radiation_Absorption_spec, abs_iSpec, abstot, iElem)
+                      epsilon_at, epsilon_iSpec, etot, Radiation_Absorption_spec, abs_iSpec, abstot, iElem)
   !          END IF
 
           END IF
@@ -292,7 +292,7 @@ END SUBROUTINE radiation_atoms
 
 
 
-SUBROUTINE Radiation_Atomic_Transition_Line_Profile(Radiation_Profile, wavelength, Voigt_int, Voigt_int_distmax, DlamL, DlamV, &
+SUBROUTINE Radiation_Atomic_Transition_Line_Profile(Radiation_Profile, wavelength, Voigt_int, Voigt_int_distmax, &
     epsilon_mol, epsilon_iSpec, eps, Radiation_Absorption_spec, abs_iSpec, abstot, iElem)
 !===================================================================================================================================
 ! calculates emission profile functions and adds radiative energy to emission array
@@ -300,22 +300,20 @@ SUBROUTINE Radiation_Atomic_Transition_Line_Profile(Radiation_Profile, wavelengt
 ! MODULES
   USE MOD_Globals
   USE MOD_Radiation_Vars,    ONLY   : RadiationParameter
-  USE MOD_Globals_Vars,      ONLY   : Pi
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   REAL, INTENT(INOUT)             :: Radiation_Profile(:), epsilon_mol(:), epsilon_iSpec(:), Radiation_Absorption_spec(:,:), &
                                      abs_iSpec(:)
-  REAL, INTENT(IN)                :: wavelength, Voigt_int_distmax, Dlaml, Dlamv, eps, abstot, Voigt_int(-1001:1001)
+  REAL, INTENT(IN)                :: wavelength, Voigt_int_distmax, eps, abstot, Voigt_int(-1001:1001)
   INTEGER, INTENT(IN)             :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER           :: startwavelength_int, endwavelength_int, i, iVoigt
+  INTEGER           :: startwavelength_int, endwavelength_int, i
   LOGICAL           :: add_radline
-  REAL              :: line_energy_fraction, Voigt_int_value, Voigt_int_value_old, hilf
 !===================================================================================================================================
   ! --- determination of indices for first and last entry of Voigt-profiles on wavelength axis
   startwavelength_int = INT(MAX(1.0 &
@@ -329,7 +327,6 @@ SUBROUTINE Radiation_Atomic_Transition_Line_Profile(Radiation_Profile, wavelengt
 !    + Voigt_int_distmax - RadiationParameter%MinWaveLen) / RadiationParameter%WaveLenIncr) + 1)
 
   add_radline          = .FALSE.
-  line_energy_fraction = 0.
 
   IF ( (startwavelength_int .LT. endwavelength_int) .AND. &
                       ((wavelength+Voigt_int_distmax) .GT. RadiationParameter%MinWaveLen) .AND. &
@@ -337,35 +334,9 @@ SUBROUTINE Radiation_Atomic_Transition_Line_Profile(Radiation_Profile, wavelengt
 
     add_radline = .TRUE.
 
-    ! --- check whether line is dispersive
-!    IF(Dlaml/Dlamv .GE. 0.9) THEN
-
-!      ! --- simplified computation of line profile if line is dispersive
-!      Voigt_int_value_old = 1. / Pi * ATAN(2./(DlamV) &
-!        * (RadiationParameter%WaveLen(startwavelength_int-1)-wavelength))
-
-!      line_energy_fraction = - Voigt_int_value_old
-
-!      DO iVoigt = (startwavelength_int-1), (endwavelength_int-1)
-!        Voigt_int_value = 1. / Pi * ATAN(2./(Dlamv) &
-!          * (RadiationParameter%WaveLen(iVoigt)-wavelength))
-!        Radiation_Profile(iVoigt+1) = Voigt_int_value - Voigt_int_value_old
-!        Voigt_int_value_old = Voigt_int_value
-!      END DO
-
-!      line_energy_fraction = line_energy_fraction + Voigt_int_value
-
-!      DO iVoigt=(startwavelength_int-1), (endwavelength_int-1)
-!        Radiation_Profile(iVoigt+1) = Radiation_Profile(iVoigt+1) / RadiationParameter%WaveLenIncr
-!      END DO
-
-!    ELSE
-
   ! --- determine transition lines of previous computed Voigt-profiles
       CALL Radiation_Voigt_wavelength_interpolation(Voigt_int, Voigt_int_distmax, wavelength, &
-        Radiation_Profile, line_energy_fraction, startwavelength_int, endwavelength_int)
-
-!    END IF
+        Radiation_Profile, startwavelength_int, endwavelength_int)
 
     IF (add_radline) THEN
 
@@ -381,19 +352,6 @@ SUBROUTINE Radiation_Atomic_Transition_Line_Profile(Radiation_Profile, wavelengt
           = Radiation_Absorption_spec(startwavelength_int+i,iElem)+MAX(0.0,abstot)*Radiation_Profile(startwavelength_int+i)
       END DO
 
-!!  ! --- add contribution to total emission
-!!      em_atom = em_atom + line_energy_fraction * etot
-
-!!  ! --- add radiative energy to emission
-!!      DO i=0  , (endwavelength_int-startwavelength_int + 0)
-!!        Radiation_Emission_spec(startwavelength_int+i,iElem) &
-!!          = Radiation_Emission_spec(startwavelength_int+i,iElem) &
-!!          + etot * Radiation_Profile(startwavelength_int+i)
-!!        Radiation_Absorption_spec(startwavelength_int+i,iElem) &
-!!          = Radiation_Absorption_spec(startwavelength_int+i,iElem) &
-!!          + abstot * Radiation_Profile(startwavelength_int+i)
-!!      END DO
-
     END IF
 
   END IF
@@ -404,7 +362,7 @@ END SUBROUTINE Radiation_Atomic_Transition_Line_Profile
 
 
 SUBROUTINE Radiation_Voigt_wavelength_interpolation(Voigt_int, Voigt_int_distmax, centerwavelength, &
-    Radiation_Profile, line_energy_fraction, startwavelength_int, endwavelength_int)
+    Radiation_Profile, startwavelength_int, endwavelength_int)
 !===================================================================================================================================
 ! distributes transition lines with precomputed integrated Voigt-profiles (Voigt_int)
 !===================================================================================================================================
@@ -418,7 +376,7 @@ SUBROUTINE Radiation_Voigt_wavelength_interpolation(Voigt_int, Voigt_int_distmax
 ! INPUT VARIABLES
   REAL, INTENT(IN)                :: Voigt_int(-1001:1001), centerwavelength, Voigt_int_distmax
                                       ! TODO Voigt_int_nmax in Voigt_int(:)
-  REAL, INTENT(INOUT)             :: Radiation_Profile(:), line_energy_fraction
+  REAL, INTENT(INOUT)             :: Radiation_Profile(:)
   INTEGER, INTENT(INOUT)          :: startwavelength_int, endwavelength_int
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -453,7 +411,6 @@ SUBROUTINE Radiation_Voigt_wavelength_interpolation(Voigt_int, Voigt_int_distmax
   Voigt_int_value_old = 0.0!startvalue !TODO: check!
   Voigt_int_value = 0.0
 
-!line_energy_fraction = - Voigt_int_value_old
 
   DO i=1, (endwavelength_int-startwavelength_int)
 
@@ -482,8 +439,6 @@ SUBROUTINE Radiation_Voigt_wavelength_interpolation(Voigt_int, Voigt_int_distmax
     Voigt_int_value_old = Voigt_int_value
 
   END DO
-
-!  line_energy_fraction = line_energy_fraction + Voigt_int_value
 
   DO i=1, (endwavelength_int-startwavelength_int)
     Radiation_Profile(startwavelength_int+i) = Radiation_Profile(startwavelength_int+i) / RadiationParameter%WaveLenIncr

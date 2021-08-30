@@ -58,7 +58,7 @@ SUBROUTINE radiation_exportspectrum(iElement, output_format)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER           :: w, io_error, iGlobalElement,m
+  INTEGER           :: w, io_error, iGlobalElement
   CHARACTER(32)     :: hilf
 !===================================================================================================================================
   

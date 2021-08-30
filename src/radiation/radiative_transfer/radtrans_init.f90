@@ -65,7 +65,7 @@ USE MOD_Mesh_Vars,              ONLY : nElems, nGlobalElems
 USE MOD_Particle_Mesh_Vars,     ONLY : ElemVolume_Shared,ElemMidPoint_Shared, GEO, nComputeNodeElems
 USE MOD_Globals_Vars,           ONLY : BoltzmannConst, PlanckConst
 USE MOD_Particle_Boundary_Sampling, ONLY : InitParticleBoundarySampling
-USE MOD_Particle_Boundary_Vars, ONLY : SurfMesh,nComputeNodeSurfTotalSides
+USE MOD_Particle_Boundary_Vars, ONLY : nComputeNodeSurfTotalSides!, SurfMesh
 USE MOD_Radiation_Vars,         ONLY : RadiationParameter, Radiation_Emission_spec, Radiation_Absorption_spec, RadiationSwitches
 USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_Spec_Shared, Radiation_Absorption_Spec_Shared_Win
 USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radiation_Emission_Spec_Shared
@@ -85,7 +85,7 @@ USE MOD_Particle_Mesh_Build,    ONLY: BuildMesh2DInfo
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iWave, iElem, iNode, firstElem, lastElem, ElemDisp
+INTEGER               :: iWave, iElem, firstElem, lastElem, ElemDisp
 REAL                  :: LocTemp
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')

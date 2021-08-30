@@ -54,7 +54,6 @@ USE MOD_Particle_Boundary_Vars,      ONLY:PartBound
 USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps
 USE MOD_Photon_TrackingTools,        ONLY:PhotonThroughSideCheck3DFast, PhotonIntersectionWithSide,CalcAbsoprtion
 USE MOD_Photon_TrackingTools,        ONLY:PerfectPhotonReflection, DiffusePhotonReflection, CalcWallAbsoprtion
-USE MOD_Particle_Vars,               ONLY:Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -62,7 +61,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: NblocSideID, NbElemID, ind, nbSideID, nMortarElems, SideIDMortar, BCType, localSideID
+INTEGER                          :: NblocSideID, NbElemID, ind, nbSideID, nMortarElems, BCType, localSideID
 INTEGER                          :: ElemID,OldElemID,nlocSides
 INTEGER                          :: LocalSide
 INTEGER                          :: NrOfThroughSides, ind2
@@ -74,7 +73,6 @@ LOGICAL                          :: ThroughSide, Done
 LOGICAL                          :: oldElemIsMortar, isMortarSideTemp(1:6), doCheckSide
 REAL                             :: minRatio, intersecDist, intersecDistVec(3)
 REAL                             :: IntersectionPos(1:3), IntersectionPosTemp(1:3)
-REAL, PARAMETER                  :: eps = 0
 
 !===================================================================================================================================
 Done = .FALSE.
@@ -321,8 +319,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: NblocSideID3D, NbElemID, ind, nbSideID, nMortarElems, SideIDMortar, BCType, NblocSideID
-INTEGER                          :: ElemID, OldElemID, LocSide3D, LocalSide, NrOfThroughSides, localSideID, nlocSides
+INTEGER                          :: NbElemID, ind, nbSideID, nMortarElems, BCType, NblocSideID
+INTEGER                          :: ElemID, OldElemID, LocalSide, NrOfThroughSides, localSideID, nlocSides
 INTEGER                          :: SideID, TempSideID, iLocSide, correctSide, LastSide
 INTEGER                          :: LocSidesTemp(1:6), GlobSideTemp(1:6)
 LOGICAL                          :: oldElemIsMortar, isMortarSideTemp(1:6), isLastSide, ThroughSide, Done

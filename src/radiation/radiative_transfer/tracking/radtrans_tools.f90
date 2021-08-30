@@ -45,7 +45,7 @@ SUBROUTINE PhotonThroughSideCheck3DFast(iLocSide,Element,ThroughSide,TriNum, IsM
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars              ,ONLY: EpsMach
-USE MOD_Particle_Mesh_Vars, ONLY : GEO, NodeCoords_Shared, ElemSideNodeID_Shared
+USE MOD_Particle_Mesh_Vars, ONLY : NodeCoords_Shared, ElemSideNodeID_Shared
 USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps 
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
@@ -318,7 +318,7 @@ SUBROUTINE PhotonIntersectionWithSide(iLocSide,Element,TriNum, IntersectionPos, 
 !--------------------------------------------------------------------------------------------------!
 !Based on PerfectReflection3D
 !--------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Mesh_Vars, ONLY : GEO, ElemSideNodeID_Shared, NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars, ONLY : ElemSideNodeID_Shared, NodeCoords_Shared
 USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps 
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 !--------------------------------------------------------------------------------------------------!
@@ -505,7 +505,7 @@ SUBROUTINE PerfectPhotonReflection(iLocSide,Element,TriNum, IntersectionPos, Int
 !--------------------------------------------------------------------------------------------------!
 !Based on PerfectReflection3D
 !--------------------------------------------------------------------------------------------------!
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO, NodeCoords_Shared, ElemSideNodeID_Shared
+  USE MOD_Particle_Mesh_Vars,     ONLY : NodeCoords_Shared, ElemSideNodeID_Shared
   USE MOD_RadiationTrans_Vars,    ONLY : PhotonProps 
   USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 !--------------------------------------------------------------------------------------------------!
@@ -612,11 +612,10 @@ SUBROUTINE PerfectPhotonReflection2D(iLocSide,Element, IntersectionPos)
    INTEGER,INTENT(IN)              :: Element                                                     !
    REAL, INTENT(INOUT)             :: IntersectionPos(1:3)    
   ! Local variable declaration                                                                       !
-   INTEGER                          :: Node1, Node2, CNElemID                                      !
-   REAL                             :: PoldX, PoldY, PoldZ, nx, ny, nz, nVal, nytmp, nValIntersec
-   REAL                             :: xNod, yNod, zNod
+   INTEGER                          :: CNElemID                                      !
+   REAL                             :: nx, ny, nz, nValIntersec
    REAL                             :: VelX, VelY, VelZ
-   REAL                             :: Vector1(1:3), Vector2(1:3), POI_fak, ProjVel
+   REAL                             :: ProjVel
 !---------------------------------------------------------  -----------------------------------------!
 !--------------------------------------------------------------------------------------------------!
   CNElemID = GetCNElemID(Element) 
@@ -648,7 +647,7 @@ SUBROUTINE DiffusePhotonReflection(iLocSide,Element,TriNum, IntersectionPos, Int
 !--------------------------------------------------------------------------------------------------!
 !Based on PerfectReflection3D
 !--------------------------------------------------------------------------------------------------!
-  USE MOD_Particle_Mesh_Vars,     ONLY : GEO, ElemSideNodeID_Shared, NodeCoords_Shared
+  USE MOD_Particle_Mesh_Vars,     ONLY : ElemSideNodeID_Shared, NodeCoords_Shared
   USE MOD_RadiationTrans_Vars,    ONLY : PhotonProps 
   USE Ziggurat
   USE MOD_Mesh_Tools         ,ONLY: GetCNElemID

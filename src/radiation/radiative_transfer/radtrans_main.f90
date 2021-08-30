@@ -177,7 +177,7 @@ FUNCTION SetPhotonEnergy(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_RadiationTrans_Vars     ,ONLY : RadEmiAdaptPhotonNum, Radiation_Emission_Spec_Total, RadTrans, RadTransPhotPerCell
-USE MOD_Particle_Mesh_Vars      ,ONLY : GEO, ElemVolume_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY : ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -252,7 +252,7 @@ FUNCTION SetPhotonStartDirection(iElem, iPhot, RandRot)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,         ONLY : Pi 
-USE MOD_RadiationTrans_Vars  ,ONLY : RadiationDirectionModel, RadTrans, RadTransPhotPerCell
+USE MOD_RadiationTrans_Vars  ,ONLY : RadiationDirectionModel, RadTransPhotPerCell
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
