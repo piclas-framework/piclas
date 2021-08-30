@@ -163,6 +163,14 @@ INTERFACE SPECIESISELECTRON
   MODULE PROCEDURE SPECIESISELECTRON
 END INTERFACE
 
+INTERFACE ISNAN
+  MODULE PROCEDURE ISNAN
+END INTERFACE
+
+INTERFACE ISFINITE
+  MODULE PROCEDURE ISFINITE
+END INTERFACE
+
 PUBLIC :: setstacksizeunlimited
 PUBLIC :: processmemusage
 
@@ -1191,6 +1199,46 @@ SPECIESISELECTRON=.FALSE.
 IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
 IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) SPECIESISELECTRON=.TRUE.
 END FUNCTION SPECIESISELECTRON
+
+
+!===================================================================================================================================
+!> Check if REAL value is NaN
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION ISNAN(X) RESULT(L)
+! MODULES
+USE, INTRINSIC :: IEEE_ARITHMETIC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: X
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+L = IEEE_IS_NAN(X)
+END FUNCTION ISNAN
+
+
+!===================================================================================================================================
+!> Check if REAL value is finite, i.e., NOT Infinity
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION ISFINITE(X) RESULT(L)
+! MODULES
+USE, INTRINSIC :: IEEE_ARITHMETIC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: X
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+L = IEEE_IS_FINITE(X)
+END FUNCTION ISFINITE
 
 
 END MODULE MOD_Globals
