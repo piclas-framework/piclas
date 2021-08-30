@@ -9,10 +9,20 @@ Paraver is a performance analysis GUI for visualizing the code tracing data:
 [https://github.com/bsc-performance-tools/wxparaver](https://github.com/bsc-performance-tools/wxparaver)
 They are part of the BSC tool set that is found under [https://tools.bsc.es/downloads](https://tools.bsc.es/downloads).
 
+```{note}
+`wxparavwer` can simply be downloaded as pre-compiled binary file as it is only used for viewing the results.
+```
+
 ### Installation
 See the `README` and `INSTALL` file in the git repository of the package.
 
+(sec:code-instrumentation)=
 ### Code Instrumentation
+
+```{note}
+Tested with extrae version 3.8.3
+```
+
 In PICLas, the extrae code instrumentation for the very basic modules is already implemented, see the in-code statements, e.g.,
 
     #ifdef EXTRAE
@@ -32,6 +42,27 @@ instrumentation is activated by setting the PICLas compile flag
 
 in the cmake settings.
 
+Examples that are already instrumented are
+
+
+```{table} Examples of instrumented code blocks
+---
+name: tab:ExtraeInstrumentation
+---
+|                 Function                | Intger Value |                            Source                            |
+|             :--------------:            | :----------: |                 :--------------------------:                 |
+|              Initialization             |       1      |                     `./src/piclaslib.f90`                    |
+|              Load Balancing             |       2      |              `./src/loadbalance/loadbalance.f90`             |
+|         Write State file to .h5         |       3      |                `./src/io_hdf5/hdf5_output.f90`               |
+|    Field Solver (HDG with CG solver)    |       4      |                      `./src/hdg/hdg.f90`                     |
+|             Particle Solver             |       5      | `./src/timedisc/timedisc_TimeStepPoissonByBorisLeapfrog.f90` |
+|              Particle Push              |       5      |          `./src/timedisc/timedisc_TimeStep_BGK.f90`          |
+|           `PerformTracking()`           |      50      |       `./src/particles/tracking/particle_tracking.f90`       |
+|     `CALL UpdateNextFreePosition()`     |      51      |          `./src/timedisc/timedisc_TimeStep_BGK.f90`          |
+| `CALL BGK_DSMC_main()`  or `BGK_main()` |      52      |          `./src/timedisc/timedisc_TimeStep_BGK.f90`          |
+|                 Analysis                |       6      |                  `./src/analyze/analyze.f90`                 |
+```
+
 ### Tracing the code
 
 #### Load the required Modules
@@ -42,7 +73,7 @@ On the target system, the extrae software packages must be installed and loaded 
 
 #### Create *tracing.sh* and *extrae.xml* in the simulation directory
 
-Create a shell script *tracing.sh* with the following content
+Create a shell script *tracing.sh* (must be executable) with the following content
 
     #!/bin/bash
 
@@ -51,8 +82,13 @@ Create a shell script *tracing.sh* with the following content
 
     $*
 
-where the path to the current directory must be inserted for *extrae.xml*.
-(WIP: `LD_PRELOAD` might only required when no user-defined instrumentation is used)
+where the path to the directory containing the *extrae.xml* file must be inserted.
+
+```{note}
+`LD_PRELOAD` might only required when no user-defined instrumentation is used. If `PICLAS_EXTRAE=ON` is used during
+compilation, the line with `LD_PRELOAD` can be commented out or removed.
+```
+
 Furthermore, a configuration file *extrae.xml* is required that defines which hardware counters, which should be traced
 
     <?xml version='1.0'?>
@@ -144,11 +180,45 @@ under
 
     home="/opt/hlrs/non-spack/performance/extrae/3.7.1-mpt-2.23-gcc-9.2.0"
 
+### User functions
+
+```{warning}
+This section is experimental!
+```
+
+Compile the code with
+
+    -finstrument-functions
+
+and supply the names of the functions that are exclusively traced in a file `user-functions.dat` containing the hash and name of
+each function in a comma-separated list, e.g.,
+
+    000000000042d2e0#__mod_timedisc_MOD_timedisc
+
+where the hash is acquired via
+
+    nm -a bin/piclas_extrae | grep -in timedisc
+
+or from the lib via `nm -a lib/libpiclas.so` if the function is in the shared library.
+To use the `user-functions.dat` file in extrae, add the following block to the `extrae.xml` file.
+
+    <user-functions enabled="yes" list="/absolute/path/to/user-functions.dat" exclude-automatic-functions="no">
+      <counters enabled="yes" />
+    </user-functions>
+
+where the absolute path to `user-functions.dat` is supplied.
+
 #### Run the application
 
 Run the application and convert the output to Paraver format
 
-    mpirun -np 32 tracing.sh piclas parameter.ini
+```{note}
+The extrae instrumented executable has a different name, which ends on `_extrae`
+```
+
+Execute `mpirun` and pass the `tracing.sh` script
+
+    mpirun -np 32 tracing.sh piclas_extrae parameter.ini
 
 The following command can be appended to the submit script directly after `mpirun`.
 
@@ -163,6 +233,46 @@ e.g.,
     /opt/hlrs/non-spack/performance/extrae/3.7.1-mpt-2.23-gcc-9.2.0/bin/mpi2prv -f TRACE.mpits -o pilcas.32ranks.prv
 
 which will create a file containing the tracing events (.prv), list of registered events (.pcf) and cluster topology description (.row).
+
+#### Analysing the results with Paraver
+
+```{note}
+Tested with wxparaver version 4.9.2
+```
+
+Open Paraver
+
+    wxparaver
+
+and load a trace file for Paraver
+
+- Open the `.prv` file via *File* -> *Load Trace* and the possible quantities are already shown under *Workspaces*, e.g.,
+  *Useful+MPI+PAPI ...*.
+- To view one of these properties, go to *Hints* -> *Useful* -> *Useful Duration*, which opens a separate window displaying the data.
+- It shows the MPI ranks vs. the wall time and shows the calculation time for each trace, i.e., how much of the wall time was
+  actually spent for calculation (the useful part of the simulation).
+- On the bottom left go to *Files \& Window Properties* and select *Window Properties*.
+- Under *Properties Mode*, change the value from *Basic* to *Full* and select the drop down box
+  - Have a look at the field *values* -> *...* -> `9000001` (piclas directives instrumented by hand) to see if they have been
+  correctly used
+  - *Filter* -> *Events* -> *Event type* and set *Function* to `=`
+  - *Filter* -> *Events* -> *Event type* and set *Types* to `9000001`
+  - *Filter* -> *Events* -> *Event value* and set *Function* to `=`
+  - *Filter* -> *Events* -> *Event value* and set *Values* to `1`
+
+  here, the actual tracing event number has to be used as defined in {ref}`sec:code-instrumentation`, e.g., `1` as for `int8(1)`.
+  For a list of pre-defined settings, see {ref}`tab:ExtraeInstrumentation`
+
+- Right-click into window *Useful Duration @ *.prv* -> *View* -> *Event Flags* to activate the user-instrumented events from {ref}`sec:code-instrumentation`
+
+To synchronize the views between different windows, e.g., *Useful Duration* and *MPI call* or simply two windows *Useful Duration*
+that each display a different *Event value* to show where a function instrumentation starts and ends
+
+- Right-click into window *Useful Duration @ *.prv* -> *Synchronize* -> *[ ] 1* (select a group)
+- Right-click into window *MPI call @ *.prv* -> *Synchronize* -> *[ ] 1* (select a group)
+
+
+
 
 ## Intel® VTune™
 Intel® VTune™ is a performance analysis tool with GUI for applications running on x86 systems for Linux and Windows developed by Intel®.
@@ -194,7 +304,7 @@ VTune can also be run in batch mode without the GUI. For a list of available opt
 
     vtune -help
 
-and 
+and
 
     vtune -help collect
 

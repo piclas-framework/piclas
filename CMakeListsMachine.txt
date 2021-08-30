@@ -137,11 +137,6 @@ ELSEIF ("${CMAKE_HOSTNAME}" MATCHES "^xenon")
   # Work around MPI-IO issue 4446 on machines mountng storage via NFS
   ADD_DEFINITIONS(-DNFS)
 
-ELSEIF ("${CMAKE_FQDN_HOST}" MATCHES "gitlab.ila.uni-stuttgart.de")
-  MESSAGE(STATUS "Compiling on ILA Gitlab")
-  SET(FORCE_VDM_ANALYTICAL ON)
-  SET(PICLAS_INSTRUCTION "-march=native")
-
 ELSE()
   MESSAGE(STATUS "Compiling on a generic machine")
   # Set compiler target architecture
@@ -171,6 +166,9 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
     SET (C_FLAGS_INITIALIZED "yes" CACHE INTERNAL "Flag if compiler flags are already initialized" )
     SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -fdefault-double-8 -fbackslash -ffree-line-length-0 -Wno-lto-type-mismatch -DGNU")
   ENDIF()
+  IF(PICLAS_EXTRAE)
+    SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -finstrument-functions")
+  ENDIF(PICLAS_EXTRAE)
   SET (CMAKE_Fortran_FLAGS           "${CMAKE_Fortran_FLAGS} -finit-real=snan -finit-integer=snan")
   SET (CMAKE_Fortran_FLAGS_NITRO     "${CMAKE_Fortran_FLAGS}  -Ofast ${PICLAS_INSTRUCTION}")
   SET (CMAKE_Fortran_FLAGS_RELEASE   "${CMAKE_Fortran_FLAGS}     -O3 ${PICLAS_INSTRUCTION} -fstack-arrays")
