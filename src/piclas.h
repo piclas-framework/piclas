@@ -3,24 +3,10 @@
 !===================================================================================================================================
 
 ! Abbrevations
-#ifdef SUN
-#  define __DATE__ '__TIME__ and __DATE__ not'
-#  define __TIME__ 'available for SUN COMPILER'
-#  define IEEE_ISNAN
-#elif SX
-#  define __DATE__ '__TIME__ and __DATE__ not'
-#  define __TIME__ 'available for SX COMPILER'
-#elif PGI
-#  define NO_ISNAN
-#endif
 #ifndef __FILENAME__
 #define __FILENAME__ __FILE__
 #endif
 #define __STAMP__ __FILENAME__,__LINE__,__DATE__,__TIME__
-
-#ifdef GNU
-#  define IEEE_IS_NAN ISNAN
-#endif
 
 ! Calculate GCC version
 #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
