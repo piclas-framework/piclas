@@ -302,7 +302,7 @@ END IF
 
 IF(NeedToSplit) THEN
   iPart = PEM%pStart(iElem)
-  NewPairNum = INT(nPart/2)
+  NewPairNum = INT(nPart/2.)
   CollInf%Coll_CaseNum = 0
   iNewPart = 0
 
@@ -324,15 +324,14 @@ IF(NeedToSplit) THEN
           iSplitPart = iSplitPart + 1
           PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
           IF (PositionNbr.EQ.0) THEN
-            CALL Abort(&
-              __STAMP__&
+            CALL Abort(__STAMP__&
               ,'ERROR in BGGas: MaxParticleNumber should be twice the expected number of particles, to account for the BGG particles!')
           END IF
           PartState(1:3,PositionNbr) = PartState(1:3,iPart)
           IF(TrackingMethod.EQ.REFMAPPING)THEN ! here Nearst-GP is missing
             PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,iPart)
           END IF
-          IF (iLoop2.EQ.1) THEN
+          IF (iLoop2.EQ.1) THEN ! Clone test particle
             iSpec3 = iSpec
             PartState(4:6,PositionNbr) = PartState(4:6,iPart)
             IF(CollisMode.GT.1) THEN
@@ -344,7 +343,7 @@ IF(NeedToSplit) THEN
               END IF
               IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,PositionNbr) = PartStateIntEn(3,iPart)
             END IF
-          ELSE
+          ELSE ! BGGas particle with Maxwell LPN
             iSpec3 = iSpec2
             CALL CalcVelocity_maxwell_lpn(FractNbr=iSpec3, Vec3D=PartState(4:6,PositionNbr), iInit=1)
             IF(CollisMode.GT.1) THEN
@@ -358,7 +357,7 @@ IF(NeedToSplit) THEN
           PartSpecies(PositionNbr) = iSpec3
           PartMPF(PositionNbr) = PartMPF(iPart)
           IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(PositionNbr) = VarTimeStep%ParticleTimeStep(iPart)
-          PEM%GlobalElemID(PositionNbr) = PEM%GlobalElemID(iPart)
+          PEM%GlobalElemID(PositionNbr)     = PEM%GlobalElemID(iPart)
           PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(iPart)
           LocalElemID = PEM%LocalElemID(PositionNbr)
           PDM%ParticleInside(PositionNbr) = .TRUE.

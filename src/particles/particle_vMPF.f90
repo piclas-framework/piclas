@@ -124,6 +124,7 @@ END SUBROUTINE SplitAndMerge
 !===================================================================================================================================
 SUBROUTINE MergeParticles(iPartIndx_Node, nPart, nPartNew, iElem)
 ! MODULES
+USE MOD_Globals               ,ONLY: ISFINITE
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, Species, CellEelec_vMPF, CellEvib_vMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
@@ -199,7 +200,7 @@ DO iLoop = 1, nPart
 END DO
 vBulk(1:3) = vBulk(1:3) / totalWeight
 
-! 2.) Calc energy, temperature and degree of fredoms (for energy conservation)
+! 2.) Calc energy, temperature and degree of freedom (for energy conservation)
 ! 2.1) Calc energy
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
@@ -439,7 +440,10 @@ IF(CollisMode.GT.1) THEN
 END IF
 
 ! 6.4) new translation energy
-alpha = SQRT(E_trans/E_trans_new)
+! Sanity check: catch problem when bulk of particles consists solely of clones (all have the same velocity vector)
+alpha = 0.! Initialize
+IF((E_trans.GT.0.).AND.(E_trans_new.GT.0.)) alpha = MERGE(SQRT(E_trans/E_trans_new), 0., ISFINITE(SQRT(E_trans/E_trans_new)))
+
 DO iLoop = 1, nPartNew
   PartState(4:6,iPartIndx_Node(iLoop)) = vBulk(1:3) + alpha*(PartState(4:6,iPartIndx_Node(iLoop))-vBulk_new(1:3))
 #ifdef CODE_ANALYZE
