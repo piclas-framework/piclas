@@ -44,6 +44,7 @@ USE MOD_Mesh_Vars              ,ONLY: BoundaryType,nBCs
 USE MOD_Particle_Vars          ,ONLY: PDM
 USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector
 #endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Tools    ,ONLY: ComputePeriodicVec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -76,14 +77,11 @@ DO iBC = 1, SIZE(PartBound%TargetBoundCond)
     CALL abort(__STAMP__,'Part-PeriodicVectors need to be assigned in the ini file')
 END DO
 
-! read-in periodic-vectors for particles
-ALLOCATE(GEO%PeriodicVectors(1:3,1:GEO%nPeriodicVectors))
-DO iVec = 1, GEO%nPeriodicVectors
-  WRITE(UNIT=hilf,FMT='(I0)') iVec
-  GEO%PeriodicVectors(1:3,iVec)   = GETREALARRAY('Part-PeriodicVector'//TRIM(hilf),3,'1.,0.,0.')
-END DO
+! Automatically calculate the periodic vectors
+CALL ComputePeriodicVec()
 
-CALL GetPeriodicVectors()
+! Check consistency of periodic vectors
+CALL CheckPeriodicVectors()
 
 #if USE_MPI
 SDEALLOCATE(PartShiftVector)
@@ -96,7 +94,7 @@ END IF
 END SUBROUTINE InitPeriodicBC
 
 
-SUBROUTINE GetPeriodicVectors()
+SUBROUTINE CheckPeriodicVectors()
 !===================================================================================================================================
 ! Check the periodic vectors for consistency
 ! For particles, each periodic vector has to satisfy following conditions
@@ -136,7 +134,7 @@ IF (GEO%nPeriodicVectors.EQ.0) RETURN
 SDEALLOCATE(GEO%DirPeriodicVectors)
 ALLOCATE(GEO%DirPeriodicVectors(1:GEO%nPeriodicVectors))
 
-! check if all periodic vectors are cartesian
+! check if all periodic vectors are Cartesian
 !directions(1:3)=.FALSE.
 DO iPV = 1,GEO%nPeriodicVectors
   LOGWRITE(*,*)'PeriodicVectors(1:3),',iPV,')=',GEO%PeriodicVectors(1:3,iPV)
@@ -212,6 +210,6 @@ ELSE IF (ABS(SUM(GEO%PeriodicVectors(3,:))-NINT(SUM(GEO%PeriodicVectors(3,:))/GE
 
 END IF
 
-END SUBROUTINE GetPeriodicVectors
+END SUBROUTINE CheckPeriodicVectors
 
 END MODULE MOD_Particle_Periodic_BC
