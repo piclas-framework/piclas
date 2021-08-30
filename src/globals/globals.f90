@@ -155,6 +155,7 @@ INTERFACE TransformVectorFromSphericalCoordinates
   MODULE PROCEDURE TransformVectorFromSphericalCoordinates
 END INTERFACE
 
+#if defined(PARTICLES)
 INTERFACE PARTISELECTRON
   MODULE PROCEDURE PARTISELECTRON
 END INTERFACE
@@ -162,6 +163,7 @@ END INTERFACE
 INTERFACE SPECIESISELECTRON
   MODULE PROCEDURE SPECIESISELECTRON
 END INTERFACE
+#endif /*defined(PARTICLES)*/
 
 PUBLIC :: setstacksizeunlimited
 PUBLIC :: processmemusage
@@ -1142,7 +1144,7 @@ ELSE
 END IF ! SubStringLength.GT.0.AND.MainStringLength.GT.0
 END FUNCTION StringBeginsWith
 
-
+#if defined(PARTICLES)
 PPURE FUNCTION PARTISELECTRON(PartID)
 !===================================================================================================================================
 ! check if particle is an electron (species-charge = -1.609)
@@ -1191,6 +1193,7 @@ SPECIESISELECTRON=.FALSE.
 IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
 IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) SPECIESISELECTRON=.TRUE.
 END FUNCTION SPECIESISELECTRON
+#endif /*defined(PARTICLES)*/
 
 
 END MODULE MOD_Globals
