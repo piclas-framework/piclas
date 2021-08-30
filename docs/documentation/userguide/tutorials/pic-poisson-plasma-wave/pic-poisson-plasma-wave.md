@@ -87,7 +87,7 @@ Mesh with $60\times1\times1$ elements and a size of [$2\pi\times0.2\times0.2$] m
 
 ## PIC Simulation with PICLas
 
-Install **piclas** by compiling the source code as described in Chapter {ref}`installation:Installation` and make sure to set
+Install **piclas** by compiling the source code as described in Chapter {ref}`userguide/installation:Installation` and make sure to set
 the correct compile flags
 
     PICLAS_EQNSYSNAME     = poisson

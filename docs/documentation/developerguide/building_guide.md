@@ -1,4 +1,4 @@
-# Building User and Developer Guide
+# Building the Documentation
 
 The user and developer guides are built automatically via Read The Docs.
 When changing the guides, build the html and pdf files locally before committing changes to the repository.
