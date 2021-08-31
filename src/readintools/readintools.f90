@@ -207,7 +207,11 @@ SWRITE(UNIT_stdOut,'(A,I0,A)') ' Following ',this%count_unread(),' Parameters ar
 current => this%firstLink
 DO WHILE (associated(current))
   ! compare name
-  IF (current%opt%isSet.AND.(.NOT.current%opt%isRemoved)) THEN
+  ! current%opt%isSet.:           Parameter is set in INI file
+  ! .NOT.current%opt%isRemoved:   Parameter is used in the code via GET-function
+  ! .NOT.current%opt%isUsedMulti: Parameter containing "$" in its name is set in INI file and at least one correpsonding parameter
+  !                               with a number instead of "$" is used in the code via GET-function
+  IF (current%opt%isSet.AND.(.NOT.current%opt%isRemoved).AND.(.NOT.current%opt%isUsedMulti)) THEN
     CALL set_formatting("red")
     SWRITE(UNIT_stdOut,"(A)") TRIM(current%opt%name)
     CALL clear_formatting()
@@ -409,6 +413,8 @@ opt%isSet       = .FALSE.
 opt%description = description
 opt%section     = this%actualSection
 opt%isRemoved   = .FALSE.
+opt%isUsedMulti = .FALSE. ! Becomes true, if a variable containing "$" is set in parameter file and used for the corresponding
+                          ! valued parameter
 
 ! insert option into linked list
 IF (.not. associated(this%firstLink)) then
@@ -938,6 +944,7 @@ DO WHILE (associated(current))
       IF(LEN_TRIM(rest).NE.0)THEN
         CALL newopt%parse(rest)
         newopt%isSet = .TRUE.
+        newopt%isUsedMulti = .FALSE.
         ! insert option
         CALL insertOption(current, newopt)
       ELSE
@@ -1309,6 +1316,12 @@ DO WHILE (associated(current))
               SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
               CALL clear_formatting()
               SWRITE(UNIT_stdOut,"(a3)") ' | '
+              ! remove the option from the linked list of all parameters
+              IF(prms%removeAfterRead) newopt%isRemoved = .TRUE.
+              ! insert option
+              CALL insertOption(current, newopt)
+              ! Indicate that parameter was read at least once and therefore remove the warning that the parameter was not used
+              multi%isUsedMulti = .TRUE.
               RETURN
             END IF
             check => check%next
@@ -1514,6 +1527,12 @@ DO WHILE (associated(current))
               SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
               CALL clear_formatting()
               SWRITE(UNIT_stdOut,"(a3)") ' | '
+              ! remove the option from the linked list of all parameters
+              IF(prms%removeAfterRead) newopt%isRemoved = .TRUE.
+              ! insert option
+              CALL insertOption(current, newopt)
+              ! Indicate that parameter was read at least once and therefore remove the warning that the parameter was not used
+              multi%isUsedMulti = .TRUE.
               RETURN
             END IF
             check => check%next
