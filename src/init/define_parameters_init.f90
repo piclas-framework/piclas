@@ -50,9 +50,6 @@ USE MOD_Equation                   ,ONLY: DefineParametersEquation
 #if !(USE_HDG)
 USE MOD_PML                        ,ONLY: DefineParametersPML
 #endif /*USE_HDG*/
-#ifdef MPI
-USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
-#endif /* MPI */
 #if USE_HDG
 USE MOD_HDG                        ,ONLY: DefineParametersHDG
 #endif /*USE_HDG*/
@@ -80,6 +77,9 @@ USE MOD_SurfaceModel_Porous        ,ONLY: DefineParametersPorousBC
 USE MOD_Particle_VarTimeStep       ,ONLY: DefineParametersVaribleTimeStep
 USE MOD_DSMC_Symmetry              ,ONLY: DefineParametersParticleSymmetry
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
+#if USE_MPI
+USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
+#endif /* USE_MPI */
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
@@ -143,9 +143,9 @@ CALL DefineParametersBGK()
 #endif
 CALL DefineParametersSurfModel()
 CALL DefineParametersSurfModelAnalyze()
-#ifdef MPI
+#if USE_MPI && defined(PARTICLES)
 CALL DefineParametersReadIMDdata()
-#endif /* MPI */
+#endif /* USE_MPI */
 #endif
 
 SWRITE(UNIT_stdOut,'(132("="))')
