@@ -32,6 +32,8 @@ MODULE MOD_Options
     CHARACTER(LEN=1000)   :: description  !< comment in parameter file, after '!' character
     CHARACTER(LEN=255)    :: section      !< section to which the option belongs. Not mandatory.
     LOGICAL               :: isSet        !< default false. Becomes true, if set in parameter file
+    LOGICAL               :: isUsedMulti  !< default false. Becomes true, if a variable containing "$" is set in parameter file and
+                                          !< used, e.g., Part-Species$-nInits is used as Part-Species1-nInits
     LOGICAL               :: hasDefault   !< default false. True if a default value is given in CreateXXXOption routine
     LOGICAL               :: multiple     !< default false. Indicates if an option can occur multiple times in parameter file
     LOGICAL               :: isRemoved    !< default false. Indicates if the option is already used (GET... call) and therefore is
@@ -172,10 +174,15 @@ LOGICAL               :: NAMEEQUALSNUMBERED
 INTEGER               :: j,i,ind,ind2,ind3,jMax
 CHARACTER(LEN=255)    :: thisname,testname
 !==================================================================================================================================
+! Example:
+! testname = 'part-species1-spaceic' <- this string is kept constant (it is "tested" against all others)
+! thisname = 'part-species$-ninits'  <- this string is looped
+
 NAMEEQUALSNUMBERED = .FALSE. ! Initialize
 
 ! 1. check testname for numbers and $ (the latter allows setting multiple parameters to the same value)
 CALL LowCase(TRIM(name),testname)
+! This check only increases the performance
 jMax = LEN(TRIM(testname))
 DO j = 1, jMax
   ind2=INDEX('0123456789$',testname(j:j))
@@ -204,7 +211,7 @@ DO WHILE(ind.GT.0)
         IF(ind2.GT.0)THEN
           testname = TRIM(testname(MIN(ind2,LEN(TRIM(testname)) ):))
           NAMEEQUALSNUMBERED = STRICMP(thisname, testname)
-        ELSE! if thisname if not in testname, e.g., Part-Boundary3-SourceName and Part-Boundary3-Condition
+        ELSE ! if thisname is not in testname, e.g., Part-Boundary3-SourceName and Part-Boundary3-Condition
           ind=0
           NAMEEQUALSNUMBERED=.FALSE.
         END IF ! ind2.GT.0
