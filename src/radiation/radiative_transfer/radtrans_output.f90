@@ -67,7 +67,7 @@ SUBROUTINE WriteRadiationToHDF5()
   INTEGER                             :: nVal, iElem, nVar, iSpec, nVarCount, nVarSpec, CNElemID, iWave
   REAL, ALLOCATABLE                   :: TempOutput(:,:)
   CHARACTER(LEN=255), ALLOCATABLE     :: StrVarNames(:)
-  REAL                                :: AbsTotal
+  REAL                                :: AbsTotal,tempSpecAbs
 !===================================================================================================================================
   SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
   FileString=TRIM(ProjectName)//'_RadiationState.h5'
@@ -126,8 +126,12 @@ SUBROUTINE WriteRadiationToHDF5()
       DO iSpec=1, nSpecies
         TempOutput(nVarCount+1, iElem) = Radiation_ElemEnergy_Species(iSpec,CNElemID,1)
 !        TempOutput(nVarCount+2, iElem) = Radiation_ElemEnergy_Species(iSpec,iElem,2) !abs coefficient
-        TempOutput(nVarCount+2, iElem) = &
-             MAX(Radiation_ElemEnergy_Species(iSpec,CNElemID,2)/AbsTotal * RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ ElemVolume_Shared(CNElemID),0.) !lost energy
+        IF (AbsTotal.GT.0) THEN
+          tempSpecAbs = Radiation_ElemEnergy_Species(iSpec,CNElemID,2)/AbsTotal * RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
+        ELSE
+          tempSpecAbs = 0.0
+        END IF
+        TempOutput(nVarCount+2, iElem) = MAX(tempSpecAbs,0.) !lost energy
         nVarCount=nVarCount+nVarSpec
       END DO
       TempOutput((nVarSpec*nSpecies+1), iElem)  = SUM(Radiation_ElemEnergy_Species(:,CNElemID,1))
@@ -164,6 +168,8 @@ SUBROUTINE WriteRadiationToHDF5()
                         collective=.TRUE., RealArray=TempOutput(:,:))
   CALL CloseDataFile()
   SWRITE(*,*) 'DONE'
+  
+  CALL WriteSurfSampleToHDF5()
 
 END SUBROUTINE WriteRadiationToHDF5
 

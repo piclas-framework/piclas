@@ -331,11 +331,15 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 END IF
 
 ! Initialize surface sampling / rotational periodic mapping
+#if (PP_TimeDiscMethod==600)
+  CALL InitParticleBoundarySampling()
+#else
 IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.GEO%RotPeriodicBC) THEN
   CALL InitParticleBoundarySampling()
   CALL InitParticleBoundaryRotPeriodic()
   CALL InitAdaptiveWallTemp()
 END IF
+#endif
 
 ! Initialize porous boundary condition (requires BCdata_auxSF and SurfMesh from InitParticleBoundarySampling)
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
