@@ -23,8 +23,8 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
-INTEGER                        :: nMaxVarAvg              !< max number of variables for averaging
-INTEGER                        :: nMaxVarFluc             !< max number of variables for RMS
+INTEGER              :: nMaxVarAvg                        !< max number of variables for averaging
+INTEGER              :: nMaxVarFluc                       !< max number of variables for RMS
 ! Time averaging and fluctuation variables
 LOGICAL              :: doCalcTimeAverage   =.FALSE.      !< marks if time averaging should be performed
 LOGICAL              :: doCalcFluctuations  =.FALSE.      !< marks if time fluctuations should be computed
