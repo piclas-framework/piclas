@@ -887,7 +887,8 @@ USE MOD_DSMC_Analyze              ,ONLY: DSMC_data_sampling, WriteDSMCToHDF5
 USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 USE MOD_Particle_Vars             ,ONLY: DelayTime
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
+USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,rTotalBezierNewton
+!USE MOD_Particle_Surfaces_Vars    ,ONLY: SideBoundingBoxVolume
 USE MOD_Particle_Analyze_Code     ,ONLY: AnalyticParticleMovement
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
 USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
@@ -926,9 +927,9 @@ INTEGER                       :: iSide
 INTEGER                       :: RECI
 REAL                          :: RECR
 #endif /*USE_MPI*/
-#ifdef CODE_ANALYZE
-REAL                          :: TotalSideBoundingBoxVolume
-#endif /*CODE_ANALYZE*/
+!#ifdef CODE_ANALYZE
+!REAL                          :: TotalSideBoundingBoxVolume
+!#endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
@@ -1239,15 +1240,15 @@ IF(TrackingMethod.NE.TRIATRACKING)THEN
       SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks
       SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierClips : ' , rTotalBezierClips
       SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierNewton: ' , rTotalBezierNewton
-      TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
-#if USE_MPI
-      IF(MPIRoot) THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE, TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-      ELSE ! no Root
-        CALL MPI_REDUCE(TotalSideBoundingBoxVolume ,           0 , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-      END IF
-#endif /*USE_MPI*/
-      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
+!      TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
+!#if USE_MPI
+!      IF(MPIRoot) THEN
+!        CALL MPI_REDUCE(MPI_IN_PLACE, TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+!      ELSE ! no Root
+!        CALL MPI_REDUCE(TotalSideBoundingBoxVolume ,           0 , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+!      END IF
+!#endif /*USE_MPI*/
+!      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
     END IF
   END IF
 END IF ! TrackingMethod.NE.TRIATRACKING
