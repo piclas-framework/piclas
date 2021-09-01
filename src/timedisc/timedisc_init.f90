@@ -350,14 +350,14 @@ END SUBROUTINE InitTimeStep
 !===================================================================================================================================
 SUBROUTINE UpdateTimeStep()
 ! MODULES
-USE MOD_Globals          ,ONLY: myrank
-USE MOD_Globals          ,ONLY: abort,UNIT_StdOut
+USE MOD_Globals          ,ONLY: abort,UNIT_StdOut,myrank
 USE MOD_TimeDisc_Vars    ,ONLY: dt,time,tEnd,tAnalyze,dt_Min,dtWeight
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: DoLoadBalance,LoadBalanceSample,PerformLBSample
 #endif /*USE_LOADBALANCE*/
 #if (PP_TimeDiscMethod==509)
-USE MOD_TimeDisc_Vars    ,ONLY: iter
+USE MOD_TimeDisc_Vars    ,ONLY: iter,dt_old
+USE MOD_Globals          ,ONLY: MPIRoot
 #endif /*(PP_TimeDiscMethod==509)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
