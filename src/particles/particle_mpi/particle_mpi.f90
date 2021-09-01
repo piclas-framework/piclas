@@ -865,6 +865,7 @@ USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 #endif /*IMPA*/
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_RadialWeighting
+USE MOD_part_tools             ,ONLY: ParticleOnProc
 !USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1018,9 +1019,7 @@ DO iProc=0,nExchangeProcessors-1
     jPos=jPos+3
     !>> particle elmentN
     LocElemID = INT(PartRecvBuf(iProc)%content(jPos+1),KIND=4)
-    IF((LocElemID-OffSetElem.GE.1).AND.(LocElemID-OffSetElem.LE.PP_nElems))THEN
-      PEM%GlobalElemID(PartID)=LocElemID-OffSetElem
-    ELSE
+    IF(ParticleOnProc(PartID)) PEM%GlobalElemID(PartID) = LocElemID+OffSetElem
       ! TODO: This is still broken, halo elems are no longer behind PP_nElems
       CALL ABORT(__STAMP__,'External particles not yet supported with new halo region')
 
@@ -1205,8 +1204,7 @@ IF(RadialWeighting%PerformCloning) THEN
   ! Checking whether received particles have to be cloned or deleted
   DO iPart = 1,nrecv
     PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
-    IF ((PEM%GlobalElemID(PartID).GE.1+offSetElem).AND.(PEM%GlobalElemID(PartID).LE.PP_nElems+offSetElem)) &
-    CALL DSMC_2D_RadialWeighting(PartID,PEM%GlobalElemID(PartID))
+    IF(ParticleOnProc(PartID)) CALL DSMC_2D_RadialWeighting(PartID,PEM%GlobalElemID(PartID))
   END DO
 END IF
 

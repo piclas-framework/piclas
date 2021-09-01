@@ -327,10 +327,16 @@ IF(UseBRElectronFluid) dt_Min(DT_MIN) = BRTimeStepMultiplier*dt_Min(DT_MIN)
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_StdOut,'(A,ES16.7)')'Initial Timestep  : ', dt_Min(DT_MIN)
-! using sub-cycling requires an addional time step
+! using sub-cycling requires an additional time step
 
 ! --- Adjustments for first analysis step and/or initial auto restart
 dt=MINVAL(dt_Min) ! quick fix: set dt for initial write DSMCHOState (WriteMacroVolumeValues=T)
+
+! Sanity check: dt must be greater zero, this can happen when using a fixed timestep TD and not supplying a value for dt
+IF(dt.LE.0.)THEN
+  IPWRITE(UNIT_StdOut,*) "Initial timestep dt_Min=[",dt_Min,"]"
+  CALL abort(__STAMP__,'Time step is less/equal zero: dt = ',RealInfoOpt=dt)
+END IF
 
 #if USE_LOADBALANCE
 IF (DoInitialAutoRestart) THEN

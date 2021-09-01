@@ -109,6 +109,7 @@ USE MOD_TimeDisc_Vars               ,ONLY: iStage
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBElemPauseTime,LBElemSplitTime
 USE MOD_Mesh_Vars                   ,ONLY: offsetElem
+USE MOD_part_tools                  ,ONLY: ParticleOnProc
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -644,8 +645,7 @@ DO iPart=1,PDM%ParticleVecLength
     END DO ! PartisDone=.FALSE.
 
 #if USE_LOADBALANCE
-    IF (PEM%GlobalElemID(iPart).GE.offsetElem+1.AND.PEM%GlobalElemID(iPart).GE.offsetElem+PP_nElems) &
-      CALL LBElemPauseTime(PEM%GlobalElemID(iPart),tLBStart)
+    IF(ParticleOnProc(iPart)) CALL LBElemPauseTime(PEM%LocalElemID(iPart),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF ! Part inside
 END DO ! iPart

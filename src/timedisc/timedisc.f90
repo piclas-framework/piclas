@@ -49,7 +49,7 @@ USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
 #if !(USE_HDG)
-USE MOD_PML_Vars               ,ONLY: DoPML,DoPMLTimeRamp,PMLTimeRamp
+USE MOD_PML_Vars               ,ONLY: DoPML,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
 #if USE_LOADBALANCE
 #ifdef maxwell
@@ -258,11 +258,7 @@ DO !iter_t=0,MaxIter
   IF(dt.LT.0.) CALL abort(__STAMP__,'dt < 0: Is something wrong with the defined tEnd? Error in dt_Min(DT_END) or dt_Min(DT_ANALYZE)!')
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
 #if !(USE_HDG)
-  IF(DoPML)THEN
-    IF(DoPMLTimeRamp)THEN
-      CALL PMLTimeRamping(time,PMLTimeRamp)
-    END IF
-  END IF
+  IF(DoPML) CALL PMLTimeRamping(time,PMLTimeRamp)
 #endif /*NOT USE_HDG*/
 
   ! Sanity check: dt must be greater zero
@@ -409,8 +405,8 @@ CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
-      tPreviousAnalyze=tAnalyze
-      tPreviousAverageAnalyze=tAnalyze
+      tPreviousAnalyze        = tAnalyze
+      tPreviousAverageAnalyze = tAnalyze
       SWRITE(UNIT_StdOut,'(132("-"))')
     END IF ! actual analyze is done
 
@@ -448,7 +444,9 @@ CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
       DoInitialAutoRestart = .FALSE.
       DoLoadBalance        = IAR_DoLoadBalance
       LoadBalanceSample    = IAR_LoadBalanceSample
-      iAnalyze=0 ! set to zero so that this first analysis is not counted and the next analysis is the first one
+      ! Set to iAnalyze zero so that this first analysis is not counted and the next analysis is the first one,
+      ! but only if the initial load balance restart and dt_Analyze did not coincide
+      IF(.NOT.ALMOSTEQUALRELATIVE(dt, dt_Min(DT_ANALYZE), 1E-5)) iAnalyze=0
 #ifdef PARTICLES
       DSMC%SampNum=0
       IF (WriteMacroVolumeValues .OR. WriteMacroSurfaceValues) MacroValSampTime = Time
