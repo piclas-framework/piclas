@@ -161,11 +161,17 @@ SUBROUTINE WriteRadiationToHDF5()
   END IF
 
   nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
-  CALL WriteArrayToHDF5(DataSetName='ElemData', rank=2,&
-                        nValGlobal=(/nVar, nGlobalElems/),&
-                        nVal=      (/nVar,   PP_nElems/),&
-                        offset=    (/0, offsetElem /),&
-                        collective=.TRUE., RealArray=TempOutput(:,:))
+  ASSOCIATE (&
+      nVar         => INT(nVar,IK) ,&
+      nGlobalElems => INT(nGlobalElems,IK)     ,&
+      offsetElem   => INT(offsetElem,IK)        ,&
+      PP_nElems    => INT(PP_nElems,IK))
+    CALL WriteArrayToHDF5(DataSetName='ElemData', rank=2,&
+                          nValGlobal=(/nVar, nGlobalElems/),&
+                          nVal=      (/nVar,   PP_nElems/),&
+                          offset=    (/0_IK, offsetElem /),&
+                          collective=.TRUE., RealArray=TempOutput(:,:))
+  END ASSOCIATE
   CALL CloseDataFile()
   SWRITE(*,*) 'DONE'
   
@@ -478,8 +484,8 @@ ASSOCIATE (&
     helpArray(2,OutputCounter)= PhotonSampWall(2,iSurfSide)/SurfSideArea(1,1,iSurfSide)
   END DO
   CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                                     , &
-                        nValGlobal =(/nVar2D     , 1, 1 , nGlobalSides/)  , &
-                        nVal       =(/nVar2D           , 1, 1 , LocalnBCSides/)        , &
+                        nValGlobal =(/nVar2D     , 1_IK, 1_IK , nGlobalSides/)  , &
+                        nVal       =(/nVar2D           , 1_IK, 1_IK , LocalnBCSides/)        , &
                         offset     =(/0_IK, 0_IK       , 0_IK        , offsetSurfSide/), &
                         collective =.TRUE.         ,&
                         RealArray=helpArray(1:nVar2D,1:LocalnBCSides))

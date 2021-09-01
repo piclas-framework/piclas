@@ -194,15 +194,16 @@ TElectrons       = GETREAL('Radiation-TElectrons',      '0.0')
 
 #if USE_MPI
   ! allocate shared array for Radiation_Emission/Absorption_Spec
+SWRITE(*,*) 'Hier0', RadiationParameter%WaveLenDiscr,nComputeNodeElems
 CALL Allocate_Shared((/RadiationParameter%WaveLenDiscr,nComputeNodeElems/), Radiation_Emission_Spec_Shared_Win,Radiation_Emission_Spec_Shared)
 CALL MPI_WIN_LOCK_ALL(0,Radiation_Emission_Spec_Shared_Win,IERROR)
-
+SWRITE(*,*) 'Hier1'
 CALL Allocate_Shared((/RadiationParameter%WaveLenDiscr*nGlobalElems/),Radiation_Absorption_Spec_Shared_Win,Radiation_Absorption_Spec_Shared)
 CALL MPI_WIN_LOCK_ALL(0,Radiation_Absorption_Spec_Shared_Win,IERROR)
-
+SWRITE(*,*) 'Hier2'
 CALL Allocate_Shared((/nSpecies,nComputeNodeElems,2/), Radiation_ElemEnergy_Species_Shared_Win,Radiation_ElemEnergy_Species_Shared)
 CALL MPI_WIN_LOCK_ALL(0,Radiation_ElemEnergy_Species_Shared_Win,IERROR)
-
+SWRITE(*,*) 'Hier3'
 Radiation_Emission_spec => Radiation_Emission_spec_Shared
 Radiation_Absorption_spec(1:RadiationParameter%WaveLenDiscr ,1:nGlobalElems) => Radiation_Absorption_spec_Shared
 Radiation_ElemEnergy_Species => Radiation_ElemEnergy_Species_Shared
