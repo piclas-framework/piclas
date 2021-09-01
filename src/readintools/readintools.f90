@@ -804,8 +804,6 @@ CALL MPI_BCAST(FileContent,LEN(FileContent)*nLines,MPI_CHARACTER,0,MPI_COMM_WORL
 
 ! infinte loop. Exit at EOF
 DO i=1,nLines
-  !! Lower case
-  CALL LowCase(FileContent(i),FileContent(i))
   ! read a line into 'aStr'
   aStr=Var_Str(FileContent(i))
   ! Remove comments with "!"
