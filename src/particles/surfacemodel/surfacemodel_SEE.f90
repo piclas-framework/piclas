@@ -190,6 +190,37 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
   ELSE ! Neutral bombarding particle
     RETURN ! nothing to do
   END IF
+CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materials is considered for SEE and three different out-
+        ! comes) by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
+
+    ProductSpec(1) = PartSpecies(PartID_IN) ! reflect old particle
+    v_new = 0. ! initialize zero
+
+    IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
+      CALL RANDOM_NUMBER(iRan)
+      IF(iRan.LT.0.666)THEN ! SEE
+        IF(iRan.LT.0.333)THEN ! 1 SEE
+          ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+          ProductSpecNbr = 1 ! create one new particle
+          v_new          = VECNORM(PartState(4:6,PartID_IN)) ! |v_new| = |v_old|
+        ELSE ! 2 SEE
+          ProductSpec(1) = PartSpecies(PartID_IN) ! reflect old particle
+          ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+          ProductSpecNbr = 2 ! create two new particles
+          v_new          = VECNORM(PartState(4:6,PartID_IN)) ! |v_new| = |v_old|
+        END IF
+      ELSE ! Only perfect elastic scattering of the bombarding electron
+        ProductSpec(1) = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
+        !ProductSpecNbr = 0 ! do not create new particle
+      END IF
+    ELSEIF(Species(PartSpecies(PartID_IN))%ChargeIC.GT.0.0)THEN ! Positive bombarding ion
+      !ProductSpec(1) = PartSpecies(PartID_IN) ! reflect old particle
+      !ProductSpecNbr = 0 ! do not create new particle
+    ELSE ! Neutral bombarding particle
+      !ProductSpec(1) = PartSpecies(PartID_IN) ! reflect old particle
+      !ProductSpecNbr = 0 ! do not create new particle
+    END IF
+
 END SELECT
 
 ! Sanity check: is the newly created particle faster than c

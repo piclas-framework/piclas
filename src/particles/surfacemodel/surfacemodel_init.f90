@@ -85,7 +85,11 @@ DO iSpec = 1,nSpecies
     hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
     SELECT CASE(PartBound%SurfaceModel(iPartBound))
 !-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(5,6,7)
+    CASE(5,6,7,8)
+      ! 5: SEE by Levko2015
+      ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
+      ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
+      ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materials is considered for SEE and three different outcomes)
 !-----------------------------------------------------------------------------------------------------------------------------------
       SurfModResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
       SurfModEnergyDistribution = 'deltadistribution'
