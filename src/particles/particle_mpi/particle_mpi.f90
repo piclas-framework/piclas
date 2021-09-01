@@ -848,8 +848,8 @@ USE MOD_Particle_Vars          ,ONLY: Pt_temp
 ! variables for parallel deposition
 !USE MOD_Mesh_Vars              ,ONLY: nGlobalMortarSides
 !USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemIsMortar
-USE MOD_Mesh_Vars              ,ONLY: OffSetElem
 #if defined(ROS) || defined(IMPA)
+USE MOD_Mesh_Vars              ,ONLY: OffSetElem
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK
 USE MOD_Particle_Vars          ,ONLY: PartStateN,PartStage,PartDtFrac,PartQ
 !USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems
