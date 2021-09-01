@@ -1,6 +1,5 @@
-#if USE_MPI
-#ifdef PARTICLES
 module mod_readIMD_vars
+#if USE_MPI && defined(PARTICLES)
 
 implicit none
 public
@@ -12,6 +11,5 @@ character(len=300)            :: filenameIMDresults
 
 !Debugging vars
 logical                       :: killPIClas
+#endif /*USE_MPI && defined(PARTICLES)*/
 end module mod_readIMD_vars
-#endif /*USE_MPI*/
-#endif /*PARTICLES*/

@@ -1,7 +1,6 @@
-#if USE_MPI
-#ifdef PARTICLES
 #include "piclas.h"
 module mod_readIMD
+#if USE_MPI && defined(PARTICLES)
 
 implicit none
 private
@@ -320,6 +319,5 @@ subroutine read_IMD_results()
 
 end subroutine read_IMD_results
 
+#endif /*USE_MPI && defined(PARTICLES)*/
 end module mod_readIMD
-#endif /*USE_MPI*/
-#endif /*PARTICLES*/
