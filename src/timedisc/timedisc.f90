@@ -104,7 +104,7 @@ USE MOD_PICInterpolation       ,ONLY: InitAnalyticalParticleState
 #endif /*PARTICLES*/
 USE MOD_Output                 ,ONLY: PrintStatusLine
 USE MOD_TimeStep
-USE MOD_TimeDiscInit           ,ONLY: InitTimeStep
+USE MOD_TimeDiscInit           ,ONLY: InitTimeStep,UpdateTimeStep
 #if defined(PARTICLES) && USE_HDG
 USE MOD_Part_BR_Elecron_Fluid  ,ONLY: SwitchBRElectronModel,UpdateVariableRefElectronTemp
 USE MOD_HDG_Vars               ,ONLY: BRConvertMode,BRTimeStepBackup,BRTimeStepMultiplier,UseBRElectronFluid
@@ -116,15 +116,15 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                         :: tStart                   !> simulation time at the beginning of the simulation
-REAL                         :: tPreviousAnalyze         !> time of previous analyze.
-                                                         !> Used for Nextfile info written into previous file if greater tAnalyze
-REAL                         :: tPreviousAverageAnalyze  !> time of previous Average analyze.
-REAL                         :: tZero
-INTEGER(KIND=8)              :: iter_PID                 !> iteration counter since last InitPiclas call for PID calculation
-REAL                         :: WallTimeStart            !> wall time of simulation start
-REAL                         :: WallTimeEnd              !> wall time of simulation end
-LOGICAL                      :: finalIter
+REAL            :: tStart                   !> simulation time at the beginning of the simulation
+REAL            :: tPreviousAnalyze         !> time of previous analyze.
+                                            !> Used for Nextfile info written into previous file if greater tAnalyze
+REAL            :: tPreviousAverageAnalyze  !> time of previous Average analyze.
+REAL            :: tZero
+INTEGER(KIND=8) :: iter_PID                 !> iteration counter since last InitPiclas call for PID calculation
+REAL            :: WallTimeStart            !> wall time of simulation start
+REAL            :: WallTimeEnd              !> wall time of simulation end
+LOGICAL         :: finalIter
 !===================================================================================================================================
 tPreviousAnalyze=RestartTime
 ! first average analyze is not written at start but at first tAnalyze
@@ -206,7 +206,7 @@ END IF
 #endif /*PARTICLES*/
 
 ! No computation needed if tEnd=tStart!
-IF(time.EQ.tEnd)RETURN
+IF(ALMOSTEQUALRELATIVE(time,tEnd,1e-10))RETURN
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! iterations starting up from here
@@ -231,41 +231,13 @@ DO !iter_t=0,MaxIter
   IF(UseBRElectronFluid) dt_Min(DT_MIN) = BRTimeStepMultiplier*dt_Min(DT_MIN)
 #endif /*defined(PARTICLES) && USE_HDG*/
 
-  dt_Min(DT_ANALYZE) = tAnalyze-time ! Time to next analysis, put in extra variable so number does not change due to numerical errors
-  dt_Min(DT_END)     = tEnd-time     ! Do the same for end time
+  CALL UpdateTimeStep()
 
-#if (PP_TimeDiscMethod==509)
-  IF (iter.GT.0) dt_old=dt
-#endif /*(PP_TimeDiscMethod==509)*/
-  dt=MINVAL(dt_Min)
-  dtWeight=dt/dt_Min(DT_MIN) ! Might be further decreased by RK-stages
-#if (PP_TimeDiscMethod==509)
-  IF (iter.EQ.0) THEN
-    dt_old=dt
-  ELSE IF (ABS(dt-dt_old).GT.1.0E-6*dt_old) THEN
-    SWRITE(UNIT_StdOut,'(A,G0)')'WARNING: dt changed from last iter by a relative difference of ',(dt-dt_old)/dt_old
-  END IF
-#endif /*(PP_TimeDiscMethod==509)*/
-#if USE_LOADBALANCE
-  ! check if loadbalancing is enabled with elemtime calculation and only LoadBalanceSample number of iteration left until analyze
-  ! --> set PerformLBSample true
-  IF((dt_Min(DT_ANALYZE).LE.LoadBalanceSample*dt &                                ! all iterations in LoadbalanceSample interval
-     .OR. (ALMOSTEQUALRELATIVE(dt_Min(DT_ANALYZE),LoadBalanceSample*dt,1e-5))) &  ! make sure to get the first iteration in interval
-     .AND. .NOT.PerformLBSample .AND. DoLoadBalance) PerformLBSample=.TRUE. ! make sure Loadbalancing is enabled
-#endif /*USE_LOADBALANCE*/
-  IF(dt_Min(DT_ANALYZE)-dt.LT.dt/100.0) dt = dt_Min(DT_ANALYZE)
-  IF(    dt_Min(DT_END)-dt.LT.dt/100.0) dt = dt_Min(DT_END)
-  IF(dt.LT.0.) CALL abort(__STAMP__,'dt < 0: Is something wrong with the defined tEnd? Error in dt_Min(DT_END) or dt_Min(DT_ANALYZE)!')
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
+
 #if !(USE_HDG)
   IF(DoPML) CALL PMLTimeRamping(time,PMLTimeRamp)
 #endif /*NOT USE_HDG*/
-
-  ! Sanity check: dt must be greater zero
-  IF(dt.LE.0.)THEN
-    IPWRITE(UNIT_StdOut,*) "time=[", time,"], dt_Min=[",dt_Min,"], tAnalyze=[",tAnalyze,"]"
-    CALL abort(__STAMP__,'Time step is less/equal zero: dt = ',RealInfoOpt=dt)
-  END IF
 
   CALL PrintStatusLine(time,dt,tStart,tEnd)
 
