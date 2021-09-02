@@ -53,10 +53,6 @@ USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
 USE MOD_SurfaceModel             ,ONLY: SurfaceModel_main, PerfectReflection
-#if defined(IMPA)
-USE MOD_Particle_Vars            ,ONLY: PartIsImplicit
-USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
-#endif /*IMPA*/
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties
 #ifdef CODE_ANALYZE

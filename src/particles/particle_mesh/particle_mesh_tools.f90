@@ -14,7 +14,7 @@
 
 MODULE MOD_Particle_Mesh_Tools
 !===================================================================================================================================
-! Contains subroutines to build (curviilinear) meshes and provide metrics, etc.
+! Contains subroutines to build (curvilinear) meshes and provide metrics, etc.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

@@ -53,6 +53,10 @@ INTERFACE StoreLostParticleProperties
   MODULE PROCEDURE StoreLostParticleProperties
 END INTERFACE
 
+INTERFACE ParticleOnProc
+  MODULE PROCEDURE ParticleOnProc
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -60,7 +64,7 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
-PUBLIC :: CalcXiElec
+PUBLIC :: CalcXiElec,ParticleOnProc
 !===================================================================================================================================
 
 CONTAINS
@@ -599,6 +603,28 @@ END IF
 RETURN
 
 END FUNCTION CalcXiElec
+
+
+!===================================================================================================================================
+!> Check whether particle host element ID is on the current proc
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION ParticleOnProc(PartID) RESULT(L)
+! MODULES
+USE MOD_Preproc
+USE MOD_Particle_Vars ,ONLY: PEM
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN) :: PartID ! Particle index
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+!===================================================================================================================================
+L = (PEM%LocalElemID(PartID).GE.1).AND.(PEM%LocalElemID(PartID).LE.PP_nElems)
+END FUNCTION ParticleOnProc
 
 
 END MODULE MOD_part_tools

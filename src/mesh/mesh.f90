@@ -1001,11 +1001,11 @@ SUBROUTINE FinalizeMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
-#ifdef CODE_ANALYZE
-#ifndef PARTICLES
-USE MOD_Particle_Surfaces_Vars, ONLY: SideBoundingBoxVolume
-#endif
-#endif
+!#ifdef CODE_ANALYZE
+!#ifndef PARTICLES
+!USE MOD_Particle_Surfaces_Vars, ONLY: SideBoundingBoxVolume
+!#endif
+!#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -1053,11 +1053,11 @@ SDEALLOCATE(nVecLoc)
 SDEALLOCATE(SurfLoc)
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
-#ifdef CODE_ANALYZE
-#ifndef PARTICLES
-SDEALLOCATE(SideBoundingBoxVolume)
-#endif
-#endif
+!#ifdef CODE_ANALYZE
+!#ifndef PARTICLES
+!SDEALLOCATE(SideBoundingBoxVolume)
+!#endif
+!#endif
 SDEALLOCATE(Face_xGP)
 SDEALLOCATE(ElemToElemGlob)
 SDEALLOCATE(XCL_NGeo)

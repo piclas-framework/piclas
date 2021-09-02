@@ -1,7 +1,6 @@
-#ifdef MPI
-#ifdef PARTICLES
 #include "piclas.h"
 module mod_readIMD
+#if USE_MPI && defined(PARTICLES)
 
 implicit none
 private
@@ -44,7 +43,7 @@ subroutine read_IMD_results()
   use mod_globals
   use MOD_Particle_Vars,only:PartState,PDM
   use MOD_DSMC_Vars,only:PartStateIntEn
-  use MOD_Particle_Mesh,only:SingleParticleToExactElementNoMap
+  use MOD_Particle_Localization,only:LocateParticleInElement
   use mod_particle_mpi,only:IRecvNbofParticles, SendNbOfParticles, MPIParticleSend, MPIParticleRecv
   use mod_hdf5_output_state,only:WriteStateToHDF5
   use mod_mesh_vars,only:meshfile
@@ -275,7 +274,7 @@ subroutine read_IMD_results()
   NbrOfLostParticles=0
   do iPart=1,PDM%ParticleVecLength
     PDM%ParticleInside(iPart) = .True.
-    CALL SingleParticleToExactElementNoMap(iPart,doHALO=.TRUE.,doRelocate=.TRUE.)
+    CALL LocateParticleInElement(iPart,doHalo=.TRUE.)
     if( .not. PDM%ParticleInside(iPart) )then
 !      WRITE (*,*) "Particle Lost: iPart=", iPart," position=",PartState(1,iPart),PartState(2,iPart),PartState(3,iPart)
       NbrOfLostParticles=NbrOfLostParticles+1
@@ -320,6 +319,5 @@ subroutine read_IMD_results()
 
 end subroutine read_IMD_results
 
+#endif /*USE_MPI && defined(PARTICLES)*/
 end module mod_readIMD
-#endif /*MPI*/
-#endif /*PARTICLES*/

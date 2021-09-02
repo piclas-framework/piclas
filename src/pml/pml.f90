@@ -224,7 +224,7 @@ PPURE SUBROUTINE PMLTimeRamping(t,RampingFactor)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_PML_Vars,      ONLY: PMLTimeRamptStart,PMLTimeRamptEnd,PMLsDeltaT,PMLTimeRampCoeff
+USE MOD_PML_Vars,      ONLY: PMLTimeRamptStart,PMLTimeRamptEnd,PMLsDeltaT,PMLTimeRampCoeff,DoPMLTimeRamp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -237,6 +237,9 @@ REAL,INTENT(OUT)   :: RampingFactor
 ! LOCAL VARIABLES
 !INTEGER             :: i,j,k,iPMLElem,m
 !===================================================================================================================================
+IF(.NOT.DoPMLTimeRamp) RETURN
+
+! Ramp if t in [0,1]
 IF(t.LT.PMLTimeRamptStart)THEN
   RampingFactor = 0.0                             ! set PMLTimeRamp to 0.0
 ELSEIF(t.GT.PMLTimeRamptEnd)THEN

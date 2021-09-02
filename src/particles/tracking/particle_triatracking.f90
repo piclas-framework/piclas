@@ -65,6 +65,7 @@ USE MOD_Particle_Intersection       ,ONLY: IntersectionWithWall
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
 USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry               ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
+USE MOD_part_tools                  ,ONLY: ParticleOnProc
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -380,15 +381,13 @@ DO i = 1,PDM%ParticleVecLength
       END IF  ! InElementCheck = T/F
     END DO  ! .NOT.PartisDone
 #if USE_LOADBALANCE
-    IF (PEM%GlobalElemID(i).GE.offsetElem+1 .AND.PEM%GlobalElemID(i).LE.offsetElem+PP_nElems) &
-      CALL LBElemPauseTime(PEM%GlobalElemID(i)-offsetElem,tLBStart)
+    IF(ParticleOnProc(i)) CALL LBElemPauseTime(PEM%LocalElemID(i),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF
   ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
   IF(RadialWeighting%PerformCloning) THEN
-    IF(PDM%ParticleInside(i)) THEN
-      IF ((PEM%GlobalElemID(i).GE.1+offSetElem).AND.(PEM%GlobalElemID(i).LE.PP_nElems+offSetElem)) &
-          CALL DSMC_2D_RadialWeighting(i,PEM%GlobalElemID(i))
+    IF(PDM%ParticleInside(i).AND.(ParticleOnProc(i))) THEN
+      CALL DSMC_2D_RadialWeighting(i,PEM%GlobalElemID(i))
     END IF
   END IF
 END DO ! i = 1,PDM%ParticleVecLength
