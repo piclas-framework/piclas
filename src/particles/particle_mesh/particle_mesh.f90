@@ -171,7 +171,7 @@ USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GE
 USE MOD_Particle_Vars          ,ONLY: Symmetry
 #ifdef CODE_ANALYZE
 !USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
-USE MOD_Mesh_Vars              ,ONLY: nSides
+!USE MOD_Mesh_Vars              ,ONLY: nSides
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 ! TODO
 ! USE MOD_MPI_Vars               ,ONLY: offsetMPISides_YOUR
