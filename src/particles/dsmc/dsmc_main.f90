@@ -54,6 +54,7 @@ USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
+USE MOD_MCC                   ,ONLY: MCC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -99,7 +100,7 @@ DO iElem = 1, nElems ! element/cell main loop
     CALL InitCalcVibRelaxProb
     IF(BGGas%NumberOfSpecies.GT.0) THEN
       IF(UseMCC) THEN
-        CALL MCC_pairing_bggas(iElem)
+        CALL MCC(iElem)
       ELSE
         CALL DSMC_pairing_bggas(iElem)
       END IF
@@ -140,7 +141,7 @@ IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
     , IntInfoOpt=PDM%ParticleVecLength)
 END IF
 ! Delete background gas particles
-IF(BGGas%NumberOfSpecies.GT.0) CALL BGGas_DeleteParticles
+IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_DeleteParticles
 
 ! Sampling of macroscopic values
 ! (here for a continuous average; average over N iterations is performed in src/analyze/analyze.f90)
