@@ -161,6 +161,8 @@ REAL, ALLOCATABLE     :: DOF_vib_poly(:), EnergyTemp_vibPoly(:,:)
 !REAL                  :: Test_E
 
 #ifdef CODE_ANALYZE
+REAL,PARAMETER        :: RelMomTol=5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
+REAL,PARAMETER        :: RelEneTol=1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
 REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3)
 INTEGER               :: iMomDim, iMom
 #endif /* CODE_ANALYZE */
@@ -465,7 +467,7 @@ END DO
 #ifdef CODE_ANALYZE
   ! Check for energy difference
 !  IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
-  IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-8)) THEN
+  IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,RelEneTol)) THEN
     WRITE(UNIT_StdOut,*) '\n'
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_new             : ",Energy_new
@@ -476,9 +478,9 @@ END DO
         IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Energy difference : ",(Energy_new-Energy_old)/energy
       END IF
     END ASSOCIATE
-    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
-    IPWRITE(UNIT_StdOut,*)                     " Old/new particle number: ", nPart, nPartNew
-    IPWRITE(UNIT_StdOut,*)                     " Species                : ", iSpec
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",RelEneTol
+    IPWRITE(UNIT_StdOut,*)                     " Old/new particle number: ",nPart, nPartNew
+    IPWRITE(UNIT_StdOut,*)                     " Species                : ",iSpec
     CALL abort(&
         __STAMP__&
         ,'CODE_ANALYZE: part merge is not energy conserving!')
@@ -493,7 +495,7 @@ END DO
     iMomDim = 1
   END IF
   DO iMom=1,iMomDim
-    IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),1.0e-9)) THEN
+    IF (.NOT.ALMOSTEQUALRELATIVE(Momentum_old(iMom),Momentum_new(iMom),RelMomTol)) THEN
       WRITE(UNIT_StdOut,*) '\n'
       IPWRITE(UNIT_StdOut,'(I0,A,I0)')           " Direction (x,y,z)        : ",iMom
       IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Momentum_old             : ",Momentum_old(iMom)
@@ -504,7 +506,7 @@ END DO
           IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. Momentum difference : ",(Momentum_new(iMom)-Momentum_old(iMom))/Momentum
         END IF
       END ASSOCIATE
-      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-10
+      IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",RelMomTol
       CALL abort(&
           __STAMP__&
           ,'CODE_ANALYZE: part merge is not momentum conserving!')
