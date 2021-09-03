@@ -1636,7 +1636,7 @@ DO iProd = 1, NumProd
   END IF
   ! Set the internal energies
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,iPart,Temp_Vib)
+    PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,Temp_Vib,iPart)
     PartStateIntEn(2,iPart) = CalcERot_particle(iSpec,Temp_Rot)
   ELSE
     PartStateIntEn(1:2,iPart) = 0.0
