@@ -62,8 +62,7 @@ CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Reactants'  &
                                             'SpecNumOfReactant2,\n'//&
                                             'SpecNumOfReactant3)', numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Products'  &
-                                           ,'Products of Reaction[j] (Product1, Product2, Product3, Product 4)', '0 , 0 , 0 , 0' &
-                                           , numberedmulti=.TRUE.)
+                                        ,'Products of Reaction[j] (Product1, Product2, Product3, Product 4)',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Arrhenius-Prefactor', &
                                     'Prefactor A of the extended Arrhenius equation, k = A * T^b * EXP(-E_a/T), '//&
                                     'Units: 1/s, m3/s, m6/s (depending on the type of the reaction)', '0.' , numberedmulti=.TRUE.)
