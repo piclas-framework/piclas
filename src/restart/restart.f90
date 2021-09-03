@@ -225,13 +225,13 @@ DoInitialAutoRestart = GETLOGICAL('DoInitialAutoRestart')
 IF(nProcessors.LT.2) DoInitialAutoRestart = .FALSE.
 WRITE(UNIT=hilf,FMT='(I0)') LoadBalanceSample
 InitialAutoRestartSample = GETINT('InitialAutoRestartSample',TRIM(hilf))
-IAR_PerformPartWeightLB = GETLOGICAL('InitialAutoRestart-PartWeightLoadBalance','F')
-IF (IAR_PerformPartWeightLB) THEN
+InitialAutoRestartPartWeight = GETLOGICAL('InitialAutoRestart-PartWeightLoadBalance','F')
+IF (InitialAutoRestartPartWeight) THEN
   InitialAutoRestartSample = 0 ! deactivate loadbalance sampling of ElemTimes if balancing with partweight is enabled
   CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance = T : InitialAutoRestartSample','INFO',IntOpt=InitialAutoRestartSample)
 ELSE IF (InitialAutoRestartSample.EQ.0) THEN
-  IAR_PerformPartWeightLB = .TRUE. ! loadbalance (ElemTimes) is done with partmpiweight if loadbalancesampling is set to zero
-  CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance','INFO',LogOpt=IAR_PerformPartWeightLB)
+  InitialAutoRestartPartWeight = .TRUE. ! loadbalance (ElemTimes) is done with partmpiweight if loadbalancesampling is set to zero
+  CALL PrintOption('InitialAutoRestart-PartWeightLoadBalance','INFO',LogOpt=InitialAutoRestartPartWeight)
 END IF
 #endif /*USE_LOADBALANCE*/
 
@@ -1454,11 +1454,11 @@ CALL CloseDataFile()
   CALL FlushHDF5(RestartTime)
 #if USE_MPI
   EndT=MPI_WTIME()
+#else
+  CALL CPU_TIME(EndT)
+#endif
   SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Restart took  [',EndT-StartT,'s] for readin.'
   SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!'
-#else
-  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!'
-#endif
 ELSE ! no restart
   ! Delete all files since we are doing a fresh start
   CALL FlushHDF5()

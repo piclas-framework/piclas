@@ -277,9 +277,9 @@ USE MOD_Part_BR_Elecron_Fluid ,ONLY: GetNextBRSwitchTime
 #endif /*defined(PARTICLES) && USE_HDG*/
 #if USE_LOADBALANCE
 USE MOD_TimeDisc_Vars         ,ONLY: dt,dt_Min
-USE MOD_LoadBalance_Vars      ,ONLY: IAR_DoLoadBalance,IAR_LoadBalanceSample,DoLoadBalance
-USE MOD_LoadBalance_Vars      ,ONLY: LoadBalanceSample
-USE MOD_Restart_Vars          ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample,IAR_PerformPartWeightLB
+USE MOD_LoadBalance_Vars      ,ONLY: DoLoadBalanceBackup,LoadBalanceSampleBackup,DoLoadBalance
+USE MOD_LoadBalance_Vars      ,ONLY: LoadBalanceSample,PerformLBSample
+USE MOD_Restart_Vars          ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -327,19 +327,21 @@ END IF
 
 #if USE_LOADBALANCE
 IF (DoInitialAutoRestart) THEN
-  IAR_DoLoadBalance     = DoLoadBalance
-  DoLoadBalance         = .TRUE.
-  IAR_LoadbalanceSample = LoadBalanceSample
-  LoadBalanceSample     = InitialAutoRestartSample
-  ! Correct initialautrestartSample if partweight_initialautorestart is enabled so tAnalyze is calculated correctly
-  ! LoadBalanceSample still needs to be zero
-  IF (IAR_PerformPartWeightLB) InitialAutoRestartSample=1
-  ! Correction for first analysis time due to auto initial restart
-  !IF (MIN( RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt ).LT.tAnalyze) THEN
-  !  tAnalyze           = MIN(RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt )
-  !  dt_Min(DT_ANALYZE) = tAnalyze-Time
-  !  dt                 = MINVAL(dt_Min)
-  !END IF
+
+  ! Set general load balance flag ON
+  DoLoadBalanceBackup   = DoLoadBalance     ! Backup
+  DoLoadBalance         = .TRUE.            ! Force TRUE (during automatic restart)
+
+  ! Backup number of samples required for each load balance
+  LoadBalanceSampleBackup = LoadBalanceSample ! Backup: this is zero when PerformPartWeightLB=.TRUE.
+  LoadBalanceSample       = InitialAutoRestartSample ! this is zero when InitialAutoRestartPartWeight=.TRUE.
+
+  ! Activate sampling in first time step
+  PerformLBSample=.TRUE.
+
+  ! Sanity check: initial automatic restart must happen before tAnalyze is reached (tAnalyze < LoadBalanceSample*dt not implemented)
+  IF(LoadBalanceSample*dt.GT.dt_Min(DT_ANALYZE)) CALL abort(__STAMP__,'LoadBalanceSample*dt > Analyze_dt: Increase Analyze_dt!')
+
 END IF
 #endif /*USE_LOADBALANCE*/
 END SUBROUTINE InitTimeStep
@@ -350,7 +352,7 @@ END SUBROUTINE InitTimeStep
 !===================================================================================================================================
 SUBROUTINE UpdateTimeStep()
 ! MODULES
-USE MOD_Globals          ,ONLY: abort,UNIT_StdOut,myrank
+USE MOD_Globals          ,ONLY: abort,UNIT_StdOut,myrank,LESSEQUALTOLERANCE
 USE MOD_TimeDisc_Vars    ,ONLY: dt,time,tEnd,tAnalyze,dt_Min,dtWeight
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: DoLoadBalance,LoadBalanceSample,PerformLBSample
@@ -385,15 +387,15 @@ END IF
 #endif /*(PP_TimeDiscMethod==509)*/
 
 #if USE_LOADBALANCE
-! check if loadbalancing is enabled with elemtime calculation and only LoadBalanceSample number of iteration left until analyze
-! --> set PerformLBSample true
-IF((dt_Min(DT_ANALYZE).LE.LoadBalanceSample*dt &                                ! all iterations in LoadbalanceSample interval
-    .OR. (ALMOSTEQUALRELATIVE(dt_Min(DT_ANALYZE),LoadBalanceSample*dt,1e-5))) &  ! make sure to get the first iteration in interval
-    .AND. .NOT.PerformLBSample .AND. DoLoadBalance) PerformLBSample=.TRUE. ! make sure Loadbalancing is enabled
+! Activate normal load balancing (NOT initial restart load balancing)
+! 1.) Catch all iterations within sampling interval (make sure to get the first iteration in interval): LESSEQUALTOLERANCE(a,b,tol)
+! 2.)             Load balancing is activated: DoLoadBalance=T 
+IF( LESSEQUALTOLERANCE(dt_Min(DT_ANALYZE), LoadBalanceSample*dt, 1e-5) &
+    .AND. DoLoadBalance) PerformLBSample=.TRUE. ! Activate load balancing in this time step
 #endif /*USE_LOADBALANCE*/
 
-IF(dt_Min(DT_ANALYZE)-dt.LT.dt/100.0) dt = dt_Min(DT_ANALYZE)
-IF(    dt_Min(DT_END)-dt.LT.dt/100.0) dt = dt_Min(DT_END)
+IF(dt_Min(DT_ANALYZE)-dt.LT.dt/100.0) dt = dt_Min(DT_ANALYZE) ! Increase time step if the NEXT time step would be smaller than dt/100
+IF(    dt_Min(DT_END)-dt.LT.dt/100.0) dt = dt_Min(DT_END)     ! Increase time step if the LAST time step would be smaller than dt/100
 
 ! Sanity check: dt must be greater zero
 IF(dt.LE.0.)THEN
