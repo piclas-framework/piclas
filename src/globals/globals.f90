@@ -1244,4 +1244,28 @@ L = IEEE_IS_FINITE(X)
 END FUNCTION ISFINITE
 
 
+!===================================================================================================================================
+!> Check if a <= b or a is almost equal to b via ALMOSTEQUALRELATIVE
+!> Catch tolerance issues when b is only an epsilon smaller than a but the inquiry should be that they are equal
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION LESSEQUALTOLERANCE(a,b,tol)
+! MODULES
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: a,b !< Two real numbers for comparison
+REAL,INTENT(IN) :: tol !< fix for tolerance issues
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF((a.LE.b).OR.(ALMOSTEQUALRELATIVE(a,b,tol)))THEN
+  LESSEQUALTOLERANCE = .TRUE.
+ELSE
+  LESSEQUALTOLERANCE = .FALSE.
+END IF
+END FUNCTION LESSEQUALTOLERANCE
+
+
 END MODULE MOD_Globals
