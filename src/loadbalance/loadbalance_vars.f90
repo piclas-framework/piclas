@@ -23,8 +23,8 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                             :: DoLoadBalance               !> Use dynamic load balancing
-INTEGER                             :: IAR_LoadBalanceSample       !> Loadbalance sample saved until initial autorestart ist finished
-LOGICAL                             :: IAR_DoLoadBalance           !> Loadbalance flag saved until initial autorestart ist finished
+INTEGER                             :: LoadBalanceSampleBackup     !> Loadbalance sample saved until initial autorestart ist finished
+LOGICAL                             :: DoLoadBalanceBackup         !> Loadbalance flag saved until initial autorestart ist finished
 LOGICAL                             :: PerformLoadBalance=.FALSE.  !> Flag if load balance is performed in current time step iteration
 INTEGER                             :: LoadBalanceSample           !> Number of samples for load balance
 LOGICAL                             :: PerformLBSample             !> Flag for enabling time measurement in current
