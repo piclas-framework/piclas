@@ -66,14 +66,14 @@ DO iBC=1,nBCs
 END DO ! iBC=1,nBCs
 
 IF (hasPeriodic .AND. GEO%nPeriodicVectors.EQ.0)      &
-  CALL abort(__STAMP__,' Periodic-field-BCs require to set the periodic-vectors for the particles!')
+  CALL abort(__STAMP__,' Periodic-field-BCs require to set the number of periodic-vectors for the particles!')
 
 IF (.NOT.hasPeriodic .AND. GEO%nPeriodicVectors.GT.0) &
   CALL abort(__STAMP__,' Periodic particle-BCs and non-periodic-field-BCs: not tested!')
 
 DO iBC = 1, SIZE(PartBound%TargetBoundCond)
   IF ((PartBound%TargetBoundCond(iBC).EQ.PartBound%PeriodicBC).AND.(GEO%nPeriodicVectors.EQ.0)) &
-    CALL abort(__STAMP__,'Part-PeriodicVectors need to be assigned in the ini file')
+    CALL abort(__STAMP__,'Number of periodic-vectors is zero, PartBound%TargetBoundCond(iBC) is periodic for iPartBC=',IntInfoOpt=iBC)
 END DO
 
 ! Automatically calculate the periodic vectors
