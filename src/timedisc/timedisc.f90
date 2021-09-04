@@ -63,10 +63,12 @@ USE MOD_Equation               ,ONLY: EvalGradient
 #if USE_MPI
 #if USE_LOADBALANCE
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
-USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime,IAR_DoLoadBalance,IAR_LoadBalanceSample
+USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime,DoLoadBalanceBackup,LoadBalanceSampleBackup
 USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance,LoadBalanceMaxSteps,nLoadBalanceSteps
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTimeField
+USE MOD_Restart_Vars           ,ONLY: RestartFile
+USE MOD_HDF5_output            ,ONLY: RemoveHDF5
 #endif /*USE_LOADBALANCE*/
 #else
 USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
@@ -123,7 +125,14 @@ INTEGER(KIND=8) :: iter_PID                 !> iteration counter since last Init
 REAL            :: WallTimeStart            !> wall time of simulation start
 REAL            :: WallTimeEnd              !> wall time of simulation end
 LOGICAL         :: finalIter
+REAL            :: RestartTimeBackup
+#if USE_LOADBALANCE
+LOGICAL         :: ForceInitialLoadBalance  !> Set true when initial load balance steps are completed and force the load balance
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+#if USE_LOADBALANCE
+ForceInitialLoadBalance = .FALSE. ! Initialize
+#endif /*USE_LOADBALANCE*/
 tPreviousAnalyze=RestartTime
 ! first average analyze is not written at start but at first tAnalyze
 tPreviousAverageAnalyze=tAnalyze
@@ -292,27 +301,22 @@ DO !iter_t=0,MaxIter
 #endif /*USE_HDG*/
 #endif
   ! calling the analyze routines
-  iter=iter+1
-  iter_PID=iter_PID+1
-  time=time+dt
+  iter     = iter+1
+  iter_PID = iter_PID+1
+  time     = time+dt
+
   IF(MPIroot) THEN
-    IF(DoDisplayIter)THEN
-      IF(MOD(iter,IterDisplayStep).EQ.0) THEN
-         SWRITE(UNIT_stdOut,'(A,I21,A6,ES26.16E3,25X)')" iter:", iter,"time:",time ! new format for analyze time output
-      END IF
-    END IF
+    IF(DoDisplayIter.AND.(MOD(iter,IterDisplayStep).EQ.0)) WRITE(UNIT_stdOut,'(A,I21,A6,ES26.16E3,25X)')" iter:", iter,"time:",time
   END IF
-  ! calling the analyze routines
-  IF(ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
-    finalIter=.TRUE.
-  ELSE
-    finalIter=.FALSE.
-  END IF
+
+  ! Calling the analyze routines in last iteration
+  finalIter = ALMOSTEQUAL(dt,dt_Min(DT_END))
+
 #if defined(PARTICLES) && USE_HDG
   ! Depending on kinetic/BR model, set the reference electron temperature for t^n+1, therefore "add" -dt to the calculation
   IF(CalcBRVariableElectronTemp) CALL UpdateVariableRefElectronTemp(-dt)
 #endif /*defined(PARTICLES) && USE_HDG*/
-  CALL PerformAnalyze(time,FirstOrLastIter=finalIter,OutPutHDF5=.FALSE.)
+  CALL PerformAnalyze(time,FirstOrLastIter=finalIter,OutPutHDF5=.FALSE.) ! analyze routines are not called here in last iter
 #ifdef PARTICLES
   ! sampling of near adaptive boundary element values
   IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL AdaptiveBCSampling()
@@ -321,9 +325,12 @@ DO !iter_t=0,MaxIter
   ! Analysis (possible PerformAnalyze+WriteStateToHDF5 and/or LoadBalance)
   !IF ((dt.EQ.dt_Min(DT_ANALYZE)).OR.(dt.EQ.dt_Min(DT_END))) THEN   ! timestep is equal to time to analyze or end
 #if USE_LOADBALANCE
-  IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.DoInitialAutoRestart)THEN
+  ! For automatic initial restart, check if the number of sampling steps has been achieved and force a load balance step
+  IF(DoInitialAutoRestart.AND.(iter.GE.LoadBalanceSample)) ForceInitialLoadBalance=.TRUE.
+
+  IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.finalIter.OR.ForceInitialLoadBalance)THEN
 #else
-  IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
+  IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.finalIter)THEN
 #endif /*USE_LOADBALANCE*/
     WallTimeEnd=PICLASTIME()
     IF(MPIroot)THEN ! determine the SimulationEfficiency and PID here,
@@ -343,16 +350,17 @@ DO !iter_t=0,MaxIter
     ! Check if loadbalancing is enabled with partweight and set PerformLBSample true to calculate elemtimes with partweight
     ! LoadBalanceSample is 0 if partweightLB or IAR_partweighlb are enabled. If only one of them is set Loadbalancesample switches
     ! during time loop
-    IF (LoadBalanceSample.EQ.0 .AND. DoLoadBalance .AND. .NOT.PerformLBSample) PerformLBSample=.TRUE.
+    IF (LoadBalanceSample.EQ.0 .AND. DoLoadBalance) PerformLBSample=.TRUE.
 #endif /*PARICLES*/
-    ! routine calculates imbalance and if greater than threshold PerformLoadBalance=.TRUE.
+    ! Routine calculates imbalance and if greater than threshold sets PerformLoadBalance=.TRUE.
     CALL ComputeElemLoad()
     ! Force load balance step after elem time has been calculated when doing an initial load balance step at iter=0
-    IF(DoInitialAutoRestart) PerformLoadBalance=.TRUE.
+    IF(ForceInitialLoadBalance) PerformLoadBalance=.TRUE.
 #if defined(maxwell) && (defined(ROS) || defined(IMPA))
     UpdatePrecondLB=PerformLoadBalance
 #endif /*MAXWELL AND (ROS or IMPA)*/
 #endif /*USE_LOADBALANCE*/
+
 #else /*NOT USE_MPI*/
 CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
 #endif /*USE_MPI*/
@@ -362,12 +370,12 @@ CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
 
     !--- Perform analysis and write state file .h5
 #if USE_LOADBALANCE
-    IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. PerformLoadBalance .OR. ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
+    IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. PerformLoadBalance .OR. finalIter)THEN
 #else
-    IF( MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
+    IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. finalIter)THEN
 #endif /*USE_LOADBALANCE*/
       ! Analyze for output
-      CALL PerformAnalyze(tAnalyze,FirstOrLastIter=finalIter,OutPutHDF5=.TRUE.)
+      CALL PerformAnalyze(time, FirstOrLastIter=finalIter, OutPutHDF5=.TRUE.) ! analyze routines are not called here in last iter
       ! write information out to std-out of console
       CALL WriteInfoStdOut()
       ! Write state to file
@@ -384,22 +392,19 @@ CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
 
     !--- Check if load balancing must be performed
 #if USE_LOADBALANCE
-    IF((DoLoadBalance.AND.PerformLBSample.AND.(LoadBalanceMaxSteps.GT.nLoadBalanceSteps)).OR.DoInitialAutoRestart)THEN
+    IF((DoLoadBalance.AND.PerformLBSample.AND.(LoadBalanceMaxSteps.GT.nLoadBalanceSteps)).OR.ForceInitialLoadBalance)THEN
       IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
         IF(PerformLoadBalance) THEN
           ! DO NOT DELETE THIS: ONLY recalculate the timestep when the mesh is changed!
           !CALL InitTimeStep() ! re-calculate time step after load balance is performed
-          RestartTime     = time         ! Set restart simulation time to current simulation time because the time is not read from
+          RestartTimeBackup = RestartTime! make backup of original restart time
+          RestartTime       = time       ! Set restart simulation time to current simulation time because the time is not read from
                                          ! the state file
           RestartWallTime = PICLASTIME() ! Set restart wall time if a load balance step is performed
           dtWeight        = 1.           ! is initialized in InitTimeDisc which is not called in LoadBalance, but needed for restart
                                          ! (RestartHDG)
         END IF
         CALL LoadBalance()
-        IF(PerformLoadBalance .AND. MOD(iAnalyze,nSkipAnalyze).NE.0) &
-          CALL PerformAnalyze(time,FirstOrLastIter=.FALSE.,OutPutHDF5=.TRUE.)
-        !      dt=dt_Min(DT_MIN) !not sure if nec., was here before InitTimeStep was created, overwritten in next iter anyway
-        ! CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze) ! not sure if required
       END IF
     ELSE
       ElemTime      = 0. ! nullify ElemTime before measuring the time in the next cycle
@@ -408,21 +413,29 @@ CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
 #endif /*PARTICLES*/
       ElemTimeField = 0.
     END IF
-    PerformLBSample=.FALSE.
+    PerformLBSample=.FALSE. ! Deactivate load balance sampling
+
     ! Switch off Initial Auto Restart (initial load balance) after the restart was performed
     IF (DoInitialAutoRestart) THEN
+      ! Remove the extra state file written for load balance
+      CALL RemoveHDF5(RestartFile)
+      ! Get original settings from backup variables
       DoInitialAutoRestart = .FALSE.
-      DoLoadBalance        = IAR_DoLoadBalance
-      LoadBalanceSample    = IAR_LoadBalanceSample
+      ForceInitialLoadBalance = .FALSE.
+      DoLoadBalance        = DoLoadBalanceBackup
+      LoadBalanceSample    = LoadBalanceSampleBackup
       ! Set to iAnalyze zero so that this first analysis is not counted and the next analysis is the first one,
       ! but only if the initial load balance restart and dt_Analyze did not coincide
       IF(.NOT.ALMOSTEQUALRELATIVE(dt, dt_Min(DT_ANALYZE), 1E-5)) iAnalyze=0
+      ! Set time of the state file that was created before automatic initial restart (to be written in the next state file)
+      tPreviousAnalyze = RestartTimeBackup
 #ifdef PARTICLES
       DSMC%SampNum=0
       IF (WriteMacroVolumeValues .OR. WriteMacroSurfaceValues) MacroValSampTime = Time
 #endif /*PARTICLES*/
     END IF
 #endif /*USE_LOADBALANCE*/
+
     ! count analyze dts passed
     iAnalyze=iAnalyze+1
     tAnalyze=MIN(tZero+REAL(iAnalyze)*Analyze_dt,tEnd)
