@@ -374,9 +374,7 @@ LOGICAL                            :: DG_SolutionLambdaExists
 LOGICAL                            :: DG_SolutionUExists
 INTEGER(KIND=8)                    :: iter
 #endif /*USE_HDG*/
-#if USE_MPI
 REAL                               :: StartT,EndT
-#endif /*USE_MPI*/
 #if !(USE_HDG) || defined(PARTICLES)
 INTEGER                            :: iElem
 #endif /*!(USE_HDG) || defined(PARTICLES)*/
@@ -431,6 +429,8 @@ INTEGER(KIND=IK)                   :: PMLnVarTmp
 IF(DoRestart)THEN
 #if USE_MPI
   StartT=MPI_WTIME()
+#else
+  CALL CPU_TIME(StartT)
 #endif
 
   ! Temp. vars for integer KIND=8 possibility
