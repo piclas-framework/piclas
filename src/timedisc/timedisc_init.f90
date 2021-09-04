@@ -314,8 +314,8 @@ BRTimeStepBackup = dt_Min(DT_MIN)
 IF(UseBRElectronFluid) dt_Min(DT_MIN) = BRTimeStepMultiplier*dt_Min(DT_MIN)
 #endif /*defined(PARTICLES) && USE_HDG*/
 
-
-dt = dt_Min(DT_MIN)
+! Select the smallest time delta
+dt = MINVAL(dt_Min)
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_StdOut,'(A,ES16.7)')'Initial Timestep  : ', dt
 
@@ -329,18 +329,20 @@ END IF
 IF (DoInitialAutoRestart) THEN
 
   ! Set general load balance flag ON
-  DoLoadBalanceBackup   = DoLoadBalance     ! Backup
-  DoLoadBalance         = .TRUE.            ! Force TRUE (during automatic restart)
+  DoLoadBalanceBackup   = DoLoadBalance ! Backup
+  DoLoadBalance         = .TRUE.        ! Force TRUE (during automatic restart, original variable might be false)
 
   ! Backup number of samples required for each load balance
-  LoadBalanceSampleBackup = LoadBalanceSample ! Backup: this is zero when PerformPartWeightLB=.TRUE.
+  LoadBalanceSampleBackup = LoadBalanceSample        ! Backup: this is zero when PerformPartWeightLB=.TRUE.
   LoadBalanceSample       = InitialAutoRestartSample ! this is zero when InitialAutoRestartPartWeight=.TRUE.
 
   ! Activate sampling in first time step
   PerformLBSample=.TRUE.
 
   ! Sanity check: initial automatic restart must happen before tAnalyze is reached (tAnalyze < LoadBalanceSample*dt not implemented)
-  IF(LoadBalanceSample*dt.GT.dt_Min(DT_ANALYZE)) CALL abort(__STAMP__,'LoadBalanceSample*dt > Analyze_dt: Increase Analyze_dt!')
+  DO WHILE(LoadBalanceSample*dt.GT.dt_Min(DT_ANALYZE).AND.(LoadBalanceSample.GT.1))
+   LoadBalanceSample = LoadBalanceSample-1
+  END DO
 
 END IF
 #endif /*USE_LOADBALANCE*/
