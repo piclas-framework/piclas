@@ -431,7 +431,6 @@ USE MOD_Particle_Vars,           ONLY:Pt_temp
 #endif
 #if defined(ROS) || defined(IMPA)
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
-USE MOD_Particle_Mesh_Vars,      ONLY:ElemToGlobalElemID
 USE MOD_Particle_MPI_Vars,       ONLY:PartCommSize0
 USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage,PartDtFrac,PartQ
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
@@ -852,8 +851,6 @@ USE MOD_Particle_Vars          ,ONLY: Pt_temp
 USE MOD_Mesh_Vars              ,ONLY: OffSetElem
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK
 USE MOD_Particle_Vars          ,ONLY: PartStateN,PartStage,PartDtFrac,PartQ
-!USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToGlobalElemID
 USE MOD_Particle_MPI_Vars      ,ONLY: PartCommSize0
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 USE MOD_Timedisc_Vars          ,ONLY: iStage
@@ -880,7 +877,7 @@ INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, TempNex
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles
 #if defined(ROS) || defined(IMPA)
-INTEGER                       :: iCounter, LocElemID,iElem
+INTEGER                       :: iCounter, LocElemID!,iElem
 #endif /*ROS or IMPA*/
 ! Polyatomic Molecules
 INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly, MsgLengthElec, pos_elec, pos_ambi, MsgLengthAmbi
@@ -1019,7 +1016,9 @@ DO iProc=0,nExchangeProcessors-1
     jPos=jPos+3
     !>> particle elmentN
     LocElemID = INT(PartRecvBuf(iProc)%content(jPos+1),KIND=4)
-    IF(ParticleOnProc(PartID)) PEM%GlobalElemID(PartID) = LocElemID+OffSetElem
+    IF(ParticleOnProc(PartID))THEN
+      PEM%GlobalElemID(PartID) = LocElemID+OffSetElem
+    ELSE
       ! TODO: This is still broken, halo elems are no longer behind PP_nElems
       CALL ABORT(__STAMP__,'External particles not yet supported with new halo region')
 
