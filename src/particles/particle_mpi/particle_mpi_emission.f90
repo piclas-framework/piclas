@@ -61,6 +61,7 @@ REAL                            :: xCoords(3,8),lineVector(3),radius,height
 REAL                            :: xlen,ylen,zlen
 REAL                            :: dt
 INTEGER                         :: color
+CHARACTER(50)                   :: hilf
 !===================================================================================================================================
 
 ! get number of total init regions
@@ -451,8 +452,8 @@ DO iSpec=1,nSpecies
     ! Sanity check if at least one proc will be on the new emission communicator
     CALL MPI_ALLREDUCE(RegionOnProc,RegionExists,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,iError)
     IF (.NOT. RegionExists) THEN
-      SWRITE(UNIT_stdOut,'(A,I0,A,I0)') 'Species',iSpec,'-Init',iInit
-      CALL CollectiveStop(__STAMP__,'No processor in range!')
+      WRITE(hilf,'(A,I0,A,I0)') 'Species',iSpec,'-Init',iInit
+      CALL CollectiveStop(__STAMP__,'The emission region was not found on any processor.  No processor in range for '//TRIM(hilf))
     END IF
 
     ! create new communicator
