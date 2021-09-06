@@ -88,7 +88,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER           :: iPartBound,iSpec
 !===================================================================================================================================
-IF (SurfModelAnalyzeInitIsDone) THEN
+IF(SurfModelAnalyzeInitIsDone)THEN
 CALL abort(__STAMP__,&
 'InitParticleAnalyse already called.',999,999.)
   RETURN
@@ -97,13 +97,13 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE MODEL ANALYZE...'
 
 SurfaceAnalyzeStep = GETINT('Surface-AnalyzeStep')
-IF (SurfaceAnalyzeStep.EQ.0) SurfaceAnalyzeStep = HUGE(1)
+IF(SurfaceAnalyzeStep.EQ.0) SurfaceAnalyzeStep = HUGE(1)
 
 DoSurfModelAnalyze = .FALSE.
 
 !-- Surface Collision Counter
 CalcSurfCollCounter = GETLOGICAL('Surf-CalcCollCounter')
-IF(CalcSurfCollCounter) THEN
+IF(CalcSurfCollCounter)THEN
   DoSurfModelAnalyze = .TRUE.
   ! allocate info and constants
   ALLOCATE(SurfAnalyzeCount(1:nSpecies),SurfAnalyzeNumOfAds(1:nSpecies),SurfAnalyzeNumOfDes(1:nSpecies))
@@ -111,10 +111,10 @@ IF(CalcSurfCollCounter) THEN
 END IF
 
 !-- Porous Boundaries
-IF(nPorousBC.GT.0) THEN
+IF(nPorousBC.GT.0)THEN
   ! Output for porous BC: Pump averaged values
   CalcPorousBCInfo = GETLOGICAL('Surf-CalcPorousBCInfo')
-  IF(CalcPorousBCInfo) THEN
+  IF(CalcPorousBCInfo)THEN
     DoSurfModelAnalyze = .TRUE.
     ALLOCATE(PorousBCOutput(1:5,1:nPorousBC))
     PorousBCOutput = 0.
@@ -195,7 +195,7 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfSides,PartBound
 USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
-USE MOD_Particle_Vars             ,ONLY: nSpecies
+USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,NeutralizationBalanceGlobal
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -205,48 +205,44 @@ REAL,INTENT(IN)                 :: Time
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL             :: isOpen, isRestart
+LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter
 INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
 INTEGER             :: iPartBound,iSpec
 !===================================================================================================================================
-IF ((nComputeNodeSurfSides.EQ.0).AND.(.NOT.CalcBoundaryParticleOutput)) RETURN
-isRestart = .FALSE.
-IF ( DoRestart ) THEN
-  isRestart = .TRUE.
-END IF
-IF (.NOT.DoSurfModelAnalyze) RETURN
+IF((nComputeNodeSurfSides.EQ.0).AND.(.NOT.CalcBoundaryParticleOutput).AND.(.NOT.UseNeutralization)) RETURN
+IF(.NOT.DoSurfModelAnalyze) RETURN
 OutputCounter = 2
 unit_index = 636
 #if USE_MPI
-IF (PartMPI%MPIRoot) THEN
+IF(PartMPI%MPIRoot)THEN
 #endif /*USE_MPI*/
   INQUIRE(UNIT   = unit_index , OPENED = isOpen)
-  IF (.NOT.isOpen) THEN
+  IF(.NOT.isOpen)THEN
     outfile = 'SurfaceAnalyze.csv'
 !===================================================================================================================================
 ! Write Header
 !===================================================================================================================================
-    IF (isRestart .and. FILEEXISTS(outfile)) THEN
+    IF(DoRestart.AND.FILEEXISTS(outfile))THEN
       OPEN(unit_index,file=TRIM(outfile),position="APPEND",status="OLD")
     ELSE
       OPEN(unit_index,file=TRIM(outfile))
       !--- insert header
       WRITE(unit_index,'(A8)',ADVANCE='NO') '001-TIME'
-      IF (CalcSurfCollCounter) THEN
+      IF(CalcSurfCollCounter)THEN
         CALL WriteDataHeaderInfo(unit_index,'nSurfColl-Spec',OutputCounter,nSpecies)
         CALL WriteDataHeaderInfo(unit_index,'N_Ads-Spec',OutputCounter,nSpecies)
         CALL WriteDataHeaderInfo(unit_index,'N_Des-Spec',OutputCounter,nSpecies)
       END IF
-      IF(CalcPorousBCInfo) THEN ! calculate porous boundary condition output (pumping speed, removal probability, pressure
+      IF(CalcPorousBCInfo)THEN ! calculate porous boundary condition output (pumping speed, removal probability, pressure
                                 ! normalized with given pressure. Values are averaged over the whole porous BC
         CALL WriteDataHeaderInfo(unit_index,'PumpSpeed-Measure-PorousBC',OutputCounter,nPorousBC)
         CALL WriteDataHeaderInfo(unit_index,'PumpSpeed-Control-PorousBC',OutputCounter,nPorousBC)
         CALL WriteDataHeaderInfo(unit_index,'RemovalProbability-PorousBC',OutputCounter,nPorousBC)
         CALL WriteDataHeaderInfo(unit_index,'PressureNorm-PorousBC',OutputCounter,nPorousBC)
       END IF
-      IF (CalcBoundaryParticleOutput) THEN
+      IF(CalcBoundaryParticleOutput)THEN
         DO iPartBound = 1, BPO%NPartBoundaries
           DO iSpec = 1, BPO%NSpecies
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -256,6 +252,10 @@ IF (PartMPI%MPIRoot) THEN
           END DO
         END DO
       END IF
+      IF(UseNeutralization)THEN ! Ion thruster neutralization current (virtual cathode electrons)
+        WRITE(unit_index,'(A1,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-NeutralizationParticles'
+        OutputCounter = OutputCounter + 1
+      END IF ! UseNeutralization
       WRITE(unit_index,'(A)') ''
     END IF
   END IF
@@ -266,28 +266,28 @@ END IF
 !===================================================================================================================================
 ! Analyze Routines
 !===================================================================================================================================
-IF (CalcSurfCollCounter)        CALL GetCollCounter(SurfCollNum,AdsorptionNum,DesorptionNum)
-IF (CalcPorousBCInfo)           CALL GetPorousBCInfo()
-IF (CalcBoundaryParticleOutput) CALL GetBoundaryParticleOutput()
+IF(CalcSurfCollCounter)        CALL GetCollCounter(SurfCollNum,AdsorptionNum,DesorptionNum)
+IF(CalcPorousBCInfo)           CALL GetPorousBCInfo()
+IF(CalcBoundaryParticleOutput) CALL GetBoundaryParticleOutput()
 !===================================================================================================================================
 ! Output Analyzed variables
 !===================================================================================================================================
 #if USE_MPI
-IF (PartMPI%MPIRoot) THEN
+IF(PartMPI%MPIRoot)THEN
 #endif /*USE_MPI*/
   WRITE(unit_index,'(E23.16E3)',ADVANCE='NO') Time
-  IF (CalcSurfCollCounter) THEN
+  IF(CalcSurfCollCounter)THEN
     CALL WriteDataInfo(unit_index,nSpecies,IntegerArray=SurfCollNum(:))
     CALL WriteDataInfo(unit_index,nSpecies,IntegerArray=AdsorptionNum(:))
     CALL WriteDataInfo(unit_index,nSpecies,IntegerArray=DesorptionNum(:))
   END IF
-  IF(CalcPorousBCInfo) THEN
+  IF(CalcPorousBCInfo)THEN
     CALL WriteDataInfo(unit_index,nPorousBC,RealArray=PorousBCOutput(2,:))
     CALL WriteDataInfo(unit_index,nPorousBC,RealArray=PorousBCOutput(3,:))
     CALL WriteDataInfo(unit_index,nPorousBC,RealArray=PorousBCOutput(4,:))
     CALL WriteDataInfo(unit_index,nPorousBC,RealArray=PorousBCOutput(5,:))
   END IF
-  IF (CalcBoundaryParticleOutput) THEN
+  IF(CalcBoundaryParticleOutput)THEN
     DO iPartBound = 1, BPO%NPartBoundaries
       DO iSpec = 1, BPO%NSpecies
         CALL WriteDataInfo(unit_index,1,RealArray=(/BPO%RealPartOut(iPartBound,iSpec)/))
@@ -297,6 +297,7 @@ IF (PartMPI%MPIRoot) THEN
       END DO
     END DO
   END IF
+  IF(UseNeutralization) CALL WriteDataInfo(unit_index,1,RealArray=(/REAL(NeutralizationBalanceGlobal)/))
   WRITE(unit_index,'(A)') ''
 #if USE_MPI
 END IF
@@ -359,44 +360,44 @@ LOGICAL           ,INTENT(IN),OPTIONAL :: LogicalScalar
 ! LOCAL VARIABLES
 INTEGER                     :: iLoop
 !===================================================================================================================================
-IF(PRESENT(RealArray)) THEN
+IF(PRESENT(RealArray))THEN
   DO iLoop = 1, nVal
     WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',RealArray(iLoop)
   END DO
 END IF
-IF(PRESENT(RealScalar)) THEN
+IF(PRESENT(RealScalar))THEN
   WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',RealScalar
 END IF
 
-IF(PRESENT(IntegerArray)) THEN
+IF(PRESENT(IntegerArray))THEN
   DO iLoop = 1, nVal
     WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',REAL(IntegerArray(iLoop))
   END DO
 END IF
 
-IF(PRESENT(IntegerK8Array)) THEN
+IF(PRESENT(IntegerK8Array))THEN
   DO iLoop = 1, nVal
     WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',REAL(IntegerK8Array(iLoop))
   END DO
 END IF
 
-IF(PRESENT(IntegerScalar)) THEN
+IF(PRESENT(IntegerScalar))THEN
   WRITE (unit_index, CSVFORMAT, ADVANCE='NO') ',',REAL(IntegerScalar)
 END IF
 
-IF(PRESENT(StrArray)) THEN
+IF(PRESENT(StrArray))THEN
   DO iLoop = 1, nVal
     WRITE(unit_index,'(A1)',ADVANCE='NO') ','
     WRITE(unit_index,'(A)',ADVANCE='NO') TRIM(StrArray(iLoop))
   END DO
 END IF
 
-IF(PRESENT(StrScalar)) THEN
+IF(PRESENT(StrScalar))THEN
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
   WRITE(unit_index,'(A)',ADVANCE='NO') TRIM(StrScalar)
 END IF
 
-IF(PRESENT(LogicalScalar)) THEN
+IF(PRESENT(LogicalScalar))THEN
   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
   WRITE(unit_index,'(I1)',ADVANCE='NO') LogicalScalar
 END IF
@@ -434,7 +435,7 @@ DO iSpec = 1,nSpecies
 END DO
 
 #if USE_MPI
-IF (PartMPI%MPIRoot) THEN
+IF(PartMPI%MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,SurfCollNum ,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,AdsorbNum   ,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
   CALL MPI_REDUCE(MPI_IN_PLACE,DesorbNum   ,nSpecies,MPI_INTEGER,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -475,7 +476,7 @@ IMPLICIT NONE
 INTEGER            :: iPBC
 !===================================================================================================================================
 #if USE_MPI
-IF (PartMPI%MPIRoot) THEN
+IF(PartMPI%MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,PorousBCOutput,5*nPorousBC,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
 ELSE
   CALL MPI_REDUCE(PorousBCOutput,PorousBCOutput,5*nPorousBC,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
@@ -483,10 +484,10 @@ END IF
 #endif /*USE_MPI*/
 
 #if USE_MPI
-IF (PartMPI%MPIRoot) THEN
+IF(PartMPI%MPIRoot)THEN
 #endif /*USE_MPI*/
   DO iPBC = 1, nPorousBC
-    IF(PorousBCOutput(1,iPBC).GT.0.0) THEN
+    IF(PorousBCOutput(1,iPBC).GT.0.0)THEN
       ! Pumping Speed (Output(2)) is the sum of all elements (counter over particles exiting through pump)
       ! Other variales are averaged over the elements
       PorousBCOutput(3:5,iPBC) = PorousBCOutput(3:5,iPBC) / PorousBCOutput(1,iPBC)
@@ -522,7 +523,7 @@ INTEGER :: SendBufSize
 !===================================================================================================================================
 #if USE_MPI
 SendBufSize = BPO%NPartBoundaries*BPO%NSpecies
-IF (PartMPI%MPIRoot) THEN
+IF(PartMPI%MPIRoot)THEN
   ! Map 2D array to vector for sending via MPI
   SendBuf = RESHAPE(BPO%RealPartOut,(/SendBufSize/))
   CALL MPI_REDUCE(MPI_IN_PLACE,SendBuf(1:SendBufSize),SendBufSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
