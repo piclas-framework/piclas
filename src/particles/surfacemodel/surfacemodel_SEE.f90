@@ -36,11 +36,12 @@ SUBROUTINE SecondaryElectronEmission(PartID_IN,locBCID,ProductSpec,ProductSpecNb
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals,ONLY: myrank,ierror,mpi_comm_world
 USE MOD_Globals           ,ONLY: abort,VECNORM,PARTISELECTRON
-USE MOD_Globals_Vars      ,ONLY: c
+USE MOD_Globals_Vars      ,ONLY: c,Joule2eV
 USE MOD_Particle_Vars     ,ONLY: PartState,Species,PartSpecies
 USE MOD_Globals_Vars      ,ONLY: ElementaryCharge,ElectronMass
-USE MOD_SurfaceModel_Vars ,ONLY: SurfModResultSpec
+USE MOD_SurfaceModel_Vars ,ONLY: SurfModResultSpec,const
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -60,6 +61,7 @@ REAL              :: eps_e  ! Energy of bombarding electron in eV
 REAL              :: iRan   ! Random number
 REAL              :: k_ee   ! Coefficient of emission of secondary electron
 REAL              :: k_refl ! Coefficient for reflection of bombarding electron
+REAL              :: W0,W1,W2
 !===================================================================================================================================
 ! Default 0
 ProductSpec    = 0
@@ -193,43 +195,52 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
 CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materials is considered for SEE and three different out-
         ! comes) by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
 
-    ProductSpec(1) = PartSpecies(PartID_IN) ! reflect old particle
-    v_new = 0. ! initialize zero
+    ProductSpec(1) = PartSpecies(PartID_IN) ! Reflect old particle
+    v_new          = 0. ! Initialize zero
 
     IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
-      CALL RANDOM_NUMBER(iRan)
-      IF(iRan.LT.0.666)THEN ! SEE
-        IF(iRan.LT.0.333)THEN ! 1 SEE
-          ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
-          ProductSpecNbr = 1 ! create one new particle
-          v_new          = VECNORM(PartState(4:6,PartID_IN)) ! |v_new| = |v_old|
-        ELSE ! 2 SEE
-          ProductSpec(1) = PartSpecies(PartID_IN) ! reflect old particle
-          ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
-          ProductSpecNbr = 2 ! create two new particles
-          v_new          = VECNORM(PartState(4:6,PartID_IN)) ! |v_new| = |v_old|
-        END IF
-      ELSE ! Only perfect elastic scattering of the bombarding electron
-        ProductSpec(1) = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
-        !ProductSpecNbr = 0 ! do not create new particle
-      END IF
-    ELSEIF(Species(PartSpecies(PartID_IN))%ChargeIC.GT.0.0)THEN ! Positive bombarding ion
-      !ProductSpec(1) = PartSpecies(PartID_IN) ! reflect old particle
-      !ProductSpecNbr = 0 ! do not create new particle
-    ELSE ! Neutral bombarding particle
-      !ProductSpec(1) = PartSpecies(PartID_IN) ! reflect old particle
-      !ProductSpecNbr = 0 ! do not create new particle
+      ASSOCIATE( P0   => 0.9 ,& ! Assumption in paper
+                 Te0  => 50  ,& ! Assumed bulk electron temperature [eV]
+                 velo2=> PartState(4,PartID_IN)**2 + PartState(5,PartID_IN)**2 + PartState(6,PartID_IN)**2 ,& ! Velocity squared
+                 mass => Species(PartSpecies(PartID_IN))%MassIC  ) ! mass of bombarding particle
+        eps_e = 0.5*mass*velo2*Joule2eV ! Incident electron energy [eV]
+        WRITE (*,*) "eps_e =", eps_e
+        ASSOCIATE( alpha0 => 1.5*Te0 ,& ! Energy normalization parameter
+                   alpha2 => 6.0*Te0  ) ! Energy normalization parameter
+          W0 = P0*EXP(-(eps_e/alpha0)**2)
+          W2 = 1.0 - EXP(-(eps_e/alpha2)**2)
+          W1 = 1.0 - W2 - W0
+          CALL RANDOM_NUMBER(iRan) ! 1st random number
+          IF(iRan.LT.W0)THEN ! Remove incident electron
+            iRan = iRan - W0
+            IF(iRan.LT.W1)THEN ! 1 SEE
+              ASSOCIATE( P10 => 1.5*W1/eps_e )
+                ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+                ProductSpecNbr = 1 ! Create one new particle
+                v_new          = VECNORM(PartState(4:6,PartID_IN)) ! |v_new| = |v_old|
+                const          = P10 ! Store constant here for usage in VeloFromDistribution()
+              END ASSOCIATE
+            ELSE ! 2 SEE
+              ASSOCIATE( P20 => 3.0*W2/(eps_e**2) )
+                ProductSpec(1) = PartSpecies(PartID_IN) ! reflect old particle
+                ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+                ProductSpecNbr = 2 ! Create two new particles
+                v_new          = VECNORM(PartState(4:6,PartID_IN)) ! |v_new| = |v_old|
+                const          = P20 ! Store constant here for usage in VeloFromDistribution()
+              END ASSOCIATE
+            END IF
+          ELSE ! Only perfect elastic scattering of the bombarding electron
+            ProductSpec(1) = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
+            !ProductSpecNbr = 0 ! do not create new particle
+          END IF
+        END ASSOCIATE
+      END ASSOCIATE
     END IF
 
 END SELECT
 
 ! Sanity check: is the newly created particle faster than c
-IF(v_new.GT.c)THEN
-  CALL abort(&
-      __STAMP__&
-      ,'SecondaryElectronEmission: Particle is faster than the speed of light: '&
-      ,RealInfoOpt=v_new)
-END IF
+IF(v_new.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Particle is faster than the speed of light: ',RealInfoOpt=v_new)
 
 END SUBROUTINE SecondaryElectronEmission
 

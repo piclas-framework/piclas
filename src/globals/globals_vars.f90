@@ -56,6 +56,10 @@ CHARACTER(LEN=255)         :: ProjectName                           !> TODO-DEFI
 CHARACTER(LEN=255)         :: ParameterFile                         !> filename of the parameter file
 CHARACTER(LEN=255)         :: ParameterDSMCFile                     !> filename of the parameterDSMC file
 REAL, PARAMETER            :: BoltzmannConst=1.380648813e-23        !> Boltzmann constant [J/K] SI-Unit! in m^2/(s^2*K)
+REAL, PARAMETER            :: Kelvin2eV=8.61732814974056e-5         !> Conversion factor [K]  -> [eV] (Kelvin to electron volt)
+REAL, PARAMETER            :: eV2Kelvin=1.16045250061657e4          !> Conversion factor [eV] -> [K]  (electron volt to Kelvin)
+REAL, PARAMETER            :: Joule2eV=6.241506363094e+18           !> Conversion factor [J]  -> [eV] (Joule to electron volt)
+REAL, PARAMETER            :: eV2Joule=1.60217734e-19               !> Conversion factor [eV] -> [J]  (electron volt to Joule)
 CHARACTER(LEN=5)           :: TimeStampLenStr,TimeStampLenStr2      !> Strings for timestamp format of time
 
 REAL,PARAMETER             :: maxEXP= LOG(HUGE(maxexp))

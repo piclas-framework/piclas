@@ -297,21 +297,26 @@ IMPLICIT NONE
 END FUNCTION DiceUnitVector
 
 
-FUNCTION VeloFromDistribution(distribution,Tempergy)
 !===================================================================================================================================
-!> calculation of velocityvector (Vx,Vy,Vz) sampled from given distribution function
+!> Calculation of velocity vector (Vx,Vy,Vz) sampled from given distribution function
 !===================================================================================================================================
+FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr)
 ! MODULES
-! IMPLICIT VARIABLE HANDLING
-USE MOD_Globals                 ,ONLY: Abort,UNIT_stdOut
+USE MOD_Globals           ,ONLY: Abort,UNIT_stdOut
+USE MOD_Globals_Vars,ONLY: eV2Joule,ElectronMass
+USE MOD_SurfaceModel_Vars ,ONLY: const
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN) :: distribution !< specifying keyword for velocity distribution
-REAL,INTENT(IN)             :: Tempergy     !< input temperature [K] or energy [J] or velocity [m/s]
+CHARACTER(LEN=*),INTENT(IN) :: distribution   !< specifying keyword for velocity distribution
+REAL,INTENT(IN)             :: Tempergy       !< input temperature [K] or energy [J/eV] or velocity [m/s]
+INTEGER,INTENT(IN)          :: iNewPart       !< The i-th particle that is inserted (only required for some distributions)
+INTEGER,INTENT(IN)          :: ProductSpecNbr !< Total number of particles that are inserted (only required for some distributions)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL            :: VeloFromDistribution(1:3)
+REAL            :: VeloFromDistribution(1:3),RandVal
+LOGICAL         :: ARM
+REAL            :: PDF,VeloABS,eps
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -323,12 +328,39 @@ CASE('deltadistribution')
   ! Mirror z-component of velocity (particles are emitted from surface!)
   VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
   ! Set magnitude
-  VeloFromDistribution = Tempergy*VeloFromDistribution
+  VeloFromDistribution = Tempergy*VeloFromDistribution ! Tempergy is [m/s]
+CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardment on dielectric surfaces
+  IF(ProductSpecNbr.EQ.1)THEN ! 1 SEE
+
+    ! ARM for energy distribution, where "const" is the maximum of the distribution function P10 from SecondaryElectronEmission()
+    ARM =.TRUE.
+    DO WHILE(ARM)
+      CALL RANDOM_NUMBER(RandVal)
+      PDF = 4.0*const*RandVal*(1.0-RandVal)
+      eps = RandVal ! RandVal is eps/eps_p (relative energy as compared with the incident electron energy)
+      CALL RANDOM_NUMBER(RandVal)
+      IF (RandVal.LT.PDF/const) ARM = .FALSE.
+    END DO
+    VeloABS = SQRT(2.0 * eps * Tempergy * eV2Joule / ElectronMass) ! eV to J
+
+    ! Get random vector
+    VeloFromDistribution = DiceUnitVector()
+    ! Mirror z-component of velocity (particles are emitted from surface!)
+    VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
+    ! Set magnitude
+    VeloFromDistribution = VeloABS*VeloFromDistribution ! VeloABS is [m/s]
+
+  ELSE ! 2 SEE
+    IF(iNewPart.EQ.1)THEN ! 1st call
+
+    ! ARM for energy distribution, where "const" is the maximum of the distribution function P20 from SecondaryElectronEmission()
+    ELSE ! 2nd call of this function, velocity already known from last call
+
+    END IF ! iNewPart.EQ.1
+  END IF ! ProductSpecNbr.EQ.1
+
 CASE DEFAULT
-  WRITE (UNIT_stdOut,'(A)') "distribution =", distribution
-  CALL abort(&
-__STAMP__&
-,'wrong velo-distri!')
+  CALL abort(__STAMP__,'Unknown velocity dsitribution: ['//TRIM(distribution)//']')
 END SELECT
 
 END FUNCTION VeloFromDistribution

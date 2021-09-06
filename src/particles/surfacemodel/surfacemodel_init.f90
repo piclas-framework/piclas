@@ -92,7 +92,11 @@ DO iSpec = 1,nSpecies
       ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materials is considered for SEE and three different outcomes)
 !-----------------------------------------------------------------------------------------------------------------------------------
       SurfModResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
-      SurfModEnergyDistribution = 'deltadistribution'
+      IF(PartBound%SurfaceModel(iPartBound).EQ.8)THEN
+        SurfModEnergyDistribution = 'Morozov2004'
+      ELSE
+        SurfModEnergyDistribution = 'deltadistribution'
+      END IF ! PartBound%SurfaceModel(iPartBound).EQ.8
 !-----------------------------------------------------------------------------------------------------------------------------------
     END SELECT
 !-----------------------------------------------------------------------------------------------------------------------------------

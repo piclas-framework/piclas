@@ -26,6 +26,7 @@ INTEGER , ALLOCATABLE                   :: SurfModResultSpec(:,:)       ! Result
                                                                         ! (nPartBound,nSpecies)
 CHARACTER(LEN=50) , ALLOCATABLE         :: SurfModEnergyDistribution(:) ! Energy distribution of the reflected particles
 
+REAL                                    :: const                        ! Constant required for dielectric SEE velocity PDF
 ! === Porous BC ====================================================================================================================
 INTEGER                                 :: nPorousBC                          ! Number of porous BCs
 TYPE tPorousBC

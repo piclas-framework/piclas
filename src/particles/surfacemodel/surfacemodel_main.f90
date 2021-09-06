@@ -40,6 +40,7 @@ SUBROUTINE SurfaceModel(PartID,SideID,ElemID,n_Loc)
 !       5/6/7: Secondary Electron Emission
 !> 4.) Count and sample the properties AFTER the surface interaction
 !===================================================================================================================================
+!USE MOD_Globals           ,ONLY: myrank,ierror,mpi_comm_world
 USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
 USE MOD_Particle_Vars             ,ONLY: PartSpecies, WriteMacroSurfaceValues
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
@@ -150,6 +151,7 @@ CASE (5,6,7,8)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Get electron emission probability
   CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy(2))
+  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
   ! Decide the fate of the impacting particle
   IF (ProductSpec(1).LE.0) THEN
     CALL RemoveParticle(PartID)
@@ -161,9 +163,7 @@ CASE (5,6,7,8)
     CALL SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy)
   END IF
 CASE DEFAULT
-    CALL abort(&
-      __STAMP__&
-      ,'Not implemented anymore!')
+  CALL abort(__STAMP__,'Unknown surface model. PartBound%SurfaceModel(locBCID) = ',IntInfoOpt=PartBound%SurfaceModel(locBCID))
 END SELECT
 
 !===================================================================================================================================
