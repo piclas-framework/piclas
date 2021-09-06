@@ -169,6 +169,10 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
     !  END IF
     END IF
   END ASSOCIATE
+
+  ! Sanity check: is the newly created particle faster than c
+  IF(v_new.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Particle is faster than the speed of light: ',RealInfoOpt=v_new)
+
 CASE(6) ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
   CALL abort(&
   __STAMP__&
@@ -192,10 +196,15 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
   ELSE ! Neutral bombarding particle
     RETURN ! nothing to do
   END IF
+
+  ! Sanity check: is the newly created particle faster than c
+  IF(v_new.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Particle is faster than the speed of light: ',RealInfoOpt=v_new)
+
 CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materials is considered for SEE and three different out-
         ! comes) by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
 
-    ProductSpec(1) = PartSpecies(PartID_IN) ! Reflect old particle
+    !ProductSpec(1) = PartSpecies(PartID_IN) ! Reflect old particle
+    ProductSpec(1) = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
     v_new          = 0. ! Initialize zero
 
     IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
@@ -204,7 +213,6 @@ CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materia
                  velo2=> PartState(4,PartID_IN)**2 + PartState(5,PartID_IN)**2 + PartState(6,PartID_IN)**2 ,& ! Velocity squared
                  mass => Species(PartSpecies(PartID_IN))%MassIC  ) ! mass of bombarding particle
         eps_e = 0.5*mass*velo2*Joule2eV ! Incident electron energy [eV]
-        WRITE (*,*) "eps_e =", eps_e
         ASSOCIATE( alpha0 => 1.5*Te0 ,& ! Energy normalization parameter
                    alpha2 => 6.0*Te0  ) ! Energy normalization parameter
           W0 = P0*EXP(-(eps_e/alpha0)**2)
@@ -217,7 +225,6 @@ CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materia
               ASSOCIATE( P10 => 1.5*W1/eps_e )
                 ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
                 ProductSpecNbr = 1 ! Create one new particle
-                v_new          = VECNORM(PartState(4:6,PartID_IN)) ! |v_new| = |v_old|
                 const          = P10 ! Store constant here for usage in VeloFromDistribution()
               END ASSOCIATE
             ELSE ! 2 SEE
@@ -225,12 +232,12 @@ CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materia
                 ProductSpec(1) = PartSpecies(PartID_IN) ! reflect old particle
                 ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
                 ProductSpecNbr = 2 ! Create two new particles
-                v_new          = VECNORM(PartState(4:6,PartID_IN)) ! |v_new| = |v_old|
                 const          = P20 ! Store constant here for usage in VeloFromDistribution()
               END ASSOCIATE
             END IF
-          ELSE ! Only perfect elastic scattering of the bombarding electron
-            ProductSpec(1) = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
+            v_new = eps_e ! v_new stores the kinetic energy of the bombarding electron, required in VeloFromDistribution()
+          !ELSE ! Only perfect elastic scattering of the bombarding electron
+            !ProductSpec(1) = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
             !ProductSpecNbr = 0 ! do not create new particle
           END IF
         END ASSOCIATE
@@ -239,8 +246,6 @@ CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materia
 
 END SELECT
 
-! Sanity check: is the newly created particle faster than c
-IF(v_new.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Particle is faster than the speed of light: ',RealInfoOpt=v_new)
 
 END SUBROUTINE SecondaryElectronEmission
 

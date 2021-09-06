@@ -303,7 +303,7 @@ END FUNCTION DiceUnitVector
 FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr)
 ! MODULES
 USE MOD_Globals           ,ONLY: Abort,UNIT_stdOut
-USE MOD_Globals_Vars,ONLY: eV2Joule,ElectronMass
+USE MOD_Globals_Vars      ,ONLY: eV2Joule,ElectronMass,c
 USE MOD_SurfaceModel_Vars ,ONLY: const
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -315,8 +315,9 @@ INTEGER,INTENT(IN)          :: ProductSpecNbr !< Total number of particles that 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL            :: VeloFromDistribution(1:3),RandVal
-LOGICAL         :: ARM
-REAL            :: PDF,VeloABS,eps
+LOGICAL         :: ARM,ARM2     !< Acceptance rejection method
+REAL            :: PDF,VeloABS
+REAL            :: eps,eps2     !< kinetic electron energy [eV]
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -333,7 +334,7 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
   IF(ProductSpecNbr.EQ.1)THEN ! 1 SEE
 
     ! ARM for energy distribution, where "const" is the maximum of the distribution function P10 from SecondaryElectronEmission()
-    ARM =.TRUE.
+    ARM = .TRUE.
     DO WHILE(ARM)
       CALL RANDOM_NUMBER(RandVal)
       PDF = 4.0*const*RandVal*(1.0-RandVal)
@@ -351,13 +352,57 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
     VeloFromDistribution = VeloABS*VeloFromDistribution ! VeloABS is [m/s]
 
   ELSE ! 2 SEE
-    IF(iNewPart.EQ.1)THEN ! 1st call
 
     ! ARM for energy distribution, where "const" is the maximum of the distribution function P20 from SecondaryElectronEmission()
-    ELSE ! 2nd call of this function, velocity already known from last call
+    IF(iNewPart.EQ.1)THEN ! 1st call
+      ARM = .TRUE.
+      DO WHILE(ARM)
+        CALL RANDOM_NUMBER(RandVal)
+        PDF = 4.0*const*RandVal*(1.0-RandVal)
+        eps = RandVal ! RandVal is eps/eps_p (relative energy as compared with the incident electron energy)
+        CALL RANDOM_NUMBER(RandVal)
+        IF (RandVal.LT.PDF/const)THEN
+          ARM = .FALSE.
+
+          ! 2nd ARM: if it fails, go back to start
+          ARM2 =.TRUE.
+          DO WHILE(ARM2)
+            CALL RANDOM_NUMBER(RandVal)
+            RandVal = RandVal - eps ! RandVal is reduced by the first accepted eps of the 1st electron
+            PDF = 4.0*const*RandVal*(1.0-RandVal)
+            eps2 = RandVal ! RandVal is eps/eps_p (relative energy as compared with the incident electron energy)
+            CALL RANDOM_NUMBER(RandVal)
+            IF(RandVal.LT.PDF/const)THEN
+              ARM2 = .FALSE. ! success, skip this loop and skip the outer loop
+              ! eV to J: store 2nd electron velocity for next function call
+              const = SQRT(2.0 * eps2 * Tempergy * eV2Joule / ElectronMass)
+            ELSE
+              ARM2 = .FALSE. ! failed, skip this loop and start at the beginning
+              ARM = .TRUE.
+            END IF
+          END DO
+
+        END IF
+      END DO
+      VeloABS = SQRT(2.0 * eps * Tempergy * eV2Joule / ElectronMass) ! eV to J
+
+    ELSE ! 2nd call of this function, velocity already known from last call and stored in "const"
+
+      VeloABS = const
 
     END IF ! iNewPart.EQ.1
+
+    ! Get random vector
+    VeloFromDistribution = DiceUnitVector()
+    ! Mirror z-component of velocity (particles are emitted from surface!)
+    VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
+    ! Set magnitude
+    VeloFromDistribution = VeloABS*VeloFromDistribution ! VeloABS is [m/s]
+
   END IF ! ProductSpecNbr.EQ.1
+
+  ! Sanity check: is the newly created particle faster than c
+  IF(VeloABS.GT.c) CALL abort(__STAMP__,'VeloFromDistribution: Particle is faster than the speed of light: ',RealInfoOpt=VeloABS)
 
 CASE DEFAULT
   CALL abort(__STAMP__,'Unknown velocity dsitribution: ['//TRIM(distribution)//']')
