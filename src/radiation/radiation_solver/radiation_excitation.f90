@@ -76,7 +76,7 @@ USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
       IF (SpeciesRadiation(iSpec)%nLevels.EQ.0) CYCLE
       low_IonizationPot = 2.9E-8*SQRT(NumDensElectrons/1.E6/MAX(1.,RadiationInput(iSpec)%Telec))*ElementaryCharge
 
-      nLevels_considered  = SpeciesRadiation(1)%nLevels
+      nLevels_considered  = SpeciesRadiation(iSpec)%nLevels
 
       IF (low_IonizationPot .NE. 0.0) THEN
         DO iLevel_considered = 1, SpeciesRadiation(iSpec)%nLevels

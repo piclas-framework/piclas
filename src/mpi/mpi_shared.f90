@@ -78,7 +78,7 @@ INTERFACE MPI_SIZE
   MODULE PROCEDURE MPI_SIZE
 END INTERFACE
 
-PUBLIC::UNLOCK_AND_FREE_DUMMY
+PUBLIC::UNLOCK_AND_FREE_DUMMY, Allocate_Shared_Test
 PUBLIC::BARRIER_AND_SYNC
 PUBLIC::MPI_SIZE
 !==================================================================================================================================
@@ -560,6 +560,56 @@ CALL C_F_POINTER(SM_PTR, DataPointer,nVal)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_1
 
+SUBROUTINE Allocate_Shared_Test(nVal,SM_WIN,DataPointer&
+#ifdef DEBUG_MEMORY
+        ,SM_WIN_NAME&
+#endif /*DEBUG_MEMORY*/
+)
+! MODULES
+USE,INTRINSIC :: ISO_C_BINDING
+USE MOD_Globals
+USE MOD_MPI_Vars
+USE MOD_MPI_Shared_Vars
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER(KIND=IK),INTENT(IN)                        :: nVal(1)                  !> Local number of variables in each rank
+INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+REAL   ,INTENT(OUT),POINTER               :: DataPointer(:)         !> Pointer to the RMA window
+#ifdef DEBUG_MEMORY
+CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+#endif /*DEBUG_MEMORY*/
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
+INTEGER                                   :: DISP_UNIT                !> Displacement unit
+INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+!==================================================================================================================================
+! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
+WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+DISP_UNIT = 1
+
+#ifdef DEBUG_MEMORY
+LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+#endif /*DEBUG_MEMORY*/
+
+IF (ASSOCIATED(DataPointer)) CALL abort(&
+__STAMP__&
+,'ERROR: Datapointer (Real1) already associated')
+
+! Allocate MPI-3 remote memory access (RMA) type memory window
+CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
+
+
+! Node MPI root already knows the location in virtual memory, all other find it here
+IF (myComputeNodeRank.NE.0) THEN
+  CALL MPI_WIN_SHARED_QUERY(SM_WIN, 0, WIN_SIZE, DISP_UNIT, SM_PTR,IERROR)
+END IF
+
+! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
+CALL C_F_POINTER(SM_PTR, DataPointer,nVal)
+
+END SUBROUTINE Allocate_Shared_Test
 
 !==================================================================================================================================
 !> Allocate data with MPI-3 shared memory option

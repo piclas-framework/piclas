@@ -193,17 +193,14 @@ NumDensElectrons = GETREAL('Radiation-NumDensElectrons','0.0')
 TElectrons       = GETREAL('Radiation-TElectrons',      '0.0')
 
 #if USE_MPI
-  ! allocate shared array for Radiation_Emission/Absorption_Spec
-SWRITE(*,*) 'Hier0', RadiationParameter%WaveLenDiscr,nComputeNodeElems
+  ! allocate shared array for Radiation_Emission/Absorption_Spec  
 CALL Allocate_Shared((/RadiationParameter%WaveLenDiscr,nComputeNodeElems/), Radiation_Emission_Spec_Shared_Win,Radiation_Emission_Spec_Shared)
 CALL MPI_WIN_LOCK_ALL(0,Radiation_Emission_Spec_Shared_Win,IERROR)
-SWRITE(*,*) 'Hier1'
-CALL Allocate_Shared((/RadiationParameter%WaveLenDiscr*nGlobalElems/),Radiation_Absorption_Spec_Shared_Win,Radiation_Absorption_Spec_Shared)
+CALL Allocate_Shared_Test((/INT(RadiationParameter%WaveLenDiscr,IK)*INT(nGlobalElems,IK)/),Radiation_Absorption_Spec_Shared_Win,Radiation_Absorption_Spec_Shared)
 CALL MPI_WIN_LOCK_ALL(0,Radiation_Absorption_Spec_Shared_Win,IERROR)
-SWRITE(*,*) 'Hier2'
 CALL Allocate_Shared((/nSpecies,nComputeNodeElems,2/), Radiation_ElemEnergy_Species_Shared_Win,Radiation_ElemEnergy_Species_Shared)
 CALL MPI_WIN_LOCK_ALL(0,Radiation_ElemEnergy_Species_Shared_Win,IERROR)
-SWRITE(*,*) 'Hier3'
+
 Radiation_Emission_spec => Radiation_Emission_spec_Shared
 Radiation_Absorption_spec(1:RadiationParameter%WaveLenDiscr ,1:nGlobalElems) => Radiation_Absorption_spec_Shared
 Radiation_ElemEnergy_Species => Radiation_ElemEnergy_Species_Shared
@@ -347,11 +344,11 @@ SUBROUTINE MacroscopicRadiationInput()
   DO iSpec = 1, nSpecies
    DO iElem = 1, nElems
      CNElemID = GetCNElemID(iElem+offsetElem)
-     MacroRadInputParameters(CNElemID,iSpec,1) = ElemData_HDF5(iVar+ 6,iElem) !density
-     MacroRadInputParameters(CNElemID,iSpec,2) = ElemData_HDF5(iVar+ 7,iElem) !T_vib
-     MacroRadInputParameters(CNElemID,iSpec,3) = ElemData_HDF5(iVar+ 8,iElem) !T_rot
-     MacroRadInputParameters(CNElemID,iSpec,4) = ElemData_HDF5(iVar+ 9,iElem) !T_elec
-     MacroRadInputParameters(CNElemID,iSpec,5) = ElemData_HDF5(iVar+11,iElem) !T_mean
+     MacroRadInputParameters(CNElemID,iSpec,1) = MAX(0.,ElemData_HDF5(iVar+ 6,iElem)) !density
+     MacroRadInputParameters(CNElemID,iSpec,2) = MAX(0.,ElemData_HDF5(iVar+ 7,iElem)) !T_vib
+     MacroRadInputParameters(CNElemID,iSpec,3) = MAX(0.,ElemData_HDF5(iVar+ 8,iElem)) !T_rot
+     MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(iVar+ 9,iElem)) !T_elec
+     MacroRadInputParameters(CNElemID,iSpec,5) = MAX(0.,ElemData_HDF5(iVar+11,iElem)) !T_mean
    END DO
    iVar = iVar + DSMC_NVARS
   END DO
