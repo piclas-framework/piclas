@@ -207,7 +207,11 @@ SWRITE(UNIT_stdOut,'(A,I0,A)') ' Following ',this%count_unread(),' Parameters ar
 current => this%firstLink
 DO WHILE (associated(current))
   ! compare name
-  IF (current%opt%isSet.AND.(.NOT.current%opt%isRemoved)) THEN
+  ! current%opt%isSet.:           Parameter is set in INI file
+  ! .NOT.current%opt%isRemoved:   Parameter is used in the code via GET-function
+  ! .NOT.current%opt%isUsedMulti: Parameter containing "$" in its name is set in INI file and at least one correpsonding parameter
+  !                               with a number instead of "$" is used in the code via GET-function
+  IF (current%opt%isSet.AND.(.NOT.current%opt%isRemoved).AND.(.NOT.current%opt%isUsedMulti)) THEN
     CALL set_formatting("red")
     SWRITE(UNIT_stdOut,"(A)") TRIM(current%opt%name)
     CALL clear_formatting()
@@ -358,7 +362,6 @@ END SUBROUTINE removeUnnecessary
 !> before creating check if option is already existing
 !==================================================================================================================================
 SUBROUTINE CreateOption(this, opt, name, description, value, multiple, numberedmulti)
-USE MOD_StringTools ,ONLY: LowCase
 ! INPUT/OUTPUT VARIABLES
 CLASS(Parameters),INTENT(INOUT)       :: this             !< CLASS(Parameters)
 CLASS(OPTION),INTENT(INOUT)           :: opt              !< option class
@@ -370,7 +373,6 @@ LOGICAL,INTENT(IN),OPTIONAL           :: numberedmulti    !< marker if numbered 
 ! LOCAL VARIABLES
 CLASS(link), POINTER :: newLink
 TYPE(Varying_String) :: aStr
-INTEGER              :: ind
 !==================================================================================================================================
 !IF(this%check_options(name)) THEN
 !  CALL Abort(__STAMP__, &
@@ -390,6 +392,7 @@ IF (opt%multiple.AND.opt%hasDefault) THEN
 END IF
 
 opt%numberedmulti = .FALSE.
+
 IF (PRESENT(numberedmulti)) opt%numberedmulti = numberedmulti
 ! Remove/Replace $ occurrences in variable name
 IF(opt%numberedmulti)THEN
@@ -397,21 +400,21 @@ IF(opt%numberedmulti)THEN
   aStr = Replace(aStr,"[]"  ,"$",Every = .true.)
   aStr = Replace(aStr,"[$]" ,"$",Every = .true.)
   aStr = Replace(aStr,"[$$]","$",Every = .true.)
-  CALL LowCase(CHAR(aStr),opt%name)
-  ind = INDEX(TRIM(opt%name),"$")
-  IF(ind.LE.0)THEN
-    CALL abort(&
-    __STAMP__&
-    ,'[numberedmulti] parameter does not contain "$" symbol, which is required for these kinds of variables for ['//TRIM(opt%name)//']')
-  END IF ! ind.LE.0
-ELSE
-  opt%name = name
+  CALL LowCase(TRIM(CHAR(aStr)),opt%namelowercase)
+  opt%ind = INDEX(TRIM(opt%namelowercase),"$")
+  IF(opt%ind.LE.0)THEN
+    CALL abort(__STAMP__&
+    ,'[numberedmulti] parameter does not contain "$" symbol, which is required for these kinds of variables for ['//TRIM(name)//']')
+  END IF ! opt%ind.LE.0
 END IF ! opt%numberedmulti
 
-opt%isSet = .FALSE.
+opt%name        = name
+opt%isSet       = .FALSE.
 opt%description = description
-opt%section = this%actualSection
-opt%isRemoved = .FALSE.
+opt%section     = this%actualSection
+opt%isRemoved   = .FALSE.
+opt%isUsedMulti = .FALSE. ! Becomes true, if a variable containing "$" is set in parameter file and used for the corresponding
+                          ! valued parameter
 
 ! insert option into linked list
 IF (.not. associated(this%firstLink)) then
@@ -801,8 +804,6 @@ CALL MPI_BCAST(FileContent,LEN(FileContent)*nLines,MPI_CHARACTER,0,MPI_COMM_WORL
 
 ! infinte loop. Exit at EOF
 DO i=1,nLines
-  !! Lower case
-  CALL LowCase(FileContent(i),FileContent(i))
   ! read a line into 'aStr'
   aStr=Var_Str(FileContent(i))
   ! Remove comments with "!"
@@ -818,7 +819,7 @@ DO i=1,nLines
   aStr=Replace(aStr,"/)"," ",Every=.true.)
   ! Lower case
   HelpStr=CHAR(aStr)
-  ! If something remaind, this should be an option
+  ! If something remained, this should be an option
   IF (LEN_TRIM(HelpStr).GT.2) THEN
     ! read the option
     IF (.NOT.this%read_option(HelpStr)) THEN
@@ -923,7 +924,7 @@ DO WHILE (associated(current))
   END IF
 END DO
 
-! iterate over all options and compare reduced (all numberes removed) names with numberedmulti options
+! iterate over all options and compare reduced (all numbers removed) names with numberedmulti options
 current => this%firstLink
 DO WHILE (associated(current))
   IF (.NOT.current%opt%numberedmulti) THEN
@@ -941,6 +942,7 @@ DO WHILE (associated(current))
       IF(LEN_TRIM(rest).NE.0)THEN
         CALL newopt%parse(rest)
         newopt%isSet = .TRUE.
+        newopt%isUsedMulti = .FALSE.
         ! insert option
         CALL insertOption(current, newopt)
       ELSE
@@ -1312,6 +1314,12 @@ DO WHILE (associated(current))
               SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
               CALL clear_formatting()
               SWRITE(UNIT_stdOut,"(a3)") ' | '
+              ! remove the option from the linked list of all parameters
+              IF(prms%removeAfterRead) newopt%isRemoved = .TRUE.
+              ! insert option
+              CALL insertOption(current, newopt)
+              ! Indicate that parameter was read at least once and therefore remove the warning that the parameter was not used
+              multi%isUsedMulti = .TRUE.
               RETURN
             END IF
             check => check%next
@@ -1450,7 +1458,7 @@ DO WHILE (associated(current))
   current => current%next
 END DO
 
-! iterate over all options and compare reduced (all numberes removed) names with numberedmulti options
+! iterate over all options and compare reduced (all numbers removed) names with numberedmulti options
 current => prms%firstLink
 DO WHILE (associated(current))
   IF (.NOT.current%opt%numberedmulti) THEN
@@ -1517,6 +1525,12 @@ DO WHILE (associated(current))
               SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
               CALL clear_formatting()
               SWRITE(UNIT_stdOut,"(a3)") ' | '
+              ! remove the option from the linked list of all parameters
+              IF(prms%removeAfterRead) newopt%isRemoved = .TRUE.
+              ! insert option
+              CALL insertOption(current, newopt)
+              ! Indicate that parameter was read at least once and therefore remove the warning that the parameter was not used
+              multi%isUsedMulti = .TRUE.
               RETURN
             END IF
             check => check%next

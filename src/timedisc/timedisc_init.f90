@@ -13,16 +13,16 @@
 #include "piclas.h"
 
 
+!===================================================================================================================================
+!> Module for the Temporal discretization
+!===================================================================================================================================
 MODULE MOD_TimeDiscInit
-!===================================================================================================================================
-! Module for the Temporal discretization
-!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DefineParametersTimeDisc,InitTime,InitTimeDisc,InitTimeStep,FinalizeTimeDisc
+PUBLIC :: DefineParametersTimeDisc,InitTime,InitTimeDisc,InitTimeStep,UpdateTimeStep,FinalizeTimeDisc
 !===================================================================================================================================
 CONTAINS
 
@@ -35,27 +35,19 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("TimeDisc")
-!CALL prms%CreateStringOption('TimeDiscMethod', "Specifies the type of time-discretization to be used, \ne.g. the name of"//&
-                                               !" a specific Runge-Kutta scheme. Possible values:\n"//&
-                                               !"  * standardrk3-3\n  * carpenterrk4-5\n  * niegemannrk4-14\n"//&
-                                               !"  * toulorgerk4-8c\n  * toulorgerk3-7c\n  * toulorgerk4-8f\n"//&
-                                               !"  * ketchesonrk4-20\n  * ketchesonrk4-18", value='CarpenterRK4-5')
-CALL prms%CreateRealOption(  'ManualTimeStep'  , 'Manual timestep [sec]. Old variable name Particles-ManualTimeStep is'//&
-                                                 'also still supported', '-1.0')
-CALL prms%CreateRealOption(  'TEnd',           "End time of the simulation (mandatory).")
-CALL prms%CreateRealOption(  'CFLScale',       "Scaling factor for the theoretical CFL number, typical range 0.1..1.0",value='1.0')
-CALL prms%CreateIntOption(   'maxIter',        "Stop simulation when specified number of timesteps has been performed.", value='-1')
-CALL prms%CreateIntOption(   'NCalcTimeStepMax',"Compute dt at least after every Nth timestep.", value='1')
-
-CALL prms%CreateIntOption(   'IterDisplayStep',"Step size of iteration that are displayed.", value='1')
-
+CALL prms%CreateRealOption('ManualTimeStep'  , 'Manual timestep [sec].'                                                , '-1.0')
+CALL prms%CreateRealOption('TEnd'            , "End time of the simulation (mandatory).")
+CALL prms%CreateRealOption('CFLScale'        , "Scaling factor for the theoretical CFL number; typical range 0.1..1.0" , '1.0')
+CALL prms%CreateIntOption( 'maxIter'         , "Stop simulation when specified number of timesteps has been performed.", '-1')
+CALL prms%CreateIntOption( 'NCalcTimeStepMax', "Compute dt at least after every Nth timestep."                         , '1')
+CALL prms%CreateIntOption( 'IterDisplayStep' , "Step size of iteration that are displayed."                            , '1')
 END SUBROUTINE DefineParametersTimeDisc
 
 
+!===================================================================================================================================
+!> The temporal genesis
+!===================================================================================================================================
 SUBROUTINE InitTime()
-!===================================================================================================================================
-!> The genesis
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_TimeDisc_Vars          ,ONLY: Time,TEnd,tAnalyze,dt_Min
@@ -267,10 +259,10 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitTimeDisc
 
 
+!===================================================================================================================================
+!> Initial time step calculation for new timedisc-loop
+!===================================================================================================================================
 SUBROUTINE InitTimeStep()
-!===================================================================================================================================
-! Initial time step calculation for new timedisc-loop
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_TimeDisc_Vars         ,ONLY: dt, dt_Min,ManualTimeStep,useManualTimestep,sdtCFLOne
@@ -285,9 +277,9 @@ USE MOD_Part_BR_Elecron_Fluid ,ONLY: GetNextBRSwitchTime
 #endif /*defined(PARTICLES) && USE_HDG*/
 #if USE_LOADBALANCE
 USE MOD_TimeDisc_Vars         ,ONLY: dt,dt_Min
-USE MOD_LoadBalance_Vars      ,ONLY: IAR_DoLoadBalance,IAR_LoadBalanceSample,DoLoadBalance
-USE MOD_LoadBalance_Vars      ,ONLY: LoadBalanceSample
-USE MOD_Restart_Vars          ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample,IAR_PerformPartWeightLB
+USE MOD_LoadBalance_Vars      ,ONLY: DoLoadBalanceBackup,LoadBalanceSampleBackup,DoLoadBalance
+USE MOD_LoadBalance_Vars      ,ONLY: LoadBalanceSample,PerformLBSample
+USE MOD_Restart_Vars          ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -304,16 +296,13 @@ ELSE ! .NO. ManualTimeStep
   ! time step is calculated by the solver
   ! first Maxwell time step for explicit LSRK
 #if !(USE_HDG)
-  dt_Min(DT_MIN)    = CalcTimeStep()
-  sdtCFLOne = 1.0/(dt_Min(DT_MIN)*CFLtoOne)
+  dt_Min(DT_MIN) = CalcTimeStep()
+  sdtCFLOne      = 1.0/(dt_Min(DT_MIN)*CFLtoOne)
 #else
-  dt_Min(DT_MIN)    = 0
-  sdtCFLOne = -1.0 !dummy for HDG!!!
+  dt_Min(DT_MIN) = 0
+  sdtCFLOne      = -1.0 !dummy for HDG!!!
 #endif /*USE_HDG*/
 
-  dt=dt_Min(DT_MIN)
-  ! calculate time step for sub-cycling of divergence correction
-  ! automatic particle time step of quasi-stationary time integration is not implemented
 END IF ! useManualTimestep
 
 #if defined(PARTICLES) && USE_HDG
@@ -325,41 +314,111 @@ BRTimeStepBackup = dt_Min(DT_MIN)
 IF(UseBRElectronFluid) dt_Min(DT_MIN) = BRTimeStepMultiplier*dt_Min(DT_MIN)
 #endif /*defined(PARTICLES) && USE_HDG*/
 
+! Select the smallest time delta
+dt = MINVAL(dt_Min)
 SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_StdOut,'(A,ES16.7)')'Initial Timestep  : ', dt_Min(DT_MIN)
-! using sub-cycling requires an addional time step
+SWRITE(UNIT_StdOut,'(A,ES16.7)')'Initial Timestep  : ', dt
 
-! --- Adjustments for first analysis step and/or initial auto restart
-dt=MINVAL(dt_Min) ! quick fix: set dt for initial write DSMCHOState (WriteMacroVolumeValues=T)
+! Sanity check: dt must be greater zero, this can happen when using a fixed timestep TD and not supplying a value for dt
+IF(dt.LE.0.)THEN
+  IPWRITE(UNIT_StdOut,*) "Initial timestep dt_Min=[",dt_Min,"]"
+  !CALL abort(__STAMP__,'Time step is less/equal zero: dt = ',RealInfoOpt=dt)
+END IF
 
 #if USE_LOADBALANCE
 IF (DoInitialAutoRestart) THEN
-  IAR_DoLoadBalance     = DoLoadBalance
-  DoLoadBalance         = .TRUE.
-  IAR_LoadbalanceSample = LoadBalanceSample
-  LoadBalanceSample     = InitialAutoRestartSample
-  ! Correct initialautrestartSample if partweight_initialautorestart is enabled so tAnalyze is calculated correctly
-  ! LoadBalanceSample still needs to be zero
-  IF (IAR_PerformPartWeightLB) InitialAutoRestartSample=1
-  ! Correction for first analysis time due to auto initial restart
-  !IF (MIN( RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt ).LT.tAnalyze) THEN
-  !  tAnalyze           = MIN(RestartTime+iAnalyze*Analyze_dt , tEnd , RestartTime+InitialAutoRestartSample*dt )
-  !  dt_Min(DT_ANALYZE) = tAnalyze-Time
-  !  dt                 = MINVAL(dt_Min)
-  !END IF
+
+  ! Set general load balance flag ON
+  DoLoadBalanceBackup   = DoLoadBalance ! Backup
+  DoLoadBalance         = .TRUE.        ! Force TRUE (during automatic restart, original variable might be false)
+
+  ! Backup number of samples required for each load balance
+  LoadBalanceSampleBackup = LoadBalanceSample        ! Backup: this is zero when PerformPartWeightLB=.TRUE.
+  LoadBalanceSample       = InitialAutoRestartSample ! this is zero when InitialAutoRestartPartWeight=.TRUE.
+
+  ! Activate sampling in first time step
+  PerformLBSample=.TRUE.
+
+  ! Sanity check: initial automatic restart must happen before tAnalyze is reached (tAnalyze < LoadBalanceSample*dt not implemented)
+  DO WHILE(LoadBalanceSample*dt.GT.dt_Min(DT_ANALYZE).AND.(LoadBalanceSample.GT.1))
+   LoadBalanceSample = LoadBalanceSample-1
+  END DO
+
 END IF
 #endif /*USE_LOADBALANCE*/
 END SUBROUTINE InitTimeStep
 
 
-SUBROUTINE FillCFL_DFL()
 !===================================================================================================================================
-! scaling of the CFL number, from paper GASSNER, KOPRIVA, "A comparision of the Gauss and Gauss-Lobatto
-! Discontinuous Galerkin Spectral Element Method for Wave Propagation Problems" . For N=1-10,
-! input CFLscale can now be 1. and will be scaled adequately depending on PP_N, NodeType and TimeDisc method
-! DFLscale dependance not implemented jet.
+!> Update time step at the beginning of each timedisc loop
 !===================================================================================================================================
+SUBROUTINE UpdateTimeStep()
+! MODULES
+USE MOD_Globals          ,ONLY: abort,UNIT_StdOut,myrank,LESSEQUALTOLERANCE
+USE MOD_TimeDisc_Vars    ,ONLY: dt,time,tEnd,tAnalyze,dt_Min,dtWeight
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: DoLoadBalance,LoadBalanceSample,PerformLBSample
+#endif /*USE_LOADBALANCE*/
+#if (PP_TimeDiscMethod==509)
+USE MOD_TimeDisc_Vars    ,ONLY: iter,dt_old
+USE MOD_Globals          ,ONLY: MPIRoot
+#endif /*(PP_TimeDiscMethod==509)*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+dt_Min(DT_ANALYZE) = tAnalyze-time ! Time to next analysis, put in extra variable so number does not change due to numerical errors
+dt_Min(DT_END)     = tEnd    -time ! Do the same for end time
 
+#if (PP_TimeDiscMethod==509)
+IF (iter.GT.0) dt_old=dt
+#endif /*(PP_TimeDiscMethod==509)*/
+
+dt       = MINVAL(dt_Min)
+dtWeight = dt/dt_Min(DT_MIN) ! Might be further decreased by RK-stages
+
+#if (PP_TimeDiscMethod==509)
+IF (iter.EQ.0) THEN
+  dt_old=dt
+ELSE IF (ABS(dt-dt_old).GT.1.0E-6*dt_old) THEN
+  SWRITE(UNIT_StdOut,'(A,G0)')'WARNING: dt changed from last iter by a relative difference of ',(dt-dt_old)/dt_old
+END IF
+#endif /*(PP_TimeDiscMethod==509)*/
+
+#if USE_LOADBALANCE
+! Activate normal load balancing (NOT initial restart load balancing)
+! 1.) Catch all iterations within sampling interval (make sure to get the first iteration in interval): LESSEQUALTOLERANCE(a,b,tol)
+! 2.)             Load balancing is activated: DoLoadBalance=T 
+IF( LESSEQUALTOLERANCE(dt_Min(DT_ANALYZE), LoadBalanceSample*dt, 1e-5) &
+    .AND. DoLoadBalance) PerformLBSample=.TRUE. ! Activate load balancing in this time step
+#endif /*USE_LOADBALANCE*/
+
+IF(dt_Min(DT_ANALYZE)-dt.LT.dt/100.0) dt = dt_Min(DT_ANALYZE) ! Increase time step if the NEXT time step would be smaller than dt/100
+IF(    dt_Min(DT_END)-dt.LT.dt/100.0) dt = dt_Min(DT_END)     ! Increase time step if the LAST time step would be smaller than dt/100
+
+! Sanity check: dt must be greater zero
+IF(dt.LE.0.)THEN
+  IPWRITE(UNIT_StdOut,*) "time=[", time,"], dt_Min=[",dt_Min,"], tAnalyze=[",tAnalyze,"]"
+  IF(dt.LT.0.)THEN
+    CALL abort(__STAMP__,'dt < 0: Is something wrong with tEnd? Error in dt_Min(DT_END) or dt_Min(DT_ANALYZE)! dt=',RealInfoOpt=dt)
+  ELSE
+    CALL abort(__STAMP__,'Time step is less/equal zero: dt=',RealInfoOpt=dt)
+  END IF
+END IF
+
+END SUBROUTINE UpdateTimeStep
+
+
+!===================================================================================================================================
+!> scaling of the CFL number, from paper GASSNER, KOPRIVA, "A comparision of the Gauss and Gauss-Lobatto
+!> Discontinuous Galerkin Spectral Element Method for Wave Propagation Problems" . For N=1-10,
+!> input CFLscale can now be 1. and will be scaled adequately depending on PP_N, NodeType and TimeDisc method
+!> DFLscale dependance not implemented jet.
+!===================================================================================================================================
+SUBROUTINE FillCFL_DFL()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -408,10 +467,10 @@ SWRITE(UNIT_stdOut,'(A,ES16.7)') '   CFL:',CFLScale
 END SUBROUTINE FillCFL_DFL
 
 
+!===================================================================================================================================
+!> Deallocate timedisc variables
+!===================================================================================================================================
 SUBROUTINE FinalizeTimeDisc()
-!===================================================================================================================================
-!> The genesis
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_TimeDisc_Vars, ONLY:TimeDiscInitIsDone

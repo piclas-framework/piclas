@@ -110,9 +110,6 @@ CALL prms%CreateIntOption(      'Part-RotPeriodicAxi'         , 'Axis of rotatio
 CALL prms%CreateRealOption(     'Part-RotPeriodicAngle'       , 'Angle for rotational periodicity [deg]', '1.0')
 CALL prms%CreateIntOption(      'Part-nPeriodicVectors'       , 'Number of the periodic vectors j=1,...,n.'//&
                                                                    ' Value has to be the same as defined in preprog.ini', '0')
-CALL prms%CreateRealArrayOption('Part-PeriodicVector[$]'      , 'Vector for periodic boundaries.'//&
-                                                                   'Has to be the same as defined in preproc.ini in their'//&
-                                                                   ' respective order. ', '1. , 0. , 0.', numberedmulti=.TRUE.)
 
 CALL prms%CreateRealOption(     'Part-DelayTime'              , "During delay time the particles,"//&
                                                                 " won't be moved so the EM field can be evolved", '0.0')
@@ -394,7 +391,7 @@ USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 #if USE_MPI
-USE MOD_Particle_MPI           ,ONLY: InitEmissionComm
+USE MOD_Particle_MPI_Emission  ,ONLY: InitEmissionComm
 USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/

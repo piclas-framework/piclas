@@ -833,13 +833,13 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 ! Check if the analyze subroutines are called depending on the input parameters
 ! Input parameters
 ! 1) OutputTime
-!    * current time of analyze analze
+!    * current time of analyze
 ! 2) FirstOrLastIter
 !    * logical flag for first or last iteration
 !      This step is required for the correct opening and closing of a *.csv Database. Furthermore it is needed to prevent
 !      duplicates from the *.csv Database file
 ! 3) OutPutHDF5
-!    * OutputHDF5 is ture if a state file is written
+!    * OutputHDF5 is true if a state file is written
 ! The perform-analyze routine is called four times within the timedisc
 ! 1) initialize before the first iteration. call is performed for an initial computation and a restart
 ! 2) after the time update
@@ -887,7 +887,8 @@ USE MOD_DSMC_Analyze              ,ONLY: DSMC_data_sampling, WriteDSMCToHDF5
 USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 USE MOD_Particle_Vars             ,ONLY: DelayTime
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
+USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,rTotalBezierNewton
+!USE MOD_Particle_Surfaces_Vars    ,ONLY: SideBoundingBoxVolume
 USE MOD_Particle_Analyze_Code     ,ONLY: AnalyticParticleMovement
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
 USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
@@ -926,9 +927,9 @@ INTEGER                       :: iSide
 INTEGER                       :: RECI
 REAL                          :: RECR
 #endif /*USE_MPI*/
-#ifdef CODE_ANALYZE
-REAL                          :: TotalSideBoundingBoxVolume
-#endif /*CODE_ANALYZE*/
+!#ifdef CODE_ANALYZE
+!REAL                          :: TotalSideBoundingBoxVolume
+!#endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
@@ -1045,15 +1046,13 @@ IF(DoRestart .AND. iter.EQ.0) DoPerformSurfaceAnalyze=.FALSE.
 IF(FirstOrLastIter .AND. .NOT.OutPutHDF5 .AND.iter.NE.0) DoPerformSurfaceAnalyze=.FALSE.
 #endif /*PARTICLES*/
 
-! selection of error calculation for first iteration, output time but not lastiteration
+! selection of error calculation for first iteration, output time but not last iteration
 DoPerformErrorCalc=.FALSE.
-IF(FirstOrLastIter.OR.OutputHDF5)THEN
-  IF(.NOT.LastIter) DoPerformErrorCalc=.TRUE.
-END IF
+IF((FirstOrLastIter.OR.OutputHDF5).AND.(.NOT.LastIter)) DoPerformErrorCalc=.TRUE.
 
 IF((DoPerformFieldAnalyze.OR.DoPerformPartAnalyze.OR.DoPerformSurfaceAnalyze).AND.DoMeasureAnalyzeTime)THEN
-  StartAnalyzeTime=PICLASTIME()
-  AnalyzeCount = AnalyzeCount + 1
+  StartAnalyzeTime = PICLASTIME()
+  AnalyzeCount     = AnalyzeCount + 1
 END IF
 
 
@@ -1075,9 +1074,7 @@ IF(DoCalcErrorNorms) THEN
       CALL AnalyzeToFile(OutputTime,CurrentTime,L_2_Error)
     END IF
 #ifdef PARTICLES
-    IF (DoDeposition .AND. RelaxDeposition) THEN
-      CALL CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
-    END IF
+    IF (DoDeposition.AND.RelaxDeposition) CALL CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 #endif /*PARTICLES*/
   END IF
 END IF
@@ -1123,17 +1120,11 @@ END IF
 ! PIC, DSMC and other Particle-based Solvers
 !----------------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
-IF (DoPartAnalyze) THEN
-  IF(DoPerformPartAnalyze)    CALL AnalyzeParticles(OutputTime)
-END IF
-IF(DoPerformSurfaceAnalyze) CALL AnalyzeSurface(OutputTime)
-IF(TrackParticlePosition) THEN
-  IF(DoPerformPartAnalyze) CALL WriteParticleTrackingData(OutputTime,iter) ! new function
-END IF
+IF (DoPartAnalyze.AND.DoPerformPartAnalyze)          CALL AnalyzeParticles(OutputTime)
+IF(DoPerformSurfaceAnalyze)                          CALL AnalyzeSurface(OutputTime)
+IF(TrackParticlePosition.AND.DoPerformPartAnalyze)   CALL WriteParticleTrackingData(OutputTime,iter) ! new function
 #ifdef CODE_ANALYZE
-IF(DoInterpolationAnalytic)THEN
-  IF(DoPerformPartAnalyze) CALL AnalyticParticleMovement(OutputTime,iter)
-END IF
+IF(DoInterpolationAnalytic.AND.DoPerformPartAnalyze) CALL AnalyticParticleMovement(OutputTime,iter)
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 
@@ -1239,15 +1230,15 @@ IF(TrackingMethod.NE.TRIATRACKING)THEN
       SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks
       SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierClips : ' , rTotalBezierClips
       SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierNewton: ' , rTotalBezierNewton
-      TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
-#if USE_MPI
-      IF(MPIRoot) THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE, TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-      ELSE ! no Root
-        CALL MPI_REDUCE(TotalSideBoundingBoxVolume ,           0 , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-      END IF
-#endif /*USE_MPI*/
-      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
+!      TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
+!#if USE_MPI
+!      IF(MPIRoot) THEN
+!        CALL MPI_REDUCE(MPI_IN_PLACE, TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+!      ELSE ! no Root
+!        CALL MPI_REDUCE(TotalSideBoundingBoxVolume ,           0 , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+!      END IF
+!#endif /*USE_MPI*/
+!      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
     END IF
   END IF
 END IF ! TrackingMethod.NE.TRIATRACKING

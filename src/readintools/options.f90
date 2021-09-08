@@ -21,14 +21,19 @@ MODULE MOD_Options
   IMPLICIT NONE
   PRIVATE
 !================================================
-!> Genereal, abstract OPTION
+!> General, abstract OPTION
 !================================================
   TYPE,PUBLIC  :: OPTION
     CLASS(OPTION),POINTER :: next         !< pointer to next option, used for a linked list of options
     CHARACTER(LEN=255)    :: name         !< name of the option, case-insensitive (part before '=' in parameter file)
+    CHARACTER(LEN=255)    :: namelowercase!< name of the option, lower-case (part before '=' in parameter file), only required for
+                                          !< numberedmulti
+    INTEGER               :: ind          !< FIRST index of $ in namelowercase, only required for numberedmulti
     CHARACTER(LEN=1000)   :: description  !< comment in parameter file, after '!' character
     CHARACTER(LEN=255)    :: section      !< section to which the option belongs. Not mandatory.
     LOGICAL               :: isSet        !< default false. Becomes true, if set in parameter file
+    LOGICAL               :: isUsedMulti  !< default false. Becomes true, if a variable containing "$" is set in parameter file and
+                                          !< used, e.g., Part-Species$-nInits is used as Part-Species1-nInits
     LOGICAL               :: hasDefault   !< default false. True if a default value is given in CreateXXXOption routine
     LOGICAL               :: multiple     !< default false. Indicates if an option can occur multiple times in parameter file
     LOGICAL               :: isRemoved    !< default false. Indicates if the option is already used (GET... call) and therefore is
@@ -166,14 +171,28 @@ CHARACTER(LEN=*),INTENT(IN) :: name !< incoming name, which is compared with the
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL               :: NAMEEQUALSNUMBERED
-INTEGER               :: i,ind,ind2,ind3
+INTEGER               :: j,i,ind,ind2,ind3,jMax
 CHARACTER(LEN=255)    :: thisname,testname
 !==================================================================================================================================
-ind      = INDEX(TRIM(this%name),"$")
-thisname = this%name ! this is already lower case
-CALL LowCase(name,testname)
+! Example:
+! testname = 'part-species1-spaceic' <- this string is kept constant (it is "tested" against all others)
+! thisname = 'part-species$-ninits'  <- this string is looped
 
-NAMEEQUALSNUMBERED = .FALSE.
+NAMEEQUALSNUMBERED = .FALSE. ! Initialize
+
+! 1. check testname for numbers and $ (the latter allows setting multiple parameters to the same value)
+CALL LowCase(TRIM(name),testname)
+! This check only increases the performance
+jMax = LEN(TRIM(testname))
+DO j = 1, jMax
+  ind2=INDEX('0123456789$',testname(j:j))
+  IF(ind2.GT.0)  EXIT   ! number found, continue
+  IF(j.EQ.jMax) RETURN ! if no number is found in testname
+END DO ! j
+
+! 2. loop all segments of thisname
+thisname = this%namelowercase ! this is already lower case version of this%name with [] removed
+ind      = this%ind
 DO WHILE(ind.GT.0)
   ind2 = INDEX(TRIM(testname), TRIM(thisname(1:ind-1)))
   IF(ind2.GT.0)THEN
@@ -192,7 +211,7 @@ DO WHILE(ind.GT.0)
         IF(ind2.GT.0)THEN
           testname = TRIM(testname(MIN(ind2,LEN(TRIM(testname)) ):))
           NAMEEQUALSNUMBERED = STRICMP(thisname, testname)
-        ELSE! if thisname if not in testname, e.g., Part-Boundary3-SourceName and Part-Boundary3-Condition
+        ELSE ! if thisname is not in testname, e.g., Part-Boundary3-SourceName and Part-Boundary3-Condition
           ind=0
           NAMEEQUALSNUMBERED=.FALSE.
         END IF ! ind2.GT.0
@@ -202,7 +221,7 @@ DO WHILE(ind.GT.0)
     ind = 0
     NAMEEQUALSNUMBERED = .FALSE.
   END IF ! ind2.NE.0
-END DO
+END DO ! WHILE ind.GT.0
 
 END FUNCTION NAMEEQUALSNUMBERED
 

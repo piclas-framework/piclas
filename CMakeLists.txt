@@ -33,6 +33,19 @@ INCLUDE(CMakeDependentOption)
 OPTION(PICLAS_PERFORMANCE "Enable performance optimizations (e.g. PGO for GNU)" OFF)
 
 # =========================================================================
+# code development
+# =========================================================================
+OPTION(PICLAS_CODE_ANALYZE "Code Analyze" OFF)
+OPTION(PICLAS_EXTRAE "Extrae instrumentation for code profiling (event tracing)" OFF)
+
+OPTION(PICLAS_READIN_CONSTANTS "Allow read-in of user-defined constants, such as the vacuum speed of light c0, permittivity eps and permeability mu." OFF)
+IF (PICLAS_READIN_CONSTANTS)
+  ADD_DEFINITIONS(-DUSE_READIN_CONSTANTS=1)
+ELSE()
+  ADD_DEFINITIONS(-DUSE_READIN_CONSTANTS=0)
+ENDIF()
+
+# =========================================================================
 # Machine environment
 # =========================================================================
 INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/CMakeListsMachine.txt)

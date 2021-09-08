@@ -22,7 +22,7 @@ It is suggested to copy each folder to a new directory, where you can run and mo
 ```{toctree}
 ---
 maxdepth: 2
-caption: Contents
+caption: Table of Contents
 ---
 pic-poisson-plasma-wave/pic-poisson-plasma-wave.md
 ```
