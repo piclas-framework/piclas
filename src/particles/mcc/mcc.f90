@@ -43,7 +43,7 @@ USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec, DSMC_RHS
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles, XSec_NullCollision
-USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar, UseBGGasSplit, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar, RadialWeighting
 USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticleVelocity
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
@@ -160,6 +160,7 @@ END IF
 
 ! 2.) Determining the total number of pairs
 DO iSpec = 1,nSpecies
+  IF(SpecPartNum(iSpec).EQ.0) CYCLE ! No particles for species iSpec present
   IF(BGGas%BackgroundSpecies(iSpec)) CYCLE    ! Loop over all non-background species
   DO bgSpec = 1, BGGas%NumberOfSpecies        ! Loop over all background species
     jSpec = BGGas%MapBGSpecToSpec(bgSpec)
@@ -226,7 +227,7 @@ DO iSpec = 1, nSpecies
       ! ==============================================================================================================================
       ! BGGasSplit
       ! ==============================================================================================================================
-      IF(usevMPF.AND.UseBGGasSplit) THEN
+      IF(usevMPF.AND.BGGas%TraceSpecies(jSpec)) THEN
         IF(SplitInProgress) THEN
           IF(iPartSplit.LT.SplitPartNum) THEN
             ! Clone the regular particle (re-using the index of the previous particle if it didn't collide)
@@ -412,7 +413,7 @@ DO iSpec = 1, nSpecies
           bggPartIndex = 0
           InternalEnergySet = .FALSE.
         END IF
-        IF(usevMPF.AND.UseBGGasSplit) THEN
+        IF(usevMPF.AND.BGGas%TraceSpecies(jSpec)) THEN
           ! Set index to zero to get a new one for the next split particle
           PartIndex = 0
         END IF
