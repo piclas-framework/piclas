@@ -87,7 +87,7 @@ REAL                                    :: rPerformBezierClip           ! number
 REAL                                    :: rPerformBezierNewton         ! number of performed bezier newton intersections
 REAL(KIND=16)                           :: rTotalBezierClips            ! total number of performed bezier clips
 REAL(KIND=16)                           :: rTotalBezierNewton           ! total number of performed bezier newton intersections
-REAL,ALLOCATABLE,DIMENSION(:)           :: SideBoundingBoxVolume        ! Bounding Box volume
+!REAL,ALLOCATABLE,DIMENSION(:)           :: SideBoundingBoxVolume        ! Bounding Box volume
 #endif /*CODE_ANALYZE*/
 
 ! Surface sampling

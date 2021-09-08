@@ -81,12 +81,13 @@ REAL,INTENT(OUT)           :: Delta_Norm_Rel
 REAL                       :: X,DeltaX
 INTEGER                    :: iElem, i,j,k,iVar
 REAL                       :: rRel
-LOGICAL                    :: warning_linear
 #if USE_MPI
 REAL                       :: NormArray(3), GlobalNormArray(3)
 #endif /*USE_MPI*/
 #if ! (USE_HDG)
-REAL                     :: rTmp(1:8), locMass
+REAL                       :: rTmp(1:8), locMass
+#else
+LOGICAL                    :: warning_linear
 #endif /*DG*/
 !===================================================================================================================================
 

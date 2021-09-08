@@ -14,7 +14,7 @@
 
 MODULE MOD_Particle_Mesh_Tools
 !===================================================================================================================================
-! Contains subroutines to build (curviilinear) meshes and provide metrics, etc.
+! Contains subroutines to build (curvilinear) meshes and provide metrics, etc.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -22,14 +22,6 @@ IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Initialization routines
-INTERFACE InitPEM_LocalElemID
-  MODULE PROCEDURE InitPEM_LocalElemID
-END INTERFACE
-
-INTERFACE InitPEM_CNElemID
-  MODULE PROCEDURE InitPEM_CNElemID
-END INTERFACE
-
 INTERFACE GetGlobalNonUniqueSideID
   MODULE PROCEDURE GetGlobalNonUniqueSideID
 END INTERFACE
@@ -40,7 +32,7 @@ END INTERFACE
 
 PUBLIC :: ParticleInsideQuad3D, InitPEM_LocalElemID, InitPEM_CNElemID, GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
 PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, InitElemNodeIDs
-PUBLIC :: CalcBezierControlPoints, InitParticleGeometry
+PUBLIC :: CalcBezierControlPoints, InitParticleGeometry, ComputePeriodicVec
 !===================================================================================================================================
 CONTAINS
 
@@ -1782,5 +1774,192 @@ END ASSOCIATE
 CALL BARRIER_AND_SYNC(ElemNodeID_Shared_Win,MPI_COMM_SHARED)
 #endif
 END SUBROUTINE InitElemNodeIDs
+
+
+SUBROUTINE ComputePeriodicVec()
+!===================================================================================================================================
+! Init of Particle mesh
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Mesh_Vars              ,ONLY: NGeo,BoundaryType
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+#if USE_MPI
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_MPI_Shared             ,ONLY: Allocate_Shared,MPI_SIZE,BARRIER_AND_SYNC
+USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_SHARED
+#else
+USE MOD_Mesh_Vars              ,ONLY: nElems
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER,PARAMETER              :: iNode=1
+INTEGER                        :: iVec
+INTEGER                        :: firstElem,lastElem,NbSideID,BCALPHA,flip
+INTEGER                        :: SideID,ElemID,NbElemID,localSideID,localSideNbID,nStart
+INTEGER                        :: CornerNodeIDswitch(8),NodeMap(4,6)
+REAL,DIMENSION(3)              :: MasterCoords,SlaveCoords
+LOGICAL,ALLOCPOINT             :: PeriodicFound(:)
+#if USE_MPI
+REAL,ALLOCATABLE               :: sendbuf(:),recvbuf(:,:)
+INTEGER                        :: PeriodicFound_Win
+#endif
+INTEGER                        :: iBC,iPartBC
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
+CornerNodeIDswitch(1)=1
+CornerNodeIDswitch(2)=(NGeo+1)
+CornerNodeIDswitch(3)=(NGeo+1)**2
+CornerNodeIDswitch(4)=(NGeo+1)*NGeo+1
+CornerNodeIDswitch(5)=(NGeo+1)**2*NGeo+1
+CornerNodeIDswitch(6)=(NGeo+1)**2*NGeo+(NGeo+1)
+CornerNodeIDswitch(7)=(NGeo+1)**2*NGeo+(NGeo+1)**2
+CornerNodeIDswitch(8)=(NGeo+1)**2*NGeo+(NGeo+1)*NGeo+1
+
+! Corner node switch to order HOPR coordinates in CGNS format
+ASSOCIATE(CNS => CornerNodeIDswitch )
+! CGNS Mapping
+NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
+NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
+NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
+NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
+NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
+NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
+
+! Find number of periodic vectors
+GEO%nPeriodicVectors = MAXVAL(BoundaryType(:,BC_ALPHA))
+IF (GEO%nPeriodicVectors.EQ.0) RETURN
+
+#if USE_MPI
+firstElem = INT(REAL( myComputeNodeRank*   nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
+
+! Somehow the pointer is associated at this point, nullify it
+NULLIFY(PeriodicFound)
+CALL Allocate_Shared((/GEO%nPeriodicVectors/),PeriodicFound_Win,PeriodicFound)
+CALL MPI_WIN_LOCK_ALL(0,PeriodicFound_Win,IERROR)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
+#else
+firstElem = 1
+lastElem  = nElems
+
+ALLOCATE(PeriodicFound(1:GEO%nPeriodicVectors))
+#endif /*USE_MPI*/
+
+! Only root nullifies
+#if USE_MPI
+IF (myComputeNodeRank.EQ.0) THEN
+#endif  /*USE_MPI*/
+  PeriodicFound(:) = .FALSE.
+#if USE_MPI
+END IF
+CALL BARRIER_AND_SYNC(PeriodicFound_Win,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
+
+ALLOCATE(GEO%PeriodicVectors(1:3,GEO%nPeriodicVectors))
+GEO%PeriodicVectors = 0.
+
+DO ElemID = firstElem,lastElem
+  ! Every periodic vector already found
+  IF (ALL(PeriodicFound(:))) EXIT
+
+  DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
+
+    ! Get BC
+    iBC = SideInfo_Shared(SIDE_BCID,SideID)
+    IF(iBC.EQ.0) CYCLE
+
+    ! Get particle BC
+    iPartBC = PartBound%MapToPartBC(iBC)
+    IF (iPartBC.EQ.0) CYCLE
+
+    ! Boundary is a periodic boundary
+    IF (PartBound%TargetBoundCond(iPartBC).NE.3) CYCLE
+
+    ! Check if side is master side
+    BCALPHA = BoundaryType(iBC,BC_ALPHA)
+
+    IF (BCALPHA.GT.0) THEN
+      ! Periodic vector already found
+      IF (PeriodicFound(BCALPHA)) CYCLE
+
+      ! Periodic slave side has same ID, but negative sign
+      flip          = MERGE(0,MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
+      NbElemID      = SideInfo_Shared(SIDE_NBELEMID,SideID)
+      localSideID   = SideInfo_Shared(SIDE_LOCALID,SideID)
+      localSideNbID = (SideInfo_Shared(SIDE_FLIP,SideID)-flip)/10
+      NbSideID      = GetGlobalNonUniqueSideID(NbElemID,localSideNbID)
+      nStart        = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,NbSideID),10)-1)
+
+      ! Only take the first node into account, no benefit in accuracy if running over others as well
+      MasterCoords = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)  +NodeMap(iNode                  ,localSideID))
+      SlaveCoords  = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,NbElemID)+NodeMap(MOD(nStart+5-iNode,4)+1,localSideNbID))
+      GEO%PeriodicVectors(:,BCALPHA) = SlaveCoords - MasterCoords
+      PeriodicFound(BCALPHA) = .TRUE.
+    END IF
+  END DO
+END DO
+
+END ASSOCIATE
+
+#if USE_MPI
+ALLOCATE(sendbuf(GEO%nPeriodicVectors)                           ,&
+         recvbuf(GEO%nPeriodicVectors,0:nComputeNodeProcessors-1))
+sendbuf = 0.
+recvbuf = 0.
+
+DO iVec = 1,GEO%nPeriodicVectors
+  sendbuf(iVec) = MERGE(VECNORM(GEO%PeriodicVectors(:,iVec)),HUGE(1.),VECNORM(GEO%PeriodicVectors(:,iVec)).GT.0)
+END DO
+
+! Do it by hand, MPI_ALLREDUCE seems problematic with MPI_2DOUBLE_PRECISION and MPI_MINLOC
+! https://stackoverflow.com/questions/56307320/mpi-allreduce-not-synchronizing-properly
+!CALL MPI_ALLREDUCE(MPI_IN_PLACE,sendbuf,GEO%nPeriodicVectors,MPI_2DOUBLE_PRECISION,MPI_MINLOC,MPI_COMM_SHARED,iERROR)
+DO iVec = 1,GEO%nPeriodicVectors
+  CALL MPI_ALLGATHER(sendbuf(iVec),1,MPI_DOUBLE_PRECISION,recvbuf(iVec,:),1,MPI_DOUBLE_PRECISION,MPI_COMM_SHARED,iERROR)
+  ! MINLOC does not follow array bounds, so root rank = 1
+  CALL MPI_BCAST(GEO%PeriodicVectors(:,iVec),3,MPI_DOUBLE_PRECISION,MINLOC(recvbuf(iVec,:),1)-1,MPI_COMM_SHARED,iError)
+END DO
+
+! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+! Deallocate only after MPI_BCAST safely returned
+DEALLOCATE(sendbuf,recvbuf)
+CALL MPI_WIN_UNLOCK_ALL(PeriodicFound_Win,iError)
+CALL MPI_WIN_FREE(      PeriodicFound_Win,iError)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+#endif /*USE_MPI*/
+ADEALLOCATE(PeriodicFound)
+
+#if USE_MPI
+IF (myRank.EQ.0) THEN
+#endif /*USE_MPI*/
+  WRITE(UNIT_StdOut,'(A,I0,A)') ' Found ',GEO%nPeriodicVectors,' periodic vectors for particle tracking'
+  DO iVec = 1,GEO%nPeriodicVectors
+    WRITE(UNIT_stdOut,'(A,I1,A,F12.8,2(", ",F12.8))') ' | Periodic vector ',iVec,': ', GEO%PeriodicVectors(:,iVec)
+  END DO
+
+  ! Sanity check
+  DO iVec = 1,GEO%nPeriodicVectors
+    IF(VECNORM(GEO%PeriodicVectors(:,iVec)).LE.0.)THEN
+      CALL abort(__STAMP__,'Norm of GEO%PeriodicVectors(:,iVec) <= 0 for iVec =',IntInfoOpt=iVec)
+    END IF
+  END DO
+#if USE_MPI
+END IF
+#endif /*USE_MPI*/
+
+END SUBROUTINE ComputePeriodicVec
+
 
 END MODULE MOD_Particle_Mesh_Tools

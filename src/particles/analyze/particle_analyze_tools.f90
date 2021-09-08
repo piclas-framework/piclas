@@ -259,7 +259,7 @@ END SUBROUTINE CalcNumPartsOfSpec
 SUBROUTINE AllocateElectronIonDensityCell()
 ! MODULES
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
-USE MOD_Preproc               ,ONLY: PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -302,7 +302,7 @@ END SUBROUTINE AllocateElectronIonDensityCell
 SUBROUTINE AllocateElectronTemperatureCell()
 ! MODULES
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
-USE MOD_Preproc               ,ONLY: PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2339,7 +2339,7 @@ SUBROUTINE CalculateIonizationCell()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Preproc                ,ONLY:PP_nElems
+USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  ,ONLY:IonizationCell,QuasiNeutralityCell,NeutralDensityCell,ElectronDensityCell,IonDensityCell
 USE MOD_Particle_Analyze_Vars  ,ONLY:ChargeNumberCell
 USE MOD_Particle_Mesh_Vars     ,ONLY:ElemVolume_Shared

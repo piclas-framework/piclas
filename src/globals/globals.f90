@@ -155,6 +155,7 @@ INTERFACE TransformVectorFromSphericalCoordinates
   MODULE PROCEDURE TransformVectorFromSphericalCoordinates
 END INTERFACE
 
+#if defined(PARTICLES)
 INTERFACE PARTISELECTRON
   MODULE PROCEDURE PARTISELECTRON
 END INTERFACE
@@ -162,6 +163,7 @@ END INTERFACE
 INTERFACE SPECIESISELECTRON
   MODULE PROCEDURE SPECIESISELECTRON
 END INTERFACE
+#endif /*defined(PARTICLES)*/
 
 INTERFACE LOG_RAN
   MODULE PROCEDURE LOG_RAN
@@ -1154,7 +1156,7 @@ ELSE
 END IF ! SubStringLength.GT.0.AND.MainStringLength.GT.0
 END FUNCTION StringBeginsWith
 
-
+#if defined(PARTICLES)
 PPURE FUNCTION PARTISELECTRON(PartID)
 !===================================================================================================================================
 ! check if particle is an electron (species-charge = -1.609)
@@ -1203,6 +1205,7 @@ SPECIESISELECTRON=.FALSE.
 IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
 IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) SPECIESISELECTRON=.TRUE.
 END FUNCTION SPECIESISELECTRON
+#endif /*defined(PARTICLES)*/
 
 
 RECURSIVE FUNCTION LOG_RAN() RESULT(X)
@@ -1271,6 +1274,30 @@ REAL,INTENT(IN) :: X
 !===================================================================================================================================
 L = IEEE_IS_FINITE(X)
 END FUNCTION ISFINITE
+
+
+!===================================================================================================================================
+!> Check if a <= b or a is almost equal to b via ALMOSTEQUALRELATIVE
+!> Catch tolerance issues when b is only an epsilon smaller than a but the inquiry should be that they are equal
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION LESSEQUALTOLERANCE(a,b,tol)
+! MODULES
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: a,b !< Two real numbers for comparison
+REAL,INTENT(IN) :: tol !< fix for tolerance issues
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF((a.LE.b).OR.(ALMOSTEQUALRELATIVE(a,b,tol)))THEN
+  LESSEQUALTOLERANCE = .TRUE.
+ELSE
+  LESSEQUALTOLERANCE = .FALSE.
+END IF
+END FUNCTION LESSEQUALTOLERANCE
 
 
 END MODULE MOD_Globals
