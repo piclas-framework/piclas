@@ -75,7 +75,7 @@ INTEGER, INTENT(IN)           :: iElem
 INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, jSpec, bgSpec, PartIndex, bggPartIndex, PairCount, RandomPart
 INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNumTemp, nPartAmbi, OldPairNum, CNElemID
 INTEGER                       :: iVib, nVib, iPairNew, iPartSplit, SplitPartNum, SplitRestPart
-INTEGER,ALLOCATABLE           :: iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:)
+INTEGER,ALLOCATABLE           :: iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:), UseSpecPartNum(:)
 REAL                          :: iRan, ProbRest, SpecPairNumReal, MPF, Volume
 INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalAmbiDel(:)
 INTEGER, ALLOCATABLE, TARGET  :: iPartIndx_Node(:), iPartIndx_NodeTotalAmbi(:)
@@ -118,7 +118,8 @@ ALLOCATE(iPartIndexSpec(nPart,nSpecies))
 iPartIndexSpec = 0
 
 ALLOCATE(SpecPartNum(nSpecies),SpecPairNum(CollInf%NumCase))
-SpecPairNum = 0; SpecPairNumTemp = 0; SpecPairNumReal = 0.; SpecPartNum = 0
+ALLOCATE(UseSpecPartNum(nSpecies))
+SpecPairNum = 0; SpecPairNumTemp = 0; SpecPairNumReal = 0.; SpecPartNum = 0; UseSpecPartNum = 0
 CALL InitCalcVibRelaxProb()
 
 IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
@@ -175,16 +176,20 @@ DO iSpec = 1,nSpecies
       SpecPairNumTemp = INT(BGGas%SpeciesFraction(bgSpec)*SpecPartNum(iSpec))
     END IF
     ! Avoid creating more pairs than currently particles in the simulation
-    IF(SpecPairNum(iCase) + SpecPairNumTemp.LT.SpecPartNum(iSpec)) THEN
+!!!    IF(SpecPairNum(iCase) + SpecPairNumTemp.LT.SpecPartNum(iSpec)) THEN
+    IF(UseSpecPartNum(iSpec) + SpecPairNumTemp.LT.SpecPartNum(iSpec)) THEN
       ! Randomly deciding whether an additional pair is added based on the difference between the real and integer value
       ProbRest = SpecPairNumReal - REAL(SpecPairNumTemp)
       CALL RANDOM_NUMBER(iRan)
       IF (ProbRest.GT.iRan) SpecPairNumTemp = SpecPairNumTemp + 1
       ! Adding the number of pairs to the species-specific number and the cell total
       SpecPairNum(iCase) = SpecPairNum(iCase) + SpecPairNumTemp
+      UseSpecPartNum(iSpec) = UseSpecPartNum(iSpec) + SpecPairNumTemp
       MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNumTemp
-    ELSE IF(SpecPairNum(iCase) + SpecPairNumTemp.EQ.SpecPartNum(iSpec)) THEN
+!!!    ELSE IF(SpecPairNum(iCase) + SpecPairNumTemp.EQ.SpecPartNum(iSpec)) THEN
+    ELSE IF(UseSpecPartNum(iSpec) + SpecPairNumTemp.EQ.SpecPartNum(iSpec)) THEN
       SpecPairNum(iCase) = SpecPairNum(iCase) + SpecPairNumTemp
+      UseSpecPartNum(iSpec) = UseSpecPartNum(iSpec) + SpecPairNumTemp
       MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNumTemp
     END IF
   END DO
@@ -506,6 +511,7 @@ DEALLOCATE(iPartIndx_Node)
 SDEALLOCATE(iPartIndx_NodeTotalAmbiDel)
 DEALLOCATE(iPartIndexSpec)
 DEALLOCATE(SpecPartNum)
+DEALLOCATE(UseSpecPartNum)
 DEALLOCATE(SpecPairNum)
 DEALLOCATE(Coll_pData)
 
