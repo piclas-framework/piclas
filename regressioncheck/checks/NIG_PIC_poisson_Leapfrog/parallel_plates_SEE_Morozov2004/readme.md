@@ -6,8 +6,5 @@
   - (i) the incident electron disappears and the wall acquires a negative charge
   - (ii) one secondary electron with energy eps is knocked out of the wall, and 
   - (iii) two secondary electrons with energies eps1 and eps2 are knocked out of the wall
-- Coupled Power
-  - output is compared with a reference value that has been tuned to give ~ X J
-  - parameter.ini for activating coupled Power output
-
-        CalcCoupledPower = T
+- Compare number of particles: PartAnalyze.csv
+  - output is compared with a reference value for const. collision energy of primary electrons of 50, 100 and 200 eV

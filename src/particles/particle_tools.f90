@@ -337,10 +337,10 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
     ARM = .TRUE.
     DO WHILE(ARM)
       CALL RANDOM_NUMBER(RandVal) ! random x-coordinate
-      PDF = 4.0*const*RandVal*(1.0-RandVal)
+      PDF = 4.0*RandVal*(1.0-RandVal)
       eps = RandVal ! RandVal is eps/eps_p (relative energy as compared with the incident electron energy)
       CALL RANDOM_NUMBER(RandVal) ! random y-coordinate
-      IF (RandVal.LT.PDF/const) ARM = .FALSE.
+      IF (RandVal.LT.PDF) ARM = .FALSE.
     END DO
     VeloABS = SQRT(2.0 * eps * Tempergy * eV2Joule / ElectronMass) ! eV to J
 
@@ -358,10 +358,10 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
       ARM = .TRUE.
       DO WHILE(ARM)
         CALL RANDOM_NUMBER(RandVal)
-        PDF = 4.0*const*RandVal*(1.0-RandVal)
+        PDF = 4.0*RandVal*(1.0-RandVal)
         eps = RandVal ! RandVal is eps/eps_p (relative energy as compared with the incident electron energy)
         CALL RANDOM_NUMBER(RandVal)
-        IF (RandVal.LT.PDF/const)THEN
+        IF (RandVal.LT.PDF)THEN
           ARM = .FALSE.
 
           ! 2nd ARM: if it fails, go back to start
@@ -369,10 +369,10 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
           DO WHILE(ARM2)
             CALL RANDOM_NUMBER(RandVal)
             RandVal = RandVal - eps ! RandVal is reduced by the first accepted eps of the 1st electron
-            PDF = 4.0*const*RandVal*(1.0-RandVal)
+            PDF = 4.0*RandVal*(1.0-RandVal)
             eps2 = RandVal ! RandVal is eps/eps_p (relative energy as compared with the incident electron energy)
             CALL RANDOM_NUMBER(RandVal)
-            IF(RandVal.LT.PDF/const)THEN
+            IF(RandVal.LT.PDF)THEN
               ARM2 = .FALSE. ! success, skip this loop and skip the outer loop
               ! eV to J: store 2nd electron velocity for next function call
               const = SQRT(2.0 * eps2 * Tempergy * eV2Joule / ElectronMass)
