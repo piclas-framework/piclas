@@ -340,7 +340,7 @@ END FUNCTION GETSTRLENREAL
 !==================================================================================================================================
 !> print option
 !==================================================================================================================================
-SUBROUTINE print(this, maxNameLen, maxValueLen, mode)
+SUBROUTINE print(this, maxNameLen, maxValueLen, mode, customName)
 ! MODULES
 USE MOD_StringTools
 USE MOD_ISO_VARYING_STRING
@@ -350,10 +350,11 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-CLASS(OPTION),INTENT(IN)    :: this         !< option to print
-INTEGER,INTENT(IN)          :: maxNameLen   !< max string length of name
-INTEGER,INTENT(IN)          :: maxValueLen  !< max string length of value
-INTEGER,INTENT(IN)          :: mode         !< 0: during readin, 1: default parameter file, 2: markdown
+CLASS(OPTION),INTENT(IN)             :: this         !< option to print
+INTEGER,INTENT(IN)                   :: maxNameLen   !< max string length of name
+INTEGER,INTENT(IN)                   :: maxValueLen  !< max string length of value
+INTEGER,INTENT(IN)                   :: mode         !< 0: during readin, 1: default parameter file, 2: markdown
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: customName   !< special name for printing to be used instead of this%name
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=20)    :: fmtName
@@ -374,7 +375,11 @@ IF (mode.EQ.0) THEN
   WRITE(fmtName,*) maxNameLen
   SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
   CALL set_formatting("blue")
-  SWRITE(UNIT_stdOut,"(a"//fmtName//")", ADVANCE='NO') TRIM(this%name)
+  IF(PRESENT(customName))THEN
+    SWRITE(UNIT_stdOut,"(a"//fmtName//")", ADVANCE='NO') TRIM(customName)
+  ELSE
+    SWRITE(UNIT_stdOut,"(a"//fmtName//")", ADVANCE='NO') TRIM(this%name)
+  END IF ! PRESENT(customName)
   CALL clear_formatting()
 ELSE
   SWRITE(UNIT_StdOut,"(A" // ADJUSTL(fmtName) // ")",ADVANCE='NO') this%name(:maxNameLen)

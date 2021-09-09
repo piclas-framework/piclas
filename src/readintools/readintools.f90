@@ -1380,7 +1380,7 @@ DO WHILE (associated(current))
         END SELECT
       END SELECT
       ! print option and value to stdout
-      CALL newopt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
+      CALL newopt%print(prms%maxNameLen, prms%maxValueLen, mode=0, customName=name)
       ! remove the option from the linked list of all parameters
       IF(prms%removeAfterRead) newopt%isRemoved = .TRUE.
       ! insert option
@@ -1604,7 +1604,7 @@ DO WHILE (associated(current))
         END SELECT
       END SELECT
       ! print option and value to stdout
-      CALL newopt%print(prms%maxNameLen, prms%maxValueLen, mode=0)
+      CALL newopt%print(prms%maxNameLen, prms%maxValueLen, mode=0, customName=name)
       ! remove the option from the linked list of all parameters
       IF(prms%removeAfterRead) newopt%isRemoved = .TRUE.
       ! insert option
