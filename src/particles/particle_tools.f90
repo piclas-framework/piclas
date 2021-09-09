@@ -336,10 +336,10 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
     ! ARM for energy distribution, where "const" is the maximum of the distribution function P10 from SecondaryElectronEmission()
     ARM = .TRUE.
     DO WHILE(ARM)
-      CALL RANDOM_NUMBER(RandVal)
+      CALL RANDOM_NUMBER(RandVal) ! random x-coordinate
       PDF = 4.0*const*RandVal*(1.0-RandVal)
       eps = RandVal ! RandVal is eps/eps_p (relative energy as compared with the incident electron energy)
-      CALL RANDOM_NUMBER(RandVal)
+      CALL RANDOM_NUMBER(RandVal) ! random y-coordinate
       IF (RandVal.LT.PDF/const) ARM = .FALSE.
     END DO
     VeloABS = SQRT(2.0 * eps * Tempergy * eV2Joule / ElectronMass) ! eV to J

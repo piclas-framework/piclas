@@ -219,7 +219,7 @@ CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materia
           W2 = 1.0 - EXP(-(eps_e/alpha2)**2)
           W1 = 1.0 - W2 - W0
           CALL RANDOM_NUMBER(iRan) ! 1st random number
-          IF(iRan.LT.W0)THEN ! Remove incident electron
+          IF(iRan.GT.W0)THEN ! Remove incident electron
             iRan = iRan - W0
             IF(iRan.LT.W1)THEN ! 1 SEE
               ASSOCIATE( P10 => 1.5*W1/eps_e )
@@ -229,16 +229,12 @@ CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materia
               END ASSOCIATE
             ELSE ! 2 SEE
               ASSOCIATE( P20 => 3.0*W2/(eps_e**2) )
-                ProductSpec(1) = PartSpecies(PartID_IN) ! reflect old particle
                 ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
                 ProductSpecNbr = 2 ! Create two new particles
                 const          = P20 ! Store constant here for usage in VeloFromDistribution()
               END ASSOCIATE
             END IF
-            v_new = eps_e ! v_new stores the kinetic energy of the bombarding electron, required in VeloFromDistribution()
-          !ELSE ! Only perfect elastic scattering of the bombarding electron
-            !ProductSpec(1) = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
-            !ProductSpecNbr = 0 ! do not create new particle
+            v_new = eps_e
           END IF
         END ASSOCIATE
       END ASSOCIATE
