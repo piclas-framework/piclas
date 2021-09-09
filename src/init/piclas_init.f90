@@ -231,7 +231,7 @@ CALL InitInterfaces() ! set Riemann solver identifier for face connectivity (vac
 ! read in
 IF (.NOT.IsLoadBalance) THEN
   CALL prms%WriteUnused()
-  CALL prms%RemoveUnnecessary()
+  ! CALL prms%RemoveUnnecessary() ! We need to keep the numberedMulti in case we want the default value
 END IF
 
 
