@@ -1344,7 +1344,7 @@ DO WHILE (associated(current))
       END DO
       ! create new instance of multiple option
       ALLOCATE(newopt, source=current%opt)
-      ! remove the option from the linked list of all parameters
+      ! set name of new option like name in read line and set it being not multiple numbered
       newopt%name = name
       newopt%numberedmulti = .FALSE.
       newopt%isSet = .FALSE.
@@ -1568,7 +1568,7 @@ DO WHILE (associated(current))
       END DO
       ! create new instance of multiple option
       ALLOCATE(newopt, source=current%opt)
-      ! remove the option from the linked list of all parameters
+      ! set name of new option like name in read line and set it being not multiple numbered
       newopt%name = name
       newopt%numberedmulti = .FALSE.
       newopt%isSet = .FALSE.
