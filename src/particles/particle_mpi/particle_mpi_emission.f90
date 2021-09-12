@@ -42,7 +42,7 @@ SUBROUTINE InitEmissionComm()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
+USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,MPI_halo_eps
 USE MOD_Particle_Vars,          ONLY:Species,nSpecies
 USE MOD_Particle_Mesh_Vars,     ONLY:GEO
 #if !(USE_HDG)
@@ -151,7 +151,7 @@ DO iSpec=1,nSpecies
       ! Check 1st region (emission at fixed x-position x=2.4cm)
       ASSOCIATE( &
                  x2 => 2.4001e-2    ,& ! m
-                 x1 => 2.3999e-2    ,& ! m
+                 x1 => 2.3999e-2-MPI_halo_eps ,& ! m
                  y2 => GEO%ymaxglob ,& ! m
                  y1 => GEO%yminglob ,& ! m
                  z2 => GEO%zmaxglob ,& ! m
@@ -194,7 +194,7 @@ DO iSpec=1,nSpecies
       ! Check one region (emission at fixed x-position x=30 mm)
       ASSOCIATE( &
                  x2 => 30.01e-3    ,& ! m
-                 x1 => 29.99e-3    ,& ! m
+                 x1 => 29.99e-3-MPI_halo_eps ,& ! m
                  y2 => GEO%ymaxglob ,& ! m
                  y1 => GEO%yminglob ,& ! m
                  z2 => GEO%zmaxglob ,& ! m
@@ -219,7 +219,7 @@ DO iSpec=1,nSpecies
                  y2 => GEO%ymaxglob ,& ! m
                  y1 => GEO%yminglob ,& ! m
                  z2 => 30.01e-3 ,& ! m
-                 z1 => 29.99e-3 )
+                 z1 => 29.99e-3-MPI_halo_eps)
        ! Check all 8 edges
        xCoords(1:3,1) = (/x1,y1,z1/)
        xCoords(1:3,2) = (/x2,y1,z1/)
@@ -455,6 +455,12 @@ DO iSpec=1,nSpecies
       WRITE(hilf,'(A,I0,A,I0)') 'Species',iSpec,'-Init',iInit
       CALL CollectiveStop(__STAMP__,'The emission region was not found on any processor.  No processor in range for '//TRIM(hilf))
     END IF
+
+    ! Add PartMPI%MPIRoot to specific inits automatically for output of analysis data to disk
+    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+    CASE('2D_landmark_neutralization','2D_Liu2010_neutralization','3D_Liu2010_neutralization')
+      IF(PartMPI%MPIRoot) RegionOnProc=.TRUE.
+    END SELECT
 
     ! create new communicator
     color = MERGE(nInitRegions,MPI_UNDEFINED,RegionOnProc)
