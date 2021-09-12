@@ -412,9 +412,7 @@ CASE('photon_SEE_energy')
     END IF
   END DO
 CASE DEFAULT
-  CALL abort(&
-__STAMP__&
-,'wrong velo-distri!')
+  CALL abort(__STAMP__,'wrong velo-distri! velocityDistribution='//TRIM(velocityDistribution))
 END SELECT
 END SUBROUTINE SetParticleVelocity
 
