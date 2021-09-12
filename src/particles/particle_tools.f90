@@ -304,7 +304,7 @@ FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr)
 ! MODULES
 USE MOD_Globals           ,ONLY: Abort,UNIT_stdOut
 USE MOD_Globals_Vars      ,ONLY: eV2Joule,ElectronMass,c
-USE MOD_SurfaceModel_Vars ,ONLY: const
+USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -333,7 +333,7 @@ CASE('deltadistribution')
 CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardment on dielectric surfaces
   IF(ProductSpecNbr.EQ.1)THEN ! 1 SEE
 
-    ! ARM for energy distribution, where "const" is the maximum of the distribution function P10 from SecondaryElectronEmission()
+    ! ARM for energy distribution
     ARM = .TRUE.
     DO WHILE(ARM)
       CALL RANDOM_NUMBER(RandVal) ! random x-coordinate
@@ -344,16 +344,9 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
     END DO
     VeloABS = SQRT(2.0 * eps * Tempergy * eV2Joule / ElectronMass) ! eV to J
 
-    ! Get random vector
-    VeloFromDistribution = DiceUnitVector()
-    ! Mirror z-component of velocity (particles are emitted from surface!)
-    VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
-    ! Set magnitude
-    VeloFromDistribution = VeloABS*VeloFromDistribution ! VeloABS is [m/s]
-
   ELSE ! 2 SEE
 
-    ! ARM for energy distribution, where "const" is the maximum of the distribution function P20 from SecondaryElectronEmission()
+    ! ARM for energy distribution
     IF(iNewPart.EQ.1)THEN ! 1st call
       ARM = .TRUE.
       DO WHILE(ARM)
@@ -368,14 +361,14 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
           ARM2 =.TRUE.
           DO WHILE(ARM2)
             CALL RANDOM_NUMBER(RandVal)
-            RandVal = RandVal - eps ! RandVal is reduced by the first accepted eps of the 1st electron
+            RandVal = RandVal*(1.0-eps) ! RandVal is scaled by the accepted eps of the 1st electron so that eps1+eps2<=eps_p
             PDF = 4.0*RandVal*(1.0-RandVal)
             eps2 = RandVal ! RandVal is eps/eps_p (relative energy as compared with the incident electron energy)
             CALL RANDOM_NUMBER(RandVal)
             IF(RandVal.LT.PDF)THEN
               ARM2 = .FALSE. ! success, skip this loop and skip the outer loop
               ! eV to J: store 2nd electron velocity for next function call
-              const = SQRT(2.0 * eps2 * Tempergy * eV2Joule / ElectronMass)
+              BackupVeloABS = SQRT(2.0 * eps2 * Tempergy * eV2Joule / ElectronMass)
             ELSE
               ARM2 = .FALSE. ! failed, skip this loop and start at the beginning
               ARM = .TRUE.
@@ -386,20 +379,20 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
       END DO
       VeloABS = SQRT(2.0 * eps * Tempergy * eV2Joule / ElectronMass) ! eV to J
 
-    ELSE ! 2nd call of this function, velocity already known from last call and stored in "const"
+    ELSE ! 2nd call of this function, velocity already known from last call and stored in "BackupVeloABS"
 
-      VeloABS = const
+      VeloABS = BackupVeloABS
 
     END IF ! iNewPart.EQ.1
 
-    ! Get random vector
-    VeloFromDistribution = DiceUnitVector()
-    ! Mirror z-component of velocity (particles are emitted from surface!)
-    VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
-    ! Set magnitude
-    VeloFromDistribution = VeloABS*VeloFromDistribution ! VeloABS is [m/s]
-
   END IF ! ProductSpecNbr.EQ.1
+
+  ! Get random vector
+  VeloFromDistribution = DiceUnitVector()
+  ! Mirror z-component of velocity (particles are emitted from surface!)
+  VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
+  ! Set magnitude
+  VeloFromDistribution = VeloABS*VeloFromDistribution ! VeloABS is [m/s]
 
   ! Sanity check: is the newly created particle faster than c
   IF(VeloABS.GT.c) CALL abort(__STAMP__,'VeloFromDistribution: Particle is faster than the speed of light: ',RealInfoOpt=VeloABS)

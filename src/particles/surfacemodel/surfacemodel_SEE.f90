@@ -36,13 +36,12 @@ SUBROUTINE SecondaryElectronEmission(PartID_IN,locBCID,ProductSpec,ProductSpecNb
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals,ONLY: myrank,ierror,mpi_comm_world
-USE MOD_Globals           ,ONLY: abort,VECNORM,PARTISELECTRON
-USE MOD_Globals_Vars      ,ONLY: c,Joule2eV
-USE MOD_Particle_Vars     ,ONLY: PartState,Species,PartSpecies
-USE MOD_Globals_Vars      ,ONLY: ElementaryCharge,ElectronMass
-USE MOD_SurfaceModel_Vars ,ONLY: SurfModResultSpec,const
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Globals                ,ONLY: abort,VECNORM,PARTISELECTRON
+USE MOD_Globals_Vars           ,ONLY: c,Joule2eV
+USE MOD_Particle_Vars          ,ONLY: PartState,Species,PartSpecies
+USE MOD_Globals_Vars           ,ONLY: ElementaryCharge,ElectronMass
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModResultSpec
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -222,17 +221,17 @@ CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materia
           IF(iRan.GT.W0)THEN ! Remove incident electron
             iRan = iRan - W0
             IF(iRan.LT.W1)THEN ! 1 SEE
-              ASSOCIATE( P10 => 1.5*W1/eps_e )
+              !ASSOCIATE( P10 => 1.5*W1/eps_e )
                 ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
                 ProductSpecNbr = 1 ! Create one new particle
-                const          = P10 ! Store constant here for usage in VeloFromDistribution()
-              END ASSOCIATE
+                !const          = P10 ! Store constant here for usage in VeloFromDistribution()
+              !END ASSOCIATE
             ELSE ! 2 SEE
-              ASSOCIATE( P20 => 3.0*W2/(eps_e**2) )
+              !ASSOCIATE( P20 => 3.0*W2/(eps_e**2) )
                 ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
                 ProductSpecNbr = 2 ! Create two new particles
-                const          = P20 ! Store constant here for usage in VeloFromDistribution()
-              END ASSOCIATE
+                !const          = P20 ! Store constant here for usage in VeloFromDistribution()
+              !END ASSOCIATE
             END IF
             v_new = eps_e
           END IF
