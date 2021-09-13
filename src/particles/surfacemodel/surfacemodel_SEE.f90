@@ -202,8 +202,6 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
 CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materials is considered for SEE and three different out-
         ! comes) by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
 
-    !ProductSpec(1) = PartSpecies(PartID_IN) ! Reflect old particle
-    ProductSpec(1) = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
     v_new          = 0. ! Initialize zero
 
     IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
@@ -224,16 +222,20 @@ CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materia
               !ASSOCIATE( P10 => 1.5*W1/eps_e )
                 ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
                 ProductSpecNbr = 1 ! Create one new particle
+                ProductSpec(1) = PartSpecies(PartID_IN) ! Reflect old particle
                 !const          = P10 ! Store constant here for usage in VeloFromDistribution()
               !END ASSOCIATE
             ELSE ! 2 SEE
               !ASSOCIATE( P20 => 3.0*W2/(eps_e**2) )
                 ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
                 ProductSpecNbr = 2 ! Create two new particles
+                ProductSpec(1) = PartSpecies(PartID_IN) ! Reflect old particle
                 !const          = P20 ! Store constant here for usage in VeloFromDistribution()
               !END ASSOCIATE
             END IF
             v_new = eps_e
+          ELSE
+            ProductSpec(1) = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
           END IF
         END ASSOCIATE
       END ASSOCIATE
