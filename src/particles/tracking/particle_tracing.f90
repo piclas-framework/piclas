@@ -821,6 +821,7 @@ USE MOD_Particle_Localization       ,ONLY: SinglePointToElement
 USE MOD_Particle_Surfaces_Vars      ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars          ,ONLY: ElemBaryNGeo
 USE MOD_Particle_Vars               ,ONLY: PartState
+USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -837,7 +838,7 @@ REAL,INTENT(INOUT)                :: Eta                      !<
 LOGICAL,INTENT(INOUT)             :: PartIsDone               !< Flag indicating if tracking of PartID is finished
 LOGICAL,INTENT(OUT)               :: crossedBC                !< Flag indicating if BC has been hit
 LOGICAL,INTENT(INOUT)             :: DoLocSide(1:6)           !<
-INTEGER,INTENT(INOUT)             :: ElemID                   !< Element ID particle is currently in
+INTEGER,INTENT(INOUT)             :: ElemID                   !< global Element ID particle is currently in
 REAL,INTENT(INOUT),DIMENSION(1:3) :: PartTrajectory           !< normalized particle trajectory (x,y,z)
 REAL,INTENT(INOUT)                :: lengthPartTrajectory     !< length of particle trajectory
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -851,6 +852,7 @@ REAL                              :: locAlpha,locXi,locEta
 REAL                              :: n_loc(3)
 #ifdef CODE_ANALYZE
 REAL                              :: v1(3),v2(3)
+INTEGER                           :: CNElemID
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
 ! Side is a boundary side
@@ -884,7 +886,8 @@ ELSE
            + BezierControlPoints3D(:,NGeo,0   ,SideID)  &
            + BezierControlPoints3D(:,0   ,NGeo,SideID)  &
            + BezierControlPoints3D(:,NGeo,NGeo,SideID))
-  v2 = v1  - ElemBaryNGeo(:,ElemID)
+  CNElemID = GetCNElemID(ElemID)
+  v2 = v1  - ElemBaryNGeo(:,CNElemID)
 
   IF (DOT_PRODUCT(v2,n_loc).LT.0) THEN
     IPWRITE(UNIT_stdout,*) 'Obtained wrong side orientation from flip. SideID:',SideID,'flip:',flip,'PartID:',PartID
