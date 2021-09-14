@@ -42,8 +42,10 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("SurfaceModel")
 
-CALL prms%CreateIntOption(     'Part-Species[$]-PartBound[$]-ResultSpec'&
-                               ,'Resulting recombination species (one of nSpecies)','-1', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption( 'Part-Species[$]-PartBound[$]-ResultSpec','Resulting recombination species (one of nSpecies)',&
+                           '-1', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-SurfaceModel-SEE-Te','Bulk electron temperature for SEE model by Morozov2004 in Kelvin (default corresponds to 50 eV)',&
+                           '5.80226250308285e5')
 
 END SUBROUTINE DefineParametersSurfModel
 
@@ -53,11 +55,11 @@ SUBROUTINE InitSurfaceModel()
 !> Initialize surface model variables
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_Particle_Vars             ,ONLY: nSpecies
-USE MOD_ReadInTools               ,ONLY: GETINT
-USE MOD_Particle_Boundary_Vars    ,ONLY: nPartBound, PartBound
-USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec, SurfModEnergyDistribution
+USE MOD_Globals_Vars           ,ONLY: Kelvin2eV
+USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_ReadInTools            ,ONLY: GETINT,GETREAL
+USE MOD_Particle_Boundary_Vars ,ONLY: nPartBound,PartBound
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModResultSpec,SurfModEnergyDistribution,SurfModSEEelectronTemp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -67,10 +69,13 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(32)                     :: hilf, hilf2
-INTEGER                           :: iSpec, iPartBound
+CHARACTER(32) :: hilf, hilf2
+INTEGER       :: iSpec, iPartBound
+LOGICAL       :: ReadSurfModSEEelectronTemp
 !===================================================================================================================================
 IF (.NOT.(ANY(PartBound%Reactive))) RETURN
+
+ReadSurfModSEEelectronTemp = .FALSE. ! Initialize
 
 ALLOCATE(SurfModResultSpec(1:nPartBound,1:nSpecies))
 SurfModResultSpec = 0
@@ -94,6 +99,7 @@ DO iSpec = 1,nSpecies
       SurfModResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
       IF(PartBound%SurfaceModel(iPartBound).EQ.8)THEN
         SurfModEnergyDistribution = 'Morozov2004'
+        ReadSurfModSEEelectronTemp = .TRUE.
       ELSE
         SurfModEnergyDistribution = 'deltadistribution'
       END IF ! PartBound%SurfaceModel(iPartBound).EQ.8
@@ -102,6 +108,13 @@ DO iSpec = 1,nSpecies
 !-----------------------------------------------------------------------------------------------------------------------------------
   END DO
 END DO
+
+
+! If SEE model by Morozov is used, read the additional parameter for the electron bulk temperature
+IF(ReadSurfModSEEelectronTemp)THEN
+  SurfModSEEelectronTemp = GETREAL('Part-SurfaceModel-SEE-Te') ! default is 50 eV = 5.80226250308285e5 K
+  SurfModSEEelectronTemp = SurfModSEEelectronTemp*Kelvin2eV    ! convert to eV to be used in the code
+END IF ! ReadSurfModSEEelectronTemp
 
 END SUBROUTINE InitSurfaceModel
 
