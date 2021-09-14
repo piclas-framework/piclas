@@ -54,7 +54,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-MassIC'  &
                                 , 'Atomic mass of species [$] [kg]', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MacroParticleFactor' &
                                 , 'Particle weighting factor: number of simulation particles per real particle for species [$]' &
-                                , '1.', numberedmulti=.TRUE.)
+                                , numberedmulti=.TRUE.)
 #if defined(IMPA)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  &
                                 , 'Flag if specific particle species is implicit', '.FALSE.', numberedmulti=.TRUE.)

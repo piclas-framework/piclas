@@ -17,47 +17,49 @@
 !> Option-classes for values that are read from the parameter file (integer,logical, real, string; each single or array).
 !==================================================================================================================================
 MODULE MOD_Options
-  USE MOD_Globals ,ONLY:MPIRoot,UNIT_StdOut
-  IMPLICIT NONE
-  PRIVATE
+! MODULES
+USE MOD_Globals ,ONLY:MPIRoot,UNIT_StdOut
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+PRIVATE
 !================================================
 !> General, abstract OPTION
 !================================================
-  TYPE,PUBLIC  :: OPTION
-    CLASS(OPTION),POINTER :: next         !< pointer to next option, used for a linked list of options
-    CHARACTER(LEN=255)    :: name         !< name of the option, case-insensitive (part before '=' in parameter file)
-    CHARACTER(LEN=255)    :: namelowercase!< name of the option, lower-case (part before '=' in parameter file), only required for
-                                          !< numberedmulti
-    INTEGER               :: ind          !< FIRST index of $ in namelowercase, only required for numberedmulti
-    CHARACTER(LEN=1000)   :: description  !< comment in parameter file, after '!' character
-    CHARACTER(LEN=255)    :: section      !< section to which the option belongs. Not mandatory.
-    LOGICAL               :: isSet        !< default false. Becomes true, if set in parameter file
-    LOGICAL               :: isUsedMulti  !< default false. Becomes true, if a variable containing "$" is set in parameter file and
-                                          !< used, e.g., Part-Species$-nInits is used as Part-Species1-nInits
-    LOGICAL               :: hasDefault   !< default false. True if a default value is given in CreateXXXOption routine
-    LOGICAL               :: multiple     !< default false. Indicates if an option can occur multiple times in parameter file
-    LOGICAL               :: isRemoved    !< default false. Indicates if the option is already used (GET... call) and therefore is
-                                          !< no longer available in the list of parameters
-    LOGICAL               :: numberedmulti!< default .FALSE. Indicates if option that occurs multiple times in ini file is numbered
-                                          !< example: part-species[$]-surfaceflux[$]-BC --> numberedmulti = .TRUE.
+TYPE,PUBLIC  :: OPTION
+  CLASS(OPTION),POINTER :: next         !< pointer to next option, used for a linked list of options
+  CHARACTER(LEN=255)    :: name         !< name of the option, case-insensitive (part before '=' in parameter file)
+  CHARACTER(LEN=255)    :: namelowercase!< name of the option, lower-case (part before '=' in parameter file), only required for
+                                        !< numberedmulti
+  INTEGER               :: ind          !< FIRST index of $ in namelowercase, only required for numberedmulti
+  CHARACTER(LEN=1000)   :: description  !< comment in parameter file, after '!' character
+  CHARACTER(LEN=255)    :: section      !< section to which the option belongs. Not mandatory.
+  LOGICAL               :: isSet        !< default false. Becomes true, if set in parameter file
+  LOGICAL               :: isUsedMulti  !< default false. Becomes true, if a variable containing "$" is set in parameter file and
+                                        !< used, e.g., Part-Species$-nInits is used as Part-Species1-nInits
+  LOGICAL               :: hasDefault   !< default false. True if a default value is given in CreateXXXOption routine
+  LOGICAL               :: multiple     !< default false. Indicates if an option can occur multiple times in parameter file
+  LOGICAL               :: isRemoved    !< default false. Indicates if the option is already used (GET... call) and therefore is
+                                        !< no longer available in the list of parameters
+  LOGICAL               :: numberedmulti!< default .FALSE. Indicates if option that occurs multiple times in ini file is numbered
+                                        !< example: part-species[$]-surfaceflux[$]-BC --> numberedmulti = .TRUE.
 
-  CONTAINS
-    PROCEDURE :: print                    !< function used to print option for a default parameter file
-    PROCEDURE :: printValue               !< function used to print the value
-    PROCEDURE :: parse                    !< function that parses a string from the parameter file to fill the value of the option
-    PROCEDURE :: parseReal                !< function that parses a string from the parameter file to fill the value of the option
-    PROCEDURE :: NAMEEQUALS               !< function to compare case-insensitive string with the name of this option
-    PROCEDURE :: NAMEEQUALSNUMBERED       !< function to compare case-insensitive string with the name of this numberedmulti option
-    PROCEDURE :: GETNAMELEN               !< function that returns the string length of the name
-    PROCEDURE :: GETVALUELEN              !< function that returns the string length required to print the value
-  END TYPE OPTION
+CONTAINS
+  PROCEDURE :: print                    !< function used to print option for a default parameter file
+  PROCEDURE :: printValue               !< function used to print the value
+  PROCEDURE :: parse                    !< function that parses a string from the parameter file to fill the value of the option
+  PROCEDURE :: parseReal                !< function that parses a string from the parameter file to fill the value of the option
+  PROCEDURE :: NAMEEQUALS               !< function to compare case-insensitive string with the name of this option
+  PROCEDURE :: NAMEEQUALSNUMBERED       !< function to compare case-insensitive string with the name of this numberedmulti option
+  PROCEDURE :: GETNAMELEN               !< function that returns the string length of the name
+  PROCEDURE :: GETVALUELEN              !< function that returns the string length required to print the value
+END TYPE OPTION
 
 !================================================
 !> Integer Option
 !================================================
-  TYPE,PUBLIC,EXTENDS(OPTION) :: IntOption
-    INTEGER :: value
-  END TYPE IntOption
+TYPE,PUBLIC,EXTENDS(OPTION) :: IntOption
+  INTEGER :: value
+END TYPE IntOption
 
 !================================================
 !> \brief Integer from String Option
@@ -66,74 +68,74 @@ MODULE MOD_Options
 !> Many options are set as integers in the code for historical reasons and to use a short notation, but the user
 !> can also specify a telling name for them in the parameter file which is more intuitive.
 !================================================
-  TYPE,PUBLIC,EXTENDS(OPTION) :: IntFromStringOption
-    CHARACTER(LEN=255)              :: value
-    INTEGER,ALLOCATABLE             :: intList(:)
-    CHARACTER(LEN=255),ALLOCATABLE  :: strList(:)
-    INTEGER                         :: listIndex
-    LOGICAL                         :: foundInList = .FALSE.
-    INTEGER                         :: maxLength=0
-  END TYPE IntFromStringOption
+TYPE,PUBLIC,EXTENDS(OPTION) :: IntFromStringOption
+  CHARACTER(LEN=255)              :: value
+  INTEGER,ALLOCATABLE             :: intList(:)
+  CHARACTER(LEN=255),ALLOCATABLE  :: strList(:)
+  INTEGER                         :: listIndex
+  LOGICAL                         :: foundInList = .FALSE.
+  INTEGER                         :: maxLength=0
+END TYPE IntFromStringOption
 
 !================================================
 !> Integer Array Option
 !================================================
-  TYPE,PUBLIC,EXTENDS(OPTION) :: IntArrayOption
-    INTEGER,ALLOCATABLE :: value(:)
-  END TYPE IntArrayOption
+TYPE,PUBLIC,EXTENDS(OPTION) :: IntArrayOption
+  INTEGER,ALLOCATABLE :: value(:)
+END TYPE IntArrayOption
 
 !================================================
 !> Logical Option
 !================================================
-  TYPE,PUBLIC,EXTENDS(OPTION) :: LogicalOption
-    LOGICAL :: value
-  END TYPE LogicalOption
+TYPE,PUBLIC,EXTENDS(OPTION) :: LogicalOption
+  LOGICAL :: value
+END TYPE LogicalOption
 
 !================================================
 !> Logical Array Option
 !================================================
-  TYPE,PUBLIC,EXTENDS(OPTION) :: LogicalArrayOption
-    LOGICAL,ALLOCATABLE :: value(:)
-  END TYPE LogicalArrayOption
+TYPE,PUBLIC,EXTENDS(OPTION) :: LogicalArrayOption
+  LOGICAL,ALLOCATABLE :: value(:)
+END TYPE LogicalArrayOption
 
 !================================================
 !> Real Option
 !================================================
-  TYPE,PUBLIC,EXTENDS(OPTION) :: RealOption
-    REAL    :: value
-    INTEGER :: digits = 0 !< number of digits, the value has in parameter file
-                          !< negative: -number of digits in exponential representation
-                          !< 0 means not given
-  END TYPE RealOption
+TYPE,PUBLIC,EXTENDS(OPTION) :: RealOption
+  REAL    :: value
+  INTEGER :: digits = 0 !< number of digits, the value has in parameter file
+                        !< negative: -number of digits in exponential representation
+                        !< 0 means not given
+END TYPE RealOption
 
 !================================================
 !> Real Array Option
 !================================================
-  TYPE,PUBLIC,EXTENDS(OPTION) :: RealArrayOption
-    REAL,ALLOCATABLE    :: value(:)
-    INTEGER,ALLOCATABLE :: digits(:) !< number of digits, the value has in parameter file
-                                     !< negative: -number of digits in exponential representation
-                                     !< 0 means not given
-  END TYPE RealArrayOption
+TYPE,PUBLIC,EXTENDS(OPTION) :: RealArrayOption
+  REAL,ALLOCATABLE    :: value(:)
+  INTEGER,ALLOCATABLE :: digits(:) !< number of digits, the value has in parameter file
+                                   !< negative: -number of digits in exponential representation
+                                   !< 0 means not given
+END TYPE RealArrayOption
 
 !================================================
 !> String Option
 !================================================
-  TYPE,PUBLIC,EXTENDS(OPTION) :: StringOption
-    CHARACTER(LEN=255) :: value
-  END TYPE StringOption
+TYPE,PUBLIC,EXTENDS(OPTION) :: StringOption
+  CHARACTER(LEN=255) :: value
+END TYPE StringOption
 
 !================================================
 !> String Array Option
 !================================================
-  !TYPE,PUBLIC,EXTENDS(OPTION) :: StringArrayOption
-    !CHARACTER(LEN=255),ALLOCATABLE  :: value(:)
-  !END TYPE StringArrayOption
+!TYPE,PUBLIC,EXTENDS(OPTION) :: StringArrayOption
+  !CHARACTER(LEN=255),ALLOCATABLE  :: value(:)
+!END TYPE StringArrayOption
 
-  INTERFACE GETSTRLENREAL
-    MODULE PROCEDURE GETSTRLENREAL
-  END INTERFACE
-  PUBLIC :: GETSTRLENREAL
+INTERFACE GETSTRLENREAL
+  MODULE PROCEDURE GETSTRLENREAL
+END INTERFACE
+PUBLIC :: GETSTRLENREAL
 
 CONTAINS
 
@@ -811,4 +813,4 @@ END IF
 
 END SUBROUTINE parseReal
 
-END module
+END MODULE
