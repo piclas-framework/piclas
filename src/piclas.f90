@@ -21,10 +21,17 @@ USE MOD_Globals
 USE MOD_Piclas
 USE MOD_Piclas_init ,ONLY: FinalizePiclas
 USE MOD_TimeDisc    ,ONLY: TimeDisc
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI         ,ONLY: OutputMPIW8Time
+USE MOD_MPI_Vars    ,ONLY: MPIW8Time
+#endif /*defined(MEASURE_MPI_WAIT)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+#if defined(MEASURE_MPI_WAIT)
+MPIW8Time = 0.  
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! Initialize
 CALL InitializePiclas()
@@ -34,6 +41,11 @@ CALL TimeDisc()
 
 ! Finalize
 CALL FinalizePiclas(IsLoadBalance=.FALSE.)
+
+#if defined(MEASURE_MPI_WAIT)
+! Collect the MPI_WAIT() over all procs and output
+IF(nProcessors.GT.1) CALL OutputMPIW8Time()
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! MPI
 #if USE_MPI

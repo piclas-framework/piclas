@@ -24,6 +24,20 @@
 #define Allocate_Shared(a,b,c,d)   Allocate_Shared_DEBUG(a,b,c,d,'c')
 #endif
 
+#ifdef MEASURE_MPI_WAIT
+#ifdef PARTICLES
+! particles and field solver
+#define MPIWSIZEFIELD 0
+#define MPIWSIZEPART 4
+#define MPIWSIZE 4
+#else
+! only field solver
+#define MPIWSIZEFIELD 0
+#define MPIWSIZEPART 0
+#define MPIWSIZE 0
+#endif
+#endif
+
 ! Deactivate PURE subroutines/functions when using DEBUG
 #if USE_DEBUG
 #define PPURE

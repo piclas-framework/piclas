@@ -113,6 +113,11 @@ TYPE (tParticleMPIExchange)               :: PartMPILocate
 INTEGER,ALLOCATABLE                       :: PartTargetProc(:)              ! local rank id for communication
 REAL, ALLOCATABLE                         :: PartShiftVector(:,:)           ! store particle periodic map
 #endif /*USE_MPI*/
+
+#if defined(MEASURE_MPI_WAIT)
+REAL(KIND=8)                              :: MPIW8TimePart(MPIWSIZEPART)    ! measure the time on each proc it is in MPI_WAIT()
+                                                                            ! during particle communication
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
 END MODULE MOD_Particle_MPI_Vars

@@ -10,6 +10,8 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
+#include "piclas.h"
+
 MODULE MOD_MPI_Vars
 #if USE_MPI
 !===================================================================================================================================
@@ -43,6 +45,12 @@ INTEGER,ALLOCATABLE   :: offsetElemMPI(:)      ! gives offset position of elemen
 INTEGER,ALLOCATABLE   :: nMPISides_send(:,:),nMPISides_rec(:,:)
 INTEGER,ALLOCATABLE   :: OffsetMPISides_send(:,:),OffsetMPISides_rec(:,:)
 #endif /*USE_MPI*/
+
+#if defined(MEASURE_MPI_WAIT)
+REAL(KIND=8)          :: MPIW8TimeField(MPIWSIZEFIELD)  ! measure the time on each proc it is in MPI_WAIT() during the field solver
+REAL(KIND=8)          :: MPIW8Time(MPIWSIZE)            ! measure the time on each proc it is in MPI_WAIT()
+REAL(KIND=8)          :: MPIW8TimeGlobal(MPIWSIZE)      ! measure the time on each proc it is in MPI_WAIT() global over all ranks
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 #endif
 END MODULE MOD_MPI_Vars
