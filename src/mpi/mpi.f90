@@ -392,8 +392,9 @@ SUBROUTINE OutputMPIW8Time()
 ! MODULES
 USE MOD_Globals
 USE MOD_Restart_Vars      ,ONLY: DoRestart
-USE MOD_MPI_Vars          ,ONLY: MPIW8TimeGlobal
+USE MOD_MPI_Vars          ,ONLY: MPIW8TimeGlobal,MPIW8TimeProc
 USE MOD_MPI_Vars          ,ONLY: MPIW8TimeField,MPIW8Time,MPIW8TimeGlobal
+USE MOD_StringTools       ,ONLY: INTTOSTR
 #if defined(PARTICLES)
 USE MOD_Particle_MPI_Vars ,ONLY: MPIW8TimePart
 #endif /*defined(PARTICLES)*/
@@ -404,12 +405,22 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                                :: WriteHeader
-INTEGER                                :: ioUnit,I
+INTEGER                                :: ioUnit,i
+INTEGER                    :: iSTATUS                     ! error status return code
 CHARACTER(LEN=150)                     :: formatStr
-CHARACTER(LEN=22),PARAMETER            :: outfile='MPIW8Time.csv'
+CHARACTER(LEN=22),PARAMETER            :: outfile    ='MPIW8Time.csv'
+CHARACTER(LEN=22),PARAMETER            :: outfileProc='MPIW8TimeProc'
 CHARACTER(LEN=255),DIMENSION(MPIWSIZE+1) :: StrVarNames(MPIWSIZE+1)=(/ CHARACTER(LEN=255) :: &
-    !'nProcessors'     , &
-    'nProcessors'     &
+    'nProcessors'           &
+#ifdef PARTICLES
+   ,'SendNbrOfParticles'  , &
+    'RecvNbrOfParticles'  , &
+    'SendParticles'       , &
+    'SendParticles'         &
+#endif /*PARTICLES*/
+    /)
+CHARACTER(LEN=255),DIMENSION(MPIWSIZE+1) :: StrVarNamesProc(MPIWSIZE+1)=(/ CHARACTER(LEN=255) :: &
+    'Rank'                  &
 #ifdef PARTICLES
    ,'SendNbrOfParticles'  , &
     'RecvNbrOfParticles'  , &
@@ -427,11 +438,15 @@ MPIW8Time(MPIWSIZEFIELD+1:MPIWSIZEFIELD+MPIWSIZEPART) = MPIW8TimePart
 #else
 MPIW8Time = MPIW8TimeField
 #endif /*defined(PARTICLES)*/
+
 ! Collect and output measured MPI_WAIT() times
 IF(MPIroot)THEN
-  CALL MPI_REDUCE(MPIW8Time , MPIW8TimeGlobal , MPIWSIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+  ALLOCATE(MPIW8TimeProc(MPIWSIZE*nProcessors))
+  CALL MPI_REDUCE(MPIW8Time , MPIW8TimeGlobal , MPIWSIZE , MPI_DOUBLE_PRECISION , MPI_SUM                       , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_GATHER(MPIW8Time , MPIWSIZE , MPI_DOUBLE_PRECISION , MPIW8TimeProc , MPIWSIZE , MPI_DOUBLE_PRECISION , 0 , MPI_COMM_WORLD , iError)
 ELSE
-  CALL MPI_REDUCE(MPIW8Time , 0               , MPIWSIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+  CALL MPI_REDUCE(MPIW8Time , 0               , MPIWSIZE , MPI_DOUBLE_PRECISION , MPI_SUM                       , 0 , MPI_COMM_WORLD , IError)
+  CALL MPI_GATHER(MPIW8Time , MPIWSIZE , MPI_DOUBLE_PRECISION , 0             , 0        , 0                    , 0 , MPI_COMM_WORLD , iError)
 END IF
 
 ! --------------------------------------------------
@@ -446,15 +461,15 @@ IF(DoRestart.AND.(FILEEXISTS(outfile))) WriteHeader = .FALSE.
 IF(WriteHeader)THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
   tmpStr=""
-  DO I=1,MPIWSIZE+1
-    WRITE(tmpStr(I),'(A)')delimiter//'"'//TRIM(StrVarNames(I))//'"'
+  DO i=1,MPIWSIZE+1
+    WRITE(tmpStr(i),'(A)')delimiter//'"'//TRIM(StrVarNames(i))//'"'
   END DO
   WRITE(formatStr,'(A1)')'('
-  DO I=1,MPIWSIZE+1
-    IF(I.EQ.MPIWSIZE+1)THEN ! skip writing "," and the end of the line
-      WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I))
+  DO i=1,MPIWSIZE+1
+    IF(i.EQ.MPIWSIZE+1)THEN ! skip writing "," and the end of the line
+      WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i))
     ELSE
-      WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(I)),','
+      WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i)),','
     END IF
   END DO
 
@@ -486,6 +501,57 @@ IF(FILEEXISTS(outfile))THEN
 ELSE
   WRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write MPI_WAIT wall time info!"
 END IF
+
+! Cannot append to proc file, move it out of the way
+IF(DoRestart.AND.(FILEEXISTS(TRIM(outfileProc)//'.csv')))THEN
+  ! Find the first free slot
+  i = 1
+  DO WHILE(FILEEXISTS(TRIM(outfileProc)//'.'//TRIM(ADJUSTL(INTTOSTR(i)))//'.csv'))
+    i = i + 1
+  END DO
+  ! Move the file to the free slot
+  WRITE(Unit_StdOut,'(A,A,A,A)') ' MEASURE_MPI_WAIT: Moving existing file ',TRIM(outfileProc)//'.csv',' to ',TRIM(outfileProc)//'.'//TRIM(ADJUSTL(INTTOSTR(i)))//'.csv'
+  CALL EXECUTE_COMMAND_LINE('mv '//TRIM(outfileProc)//'.csv'//' '//TRIM(outfileProc)//'.'//TRIM(ADJUSTL(INTTOSTR(i)))//'.csv', WAIT=.TRUE., EXITSTAT=iSTATUS)
+END IF
+
+! Write the file header
+OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfileProc)//'.csv',STATUS="UNKNOWN")
+tmpStr=""
+DO i=1,MPIWSIZE+1
+  WRITE(tmpStr(i),'(A)')delimiter//'"'//TRIM(StrVarNamesProc(i))//'"'
+END DO
+WRITE(formatStr,'(A1)')'('
+DO i=1,MPIWSIZE+1
+  IF(i.EQ.MPIWSIZE+1)THEN ! skip writing "," and the end of the line
+    WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i))
+  ELSE
+    WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i)),','
+  END IF
+END DO
+
+WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
+WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
+WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+
+! Output the processor wait times
+WRITE(formatStr,'(A2,I2,A14,A1)')'(',MPIWSIZE+1,CSVFORMAT,')'
+DO i = 0,nProcessors-1
+  WRITE(tmpStr2,formatStr)&
+      " ",REAL(i)                ,&
+#ifdef PARTICLES
+        delimiter,MPIW8TimeProc(MPIWSIZEFIELD+i*MPIWSIZE+1),&
+        delimiter,MPIW8TimeProc(MPIWSIZEFIELD+i*MPIWSIZE+2),&
+        delimiter,MPIW8TimeProc(MPIWSIZEFIELD+i*MPIWSIZE+3),&
+        delimiter,MPIW8TimeProc(MPIWSIZEFIELD+i*MPIWSIZE+4)
+#endif /*PARTICLES*/
+  ; ! this is required for terminating the "&" when particles=off
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
+END DO
+CLOSE(ioUnit)
+
+DEALLOCATE(MPIW8TimeProc)
+
 END SUBROUTINE OutputMPIW8Time
 #endif /*defined(MEASURE_MPI_WAIT)*/
 

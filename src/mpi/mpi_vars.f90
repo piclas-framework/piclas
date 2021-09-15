@@ -50,6 +50,7 @@ INTEGER,ALLOCATABLE   :: OffsetMPISides_send(:,:),OffsetMPISides_rec(:,:)
 REAL(KIND=8)          :: MPIW8TimeField(MPIWSIZEFIELD)  ! measure the time on each proc it is in MPI_WAIT() during the field solver
 REAL(KIND=8)          :: MPIW8Time(MPIWSIZE)            ! measure the time on each proc it is in MPI_WAIT()
 REAL(KIND=8)          :: MPIW8TimeGlobal(MPIWSIZE)      ! measure the time on each proc it is in MPI_WAIT() global over all ranks
+REAL(KIND=8),ALLOCATABLE :: MPIW8TimeProc(:)            ! measure the time on each proc it is in MPI_WAIT() proc local output
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 #endif
