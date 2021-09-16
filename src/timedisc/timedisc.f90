@@ -324,8 +324,12 @@ DO !iter_t=0,MaxIter
   ! Analysis (possible PerformAnalyze+WriteStateToHDF5 and/or LoadBalance)
   !IF ((dt.EQ.dt_Min(DT_ANALYZE)).OR.(dt.EQ.dt_Min(DT_END))) THEN   ! timestep is equal to time to analyze or end
 #if USE_LOADBALANCE
-  ! For automatic initial restart, check if the number of sampling steps has been achieved and force a load balance step
-  IF(DoInitialAutoRestart.AND.(iter.GE.LoadBalanceSample)) ForceInitialLoadBalance=.TRUE.
+  ! For automatic initial restart, check if the number of sampling steps has been achieved and force a load balance step, but skip
+  ! this procedure in the final iteration after which the simulation if finished
+  !      DoInitialAutoRestart: user-activated load balance restart in first time step (could already be a restart)
+  ! iter.GE.LoadBalanceSample: as soon as the number of time steps for sampling is reached, perform the load balance restart
+  !                 finalIter: prevent removal of last state file even though no load balance restart was performed
+  IF(DoInitialAutoRestart.AND.(iter.GE.LoadBalanceSample).AND.(.NOT.finalIter)) ForceInitialLoadBalance=.TRUE.
 
   IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.finalIter.OR.ForceInitialLoadBalance)THEN
 #else
@@ -355,6 +359,8 @@ DO !iter_t=0,MaxIter
     CALL ComputeElemLoad()
     ! Force load balance step after elem time has been calculated when doing an initial load balance step at iter=0
     IF(ForceInitialLoadBalance) PerformLoadBalance=.TRUE.
+    ! Do not perform a load balance restart when the last timestep is performed
+    IF(finalIter) PerformLoadBalance=.FALSE.
 #if defined(maxwell) && (defined(ROS) || defined(IMPA))
     UpdatePrecondLB=PerformLoadBalance
 #endif /*MAXWELL AND (ROS or IMPA)*/
@@ -392,19 +398,17 @@ CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
     !--- Check if load balancing must be performed
 #if USE_LOADBALANCE
     IF((DoLoadBalance.AND.PerformLBSample.AND.(LoadBalanceMaxSteps.GT.nLoadBalanceSteps)).OR.ForceInitialLoadBalance)THEN
-      IF(time.LT.tEnd)THEN ! do not perform a load balance restart when the last timestep is performed
-        IF(PerformLoadBalance) THEN
-          ! DO NOT DELETE THIS: ONLY recalculate the timestep when the mesh is changed!
-          !CALL InitTimeStep() ! re-calculate time step after load balance is performed
-          RestartTimeBackup = RestartTime! make backup of original restart time
-          RestartTime       = time       ! Set restart simulation time to current simulation time because the time is not read from
-                                         ! the state file
-          RestartWallTime = PICLASTIME() ! Set restart wall time if a load balance step is performed
-          dtWeight        = 1.           ! is initialized in InitTimeDisc which is not called in LoadBalance, but needed for restart
-                                         ! (RestartHDG)
-        END IF
-        CALL LoadBalance()
+      IF(PerformLoadBalance) THEN
+        ! DO NOT DELETE THIS: ONLY recalculate the timestep when the mesh is changed!
+        !CALL InitTimeStep() ! re-calculate time step after load balance is performed
+        RestartTimeBackup = RestartTime! make backup of original restart time
+        RestartTime       = time       ! Set restart simulation time to current simulation time because the time is not read from
+                                       ! the state file
+        RestartWallTime = PICLASTIME() ! Set restart wall time if a load balance step is performed
+        dtWeight        = 1.           ! is initialized in InitTimeDisc which is not called in LoadBalance, but needed for restart
+                                       ! (RestartHDG)
       END IF
+      CALL LoadBalance()
     ELSE
       ElemTime      = 0. ! nullify ElemTime before measuring the time in the next cycle
 #ifdef PARTICLES
@@ -416,8 +420,8 @@ CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
 
     ! Switch off Initial Auto Restart (initial load balance) after the restart was performed
     IF (DoInitialAutoRestart) THEN
-      ! Remove the extra state file written for load balance
-      CALL RemoveHDF5(RestartFile)
+      ! Remove the extra state file written for load balance (only when load balance restart was performed)
+      IF(PerformLoadBalance) CALL RemoveHDF5(RestartFile)
       ! Get original settings from backup variables
       DoInitialAutoRestart = .FALSE.
       ForceInitialLoadBalance = .FALSE.
