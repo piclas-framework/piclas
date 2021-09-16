@@ -125,6 +125,7 @@ IMPLICIT NONE
 SurfModelAnalyzeInitIsDone=.FALSE.
 
 SDEALLOCATE(SurfModResultSpec)
+SDEALLOCATE(SurfModEnergyDistribution)
 
 ! === Surface Analyze Vars
 SDEALLOCATE(SurfAnalyzeCount)
