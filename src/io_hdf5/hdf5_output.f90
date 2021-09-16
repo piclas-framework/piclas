@@ -57,10 +57,6 @@ INTERFACE WriteAttributeToHDF5
   MODULE PROCEDURE WriteAttributeToHDF5
 END INTERFACE
 
-INTERFACE RemoveHDF5
-  MODULE PROCEDURE RemoveHDF5
-END INTERFACE
-
 PUBLIC :: FlushHDF5,WriteHDF5Header,GatheredWriteArray
 PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
 PUBLIC :: WriteTimeAverage,GenerateNextFileInfo, copy_userblock

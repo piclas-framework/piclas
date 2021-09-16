@@ -21,7 +21,7 @@
 #define SIZE_CHAR KIND('a')
 
 #ifdef DEBUG_MEMORY
-#define Allocate_Shared(a,b,c,d)   Allocate_Shared_DEBUG(a,b,c,d,'c')
+#define Allocate_Shared(a,b,c)   Allocate_Shared_DEBUG(a,b,c,'b')
 #endif
 
 #ifdef MEASURE_MPI_WAIT
