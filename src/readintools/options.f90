@@ -488,9 +488,9 @@ CLASS IS (RealOption)
     SWRITE(UNIT_stdOut,'(F'//fmtValue//'.'//fmtDigits//')',ADVANCE='NO') this%value
   ELSE IF (this%digits.LE.-1) THEN ! scientific (exponential) representation
     WRITE(fmtDigits,*) -this%digits
-    SWRITE(UNIT_stdOut,'(E'//fmtValue//'.'//fmtDigits//')',ADVANCE='NO') this%value
+    SWRITE(UNIT_stdOut,'(ES'//fmtValue//'.'//fmtDigits//')',ADVANCE='NO') this%value
   ELSE ! digits not given
-    SWRITE(UNIT_stdOut,'(E'//fmtValue//'.19)',ADVANCE='NO') this%value
+    SWRITE(UNIT_stdOut,'(ES'//fmtValue//'.19)',ADVANCE='NO') this%value
   END IF
 CLASS IS (StringOption)
   IF (TRIM(this%value).EQ."") THEN
@@ -547,7 +547,7 @@ CLASS IS (RealArrayOption)
     WRITE(fmtValue,*) (maxValueLen - length)
     SWRITE(UNIT_stdOut,'('//fmtValue//'(" "))',ADVANCE='NO')
   END IF
-  SWRITE(UNIT_stdOut,'(a3)',ADVANCE='NO') '(/ '
+  SWRITE(UNIT_stdOut,'(A3)',ADVANCE='NO') '(/ '
   DO i=1,SIZE(this%value)
     WRITE(fmtValue,*) GETSTRLENREAL(this%value(i), this%digits(i))
       IF (this%digits(i).GE.1) THEN ! floating point representation
@@ -563,7 +563,7 @@ CLASS IS (RealArrayOption)
       SWRITE(UNIT_stdOut,'(A2)',ADVANCE='NO') ', '
     END IF
   END DO
-  SWRITE(UNIT_stdOut,'(a3)',ADVANCE='NO') ' /)'
+  SWRITE(UNIT_stdOut,'(A3)',ADVANCE='NO') ' /)'
 !###
 ! TODO: Causes internal compiler error with GNU 6+ due to compiler bug (older GNU and Intel,Cray work). Uncomment as unused.
 !###
