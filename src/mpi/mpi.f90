@@ -391,7 +391,6 @@ END SUBROUTINE FinalizeMPI
 SUBROUTINE OutputMPIW8Time()
 ! MODULES
 USE MOD_Globals
-USE MOD_Restart_Vars      ,ONLY: DoRestart
 USE MOD_MPI_Vars          ,ONLY: MPIW8TimeGlobal,MPIW8TimeProc
 USE MOD_MPI_Vars          ,ONLY: MPIW8TimeField,MPIW8Time,MPIW8TimeGlobal
 USE MOD_StringTools       ,ONLY: INTTOSTR
@@ -456,7 +455,7 @@ IF(.NOT.MPIRoot)RETURN
 
 ! Either create new file or add info to existing file
 WriteHeader = .TRUE.
-IF(DoRestart.AND.(FILEEXISTS(outfile))) WriteHeader = .FALSE.
+IF(FILEEXISTS(outfile)) WriteHeader = .FALSE.
 
 IF(WriteHeader)THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
@@ -503,7 +502,7 @@ ELSE
 END IF
 
 ! Cannot append to proc file, move it out of the way
-IF(DoRestart.AND.(FILEEXISTS(TRIM(outfileProc)//'.csv')))THEN
+IF(FILEEXISTS(TRIM(outfileProc)//'.csv'))THEN
   ! Find the first free slot
   i = 1
   DO WHILE(FILEEXISTS(TRIM(outfileProc)//'.'//TRIM(ADJUSTL(INTTOSTR(i)))//'.csv'))
