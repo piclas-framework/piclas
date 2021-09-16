@@ -1789,7 +1789,7 @@ USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
-USE MOD_MPI_Shared             ,ONLY: Allocate_Shared,MPI_SIZE,BARRIER_AND_SYNC
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_SHARED
 #else
 USE MOD_Mesh_Vars              ,ONLY: nElems
