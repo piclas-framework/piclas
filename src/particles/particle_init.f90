@@ -400,6 +400,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep,useManualTimeStep
 #if defined(PARTICLES) && USE_HDG
 USE MOD_Part_BR_Elecron_Fluid  ,ONLY: InitializeVariablesElectronFluidRegions
 #endif /*defined(PARTICLES) && USE_HDG*/
+USE MOD_Restart_Vars           ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

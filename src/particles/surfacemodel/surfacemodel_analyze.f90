@@ -67,10 +67,10 @@ CALL prms%CreateIntArrayOption( 'BPO-Species'               , 'Vector (length BP
 END SUBROUTINE DefineParametersSurfModelAnalyze
 
 
-SUBROUTINE InitSurfModelAnalyze()
 !===================================================================================================================================
 !> Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
+SUBROUTINE InitSurfModelAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -180,10 +180,10 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitSurfModelAnalyze
 
 
-SUBROUTINE AnalyzeSurface(Time)
 !===================================================================================================================================
 !> create/open SurfaceAnalyze.csv and write calculated variables for surface analyze
 !===================================================================================================================================
+SUBROUTINE AnalyzeSurface(Time)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -306,10 +306,10 @@ END IF
 END SUBROUTINE AnalyzeSurface
 
 
-SUBROUTINE WriteDataHeaderInfo(unit_index,AttribName,OutputCounter,LoopSize)
 !===================================================================================================================================
 !> writes OutputCounter-AttribNamestring-iLoop into WRITEFORMAT output
 !===================================================================================================================================
+SUBROUTINE WriteDataHeaderInfo(unit_index,AttribName,OutputCounter,LoopSize)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
@@ -333,12 +333,12 @@ END DO
 END SUBROUTINE WriteDataHeaderInfo
 
 
-SUBROUTINE WriteDataInfo(unit_index,nVal,RealScalar,IntegerScalar,StrScalar,LogicalScalar, &
-                                  RealArray,IntegerArray,IntegerK8Array,StrArray)
 !===================================================================================================================================
 !> writes INPUTData into unit_index output
 !> only one data input should be given at a time
 !===================================================================================================================================
+SUBROUTINE WriteDataInfo(unit_index,nVal,RealScalar,IntegerScalar,StrScalar,LogicalScalar, &
+                                  RealArray,IntegerArray,IntegerK8Array,StrArray)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
@@ -404,10 +404,10 @@ END IF
 END SUBROUTINE WriteDataInfo
 
 
-SUBROUTINE GetCollCounter(SurfCollNum,AdsorbNum, DesorbNum)
 !===================================================================================================================================
 !> Calculates species counters for surface collisions: total, absorbed and desorbed
 !===================================================================================================================================
+SUBROUTINE GetCollCounter(SurfCollNum,AdsorbNum, DesorbNum)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
@@ -454,10 +454,10 @@ SurfAnalyzeNumOfDes = 0
 END SUBROUTINE GetCollCounter
 
 
-SUBROUTINE GetPorousBCInfo()
 !===================================================================================================================================
 !> 
 !===================================================================================================================================
+SUBROUTINE GetPorousBCInfo()
 ! MODULES
 USE MOD_Globals
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
@@ -500,10 +500,10 @@ END IF
 END SUBROUTINE GetPorousBCInfo
 
 
-SUBROUTINE GetBoundaryParticleOutput()
 !===================================================================================================================================
 !> Synchronize BoundaryParticleOutput analyze arrays
 !===================================================================================================================================
+SUBROUTINE GetBoundaryParticleOutput()
 ! MODULES
 USE MOD_Globals
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: BPO
@@ -540,5 +540,6 @@ END IF
 
 END SUBROUTINE GetBoundaryParticleOutput
 #endif /*PARTICLES*/
+
 
 END MODULE MOD_SurfaceModel_Analyze

@@ -457,6 +457,7 @@ DO iSpec=1,nSpecies
     END IF
 
     ! Add PartMPI%MPIRoot to specific inits automatically for output of analysis data to disk
+    ! The root sometimes also reads data during restart and broadcasts it to the other processors in the communicator
     SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
     CASE('2D_landmark_neutralization','2D_Liu2010_neutralization','3D_Liu2010_neutralization')
       IF(PartMPI%MPIRoot) RegionOnProc=.TRUE.

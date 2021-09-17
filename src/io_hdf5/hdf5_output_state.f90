@@ -65,7 +65,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteNodeSourceExtToHDF5,WriteClonesToHDF5,WriteVibProbInfoToHDF5,WriteAdaptiveWallTempToHDF5
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteAdaptiveInfoToHDF5,WriteParticleToHDF5,WriteBoundaryParticleToHDF5
-USE MOD_HDF5_Output_Particles  ,ONLY: WriteLostParticlesToHDF5
+USE MOD_HDF5_Output_Particles  ,ONLY: WriteLostParticlesToHDF5,WriteEmissionVariablesToHDF5
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: E,Phi
@@ -676,6 +676,8 @@ CALL WritePMLDataToHDF5(FileName)
 #ifdef PARTICLES
 ! Write NodeSourceExt (external charge density) field to HDF5 file
 IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
+! Output particle emission data to be read during subsequent restarts
+CALL WriteEmissionVariablesToHDF5(FileName)
 #endif /*PARTICLES*/
 
 EndT=PICLASTIME()

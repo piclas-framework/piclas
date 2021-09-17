@@ -314,8 +314,8 @@ USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
 USE MOD_Equation_Vars          ,ONLY: Phi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
+USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5,ReadNodeSourceExtFromHDF5
 USE MOD_part_operations        ,ONLY: RemoveAllElectrons
-USE MOD_Restart_Tools          ,ONLY: ReadNodeSourceExtFromHDF5
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
 USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset, Species
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition,StoreLostParticleProperties
@@ -1448,6 +1448,14 @@ IF(DoRestart)THEN
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
+
+#if defined(PARTICLES)
+! This routines opens the data file in single mode (i.e. only the root opens and closes the data file)  
+! ------------------------------------------------
+! Particle Emission Parameters
+! ------------------------------------------------
+CALL ReadEmissionVariablesFromHDF5()
+#endif /*defined(PARTICLES)*/
 
 #if defined(PARTICLES) && USE_HDG
   ! Create electrons from BR fluid properties

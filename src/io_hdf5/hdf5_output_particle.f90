@@ -71,6 +71,7 @@ PUBLIC :: WriteAdaptiveWallTempToHDF5
 PUBLIC :: WriteVibProbInfoToHDF5
 PUBLIC :: WriteClonesToHDF5
 PUBLIC :: WriteElectroMagneticPICFieldToHDF5
+PUBLIC :: WriteEmissionVariablesToHDF5
 !===================================================================================================================================
 
 CONTAINS
@@ -2028,6 +2029,72 @@ SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 #endif /*USE_MPI*/
 
 END SUBROUTINE WriteElectroMagneticPICFieldToHDF5
+
+
+!===================================================================================================================================
+!> Write particle emission variables from state.h5
+!> E.g. arrays containing information that have to be restored after restart (not necessarily required for automatic load balance
+!> restarts, but maybe required for some)
+!> Synchronize the read-in variables across all procs within the emission communicator (for the specific Species and Init) if
+!> required
+!===================================================================================================================================
+SUBROUTINE WriteEmissionVariablesToHDF5(FileName)
+! MODULES
+#if USE_MPI
+USE mpi
+#endif /*USE_MPI*/
+!USE MOD_io_HDF5
+USE MOD_Globals
+!USE MOD_PreProc
+USE MOD_Particle_Vars     ,ONLY: Species,nSpecies
+USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
+USE MOD_Particle_Vars     ,ONLY: NeutralizationBalanceGlobal
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iSpec,iInit ! ,InitGroup
+CHARACTER(LEN=50) :: InitName
+INTEGER           :: NeutralizationBalanceTmp(1:1) ! This is a dummy array of size 1 !
+!===================================================================================================================================
+! Only root writes the data
+IF(.NOT.PartMPI%MPIRoot) RETURN
+
+! Loop over all species and inits
+DO iSpec=1,nSpecies
+  DO iInit = 1, Species(iSpec)%NumberOfInits
+    SELECT CASE(Species(iSpec)%Init(iInit)%ParticleEmissionType)
+     CASE(9) ! '2D_landmark_neutralization'
+       ! Re-load the value because the emission communicator can change during load balance restarts: MPIRoot is always part of this
+       ! specific communicator
+
+       NeutralizationBalanceTmp(1) = NeutralizationBalanceGlobal
+
+       WRITE(InitName,'(A,I0,A,I0)') 'Spec',iSpec,'Init',iInit
+       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+       ! Associate construct for integer KIND=8 possibility
+       ASSOCIATE (&
+             nGlobalEntries => INT(1,IK)  ,&
+             nEntries       => INT(1,IK)  ,&
+             offsetEntries  => INT(0,IK)  )
+         CALL WriteArrayToHDF5(DataSetName = TRIM(InitName) , rank = 1 , &
+                               nValGlobal  = (/nGlobalEntries/) , &
+                               nVal        = (/nEntries      /) , &
+                               offset      = (/offsetEntries /) , &
+                               collective  = .false. , IntegerArray = NeutralizationBalanceTmp)
+       END ASSOCIATE
+       CALL CloseDataFile()
+
+     END SELECT
+  END DO  ! iInit
+END DO  ! iSpec=1,nSpecies
+
+END SUBROUTINE WriteEmissionVariablesToHDF5
 
 
 #endif /*defined(PARTICLES)*/
