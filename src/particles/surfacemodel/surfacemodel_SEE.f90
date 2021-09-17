@@ -179,7 +179,6 @@ CASE(6) ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
 CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
   ProductSpec(1)  = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
   ProductSpecNbr = 0 ! do not create new particle (default value)
-  v_new = 0. ! initialize zero
 
   IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
     RETURN ! nothing to do
@@ -201,8 +200,6 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
 
 CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materials is considered for SEE and three different out-
         ! comes) by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
-
-    v_new          = 0. ! Initialize zero
 
     IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
       ASSOCIATE( P0   => 0.9 ,& ! Assumption in paper
