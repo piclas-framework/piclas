@@ -50,7 +50,7 @@ USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies ,PartMPF,usevMPF
 USE MOD_Interpolation_Vars    ,ONLY: wGP
 USE MOD_Particle_Analyze_Vars ,ONLY: ChargeCalcDone
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
-USE MOD_PICDepo_Vars          ,ONLY: sfDepo3D,dimFactorSF,dim_sf
+USE MOD_PICDepo_Vars          ,ONLY: sfDepo3D,dimFactorSF,VerifyChargeStr
 #if defined(IMPA)
 USE MOD_LinearSolver_Vars     ,ONLY: ImplicitSource
 #else
@@ -69,8 +69,6 @@ INTEGER           :: iElem, ElemID
 INTEGER           :: i,j,k
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: ChargeNumerical, ChargeLoc, ChargeAnalytical
-CHARACTER(32)     :: hilf_geo
-CHARACTER(1)      :: hilf_dim
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' PERFORMING CHARGE DEPOSITION PLAUSIBILITY CHECK...'
@@ -115,27 +113,16 @@ END DO
 
 ! Output info to std.out
 IF(MPIRoot)THEN
-
   ! Check if the charge is to be distributed over a line (1D) or area (2D)
-  IF(.NOT.sfDepo3D)THEN
-    ChargeAnalytical = ChargeAnalytical * dimFactorSF
-    ! Output info on how the shape function deposits the charge
-    IF(dim_sf.EQ.1)THEN
-      hilf_geo='line'
-    ELSEIF(dim_sf.EQ.2)THEN
-      hilf_geo='area'
-    END IF
-  ELSE
-    hilf_geo='volume'
-  END IF
-  WRITE(UNIT=hilf_dim,FMT='(I0)') dim_sf
-  WRITE(*,*) 'On the grid deposited charge (numerical) : ', ChargeNumerical ,'[C] ('//TRIM(hilf_geo)//'-deposited charge via '//TRIM(hilf_dim)//'D shape function)'
-  WRITE(*,*) 'Charge over by the particles (analytical): ', ChargeAnalytical,'[C] ('//TRIM(hilf_geo)//'-deposited charge via '//TRIM(hilf_dim)//'D shape function)'
-  WRITE(*,*) 'Absolute deposition error                : ', ABS(ChargeAnalytical-ChargeNumerical),'[C]'
+  IF(.NOT.sfDepo3D) ChargeAnalytical = ChargeAnalytical * dimFactorSF
+  WRITE(*,'(A,ES25.14E3,A)') 'On the grid deposited charge (numerical) : ', ChargeNumerical ,' [C] '//TRIM(VerifyChargeStr)
+  WRITE(*,'(A,ES25.14E3,A)') 'Charge over by the particles (analytical): ', ChargeAnalytical,' [C] '//TRIM(VerifyChargeStr)
+  WRITE(*,'(A,ES25.14E3,A)') 'Absolute deposition error                : ', ABS(ChargeAnalytical-ChargeNumerical),' [C]'
   IF(ABS(ChargeAnalytical).GT.0.0)THEN
-    WRITE(*,*) 'Relative deposition error in percent     : ', ABS(ChargeAnalytical-ChargeNumerical)/ChargeAnalytical*100,'[%]'
+    WRITE(*,'(A,ES25.14E3,A)') 'Relative deposition error in percent     : ', &
+        ABS(ChargeAnalytical-ChargeNumerical)/ChargeAnalytical*100,' [%]'
   ELSE
-    WRITE(*,*) 'Relative deposition error in percent     : 100%'
+    WRITE(*,'(A)') 'Relative deposition error in percent     :                       100 [%]'
   END IF
   WRITE(UNIT_stdOut,'(A)')' CHARGE DEPOSITION PLAUSIBILITY CHECK DONE!'
   WRITE(UNIT_StdOut,'(132("-"))')
