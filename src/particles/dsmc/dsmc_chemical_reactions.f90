@@ -1420,7 +1420,7 @@ MassRed = (MassPseu1*MassPseu2) / (MassPseu1+MassPseu2)
 END SUBROUTINE CalcPseudoScatterVars_4Prod
 
 
-SUBROUTINE CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
+SUBROUTINE CalcPhotoIonizationNumber(i,NbrOfPhotons,NbrOfReactions)
 !===================================================================================================================================
 !>
 !===================================================================================================================================
@@ -1434,6 +1434,7 @@ USE MOD_TimeDisc_Vars ,ONLY: dt
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: i
 REAL, INTENT(IN)              :: NbrOfPhotons
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1453,7 +1454,7 @@ DO iReac = 1, ChemReac%NumOfReact
   ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
   ! Number of reactions: N = Z * dt * V (number of photons cancels out the volume)
   NbrOfReactions = NbrOfReactions + BGGas%NumberDensity(bgSpec) * NbrOfPhotons * ChemReac%CrossSection(iReac) * c &
-                                     *dt / Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor
+                                     *dt / Species(i)%MacroParticleFactor
 END DO
 
 END SUBROUTINE CalcPhotoIonizationNumber
