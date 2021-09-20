@@ -76,6 +76,7 @@ LOGICAL,ALLOCATABLE :: isAverageElecPotSide(:)     !< Flag for sides that are re
 REAL                :: AverageElectricPotentialCoordErr !< tolerance in plane searching
 REAL                :: PosAverageElectricPotential      !< x-coordinate of plane
 INTEGER             :: AverageElectricPotentialFaces    !< global number of faces
+LOGICAL             :: CalcElectricTimeDerivative       !< Calculate the time derivative of E and output to h5
 #endif /*USE_HDG*/
 !===================================================================================================================================
 ! --- BoundaryFieldOutput = BFO

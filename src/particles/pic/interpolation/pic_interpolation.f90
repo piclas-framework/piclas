@@ -284,9 +284,7 @@ IF (InterpolationElemLoop) THEN ! element-particle loop
       END DO ! iPart
     END DO ! iElem=1,PP_nElems
   CASE DEFAULT
-    CALL abort(&
-    __STAMP__&
-       , 'ERROR: Unknown InterpolationType!')
+    CALL abort(__STAMP__, 'ERROR: Unknown InterpolationType!')
   END SELECT
 ELSE ! .NOT.InterpolationElemLoop -> particle-element loop
   ! 2.2 particle-element loop: Loop particles and select corresponding element
