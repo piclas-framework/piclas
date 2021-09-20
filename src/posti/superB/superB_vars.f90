@@ -61,14 +61,17 @@ REAL, ALLOCATABLE                 :: CoilNodes(:,:)             !< Geometric inf
 
 ! === Time-dependent coils
 TYPE tCurrentInfo
-  REAL                            :: CurrentAmpl                !< Current amplitude [A]
   REAL                            :: CurrentFreq                !< Current frequency [1/s]
   REAL                            :: CurrentPhase               !< Current phase [rad]
 END TYPE tCurrentInfo
 
 TYPE(tCurrentInfo),ALLOCATABLE    :: CurrentInfo(:)             !< Container for the time-dependent coil information [1:NumOfCoils]
 
+REAL                              :: BGFieldFrequency           !< Frequency of time-dependent coil (written as attribute to h5)
+REAL                              :: BGFieldCurrent             !< Current maximum of time-dependent coil (written as attribute to h5)
+
 LOGICAL, ALLOCATABLE              :: TimeDepCoil(:)             !< Flag if the coil has a time-dependent current [1:NumOfCoils]
+LOGICAL                           :: UseTimeDepCoil             !< Flag if any coil has a time-dependent current
 INTEGER                           :: nTimePoints                !< Number of time discretization points for the sinusoidal curve
 REAL, ALLOCATABLE                 :: BGFieldTDep(:,:,:,:,:,:)   !< Time-dependent background field
                                                                 !< [1:3,0:NBG,0:NBG,0:NBG,1:PP_nElems,1:nTimePoints]
