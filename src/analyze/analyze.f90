@@ -120,6 +120,7 @@ CALL prms%CreateRealOption('Plane-[$]-z-coord', 'z-coordinate of the n-th Poynti
 CALL prms%CreateIntOption( 'PoyntingMainDir'  , 'Direction in which the Poynting vector integral is to be measured. '//&
                                                    '\n1: x \n2: y \n3: z (default)','3')
 
+#if USE_HDG
 !-- AverageElectricPotential
 CALL prms%CreateLogicalOption( 'CalcAverageElectricPotential',"Calculate the averaged electric potential at a specific x-coordinate."//&
                                                               " The plane position must lie on an interface between two adjacent elements",&
@@ -127,6 +128,8 @@ CALL prms%CreateLogicalOption( 'CalcAverageElectricPotential',"Calculate the ave
 CALL prms%CreateRealOption('AvgPotential-Plane-x-coord', 'x-coordinate of the averaged electric potential')
 CALL prms%CreateRealOption('AvgPotential-Plane-Tolerance', 'Absolute tolerance for checking the averaged electric potential plane '&
                                                          , '1E-5')
+CALL prms%CreateLogicalOption( 'CalcElectricTimeDerivative',"Calculate the time derivative of E and output to h5",".FALSE.")
+#endif /*USE_HDG*/
 !-- TimeAverage
 CALL prms%CreateLogicalOption('CalcTimeAverage'     , 'Flag if time averaging should be performed','.FALSE.')
 CALL prms%CreateIntOption(    'nSkipAvg'            , 'Iter every which CalcTimeAverage is performed')
@@ -170,8 +173,9 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 #if USE_HDG
-USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential,PosAverageElectricPotential
+USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential,PosAverageElectricPotential,CalcElectricTimeDerivative
 USE MOD_AnalyzeField          ,ONLY: GetAverageElectricPotentialPlane
+USE MOD_Equation_Vars         ,ONLY: Et
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 #endif /*PARTICLES*/
@@ -260,6 +264,10 @@ IF(CalcAverageElectricPotential)THEN
   DoFieldAnalyze = .TRUE.
   CALL GetAverageElectricPotentialPlane()
 END IF
+!Calculate the time derivative of E and output to h5
+CalcElectricTimeDerivative = GETLOGICAL('CalcElectricTimeDerivative')
+! Allocate temporal derivative for E: No need to nullify as is it overwritten with E the first time it is used
+IF(CalcElectricTimeDerivative) ALLOCATE(Et(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 #endif /*USE_HDG*/
 
 !-- BoundaryParticleOutput (after mapping of PartBound on FieldBound and determination of PartBound types = open, reflective etc.)

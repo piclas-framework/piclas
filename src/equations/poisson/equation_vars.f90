@@ -45,6 +45,7 @@ INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff
 REAL,ALLOCATABLE  :: E(:,:,:,:,:)
+REAL,ALLOCATABLE  :: Et(:,:,:,:,:) ! temporal derivative of E
 ! Boundary condition arrays
 REAL,ALLOCATABLE     :: BCData(:,:,:,:)
 INTEGER,ALLOCATABLE  :: nBCByType(:)

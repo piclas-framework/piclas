@@ -430,18 +430,13 @@ IF(ManualTimeStepParticle.GT.0.0)THEN
 END IF ! ManualTimeStepParticle.GT.0.0
 
 nSpecies = GETINT('Part-nSpecies','1')
-IF (nSpecies.LE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'ERROR: nSpecies .LE. 0:', nSpecies)
-END IF
+IF(nSpecies.LE.0) CALL abort(__STAMP__,'ERROR: nSpecies .LE. 0:', nSpecies)
 ALLOCATE(Species(1:nSpecies))
 
 CALL InitializeVariablesSpeciesInits()
 ! Which Lorentz boost method should be used?
 CALL InitPartRHS()
 CALL InitializeVariablesPartBoundary()
-
 
 !-- AuxBCs
 CALL InitializeVariablesAuxBC()

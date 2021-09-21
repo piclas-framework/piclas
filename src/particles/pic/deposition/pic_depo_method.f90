@@ -93,7 +93,7 @@ SUBROUTINE InitDepositionMethod()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETINTFROMSTR
-USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf,dim_sf,dim_sf_dir,SFAdaptiveSmoothing,alpha_sf,sfDepo3D
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf,dim_sf,dim_sf_dir,SFAdaptiveSmoothing,alpha_sf,sfDepo3D,VerifyChargeStr
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_ReadInTools            ,ONLY: GETREAL,PrintOption,GETINT,GETLOGICAL
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -102,9 +102,13 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: DepositionType_loc
+CHARACTER(32)     :: hilf_geo
+CHARACTER(1)      :: hilf_dim
 !==================================================================================================================================
 r_sf=-1.0 ! default
+VerifyChargeStr='' ! Initialize
 DepositionType_loc = GETINTFROMSTR('PIC-Deposition-Type')
+
 ! check for interpolation type incompatibilities (cannot be done at interpolation_init
 ! because DepositionType_loc is not known yet)
 IF((DepositionType_loc.EQ.PRM_DEPO_CVWM).AND.(TrackingMethod.NE.TRIATRACKING)) THEN
@@ -137,6 +141,8 @@ END SELECT
 
 ! If shape function is used, the radius must be read here as it is used for the BGM setup
 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
+  
+  ! Check if adaptive SF is used
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive')THEN
     ! When using shape function adaptive, the radius is scaled as such that only the direct element neighbours are considered for
     ! deposition (all corner node connected elements) and each element has a separate shape function radius. Therefore, the global
@@ -164,6 +170,18 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   sfDepo3D = GETLOGICAL('PIC-shapefunction-3D-deposition')
   IF((dim_sf.EQ.3).AND.(.NOT.sfDepo3D)) &
       CALL abort(__STAMP__,'PIC-shapefunction-dimension=F and PIC-shapefunction-3D-deposition=T is not allowed')
+
+  ! Set info for output if VerifyCharge is activated
+  ! Check if the charge is to be distributed over a line (1D) or area (2D)
+  IF(.NOT.sfDepo3D)THEN
+    ! Output info on how the shape function deposits the charge
+    hilf_geo = MERGE('line','area',dim_sf.EQ.1)
+  ELSE
+    hilf_geo='volume'
+  END IF
+  WRITE(UNIT=hilf_dim,FMT='(I0)') dim_sf
+  VerifyChargeStr = '('//TRIM(hilf_geo)//'-deposited charge via '//TRIM(hilf_dim)//'D shape function)'
+
 END IF ! StringBeginsWith(DepositionType,'shape_function')
 
 ! Suppress compiler warnings
