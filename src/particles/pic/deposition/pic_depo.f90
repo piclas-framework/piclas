@@ -23,10 +23,6 @@ INTERFACE Deposition
   MODULE PROCEDURE Deposition
 END INTERFACE
 
-INTERFACE InitializeDeposition
-  MODULE PROCEDURE InitializeDeposition
-END INTERFACE
-
 INTERFACE FinalizeDeposition
   MODULE PROCEDURE FinalizeDeposition
 END INTERFACE
@@ -77,10 +73,10 @@ CALL prms%CreateLogicalOption('PIC-shapefunction-adaptive-smoothing', 'Enable sm
 END SUBROUTINE DefineParametersPICDeposition
 
 
-SUBROUTINE InitializeDeposition
 !===================================================================================================================================
-! Initialize the deposition variables first
+!> Initialize the deposition variables first
 !===================================================================================================================================
+SUBROUTINE InitializeDeposition()
 ! MODULES
 USE MOD_Globals
 USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
@@ -93,7 +89,6 @@ USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,Vdm_EQ_N
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
-USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
 USE MOD_PICDepo_Vars
 USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
@@ -140,9 +135,6 @@ IF(.NOT.DoDeposition) THEN
   RelaxDeposition=.FALSE.
   RETURN
 END IF
-
-! Initialize Deposition
-!CALL InitDepositionMethod()
 
 !--- Allocate arrays for charge density collection and initialize
 #if USE_MPI
@@ -441,9 +433,7 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 #endif /*USE_MPI*/
 
 CASE DEFAULT
-  CALL abort(&
-  __STAMP__&
-  ,'Unknown DepositionType in pic_depo.f90')
+  CALL abort(__STAMP__,'Unknown DepositionType in pic_depo.f90')
 END SELECT
 
 IF (PartSourceConstExists) THEN

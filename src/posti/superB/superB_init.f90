@@ -113,9 +113,8 @@ CALL prms%CreateRealArrayOption('Coil[$]-RectVec2'      , 'Vector 2 (x,y) in the
 CALL prms%SetSection('Time-dependent coils')
 CALL prms%CreateLogicalOption(  'Coil[$]-TimeDepCoil'     , 'Use time-dependent current (sinusoidal curve) for coil', &
                                                             '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Coil[$]-CurrentAmplitude', 'Current amplitude [A]', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Coil[$]-CurrentFrequency', 'Current frequency [1/s]', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Coil[$]-CurrentPhase'    , 'Current phase shift [rad]', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Coil[$]-CurrentPhase'    , 'Current phase shift [rad]','0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'nTimePoints'             , 'Number of points for the discretization of the sinusoidal curve')
 
 END SUBROUTINE DefineParametersSuperB
@@ -145,7 +144,7 @@ USE MOD_Interpolation      ,ONLY: GetVandermonde
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: iMagnet, iCoil, iSegment
+INTEGER            :: iMagnet, iCoil, iSegment, NbrOfTimeDepCoils
 CHARACTER(LEN=32)  :: hilf,hilf2
 !===================================================================================================================================
 
@@ -217,6 +216,7 @@ END IF
 
 ! Get the number of coils/conductors
 NumOfCoils               = GETINT('NumOfCoils','0')
+NbrOfTimeDepCoils = 0. ! Initialize
 ALLOCATE(CoilInfo(NumOfCoils))
 ALLOCATE(TimeDepCoil(NumOfCoils))
 ALLOCATE(CurrentInfo(NumOfCoils))
@@ -297,18 +297,21 @@ IF (NumOfCoils.GT.0) THEN
     ! --------------------- Time-dependent current ---------------------------------------
     TimeDepCoil(iCoil) = GETLOGICAL('Coil'//TRIM(hilf)//'-TimeDepCoil')
     IF(TimeDepCoil(iCoil)) THEN
-      CurrentInfo(iCoil)%CurrentAmpl = GETREAL('Coil'//TRIM(hilf)//'-CurrentAmplitude')
+      NbrOfTimeDepCoils = NbrOfTimeDepCoils + 1
+      IF(NbrOfTimeDepCoils.GT.1) CALL abort(__STAMP__,'More than one time-dependent magnetic coil not imeplemented!')
       CurrentInfo(iCoil)%CurrentFreq = GETREAL('Coil'//TRIM(hilf)//'-CurrentFrequency')
       CurrentInfo(iCoil)%CurrentPhase = GETREAL('Coil'//TRIM(hilf)//'-CurrentPhase')
-    ELSE
-      CoilInfo(iCoil)%Current = GETREAL('Coil'//TRIM(hilf)//'-Current')
     END IF
+    CoilInfo(iCoil)%Current = GETREAL('Coil'//TRIM(hilf)//'-Current')
   END DO
 END IF
 
 ! Discretisation in time
+UseTimeDepCoil=.FALSE.
 IF (ANY(TimeDepCoil)) THEN
-  nTimePoints = GETINT('nTimePoints','0')
+  UseTimeDepCoil=.TRUE.
+  nTimePoints = GETINT('nTimePoints')
+  IF(nTimePoints.LT.2) CALL abort(__STAMP__,'nTimePoints cannot be smaller than 2')
 END IF
 
 END SUBROUTINE InitializeSuperB

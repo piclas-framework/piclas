@@ -21,8 +21,12 @@ MODULE MOD_SuperB_Coil
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC :: SetUpCoil, SetUpCircleCoil, SetUpRectangleCoil, SetUpLinearConductor, BiotSavart, Jefimenko, WriteCoilVTK
+PUBLIC :: SetUpCoils, SetUpCoil, SetUpCircleCoil, SetUpRectangleCoil, SetUpLinearConductor, BiotSavart, Jefimenko, WriteCoilVTK
 !===================================================================================================================================
+
+INTERFACE SetUpCoils
+  MODULE PROCEDURE SetUpCoils
+END INTERFACE SetUpCoils
 
 INTERFACE SetUpCoil
   MODULE PROCEDURE SetUpCoil
@@ -48,13 +52,51 @@ INTERFACE Jefimenko
   MODULE PROCEDURE Jefimenko
 END INTERFACE Jefimenko
 
-INTERFACE WriteCoilVTK
-  MODULE PROCEDURE WriteCoilVTK
-END INTERFACE WriteCoilVTK
-
 !===================================================================================================================================
 
 CONTAINS
+
+SUBROUTINE SetUpCoils(iCoil)
+!===================================================================================================================================
+!> Sets up a coil defined by segments (line and circle)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars
+USE MOD_SuperB_Vars
+USE MOD_Interpolation_Vars    ,ONLY: BGFieldVTKOutput
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN) :: iCoil
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SWRITE(UNIT_stdOut,'(A,I2)',ADVANCE='NO') ' Set up coil: ', iCoil
+
+! Select different coil types
+SELECT CASE(TRIM(CoilInfo(iCoil)%Type))
+CASE('custom')
+  CALL SetUpCoil(iCoil)
+CASE('circle')
+  CALL SetUpCircleCoil(iCoil)
+CASE('rectangle')
+  CALL SetUpRectangleCoil(iCoil)
+CASE('linear')
+  CALL SetUpLinearConductor(iCoil)
+CASE DEFAULT
+  CALL abort(__STAMP__,'Unknown (time-dependent) coil type ['//TRIM(CoilInfo(iCoil)%Type)//']')
+END SELECT
+
+! Output to VTK
+IF(BGFieldVTKOutput) CALL WriteCoilVTK(iCoil)
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES') 'DONE'
+
+END SUBROUTINE SetUpCoils
+
 
 SUBROUTINE SetUpCoil(iCoil)
 !===================================================================================================================================
@@ -332,6 +374,7 @@ REAL                :: segmentLength, segmentToDOFLengthP3, currentDirection(3),
 CHARACTER(LEN=40)   :: formatStr
 INTEGER             :: ExactFunctionNumber    ! Number of exact function to be used for the calculation of the analytical solution
 !===================================================================================================================================
+SWRITE(UNIT_stdOut,'(A)') '...Calculation of the B-Field'
 
 ! Iterate over all DOFs
 DO iElem=1,nElems
@@ -389,7 +432,8 @@ END IF ! DoCalcErrorNormsSuperB
 
 END SUBROUTINE BiotSavart
 
-SUBROUTINE Jefimenko(iCoil, t)
+
+SUBROUTINE Jefimenko(iCoil, timestep, iTimePoint)
 !===================================================================================================================================
 !> Calculates the magnetic field of a coil with a time-dependent current with Jefimenko's Law
 !===================================================================================================================================
@@ -399,13 +443,14 @@ USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Preproc
 USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
 USE MOD_Globals_Vars       ,ONLY: mu0, c
-USE MOD_SuperB_Vars        ,ONLY: CoilInfo, CurrentInfo, CoilNodes
-USE MOD_Interpolation_Vars ,ONLY: BGField
+USE MOD_SuperB_Vars        ,ONLY: CoilInfo, CurrentInfo, CoilNodes, BGFieldTDep
+!USE MOD_Interpolation_Vars  ,ONLY: BGField
 ! IMPLICIT VARIABLE HANDLING
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN) :: iCoil
-REAL, INTENT(IN)    :: t
+REAL, INTENT(IN)    :: timestep
+INTEGER, INTENT(IN) :: iTimePoint
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -413,11 +458,22 @@ REAL, INTENT(IN)    :: t
 REAL                :: current, timedercurrent, segmentLength, segmentToDOFLength
 INTEGER             :: iElem, i, j, k, iPoint
 REAL                :: currentDirection(3), segmentPosition(3), segmentToDOF(3), BFieldTemp(3)
+REAL                :: omega
 !===================================================================================================================================
 
-current = CurrentInfo(iCoil)%CurrentAmpl*SIN(2*PI*CurrentInfo(iCoil)%CurrentFreq*t + CurrentInfo(iCoil)%CurrentPhase)
-timedercurrent = 2*Pi*CurrentInfo(iCoil)%CurrentFreq*CurrentInfo(iCoil)%CurrentAmpl *&
-    COS(2*PI*CurrentInfo(iCoil)%CurrentFreq*t + CurrentInfo(iCoil)%CurrentPhase)
+ASSOCIATE( f   => CurrentInfo(iCoil)%CurrentFreq   ,&
+           phi => CurrentInfo(iCoil)%CurrentPhase  ,&
+           A   => CoilInfo(iCoil)%Current          ,&
+           t   => timestep*REAL(iTimePoint-1)      )
+  IF(f.GT.0.)THEN
+    omega          = 2.*PI*f
+    current        = A*SIN(omega*t+phi)
+    timedercurrent = omega*A*COS(omega*t+phi)
+  ELSE
+    current = A
+    timedercurrent = 0.
+  END IF ! f.LE.0
+END ASSOCIATE
 
 ! Iterate over all DOFs
 DO iElem=1,nElems
@@ -440,12 +496,11 @@ DO iElem=1,nElems
       BFieldTemp(:)        = BFieldTemp(:) * mu0 * (current / segmentToDOFLength**3 +&
           timedercurrent / (segmentToDOFLength**2 * c)) * segmentLength / (4 * PI)
 
-      BGField(:,i,j,k,iElem) = BGField(:,i,j,k,iElem) + BFieldTemp(:)
+      BGFieldTDep(:,i,j,k,iElem,iTimePoint) = BGFieldTDep(:,i,j,k,iElem,iTimePoint) + BFieldTemp(:)
     END DO
   END DO; END DO; END DO
 END DO
 
-SDEALLOCATE(CoilNodes)
 
 END SUBROUTINE Jefimenko
 
@@ -469,7 +524,7 @@ INTEGER, INTENT(IN) :: iCoil
 CHARACTER(LEN=26)  :: myFileName
 INTEGER            :: iNode, iElem, nNodes
 !===================================================================================================================================
-
+SWRITE(UNIT_stdOut,'(A,I0,A)',ADVANCE='NO') ' ... Write coil #',iCoil,' to VTK file ...'
 WRITE(myFileName,'(A9,I3.3,A4)')'CoilMesh_',iCoil,'.vtk'
 nNodes = CoilInfo(iCoil)%NumNodes
 

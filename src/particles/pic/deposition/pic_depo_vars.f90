@@ -46,6 +46,7 @@ INTEGER,ALLOCATABLE             :: GaussBGMIndex(:,:,:,:,:)  ! Background mesh i
 REAL,ALLOCATABLE                :: GaussBGMFactor(:,:,:,:,:) ! BGM factor of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
 REAL,ALLOCATABLE                :: GPWeight(:,:,:,:,:,:,:)   ! Weights for splines deposition (check pic_depo for details)
 CHARACTER(LEN=256)              :: DepositionType            ! Type of Deposition-Method
+CHARACTER(LEN=50)               :: VerifyChargeStr           ! Auxiliary string for output to std.out for VerifyCharge=T
 INTEGER,ALLOCATABLE             :: PartToFIBGM(:,:)          ! Mapping form Particle to FIBGM
 REAL,ALLOCATABLE                :: ElemRadius2_sf(:)         ! elem radius plus radius_sf
 REAL, ALLOCATABLE               :: BGMSource(:,:,:,:)
