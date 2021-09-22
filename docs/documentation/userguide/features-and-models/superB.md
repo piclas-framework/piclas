@@ -126,3 +126,17 @@ the cross-section plane. The circular segment is defined by a radius and the ini
 It should be noted that the base point defines the start of the first segment as opposed to the circular and rectangular
 cross-sections, where it is the middle point of the cross-section.
 
+### Time-dependent Magnetic Coils
+A time-dependent magnet field can be created by a time-varying electric current running through a coil.
+Note that more than one time-dependent magnetic coil cannot be defined in the parameter file as this is not implemented yet.
+However, one time-dependent coil can be combined with an arbitrary number of permanent magnets and coils (with a constant current).
+The time-dependent settings are required in addition to the ones used for a standard coil
+
+    Coil1-TimeDepCoil      = T
+    Coil1-CurrentFrequency = 1e6
+    Coil1-CurrentPhase     = 0.0
+    nTimePoints            = 11
+
+where the frequency and phase of the sin function that is used for the electric current as well as the number of points in time for
+the interpolation of the current is required. In piclas, times between two interpolation points are determined by linear
+interpolation from the stored solution.

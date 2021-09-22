@@ -209,6 +209,8 @@ WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 #endif
 END SUBROUTINE WriteBRAverageElemToHDF5
 #endif /*defined(PARTICLES)*/
+
+
 #else
 SUBROUTINE WritePMLzetaGlobalToHDF5()
 !===================================================================================================================================
@@ -300,9 +302,7 @@ END SUBROUTINE WritePMLzetaGlobalToHDF5
 #endif /*USE_HDG*/
 
 
-
-
-SUBROUTINE WriteBGFieldToHDF5()
+SUBROUTINE WriteBGFieldToHDF5(OutputTime)
 !===================================================================================================================================
 ! Subroutine to write the BField numerical solution to HDF5 format
 !===================================================================================================================================
@@ -316,10 +316,12 @@ USE MOD_HDF5_output        ,ONLY: copy_userblock
 USE MOD_HDF5_Output        ,ONLY: WriteArrayToHDF5
 USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Interpolation_Vars ,ONLY: BGField, NodeType, NBG, BGDataSize, BGType
+USE MOD_SuperB_Vars        ,ONLY: UseTimeDepCoil,nTimePoints,BGFieldTDep,BGFieldFrequency,BGFieldCurrent
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+REAL,INTENT(IN),OPTIONAL         :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -331,7 +333,14 @@ INTEGER                        :: nVal
 REAL                           :: StartT,EndT
 #endif /*USE_MPI*/
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE BG-FIELD TO HDF5 FILE...'
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+IF(PRESENT(OutputTime))THEN
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_BGField',OutputTime))//'.h5'
+ELSE
+  FileName=TRIM(ProjectName)//'_BGField.h5'
+END IF ! PRESENT(OutputTime)
+
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE BG-FIELD ['//TRIM(FileName)//'] TO HDF5 FILE...'
 #if USE_MPI
   StartT=MPI_WTIME()
 #endif /*USE_MPI*/
@@ -355,18 +364,23 @@ ELSE IF(BGType.EQ.3) THEN
   StrVarNames(6)='BG-MagneticFieldZ'
 END IF
 
-! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(ProjectName)//'_BGField.h5'
 IF(MPIRoot) THEN
   CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
   ! Write file header
   CALL WriteHDF5Header('BGField',File_ID) ! File_Type='BGField'
   ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
-  CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=NBG)
-  CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFile)/))
-  CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
-  CALL WriteAttributeToHDF5(File_ID,'VarNames',BGDataSize,StrArray=StrVarNames)
-  CALL WriteAttributeToHDF5(File_ID,'Time'    ,1,RealScalar=0.)
+  CALL WriteAttributeToHDF5(File_ID   , 'N'                    , 1          , IntegerScalar=NBG)
+  CALL WriteAttributeToHDF5(File_ID   , 'MeshFile'             , 1          , StrScalar=(/TRIM(MeshFile)/))
+  CALL WriteAttributeToHDF5(File_ID   , 'NodeType'             , 1          , StrScalar=(/NodeType/))
+  CALL WriteAttributeToHDF5(File_ID   , 'VarNames'             , BGDataSize , StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID   , 'Time'                 , 1          , RealScalar=0.)
+  IF(UseTimeDepCoil)THEN
+    CALL WriteAttributeToHDF5(File_ID , 'BGFieldFrequency'     , 1          , RealScalar=BGFieldFrequency)
+    CALL WriteAttributeToHDF5(File_ID , 'BGFieldCurrent'       , 1          , RealScalar=BGFieldCurrent)
+    CALL WriteAttributeToHDF5(File_ID , 'BGFieldTimeDependent' , 1          , LogicalScalar=.TRUE.)
+  ELSE
+    CALL WriteAttributeToHDF5(File_ID , 'BGFieldTimeDependent' , 1          , LogicalScalar=.FALSE.)
+  END IF
   CALL CloseDataFile()
   ! Add userblock to hdf5-file
   CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
@@ -384,12 +398,23 @@ ASSOCIATE (&
   N            => INT(PP_N,IK)          ,&
   PP_nElems    => INT(PP_nElems,IK)     ,&
   offsetElem   => INT(offsetElem,IK)    ,&
-  nGlobalElems => INT(nGlobalElems,IK)  )
-CALL WriteArrayToHDF5(DataSetName='DG_Solution'   , rank=5 , &
-                      nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-                      nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-                      offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-                      collective=.false., RealArray=BGField(1:BGDataSize,0:N,0:N,0:N,1:nElems))
+  nGlobalElems => INT(nGlobalElems,IK)  ,&
+  nTimePoints  => INT(nTimePoints,IK)    )
+
+  IF(UseTimeDepCoil)THEN
+    CALL WriteArrayToHDF5(DataSetName='DG_Solution'   , rank=6 , &
+                          nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems, nTimePoints/) , &
+                          nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems   , nTimePoints/) , &
+                          offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem  , 0_IK       /) , &
+                          collective=.false., RealArray=BGFieldTDep(1:BGDataSize,0:N,0:N,0:N,1:nElems,1:nTimePoints))
+  ELSE
+    CALL WriteArrayToHDF5(DataSetName='DG_Solution'   , rank=5 , &
+                          nValGlobal=(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+                          nVal      =(/BGDataSize , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+                          offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+                          collective=.false., RealArray=BGField(1:BGDataSize,0:N,0:N,0:N,1:nElems))
+  END IF ! UseTimeDepCoil
+
 END ASSOCIATE
 
 CALL CloseDataFile()
