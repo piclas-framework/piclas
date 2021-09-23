@@ -13,7 +13,8 @@ The first set of options describe general CMake behaviour:
     * Release: "Normal" execution.
     * Profile: Performance profiling using gprof.
     * Debug: Debug compiler for detailed error messages during code development.
-    * SANI: Sanitizer compiler for even more detailed error messages during code development.
+    * Sanitize: Sanitizer compiler for even more detailed error messages during code development.
+    * Nitro: Fast compiler option `-Ofast` for even more speed but due to the cost of accuracy.
 
 * ``CMAKE_HOSTNAME``: This will display the host name of the machine you are compiling on.
 
@@ -27,8 +28,10 @@ For some external libraries and programs that **PICLas** uses, the following opt
 * ``LIBS_BUILD_HDF5``: This will be set to ON if no pre-built HDF5 installation was found on your machine. In this case a HDF5 version
 will be build and used instead. For a detailed description of the installation of HDF5, please refer to Section {ref}`sec:hdf5-installation`.
 
-* ``HDF5_DIR``: If you want to use a pre-built HDF5 library that has been build using the CMake system, this directory should contain
+* ``HDF5_DIR``: If you want to use a pre-built HDF5 library that has been built using the CMake system, this directory should contain
 the CMake configuration file for HDF5 (optional).
+
+* ``PICLAS_MEASURE_MPI_WAIT``: Measure the time that is spent in MPI_WAIT() and output info to MPIW8Time.csv and MPIW8TimeProc.csv
 
 * ``PICLAS_BUILD_POSTI``: Enables the compilation of additional tools and activates the following options:
   * ``POSTI_BUILD_SUPERB``: Enables the compilation of **superB**, which is allows the computation of magnetic fields based on an

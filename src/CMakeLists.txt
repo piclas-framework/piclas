@@ -536,6 +536,17 @@ IF(PICLAS_DEBUG_MEMORY)
 ENDIF()
 
 # =========================================================================
+# MPI_WAIT measurement and output
+# =========================================================================
+CMAKE_DEPENDENT_OPTION(PICLAS_MEASURE_MPI_WAIT "Output measured and accumulated wall time during MPI_WAIT for each process." OFF "LIBS_USE_MPI" OFF)
+IF(LIBS_USE_MPI)
+  IF(PICLAS_MEASURE_MPI_WAIT)
+    SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DMEASURE_MPI_WAIT")
+    MESSAGE(STATUS "Activated measurement of MPI_WAIT [-DMEASURE_MPI_WAIT]")
+  ENDIF()
+ENDIF()
+
+# =========================================================================
 # Ctags
 # =========================================================================
 OPTION(PICLAS_CTAGS "Use Ctags" ON)

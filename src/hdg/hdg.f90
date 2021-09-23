@@ -1168,9 +1168,12 @@ SUBROUTINE CheckNonLinRes(RHS,lambda,converged,Norm_R2)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_HDG_Vars           ,ONLY: nGP_face
-USE MOD_HDG_Vars           ,ONLY: EpsNonLinear
-USE MOD_Mesh_Vars          ,ONLY: nSides,nMPISides_YOUR
+USE MOD_HDG_Vars  ,ONLY: nGP_face
+USE MOD_HDG_Vars  ,ONLY: EpsNonLinear
+USE MOD_Mesh_Vars ,ONLY: nSides,nMPISides_YOUR
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI_Vars  ,ONLY: MPIW8TimeField
+#endif /*defined(MEASURE_MPI_WAIT)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1184,6 +1187,10 @@ REAL, INTENT(OUT)      :: Norm_r2
 ! LOCAL VARIABLES
 REAL,DIMENSION(nGP_face*nSides) :: R
 INTEGER                         :: VecSize
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)   :: CounterStart,CounterEnd
+REAL(KIND=8)      :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 #if USE_MPI
 ! not use MPI_YOUR sides for vector_dot_product!!!
@@ -1195,12 +1202,22 @@ INTEGER                         :: VecSize
 
   CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
 !  print*, Norm_R2
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
 #if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.EpsNonLinear**2)
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 #else
   converged=(Norm_R2.LT.EpsNonLinear**2)
 #endif /*USE_MPI*/
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  MPIW8TimeField(1) = MPIW8TimeField(1) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 END SUBROUTINE CheckNonLinRes
 
 
@@ -1211,13 +1228,16 @@ SUBROUTINE CG_solver(RHS,lambda,iVar)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_HDG_Vars          ,ONLY: nGP_face,HDGDisplayConvergence,iteration
-USE MOD_HDG_Vars          ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG
-USE MOD_TimeDisc_Vars     ,ONLY: iter,IterDisplayStep
-USE MOD_Mesh_Vars         ,ONLY: nSides,nMPISides_YOUR
+USE MOD_HDG_Vars           ,ONLY: nGP_face,HDGDisplayConvergence,iteration
+USE MOD_HDG_Vars           ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG
+USE MOD_TimeDisc_Vars      ,ONLY: iter,IterDisplayStep
+USE MOD_Mesh_Vars          ,ONLY: nSides,nMPISides_YOUR
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField
+#endif /*defined(MEASURE_MPI_WAIT)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1237,6 +1257,10 @@ LOGICAL                         :: converged
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)   :: CounterStart,CounterEnd
+REAL(KIND=8)      :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
   SWRITE(UNIT_StdOut,'(132("-"))')
@@ -1256,6 +1280,11 @@ ELSE
 END IF
 
 CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
 IF(useRelativeAbortCrit)THEN
 #if USE_MPI
   IF(MPIroot) converged=(Norm_R2.LT.1e-16)
@@ -1271,6 +1300,12 @@ ELSE
   converged=(Norm_R2.LT.EpsCG**2)
 #endif /*USE_MPI*/
 END IF
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  MPIW8TimeField(1) = MPIW8TimeField(1) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
 IF(converged) THEN !converged
 !  SWRITE(*,*)'CG not needed, residual already =0'
 !  SWRITE(UNIT_StdOut,'(132("-"))')
@@ -1316,7 +1351,18 @@ DO iteration=1,MaxIterCG
   IF(ISNAN(rr)) CALL abort(__STAMP__,'HDG solver residual rr = NaN for CG iteration =', IntInfoOpt=iteration)
 #if USE_MPI
   IF(MPIroot) converged=(rr.LT.AbortCrit2)
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
   CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  MPIW8TimeField(1) = MPIW8TimeField(1) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
 #else
   converged=(rr.LT.AbortCrit2)
 #endif /*USE_MPI*/
@@ -1626,8 +1672,11 @@ SUBROUTINE VectorDotProduct(dim1,A,B,Resu)
 USE MOD_Globals
 USE MOD_PreProc
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField
+#endif /*defined(MEASURE_MPI_WAIT)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1646,6 +1695,10 @@ REAL              :: ResuSend
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)   :: CounterStart,CounterEnd
+REAL(KIND=8)      :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
 #if USE_LOADBALANCE
@@ -1659,10 +1712,19 @@ END DO
 CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 #endif /*USE_LOADBALANCE*/
 
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
 #if USE_MPI
   ResuSend=Resu
   CALL MPI_ALLREDUCE(ResuSend,Resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
 #endif
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  MPIW8TimeField(2) = MPIW8TimeField(2) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 END SUBROUTINE VectorDotProduct
 
