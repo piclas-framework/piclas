@@ -302,7 +302,7 @@ END FUNCTION DiceUnitVector
 !===================================================================================================================================
 FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr)
 ! MODULES
-USE MOD_Globals           ,ONLY: Abort,UNIT_stdOut
+USE MOD_Globals           ,ONLY: Abort,UNIT_stdOut,VECNORM
 USE MOD_Globals_Vars      ,ONLY: eV2Joule,ElectronMass,c
 USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS
 IMPLICIT NONE
@@ -314,23 +314,29 @@ INTEGER,INTENT(IN)          :: iNewPart       !< The i-th particle that is inser
 INTEGER,INTENT(IN)          :: ProductSpecNbr !< Total number of particles that are inserted (only required for some distributions)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL            :: VeloFromDistribution(1:3),RandVal
-LOGICAL         :: ARM,ARM2     !< Acceptance rejection method
-REAL            :: PDF,VeloABS
-REAL            :: eps,eps2     !< kinetic electron energy [eV]
+REAL            :: VeloFromDistribution(1:3) !< Velocity vector created from specific velocity distribution function
+REAL            :: VeloABS                   !< Absolute velocity of the velocity vector
+REAL            :: RandVal                   !< Pseudo random number
+LOGICAL         :: ARM                       !< Acceptance rejection method
+REAL            :: PDF                       !< Probability density function
+REAL            :: eps,eps2                  !< kinetic electron energy [eV]
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 !-- set velocities
 SELECT CASE(TRIM(distribution))
+
 CASE('deltadistribution')
+
   ! Get random vector
   VeloFromDistribution = DiceUnitVector()
   ! Mirror z-component of velocity (particles are emitted from surface!)
   VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
   ! Set magnitude
   VeloFromDistribution = Tempergy*VeloFromDistribution ! Tempergy is [m/s]
+
 CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardment on dielectric surfaces
+
   IF(ProductSpecNbr.EQ.1)THEN ! 1 SEE
 
     ! ARM for energy distribution
@@ -350,31 +356,23 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
     IF(iNewPart.EQ.1)THEN ! 1st call
       ARM = .TRUE.
       DO WHILE(ARM)
+        ! Pick 1st electron energy
         CALL RANDOM_NUMBER(RandVal)
         PDF = 4.0*RandVal*(1.0-RandVal)
         eps = RandVal ! RandVal is eps/eps_p (relative energy as compared with the incident electron energy)
         CALL RANDOM_NUMBER(RandVal)
         IF (RandVal.LT.PDF)THEN
-          ARM = .FALSE.
-
-          ! 2nd ARM: if it fails, go back to start
-          ARM2 =.TRUE.
-          DO WHILE(ARM2)
-            CALL RANDOM_NUMBER(RandVal)
-            RandVal = RandVal*(1.0-eps) ! RandVal is scaled by the accepted eps of the 1st electron so that eps1+eps2<=eps_p
-            PDF = 4.0*RandVal*(1.0-RandVal)
-            eps2 = RandVal ! RandVal is eps/eps_p (relative energy as compared with the incident electron energy)
-            CALL RANDOM_NUMBER(RandVal)
-            IF(RandVal.LT.PDF)THEN
-              ARM2 = .FALSE. ! success, skip this loop and skip the outer loop
-              ! eV to J: store 2nd electron velocity for next function call
-              BackupVeloABS = SQRT(2.0 * eps2 * Tempergy * eV2Joule / ElectronMass)
-            ELSE
-              ARM2 = .FALSE. ! failed, skip this loop and start at the beginning
-              ARM = .TRUE.
-            END IF
-          END DO
-
+          ! Pick 2nd electron energy
+          CALL RANDOM_NUMBER(RandVal)
+          PDF = 4.0*RandVal*(1.0-RandVal)
+          eps2 = RandVal ! RandVal is eps/eps_p (relative energy as compared with the incident electron energy)
+          CALL RANDOM_NUMBER(RandVal)
+          IF(RandVal.LT.PDF)THEN
+            ARM = .FALSE. ! success, skip this loop and skip the outer loop
+            ! eV to J: store 2nd electron velocity for next function call
+            BackupVeloABS = SQRT(2.0 * eps2 * Tempergy * eV2Joule / ElectronMass)
+            IF(eps+eps2.GT.1.0) ARM = .TRUE. ! start again for both energies
+          END IF
         END IF
       END DO
       VeloABS = SQRT(2.0 * eps * Tempergy * eV2Joule / ElectronMass) ! eV to J
@@ -394,12 +392,15 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
   ! Set magnitude
   VeloFromDistribution = VeloABS*VeloFromDistribution ! VeloABS is [m/s]
 
-  ! Sanity check: is the newly created particle faster than c
-  IF(VeloABS.GT.c) CALL abort(__STAMP__,'VeloFromDistribution: Particle is faster than the speed of light: ',RealInfoOpt=VeloABS)
-
 CASE DEFAULT
+
   CALL abort(__STAMP__,'Unknown velocity dsitribution: ['//TRIM(distribution)//']')
+
 END SELECT
+
+! Sanity check: is the newly created particle faster than c
+IF(VECNORM(VeloFromDistribution).GT.c) CALL abort(__STAMP__,'VeloFromDistribution: Particle is faster than the speed of light: ',&
+    RealInfoOpt=VeloABS)
 
 END FUNCTION VeloFromDistribution
 
