@@ -23,6 +23,7 @@ USE MOD_Globals!               ,ONLY: CollectiveStop
 USE MOD_Globals_Init          ,ONLY: InitGlobals
 USE MOD_SuperB_Init           ,ONLY: DefineParametersSuperB, FinalizeSuperB
 USE MOD_SuperB                ,ONLY: SuperB
+USE MOD_SuperB_Vars           ,ONLY: BGFieldTDep
 USE MOD_Globals_Vars          ,ONLY: ParameterFile
 USE MOD_ReadInTools           ,ONLY: prms,PrintDefaultparameterFile,ExtractparameterFile
 USE MOD_Interpolation         ,ONLY: InitInterpolation
@@ -132,6 +133,7 @@ CALL InitMesh(3) ! 0: only read and build Elem_xGP,
 CALL SuperB()
 
 ! Deallocation of BGField
+SDEALLOCATE(BGFieldTDep)
 SDEALLOCATE(BGField)
 SDEALLOCATE(BGFieldAnalytic)
 ! Finalize SuperB
