@@ -98,22 +98,22 @@ SUBROUTINE InitHDG()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_Interpolation_Vars ,ONLY: xGP,wGP,L_minus,L_plus
-USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix
-USE MOD_Interpolation_Vars ,ONLY: wGP
-USE MOD_Elem_Mat           ,ONLY: Elem_Mat,BuildPrecond
-USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT
-USE MOD_Mesh_Vars          ,ONLY: sJ,nBCSides
-USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC
-USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides,nMortarMPISides
-USE MOD_Restart_Vars       ,ONLY: DoRestart
-USE MOD_Mesh_Vars          ,ONLY: DoSwapMesh
-USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
-USE MOD_Basis              ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
-USE MOD_FillMortar_HDG     ,ONLY: InitMortar_HDG
-USE MOD_HDG_Vars           ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectronRef
+USE MOD_Interpolation_Vars    ,ONLY: xGP,wGP,L_minus,L_plus
+USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
+USE MOD_Interpolation_Vars    ,ONLY: wGP
+USE MOD_Elem_Mat              ,ONLY: Elem_Mat,BuildPrecond
+USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETREAL,GETINT
+USE MOD_Mesh_Vars             ,ONLY: sJ,nBCSides
+USE MOD_Mesh_Vars             ,ONLY: BoundaryType,nSides,BC
+USE MOD_Mesh_Vars             ,ONLY: nGlobalMortarSides,nMortarMPISides
+USE MOD_Mesh_Vars             ,ONLY: DoSwapMesh
+USE MOD_ChangeBasis           ,ONLY: ChangeBasis2D
+USE MOD_Basis                 ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
+USE MOD_FillMortar_HDG        ,ONLY: InitMortar_HDG
+USE MOD_HDG_Vars              ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectronRef
 #if defined(PARTICLES)
 USE MOD_Part_BR_Elecron_Fluid ,ONLY: UpdateNonlinVolumeFac
+USE MOD_Restart_Vars          ,ONLY: DoRestart
 #endif /*defined(PARTICLES)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -464,8 +464,14 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-USE MOD_TimeDisc_Vars, ONLY: iStage
+USE MOD_TimeDisc_Vars ,ONLY: iStage
 #endif
+#if (USE_HDG && (PP_nVar==1))
+USE MOD_TimeDisc_Vars ,ONLY: dt,dt_Min
+USE MOD_Equation_Vars ,ONLY: E,Et
+USE MOD_Globals_Vars  ,ONLY: eps0
+USE MOD_Analyze_Vars  ,ONLY: CalcElectricTimeDerivative
+#endif /*(USE_HDG && (PP_nVar==1))*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -477,11 +483,23 @@ LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in f
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if defined(PARTICLES)
 LOGICAL :: ForceCGSolverIteration_loc
+#endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(4))
 #endif /*EXTRAE*/
+
+! Calculate temporal derivate of E in last iteration before Analyze_dt is reached: Store E^n here
+#if (USE_HDG && (PP_nVar==1))
+IF(CalcElectricTimeDerivative)THEN
+  IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
+    Et(:,:,:,:,:) = E(:,:,:,:,:)
+  END IF
+END IF ! CalcElectricTimeDerivative
+#endif /*(USE_HDG && (PP_nVar==1))*/
+
 ! Check whether the solver should be skipped in this iteration
 IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
   IF (t.LT.HDGSkip_t0) THEN
@@ -512,6 +530,15 @@ ELSE
 #if defined(PARTICLES)
 END IF
 #endif /*defined(PARTICLES)*/
+
+! Calculate temporal derivate of E in last iteration before Analyze_dt is reached: Store E^n+1 here and calculate the derivative
+#if (USE_HDG && (PP_nVar==1))
+IF(CalcElectricTimeDerivative)THEN
+  IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
+    Et(:,:,:,:,:) = eps0*(E(:,:,:,:,:)-Et(:,:,:,:,:)) / dt
+  END IF
+END IF ! CalcElectricTimeDerivative
+#endif /*(USE_HDG && (PP_nVar==1))*/
 
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))

@@ -170,9 +170,7 @@ chitensRadius     = GETREAL('chitensRadius','-1.0')
 IF(chitensWhichField.GT.0.0.OR.&
    chitensValue     .GT.0.0.OR.&
    chitensRadius    .GT.0.0)THEN
-  CALL abort(&
-  __STAMP__&
-  ,'chitensWhichField, chitensValue and chitensRadius are no longer supported. Deactivate them!')
+  CALL abort(__STAMP__,'chitensWhichField, chitensValue and chitensRadius are no longer supported. Deactivate them!')
 END IF
 ALLOCATE(chitens(3,3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 ALLOCATE(chitensInv(3,3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
@@ -197,6 +195,7 @@ ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape)
 
 ALLOCATE(E(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 E=0.
+
 
 EquationInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT POISSON DONE!'
@@ -688,6 +687,7 @@ SDEALLOCATE(chitens)
 SDEALLOCATE(chitensInv)
 SDEALLOCATE(chitens_face)
 SDEALLOCATE(E)
+SDEALLOCATE(Et)
 SDEALLOCATE(RefState)
 END SUBROUTINE FinalizeEquation
 

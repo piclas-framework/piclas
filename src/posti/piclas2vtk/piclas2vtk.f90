@@ -246,27 +246,29 @@ DO iArgs = iArgsStart,nArgs
   InputStateFile = Args(iArgs)
   ! Check if the argument is a valid .h5 file
   IF(.NOT.ISVALIDHDF5FILE(InputStateFile)) THEN
-    CALL Abort(__STAMP__,&
-      'ERROR - Please supply only .h5 files after parameter file.')
+    CALL Abort(__STAMP__,'ERROR - Please supply only .h5 files after parameter file.')
   END IF
 
   SWRITE(UNIT_stdOut,'(132("="))')
   SWRITE(UNIT_stdOut,'(A,I3,A,I3,A)') 'Processing state ',iArgs-iArgsStart+1,' of ',nArgs-iArgsStart+1,'...'
 
   ! Open .h5 file
-  DGSolutionExists = .FALSE.; ElemDataExists = .FALSE.; SurfaceDataExists = .FALSE.; PartDataExists = .FALSE.
+  DGSolutionExists   = .FALSE.
+  ElemDataExists     = .FALSE.
+  SurfaceDataExists  = .FALSE.
+  PartDataExists     = .FALSE.
   AdaptiveInfoExists = .FALSE.
   CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   ! Get the type of the .h5 file
   CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
   ! Check which containers are present
-  CALL DatasetExists(File_ID,'DG_Solution',DGSolutionExists)
+  CALL DatasetExists(File_ID , 'DG_Solution'  , DGSolutionExists)
   IF(TRIM(File_Type).EQ.'PartStateBoundary') DGSolutionExists = .FALSE.
-  CALL DatasetExists(File_ID,'ElemData',ElemDataExists)
-  CALL DatasetExists(File_ID,'AdaptiveInfo',AdaptiveInfoExists)
-  CALL DatasetExists(File_ID,'SurfaceData',SurfaceDataExists)
-  CALL DatasetExists(File_ID,'PartData',PartDataExists)
-  CALL DatasetExists(File_ID,'BGField',BGFieldExists) ! deprecated, but allow for backward compatibility
+  CALL DatasetExists(File_ID , 'ElemData'     , ElemDataExists)
+  CALL DatasetExists(File_ID , 'AdaptiveInfo' , AdaptiveInfoExists)
+  CALL DatasetExists(File_ID , 'SurfaceData'  , SurfaceDataExists)
+  CALL DatasetExists(File_ID , 'PartData'     , PartDataExists)
+  CALL DatasetExists(File_ID , 'BGField'      , BGFieldExists) ! deprecated , but allow for backward compatibility
   IF(BGFieldExists)THEN
     DGSolutionExists  = .TRUE.
     DGSolutionDataset = 'BGField'
@@ -569,6 +571,7 @@ USE MOD_Interpolation_Vars    ,ONLY: NodeTypeVisu
 USE MOD_Interpolation         ,ONLY: GetVandermonde
 USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
 USE MOD_VTK                   ,ONLY: WriteDataToVTK
+USE MOD_IO_HDF5               ,ONLY: HSize
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -580,11 +583,13 @@ INTEGER,INTENT(IN)            :: NVisu
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iElem, iDG, nVar_State, N_State, nElems_State, nVar_Solution
-CHARACTER(LEN=255)              :: MeshFile, NodeType_State, FileString_DG, StrVarNamesTemp(4)
+INTEGER                         :: iElem, iDG, nVar_State, N_State, nElems_State, nVar_Solution, nDims, iField, nFields, Suffix
+INTEGER                         :: nDimsOffset, nVar_Source
+CHARACTER(LEN=255)              :: MeshFile, NodeType_State, FileString_DG, StrVarNamesTemp(4),StrVarNamesTemp3(3)
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:), StrVarNamesTemp2(:)
 REAL                            :: OutputTime
-REAL,ALLOCATABLE                :: U(:,:,:,:,:)                      !< Solution from state file
+REAL,ALLOCATABLE                :: U2(:,:,:,:,:,:)                   !< Solution from state file with additional dimension, rank=6
+REAL,ALLOCATABLE                :: U(:,:,:,:,:)                      !< Solution from state file, rank=5
 REAL,ALLOCATABLE,TARGET         :: U_Visu(:,:,:,:,:)                 !< Solution on visualization nodes
 REAL,POINTER                    :: U_Visu_p(:,:,:,:,:)               !< Solution on visualization nodes
 REAL,ALLOCATABLE                :: Coords_NVisu(:,:,:,:,:)           !< Coordinates of visualization nodes
@@ -592,12 +597,20 @@ REAL,ALLOCATABLE,TARGET         :: Coords_DG(:,:,:,:,:)
 REAL,POINTER                    :: Coords_DG_p(:,:,:,:,:)
 REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             !< Vandermonde from equidistant mesh to visualization nodes
 REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  !< Vandermonde from state to visualization nodes
-LOGICAL                         :: DGSourceExists
+LOGICAL                         :: DGSourceExists,DGTimeDerivativeExists
+CHARACTER(LEN=16)               :: hilf
 !===================================================================================================================================
 ! 1.) Open given file to get the number of elements, the order and the name of the mesh file
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
+! Read-in of dimensions of the field array (might have an additional dimension, i.e., rank is 6 instead of 5)
+CALL GetDataSize(File_ID,TRIM(DGSolutionDataset),nDims,HSize)
+! Check the number of fields in the file, if more than 5 dimensions, the 6th dimensions carries the number of fields
+nFields     = MERGE(1 , INT(HSize(nDims)) , nDims.EQ.5)
+nDimsOffset = MERGE(0 , 1                 , nDims.EQ.5)
+
 ! Default: DGSolutionDataset = 'DG_Solution'
-CALL GetDataProps(TRIM(DGSolutionDataset),nVar_Solution,N_State,nElems_State,NodeType_State)
+CALL GetDataProps(TRIM(DGSolutionDataset),nVar_Solution,N_State,nElems_State,NodeType_State,nDimsOffset)
 CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 
@@ -605,10 +618,19 @@ CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
 IF (DGSourceExists) THEN
   CALL ReadAttribute(File_ID,'VarNamesSource',4,StrArray=StrVarNamesTemp)
-  nVar_State = nVar_Solution + 4
+  nVar_State  = nVar_Solution + 4
+  nVar_Source = nVar_State
 ELSE
   nVar_State = nVar_Solution
 END IF
+
+! Check if the DG_TimeDerivative container exists, and if it does save the variable names and increase the nVar_State variable
+CALL DatasetExists(File_ID,'DG_TimeDerivative',DGTimeDerivativeExists)
+IF(DGTimeDerivativeExists)THEN
+  CALL ReadAttribute(File_ID,'VarNamesTimeDerivative',3,StrArray=StrVarNamesTemp3)
+  nVar_State = nVar_State + 3
+END IF ! DGTimeDerivativeExists
+
 ! Save the variable names for the regular DG_Solution in a temporary array
 SDEALLOCATE(StrVarNamesTemp2)
 ALLOCATE(StrVarNamesTemp2(nVar_Solution))
@@ -618,9 +640,8 @@ CALL ReadAttribute(File_ID,'VarNames',nVar_Solution,StrArray=StrVarNamesTemp2)
 SDEALLOCATE(StrVarNames)
 ALLOCATE(StrVarNames(nVar_State))
 StrVarNames(1:nVar_Solution) = StrVarNamesTemp2
-IF (DGSourceExists) THEN
-  StrVarNames(nVar_Solution+1:nVar_State) = StrVarNamesTemp(1:4)
-END IF
+IF(DGSourceExists)         StrVarNames(nVar_Solution+1:nVar_Source) = StrVarNamesTemp(1:4)
+IF(DGTimeDerivativeExists) StrVarNames(nVar_Source  +1:nVar_State)  = StrVarNamesTemp3(1:3)
 
 ! Check if a state file is converted. Read the time stamp from .h5
 IF(OutputName.EQ.'State') CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
@@ -639,26 +660,38 @@ DO iElem = 1,nElems
   CALL ChangeBasis3D(3,NGeo,NVisu,Vdm_EQNgeo_NVisu,NodeCoords(:,:,:,:,iElem),Coords_NVisu(:,:,:,:,iElem))
 END DO
 
-SDEALLOCATE(U)
-ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
-
 ! Read in solution
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-      nVar_State => INT(nVar_State,IK) ,&
-      nVar_Solution => INT(nVar_Solution,IK) ,&
-      offsetElem => INT(offsetElem,IK),&
-      N_State    => INT(N_State,IK),&
-      nElems     => INT(nElems,IK)    )
-  ! Default: DGSolutionDataset = 'DG_Solution'
-  CALL ReadArray(TRIM(DGSolutionDataset),5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
-                  RealArray=U(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems))
-  IF(DGSourceExists) THEN
-    CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
-                    RealArray=U(nVar_Solution+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
-  END IF
+      nVar_State    => INT(nVar_State    , IK)      , &
+      nVar_Solution => INT(nVar_Solution , IK)      , &
+      offsetElem    => INT(offsetElem    , IK)      , &
+      N_State       => INT(N_State       , IK)      , &
+      nElems        => INT(nElems        , IK)      , &
+      nFields       => INT(nFields       , IK)      )
+  IF(nFields.EQ.1)THEN
+    SDEALLOCATE(U)
+    ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
+    ! Default: DGSolutionDataset = 'DG_Solution'
+    ! Read 1:nVar_Solution
+    CALL ReadArray(TRIM(DGSolutionDataset),5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+                    RealArray=U(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems))
+
+    ! Read nVar_Solution+1:nVar_Source
+    IF(DGSourceExists) CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+                                       RealArray=U(nVar_Solution+1:nVar_Source,0:N_State,0:N_State,0:N_State,1:nElems))
+    ! Read nVar_Source+1:nVar_State
+    IF(DGTimeDerivativeExists) CALL ReadArray('DG_TimeDerivative',5,(/3_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
+                            offsetElem,5,RealArray=U(nVar_Source+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
+  ELSE ! more than one field
+    SDEALLOCATE(U2)
+    ALLOCATE(U2(nVar_State,0:N_State,0:N_State,0:N_State,nElems,nFields))
+    ! Default: DGSolutionDataset = 'DG_Solution'
+    CALL ReadArray(TRIM(DGSolutionDataset),6,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems,nFields/),offsetElem,5, &
+                    RealArray=U2(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems,1:nFields))
+  END IF ! nFields.GT.1
 END ASSOCIATE
 
 CALL CloseDataFile()
@@ -670,23 +703,58 @@ CALL GetVandermonde(N_State,NodeType_State,NVisu,NodeTypeVisuOut,Vdm_N_NVisu,mod
 SDEALLOCATE(U_Visu)
 ALLOCATE(U_Visu(nVar_State,0:NVisu,0:NVisu,0:NVisu,nElems))
 
-! Interpolate solution to visu grid
+! Set DG coords
 iDG = 0
 DO iElem = 1,nElems
   iDG = iDG + 1
-  CALL ChangeBasis3D(nVar_State,N_State,NVisu,Vdm_N_NVisu,U(:,:,:,:,iElem),U_Visu(:,:,:,:,iDG))
   Coords_DG(:,:,:,:,iDG) = Coords_NVisu(:,:,:,:,iElem)
 END DO
-
-! Write solution to vtk
-IF(OutputName.EQ.'State')THEN
-  FileString_DG=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution',OutputTime))//'.vtu'
-ELSE
-  FileString_DG=TRIM(ProjectName)//'_'//TRIM(OutputName)//'.vtu'
-END IF ! OutputName.NE:''
 Coords_DG_p => Coords_DG(:,:,:,:,1:iDG)
-U_Visu_p => U_Visu(:,:,:,:,1:iDG)
-CALL WriteDataToVTK(nVar_State,NVisu,iDG,StrVarNames,Coords_DG_p,U_Visu_p,TRIM(FileString_DG),dim=3,DGFV=0)
+U_Visu_p    => U_Visu(:,:,:,:,1:iDG)
+
+! Output multiples files, if the DGSolution file contains more than one field (e.g. multiple different times for the same field)
+DO iField = 1, nFields
+
+  ! Write solution to vtk
+  IF(OutputName.EQ.'State')THEN
+    FileString_DG=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution',OutputTime))//'.vtu'
+  ELSE
+    FileString_DG=TRIM(ProjectName)//'_'//TRIM(OutputName)//'.vtu'
+  END IF
+
+  IF(nFields.GT.1)THEN
+    ! Append 001, 002, etc. to file name (before the .vtk suffix)
+    Suffix = INDEX(FileString_DG,'.vtu')
+    WRITE(UNIT=hilf,FMT='(I3.3)') iField
+    hilf = TRIM(hilf)//'.vtu'
+    FileString_DG(Suffix:Suffix-1+LEN(TRIM(hilf)))=TRIM(hilf)
+  END IF ! nFields.GT.1
+
+  ! Interpolate solution to visu grid
+  iDG = 0
+  DO iElem = 1,nElems
+    iDG = iDG + 1
+    IF(nFields.EQ.1)THEN
+      CALL ChangeBasis3D(nVar_State,N_State,NVisu,Vdm_N_NVisu,U(:,:,:,:,iElem),U_Visu(:,:,:,:,iDG))
+    ELSE ! more than one field
+      CALL ChangeBasis3D(nVar_State,N_State,NVisu,Vdm_N_NVisu,U2(:,:,:,:,iElem,iField),U_Visu(:,:,:,:,iDG))
+    END IF ! nFields.GT.1
+  END DO
+
+  ! Output to VTK
+  CALL WriteDataToVTK(nVar_State,NVisu,iDG,StrVarNames,Coords_DG_p,U_Visu_p,TRIM(FileString_DG),dim=3,DGFV=0)
+
+END DO ! iField = 1, nFields
+
+SDEALLOCATE(StrVarNamesTemp2)
+SDEALLOCATE(StrVarNames)
+SDEALLOCATE(Vdm_EQNgeo_NVisu)
+SDEALLOCATE(Coords_NVisu)
+SDEALLOCATE(Coords_DG)
+SDEALLOCATE(U)
+SDEALLOCATE(U2)
+SDEALLOCATE(Vdm_N_NVisu)
+SDEALLOCATE(U_Visu)
 
 END SUBROUTINE ConvertDGSolution
 

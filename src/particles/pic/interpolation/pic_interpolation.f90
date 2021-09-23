@@ -238,7 +238,7 @@ USE MOD_Part_Tools            ,ONLY: isInterpolateParticle
 USE MOD_PIC_Vars
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle,DoInterpolation,InterpolationType
 USE MOD_PICInterpolation_Vars ,ONLY: InterpolationElemLoop
-USE MOD_PICInterpolation_Vars ,ONLY: CalcBField
+USE MOD_SuperB_Vars           ,ONLY: UseTimeDepCoil
 USE MOD_HDF5_Output_Fields    ,ONLY: WriteBGFieldToHDF5
 #if USE_HDG
 USE MOD_AnalyzeField          ,ONLY: CalculateAverageElectricPotential
@@ -259,7 +259,7 @@ INTEGER                          :: iPart,iElem
 IF(.NOT.DoInterpolation) RETURN
 
 !1.1 Calculate the time step of the discretization of the Current
-IF (CalcBField) CALL GetTimeDependentBGField()
+IF (UseTimeDepCoil) CALL GetTimeDependentBGField()
 
 #if USE_HDG
 !1.2 Calculate external E-field
@@ -284,9 +284,7 @@ IF (InterpolationElemLoop) THEN ! element-particle loop
       END DO ! iPart
     END DO ! iElem=1,PP_nElems
   CASE DEFAULT
-    CALL abort(&
-    __STAMP__&
-       , 'ERROR: Unknown InterpolationType!')
+    CALL abort(__STAMP__, 'ERROR: Unknown InterpolationType!')
   END SELECT
 ELSE ! .NOT.InterpolationElemLoop -> particle-element loop
   ! 2.2 particle-element loop: Loop particles and select corresponding element
@@ -764,25 +762,40 @@ SUBROUTINE GetTimeDependentBGField()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Interpolation_Vars ,ONLY: BGField
-USE MOD_SuperB_Vars        ,ONLY: TimeDepCoil, nTimePoints, BGFieldTDep
-USE MOD_TimeDisc_Vars      ,ONLY: Time, TEnd
+USE MOD_SuperB_Vars        ,ONLY: nTimePoints, BGFieldTDep, BGFieldFrequency
+USE MOD_TimeDisc_Vars      ,ONLY: Time
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iTime
-REAL    :: timestep
+REAL    :: timestep,t,Period
 !===================================================================================================================================
-IF (ANY(TimeDepCoil)) THEN
-  timestep = tEnd / (nTimePoints - 1)
-  iTime = FLOOR(Time / timestep)
 
-  ! Interpolate the Background field linear between two timesteps
-  BGField(:,:,:,:,:) = BGFieldTDep(:,:,:,:,:,iTime) + (BGFieldTDep(:,:,:,:,:,iTime) - BGFieldTDep(:,:,:,:,:,iTime+1)) &
-                       / timestep * (Time - iTime * timestep)
-  ! CALL WriteBGFieldToHDF5(Time)
-ENDIF
+! Check frequency and calculate time within the period
+ASSOCIATE( f => BGFieldFrequency )
+  IF(f.GT.0.)THEN
+    Period   = 1./f
+    timestep = 1./(f*REAL(nTimePoints-1))
+    t        = MOD(Time,Period)
+    iTime    = FLOOR(t/timestep)+1
+    IF(iTime.EQ.nTimePoints) iTime = iTime - 1 ! sanity check
+    ! Interpolate the Background field linear between two timesteps
+    ASSOCIATE( y1 => BGFieldTDep(:,:,:,:,:,iTime)   ,&
+               y2 => BGFieldTDep(:,:,:,:,:,iTime+1) )
+      BGField(:,:,:,:,:) = y2 + ((y2-y1)/timestep) * (t - iTime * timestep)
+    END ASSOCIATE
+  ELSE
+    Period   = 0.
+    timestep = 0.
+    t        = 0.
+    BGField(:,:,:,:,:) = BGFieldTDep(:,:,:,:,:,1)
+  END IF ! f.GT.0.
+END ASSOCIATE
+
+! CALL WriteBGFieldToHDF5(Time)
+
 END SUBROUTINE GetTimeDependentBGField
 
 

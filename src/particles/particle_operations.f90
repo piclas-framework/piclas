@@ -170,8 +170,10 @@ IF(CalcPartBalance) THEN
   PartEkinOut(iSpec)=PartEkinOut(iSpec)+CalcEkinPart(PartID)
 END IF ! CalcPartBalance
 
-! If a BCID is given (e.g. when a particle is removed at a boundary), check if its an adaptive surface flux BC or the mass flow
-! through the boundary shall be calculated or the charges impinging on the boundary are to be summed (thruster neutralization)
+! If a BCID is given (e.g. when a particle is removed at a boundary), check if it is
+!   - an adaptive surface flux BC or
+!   - the mass flow through the boundary shall be calculated or
+!   - the charges impinging on the boundary are to be summed (thruster neutralization)
 IF(PRESENT(BCID)) THEN
   IF(UseAdaptive.OR.CalcAdaptiveBCInfo) THEN
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs

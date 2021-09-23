@@ -451,6 +451,7 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90
                          ./src/particles/particle_mesh/particle_mesh_vars.f90
                          ./src/particles/particle_vars.f90
+                         ./src/posti/superB/superB_vars.f90
                          ./src/particles/boundary/particle_boundary_vars.f90)
 
 FILE(GLOB_RECURSE extraeF90 ./src/extrae/*.f90)

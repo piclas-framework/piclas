@@ -297,39 +297,110 @@ IMPLICIT NONE
 END FUNCTION DiceUnitVector
 
 
-FUNCTION VeloFromDistribution(distribution,Tempergy)
 !===================================================================================================================================
-!> calculation of velocityvector (Vx,Vy,Vz) sampled from given distribution function
+!> Calculation of velocity vector (Vx,Vy,Vz) sampled from given distribution function
 !===================================================================================================================================
+FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr)
 ! MODULES
-! IMPLICIT VARIABLE HANDLING
-USE MOD_Globals                 ,ONLY: Abort,UNIT_stdOut
+USE MOD_Globals           ,ONLY: Abort,UNIT_stdOut,VECNORM
+USE MOD_Globals_Vars      ,ONLY: eV2Joule,ElectronMass,c
+USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN) :: distribution !< specifying keyword for velocity distribution
-REAL,INTENT(IN)             :: Tempergy     !< input temperature [K] or energy [J] or velocity [m/s]
+CHARACTER(LEN=*),INTENT(IN) :: distribution   !< specifying keyword for velocity distribution
+REAL,INTENT(IN)             :: Tempergy       !< input temperature [K] or energy [J/eV] or velocity [m/s]
+INTEGER,INTENT(IN)          :: iNewPart       !< The i-th particle that is inserted (only required for some distributions)
+INTEGER,INTENT(IN)          :: ProductSpecNbr !< Total number of particles that are inserted (only required for some distributions)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL            :: VeloFromDistribution(1:3)
+REAL            :: VeloFromDistribution(1:3) !< Velocity vector created from specific velocity distribution function
+REAL            :: VeloABS                   !< Absolute velocity of the velocity vector
+REAL            :: RandVal                   !< Pseudo random number
+LOGICAL         :: ARM                       !< Acceptance rejection method
+REAL            :: PDF                       !< Probability density function
+REAL            :: eps,eps2                  !< kinetic electron energy [eV]
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 !-- set velocities
 SELECT CASE(TRIM(distribution))
+
 CASE('deltadistribution')
+
   ! Get random vector
   VeloFromDistribution = DiceUnitVector()
   ! Mirror z-component of velocity (particles are emitted from surface!)
   VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
   ! Set magnitude
-  VeloFromDistribution = Tempergy*VeloFromDistribution
+  VeloFromDistribution = Tempergy*VeloFromDistribution ! Tempergy is [m/s]
+
+CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardment on dielectric surfaces
+
+  IF(ProductSpecNbr.EQ.1)THEN ! 1 SEE
+
+    ! ARM for energy distribution
+    ARM = .TRUE.
+    DO WHILE(ARM)
+      CALL RANDOM_NUMBER(RandVal) ! random x-coordinate
+      PDF = 4.0*RandVal*(1.0-RandVal)
+      eps = RandVal ! RandVal is eps/eps_p (relative energy as compared with the incident electron energy)
+      CALL RANDOM_NUMBER(RandVal) ! random y-coordinate
+      IF (RandVal.LT.PDF) ARM = .FALSE.
+    END DO
+    VeloABS = SQRT(2.0 * eps * Tempergy * eV2Joule / ElectronMass) ! eV to J
+
+  ELSE ! 2 SEE
+
+    ! ARM for energy distribution
+    IF(iNewPart.EQ.1)THEN ! 1st call
+      ARM = .TRUE.
+      DO WHILE(ARM)
+        ! Pick 1st electron energy
+        CALL RANDOM_NUMBER(RandVal)
+        PDF = 4.0*RandVal*(1.0-RandVal)
+        eps = RandVal ! RandVal is eps/eps_p (relative energy as compared with the incident electron energy)
+        CALL RANDOM_NUMBER(RandVal)
+        IF (RandVal.LT.PDF)THEN
+          ! Pick 2nd electron energy
+          CALL RANDOM_NUMBER(RandVal)
+          PDF = 4.0*RandVal*(1.0-RandVal)
+          eps2 = RandVal ! RandVal is eps/eps_p (relative energy as compared with the incident electron energy)
+          CALL RANDOM_NUMBER(RandVal)
+          IF(RandVal.LT.PDF)THEN
+            ARM = .FALSE. ! success, skip this loop and skip the outer loop
+            ! eV to J: store 2nd electron velocity for next function call
+            BackupVeloABS = SQRT(2.0 * eps2 * Tempergy * eV2Joule / ElectronMass)
+            IF(eps+eps2.GT.1.0) ARM = .TRUE. ! start again for both energies
+          END IF
+        END IF
+      END DO
+      VeloABS = SQRT(2.0 * eps * Tempergy * eV2Joule / ElectronMass) ! eV to J
+
+    ELSE ! 2nd call of this function, velocity already known from last call and stored in "BackupVeloABS"
+
+      VeloABS = BackupVeloABS
+
+    END IF ! iNewPart.EQ.1
+
+  END IF ! ProductSpecNbr.EQ.1
+
+  ! Get random vector
+  VeloFromDistribution = DiceUnitVector()
+  ! Mirror z-component of velocity (particles are emitted from surface!)
+  VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
+  ! Set magnitude
+  VeloFromDistribution = VeloABS*VeloFromDistribution ! VeloABS is [m/s]
+
 CASE DEFAULT
-  WRITE (UNIT_stdOut,'(A)') "distribution =", distribution
-  CALL abort(&
-__STAMP__&
-,'wrong velo-distri!')
+
+  CALL abort(__STAMP__,'Unknown velocity dsitribution: ['//TRIM(distribution)//']')
+
 END SELECT
+
+! Sanity check: is the newly created particle faster than c
+IF(VECNORM(VeloFromDistribution).GT.c) CALL abort(__STAMP__,'VeloFromDistribution: Particle is faster than the speed of light: ',&
+    RealInfoOpt=VeloABS)
 
 END FUNCTION VeloFromDistribution
 
