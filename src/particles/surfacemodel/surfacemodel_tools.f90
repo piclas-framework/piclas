@@ -30,10 +30,11 @@ PUBLIC :: SurfaceModel_ParticleEmission, SurfaceModel_EnergyAccommodation, GetWa
 
 CONTAINS
 
-SUBROUTINE SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy)
 !===================================================================================================================================
 !> Routine for the particle emission at a surface
 !===================================================================================================================================
+SUBROUTINE SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy)
+! MODULES
 USE MOD_Globals                   ,ONLY: OrthoNormVec
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
 USE MOD_part_operations           ,ONLY: CreateParticle
@@ -80,7 +81,7 @@ CALL OrthoNormVec(n_loc,tang1,tang2)
 DO iNewPart = 1, ProductSpecNbr
   ! create new particle and assign correct energies
   ! sample newly created velocity
-  NewVelo(1:3) = VeloFromDistribution(SurfModEnergyDistribution(locBCID),TempErgy(2))
+  NewVelo(1:3) = VeloFromDistribution(SurfModEnergyDistribution(locBCID),TempErgy(2),iNewPart,ProductSpecNbr)
   ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
   NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
   ! Create new particle and get a free particle index

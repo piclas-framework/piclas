@@ -34,13 +34,30 @@ It includes particles lost during the tracking (TrackingMethod = triatracking, t
 For the latter, the output includes particles that went missing but were found on other processors.
 
 ## Field Solver and PIC
+
+The following table summarizes the available fields in connection with Poisson's or Maxwell's equations (some require a particle
+solver to be active) that can be stored to the state file (`*_State_*.h5`) file at every `Analyze_dt` as well as at the start and
+end of the simulation
+
+|         **Option**         | **Default** |                                        **Description**                                       |
+|         :--------:         | :---------: |                                          :---------:                                         |
+|      PIC-OutputSource      |      F      |                             charge $\rho$ and current density $j$                            |
+| CalcElectricTimeDerivative |      F      | time derivative $\frac{\partial D}{\partial t}=\varepsilon_{0}\frac{\partial E}{\partial t}$ |
+
 When running a PIC simulation, the particle-grid deposited properties, such as charge and current densities (in each direction `x,
-y,`and `z`) can be written to the state file (`*_State_*.h5`) file at every `Analyze_dt` as well as at the start and end of the
-simulation by enabling
+y,`and `z`) can be output by enabling
 
     PIC-OutputSource = T
 
 that stores the data in the same format as the solution polynomial of degree $N$, i.e., $(N+1)^{3}$ data points for each cell.
+
+The temporal change of the electric displacement field $\frac{\partial D}{\partial t}=\varepsilon_{0}\frac{\partial E}{\partial t}$
+can be stored for Poisson's equation (`PICLAS_EQNSYSNAME=poisson`) by setting
+
+    CalcElectricTimeDerivative = T
+
+Again, the data in the same format as the solution polynomial of degree $N$, i.e., $(N+1)^{3}$ data points for each cell in the
+container `DG_TimeDerivative` in the `*_State_*.h5` file and can be converted to `.vtk` format with `piclas2vtk`.
 
 ### Element-constant properties
 The determined properties are given by a single value within each cell and are NOT sampled over time as opposed to the output
