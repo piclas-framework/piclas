@@ -72,6 +72,12 @@ CALL SetStackSizeUnlimited()
 
 CALL InitMPI()
 
+#if defined(MEASURE_MPI_WAIT)
+#if !defined(PARTICLES) && !(USE_HDG)
+CALL abort(__STAMP__,'PICLAS_MEASURE_MPI_WAIT=T is not implemented yet for this time discretization')
+#endif /*!defined(PARTICLES) && !(USE_HDG)*/
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(1))
 #endif /*EXTRAE*/

@@ -19,18 +19,25 @@ PROGRAM Piclas
 ! MODULES
 USE MOD_Globals
 USE MOD_Piclas
-USE MOD_Piclas_init ,ONLY: FinalizePiclas
-USE MOD_TimeDisc    ,ONLY: TimeDisc
+USE MOD_Piclas_init       ,ONLY: FinalizePiclas
+USE MOD_TimeDisc          ,ONLY: TimeDisc
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI         ,ONLY: OutputMPIW8Time
-USE MOD_MPI_Vars    ,ONLY: MPIW8Time
+USE MOD_MPI               ,ONLY: OutputMPIW8Time
+USE MOD_MPI_Vars          ,ONLY: MPIW8Time,MPIW8TimeField
+#if defined(PARTICLES)
+USE MOD_Particle_MPI_Vars ,ONLY: MPIW8TimePart
+#endif /*defined(PARTICLES)*/
 #endif /*defined(MEASURE_MPI_WAIT)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 #if defined(MEASURE_MPI_WAIT)
-MPIW8Time = 0.  
+#if defined(PARTICLES)
+MPIW8TimePart  = 0.
+#endif /*defined(PARTICLES)*/
+MPIW8TimeField = 0.
+MPIW8Time      = 0.
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! Initialize

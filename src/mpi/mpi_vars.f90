@@ -12,11 +12,11 @@
 !==================================================================================================================================
 #include "piclas.h"
 
+!===================================================================================================================================
+!> Message Passing Interface (MPI) variables
+!===================================================================================================================================
 MODULE MOD_MPI_Vars
 #if USE_MPI
-!===================================================================================================================================
-! Add comments please!
-!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -47,10 +47,10 @@ INTEGER,ALLOCATABLE   :: OffsetMPISides_send(:,:),OffsetMPISides_rec(:,:)
 #endif /*USE_MPI*/
 
 #if defined(MEASURE_MPI_WAIT)
-REAL(KIND=8)          :: MPIW8TimeField(MPIWSIZEFIELD)  ! measure the time on each proc it is in MPI_WAIT() during the field solver
-REAL(KIND=8)          :: MPIW8Time(MPIWSIZE)            ! measure the time on each proc it is in MPI_WAIT()
-REAL(KIND=8)          :: MPIW8TimeGlobal(MPIWSIZE)      ! measure the time on each proc it is in MPI_WAIT() global over all ranks
-REAL(KIND=8),ALLOCATABLE :: MPIW8TimeProc(:)            ! measure the time on each proc it is in MPI_WAIT() proc local output
+REAL(KIND=8)             :: MPIW8TimeField(MPIW8SIZEFIELD) !< measure time on each proc it is in MPI_WAIT() during the field solver
+REAL(KIND=8)             :: MPIW8Time(MPIW8SIZE)           !< measure time on each proc it is in MPI_WAIT()
+REAL(KIND=8)             :: MPIW8TimeGlobal(MPIW8SIZE)     !< measure time on each proc it is in MPI_WAIT() global over all ranks
+REAL(KIND=8),ALLOCATABLE :: MPIW8TimeProc(:)               !< measure time on each proc it is in MPI_WAIT() proc local output
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 #endif

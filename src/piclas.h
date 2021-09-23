@@ -25,17 +25,20 @@
 #endif
 
 #ifdef MEASURE_MPI_WAIT
-#ifdef PARTICLES
-! particles and field solver
-#define MPIWSIZEFIELD 0
-#define MPIWSIZEPART 4
-#define MPIWSIZE 4
+! Field solver
+#if USE_HDG
+#define MPIW8SIZEFIELD 4
 #else
-! only field solver
-#define MPIWSIZEFIELD 0
-#define MPIWSIZEPART 0
-#define MPIWSIZE 0
+#define MPIW8SIZEFIELD 0
 #endif
+! Particle solver
+#ifdef PARTICLES
+#define MPIW8SIZEPART 4
+#else
+#define MPIW8SIZEPART 0
+#endif
+! Combination
+#define MPIW8SIZE (MPIW8SIZEFIELD+MPIW8SIZEPART)
 #endif
 
 ! Deactivate PURE subroutines/functions when using DEBUG
