@@ -335,7 +335,7 @@ END SUBROUTINE DatasetExists
 !==================================================================================================================================
 !> Subroutine to determine HDF5 dataset properties
 !==================================================================================================================================
-SUBROUTINE GetDataProps(DatasetName,nVar_HDF5,N_HDF5,nElems_HDF5,NodeType_HDF5)
+SUBROUTINE GetDataProps(DatasetName,nVar_HDF5,N_HDF5,nElems_HDF5,NodeType_HDF5,nDimsOffset_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools        ,ONLY: PrintOption
@@ -347,14 +347,19 @@ INTEGER,INTENT(OUT)                     :: nVar_HDF5     !< number of variables
 INTEGER,INTENT(OUT)                     :: N_HDF5        !< polynomial degree
 INTEGER,INTENT(OUT)                     :: nElems_HDF5   !< inumber of elements
 CHARACTER(LEN=255),OPTIONAL,INTENT(OUT) :: NodeType_HDF5 !< nodetype string
+INTEGER,INTENT(IN),OPTIONAL             :: nDimsOffset_opt !< optional shift when reading the values in each dimension of the array
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                 :: Rank
+INTEGER                                 :: Rank,nDimsOffset_loc
 INTEGER(HID_T)                          :: Dset_ID,FileSpace
 INTEGER(HSIZE_T), DIMENSION(7)          :: Dims,DimsMax
 !==================================================================================================================================
 SWRITE(UNIT_stdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A,A)')' GET SIZE OF DATA IN HDF5 FILE... '
+
+! Dimensional shift (optional) if arrays with rank > 5 are processed (e.g. DG_Solution from state files with an additional 
+! dimension that corresponds to time)
+nDimsOffset_loc = MERGE(nDimsOffset_opt, 0, PRESENT(nDimsOffset_opt))
 
 ! Read in attributes
 ! Open given dataset with default properties.
@@ -384,19 +389,22 @@ CALL PrintOption('Number of variables nVar','HDF5',IntOpt=nVar_HDF5) ! 'HDF5.'
 IF (Rank.EQ.2) THEN
   N_HDF5 = 1
 ELSE
-  N_HDF5 = INT(Dims(Rank-1)-1)
+  ! U(1:nVar,0:N,0:N,0:N,nElems) is the assumed array size,
+  ! but possibly shifted if the array has more than 5 dimensions (-nDimsOffset_loc)
+  N_HDF5 = INT(Dims(Rank-1-nDimsOffset_loc)) - 1
 END IF
 CALL PrintOption('Polynomial degree N','HDF5',IntOpt=N_HDF5) ! 'HDF5.'
 IF(PRESENT(NodeType_HDF5)) THEN
   CALL PrintOption('Node type','HDF5',StrOpt=NodeType_HDF5) ! 'HDF5.'
 END IF
-! nElems = index Rank of array
-nElems_HDF5 = INT(Dims(Rank),4)
+! nElems = index Rank of array, possibly shifted if the array has more than 5 dimensions (-nDimsOffset_loc)
+nElems_HDF5 = INT(Dims(Rank-nDimsOffset_loc),4)
 CALL PrintOption('Number of Elements','HDF5',IntOpt=nElems_HDF5) ! 'HDF5.'
 
 SWRITE(UNIT_stdOut,'(A)')' DONE!'
 SWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE GetDataProps
+
 
 SUBROUTINE GetVarnames(AttribName,VarNames,AttribExists)
 IMPLICIT NONE
@@ -593,7 +601,8 @@ END IF
 ! Create the attribute for group Loc_ID.
 CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
 
-IF(iError.NE.0) CALL Abort(__STAMP__,'Attribute '//TRIM(AttribName)//' does not exist.')
+IF(iError.NE.0) CALL abort(__STAMP__,&
+    'Attribute '//TRIM(AttribName)//' does not exist or h5 file already opened by a differen program')
 
 IF(PRESENT(RealArray))     RealArray=0.
 IF(PRESENT(RealScalar))    RealScalar=0.
