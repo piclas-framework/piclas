@@ -122,9 +122,11 @@ REAL,INTENT(IN),OPTIONAL       :: PreviousTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName
-#ifdef PARTICLES
+#if defined(PARTICLES) || USE_HDG
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
+#endif /*defined(PARTICLES)*/
+#ifdef PARTICLES
 REAL                           :: NumSpec(nSpecAnalyze)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #endif /*PARTICLES*/
