@@ -441,6 +441,9 @@ USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_Par
 USE MOD_Particle_Vars,           ONLY:PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart
+#endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -461,6 +464,10 @@ INTEGER                       :: iPolyatMole, MsgRecvLengthPoly, MsgRecvLengthEl
 INTEGER                       :: MsgLengthPoly(0:nExchangeProcessors-1), pos_poly(0:nExchangeProcessors-1)
 INTEGER                       :: MsgLengthElec(0:nExchangeProcessors-1), pos_elec(0:nExchangeProcessors-1)
 INTEGER                       :: MsgLengthAmbi(0:nExchangeProcessors-1), pos_ambi(0:nExchangeProcessors-1)
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart(2),CounterEnd(2)
+REAL(KIND=8)                  :: Rate(2)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
 #if defined(ROS)
@@ -722,10 +729,22 @@ END DO ! iProc
 
 ! 4) Finish Received number of particles
 DO iProc=0,nExchangeProcessors-1
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart(1))
+#endif /*defined(MEASURE_MPI_WAIT)*/
   CALL MPI_WAIT(PartMPIExchange%SendRequest(1,iProc),MPIStatus,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd(1), count_rate=Rate(1))
+  CALL SYSTEM_CLOCK(count=CounterStart(2))
+#endif /*defined(MEASURE_MPI_WAIT)*/
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(1,iProc),recv_status_list(:,iProc),IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
+  MPIW8TimePart(1) = MPIW8TimePart(1) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
+  MPIW8TimePart(2) = MPIW8TimePart(2) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 END DO ! iProc
 
 ! total number of received particles
@@ -864,6 +883,9 @@ USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_RadialWeighting
 USE MOD_part_tools             ,ONLY: ParticleOnProc
 !USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart
+#endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -881,6 +903,10 @@ INTEGER                       :: iCounter, LocElemID!,iElem
 #endif /*ROS or IMPA*/
 ! Polyatomic Molecules
 INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly, MsgLengthElec, pos_elec, pos_ambi, MsgLengthAmbi
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart(2),CounterEnd(2)
+REAL(KIND=8)                  :: Rate(2)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
 #if defined(ROS)
@@ -895,8 +921,15 @@ DO iProc=0,nExchangeProcessors-1
   ! skip proc if no particles are to be sent
   IF(SUM(PartMPIExchange%nPartsSend(:,iProc)).EQ.0) CYCLE
 
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart(1))
+#endif /*defined(MEASURE_MPI_WAIT)*/
   CALL MPI_WAIT(PartMPIExchange%SendRequest(2,iProc),MPIStatus,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd(1), count_rate=Rate(1))
+  MPIW8TimePart(3) = MPIW8TimePart(3) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 END DO ! iProc
 
 nRecv=0
@@ -936,8 +969,15 @@ DO iProc=0,nExchangeProcessors-1
     MsgLengthElec = 0.
     MsgLengthAmbi = 0.
   END IF
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart(2))
+#endif /*defined(MEASURE_MPI_WAIT)*/
   ! finish communication with iproc
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(2,iProc),recv_status_list(:,iProc),IERROR)
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
+  MPIW8TimePart(4) = MPIW8TimePart(4) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
   ! place particle information in correct arrays
   !>> correct loop shape

@@ -256,7 +256,7 @@ particle has a specific electronic state and the model by Burt and Eswar {cite}`
 distribution function attached. Both models utilize tabulated energy levels, which can be found in literature for a wide range of
 species (e.g. for monatomic {cite}`NISTASD`, diatomic {cite}`Huber1979`, polyatomic {cite}`Herzberg1966` molecules). An example
 database `DSMCSpecies_electronic_state_full_Data.h5` can be found in e.g.
-`piclas/regressioncheck/checks/NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec`, where the energy levels are stored in containers and
+`piclas/regressioncheck/NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec`, where the energy levels are stored in containers and
 accessed via the species name, e.g. `Part-Species1-SpeciesName=N2`. Each level is described by its degeneracy in the first column
 and by the energy in [J] in the second column. To include electronic excitation in the simulation, the following parameters are
 required
@@ -346,7 +346,7 @@ activation energy [K]. These parameters can be defined in PICLas as follows
     DSMC-Reaction1-Activation-Energy_K=113200.0
 
 An example initialization file for a TCE-based chemistry model can be found in the regression tests (e.g.
-`regressioncheck/checks/NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec`).
+`regressioncheck/NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec`).
 
 ### Quantum Kinetic Chemistry (QK)
 
@@ -354,7 +354,7 @@ The Quantum Kinetic (QK) model {cite}`Bird2011` chooses a different approach and
 Currently, the QK model is only available for ionization and dissociation reactions. It is possible to utilize TCE- and QK-based
 reactions in the same simulation for different reactions paths for the same collision pair, such as the ionization and dissociation
 reactions paths (e.g. N$_2$ + e can lead to a dissociation with the TCE model and to an ionization with the QK model).
-An example setup can be found in the regression tests (e.g. `regressioncheck/checks/NIG_Reservoir/CHEM_QK_multi-ionization_C_to_C6+`).
+An example setup can be found in the regression tests (e.g. `regressioncheck/NIG_Reservoir/CHEM_QK_multi-ionization_C_to_C6+`).
 
 Besides the reaction model, reactants and products definition no further parameter are required for the reaction. However,
 the dissociation energy [eV] has to be defined on a species basis
@@ -374,7 +374,7 @@ reactions named by their products, e.g. `N2Ion1-electron-electron`.
 If the defined reaction cannot be found in the database, the code will abort. It should be noted that this model is not limited to
 the utilization with MCC or a background gas and can be used with conventional DSMC as an alternative chemistry model. Here, the
 probability will be added to the collision probability to reproduce the reaction rate. Examples of the utilization of this model
-can be found in the regression tests (e.g. `regressioncheck/checks/NIG_Reservoir/CHEM_RATES_XSec_Chem_H2-e`).
+can be found in the regression tests (e.g. `regressioncheck/NIG_Reservoir/CHEM_RATES_XSec_Chem_H2-e`).
 ### Backward Reaction Rates
 
 Backward reaction rates can be calculated for any given forward reaction rate by using the equilibrium constant
