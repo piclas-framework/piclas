@@ -1221,7 +1221,7 @@ IF(WriteHeader)THEN ! create new file
   IF(.NOT.PRESENT(iter_opt))CALL abort(&
       __STAMP__, &
       ' WriteElemTimeStatistics: When creating ElemTimeStatistics.csv (WriteHeader=T) then supply [iter_opt] variable')
-  IF(iter_opt.GT.0)                             RETURN ! don't create new file if this is not the first iteration
+  IF(iter_opt.GT.0)                         RETURN ! don't create new file if this is not the first iteration
   IF((DoRestart).AND.(FILEEXISTS(outfile))) RETURN ! don't create new file if this is a restart and the file already exists;
   !                                                ! assume continued simulation and old load balance data is still needed
 
@@ -1296,7 +1296,7 @@ ELSE !
     WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
     CLOSE(ioUnit)
   ELSE
-    SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
+    WRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
   END IF
 END IF
 END SUBROUTINE WriteElemTimeStatistics
