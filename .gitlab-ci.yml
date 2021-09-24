@@ -230,20 +230,20 @@ default:
   <<: *defaults
   stage: reggie_checkin
   script:
-    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/run_basic/maxwell -e ./bin/piclas
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/run_basic/maxwell -e ./bin/piclas
 
 maxwell:
   <<: *defaults_maxwell
   stage: reggie_checkin
   script:
-    - cd build_maxwell ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_maxwell/maxwell -e ./bin/piclas
+    - cd build_maxwell ; python ./reggie/reggie.py ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas
 
 poisson:
   <<: *defaults_poisson
   stage: reggie_checkin
   script:
-    - cd build_poisson_release ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
-    - cd ../build_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_poisson/poisson -e ./bin/piclas
+    - cd build_poisson_release ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
+    - cd ../build_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
@@ -254,32 +254,32 @@ CHE_PIC_maxwell_RK4:
   <<: *defaults
   stage: reggie_feature_checkin
   script:
-    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_RK4 -e ./bin/piclas
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/CHE_PIC_maxwell_RK4 -e ./bin/piclas
 
       # Commented out 07/12/2020 - to be fixed (this reggie fails due to bug in implicit particle tracking)
       #CHE_PIC_maxwell_implicitBC:
       #  <<: *defaults
       #  stage: reggie_feature_checkin
       #  script:
-      #    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_PIC_maxwell_implicitBC
+      #    - cd build ; python ./reggie/reggie.py ../regressioncheck/CHE_PIC_maxwell_implicitBC
 
 CHE_DSMC:
   <<: *defaults
   stage: reggie_feature_checkin
   script:
-    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_DSMC
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/CHE_DSMC
 
 CHE_BGK:
   <<: *defaults
   stage: reggie_feature_checkin
   script:
-    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_BGK
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/CHE_BGK
 
 CHE_FPFlow:
   <<: *defaults
   stage: reggie_feature_checkin
   script:
-    - cd build ; python ./reggie/reggie.py ../regressioncheck/checks/CHE_FPFlow
+    - cd build ; python ./reggie/reggie.py ../regressioncheck/CHE_FPFlow
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
@@ -288,7 +288,7 @@ NIG_Reservoir:
   <<: *defaults_nightly
   stage: reggie_DSMC_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_Reservoir ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build/ ; python ./reggie/reggie.py ../regressioncheck/NIG_Reservoir ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run tracking examples on nightly
@@ -297,7 +297,7 @@ NIG_Tracking:
   <<: *defaults_nightly
   stage: reggie_DSMC_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_tracking_DSMC ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build/ ; python ./reggie/reggie.py ../regressioncheck/NIG_tracking_DSMC ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run DSMC examples on nightly
@@ -306,7 +306,7 @@ NIG_DSMC:
   <<: *defaults_nightly
   stage: reggie_DSMC_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build/ ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_DSMC ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build/ ; python ./reggie/reggie.py ../regressioncheck/NIG_DSMC ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tools_nightly": Build and run superB and piclas2vtk examples on nightly
@@ -315,19 +315,19 @@ NIG_SuperB_piclas:
   <<: *defaults_nightly
   stage: reggie_tools_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_SuperB -e ./bin/piclas ; fi
 
 NIG_SuperB_standalone:
   <<: *defaults_nightly
   stage: reggie_tools_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SuperB -e ./bin/superB ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_SuperB -e ./bin/superB ; fi
 
 NIG_piclas2vtk:
   <<: *defaults_nightly
   stage: reggie_tools_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_piclas2vtk ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_piclas2vtk ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_bgk_nightly": Build and run BGK-Flow examples on nightly (CURRENTLY NO NIGHTLY TEST FOR BGK)
@@ -338,7 +338,7 @@ NIG_piclas2vtk:
 #   tags:
 #     - withmodules-concurrent
 #   script:
-#     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_BGK-Flow ; fi
+#     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_BGK-Flow ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run
@@ -356,92 +356,92 @@ NIG_dielectric:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_dielectric ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/NIG_dielectric ; fi
 
 NIG_PIC_maxwell_RK4:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_maxwell_RK4/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_PIC_maxwell_RK4/ ; fi
 
 NIG_convtest_maxwell:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_maxwell ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/NIG_convtest_maxwell ; fi
 
 NIG_convtest_t_maxwell:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t_maxwell ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/NIG_convtest_t_maxwell ; fi
 
 NIG_convtest_t_poisson:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_t_poisson ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/NIG_convtest_t_poisson ; fi
 
 NIG_convtest_poisson:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_convtest_poisson ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ;  python ./reggie/reggie.py ../regressioncheck/NIG_convtest_poisson ; fi
 
 NIG_PIC_poisson_RK3:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_RK3/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_RK3/ ; fi
 
 NIG_PIC_poisson_Boris-Leapfrog:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Boris-Leapfrog/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog/ ; fi
 
 NIG_PIC_poisson_Leapfrog:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Leapfrog/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Leapfrog/ ; fi
 
       # NIG_PIC_poisson_Leapfrog_not_working:
       #   <<: *defaults_nightly
       #   stage: reggie_nightly
       #   script:
-      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_Leapfrog_not_working/ ; fi
+      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Leapfrog_not_working/ ; fi
 
       # Crank-Nicolson (2nd order implicit) time integration
       # NIG_PIC_poisson_powerdensity:
       #   <<: *defaults_nightly
       #   stage: reggie_nightly
       #   script:
-      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_powerdensity/ ; fi
+      #     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_powerdensity/ ; fi
 
 NIG_poisson:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_poisson/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_poisson/ ; fi
 
 NIG_maxwell_RK4:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_RK4/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_maxwell_RK4/ ; fi
 
 NIG_PIC_poisson_plasma_wave:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_plasma_wave/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_plasma_wave/ ; fi
 
 NIG_maxwell_dipole_dielectric:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_maxwell_dipole_dielectric/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_maxwell_dipole_dielectric/ ; fi
 
       # Commented out 07/12/2020 - to be fixed:
       # this reggie has two examples:
@@ -451,31 +451,31 @@ NIG_maxwell_dipole_dielectric:
       #  <<: *defaults_nightly
       #  stage: reggie_nightly
       #  script:
-      #    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_poisson_implicit04/ ; fi
+      #    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_implicit04/ ; fi
 
 NIG_LoadBalance:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_LoadBalance/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_LoadBalance/ ; fi
 
 NIG_code_analyze:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_code_analyze/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_code_analyze/ ; fi
 
 NIG_IntKind8:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_IntKind8/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_IntKind8/ ; fi
 
 NIG_PIC_Deposition:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_PIC_Deposition/ ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_PIC_Deposition/ ; fi
 
 # Add surf model (SEE) 13% probabilty test case here
 #feature_SurfaceModel:
@@ -484,23 +484,23 @@ NIG_PIC_Deposition:
 #  tags:
 #    - withmodules-concurrent
 #  script:
-#    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/checks/NIG_SurfaceModel/ ; fi
+#    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_SurfaceModel/ ; fi
 
 NIG_Photoionization_release:
   <<: *defaults_poisson_nightly
   stage: reggie_nightly
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_poisson_release ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
 
 NIG_Photoionization_debug:
   <<: *defaults_poisson_nightly
   stage: reggie_nightly
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_poisson_debug ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/checks/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run
@@ -512,19 +512,19 @@ build_all:
   <<: *defaults_nightly
   stage: reggie_nightly_build_all
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/run_basic ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/run_basic ; fi
 
 build_sanitize:
   <<: *defaults_nightly
   stage: reggie_nightly_build_all
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_sanitize ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/NIG_sanitize ; fi
 
 build_math_tools:
   <<: *defaults_nightly
   stage: reggie_nightly_build_all
   script:
-    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/checks/NIG_math_libs ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then  cd build ;  python ./reggie/reggie.py ../regressioncheck/NIG_math_libs ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week
@@ -535,42 +535,42 @@ WEK_PIC_maxwell:
   stage: reggie_weekly
   script:
     - cd build
-    - python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_maxwell
+    - python ./reggie/reggie.py ../regressioncheck/WEK_PIC_maxwell
 
 WEK_PIC_poisson:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
     - cd build
-    - python ./reggie/reggie.py ../regressioncheck/checks/WEK_PIC_poisson
+    - python ./reggie/reggie.py ../regressioncheck/WEK_PIC_poisson
 
 WEK_DSMC:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
     - cd build
-    - python ./reggie/reggie.py ../regressioncheck/checks/WEK_DSMC
+    - python ./reggie/reggie.py ../regressioncheck/WEK_DSMC
 
 WEK_Reservoir:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
     - cd build
-    - python ./reggie/reggie.py ../regressioncheck/checks/WEK_Reservoir
+    - python ./reggie/reggie.py ../regressioncheck/WEK_Reservoir
 
 WEK_FPFlow:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
     - cd build
-    - python ./reggie/reggie.py ../regressioncheck/checks/WEK_FPFlow
+    - python ./reggie/reggie.py ../regressioncheck/WEK_FPFlow
 
 WEK_BGKFlow:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
     - cd build
-    - python ./reggie/reggie.py ../regressioncheck/checks/WEK_BGKFlow
+    - python ./reggie/reggie.py ../regressioncheck/WEK_BGKFlow
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "documentation": Compile the userguide and developer guide
