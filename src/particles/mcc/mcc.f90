@@ -119,7 +119,11 @@ iPartIndexSpec = 0
 
 ALLOCATE(SpecPartNum(nSpecies),SpecPairNum(CollInf%NumCase))
 ALLOCATE(UseSpecPartNum(nSpecies))
-SpecPairNum = 0; SpecPairNumTemp = 0; SpecPairNumReal = 0.; SpecPartNum = 0; UseSpecPartNum = 0
+SpecPairNum = 0
+SpecPairNumTemp = 0
+SpecPairNumReal = 0.
+SpecPartNum = 0
+UseSpecPartNum = 0
 CALL InitCalcVibRelaxProb()
 
 IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
@@ -263,6 +267,10 @@ DO iSpec = 1, nSpecies
               PDM%dtFracPush(PartIndex)       = .FALSE.
               PartMPF(PartIndex)              = PartMPFSplit
               IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(PartIndex) = PartTimeStepSplit
+              IF (DSMC%DoAmbipolarDiff) THEN
+                newAmbiParts = newAmbiParts + 1
+                iPartIndx_NodeNewAmbi(newAmbiParts) = PartIndex
+              END IF
             END IF
             iPartSplit = iPartSplit + 1
           END IF
@@ -392,11 +400,6 @@ DO iSpec = 1, nSpecies
         PEM%LastGlobalElemID(bggPartIndex) = PEM%GlobalElemID(PartIndex)
         PDM%IsNewPart(bggPartIndex)       = .TRUE.
         PDM%dtFracPush(bggPartIndex)      = .FALSE.
-        ! Ambipolar diffusion: add the background particle to consider (as its index might be used for an ion after a reaction)
-        IF(DSMC%DoAmbipolarDiff) THEN
-          newAmbiParts = newAmbiParts + 1
-          iPartIndx_NodeNewAmbi(newAmbiParts) = bggPartIndex
-        END IF
         IF(usevMPF) PartMPF(bggPartIndex) = PartMPF(PartIndex)
         IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(bggPartIndex) = VarTimeStep%ParticleTimeStep(PartIndex)
         Coll_pData(iPair)%iPart_p2 = bggPartIndex
@@ -414,6 +417,11 @@ DO iSpec = 1, nSpecies
           PEM%pNext(PEM%pEnd(iElem)) = bggPartIndex
           PEM%pEnd(iElem) = bggPartIndex
           PEM%pNumber(iElem) = PEM%pNumber(iElem) + 1
+          ! Ambipolar diffusion: add the background particle to consider (as its index might be used for an ion after a reaction)
+          IF(DSMC%DoAmbipolarDiff) THEN
+            newAmbiParts = newAmbiParts + 1
+            iPartIndx_NodeNewAmbi(newAmbiParts) = bggPartIndex
+          END IF
           ! Set index to zero to get a new one for the next background gas particle
           bggPartIndex = 0
           InternalEnergySet = .FALSE.

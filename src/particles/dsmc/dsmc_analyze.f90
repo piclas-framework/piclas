@@ -354,7 +354,7 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_temp)
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: Pi
 USE MOD_Particle_Vars ,ONLY: Species, nSpecies, usevMPF
-USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, CollInf, BGGas
+USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, CollInf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

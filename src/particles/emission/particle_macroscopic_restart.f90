@@ -402,6 +402,8 @@ REAL, INTENT(IN)          :: TempRot
 REAL                      :: PartStateTempVar, NormProb, iRan2
 !===================================================================================================================================
 
+CalcERot_particle = 0.
+
 IF (SpecDSMC(iSpec)%Xi_Rot.EQ.2) THEN
   CALL RANDOM_NUMBER(iRan2)
   CalcERot_particle = -BoltzmannConst*TempRot*LOG(iRan2)
