@@ -39,7 +39,7 @@ PUBLIC :: RemoveAllElectrons
 
 CONTAINS
 
-SUBROUTINE CreateParticle(SpecID,Pos,ElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID)
+SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID)
 !===================================================================================================================================
 !> creates a single particle at correct array position and assign properties
 !===================================================================================================================================
@@ -58,7 +58,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER, INTENT(IN)           :: SpecID        !< Species ID
 REAL, INTENT(IN)              :: Pos(1:3)      !< Position (x,y,z)
-INTEGER, INTENT(IN)           :: ElemID        !< global element ID
+INTEGER, INTENT(IN)           :: GlobElemID    !< global element ID
 REAL, INTENT(IN)              :: Velocity(1:3) !< Velocity (vx,vy,vz)
 REAL, INTENT(IN)              :: RotEnergy     !< Rotational energy
 REAL, INTENT(IN)              :: VibEnergy     !< Vibrational energy
@@ -85,7 +85,7 @@ PartState(4:6,newParticleID)   = Velocity(1:3)
 
 ! Set the new reference position here
 IF(TrackingMethod.EQ.REFMAPPING)THEN
-  CALL GetPositionInRefElem(PartState(1:3,newParticleID),PartPosRef(1:3,newParticleID),ElemID)
+  CALL GetPositionInRefElem(PartState(1:3,newParticleID),PartPosRef(1:3,newParticleID),GlobElemID)
 END IF ! TrackingMethod.EQ.REFMAPPING
 
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
@@ -103,8 +103,8 @@ END IF
 PDM%ParticleInside(newParticleID)   = .TRUE.
 PDM%dtFracPush(newParticleID)       = .FALSE.
 PDM%IsNewPart(newParticleID)        = .TRUE.
-PEM%GlobalElemID(newParticleID)     = ElemID
-PEM%LastGlobalElemID(newParticleID) = ElemID
+PEM%GlobalElemID(newParticleID)     = GlobElemID
+PEM%LastGlobalElemID(newParticleID) = GlobElemID
 
 ! Set particle time step and weight (if required)
 IF (VarTimeStep%UseVariableTimeStep) THEN
