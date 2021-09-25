@@ -31,37 +31,42 @@ PUBLIC :: MCC
 
 CONTAINS
 
+!===================================================================================================================================
+!> Monte Carlo Collision routine
+!> 1. Counting the number of particles per species and creating a species-specific particle index list
+!> 2. Determine the particle number of the background species and calculate the cell temperature
+!> 3. Determining the total number of pairs of test
+!> 4. Loop over the total number of pairs per species, determine collision probability and perform collision
+!>    a. Draw random particle indices from the particle list
+!>    b. (Trace species background) Clone particle to test against trace backgroun gas species
+!>    c. Get particle index (or re-use the previous) and get a velocity from the background gas
+!>    d. Calculate the collision probability
+!>    e. Perform collision: set particle information of the background gas particle, if the particle is not utilized in a reaction
+!>       and did not changed its species, utilize it in the next pairing
+!===================================================================================================================================
 SUBROUTINE MCC(iElem)
-!===================================================================================================================================
-!> 
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcMeanFreePath, DSMCMacroSampling, SummarizeQualityFactors
+USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_part_emission_tools     ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_tools              ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec, DSMC_RHS
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles, XSec_NullCollision
-USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar
 USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticleVelocity
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_Mesh_Vars               ,ONLY: nElems, offSetElem
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
-USE MOD_Particle_Vars           ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues
+USE MOD_Particle_Vars           ,ONLY: WriteMacroVolumeValues
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
-USE MOD_DSMC_Relaxation         ,ONLY: FinalizeCalcVibRelaxProb, SumVibRelaxProb, InitCalcVibRelaxProb
-USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
-USE MOD_DSMC_CollisionProb      ,ONLY: DSMC_prob_calc
-USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic
+USE MOD_TimeDisc_Vars           ,ONLY: dt, TEnd, time
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
-USE MOD_TimeDisc_Vars           ,ONLY: dt
-USE MOD_DSMC_SpecXSec           ,ONLY: InterpolateCrossSection, InterpolateCrossSection_Vib
+USE MOD_MCC_XSec                ,ONLY: InterpolateCrossSection, InterpolateCrossSection_Vib
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -72,9 +77,9 @@ INTEGER, INTENT(IN)           :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! LOCAL VARIABLES
-INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, jSpec, bgSpec, PartIndex, bggPartIndex, PairCount, RandomPart
-INTEGER                       :: cSpec1, cSpec2, iCase, SpecPairNumTemp, nPartAmbi, OldPairNum, CNElemID
-INTEGER                       :: iVib, nVib, iPairNew, iPartSplit, SplitPartNum, SplitRestPart
+INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, jSpec, bgSpec, PartIndex, bggPartIndex, RandomPart
+INTEGER                       :: iCase, SpecPairNumTemp, nPartAmbi, CNElemID
+INTEGER                       :: iVib, nVib, iPartSplit, SplitPartNum, SplitRestPart
 INTEGER,ALLOCATABLE           :: iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:), UseSpecPartNum(:)
 REAL                          :: iRan, ProbRest, SpecPairNumReal, MPF, Volume
 INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalAmbiDel(:)
@@ -124,11 +129,10 @@ SpecPairNumTemp = 0
 SpecPairNumReal = 0.
 SpecPartNum = 0
 UseSpecPartNum = 0
-CALL InitCalcVibRelaxProb()
 
 IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
 
-! X.) Counting the number of particles per species and creating a species-specific particle index list
+! 1.) Counting the number of particles per species and creating a species-specific particle index list
 DO iLoop = 1, nPart
   iPart = iPartIndx_NodeTotal(iLoop)
   iSpec = PartSpecies(iPart)
@@ -142,7 +146,7 @@ DO iLoop = 1, nPart
   iPartIndexSpec(SpecPartNum(iSpec),iSpec) = iPart
 END DO
 
-! X.) Determine the particle number of the background species and calculate the cell temperature
+! 2.) Determine the particle number of the background species and calculate the cell temperature
 DO bgSpec = 1, BGGas%NumberOfSpecies
   iSpec = BGGas%MapBGSpecToSpec(bgSpec)
   IF(usevMPF) THEN
@@ -163,7 +167,7 @@ IF(DSMC%CalcQualityFactors) THEN
   END DO
 END IF
 
-! 2.) Determining the total number of pairs
+! 3.) Determining the total number of pairs
 DO iSpec = 1,nSpecies
   IF(SpecPartNum(iSpec).EQ.0) CYCLE ! No particles for species iSpec present
   IF(BGGas%BackgroundSpecies(iSpec)) CYCLE    ! Loop over all non-background species
@@ -199,6 +203,7 @@ DO iSpec = 1,nSpecies
   END DO
 END DO
 
+! 4.) Loop over the total number of pairs per species, determine collision probability and perform collision
 ALLOCATE(Coll_pData(1))
 Coll_pData%Ec = 0.
 bggPartIndex = 0
@@ -213,7 +218,8 @@ DO iSpec = 1, nSpecies
     jSpec = BGGas%MapBGSpecToSpec(bgSpec)
     iCase = CollInf%Coll_Case(iSpec,jSpec)
     IF(SpecPairNum(iCase).EQ.0) CYCLE
-    ! Determine the weighted number of pairs per case
+    ! Randomly determining the particle index and storing it, determine the weighted number of pairs per case
+    ! (only required for VHS collision modelling in combination with MCC/XSec and vMPF)
     CollCaseNum = 0.
     ALLOCATE(PartIndexCase(SpecPairNum(iCase)))
     DO iLoop = 1, SpecPairNum(iCase)
@@ -233,9 +239,11 @@ DO iSpec = 1, nSpecies
         PartIndex = PartIndexCase(iPart)
         iPart = iPart + 1
       END IF
-      ! ==============================================================================================================================
-      ! BGGasSplit
-      ! ==============================================================================================================================
+      ! ============================================================================================================================
+      ! Treatment of background gas trace species:
+      ! 1) Determining whether a collision with a trace species imminent and enable split (clone particle to increase sample size)
+      ! 2) If a split is in progress, get new index particle index and clone the simulation particle to test with the trace species
+      ! ============================================================================================================================
       IF(usevMPF.AND.BGGas%TraceSpecies(jSpec)) THEN
         IF(SplitInProgress) THEN
           IF(iPartSplit.LT.SplitPartNum) THEN
@@ -341,7 +349,7 @@ DO iSpec = 1, nSpecies
               END IF
             END IF
             ! If standard collision modelling is used, the reaction probability is added to the collision probability
-            CALL MCC_CalcReactionProb(iCase,iSpec,jSpec,bgSpec,CRela2,PartIndex,bggPartIndex)
+            CALL MCC_CalcReactionProb(iCase,bgSpec,CRela2,PartIndex,bggPartIndex)
             CollProb = CollProb + SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
             ! If a collision occurs, re-use the energy values set in MCC_CalcReactionProb
             InternalEnergySet = .TRUE.
@@ -507,9 +515,7 @@ IF(DSMC%CalcQualityFactors) THEN
     IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
                                                                                     / DSMC%MeanFreePath
   END IF
-  CALL SummarizeQualityFactors(iElem)
 END IF
-CALL FinalizeCalcVibRelaxProb(iElem)
 
 IF (DSMC%DoAmbipolarDiff) THEN
   CALL AD_DeleteParticles(iPartIndx_NodeTotalAmbiDel,nPart)
@@ -529,27 +535,28 @@ END SUBROUTINE MCC
 !===================================================================================================================================
 !> Calculate the collision probability if collision cross-section data is used (only with a background gas)
 !===================================================================================================================================
-SUBROUTINE MCC_CalcReactionProb(iCase,iSpec,jSpec,bgSpec,CRela2,PartIndex,bggPartIndex)
+SUBROUTINE MCC_CalcReactionProb(iCase,bgSpec,CRela2,PartIndex,bggPartIndex)
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn, SpecXSec
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, CollInf, BGGas, ChemReac, DSMC, PartStateIntEn, SpecXSec
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Macro_Restart         ,ONLY: CalcERot_particle, CalcEVib_particle, CalcEElec_particle
-USE MOD_DSMC_SpecXSec         ,ONLY: InterpolateCrossSection_Chem
+USE MOD_MCC_XSec              ,ONLY: InterpolateCrossSection_Chem
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(IN)            :: iCase,iSpec,jSpec,bgSpec,PartIndex,bggPartIndex
+INTEGER,INTENT(IN)            :: iCase,bgSpec,PartIndex,bggPartIndex
 REAL,INTENT(IN)               :: CRela2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPath, ReacTest, EductReac(1:3), ProductReac(1:4), iProd
+INTEGER                       :: jSpec, iPath, ReacTest, EductReac(1:3), ProductReac(1:4), iProd
 INTEGER                       :: NumWeightProd
 REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, CollEnergy
 REAL                          :: CrossSection
 REAL                          :: Temp_Rot, Temp_Vib, Temp_Elec
 !===================================================================================================================================
 NumWeightProd = 2
+
+jSpec = BGGas%MapBGSpecToSpec(bgSpec)
 
 DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)

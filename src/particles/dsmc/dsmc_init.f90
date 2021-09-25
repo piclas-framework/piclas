@@ -309,7 +309,7 @@ USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly
-USE MOD_DSMC_SpecXSec          ,ONLY: MCC_Init
+USE MOD_MCC_Init               ,ONLY: MCC_Init
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 ! IMPLICIT VARIABLE HANDLING
@@ -677,6 +677,11 @@ ELSE !CollisMode.GT.0
       CALL abort(__STAMP__&
           ,'ERROR: Ambipolar diffusion is not implemented with the regular background gas!')
     END IF
+  END IF
+  ! MCC and variable vibrational relaxation probability is not supported
+  IF(UseMCC.AND.(DSMC%VibRelaxProb.EQ.2.0)) THEN
+    CALL abort(__STAMP__&
+        ,'ERROR: Monte Carlo Collisions and variable vibrational relaxation probability (DSMC-based) are not compatible!')
   END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! reading/writing molecular stuff

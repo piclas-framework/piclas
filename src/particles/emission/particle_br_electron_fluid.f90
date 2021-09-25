@@ -737,7 +737,7 @@ USE MOD_DSMC_Vars        ,ONLY: ChemReac,CollInf,UseDSMC,CollisMode,SpecXSec
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: nLoadBalanceSteps
 #endif /*USE_LOADBALANCE*/
-USE MOD_DSMC_SpecXSec    ,ONLY: MCC_Chemistry_Init
+USE MOD_MCC_Init         ,ONLY: MCC_Chemistry_Init
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
