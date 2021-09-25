@@ -33,7 +33,7 @@ CONTAINS
 !===================================================================================================================================
 !> Routine for the particle emission at a surface
 !===================================================================================================================================
-SUBROUTINE SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy)
+SUBROUTINE SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobElemID)
 ! MODULES
 USE MOD_Globals                   ,ONLY: OrthoNormVec
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
@@ -51,6 +51,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)             :: n_loc(1:3)
 INTEGER,INTENT(IN)          :: PartID, SideID
+INTEGER,INTENT(IN)          :: GlobElemID       !< global element ID of the impacting particle (used for creating a new particle)
 INTEGER,INTENT(IN)          :: ProductSpec(2)   !< 1: product species of incident particle (also used for simple reflection)
                                                 !< 2: additional species added or removed from surface
                                                 !< If productSpec is negative, then the respective particles are adsorbed
@@ -85,7 +86,7 @@ DO iNewPart = 1, ProductSpecNbr
   ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
   NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
   ! Create new particle and get a free particle index
-  CALL CreateParticle(ProductSpec(2),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
+  CALL CreateParticle(ProductSpec(2),LastPartPos(1:3,PartID),GlobElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
   ! Adding the energy that is transferred from the surface onto the internal energies of the particle
   CALL SurfaceModel_EnergyAccommodation(NewPartID,locBCID,WallTemp)
   ! Sampling of newly created particles
