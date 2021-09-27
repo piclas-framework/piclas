@@ -30,7 +30,7 @@ PUBLIC :: SurfaceModel, MaxwellScattering, PerfectReflection, DiffuseReflection,
 
 CONTAINS
 
-SUBROUTINE SurfaceModel(PartID,SideID,ElemID,n_Loc)
+SUBROUTINE SurfaceModel(PartID,SideID,GlobElemID,n_Loc)
 !===================================================================================================================================
 !> Selection and execution of a gas-surface interaction model
 !> 1.) Initial surface pre-treatment: Porous BC, species swap and charge deposition on dielectrics
@@ -63,7 +63,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)    :: n_loc(1:3)
-INTEGER,INTENT(IN) :: PartID, SideID, ElemID
+INTEGER,INTENT(IN) :: PartID, SideID
+INTEGER,INTENT(IN) :: GlobElemID  !< Global element ID of the particle impacting the surface
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -92,7 +93,7 @@ IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(PartID,SideID,SpecularReflection
 
 !---- Dielectric particle-surface interaction
 IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN
-  CALL DepositParticleOnNodes(PartID,LastPartPos(1:3,PartID)+TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha,ElemID)
+  CALL DepositParticleOnNodes(PartID,LastPartPos(1:3,PartID)+TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha,GlobElemID)
 END IF
 
 !---- swap species?
@@ -160,7 +161,7 @@ CASE (5,6,7,8)
   END IF
   ! Emit the secondary electrons
   IF (ProductSpec(2).GT.0) THEN
-    CALL SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy)
+    CALL SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobElemID)
   END IF
 CASE DEFAULT
   CALL abort(__STAMP__,'Unknown surface model. PartBound%SurfaceModel(locBCID) = ',IntInfoOpt=PartBound%SurfaceModel(locBCID))
