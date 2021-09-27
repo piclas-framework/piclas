@@ -1158,7 +1158,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_TestReaction
-USE MOD_DSMC_SpecXSec           ,ONLY: XSec_CalcReactionProb
+USE MOD_MCC_XSec                ,ONLY: XSec_CalcReactionProb
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -1420,7 +1420,7 @@ MassRed = (MassPseu1*MassPseu2) / (MassPseu1+MassPseu2)
 END SUBROUTINE CalcPseudoScatterVars_4Prod
 
 
-SUBROUTINE CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
+SUBROUTINE CalcPhotoIonizationNumber(i,NbrOfPhotons,NbrOfReactions)
 !===================================================================================================================================
 !>
 !===================================================================================================================================
@@ -1434,6 +1434,7 @@ USE MOD_TimeDisc_Vars ,ONLY: dt
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: i
 REAL, INTENT(IN)              :: NbrOfPhotons
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1453,7 +1454,7 @@ DO iReac = 1, ChemReac%NumOfReact
   ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
   ! Number of reactions: N = Z * dt * V (number of photons cancels out the volume)
   NbrOfReactions = NbrOfReactions + BGGas%NumberDensity(bgSpec) * NbrOfPhotons * ChemReac%CrossSection(iReac) * c &
-                                     *dt / Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor
+                                     *dt / Species(i)%MacroParticleFactor
 END DO
 
 END SUBROUTINE CalcPhotoIonizationNumber
@@ -1636,7 +1637,7 @@ DO iProd = 1, NumProd
   END IF
   ! Set the internal energies
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,iPart,Temp_Vib)
+    PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,Temp_Vib,iPart)
     PartStateIntEn(2,iPart) = CalcERot_particle(iSpec,Temp_Rot)
   ELSE
     PartStateIntEn(1:2,iPart) = 0.0
