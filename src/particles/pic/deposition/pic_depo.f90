@@ -872,7 +872,10 @@ IF(DoDeposition)THEN
     CALL UNLOCK_AND_FREE(NodeVolume_Shared_Win)
 
     ! Surface charging arrays
-    IF(DoDielectricSurfaceCharge) CALL UNLOCK_AND_FREE(NodeSourceExt_Shared_Win)
+    IF(DoDielectricSurfaceCharge)THEN
+      CALL UNLOCK_AND_FREE(NodeSourceExt_Shared_Win)
+      CALL UNLOCK_AND_FREE(NodeSourceExtTmp_Shared_Win)
+    END IF
   CASE('shape_function_adaptive')
     CALL UNLOCK_AND_FREE(SFElemr2_Shared_Win)
   END SELECT
@@ -881,7 +884,9 @@ IF(DoDeposition)THEN
 
   ADEALLOCATE(NodeSource_Shared)
   ADEALLOCATE(NodeVolume_Shared)
-      ADEALLOCATE(NodeSourceExt_Shared)
+  ADEALLOCATE(NodeSourceExt_Shared)
+  ADEALLOCATE(NodeSourceExtTmp_Shared)
+  SDEALLOCATE(NodeSourceExtTmpLoc)
 END IF ! DoDeposition
 
 ! Then, free the pointers or arrays

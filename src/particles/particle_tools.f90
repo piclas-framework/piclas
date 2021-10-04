@@ -53,10 +53,6 @@ INTERFACE StoreLostParticleProperties
   MODULE PROCEDURE StoreLostParticleProperties
 END INTERFACE
 
-INTERFACE ParticleOnProc
-  MODULE PROCEDURE ParticleOnProc
-END INTERFACE
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
