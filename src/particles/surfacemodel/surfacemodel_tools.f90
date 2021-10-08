@@ -38,7 +38,7 @@ SUBROUTINE SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, Pro
 USE MOD_Globals                   ,ONLY: OrthoNormVec
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
 USE MOD_part_operations           ,ONLY: CreateParticle
-USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues, LastPartPos, PEM
+USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues, LastPartPos
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
