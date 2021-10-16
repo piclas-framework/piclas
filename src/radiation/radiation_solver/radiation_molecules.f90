@@ -60,7 +60,7 @@ SUBROUTINE radiation_molecules(iElem, em_mol)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 
-  INTEGER           :: iSpec, iWave, iBand, iTrans, i!, hilf
+  INTEGER           :: iSpec, iWave, iBand, iTrans, i, iWaveCoarse!, hilf
   REAL              :: rho, ptot                            !in ini !density [kg/m**3], pressure [Pa], number density    
   REAL, ALLOCATABLE :: epsilon_mol(:), epsilon_iSpec(:), abs_iSpec(:)
   INTEGER           :: istart, iend
@@ -1005,7 +1005,9 @@ SUBROUTINE radiation_molecules(iElem, em_mol)
   END DO
 
   DO iWave = 1, RadiationParameter%WaveLenDiscr
-    Radiation_Emission_spec(iWave,iElem) = Radiation_Emission_spec(iWave,iElem) + epsilon_mol(iWave)
+    iWaveCoarse = INT((iWave-1)/RadiationParameter%WaveLenReductionFactor) + 1
+    IF (iWaveCoarse.GT.RadiationParameter%WaveLenDiscrCoarse) iWaveCoarse = RadiationParameter%WaveLenDiscrCoarse
+    Radiation_Emission_spec(iWaveCoarse,iElem) = Radiation_Emission_spec(iWaveCoarse,iElem) + epsilon_mol(iWave)/RadiationParameter%WaveLenReductionFactor
   END DO
 
 ! --- add contribution to total emission
@@ -1093,7 +1095,7 @@ SUBROUTINE Radiation_Molecular_Transition_Line_Profile(Radiation_Profile, nubar,
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER           :: startwavelength_int, endwavelength_int, i
+  INTEGER           :: startwavelength_int, endwavelength_int, i, iWave, iWaveCoarse
   LOGICAL           :: add_radline
 !===================================================================================================================================
 
@@ -1130,8 +1132,11 @@ SUBROUTINE Radiation_Molecular_Transition_Line_Profile(Radiation_Profile, nubar,
           = epsilon_mol(startwavelength_int+i) + MAX(0.0,eps)/1.E10 * Radiation_Profile(startwavelength_int+i)
         abs_iSpec(startwavelength_int+i) &
           = abs_iSpec(startwavelength_int+i)+MAX(0.0,abstot)/1.E10*Radiation_Profile(startwavelength_int+i)
-        Radiation_Absorption_spec(startwavelength_int+i,iElem) &
-          = Radiation_Absorption_spec(startwavelength_int+i,iElem)+MAX(0.0,abstot)/1.E10*Radiation_Profile(startwavelength_int+i)
+        iWave = startwavelength_int+i
+        iWaveCoarse = INT((iWave-1)/RadiationParameter%WaveLenReductionFactor) + 1
+        IF (iWaveCoarse.GT.RadiationParameter%WaveLenDiscrCoarse) iWaveCoarse = RadiationParameter%WaveLenDiscrCoarse
+        Radiation_Absorption_spec(iWaveCoarse,iElem) &
+          = Radiation_Absorption_spec(iWaveCoarse,iElem)+MAX(0.0,abstot)/1.E10*Radiation_Profile(iWave)/RadiationParameter%WaveLenReductionFactor
       END DO
 
     END IF

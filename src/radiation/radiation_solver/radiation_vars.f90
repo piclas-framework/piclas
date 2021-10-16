@@ -46,6 +46,8 @@ TYPE tRadiationParameter           ! Radiation Wavelength Parameter
   REAL                  :: MinWaveLen                       ! minimum spectral wavelength
   REAL                  :: MaxWaveLen                       ! maximum spectral wavelength
   INTEGER               :: WaveLenDiscr                     ! number of points in calculated spectrum
+  INTEGER               :: WaveLenDiscrCoarse               ! number of points in calculated spectrum
+  INTEGER               :: WaveLenReductionFactor
   REAL                  :: WaveLenIncr                      ! wavelength increments
   REAL, ALLOCATABLE     :: WaveLen(:)                       ! wavelength array
 END TYPE tRadiationParameter

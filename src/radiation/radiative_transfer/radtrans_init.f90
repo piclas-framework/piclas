@@ -49,6 +49,7 @@ CALL prms%CreateIntOption(    'Radiation-DirectionModel', 'HM','1')
 CALL prms%CreateIntOption(    'Radiation-NumPhotonsPerCell', 'HM','1')
 CALL prms%CreateIntOption(    'Radiation-AbsorptionModel', 'HM','1')
 CALL prms%CreateIntOption(    'Radiation-PhotonPosModel', 'HM','1')
+CALL prms%CreateIntOption(    'Radiation-PhotonWaveLengthModel', 'HM','1')
 
 END SUBROUTINE DefineParametersRadiationTrans
 
@@ -98,6 +99,7 @@ RadiationDirectionModel = GETINT('Radiation-DirectionModel','1')
 RadTrans%NumPhotonsPerCell = GETINT('Radiation-NumPhotonsPerCell','1')
 RadiationAbsorptionModel = GETINT('Radiation-AbsorptionModel','1')
 RadiationPhotonPosModel = GETINT('Radiation-PhotonPosModel','1')
+RadiationPhotonWaveLengthModel = GETINT('Radiation-PhotonWaveLengthModel')
 RadEmiAdaptPhotonNum = GETLOGICAL('Radiation-AdaptivePhotonNumEmission','.FALSE.')
 
 IF(Symmetry%Order.EQ.2) CALL BuildMesh2DInfo()
@@ -123,6 +125,17 @@ IF (myComputeNodeRank.EQ.0) THEN
 END IF
 CALL BARRIER_AND_SYNC(RadTransPhotPerCell_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(Radiation_Emission_Spec_Total_Shared_Win ,MPI_COMM_SHARED)
+
+IF (RadiationPhotonWaveLengthModel.EQ.1) THEN
+  CALL Allocate_Shared((/nComputeNodeElems/), Radiation_Emission_Spec_Max_Shared_Win,Radiation_Emission_Spec_Max_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,Radiation_Emission_Spec_Max_Shared_Win,IERROR)
+  Radiation_Emission_Spec_Max => Radiation_Emission_Spec_Max_Shared
+  IF (myComputeNodeRank.EQ.0) THEN
+    Radiation_Emission_Spec_Max = 0.0
+  END IF
+  CALL BARRIER_AND_SYNC(Radiation_Emission_Spec_Max_Shared_Win ,MPI_COMM_SHARED)
+END IF
+
 ALLOCATE(RadTransPhotPerCellLoc(nComputeNodeElems))
 RadTransPhotPerCellLoc = 0
 #else
@@ -131,6 +144,10 @@ ALLOCATE(RadTransPhotPerCell(nElems),Radiation_Emission_Spec_Total(nElems),RadTr
 RadTransPhotPerCell = 0
 RadTransPhotPerCellLoc = 0
 Radiation_Emission_Spec_Total=0.0
+IF (RadiationPhotonWaveLengthModel.EQ.1) THEN
+  ALLOCATE(Radiation_Emission_Spec_Max(nElems))
+  Radiation_Emission_Spec_Max=0.0
+END IF
 #endif  /*USE_MPI*/
 
 
@@ -148,10 +165,20 @@ CASE(1) !calls radition solver module
   DO iElem = firstElem, lastElem
     IF(MPIroot.AND.(MOD(iElem,ElemDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(iElem),REAL(firstElem),REAL(lastElem),.FALSE.)
     CALL radiation_main(iElem)
-    DO iWave = 1, RadiationParameter%WaveLenDiscr
+    DO iWave = 1, RadiationParameter%WaveLenDiscrCoarse
       Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &
-          + 4.*Pi*Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr
+          + 4.*Pi*Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor
+      IF (RadiationPhotonWaveLengthModel.EQ.1) Radiation_Emission_Spec_Max(iElem) = MAX(Radiation_Emission_Spec_Max(iElem),  & 
+        4.*Pi*Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor)
     END DO
+    IF (RadiationParameter%WaveLenReductionFactor.GT.1) THEN
+      IF (MOD(RadiationParameter%WaveLenDiscr,RadiationParameter%WaveLenDiscrCoarse).NE.0) THEN
+        Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &
+          + 4.*Pi*Radiation_Emission_Spec(RadiationParameter%WaveLenDiscrCoarse, iElem) * RadiationParameter%WaveLenIncr 
+        IF (RadiationPhotonWaveLengthModel.EQ.1) Radiation_Emission_Spec_Max(iElem) = MAX(Radiation_Emission_Spec_Max(iElem),  & 
+          4.*Pi*Radiation_Emission_Spec(RadiationParameter%WaveLenDiscrCoarse, iElem) * RadiationParameter%WaveLenIncr*(RadiationParameter%WaveLenReductionFactor+1.))
+      END IF
+    END IF
   END DO
 CASE(2) ! Black body radiation
 
@@ -192,6 +219,9 @@ END SELECT
 
 
 #if USE_MPI
+  IF (RadiationPhotonWaveLengthModel.EQ.1) THEN
+    CALL BARRIER_AND_SYNC(Radiation_Emission_Spec_Max_Shared_Win,MPI_COMM_SHARED)
+  END IF
   CALL BARRIER_AND_SYNC(Radiation_Emission_Spec_Total_Shared_Win,MPI_COMM_SHARED)
   CALL BARRIER_AND_SYNC(Radiation_Emission_Spec_Shared_Win ,MPI_COMM_SHARED)
   CALL BARRIER_AND_SYNC(Radiation_Absorption_Spec_Shared_Win ,MPI_COMM_SHARED)
@@ -201,8 +231,8 @@ END SELECT
                      , 0                             &
                      , MPI_DATATYPE_NULL             &
                      , Radiation_Absorption_Spec_Shared  &
-                     , RadiationParameter%WaveLenDiscr *recvcountElem   &
-                     , RadiationParameter%WaveLenDiscr *displsElem      &
+                     , RadiationParameter%WaveLenDiscrCoarse *recvcountElem   &
+                     , RadiationParameter%WaveLenDiscrCoarse *displsElem      &
                      , MPI_DOUBLE_PRECISION          &
                      , MPI_COMM_LEADERS_SHARED       &
                      , IERROR)

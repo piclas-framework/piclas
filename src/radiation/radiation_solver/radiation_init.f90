@@ -69,6 +69,7 @@ CALL prms%CreateIntOption(    'Part-Species[$]-NuclCharge',            'Nuclear 
 CALL prms%CreateRealOption(   'Radiation-MinWaveLen',                  'Lower wavelength limit for radiation calculation', '0.0')
 CALL prms%CreateRealOption(   'Radiation-MaxWaveLen',                  'Upper wavelength limit for radiation calculation','1000.0')
 CALL prms%CreateIntOption(    'Radiation-WaveLenDiscr',                'Number of discretization points', '10000')
+CALL prms%CreateIntOption(    'Radiation-WaveLenReductionFactor',      'Number of discretization points', '1')
 CALL prms%CreateIntOption(    'Radiation-RadType',                     'Select radiation type:\n'//&
                                                                        '1: particle radiation\n'//&
                                                                        '2: black body radiation\n'//&
@@ -161,6 +162,16 @@ RadiationParameter%MinWaveLen   = RadiationParameter%MinWaveLen*1.E-9
 RadiationParameter%MaxWaveLen   = GETREAL('Radiation-MaxWaveLen','1000.0')
 RadiationParameter%MaxWaveLen   = RadiationParameter%MaxWaveLen*1.E-9
 RadiationParameter%WaveLenDiscr = GETINT('Radiation-WaveLenDiscr','10000')
+RadiationParameter%WaveLenReductionFactor = GETINT('Radiation-WaveLenReductionFactor')
+IF((RadiationSwitches%RadType.EQ.3) .AND. (nGlobalElems.EQ.1)) RadiationParameter%WaveLenReductionFactor = 1
+IF(RadiationSwitches%RadType.EQ.2) RadiationParameter%WaveLenReductionFactor = 1
+IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
+  RadiationParameter%WaveLenDiscrCoarse = NINT(REAL(RadiationParameter%WaveLenDiscr)/ REAL(RadiationParameter%WaveLenReductionFactor))
+  RadiationParameter%WaveLenReductionFactor = INT(RadiationParameter%WaveLenDiscr/RadiationParameter%WaveLenDiscrCoarse)
+  SWRITE(UNIT_stdOut,'(A)') 'Corrected WaveLenReductionFactor is ', RadiationParameter%WaveLenReductionFactor
+ELSE
+  RadiationParameter%WaveLenDiscrCoarse = RadiationParameter%WaveLenDiscr
+END IF
 IF(RadiationParameter%MinWaveLen.GE.RadiationParameter%MaxWaveLen) THEN
   CALL abort(&
                 __STAMP__&
@@ -194,20 +205,20 @@ TElectrons       = GETREAL('Radiation-TElectrons',      '0.0')
 
 #if USE_MPI
   ! allocate shared array for Radiation_Emission/Absorption_Spec  
-CALL Allocate_Shared((/RadiationParameter%WaveLenDiscr,nComputeNodeElems/), Radiation_Emission_Spec_Shared_Win,Radiation_Emission_Spec_Shared)
+CALL Allocate_Shared((/RadiationParameter%WaveLenDiscrCoarse,nComputeNodeElems/), Radiation_Emission_Spec_Shared_Win,Radiation_Emission_Spec_Shared)
 CALL MPI_WIN_LOCK_ALL(0,Radiation_Emission_Spec_Shared_Win,IERROR)
-CALL Allocate_Shared_Test((/INT(RadiationParameter%WaveLenDiscr,IK)*INT(nGlobalElems,IK)/),Radiation_Absorption_Spec_Shared_Win,Radiation_Absorption_Spec_Shared)
+CALL Allocate_Shared_Test((/INT(RadiationParameter%WaveLenDiscrCoarse,IK)*INT(nGlobalElems,IK)/),Radiation_Absorption_Spec_Shared_Win,Radiation_Absorption_Spec_Shared)
 CALL MPI_WIN_LOCK_ALL(0,Radiation_Absorption_Spec_Shared_Win,IERROR)
 CALL Allocate_Shared((/nSpecies,nComputeNodeElems,2/), Radiation_ElemEnergy_Species_Shared_Win,Radiation_ElemEnergy_Species_Shared)
 CALL MPI_WIN_LOCK_ALL(0,Radiation_ElemEnergy_Species_Shared_Win,IERROR)
 
 Radiation_Emission_spec => Radiation_Emission_spec_Shared
-Radiation_Absorption_spec(1:RadiationParameter%WaveLenDiscr ,1:nGlobalElems) => Radiation_Absorption_spec_Shared
+Radiation_Absorption_spec(1:RadiationParameter%WaveLenDiscrCoarse ,1:nGlobalElems) => Radiation_Absorption_spec_Shared
 Radiation_ElemEnergy_Species => Radiation_ElemEnergy_Species_Shared
 #else
 ! allocate local array for ElemInfo
-ALLOCATE(Radiation_Emission_spec(RadiationParameter%WaveLenDiscr,nElems))
-ALLOCATE(Radiation_Absorption_spec(RadiationParameter%WaveLenDiscr,nElems))
+ALLOCATE(Radiation_Emission_spec(RadiationParameter%WaveLenDiscrCoarse,nElems))
+ALLOCATE(Radiation_Absorption_spec(RadiationParameter%WaveLenDiscrCoarse,nElems))
 ALLOCATE(Radiation_ElemEnergy_Species(nSpecies,nElems,2))
 #endif  /*USE_MPI*/
 
@@ -234,8 +245,8 @@ END DO
                      , 0                             &
                      , MPI_DATATYPE_NULL             &
                      , Radiation_Absorption_Spec_Shared  &
-                     , RadiationParameter%WaveLenDiscr *recvcountElem   &
-                     , RadiationParameter%WaveLenDiscr *displsElem      &
+                     , RadiationParameter%WaveLenDiscrCoarse *recvcountElem   &
+                     , RadiationParameter%WaveLenDiscrCoarse *displsElem      &
                      , MPI_DOUBLE_PRECISION          &
                      , MPI_COMM_LEADERS_SHARED       &
                      , IERROR)

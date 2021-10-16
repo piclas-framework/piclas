@@ -49,10 +49,12 @@ TYPE (tPhotonProps)           :: PhotonProps
 INTEGER               :: RadiationAbsorptionModel
 INTEGER               :: RadiationDirectionModel
 INTEGER               :: RadiationPhotonPosModel
+INTEGER               :: RadiationPhotonWaveLengthModel
 LOGICAL               :: RadEmiAdaptPhotonNum
 
 REAL, ALLOCATABLE               :: RadiationElemAbsEnergy(:)
 REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Total(:)
+REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Max(:)
 INTEGER,ALLOCPOINT              :: RadTransPhotPerCell(:)     ! (WaveLen(:), number of mesh elements)
 INTEGER, ALLOCATABLE            :: RadTransPhotPerCellLoc(:)
 REAL, ALLOCATABLE               :: PhotonSampWall(:,:)
@@ -61,6 +63,8 @@ INTEGER                         :: RadTransPhotPerCell_Shared_Win
 INTEGER,ALLOCPOINT              :: RadTransPhotPerCell_Shared(:)
 INTEGER                         :: Radiation_Emission_Spec_Total_Shared_Win
 REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Total_Shared(:)
+INTEGER                         :: Radiation_Emission_Spec_Max_Shared_Win
+REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Max_Shared(:)
 INTEGER                         :: PhotonSampWall_Shared_Win
 REAL,POINTER                    :: PhotonSampWall_Shared(:,:)
 INTEGER                         :: RadiationElemAbsEnergy_Shared_Win

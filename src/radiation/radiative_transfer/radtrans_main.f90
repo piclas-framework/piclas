@@ -45,7 +45,7 @@ USE MOD_Mesh_Vars               ,ONLY : nElems
 USE MOD_Particle_Mesh_Vars      ,ONLY : GEO, nComputeNodeElems, ElemMidPoint_Shared, ElemVolume_Shared
 USE MOD_RadiationTrans_Vars     ,ONLY : Radiation_Emission_Spec_Total, RadTrans, RadEmiAdaptPhotonNum
 USE MOD_RadiationTrans_Vars     ,ONLY : PhotonProps, RadiationDirectionModel, RadTransPhotPerCellLoc
-USE MOD_RadiationTrans_Vars     ,ONLY : RadTransPhotPerCell, RadTransPhotPerCell_Shared_Win
+USE MOD_RadiationTrans_Vars     ,ONLY : RadTransPhotPerCell, RadTransPhotPerCell_Shared_Win, RadiationPhotonWaveLengthModel
 USE MOD_Photon_Tracking         ,ONLY : PhotonTriaTracking, Photon2DSymTracking
 USE MOD_Radiation_Vars          ,ONLY : RadiationSwitches
 USE MOD_DSMC_Vars               ,ONLY : RadialWeighting
@@ -158,7 +158,11 @@ REAL                :: RandRot(3,3) !, PartPos(1:3)
           iPhotLoc = iPhot
         END IF
         PhotonProps%PhotonDirection(1:3) = SetPhotonStartDirection(iElem, iPhotLoc, RandRot)
-        PhotonProps%WaveLength = SetParticleWavelength(iElem)
+        IF (RadiationPhotonWaveLengthModel.EQ.1) THEN
+          PhotonProps%WaveLength = SetParticleWavelengthAR(iElem)
+        ELSE
+          PhotonProps%WaveLength = SetParticleWavelengthBiSec(iElem)
+        END IF
         IF(Symmetry%Axisymmetric) THEN
           CALL Photon2DSymTracking()
         ELSE
@@ -340,7 +344,65 @@ FUNCTION RandomRotMatrix()
 END FUNCTION RandomRotMatrix
 
 
-FUNCTION SetParticleWavelength(iElem)
+FUNCTION SetParticleWavelengthAR(iElem)
+!===================================================================================================================================
+! modified particle emmission for LD case
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars,          ONLY : Pi
+USE MOD_RadiationTrans_Vars,   ONLY : Radiation_Emission_Spec_Max
+USE MOD_Radiation_Vars,        ONLY: Radiation_Emission_spec, RadiationParameter
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INOUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER                         :: SetParticleWavelengthAR
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: iWaveLength, iWave
+REAL                             :: iRan, iRadPower
+!===================================================================================================================================
+ 
+  CALL RANDOM_NUMBER(iRan)
+  iWaveLength = INT(RadiationParameter%WaveLenDiscrCoarse*iRan) + 1
+  IF ((RadiationParameter%WaveLenReductionFactor.GT.1).AND.(iWaveLength.EQ.RadiationParameter%WaveLenDiscrCoarse)) THEN
+    IF (MOD(RadiationParameter%WaveLenDiscr,RadiationParameter%WaveLenDiscrCoarse).NE.0) THEN
+      iRadPower = 4.*Pi*Radiation_Emission_Spec(RadiationParameter%WaveLenDiscrCoarse, iElem) * RadiationParameter%WaveLenIncr &
+         * (1.+RadiationParameter%WaveLenReductionFactor)
+    ELSE 
+      iRadPower = 4.*Pi*Radiation_Emission_Spec(iWaveLength,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor       
+    END IF
+  ELSE
+    iRadPower = 4.*Pi*Radiation_Emission_Spec(iWaveLength,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
+  END IF
+  CALL RANDOM_NUMBER(iRan) 
+  DO WHILE (iRan.GT.(iRadPower/Radiation_Emission_Spec_Max(iElem)))
+    CALL RANDOM_NUMBER(iRan)
+    iWaveLength = INT(RadiationParameter%WaveLenDiscrCoarse*iRan) + 1
+    IF ((RadiationParameter%WaveLenReductionFactor.GT.1).AND.(iWaveLength.EQ.RadiationParameter%WaveLenDiscrCoarse)) THEN
+      IF (MOD(RadiationParameter%WaveLenDiscr,RadiationParameter%WaveLenDiscrCoarse).NE.0) THEN
+        iRadPower = 4.*Pi*Radiation_Emission_Spec(RadiationParameter%WaveLenDiscrCoarse, iElem) * RadiationParameter%WaveLenIncr &
+           * (1.+RadiationParameter%WaveLenReductionFactor)
+      ELSE
+        iRadPower = 4.*Pi*Radiation_Emission_Spec(iWaveLength,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor       
+      END IF
+    ELSE
+      iRadPower = 4.*Pi*Radiation_Emission_Spec(iWaveLength,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
+    END IF
+    CALL RANDOM_NUMBER(iRan)
+  END DO
+  SetParticleWavelengthAR = iWaveLength
+
+END FUNCTION SetParticleWavelengthAR
+
+
+FUNCTION SetParticleWavelengthBiSec(iElem)
 !===================================================================================================================================
 ! modified particle emmission for LD case
 !===================================================================================================================================
@@ -358,31 +420,73 @@ INTEGER, INTENT(IN)           :: iElem
 ! INOUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER                         :: SetParticleWavelength
+INTEGER                         :: SetParticleWavelengthBiSec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: iWaveLength, iWave
-REAL                             :: iRan, iRadPower
+INTEGER                          :: iWaveLength, iWave, iWaveOld, iWaveMin, iWaveMax
+REAL                             :: iRan, iRadPower, iRadPower2
 !===================================================================================================================================
  
   CALL RANDOM_NUMBER(iRan)
-  iWaveLength = INT(RadiationParameter%WaveLenDiscr*iRan) + 1
-  iRadPower = 0.0
-  DO iWave = 1,  iWaveLength
-    iRadPower = iRadPower + 4.*Pi*Radiation_Emission_Spec(iWave,iElem)*RadiationParameter%WaveLenIncr
-  END DO
-  CALL RANDOM_NUMBER(iRan)
-  DO WHILE (iRan.GT.(iRadPower/Radiation_Emission_Spec_Total(iElem)))
-    CALL RANDOM_NUMBER(iRan)
-    iWaveLength = INT(RadiationParameter%WaveLenDiscr*iRan) + 1
+  iWaveOld = 1
+  iWaveLength = INT(RadiationParameter%WaveLenDiscrCoarse/2)
+  iWaveMin = 1
+  iWaveMax = RadiationParameter%WaveLenDiscrCoarse
+  IF (iWaveLength.EQ.RadiationParameter%WaveLenDiscrCoarse) THEN
+    iRadPower = Radiation_Emission_Spec_Total(iElem)
+  ELSE
     iRadPower = 0.0
     DO iWave = 1,  iWaveLength
-      iRadPower = iRadPower + 4.*Pi*Radiation_Emission_Spec(iWave,iElem)*RadiationParameter%WaveLenIncr
+      iRadPower = iRadPower + 4.*Pi*Radiation_Emission_Spec(iWave,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
     END DO
-    CALL RANDOM_NUMBER(iRan)
+  END IF
+  
+  DO  
+    IF (iRan.GT.(iRadPower/Radiation_Emission_Spec_Total(iElem)))THEN
+      iWaveMin = iWaveLength
+    ELSE
+      iWaveMax = iWaveLength
+    END IF
+    iWaveOld = iWaveLength
+    iWaveLength = INT((iWaveMax+iWaveMin)/2)
+    IF (iWaveLength.EQ.RadiationParameter%WaveLenDiscrCoarse) THEN
+      iRadPower = Radiation_Emission_Spec_Total(iElem)
+    ELSE
+      iRadPower = 0.0
+      DO iWave = 1,  iWaveLength
+        iRadPower = iRadPower + 4.*Pi*Radiation_Emission_Spec(iWave,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
+      END DO
+    END IF  
+    IF (ABS(iWaveOld-iWaveLength).LE.1) EXIT
+      
   END DO
-  SetParticleWavelength = iWaveLength
+  
+  iWaveOld = iWaveLength
+  IF (iRan.LT.(iRadPower/Radiation_Emission_Spec_Total(iElem))) THEN
+    IF (iWaveLength.EQ.1) THEN
+      iWaveLength = iWaveLength
+    ELSE
+      iWaveLength = iWaveLength - 1
+      iRadPower2 = 0.0
+      DO iWave = 1,  iWaveLength
+        iRadPower2 = iRadPower2 + 4.*Pi*Radiation_Emission_Spec(iWave,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
+      END DO
+      IF (ABS(iRan-(iRadPower/Radiation_Emission_Spec_Total(iElem))).LT.ABS(iRan-(iRadPower2/Radiation_Emission_Spec_Total(iElem)))) THEN
+        iWaveLength = iWaveOld
+      END IF
+    END IF
+  ELSE  
+    iWaveLength = iWaveLength + 1
+    iRadPower2 = 0.0
+    DO iWave = 1,  iWaveLength
+      iRadPower2 = iRadPower2 + 4.*Pi*Radiation_Emission_Spec(iWave,iElem)*RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor 
+    END DO
+    IF (ABS(iRan-(iRadPower/Radiation_Emission_Spec_Total(iElem))).LT.ABS(iRan-(iRadPower2/Radiation_Emission_Spec_Total(iElem)))) THEN
+      iWaveLength = iWaveOld
+    END IF
+  END IF  
+  SetParticleWavelengthBiSec = iWaveLength
 
-END FUNCTION SetParticleWavelength
+END FUNCTION SetParticleWavelengthBiSec
 
 END MODULE MOD_RadTransport

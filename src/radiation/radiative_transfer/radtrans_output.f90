@@ -134,7 +134,7 @@ SUBROUTINE WriteRadiationToHDF5()
         TempOutput(nVarCount+2, iElem) = MAX(tempSpecAbs,0.) !lost energy
         nVarCount=nVarCount+nVarSpec
       END DO
-      TempOutput((nVarSpec*nSpecies+1), iElem)  = SUM(Radiation_ElemEnergy_Species(:,CNElemID,1))
+      TempOutput((nVarSpec*nSpecies+1), iElem)  = Radiation_Emission_Spec_Total(CNElemID) ! SUM(Radiation_ElemEnergy_Species(:,CNElemID,1))
       TempOutput((nVarSpec*nSpecies+2), iElem)  = RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
       TempOutput(nVarSpec*nSpecies+3, iElem) = SUM(Radiation_ElemEnergy_Species(:,CNElemID,1))- RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ ElemVolume_Shared(CNElemID)
       TempOutput(nVarSpec*nSpecies+4, iElem) = RadTransPhotPerCell(CNElemID)
