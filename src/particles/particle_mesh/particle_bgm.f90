@@ -427,19 +427,19 @@ ELSE
   END IF ! halo_eps.LT.0.
 END IF
 
-! find radius of largest cell
+! The initial cutoff is performed based on the FIBGM elements. However, we have to ensure that all possible halo elements, i.e.
+! those in range (myRadius + otherRadius + halo_eps) will be tested. We make a worst case approximation by determining the
+! global largest cell radius and use it to keep all cells that are in this range.
+! >> Find radius of largest cell
 maxCellRadius = 0
 DO iElem = firstElem, lastElem
   maxCellRadius = MAX(maxCellRadius,VECNORM((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
                                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
                                                BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem)/)/2.))
 END DO
+! >> Communicate global maximum
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxCellRadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
-IF (maxCellRadius.LE.halo_eps) THEN
-  SWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', building halo BGM with halo_eps ...'
-ELSE
-  SWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', temporarily increasing radius for building halo BGM ...'
-END IF
+SWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', for building halo BGM ...'
 
 ! Check, whether the BGM must be enlarged. Periodic sides plus EITHER of the following
 ! 1. RefMapping
@@ -459,19 +459,21 @@ IF (EnlargeBGM) THEN
     END DO
   END DO
 
-  BGMimin = MERGE(GEO%FIBGMiminglob,MAX(FLOOR((GEO%CNxmin-MAX(halo_eps,maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex                   ,PeriodicComponent(1))
-  BGMimax = MERGE(GEO%FIBGMimaxglob,MIN(FLOOR((GEO%CNxmax+MAX(halo_eps,maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob),PeriodicComponent(1))
-  BGMjmin = MERGE(GEO%FIBGMjminglob,MAX(FLOOR((GEO%CNymin-MAX(halo_eps,maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex                   ,PeriodicComponent(2))
-  BGMjmax = MERGE(GEO%FIBGMjmaxglob,MIN(FLOOR((GEO%CNymax+MAX(halo_eps,maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob),PeriodicComponent(2))
-  BGMkmin = MERGE(GEO%FIBGMkminglob,MAX(FLOOR((GEO%CNzmin-MAX(halo_eps,maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex                   ,PeriodicComponent(3))
-  BGMkmax = MERGE(GEO%FIBGMkmaxglob,MIN(FLOOR((GEO%CNzmax+MAX(halo_eps,maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob),PeriodicComponent(3))
+  ! >> Take global maxima of cell radius into account and increase the considered range accordingly
+  BGMimin = MERGE(GEO%FIBGMiminglob,MAX(FLOOR((GEO%CNxmin-(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex                   ,PeriodicComponent(1))
+  BGMimax = MERGE(GEO%FIBGMimaxglob,MIN(FLOOR((GEO%CNxmax+(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob),PeriodicComponent(1))
+  BGMjmin = MERGE(GEO%FIBGMjminglob,MAX(FLOOR((GEO%CNymin-(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex                   ,PeriodicComponent(2))
+  BGMjmax = MERGE(GEO%FIBGMjmaxglob,MIN(FLOOR((GEO%CNymax+(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob),PeriodicComponent(2))
+  BGMkmin = MERGE(GEO%FIBGMkminglob,MAX(FLOOR((GEO%CNzmin-(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex                   ,PeriodicComponent(3))
+  BGMkmax = MERGE(GEO%FIBGMkmaxglob,MIN(FLOOR((GEO%CNzmax+(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob),PeriodicComponent(3))
 ELSE
-  BGMimin = MAX(FLOOR((GEO%CNxmin-MAX(halo_eps,maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex
-  BGMimax = MIN(FLOOR((GEO%CNxmax+MAX(halo_eps,maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob)
-  BGMjmin = MAX(FLOOR((GEO%CNymin-MAX(halo_eps,maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex
-  BGMjmax = MIN(FLOOR((GEO%CNymax+MAX(halo_eps,maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob)
-  BGMkmin = MAX(FLOOR((GEO%CNzmin-MAX(halo_eps,maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex
-  BGMkmax = MIN(FLOOR((GEO%CNzmax+MAX(halo_eps,maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob)
+  ! >> Take global maxima of cell radius into account and increase the considered range accordingly
+  BGMimin = MAX(FLOOR((GEO%CNxmin-(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex
+  BGMimax = MIN(FLOOR((GEO%CNxmax+(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob)
+  BGMjmin = MAX(FLOOR((GEO%CNymin-(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex
+  BGMjmax = MIN(FLOOR((GEO%CNymax+(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob)
+  BGMkmin = MAX(FLOOR((GEO%CNzmin-(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex
+  BGMkmax = MIN(FLOOR((GEO%CNzmax+(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob)
 END IF
 
 ! write function-local BGM indices into global variables
