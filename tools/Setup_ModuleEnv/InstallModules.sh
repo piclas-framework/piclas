@@ -46,10 +46,21 @@ fi
 # Settings
 # --------------------------------------------------------------------------------------------------
 
+NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
 SOURCESDIR=/opt/sources
 MODULEVERSION='4.6.1'
-MODULEDLINK='https://downloads.sourceforge.net/project/modules/Modules/modules-4.6.1/modules-4.6.1.tar.gz?r=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fmodules%2Ffiles%2FModules%2Fmodules-4.6.1%2Fmodules-4.6.1.tar.gz%2Fdownload%3Fuse_mirror%3Dkent&ts=1548854959'
+#MODULEVERSION='5.0.0'
+
+echo ""
+echo -e "This will install Environment Modules version ${GREEN}${MODULEVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
+read -p "Press enter to continue!"
+
+if [ "$MODULEVERSION" == "4.6.1" ]; then
+  MODULEDLINK='https://downloads.sourceforge.net/project/modules/Modules/modules-4.6.1/modules-4.6.1.tar.gz?r=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fmodules%2Ffiles%2FModules%2Fmodules-4.6.1%2Fmodules-4.6.1.tar.gz%2Fdownload%3Fuse_mirror%3Dkent&ts=1548854959'
+elif [ "$MODULEVERSION" == "5.0.0" ]; then
+  MODULEDLINK='https://downloads.sourceforge.net/project/modules/Modules/modules-5.0.0/modules-5.0.0.tar.gz?ts=gAAAAABhXF_Jxr8Tp_QSaLtNFIwqXte_JnuzMdO606UAbI0okB5uzbQFQ0B5NmlIQ-bgM2uJr_EAVFEtCm9GR0NuyWLthCNrrQ%3D%3D&r=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fmodules%2Ffiles%2FModules%2Fmodules-5.0.0%2Fmodules-5.0.0.tar.gz%2Fdownload'
+fi
 calcTrue() { awk 'BEGIN{printf "%d\n" , ('"$*"'?1:0)}';}
 
 # Create sources directory and copy the module templates
@@ -59,6 +70,7 @@ fi
 sudo cp -r moduletemplates /opt/sources/moduletemplates
 
 # download and install modules framework if no modules are present
+# Check ${MODULESHOME} variable which is set by module env if already installed
 if [ ! -d "${MODULESHOME}" ]; then
   if [ ! -d "${INSTALLDIR}/modules/${MODULEVERSION}" ]; then
     echo "creating Module environment with modules-${MODULEVERSION}"
@@ -76,7 +88,7 @@ if [ ! -d "${MODULESHOME}" ]; then
     else
       CPPFLAGS="-DUSE_INTERP_ERRORLINE" ./configure --prefix=${INSTALLDIR}/modules/${MODULEVERSION} --modulefilesdir=${INSTALLDIR}/modules/modulefiles --enable-dotmodulespath
     fi
-    make 2>&1 | tee make.out
+    make -j${NBROFCORES} 2>&1 | tee make.out
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
       echo " "
       echo "${RED}Failed: [make 2>&1 | tee make.out]${NC}"
@@ -111,7 +123,9 @@ if [ ! -d "${MODULESHOME}" ]; then
 
     # Change modulefiles path in init -> ${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
     # comment everything in .modulespath
-    sed -i 's/^/\# /' ${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
+    if [ -f "${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath" ]; then
+      sed -i 's/^/\# /' ${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
+    fi
     # add:
     echo "/opt/modules/modulefiles/compilers" >> ${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
     echo "/opt/modules/modulefiles/utilities" >> ${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
@@ -141,6 +155,7 @@ else
   echo "${YELLOW}Module environment ($(module --version)) already existent${NC}"
   # Change modulefiles path in init -> ${MODULESHOME}/init/.modulespath
   # comment everything
+  # Check if any line contains "/opt/modules/modulefiles/" in ${MODULESHOME}/init/.modulespath
   if [ ! -z "$(grep "${INSTALLDIR}/modules/modulefiles/" ${MODULESHOME}/init/.modulespath)" ]; then
     sed -i 's/^/\# /' ${MODULESHOME}/init/.modulespath
     # add:
