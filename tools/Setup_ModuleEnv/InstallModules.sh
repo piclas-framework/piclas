@@ -49,8 +49,12 @@ fi
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
 SOURCESDIR=/opt/sources
+#MODULEVERSION='3.2.10'
 MODULEVERSION='4.6.1'
 #MODULEVERSION='5.0.0'
+INSTALLPREFIX=${INSTALLDIR}/modules/${MODULEVERSION}
+MODULESPATH=${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
+INSTALLDIRMODULESFILES=${INSTALLDIR}/modules/modulefiles
 
 echo ""
 echo -e "This will install Environment Modules version ${GREEN}${MODULEVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
@@ -63,32 +67,73 @@ elif [ "$MODULEVERSION" == "5.0.0" ]; then
 fi
 calcTrue() { awk 'BEGIN{printf "%d\n" , ('"$*"'?1:0)}';}
 
+# Remove source directory during re-run
+if [[ -n ${1} ]]; then
+  if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -d "${SOURCESDIR}/moduletemplates" ]]; then
+    rm -rf "${SOURCESDIR}/moduletemplates"
+    read -p "Delete ${SOURCESDIR}/moduletemplates?"
+  fi
+  if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -d ${INSTALLDIRMODULESFILES} ]]; then
+    rm -rf ${INSTALLDIRMODULESFILES}
+    read -p "Delete ${INSTALLDIRMODULESFILES}?"
+  fi
+fi
+
 # Create sources directory and copy the module templates
 if [ ! -d ${SOURCESDIR} ]; then
   mkdir -p ${SOURCESDIR}
 fi
-sudo cp -r moduletemplates /opt/sources/moduletemplates
+sudo cp -r moduletemplates ${SOURCESDIR}/moduletemplates
 
 # download and install modules framework if no modules are present
-# Check ${MODULESHOME} variable which is set by module env if already installed
+# Check if ${MODULESHOME} variable which is set by module env if already installed (possibly not loaded by this script?)
 if [ ! -d "${MODULESHOME}" ]; then
-  if [ ! -d "${INSTALLDIR}/modules/${MODULEVERSION}" ]; then
+  # Remove install directory during re-run
+  if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -d ${INSTALLPREFIX} ]]; then
+    rm -rf ${INSTALLPREFIX}
+    read -p "Delete ${INSTALLPREFIX}?"
+  fi
+
+  # Check if module environment (modules-${MODULEVERSION}) already created
+  if [ ! -d ${INSTALLPREFIX} ]; then
     echo "creating Module environment with modules-${MODULEVERSION}"
+
+    # Change to source dir
     cd ${SOURCESDIR}
+
+    # Remove modules-X.Y.Z directory during re-run
+    if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -d "${SOURCESDIR}/modules-${MODULEVERSION}" ]]; then
+      rm -rf "${SOURCESDIR}/modules-${MODULEVERSION}"
+      read -p "Delete ${SOURCESDIR}/modules-${MODULEVERSION}?"
+    fi
+
+    # Download tar.gz file
     if [ ! -e "${SOURCESDIR}/modules-${MODULEVERSION}.tar.gz" ]; then
-      #echo "--output-document=modules-${MODULEVERSION}.tar.gz ${MODULEDLINK}"
-      #exit
       wget --output-document=modules-${MODULEVERSION}.tar.gz "${MODULEDLINK}"
     fi
+    # Extract tar.gz file
     tar -xzf modules-${MODULEVERSION}.tar.gz && rm -rf modules-${MODULEVERSION}.tar.gz
+
+    # Change directory
     cd ${SOURCESDIR}/modules-${MODULEVERSION}
 
+    # Configure setup
+    #
+    #   --enable-dotmodulespath
+    #
+    #       Set the module paths defined by --with-modulepath option in a .modulespath file (following C version fashion)
+    #       within the initialization directory defined by the --initdir option rather than within the modulerc file. (default=no)
+    #
     if [ `calcTrue "$(echo 'puts $tcl_version;exit 0' | tclsh) < 8.5"` -eq 1 ]; then
-      ./configure --prefix=${INSTALLDIR}/modules/${MODULEVERSION} --modulefilesdir=${INSTALLDIR}/modules/modulefiles --enable-dotmodulespath
+      echo "Case A"
+      ./configure --prefix=${INSTALLPREFIX} --modulefilesdir=${INSTALLDIR}/modules/modulefiles --enable-dotmodulespath
     else
-      CPPFLAGS="-DUSE_INTERP_ERRORLINE" ./configure --prefix=${INSTALLDIR}/modules/${MODULEVERSION} --modulefilesdir=${INSTALLDIR}/modules/modulefiles --enable-dotmodulespath
+      echo "Case B"
+      CPPFLAGS="-DUSE_INTERP_ERRORLINE" ./configure --prefix=${INSTALLPREFIX} --modulefilesdir=${INSTALLDIR}/modules/modulefiles --enable-dotmodulespath
     fi
+
     make -j${NBROFCORES} 2>&1 | tee make.out
+
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
       echo " "
       echo "${RED}Failed: [make 2>&1 | tee make.out]${NC}"
@@ -97,6 +142,7 @@ if [ ! -d "${MODULESHOME}" ]; then
       make install 2>&1 | tee install.out
     fi
 
+    # ----------------- THIS CHANGES /etc/profile -----------------
     # Copy initialization to /etc/profile
     #   /etc/profile: system-wide .profile file for the Bourne shell (sh(1))
     #   and Bourne compatible shells (bash(1), ksh(1), ash(1), ...).
@@ -108,7 +154,10 @@ if [ ! -d "${MODULESHOME}" ]; then
       echo "modules init already exists in /etc/profile"
       exit
     fi
+    # ----------------- THIS CHANGES /etc/profile -----------------
 
+
+    # ----------------- THIS CHANGES /etc/bash.bashrc -----------------
     # Copy initialization to /etc/bash.bashrc
     #   System-wide .bashrc file for interactive bash(1) shells.
     if [ -z "$(grep "if.*Modules.*${MODULEVERSION}.*init.*bash.*then" /etc/bash.bashrc)" ]; then
@@ -119,29 +168,40 @@ if [ ! -d "${MODULESHOME}" ]; then
       echo "modules init already exists in /etc/bash.bashrc"
       exit
     fi
+    # ----------------- THIS CHANGES /etc/bash.bashrc -----------------
+
+
     source /etc/profile
 
-    # Change modulefiles path in init -> ${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
-    # comment everything in .modulespath
-    if [ -f "${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath" ]; then
-      sed -i 's/^/\# /' ${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
+    # Remove pre-installed modulefiles directory (also automatically installed stuff)
+    # if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -d ${INSTALLDIRMODULESFILES} ]]; then
+    #   rm -rf ${INSTALLDIRMODULESFILES}
+    #   read -p "Delete ${INSTALLDIRMODULESFILES}?"
+    # fi
+    # Change modulefiles path in init -> ${MODULESPATH}
+    if [ -f ${MODULESPATH} ]; then
+      # Comment every line in .modulespath
+      sed -i 's/^/\# /' ${MODULESPATH}
+    else
+      echo "${MODULESPATH} does not exit. Creating empty file for ${MODULESPATH}"
+      touch ${MODULESPATH}
     fi
     # add:
-    echo "/opt/modules/modulefiles/compilers" >> ${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
-    echo "/opt/modules/modulefiles/utilities" >> ${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
-    echo "/opt/modules/modulefiles/MPI" >> ${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
-    echo "/opt/modules/modulefiles/libraries" >> ${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
-    # echo "/home/\$\{USER\}/modulefiles" >> ${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
-    mkdir -p ${INSTALLDIR}/modules/modulefiles/
-    mkdir -p ${INSTALLDIR}/modules/modulefiles/compilers
-    mkdir -p ${INSTALLDIR}/modules/modulefiles/utilities
-    mkdir -p ${INSTALLDIR}/modules/modulefiles/MPI
-    mkdir -p ${INSTALLDIR}/modules/modulefiles/libraries
-    # cd /opt/modules/modulefiles/compilers/gcc
+    echo "/opt/modules/modulefiles/compilers" >> ${MODULESPATH}
+    echo "/opt/modules/modulefiles/utilities" >> ${MODULESPATH}
+    echo "/opt/modules/modulefiles/MPI" >> ${MODULESPATH}
+    echo "/opt/modules/modulefiles/libraries" >> ${MODULESPATH}
+
+    mkdir -p ${INSTALLDIRMODULESFILES}
+    mkdir -p ${INSTALLDIRMODULESFILES}/compilers
+    mkdir -p ${INSTALLDIRMODULESFILES}/utilities
+    mkdir -p ${INSTALLDIRMODULESFILES}/MPI
+    mkdir -p ${INSTALLDIRMODULESFILES}/libraries
+
     # Check if .modulespath and bash exist
-    if [ -e "${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath" ]; then
+    if [ -e ${MODULESPATH} ]; then
       if [ -e "${INSTALLDIR}/modules/${MODULEVERSION}/init/bash" ]; then
-        echo "${GREEN}Modules correctly installed. System restart required.${NC}"
+        echo "${GREEN}Modules correctly installed. System restart might be required.${NC}"
       else
         echo "${RED}bash was not created correctly.${NC}"
       fi
@@ -154,25 +214,25 @@ if [ ! -d "${MODULESHOME}" ]; then
 else
   echo "${YELLOW}Module environment ($(module --version)) already existent${NC}"
   # Change modulefiles path in init -> ${MODULESHOME}/init/.modulespath
-  # comment everything
-  # Check if any line contains "/opt/modules/modulefiles/" in ${MODULESHOME}/init/.modulespath
-  if [ ! -z "$(grep "${INSTALLDIR}/modules/modulefiles/" ${MODULESHOME}/init/.modulespath)" ]; then
-    sed -i 's/^/\# /' ${MODULESHOME}/init/.modulespath
+  MODULESPATH=${MODULESHOME}/init/.modulespath
+  # Check if any line contains "/opt/modules/modulefiles/" in ${MODULESPATH}
+  if [ ! -z "$(grep "${INSTALLDIR}/modules/modulefiles/" ${MODULESPATH})" ]; then
+    # Comment every line in .modulespath
+    sed -i 's/^/\# /' ${MODULESPATH}
     # add:
-    echo "/opt/modules/modulefiles/compilers" >> ${MODULESHOME}/init/.modulespath
-    echo "/opt/modules/modulefiles/utilities" >> ${MODULESHOME}/init/.modulespath
-    echo "/opt/modules/modulefiles/MPI" >> ${MODULESHOME}/init/.modulespath
-    echo "/opt/modules/modulefiles/libraries" >> ${MODULESHOME}/init/.modulespath
-    # echo "/home/\$\{USER\}/modulefiles" >> ${MODULESHOME}/init/.modulespath
-    mkdir -p ${INSTALLDIR}/modules/modulefiles/
-    mkdir -p ${INSTALLDIR}/modules/modulefiles/compilers
-    mkdir -p ${INSTALLDIR}/modules/modulefiles/utilities
-    mkdir -p ${INSTALLDIR}/modules/modulefiles/MPI
-    mkdir -p ${INSTALLDIR}/modules/modulefiles/libraries
-    # cd /opt/modules/modulefiles/compilers/gcc
+    echo "/opt/modules/modulefiles/compilers" >> ${MODULESPATH}
+    echo "/opt/modules/modulefiles/utilities" >> ${MODULESPATH}
+    echo "/opt/modules/modulefiles/MPI" >> ${MODULESPATH}
+    echo "/opt/modules/modulefiles/libraries" >> ${MODULESPATH}
+
+    mkdir -p ${INSTALLDIRMODULESFILES}
+    mkdir -p ${INSTALLDIRMODULESFILES}/compilers
+    mkdir -p ${INSTALLDIRMODULESFILES}/utilities
+    mkdir -p ${INSTALLDIRMODULESFILES}/MPI
+    mkdir -p ${INSTALLDIRMODULESFILES}/libraries
   fi
 fi
 
-if [ -z "${MODULESHOME}" ] && [ -d "${INSTALLDIR}/modules/${MODULEVERSION}" ]; then
-  echo "${GREEN}Modules installed. System restart required.${NC}"
+if [ -z "${MODULESHOME}" ] && [ -d ${INSTALLPREFIX} ]; then
+  echo "${GREEN}Modules installed. System restart might be required.${NC}"
 fi

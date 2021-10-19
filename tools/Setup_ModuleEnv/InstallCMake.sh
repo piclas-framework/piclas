@@ -44,6 +44,7 @@ fi
 # Settings
 # --------------------------------------------------------------------------------------------------
 
+NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
 SOURCESDIR=/opt/sources
 TEMPLATEDIR=/opt/sources/moduletemplates
@@ -58,7 +59,8 @@ fi
 #CMAKEVERSION='3.13.3'
 #CMAKEVERSION='3.15.3'
 #CMAKEVERSION='3.17.0'
-CMAKEVERSION='3.20.3'
+#CMAKEVERSION='3.20.3'
+CMAKEVERSION='3.21.3'
 
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}
@@ -70,7 +72,8 @@ if [[ -n ${1} ]]; then
 fi
 
 if [ ! -e "${MODULEFILE}" ]; then
-  echo "${GREEN}creating CMake-${CMAKEVERSION}${NC}"
+  echo -e "This will install Cmake version ${GREEN}${CMAKEVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
+  read -p "Press enter to continue!"
   cd ${SOURCESDIR}
   if [ ! -e "${SOURCESDIR}/cmake-${CMAKEVERSION}.tar.gz" ]; then
     wget "https://github.com/Kitware/CMake/releases/download/v${CMAKEVERSION}/cmake-${CMAKEVERSION}.tar.gz"
@@ -84,7 +87,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   fi
   cd ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
   ../bootstrap --prefix=${CMAKEDIR}
-  make -j 2>&1 | tee make.out
+  make -j${NBROFCORES} 2>&1 | tee make.out
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
     echo "${RED}Failed: [make -j 2>&1 | tee make.out]${NC}"
@@ -111,5 +114,5 @@ if [ ! -e "${MODULEFILE}" ]; then
     fi
   fi
 else
-  echo "${YELLOW}CMake-${CMAKEVERSION} already created (module file exists)${NC}"
+  echo "${YELLOW}CMake-${CMAKEVERSION} already created (module file exists). Run with -r to remove and re-install.${NC}"
 fi
