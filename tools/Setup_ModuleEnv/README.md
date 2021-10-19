@@ -1,32 +1,52 @@
-These scripts help setting up an environment for development with piclas
+# About
+These scripts help setting up a module environment for development with piclas, which is used via
 
-------------------------------------------------------------
-Order of how to setup environment
+    module load X
 
-0. change dir to script directory ( cd /path/to/piclas/tools )
+after everything has been installed (CMake, GCC, Open MPI, HDF and possibly ParaView) in the same way a HPC cluster may provide its pre-installed packages to the user.
 
-1. Install the basic packages depending on the OS
-   - ./InstallPackagesUbuntu16.sh
-   - ./InstallPackagesUbuntu20.sh
-   - ./InstallPackagesUbuntu21.sh
+# Installation
+
+To execute all scripts as super user, run and/or change to the script files directory
+
+    sudo -s
+    cd /path/to/piclas/tools
+
+Note that all scripts (5-8) can be re-run with the argument `-r` or `-rerun`.
+This cleans the created module file and build directory of the version currently build and rebuilds it.
+
+## 1. Install the basic packages depending on the OS (Ubuntu is assumed here)
+
+       sudo ./InstallPackagesUbuntu16.sh
+       sudo ./InstallPackagesUbuntu20.sh
+       sudo ./InstallPackagesUbuntu21.sh
+
    and if you have a server that has been setup with only basic packages, the following might be required
-   sudo ./InstallPackagesServer.sh
+   
+       sudo ./InstallPackagesServer.sh
 
-2. open a new terminal and run:
-      sudo -s
-   or run the following script with sudo ./Install...
+## 2. Module Environment from [https://sourceforge.net/projects/modules/files/](https://sourceforge.net/projects/modules/files/)
 
-3. ./InstallModules.sh
-  4. reboot and maybe second time ./InstallModules.sh is needed
+       sudo ./InstallModules.sh
 
-5. ./InstallCMake.sh
-6. ./InstallGCC.sh
-7. ./InstallMPIallCOMPILERS.sh
-8. ./InstallHDF5.sh
 
-! next one might currently not work
-9. ./InstallParaview.sh
+   reboot and maybe second time `./InstallModules.sh` is needed if `module list` does not work and returns `command not found: module`.
 
-------------------------------------------------------------
-all scripts (5-8) can be rerun with "-r" or "-rerun" argument
-  this cleans the created module file and build directory of the to-be-build version and rebuilds it
+## 3. CMake from [https://github.com/Kitware/CMake/releases/](https://github.com/Kitware/CMake/releases/)
+       sudo ./InstallCMake.sh
+   
+## 4. GCC Compiler from [ftp://ftp.fu-berlin.de/unix/languages/gcc/releases](ftp://ftp.fu-berlin.de/unix/languages/gcc/releases)
+       sudo ./InstallGCC.sh
+   
+## 5. Open MPI from [https://www.open-mpi.org/software/ompi/v4.1/](https://www.open-mpi.org/software/ompi/v4.1/)
+       sudo ./InstallMPIallCOMPILERS.sh
+   
+## 6. HDF5 from [https://support.hdfgroup.org/ftp/HDF5/releases/](https://support.hdfgroup.org/ftp/HDF5/releases/)
+       sudo ./InstallHDF5.sh
+
+## 7. ParaViewfrom [https://www.paraview.org/download/](https://www.paraview.org/download/)
+The installation of ParaView is not mandatory for piclas/hopr and is installed via
+
+      sudo ./InstallParaview.sh
+
+
