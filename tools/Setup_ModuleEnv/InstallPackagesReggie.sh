@@ -2,56 +2,57 @@
 
 #==============================================================================
 # title       : InstallPackagesReggie.sh
-# description : This script installs the software packages required for the 
+# description : This script installs the software packages required for the
 #               regression check tool "reggie2.0"
 # date        : Nov 27, 2019
-# version     : 1.0   
+# version     : 1.0
 # usage       : bash InstallPackagesReggie.sh
-# notes       : 
+# notes       :
 #==============================================================================
 
 # Check for updates
 sudo apt-get update
 
 # compiler
-sudo apt-get install make cmake cmake-curses-gui gfortran g++ gcc 
+sudo apt-get install make cmake cmake-curses-gui gfortran g++ gcc -y
 
 # python
-sudo apt-get install python python-numpy python3 python3-numpy python3-matplotlib python-matplotlib
+sudo apt-get install python python-numpy python3 python3-numpy python3-matplotlib python-matplotlib -y
 
 # editors
-sudo apt-get install gedit vim vim-runtime vim-common vim-tiny gdb vim-gui-common
+sudo apt-get install gedit vim vim-runtime vim-common vim-tiny gdb vim-gui-common -y
 
 # git && versions
-sudo apt-get install git gitg qgit subversion
+sudo apt-get install git gitg qgit subversion -y
 
 # paraview
-sudo apt-get install libpython-dev libboost-dev libphonon-dev libphonon4 libxt-dev mesa-common-dev
+sudo apt-get install libpython-dev libboost-dev libphonon-dev libphonon4 libxt-dev mesa-common-dev -y
 #apt-get install qt4-default qt4-dev-tools libqt4-dev qt4-qmake libqt4-opengl-dev
-sudo apt-get install qttools5-dev libqt5x11extras5-dev qt5-default libgl1-mesa-dev
+sudo apt-get install qttools5-dev libqt5x11extras5-dev qt5-default libgl1-mesa-dev -y
 
 # Tecplot
-sudo apt-get install libstdc++5
+sudo apt-get install libstdc++5 -y
 
 # tools
-sudo apt-get install gzip gimp htop meld gnuplot gnuplot-x11 vlc okular ddd gmsh unzip
-sudo apt-get install openvpn openssl openssh-client
+sudo apt-get install gzip gimp htop meld gnuplot gnuplot-x11 vlc okular ddd gmsh unzip -y
+sudo apt-get install openvpn openssl openssh-client -y
 
 # for FLEXI/PICLas
-sudo apt-get install liblapack3 liblapack-dev zlib1g-dev exuberant-ctags
+sudo apt-get install liblapack3 liblapack-dev zlib1g-dev exuberant-ctags -y
 
 # for documentation
-sudo apt-get install pandoc pandoc-citeproc
-sudo apt-get install texlive-full
+sudo apt-get install pandoc pandoc-citeproc -y
+sudo apt-get install texlive-full -y
 
 # hdf5-file viewer
-sudo apt-get install hdfview 
+sudo apt-get install hdfview -y
 
 # Install libs for reggie
-sudo apt-get install python-h5py
+sudo apt-get install python-h5py -y
 
 # Further libs
-sudo apt-get install hdf5-tools libhdf5-dev # this is maybe not required (do not install them if it works without these packages)
+# this is maybe not required (do not install them if it works without these packages)
+# sudo apt-get install hdf5-tools libhdf5-dev -y
 
 # Linux Standard Base (LSB): required on, e.g., Ubuntu Server that is equipped only thinly with pre-installed software
-sudo apt-get install lsb
+sudo apt-get install lsb -y
