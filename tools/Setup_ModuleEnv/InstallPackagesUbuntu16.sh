@@ -2,13 +2,13 @@
 
 #==============================================================================
 # title       : InstallPackages.sh
-# description : This script installs the software packages required for 
-#               the module env scripts for creating a software environment for 
+# description : This script installs the software packages required for
+#               the module env scripts for creating a software environment for
 #               PICLas/FLEXI code frameworks
 # date        : Nov 27, 2019
-# version     : 1.0   
+# version     : 1.0
 # usage       : bash InstallPackages.sh
-# notes       : 
+# notes       :
 #==============================================================================
 
 # Check for updates
@@ -20,11 +20,11 @@ sudo apt-get install  libboost-dev
 # cmake
 sudo apt-get install  libncurses-dev
 
-# ctags 
+# ctags
 sudo apt-get install  exuberant-ctags
 
 # paraview
-sudo apt-get install  qt4-qmake  qt4-dev-tools  libqt4-opengl-dev  libqt4-dev 
+sudo apt-get install  qt4-qmake  qt4-dev-tools  libqt4-opengl-dev  libqt4-dev
 
 # libphonon-dev (multimedia framework from KDE using Qt 4 - development files)
 sudo apt-get install  libphonon-dev
