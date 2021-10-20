@@ -65,8 +65,10 @@ CMAKEVERSION='3.21.3'
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}
 
+# Remove INSTALL module directory during re-run
 if [[ -n ${1} ]]; then
   if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
+    #read -p "Delete ${MODULEFILE}?"
     rm ${MODULEFILE}
   fi
 fi
@@ -82,7 +84,10 @@ if [ ! -e "${MODULEFILE}" ]; then
   if [ ! -d "${SOURCESDIR}/cmake-${CMAKEVERSION}/build" ]; then
     mkdir -p ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
   fi
+  # Remove SOURCE cmake-X.Y.Z/build/* directory during re-run
   if [[ ${1} =~ ^-r(erun)?$ ]] ; then
+    #DELETE=$(echo ${SOURCESDIR}/cmake-${CMAKEVERSION}/build/*)
+    #read -p "Delete ${DELETE} ?"
     rm ${SOURCESDIR}/cmake-${CMAKEVERSION}/build/*
   fi
   cd ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
