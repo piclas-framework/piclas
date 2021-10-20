@@ -114,7 +114,7 @@ fi
 if [ ! -e "${MODULEFILE}" ]; then
   echo ""
   echo -e "This will install GCC compiler version ${GREEN}${GCCVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
-  read -p "Press enter to continue!"
+  read -p "Press [Enter] to continue or [Crtl+c] to abort!"
 
   cd ${SOURCESDIR}
 
@@ -148,11 +148,13 @@ if [ ! -e "${MODULEFILE}" ]; then
   if [[ ${1} =~ ^-r(erun)?$ ]] ; then
     #DELETE=$(echo ${BUILDDIR}/*)
     #read -p "Delete ${DELETE} ?"
-    rm ${BUILDDIR}/*
+    rm -rf ${BUILDDIR}/*
   fi
 
+  # Change to build directory
   cd ${BUILDDIR}
 
+  # Configure setup
   ../configure -v \
     --prefix=${COMPILERDIR} \
     --enable-languages=c,c++,objc,obj-c++,fortran \
@@ -164,8 +166,10 @@ if [ ! -e "${MODULEFILE}" ]; then
     --with-system-zlib
     # --enable-valgrind-annotations
 
+  # Compile source files with NBROFCORES threads
   make -j${NBROFCORES} 2>&1 | tee make.out
 
+  # Check if compilation failed
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
     echo "${RED}Failed: [make -j 2>&1 | tee make.out]${NC}"
@@ -188,7 +192,7 @@ if [ ! -e "${MODULEFILE}" ]; then
 
     # Remove SOURCE tar.gz file after successful installation
     if [[ -f ${TARFILE} ]]; then
-      rm -rf ${TARFILE}
+      rm ${TARFILE}
     fi
 
   else

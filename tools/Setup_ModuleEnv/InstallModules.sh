@@ -49,16 +49,20 @@ fi
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
 SOURCESDIR=/opt/sources
+
+# For current releases, see: https://sourceforge.net/projects/modules/files/Modules/
 #MODULEVERSION='3.2.10'
 MODULEVERSION='4.6.1'
 #MODULEVERSION='5.0.0'
+
 INSTALLPREFIX=${INSTALLDIR}/modules/${MODULEVERSION}
 MODULESPATH=${INSTALLDIR}/modules/${MODULEVERSION}/init/.modulespath
 INSTALLDIRMODULESFILES=${INSTALLDIR}/modules/modulefiles
+TARFILE=${SOURCESDIR}/modules-${MODULEVERSION}.tar.gz
 
 echo ""
 echo -e "This will install Environment Modules version ${GREEN}${MODULEVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
-read -p "Press enter to continue!"
+read -p "Press [Enter] to continue or [Crtl+c] to abort!"
 
 if [ "$MODULEVERSION" == "4.6.1" ]; then
   MODULEDLINK='https://downloads.sourceforge.net/project/modules/Modules/modules-4.6.1/modules-4.6.1.tar.gz?r=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fmodules%2Ffiles%2FModules%2Fmodules-4.6.1%2Fmodules-4.6.1.tar.gz%2Fdownload%3Fuse_mirror%3Dkent&ts=1548854959'
@@ -67,15 +71,16 @@ elif [ "$MODULEVERSION" == "5.0.0" ]; then
 fi
 calcTrue() { awk 'BEGIN{printf "%d\n" , ('"$*"'?1:0)}';}
 
-# Remove source directory during re-run
 if [[ -n ${1} ]]; then
+  # Remove SOURCE directory during re-run
   if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -d "${SOURCESDIR}/moduletemplates" ]]; then
+    #read -p "Delete ${SOURCESDIR}/moduletemplates?"
     rm -rf "${SOURCESDIR}/moduletemplates"
-    read -p "Delete ${SOURCESDIR}/moduletemplates?"
   fi
+  # Remove INSTALL directory during re-run
   if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -d ${INSTALLDIRMODULESFILES} ]]; then
+    #read -p "Delete ${INSTALLDIRMODULESFILES}?"
     rm -rf ${INSTALLDIRMODULESFILES}
-    read -p "Delete ${INSTALLDIRMODULESFILES}?"
   fi
 fi
 
@@ -88,10 +93,10 @@ sudo cp -r moduletemplates ${SOURCESDIR}/moduletemplates
 # download and install modules framework if no modules are present
 # Check if ${MODULESHOME} variable which is set by module env if already installed (possibly not loaded by this script?)
 if [ ! -d "${MODULESHOME}" ]; then
-  # Remove install directory during re-run
+  # Remove INSTALL directory during re-run
   if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -d ${INSTALLPREFIX} ]]; then
+    #read -p "Delete ${INSTALLPREFIX}?"
     rm -rf ${INSTALLPREFIX}
-    read -p "Delete ${INSTALLPREFIX}?"
   fi
 
   # Check if module environment (modules-${MODULEVERSION}) already created
@@ -101,18 +106,26 @@ if [ ! -d "${MODULESHOME}" ]; then
     # Change to source dir
     cd ${SOURCESDIR}
 
-    # Remove modules-X.Y.Z directory during re-run
+    # Remove SOURCE modules-X.Y.Z directory during re-run
     if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -d "${SOURCESDIR}/modules-${MODULEVERSION}" ]]; then
+      #read -p "Delete ${SOURCESDIR}/modules-${MODULEVERSION}?"
       rm -rf "${SOURCESDIR}/modules-${MODULEVERSION}"
-      read -p "Delete ${SOURCESDIR}/modules-${MODULEVERSION}?"
     fi
 
     # Download tar.gz file
-    if [ ! -e "${SOURCESDIR}/modules-${MODULEVERSION}.tar.gz" ]; then
+    if [ ! -f ${TARFILE} ]; then
       wget --output-document=modules-${MODULEVERSION}.tar.gz "${MODULEDLINK}"
     fi
+
+    # Check if tar.gz file was correctly downloaded, abort script if non-existent
+    if [ ! -f ${TARFILE} ]; then
+      echo "no environment modules install-file downloaded for modules-${MODULEVERSION}"
+      echo "check if ${MODULEDLINK} exists"
+      exit
+    fi
+
     # Extract tar.gz file
-    tar -xzf modules-${MODULEVERSION}.tar.gz && rm -rf modules-${MODULEVERSION}.tar.gz
+    tar -xzf ${TARFILE}
 
     # Change directory
     cd ${SOURCESDIR}/modules-${MODULEVERSION}
@@ -202,6 +215,11 @@ if [ ! -d "${MODULESHOME}" ]; then
     if [ -e ${MODULESPATH} ]; then
       if [ -e "${INSTALLDIR}/modules/${MODULEVERSION}/init/bash" ]; then
         echo "${GREEN}Modules correctly installed. System restart might be required.${NC}"
+
+        # Remove SOURCE tar.gz file after successful installation
+        if [[ -f ${TARFILE} ]]; then
+          rm ${TARFILE}
+        fi
       else
         echo "${RED}bash was not created correctly.${NC}"
       fi

@@ -64,6 +64,7 @@ CMAKEVERSION='3.21.3'
 
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}
+TARFILE=${SOURCESDIR}/cmake-${CMAKEVERSION}.tar.gz
 
 # Remove INSTALL module directory during re-run
 if [[ -n ${1} ]]; then
@@ -75,12 +76,25 @@ fi
 
 if [ ! -e "${MODULEFILE}" ]; then
   echo -e "This will install Cmake version ${GREEN}${CMAKEVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
-  read -p "Press enter to continue!"
+  read -p "Press [Enter] to continue or [Crtl+c] to abort!"
   cd ${SOURCESDIR}
-  if [ ! -e "${SOURCESDIR}/cmake-${CMAKEVERSION}.tar.gz" ]; then
+
+  # Download tar.gz file from FTP server
+  if [ ! -f ${TARFILE} ]; then
     wget "https://github.com/Kitware/CMake/releases/download/v${CMAKEVERSION}/cmake-${CMAKEVERSION}.tar.gz"
   fi
+
+  # Check if tar.gz file was correctly downloaded, abort script if non-existent
+  if [ ! -f ${TARFILE} ]; then
+    echo "no cmake install-file downloaded for cmake-${CMAKEVERSION}"
+    echo "check if https://github.com/Kitware/CMake/releases/download/v${CMAKEVERSION}/cmake-${CMAKEVERSION}.tar.gz exists"
+    exit
+  fi
+
+  # Extract tar.gz file
   tar -xzf cmake-${CMAKEVERSION}.tar.gz
+
+  # Create build directory
   if [ ! -d "${SOURCESDIR}/cmake-${CMAKEVERSION}/build" ]; then
     mkdir -p ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
   fi
@@ -90,9 +104,17 @@ if [ ! -e "${MODULEFILE}" ]; then
     #read -p "Delete ${DELETE} ?"
     rm ${SOURCESDIR}/cmake-${CMAKEVERSION}/build/*
   fi
+
+  # Change to build directory
   cd ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
+
+  # Configure setup
   ../bootstrap --prefix=${CMAKEDIR}
+
+  # Compile source files with NBROFCORES threads
   make -j${NBROFCORES} 2>&1 | tee make.out
+
+  # Check if compilation failed
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
     echo "${RED}Failed: [make -j 2>&1 | tee make.out]${NC}"
@@ -108,7 +130,11 @@ if [ ! -e "${MODULEFILE}" ]; then
     cp ${TEMPLATEDIR}/utilities/cmake/cmake_temp ${MODULEFILE}
     sed -i 's/cmakeversion/'${CMAKEVERSION}'/g' ${MODULEFILE}
     sed -i 's/compilerversion/standard/g' ${MODULEFILE}
-    rm -rf cmake-${CMAKEVERSION}.tar.gz
+
+    # Remove SOURCE tar.gz file after successful installation
+    if [[ -f ${TARFILE} ]]; then
+      rm ${TARFILE}
+    fi
   else
     echo "${RED}ERROR in cmake installation, no modulefile created${NC}"
     if [ ! -e ${CMAKEDIR}/bin/cmake ]; then
