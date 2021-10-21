@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -i
 
 #==============================================================================
 # title       : InstallGCC.sh
@@ -47,7 +47,11 @@ fi
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
 SOURCESDIR=/opt/sources
-MODULETEMPLATEDIR=/opt/sources/moduletemplates
+TEMPLATEPATH=$(echo `pwd`/moduletemplates/compilers/gcc/v_temp)
+if [[ ! -f ${TEMPLATEPATH} ]]; then
+  echo "${RED}ERROR: module template not found under ${TEMPLATEPATH}${NC}. Exit."
+  exit
+fi
 
 cd $INSTALLDIR
 if [ ! -e "${SOURCESDIR}" ]; then
@@ -89,6 +93,7 @@ GCCVERSION='11.2.0'
 # --------------------------------------------------------------------------------------------------
 
 if [[ ${GCCVERSION} == '9.3.0' ]] || [[ ${GCCVERSION} == '10.1.0' ]] || [[ ${GCCVERSION} == '10.3.0' ]] || [[ ${GCCVERSION} == '11.2.0' ]]; then
+  echo -e "${GREEN}Installing libmpfr-dev and libmpc-dev for this version of GCC${NC}"
   sudo apt-get install libmpfr-dev -y
   sudo apt-get install libmpc-dev -y
 fi
@@ -112,9 +117,20 @@ if [[ -n ${1} ]]; then
 fi
 
 if [ ! -e "${MODULEFILE}" ]; then
+
+  # Check if module is available (not required here, but for following libs)
+  if [[ -n $(module purge 2>&1) ]]; then
+    echo -e "${RED}module: command not found.\nThis script must be run in an interactive shell (the first line must read #! /bin/bash -i)${NC}"
+    exit
+  #else
+    #echo "MODULEPATH ="$MODULEPATH
+    #echo "MODULESHOME="${MODULESHOME}
+    #module av
+    #module li
+  fi
+
   echo ""
   echo -e "This will install GCC compiler version ${GREEN}${GCCVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
-  read -p "Press [Enter] to continue or [Crtl+c] to abort!"
 
   cd ${SOURCESDIR}
 
@@ -139,9 +155,16 @@ if [ ! -e "${MODULEFILE}" ]; then
   # Extract tar.gz file
   tar -xzf ${TARFILE}
 
+  # Check if extraction failed
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo " " && ls -l ${TARFILE}
+    echo "${RED} Failed to extract: [tar -xzf ${TARFILE}]. Broken or failed download. Try removing ${TARFILE} before processing. Exit.${NC}"
+    exit
+  fi
+
   # Create build directory
   if [ ! -d ${BUILDDIR} ]; then
-    mkdir -p gcc-${GCCVERSION}/build
+    mkdir -p ${BUILDDIR}
   fi
 
   # Remove SOURCE cmake-X.Y.Z/build/* directory during re-run
@@ -187,7 +210,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   if [ -e "${COMPILERDIR}/bin/gcc" ] && [ -e "${COMPILERDIR}/bin/gfortran" ]; then
 
     # Copy module template file and insert the module version tag
-    cp ${MODULETEMPLATEDIR}/compilers/gcc/v_temp ${MODULEFILE}
+    cp ${TEMPLATEPATH} ${MODULEFILE}
     sed -i 's/versionflag/'${GCCVERSION}'/gI' ${MODULEFILE}
 
     # Remove SOURCE tar.gz file after successful installation

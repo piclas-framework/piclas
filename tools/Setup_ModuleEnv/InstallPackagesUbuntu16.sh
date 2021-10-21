@@ -23,9 +23,6 @@ sudo apt-get install  libncurses-dev -y
 # ctags
 sudo apt-get install  exuberant-ctags -y
 
-# paraview
-sudo apt-get install  qt4-qmake  qt4-dev-tools  libqt4-opengl-dev  libqt4-dev -y
-
 # libphonon-dev (multimedia framework from KDE using Qt 4 - development files)
 sudo apt-get install  libphonon-dev -y
 

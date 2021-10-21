@@ -45,7 +45,11 @@ This cleans the created module file and build directory of the version currently
        sudo ./InstallHDF5.sh
 
 ## 7. ParaViewfrom [https://www.paraview.org/download/](https://www.paraview.org/download/)
-The installation of ParaView is not mandatory for piclas/hopr and is installed via
+The installation of ParaView is not mandatory for piclas/hopr. The pre-requisites for Ubuntu are installed via
+
+       sudo ./InstallPackagesParaView.sh
+
+and Paraview itself is installed via
 
       sudo ./InstallParaview.sh
 

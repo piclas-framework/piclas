@@ -76,7 +76,11 @@ done
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
 SOURCESDIR=/opt/sources
-TEMPLATEDIR=/opt/sources/moduletemplates
+TEMPLATEPATH=$(echo `pwd`/moduletemplates/libraries/hdf5)
+if [[ ! -d ${TEMPLATEPATH} ]]; then
+  echo "${RED}ERROR: module template not found under ${TEMPLATEPATH}${NC}. Exit."
+  exit
+fi
 
 if [ ! -d "${SOURCESDIR}" ]; then
   mkdir -p ${SOURCESDIR}
@@ -86,7 +90,8 @@ fi
 #HDF5VERSION=1.8.18
 #HDF5VERSION=1.10.4
 #HDF5VERSION=1.10.6
-HDF5VERSION=1.12.0
+#HDF5VERSION=1.12.0 # CAUTION NIG_PIC_maxwell_RK4/TWT_recordpoints fails for: 1) gcc/11.2.0   2) cmake/3.21.3   3) openmpi/4.1.1/gcc/11.2.0   4) hdf5/1.12.0/gcc/11.2.0/openmpi/4.1.1
+HDF5VERSION=1.12.1
 
 COMPILERPREFIX=compilers/ # required for modules 5.0.0
 MPIPREFIX=MPI/ # required for modules 5.0.0
@@ -98,6 +103,9 @@ TARFILE=${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz
 
 # Change to sources directors
 cd ${SOURCESDIR}
+
+echo -e "Download HF5 version ${GREEN}${HDF5VERSION}${NC}."
+read -p "Press [Enter] to continue or [Crtl+c] to abort!"
 
 # Download tar.gz file
 if [ ! -f ${TARFILE} ]; then
@@ -112,7 +120,14 @@ if [ ! -f ${TARFILE} ]; then
 fi
 
 # Extract tar.gz file
-tar -xzf hdf5-${HDF5VERSION}.tar.gz hdf5-${HDF5VERSION}
+tar -xzf ${TARFILE} hdf5-${HDF5VERSION}
+
+# Check if extraction failed
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+  echo " " && ls -l ${TARFILE}
+  echo "${RED} Failed to extract: [tar -xzf ${TARFILE}]. Broken or failed download. Try removing ${TARFILE} before processing. Exit.${NC}"
+  exit
+fi
 
 # Loop gcc and intel compilers
 COMPILERNAMES='gcc intel'
@@ -137,6 +152,11 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
 
     BUILDDIR=${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}
 
+    # Check if module is available (not required here, but for following libs)
+    if [[ -n $(module purge 2>&1) ]]; then
+      echo -e "${RED}module: command not found.\nThis script must be run in an interactive shell (the first line must read '#! /bin/bash' -i)${NC}"
+      exit
+    fi
 
     # ============================================================================================================================================================================
     #--- build hdf5 in single
@@ -201,7 +221,7 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
       fi
 
       # Create modulefile if installation seems successful
-      cp ${TEMPLATEDIR}/libraries/hdf5/single_template ${MODULEFILE}
+      cp ${TEMPLATEPATH}/single_template ${MODULEFILE}
       sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}
       sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
       sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE}
@@ -293,7 +313,7 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
           fi
 
           # Create modulefile if installation seems successful
-          cp ${TEMPLATEDIR}/libraries/hdf5/mpi_template ${MODULEFILE}
+          cp ${TEMPLATEPATH}/mpi_template ${MODULEFILE}
           sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}
           sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
           sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE}

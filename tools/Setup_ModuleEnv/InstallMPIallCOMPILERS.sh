@@ -53,8 +53,11 @@ WHICHCOMPILER=gcc
 INSTALLDIR=/opt
 SOURCESDIR=/opt/sources
 MODULESDIR=/opt/modules/modulefiles
-MODULETEMPLATESDIR=/opt/sources/moduletemplates
-MODULETEMPLATENAME=template
+TEMPLATEPATH=$(echo `pwd`/moduletemplates/MPI/template)
+if [[ ! -f ${TEMPLATEPATH} ]]; then
+  echo "${RED}ERROR: module template not found under ${TEMPLATEPATH}${NC}. Exit."
+  exit
+fi
 
 if [ "${WHICHMPI}" == "openmpi" ]; then
   # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
@@ -107,15 +110,18 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
     fi
     # if no mpi module for this compiler found, install ${WHICHMPI} and create module
     if [ ! -e "${MPIMODULEFILE}" ]; then
+
+      # Check if module is available (not required here, but for following libs)
+      if [[ -n $(module purge 2>&1) ]]; then
+        echo -e "${RED}module: command not found.\nThis script must be run in an interactive shell (the first line must read '#! /bin/bash' -i)${NC}"
+        exit
+      fi
+
       echo -e "$GREEN""creating ${WHICHMPI}-${MPIVERSION} for ${WHICHCOMPILER}-${COMPILERVERSION}${NC}"
 
       # Unload all possibly loaded modules and load specific modules for compilation of MPI
-      if [[ -n $(module purge 2>&1) ]]; then
-        echo -e "${RED}module: command not found${NC}"
-        exit
-      fi
       module purge
-
+      module av
       if [[ -n $(module load ${COMPILERPREFIX}${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
         echo -e "${RED}module ${COMPILERPREFIX}${WHICHCOMPILER}/${COMPILERVERSION} not found ${NC}"
         break
@@ -156,6 +162,14 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
 
       # Extract tar.gz file
       tar -xzf ${WHICHMPI}-${MPIVERSION}.tar.gz
+
+      # Check if extraction failed
+      if [ ${PIPESTATUS[0]} -ne 0 ]; then
+        echo " " && ls -l ${TARFILE}
+        echo "${RED} Failed to extract: [tar -xzf ${TARFILE}]. Broken or failed download. Try removing ${TARFILE} before processing. Exit.${NC}"
+        exit
+      fi
+
       if [ ! -d ${BUILDDIR} ]; then
         mkdir -p ${BUILDDIR}
       fi
@@ -194,7 +208,7 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
         if [ ! -d "${MPIMODULEFILEDIR}" ]; then
           mkdir -p ${MPIMODULEFILEDIR}
         fi
-        cp ${MODULETEMPLATESDIR}/MPI/${MODULETEMPLATENAME} ${MPIMODULEFILE}
+        cp ${TEMPLATEPATH} ${MPIMODULEFILE}
         sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MPIMODULEFILE}
         sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MPIMODULEFILE}
         sed -i 's/whichmpi/'${WHICHMPI}'/gI' ${MPIMODULEFILE}

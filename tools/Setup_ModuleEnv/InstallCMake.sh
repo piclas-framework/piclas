@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -i
 
 #==============================================================================
 # title       : InstallCMake.sh
@@ -47,7 +47,11 @@ fi
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
 SOURCESDIR=/opt/sources
-TEMPLATEDIR=/opt/sources/moduletemplates
+TEMPLATEPATH=$(echo `pwd`/moduletemplates/utilities/cmake/cmake_temp)
+if [[ ! -f ${TEMPLATEPATH} ]]; then
+  echo "${RED}ERROR: module template not found under ${TEMPLATEPATH}${NC}. Exit."
+  exit
+fi
 
 if [ ! -d "${SOURCESDIR}" ]; then
   mkdir -p ${SOURCESDIR}
@@ -64,6 +68,7 @@ CMAKEVERSION='3.21.3'
 
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}
+BUILDDIR=${SOURCESDIR}/cmake-${CMAKEVERSION}/build
 TARFILE=${SOURCESDIR}/cmake-${CMAKEVERSION}.tar.gz
 
 # Remove INSTALL module directory during re-run
@@ -75,6 +80,18 @@ if [[ -n ${1} ]]; then
 fi
 
 if [ ! -e "${MODULEFILE}" ]; then
+
+  # Check if module is available (not required here, but for following libs)
+  if [[ -n $(module purge 2>&1) ]]; then
+    echo -e "${RED}module: command not found.\nThis script must be run in an interactive shell (the first line must read #! /bin/bash -i)${NC}"
+    exit
+  #else
+    #echo "MODULEPATH ="$MODULEPATH
+    #echo "MODULESHOME="${MODULESHOME}
+    #module av
+    #module li
+  fi
+
   echo -e "This will install Cmake version ${GREEN}${CMAKEVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
   read -p "Press [Enter] to continue or [Crtl+c] to abort!"
   cd ${SOURCESDIR}
@@ -94,19 +111,26 @@ if [ ! -e "${MODULEFILE}" ]; then
   # Extract tar.gz file
   tar -xzf cmake-${CMAKEVERSION}.tar.gz
 
+  # Check if extraction failed
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo " " && ls -l ${TARFILE}
+    echo "${RED} Failed to extract: [tar -xzf ${TARFILE}]. Broken or failed download. Try removing ${TARFILE} before processing. Exit.${NC}"
+    exit
+  fi
+
   # Create build directory
-  if [ ! -d "${SOURCESDIR}/cmake-${CMAKEVERSION}/build" ]; then
-    mkdir -p ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
+  if [ ! -d ${BUILDDIR} ]; then
+    mkdir -p ${BUILDDIR}
   fi
   # Remove SOURCE cmake-X.Y.Z/build/* directory during re-run
   if [[ ${1} =~ ^-r(erun)?$ ]] ; then
     #DELETE=$(echo ${SOURCESDIR}/cmake-${CMAKEVERSION}/build/*)
     #read -p "Delete ${DELETE} ?"
-    rm ${SOURCESDIR}/cmake-${CMAKEVERSION}/build/*
+    rm ${BUILDDIR}/*
   fi
 
   # Change to build directory
-  cd ${SOURCESDIR}/cmake-${CMAKEVERSION}/build
+  cd ${BUILDDIR}
 
   # Configure setup
   ../bootstrap --prefix=${CMAKEDIR}
@@ -127,7 +151,7 @@ if [ ! -e "${MODULEFILE}" ]; then
     if [ ! -e "${INSTALLDIR}/modules/modulefiles/utilities/cmake" ]; then
       mkdir -p ${INSTALLDIR}/modules/modulefiles/utilities/cmake
     fi
-    cp ${TEMPLATEDIR}/utilities/cmake/cmake_temp ${MODULEFILE}
+    cp ${TEMPLATEPATH} ${MODULEFILE}
     sed -i 's/cmakeversion/'${CMAKEVERSION}'/g' ${MODULEFILE}
     sed -i 's/compilerversion/standard/g' ${MODULEFILE}
 

@@ -25,11 +25,6 @@ sudo apt-get install gedit vim vim-runtime vim-common vim-tiny gdb vim-gui-commo
 # git && versions
 sudo apt-get install git gitg qgit subversion -y
 
-# paraview
-sudo apt-get install libpython-dev libboost-dev libphonon-dev libphonon4 libxt-dev mesa-common-dev -y
-#apt-get install qt4-default qt4-dev-tools libqt4-dev qt4-qmake libqt4-opengl-dev
-sudo apt-get install qttools5-dev libqt5x11extras5-dev qt5-default libgl1-mesa-dev -y
-
 # Tecplot
 sudo apt-get install libstdc++5 -y
 
