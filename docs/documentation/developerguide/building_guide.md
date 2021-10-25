@@ -10,6 +10,16 @@ If you have an old version of, e.g., Ubuntu visit [this website](https://phoenix
 
     sudo apt install python3-pip
 
+Then install Sphinx
+
+    sudo apt install python3-sphinx
+    sudo apt-get install python3-sphinxcontrib.bibtex
+
+and the other required packages
+
+    pip install sphinx_rtd_theme
+    pip install myst-parser
+
 The following examples shows how to create the html and pdf files for the user guide.
 Navigate to the user guide directory from the PICLas top level directory
 
