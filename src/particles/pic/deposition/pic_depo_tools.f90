@@ -85,22 +85,19 @@ INTEGER                          :: NodeID(1:8)
 IF(.NOT.PDM%ParticleInside(iPart))THEN
   IPWRITE (*,*) "iPart         :", iPart
   IPWRITE (*,*) "global ElemID :", GlobalElemID
-  CALL abort(&
-      __STAMP__&
-      ,'DepositParticleOnNodes(): Particle not inside element.')
+  CALL abort(__STAMP__,'DepositParticleOnNodes(): Particle not inside element.')
 ELSEIF(PartSpecies(iPart).LT.0)THEN
   IPWRITE (*,*) "iPart         :", iPart
   IPWRITE (*,*) "global ElemID :", GlobalElemID
-  CALL abort(&
-      __STAMP__&
-      ,'DepositParticleOnNodes(): Negative speciesID')
+  CALL abort(__STAMP__,'DepositParticleOnNodes(): Negative speciesID')
 END IF ! PartSpecies(iPart)
 
 ! Skip for neutral particles
 IF(.NOT.isChargedParticle(iPart)) RETURN
 
 #if USE_LOADBALANCE
-CALL LBStartTime(tLBStart) ! Start time measurement
+! Only measure time if particle is deposited on local proc
+IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 IF (usevMPF) THEN
   Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
@@ -132,7 +129,8 @@ END ASSOCIATE
 #endif
 
 #if USE_LOADBALANCE
-CALL LBElemPauseTime(GlobalElemID-offsetElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to ElemID
+! Only measure time if particle is deposited on local proc
+IF(ElementOnProc(GlobalElemID)) CALL LBElemPauseTime(GlobalElemID-offsetElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE DepositParticleOnNodes
