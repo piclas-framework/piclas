@@ -66,7 +66,7 @@ CALL prms%CreateRealOption(   'Part-Species[$]-Starkex',               'Exponent
 CALL prms%CreateIntOption(    'Part-Species[$]-NuclCharge',            'Nuclear charge:\n'//&
                                                                        '1: neutral atom\n'//&
                                                                        '2: singly ionized atom', '1', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(   'Radiation-MinWaveLen',                  'Lower wavelength limit for radiation calculation', '0.0')
+CALL prms%CreateRealOption(   'Radiation-MinWaveLen',                  'Lower wavelength limit for radiation calculation', '100.0')
 CALL prms%CreateRealOption(   'Radiation-MaxWaveLen',                  'Upper wavelength limit for radiation calculation','1000.0')
 CALL prms%CreateIntOption(    'Radiation-WaveLenDiscr',                'Number of discretization points', '10000')
 CALL prms%CreateIntOption(    'Radiation-WaveLenReductionFactor',      'Number of discretization points', '1')
@@ -79,6 +79,8 @@ CALL prms%CreateLogicalOption('Radiation-bf',                          'Enable b
 CALL prms%CreateLogicalOption('Radiation-bb-atoms',                    'Enable atomic bound-bound radiation', '.FALSE.')
 CALL prms%CreateLogicalOption('Radiation-bb-molecules',                'Enable molecular bound-bound radiation', '.FALSE.')
 CALL prms%CreateLogicalOption('Radiation-MacroRadInput',               'Reading in flow field data as radiation input', '.FALSE.')
+CALL prms%CreateLogicalOption('Radiation-UseElectronicExcitation',     'Use el. excitation to populate upper state densitites', &
+						                        '.TRUE.')
 CALL prms%CreateRealOption(   'Radiation-NumDensElectrons',            'Electron number density, 1/cm3', '0.0')
 CALL prms%CreateRealOption(   'Radiation-TElectrons',                  'Electron temperature, K', '0.0')
 CALL prms%CreateStringOption( 'Radiation-Species[$]-SpectraFileName',  'File name of data file', 'none', numberedmulti=.TRUE.)
@@ -131,24 +133,24 @@ SpeciesRadiation(:)%nLines = 0
 IF (RadiationSwitches%RadType.NE.2) THEN
   DO iSpec = 1, nSpecies
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
-    RadiationInput(iSpec)%Ttrans(4) = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTtrans','0.0')
-    RadiationInput(iSpec)%Telec = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTelec','0.0')
-    RadiationInput(iSpec)%NumDens = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationNumDens','0.0')
+    RadiationInput(iSpec)%Ttrans(4) = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTtrans')
+    RadiationInput(iSpec)%Telec = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTelec')
+    RadiationInput(iSpec)%NumDens = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationNumDens')
     IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
-      RadiationInput(iSpec)%Tvib = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTvib','0.0')
-      RadiationInput(iSpec)%Trot = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTrot','0.0')
+      RadiationInput(iSpec)%Tvib = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTvib')
+      RadiationInput(iSpec)%Trot = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTrot')
     END IF
-    RadiationInput(iSpec)%IonizationEn = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationIonizationEn','0.0')
+    RadiationInput(iSpec)%IonizationEn = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationIonizationEn')
     RadiationInput(iSpec)%IonizationEn = RadiationInput(iSpec)%IonizationEn *PlanckConst*c*100.
-    RadiationInput(iSpec)%Mass = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationMass_u','0.0')
+    RadiationInput(iSpec)%Mass = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationMass_u')
     RadiationInput(iSpec)%Mass = RadiationInput(iSpec)%Mass*1.660539040E-27
 
     IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10)) THEN !Only for atoms (1) and atomic ions (10)
       CALL Radiation_readin_atoms(iSpec)
-      RadiationInput(iSpec)%Radius = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationRadius_A','0.0')
+      RadiationInput(iSpec)%Radius = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationRadius_A')
       RadiationInput(iSpec)%Radius = RadiationInput(iSpec)%Radius *1.0E-10
-      RadiationInput(iSpec)%Starkex = GETREAL('Part-Species'//TRIM(hilf)//'-Starkex','0.0')
-      RadiationInput(iSpec)%NuclCharge = GETINT('Part-Species'//TRIM(hilf)//'-NuclCharge','1')
+      RadiationInput(iSpec)%Starkex = GETREAL('Part-Species'//TRIM(hilf)//'-Starkex')
+      RadiationInput(iSpec)%NuclCharge = GETINT('Part-Species'//TRIM(hilf)//'-NuclCharge')
     END IF
 
     IF((SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN !Only for molecules (2) and molecular ions (20)
@@ -157,11 +159,11 @@ IF (RadiationSwitches%RadType.NE.2) THEN
   END DO
 END IF
 
-RadiationParameter%MinWaveLen   = GETREAL('Radiation-MinWaveLen','0.0')
+RadiationParameter%MinWaveLen   = GETREAL('Radiation-MinWaveLen')
 RadiationParameter%MinWaveLen   = RadiationParameter%MinWaveLen*1.E-9
-RadiationParameter%MaxWaveLen   = GETREAL('Radiation-MaxWaveLen','1000.0')
+RadiationParameter%MaxWaveLen   = GETREAL('Radiation-MaxWaveLen')
 RadiationParameter%MaxWaveLen   = RadiationParameter%MaxWaveLen*1.E-9
-RadiationParameter%WaveLenDiscr = GETINT('Radiation-WaveLenDiscr','10000')
+RadiationParameter%WaveLenDiscr = GETINT('Radiation-WaveLenDiscr')
 RadiationParameter%WaveLenReductionFactor = GETINT('Radiation-WaveLenReductionFactor')
 IF((RadiationSwitches%RadType.EQ.3) .AND. (nGlobalElems.EQ.1)) RadiationParameter%WaveLenReductionFactor = 1
 IF(RadiationSwitches%RadType.EQ.2) RadiationParameter%WaveLenReductionFactor = 1
@@ -192,16 +194,17 @@ DO iWaveLen = 1, RadiationParameter%WaveLenDiscr
   RadiationParameter%WaveLen(iWaveLen) = RadiationParameter%MinWaveLen + (iWaveLen-1) * RadiationParameter%WaveLenIncr
 END DO
 
-RadiationSwitches%ff            = GETLOGICAL('Radiation-ff',            '.FALSE.')
-RadiationSwitches%bf            = GETLOGICAL('Radiation-bf',            '.FALSE.')
-RadiationSwitches%bb_at         = GETLOGICAL('Radiation-bb-atoms',      '.FALSE.')
-RadiationSwitches%bb_mol        = GETLOGICAL('Radiation-bb-molecules',  '.FALSE.')
-RadiationSwitches%MacroRadInput = GETLOGICAL('Radiation-MacroRadInput', '.FALSE.')
+RadiationSwitches%ff                      = GETLOGICAL('Radiation-ff')
+RadiationSwitches%bf                      = GETLOGICAL('Radiation-bf')
+RadiationSwitches%bb_at                   = GETLOGICAL('Radiation-bb-atoms')
+RadiationSwitches%bb_mol                  = GETLOGICAL('Radiation-bb-molecules')
+RadiationSwitches%MacroRadInput           = GETLOGICAL('Radiation-MacroRadInput')
+RadiationSwitches%UseElectronicExcitation = GETLOGICAL('Radiation-UseElectronicExcitation')
 
 IF (RadiationSwitches%MacroRadInput) CALL MacroscopicRadiationInput()
 
-NumDensElectrons = GETREAL('Radiation-NumDensElectrons','0.0')
-TElectrons       = GETREAL('Radiation-TElectrons',      '0.0')
+NumDensElectrons = GETREAL('Radiation-NumDensElectrons')
+TElectrons       = GETREAL('Radiation-TElectrons')
 
 #if USE_MPI
   ! allocate shared array for Radiation_Emission/Absorption_Spec  
@@ -273,7 +276,9 @@ SUBROUTINE MacroscopicRadiationInput()
   USE MOD_HDF5_Input                ,ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray,GetDataProps
   USE MOD_Mesh_Vars                 ,ONLY: offsetElem, nElems
   USE MOD_Particle_Vars             ,ONLY: nSpecies
-  USE MOD_Radiation_Vars            ,ONLY: MacroRadInputParameters, MacroRadInputParameters_Shared, MacroRadInputParameters_Shared_Win
+  USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC
+  USE MOD_Radiation_Vars            ,ONLY: RadiationSwitches, MacroRadInputParameters, MacroRadInputParameters_Shared, &
+                                      MacroRadInputParameters_Shared_Win
   USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
   USE MOD_ReadInTools
   USE MOD_Particle_Mesh_Vars        ,ONLY: nComputeNodeElems
@@ -292,7 +297,7 @@ SUBROUTINE MacroscopicRadiationInput()
   ! OUTPUT VARIABLES
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! LOCAL VARIABLES
-  INTEGER                           :: nVar_HDF5, N_HDF5, nElems_HDF5, iVar, iSpec, iElem, CNElemID
+  INTEGER                           :: nVar_HDF5, N_HDF5, nElems_HDF5, iVar, iSpec, iElem, CNElemID, IndexElectronTemp, iSpecElectrons
   REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
   CHARACTER(LEN=300)                :: MacroRadiationInputFile
 !  INTEGER, ALLOCATABLE              :: SortElemInd(:)  !Laux
@@ -363,6 +368,24 @@ SUBROUTINE MacroscopicRadiationInput()
    END DO
    iVar = iVar + DSMC_NVARS
   END DO
+
+  IF(.NOT.RadiationSwitches%UseElectronicExcitation) THEN
+    iSpecElectrons    = 11
+    IndexElectronTemp = (iSpecElectrons-1)*DSMC_NVARS+1 + 11 !132 for 11th Species
+    DO iSpec = 1, nSpecies
+      DO iElem = 1, nElems
+        CNElemID = GetCNElemID(iElem+offsetElem)
+        IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10)) THEN
+          MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem))
+        ELSEIF((SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN
+          MacroRadInputParameters(CNElemID,iSpec,4) = SQRT(MacroRadInputParameters(CNElemID,iSpec,2) &
+              * MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem)))
+        ELSE
+          print*, "excitation temperature cannot be matched, unknown InterID for species", iSpec
+        END IF
+      END DO
+    END DO
+  END IF
 
 #if USE_MPI
   CALL BARRIER_AND_SYNC(MacroRadInputParameters_Shared_Win ,MPI_COMM_SHARED)
