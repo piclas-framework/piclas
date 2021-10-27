@@ -522,16 +522,20 @@ IF(FILEEXISTS(outfile))THEN
   WRITE(tmpStr2,formatStr)&
       " ",REAL(nProcessors)       ,&
       delimiter,MPIW8TimeGlobal(1),&
-      delimiter,MPIW8TimeGlobal(2) &
+      delimiter,MPIW8TimeGlobal(2),&
+      delimiter,MPIW8TimeGlobal(3) &
 #if USE_HDG
-     ,delimiter,MPIW8TimeGlobal(3),&
-      delimiter,MPIW8TimeGlobal(4) &
+     ,delimiter,MPIW8TimeGlobal(4),&
+      delimiter,MPIW8TimeGlobal(5) &
 #endif /*USE_HDG*/
 #if defined(PARTICLES)
-     ,delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+2),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+3),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+4) &
+     ,delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+1),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+2),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+3),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+4),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+5),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+7) &
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
@@ -573,18 +577,22 @@ WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear whit
 WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
 DO i = 0,nProcessors-1
   WRITE(tmpStr2,formatStr)&
-      " ",REAL(i) &
-#if USE_HDG
-     ,delimiter,MPIW8TimeProc(i*MPIW8SIZE+1),&
+            " ",REAL(i)                     ,&
+      delimiter,MPIW8TimeProc(i*MPIW8SIZE+1),&
       delimiter,MPIW8TimeProc(i*MPIW8SIZE+2),&
-      delimiter,MPIW8TimeProc(i*MPIW8SIZE+3),&
-      delimiter,MPIW8TimeProc(i*MPIW8SIZE+4) &
+      delimiter,MPIW8TimeProc(i*MPIW8SIZE+3) &
+#if USE_HDG
+     ,delimiter,MPIW8TimeProc(i*MPIW8SIZE+4),&
+      delimiter,MPIW8TimeProc(i*MPIW8SIZE+5) &
 #endif /*USE_HDG*/
 #if defined(PARTICLES)
-     ,delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+i*MPIW8SIZE+1),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+i*MPIW8SIZE+2),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+i*MPIW8SIZE+3),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+i*MPIW8SIZE+4) &
+     ,delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+1),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+2),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+3),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+4),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+5),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+6),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+7) &
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
