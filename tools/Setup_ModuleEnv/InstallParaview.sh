@@ -71,34 +71,49 @@ load_module () {
 # Setup
 # --------------------------------------------------------------------------------------------------
 # Check command line arguments
+RERUNMODE=0
 LOADMODULES=1
-for arg in "$@"
+for ARG in "$@"
 do
-  if [ "$arg" == "--help" ] || [ "$arg" == "-h" ]; then
+
+  if [ ${ARG} == "--help" ] || [ ${ARG} == "-h" ]; then
     echo "Input arguments:"
     echo "--help/-h            print help information"
     echo "--modules/-m         use modules defined in this script by the user."
     echo "                     Otherwise, find modules automatically."
     exit
   fi
-  if [ "$arg" == "--modules" ] || [ "$arg" == "-m" ]; then
+
+  if [ ${ARG} == "--modules" ] || [ ${ARG} == "-m" ]; then
     LOADMODULES=0
     # Set desired versions
     #CMAKEVERSION=3.15.3-d
     #CMAKEVERSION=3.17.0-d
-    CMAKEVERSION=3.20.3
+    #CMAKEVERSION=3.20.3
+    CMAKEVERSION=3.21.3
+
     #GCCVERSION=9.2.0
-    GCCVERSION=9.3.0
+    #GCCVERSION=9.3.0
     #GCCVERSION=10.1.0
     #GCCVERSION=10.2.0
+    GCCVERSION=11.2.0
+
     #OPENMPIVERSION=3.1.4
     #OPENMPIVERSION=4.0.1
     #OPENMPIVERSION=4.0.2
-    OPENMPIVERSION=3.1.6
+    #OPENMPIVERSION=3.1.6
+    OPENMPIVERSION=4.1.1
+
     #HDF5VERSION=1.10.5
-    HDF5VERSION=1.10.6
-    break
+    #HDF5VERSION=1.10.6
+    HDF5VERSION=1.12.1
   fi
+
+  # Check if re-run mode is selected by the user
+  if [[ ${ARG} == "--rerun" ]] || [[ ${ARG} =~ ^-r(erun)?$ ]]; then
+    RERUNMODE=1
+  fi
+
 done
 
 # DOWNLOAD and INSTALL PARAVIEW (example Paraview-5.0.0)
@@ -119,14 +134,61 @@ done
 # sudo apt-get install qttools5-dev
 PARAVIEWVERSION=5.9.1
 
-INSTALLDIR=/opt
-SOURCEDIR=/opt/sources
-MODULESDIR=/opt/modules/modulefiles
-MODULETEMPLATESDIR=/opt/sources/moduletemplates
-MODULETEMPLATENAME=paraview_temp
+# find /opt/sources/paraview-5.9.1/. -name "vtkGenericDataArrayLookupHelper.h"
+#   LINENBR=$(grep -n "#include" /opt/sources/paraview-5.9.1/VTK/Filters/HyperTree/vtkHyperTreeGridThreshold.cxx | tail -1 | cut -f1 -d:)
+#   sudo sed -i "$(echo $((LINENBR + 1)))i #include <limits>" /opt/sources/paraview-5.9.1/VTK/Rendering/Core/vtkColorTransferFunction.cxx
+#   sudo sed -i '29i #include <limits>' /opt/sources/paraview-5.9.1/VTK/Filters/HyperTree/vtkHyperTreeGridThreshold.cxx
+# sudo vim /opt/sources/paraview-5.9.1/VTK/Common/Core/vtkGenericDataArrayLookupHelper.h
+# #include <limits>
 
-if [ ! -d "${SOURCEDIR}" ]; then
-  mkdir -p "${SOURCEDIR}"
+
+myarray=(vtkPiecewiseFunction.cxx
+         vtkColorTransferFunction.cxx
+         vtkHyperTreeGridThreshold.cxx
+         vtkGenericDataArrayLookupHelper.h)
+
+# List file name proposals
+for t in "${myarray[@]}"; do
+  #./pipeline --threads $t
+  #echo "$t"
+  find /opt/sources/paraview-5.9.1/. -name "$t"
+done
+
+# --------------------------------------------------------------------------------------------------
+# Check pre-requisites
+# --------------------------------------------------------------------------------------------------
+
+if [[ ${PARAVIEWVERSION} == '5.9.0' ]] || [[ ${PARAVIEWVERSION} == '5.9.1' ]]; then
+  echo -e "${GREEN}Installing libqt5x11extras5-dev   qtdeclarative5-dev    qttools5-dev    for this version (${PARAVIEWVERSION}) of ParaView${NC}"
+  sudo apt-get install libqt5x11extras5-dev -y
+  sudo apt-get install qtdeclarative5-dev -y
+  sudo apt-get install qttools5-dev -y
+fi
+
+# --------------------------------------------------------------------------------------------------
+#  Settings
+# --------------------------------------------------------------------------------------------------
+
+NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
+#NBROFCORES=1 # set to fixed value when errors are encountered at random (not related to missing packages)
+INSTALLDIR=/opt
+SOURCESDIR=/opt/sources
+MODULESDIR=/opt/modules/modulefiles
+TEMPLATEPATH=$(echo `pwd`/moduletemplates/utilities/paraview/paraview_temp)
+if [[ ! -f ${TEMPLATEPATH} ]]; then
+  echo "${RED}ERROR: module template not found under ${TEMPLATEPATH}${NC}. Exit."
+  exit
+fi
+TARFILE=${SOURCESDIR}/paraview-${PARAVIEWVERSION}-source.tar.gz
+
+if [ ! -d "${SOURCESDIR}" ]; then
+  mkdir -p "${SOURCESDIR}"
+fi
+
+# Check if module is available (not required here, but for following libs)
+if [[ -n $(module purge 2>&1) ]]; then
+  echo -e "${RED}module: command not found.\nThis script must be run in an interactive shell (the first line must read '#! /bin/bash' -i)${NC}"
+  exit
 fi
 
 # take the first gcc compiler installed with first compatible openmpi and hdf5
@@ -136,7 +198,10 @@ if [[ $LOADMODULES -eq 1 ]]; then
   GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   OPENMPIVERSION=$(ls ${MODULESDIR}/MPI/openmpi/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  echo "Modules found automatically. The combination might not be possible!"
+  echo -e "Modules found automatically.\n\nCMAKEVERSION=${CMAKEVERSION}\nGCCVERSION=${GCCVERSION}\nOPENMPIVERSION=${OPENMPIVERSION}\nHDF5VERSION=${HDF5VERSION}\n\nWARNING: The combination might not be possible!"
+  if [[ ${RERUNMODE} -eq 0 ]]; then
+    read -p "Press [Enter] to continue or [Crtl+c] to abort!"
+  fi
 else
   echo "Modules defined by user. Check if the combination is possible!"
 fi
@@ -147,12 +212,12 @@ check_module "mpi  " "${OPENMPIVERSION}"
 check_module "hdf5 " "${HDF5VERSION}"
 
 PARAVIEWMODULEFILEDIR=${MODULESDIR}/utilities/paraview/${PARAVIEWVERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}/hdf5
-PARAVIEWMODULEFILE=${PARAVIEWMODULEFILEDIR}/${HDF5VERSION}
+MODULEFILE=${PARAVIEWMODULEFILEDIR}/${HDF5VERSION}
 
 # if no paraview module for this compiler found, install paraview and create module
-if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
+if [ ! -e "${MODULEFILE}" ]; then
   echo -e "$GREEN""creating Paraview-${PARAVIEWVERSION} for GCC-${GCCVERSION} under$NC"
-  echo -e "$GREEN""$PARAVIEWMODULEFILE$NC"
+  echo -e "$GREEN""$MODULEFILE$NC"
   echo " "
   module purge
   load_module "cmake/${CMAKEVERSION}"
@@ -163,61 +228,88 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
   echo " "
   echo -e "$GREEN""Important: If the compilation step fails, run the script again and if it still fails \n1) try compiling single, .i.e., remove -j from make -j or \n2) try make -j 2 (not all available threads)$NC"
   echo " "
-  read -p "Have the correct modules been loaded? If yes, press enter to continue!"
+  echo -e "This will install ParaView version ${GREEN}${PARAVIEWVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
+  if [[ ${RERUNMODE} -eq 0 ]]; then
+    read -p "Have the correct modules been loaded? If yes, press [Enter] to continue or [Crtl+c] to abort!"
+  fi
 
   # Install destination
   PARAVIEWINSTALLDIR=/opt/paraview/${PARAVIEWVERSION}/gcc-${GCCVERSION}/openmpi-${OPENMPIVERSION}/hdf5-${HDF5VERSION}
 
-  # build and installation
-  cd ${SOURCEDIR}
-  if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}-source.tar.gz" ]; then
-    wget --output-document=paraview-${PARAVIEWVERSION}-source.tar.gz "https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSION%.*}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}.tar.gz"
+  # Change to sources directors
+  cd ${SOURCESDIR}
+
+  # Download tar.gz file
+  if [ ! -f ${TARFILE} ]; then
+    wget --output-document=${TARFILE} "https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSION%.*}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}.tar.gz"
   fi
-  if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}-source.tar.gz" ]; then
+
+  # Check if tar.gz file was correctly downloaded
+  if [ ! -f ${TARFILE} ]; then
     echo -e "$RED""no source-file downloaded for Paraview-${PARAVIEWVERSION}$NC"
     echo -e "$RED""check if https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v${PARAVIEWVERSION%.*}&type=source&os=Sources&downloadFile=ParaView-v${PARAVIEWVERSION}-source.tar.gz$NC"
     exit
   fi
-  tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz
+
+  # Extract tar.gz file
+  tar -xzf ${TARFILE}
+
+  # Check if extraction failed
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo " " && ls -l ${TARFILE}
+    echo "${RED} Failed to extract: [tar -xzf ${TARFILE}]. Broken or failed download. Try removing ${TARFILE} before processing. Exit.${NC}"
+    exit
+  fi
+
+  # Check if extraction failed
   ERRORCODE=$?
   if [ ${ERRORCODE} -ne 0 ]; then
     echo " "
-    echo -e "$RED""Failed: [tar -xzf paraview-${PARAVIEWVERSION}-source.tar.gz paraview-${PARAVIEWVERSION}]$NC"
+    echo -e "$RED""Failed: [tar -xzf ${TARFILE} paraview-${PARAVIEWVERSION}]$NC"
     exit
   else
     # Check if decompressed directory exists
-    if [ -d "${SOURCEDIR}/ParaView-v${PARAVIEWVERSION}" ]; then
+    if [ -d "${SOURCESDIR}/ParaView-v${PARAVIEWVERSION}" ]; then
       # Check if renamed directory exists and create backup of it
-      if [ -d "${SOURCEDIR}/paraview-${PARAVIEWVERSION}" ]; then
+      if [ -d "${SOURCESDIR}/paraview-${PARAVIEWVERSION}" ]; then
         # Move directory, e.g., "paraview-5.8.0" to "paraview-5.8.0_bak"
-        #echo -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION} already exists."
-        #rm -rf ${SOURCEDIR}/paraview-${PARAVIEWVERSION}_bak
-        #mv ${SOURCEDIR}/paraview-${PARAVIEWVERSION} ${SOURCEDIR}/paraview-${PARAVIEWVERSION}_bak
+        #echo -e "${SOURCESDIR}/paraview-${PARAVIEWVERSION} already exists."
+        #rm -rf ${SOURCESDIR}/paraview-${PARAVIEWVERSION}_bak
+        #mv ${SOURCESDIR}/paraview-${PARAVIEWVERSION} ${SOURCESDIR}/paraview-${PARAVIEWVERSION}_bak
 
         # Inquiry: Continue the installation with the existing files OR remove them all and start fresh
         while true; do
-          read -p "${SOURCEDIR}/paraview-${PARAVIEWVERSION} already exists. Do you want to continue the installation (y/n)? Otherwise the directory will be removed and a fresh installation will be performed. [Y/n]" yn
-            case $yn in
-                [Yy]* ) echo "Continuing... "; break;;
-                [Nn]* ) rm -rf ${SOURCEDIR}/paraview-${PARAVIEWVERSION} ; break;;
-                * ) echo "Please answer yes or no.";;
-            esac
+          echo " "
+          echo "${YELLOW}${SOURCESDIR}/paraview-${PARAVIEWVERSION} already exists.${NC}"
+          echo "${YELLOW}Do you want to continue the installation (y/n)?${NC}"
+          # Inquiry
+          if [[ ${RERUNMODE} -eq 0 ]]; then
+            read -p "${YELLOW}Otherwise the directory will be removed and a fresh installation will be performed. [Y/n]${NC}" yn
+          else
+            yn=y
+          fi
+          # Select case
+          case $yn in
+              [Yy]* ) echo "Continuing... "; break;;
+              [Nn]* ) rm -rf ${SOURCESDIR}/paraview-${PARAVIEWVERSION} ; break;;
+              * ) echo "Please answer yes or no.";;
+          esac
         done
       fi
 
       # Check if renamed directory was possibly deleted in the previous step OR this is a completely fresh installation
-      if [ ! -d "${SOURCEDIR}/paraview-${PARAVIEWVERSION}" ]; then
+      if [ ! -d "${SOURCESDIR}/paraview-${PARAVIEWVERSION}" ]; then
         # The extracted directory is named, e.g., "ParaView-v5.8.0", which is renamed to "paraview-5.8.0" with small letters and no "v"
-        mv ${SOURCEDIR}/ParaView-v${PARAVIEWVERSION} ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
+        mv ${SOURCESDIR}/ParaView-v${PARAVIEWVERSION} ${SOURCESDIR}/paraview-${PARAVIEWVERSION}
       fi
     fi
     #rm -rf paraview-${PARAVIEWVERSION}-source.tar.gz
   fi
 
-  if [ ! -e "${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}" ]; then
-    mkdir -p "${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}"
+  if [ ! -e "${SOURCESDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}" ]; then
+    mkdir -p "${SOURCESDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}"
   fi
-  cd "${SOURCEDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}"
+  cd "${SOURCESDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}"
 
   # CMAKE COMPILE FLAGS DEPEND ON THE CHOSEN PARAVIEW VERSION!
   if [ "$PARAVIEWVERSION" == "5.2.0" ] || [ "$PARAVIEWVERSION" == "5.3.0" ] || [ "$PARAVIEWVERSION" == "5.4.0" ]; then
@@ -229,7 +321,7 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
       -DPARAVIEW_USE_VISITBRIDGE=OFF \
       -DPARAVIEW_INSTALL_DEVELOPMENT_FILES=ON \
       -DCMAKE_INSTALL_PREFIX=${PARAVIEWINSTALLDIR} \
-      ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
+      ${SOURCESDIR}/paraview-${PARAVIEWVERSION}
   elif [ "$PARAVIEWVERSION" == "5.7.0" ] || [ "$PARAVIEWVERSION" == "5.8.0" ]; then
     cmake -DCMAKE_BUILD_TYPE=Release \
       -DPARAVIEW_USE_PYTHON=ON \
@@ -237,7 +329,7 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
       -DPARAVIEW_INSTALL_DEVELOPMENT_FILES=ON \
       -DVTK_MODULE_USE_EXTERNAL_VTK_hdf5=ON \
       -DCMAKE_INSTALL_PREFIX=${PARAVIEWINSTALLDIR} \
-      ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
+      ${SOURCESDIR}/paraview-${PARAVIEWVERSION}
   elif [ "$PARAVIEWVERSION" == "5.9.1" ]; then
     cmake -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_POLICY_DEFAULT_CMP0072=NEW \
@@ -247,36 +339,39 @@ if [ ! -e "${PARAVIEWMODULEFILE}" ]; then
       -DPARAVIEW_INSTALL_DEVELOPMENT_FILES=ON \
       -DVTK_USE_SYSTEM_HDF5=ON \
       -DCMAKE_INSTALL_PREFIX=${PARAVIEWINSTALLDIR} \
-      ${SOURCEDIR}/paraview-${PARAVIEWVERSION}
+      ${SOURCESDIR}/paraview-${PARAVIEWVERSION}
   else
     echo -e "$RED""ERROR: Set the correct cmake compile flags for the paraview version [$PARAVIEWVERSION] in InstallParaview.sh$NC"
     exit
   fi
-  make -j 2>&1 | tee make.out
+
+  # Compile source files with NBROFCORES threads
+  make -j${NBROFCORES} 2>&1 | tee make.out
+
+  # Check if compilation failed
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
-    echo -e "$RED""Failed: [make -j 2>&1 | tee make.out]$NC"
+    echo -e "$RED""Failed: [make -j${NBROFCORES} 2>&1 | tee make.out]$NC"
     exit
   else
     make install 2>&1 | tee install.out
   fi
-
 
   # create modulefile if the installation seems successful (check if mpicc, mpicxx, mpifort exists in installdir)
   if [ -e "${PARAVIEWINSTALLDIR}/bin/paraview" ]; then
     if [ ! -d "${PARAVIEWMODULEFILEDIR}" ]; then
       mkdir -p ${PARAVIEWMODULEFILEDIR}
     fi
-    cp ${MODULETEMPLATESDIR}/utilities/paraview/${MODULETEMPLATENAME} ${PARAVIEWMODULEFILE}
-    sed -i 's/paraviewversion/'${PARAVIEWVERSION}'/gI' ${PARAVIEWMODULEFILE}
-    sed -i 's/CMAKEVERSIONFLAG/'${CMAKEVERSION}'/gI' ${PARAVIEWMODULEFILE}
-    sed -i 's/GCCVERSIONFLAG/'${GCCVERSION}'/gI' ${PARAVIEWMODULEFILE}
-    sed -i 's/MPIVERSIONFLAG/'${OPENMPIVERSION}'/gI' ${PARAVIEWMODULEFILE}
-    sed -i 's/HDF5VERSIONFLAG/'${HDF5VERSION}'/gI' ${PARAVIEWMODULEFILE}
+    cp ${TEMPLATEPATH} ${MODULEFILE}
+    sed -i 's/paraviewversion/'${PARAVIEWVERSION}'/gI' ${MODULEFILE}
+    sed -i 's/CMAKEVERSIONFLAG/'${CMAKEVERSION}'/gI' ${MODULEFILE}
+    sed -i 's/GCCVERSIONFLAG/'${GCCVERSION}'/gI' ${MODULEFILE}
+    sed -i 's/MPIVERSIONFLAG/'${OPENMPIVERSION}'/gI' ${MODULEFILE}
+    sed -i 's/HDF5VERSIONFLAG/'${HDF5VERSION}'/gI' ${MODULEFILE}
   else
     echo -e "$RED""No module file created for Paraview-${PARAVIEWVERSION} for GCC-${GCCVERSION}$NC"
     echo -e "$RED""no installation found in ${PARAVIEWINSTALLDIR}/bin$NC"
   fi
 else
-  echo -e "$YELLOW""Paraview-${PARAVIEWVERSION} already created: module file exists under ${PARAVIEWMODULEFILE}$NC"
+  echo -e "$YELLOW""Paraview-${PARAVIEWVERSION} already created: module file exists under ${MODULEFILE}$NC"
 fi
