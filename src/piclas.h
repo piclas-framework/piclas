@@ -29,7 +29,7 @@
 #if USE_HDG
 #define MPIW8SIZEFIELD 4
 #else
-#define MPIW8SIZEFIELD 0
+#define MPIW8SIZEFIELD 2
 #endif
 ! Particle solver
 #ifdef PARTICLES

@@ -319,12 +319,12 @@ INTEGER, INTENT(INOUT)       :: SendRequest(nNbProcs),RecRequest(nNbProcs)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)               :: CounterStart(2),CounterEnd(2)
-REAL(KIND=8)                  :: Rate(2)
+INTEGER(KIND=8)               :: CounterStart,CounterEnd
+REAL(KIND=8)                  :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 #if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterStart(1))
+  CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! Check receive operations first
@@ -333,8 +333,10 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 
 #if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterEnd(1), count_rate=Rate(1))
-  CALL SYSTEM_CLOCK(count=CounterStart(2))
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  ! Note: Send and Receive are switched to have the same ordering as for particles (1. Send, 2. Receive)
+  MPIW8TimeField(2) = MPIW8TimeField(2) + REAL(CounterEnd-CounterStart,8)/Rate
+  CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! Check send operations
@@ -343,9 +345,9 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 
 #if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
-  MPIW8TimeField(3) = MPIW8TimeField(3) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
-  MPIW8TimeField(4) = MPIW8TimeField(4) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  ! Note: Send and Receive are switched to have the same ordering as for particles (1. Send, 2. Receive)
+  MPIW8TimeField(1) = MPIW8TimeField(1) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 END SUBROUTINE FinishExchangeMPIData
@@ -426,20 +428,22 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 LOGICAL                                :: WriteHeader
 INTEGER                                :: ioUnit,i
-INTEGER                    :: iSTATUS                     ! error status return code
 CHARACTER(LEN=150)                     :: formatStr
 CHARACTER(LEN=22),PARAMETER            :: outfile    ='MPIW8Time.csv'
 CHARACTER(LEN=22),PARAMETER            :: outfileProc='MPIW8TimeProc'
 CHARACTER(LEN=30)                      :: outfileProc_loc
-CHARACTER(LEN=8)                       :: hilf
+CHARACTER(LEN=10)                      :: hilf
 INTEGER,PARAMETER                      :: nTotalVars =MPIW8SIZE+1
 CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER(LEN=255) :: &
-    'nProcessors'           &
+    'nProcessors'         &
 #if USE_HDG
-   ,'HDG-Broadcast'  , &
-    'HDG-Allreduce'  , &
-    'HDG-SendLambda' , &
-    'HDG-SendLambda'   &
+   ,'HDG-SendLambda'    , &
+    'HDG-ReceiveLambda' , &
+    'HDG-Broadcast'     , &
+    'HDG-Allreduce'       &
+#else
+   ,'DGSEM-Send'    , &
+    'DGSEM-Receive'   &
 #endif /*USE_HDG*/
 #if defined(PARTICLES)
    ,'SendNbrOfParticles'  , &
@@ -514,11 +518,11 @@ IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
   WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
   WRITE(tmpStr2,formatStr)&
-      " ",REAL(nProcessors)        &
+      " ",REAL(nProcessors)       ,&
+      delimiter,MPIW8TimeGlobal(1),&
+      delimiter,MPIW8TimeGlobal(2) &
 #if USE_HDG
-     ,delimiter,MPIW8TimeGlobal(1),&
-      delimiter,MPIW8TimeGlobal(2),&
-      delimiter,MPIW8TimeGlobal(3),&
+     ,delimiter,MPIW8TimeGlobal(3),&
       delimiter,MPIW8TimeGlobal(4) &
 #endif /*USE_HDG*/
 #if defined(PARTICLES)

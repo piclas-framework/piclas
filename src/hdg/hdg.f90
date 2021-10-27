@@ -1216,7 +1216,7 @@ REAL(KIND=8)      :: Rate
 
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(1) = MPIW8TimeField(1) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8TimeField(3) = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 END SUBROUTINE CheckNonLinRes
 
@@ -1303,7 +1303,7 @@ END IF
 
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(1) = MPIW8TimeField(1) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8TimeField(3) = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 IF(converged) THEN !converged
@@ -1360,7 +1360,7 @@ DO iteration=1,MaxIterCG
 
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(1) = MPIW8TimeField(1) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8TimeField(3) = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 #else
@@ -1723,7 +1723,7 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(2) = MPIW8TimeField(2) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8TimeField(4) = MPIW8TimeField(4) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 END SUBROUTINE VectorDotProduct
