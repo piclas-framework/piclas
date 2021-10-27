@@ -837,7 +837,9 @@ END SUBROUTINE ALLOCATE_SHARED_REAL_6
 SUBROUTINE BARRIER_AND_SYNC(SharedWindow,Communicator) !,Barrier_Opt)
 ! MODULES
 USE MOD_Globals
+#if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars          ,ONLY: MPIW8TimeBaS
+#endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
