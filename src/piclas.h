@@ -33,12 +33,12 @@
 #endif
 ! Particle solver
 #ifdef PARTICLES
-#define MPIW8SIZEPART 4
+#define MPIW8SIZEPART 7
 #else
 #define MPIW8SIZEPART 0
 #endif
 ! Combination
-#define MPIW8SIZE (MPIW8SIZEFIELD+MPIW8SIZEPART)
+#define MPIW8SIZE (1+MPIW8SIZEFIELD+MPIW8SIZEPART)
 #endif
 
 ! Deactivate PURE subroutines/functions when using DEBUG

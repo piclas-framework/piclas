@@ -47,6 +47,7 @@ INTEGER,ALLOCATABLE   :: OffsetMPISides_send(:,:),OffsetMPISides_rec(:,:)
 #endif /*USE_MPI*/
 
 #if defined(MEASURE_MPI_WAIT)
+REAL(KIND=8)             :: MPIW8TimeBaS !< measure time on each proc it is in BARRIER_AND_SYNC
 REAL(KIND=8)             :: MPIW8TimeField(MPIW8SIZEFIELD) !< measure time on each proc it is in MPI_WAIT() during the field solver
 REAL(KIND=8)             :: MPIW8Time(MPIW8SIZE)           !< measure time on each proc it is in MPI_WAIT()
 REAL(KIND=8)             :: MPIW8TimeGlobal(MPIW8SIZE)     !< measure time on each proc it is in MPI_WAIT() global over all ranks

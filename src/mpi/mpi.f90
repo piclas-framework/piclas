@@ -414,8 +414,7 @@ END SUBROUTINE FinalizeMPI
 SUBROUTINE OutputMPIW8Time()
 ! MODULES
 USE MOD_Globals
-USE MOD_MPI_Vars          ,ONLY: MPIW8TimeGlobal,MPIW8TimeProc
-USE MOD_MPI_Vars          ,ONLY: MPIW8TimeField,MPIW8Time,MPIW8TimeGlobal
+USE MOD_MPI_Vars          ,ONLY: MPIW8TimeGlobal,MPIW8TimeProc,MPIW8TimeField,MPIW8Time,MPIW8TimeGlobal,MPIW8TimeBaS
 USE MOD_StringTools       ,ONLY: INTTOSTR
 #if defined(PARTICLES)
 USE MOD_Particle_MPI_Vars ,ONLY: MPIW8TimePart
@@ -435,7 +434,8 @@ CHARACTER(LEN=30)                      :: outfileProc_loc
 CHARACTER(LEN=10)                      :: hilf
 INTEGER,PARAMETER                      :: nTotalVars =MPIW8SIZE+1
 CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER(LEN=255) :: &
-    'nProcessors'         &
+    'nProcessors'       , &
+    'Barrier-and-Sync'    &
 #if USE_HDG
    ,'HDG-SendLambda'    , &
     'HDG-ReceiveLambda' , &
@@ -449,7 +449,10 @@ CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER
    ,'SendNbrOfParticles'  , &
     'RecvNbrOfParticles'  , &
     'SendParticles'       , &
-    'RecvParticles'         &
+    'RecvParticles'       , &
+    'EmissionParticles'   , &
+    'PIC-depo-Reduce'     , &
+    'PIC-depo-Wait'         &
 #endif /*defined(PARTICLES)*/
     /)
 ! CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNamesProc(nTotalVars)=(/ CHARACTER(LEN=255) :: &
@@ -465,11 +468,10 @@ CHARACTER(LEN=255)         :: tmpStr(nTotalVars)
 CHARACTER(LEN=1000)        :: tmpStr2
 CHARACTER(LEN=1),PARAMETER :: delimiter=","
 !===================================================================================================================================
+MPIW8Time(               1:1)                              = MPIW8TimeBaS
+MPIW8Time(               2:MPIW8SIZEFIELD+1)               = MPIW8TimeField
 #if defined(PARTICLES)
-MPIW8Time(               1:MPIW8SIZEFIELD)               = MPIW8TimeField
-MPIW8Time(MPIW8SIZEFIELD+1:MPIW8SIZEFIELD+MPIW8SIZEPART) = MPIW8TimePart
-#else
-MPIW8Time = MPIW8TimeField
+MPIW8Time(MPIW8SIZEFIELD+2:MPIW8SIZEFIELD+MPIW8SIZEPART+1) = MPIW8TimePart
 #endif /*defined(PARTICLES)*/
 
 ! Collect and output measured MPI_WAIT() times

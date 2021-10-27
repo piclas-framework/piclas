@@ -837,6 +837,7 @@ END SUBROUTINE ALLOCATE_SHARED_REAL_6
 SUBROUTINE BARRIER_AND_SYNC(SharedWindow,Communicator) !,Barrier_Opt)
 ! MODULES
 USE MOD_Globals
+USE MOD_MPI_Vars          ,ONLY: MPIW8TimeBaS
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -847,13 +848,25 @@ INTEGER,INTENT(INOUT)       :: Communicator !> Shared memory communicator
 ! LOGICAL,INTENT(IN)          :: Barrier_Opt  !
 ! LOCAL VARIABLES
 ! LOGICAL                     :: Barrier
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart,CounterEnd
+REAL(KIND=8)                  :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !==================================================================================================================================
 ! Barrier = MERGE(Barrier_Opt,.TRUE.,PRESENT(Barrier_Opt)
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 CALL MPI_WIN_SYNC(SharedWindow,iError)
 ! IF (Barrier) CALL MPI_BARRIER (Communicator,iError)
 CALL MPI_BARRIER (Communicator,iError)
 CALL MPI_WIN_SYNC(SharedWindow,iError)
+
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimeBaS = MPIW8TimeBaS + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! IF(iError.NE.0)THEN
 !   CALL abort(__STAMP__,'ERROR in MPI_WIN_SYNC() for '//TRIM(SM_WIN_NAME)//': iError returned non-zero value =',IntInfoOpt=iError)

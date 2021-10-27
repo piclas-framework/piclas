@@ -380,6 +380,9 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime,LBElemSpli
 #if ((USE_HDG) && (PP_nVar==1))
 USE MOD_TimeDisc_Vars      ,ONLY: dt,dt_Min
 #endif
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart
+#endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -407,6 +410,10 @@ REAL               :: tLBStart
 INTEGER            :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
 INTEGER            :: MessageSize
 #endif
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart,CounterEnd
+REAL(KIND=8)                  :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
@@ -493,11 +500,18 @@ ASSOCIATE(NodeSource       => NodeSourceLoc       ,&
 #if USE_MPI
 END ASSOCIATE
 MessageSize = (5-SourceDim)*nUniqueGlobalNodes
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 IF(myComputeNodeRank.EQ.0)THEN
   CALL MPI_REDUCE(NodeSourceLoc(SourceDim:4,:),NodeSource(SourceDim:4,:),MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
 ELSE
   CALL MPI_REDUCE(NodeSourceLoc(SourceDim:4,:),0                        ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
 END IF ! myrank.eq.0
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 CALL BARRIER_AND_SYNC(NodeSource_Shared_Win,MPI_COMM_SHARED)
 
 ! Multi-node communication
@@ -536,6 +550,9 @@ IF(nLeaderGroupProcs.GT.1)THEN
     END DO
 
     ! Finish communication
+#if defined(MEASURE_MPI_WAIT)
+    CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
     DO iProc = 0,nLeaderGroupProcs-1
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
       IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
@@ -547,6 +564,10 @@ IF(nLeaderGroupProcs.GT.1)THEN
         IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
       END IF
     END DO
+#if defined(MEASURE_MPI_WAIT)
+    CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+    MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
     ! 2) Send/Receive current density
     IF(doCalculateCurrentDensity)THEN
@@ -582,6 +603,9 @@ IF(nLeaderGroupProcs.GT.1)THEN
       END DO
 
       ! Finish communication
+#if defined(MEASURE_MPI_WAIT)
+      CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
       DO iProc = 0,nLeaderGroupProcs-1
         IF (iProc.EQ.myLeaderGroupRank) CYCLE
         IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
@@ -593,6 +617,10 @@ IF(nLeaderGroupProcs.GT.1)THEN
           IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
         END IF
       END DO
+#if defined(MEASURE_MPI_WAIT)
+      CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+      MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
     END IF ! doCalculateCurrentDensity
 
     ! 3) Extract messages
@@ -713,6 +741,9 @@ USE MOD_PICDepo_Vars                ,ONLY: PartSource_Shared_Win, ShapeMapping, 
 USE MOD_PICDepo_Vars                ,ONLY: CNShapeMapping
 #endif /*USE_MPI*/
 USE MOD_Part_Tools                  ,ONLY: isDepositParticle
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_Particle_MPI_Vars           ,ONLY: MPIW8TimePart
+#endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -728,6 +759,10 @@ INTEGER            :: iElem, iPart
 INTEGER            :: SendRequest, RecvRequest(nComputeNodeProcessors-1), iProc, CNElemID
 INTEGER            :: RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1)
 #endif
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)    :: CounterStart,CounterEnd
+REAL(KIND=8)       :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 #if USE_MPI
 PartSourceProc = 0.
@@ -784,7 +819,14 @@ IF (myComputeNodeRank.EQ.0) THEN
   ! Add contributions of node slaves
   DO iProc = 1,nComputeNodeProcessors-1
     IF (ShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
+#if defined(MEASURE_MPI_WAIT)
+    CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
     CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+#if defined(MEASURE_MPI_WAIT)
+    CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+    MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     DO iElem = 1, ShapeMapping(iProc)%nRecvShapeElems
       ASSOCIATE( ShapeID => ShapeMapping(iProc)%RecvShapeElemID(iElem))
@@ -808,7 +850,14 @@ ELSE
                   , SendRequest                            &
                   , IERROR)
 
+#if defined(MEASURE_MPI_WAIT)
+    CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
     CALL MPI_WAIT(SendRequest,MPIStatus,IERROR)
+#if defined(MEASURE_MPI_WAIT)
+    CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+    MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
 END IF
@@ -851,6 +900,9 @@ IF(nLeaderGroupProcs.GT.1)THEN
                     , IERROR)
     END DO
 
+#if defined(MEASURE_MPI_WAIT)
+    CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
     DO iProc = 0,nLeaderGroupProcs-1
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
 
@@ -864,6 +916,10 @@ IF(nLeaderGroupProcs.GT.1)THEN
         IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
       END IF
     END DO
+#if defined(MEASURE_MPI_WAIT)
+    CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+    MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
     DO iProc = 0,nLeaderGroupProcs-1
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
