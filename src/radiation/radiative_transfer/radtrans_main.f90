@@ -134,6 +134,7 @@ REAL                :: RandRot(3,3) !, PartPos(1:3)
     RadTransPhotPerCell(:) = RadTrans%NumPhotonsPerCell
 #endif
     RadTransPhotPerCellLoc(:) = RadTransPhotPerCell(:)
+    firstPhoton = 1
   END IF
   
   SWRITE(UNIT_stdOut,'(A)') ' Start Radiative Transport Calculation ...'
