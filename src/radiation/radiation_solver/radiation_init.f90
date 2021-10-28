@@ -375,14 +375,20 @@ SUBROUTINE MacroscopicRadiationInput()
     DO iSpec = 1, nSpecies
       DO iElem = 1, nElems
         CNElemID = GetCNElemID(iElem+offsetElem)
-        IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10)) THEN
+        IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10) .OR. &
+        (SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN
           MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem))
-        ELSEIF((SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN
-          MacroRadInputParameters(CNElemID,iSpec,4) = SQRT(MacroRadInputParameters(CNElemID,iSpec,2) &
-              * MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem)))
         ELSE
           print*, "excitation temperature cannot be matched, unknown InterID for species", iSpec
         END IF
+!        IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10)) THEN
+!          MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem))
+!        ELSEIF((SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN
+!          MacroRadInputParameters(CNElemID,iSpec,4) = SQRT(MacroRadInputParameters(CNElemID,iSpec,2) &
+!              * MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem)))
+!        ELSE
+!          print*, "excitation temperature cannot be matched, unknown InterID for species", iSpec
+!        END IF
       END DO
     END DO
   END IF
