@@ -50,7 +50,7 @@ PUBLIC :: EvaluateFieldAtRefPos
 
 CONTAINS
 
-SUBROUTINE GetPositionInRefElem(x_in,xi,ElemID,DoReUseMap,ForceMode)
+SUBROUTINE GetPositionInRefElem(x_in,xi,ElemID,DoReUseMap,ForceMode,isSuccessful)
 !===================================================================================================================================
 !> Get Position within reference element (x_in -> xi=[-1,1])
 !===================================================================================================================================
@@ -75,6 +75,7 @@ INTEGER,INTENT(IN)          :: ElemID                                 !< Global 
 REAL,INTENT(IN)             :: x_in(3)                                !< position in physical space
 LOGICAL,INTENT(IN),OPTIONAL :: DoReUseMap                             !< flag if start values for Newton elem mapping already exists
 LOGICAL,INTENT(IN),OPTIONAL :: ForceMode                              !< flag for mode change in RefElemNewton
+LOGICAL,INTENT(INOUT), OPTIONAL :: isSuccessful
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)          :: xi(1:3)                                !< position in reference element
@@ -99,11 +100,11 @@ END IF
 CNElemID = GetCNElemID(ElemID)
 
 IF (ElemCurved(CNElemID)) THEN
-  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode)
+  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode, isSuccessful=isSuccessful)
 ELSE
   ! fill dummy XCL_NGeo1
   IF(NGeo.EQ.1)THEN
-    CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode)
+    CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode, isSuccessful=isSuccessful)
   ELSE
     XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,ElemID)
     XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  ,ElemID)
@@ -122,7 +123,7 @@ ELSE
     dXCL_NGeo1(1:3,1:3,1,0,1) = dXCL_NGeo(1:3,1:3,NGeo, 0  ,NGeo,ElemID)
     dXCL_NGeo1(1:3,1:3,0,1,1) = dXCL_NGeo(1:3,1:3, 0  ,NGeo,NGeo,ElemID)
     dXCL_NGeo1(1:3,1:3,1,1,1) = dXCL_NGeo(1:3,1:3,NGeo,NGeo,NGeo,ElemID)
-    CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=iMode)
+    CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=iMode,isSuccessful=isSuccessful)
   END IF
 END IF
 
@@ -444,7 +445,7 @@ END IF ! useBGField
 END SUBROUTINE EvaluateFieldAtRefPos
 
 
-SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,ElemID,Mode,PartID)
+SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,ElemID,Mode,PartID,isSuccessful)
 !=================================================================================================================================
 !> Newton for finding the position inside the reference element [-1,1] for an arbitrary physical point
 !=================================================================================================================================
@@ -465,6 +466,7 @@ INTEGER,INTENT(IN)               :: N_In
 INTEGER,INTENT(IN)               :: ElemID                   !> global ID
 INTEGER,INTENT(IN)               :: Mode
 INTEGER,INTENT(IN),OPTIONAL      :: PartID
+LOGICAL,INTENT(OUT),OPTIONAL     :: isSuccessful
 REAL,INTENT(IN)                  :: X_in(3)                  !> position in physical space
 REAL,INTENT(IN)                  :: XiCL_N_in(0:N_In)        !> position of CL points in reference space
 REAL,INTENT(IN)                  ::  XCL_N_in(3,0:N_In,0:N_in,0:N_In)   !> position of CL points in physical space
@@ -589,7 +591,9 @@ __STAMP__&
 
   ! check xi value for plausibility
   IF(ANY(ABS(Xi).GT.1.5)) THEN
-    IF(Mode.EQ.1)THEN
+    IF (PRESENT(isSuccessful)) THEN
+      isSuccessful = .FALSE.
+    ELSE IF(Mode.EQ.1)THEN
       IPWRITE(UNIT_stdOut,*) ' Particle not inside of element, STOP!'
       IPWRITE(UNIT_stdOut,*) ' Timestep-Iter    ', iter
       IPWRITE(UNIT_stdOut,*) ' Newton-Iter      ', NewtonIter
@@ -607,6 +611,8 @@ __STAMP__&
     ELSE
       EXIT
     END IF
+  ELSE
+    IF (PRESENT(isSuccessful)) isSuccessful = .TRUE.
   END IF
 
 END DO !newton
