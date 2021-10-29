@@ -133,7 +133,8 @@ REAL                :: RandRot(3,3) !, PartPos(1:3)
 #else
     RadTransPhotPerCell(:) = RadTrans%NumPhotonsPerCell
 #endif
-    RadTransPhotPerCellLoc(:) = RadTransPhotPerCell(:)
+    RadTransPhotPerCellLoc(:) = 0.0
+    RadTransPhotPerCellLoc(firstElem:lastElem) = RadTransPhotPerCell(firstElem:lastElem)
     firstPhoton = 1
   END IF
   
