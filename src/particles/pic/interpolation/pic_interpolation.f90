@@ -615,9 +615,10 @@ REAL,INTENT(IN)    :: PartPos_loc(1:3)
 REAL :: GetFieldDW(1:6)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
-REAL :: PartDistDepo(0:PP_N,0:PP_N,0:PP_N), DistSum
+REAL    :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
+REAL    :: PartDistDepo(0:PP_N,0:PP_N,0:PP_N), DistSum
 INTEGER :: k,l,m
+REAL    :: norm
 !===================================================================================================================================
 GetFieldDW(1:6)=0.
 !--- evaluate at Particle position
@@ -653,20 +654,24 @@ HelperU(1:3,:,:,:) = U(1:3,:,:,:,ElemID)
 
 DistSum = 0.0
 DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
-  PartDistDepo(k,l,m) = 1./VECNORM(Elem_xGP(1:3,k,l,m, ElemID)-PartPos_loc(1:3))
+  norm = VECNORM(Elem_xGP(1:3,k,l,m, ElemID)-PartPos_loc(1:3))
+  IF(norm.GT.0.)THEN
+    PartDistDepo(k,l,m) = 1./norm
+  ELSE
+    PartDistDepo(:,:,:) = 0.
+    PartDistDepo(k,l,m) = 1.
+    DistSum = 1.
+    EXIT
+  END IF ! norm.GT.0.
   DistSum = DistSum + PartDistDepo(k,l,m) 
 END DO; END DO; END DO
 
 GetFieldDW = 0.0
 DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
-  GetFieldDW(1:6) = GetFieldDW(1:6) + PartDistDepo(k,l,m) /DistSum*HelperU(1:6,k,l,m)
+  GetFieldDW(1:6) = GetFieldDW(1:6) + PartDistDepo(k,l,m)/DistSum*HelperU(1:6,k,l,m)
 END DO; END DO; END DO
 
-IF(useBGField)THEN
-      CALL abort(&
-__STAMP__&
-,' ERROR BG Field not implemented for GetFieldDW!')
-END IF
+IF(useBGField) CALL abort(__STAMP__,' ERROR BG Field not implemented for GetFieldDW!')
 
 END FUNCTION GetFieldDW
 

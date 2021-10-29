@@ -408,6 +408,7 @@ REAL               :: tLBStart
 INTEGER            :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
 INTEGER            :: MessageSize
 #endif
+REAL               :: norm
 !===================================================================================================================================
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
@@ -476,7 +477,14 @@ ASSOCIATE(NodeSource       => NodeSourceLoc       ,&
       ELSE
         NodeID = ElemNodeID_Shared(:,PEM%CNElemID(iPart))
         DO iNode = 1, 8
-          PartDistDepo(iNode) = 1./VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) -PartState(1:3,iPart))
+          norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) -PartState(1:3,iPart))
+          IF(norm.GT.0.)THEN
+            PartDistDepo(iNode) = 1./norm
+          ELSE
+            PartDistDepo(:) = 0.
+            PartDistDepo(iNode) = 1.0
+            EXIT
+          END IF ! norm.GT.0.
         END DO  
         DistSum = SUM(PartDistDepo(1:8)) 
         DO iNode = 1, 8
