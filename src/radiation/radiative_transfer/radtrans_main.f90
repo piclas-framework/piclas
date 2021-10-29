@@ -102,8 +102,8 @@ REAL                :: RandRot(3,3) !, PartPos(1:3)
     END IF
     CALL MPI_BCAST(nPhotons,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
     nPhotonsCN = SUM(RadTransPhotPerCell(:)) 
-    firstPhoton = INT(REAL( myComputeNodeRank   *nPhotonsCN)/REAL(nComputeNodeProcessors))+1
-    lastPhoton = INT(REAL((myComputeNodeRank+1)*nPhotonsCN)/REAL(nComputeNodeProcessors))
+    firstPhoton = INT(REAL( myComputeNodeRank)   *REAL(nPhotonsCN)/REAL(nComputeNodeProcessors))+1
+    lastPhoton = INT(REAL(myComputeNodeRank+1)*REAL(nPhotonsCN)/REAL(nComputeNodeProcessors))
     photonCount = 0
     DO iELem = 1, nComputeNodeElems
       IF (photonCount.GT.lastPhoton) THEN
