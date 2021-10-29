@@ -435,6 +435,7 @@ CHARACTER(LEN=10)                      :: hilf
 INTEGER,PARAMETER                      :: nTotalVars =MPIW8SIZE+1
 CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER(LEN=255) :: &
     'nProcessors'       , &
+    'WallTimeSim'       , &
     'Barrier-and-Sync'    &
 #if USE_HDG
    ,'HDG-SendLambda'    , &
@@ -521,6 +522,7 @@ IF(FILEEXISTS(outfile))THEN
   WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
   WRITE(tmpStr2,formatStr)&
       " ",REAL(nProcessors)       ,&
+      delimiter,MPIW8TimeSim      ,&
       delimiter,MPIW8TimeGlobal(1),&
       delimiter,MPIW8TimeGlobal(2),&
       delimiter,MPIW8TimeGlobal(3) &
@@ -578,6 +580,7 @@ WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
 DO i = 0,nProcessors-1
   WRITE(tmpStr2,formatStr)&
             " ",REAL(i)                     ,&
+      delimiter,MPIW8TimeSim                ,&
       delimiter,MPIW8TimeProc(i*MPIW8SIZE+1),&
       delimiter,MPIW8TimeProc(i*MPIW8SIZE+2),&
       delimiter,MPIW8TimeProc(i*MPIW8SIZE+3) &
