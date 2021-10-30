@@ -521,7 +521,7 @@ END SUBROUTINE MergeParticles
 !> Routine for split particles
 !> Split particle == clone particle randomly until new particle number is reached and adjust MPF accordingly
 !===================================================================================================================================
-SUBROUTINE SplitParticles(iPartIndx_Node, nPart, nPartNew)
+SUBROUTINE SplitParticles(iPartIndx_Node, nPartIn, nPartNew)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, PEM, PartPosRef, VarTimeStep
@@ -535,39 +535,40 @@ USE MOD_Particle_Tracking_Vars,ONLY: TrackingMethod
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)                  :: nPart, nPartNew
+INTEGER, INTENT(IN)                  :: nPartIn, nPartNew
 INTEGER, INTENT(INOUT)               :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: iRan
-INTEGER               :: nSplit, iPart, iNewPart, PartIndx, PositionNbr, LocalElemID
-!#ifdef CODE_ANALYZE
-!REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3)
-!INTEGER               :: iMomDim, iMom
-!#endif /* CODE_ANALYZE */
+INTEGER               :: nSplit, iPart, iNewPart, PartIndx, PositionNbr, LocalElemID, nPart
 !===================================================================================================================================
 ! split particles randomly (until nPartNew is reached)
 iNewPart = 0
+nPart = nPartIn
 nSplit = nPartNew - nPart
 DO WHILE(iNewPart.LT.nSplit)
+  ! Get a random particle (only from the initially available)
   CALL RANDOM_NUMBER(iRan)
   iPart = INT(iRan*nPart) + 1
   PartIndx = iPartIndx_Node(iPart)
-  IF((PartMPF(PartIndx) / 2.).LT.1.0) EXIT
+  ! Check whether the weighting factor would drop below 1
+  IF((PartMPF(PartIndx) / 2.).LT.1.0) THEN
+    ! Skip this particle
+    iPartIndx_Node(iPart) = iPartIndx_Node(nPart)
+    nPart = nPart - 1
+    ! Leave the DO WHILE loop, if every original particle has been split up to MPF = 1
+    IF(nPart.EQ.0) EXIT
+  END IF
   PartMPF(PartIndx) = PartMPF(PartIndx) / 2.   ! split particle
   iNewPart = iNewPart + 1
   PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
   IF (PositionNbr.EQ.0) THEN
-    CALL Abort(&
-      __STAMP__&
-      ,'ERROR in particle split: MaxParticleNumber reached!')
+    CALL Abort(__STAMP__,'ERROR in particle split: MaxParticleNumber reached!')
   END IF
   PartState(1:3,PositionNbr) = PartState(1:3,PartIndx)
-  IF(TrackingMethod.EQ.REFMAPPING)THEN ! here Nearst-GP is missing
-    PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,PartIndx)
-  END IF
+  IF(TrackingMethod.EQ.REFMAPPING) PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,PartIndx)
   PartState(4:6,PositionNbr) = PartState(4:6,PartIndx)
   PartSpecies(PositionNbr) = PartSpecies(PartIndx)
   IF(CollisMode.GT.1) THEN
@@ -591,6 +592,10 @@ DO WHILE(iNewPart.LT.nSplit)
   PEM%pEnd(LocalElemID) = PositionNbr
   PEM%pNumber(LocalElemID) = PEM%pNumber(LocalElemID) + 1
 END DO
+
+! Advance particle vector length and the current next free position with newly created particles
+PDM%ParticleVecLength = PDM%ParticleVecLength + iNewPart
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart
 
 END SUBROUTINE SplitParticles
 
