@@ -349,7 +349,7 @@ TYPE tCollInf     ! Collision information
   REAL          , ALLOCATABLE   :: Cab(:)                       ! species factor for cross section (#of case)
   INTEGER       , ALLOCATABLE   :: KronDelta(:)                 ! (number of case)
   REAL          , ALLOCATABLE   :: FracMassCent(:,:)            ! mx/(my+mx) (nSpec, number of cases)
-  REAL          , ALLOCATABLE   :: MeanMPF(:)                   !
+  REAL          , ALLOCATABLE   :: SumPairMPF(:)                ! Summation of the pair MPFs (average between two particles if not the same)
   REAL          , ALLOCATABLE   :: MassRed(:)                   ! reduced mass (number of cases)
   REAL          , ALLOCATABLE   :: Tref(:,:)                    ! collision model: reference temperature     , ini_2
   REAL          , ALLOCATABLE   :: dref(:,:)                    ! collision model: reference diameter        , ini_2

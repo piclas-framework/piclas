@@ -385,7 +385,7 @@ IF(NeedToSplit) THEN
   END DO
   nPair = NewPairNum
   PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,PositionNbr)
-  PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart  
+  PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart
   nPart = PEM%pNumber(iElem)
   CALL InitCalcVibRelaxProb()
   ALLOCATE(Coll_pData(NewPairNum))
@@ -510,14 +510,14 @@ DO iSpec = 1, nSpecies
   END IF
 END DO
 
-CollInf%MeanMPF = 0.
+CollInf%SumPairMPF = 0.
 
 DO iPair = 1, nPair
   cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1) !spec of particle 1
   cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2) !spec of particle 2
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
   CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
-  CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + GetParticleWeight(Coll_pData(iPair)%iPart_p1)
+  CollInf%SumPairMPF(iCase) = CollInf%SumPairMPF(iCase) + GetParticleWeight(Coll_pData(iPair)%iPart_p1)
   Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
                             -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
                             + (PartState(5,Coll_pData(iPair)%iPart_p1) &

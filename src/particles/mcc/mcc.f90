@@ -117,7 +117,7 @@ MCC_TotalPairNum = 0
 
 CollInf%Coll_SpecPartNum = 0.
 CollInf%Coll_CaseNum = 0
-CollInf%MeanMPF = 0.
+CollInf%SumPairMPF = 0.
 
 ALLOCATE(iPartIndexSpec(nPart,nSpecies))
 iPartIndexSpec = 0

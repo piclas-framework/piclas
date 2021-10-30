@@ -599,8 +599,8 @@ ELSE !CollisMode.GT.0
   CollInf%Coll_CaseNum = 0
   ALLOCATE(CollInf%Coll_SpecPartNum(nSpecies))
   CollInf%Coll_SpecPartNum = 0.
-  ALLOCATE(CollInf%MeanMPF(nCase))
-  CollInf%MeanMPF = 0.
+  ALLOCATE(CollInf%SumPairMPF(nCase))
+  CollInf%SumPairMPF = 0.
   ALLOCATE(CollInf%FracMassCent(nSpecies, nCase)) ! Calculation of mx/(mx+my) and reduced mass
   CollInf%FracMassCent = 0
   ALLOCATE(CollInf%MassRed(nCase))
@@ -1460,7 +1460,7 @@ SDEALLOCATE(CollInf%Cab)
 SDEALLOCATE(CollInf%KronDelta)
 SDEALLOCATE(CollInf%FracMassCent)
 SDEALLOCATE(CollInf%MassRed)
-SDEALLOCATE(CollInf%MeanMPF)
+SDEALLOCATE(CollInf%SumPairMPF)
 SDEALLOCATE(CollInf%alphaVSS)
 SDEALLOCATE(CollInf%omega)
 SDEALLOCATE(CollInf%dref)
