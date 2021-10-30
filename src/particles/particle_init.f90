@@ -867,7 +867,7 @@ IF (usevMPF) THEN
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     vMPFMergeThreshold(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-vMPFMergeThreshold')
     vMPFSplitThreshold(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-vMPFSplitThreshold')
-    IF(vMPFMergeThreshold(iSpec).LT.vMPFSplitThreshold(iSpec)) THEN
+    IF((vMPFMergeThreshold(iSpec).LT.vMPFSplitThreshold(iSpec)).AND.(vMPFMergeThreshold(iSpec).NE.0)) THEN
       CALL abort(__STAMP__, 'ERROR: Given merge threshold is lower than the split threshold!')
     END IF
   END DO
