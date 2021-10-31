@@ -486,19 +486,19 @@ LOGICAL,PARAMETER            :: NotMappedSurfFluxParts=.FALSE.
 NotMappedSurfFluxParts=DoSurfaceFlux !Surfaceflux particles inserted before interpolation and tracking. Field at wall is needed!
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
 
+SucRefPos = .TRUE. ! Initialize
+
 ! Check if reference position is required
 IF(NotMappedSurfFluxParts .AND.(TrackingMethod.EQ.REFMAPPING))THEN
   IF(PDM%dtFracPush(PartID)) CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef_loc(1:3),ElemID)
-  SucRefPos = .TRUE.
 ELSEIF(TrackingMethod.NE.REFMAPPING)THEN
   CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef_loc(1:3),ElemID, isSuccessful = SucRefPos)
 ELSE
   PartPosRef_loc(1:3) = PartPosRef(1:3,PartID)
-  SucRefPos = .TRUE.
 END IF
 
 ! Interpolate the field and return the vector
-IF (.NOT.SucRefPos.AND.(TRIM(DepositionType).EQ.'cell_volweight_mean')) THEN
+IF ((.NOT.SucRefPos).AND.(TRIM(DepositionType).EQ.'cell_volweight_mean')) THEN
   GetInterpolatedFieldPartPos(1:6) =  GetFieldDW(PEM%LocalElemID(PartID),PartState(1:3,PartID))
 ELSE
   GetInterpolatedFieldPartPos(1:6) =  GetField(PEM%LocalElemID(PartID),PartPosRef_loc(1:3))
