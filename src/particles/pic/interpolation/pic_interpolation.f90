@@ -486,7 +486,7 @@ LOGICAL,PARAMETER            :: NotMappedSurfFluxParts=.FALSE.
 NotMappedSurfFluxParts=DoSurfaceFlux !Surfaceflux particles inserted before interpolation and tracking. Field at wall is needed!
 #endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
 
-SucRefPos = .TRUE. ! Initialize
+SucRefPos = .TRUE. ! Initialize for all methods
 
 ! Check if reference position is required
 IF(NotMappedSurfFluxParts .AND.(TrackingMethod.EQ.REFMAPPING))THEN
