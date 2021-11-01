@@ -71,19 +71,19 @@ USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,XCL_NGeo
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)          :: ElemID                                 !< Global element index
-REAL,INTENT(IN)             :: x_in(3)                                !< position in physical space
-LOGICAL,INTENT(IN),OPTIONAL :: DoReUseMap                             !< flag if start values for Newton elem mapping already exists
-LOGICAL,INTENT(IN),OPTIONAL :: ForceMode                              !< flag for mode change in RefElemNewton
-LOGICAL,INTENT(INOUT), OPTIONAL :: isSuccessful
+INTEGER,INTENT(IN)            :: ElemID         !< Global element index
+REAL,INTENT(IN)               :: x_in(3)        !< position in physical space
+LOGICAL,INTENT(IN),OPTIONAL   :: DoReUseMap     !< flag if start values for Newton elem mapping already exists
+LOGICAL,INTENT(IN),OPTIONAL   :: ForceMode      !< flag for mode change in RefElemNewton
+LOGICAL,INTENT(OUT), OPTIONAL :: isSuccessful
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)          :: xi(1:3)                                !< position in reference element
+REAL,INTENT(INOUT)              :: xi(1:3)        !< position in reference element
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                    :: CNElemID,iMode
-REAL                       :: XCL_NGeo1(1:3,0:1,0:1,0:1)
-REAL                       :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)
+INTEGER :: CNElemID,iMode
+REAL    :: XCL_NGeo1(1:3,0:1,0:1,0:1)
+REAL    :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)
 !===================================================================================================================================
 
 #if USE_MPI
@@ -99,32 +99,36 @@ END IF
 
 CNElemID = GetCNElemID(ElemID)
 
-IF (ElemCurved(CNElemID)) THEN
-  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode, isSuccessful=isSuccessful)
-ELSE
-  ! fill dummy XCL_NGeo1
-  IF(NGeo.EQ.1)THEN
+IF (ElemCurved(CNElemID).OR.(NGeo.EQ.1)) THEN
+  IF(PRESENT(isSuccessful))THEN
     CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode, isSuccessful=isSuccessful)
   ELSE
-    XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,ElemID)
-    XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  ,ElemID)
-    XCL_NGeo1(1:3,0,1,0) = XCL_NGeo(1:3, 0  ,NGeo, 0  ,ElemID)
-    XCL_NGeo1(1:3,1,1,0) = XCL_NGeo(1:3,NGeo,NGeo, 0  ,ElemID)
-    XCL_NGeo1(1:3,0,0,1) = XCL_NGeo(1:3, 0  , 0  ,NGeo,ElemID)
-    XCL_NGeo1(1:3,1,0,1) = XCL_NGeo(1:3,NGeo, 0  ,NGeo,ElemID)
-    XCL_NGeo1(1:3,0,1,1) = XCL_NGeo(1:3, 0  ,NGeo,NGeo,ElemID)
-    XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo,ElemID)
-    ! fill dummy dXCL_NGeo1
-    dXCL_NGeo1(1:3,1:3,0,0,0) = dXCL_NGeo(1:3,1:3, 0  , 0  , 0  ,ElemID)
-    dXCL_NGeo1(1:3,1:3,1,0,0) = dXCL_NGeo(1:3,1:3,NGeo, 0  , 0  ,ElemID)
-    dXCL_NGeo1(1:3,1:3,0,1,0) = dXCL_NGeo(1:3,1:3, 0  ,NGeo, 0  ,ElemID)
-    dXCL_NGeo1(1:3,1:3,1,1,0) = dXCL_NGeo(1:3,1:3,NGeo,NGeo, 0  ,ElemID)
-    dXCL_NGeo1(1:3,1:3,0,0,1) = dXCL_NGeo(1:3,1:3, 0  , 0  ,NGeo,ElemID)
-    dXCL_NGeo1(1:3,1:3,1,0,1) = dXCL_NGeo(1:3,1:3,NGeo, 0  ,NGeo,ElemID)
-    dXCL_NGeo1(1:3,1:3,0,1,1) = dXCL_NGeo(1:3,1:3, 0  ,NGeo,NGeo,ElemID)
-    dXCL_NGeo1(1:3,1:3,1,1,1) = dXCL_NGeo(1:3,1:3,NGeo,NGeo,NGeo,ElemID)
+    CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode)
+  END IF ! PRESENT(isSuccessful)
+ELSE
+  ! fill dummy XCL_NGeo1
+  XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,ElemID)
+  XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  ,ElemID)
+  XCL_NGeo1(1:3,0,1,0) = XCL_NGeo(1:3, 0  ,NGeo, 0  ,ElemID)
+  XCL_NGeo1(1:3,1,1,0) = XCL_NGeo(1:3,NGeo,NGeo, 0  ,ElemID)
+  XCL_NGeo1(1:3,0,0,1) = XCL_NGeo(1:3, 0  , 0  ,NGeo,ElemID)
+  XCL_NGeo1(1:3,1,0,1) = XCL_NGeo(1:3,NGeo, 0  ,NGeo,ElemID)
+  XCL_NGeo1(1:3,0,1,1) = XCL_NGeo(1:3, 0  ,NGeo,NGeo,ElemID)
+  XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo,ElemID)
+  ! fill dummy dXCL_NGeo1
+  dXCL_NGeo1(1:3,1:3,0,0,0) = dXCL_NGeo(1:3,1:3, 0  , 0  , 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,0,0) = dXCL_NGeo(1:3,1:3,NGeo, 0  , 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,1,0) = dXCL_NGeo(1:3,1:3, 0  ,NGeo, 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,1,0) = dXCL_NGeo(1:3,1:3,NGeo,NGeo, 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,0,1) = dXCL_NGeo(1:3,1:3, 0  , 0  ,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,0,1) = dXCL_NGeo(1:3,1:3,NGeo, 0  ,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,1,1) = dXCL_NGeo(1:3,1:3, 0  ,NGeo,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,1,1) = dXCL_NGeo(1:3,1:3,NGeo,NGeo,NGeo,ElemID)
+  IF(PRESENT(isSuccessful))THEN
     CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=iMode,isSuccessful=isSuccessful)
-  END IF
+  ELSE
+    CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=iMode)
+  END IF ! PRESENT(isSuccessful)
 END IF
 
 #if USE_MPI
@@ -484,6 +488,8 @@ REAL                             :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
 REAL                             :: buff,buff2, Norm_F, Norm_F_old,lambda
 INTEGER                          :: iArmijo
 !===================================================================================================================================
+! Default
+IF (PRESENT(isSuccessful)) isSuccessful = .TRUE.
 
 ! Initial guess
 CALL LagrangeInterpolationPolys(Xi(1),N_In,XiCL_N_in,wBaryCL_N_in,Lag(1,:))
@@ -593,6 +599,7 @@ DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
   IF(ANY(ABS(Xi).GT.1.5)) THEN
     IF (PRESENT(isSuccessful)) THEN
       isSuccessful = .FALSE.
+      EXIT
     ELSE IF(Mode.EQ.1)THEN
       IPWRITE(UNIT_stdOut,*) ' Particle not inside of element, STOP!'
       IPWRITE(UNIT_stdOut,*) ' Timestep-Iter    ', iter
@@ -605,17 +612,13 @@ DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
 #if defined(IMPA)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartIsImplicit(PartID)
 #endif
-        CALL abort(&
-  __STAMP__&
-  ,'Particle Not inSide of Element, GlobalElemID,',ElemID)
+        CALL abort(__STAMP__,'Particle Not inSide of Element, GlobalElemID,',ElemID)
     ELSE
       EXIT
     END IF
-  ELSE
-    IF (PRESENT(isSuccessful)) isSuccessful = .TRUE.
-  END IF
+  END IF ! ANY(ABS(Xi).GT.1.5)
 
-END DO !newton
+END DO ! ((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
 
 END SUBROUTINE RefElemNewton
 
