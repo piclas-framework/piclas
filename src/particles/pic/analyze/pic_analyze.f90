@@ -50,7 +50,7 @@ USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies ,PartMPF,usevMPF
 USE MOD_Interpolation_Vars    ,ONLY: wGP
 USE MOD_Particle_Analyze_Vars ,ONLY: ChargeCalcDone
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
-USE MOD_PICDepo_Vars          ,ONLY: sfDepo3D,dimFactorSF,VerifyChargeStr
+USE MOD_PICDepo_Vars          ,ONLY: sfDepo3D,dimFactorSF,VerifyChargeStr,DepositionType
 #if defined(IMPA)
 USE MOD_LinearSolver_Vars     ,ONLY: ImplicitSource
 #else
@@ -114,7 +114,7 @@ END DO
 ! Output info to std.out
 IF(MPIRoot)THEN
   ! Check if the charge is to be distributed over a line (1D) or area (2D)
-  IF(.NOT.sfDepo3D) ChargeAnalytical = ChargeAnalytical * dimFactorSF
+  IF(StringBeginsWith(DepositionType,'shape_function').AND.(.NOT.sfDepo3D)) ChargeAnalytical = ChargeAnalytical * dimFactorSF
   WRITE(*,'(A,ES25.14E3,A)') 'On the grid deposited charge (numerical) : ', ChargeNumerical ,' [C] '//TRIM(VerifyChargeStr)
   WRITE(*,'(A,ES25.14E3,A)') 'Charge over by the particles (analytical): ', ChargeAnalytical,' [C] '//TRIM(VerifyChargeStr)
   WRITE(*,'(A,ES25.14E3,A)') 'Absolute deposition error                : ', ABS(ChargeAnalytical-ChargeNumerical),' [C]'
