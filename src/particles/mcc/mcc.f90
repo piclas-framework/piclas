@@ -212,6 +212,7 @@ InternalEnergySet = .FALSE.
 iPartSplit = 0
 SplitPartNum = 0
 SplitRestPart = 0
+
 DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) CYCLE    ! Loop over all non-background species
   DO bgSpec = 1, BGGas%NumberOfSpecies        ! Loop over all background species
