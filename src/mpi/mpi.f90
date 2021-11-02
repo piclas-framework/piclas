@@ -414,7 +414,7 @@ END SUBROUTINE FinalizeMPI
 SUBROUTINE OutputMPIW8Time()
 ! MODULES
 USE MOD_Globals
-USE MOD_MPI_Vars          ,ONLY: MPIW8TimeGlobal,MPIW8TimeProc,MPIW8TimeField,MPIW8Time,MPIW8TimeGlobal,MPIW8TimeBaS
+USE MOD_MPI_Vars          ,ONLY: MPIW8TimeGlobal,MPIW8TimeSim,MPIW8TimeProc,MPIW8TimeField,MPIW8Time,MPIW8TimeGlobal,MPIW8TimeBaS
 USE MOD_StringTools       ,ONLY: INTTOSTR
 #if defined(PARTICLES)
 USE MOD_Particle_MPI_Vars ,ONLY: MPIW8TimePart
@@ -432,7 +432,7 @@ CHARACTER(LEN=22),PARAMETER            :: outfile    ='MPIW8Time.csv'
 CHARACTER(LEN=22),PARAMETER            :: outfileProc='MPIW8TimeProc'
 CHARACTER(LEN=30)                      :: outfileProc_loc
 CHARACTER(LEN=10)                      :: hilf
-INTEGER,PARAMETER                      :: nTotalVars =MPIW8SIZE+1
+INTEGER,PARAMETER                      :: nTotalVars =MPIW8SIZE+2
 CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER(LEN=255) :: &
     'nProcessors'       , &
     'WallTimeSim'       , &
