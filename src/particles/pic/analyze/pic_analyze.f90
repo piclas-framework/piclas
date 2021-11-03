@@ -45,9 +45,9 @@ SUBROUTINE VerifyDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars             ,ONLY: nElems, sJ, offsetElem
+USE MOD_Mesh_Vars             ,ONLY: nElems, sJ, offsetElem,Elem_xGP
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies ,PartMPF,usevMPF
-USE MOD_Interpolation_Vars    ,ONLY: wGP
 USE MOD_Particle_Analyze_Vars ,ONLY: ChargeCalcDone
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_PICDepo_Vars          ,ONLY: sfDepo3D,dimFactorSF,VerifyChargeStr,DepositionType
@@ -59,6 +59,7 @@ USE MOD_PICDepo_Vars          ,ONLY: PartSource
 #if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 #endif /*USE_MPI*/
+USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -66,26 +67,42 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: iElem, ElemID
-INTEGER           :: i,j,k
+INTEGER           :: k,l,m,i
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: ChargeNumerical, ChargeLoc, ChargeAnalytical
+REAL              :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL              :: source(1,0:PP_N,0:PP_N,0:PP_N)
+REAL              :: U_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL              :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL              :: IntegrationWeight
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' PERFORMING CHARGE DEPOSITION PLAUSIBILITY CHECK...'
 
-ChargeNumerical=0.
+ChargeNumerical=0. ! Nullify
 DO iElem=1,nElems
-  !--- Calculate and save volume of element iElem
-  ChargeLoc=0.
+  ElemID = GetCNElemID(iElem+offSetElem)
+  ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
+  CALL ChangeBasis3D(3,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,Elem_xGP(1:3,:,:,:,iElem),Coords_NAnalyze(1:3,:,:,:))
+  ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  ElemID = GetCNElemID(iElem + offSetElem)
+  CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
+  ! Interpolate the solution to the analyze grid
 #if defined(IMPA)
-    ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
+  source(1,:,:,:) = ImplicitSource(4,:,:,:,iElem)
 #else
-    ChargeLoc = ChargeLoc + wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,ElemID) * J_N(1,i,j,k)
+  source(1,:,:,:) =     PartSource(4,:,:,:,ElemID)
 #endif
-  END DO; END DO; END DO
+  CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,source(1,:,:,:),U_NAnalyze(1,:,:,:))
+  ChargeLoc=0. ! Nullify
+  DO m=0,NAnalyze
+    DO l=0,NAnalyze
+      DO k=0,NAnalyze
+        IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
+        ChargeLoc = ChargeLoc + IntegrationWeight*U_NAnalyze(1,k,l,m)
+      END DO ! k
+    END DO ! l
+  END DO ! m
   ChargeNumerical = ChargeNumerical + ChargeLoc
 END DO
 
