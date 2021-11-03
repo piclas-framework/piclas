@@ -429,8 +429,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             IF (VECNORM( BoundsOfElemCenter(1:3)                                                       &
                        + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)                  &
                        - MPISideBoundsOfElemCenter(1:3,iSide))                                         &
-              .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                                  & !-BoundsOfElemCenter(5)                            &
-                        +MPISideBoundsOfElemCenter(4,iSide) ) THEN
+                       .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                         & !-BoundsOfElemCenter(5)                            &
+                                 +MPISideBoundsOfElemCenter(4,iSide) ) THEN
               ! flag the proc as exchange proc (in halo region)
               IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                 FlagShapeElem(iElem) = .TRUE.

@@ -319,12 +319,12 @@ INTEGER, INTENT(INOUT)       :: SendRequest(nNbProcs),RecRequest(nNbProcs)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)               :: CounterStart(2),CounterEnd(2)
-REAL(KIND=8)                  :: Rate(2)
+INTEGER(KIND=8)               :: CounterStart,CounterEnd
+REAL(KIND=8)                  :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 #if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterStart(1))
+  CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! Check receive operations first
@@ -333,8 +333,10 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 
 #if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterEnd(1), count_rate=Rate(1))
-  CALL SYSTEM_CLOCK(count=CounterStart(2))
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  ! Note: Send and Receive are switched to have the same ordering as for particles (1. Send, 2. Receive)
+  MPIW8TimeField(2) = MPIW8TimeField(2) + REAL(CounterEnd-CounterStart,8)/Rate
+  CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! Check send operations
@@ -343,9 +345,9 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 
 #if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
-  MPIW8TimeField(3) = MPIW8TimeField(3) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
-  MPIW8TimeField(4) = MPIW8TimeField(4) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  ! Note: Send and Receive are switched to have the same ordering as for particles (1. Send, 2. Receive)
+  MPIW8TimeField(1) = MPIW8TimeField(1) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 END SUBROUTINE FinishExchangeMPIData
@@ -412,8 +414,7 @@ END SUBROUTINE FinalizeMPI
 SUBROUTINE OutputMPIW8Time()
 ! MODULES
 USE MOD_Globals
-USE MOD_MPI_Vars          ,ONLY: MPIW8TimeGlobal,MPIW8TimeProc
-USE MOD_MPI_Vars          ,ONLY: MPIW8TimeField,MPIW8Time,MPIW8TimeGlobal
+USE MOD_MPI_Vars          ,ONLY: MPIW8TimeGlobal,MPIW8TimeSim,MPIW8TimeProc,MPIW8TimeField,MPIW8Time,MPIW8TimeGlobal,MPIW8TimeBaS
 USE MOD_StringTools       ,ONLY: INTTOSTR
 #if defined(PARTICLES)
 USE MOD_Particle_MPI_Vars ,ONLY: MPIW8TimePart
@@ -426,26 +427,33 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 LOGICAL                                :: WriteHeader
 INTEGER                                :: ioUnit,i
-INTEGER                    :: iSTATUS                     ! error status return code
 CHARACTER(LEN=150)                     :: formatStr
 CHARACTER(LEN=22),PARAMETER            :: outfile    ='MPIW8Time.csv'
 CHARACTER(LEN=22),PARAMETER            :: outfileProc='MPIW8TimeProc'
 CHARACTER(LEN=30)                      :: outfileProc_loc
-CHARACTER(LEN=8)                       :: hilf
-INTEGER,PARAMETER                      :: nTotalVars =MPIW8SIZE+1
+CHARACTER(LEN=10)                      :: hilf
+INTEGER,PARAMETER                      :: nTotalVars =MPIW8SIZE+2
 CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER(LEN=255) :: &
-    'nProcessors'           &
+    'nProcessors'       , &
+    'WallTimeSim'       , &
+    'Barrier-and-Sync'    &
 #if USE_HDG
-   ,'HDG-Broadcast'  , &
-    'HDG-Allreduce'  , &
-    'HDG-SendLambda' , &
-    'HDG-SendLambda'   &
+   ,'HDG-SendLambda'    , &
+    'HDG-ReceiveLambda' , &
+    'HDG-Broadcast'     , &
+    'HDG-Allreduce'       &
+#else
+   ,'DGSEM-Send'    , &
+    'DGSEM-Receive'   &
 #endif /*USE_HDG*/
 #if defined(PARTICLES)
    ,'SendNbrOfParticles'  , &
     'RecvNbrOfParticles'  , &
     'SendParticles'       , &
-    'RecvParticles'         &
+    'RecvParticles'       , &
+    'EmissionParticles'   , &
+    'PIC-depo-Reduce'     , &
+    'PIC-depo-Wait'         &
 #endif /*defined(PARTICLES)*/
     /)
 ! CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNamesProc(nTotalVars)=(/ CHARACTER(LEN=255) :: &
@@ -461,11 +469,10 @@ CHARACTER(LEN=255)         :: tmpStr(nTotalVars)
 CHARACTER(LEN=1000)        :: tmpStr2
 CHARACTER(LEN=1),PARAMETER :: delimiter=","
 !===================================================================================================================================
+MPIW8Time(               1:1)                              = MPIW8TimeBaS
+MPIW8Time(               2:MPIW8SIZEFIELD+1)               = MPIW8TimeField
 #if defined(PARTICLES)
-MPIW8Time(               1:MPIW8SIZEFIELD)               = MPIW8TimeField
-MPIW8Time(MPIW8SIZEFIELD+1:MPIW8SIZEFIELD+MPIW8SIZEPART) = MPIW8TimePart
-#else
-MPIW8Time = MPIW8TimeField
+MPIW8Time(MPIW8SIZEFIELD+2:MPIW8SIZEFIELD+MPIW8SIZEPART+1) = MPIW8TimePart
 #endif /*defined(PARTICLES)*/
 
 ! Collect and output measured MPI_WAIT() times
@@ -514,18 +521,23 @@ IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
   WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
   WRITE(tmpStr2,formatStr)&
-      " ",REAL(nProcessors)        &
-#if USE_HDG
-     ,delimiter,MPIW8TimeGlobal(1),&
+      " ",REAL(nProcessors)       ,&
+      delimiter,MPIW8TimeSim      ,&
+      delimiter,MPIW8TimeGlobal(1),&
       delimiter,MPIW8TimeGlobal(2),&
-      delimiter,MPIW8TimeGlobal(3),&
-      delimiter,MPIW8TimeGlobal(4) &
+      delimiter,MPIW8TimeGlobal(3) &
+#if USE_HDG
+     ,delimiter,MPIW8TimeGlobal(4),&
+      delimiter,MPIW8TimeGlobal(5) &
 #endif /*USE_HDG*/
 #if defined(PARTICLES)
-     ,delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+2),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+3),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+4) &
+     ,delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+1),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+2),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+3),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+4),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+5),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+7) &
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
@@ -567,18 +579,23 @@ WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear whit
 WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
 DO i = 0,nProcessors-1
   WRITE(tmpStr2,formatStr)&
-      " ",REAL(i) &
-#if USE_HDG
-     ,delimiter,MPIW8TimeProc(i*MPIW8SIZE+1),&
+            " ",REAL(i)                     ,&
+      delimiter,MPIW8TimeSim                ,&
+      delimiter,MPIW8TimeProc(i*MPIW8SIZE+1),&
       delimiter,MPIW8TimeProc(i*MPIW8SIZE+2),&
-      delimiter,MPIW8TimeProc(i*MPIW8SIZE+3),&
-      delimiter,MPIW8TimeProc(i*MPIW8SIZE+4) &
+      delimiter,MPIW8TimeProc(i*MPIW8SIZE+3) &
+#if USE_HDG
+     ,delimiter,MPIW8TimeProc(i*MPIW8SIZE+4),&
+      delimiter,MPIW8TimeProc(i*MPIW8SIZE+5) &
 #endif /*USE_HDG*/
 #if defined(PARTICLES)
-     ,delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+i*MPIW8SIZE+1),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+i*MPIW8SIZE+2),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+i*MPIW8SIZE+3),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+i*MPIW8SIZE+4) &
+     ,delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+1),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+2),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+3),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+4),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+5),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+6),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+7) &
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
