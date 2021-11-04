@@ -309,7 +309,6 @@ SUBROUTINE MacroscopicRadiationInput()
 
   CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nElems_HDF5)
 
-  ALLOCATE(MacroRadInputParameters(1:nElems,1:nSpecies,1:5))
 #if USE_MPI
   ! allocate shared array for Radiation_Emission/Absorption_Spec
   CALL Allocate_Shared((/nComputeNodeElems,nSpecies,5/), MacroRadInputParameters_Shared_Win,MacroRadInputParameters_Shared)

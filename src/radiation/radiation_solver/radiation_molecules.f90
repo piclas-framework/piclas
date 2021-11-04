@@ -135,7 +135,8 @@ SUBROUTINE radiation_molecules(iElem, em_mol)
   DO iSpec = 1, nSpecies
     IF((SpecDSMC(iSpec)%InterID .NE. 2) .AND. (SpecDSMC(iSpec)%InterID .NE. 20)) CYCLE
     Radiation_Profile   = 0.0
-    IF ((RadiationInput(iSpec)%Telec.LE.0.0).OR.(RadiationInput(iSpec)%Tvib.LE.0.0))CYCLE 
+    IF ((RadiationInput(iSpec)%Telec.LT.10.0).OR.(RadiationInput(iSpec)%Tvib.LT.10.0).OR.(RadiationInput(iSpec)%NumDens.LT.10.0).OR.(RadiationInput(iSpec)%Ttrans(4).LT.10.0))CYCLE 
+
     epsilon_iSpec = 0.0
     abs_iSpec = 0.0
 

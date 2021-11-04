@@ -112,7 +112,8 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
 
   DO iSpec = 1, nSpecies
     IF((SpecDSMC(iSpec)%InterID .NE. 1) .AND. (SpecDSMC(iSpec)%InterID .NE. 10)) CYCLE
-    IF (RadiationInput(iSpec)%Telec.LE.0.0) CYCLE
+    IF((RadiationInput(iSpec)%Telec.LT.10.0).OR.(RadiationInput(iSpec)%NumDens.LT.10.0).OR.(RadiationInput(iSpec)%Ttrans(4).LT.10.0)) CYCLE
+
     ALLOCATE(lamnu(SpeciesRadiation(iSpec)%nLines))
 
     lamnu               = 0.0
