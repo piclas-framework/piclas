@@ -221,7 +221,7 @@ The merge routine randomly deletes particles until the desired number of particl
 $$ \alpha = \frac{E^{\mathrm{old}}_{\mathrm{trans}}}{E^{\mathrm{new}}_{\mathrm{trans}}},$$
 $$ v^{\mathrm{new}}_{i} = v_{\mathrm{bulk}} + \alpha (v_{i} - v^{\mathrm{new}}_{\mathrm{bulk}}).$$
 
-In the case of quantized energy treatment (for vibrational and electronic excitation), energy is only conserved over time, where the energy difference (per species and energy type) in each time step due to quantized energy levels is stored and accounted for in the next merge process.
+Internal degrees of freedom are conserved analogously. In the case of quantized energy treatment (for vibrational and electronic excitation), energy is only conserved over time, where the energy difference (per species and energy type) in each time step due to quantized energy levels is stored and accounted for in the next merge process.
 
     Part-Species2-vMPFSplitThreshold    = 10
 
