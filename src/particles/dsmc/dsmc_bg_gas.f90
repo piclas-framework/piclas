@@ -52,8 +52,8 @@ SUBROUTINE BGGas_Initialize()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals       ,ONLY: Abort
-USE MOD_DSMC_Vars     ,ONLY: BGGas,UseBGGasSplit
-USE MOD_Particle_Vars ,ONLY: PDM, Symmetry, Species, nSpecies, VarTimeStep, usevMPF
+USE MOD_DSMC_Vars     ,ONLY: BGGas
+USE MOD_Particle_Vars ,ONLY: PDM, Symmetry, Species, nSpecies, VarTimeStep
 USE MOD_ReadInTools   ,ONLY: GETLOGICAL
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -115,11 +115,6 @@ DO iSpec = 1, nSpecies
     END IF
   END IF
 END DO
-
-! Check if particle splitting is required for the BGGas (trace species)
-IF(usevMPF)THEN
-  UseBGGasSplit = GETLOGICAL('Part-BGGasSplit')
-END IF ! usevMPF
 
 END SUBROUTINE BGGas_Initialize
 
@@ -259,7 +254,7 @@ USE MOD_Globals
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
-USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, VibQuantsPar, PolyatomMolDSMC, UseBGGasSplit
+USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, VibQuantsPar, PolyatomMolDSMC
 USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_emission_tools   ,ONLY: DSMC_SetInternalEnr_LauxVFD, CalcVelocity_maxwell_lpn
 USE MOD_Particle_Vars         ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,PartMPF,Species, WriteMacroVolumeValues
@@ -291,7 +286,7 @@ INTEGER, ALLOCATABLE          :: TempIndxArray(:)
 !===================================================================================================================================
 nPart = PEM%pNumber(iElem)
 NeedToSplit = .FALSE.
-IF(usevMPF.AND.UseBGGasSplit) THEN
+IF(usevMPF.AND.ANY(BGGas%TraceSpecies(:))) THEN
   iPart = PEM%pStart(iElem)
   DO iLoop = 1, nPart
     iSpec  = PartSpecies(iPart)! Skip background particles that have been created within this loop
