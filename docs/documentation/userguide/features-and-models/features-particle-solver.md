@@ -1,7 +1,6 @@
-# Features of the Particle Solver (DSMC/BGK/FP)
+# Features of the Particle Solver
 
-This section describes common features, which are available to the particle-based methods approximating the Boltzmann collision
-integral such as DSMC, BGK and FP.
+This section describes common features, which are available to the particle-based methods such as PIC, DSMC, MCC, BGK and FP.
 
 (sec:macroscopic-restart)=
 ## Macroscopic Restart
@@ -205,3 +204,25 @@ only at the stagnation point, the time step defined during the initialization is
     Part-VariableTimeStep-StagnationPoint = 0.0
     Part-VariableTimeStep-ScaleFactor2DFront = 2.0
     Part-VariableTimeStep-ScaleFactor2DBack = 2.0
+
+(sec:variable-particle-weighting)=
+#### Variable Particle Weighting
+
+Variable particle weighting is currently supported with PIC and/or with a background gas (an additional trace species feature is described in Section {ref}`sec:background-gas`). The general functionality can be enabled with the following flag:
+
+    Part-vMPF                           = T
+
+The split and merge algorithm is called at the end of every time step. In order to manipulate the number of particles per species per cell, merge and split thresholds can be defined as is shown in the folliwing. 
+
+    Part-Species2-vMPFMergeThreshold    = 100
+
+The merge routine randomly deletes particles until the desired number of particles is reached and the weighting factor is adopted accordingly. Afterwards, the particle velocities $v_i$ are scaled in order to ensure momentum and energy conservation with
+
+$$ \alpha = \frac{E^{\mathrm{old}}_{\mathrm{trans}}}{E^{\mathrm{new}}_{\mathrm{trans}}},$$
+$$ v^{\mathrm{new}}_{i} = v_{\mathrm{bulk}} + \alpha (v_{i} - v^{\mathrm{new}}_{\mathrm{bulk}}).$$
+
+In the case of quantized energy treatment (for vibrational and electronic excitation), energy is only conserved over time, where the energy difference (per species and energy type) in each time step due to quantized energy levels is stored and accounted for in the next merge process.
+
+    Part-Species2-vMPFSplitThreshold    = 10
+
+The split routine clones particles until the desired number of particles is reached. The algorithm randomly choses a particle, clones it and assigns the half weighting factor to both particles. If the resulting weighting factor would drop below unity, the split is stopped and the desired number of particles will not be reached. The basic functionality of both routines is verified during the nightly regression testing in `piclas/regressioncheck/NIG_code_analyze/vMPF_SplitAndMerge_Reservoir`.
