@@ -108,13 +108,12 @@ DO iSpec=1,nSpecies
       xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
       xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-    CASE('photon_SEE_disc')
-      xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
-      ylen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
-      zlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
+    CASE('photon_SEE_disc','photon_SEE_honeycomb')
+      ! 1. Check if inside outer radius
+      radius=Species(iSpec)%Init(iInit)%RadiusIC
+      xlen=radius * SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
+      ylen=radius * SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
+      zlen=radius * SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
       ! all 8 edges
       xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
       xCoords(1:3,2) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,-zlen/)
@@ -124,7 +123,31 @@ DO iSpec=1,nSpecies
       xCoords(1:3,6) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,+zlen/)
       xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
       xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
+      ! Check if inside box
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
+      ! 2. Check if outside of outer radius (if provided)
+      IF(Species(iSpec)%Init(iInit)%Radius2IC.GT.0.0)THEN
+        IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_'))THEN
+          ! Switch from outer radius of honeycomb to inner radius
+          radius=Species(iSpec)%Init(iInit)%Radius4IC
+        ELSE
+          radius=Species(iSpec)%Init(iInit)%Radius2IC
+        END IF ! StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_')
+        xlen=radius * SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
+        ylen=radius * SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
+        zlen=radius * SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
+        ! all 8 edges
+        xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
+        xCoords(1:3,2) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,-zlen/)
+        xCoords(1:3,3) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,-zlen/)
+        xCoords(1:3,4) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,-zlen/)
+        xCoords(1:3,5) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,+zlen/)
+        xCoords(1:3,6) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,+zlen/)
+        xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
+        xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
+        ! Check if outside box
+        RegionOnProc=.NOT.BoxInProc(xCoords(1:3,1:8),8)
+      END IF ! Species(iSpec)%Init(iInit)%Radius2IC.GT.0.0
     CASE('2D_landmark','2D_landmark_copy')
        ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
        ! for low-temperature partially magnetized plasmas (2019)
@@ -289,21 +312,24 @@ DO iSpec=1,nSpecies
         xCoords(1:3,8)=origin + (/ -radius , -radius , radius /)
       END ASSOCIATE
       RegionOnProc=BoxInProc(xCoords,8)
-    CASE('cylinder','photon_cylinder')
+    CASE('cylinder','photon_cylinder','photon_honeycomb')
+      ! Cross-product of 1IC and 2IC
       lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
       lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(3)
       lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
         Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
+      ! Sanity check
       IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
          CALL ABORT(__STAMP__,'BaseVectors are parallel!')
       ELSE
         lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
           lineVector(3) * lineVector(3))
       END IF
+      ! 1. Check if inside outer radius
       radius = Species(iSpec)%Init(iInit)%RadiusIC
-      ! here no radius, already inclueded
+      ! here no radius, already included
       xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC-Species(iSpec)%Init(iInit)%BaseVector1IC &
                                                            -Species(iSpec)%Init(iInit)%BaseVector2IC
 
@@ -316,7 +342,32 @@ DO iSpec=1,nSpecies
       DO iNode=1,4
         xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
       END DO ! iNode
+      ! Check if inside box
       RegionOnProc=BoxInProc(xCoords,8)
+      ! 2. Check if outside of outer radius (if provided)
+      IF(Species(iSpec)%Init(iInit)%Radius2IC.GT.0.0)THEN
+        IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_'))THEN
+          ! Switch from outer radius of honeycomb to inner radius
+          radius=Species(iSpec)%Init(iInit)%Radius4IC
+        ELSE
+          radius=Species(iSpec)%Init(iInit)%Radius2IC
+        END IF ! StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_')
+        ! here no radius, already included
+        xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC-Species(iSpec)%Init(iInit)%BaseVector1IC &
+                                                             -Species(iSpec)%Init(iInit)%BaseVector2IC
+
+        xCoords(1:3,2)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector1IC
+        xCoords(1:3,3)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector2IC
+        xCoords(1:3,4)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector1IC&
+                                     +2.0*Species(iSpec)%Init(iInit)%BaseVector2IC
+
+        height= Species(iSpec)%Init(iInit)%CylinderHeightIC
+        DO iNode=1,4
+          xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
+        END DO ! iNode
+        ! Check if outside box
+        RegionOnProc=.NOT.BoxInProc(xCoords,8)
+      END IF ! Species(iSpec)%Init(iInit)%Radius2IC.GT.0.0
     CASE('cell_local')
       RegionOnProc=.TRUE.
     CASE('cuboid_equal')

@@ -280,10 +280,19 @@ DO iSpec = 1, nSpecies
     END IF
     ! Additional read-in for circular/cuboid cases
     SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
-    CASE('disc','circle','circle_equidistant','gyrotron_circle','cylinder','sphere','photon_cylinder','photon_SEE_disc')
+    CASE('disc','circle','circle_equidistant','gyrotron_circle','cylinder','sphere','photon_cylinder','photon_SEE_disc',&
+          'photon_honeycomb','photon_SEE_honeycomb')
       Species(iSpec)%Init(iInit)%RadiusIC               = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC')
       Species(iSpec)%Init(iInit)%Radius2IC              = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC')
       Species(iSpec)%Init(iInit)%CylinderHeightIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-CylinderHeightIC')
+      IF(Species(iSpec)%Init(iInit)%Radius2IC.GE.Species(iSpec)%Init(iInit)%RadiusIC) CALL abort(__STAMP__,&
+          'For this emission type RadiusIC must be greater than Radius2IC!')
+      IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_'))THEN
+        ! R1 -> r1 (convert outer radius to inner radius for emission region + emission itself)
+        Species(iSpec)%Init(iInit)%Radius3IC = Species(iSpec)%Init(iInit)%RadiusIC * SQRT(3.0) * 0.5
+        ! R2 -> r2 (convert outer radius to inner radius for emission region + emission itself)
+        Species(iSpec)%Init(iInit)%Radius4IC = Species(iSpec)%Init(iInit)%Radius2IC * SQRT(3.0) * 0.5
+      END IF ! StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_')
     CASE('cuboid')
       Species(iSpec)%Init(iInit)%CuboidHeightIC         = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC')
     END SELECT
@@ -328,8 +337,8 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%WorkFunctionSEE        = GETREAL('Part-Species'//TRIM(hilf2)//'-WorkFunctionSEE')
     END IF
     ! Photoionization in cylindrical volume and SEE based on photon impact on a surface
-    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc').OR. &
-       (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder')) THEN
+    ! photon_cylinder, photon_SEE_disc, photon_honeycomb, photon_SEE_honeycomb
+    IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_'))THEN
       CALL InitializeVariablesPhotoIonization(iSpec,iInit,hilf2)
     END IF
     !--- Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
@@ -718,7 +727,8 @@ Species(iSpec)%Init(iInit)%tActive = REAL(Species(iSpec)%Init(iInit)%NbrOfPulses
                                         + 2.0*Species(iSpec)%Init(iInit)%tShift
 CALL PrintOption('Pulse will end at tActive (pulse final time) [s]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%tActive)
 
-IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
+IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder').OR.&
+   (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_honeycomb')) THEN
   Species(iSpec)%Init(iInit)%EffectiveIntensityFactor = GETREAL('Part-Species'//TRIM(hilf2)//'-EffectiveIntensityFactor')
 ELSE
   Species(iSpec)%Init(iInit)%YieldSEE           = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')

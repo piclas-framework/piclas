@@ -130,6 +130,8 @@ TYPE tInit                                                                   ! P
   CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
   REAL                                   :: RadiusIC                         ! Radius for IC circle
   REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder (ring)
+  REAL                                   :: Radius3IC                        ! Radius3 for IC honeycomb (inner radii)
+  REAL                                   :: Radius4IC                        ! Radius4 for IC honeycomb (inner radii)
   REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
   REAL                                   :: InflowRiseTime                   ! time to ramp the number of inflow particles
                                                                              ! linearly from zero to unity
