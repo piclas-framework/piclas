@@ -61,7 +61,11 @@ REAL              :: iRan   ! Random number
 REAL              :: k_ee   ! Coefficient of emission of secondary electron
 REAL              :: k_refl ! Coefficient for reflection of bombarding electron
 REAL              :: W0,W1,W2
+REAL              :: v
 !===================================================================================================================================
+! Sanity check: is the impacting particle faster than c
+v=VECNORM(PartState(4:6,PartID_IN))
+IF(v.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Bombading particle is faster than the speed of light: ',RealInfoOpt=v)
 ! Default 0
 ProductSpec    = 0
 ProductSpecNbr = 0
