@@ -14,7 +14,7 @@
 
 MODULE MOD_MCC
 !===================================================================================================================================
-! Module for MCC
+! Module for Monte Carlo Collisions
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -38,7 +38,7 @@ CONTAINS
 !> 3. Determining the total number of pairs of test
 !> 4. Loop over the total number of pairs per species, determine collision probability and perform collision
 !>    a. Draw random particle indices from the particle list
-!>    b. (Trace species background) Clone particle to test against trace backgroun gas species
+!>    b. (Trace species background) Clone particle to test against trace background gas species
 !>    c. Get particle index (or re-use the previous) and get a velocity from the background gas
 !>    d. Calculate the collision probability
 !>    e. Perform collision: set particle information of the background gas particle, if the particle is not utilized in a reaction
@@ -48,11 +48,10 @@ SUBROUTINE MCC(iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
-USE MOD_part_emission_tools     ,ONLY: DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_DSMC_BGGas              ,ONLY: BGGas_AssignParticleProperties
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, MCC_TotalPairNum, DSMCSumOfFormedParticles, XSec_NullCollision
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMCSumOfFormedParticles, XSec_NullCollision
 USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar
 USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
@@ -78,20 +77,21 @@ INTEGER, INTENT(IN)           :: iElem
 ! LOCAL VARIABLES
 ! LOCAL VARIABLES
 INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, jSpec, bgSpec, PartIndex, bggPartIndex, RandomPart
-INTEGER                       :: iCase, SpecPairNumTemp, nPartAmbi, CNElemID
+INTEGER                       :: iCase, SpecPairNumTemp, nPartAmbi, CNElemID, GlobalElemID
 INTEGER                       :: iVib, nVib, iPartSplit, SplitPartNum, SplitRestPart
 INTEGER,ALLOCATABLE           :: iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:), UseSpecPartNum(:)
-REAL                          :: iRan, ProbRest, SpecPairNumReal, MPF, Volume
+REAL                          :: iRan, ProbRest, SpecPairNumReal, MPF, Volume, MPFRatio
 INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalAmbiDel(:)
 INTEGER, ALLOCATABLE, TARGET  :: iPartIndx_Node(:), iPartIndx_NodeTotalAmbi(:)
 INTEGER, POINTER              :: iPartIndx_NodeTotal(:)
-LOGICAL                       :: SplitInProgress, InternalEnergySet
+LOGICAL                       :: SplitInProgress, GetInternalEnergy
 REAL                          :: CollCaseNum, CollProb, VeloBGGPart(1:3), CRela2, CollEnergy, SumVibCrossSection
 REAL                          :: PartStateSplit(1:6), PartPosRefSplit(1:3), PartStateIntSplit(1:3), PartTimeStepSplit, PartMPFSplit
 INTEGER, ALLOCATABLE          :: VibQuantsParSplit(:), PartIndexCase(:)
 !===================================================================================================================================
 
-CNElemID = GetCNElemID(iElem+offSetElem)
+GlobalElemID = iElem+offSetElem
+CNElemID = GetCNElemID(GlobalElemID)
 Volume = ElemVolume_Shared(CNElemID)
 ! Create particle index list for pairing
 nPart = PEM%pNumber(iElem)
@@ -112,8 +112,6 @@ IF (DSMC%DoAmbipolarDiff) THEN
 ELSE
   iPartIndx_NodeTotal => iPartIndx_Node
 END IF
-
-MCC_TotalPairNum = 0
 
 CollInf%Coll_SpecPartNum = 0.
 CollInf%Coll_CaseNum = 0
@@ -177,28 +175,24 @@ DO iSpec = 1,nSpecies
     IF(SpecXSec(iCase)%UseCollXSec.AND.XSec_NullCollision) THEN
       ! Collision cross-section: The maximum number of pairs to check is collision pair specific and depends on the null collision probability
       SpecPairNumReal = SpecPartNum(iSpec)*SpecXSec(iCase)%ProbNull
-      SpecPairNumTemp = INT(SpecPartNum(iSpec)*SpecXSec(iCase)%ProbNull)
     ELSE
       ! Regular: The maximum number of pairs corresponds to the particle number
       SpecPairNumReal = BGGas%SpeciesFraction(bgSpec)*SpecPartNum(iSpec)
-      SpecPairNumTemp = INT(BGGas%SpeciesFraction(bgSpec)*SpecPartNum(iSpec))
     END IF
+    SpecPairNumTemp = INT(SpecPairNumReal)
     ! Avoid creating more pairs than currently particles in the simulation
-!!!    IF(SpecPairNum(iCase) + SpecPairNumTemp.LT.SpecPartNum(iSpec)) THEN
     IF(UseSpecPartNum(iSpec) + SpecPairNumTemp.LT.SpecPartNum(iSpec)) THEN
       ! Randomly deciding whether an additional pair is added based on the difference between the real and integer value
       ProbRest = SpecPairNumReal - REAL(SpecPairNumTemp)
       CALL RANDOM_NUMBER(iRan)
       IF (ProbRest.GT.iRan) SpecPairNumTemp = SpecPairNumTemp + 1
-      ! Adding the number of pairs to the species-specific number and the cell total
+      ! Adding the number of pairs to the case-specific number of pairs
       SpecPairNum(iCase) = SpecPairNum(iCase) + SpecPairNumTemp
+      ! Adding the number of pairs to the number of particles utilized per species to avoid defining more pairs than available partners
       UseSpecPartNum(iSpec) = UseSpecPartNum(iSpec) + SpecPairNumTemp
-      MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNumTemp
-!!!    ELSE IF(SpecPairNum(iCase) + SpecPairNumTemp.EQ.SpecPartNum(iSpec)) THEN
     ELSE IF(UseSpecPartNum(iSpec) + SpecPairNumTemp.EQ.SpecPartNum(iSpec)) THEN
       SpecPairNum(iCase) = SpecPairNum(iCase) + SpecPairNumTemp
       UseSpecPartNum(iSpec) = UseSpecPartNum(iSpec) + SpecPairNumTemp
-      MCC_TotalPairNum = MCC_TotalPairNum + SpecPairNumTemp
     END IF
   END DO
 END DO
@@ -208,7 +202,7 @@ ALLOCATE(Coll_pData(1))
 Coll_pData%Ec = 0.
 bggPartIndex = 0
 SplitInProgress = .FALSE.
-InternalEnergySet = .FALSE.
+GetInternalEnergy = .TRUE.
 iPartSplit = 0
 SplitPartNum = 0
 SplitRestPart = 0
@@ -218,6 +212,7 @@ DO iSpec = 1, nSpecies
   DO bgSpec = 1, BGGas%NumberOfSpecies        ! Loop over all background species
     jSpec = BGGas%MapBGSpecToSpec(bgSpec)
     iCase = CollInf%Coll_Case(iSpec,jSpec)
+    MPFRatio = BGGas%MaxMPF/Species(jSpec)%MacroParticleFactor
     IF(SpecPairNum(iCase).EQ.0) CYCLE
     ! Randomly determining the particle index and storing it, determine the weighted number of pairs per case
     ! (only required for VHS collision modelling in combination with MCC/XSec and vMPF)
@@ -242,7 +237,7 @@ DO iSpec = 1, nSpecies
       END IF
       ! ============================================================================================================================
       ! Treatment of background gas trace species:
-      ! 1) Determining whether a collision with a trace species imminent and enable split (clone particle to increase sample size)
+      ! 1) Determining whether a collision with a trace species is imminent and enable split (clone particle to increase sample size)
       ! 2) If a split is in progress, get new index particle index and clone the simulation particle to test with the trace species
       ! ============================================================================================================================
       IF(usevMPF.AND.BGGas%TraceSpecies(jSpec)) THEN
@@ -257,9 +252,7 @@ DO iSpec = 1, nSpecies
               END IF
               PartSpecies(PartIndex) = iSpec
               PartState(1:6,PartIndex) = PartStateSplit(1:6)
-              IF(TrackingMethod.EQ.REFMAPPING)THEN ! here Nearst-GP is missing
-                PartPosRef(1:3,PartIndex)=PartPosRefSplit(1:3)
-              END IF
+              IF(TrackingMethod.EQ.REFMAPPING) PartPosRef(1:3,PartIndex)=PartPosRefSplit(1:3)
               IF(CollisMode.GT.1) THEN
                 PartStateIntEn(1:2,PartIndex) = PartStateIntSplit(1:2)
                 IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
@@ -269,13 +262,21 @@ DO iSpec = 1, nSpecies
                 END IF
                 IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,PartIndex) = PartStateIntSplit(3)
               END IF
-              PEM%GlobalElemID(PartIndex)     = iElem + offSetElem
-              PDM%ParticleInside(PartIndex)   = .TRUE.
+              ! Set global element indices
+              PEM%GlobalElemID(PartIndex)     = GlobalElemID
               PEM%LastGlobalElemID(PartIndex) = PEM%GlobalElemID(PartIndex)
+              ! Set simulation flags
+              PDM%ParticleInside(PartIndex)   = .TRUE.
               PDM%IsNewPart(PartIndex)        = .TRUE.
               PDM%dtFracPush(PartIndex)       = .FALSE.
+              ! Set particle weights
               PartMPF(PartIndex)              = PartMPFSplit
               IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(PartIndex) = PartTimeStepSplit
+              ! Add new particle to the index list
+              PEM%pNext(PEM%pEnd(iElem)) = PartIndex
+              PEM%pEnd(iElem) = PartIndex
+              PEM%pNumber(iElem) = PEM%pNumber(iElem) + 1
+              ! Consider ambipolar diffusion
               IF (DSMC%DoAmbipolarDiff) THEN
                 newAmbiParts = newAmbiParts + 1
                 iPartIndx_NodeNewAmbi(newAmbiParts) = PartIndex
@@ -283,19 +284,21 @@ DO iSpec = 1, nSpecies
             END IF
             iPartSplit = iPartSplit + 1
           END IF
+        ! Enable split if the weighting of the particle species is greater than the trace species weighting factor
         ELSE IF(PartMPF(PartIndex).GT.Species(jSpec)%MacroParticleFactor) THEN
-          ! Variante 1
-          ! SplitPartNum = NINT(PartMPF(PartIndex) / Species(jSpec)%MacroParticleFactor) - 1
-          ! Variante 2
+          ! Determine the number of additional split particles, avoid splitting the particle more often than the ratio between the
+          ! largest background gas weighting factor and the trace species weighting factor
           CALL RANDOM_NUMBER(iRan)
-          SplitPartNum = INT(PartMPF(PartIndex) / Species(jSpec)%MacroParticleFactor+iRan) - 1
+          IF(PartMPF(PartIndex) / Species(jSpec)%MacroParticleFactor.GT.MPFRatio) THEN
+            SplitPartNum = INT(MPFRatio+iRan) - 1
+          ELSE
+            SplitPartNum = INT(PartMPF(PartIndex) / Species(jSpec)%MacroParticleFactor+iRan) - 1
+          END IF
           IF(SplitPartNum.GT.0) THEN
             SplitInProgress  = .TRUE.
-            SpecPairNum(iCase)      = SpecPairNum(iCase) + SplitPartNum
+            SpecPairNum(iCase)  = SpecPairNum(iCase) + SplitPartNum
             PartStateSplit(1:6) = PartState(1:6,PartIndex)
-            IF(TrackingMethod.EQ.REFMAPPING)THEN ! here Nearst-GP is missing
-              PartPosRefSplit(1:3) = PartPosRef(1:3,PartIndex)
-            END IF
+            IF(TrackingMethod.EQ.REFMAPPING) PartPosRefSplit(1:3) = PartPosRef(1:3,PartIndex)
             IF(CollisMode.GT.1) THEN
               PartStateIntSplit(1:2) = PartStateIntEn(1:2,PartIndex)
               IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
@@ -305,7 +308,6 @@ DO iSpec = 1, nSpecies
               IF(DSMC%ElectronicModel.GT.0) PartStateIntSplit(3) = PartStateIntEn(3,PartIndex)
             END IF
             IF(VarTimeStep%UseVariableTimeStep) PartTimeStepSplit = VarTimeStep%ParticleTimeStep(PartIndex)
-            ! PartMPFSplit          = Species(jSpec)%MacroParticleFactor
             ! Set the new MPF based on the actual number of split particles
             PartMPFSplit          = PartMPF(PartIndex) / REAL(SplitPartNum+1)
             PartMPF(PartIndex)    = PartMPFSplit
@@ -353,7 +355,7 @@ DO iSpec = 1, nSpecies
             CALL MCC_CalcReactionProb(iCase,bgSpec,CRela2,PartIndex,bggPartIndex)
             CollProb = CollProb + SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
             ! If a collision occurs, re-use the energy values set in MCC_CalcReactionProb
-            InternalEnergySet = .TRUE.
+            GetInternalEnergy = .FALSE.
           END IF
         END IF
         IF(SpecXSec(iCase)%UseVibXSec) THEN
@@ -387,34 +389,14 @@ DO iSpec = 1, nSpecies
             CALL Abort(__STAMP__,'ERROR in MCC: MaxParticleNumber should be increased!')
           END IF
         END IF
-        ! Position the background particle at the simulation particle
-        PartState(1:3,bggPartIndex) = PartState(1:3,PartIndex)
-        PartState(4:6,bggPartIndex) = VeloBGGPart(1:3)
-        IF(TrackingMethod.EQ.REFMAPPING)THEN ! here Nearst-GP is missing
-          PartPosRef(1:3,bggPartIndex)=PartPosRef(1:3,PartIndex)
-        END IF
-        ! Set the species of the background gas particle
-        PartSpecies(bggPartIndex) = jSpec
-        IF(CollisMode.GT.1) THEN
-          IF(.NOT.InternalEnergySet) THEN
-            IF(SpecDSMC(jSpec)%PolyatomicMol) THEN
-              CALL DSMC_SetInternalEnr_Poly(jSpec,1,bggPartIndex,1)
-            ELSE
-              CALL DSMC_SetInternalEnr_LauxVFD(jSpec,1,bggPartIndex,1)
-            END IF
-          END IF
-        END IF
-        PEM%GlobalElemID(bggPartIndex) = iElem + offSetElem
-        PDM%ParticleInside(bggPartIndex) = .TRUE.
-        PEM%LastGlobalElemID(bggPartIndex) = PEM%GlobalElemID(PartIndex)
-        PDM%IsNewPart(bggPartIndex)       = .TRUE.
-        PDM%dtFracPush(bggPartIndex)      = .FALSE.
-        IF(usevMPF) PartMPF(bggPartIndex) = PartMPF(PartIndex)
-        IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(bggPartIndex) = VarTimeStep%ParticleTimeStep(PartIndex)
+        ! Set collision pair index
         Coll_pData(iPair)%iPart_p2 = bggPartIndex
+        ! Assign properties
+        CALL BGGas_AssignParticleProperties(jSpec,PartIndex,bggPartIndex,GetVelocity_opt=.FALSE.,GetInternalEnergy_opt=GetInternalEnergy)
+        PartState(4:6,bggPartIndex) = VeloBGGPart(1:3)
         ! Required in DSMC_Relax_Col_LauxTSHO
         Coll_pData(iPair)%cRela2 = CRela2
-        ! Required in 
+        ! Required in ReactionDecision
         Coll_pData(iPair)%Prob = CollProb
         ! Required in XSec_CalcReactionProb
         Coll_pData(iPair)%PairType = iCase
@@ -433,12 +415,10 @@ DO iSpec = 1, nSpecies
           END IF
           ! Set index to zero to get a new one for the next background gas particle
           bggPartIndex = 0
-          InternalEnergySet = .FALSE.
+          GetInternalEnergy = .TRUE.
         END IF
-        IF(usevMPF.AND.BGGas%TraceSpecies(jSpec)) THEN
-          ! Set index to zero to get a new one for the next split particle
-          PartIndex = 0
-        END IF
+        ! Set index to zero to get a new one for the next split particle
+        IF(usevMPF.AND.BGGas%TraceSpecies(jSpec)) PartIndex = 0
       ELSE  ! No collision
         IF(SplitInProgress) THEN
           ! Save the index of the first particle that did not collide
@@ -511,7 +491,7 @@ IF(DSMC%CalcQualityFactors) THEN
   IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
     ! Calculation of the mean free path
     DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum), &
-                          ElemVolume_Shared(GetCNElemID(iElem+offSetElem)), DSMC%InstantTransTemp(nSpecies+1))
+                          ElemVolume_Shared(CNElemID), DSMC%InstantTransTemp(nSpecies+1))
     ! Determination of the MCS/MFP for the case without octree
     IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
                                                                                     / DSMC%MeanFreePath

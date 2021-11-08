@@ -139,8 +139,8 @@ USE MOD_Particle_Vars         ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)                  :: nPart, nPartNew, iElem
-INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
+INTEGER, INTENT(IN)           :: nPart, nPartNew, iElem
+INTEGER, INTENT(INOUT)        :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -157,9 +157,6 @@ REAL                  :: E_vib, E_vib_new
 REAL                  :: E_rot, E_rot_new
 REAL                  :: Energy_Sum, E_elec_upper, E_elec_lower, betaV
 REAL, ALLOCATABLE     :: DOF_vib_poly(:), EnergyTemp_vibPoly(:,:)
-
-!REAL                  :: Test_E
-
 #ifdef CODE_ANALYZE
 REAL,PARAMETER        :: RelMomTol=5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
 REAL,PARAMETER        :: RelEneTol=1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
@@ -399,9 +396,9 @@ IF(CollisMode.GT.1) THEN
           iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
           DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
             betaV = alpha*EnergyTemp_vibPoly(iDOF,iLoop)/(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst)
-            CALL RANDOM_NUMBER(iRan)
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!            iQua = INT(betaV+iRan)    !?????
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            ! CALL RANDOM_NUMBER(iRan)
+            ! iQua = INT(betaV+iRan)
             iQua = INT(betaV)
             IF(iQua.GT.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF)) iQua=PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF)
             PartStateIntEn( 1,iPart)  = PartStateIntEn( 1,iPart) &
@@ -413,15 +410,15 @@ IF(CollisMode.GT.1) THEN
                + SpecDSMC(iSpec)%EZeroPoint
         ELSE  ! Diatomic molecules
           betaV = alpha*PartStateIntEn(1,iPart)/(SpecDSMC(iSpec)%CharaTVib*BoltzmannConst)
-          CALL RANDOM_NUMBER(iRan)
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!          iQua = INT(betaV+iRan)
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          ! CALL RANDOM_NUMBER(iRan)
+          ! iQua = INT(betaV+iRan)
+          ! IF((betaV-INT(betaV)).LE.iRan) THEN
+          !   iQua = INT(betaV)
+          ! ELSE
+          !   iQua = INT(betaV) + 1
+          ! END IF
           iQua = INT(betaV)
-!          IF((betaV-INT(betaV)).LE.iRan) THEN
-!            iQua = INT(betaV)
-!          ELSE
-!            iQua = INT(betaV) + 1
-!          END IF
           IF (iQua.GT.SpecDSMC(iSpec)%MaxVibQuant) iQua = SpecDSMC(iSpec)%MaxVibQuant
           PartStateIntEn(1,iPart)  = (iQua + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
           Energy_Sum = Energy_Sum - (PartStateIntEn(1,iPart) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
@@ -466,7 +463,6 @@ END DO
 
 #ifdef CODE_ANALYZE
   ! Check for energy difference
-!  IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
   IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,RelEneTol)) THEN
     WRITE(UNIT_StdOut,*) '\n'
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
