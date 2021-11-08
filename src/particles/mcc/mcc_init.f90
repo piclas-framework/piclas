@@ -45,8 +45,8 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER       :: iSpec, jSpec, iCase
-REAL          :: TotalProb, VibCrossSection
+INTEGER       :: iSpec, jSpec, iCase, partSpec
+REAL          :: TotalProb(nSpecies), VibCrossSection
 INTEGER       :: iVib, nVib, iStep, MaxDim
 !===================================================================================================================================
 
@@ -69,9 +69,9 @@ SpecXSec(:)%UseCollXSec = .FALSE.
 SpecXSec(:)%UseVibXSec = .FALSE.
 SpecXSec(:)%CollXSec_Effective = .FALSE.
 SpecXSec(:)%SpeciesToRelax = 0
+TotalProb = 0.
 
 DO iSpec = 1, nSpecies
-  TotalProb = 0.
   DO jSpec = iSpec, nSpecies
     iCase = CollInf%Coll_Case(iSpec,jSpec)
     ! Skip species, which shall not be treated with collision cross-sections
@@ -149,12 +149,18 @@ DO iSpec = 1, nSpecies
       IF(XSec_NullCollision) THEN
         ! Determine the maximum collision frequency for the null collision method
         CALL DetermineNullCollProb(iCase,iSpec,jSpec)
-        TotalProb = TotalProb + SpecXSec(iCase)%ProbNull
-        IF(TotalProb.GT.1.0) THEN
-          CALL abort(&
-          __STAMP__&
+        ! Select the particle species in order to sum-up the total null collision probability per particle species
+        IF(BGGas%BackgroundSpecies(iSpec)) THEN
+          partSpec = jSpec
+        ELSE
+          partSpec = iSpec
+        END IF
+        TotalProb(partSpec) = TotalProb(partSpec) + SpecXSec(iCase)%ProbNull
+        ! Sum of null collision probability per particle species should be lower than 1, otherwise not enough collision pairs
+        IF(TotalProb(partSpec).GT.1.0) THEN
+          CALL abort(__STAMP__&
           ,'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: '&
-          ,RealInfoOpt=TotalProb)
+          ,RealInfoOpt=TotalProb(partSpec))
         END IF
       END IF
     END IF
