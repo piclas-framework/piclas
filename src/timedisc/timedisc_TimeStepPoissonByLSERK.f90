@@ -362,9 +362,6 @@ DO iStage=2,nRKStages
 END DO
 
 #ifdef PARTICLES
-#if USE_MPI
-PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero for deposition
-#endif
 IF (doParticleMerge) THEN
   IF (.NOT.useDSMC) THEN
 #if USE_LOADBALANCE

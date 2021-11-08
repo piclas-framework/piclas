@@ -249,13 +249,6 @@ IF(DelayTime.GT.0.)THEN
   IF((iter.EQ.0).AND.(time.LT.DelayTime))THEN
     ! perform normal deposition
     CALL Deposition()
-#if USE_MPI
-    ! here: finish deposition with delta kernal
-    !       maps source terms in physical space
-    ! ALWAYS require
-    PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-    CALL Deposition()
   END IF
 END IF
 
@@ -668,7 +661,6 @@ IF (time.GE.DelayTime) THEN
   CALL MPIParticleSend()
   ! finish communication
   CALL MPIParticleRecv()
-  PartMPIExchange%nMPIParticles=0
 #endif
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PARTCOMM,tLBStart)

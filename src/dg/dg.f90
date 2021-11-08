@@ -253,6 +253,13 @@ USE MOD_PML_Vars          ,ONLY: PMLnVar
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
 USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+#ifdef PARTICLES
+USE MOD_Particle_Vars     ,ONLY: DelayTime
+USE MOD_TimeDisc_Vars     ,ONLY: time
+#if USE_MPI
+USE MOD_Particle_MPI      ,ONLY: MPIParticleSend,MPIParticleRecv
+#endif /*USE_MPI*/
+#endif /*PARTICLES*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -297,6 +304,23 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace(U,U_master,U_slave,doMPISides=.FALSE.)
 CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
+
+#ifdef PARTICLES
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+IF (time.GE.DelayTime) THEN
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
+#endif /*USE_LOADBALANCE*/
+#if USE_MPI
+  CALL MPIParticleSend()
+#endif /*USE_MPI*/
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
+END IF
+#endif /*PP_TimeDiscMethod*/
+#endif /*PARTICLES*/
+
 ! Nullify arrays
 ! NOTE: IF NEW DG_VOLINT AND LIFTING_VOLINT ARE USED AND CALLED FIRST,
 !       ARRAYS DO NOT NEED TO BE NULLIFIED, OTHERWISE THEY HAVE TO!
@@ -366,8 +390,21 @@ CALL ApplyJacobian(Ut,toPhysical=.TRUE.,toSwap=.TRUE.)
 IF(doSource) CALL CalcSource(tStage,1.0,Ut)
 
 #if USE_LOADBALANCE
-CALL LBPauseTime(LB_DG,tLBStart)
+CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
+
+#ifdef PARTICLES
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if USE_MPI
+IF (time.GE.DelayTime) THEN
+  CALL MPIParticleRecv()
+END IF
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_PARTCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
+#endif /*USE_MPI*/
+#endif /*PP_TimeDiscMethod*/
+#endif /*PARTICLES*/
 
 END SUBROUTINE DGTimeDerivative_weakForm
 #endif /*USE_HDG*/

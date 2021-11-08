@@ -189,9 +189,6 @@ IF (time.GE.DelayTime) THEN
   CALL MPIParticleRecv()  ! finish communication
 #endif
   IF (velocityOutputAtTime) THEN
-#if USE_MPI
-    PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
     CALL Deposition() ! because of emission and UpdateParticlePosition
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
@@ -221,9 +218,6 @@ CALL extrae_eventandcounters(int(9000001), int8(5))
   END IF !velocityOutputAtTime
 END IF
 
-#if USE_MPI
-PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero for deposition
-#endif
 IF (doParticleMerge) THEN
   IF (.NOT.useDSMC) THEN
 #if USE_LOADBALANCE

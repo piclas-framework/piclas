@@ -94,103 +94,16 @@ REAL                          :: tLBStart ! load balance
 !===================================================================================================================================
 
 ! RK coefficients
-DO iStage=1,nRKStages
-  b_dt(iStage)=RK_b(iStage)*dt
-END DO
-iStage=1
+b_dt = RK_b*dt
+
+DO iStage = 1,nRKStages
+  IF (iStage.EQ.1) THEN
+    tStage = time
+  ELSE
+    tStage = time+RK_c(iStage)*dt
+  END IF
 
 #ifdef PARTICLES
-CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB. Also done for state output of PartsPerElem
-
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-IF (time.GE.DelayTime) THEN
-  ! forces on particle
-  ! can be used to hide sending of number of particles
-  CALL InterpolateFieldToParticle()
-  IF(DoFieldIonization) CALL FieldIonization()
-  IF(DoInterpolation) CALL CalcPartRHS()
-END IF
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_INTERPOLATION,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-  CALL Deposition()
-END IF
-#endif /*PARTICLES*/
-
-! field solver
-! time measurement in weakForm
-CALL DGTimeDerivative_weakForm(time,time,0,doSource=.TRUE.)
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-IF(DoPML) THEN
-  CALL CalcPMLSource()
-  CALL PMLTimeDerivative()
-END IF
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_PML,tLBStart)
-#endif /*USE_LOADBALANCE*/
-CALL DivCleaningDamping()
-
-#ifdef PP_POIS
-! Potential
-CALL DGTimeDerivative_weakForm_Pois(time,time,0)
-CALL DivCleaningDamping_Pois()
-#endif /*PP_POIS*/
-
-! first RK step
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-
-! EM field
-Ut_temp = Ut
-U = U + Ut*b_dt(1)
-
-#ifdef PP_POIS
-Phit_temp = Phit
-Phi = Phi + Phit*b_dt(1)
-CALL EvalGradient()
-#endif /*PP_POIS*/
-
-#if USE_LOADBALANCE
-CALL LBSplitTime(LB_DG,tLBStart)
-#endif /*USE_LOADBALANCE*/
-!PML auxiliary variables
-IF(DoPML) THEN
-  U2t_temp = U2t
-  U2 = U2 + U2t*b_dt(1)
-END IF
-#if USE_LOADBALANCE
-CALL LBSplitTime(LB_PML,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
-
-#ifdef PARTICLES
-LastPartPos(1:3,1:PDM%ParticleVecLength)=PartState(1:3,1:PDM%ParticleVecLength)
-PEM%LastGlobalElemID(1:PDM%ParticleVecLength)=PEM%GlobalElemID(1:PDM%ParticleVecLength)
-IF (time.GE.DelayTime) THEN
-  DO iPart=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(iPart)) THEN
-      Pt_temp(1:3,iPart) = PartState(4:6,iPart)
-      PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * b_dt(1)
-      ! Don't push the velocity component of neutral particles!
-      IF(isPushParticle(iPart))THEN
-        Pt_temp(4:6,iPart) = Pt(1:3,iPart)
-        PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart)*b_dt(1)
-      END IF
-    END IF ! PDM%ParticleInside(iPart)
-  END DO ! iPart=1,PDM%ParticleVecLength
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_PUSH,tLBStart)
-#endif /*USE_LOADBALANCE*/
-END IF
-
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -200,134 +113,63 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
+  CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB. Also done for state output of PartsPerElem
 
-  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
-  CALL PerformTracking()
-  IF(MeasureTrackTime) THEN
-    CALL CPU_TIME(TimeEnd)
-    tTracking=tTracking+TimeEnd-TimeStart
-  END IF
 #if USE_LOADBALANCE
-  CALL LBSplitTime(LB_TRACK,tLBStart)
+  CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-#if USE_MPI
-  CALL SendNbOfParticles()
-#endif /*USE_MPI*/
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_PARTCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
-END IF
-#endif /*PARTICLES*/
-
-DO iStage=2,nRKStages
-  tStage=time+dt*RK_c(iStage)
-#ifdef PARTICLES
-  ! deposition
   IF (time.GE.DelayTime) THEN
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-#if USE_LOADBALANCE
-    CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
-#endif /*USE_LOADBALANCE*/
-#if USE_MPI
-    CALL MPIParticleSend()
-#endif /*USE_MPI*/
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_PARTCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
-#if USE_MPI
-    CALL MPIParticleRecv()
-#endif /*USE_MPI*/
-#if USE_LOADBALANCE
-    CALL LBSplitTime(LB_PARTCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
+    ! Forces on particle
     CALL InterpolateFieldToParticle()
-    IF(DoInterpolation) CALL CalcPartRHS()
+    IF(DoFieldIonization) CALL FieldIonization()
+    IF(DoInterpolation)   CALL CalcPartRHS()
+  END IF
 #if USE_LOADBALANCE
-    CALL LBPauseTime(LB_INTERPOLATION,tLBStart)
+  CALL LBPauseTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
+  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
     CALL Deposition()
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END IF
-  CALL CountPartsPerElem(ResetNumberOfParticles=.FALSE.) !for scaling of tParts of LB !why not rigth after "tStage=time+dt*RK_c(iStage)"?!
-#endif /*PARTICLES*/
 
-  ! field solver
-  CALL DGTimeDerivative_weakForm(time,tStage,0,doSource=.TRUE.)
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-  IF(DoPML) THEN
-    CALL CalcPMLSource()
-    CALL PMLTimeDerivative()
-  END IF
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_PML,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  CALL DivCleaningDamping()
-#ifdef PP_POIS
-  CALL DGTimeDerivative_weakForm_Pois(time,tStage,0)
-  CALL DivCleaningDamping_Pois()
-#endif
-
-
-
-  ! performe RK steps
-  ! field step
-  Ut_temp = Ut - Ut_temp*RK_a(iStage)
-  U = U + Ut_temp*b_dt(iStage)
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DG,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
-#ifdef PP_POIS
-  Phit_temp = Phit - Phit_temp*RK_a(iStage)
-  Phi = Phi + Phit_temp*b_dt(iStage)
-  CALL EvalGradient()
-#endif
-
-  !PML auxiliary variables
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-  IF(DoPML)THEN
-    U2t_temp = U2t - U2t_temp*RK_a(iStage)
-    U2 = U2 + U2t_temp*b_dt(iStage)
-  END IF
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_PML,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
-#ifdef PARTICLES
-  ! particle step
   IF (time.GE.DelayTime) THEN
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    LastPartPos(1:3,1:PDM%ParticleVecLength)=PartState(1:3,1:PDM%ParticleVecLength)
+    LastPartPos(     1:3,1:PDM%ParticleVecLength)=PartState(   1:3,1:PDM%ParticleVecLength)
     PEM%LastGlobalElemID(1:PDM%ParticleVecLength)=PEM%GlobalElemID(1:PDM%ParticleVecLength)
-    DO iPart=1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(iPart)) THEN
-        Pt_temp(1:3,iPart) = PartState(4:6,iPart) - RK_a(iStage) * Pt_temp(1:3,iPart)
-        PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)
-        ! Don't push the velocity component of neutral particles!
-        IF(isPushParticle(iPart))THEN
-          Pt_temp(4:6,iPart) =        Pt(1:3,iPart) - RK_a(iStage) * Pt_temp(4:6,iPart)
-          PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(4:6,iPart)*b_dt(iStage)
-        END IF
-      END IF ! PDM%ParticleInside(iPart)
-    END DO ! iPart=1,PDM%ParticleVecLength
+    ! Perform the push
+    IF (iStage.EQ.1) THEN
+      DO iPart=1,PDM%ParticleVecLength
+        IF (PDM%ParticleInside(iPart)) THEN
+          Pt_temp(  1:3,iPart) = PartState(4:6,iPart)
+          PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart)*b_dt(iStage)
+          ! Don't push the velocity component of neutral particles!
+          IF (isPushParticle(iPart)) THEN
+            Pt_temp(  4:6,iPart) = Pt(       1:3,iPart)
+            PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart)*b_dt(iStage)
+          END IF
+        END IF ! PDM%ParticleInside(iPart)
+      END DO ! iPart=1,PDM%ParticleVecLength
+    ELSE
+      DO iPart=1,PDM%ParticleVecLength
+        IF (PDM%ParticleInside(iPart)) THEN
+          Pt_temp(  1:3,iPart) = PartState(4:6,iPart) - RK_a(iStage) * Pt_temp(1:3,iPart)
+          PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)
+          ! Don't push the velocity component of neutral particles!
+          IF (isPushParticle(iPart)) THEN
+            Pt_temp(  4:6,iPart) =        Pt(1:3,iPart) - RK_a(iStage) * Pt_temp(4:6,iPart)
+            PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(4:6,iPart)*b_dt(iStage)
+          END IF
+        END IF ! PDM%ParticleInside(iPart)
+      END DO ! iPart=1,PDM%ParticleVecLength
+    END IF
 #if USE_LOADBALANCE
-    CALL LBSplitTime(LB_PUSH,tLBStart)
+    CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
-#if USE_MPI
-    CALL IRecvNbofParticles()
-#endif /*USE_MPI*/
-#if USE_LOADBALANCE
-    CALL LBSplitTime(LB_PARTCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
+  END IF
+
+  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
     IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
     CALL PerformTracking()
     IF(MeasureTrackTime) THEN
@@ -346,32 +188,68 @@ DO iStage=2,nRKStages
   END IF
 #endif /*PARTICLES*/
 
+  ! field solver
+  ! time measurement in weakForm
+  CALL DGTimeDerivative_weakForm(time,tStage,0,doSource=.TRUE.)
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+  IF (DoPML) THEN
+    CALL CalcPMLSource()
+    CALL PMLTimeDerivative()
+  END IF
+#if USE_LOADBALANCE
+    CALL LBPauseTime(LB_PML,tLBStart)
+#endif /*USE_LOADBALANCE*/
+  CALL DivCleaningDamping()
+
+#ifdef PP_POIS
+  ! Potential
+  CALL DGTimeDerivative_weakForm_Pois(time,tStage,0)
+  CALL DivCleaningDamping_Pois()
+#endif /*PP_POIS*/
+
+  ! first RK step
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+
+  ! EM field
+  IF (iStage.EQ.1) THEN
+    Ut_temp = Ut
+  ELSE
+    Ut_temp = Ut - Ut_temp*RK_a(iStage)
+  END IF
+  U = U + Ut_temp*b_dt(iStage)
+
+#ifdef PP_POIS
+  IF (iStage.EQ.1) THEN
+    Phit_temp = Phit
+  ELSE
+    Phit_temp = Phit - Phit_temp*RK_a(iStage)
+  END IF
+  Phi = Phi + Phit_temp*b_dt(iStage)
+  CALL EvalGradient()
+#endif /*PP_POIS*/
+
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
+  ! PML auxiliary variables
+  IF(DoPML) THEN
+    IF (iStage.EQ.1) THEN
+      U2t_temp = U2t
+    ELSE
+      U2t_temp = U2t - U2t_temp*RK_a(iStage)
+    END IF
+    U2 = U2 + U2t_temp*b_dt(iStage)
+  END IF
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_PML,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END DO
 
 #ifdef PARTICLES
-IF (time.GE.DelayTime) THEN
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
-  CALL ParticleInserting()
-  IF(MeasureTrackTime) THEN
-    CALL CPU_TIME(TimeEnd)
-    tLocalization=tLocalization+TimeEnd-TimeStart
-  END IF
-#if USE_LOADBALANCE
-  CALL LBSplitTime(LB_EMISSION,tLBStart)
-#endif /*USE_LOADBALANCE*/
-#if USE_MPI
-  CALL MPIParticleSend()
-  CALL MPIParticleRecv()
-  PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_PARTCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
-END IF
-
 IF (doParticleMerge) THEN
   IF (.NOT.(useDSMC)) THEN
 #if USE_LOADBALANCE
@@ -402,7 +280,6 @@ END IF
 
 IF (useDSMC) THEN
   IF (time.GE.DelayTime) THEN
-
     CALL DSMC_main()
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
@@ -416,7 +293,6 @@ END IF
 #endif /*PARTICLES*/
 
 END SUBROUTINE TimeStepByLSERK
-
 
 END MODULE MOD_TimeStep
 #endif
