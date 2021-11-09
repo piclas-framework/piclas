@@ -70,3 +70,6 @@ CMakeFiles/
 
 # comma separated files
 *.csv
+
+# doxygen build folder
+doxygen/
