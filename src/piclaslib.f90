@@ -73,9 +73,7 @@ CALL SetStackSizeUnlimited()
 CALL InitMPI()
 
 #if defined(MEASURE_MPI_WAIT)
-#if !defined(PARTICLES) && !(USE_HDG)
-CALL abort(__STAMP__,'PICLAS_MEASURE_MPI_WAIT=T is not implemented yet for this time discretization')
-#endif /*!defined(PARTICLES) && !(USE_HDG)*/
+IF((MPIW8SIZEFIELD+MPIW8SIZEPART).EQ.0) CALL abort(__STAMP__,'PICLAS_MEASURE_MPI_WAIT=T not implemented for this system')
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 #ifdef EXTRAE

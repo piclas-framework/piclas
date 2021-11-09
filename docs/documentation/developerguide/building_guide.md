@@ -5,13 +5,13 @@ When changing the guides, build the html and pdf files locally before committing
 
 **Prerequisites**
 
+The following shows how to create the html and pdf files for the user/developer guide.
 First, install the required prerequisites. Install *python3* and make sure that pip (third-party Python packages) is installed.
 If you have an old version of, e.g., Ubuntu visit [this website](https://phoenixnap.com/kb/how-to-install-python-3-ubuntu).
 
     sudo apt install python3-pip
 
-The following examples shows how to create the html and pdf files for the user guide.
-Navigate to the user guide directory from the PICLas top level directory
+Navigate to the documentation folder from the PICLas top level directory
 
     cd docs/documentation
 
