@@ -66,11 +66,8 @@ CALL prms%CreateRealOption(     'Particles-DSMC-RotRelaxProb'&
                                           '2: variable, Boyd)', '0.2')
 CALL prms%CreateRealOption(     'Particles-DSMC-VibRelaxProb'&
                                           , 'Define the vibrational relaxation probability upon collision of molecules', '0.004')
-CALL prms%CreateRealOption(     'Particles-DSMC-ElecRelaxProb'&
-                                          , 'Define the electronic relaxation probability upon collision', '0.01')
 CALL prms%CreateRealOption(     'Part-Species[$]-ElecRelaxProb'  &
-                                           ,'Define the electronic relaxation probability upon collision', '999.'&
-                                           , numberedmulti=.TRUE.)
+                                           ,'Define the electronic relaxation probability per species','0.01',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Particles-DSMC-GammaQuant'&
                                           , 'Set the GammaQuant for zero point energy in Evib (perhaps also Erot) should be'//&
                                           ' 0.5 or 0.', '0.5')
@@ -358,7 +355,6 @@ END IF
     DSMC%RotRelaxProb = 0.
     DSMC%VibRelaxProb = 0.
   END IF
-DSMC%ElecRelaxProb = GETREAL('Particles-DSMC-ElecRelaxProb')
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 !-----------------------------------------------------------------------------------
 DSMC%CalcQualityFactors = GETLOGICAL('Particles-DSMC-CalcQualityFactors')
@@ -758,11 +754,10 @@ ELSE !CollisMode.GT.0
             ,'Error! VibCrossSec is equal to zero for species:', iSpec)
           END IF
         END IF
-        ! Setting the values of Rot-/Vib-RelaxProb to a fix value
+        ! Setting the values of Rot-/Vib-RelaxProb to a fix value (electronic: species-specific values are possible)
         SpecDSMC(iSpec)%RotRelaxProb  = DSMC%RotRelaxProb
-        SpecDSMC(iSpec)%VibRelaxProb  = DSMC%VibRelaxProb     ! 0.004
+        SpecDSMC(iSpec)%VibRelaxProb  = DSMC%VibRelaxProb
         SpecDSMC(iSpec)%ElecRelaxProb = GETREAL('Part-Species'//TRIM(hilf)//'-ElecRelaxProb')
-        IF(SpecDSMC(iSpec)%ElecRelaxProb.EQ.999.) SpecDSMC(iSpec)%ElecRelaxProb = DSMC%ElecRelaxProb    ! or 0.02 | Bird: somewhere in range 0.01 .. 0.02
         ! multi init stuff
         ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
         DO iInit = 1, Species(iSpec)%NumberOfInits
