@@ -302,7 +302,7 @@ TYPE tBGGas
   REAL, ALLOCATABLE             :: NumberDensity(:)         ! Number densities of the background gas, [1:BGGas%NumberOfSpecies]
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
-  LOGICAL, ALLOCATABLE          :: TraceSpecies(:)          ! Flag, if Species is a trace element
+  LOGICAL, ALLOCATABLE          :: TraceSpecies(:)          ! Flag, if species is a trace element, Input: [1:nSpecies]
   REAL                          :: MaxMPF                   ! Maximum weighting factor of the background gas species
 END TYPE tBGGas
 

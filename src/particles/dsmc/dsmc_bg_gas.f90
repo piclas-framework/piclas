@@ -684,10 +684,16 @@ iPart = PEM%pStart(iElem)
 DO iLoop = 1, nPart
   iSpec  = PartSpecies(iPart)
   ! Skip background particles that have been created within this loop
-  IF(BGGas%BackgroundSpecies(iSpec)) CYCLE
+  IF(BGGas%BackgroundSpecies(iSpec)) THEN
+    iPart = PEM%pNext(iPart)
+    CYCLE
+  END IF
   bggSpec = PartSpecies(BGGas%PairingPartner(iPart))
   ! Skip pairs with regular background species
-  IF(.NOT.BGGas%TraceSpecies(bggSpec)) CYCLE
+  IF(.NOT.BGGas%TraceSpecies(bggSpec)) THEN
+    iPart = PEM%pNext(iPart)
+    CYCLE
+  END IF
   ! Split required if particle MPF is larger than BGGas MPF
   IF(PartMPF(iPart).GT.Species(bggSpec)%MacroParticleFactor) THEN
     MPFRatio = BGGas%MaxMPF/Species(bggSpec)%MacroParticleFactor
