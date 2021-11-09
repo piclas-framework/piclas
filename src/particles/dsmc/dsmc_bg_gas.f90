@@ -603,10 +603,10 @@ DO iPart = 1, NbrOfParticle
   Coll_pData(iNewPart)%iPart_p2 = ParticleIndex
   ! Relative velocity is not required as the relative translational energy will not be considered
   Coll_pData(iNewPart)%CRela2 = 0.
-  ! Weighting factor
+  ! Weighting factor: use the weighting factor of the emission init
   IF(usevMPF) THEN
-    PartMPF(NewParticleIndex) = Species(bgSpec)%MacroParticleFactor
     PartMPF(ParticleIndex)    = Species(iSpec)%MacroParticleFactor
+    PartMPF(NewParticleIndex) = PartMPF(ParticleIndex)
   END IF
   ! Velocity (set it to zero, as it will be substracted in the chemistry module)
   PartState(4:6,ParticleIndex) = 0.
