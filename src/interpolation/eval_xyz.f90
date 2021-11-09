@@ -462,7 +462,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: RefMappingEps
 USE MOD_Particle_Vars      ,ONLY: PartIsImplicit
 #endif
 USE MOD_Particle_Vars      ,ONLY: LastPartPos
-USE MOD_TimeDisc_Vars      ,ONLY: iter
+USE MOD_TimeDisc_Vars      ,ONLY: iter,time
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -491,7 +491,7 @@ INTEGER                          :: iArmijo
 ! Default
 IF (PRESENT(isSuccessful)) isSuccessful = .TRUE.
 
-! initial guess
+! Initial guess
 CALL LagrangeInterpolationPolys(Xi(1),N_In,XiCL_N_in,wBaryCL_N_in,Lag(1,:))
 CALL LagrangeInterpolationPolys(Xi(2),N_In,XiCL_N_in,wBaryCL_N_in,Lag(2,:))
 CALL LagrangeInterpolationPolys(Xi(3),N_In,XiCL_N_in,wBaryCL_N_in,Lag(3,:))
@@ -519,7 +519,7 @@ NewtonIter=0
 DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
   NewtonIter=NewtonIter+1
 
-  ! caution, dXCL_NGeo is transposed of required matrix
+  ! Caution, dXCL_NGeo is transposed of required matrix
   Jac=0.
   DO k=0,N_In
     DO j=0,N_In
@@ -537,22 +537,24 @@ DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
   sdetJac=getDet(Jac)
   IF(sdetJac.GT.0.) THEN
    sdetJac=1./sdetJac
-  ELSE !shit
-   ! Newton has not converged !?!?
-   IF(Mode.EQ.1)THEN
+  ELSE
+    ! Newton has not converged !?!?
+    IF(Mode.EQ.1)THEN
       IPWRITE(UNIT_stdOut,*) ' Particle not inside of element!'
-      IPWRITE(UNIT_stdOut,*) ' sdetJac     ', sdetJac
-      IPWRITE(UNIT_stdOut,*) ' Newton-Iter ', NewtonIter
-      IPWRITE(UNIT_stdOut,*) ' xi          ', xi(1:3)
-      IPWRITE(UNIT_stdOut,*) ' PartPos     ', X_in
-      IPWRITE(UNIT_stdOut,*) ' GlobalElemID', ElemID
-      CALL abort(__STAMP__, 'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sdetJac)
-   ELSE
-     Xi(1)=HUGE(1.0)
-     Xi(2)=Xi(1)
-     Xi(3)=Xi(1)
-     RETURN
-   END IF
+      IPWRITE(UNIT_stdOut,*) ' time         ', time
+      IPWRITE(UNIT_stdOut,*) ' Timestep-Iter', iter
+      IPWRITE(UNIT_stdOut,*) ' sdetJac      ', sdetJac
+      IPWRITE(UNIT_stdOut,*) ' Newton-Iter  ', NewtonIter
+      IPWRITE(UNIT_stdOut,*) ' xi           ', xi(1:3)
+      IPWRITE(UNIT_stdOut,*) ' PartPos      ', X_in
+      IPWRITE(UNIT_stdOut,*) ' GlobalElemID ', ElemID
+      CALL abort(__STAMP__,'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sdetJac)
+    ELSE
+      Xi(1)=HUGE(1.0)
+      Xi(2)=Xi(1)
+      Xi(3)=Xi(1)
+      RETURN
+    END IF
   ENDIF
   sJac=getInv(Jac,sdetJac)
 

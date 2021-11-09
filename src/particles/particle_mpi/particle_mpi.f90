@@ -180,7 +180,7 @@ IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     PartCommSize = PartCommSize + 2
   END IF
 ELSE
-  ! PIC simulation with MPI
+  ! PIC simulation with vMPF
   IF (usevMPF) PartCommSize = PartCommSize+1
 END IF
 

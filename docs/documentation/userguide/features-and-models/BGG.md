@@ -1,3 +1,4 @@
+(sec:background-gas)=
 # Background Gas
 
 A constant background gas (single species or mixture) can be utilized to enable efficient particle collisions between the
@@ -17,15 +18,25 @@ initialization regions are allowed if the species is already defined a backgroun
     Part-Species1-PartDensity = 1E+22
 
 Other species parameters such as mass, charge, temperature and velocity distribution for the background are also defined by the
-regular read-in parameters. A mixture as a background gas can be simulated by simply defining multiple background species.
-
-Every time step particles are generated from the background gas (for a mixture, the species of the generated particle is chosen
-based on the species composition) and paired with the particle species. Consequently, the collision probabilities are calculated
+regular read-in parameters. Every time step particles are generated from the background gas (for a mixture, the species of the generated particle is chosen
+based on the species composition) and paired with the particle species. Subsequently, the collision probabilities are calculated
 using the conventional DSMC routines and the VHS cross-section model. Afterwards, the collision process is performed (if the
 probability is greater than a random number) and it is tested whether additional energy exchange and chemical reactions occur.
 While the VHS model is sufficient to model collisions between neutral species, it cannot reproduce the phenomena of a
 neutral-electron interaction. For this purpose, the cross-section based collision probabilities should be utilized, which are
-discussed in the following.
+discussed in the following section.
+
+A mixture as a background gas can be simulated by simply defining multiple background species. If the number densities of the background gas species differ greatly and a specific background species is of interest (or the interaction with it) that has a lower number density compared to the other background species, it can be defined as a so-called trace species as shown below.
+
+    Part-vMPF                        = T
+    Part-Species1-Init1-TraceSpecies = T
+
+The first flag enables the variables weighting factor feature in general (details about this feature can be found in Section {ref}`sec:variable-particle-weighting`). An additional flag defines the background gas species as a trace species, where multiple trace species can be defined. Finally, the weighting factors of the background species can be adopted to define the difference in the weighting factors.
+
+    Part-Species1-MacroParticleFactor = 1E2
+    Part-Species2-MacroParticleFactor = 1E4
+
+Using the values above, each collision with the first background species will result in 100 collision tests using the simulation particle (ie. not the background species) and randomly generated background particles. Consequently, the number of samples for the trace species will be increased and simulation particles with the weighting factor of the trace background species will be introduced into the simulation.
 
 ## Cross-section based collision probability
 

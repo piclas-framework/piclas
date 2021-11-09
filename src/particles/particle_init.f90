@@ -148,29 +148,32 @@ CALL prms%CreateStringOption(   'IMDInputFile'                , 'Laser data file
 CALL prms%SetSection("VMPF")
 
 ! vmpf stuff
-CALL prms%CreateLogicalOption(  'Part-vMPF'                      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Flag to use variable '//&
-                                                                'Macro Particle Factor.', '.FALSE.')
-CALL prms%CreateLogicalOption(  'Part-vMPFPartMerge'              , 'TODO-DEFINE-PARAMETER\n'//&
+CALL prms%CreateLogicalOption(  'Part-vMPF'                   , 'Flag to use variable Macro Particle Factor.'    , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-BGGasSplit'             , 'Flag to use variable vMPF splitting for BGGas.' , '.FALSE.')
+CALL prms%CreateIntOption(      'Part-Species[$]-vMPFMergeThreshold', 'Particle number threshold for merge routines' //&
+                                                                      'per cell and species.', '0',numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-vMPFSplitThreshold', 'Particle number threshold for split routines' //&
+                                                                      'per cell and species.', '0',numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-vMPFPartMerge'          , 'DEPRECATED: DELETE THIS\n'//&
                                                                 'Enable Particle Merge routines.'&
                                                               , '.FALSE.')
-CALL prms%CreateIntOption(      'Part-vMPFMergePolOrder'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Polynomial degree for vMPF particle merge.'&
-                                                              , '2')
-CALL prms%CreateIntOption(      'Part-vMPFCellSplitOrder'     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Order for cell splitting of variable MPF'&
-                                                              , '15')
-CALL prms%CreateIntOption(      'Part-vMPFMergeParticleTarget', 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Count of particles wanted after merge.', '0')
-CALL prms%CreateIntOption(      'Part-vMPFSplitParticleTarget', 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Number of particles wanted after split.','0')
-CALL prms%CreateIntOption(      'Part-vMPFMergeParticleIter'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                                'Number of iterations between particle '//&
-                                                                'merges.', '100')
-CALL prms%CreateStringOption(   'Part-vMPFvelocityDistribution','TODO-DEFINE-PARAMETER\n'//&
-                                                                'Velocity distribution for variable '//&
-                                                                'MPF.' , 'OVDR')
-CALL prms%CreateLogicalOption(  'Part-vMPFrelativistic'              , 'TODO-DEFINE-PARAMETER', '.FALSE.')
+! CALL prms%CreateIntOption(      'Part-vMPFMergePolOrder'      , 'TODO-DEFINE-PARAMETER\n'//&
+!                                                                 'Polynomial degree for vMPF particle merge.'&
+!                                                               , '2')
+! CALL prms%CreateIntOption(      'Part-vMPFCellSplitOrder'     , 'TODO-DEFINE-PARAMETER\n'//&
+!                                                                 'Order for cell splitting of variable MPF'&
+!                                                               , '15')
+! CALL prms%CreateIntOption(      'Part-vMPFMergeParticleTarget', 'TODO-DEFINE-PARAMETER\n'//&
+!                                                                 'Count of particles wanted after merge.', '0')
+! CALL prms%CreateIntOption(      'Part-vMPFSplitParticleTarget', 'TODO-DEFINE-PARAMETER\n'//&
+!                                                                 'Number of particles wanted after split.','0')
+! CALL prms%CreateIntOption(      'Part-vMPFMergeParticleIter'  , 'TODO-DEFINE-PARAMETER\n'//&
+!                                                                 'Number of iterations between particle '//&
+!                                                                 'merges.', '100')
+! CALL prms%CreateStringOption(   'Part-vMPFvelocityDistribution','TODO-DEFINE-PARAMETER\n'//&
+!                                                                 'Velocity distribution for variable '//&
+!                                                                 'MPF.' , 'OVDR')
+! CALL prms%CreateLogicalOption(  'Part-vMPFrelativistic'              , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 
 
 ! Output of macroscopic values
@@ -589,6 +592,7 @@ IF (useDSMC) THEN
            PEM%pEnd(1:nElems)                           , &
            PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT)
            !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
+
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
 __STAMP__&
@@ -850,10 +854,29 @@ USE MOD_Part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: ALLOCSTAT
+INTEGER               :: ALLOCSTAT, iSpec
+CHARACTER(32)         :: hilf
 !===================================================================================================================================
 ! init varibale MPF per particle
 IF (usevMPF) THEN
+  ALLOCATE(vMPFMergeThreshold(nSpecies))
+  vMPFMergeThreshold = 0
+  ALLOCATE(vMPFSplitThreshold(nSpecies))
+  vMPFSplitThreshold = 0
+  DO iSpec=1, nSpecies
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    vMPFMergeThreshold(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-vMPFMergeThreshold')
+    vMPFSplitThreshold(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-vMPFSplitThreshold')
+    IF((vMPFMergeThreshold(iSpec).LT.vMPFSplitThreshold(iSpec)).AND.(vMPFMergeThreshold(iSpec).NE.0)) THEN
+      CALL abort(__STAMP__, 'ERROR: Given merge threshold is lower than the split threshold!')
+    END IF
+  END DO
+  ALLOCATE(CellEelec_vMPF(nSpecies,nElems))
+  CellEelec_vMPF = 0.0
+  ALLOCATE(CellEvib_vMPF(nSpecies,nElems))
+  CellEvib_vMPF = 0.0
+  UseSplitAndMerge = .FALSE.
+  IF(ANY(vMPFMergeThreshold.GT.0).OR.ANY(vMPFSplitThreshold.GT.0)) UseSplitAndMerge = .TRUE.
   enableParticleMerge = GETLOGICAL('Part-vMPFPartMerge','.FALSE.')
   IF (enableParticleMerge) THEN
     vMPFMergePolyOrder = GETINT('Part-vMPFMergePolOrder','2')
@@ -1321,7 +1344,11 @@ SDEALLOCATE(PDM%nextFreePosition)
 SDEALLOCATE(PDM%nextFreePosition)
 SDEALLOCATE(PDM%dtFracPush)
 SDEALLOCATE(PDM%IsNewPart)
+SDEALLOCATE(vMPFMergeThreshold)
+SDEALLOCATE(vMPFSplitThreshold)
 SDEALLOCATE(vMPF_SpecNumElem)
+SDEALLOCATE(CellEelec_vMPF)
+SDEALLOCATE(CellEvib_vMPF)
 SDEALLOCATE(PartMPF)
 SDEALLOCATE(Species)
 SDEALLOCATE(SpecReset)

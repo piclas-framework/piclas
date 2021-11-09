@@ -165,6 +165,10 @@ INTERFACE SPECIESISELECTRON
 END INTERFACE
 #endif /*defined(PARTICLES)*/
 
+INTERFACE LOG_RAN
+  MODULE PROCEDURE LOG_RAN
+END INTERFACE
+
 INTERFACE ISNAN
   MODULE PROCEDURE ISNAN
 END INTERFACE
@@ -1202,6 +1206,34 @@ IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
 IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) SPECIESISELECTRON=.TRUE.
 END FUNCTION SPECIESISELECTRON
 #endif /*defined(PARTICLES)*/
+
+
+RECURSIVE FUNCTION LOG_RAN() RESULT(X)
+!===================================================================================================================================
+! check if species is an electron (species-charge = -1.609)
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL               :: iRan
+REAL(KIND=8)       :: X
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+CALL RANDOM_NUMBER(iRan)
+
+IF(iRan.GT.0.0) THEN
+  X = LOG(iRan)
+ELSE
+  X = LOG_RAN()
+END IF
+
+END FUNCTION LOG_RAN
 
 
 !===================================================================================================================================
