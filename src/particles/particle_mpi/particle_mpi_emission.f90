@@ -476,6 +476,9 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIInsert,PartMPILocate
 USE MOD_Particle_MPI_Vars      ,ONLY: EmissionSendBuf,EmissionRecvBuf
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,Species
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -502,6 +505,10 @@ INTEGER                       :: InitGroup,tProc
 INTEGER                       :: msg_status(1:MPI_STATUS_SIZE),messageSize
 INTEGER                       :: nRecvParticles,nSendParticles
 REAL,ALLOCATABLE              :: recvPartPos(:)
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart,CounterEnd
+REAL(KIND=8)                  :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 InitGroup = Species(FractNbr)%Init(iInit)%InitCOMM
 
@@ -707,6 +714,9 @@ END DO ! i = 1, chunkSize
 
 
 !--- 4/10 Receive actual non-located particles
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
 
@@ -715,6 +725,10 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   CALL MPI_WAIT(PartMPIInsert%RecvRequest(1,iProc),msg_status(:),IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
 END DO
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimePart(5) = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! recvPartPos holds particles from ALL procs
 ! Inter-CN communication
@@ -853,6 +867,9 @@ DO i = 1, chunkSize
 END DO ! i = 1, chunkSize
 
 !--- 6/10 Receive actual non-located particles
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
 
@@ -861,6 +878,10 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   CALL MPI_WAIT(PartMPILocate%RecvRequest(1,iProc),msg_status(:),IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
 END DO
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimePart(5) = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
@@ -903,6 +924,9 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 END DO
 
 !--- 7/10 Finish communication of actual non-located particles
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
 
@@ -915,6 +939,10 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
   END IF
 END DO
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimePart(5) = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 !--- 8/10 Try to locate received non-located particles
 TotalNbrOfRecvParts = SUM(PartMPIInsert%nPartsRecv(1,:))
@@ -948,6 +976,9 @@ DO i = 1,TotalNbrOfRecvParts
 END DO
 
 !--- 9/10 Finish communication of actual non-located particles
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
 
@@ -960,6 +991,10 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
   END IF
 END DO
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimePart(5) = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 !--- 10/10 Write located particles
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
