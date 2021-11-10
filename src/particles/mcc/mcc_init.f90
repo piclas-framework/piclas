@@ -14,17 +14,40 @@
 
 MODULE MOD_MCC_Init
 !===================================================================================================================================
-! Contains the Argon Ionization
+!> Initialization of the Monte Carlo Collision module
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 
-PUBLIC :: MCC_Init, MCC_Chemistry_Init
+PUBLIC :: DefineParametersMCC, MCC_Init, MCC_Chemistry_Init, FinalizeMCC
 !===================================================================================================================================
 
 CONTAINS
+
+!==================================================================================================================================
+!> Define parameters for MCC
+!==================================================================================================================================
+SUBROUTINE DefineParametersMCC()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms
+IMPLICIT NONE
+!==================================================================================================================================
+CALL prms%SetSection("MCC")
+
+CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
+                                                               'should be named with species pair (e.g. "Ar-electron"). The '//&
+                                                               'first column shall contain the energy in eV and the second '//&
+                                                               'column the cross-section in m^2', 'none')
+CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
+                                  ,'Utilize the null collision method for the determination of the number of pairs '//&
+                                  'based on the maximum collision frequency and time step (only with a background gas)' &
+                                  ,'.TRUE.')
+
+END SUBROUTINE DefineParametersMCC
+
 
 SUBROUTINE MCC_Init()
 !===================================================================================================================================
@@ -33,10 +56,11 @@ SUBROUTINE MCC_Init()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_MCC_XSec      ,ONLY: ReadCollXSec, ReadVibXSec, InterpolateCrossSection_Vib
+USE MOD_MCC_XSec      ,ONLY: ReadCollXSec, ReadVibXSec, InterpolateCrossSection_Vib, ReadElecXSec
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
-USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation, CollInf
+USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC
+USE MOD_MCC_Vars      ,ONLY: XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
 #if defined(PARTICLES) && USE_HDG
 USE MOD_HDG_Vars      ,ONLY: UseBRElectronFluid,BRNullCollisionDefault
 USE MOD_ReadInTools   ,ONLY: PrintOption
@@ -145,9 +169,12 @@ DO iSpec = 1, nSpecies
         END DO
       END IF    ! SpecXSec(iCase)%UseCollXSec
     END IF      ! SpecXSec(iCase)%UseVibXSec
+    ! Read-in electronic cross-section data
+    IF(DSMC%ElectronicModel.EQ.3) CALL ReadElecXSec(iCase, iSpec, jSpec)
+
+    ! Determine the maximum collision frequency for the null collision method
     IF(SpecXSec(iCase)%UseCollXSec) THEN
       IF(XSec_NullCollision) THEN
-        ! Determine the maximum collision frequency for the null collision method
         CALL DetermineNullCollProb(iCase,iSpec,jSpec)
         ! Select the particle species in order to sum-up the total null collision probability per particle species
         IF(BGGas%BackgroundSpecies(iSpec)) THEN
@@ -187,7 +214,8 @@ USE MOD_ReadInTools
 USE MOD_Globals_Vars          ,ONLY: Pi
 USE MOD_Particle_Vars         ,ONLY: Species
 USE MOD_TimeDisc_Vars         ,ONLY: ManualTimeStep
-USE MOD_DSMC_Vars             ,ONLY: BGGas, SpecXSec
+USE MOD_DSMC_Vars             ,ONLY: BGGas
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -236,7 +264,8 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_MCC_XSec      ,ONLY: ReadReacXSec, InterpolateCrossSection_Chem
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
-USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecXSec, XSec_NullCollision, CollInf, ChemReac
+USE MOD_DSMC_Vars     ,ONLY: BGGas, CollInf, ChemReac
+USE MOD_MCC_Vars      ,ONLY: SpecXSec, XSec_NullCollision
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -304,5 +333,24 @@ IF(XSec_NullCollision) THEN
 END IF
 
 END SUBROUTINE MCC_Chemistry_Init
+
+
+SUBROUTINE FinalizeMCC()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! finalize dsmc variables
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_MCC_Vars
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SDEALLOCATE(SpecXSec)
+END SUBROUTINE FinalizeMCC
 
 END MODULE MOD_MCC_Init

@@ -101,7 +101,8 @@ CALL prms%CreateIntOption(  'Particles-DSMC-ElectronicModel', &
                                           'Select model for the electronic states of atoms and molecules:\n'//&
                                           '0: No electronic energy treatment [default]\n'//&
                                           '1: Model by Liechty, each particle has a specific electronic state\n'//&
-                                          '2: Model by Burt, each particle has an electronic distribution function', '0')
+                                          '2: Model by Burt, each particle has an electronic distribution function\n'//&
+                                          '3: MCC model, utilizing cross-section data for specific levels', '0')
 CALL prms%CreateStringOption(   'Particles-DSMCElectronicDatabase'&
                                           , 'If electronic model is used give (relative) path to (h5) Name of Electronic State'//&
                                           ' Database', 'none')
@@ -282,14 +283,6 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseVibXSec'  &
                                            ,'Utilize vibrational cross sections for the determination of relaxation probabilities' &
                                            ,'.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
-                                                               'should be named with species pair (e.g. "Ar-electron"). The '//&
-                                                               'first column shall contain the energy in eV and the second '//&
-                                                               'column the cross-section in m^2', 'none')
-CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
-                                  ,'Utilize the null collision method for the determination of the number of pairs '//&
-                                  'based on the maximum collision frequency and time step (only with a background gas)' &
-                                  ,'.TRUE.')
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -302,6 +295,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
+USE MOD_MCC_Vars               ,ONLY: UseMCC, XSec_NullCollision, XSec_Relaxation, SpecXSec
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, VarTimeStep, usevMPF
@@ -658,8 +652,7 @@ ELSE !CollisMode.GT.0
     SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
     SpecDSMC(iSpec)%UseVibXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseVibXSec')
     IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) THEN
-      CALL Abort(&
-          __STAMP__&
+      CALL Abort(__STAMP__&
           ,'ERROR: Please supply the collision cross-section data for the particle species and NOT the background species!')
     END IF
   END DO
@@ -1480,7 +1473,6 @@ SDEALLOCATE(BGGas%NumberDensity)
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
-SDEALLOCATE(SpecXSec)
 END SUBROUTINE FinalizeDSMC
 
 

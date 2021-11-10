@@ -692,7 +692,8 @@ USE MOD_DSMC_Vars               ,ONLY: BGGas
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcRelaxProbRotVib
 #endif
 #if (PP_TimeDiscMethod==42)
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, XSec_Relaxation, SpecXSec
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
+USE MOD_MCC_Vars                ,ONLY: XSec_Relaxation, SpecXSec
 USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,ReacRates
 #endif
 #if USE_HDG

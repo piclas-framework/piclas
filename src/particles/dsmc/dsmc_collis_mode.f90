@@ -351,7 +351,7 @@ USE MOD_DSMC_Relaxation       ,ONLY: DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSM
 USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 #if (PP_TimeDiscMethod==42)
-USE MOD_DSMC_Vars             ,ONLY: SpecXSec, XSec_Relaxation
+USE MOD_MCC_Vars              ,ONLY: SpecXSec, XSec_Relaxation
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
 #endif
 #ifdef CODE_ANALYZE
@@ -1151,7 +1151,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                 ,ONLY: Abort
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, ChemReac, RadialWeighting, SpecXSec
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, ChemReac, RadialWeighting
+USE MOD_MCC_Vars                ,ONLY: SpecXSec
 USE MOD_Particle_Vars           ,ONLY: Species, PartSpecies, PEM, VarTimeStep, usevMPF
 USE MOD_DSMC_ChemReact          ,ONLY: CalcReactionProb, DSMC_Chemistry
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared

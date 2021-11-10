@@ -1830,7 +1830,8 @@ SUBROUTINE CalcRelaxRates(NumSpec,VibRelaxProbCase)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: nSpecies, Species
-USE MOD_DSMC_Vars             ,ONLY: CollisMode, SpecXSec, XSec_Relaxation, CollInf
+USE MOD_DSMC_Vars             ,ONLY: CollisMode, CollInf
+USE MOD_MCC_Vars              ,ONLY: SpecXSec, XSec_Relaxation
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
 USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
 USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
