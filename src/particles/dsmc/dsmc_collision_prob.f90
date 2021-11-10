@@ -89,20 +89,18 @@ IF (usevMPF) THEN
   IF(RadialWeighting%DoRadialWeighting) THEN
     ! Correction factor: Collision pairs above the mean MPF within the cell will get a higher collision probability
     ! Not the actual weighting factor, since the weighting factor is included in SpecNum
-    MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) &
-                          / CollInf%MeanMPF(PairType)
+    MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) / CollInf%SumPairMPF(PairType)
   ELSE
     MacroParticleFactor = 1.
   END IF
   ! Sum over the mean weighting factor of all collision pairs, is equal to the number of collision pairs
   ! (incl. weighting factor)
-  CollCaseNum = CollInf%MeanMPF(PairType)
+  CollCaseNum = CollInf%SumPairMPF(PairType)
 ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
   ! Not the actual weighting factor, since the weighting factor is included in SpecNum
-  MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) &
-                      / CollInf%MeanMPF(PairType)
-  ! Sum over the mean variable time step factors (NO particle weighting factor included during MeanMPF summation)
-  CollCaseNum = CollInf%MeanMPF(PairType) * Species(1)%MacroParticleFactor
+  MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) / CollInf%SumPairMPF(PairType)
+  ! Sum over the mean variable time step factors (NO particle weighting factor included during SumPairMPF summation)
+  CollCaseNum = CollInf%SumPairMPF(PairType) * Species(1)%MacroParticleFactor
   ! Weighting factor has to be included
   SpecNum1 = SpecNum1 * Species(1)%MacroParticleFactor
   SpecNum2 = SpecNum2 * Species(1)%MacroParticleFactor

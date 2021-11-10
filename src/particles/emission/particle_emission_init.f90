@@ -202,8 +202,8 @@ CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WorkFunctionSEE','Photoelect
                            !'Orbital configuration of the solid from which the photoelectrons emerge','0.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-EffectiveIntensityFactor', 'Scaling factor that increases I0 [-]',&
                             '1.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption('Part-Species[$]-Init[$]-TraceSpecies','Flag background species as trace elemet.'//&
-                              ' different Weightingfactor can be used',  '.FALSE.', numberedmulti=.TRUE.)                            
+CALL prms%CreateLogicalOption('Part-Species[$]-Init[$]-TraceSpecies','Flag background species as trace element.'//&
+                              ' Different weighting factor can be used',  '.FALSE.', numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersParticleEmission
 
 

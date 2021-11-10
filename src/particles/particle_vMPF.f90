@@ -139,8 +139,8 @@ USE MOD_Particle_Vars         ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)                  :: nPart, nPartNew, iElem
-INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
+INTEGER, INTENT(IN)           :: nPart, nPartNew, iElem
+INTEGER, INTENT(INOUT)        :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -157,9 +157,6 @@ REAL                  :: E_vib, E_vib_new
 REAL                  :: E_rot, E_rot_new
 REAL                  :: Energy_Sum, E_elec_upper, E_elec_lower, betaV
 REAL, ALLOCATABLE     :: DOF_vib_poly(:), EnergyTemp_vibPoly(:,:)
-
-!REAL                  :: Test_E
-
 #ifdef CODE_ANALYZE
 REAL,PARAMETER        :: RelMomTol=5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
 REAL,PARAMETER        :: RelEneTol=1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
@@ -399,9 +396,9 @@ IF(CollisMode.GT.1) THEN
           iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
           DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
             betaV = alpha*EnergyTemp_vibPoly(iDOF,iLoop)/(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst)
-            CALL RANDOM_NUMBER(iRan)
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!            iQua = INT(betaV+iRan)    !?????
+            !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+            ! CALL RANDOM_NUMBER(iRan)
+            ! iQua = INT(betaV+iRan)
             iQua = INT(betaV)
             IF(iQua.GT.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF)) iQua=PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF)
             PartStateIntEn( 1,iPart)  = PartStateIntEn( 1,iPart) &
@@ -413,15 +410,15 @@ IF(CollisMode.GT.1) THEN
                + SpecDSMC(iSpec)%EZeroPoint
         ELSE  ! Diatomic molecules
           betaV = alpha*PartStateIntEn(1,iPart)/(SpecDSMC(iSpec)%CharaTVib*BoltzmannConst)
-          CALL RANDOM_NUMBER(iRan)
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!          iQua = INT(betaV+iRan)
+          !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+          ! CALL RANDOM_NUMBER(iRan)
+          ! iQua = INT(betaV+iRan)
+          ! IF((betaV-INT(betaV)).LE.iRan) THEN
+          !   iQua = INT(betaV)
+          ! ELSE
+          !   iQua = INT(betaV) + 1
+          ! END IF
           iQua = INT(betaV)
-!          IF((betaV-INT(betaV)).LE.iRan) THEN
-!            iQua = INT(betaV)
-!          ELSE
-!            iQua = INT(betaV) + 1
-!          END IF
           IF (iQua.GT.SpecDSMC(iSpec)%MaxVibQuant) iQua = SpecDSMC(iSpec)%MaxVibQuant
           PartStateIntEn(1,iPart)  = (iQua + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
           Energy_Sum = Energy_Sum - (PartStateIntEn(1,iPart) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
@@ -466,7 +463,6 @@ END DO
 
 #ifdef CODE_ANALYZE
   ! Check for energy difference
-!  IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,1.0e-12)) THEN
   IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,RelEneTol)) THEN
     WRITE(UNIT_StdOut,*) '\n'
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
@@ -521,7 +517,7 @@ END SUBROUTINE MergeParticles
 !> Routine for split particles
 !> Split particle == clone particle randomly until new particle number is reached and adjust MPF accordingly
 !===================================================================================================================================
-SUBROUTINE SplitParticles(iPartIndx_Node, nPart, nPartNew)
+SUBROUTINE SplitParticles(iPartIndx_Node, nPartIn, nPartNew)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, PEM, PartPosRef, VarTimeStep
@@ -535,39 +531,40 @@ USE MOD_Particle_Tracking_Vars,ONLY: TrackingMethod
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)                  :: nPart, nPartNew
+INTEGER, INTENT(IN)                  :: nPartIn, nPartNew
 INTEGER, INTENT(INOUT)               :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: iRan
-INTEGER               :: nSplit, iPart, iNewPart, PartIndx, PositionNbr, LocalElemID
-!#ifdef CODE_ANALYZE
-!REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3)
-!INTEGER               :: iMomDim, iMom
-!#endif /* CODE_ANALYZE */
+INTEGER               :: nSplit, iPart, iNewPart, PartIndx, PositionNbr, LocalElemID, nPart
 !===================================================================================================================================
 ! split particles randomly (until nPartNew is reached)
 iNewPart = 0
+nPart = nPartIn
 nSplit = nPartNew - nPart
 DO WHILE(iNewPart.LT.nSplit)
+  ! Get a random particle (only from the initially available)
   CALL RANDOM_NUMBER(iRan)
   iPart = INT(iRan*nPart) + 1
   PartIndx = iPartIndx_Node(iPart)
-  IF((PartMPF(PartIndx) / 2.).LT.1.0) EXIT
+  ! Check whether the weighting factor would drop below 1
+  IF((PartMPF(PartIndx) / 2.).LT.1.0) THEN
+    ! Skip this particle
+    iPartIndx_Node(iPart) = iPartIndx_Node(nPart)
+    nPart = nPart - 1
+    ! Leave the DO WHILE loop, if every original particle has been split up to MPF = 1
+    IF(nPart.EQ.0) EXIT
+  END IF
   PartMPF(PartIndx) = PartMPF(PartIndx) / 2.   ! split particle
   iNewPart = iNewPart + 1
   PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
   IF (PositionNbr.EQ.0) THEN
-    CALL Abort(&
-      __STAMP__&
-      ,'ERROR in particle split: MaxParticleNumber reached!')
+    CALL Abort(__STAMP__,'ERROR in particle split: MaxParticleNumber reached!')
   END IF
   PartState(1:3,PositionNbr) = PartState(1:3,PartIndx)
-  IF(TrackingMethod.EQ.REFMAPPING)THEN ! here Nearst-GP is missing
-    PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,PartIndx)
-  END IF
+  IF(TrackingMethod.EQ.REFMAPPING) PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,PartIndx)
   PartState(4:6,PositionNbr) = PartState(4:6,PartIndx)
   PartSpecies(PositionNbr) = PartSpecies(PartIndx)
   IF(CollisMode.GT.1) THEN
@@ -591,6 +588,10 @@ DO WHILE(iNewPart.LT.nSplit)
   PEM%pEnd(LocalElemID) = PositionNbr
   PEM%pNumber(LocalElemID) = PEM%pNumber(LocalElemID) + 1
 END DO
+
+! Advance particle vector length and the current next free position with newly created particles
+PDM%ParticleVecLength = PDM%ParticleVecLength + iNewPart
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + iNewPart
 
 END SUBROUTINE SplitParticles
 
