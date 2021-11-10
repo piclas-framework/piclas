@@ -55,8 +55,7 @@ CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition', &
                                   '- simple_cathode.\n'//&
                                   '- rot_periodic.\n'//&
                                   'If condition=reflective (Part-Boundary[$]-=PB): PB-MomentumACC,PB-WallTemp,PB-TransACC,PB-VibACC,PB-RotACC,'//&
-                                  'PB-WallVelo,Voltage,SpeciesSwaps.If condition=periodic:Part-nPeriodicVectors,'//&
-                                  'Part-PeriodicVector[$]', 'open', numberedmulti=.TRUE.)
+                                  'PB-WallVelo,Voltage,SpeciesSwaps.\nIf condition=periodic:Part-nPeriodicVectors', 'open', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption('Part-Boundary[$]-Dielectric' , 'Define if particle boundary [$] is a '//&
                               'dielectric interface, i.e. an interface between a dielectric and a non-dielectric or a between two'//&
                               ' different dielectrics [.TRUE.] or not [.FALSE.] (requires reflective BC and species swap for nSpecies)'&
@@ -215,7 +214,7 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-halfangle'  &
                                 , 'TODO-DEFINE-PARAMETER',  '45.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp','Perform wall temperature adaptation at every macroscopic output.', '.TRUE.')
+CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp','Perform wall temperature adaptation at every macroscopic output.', '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleBoundary
 
@@ -381,18 +380,15 @@ DO iPartBound=1,nPartBound
     END IF
     ! check for correct surfacemodel input
     IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
-      IF (.NOT.useDSMC) CALL abort(&
-          __STAMP__&
-          ,'Cannot use surfacemodel>0 with useDSMC=F for particle boundary: ',iPartBound)
+      IF (.NOT.useDSMC) CALL abort(__STAMP__,'Cannot use surfacemodel>0 with useDSMC=F for particle boundary: ',iPartBound)
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
       CASE (0)
         PartBound%Reactive(iPartBound)        = .FALSE.
-      CASE (5,6,7)
+      CASE (5,6,7,8)
         PartBound%Reactive(iPartBound)        = .TRUE.
       CASE DEFAULT
-        CALL abort(&
-            __STAMP__&
-            ,'Error in particle init: only allowed SurfaceModels: 0,5,6,7!')
+        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,5,6,7,8! SurfaceModel=',&
+        IntInfoOpt=PartBound%SurfaceModel(iPartBound))
       END SELECT
     END IF
     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) THEN
@@ -404,8 +400,7 @@ DO iPartBound=1,nPartBound
             GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
       END DO
       IF(PartBound%Reactive(iPartBound)) THEN
-        CALL abort(&
-          __STAMP__&
+        CALL abort(__STAMP__&
           ,'ERROR: Species swap is only supported in combination with Maxwell scattering (SurfModel = 0). PartBound: ',iPartBound)
       END IF
     END IF
@@ -441,15 +436,11 @@ DO iPartBound=1,nPartBound
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicBC
     PartBound%RotPeriodicDir(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-RotPeriodicDir','0.')
     IF(ABS(PartBound%RotPeriodicDir(iPartBound)).NE.1) THEN
-      CALL abort(&
-          __STAMP__&
-          ,'Angle for for rotational periodicity must not be zero!')
+      CALL abort(__STAMP__,'Angle for for rotational periodicity must not be zero!')
     END IF
   CASE DEFAULT
     SWRITE(*,*) ' Boundary does not exists: ', TRIM(tmpString)
-    CALL abort(&
-        __STAMP__&
-        ,'Particle Boundary Condition does not exist')
+    CALL abort(__STAMP__,'Particle Boundary Condition does not exist')
   END SELECT
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
 
@@ -463,9 +454,7 @@ IF(GEO%RotPeriodicBC) THEN
   GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')
   GEO%RotPeriodicAngle = GETREAL('Part-RotPeriodicAngle')
   IF(ALMOSTZERO(GEO%RotPeriodicAngle)) THEN
-    CALL abort(&
-        __STAMP__&
-        ,'Angle for for rotational periodicity must not be zero!')
+    CALL abort(__STAMP__,'Angle for for rotational periodicity must not be zero!')
   END IF
   GEO%RotPeriodicAngle = GEO%RotPeriodicAngle / 180. * PI
 END IF
@@ -474,9 +463,7 @@ END IF
 IF(DoBoundaryParticleOutputHDF5)THEN
   ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-        __STAMP__&
-        ,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
+    CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
   END IF
   PartStateBoundary=0.
 END IF
@@ -493,9 +480,7 @@ DO iPBC=1,nPartBound
       IF(TrackingMethod.EQ.REFMAPPING)THEN
         SWRITE(UNIT_STDOUT,'(A)') ' Analyze sides are not implemented for RefMapping=T, because '//  &
                                   ' orientation of SideNormVec is unknown.'
-     CALL abort(&
-                __STAMP__&
-                ,' Analyze-BCs cannot be used for internal reflection in general cases! ')
+        CALL abort(__STAMP__,' Analyze-BCs cannot be used for internal reflection in general cases! ')
       END IF
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
@@ -507,11 +492,7 @@ END DO
 ! Errorhandler for PartBound-Types that could not be mapped to the
 ! FieldBound-Types.
 DO iBC = 1,nBCs
-  IF (PartBound%MapToPartBC(iBC).EQ.-10) THEN
-    CALL abort(&
-__STAMP__&
-    ,' PartBound%MapToPartBC for Boundary is not set. iBC: :',iBC)
-  END IF
+  IF (PartBound%MapToPartBC(iBC).EQ.-10) CALL abort(__STAMP__,' PartBound%MapToPartBC for Boundary is not set. iBC: :',iBC)
 END DO
 
 !-- Floating Potential

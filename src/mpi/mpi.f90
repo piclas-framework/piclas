@@ -48,6 +48,9 @@ END INTERFACE
 PUBLIC::InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
 #endif
 PUBLIC::DefineParametersMPI
+#if defined(MEASURE_MPI_WAIT)
+PUBLIC::OutputMPIW8Time
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
 CONTAINS
@@ -74,10 +77,10 @@ CALL prms%CreateLogicalOption('CheckExchangeProcs' , 'Check if proc communicatio
 END SUBROUTINE DefineParametersMPI
 
 
+!===================================================================================================================================
+!> Basic MPI initialization.
+!===================================================================================================================================
 SUBROUTINE InitMPI(mpi_comm_IN)
-!===================================================================================================================================
-! Basic MPI initialization.
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
@@ -125,10 +128,10 @@ END SUBROUTINE InitMPI
 
 
 #if USE_MPI
+!===================================================================================================================================
+!> Initialize derived MPI types used for communication and allocate HALO data.
+!===================================================================================================================================
 SUBROUTINE InitMPIvars()
-!===================================================================================================================================
-! Initialize derived MPI types used for communication and allocate HALO data.
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -261,10 +264,10 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartReceiveMPIData
 
 
+!===================================================================================================================================
+!> See above, but for for send direction
+!===================================================================================================================================
 SUBROUTINE StartSendMPIData(firstDim,FaceData,LowerBound,UpperBound,MPIRequest,SendID)
-!===================================================================================================================================
-! See above, but for for send direction
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -296,13 +299,12 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIData
 
 
-
+!===================================================================================================================================
+!> We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers
+!> SendRequest, RecRequest: communication handles
+!> SendID: defines the send / receive direction -> 1=send MINE / receive YOUR  2=send YOUR / receive MINE
+!===================================================================================================================================
 SUBROUTINE FinishExchangeMPIData(SendRequest,RecRequest,SendID)
-!===================================================================================================================================
-! We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers
-! SendRequest, RecRequest: communication handles
-! SendID: defines the send / receive direction -> 1=send MINE / receive YOUR  2=send YOUR / receive MINE
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_MPI_Vars
@@ -316,22 +318,45 @@ INTEGER, INTENT(IN)          :: SendID
 INTEGER, INTENT(INOUT)       :: SendRequest(nNbProcs),RecRequest(nNbProcs)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart,CounterEnd
+REAL(KIND=8)                  :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
 ! Check receive operations first
 DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendID).GT.0) CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
 END DO !iProc=1,nNBProcs
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  ! Note: Send and Receive are switched to have the same ordering as for particles (1. Send, 2. Receive)
+  MPIW8TimeField(2) = MPIW8TimeField(2) + REAL(CounterEnd-CounterStart,8)/Rate
+  CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
 ! Check send operations
 DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
 END DO !iProc=1,nNBProcs
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  ! Note: Send and Receive are switched to have the same ordering as for particles (1. Send, 2. Receive)
+  MPIW8TimeField(1) = MPIW8TimeField(1) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
 END SUBROUTINE FinishExchangeMPIData
 
 
+!----------------------------------------------------------------------------------------------------------------------------------!
+!> Finalize DG MPI-Stuff, deallocate arrays with neighbor connections, etc.
+!----------------------------------------------------------------------------------------------------------------------------------!
 SUBROUTINE FinalizeMPI()
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Finalize DG MPI-Stuff, deallocate arrays with neighbor connections, etc.
-!----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
@@ -380,5 +405,206 @@ IF(MPI_COMM_LEADERS.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_LEADERS,IERROR
 
 END SUBROUTINE FinalizeMPI
 #endif /*USE_MPI*/
+
+
+#if defined(MEASURE_MPI_WAIT)
+!===================================================================================================================================
+!> Root writes measured MPI_WAIT() times to disk
+!===================================================================================================================================
+SUBROUTINE OutputMPIW8Time()
+! MODULES
+USE MOD_Globals
+USE MOD_MPI_Vars          ,ONLY: MPIW8TimeGlobal,MPIW8TimeSim,MPIW8TimeProc,MPIW8TimeField,MPIW8Time,MPIW8TimeGlobal,MPIW8TimeBaS
+USE MOD_StringTools       ,ONLY: INTTOSTR
+#if defined(PARTICLES)
+USE MOD_Particle_MPI_Vars ,ONLY: MPIW8TimePart
+#endif /*defined(PARTICLES)*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                                :: WriteHeader
+INTEGER                                :: ioUnit,i
+CHARACTER(LEN=150)                     :: formatStr
+CHARACTER(LEN=22),PARAMETER            :: outfile    ='MPIW8Time.csv'
+CHARACTER(LEN=22),PARAMETER            :: outfileProc='MPIW8TimeProc'
+CHARACTER(LEN=30)                      :: outfileProc_loc
+CHARACTER(LEN=10)                      :: hilf
+INTEGER,PARAMETER                      :: nTotalVars =MPIW8SIZE+2
+CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER(LEN=255) :: &
+    'nProcessors'       , &
+    'WallTimeSim'       , &
+    'Barrier-and-Sync'    &
+#if USE_HDG
+   ,'HDG-SendLambda'    , &
+    'HDG-ReceiveLambda' , &
+    'HDG-Broadcast'     , &
+    'HDG-Allreduce'       &
+#else
+   ,'DGSEM-Send'    , &
+    'DGSEM-Receive'   &
+#endif /*USE_HDG*/
+#if defined(PARTICLES)
+   ,'SendNbrOfParticles'  , &
+    'RecvNbrOfParticles'  , &
+    'SendParticles'       , &
+    'RecvParticles'       , &
+    'EmissionParticles'   , &
+    'PIC-depo-Reduce'     , &
+    'PIC-depo-Wait'         &
+#endif /*defined(PARTICLES)*/
+    /)
+! CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNamesProc(nTotalVars)=(/ CHARACTER(LEN=255) :: &
+!     'Rank'                  &
+! #if defined(PARTICLES)
+!    ,'SendNbrOfParticles'  , &
+!     'RecvNbrOfParticles'  , &
+!     'SendParticles'       , &
+!     'RecvParticles'         &
+! #endif /*defined(PARTICLES)*/
+!     /)
+CHARACTER(LEN=255)         :: tmpStr(nTotalVars)
+CHARACTER(LEN=1000)        :: tmpStr2
+CHARACTER(LEN=1),PARAMETER :: delimiter=","
+!===================================================================================================================================
+MPIW8Time(               1:1)                              = MPIW8TimeBaS
+MPIW8Time(               2:MPIW8SIZEFIELD+1)               = MPIW8TimeField
+#if defined(PARTICLES)
+MPIW8Time(MPIW8SIZEFIELD+2:MPIW8SIZEFIELD+MPIW8SIZEPART+1) = MPIW8TimePart
+#endif /*defined(PARTICLES)*/
+
+! Collect and output measured MPI_WAIT() times
+IF(MPIroot)THEN
+  ALLOCATE(MPIW8TimeProc(MPIW8SIZE*nProcessors))
+  CALL MPI_REDUCE(MPIW8Time , MPIW8TimeGlobal , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_GATHER(MPIW8Time , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPIW8TimeProc , MPIW8SIZE , MPI_DOUBLE_PRECISION , 0 , MPI_COMM_WORLD , iError)
+ELSE
+  CALL MPI_REDUCE(MPIW8Time , 0               , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IError)
+  CALL MPI_GATHER(MPIW8Time , MPIW8SIZE , MPI_DOUBLE_PRECISION , 0             , 0         , 0                    , 0 , MPI_COMM_WORLD , iError)
+END IF
+
+! --------------------------------------------------
+! Only MPI root outputs the data to file
+! --------------------------------------------------
+IF(.NOT.MPIRoot)RETURN
+
+! Either create new file or add info to existing file
+WriteHeader = .TRUE.
+IF(FILEEXISTS(outfile)) WriteHeader = .FALSE.
+
+IF(WriteHeader)THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
+  tmpStr=""
+  DO i=1,nTotalVars
+    WRITE(tmpStr(i),'(A)')delimiter//'"'//TRIM(StrVarNames(i))//'"'
+  END DO
+  WRITE(formatStr,'(A1)')'('
+  DO i=1,nTotalVars
+    IF(i.EQ.nTotalVars)THEN ! skip writing "," and the end of the line
+      WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i))
+    ELSE
+      WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i)),','
+    END IF
+  END DO
+
+  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
+  WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+  tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+
+  CLOSE(ioUnit)
+END IF ! WriteHeader
+
+IF(FILEEXISTS(outfile))THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
+  WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
+  WRITE(tmpStr2,formatStr)&
+      " ",REAL(nProcessors)       ,&
+      delimiter,MPIW8TimeSim      ,&
+      delimiter,MPIW8TimeGlobal(1),&
+      delimiter,MPIW8TimeGlobal(2),&
+      delimiter,MPIW8TimeGlobal(3) &
+#if USE_HDG
+     ,delimiter,MPIW8TimeGlobal(4),&
+      delimiter,MPIW8TimeGlobal(5) &
+#endif /*USE_HDG*/
+#if defined(PARTICLES)
+     ,delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+1),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+2),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+3),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+4),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+5),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+7) &
+#endif /*defined(PARTICLES)*/
+  ; ! this is required for terminating the "&" when particles=off
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
+  CLOSE(ioUnit)
+ELSE
+  WRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write MPI_WAIT wall time info!"
+END IF
+
+! Cannot append to proc file, iterate name  -000.csv, -001.csv, -002.csv
+WRITE(UNIT=hilf,FMT='(A1,I3.3,A4)') '-',0,'.csv'
+outfileProc_loc=TRIM(outfileProc)//'-'//TRIM(ADJUSTL(INTTOSTR(nProcessors)))
+DO WHILE(FILEEXISTS(TRIM(outfileProc_loc)//TRIM(hilf)))
+  i = i + 1
+  WRITE(UNIT=hilf,FMT='(A1,I3.3,A4)') '-',i,'.csv'
+END DO
+outfileProc_loc=TRIM(outfileProc_loc)//TRIM(hilf)
+
+! Write the file header
+OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfileProc_loc),STATUS="UNKNOWN")
+tmpStr=""
+DO i=1,nTotalVars
+  WRITE(tmpStr(i),'(A)')delimiter//'"'//TRIM(StrVarNames(i))//'"'
+END DO
+WRITE(formatStr,'(A1)')'('
+DO i=1,nTotalVars
+  IF(i.EQ.nTotalVars)THEN ! skip writing "," and the end of the line
+    WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i))
+  ELSE
+    WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i)),','
+  END IF
+END DO
+
+WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
+WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
+WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+
+! Output the processor wait times
+WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
+DO i = 0,nProcessors-1
+  WRITE(tmpStr2,formatStr)&
+            " ",REAL(i)                     ,&
+      delimiter,MPIW8TimeSim                ,&
+      delimiter,MPIW8TimeProc(i*MPIW8SIZE+1),&
+      delimiter,MPIW8TimeProc(i*MPIW8SIZE+2),&
+      delimiter,MPIW8TimeProc(i*MPIW8SIZE+3) &
+#if USE_HDG
+     ,delimiter,MPIW8TimeProc(i*MPIW8SIZE+4),&
+      delimiter,MPIW8TimeProc(i*MPIW8SIZE+5) &
+#endif /*USE_HDG*/
+#if defined(PARTICLES)
+     ,delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+1),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+2),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+3),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+4),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+5),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+6),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+7) &
+#endif /*defined(PARTICLES)*/
+  ; ! this is required for terminating the "&" when particles=off
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
+END DO
+CLOSE(ioUnit)
+
+DEALLOCATE(MPIW8TimeProc)
+
+END SUBROUTINE OutputMPIW8Time
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 END MODULE MOD_MPI

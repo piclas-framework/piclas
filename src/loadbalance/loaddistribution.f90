@@ -205,47 +205,51 @@ REAL                           :: timeWeight(1:nGlobalElems)
 #endif /*PARTICLES*/
 REAL                           :: TargetWeight_loc
 !===================================================================================================================================
-WeightSum = 0.0
-CurWeight = 0.0
-
-! Load balancing for particles: read in particle data
-#ifdef PARTICLES
-CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
-CALL DatasetExists(File_ID,'PartInt',PartIntExists)
-IF(PartIntExists)THEN
-  ALLOCATE(PartInt(1:nGlobalElems,2))
-  PartInt(:,:)=0
-  ! Check integer KIND=8 possibility
-  CALL ReadArray('PartInt',2,(/INT(nGlobalElems,IK),2_IK/),0_IK,1,IntegerArray=PartInt)
-END IF
-CALL CloseDataFile()
-#endif /*PARTICLES*/
 ALLOCATE(PartsInElem(1:nGlobalElems))
-PartsInElem=0
+WeightSum   = 0.0
+CurWeight   = 0.0
+PartsInElem = 0
 
+! Readin of PartInt: Read in only by MPIRoot in single mode because the root performs the distribution of elements (domain decomposition)
+! due to the load distribution scheme
 #ifdef PARTICLES
-timeWeight = 1.0
-IF(VarTimeStep%UseDistribution) THEN
-  ! If the time step distribution was adapted, the elements should be weighted with the new time step factor
-  ! If the distribution is only read-in and not changed, the particle numbers should already fit the time step distribution
-  IF(VarTimeStep%AdaptDistribution) THEN
-    timeWeight(1:nGlobalelems) = VarTimeStep%ElemWeight(1:nGlobalelems)
+IF(MPIRoot) THEN
+  ! Load balancing for particles: read in particle data
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+  CALL DatasetExists(File_ID,'PartInt',PartIntExists)
+  IF(PartIntExists)THEN
+    ALLOCATE(PartInt(1:nGlobalElems,2))
+    PartInt(:,:)=0
+    ! Check integer KIND=8 possibility
+    CALL ReadArray('PartInt',2,(/INT(nGlobalElems,IK),2_IK/),0_IK,1,IntegerArray=PartInt)
   END IF
-END IF
+  CALL CloseDataFile()
 
-IF (PartIntExists) THEN
-  DO iElem = 1, nGlobalElems
-    locnPart=PartInt(iElem,ELEM_LastPartInd)-PartInt(iElem,ELEM_FirstPartInd)
-    PartsInElem(iElem)=INT(locnPart,4) ! switch to KIND=4
-    IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight*timeWeight(iElem) + 1.0
-  END DO
-END IF
+  ! Account for variable time stepping
+  timeWeight = 1.0
+  IF(VarTimeStep%UseDistribution) THEN
+    ! If the time step distribution was adapted, the elements should be weighted with the new time step factor
+    ! If the distribution is only read-in and not changed, the particle numbers should already fit the time step distribution
+    IF(VarTimeStep%AdaptDistribution) THEN
+      timeWeight(1:nGlobalelems) = VarTimeStep%ElemWeight(1:nGlobalelems)
+    END IF
+  END IF
+
+  IF (PartIntExists) THEN
+    DO iElem = 1,nGlobalElems
+      locnPart=PartInt(iElem,ELEM_LastPartInd)-PartInt(iElem,ELEM_FirstPartInd)
+      PartsInElem(iElem)=INT(locnPart,4) ! switch to KIND=4
+      IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight*timeWeight(iElem) + 1.0
+    END DO
+  END IF
+END IF ! MPIRoot
 #endif /*PARTICLES*/
 WeightSum = SUM(ElemGlobalTime(:))
-!IF(WeightSum.LE.0.0) CALL abort(&
-!__STAMP__, &
-!' LoadBalance: WeightSum = ',RealInfoOpt=WeightSum)
 
+! Distribute PartsInElem to all procs
+CALL MPI_BCAST(PartsInElem,nGlobalElems,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
+
+! Every proc needs to get the information to arrive at the same timedisc
 IF (.NOT.ElemTimeExists .AND. ALL(PartsInElem(:).EQ.0)) THEN
   WeightDistributionMethod = GETINT('WeightDistributionMethod','-1') !-1 is optimum distri for const. elem-weight
   IF (WeightDistributionMethod.NE.-1) THEN
@@ -1221,7 +1225,7 @@ IF(WriteHeader)THEN ! create new file
   IF(.NOT.PRESENT(iter_opt))CALL abort(&
       __STAMP__, &
       ' WriteElemTimeStatistics: When creating ElemTimeStatistics.csv (WriteHeader=T) then supply [iter_opt] variable')
-  IF(iter_opt.GT.0)                             RETURN ! don't create new file if this is not the first iteration
+  IF(iter_opt.GT.0)                         RETURN ! don't create new file if this is not the first iteration
   IF((DoRestart).AND.(FILEEXISTS(outfile))) RETURN ! don't create new file if this is a restart and the file already exists;
   !                                                ! assume continued simulation and old load balance data is still needed
 
@@ -1296,7 +1300,7 @@ ELSE !
     WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
     CLOSE(ioUnit)
   ELSE
-    SWRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
+    WRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write load balance info!"
   END IF
 END IF
 END SUBROUTINE WriteElemTimeStatistics

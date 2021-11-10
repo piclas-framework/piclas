@@ -51,7 +51,7 @@ USE MOD_DG_Vars                ,ONLY: U
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems,nGlobalUniqueSides,nUniqueSides,offsetSide
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
-USE MOD_Restart_Vars           ,ONLY: RestartFile
+USE MOD_Restart_Vars           ,ONLY: RestartFile,DoInitialAutoRestart
 #ifdef PARTICLES
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
@@ -73,7 +73,7 @@ USE MOD_Equation_Vars          ,ONLY: E,Phi
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
 #if PP_nVar==1
-USE MOD_Equation_Vars          ,ONLY: E
+USE MOD_Equation_Vars          ,ONLY: E,Et
 #elif PP_nVar==3
 USE MOD_Equation_Vars          ,ONLY: B
 #else
@@ -91,6 +91,7 @@ USE MOD_MPI_Vars               ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID
+USE MOD_Analyze_Vars           ,ONLY: CalcElectricTimeDerivative
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
@@ -121,9 +122,11 @@ REAL,INTENT(IN),OPTIONAL       :: PreviousTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName
-#ifdef PARTICLES
+#if defined(PARTICLES) || USE_HDG
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
+#endif /*defined(PARTICLES)*/
+#ifdef PARTICLES
 REAL                           :: NumSpec(nSpecAnalyze)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #endif /*PARTICLES*/
@@ -166,7 +169,7 @@ INTEGER                        :: i,j,k,iElem
 CALL extrae_eventandcounters(int(9000001), int8(3))
 #endif /*EXTRAE*/
 ! set local variables for output and previous times
-IF(OutputTimeFixed.GE.0.0)THEN
+IF(OutputTimeFixed.GE.0.0)THEN ! use fixed output time supplied by user
   SWRITE(UNIT_StdOut,'(A,ES25.14E3,A2)',ADVANCE='NO')' (WriteStateToHDF5 for fixed output time :',OutputTimeFixed,') '
   OutputTime_loc   = OutputTimeFixed
   PreviousTime_loc = OutputTimeFixed
@@ -220,7 +223,8 @@ IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,O
 #endif /*USE_HDG*/
 ! generate nextfile info in previous output file
 usePreviousTime_loc=.FALSE.
-IF(PRESENT(PreviousTime))THEN
+
+IF(PRESENT(PreviousTime).AND.(.NOT.DoInitialAutoRestart))THEN
   usePreviousTime_loc=.TRUE.
   IF(MPIRoot .AND. PreviousTime_loc.LT.OutputTime_loc) CALL GenerateNextFileInfo('State',OutputTime_loc,PreviousTime_loc)
 END IF
@@ -255,14 +259,14 @@ ASSOCIATE (&
       DataSetName='DG_Solution', rank=5,&
       nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
       nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=Utemp)
 
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_SolutionE', rank=5,&
       nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
       nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=U)
 
   !CALL WriteArrayToHDF5('DG_SolutionPhi',nVal,5,(/4_IK,N+1,N+1,N+1,PP_nElems/) &
@@ -272,7 +276,7 @@ ASSOCIATE (&
       DataSetName='DG_SolutionPhi', rank=5,&
       nValGlobal=(/4_IK , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
       nVal=      (/4_IK , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+      offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=Phi)
 #endif /*(PP_nVar==8)*/
   ! Store the solution of the electrostatic-poisson system
@@ -284,21 +288,21 @@ ASSOCIATE (&
       DataSetName='DG_Solution', rank=5,&
       nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
       nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=Utemp)
 
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_SolutionE', rank=5,&
       nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
       nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=U)
 
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_SolutionPhi', rank=5,&
       nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
       nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=Phi)
 #endif /*(PP_nVar==4)*/
   DEALLOCATE(Utemp)
@@ -350,9 +354,7 @@ ASSOCIATE (&
               IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
                 iLocSides(:,:,iSide) = REAL(iLocSide)
               ELSE
-                CALL abort(&
-                    __STAMP__&
-                    ,'This big mortar side must be master')
+                CALL abort(__STAMP__,'This big mortar side must be master')
               END IF !iLocSide.NE.-1
               EXIT Check1
             END IF ! iSide.EQ.SideID
@@ -445,9 +447,7 @@ ASSOCIATE (&
                 END DO
               END DO !p,q
             ELSE
-              CALL abort(&
-                  __STAMP__&
-                  ,'This big mortar side must be master')
+              CALL abort(__STAMP__,'This big mortar side must be master')
             END IF !iLocSide.NE.-1
             EXIT Check2
           END IF ! iSide.EQ.SideID
@@ -500,11 +500,12 @@ ASSOCIATE (&
       DataSetName='DG_SolutionU', rank=5,&
       nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
       nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE., RealArray=U)
-#if (PP_nVar==1)
 
+#if (PP_nVar==1)
 #ifdef PARTICLES
+  ! Adjust electric field for Landmark testcase
   IF(useAlgebraicExternalField.AND.AlgebraicExternalField.EQ.1)THEN
     DO iElem=1,PP_nElems
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -529,7 +530,7 @@ ASSOCIATE (&
       DataSetName='DG_Solution', rank=5,&
       nValGlobal=(/4_IK , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
       nVal=      (/4_IK , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+      offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE., RealArray=Utemp)
 
 #elif (PP_nVar==3)
@@ -540,7 +541,7 @@ ASSOCIATE (&
       DataSetName='DG_Solution', rank=5,&
       nValGlobal=(/3_IK , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
       nVal=      (/3_IK , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+      offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE., RealArray=Utemp)
 #else /*(PP_nVar==4)*/
   Utemp(1,:,:,:,:)=U(4,:,:,:,:)
@@ -551,7 +552,7 @@ ASSOCIATE (&
       DataSetName='DG_Solution', rank=5,&
       nValGlobal=(/7_IK , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
       nVal=      (/7_IK , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+      offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE., RealArray=Utemp)
 #endif /*(PP_nVar==1)*/
 #else
@@ -559,7 +560,7 @@ ASSOCIATE (&
       DataSetName='DG_Solution', rank=5,&
       nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
       nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=U)
 #endif /*PP_POIS*/
 
@@ -594,13 +595,38 @@ ASSOCIATE (&
           DataSetName='DG_Source', rank=5,  &
           nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
           nVal=      (/nVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-          offset=    (/0_IK , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
+          offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
           collective=.TRUE.,RealArray=PartSource(:,:,:,:,CNElemIDStart:CNElemIDEnd))
     END ASSOCIATE
 
     DEALLOCATE(LocalStrVarNames)
   END IF
+
 #endif /*PARTICLES*/
+
+#if USE_HDG
+  ! Output temporal derivate of the electric field
+  IF(CalcElectricTimeDerivative) THEN
+    nVar=3_IK
+    ALLOCATE(LocalStrVarNames(1:nVar))
+    LocalStrVarNames(1)='TimeDerivativeElectricFieldX'
+    LocalStrVarNames(2)='TimeDerivativeElectricFieldY'
+    LocalStrVarNames(3)='TimeDerivativeElectricFieldZ'
+    IF(MPIRoot)THEN
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+      CALL WriteAttributeToHDF5(File_ID,'VarNamesTimeDerivative',INT(nVar,4),StrArray=LocalStrVarnames)
+      CALL CloseDataFile()
+    END IF
+    CALL GatheredWriteArray(FileName,create=.FALSE.,&
+        DataSetName='DG_TimeDerivative', rank=5,  &
+        nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+        nVal=      (/nVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+        offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+        collective=.TRUE.,RealArray=Et(1:3,:,:,:,:))
+
+    DEALLOCATE(LocalStrVarNames)
+  END IF
+#endif /*USE_HDG*/
 
 END ASSOCIATE
 

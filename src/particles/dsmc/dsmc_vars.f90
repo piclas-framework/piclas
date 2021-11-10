@@ -302,6 +302,8 @@ TYPE tBGGas
   REAL, ALLOCATABLE             :: NumberDensity(:)         ! Number densities of the background gas, [1:BGGas%NumberOfSpecies]
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
+  LOGICAL, ALLOCATABLE          :: TraceSpecies(:)          ! Flag, if species is a trace element, Input: [1:nSpecies]
+  REAL                          :: MaxMPF                   ! Maximum weighting factor of the background gas species
 END TYPE tBGGas
 
 TYPE(tBGGas)                    :: BGGas
@@ -310,7 +312,6 @@ LOGICAL                             :: UseMCC               ! Flag (set automati
 CHARACTER(LEN=256)                  :: XSec_Database        ! Name of the cross-section database
 LOGICAL                             :: XSec_NullCollision   ! Flag (read-in) whether null collision method (determining number of pairs based on maximum relaxation frequency)
 LOGICAL                             :: XSec_Relaxation      ! Flag (set automatically): usage of XSec data for the total relaxation probability
-INTEGER                             :: MCC_TotalPairNum     ! Total number of collision pairs for the MCC method
 
 TYPE tPairData
   REAL                          :: CRela2                       ! squared relative velo of the particles in a pair
@@ -318,11 +319,6 @@ TYPE tPairData
   INTEGER                       :: iPart_p1                     ! first particle of the pair
   INTEGER                       :: iPart_p2                     ! second particle of the pair
   INTEGER                       :: PairType                     ! type of pair (=iCase, CollInf%Coll_Case)
-  REAL, ALLOCATABLE             :: Sigma(:)                     ! cross sections sigma of the pair
-                                                                  !       0: sigma total
-                                                                  !       1: sigma elast
-                                                                  !       2: sigma ionization
-                                                                  !       3: sigma excitation
   REAL                          :: Ec                           ! Collision Energy
   LOGICAL                       :: NeedForRec                   ! Flag if pair is needed for Recombination
 END TYPE tPairData
@@ -346,7 +342,7 @@ TYPE tCollInf     ! Collision information
   REAL          , ALLOCATABLE   :: Cab(:)                       ! species factor for cross section (#of case)
   INTEGER       , ALLOCATABLE   :: KronDelta(:)                 ! (number of case)
   REAL          , ALLOCATABLE   :: FracMassCent(:,:)            ! mx/(my+mx) (nSpec, number of cases)
-  REAL          , ALLOCATABLE   :: MeanMPF(:)
+  REAL          , ALLOCATABLE   :: SumPairMPF(:)                ! Summation of the pair MPFs (average between two particles if not the same)
   REAL          , ALLOCATABLE   :: MassRed(:)                   ! reduced mass (number of cases)
   REAL          , ALLOCATABLE   :: Tref(:,:)                    ! collision model: reference temperature     , ini_2
   REAL          , ALLOCATABLE   :: dref(:,:)                    ! collision model: reference diameter        , ini_2

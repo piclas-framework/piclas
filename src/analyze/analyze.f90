@@ -120,6 +120,7 @@ CALL prms%CreateRealOption('Plane-[$]-z-coord', 'z-coordinate of the n-th Poynti
 CALL prms%CreateIntOption( 'PoyntingMainDir'  , 'Direction in which the Poynting vector integral is to be measured. '//&
                                                    '\n1: x \n2: y \n3: z (default)','3')
 
+#if USE_HDG
 !-- AverageElectricPotential
 CALL prms%CreateLogicalOption( 'CalcAverageElectricPotential',"Calculate the averaged electric potential at a specific x-coordinate."//&
                                                               " The plane position must lie on an interface between two adjacent elements",&
@@ -127,6 +128,8 @@ CALL prms%CreateLogicalOption( 'CalcAverageElectricPotential',"Calculate the ave
 CALL prms%CreateRealOption('AvgPotential-Plane-x-coord', 'x-coordinate of the averaged electric potential')
 CALL prms%CreateRealOption('AvgPotential-Plane-Tolerance', 'Absolute tolerance for checking the averaged electric potential plane '&
                                                          , '1E-5')
+CALL prms%CreateLogicalOption( 'CalcElectricTimeDerivative',"Calculate the time derivative of E and output to h5",".FALSE.")
+#endif /*USE_HDG*/
 !-- TimeAverage
 CALL prms%CreateLogicalOption('CalcTimeAverage'     , 'Flag if time averaging should be performed','.FALSE.')
 CALL prms%CreateIntOption(    'nSkipAvg'            , 'Iter every which CalcTimeAverage is performed')
@@ -170,8 +173,9 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 #if USE_HDG
-USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential,PosAverageElectricPotential
+USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential,PosAverageElectricPotential,CalcElectricTimeDerivative
 USE MOD_AnalyzeField          ,ONLY: GetAverageElectricPotentialPlane
+USE MOD_Equation_Vars         ,ONLY: Et
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 #endif /*PARTICLES*/
@@ -216,7 +220,7 @@ END IF ! SkipAnalyzeWindow.GT.0.
 
 OutputTimeFixed   = GETREAL('OutputTimeFixed')
 ! Time averaged quantises fields (Maxwell/Poisson solver) and deposited particles (PIC)
-#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509)
   doCalcTimeAverage = GETLOGICAL('CalcTimeAverage')
 #else
   doCalcTimeAverage = .FALSE.
@@ -260,6 +264,10 @@ IF(CalcAverageElectricPotential)THEN
   DoFieldAnalyze = .TRUE.
   CALL GetAverageElectricPotentialPlane()
 END IF
+!Calculate the time derivative of E and output to h5
+CalcElectricTimeDerivative = GETLOGICAL('CalcElectricTimeDerivative')
+! Allocate temporal derivative for E: No need to nullify as is it overwritten with E the first time it is used
+IF(CalcElectricTimeDerivative) ALLOCATE(Et(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 #endif /*USE_HDG*/
 
 !-- BoundaryParticleOutput (after mapping of PartBound on FieldBound and determination of PartBound types = open, reflective etc.)
@@ -369,28 +377,28 @@ L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
 ! Interpolate values of Error-Grid from GP's
 DO iElem=1,PP_nElems
-   ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
-   CALL ChangeBasis3D(3,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,Elem_xGP(1:3,:,:,:,iElem),Coords_NAnalyze(1:3,:,:,:))
-   ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
-   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-   CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
-   ! Interpolate the solution to the analyze grid
-   CALL ChangeBasis3D(PP_nVar,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,U(1:PP_nVar,:,:,:,iElem),U_NAnalyze(1:PP_nVar,:,:,:))
-   DO m=0,NAnalyze
-     DO l=0,NAnalyze
-       DO k=0,NAnalyze
+  ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
+  CALL ChangeBasis3D(3,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,Elem_xGP(1:3,:,:,:,iElem),Coords_NAnalyze(1:3,:,:,:))
+  ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
+  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
+  CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
+  ! Interpolate the solution to the analyze grid
+  CALL ChangeBasis3D(PP_nVar,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,U(1:PP_nVar,:,:,:,iElem),U_NAnalyze(1:PP_nVar,:,:,:))
+  DO m=0,NAnalyze
+    DO l=0,NAnalyze
+      DO k=0,NAnalyze
 #if USE_HDG
-         CALL ExactFunc(IniExactFunc,Coords_NAnalyze(1:3,k,l,m),U_exact,ElemID=iElem)
+        CALL ExactFunc(IniExactFunc,Coords_NAnalyze(1:3,k,l,m),U_exact,ElemID=iElem)
 #else
-         CALL ExactFunc(IniExactFunc,time,0,Coords_NAnalyze(1:3,k,l,m),U_exact)
+        CALL ExactFunc(IniExactFunc,time,0,Coords_NAnalyze(1:3,k,l,m),U_exact)
 #endif
-         L_Inf_Error = MAX(L_Inf_Error,abs(U_NAnalyze(:,k,l,m) - U_exact))
-         IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
-         ! To sum over the elements, We compute here the square of the L_2 error
-         L_2_Error = L_2_Error+(U_NAnalyze(:,k,l,m) - U_exact)*(U_NAnalyze(:,k,l,m) - U_exact)*IntegrationWeight
-       END DO ! k
-     END DO ! l
-   END DO ! m
+        L_Inf_Error = MAX(L_Inf_Error,abs(U_NAnalyze(:,k,l,m) - U_exact))
+        IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
+        ! To sum over the elements, We compute here the square of the L_2 error
+        L_2_Error = L_2_Error+(U_NAnalyze(:,k,l,m) - U_exact)*(U_NAnalyze(:,k,l,m) - U_exact)*IntegrationWeight
+      END DO ! k
+    END DO ! l
+  END DO ! m
 END DO ! iElem=1,PP_nElems
 #if USE_MPI
   IF(MPIroot)THEN
@@ -833,13 +841,13 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 ! Check if the analyze subroutines are called depending on the input parameters
 ! Input parameters
 ! 1) OutputTime
-!    * current time of analyze analze
+!    * current time of analyze
 ! 2) FirstOrLastIter
 !    * logical flag for first or last iteration
 !      This step is required for the correct opening and closing of a *.csv Database. Furthermore it is needed to prevent
 !      duplicates from the *.csv Database file
 ! 3) OutPutHDF5
-!    * OutputHDF5 is ture if a state file is written
+!    * OutputHDF5 is true if a state file is written
 ! The perform-analyze routine is called four times within the timedisc
 ! 1) initialize before the first iteration. call is performed for an initial computation and a restart
 ! 2) after the time update
@@ -887,7 +895,8 @@ USE MOD_DSMC_Analyze              ,ONLY: DSMC_data_sampling, WriteDSMCToHDF5
 USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 USE MOD_Particle_Vars             ,ONLY: DelayTime
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,SideBoundingBoxVolume,rTotalBezierNewton
+USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,rTotalBezierNewton
+!USE MOD_Particle_Surfaces_Vars    ,ONLY: SideBoundingBoxVolume
 USE MOD_Particle_Analyze_Code     ,ONLY: AnalyticParticleMovement
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
 USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
@@ -926,9 +935,9 @@ INTEGER                       :: iSide
 INTEGER                       :: RECI
 REAL                          :: RECR
 #endif /*USE_MPI*/
-#ifdef CODE_ANALYZE
-REAL                          :: TotalSideBoundingBoxVolume
-#endif /*CODE_ANALYZE*/
+!#ifdef CODE_ANALYZE
+!REAL                          :: TotalSideBoundingBoxVolume
+!#endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
@@ -1045,15 +1054,13 @@ IF(DoRestart .AND. iter.EQ.0) DoPerformSurfaceAnalyze=.FALSE.
 IF(FirstOrLastIter .AND. .NOT.OutPutHDF5 .AND.iter.NE.0) DoPerformSurfaceAnalyze=.FALSE.
 #endif /*PARTICLES*/
 
-! selection of error calculation for first iteration, output time but not lastiteration
+! selection of error calculation for first iteration, output time but not last iteration
 DoPerformErrorCalc=.FALSE.
-IF(FirstOrLastIter.OR.OutputHDF5)THEN
-  IF(.NOT.LastIter) DoPerformErrorCalc=.TRUE.
-END IF
+IF((FirstOrLastIter.OR.OutputHDF5).AND.(.NOT.LastIter)) DoPerformErrorCalc=.TRUE.
 
 IF((DoPerformFieldAnalyze.OR.DoPerformPartAnalyze.OR.DoPerformSurfaceAnalyze).AND.DoMeasureAnalyzeTime)THEN
-  StartAnalyzeTime=PICLASTIME()
-  AnalyzeCount = AnalyzeCount + 1
+  StartAnalyzeTime = PICLASTIME()
+  AnalyzeCount     = AnalyzeCount + 1
 END IF
 
 
@@ -1075,9 +1082,7 @@ IF(DoCalcErrorNorms) THEN
       CALL AnalyzeToFile(OutputTime,CurrentTime,L_2_Error)
     END IF
 #ifdef PARTICLES
-    IF (DoDeposition .AND. RelaxDeposition) THEN
-      CALL CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
-    END IF
+    IF (DoDeposition.AND.RelaxDeposition) CALL CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 #endif /*PARTICLES*/
   END IF
 END IF
@@ -1123,17 +1128,11 @@ END IF
 ! PIC, DSMC and other Particle-based Solvers
 !----------------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
-IF (DoPartAnalyze) THEN
-  IF(DoPerformPartAnalyze)    CALL AnalyzeParticles(OutputTime)
-END IF
-IF(DoPerformSurfaceAnalyze) CALL AnalyzeSurface(OutputTime)
-IF(TrackParticlePosition) THEN
-  IF(DoPerformPartAnalyze) CALL WriteParticleTrackingData(OutputTime,iter) ! new function
-END IF
+IF (DoPartAnalyze.AND.DoPerformPartAnalyze)          CALL AnalyzeParticles(OutputTime)
+IF(DoPerformSurfaceAnalyze)                          CALL AnalyzeSurface(OutputTime)
+IF(TrackParticlePosition.AND.DoPerformPartAnalyze)   CALL WriteParticleTrackingData(OutputTime,iter) ! new function
 #ifdef CODE_ANALYZE
-IF(DoInterpolationAnalytic)THEN
-  IF(DoPerformPartAnalyze) CALL AnalyticParticleMovement(OutputTime,iter)
-END IF
+IF(DoInterpolationAnalytic.AND.DoPerformPartAnalyze) CALL AnalyticParticleMovement(OutputTime,iter)
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 
@@ -1239,15 +1238,15 @@ IF(TrackingMethod.NE.TRIATRACKING)THEN
       SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBBChecks    : ' , rTotalBBChecks
       SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierClips : ' , rTotalBezierClips
       SWRITE(UNIT_stdOut,'(A35,E15.7)') ' rTotalBezierNewton: ' , rTotalBezierNewton
-      TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
-#if USE_MPI
-      IF(MPIRoot) THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE, TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-      ELSE ! no Root
-        CALL MPI_REDUCE(TotalSideBoundingBoxVolume ,           0 , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
-      END IF
-#endif /*USE_MPI*/
-      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
+!      TotalSideBoundingBoxVolume=SUM(SideBoundingBoxVolume)
+!#if USE_MPI
+!      IF(MPIRoot) THEN
+!        CALL MPI_REDUCE(MPI_IN_PLACE, TotalSideBoundingBoxVolume , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+!      ELSE ! no Root
+!        CALL MPI_REDUCE(TotalSideBoundingBoxVolume ,           0 , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+!      END IF
+!#endif /*USE_MPI*/
+!      SWRITE(UNIT_stdOut,'(A35,E15.7)') ' Total Volume of SideBoundingBox: ' , TotalSideBoundingBoxVolume
     END IF
   END IF
 END IF ! TrackingMethod.NE.TRIATRACKING

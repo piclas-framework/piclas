@@ -43,9 +43,9 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: UseMCC, SpecXSec, XSec_NullCollision, CollisMode
-USE MOD_Particle_Vars           ,ONLY: PartSpecies, Species, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt
-USE MOD_DSMC_SpecXSec           ,ONLY: XSec_CalcCollisionProb, XSec_CalcReactionProb, XSec_CalcVibRelaxProb
+USE MOD_MCC_XSec                ,ONLY: XSec_CalcCollisionProb, XSec_CalcReactionProb, XSec_CalcVibRelaxProb
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
@@ -83,21 +83,24 @@ SpecNum2 = CollInf%Coll_SpecPartNum(iSpec_p2)
 
 Weight1 = GetParticleWeight(iPart_p1)
 Weight2 = GetParticleWeight(iPart_p2)
+
 ! Determing the particle weight (2D/VTS: Additional scaling of the weighting according to the position within the cell)
-IF (RadialWeighting%DoRadialWeighting) THEN
-  ! Correction factor: Collision pairs above the mean MPF within the cell will get a higher collision probability
-  ! Not the actual weighting factor, since the weighting factor is included in SpecNum
-    MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) &
-                          / CollInf%MeanMPF(PairType)
+IF (usevMPF) THEN
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    ! Correction factor: Collision pairs above the mean MPF within the cell will get a higher collision probability
+    ! Not the actual weighting factor, since the weighting factor is included in SpecNum
+    MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) / CollInf%SumPairMPF(PairType)
+  ELSE
+    MacroParticleFactor = 1.
+  END IF
   ! Sum over the mean weighting factor of all collision pairs, is equal to the number of collision pairs
   ! (incl. weighting factor)
-  CollCaseNum = CollInf%MeanMPF(PairType)
+  CollCaseNum = CollInf%SumPairMPF(PairType)
 ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
   ! Not the actual weighting factor, since the weighting factor is included in SpecNum
-  MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) &
-                      / CollInf%MeanMPF(PairType)
-  ! Sum over the mean variable time step factors (NO particle weighting factor included during MeanMPF summation)
-  CollCaseNum = CollInf%MeanMPF(PairType) * Species(1)%MacroParticleFactor
+  MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) / CollInf%SumPairMPF(PairType)
+  ! Sum over the mean variable time step factors (NO particle weighting factor included during SumPairMPF summation)
+  CollCaseNum = CollInf%SumPairMPF(PairType) * Species(1)%MacroParticleFactor
   ! Weighting factor has to be included
   SpecNum1 = SpecNum1 * Species(1)%MacroParticleFactor
   SpecNum2 = SpecNum2 * Species(1)%MacroParticleFactor
@@ -105,7 +108,6 @@ ELSE
   MacroParticleFactor = Species(1)%MacroParticleFactor
   CollCaseNum = REAL(CollInf%Coll_CaseNum(PairType))
 END IF
-
 IF (VarTimeStep%UseVariableTimeStep) THEN
   dtCell = dt * (VarTimeStep%ParticleTimeStep(iPart_p1) + VarTimeStep%ParticleTimeStep(iPart_p2))*0.5
 ELSE
@@ -184,7 +186,7 @@ SELECT CASE(iPType)
     ELSE
       Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))  &
         !* CollInf%Cab(PairType)                                               & ! Cab species comb fac
-        * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  &
+        * MacroParticleFactor                  &
           ! weighting Fact, here only one MPF is used!!!
         / CollInf%Coll_CaseNum(PairType)                                      & ! sum of coll cases Sab
         * 1.0E-20 * SQRT(Coll_pData(iPair)%CRela2) * sigma_tot  &
@@ -200,6 +202,7 @@ SELECT CASE(iPType)
       __STAMP__&
       ,'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
 END SELECT
+
 IF (ISNAN(Coll_pData(iPair)%Prob)) THEN
   IPWRITE(UNIT_errOut,*)iPair,'in',iElem,'is NaN!'
   CALL Abort(&

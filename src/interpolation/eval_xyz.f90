@@ -50,7 +50,7 @@ PUBLIC :: EvaluateFieldAtRefPos
 
 CONTAINS
 
-SUBROUTINE GetPositionInRefElem(x_in,xi,ElemID,DoReUseMap,ForceMode)
+SUBROUTINE GetPositionInRefElem(x_in,xi,ElemID,DoReUseMap,ForceMode,isSuccessful)
 !===================================================================================================================================
 !> Get Position within reference element (x_in -> xi=[-1,1])
 !===================================================================================================================================
@@ -71,18 +71,19 @@ USE MOD_Mesh_Vars,               ONLY:dXCL_NGeo,XCL_NGeo
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)          :: ElemID                                 !< Global element index
-REAL,INTENT(IN)             :: x_in(3)                                !< position in physical space
-LOGICAL,INTENT(IN),OPTIONAL :: DoReUseMap                             !< flag if start values for Newton elem mapping already exists
-LOGICAL,INTENT(IN),OPTIONAL :: ForceMode                              !< flag for mode change in RefElemNewton
+INTEGER,INTENT(IN)            :: ElemID         !< Global element index
+REAL,INTENT(IN)               :: x_in(3)        !< position in physical space
+LOGICAL,INTENT(IN),OPTIONAL   :: DoReUseMap     !< flag if start values for Newton elem mapping already exists
+LOGICAL,INTENT(IN),OPTIONAL   :: ForceMode      !< flag for mode change in RefElemNewton
+LOGICAL,INTENT(OUT), OPTIONAL :: isSuccessful
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)          :: xi(1:3)                                !< position in reference element
+REAL,INTENT(INOUT)              :: xi(1:3)        !< position in reference element
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                    :: CNElemID,iMode
-REAL                       :: XCL_NGeo1(1:3,0:1,0:1,0:1)
-REAL                       :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)
+INTEGER :: CNElemID,iMode
+REAL    :: XCL_NGeo1(1:3,0:1,0:1,0:1)
+REAL    :: dXCL_NGeo1(1:3,1:3,0:1,0:1,0:1)
 !===================================================================================================================================
 
 #if USE_MPI
@@ -98,32 +99,36 @@ END IF
 
 CNElemID = GetCNElemID(ElemID)
 
-IF (ElemCurved(CNElemID)) THEN
-  CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode)
+IF (ElemCurved(CNElemID).OR.(NGeo.EQ.1)) THEN
+  IF(PRESENT(isSuccessful))THEN
+    CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode, isSuccessful=isSuccessful)
+  ELSE
+    CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode)
+  END IF ! PRESENT(isSuccessful)
 ELSE
   ! fill dummy XCL_NGeo1
-  IF(NGeo.EQ.1)THEN
-    CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode)
+  XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,ElemID)
+  XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  ,ElemID)
+  XCL_NGeo1(1:3,0,1,0) = XCL_NGeo(1:3, 0  ,NGeo, 0  ,ElemID)
+  XCL_NGeo1(1:3,1,1,0) = XCL_NGeo(1:3,NGeo,NGeo, 0  ,ElemID)
+  XCL_NGeo1(1:3,0,0,1) = XCL_NGeo(1:3, 0  , 0  ,NGeo,ElemID)
+  XCL_NGeo1(1:3,1,0,1) = XCL_NGeo(1:3,NGeo, 0  ,NGeo,ElemID)
+  XCL_NGeo1(1:3,0,1,1) = XCL_NGeo(1:3, 0  ,NGeo,NGeo,ElemID)
+  XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo,ElemID)
+  ! fill dummy dXCL_NGeo1
+  dXCL_NGeo1(1:3,1:3,0,0,0) = dXCL_NGeo(1:3,1:3, 0  , 0  , 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,0,0) = dXCL_NGeo(1:3,1:3,NGeo, 0  , 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,1,0) = dXCL_NGeo(1:3,1:3, 0  ,NGeo, 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,1,0) = dXCL_NGeo(1:3,1:3,NGeo,NGeo, 0  ,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,0,1) = dXCL_NGeo(1:3,1:3, 0  , 0  ,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,0,1) = dXCL_NGeo(1:3,1:3,NGeo, 0  ,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,0,1,1) = dXCL_NGeo(1:3,1:3, 0  ,NGeo,NGeo,ElemID)
+  dXCL_NGeo1(1:3,1:3,1,1,1) = dXCL_NGeo(1:3,1:3,NGeo,NGeo,NGeo,ElemID)
+  IF(PRESENT(isSuccessful))THEN
+    CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=iMode,isSuccessful=isSuccessful)
   ELSE
-    XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,ElemID)
-    XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  ,ElemID)
-    XCL_NGeo1(1:3,0,1,0) = XCL_NGeo(1:3, 0  ,NGeo, 0  ,ElemID)
-    XCL_NGeo1(1:3,1,1,0) = XCL_NGeo(1:3,NGeo,NGeo, 0  ,ElemID)
-    XCL_NGeo1(1:3,0,0,1) = XCL_NGeo(1:3, 0  , 0  ,NGeo,ElemID)
-    XCL_NGeo1(1:3,1,0,1) = XCL_NGeo(1:3,NGeo, 0  ,NGeo,ElemID)
-    XCL_NGeo1(1:3,0,1,1) = XCL_NGeo(1:3, 0  ,NGeo,NGeo,ElemID)
-    XCL_NGeo1(1:3,1,1,1) = XCL_NGeo(1:3,NGeo,NGeo,NGeo,ElemID)
-    ! fill dummy dXCL_NGeo1
-    dXCL_NGeo1(1:3,1:3,0,0,0) = dXCL_NGeo(1:3,1:3, 0  , 0  , 0  ,ElemID)
-    dXCL_NGeo1(1:3,1:3,1,0,0) = dXCL_NGeo(1:3,1:3,NGeo, 0  , 0  ,ElemID)
-    dXCL_NGeo1(1:3,1:3,0,1,0) = dXCL_NGeo(1:3,1:3, 0  ,NGeo, 0  ,ElemID)
-    dXCL_NGeo1(1:3,1:3,1,1,0) = dXCL_NGeo(1:3,1:3,NGeo,NGeo, 0  ,ElemID)
-    dXCL_NGeo1(1:3,1:3,0,0,1) = dXCL_NGeo(1:3,1:3, 0  , 0  ,NGeo,ElemID)
-    dXCL_NGeo1(1:3,1:3,1,0,1) = dXCL_NGeo(1:3,1:3,NGeo, 0  ,NGeo,ElemID)
-    dXCL_NGeo1(1:3,1:3,0,1,1) = dXCL_NGeo(1:3,1:3, 0  ,NGeo,NGeo,ElemID)
-    dXCL_NGeo1(1:3,1:3,1,1,1) = dXCL_NGeo(1:3,1:3,NGeo,NGeo,NGeo,ElemID)
     CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo1,XiCL_NGeo1,XCL_NGeo1,dXCL_NGeo1,1,ElemID,Mode=iMode)
-  END IF
+  END IF ! PRESENT(isSuccessful)
 END IF
 
 #if USE_MPI
@@ -444,7 +449,7 @@ END IF ! useBGField
 END SUBROUTINE EvaluateFieldAtRefPos
 
 
-SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,ElemID,Mode,PartID)
+SUBROUTINE RefElemNewton(Xi,X_In,wBaryCL_N_In,XiCL_N_In,XCL_N_In,dXCL_N_In,N_In,ElemID,Mode,PartID,isSuccessful)
 !=================================================================================================================================
 !> Newton for finding the position inside the reference element [-1,1] for an arbitrary physical point
 !=================================================================================================================================
@@ -457,7 +462,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: RefMappingEps
 USE MOD_Particle_Vars      ,ONLY: PartIsImplicit
 #endif
 USE MOD_Particle_Vars      ,ONLY: LastPartPos
-USE MOD_TimeDisc_Vars      ,ONLY: iter
+USE MOD_TimeDisc_Vars      ,ONLY: iter,time
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -465,6 +470,7 @@ INTEGER,INTENT(IN)               :: N_In
 INTEGER,INTENT(IN)               :: ElemID                   !> global ID
 INTEGER,INTENT(IN)               :: Mode
 INTEGER,INTENT(IN),OPTIONAL      :: PartID
+LOGICAL,INTENT(OUT),OPTIONAL     :: isSuccessful
 REAL,INTENT(IN)                  :: X_in(3)                  !> position in physical space
 REAL,INTENT(IN)                  :: XiCL_N_in(0:N_In)        !> position of CL points in reference space
 REAL,INTENT(IN)                  ::  XCL_N_in(3,0:N_In,0:N_in,0:N_In)   !> position of CL points in physical space
@@ -482,8 +488,10 @@ REAL                             :: Jac(1:3,1:3),sdetJac,sJac(1:3,1:3)
 REAL                             :: buff,buff2, Norm_F, Norm_F_old,lambda
 INTEGER                          :: iArmijo
 !===================================================================================================================================
+! Default
+IF (PRESENT(isSuccessful)) isSuccessful = .TRUE.
 
-! initial guess
+! Initial guess
 CALL LagrangeInterpolationPolys(Xi(1),N_In,XiCL_N_in,wBaryCL_N_in,Lag(1,:))
 CALL LagrangeInterpolationPolys(Xi(2),N_In,XiCL_N_in,wBaryCL_N_in,Lag(2,:))
 CALL LagrangeInterpolationPolys(Xi(3),N_In,XiCL_N_in,wBaryCL_N_in,Lag(3,:))
@@ -511,7 +519,7 @@ NewtonIter=0
 DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
   NewtonIter=NewtonIter+1
 
-  ! caution, dXCL_NGeo is transposed of required matrix
+  ! Caution, dXCL_NGeo is transposed of required matrix
   Jac=0.
   DO k=0,N_In
     DO j=0,N_In
@@ -529,24 +537,24 @@ DO WHILE((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
   sdetJac=getDet(Jac)
   IF(sdetJac.GT.0.) THEN
    sdetJac=1./sdetJac
-  ELSE !shit
-   ! Newton has not converged !?!?
-   IF(Mode.EQ.1)THEN
+  ELSE
+    ! Newton has not converged !?!?
+    IF(Mode.EQ.1)THEN
       IPWRITE(UNIT_stdOut,*) ' Particle not inside of element!'
-      IPWRITE(UNIT_stdOut,*) ' sdetJac     ', sdetJac
-      IPWRITE(UNIT_stdOut,*) ' Newton-Iter ', NewtonIter
-      IPWRITE(UNIT_stdOut,*) ' xi          ', xi(1:3)
-      IPWRITE(UNIT_stdOut,*) ' PartPos     ', X_in
-      IPWRITE(UNIT_stdOut,*) ' GlobalElemID', ElemID
-    CALL abort(&
-__STAMP__&
-, 'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sdetJac)
-   ELSE
-     Xi(1)=HUGE(1.0)
-     Xi(2)=Xi(1)
-     Xi(3)=Xi(1)
-     RETURN
-   END IF
+      IPWRITE(UNIT_stdOut,*) ' time         ', time
+      IPWRITE(UNIT_stdOut,*) ' Timestep-Iter', iter
+      IPWRITE(UNIT_stdOut,*) ' sdetJac      ', sdetJac
+      IPWRITE(UNIT_stdOut,*) ' Newton-Iter  ', NewtonIter
+      IPWRITE(UNIT_stdOut,*) ' xi           ', xi(1:3)
+      IPWRITE(UNIT_stdOut,*) ' PartPos      ', X_in
+      IPWRITE(UNIT_stdOut,*) ' GlobalElemID ', ElemID
+      CALL abort(__STAMP__,'Newton in FindXiForPartPos singular. iter,sdetJac',NewtonIter,sdetJac)
+    ELSE
+      Xi(1)=HUGE(1.0)
+      Xi(2)=Xi(1)
+      Xi(3)=Xi(1)
+      RETURN
+    END IF
   ENDIF
   sJac=getInv(Jac,sdetJac)
 
@@ -589,7 +597,10 @@ __STAMP__&
 
   ! check xi value for plausibility
   IF(ANY(ABS(Xi).GT.1.5)) THEN
-    IF(Mode.EQ.1)THEN
+    IF (PRESENT(isSuccessful)) THEN
+      isSuccessful = .FALSE.
+      EXIT
+    ELSE IF(Mode.EQ.1)THEN
       IPWRITE(UNIT_stdOut,*) ' Particle not inside of element, STOP!'
       IPWRITE(UNIT_stdOut,*) ' Timestep-Iter    ', iter
       IPWRITE(UNIT_stdOut,*) ' Newton-Iter      ', NewtonIter
@@ -601,15 +612,13 @@ __STAMP__&
 #if defined(IMPA)
       IF(PRESENT(PartID)) IPWRITE(UNIT_stdOut,*) ' implicit?', PartIsImplicit(PartID)
 #endif
-        CALL abort(&
-  __STAMP__&
-  ,'Particle Not inSide of Element, GlobalElemID,',ElemID)
+        CALL abort(__STAMP__,'Particle Not inSide of Element, GlobalElemID,',ElemID)
     ELSE
       EXIT
     END IF
-  END IF
+  END IF ! ANY(ABS(Xi).GT.1.5)
 
-END DO !newton
+END DO ! ((deltaXi2.GT.RefMappingEps).AND.(NewtonIter.LT.100))
 
 END SUBROUTINE RefElemNewton
 

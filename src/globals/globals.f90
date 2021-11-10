@@ -155,12 +155,26 @@ INTERFACE TransformVectorFromSphericalCoordinates
   MODULE PROCEDURE TransformVectorFromSphericalCoordinates
 END INTERFACE
 
+#if defined(PARTICLES)
 INTERFACE PARTISELECTRON
   MODULE PROCEDURE PARTISELECTRON
 END INTERFACE
 
 INTERFACE SPECIESISELECTRON
   MODULE PROCEDURE SPECIESISELECTRON
+END INTERFACE
+#endif /*defined(PARTICLES)*/
+
+INTERFACE LOG_RAN
+  MODULE PROCEDURE LOG_RAN
+END INTERFACE
+
+INTERFACE ISNAN
+  MODULE PROCEDURE ISNAN
+END INTERFACE
+
+INTERFACE ISFINITE
+  MODULE PROCEDURE ISFINITE
 END INTERFACE
 
 PUBLIC :: setstacksizeunlimited
@@ -1142,7 +1156,7 @@ ELSE
 END IF ! SubStringLength.GT.0.AND.MainStringLength.GT.0
 END FUNCTION StringBeginsWith
 
-
+#if defined(PARTICLES)
 PPURE FUNCTION PARTISELECTRON(PartID)
 !===================================================================================================================================
 ! check if particle is an electron (species-charge = -1.609)
@@ -1191,6 +1205,123 @@ SPECIESISELECTRON=.FALSE.
 IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
 IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) SPECIESISELECTRON=.TRUE.
 END FUNCTION SPECIESISELECTRON
+#endif /*defined(PARTICLES)*/
+
+
+RECURSIVE FUNCTION LOG_RAN() RESULT(X)
+!===================================================================================================================================
+! check if species is an electron (species-charge = -1.609)
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL               :: iRan
+REAL(KIND=8)       :: X
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+CALL RANDOM_NUMBER(iRan)
+
+IF(iRan.GT.0.0) THEN
+  X = LOG(iRan)
+ELSE
+  X = LOG_RAN()
+END IF
+
+END FUNCTION LOG_RAN
+
+
+!===================================================================================================================================
+!> Check if REAL value is NaN
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION ISNAN(X) RESULT(L)
+! MODULES
+USE, INTRINSIC :: IEEE_ARITHMETIC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: X
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+L = IEEE_IS_NAN(X)
+END FUNCTION ISNAN
+
+
+!===================================================================================================================================
+!> Check if REAL value is finite, i.e., NOT Infinity
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION ISFINITE(X) RESULT(L)
+! MODULES
+USE, INTRINSIC :: IEEE_ARITHMETIC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: X
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+L = IEEE_IS_FINITE(X)
+END FUNCTION ISFINITE
+
+
+!===================================================================================================================================
+!> Check if a <= b or a is almost equal to b via ALMOSTEQUALRELATIVE
+!> Catch tolerance issues when b is only an epsilon smaller than a but the inquiry should be that they are equal
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION LESSEQUALTOLERANCE(a,b,tol)
+! MODULES
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: a,b !< Two real numbers for comparison
+REAL,INTENT(IN) :: tol !< fix for tolerance issues
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF((a.LE.b).OR.(ALMOSTEQUALRELATIVE(a,b,tol)))THEN
+  LESSEQUALTOLERANCE = .TRUE.
+ELSE
+  LESSEQUALTOLERANCE = .FALSE.
+END IF
+END FUNCTION LESSEQUALTOLERANCE
+
+
+!===================================================================================================================================
+!> Check whether element ID is on the current proc
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION ElementOnProc(GlobalElemID) RESULT(L)
+! MODULES
+USE MOD_Preproc
+USE MOD_Mesh_Vars ,ONLY: offSetElem
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN) :: GlobalElemID ! Global element index
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: LocalElemID
+!-----------------------------------------------------------------------------------------------------------------------------------
+!===================================================================================================================================
+LocalElemID = GlobalElemID - offsetElem
+L = (LocalElemID.GE.1).AND.(LocalElemID.LE.PP_nElems)
+END FUNCTION ElementOnProc
 
 
 END MODULE MOD_Globals

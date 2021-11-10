@@ -206,9 +206,9 @@ SDEALLOCATE(D_Bezier)
 
 ! InitParticleMesh
 SDEALLOCATE(BezierSampleXi)
-#ifdef CODE_ANALYZE
-SDEALLOCATE(SideBoundingBoxVolume)
-#endif
+!#ifdef CODE_ANALYZE
+!SDEALLOCATE(SideBoundingBoxVolume)
+!#endif
 
 ! CalcBezierControlPoints (MPI3 shared freed in FinalizeParticleMesh)
 #if USE_LOADBALANCE

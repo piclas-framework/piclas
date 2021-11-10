@@ -16,7 +16,7 @@ regression test is described there.
 
 Different tests are executed on check-in, during nightly or weekly testing. These tests are defined
 in the file *.gitlab-ci.yml* that is located in the top level repository directory of PICLas. In
-this file, various tests are defined, which are found under *regressioncheck/checks* and a summary
+this file, various tests are defined, which are found under *regressioncheck* and a summary
 of the different tests is given under https://github.com/piclas-framework/piclas/blob/master/REGGIE.md
 
 The automatic execution by *gitlab-runners* can be performed on any machine that is connected to the

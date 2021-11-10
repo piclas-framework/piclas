@@ -3,24 +3,10 @@
 !===================================================================================================================================
 
 ! Abbrevations
-#ifdef SUN
-#  define __DATE__ '__TIME__ and __DATE__ not'
-#  define __TIME__ 'available for SUN COMPILER'
-#  define IEEE_ISNAN
-#elif SX
-#  define __DATE__ '__TIME__ and __DATE__ not'
-#  define __TIME__ 'available for SX COMPILER'
-#elif PGI
-#  define NO_ISNAN
-#endif
 #ifndef __FILENAME__
 #define __FILENAME__ __FILE__
 #endif
 #define __STAMP__ __FILENAME__,__LINE__,__DATE__,__TIME__
-
-#ifdef GNU
-#  define IEEE_IS_NAN ISNAN
-#endif
 
 ! Calculate GCC version
 #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
@@ -35,7 +21,24 @@
 #define SIZE_CHAR KIND('a')
 
 #ifdef DEBUG_MEMORY
-#define Allocate_Shared(a,b,c,d)   Allocate_Shared_DEBUG(a,b,c,d,'c')
+#define Allocate_Shared(a,b,c)   Allocate_Shared_DEBUG(a,b,c,'b')
+#endif
+
+#ifdef MEASURE_MPI_WAIT
+! Field solver
+#if USE_HDG
+#define MPIW8SIZEFIELD 4
+#else
+#define MPIW8SIZEFIELD 2
+#endif
+! Particle solver
+#ifdef PARTICLES
+#define MPIW8SIZEPART 7
+#else
+#define MPIW8SIZEPART 0
+#endif
+! Combination
+#define MPIW8SIZE (1+MPIW8SIZEFIELD+MPIW8SIZEPART)
 #endif
 
 ! Deactivate PURE subroutines/functions when using DEBUG

@@ -90,19 +90,6 @@ SET(PICLAS_EQNSYSNAME "maxwell" CACHE STRING "Used equation system")
 SET_PROPERTY(CACHE PICLAS_EQNSYSNAME PROPERTY STRINGS ${EQNSYSTEMS})
 
 # =========================================================================
-# code development
-# =========================================================================
-OPTION(PICLAS_CODE_ANALYZE "Code Analyze" OFF)
-OPTION(PICLAS_EXTRAE "Extrae instrumentation for code profiling (event tracing)" OFF)
-
-OPTION(PICLAS_READIN_CONSTANTS "Allow read-in of user-defined constants, such as the vacuum speed of light c0, permittivity eps and permeability mu." OFF)
-IF (PICLAS_READIN_CONSTANTS)
-  ADD_DEFINITIONS(-DUSE_READIN_CONSTANTS=1)
-ELSE()
-  ADD_DEFINITIONS(-DUSE_READIN_CONSTANTS=0)
-ENDIF()
-
-# =========================================================================
 # Analytical Vandermonde
 # =========================================================================
 OPTION(PICLAS_VDM_ANALYTICAL "Alternative to matrix inversion: Compute inverse Vandermonde directly (required for inverse of Bezier and Legendre Vdm)" OFF)
@@ -464,6 +451,7 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90
                          ./src/particles/particle_mesh/particle_mesh_vars.f90
                          ./src/particles/particle_vars.f90
+                         ./src/posti/superB/superB_vars.f90
                          ./src/particles/boundary/particle_boundary_vars.f90)
 
 FILE(GLOB_RECURSE extraeF90 ./src/extrae/*.f90)
@@ -545,6 +533,17 @@ ENDIF(PICLAS_EXTRAE)
 SET(PICLAS_DEBUG_MEMORY OFF CACHE BOOL "Output shared memory window sizes. 'USE MOD_MPI_Shared' cannot be used together with the 'ONLY:' statement in this case!")
 IF(PICLAS_DEBUG_MEMORY)
   SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DDEBUG_MEMORY")
+ENDIF()
+
+# =========================================================================
+# MPI_WAIT measurement and output
+# =========================================================================
+CMAKE_DEPENDENT_OPTION(PICLAS_MEASURE_MPI_WAIT "Output measured and accumulated wall time during MPI_WAIT for each process." OFF "LIBS_USE_MPI" OFF)
+IF(LIBS_USE_MPI)
+  IF(PICLAS_MEASURE_MPI_WAIT)
+    SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -DMEASURE_MPI_WAIT")
+    MESSAGE(STATUS "Activated measurement of MPI_WAIT [-DMEASURE_MPI_WAIT]")
+  ENDIF()
 ENDIF()
 
 # =========================================================================

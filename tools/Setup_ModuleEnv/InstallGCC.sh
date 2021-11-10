@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -i
 
 #==============================================================================
 # title       : InstallGCC.sh
@@ -44,9 +44,14 @@ fi
 # Settings
 # --------------------------------------------------------------------------------------------------
 
+NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
 SOURCESDIR=/opt/sources
-MODULETEMPLATEDIR=/opt/sources/moduletemplates
+TEMPLATEPATH=$(echo `pwd`/moduletemplates/compilers/gcc/v_temp)
+if [[ ! -f ${TEMPLATEPATH} ]]; then
+  echo "${RED}ERROR: module template not found under ${TEMPLATEPATH}${NC}. Exit."
+  exit
+fi
 
 cd $INSTALLDIR
 if [ ! -e "${SOURCESDIR}" ]; then
@@ -70,21 +75,27 @@ fi
 # 9.3.0: Building GCC requires: GMP 4.2+, MPFR 2.4.0+ and MPC 0.8.0+
 # sudo apt-get install libmpfr-dev
 # sudo apt-get install libmpc-dev
-GCCVERSION='9.3.0'
+#GCCVERSION='9.3.0'
 
 # 10.1.0: Building GCC requires GMP 4.2+, MPFR 3.1.0+ and MPC 0.8.0+
 # sudo apt-get install libmpfr-dev
 # sudo apt-get install libmpc-dev
 #GCCVERSION='10.1.0'
+#GCCVERSION='10.3.0'
 
+# 10.1.0: Building GCC requires GMP 4.2+, MPFR 3.1.0+ and MPC 0.8.0+.
+# sudo apt-get install libmpfr-dev
+# sudo apt-get install libmpc-dev
+GCCVERSION='11.2.0'
 
 # --------------------------------------------------------------------------------------------------
 # Check pre-requisites
 # --------------------------------------------------------------------------------------------------
 
-if [[ ${GCCVERSION} == '9.3.0' ]] || [[ ${GCCVERSION} == '10.1.0' ]]; then
-  sudo apt-get install libmpfr-dev
-  sudo apt-get install libmpc-dev
+if [[ ${GCCVERSION} == '9.3.0' ]] || [[ ${GCCVERSION} == '10.1.0' ]] || [[ ${GCCVERSION} == '10.3.0' ]] || [[ ${GCCVERSION} == '11.2.0' ]]; then
+  echo -e "${GREEN}Installing libmpfr-dev and libmpc-dev for this version of GCC${NC}"
+  sudo apt-get install libmpfr-dev -y
+  sudo apt-get install libmpc-dev -y
 fi
 
 # --------------------------------------------------------------------------------------------------
@@ -93,34 +104,80 @@ fi
 
 MODULEFILEDIR=${INSTALLDIR}/modules/modulefiles/compilers/gcc
 MODULEFILE=${MODULEFILEDIR}/${GCCVERSION}
-
+BUILDDIR=${SOURCESDIR}/gcc-${GCCVERSION}/build
 COMPILERDIR=${INSTALLDIR}'/compiler/gcc/'${GCCVERSION}
+TARFILE=${SOURCESDIR}/gcc-${GCCVERSION}.tar.gz
 
+# Remove INSTALL module directory during re-run
 if [[ -n ${1} ]]; then
   if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
+    #read -p "Delete ${MODULEFILE}?"
     rm ${MODULEFILE}
   fi
 fi
 
 if [ ! -e "${MODULEFILE}" ]; then
-  echo "${GREEN}creating Compiler GCC-${GCCVERSION}${NC}"
+
+  # Check if module is available (not required here, but for following libs)
+  if [[ -n $(module purge 2>&1) ]]; then
+    echo -e "${RED}module: command not found.\nThis script must be run in an interactive shell (the first line must read #! /bin/bash -i)${NC}"
+    exit
+  #else
+    #echo "MODULEPATH ="$MODULEPATH
+    #echo "MODULESHOME="${MODULESHOME}
+    #module av
+    #module li
+  fi
+
+  echo ""
+  echo -e "This will install GCC compiler version ${GREEN}${GCCVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
+
   cd ${SOURCESDIR}
-  if [ ! -e "${SOURCESDIR}/gcc-${GCCVERSION}.tar.gz" ]; then
+
+  # Remove SOURCE tar.gz file during re-run
+  if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${TARFILE} ]]; then
+    #read -p "Delete ${TARFILE}?"
+    rm ${TARFILE}
+  fi
+
+  # Download tar.gz file from FTP server
+  if [ ! -f ${TARFILE} ]; then
     wget -O gcc-${GCCVERSION}.tar.gz "ftp://ftp.fu-berlin.de/unix/languages/gcc/releases/gcc-${GCCVERSION}/gcc-${GCCVERSION}.tar.gz"
   fi
-  if [ ! -e "${SOURCESDIR}/gcc-${GCCVERSION}.tar.gz" ]; then
+
+  # Check if tar.gz file was correctly downloaded, abort script if non-existent
+  if [ ! -f ${TARFILE} ]; then
     echo "no gcc install-file downloaded for GCC-${GCCVERSION}"
     echo "check if ftp://ftp.fu-berlin.de/unix/languages/gcc/releases/gcc-${GCCVERSION}/gcc-${GCCVERSION}.tar.gz exists"
     exit
   fi
-  tar -xzf gcc-${GCCVERSION}.tar.gz && rm -rf gcc-${GCCVERSION}.tar.gz
-  if [ ! -d "${SOURCESDIR}/gcc-${GCCVERSION}/build" ]; then
-    mkdir -p gcc-${GCCVERSION}/build
+
+  # Extract tar.gz file
+  tar -xzf ${TARFILE}
+
+  # Check if extraction failed
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo " " && ls -l ${TARFILE}
+    echo "${RED} Failed to extract: [tar -xzf ${TARFILE}]. Broken or failed download. Try removing ${TARFILE} before processing. Exit.${NC}"
+    exit
   fi
+
+  # Create build directory
+  if [ ! -d ${BUILDDIR} ]; then
+    mkdir -p ${BUILDDIR}
+  fi
+
+  # Remove SOURCE cmake-X.Y.Z/build/* directory during re-run
   if [[ ${1} =~ ^-r(erun)?$ ]] ; then
-    rm gcc-${GCCVERSION}/build/*
+    #DELETE=$(echo ${BUILDDIR}/*)
+    #read -p "Delete ${DELETE} ?"
+    rm -rf ${BUILDDIR}/*
   fi
-  cd gcc-${GCCVERSION}/build
+
+  # Change to build directory
+  cd ${BUILDDIR}
+
+  # Configure setup
   ../configure -v \
     --prefix=${COMPILERDIR} \
     --enable-languages=c,c++,objc,obj-c++,fortran \
@@ -131,10 +188,15 @@ if [ ! -e "${MODULEFILE}" ]; then
     --with-sysroot=/ \
     --with-system-zlib
     # --enable-valgrind-annotations
-  make -j 2>&1 | tee make.out
+
+  # Compile source files with NBROFCORES threads
+  make -j${NBROFCORES} 2>&1 | tee make.out
+
+  # Check if compilation failed
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
     echo "${RED}Failed: [make -j 2>&1 | tee make.out]${NC}"
+    echo "${RED}Try setting NBROFCORES=2 (compiling with two threads) in this script and re-run with '-r'${NC}"
     exit
   else
     make install 2>&1 | tee install.out
@@ -144,12 +206,22 @@ if [ ! -e "${MODULEFILE}" ]; then
     mkdir -p ${MODULEFILEDIR}
   fi
 
+  # Check if installation was successful by checking if gcc and gfortran executable are existent
   if [ -e "${COMPILERDIR}/bin/gcc" ] && [ -e "${COMPILERDIR}/bin/gfortran" ]; then
-    cp ${MODULETEMPLATEDIR}/compilers/gcc/v_temp ${MODULEFILE}
+
+    # Copy module template file and insert the module version tag
+    cp ${TEMPLATEPATH} ${MODULEFILE}
     sed -i 's/versionflag/'${GCCVERSION}'/gI' ${MODULEFILE}
+
+    # Remove SOURCE tar.gz file after successful installation
+    if [[ -f ${TARFILE} ]]; then
+      rm ${TARFILE}
+    fi
+
   else
     echo "${RED}compiler not installed, no modulefile created${NC}"
   fi
+
 else
-  echo "${YELLOW}Compiler GCC-${GCCVERSION} already created (module file exists)${NC}"
+  echo "${YELLOW}Compiler GCC-${GCCVERSION} already created (module file exists). Run with -r to remove and re-install.${NC}"
 fi

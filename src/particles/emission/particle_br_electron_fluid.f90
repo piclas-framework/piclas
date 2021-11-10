@@ -737,7 +737,7 @@ USE MOD_DSMC_Vars        ,ONLY: ChemReac,CollInf,UseDSMC,CollisMode,SpecXSec
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: nLoadBalanceSteps
 #endif /*USE_LOADBALANCE*/
-USE MOD_DSMC_SpecXSec    ,ONLY: MCC_Chemistry_Init
+USE MOD_MCC_Init         ,ONLY: MCC_Chemistry_Init
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -910,7 +910,7 @@ SUBROUTINE CreateElectronsFromBRFluid(CreateFromRestartFile)
 USE MOD_Globals
 USE MOD_Globals             ,ONLY: abort,MPIRoot,UNIT_stdOut,IK,MPI_COMM_WORLD
 USE MOD_Globals_Vars        ,ONLY: ElementaryCharge,BoltzmannConst
-USE MOD_PreProc             ,ONLY: PP_nElems
+USE MOD_PreProc
 USE MOD_Particle_Vars       ,ONLY: PDM,PEM,PartState,nSpecies,Species,PartSpecies,usevMPF
 USE MOD_PIC_Analyze         ,ONLY: CalculateBRElectronsPerCell
 USE MOD_Mesh_Vars           ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem

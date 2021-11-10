@@ -63,7 +63,7 @@ do
   then
     LOADMODULES=0
     # Set desired versions
-    USECOMPILERVERSION=9.3.0
+    USECOMPILERVERSION=10.3.0
     USEMPIVERSION=3.1.6
     # Force --rerun via 'set'
     echo ""
@@ -73,9 +73,14 @@ do
   fi
 done
 
+NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
 SOURCESDIR=/opt/sources
-TEMPLATEDIR=/opt/sources/moduletemplates
+TEMPLATEPATH=$(echo `pwd`/moduletemplates/libraries/hdf5)
+if [[ ! -d ${TEMPLATEPATH} ]]; then
+  echo "${RED}ERROR: module template not found under ${TEMPLATEPATH}${NC}. Exit."
+  exit
+fi
 
 if [ ! -d "${SOURCESDIR}" ]; then
   mkdir -p ${SOURCESDIR}
@@ -84,10 +89,47 @@ fi
 # DOWNLOAD and INSTALL HDF5 for every compiler openmpi / mpich combination (example HDF5-1.8.18)
 #HDF5VERSION=1.8.18
 #HDF5VERSION=1.10.4
-HDF5VERSION=1.10.6
+#HDF5VERSION=1.10.6
+#HDF5VERSION=1.12.0 # CAUTION NIG_PIC_maxwell_RK4/TWT_recordpoints fails for: 1) gcc/11.2.0   2) cmake/3.21.3   3) openmpi/4.1.1/gcc/11.2.0   4) hdf5/1.12.0/gcc/11.2.0/openmpi/4.1.1
+HDF5VERSION=1.12.1
+
+COMPILERPREFIX=compilers/ # required for modules 5.0.0
+MPIPREFIX=MPI/ # required for modules 5.0.0
+COMPILERPREFIX=
+MPIPREFIX=
 
 HDF5DIR=${INSTALLDIR}'/hdf5/'${HDF5VERSION}
+TARFILE=${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz
 
+# Change to sources directors
+cd ${SOURCESDIR}
+
+echo -e "Download HF5 version ${GREEN}${HDF5VERSION}${NC}."
+read -p "Press [Enter] to continue or [Crtl+c] to abort!"
+
+# Download tar.gz file
+if [ ! -f ${TARFILE} ]; then
+  wget "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz"
+fi
+
+# Check if tar.gz file was correctly downloaded
+if [ ! -f ${TARFILE} ]; then
+  echo "${RED} no hdf5 install-file downloaded for HDF5-${HDF5VERSION}${NC}"
+  echo "${RED} check if https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz exists${NC}"
+  break
+fi
+
+# Extract tar.gz file
+tar -xzf ${TARFILE} hdf5-${HDF5VERSION}
+
+# Check if extraction failed
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+  echo " " && ls -l ${TARFILE}
+  echo "${RED} Failed to extract: [tar -xzf ${TARFILE}]. Broken or failed download. Try removing ${TARFILE} before processing. Exit.${NC}"
+  exit
+fi
+
+# Loop gcc and intel compilers
 COMPILERNAMES='gcc intel'
 for WHICHCOMPILER in ${COMPILERNAMES}; do
   echo "${GREEN}$WHICHCOMPILER ------------------------------------------------------------------------------${NC}"
@@ -108,50 +150,68 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
       mkdir -p ${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}
     fi
 
+    BUILDDIR=${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}
+
+    # Check if module is available (not required here, but for following libs)
+    if [[ -n $(module purge 2>&1) ]]; then
+      echo -e "${RED}module: command not found.\nThis script must be run in an interactive shell (the first line must read '#! /bin/bash' -i)${NC}"
+      exit
+    fi
+
+    # ============================================================================================================================================================================
     #--- build hdf5 in single
+    # ============================================================================================================================================================================
     MODULEFILE=${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/single
     echo "${GREEN}      Installing under: ${MODULEFILE}${NC}"
     if [[ -n ${1} ]]; then
+      # Remove INSTALL module directory during re-run
       if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
         rm ${MODULEFILE}
       fi
     fi
     if [ ! -e "${MODULEFILE}" ]; then
       echo "${GREEN}    creating HDF5-${HDF5VERSION} library for ${WHICHCOMPILER}-${COMPILERVERSION} single${NC}"
+
+      # Unload all possibly loaded modules and load specific modules for compilation of HDF5
       module purge
-      if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
+      if [[ -n $(module load ${COMPILERPREFIX}${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
         echo "${RED}      module ${WHICHCOMPILER}/${COMPILERVERSION} not found ${NC}"
         break
       fi
-      module load ${WHICHCOMPILER}/${COMPILERVERSION}
-      module list
+      module load ${COMPILERPREFIX}${WHICHCOMPILER}/${COMPILERVERSION}
 
       echo ""
-      read -p "Have the correct modules been loaded? If yes, press enter to continue!"
+      module list
+      echo ""
+      echo -e "Compiling HDF5 SINGLE mode.\nHave the correct modules been loaded?"
+      echo -e "This will install HF5 version ${GREEN}${HDF5VERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
+      read -p "If yes, press [Enter] to continue or [Crtl+c] to abort!"
 
-      cd ${SOURCESDIR}
-      if [ ! -e "${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz" ]; then
-        wget "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz"
+      if [ ! -d "${BUILDDIR}/single" ]; then
+        mkdir -p ${BUILDDIR}/single
       fi
-      if [ ! -e "${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz" ]; then
-        echo "${RED} no hdf5 install-file downloaded for HDF5-${HDF5VERSION}${NC}"
-        echo "${RED} check if https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz exists${NC}"
-        break
-      fi
-      tar -xzf hdf5-${HDF5VERSION}.tar.gz hdf5-${HDF5VERSION}
-      if [ ! -d "${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/single" ]; then
-        mkdir -p ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/single
-      fi
+
+      # Remove SOURCE ${BUILDDIR}/single/* directory during re-run
       if [[ ${1} =~ ^-r(erun)?$ ]] ; then
-        rm ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/single/*
+        #DELETE=$(echo ${BUILDDIR}/single/*)
+        #read -p "Delete ${DELETE} ?"
+        rm -rf ${BUILDDIR}/single/*
       fi
-      cd ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/single/
+
+      # Change to build directory
+      cd ${BUILDDIR}/single/
+
+      # Configure setup
       if [ "${WHICHCOMPILER}" == "gcc" ]; then
         ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/single --with-pic --enable-fortran --enable-fortran2003 --disable-shared CC=$(which gcc) CXX=$(which g++) FC=$(which gfortran)
       elif [ "${WHICHCOMPILER}" == "intel" ]; then
         ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/single --with-pic --enable-fortran --enable-fortran2003 --disable-shared CC=$(which icc) CXX=$(which icpc) FC=$(which ifort)
       fi
-      make -j 2>&1 | tee make.out
+
+      # Compile source files with NBROFCORES threads
+      make -j${NBROFCORES} 2>&1 | tee make.out
+
+      # Check if compilation failed
       if [ ${PIPESTATUS[0]} -ne 0 ]; then
         echo " "
         echo "${RED} Failed: [make -j 2>&1 | tee make.out]${NC}"
@@ -160,15 +220,22 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
         make install 2>&1 | tee install.out
       fi
 
-      cp ${TEMPLATEDIR}/libraries/hdf5/single_template ${MODULEFILE}
+      # Create modulefile if installation seems successful
+      cp ${TEMPLATEPATH}/single_template ${MODULEFILE}
       sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}
       sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
       sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE}
     else
-      echo "${YELLOW}      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} already created (module file exists)${NC}"
+      echo "${YELLOW}      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} already created (module file exists). Run with -r to remove and re-install.${NC}"
     fi
+    # ============================================================================================================================================================================
+    #--- build hdf5 in single
+    # ============================================================================================================================================================================
 
+
+    # ============================================================================================================================================================================
     #--- build hdf5 with mpi
+    # ============================================================================================================================================================================
     MPINAMES='openmpi mpich'
     for WHICHMPI in ${MPINAMES}; do
       echo "${GREEN}    $WHICHMPI ------------------------------------------------------------------------------${NC}"
@@ -190,32 +257,52 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
         echo "${GREEN}    $MPIVERSION ------------------------------------------------------------------------------${NC}"
         MODULEFILE=${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}
         echo "${GREEN}      Installing under: ${MODULEFILE}${NC}"
+
         if [[ -n ${1} ]]; then
+          # Remove INSTALL module directory during re-run
           if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
             rm ${MODULEFILE}
           fi
         fi
         if [ ! -e "${MODULEFILE}" ]; then
-          module purge
-          if [[ -n $(module load ${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
-            echo "${RED}      module ${WHICHCOMPILER}/${COMPILERVERSION} not found ${NC}"
-            break
-          fi
-          module load ${WHICHCOMPILER}/${COMPILERVERSION}
-          if [[ -n $(module load ${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
-            echo "${RED}      module ${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION} not found ${NC}"
-            break
-          fi
-          module load ${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION}
 
-          if [ ! -d "${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}" ]; then
-            mkdir -p ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}
+          # Unload all possibly loaded modules and load specific modules for compilation of HDF5
+          module purge
+          if [[ -n $(module load ${COMPILERPREFIX}${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
+            echo "${RED}      module ${COMPILERPREFIX}${WHICHCOMPILER}/${COMPILERVERSION} not found ${NC}"
+            break
           fi
+          module load ${COMPILERPREFIX}${WHICHCOMPILER}/${COMPILERVERSION}
+          if [[ -n $(module load ${MPIPREFIX}${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
+            echo "${RED}      module ${MPIPREFIX}${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION} not found ${NC}"
+            break
+          fi
+          module load ${MPIPREFIX}${WHICHMPI}/${MPIVERSION}/${WHICHCOMPILER}/${COMPILERVERSION}
+
+          echo ""
+          module list
+          echo ""
+          echo -e "Compiling HDF5 with MPI.\nHave the correct modules been loaded?"
+          read -p "If yes, press [Enter] to continue or [Crtl+c] to abort!"
+
+          if [ ! -d "${BUILDDIR}/${WHICHMPI}/${MPIVERSION}" ]; then
+            mkdir -p ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}
+          fi
+
+          # Remove SOURCE ${BUILDDIR}//${WHICHMPI}/${MPIVERSION}/* directory during re-run
           if [[ ${1} =~ ^-r(erun)?$ ]] ; then
-            rm ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}/*
+            #DELETE=$(echo ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}/*)
+            #read -p "Delete ${DELETE} ?"
+            rm ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}/*
           fi
-          cd ${SOURCESDIR}/hdf5-${HDF5VERSION}/build_${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}
+
+          # Change to build directory
+          cd ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}
+
+          # Configure setup
           ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION} --with-pic --enable-fortran --enable-fortran2003 --disable-shared --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
+
+          # Compile source files with NBROFCORES threads
           make -j 2>&1 | tee make.out
           if [ ${PIPESTATUS[0]} -ne 0 ]; then
             echo " "
@@ -224,20 +311,29 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
           else
             make install 2>&1 | tee install.out
           fi
-          cp ${TEMPLATEDIR}/libraries/hdf5/mpi_template ${MODULEFILE}
+
+          # Create modulefile if installation seems successful
+          cp ${TEMPLATEPATH}/mpi_template ${MODULEFILE}
           sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}
           sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
           sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE}
           sed -i 's/whichmpi/'${WHICHMPI}'/gI' ${MODULEFILE}
           sed -i 's/mpiversion/'${MPIVERSION}'/gI' ${MODULEFILE}
         else
-          echo "${YELLOW}      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} and ${WHICHMPI}-${MPIVERSION} already created (module file exists)${NC}"
+          echo "${YELLOW}      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} and ${WHICHMPI}-${MPIVERSION} already created (module file exists). Run with -r to remove and re-install.${NC}"
           continue
         fi
-      done
-    done
+      done # j in $(seq 1 ${NMPI}); do
+    done # WHICHMPI in ${MPINAMES}; do
+    # ============================================================================================================================================================================
+    #--- build hdf5 with mpi
+    # ============================================================================================================================================================================
 
-    #rm -rf ${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz
-  done
 
-done
+  done # i in $(seq 1 ${NCOMPILERS}); do
+done # WHICHCOMPILER in ${COMPILERNAMES}; do
+
+# Remove SOURCE tar.gz file after successful installation
+if [[ -f ${TARFILE} ]]; then
+  rm ${TARFILE}
+fi

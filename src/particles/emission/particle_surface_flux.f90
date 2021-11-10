@@ -28,10 +28,10 @@ PUBLIC :: ParticleSurfaceflux
 !===================================================================================================================================
 CONTAINS
 
+!===================================================================================================================================
+!> Particle Inserting via Surface Flux and (if present) adaptiveBC (Surface Flux adapting part density, velocity or temperature)
+!===================================================================================================================================
 SUBROUTINE ParticleSurfaceflux()
-!===================================================================================================================================
-! Particle Inserting via Surface Flux and (if present) adaptiveBC (Surface Flux adapting part density, velocity or temperature)
-!===================================================================================================================================
 ! Modules
 USE MOD_Globals
 USE MOD_Particle_Vars
@@ -306,10 +306,10 @@ END DO !iSpec
 END SUBROUTINE ParticleSurfaceflux
 
 
-SUBROUTINE CalcPartInsSubSidesStandardCase(iSpec, iSF, PartInsSubSides)
 !===================================================================================================================================
 !>
 !===================================================================================================================================
+SUBROUTINE CalcPartInsSubSidesStandardCase(iSpec, iSF, PartInsSubSides)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: Species
@@ -404,10 +404,10 @@ INTEGER, ALLOCATABLE   :: PartInsProc(:)
 END SUBROUTINE CalcPartInsSubSidesStandardCase
 
 
-SUBROUTINE DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
 !===================================================================================================================================
 !>
 !===================================================================================================================================
+SUBROUTINE DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared, SideInfo_Shared
@@ -451,10 +451,10 @@ END SUBROUTINE DefineSideDirectVec2D
 
 
 #ifdef CODE_ANALYZE
-SUBROUTINE AnalyzePartPos(ParticleIndexNbr)
 !===================================================================================================================================
 !>
 !===================================================================================================================================
+SUBROUTINE AnalyzePartPos(ParticleIndexNbr)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars      ,ONLY: LastPartPos, PDM
@@ -505,10 +505,11 @@ END IF
 END SUBROUTINE AnalyzePartPos
 #endif /*CODE_ANALYZE*/
 
-SUBROUTINE SetInnerEnergies(iSpec, iSF, NbrOfParticle)
+
 !===================================================================================================================================
 !>
 !===================================================================================================================================
+SUBROUTINE SetInnerEnergies(iSpec, iSF, NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
@@ -541,10 +542,10 @@ END DO
 END SUBROUTINE SetInnerEnergies
 
 
+!===================================================================================================================================
+!> Calculate random normalized vector in 3D (unit space)
+!===================================================================================================================================
 FUNCTION InSideCircularInflow(iSpec, iSF, iSide, Particle_pos)
-!===================================================================================================================================
-! Calculate random normalized vector in 3D (unit space)
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: Species
@@ -561,37 +562,34 @@ LOGICAL                         :: InSideCircularInflow
 ! LOCAL VARIABLES
 REAL                        :: point(2), radius, origin(2)
 !===================================================================================================================================
-  origin=Species(iSpec)%Surfaceflux(iSF)%origin
-  SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide))
-  CASE(0) !- RejectType=0 : complete side is inside valid bounds
+InSideCircularInflow=.FALSE. ! Initialize
+origin=Species(iSpec)%Surfaceflux(iSF)%origin
+SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide))
+CASE(0) !- RejectType=0 : complete side is inside valid bounds
+  InSideCircularInflow=.TRUE.
+CASE(1) !- RejectType=1 : complete side is outside of valid bounds
+CALL abort(__STAMP__,'side outside of valid bounds was considered although nVFR=0...?!')
+              !AcceptPos=.FALSE.
+CASE(2) !- RejectType=2 : side is partly inside valid bounds
+  point(1)=Particle_pos(Species(iSpec)%Surfaceflux(iSF)%dir(2))-origin(1)
+  point(2)=Particle_pos(Species(iSpec)%Surfaceflux(iSF)%dir(3))-origin(2)
+  radius=SQRT( (point(1))**2+(point(2))**2 )
+  IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
     InSideCircularInflow=.TRUE.
-  CASE(1) !- RejectType=1 : complete side is outside of valid bounds
-  CALL abort(&
-  __STAMP__&
-  ,'side outside of valid bounds was considered although nVFR=0...?!')
-                !AcceptPos=.FALSE.
-  CASE(2) !- RejectType=2 : side is partly inside valid bounds
-    point(1)=Particle_pos(Species(iSpec)%Surfaceflux(iSF)%dir(2))-origin(1)
-    point(2)=Particle_pos(Species(iSpec)%Surfaceflux(iSF)%dir(3))-origin(2)
-    radius=SQRT( (point(1))**2+(point(2))**2 )
-    IF ((radius.LE.Species(iSpec)%Surfaceflux(iSF)%rmax).AND.(radius.GE.Species(iSpec)%Surfaceflux(iSF)%rmin)) THEN
-      InSideCircularInflow=.TRUE.
-    ELSE
-      InSideCircularInflow=.FALSE.
-    END IF
-  CASE DEFAULT
-    CALL abort(&
-  __STAMP__&
-  ,'wrong SurfFluxSideRejectType!')
-  END SELECT !SurfFluxSideRejectType
+  ELSE
+    InSideCircularInflow=.FALSE.
+  END IF
+CASE DEFAULT
+  CALL abort(__STAMP__,'wrong SurfFluxSideRejectType!')
+END SELECT !SurfFluxSideRejectType
 
 END FUNCTION InSideCircularInflow
 
 
+!===================================================================================================================================
+!> Calculate random normalized vector in 3D (unit space)
+!===================================================================================================================================
 FUNCTION CalcPartPosBezier(iSpec, iSF, iSample, jSample, iSide, SideID, xi)
-!===================================================================================================================================
-! Calculate random normalized vector in 3D (unit space)
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D,BezierSampleXi
@@ -612,64 +610,65 @@ REAL                        :: CalcPartPosBezier(3)
 REAL                        :: RandVal2(2), xiab(1:2,1:2), E, F, G, D, gradXiEta2D(1:2,1:2),gradXiEta3D(1:2,1:3), RandVal1
 INTEGER                     :: iLoop
 !===================================================================================================================================
-  iLoop=0
-  DO !ARM for xi considering the dA of the Subside in RefSpace
-    iLoop = iLoop+1
-    CALL RANDOM_NUMBER(RandVal2)
-    xiab(1,1:2)=(/BezierSampleXi(iSample-1),BezierSampleXi(iSample)/) !correct order?!?
-    xiab(2,1:2)=(/BezierSampleXi(JSample-1),BezierSampleXi(JSample)/) !correct order?!?
-    xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
-    IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
-      IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
-        CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,2 &
-          ,Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
-          ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo) &
-          ,Gradient=gradXiEta2D)
-        E=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(1,1:2))
-        F=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(2,1:2))
-        G=DOT_PRODUCT(gradXiEta2D(2,1:2),gradXiEta2D(2,1:2))
-      ELSE
-        CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
-          ,Gradient=gradXiEta3D)
-        E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
-        F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
-        G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
-      END IF !.NOT.VeloIsNormal
-      D=SQRT(E*G-F*F)
-      D=D/Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax !scaled Jacobian of xi
-      IF (D .GT. 1.01) THEN !arbitrary warning threshold
-        IPWRITE(*,'(I4,1X,A28,I0,A9,I0,A22,I0)') &
-          'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has inaccurate Dmax! ',D
-      END IF
-      CALL RANDOM_NUMBER(RandVal1)
-      IF (RandVal1.LE.D) THEN
-        EXIT !accept xi
-      ELSE
-        IF (MOD(iLoop,100).EQ.0) THEN !arbitrary warning threshold
-          IPWRITE(*,'(I4,1X,A28,I0,A9,I0,A18,I0)') &
-            'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has reached loop ',iLoop
-          IPWRITE(*,'(I4,1X,A19,2(1X,E16.8))') &
-            '         R, D/Dmax:',RandVal1,D
-        END IF
-      END IF
-    ELSE !no ARM -> accept xi
-      EXIT
+iLoop=0
+DO !ARM for xi considering the dA of the Subside in RefSpace
+  iLoop = iLoop+1
+  CALL RANDOM_NUMBER(RandVal2)
+  xiab(1,1:2)=(/BezierSampleXi(iSample-1),BezierSampleXi(iSample)/) !correct order?!?
+  xiab(2,1:2)=(/BezierSampleXi(JSample-1),BezierSampleXi(JSample)/) !correct order?!?
+  xi=(xiab(:,2)-xiab(:,1))*RandVal2+xiab(:,1)
+  IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
+    IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+      CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,2 &
+        ,Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
+        ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo) &
+        ,Gradient=gradXiEta2D)
+      E=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(1,1:2))
+      F=DOT_PRODUCT(gradXiEta2D(1,1:2),gradXiEta2D(2,1:2))
+      G=DOT_PRODUCT(gradXiEta2D(2,1:2),gradXiEta2D(2,1:2))
+    ELSE
+      CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
+        ,Gradient=gradXiEta3D)
+      E=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(1,1:3))
+      F=DOT_PRODUCT(gradXiEta3D(1,1:3),gradXiEta3D(2,1:3))
+      G=DOT_PRODUCT(gradXiEta3D(2,1:3),gradXiEta3D(2,1:3))
+    END IF !.NOT.VeloIsNormal
+    D=SQRT(E*G-F*F)
+    D=D/Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax !scaled Jacobian of xi
+    IF (D .GT. 1.01) THEN !arbitrary warning threshold
+      IPWRITE(*,'(I4,1X,A28,I0,A9,I0,A22,I0)') &
+        'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has inaccurate Dmax! ',D
     END IF
-  END DO !Jacobian-based ARM-loop
-  IF(MINVAL(XI).LT.-1.)THEN
-    IPWRITE(UNIT_StdOut,'(I0,A,E16.8)') ' Xi<-1',XI
+    CALL RANDOM_NUMBER(RandVal1)
+    IF (RandVal1.LE.D) THEN
+      EXIT !accept xi
+    ELSE
+      IF (MOD(iLoop,100).EQ.0) THEN !arbitrary warning threshold
+        IPWRITE(*,'(I4,1X,A28,I0,A9,I0,A18,I0)') &
+          'WARNING: ARM of SurfaceFlux ',iSF,' of Spec ',iSpec,' has reached loop ',iLoop
+        IPWRITE(*,'(I4,1X,A19,2(1X,E16.8))') &
+          '         R, D/Dmax:',RandVal1,D
+      END IF
+    END IF
+  ELSE !no ARM -> accept xi
+    EXIT
   END IF
-  IF(MAXVAL(XI).GT.1.)THEN
-    IPWRITE(UNIT_StdOut,'(I0,A,E16.8)') ' Xi>1',XI
-  END IF
-  CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=CalcPartPosBezier)
+END DO !Jacobian-based ARM-loop
+IF(MINVAL(XI).LT.-1.)THEN
+  IPWRITE(UNIT_StdOut,'(I0,A,E16.8)') ' Xi<-1',XI
+END IF
+IF(MAXVAL(XI).GT.1.)THEN
+  IPWRITE(UNIT_StdOut,'(I0,A,E16.8)') ' Xi>1',XI
+END IF
+CALL EvaluateBezierPolynomialAndGradient(xi,NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID),Point=CalcPartPosBezier)
 
 END FUNCTION CalcPartPosBezier
 
+
+!===================================================================================================================================
+!> Calculate random normalized vector in 3D (unit space)
+!===================================================================================================================================
 FUNCTION CalcPartPosTriaSurface(xyzNod, Vector1, Vector2, ndist, midpoint)
-!===================================================================================================================================
-! Calculate random normalized vector in 3D (unit space)
-!===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 ! IMPLICIT VARIABLE HANDLING
@@ -704,10 +703,11 @@ REAL, PARAMETER             :: eps_nontria=1.0E-6
 
 END FUNCTION CalcPartPosTriaSurface
 
+
+!===================================================================================================================================
+!> Calculate random normalized vector in 3D (unit space)
+!===================================================================================================================================
 SUBROUTINE CalcPartPosRadWeight(minPos, RVec, PartInsSubSide, PartInsSideSubSub, particle_positions)
-!===================================================================================================================================
-! Calculate random normalized vector in 3D (unit space)
-!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
@@ -776,10 +776,11 @@ END IF
 
 END SUBROUTINE CalcPartPosRadWeight
 
+
+!===================================================================================================================================
+!> Calculate random normalized vector in 3D (unit space)
+!===================================================================================================================================
 SUBROUTINE CalcPartInsRadWeight(iSpec, iSF, iSample, jSample, iSide, minPos, RVec, PartInsSubSide, PartInsSideSubSub)
-!===================================================================================================================================
-! Calculate random normalized vector in 3D (unit space)
-!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
@@ -816,10 +817,11 @@ END IF
 
 END SUBROUTINE CalcPartInsRadWeight
 
+
+!===================================================================================================================================
+!> Calculate random normalized vector in 3D (unit space)
+!===================================================================================================================================
 SUBROUTINE CalcPartInsPoissonDistr(iSpec, iSF, iSample, jSample, iSide, PartInsSubSide)
-!===================================================================================================================================
-! Calculate random normalized vector in 3D (unit space)
-!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
@@ -849,10 +851,11 @@ END IF
 
 END SUBROUTINE CalcPartInsPoissonDistr
 
+
+!===================================================================================================================================
+!> Calculate random normalized vector in 3D (unit space)
+!===================================================================================================================================
 SUBROUTINE CalcPartInsAdaptive(iSpec, iSF, BCSideID, iSide, iSample, jSample, PartInsSubSide)
-!===================================================================================================================================
-! Calculate random normalized vector in 3D (unit space)
-!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
@@ -960,10 +963,10 @@ INTEGER                     :: ElemID, SampleElemID
 END SUBROUTINE CalcPartInsAdaptive
 
 
-SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
 !===================================================================================================================================
 !> Routine calculates the weights of the triangles for AdaptiveType=4 to scale up the number of particles to be inserted
 !===================================================================================================================================
+SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!                                                                                              ! ----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
@@ -1104,10 +1107,10 @@ SDEALLOCATE(PartInsSubSidesAdapt)
 END SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight
 
 
+!===================================================================================================================================
+!> Determine the particle velocity of each inserted particle
+!===================================================================================================================================
 SUBROUTINE SetSurfacefluxVelocities(iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,ElemID,NbrOfParticle,PartIns)
-!===================================================================================================================================
-! Determine the particle velocity of each inserted particle
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY : PI, BoltzmannConst

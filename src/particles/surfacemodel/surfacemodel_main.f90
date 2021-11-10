@@ -25,12 +25,12 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: SurfaceModel_main, MaxwellScattering, PerfectReflection, DiffuseReflection, SpeciesSwap
+PUBLIC :: SurfaceModel, MaxwellScattering, PerfectReflection, DiffuseReflection, SpeciesSwap
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE SurfaceModel_main(PartID,SideID,ElemID,n_Loc)
+SUBROUTINE SurfaceModel(PartID,SideID,GlobElemID,n_Loc)
 !===================================================================================================================================
 !> Selection and execution of a gas-surface interaction model
 !> 1.) Initial surface pre-treatment: Porous BC, species swap and charge deposition on dielectrics
@@ -40,6 +40,7 @@ SUBROUTINE SurfaceModel_main(PartID,SideID,ElemID,n_Loc)
 !       5/6/7: Secondary Electron Emission
 !> 4.) Count and sample the properties AFTER the surface interaction
 !===================================================================================================================================
+!USE MOD_Globals           ,ONLY: myrank,ierror,mpi_comm_world
 USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
 USE MOD_Particle_Vars             ,ONLY: PartSpecies, WriteMacroSurfaceValues
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
@@ -56,28 +57,29 @@ USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
 USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
-USE MOD_part_operations           ,ONLY: CreateParticle, RemoveParticle
+USE MOD_part_operations           ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)             :: n_loc(1:3)
-INTEGER,INTENT(IN)          :: PartID, SideID, ElemID
+REAL,INTENT(IN)    :: n_loc(1:3)
+INTEGER,INTENT(IN) :: PartID, SideID
+INTEGER,INTENT(IN) :: GlobElemID  !< Global element ID of the particle impacting the surface
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: ProductSpec(2)  !< 1: product species of incident particle (also used for simple reflection)
-                                                    !< 2: additional species added or removed from surface
-                                                    !< If productSpec is negative, then the respective particles are adsorbed
-                                                    !< If productSpec is positive the particle is reflected/emitted
-                                                    !< with respective species
-INTEGER                         :: ProductSpecNbr  !< number of emitted particles for ProductSpec(1)
-REAL                            :: TempErgy(2)     !< temperature, energy or velocity used for VeloFromDistribution
-REAL                            :: Xitild,Etatild
-INTEGER                         :: SpecID, locBCID
-INTEGER                         :: iBC, SurfSideID
-LOGICAL                         :: SpecularReflectionOnly,DoSample
+INTEGER            :: ProductSpec(1:2) !< 1: product species of incident particle (also used for simple reflection)
+                                       !< 2: additional species added or removed from surface
+                                       !< If productSpec is negative, then the respective particles are adsorbed
+                                       !< If productSpec is positive the particle is reflected/emitted
+                                       !< with respective species
+INTEGER            :: ProductSpecNbr   !< number of emitted particles for ProductSpec(2)
+REAL               :: TempErgy(2)      !< temperature, energy or velocity used for VeloFromDistribution
+REAL               :: Xitild,Etatild
+INTEGER            :: SpecID, locBCID
+INTEGER            :: iBC, SurfSideID
+LOGICAL            :: SpecularReflectionOnly,DoSample
 !===================================================================================================================================
 iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 
@@ -91,7 +93,7 @@ IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(PartID,SideID,SpecularReflection
 
 !---- Dielectric particle-surface interaction
 IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN
-  CALL DepositParticleOnNodes(PartID,LastPartPos(1:3,PartID)+TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha,ElemID)
+  CALL DepositParticleOnNodes(PartID,LastPartPos(1:3,PartID)+TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha,GlobElemID)
 END IF
 
 !---- swap species?
@@ -142,12 +144,15 @@ CASE (0) ! Maxwellian scattering (diffuse/specular reflection)
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL MaxwellScattering(PartID,SideID,n_Loc,SpecularReflectionOnly)
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE (5,6,7) ! 5: SEE by Levko2015
-             ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
-             ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
+CASE (5,6,7,8)
+  ! 5: SEE by Levko2015
+  ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
+  ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
+  ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materials is considered for SEE and three different outcomes)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Get electron emission probability
   CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy(2))
+  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
   ! Decide the fate of the impacting particle
   IF (ProductSpec(1).LE.0) THEN
     CALL RemoveParticle(PartID)
@@ -156,12 +161,10 @@ CASE (5,6,7) ! 5: SEE by Levko2015
   END IF
   ! Emit the secondary electrons
   IF (ProductSpec(2).GT.0) THEN
-    CALL SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy)
+    CALL SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobElemID)
   END IF
 CASE DEFAULT
-    CALL abort(&
-      __STAMP__&
-      ,'Not implemented anymore!')
+  CALL abort(__STAMP__,'Unknown surface model. PartBound%SurfaceModel(locBCID) = ',IntInfoOpt=PartBound%SurfaceModel(locBCID))
 END SELECT
 
 !===================================================================================================================================
@@ -186,10 +189,10 @@ IF(DoSample) THEN
   CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
 END IF
 
-END SUBROUTINE SurfaceModel_main
+END SUBROUTINE SurfaceModel
 
 
-SUBROUTINE MaxwellScattering(PartID,SideID,n_loc,SpecularReflectionOnly)
+SUBROUTINE MaxwellScattering(PartID,SideID,n_loc,SpecularReflectionOnly_opt)
 !===================================================================================================================================
 !> SurfaceModel = 0, classic DSMC gas-surface interaction model choosing between a perfect specular and a complete diffuse
 !> reflection by comparing the given momentum accommodation coefficient (MomentumACC) with a random number
@@ -202,29 +205,32 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)             :: n_loc(1:3)
 INTEGER,INTENT(IN)          :: PartID, SideID
-LOGICAL,INTENT(IN),OPTIONAL :: SpecularReflectionOnly
+LOGICAL,INTENT(IN),OPTIONAL :: SpecularReflectionOnly_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                        :: RanNum
-INTEGER                     :: iBC
+REAL    :: RanNum,ACC
+INTEGER :: iBC
 !===================================================================================================================================
-
 iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+ACC = PartBound%MomentumACC(iBC)
 
-IF (SpecularReflectionOnly.OR.PartBound%MomentumACC(iBC).EQ.0.0) THEN
-  CALL PerfectReflection(PartID,SideID,n_loc)
-ELSE IF(PartBound%MomentumACC(iBC).LT.1.0) THEN
-  CALL RANDOM_NUMBER(RanNum)
-  IF(RanNum.GE.PartBound%MomentumACC(iBC)) THEN
+! Check if optional parameter was supplied
+ASSOCIATE( SpecularReflectionOnly => MERGE(SpecularReflectionOnly_opt, .FALSE., PRESENT(SpecularReflectionOnly_opt)) ) 
+  IF (SpecularReflectionOnly.OR.ACC.EQ.0.0) THEN
     CALL PerfectReflection(PartID,SideID,n_loc)
+  ELSE IF(ACC.LT.1.0) THEN
+    CALL RANDOM_NUMBER(RanNum)
+    IF(RanNum.GE.ACC) THEN
+      CALL PerfectReflection(PartID,SideID,n_loc)
+    ELSE
+      CALL DiffuseReflection(PartID,SideID,n_loc)
+    END IF
   ELSE
     CALL DiffuseReflection(PartID,SideID,n_loc)
   END IF
-ELSE
-  CALL DiffuseReflection(PartID,SideID,n_loc)
-END IF
+END ASSOCIATE
 
 END SUBROUTINE MaxwellScattering
 

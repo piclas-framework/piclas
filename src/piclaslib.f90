@@ -68,12 +68,17 @@ IMPLICIT NONE
 REAL                    :: SystemTime
 LOGICAL                 :: userblockFound
 !===================================================================================================================================
-#ifdef EXTRAE
-CALL extrae_eventandcounters(int(9000001), int8(1))
-#endif /*EXTRAE*/
 CALL SetStackSizeUnlimited()
 
 CALL InitMPI()
+
+#if defined(MEASURE_MPI_WAIT)
+IF((MPIW8SIZEFIELD+MPIW8SIZEPART).EQ.0) CALL abort(__STAMP__,'PICLAS_MEASURE_MPI_WAIT=T not implemented for this system')
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(1))
+#endif /*EXTRAE*/
 
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')"                                        _______ _________ _______  _        _______  _______ "

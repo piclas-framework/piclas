@@ -170,8 +170,7 @@ USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
 USE MOD_Particle_Vars          ,ONLY: Symmetry
 #ifdef CODE_ANALYZE
-USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
-USE MOD_Mesh_Vars              ,ONLY: nSides
+!USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 ! TODO
 ! USE MOD_MPI_Vars               ,ONLY: offsetMPISides_YOUR
@@ -287,9 +286,9 @@ PARTOUT            = GETINT('PartOut','0')
 MPIRankOut         = GETINT('MPIRankOut','0')
 #endif /*CODE_ANALYZE*/
 
-MeasureTrackTime  = GETLOGICAL('MeasureTrackTime','.FALSE.')
-CartesianPeriodic = GETLOGICAL('CartesianPeriodic','.FALSE.')
-IF(CartesianPeriodic) FastPeriodic = GETLOGICAL('FastPeriodic','.FALSE.')
+MeasureTrackTime  = GETLOGICAL('MeasureTrackTime')
+CartesianPeriodic = GETLOGICAL('CartesianPeriodic')
+IF(CartesianPeriodic) FastPeriodic = GETLOGICAL('FastPeriodic')
 
 ! method from xPhysic to parameter space
 IF(UseCurveds)THEN ! don't use RefMappingGuess=1, because RefMappingGuess is only best for linear cubical elements
@@ -387,9 +386,10 @@ SELECT CASE(TrackingMethod)
     firstSide = 1
     lastSide  = nNonUniqueGlobalSides
 #endif /* USE_MPI */
-#ifdef CODE_ANALYZE
-    ALLOCATE(SideBoundingBoxVolume(nSides))
-#endif /*CODE_ANALYZE*/
+! TODO: bounding box volumes must be calculated for all unique sides.
+!#ifdef CODE_ANALYZE
+!    ALLOCATE(SideBoundingBoxVolume(nSides))
+!#endif /*CODE_ANALYZE*/
 
     IF (BezierElevation.GT.0) THEN
       DO iSide = firstSide,LastSide
@@ -429,7 +429,7 @@ SELECT CASE(TrackingMethod)
     CALL BARRIER_AND_SYNC(SideSlabIntervals_Shared_Win ,MPI_COMM_SHARED)
     CALL BARRIER_AND_SYNC(BoundingBoxIsEmpty_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI */
-#ifdef CODE_ANALYZE
+    !#ifdef CODE_ANALYZE
     ! TODO: bounding box volumes must be calculated for all unique sides.
     !               offsetSideID = ElemInfo_Shared(SideIf
     !               DO iSide=offsetMPISides_YOUR,LastSide
@@ -439,7 +439,7 @@ SELECT CASE(TrackingMethod)
     !                 SideID = SideInfo
     !                 SideBoundingBoxVolume(SideID)=dx*dy*dz
     !               END DO
-#endif /*CODE_ANALYZE*/
+    !#endif /*CODE_ANALYZE*/
 
     ! Compute element bary and element radius for node elements (with halo region)
     CALL BuildElementOriginShared()

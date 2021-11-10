@@ -52,11 +52,7 @@ USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
-USE MOD_SurfaceModel             ,ONLY: SurfaceModel_main, PerfectReflection
-#if defined(IMPA)
-USE MOD_Particle_Vars            ,ONLY: PartIsImplicit
-USE MOD_Particle_Vars            ,ONLY: DoPartInNewton
-#endif /*IMPA*/
+USE MOD_SurfaceModel             ,ONLY: SurfaceModel,PerfectReflection
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties
 #ifdef CODE_ANALYZE
@@ -131,11 +127,7 @@ END SELECT
 ! required for refmapping and tracing, optional for triatracking
 crossedBC=.TRUE.
 
-IF (.NOT. ALLOCATED(PartBound%MapToPartBC)) THEN
-  CALL abort(&
-  __STAMP__&
-  ,' ERROR: PartBound not allocated!.')
-END IF
+IF(.NOT.ALLOCATED(PartBound%MapToPartBC)) CALL abort(__STAMP__,' ERROR: PartBound not allocated!.')
 
 ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   ! Surface particle output to .h5
@@ -154,7 +146,7 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   CASE(2) !PartBound%ReflectiveBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! Decide which interaction (specular/diffuse reflection, species swap, SEE)
-    CALL SurfaceModel_main(iPart,SideID,ElemID,n_loc)
+    CALL SurfaceModel(iPart,SideID,ElemID,n_loc)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(3) !PartBound%PeriodicBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -162,15 +154,11 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(4) !PartBound%SimpleAnodeBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
-    CALL abort(&
-      __STAMP__&
-      ,' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)')
+    CALL abort(__STAMP__,' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)')
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(5) !PartBound%SimpleCathodeBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
-    CALL abort(&
-      __STAMP__&
-      ,' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)')
+    CALL abort(__STAMP__,' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)')
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(6) !PartBound%rot_periodic)
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -180,9 +168,7 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   !-----------------------------------------------------------------------------------------------------------------------------------
     CALL PerfectReflection(iPart,SideID,n_loc,opt_Symmetry=.TRUE.)
   CASE DEFAULT
-    CALL abort(&
-      __STAMP__&
-      ,' ERROR: PartBound not associated!. (unknown case)')
+    CALL abort(__STAMP__,' ERROR: PartBound not associated!. (unknown case)')
 END SELECT !PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
 END ASSOCIATE
 

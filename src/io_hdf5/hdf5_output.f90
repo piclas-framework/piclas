@@ -63,6 +63,7 @@ PUBLIC :: WriteTimeAverage,GenerateNextFileInfo, copy_userblock
 #if USE_MPI && defined(PARTICLES)
 PUBLIC :: DistributedWriteArray
 #endif /*USE_MPI && defined(PARTICLES)*/
+PUBLIC :: RemoveHDF5
 !===================================================================================================================================
 
 CONTAINS
@@ -361,9 +362,47 @@ DO
   IF(iError.NE.0) EXIT  ! iError is set in GetHDF5NextFileName !
 END DO
 
-WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+WRITE(UNIT_stdOut,'(A)',ADVANCE='YES')'DONE'
 
 END SUBROUTINE FlushHDF5
+
+
+SUBROUTINE RemoveHDF5(InputFile)
+!===================================================================================================================================
+! Deletes all HDF5 output files, beginning from time Flushtime
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: InputFile
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                  :: stat,ioUnit
+!===================================================================================================================================
+! Only MPI root does the killing
+IF(.NOT.MPIRoot) RETURN
+
+WRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' DELETING HDF5 FILE ['//TRIM(InputFile)//']...'
+
+! Delete File - only root
+stat=0
+OPEN ( NEWUNIT= ioUnit,         &
+       FILE   = TRIM(InputFile),&
+       STATUS = 'OLD',          &
+       ACTION = 'WRITE',        &
+       ACCESS = 'SEQUENTIAL',   &
+       IOSTAT = stat          )
+IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
+IF(iError.NE.0) WRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '**** FAILED with iError.NE.0 ****'
+
+WRITE(UNIT_stdOut,'(A)',ADVANCE='YES')'DONE'
+
+END SUBROUTINE RemoveHDF5
 
 
 SUBROUTINE WriteHDF5Header(FileType_in,File_ID)
