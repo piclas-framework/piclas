@@ -56,11 +56,11 @@ SUBROUTINE MCC_Init()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_MCC_XSec      ,ONLY: ReadCollXSec, ReadVibXSec, InterpolateCrossSection_Vib, ReadElecXSec
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
 USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC
 USE MOD_MCC_Vars      ,ONLY: XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
+USE MOD_MCC_XSec      ,ONLY: ReadCollXSec, ReadVibXSec, InterpolateCrossSection_Vib, ReadElecXSec, InterpolateCrossSection_Elec
 #if defined(PARTICLES) && USE_HDG
 USE MOD_HDG_Vars      ,ONLY: UseBRElectronFluid,BRNullCollisionDefault
 USE MOD_ReadInTools   ,ONLY: PrintOption
@@ -70,8 +70,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER       :: iSpec, jSpec, iCase, partSpec
-REAL          :: TotalProb(nSpecies), VibCrossSection
-INTEGER       :: iVib, nVib, iStep, MaxDim
+REAL          :: TotalProb(nSpecies), CrossSection
+INTEGER       :: iLevel, nVib, iStep, MaxDim
 !===================================================================================================================================
 
 XSec_Database = TRIM(GETSTR('Particles-CollXSec-Database'))
@@ -145,9 +145,10 @@ DO iSpec = 1, nSpecies
       END IF
       XSec_Relaxation = .TRUE.
       nVib = SIZE(SpecXSec(iCase)%VibMode)
-      DO iVib = 1, nVib
+      DO iLevel = 1, nVib
         ! Store the energy value in J (read-in was in eV)
-        SpecXSec(iCase)%VibMode(iVib)%XSecData(1,:) = SpecXSec(iCase)%VibMode(iVib)%XSecData(1,:) * ElementaryCharge
+        SpecXSec(iCase)%VibMode(iLevel)%XSecData(1,:) = SpecXSec(iCase)%VibMode(iLevel)%XSecData(1,:) * ElementaryCharge
+        SpecXSec(iCase)%VibMode(iLevel)%Threshold = SpecXSec(iCase)%VibMode(iLevel)%Threshold * ElementaryCharge
       END DO
       IF(SpecXSec(iCase)%UseCollXSec) THEN
         ! Collision cross-sections are available
@@ -159,19 +160,66 @@ DO iSpec = 1, nSpecies
         ! Interpolate the vibrational cross section at the energy levels of the collision collision cross section and sum-up the
         ! vibrational probability (vibrational cross-section divided by the effective)
         DO iStep = 1, MaxDim
-          DO iVib = 1, nVib
-            VibCrossSection = InterpolateCrossSection_Vib(iCase,iVib,SpecXSec(iCase)%CollXSecData(1,iStep))
-            SpecXSec(iCase)%VibXSecData(2,iStep) = SpecXSec(iCase)%VibXSecData(2,iStep) + VibCrossSection
+          DO iLevel = 1, nVib
+            CrossSection = InterpolateCrossSection_Vib(iCase,iLevel,SpecXSec(iCase)%CollXSecData(1,iStep))
+            SpecXSec(iCase)%VibXSecData(2,iStep) = SpecXSec(iCase)%VibXSecData(2,iStep) + CrossSection
             ! When no effective cross-section is available, the vibrational cross-section has to be added to the collisional
-            IF(.NOT.SpecXSec(iCase)%CollXSec_Effective) SpecXSec(iCase)%CollXSecData(2,iStep) &
-                                                        = SpecXSec(iCase)%CollXSecData(2,iStep) + VibCrossSection
+            IF(SpecXSec(iCase)%CollXSec_Effective) THEN
+              IF(CrossSection.GT.SpecXSec(iCase)%CollXSecData(2,iStep)) THEN
+                SWRITE(*,*) 'Current vibrational energy level [eV]: ', SpecXSec(iCase)%VibMode(iLevel)%Threshold / ElementaryCharge
+                SWRITE(*,*) 'Vibrational cross-section: ', CrossSection
+                SWRITE(*,*) 'Effective cross-section: ', SpecXSec(iCase)%CollXSecData(2,iStep)
+                SWRITE(*,*) 'Effective cross-section should be greater as the vibrational is supposed to be part of the effective cross-section.'
+                SWRITE(*,*) 'Check the last value of the vibrational data, the cross-section should be zero, otherwise the last value will be taken for energies outside the vibrational data.'
+                CALL abort(__STAMP__,'ERROR: Effective cross-section is smaller than the interpolated vibrational level cross-section!')
+              END IF
+            ELSE
+              SpecXSec(iCase)%CollXSecData(2,iStep) = SpecXSec(iCase)%CollXSecData(2,iStep) + CrossSection
+            END IF
           END DO
         END DO
       END IF    ! SpecXSec(iCase)%UseCollXSec
     END IF      ! SpecXSec(iCase)%UseVibXSec
     ! Read-in electronic cross-section data
-    IF(DSMC%ElectronicModel.EQ.3) CALL ReadElecXSec(iCase, iSpec, jSpec)
-
+    IF(DSMC%ElectronicModel.EQ.3) THEN
+      CALL ReadElecXSec(iCase, iSpec, jSpec)
+      IF(SpecXSec(iCase)%UseElecXSec) THEN
+        DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+          ! Store the energy value in J (read-in was in eV)
+          SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(1,:) = SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(1,:) * ElementaryCharge
+          SpecXSec(iCase)%ElecLevel(iLevel)%Threshold = SpecXSec(iCase)%ElecLevel(iLevel)%Threshold * ElementaryCharge
+        END DO
+        IF(SpecXSec(iCase)%UseCollXSec) THEN
+          ! Collision cross-sections are available
+          MaxDim = SIZE(SpecXSec(iCase)%CollXSecData,2)
+          ALLOCATE(SpecXSec(iCase)%ElecXSecData(1:2,1:MaxDim))
+          ! Using the same energy intervals as for the collision cross-sections
+          SpecXSec(iCase)%ElecXSecData(1,:) = SpecXSec(iCase)%CollXSecData(1,:)
+          SpecXSec(iCase)%ElecXSecData(2,:) = 0.
+          ! Interpolate the vibrational cross section at the energy levels of the collision collision cross section and sum-up the
+          ! vibrational probability (vibrational cross-section divided by the effective)
+          DO iStep = 1, MaxDim
+            DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+              CrossSection = InterpolateCrossSection_Elec(iCase,iLevel,SpecXSec(iCase)%CollXSecData(1,iStep))
+              SpecXSec(iCase)%ElecXSecData(2,iStep) = SpecXSec(iCase)%ElecXSecData(2,iStep) + CrossSection
+              ! When no effective cross-section is available, the vibrational cross-section has to be added to the collisional
+              IF(SpecXSec(iCase)%CollXSec_Effective) THEN
+                IF(CrossSection.GT.SpecXSec(iCase)%CollXSecData(2,iStep)) THEN
+                  SWRITE(*,*) 'Current electronic energy level [eV]: ', SpecXSec(iCase)%ElecLevel(iLevel)%Threshold / ElementaryCharge
+                  SWRITE(*,*) 'Electronic cross-section: ', CrossSection
+                  SWRITE(*,*) 'Effective cross-section: ', SpecXSec(iCase)%CollXSecData(2,iStep)
+                  SWRITE(*,*) 'Effective cross-section should be greater as the electronic is supposed to be part of the effective cross-section.'
+                  SWRITE(*,*) 'Check the last value of the electronic data, it should be zero, otherwise the last value will be taken for energies outside the electronic data.'
+                  CALL abort(__STAMP__,'ERROR: Effective cross-section is smaller than the interpolated electronic level cross-section!')
+                END IF
+              ELSE
+                SpecXSec(iCase)%CollXSecData(2,iStep) = SpecXSec(iCase)%CollXSecData(2,iStep) + CrossSection
+              END IF
+            END DO
+          END DO
+        END IF    ! SpecXSec(iCase)%UseCollXSec
+      END IF      ! SpecXSec(iCase)%UseElecXSec
+    END IF
     ! Determine the maximum collision frequency for the null collision method
     IF(SpecXSec(iCase)%UseCollXSec) THEN
       IF(XSec_NullCollision) THEN

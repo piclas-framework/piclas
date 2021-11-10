@@ -33,6 +33,7 @@ TYPE tXSecData
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
   REAL                              :: Prob                 ! Event probability
+  REAL                              :: Threshold            ! Energy threshold [J]
 END TYPE tXSecData
 
 TYPE tSpeciesXSec
@@ -48,6 +49,9 @@ TYPE tSpeciesXSec
   REAL,ALLOCATABLE                  :: VibXSecData(:,:)     ! Vibrational cross-section at the same intervals as the effective collision cross-section
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
+  REAL,ALLOCATABLE                  :: ElecXSecData(:,:)    ! Electronic cross-section at the same intervals as the effective collision cross-section
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: Cross-section at the respective energy level [m^2]
   REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
                                                             ! null collision method of MCC
   LOGICAL                           :: UseVibXSec           ! Flag if cross-section data will be used for the vibrational relaxation
@@ -57,7 +61,8 @@ TYPE tSpeciesXSec
   INTEGER                           :: SpeciesToRelax       ! Save which species shall use the vibrational cross-sections
   TYPE(tXSecData),ALLOCATABLE       :: ReactionPath(:)      ! Reaction cross-sections (nPaths: Number of reactions for that case)
   LOGICAL                           :: UseElecXSec          ! Flag if cross-section data will be used for the electronic relaxation
-  TYPE(tXSecData),ALLOCATABLE       :: ElecLevel(:)         ! Electronic cross-sections (nElec: Number of levels found in database)
+  INTEGER                           :: NumElecLevel         ! Number of electronic levels found in database
+  TYPE(tXSecData),ALLOCATABLE       :: ElecLevel(:)         ! Electronic cross-sections (Size: NumElecLevel)
 END TYPE tSpeciesXSec
 
 TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:)          ! Species cross-section related data (CollCase)
