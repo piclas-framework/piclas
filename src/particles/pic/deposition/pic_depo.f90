@@ -845,12 +845,17 @@ SDEALLOCATE(tempcharge)
 SDEALLOCATE(CellVolWeightFac)
 SDEALLOCATE(CellVolWeight_Volumes)
 SDEALLOCATE(ChargeSFDone)
+SDEALLOCATE(PartSourceLoc)
+SDEALLOCATE(PartSourceGlob)
 SDEALLOCATE(PeriodicSFCaseMatrix)
+SDEALLOCATE(PartSource)
 
 #if USE_MPI
 SDEALLOCATE(NodeSourceLoc)
 SDEALLOCATE(PartSourceProc)
 SDEALLOCATE(NodeMapping)
+SDEALLOCATE(nDepoDOFPerProc)
+SDEALLOCATE(nDepoOffsetProc)
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
@@ -882,9 +887,6 @@ END IF ! DoDeposition
 
 ! Then, free the pointers or arrays
 #endif /*USE_MPI*/
-
-! Then, free the pointers or arrays
-SDEALLOCATE(PartSource)
 
 ! Deposition-dependent pointers/arrays
 SELECT CASE(TRIM(DepositionType))

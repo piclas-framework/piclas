@@ -951,13 +951,18 @@ IF(nLeaderGroupProcs.GT.1)THEN
   END IF ! myComputeNodeRank.EQ.0
 !  CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
 END IF ! nLeaderGroupProcs.GT.1
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 CALL MPI_SCATTERV(&
-        PartSourceGlob , nDepoDOFPerProc   , nDepoOffsetProc , MPI_DOUBLE_PRECISION , &
-        PartSourceLoc, 4*(PP_N+1)**3*nElems,              MPI_DOUBLE_PRECISION , &        
-        0         , MPI_COMM_SHARED , iError)
-IF (myComputeNodeRank.EQ.0) THEN
-  PartSourceLoc(:,:,:,:,1:nElems) = PartSourceGlob(:,:,:,:,1:nElems)
-END IF
+      PartSourceGlob , nDepoDOFPerProc   , nDepoOffsetProc , MPI_DOUBLE_PRECISION , &
+      PartSourceLoc, 4*(PP_N+1)**3*nElems,              MPI_DOUBLE_PRECISION , &        
+      0         , MPI_COMM_SHARED , iError)
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimePart(8) = MPIW8TimePart(8) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
 #endif
 PartSource = PartSource + PartSourceLoc
 

@@ -453,7 +453,8 @@ CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER
     'RecvParticles'       , &
     'EmissionParticles'   , &
     'PIC-depo-Reduce'     , &
-    'PIC-depo-Wait'         &
+    'PIC-depo-Wait'       , &
+    'PIC-depo-GatherV'      &
 #endif /*defined(PARTICLES)*/
     /)
 ! CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNamesProc(nTotalVars)=(/ CHARACTER(LEN=255) :: &
@@ -537,7 +538,8 @@ IF(FILEEXISTS(outfile))THEN
       delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+4),&
       delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+5),&
       delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+7) &
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+7),&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+8) &
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
@@ -595,7 +597,8 @@ DO i = 0,nProcessors-1
       delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+4),&
       delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+5),&
       delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+6),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+7) &
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+7),&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+8) &
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
