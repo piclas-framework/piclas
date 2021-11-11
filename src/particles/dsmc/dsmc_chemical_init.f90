@@ -138,7 +138,7 @@ USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
-USE MOD_DSMC_SpecXSec           ,ONLY: MCC_Chemistry_Init
+USE MOD_MCC_Init                ,ONLY: MCC_Chemistry_Init
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -371,7 +371,8 @@ DO iReac = 1, ChemReac%NumOfReact
   END IF
 END DO
 
-IF (DoScat) CALL Init_TLU_Data()
+IF (DoScat) CALL abort(__STAMP__,'Deactivated Init_TLU_Data() routine')
+!IF (DoScat) CALL Init_TLU_Data()
 
 ! Calculation of stoichiometric coefficients and calculation of the heat of formation
 DO iReac = 1, ChemReac%NumOfReact
@@ -788,78 +789,78 @@ END DO
 END SUBROUTINE DSMC_BackwardRate_init
 
 
-SUBROUTINE Init_TLU_Data
-!===================================================================================================================================
-! Reads Scattering Angle Lookup Table from Test_Lookup_komplett.txt
-!===================================================================================================================================
-! MODULES
-  USE MOD_Globals
-  USE MOD_DSMC_Vars,          ONLY : TLU_Data, ChemReac
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-
-!-- parameters
-INTEGER,PARAMETER             :: unit1=20
-!DOUBLE PRECISION, PARAMETER   :: mass_ion=2.180d-25 !Xenon
-!DOUBLE PRECISION, PARAMETER   :: mass_neutral=2.180d-25 !Xenon
-
-!-- local variables
-INTEGER                       :: io_error1,read_error,iLine
-CHARACTER(LEN=1000000)        :: string1
-INTEGER                       :: N_b, N_E
-DOUBLE PRECISION              :: real1, real2
-!===================================================================================================================================
-
-OPEN(UNIT=unit1,file=TRIM(ChemReac%TLU_FileName(ChemReac%NumOfReact)),STATUS='old',ACTION='READ',IOSTAT=io_error1)
-IF ( io_error1 .EQ. 0) THEN
-  !----------------------------------Schleife ueber alle Zeilen in file1----------------------------------!
-  iLine=0
-  DO
-    !----------------------------------Einlesen----------------------------------!
-    READ(unit1,'(A)',IOSTAT=read_error) string1
-    IF ( read_error .GT. 0) THEN
-      CALL abort(__STAMP__,&
-        'Chemistry - Error in Init_TLU_Data, Error:',read_error)
-    ELSE IF (read_error .LT. 0 ) THEN
-      EXIT ! Dateiende erreicht
-    ELSE
-      iLine=iLine+1
-      IF (iLine.EQ.1) THEN
-        READ(string1,*,IOSTAT=read_error) real1, real2
-        N_b=NINT(real1)
-        N_E=NINT(real2)
-        ALLOCATE( TLU_Data%Chitable(1:N_E,1:N_b))
-        ALLOCATE( TLU_Data%deltabj(1:N_E))
-      ELSE IF (iLine.EQ.2) THEN
-        READ(string1,*,IOSTAT=read_error) TLU_Data%Emin, TLU_Data%Emax, TLU_Data%deltaE
-      ELSE IF (iLine.EQ.3) THEN
-        READ(string1,*,IOSTAT=read_error) TLU_Data%deltabj(1:N_E)
-      ELSE IF (iLine.EQ.4 .OR. iLine.EQ.5) THEN
-        !dummy lines...
-      ELSE IF (iLine.GE.6 .AND. iLine.LE.N_b+5) THEN
-        READ(string1,*,IOSTAT=read_error) TLU_Data%Chitable(:,iLine-5)
-      ELSE
-        CALL abort(__STAMP__,&
-          'Chemistry - Error in Init_TLU_Data, File too long, Error:',read_error)
-      END IF
-      IF ( read_error .NE. 0) THEN
-        !STOP "Datenfehler im gelesenen String!"
-        CALL abort(__STAMP__,&
-          'Chemistry - Error in Init_TLU_Data, Data error in loaded string,Error:',read_error)
-      END IF
-    END IF
-  END DO
-ELSE
-  !STOP "Datenfehler im gelesenen String!"
-        CALL abort(__STAMP__,&
-          'Chemistry - Error in Init_TLU_Data, Error while opening of Test_Lookup_komplett.txt, Error:',io_error1)
-  !WRITE(*,'(A,I0,A)') 'Beim Oeffenen der Datei Test_Lookup_komplett.txt ist Fehler Nr. ', io_error1,' aufgetreten!'
-END IF
-
-! Force Chi at N_b to be 0
-TLU_Data%Chitable(:,N_b) = 0
-
-CLOSE(unit=unit1)
-END SUBROUTINE Init_TLU_Data
+!  SUBROUTINE Init_TLU_Data
+!  !===================================================================================================================================
+!  ! Reads Scattering Angle Lookup Table from Test_Lookup_komplett.txt
+!  !===================================================================================================================================
+!  ! MODULES
+!    USE MOD_Globals
+!    USE MOD_DSMC_Vars,          ONLY : TLU_Data, ChemReac
+!  ! IMPLICIT VARIABLE HANDLING
+!  IMPLICIT NONE
+!  
+!  !-- parameters
+!  INTEGER,PARAMETER             :: unit1=20
+!  !DOUBLE PRECISION, PARAMETER   :: mass_ion=2.180d-25 !Xenon
+!  !DOUBLE PRECISION, PARAMETER   :: mass_neutral=2.180d-25 !Xenon
+!  
+!  !-- local variables
+!  INTEGER                       :: io_error1,read_error,iLine
+!  CHARACTER(LEN=1000000)        :: string1
+!  INTEGER                       :: N_b, N_E
+!  DOUBLE PRECISION              :: real1, real2
+!  !===================================================================================================================================
+!  
+!  OPEN(UNIT=unit1,file=TRIM(ChemReac%TLU_FileName(ChemReac%NumOfReact)),STATUS='old',ACTION='READ',IOSTAT=io_error1)
+!  IF ( io_error1 .EQ. 0) THEN
+!    !----------------------------------Schleife ueber alle Zeilen in file1----------------------------------!
+!    iLine=0
+!    DO
+!      !----------------------------------Einlesen----------------------------------!
+!      READ(unit1,'(A)',IOSTAT=read_error) string1
+!      IF ( read_error .GT. 0) THEN
+!        CALL abort(__STAMP__,&
+!          'Chemistry - Error in Init_TLU_Data, Error:',read_error)
+!      ELSE IF (read_error .LT. 0 ) THEN
+!        EXIT ! Dateiende erreicht
+!      ELSE
+!        iLine=iLine+1
+!        IF (iLine.EQ.1) THEN
+!          READ(string1,*,IOSTAT=read_error) real1, real2
+!          N_b=NINT(real1)
+!          N_E=NINT(real2)
+!          ALLOCATE( TLU_Data%Chitable(1:N_E,1:N_b))
+!          ALLOCATE( TLU_Data%deltabj(1:N_E))
+!        ELSE IF (iLine.EQ.2) THEN
+!          READ(string1,*,IOSTAT=read_error) TLU_Data%Emin, TLU_Data%Emax, TLU_Data%deltaE
+!        ELSE IF (iLine.EQ.3) THEN
+!          READ(string1,*,IOSTAT=read_error) TLU_Data%deltabj(1:N_E)
+!        ELSE IF (iLine.EQ.4 .OR. iLine.EQ.5) THEN
+!          !dummy lines...
+!        ELSE IF (iLine.GE.6 .AND. iLine.LE.N_b+5) THEN
+!          READ(string1,*,IOSTAT=read_error) TLU_Data%Chitable(:,iLine-5)
+!        ELSE
+!          CALL abort(__STAMP__,&
+!            'Chemistry - Error in Init_TLU_Data, File too long, Error:',read_error)
+!        END IF
+!        IF ( read_error .NE. 0) THEN
+!          !STOP "Datenfehler im gelesenen String!"
+!          CALL abort(__STAMP__,&
+!            'Chemistry - Error in Init_TLU_Data, Data error in loaded string,Error:',read_error)
+!        END IF
+!      END IF
+!    END DO
+!  ELSE
+!    !STOP "Datenfehler im gelesenen String!"
+!          CALL abort(__STAMP__,&
+!            'Chemistry - Error in Init_TLU_Data, Error while opening of Test_Lookup_komplett.txt, Error:',io_error1)
+!    !WRITE(*,'(A,I0,A)') 'Beim Oeffenen der Datei Test_Lookup_komplett.txt ist Fehler Nr. ', io_error1,' aufgetreten!'
+!  END IF
+!  
+!  ! Force Chi at N_b to be 0
+!  TLU_Data%Chitable(:,N_b) = 0
+!  
+!  CLOSE(unit=unit1)
+!  END SUBROUTINE Init_TLU_Data
 
 END MODULE MOD_DSMC_ChemInit

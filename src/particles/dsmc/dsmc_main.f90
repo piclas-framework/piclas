@@ -43,7 +43,7 @@ SUBROUTINE DSMC_main(DoElement)
 USE MOD_Globals
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Analyze          ,ONLY: DSMC_data_sampling,CalcSurfaceValues, CalcGammaVib,SamplingRotVibRelaxProb
-USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, MCC_pairing_bggas, BGGas_DeleteParticles
+USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, BGGas_DeleteParticles
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode, UseMCC
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
@@ -54,6 +54,7 @@ USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
+USE MOD_MCC                   ,ONLY: MCC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -78,7 +79,7 @@ END IF
 ! Reset the number of particles created during the DSMC loop
 DSMCSumOfFormedParticles = 0
 ! Insert background gas particles for every simulation particle
-IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_InsertParticles
+IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_InsertParticles()
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
@@ -99,7 +100,7 @@ DO iElem = 1, nElems ! element/cell main loop
     CALL InitCalcVibRelaxProb
     IF(BGGas%NumberOfSpecies.GT.0) THEN
       IF(UseMCC) THEN
-        CALL MCC_pairing_bggas(iElem)
+        CALL MCC(iElem)
       ELSE
         CALL DSMC_pairing_bggas(iElem)
       END IF
@@ -139,9 +140,8 @@ IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
     ,'ERROR in DSMC: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &
     , IntInfoOpt=PDM%ParticleVecLength)
 END IF
-
 ! Delete background gas particles
-IF(BGGas%NumberOfSpecies.GT.0) CALL BGGas_DeleteParticles
+IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_DeleteParticles
 
 ! Sampling of macroscopic values
 ! (here for a continuous average; average over N iterations is performed in src/analyze/analyze.f90)

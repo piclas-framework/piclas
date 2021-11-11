@@ -1,5 +1,10 @@
 #!/bin/bash
 
+if [[ ! -x "$(command -v doxygen)" ]]; then
+  echo "doxygen is not installed on this system. Install the required tools before running this script. Exit."
+  exit
+fi
+
 
 EQUATION=maxwell/
 

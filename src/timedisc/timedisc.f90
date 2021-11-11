@@ -297,9 +297,7 @@ DO !iter_t=0,MaxIter
   CALL TimeStepPoissonByLSERK() ! Runge Kutta Explicit, Poisson
 #endif
 #else
-  CALL abort(&
-  __STAMP__&
-  ,'Timedisc 50x only available for EQNSYS Poisson!',PP_N,999.)
+  CALL abort(__STAMP__,'Timedisc 50x only available for EQNSYS Poisson! PP_N=',IntInfoOpt=PP_N)
 #endif /*USE_HDG*/
 #endif
   ! calling the analyze routines
