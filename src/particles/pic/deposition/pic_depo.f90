@@ -94,6 +94,8 @@ USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
+USE MOD_MPI_vars               ,ONLY: offsetElemMPI
+USE MOD_MPI_Shared_Vars        ,ONLY: ComputeNodeRootRank
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
@@ -137,22 +139,8 @@ IF(.NOT.DoDeposition) THEN
 END IF
 
 !--- Allocate arrays for charge density collection and initialize
-#if USE_MPI
-CALL Allocate_Shared((/4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems/),PartSource_Shared_Win,PartSource_Shared)
-CALL MPI_WIN_LOCK_ALL(0,PartSource_Shared_Win,IERROR)
-PartSource(1:4,0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeTotalElems) => PartSource_Shared(1:4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems)
-ALLOCATE(PartSourceProc(   1:4,0:PP_N,0:PP_N,0:PP_N,1:nSendShapeElems))
-#else
 ALLOCATE(PartSource(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
-#endif
-#if USE_MPI
-IF(myComputeNodeRank.EQ.0) THEN
-#endif
-  PartSource=0.
-#if USE_MPI
-END IF
-CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
-#endif
+PartSource = 0.0
 PartSourceConstExists=.FALSE.
 
 !--- check if relaxation of current PartSource with RelaxFac into PartSourceOld
@@ -412,7 +400,6 @@ CASE('cell_volweight_mean')
   END IF ! DoDielectricSurfaceCharge
 
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
-
   ! --- Set shape function radius in each cell when using adaptive shape function
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitShapeFunctionAdaptive()
 
@@ -426,8 +413,21 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   CALL InitPeriodicSFCaseMatrix()
 
   ! --- Set element flag for cycling already completed elements
+  ALLOCATE(PartSourceLoc(1:4,0:PP_N,0:PP_N,0:PP_N,1:nElems))
 #if USE_MPI
   ALLOCATE(ChargeSFDone(1:nComputeNodeTotalElems))
+  ALLOCATE(nDepoDOFPerProc(0:nComputeNodeProcessors-1),nDepoOffsetProc(0:nComputeNodeProcessors-1))
+  nDepoDOFPerProc =0; nDepoOffsetProc = 0
+  DO iProc = 0, nComputeNodeProcessors-1
+    nDepoDOFPerProc(iProc) = (offsetElemMPI(iProc + 1 + ComputeNodeRootRank) - offsetElemMPI(iProc + ComputeNodeRootRank))*(PP_N+1)**3*4
+  END DO
+  DO iProc = 0, nComputeNodeProcessors-1
+    nDepoOffsetProc(iProc) = (offsetElemMPI(iProc + ComputeNodeRootRank) - offsetElemMPI(ComputeNodeRootRank))*(PP_N+1)**3*4
+  END DO
+  IF(myComputeNodeRank.EQ.0) THEN
+   ALLOCATE(PartSourceGlob(1:4,0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeTotalElems))
+  END IF
+  ALLOCATE(PartSourceProc(1:4,0:PP_N,0:PP_N,0:PP_N,1:nSendShapeElems))  
 #else
   ALLOCATE(ChargeSFDone(1:nElems))
 #endif /*USE_MPI*/
@@ -754,14 +754,7 @@ LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength) ! TOD
 ! Return, if no deposition is required
 IF(.NOT.DoDeposition) RETURN
 
-#if USE_MPI
-IF (myComputeNodeRank.EQ.0) THEN
-#endif  /*USE_MPI*/
-  PartSource = 0.0
-#if USE_MPI
-END IF
-CALL BARRIER_AND_SYNC(PartSource_Shared_Win, MPI_COMM_SHARED)
-#endif  /*USE_MPI*/
+PartSource = 0.0
 
 IF(PRESENT(doParticle_In)) THEN
   CALL DepositionMethod(doParticle_In)
@@ -863,8 +856,6 @@ SDEALLOCATE(NodeMapping)
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 IF(DoDeposition)THEN
-  CALL UNLOCK_AND_FREE(PartSource_Shared_Win)
-
   ! Deposition-dependent arrays
   SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean')
@@ -890,11 +881,10 @@ IF(DoDeposition)THEN
 END IF ! DoDeposition
 
 ! Then, free the pointers or arrays
-ADEALLOCATE(PartSource_Shared)
 #endif /*USE_MPI*/
 
 ! Then, free the pointers or arrays
-ADEALLOCATE(PartSource)
+SDEALLOCATE(PartSource)
 
 ! Deposition-dependent pointers/arrays
 SELECT CASE(TRIM(DepositionType))

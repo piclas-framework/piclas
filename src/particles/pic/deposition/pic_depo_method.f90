@@ -218,7 +218,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
-USE MOD_PICDepo_Vars           ,ONLY: PartSource_Shared_Win
+USE MOD_PICDepo_Vars           ,ONLY: PartSource
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -323,8 +323,8 @@ DO iElem = 1, nElems
         alpha1 = CellVolWeightFac(kk)
         alpha2 = CellVolWeightFac(ll)
         alpha3 = CellVolWeightFac(mm)
-        PartSource(SourceDim:4,kk,ll,mm,GetCNElemID(iElem+offSetElem)) = &
-            PartSource(SourceDim:4,kk,ll,mm,GetCNElemID(iElem+offSetElem)) + &
+        PartSource(SourceDim:4,kk,ll,mm,iElem) = &
+            PartSource(SourceDim:4,kk,ll,mm,iElem) + &
             BGMSourceCellVol(:,0,0,0,iElem) * (1-alpha1) * (1-alpha2) * (1-alpha3)    + &
             BGMSourceCellVol(:,0,0,1,iElem) * (1-alpha1) * (1-alpha2) *   (alpha3)    + &
             BGMSourceCellVol(:,0,1,0,iElem) * (1-alpha1) *   (alpha2) * (1-alpha3)    + &
@@ -341,9 +341,6 @@ END DO ! iElem
 CALL LBElemSplitTime_avg(tLBStart) ! Average over the number of elems (and Start again)
 #endif /*USE_LOADBALANCE*/
 DEALLOCATE(BGMSourceCellVol)
-#if USE_MPI
-CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
-#endif /*USE_MPI*/
 END SUBROUTINE DepositionMethod_CVW
 
 
@@ -369,7 +366,6 @@ USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc
-USE MOD_PICDepo_Vars       ,ONLY: PartSource_Shared_Win
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceLoc, NodeMapping, NodeSource_Shared_Win
 #else
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
@@ -677,18 +673,13 @@ CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 
 #if USE_MPI
 CALL BARRIER_AND_SYNC(NodeSource_Shared_Win,MPI_COMM_SHARED)
-firstElem = offSetElem+1
-lastElem  = offSetElem+nElems
-#else
-firstElem = 1
-lastElem = nElems
 #endif
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 ! Interpolate node source values to volume polynomial
-DO iElem = firstElem, lastElem
+DO iElem = 1, nElems
   ! Get UniqueNodeID from NonUniqueNodeID = ElemNodeID_Shared(:,GetCNElemID(iElem))
   NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem)))
   DO kk = 0, PP_N
@@ -697,7 +688,7 @@ DO iElem = firstElem, lastElem
         alpha1 = CellVolWeightFac(kk)
         alpha2 = CellVolWeightFac(ll)
         alpha3 = CellVolWeightFac(mm)
-        Partsource(SourceDim:4,kk,ll,mm,GetCNElemID(iElem)) = &
+        Partsource(SourceDim:4,kk,ll,mm,iElem) = &
              NodeSource(SourceDim:4,NodeID(1)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
              NodeSource(SourceDim:4,NodeID(2)) * (alpha1)   * (1-alpha2) * (1-alpha3) + &
              NodeSource(SourceDim:4,NodeID(3)) * (alpha1)   * (alpha2)   * (1-alpha3) + &
@@ -714,7 +705,7 @@ END DO !iEle
 CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
-CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
+!CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 END SUBROUTINE DepositionMethod_CVWM
 
@@ -729,7 +720,7 @@ USE MOD_Preproc
 USE MOD_globals
 USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,PartMPF,usevMPF
 USE MOD_Particle_Vars               ,ONLY: PartState
-USE MOD_PICDepo_Vars                ,ONLY: PartSource
+USE MOD_PICDepo_Vars                ,ONLY: PartSource, PartSourceLoc
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 #if USE_MPI
@@ -737,8 +728,9 @@ USE MOD_MPI_Shared                  ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, myComputeNodeRank, nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_LEADERS_SHARED, myLeaderGroupRank, nLeaderGroupProcs
 USE MOD_PICDepo_Vars                ,ONLY: PartSourceProc
-USE MOD_PICDepo_Vars                ,ONLY: PartSource_Shared_Win, ShapeMapping, nSendShapeElems, SendShapeElemID
-USE MOD_PICDepo_Vars                ,ONLY: CNShapeMapping
+USE MOD_PICDepo_Vars                ,ONLY: ShapeMapping, nSendShapeElems, SendShapeElemID
+USE MOD_PICDepo_Vars                ,ONLY: CNShapeMapping, nDepoDOFPerProc, PartSourceGlob, nDepoOffsetProc
+USE MOD_Mesh_Vars                   ,ONLY: nElems
 #endif /*USE_MPI*/
 USE MOD_Part_Tools                  ,ONLY: isDepositParticle
 #if defined(MEASURE_MPI_WAIT)
@@ -767,6 +759,7 @@ REAL(KIND=8)       :: Rate
 #if USE_MPI
 PartSourceProc = 0.
 #endif
+
 !Vec1(1:3) = 0.
 !Vec2(1:3) = 0.
 !Vec3(1:3) = 0.
@@ -800,10 +793,15 @@ DO iPart=1,PDM%ParticleVecLength
 END DO
 #if USE_MPI
 ! Communication
-CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
+!CALL MPI_GATHERV(&
+!        PartSource , 4*(PP_N+1)**3*nElems,              MPI_DOUBLE_PRECISION , &
+!        PartSourceGlob , nDepoDOFPerProc   , nDepoDOFPerProc , MPI_DOUBLE_PRECISION , &
+!        0         , MPI_COMM_SHARED , iError)
+!Gatherw in global zwei arrays :root local, nglobal; local nshapeelems
 
 ! 1 of 2: Inner-Node Communication
 IF (myComputeNodeRank.EQ.0) THEN
+  PartSourceGlob = 0.
   DO iProc = 1,nComputeNodeProcessors-1
       IF (ShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
       CALL MPI_IRECV( ShapeMapping(iProc)%RecvBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nRecvShapeElems)&
@@ -830,14 +828,14 @@ IF (myComputeNodeRank.EQ.0) THEN
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     DO iElem = 1, ShapeMapping(iProc)%nRecvShapeElems
       ASSOCIATE( ShapeID => ShapeMapping(iProc)%RecvShapeElemID(iElem))
-        PartSource(:,:,:,:,ShapeID) = PartSource(:,:,:,:,ShapeID) + ShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
+        PartSourceGlob(:,:,:,:,ShapeID) = PartSourceGlob(:,:,:,:,ShapeID) + ShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
       END ASSOCIATE
     END DO
   END DO
 
   ! Add contribution of node root
   DO iElem = 1, nSendShapeElems
-    PartSource(:,:,:,:,SendShapeElemID(iElem)) = PartSource(:,:,:,:,SendShapeElemID(iElem)) + PartSourceProc(:,:,:,:,iElem)
+    PartSourceGlob(:,:,:,:,SendShapeElemID(iElem)) = PartSourceGlob(:,:,:,:,SendShapeElemID(iElem)) + PartSourceProc(:,:,:,:,iElem)
   END DO
 ELSE
   IF (nSendShapeElems.GT.1) THEN
@@ -862,7 +860,7 @@ ELSE
   END IF
 END IF
 !CALL MPI_WIN_FLUSH(0,PartSource_Shared_Win,MPI_COMM_SHARED)
-CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
+!CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
 
 ! 2 of 2: Multi-node communication
 IF(nLeaderGroupProcs.GT.1)THEN
@@ -887,7 +885,7 @@ IF(nLeaderGroupProcs.GT.1)THEN
 
       DO iElem=1, CNShapeMapping(iProc)%nSendShapeElems
         CNElemID = GetCNElemID(CNShapeMapping(iProc)%SendShapeElemID(iElem))
-        CNShapeMapping(iProc)%SendBuffer(:,:,:,:,iElem) = PartSource(:,:,:,:,CNElemID)
+        CNShapeMapping(iProc)%SendBuffer(:,:,:,:,iElem) = PartSourceGlob(:,:,:,:,CNElemID)
       END DO
 
       CALL MPI_ISEND( CNShapeMapping(iProc)%SendBuffer   &
@@ -926,13 +924,22 @@ IF(nLeaderGroupProcs.GT.1)THEN
       IF (CNShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
       DO iElem=1, CNShapeMapping(iProc)%nRecvShapeElems
         CNElemID = GetCNElemID(CNShapeMapping(iProc)%RecvShapeElemID(iElem))
-        PartSource(:,:,:,:,CNElemID) = PartSource(:,:,:,:,CNElemID) + CNShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
+        PartSourceGlob(:,:,:,:,CNElemID) = PartSourceGlob(:,:,:,:,CNElemID) + CNShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
       END DO
     END DO
   END IF ! myComputeNodeRank.EQ.0
-  CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
+!  CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
 END IF ! nLeaderGroupProcs.GT.1
+CALL MPI_SCATTERV(&
+        PartSourceGlob , nDepoDOFPerProc   , nDepoOffsetProc , MPI_DOUBLE_PRECISION , &
+        PartSourceLoc, 4*(PP_N+1)**3*nElems,              MPI_DOUBLE_PRECISION , &        
+        0         , MPI_COMM_SHARED , iError)
+IF (myComputeNodeRank.EQ.0) THEN
+  PartSourceLoc(:,:,:,:,1:nElems) = PartSourceGlob(:,:,:,:,1:nElems)
+END IF
 #endif
+PartSource = PartSource + PartSourceLoc
+
 END SUBROUTINE DepositionMethod_SF
 
 END MODULE MOD_PICDepo_Method

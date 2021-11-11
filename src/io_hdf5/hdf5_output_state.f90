@@ -589,8 +589,8 @@ ASSOCIATE (&
       CALL CloseDataFile()
     END IF
     ASSOCIATE(&
-        CNElemIDStart  => INT(GetCNElemID(INT(offsetElem          ,4)+1),IK) ,&
-        CNElemIDEnd    => INT(GetCNElemID(INT(offsetElem+PP_nElems,4)  ),IK) )
+        CNElemIDStart  => INT(1,IK) ,&
+        CNElemIDEnd    => INT(PP_nElems,IK) )
       CALL GatheredWriteArray(FileName,create=.FALSE.,&
           DataSetName='DG_Source', rank=5,  &
           nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &

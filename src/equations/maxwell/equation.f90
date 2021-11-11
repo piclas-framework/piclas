@@ -990,7 +990,6 @@ USE MOD_PreProc
 USE MOD_Equation_Vars     ,ONLY: c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars      ,ONLY: PartSource,DoDeposition
-USE MOD_Mesh_Tools        ,ONLY: GetCNElemID
 USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric
 USE MOD_Mesh_Vars         ,ONLY: offSetElem
 #if IMPA
@@ -1018,7 +1017,6 @@ REAL                            :: eps0inv, x(1:3)
 REAL                            :: r           ! for Dipole
 REAL,PARAMETER                  :: Q=1, d=1    ! for Dipole
 #ifdef PARTICLES
-INTEGER                         :: CNElemID
 REAL                            :: PartSourceLoc(1:4)
 #endif
 REAL                            :: coeff_loc
@@ -1028,13 +1026,12 @@ eps0inv = 1./eps0
 IF(DoDeposition)THEN
   IF(DoDielectric)THEN
     DO iElem=1,PP_nElems
-      CNElemID = GetCNElemID(iElem+offSetElem)
       IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if IMPA
-          PartSourceLoc=PartSource(:,i,j,k,CNElemID)+ExplicitPartSource(:,i,j,k,iElem)
+          PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
 #else
-          PartSourceLoc=PartSource(:,i,j,k,CNElemID)
+          PartSourceLoc=PartSource(:,i,j,k,iElem)
 #endif
           !  Get PartSource from Particles
           !Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem) * DielectricEpsR_inv
@@ -1047,9 +1044,9 @@ IF(DoDeposition)THEN
       ELSE
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if IMPA
-          PartSourceLoc=PartSource(:,i,j,k,CNElemID)+ExplicitPartSource(:,i,j,k,iElem)
+          PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
 #else
-          PartSourceLoc=PartSource(:,i,j,k,CNElemID)
+          PartSourceLoc=PartSource(:,i,j,k,iElem)
 #endif
           !  Get PartSource from Particles
           Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSourceloc(1:3)
@@ -1059,12 +1056,11 @@ IF(DoDeposition)THEN
     END DO
   ELSE
     DO iElem=1,PP_nElems
-      CNElemID = GetCNElemID(iElem+offSetElem)
       DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if IMPA
-        PartSourceLoc=PartSource(:,i,j,k,CNElemID)+ExplicitPartSource(:,i,j,k,iElem)
+        PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
 #else
-        PartSourceLoc=PartSource(:,i,j,k,CNElemID)
+        PartSourceLoc=PartSource(:,i,j,k,iElem)
 #endif
         !  Get PartSource from Particles
         Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSourceloc(1:3)

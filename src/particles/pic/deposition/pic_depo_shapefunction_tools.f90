@@ -776,6 +776,7 @@ SUBROUTINE UpdatePartSource(dim1,k,l,m,globElemID,Source)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PICDepo_Vars ,ONLY: PartSource
+USE MOD_Mesh_Vars    ,ONLY: offsetElem
 USE MOD_Mesh_Tools   ,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_PICDepo_Vars ,ONLY: SendElemShapeID,PartSourceProc
@@ -792,13 +793,14 @@ REAL, INTENT(IN)    :: Source(dim1:4)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: CNElemID
+INTEGER           :: localElem, CNElemID
 !===================================================================================================================================
+localElem = globElemID-offSetElem
 CNElemID = GetCNElemID(globElemID)
 #if USE_MPI
 IF (ElemOnMyProc(globElemID)) THEN
 #endif /*USE_MPI*/
-  PartSource(dim1:4,k,l,m,CNElemID) = PartSource(dim1:4,k,l,m,CNElemID) + Source(dim1:4)
+  PartSource(dim1:4,k,l,m,localElem) = PartSource(dim1:4,k,l,m,localElem) + Source(dim1:4)
 !#if !((USE_HDG) && (PP_nVar==1))
 !#endif
 #if USE_MPI
