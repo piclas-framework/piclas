@@ -115,7 +115,6 @@ DO iStage = 1,nRKStages
   CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
   IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition(stage_opt=1)
-  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition(stage_opt=2)
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -125,7 +124,7 @@ DO iStage = 1,nRKStages
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition(stage_opt=3)
+  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition(stage_opt=2)
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -137,6 +136,14 @@ DO iStage = 1,nRKStages
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF
+
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition(stage_opt=3)
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+#endif
 
   IF (time.GE.DelayTime) THEN
     IF(DoFieldIonization) CALL FieldIonization()

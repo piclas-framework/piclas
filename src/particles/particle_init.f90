@@ -1370,6 +1370,9 @@ SDEALLOCATE(SendShapeElemID)
 SDEALLOCATE(SendElemShapeID)
 SDEALLOCATE(ShapeMapping)
 SDEALLOCATE(CNShapeMapping)
+SDEALLOCATE(RecvShapeElemID)
+SDEALLOCATE(RecvElemShapeID) 
+SDEALLOCATE(ShapeRecvBuffer)
 ! particle MPI halo exchange
 CALL FinalizePartExchangeProcs()
 #endif
