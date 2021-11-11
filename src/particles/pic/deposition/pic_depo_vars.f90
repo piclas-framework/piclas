@@ -33,7 +33,7 @@ REAL,ALLOCATABLE                 :: PartSource(:,:,:,:,:)     ! PartSource(1:4,P
 !                                                            !                            = GetCNElemID(iElem+offSetElem)
 REAL,ALLOCATABLE                :: PartSourceGlob(:,:,:,:,:)
 REAL,ALLOCATABLE                :: PartSourceProc(:,:,:,:,:)
-REAL,ALLOCATABLE                :: PartSourceLoc(:,:,:,:,:)
+!REAL,ALLOCATABLE                :: PartSourceLoc(:,:,:,:,:)
 REAL,ALLOCATABLE                :: PartSourceTmp (:,:,:,:)
 INTEGER, ALLOCATABLE            :: nDepoDOFPerProc(:)
 INTEGER, ALLOCATABLE            :: nDepoOffsetProc(:)
@@ -160,7 +160,10 @@ TYPE (tNodeMapping),ALLOCATABLE      :: NodeMapping(:)
 TYPE tShapeMapping
   INTEGER,ALLOCATABLE           :: RecvShapeElemID(:)
   INTEGER                       :: nRecvShapeElems
+  INTEGER,ALLOCATABLE           :: SendShapeElemID(:)
+  INTEGER                       :: nSendShapeElems
   REAL,ALLOCATABLE              :: RecvBuffer(:,:,:,:,:)
+  REAL,ALLOCATABLE              :: SendBuffer(:,:,:,:,:)
 END TYPE
 TYPE(tShapeMapping),ALLOCATABLE :: ShapeMapping(:)
 
@@ -178,6 +181,10 @@ TYPE(tCNShapeMapping),ALLOCATABLE ::CNShapeMapping(:)
 INTEGER                         :: nSendShapeElems            ! number of halo elements on proc to communicate with shape function
 INTEGER,ALLOCATABLE             :: SendShapeElemID(:)         ! mapping from CNElemID to ShapeElemID
 INTEGER,ALLOCATABLE             :: SendElemShapeID(:)         ! mapping from ShapeElemID to CNElemID
+INTEGER                         :: nRecvShapeElems            ! number of halo elements on proc to communicate with shape function
+INTEGER,ALLOCATABLE             :: RecvShapeElemID(:)         ! mapping from CNElemID to ShapeElemID
+INTEGER,ALLOCATABLE             :: RecvElemShapeID(:)         ! mapping from ShapeElemID to CNElemID
+REAL, ALLOCATABLE               :: ShapeRecvBuffer(:,:,:,:,:)
 #endif
 
 #if USE_MPI
