@@ -180,5 +180,11 @@ INTEGER,ALLOCATABLE             :: SendShapeElemID(:)         ! mapping from CNE
 INTEGER,ALLOCATABLE             :: SendElemShapeID(:)         ! mapping from ShapeElemID to CNElemID
 #endif
 
+#if USE_MPI
+INTEGER             :: SendRequest
+INTEGER,ALLOCATABLE :: RecvRequest(:)
+INTEGER,ALLOCATABLE :: RecvRequestCN(:), SendRequestCN(:)
+#endif
+
 !===================================================================================================================================
 END MODULE MOD_PICDepo_Vars

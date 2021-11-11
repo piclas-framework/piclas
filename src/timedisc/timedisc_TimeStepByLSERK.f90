@@ -110,26 +110,48 @@ DO iStage = 1,nRKStages
 #if USE_MPI
   CALL IRecvNbofParticles()
 #endif /*USE_MPI*/
+
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
+  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition(stage_opt=1)
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
   CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB. Also done for state output of PartsPerElem
 
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  IF (time.GE.DelayTime) THEN
+  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition(stage_opt=2)
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
+  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
     ! Forces on particle
-    CALL InterpolateFieldToParticle()
+    IF (time.GE.DelayTime) CALL InterpolateFieldToParticle()
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
+    CALL Deposition(stage_opt=3)
+#if USE_LOADBALANCE
+    CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+#endif /*USE_LOADBALANCE*/
+  END IF
+
+  IF (time.GE.DelayTime) THEN
     IF(DoFieldIonization) CALL FieldIonization()
     IF(DoInterpolation)   CALL CalcPartRHS()
   END IF
 #if USE_LOADBALANCE
-  CALL LBPauseTime(LB_INTERPOLATION,tLBStart)
+  CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
   IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-    CALL Deposition()
+    CALL Deposition(stage_opt=4)
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_DEPOSITION,tLBStart)
 #endif /*USE_LOADBALANCE*/

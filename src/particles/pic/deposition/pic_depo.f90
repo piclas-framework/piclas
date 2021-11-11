@@ -124,7 +124,7 @@ INTEGER                   :: UniqueNodeID
 INTEGER                   :: SendNodeCount, GlobalElemNode, GlobalElemRank, iProc
 INTEGER                   :: TestElemID
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:)
-INTEGER                   :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1),firstNode,lastNode
+INTEGER                   :: firstNode,lastNode
 #endif
 !===================================================================================================================================
 
@@ -195,6 +195,10 @@ IF (TRIM(TimeAverageFile).NE.'none') THEN
     END DO !iElem
   END IF
 END IF
+
+#if USE_MPI
+ALLOCATE(RecvRequest(nComputeNodeProcessors-1),RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1))
+#endif
 
 !--- init DepositionType-specific vars
 SELECT CASE(TRIM(DepositionType))
@@ -306,7 +310,7 @@ CASE('cell_volweight_mean')
                   , iProc                                                       &
                   , 666                                                         &
                   , MPI_COMM_LEADERS_SHARED                                     &
-                  , RecvRequest(iProc)                                          &
+                  , RecvRequestCN(iProc)                                          &
                   , IERROR)
       DO iNode = 1, nUniqueGlobalNodes
         IF (NodeDepoMapping(iProc,iNode)) NodeMapping(iProc)%nSendUniqueNodes = NodeMapping(iProc)%nSendUniqueNodes + 1
@@ -317,15 +321,15 @@ CASE('cell_volweight_mean')
                     , iProc                                                       &
                     , 666                                                         &
                     , MPI_COMM_LEADERS_SHARED                                     &
-                    , SendRequest(iProc)                                          &
+                    , SendRequestCN(iProc)                                          &
                     , IERROR)
     END DO
 
     DO iProc = 0,nLeaderGroupProcs-1
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
-      CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+      CALL MPI_WAIT(SendRequestCN(iProc),MPISTATUS,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-      CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+      CALL MPI_WAIT(RecvRequestCN(iProc),MPISTATUS,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END DO
 
@@ -342,7 +346,7 @@ CASE('cell_volweight_mean')
                       , iProc                                                       &
                       , 666                                                         &
                       , MPI_COMM_LEADERS_SHARED                                     &
-                      , RecvRequest(iProc)                                          &
+                      , RecvRequestCN(iProc)                                          &
                       , IERROR)
       END IF
       IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
@@ -366,7 +370,7 @@ CASE('cell_volweight_mean')
                       , iProc                                                       &
                       , 666                                                         &
                       , MPI_COMM_LEADERS_SHARED                                     &
-                      , SendRequest(iProc)                                          &
+                      , SendRequestCN(iProc)                                          &
                       , IERROR)
       END IF
     END DO
@@ -374,11 +378,11 @@ CASE('cell_volweight_mean')
     DO iProc = 0,nLeaderGroupProcs-1
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
       IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
-        CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+        CALL MPI_WAIT(SendRequestCN(iProc),MPISTATUS,IERROR)
         IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
       END IF
       IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-        CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+        CALL MPI_WAIT(RecvRequestCN(iProc),MPISTATUS,IERROR)
         IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
       END IF
     END DO
@@ -719,7 +723,7 @@ END IF
 END SUBROUTINE InitPeriodicSFCaseMatrix
 
 
-SUBROUTINE Deposition(doParticle_In)
+SUBROUTINE Deposition(doParticle_In, stage_opt)
 !============================================================================================================================
 ! This subroutine performs the deposition of the particle charge and current density to the grid
 ! following list of distribution methods are implemented
@@ -745,27 +749,36 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT variable declaration
 LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
+INTEGER,INTENT(IN),OPTIONAL      :: stage_opt ! TODO: definition of this variable
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT variable declaration
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Local variable declaration
+INTEGER         :: stage
 !-----------------------------------------------------------------------------------------------------------------------------------
 !============================================================================================================================
 ! Return, if no deposition is required
 IF(.NOT.DoDeposition) RETURN
+IF (PRESENT(stage_opt)) THEN
+  stage = stage_opt
+ELSE
+  stage = 0
+END IF
 
-PartSource = 0.0
+IF((stage.EQ.0).OR.(stage.EQ.1)) PartSource = 0.0
 
 IF(PRESENT(doParticle_In)) THEN
-  CALL DepositionMethod(doParticle_In)
+  CALL DepositionMethod(doParticle_In, stage_opt=stage)
 ELSE
-  CALL DepositionMethod()
+  CALL DepositionMethod(stage_opt=stage)
 END IF
 
-IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
-  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+IF((stage.EQ.0).OR.(stage.EQ.4)) THEN
+  IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
+    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  END IF
 END IF
-RETURN
+
 END SUBROUTINE Deposition
 
 
@@ -856,6 +869,9 @@ SDEALLOCATE(PartSourceProc)
 SDEALLOCATE(NodeMapping)
 SDEALLOCATE(nDepoDOFPerProc)
 SDEALLOCATE(nDepoOffsetProc)
+SDEALLOCATE(RecvRequest)
+SDEALLOCATE(RecvRequestCN) 
+SDEALLOCATE(SendRequestCN)
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
