@@ -43,7 +43,7 @@ CONTAINS
 SUBROUTINE SurfaceModel(PartID,SideID,GlobalElemID,n_Loc)
 ! MODULES
 USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec,myrank
-USE MOD_Particle_Vars             ,ONLY: PartSpecies, WriteMacroSurfaceValues
+USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide, dXiEQ_SurfSample, PartBound
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
@@ -58,9 +58,7 @@ USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
 USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
-USE MOD_part_operations           ,ONLY: CreateParticle, RemoveParticle
-USE MOD_Particle_Vars             ,ONLY: PartSpecies,Species
-USE MOD_Particle_Vars             ,ONLY: usevMPF,PartMPF
+USE MOD_part_operations           ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

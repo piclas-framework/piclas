@@ -329,8 +329,6 @@ CLASS(link),POINTER :: current
 current =>  this%firstLink
 DO WHILE (associated(current%next))
   tmp => current%next%next
-  !this%lastLink => current%next
-  !this%lastLink%next => current%next
   IF (current%next%opt%numberedmulti) THEN
     DEALLOCATE(current%next%opt)
     NULLIFY(current%next%opt)
@@ -341,16 +339,6 @@ DO WHILE (associated(current%next))
     current => current%next
   END IF
 END DO
-
-!current =>  this%firstLink
-!IF (associated(current).AND.(current%opt%numberedmulti)) THEN
-!  IF (associated(current%next)) THEN
-!    this%firstLink => current%next
-!  ELSE
-!    this%firstLink => null()
-!    this%LastLink  => null()
-!  END IF
-!END IF
 
 END SUBROUTINE removeUnnecessary
 
@@ -1133,7 +1121,7 @@ DO WHILE (associated(current))
   END IF
   current => current%next
 END DO
-END SUBROUTINE
+END SUBROUTINE PrintDefaultParameterFile
 
 !==================================================================================================================================
 !> Creates a new link to a option-object, 'next' is the following link in the linked list
@@ -1420,7 +1408,7 @@ CLASS(link),POINTER          :: check
 CLASS(Option),POINTER        :: multi
 CLASS(OPTION),ALLOCATABLE    :: newopt
 CHARACTER(LEN=:),ALLOCATABLE :: testname
-INTEGER                      :: i
+INTEGER                      :: i,j
 CHARACTER(LEN=20)            :: fmtName
 ! Temporary arrays to create new options
 CHARACTER(LEN=255)           :: tmpValue
@@ -1521,7 +1509,9 @@ DO WHILE (associated(current))
                     value = multi%value
                     ! insert option with numbered name ($ replaced by number)
                     ALLOCATE(intopt)
-                    WRITE(tmpValue, *) multi%value
+                    WRITE(tmpValue,'(*(I0))') (multi%value(j), ",",j=1,no)
+                    ! remove trailing comma
+                    tmpValue(len(TRIM(tmpValue)):len(TRIM(tmpValue))) = ' '
                     CALL prms%CreateOption(intopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
                   END SELECT
                 CLASS IS (RealArrayOption)
@@ -1531,7 +1521,9 @@ DO WHILE (associated(current))
                     value = multi%value
                     ! insert option with numbered name ($ replaced by number)
                     ALLOCATE(realopt)
-                    WRITE(tmpValue, *) multi%value
+                    WRITE(tmpValue,'(*(G0))') (multi%value(j), ",",j=1,no)
+                    ! remove trailing comma
+                    tmpValue(len(TRIM(tmpValue)):len(TRIM(tmpValue))) = ' '
                     CALL prms%CreateOption(realopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
                   END SELECT
                 CLASS IS (LogicalArrayOption)
@@ -1541,17 +1533,19 @@ DO WHILE (associated(current))
                     value = multi%value
                     ! insert option with numbered name ($ replaced by number)
                     ALLOCATE(logicalopt)
-                    WRITE(tmpValue, *) multi%value
+                    ! remove trailing comma
+                    tmpValue(len(TRIM(tmpValue)):len(TRIM(tmpValue))) = ' '
+                    WRITE(tmpValue,'(*(L))') (multi%value(j), ",",j=1,no)
                     CALL prms%CreateOption(logicalopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
                   END SELECT
               END SELECT
               ! print option and value to stdout. Custom print, so do it here
               WRITE(fmtName,*) prms%maxNameLen
-              SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+              SWRITE(UNIT_stdOut,'(A3)', ADVANCE='NO') ' | '
               CALL set_formatting("blue")
               SWRITE(UNIT_stdOut,"(a"//fmtName//")", ADVANCE='NO') TRIM(name)
               CALL clear_formatting()
-              SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+              SWRITE(UNIT_stdOut,'(A3)', ADVANCE='NO') ' | '
               CALL multi%printValue(prms%maxValueLen)
               SWRITE(UNIT_stdOut,"(a3)", ADVANCE='NO') ' | '
               CALL set_formatting("blue")
@@ -2113,7 +2107,7 @@ IMPLICIT NONE
 CLASS(link), POINTER         :: current, tmp
 !===================================================================================================================================
 
-if(associated(prms%firstlink))then
+IF(ASSOCIATED(prms%firstlink))THEN
   current => prms%firstLink
   DO WHILE (associated(current%next))
     DEALLOCATE(current%opt)
@@ -2123,7 +2117,7 @@ if(associated(prms%firstlink))then
     NULLIFY(current)
     current => tmp
   END DO
-end if
+END IF
 prms%firstLink => null()
 prms%lastLink  => null()
 END SUBROUTINE FinalizeParameters

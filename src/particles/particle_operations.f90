@@ -20,14 +20,6 @@ MODULE MOD_part_operations
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
-
-INTERFACE CreateParticle
-  MODULE PROCEDURE CreateParticle
-END INTERFACE
-
-INTERFACE RemoveParticle
-  MODULE PROCEDURE RemoveParticle
-END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

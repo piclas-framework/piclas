@@ -203,7 +203,7 @@ DO i=1,nSpecies
                 ! is spanned by the disk and the length given by c*dt)
                 NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
                 ! Calculation of the number of electron resulting from the chemical reactions in the photoionization region
-                CALL CalcPhotoIonizationNumber(NbrOfPhotons,NbrOfReactions)
+                CALL CalcPhotoIonizationNumber(i,NbrOfPhotons,NbrOfReactions)
                 NbrOfReactions = NbrOfReactions + Species(i)%Init(iInit)%NINT_Correction
                 NbrOfParticle = NINT(NbrOfReactions)
                 Species(i)%Init(iInit)%NINT_Correction = NbrOfReactions - REAL(NbrOfParticle)

@@ -260,14 +260,14 @@ END IF
 ! 2) Set internal energies (rotational, vibrational, electronic)
 IF(CollisMode.GT.1) THEN
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,iPart,MacroRestartValues(iElem,iSpec,DSMC_TVIB))
+    PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TVIB),iPart)
     PartStateIntEn(2,iPart) = CalcERot_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TROT))
   ELSE
     PartStateIntEn(1:2,iPart) = 0.0
   END IF
   IF(DSMC%ElectronicModel.GT.0) THEN
     IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-      PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TELEC), iPart)
+      PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,MacroRestartValues(iElem,iSpec,DSMC_TELEC),iPart)
     ELSE
       PartStateIntEn(3,iPart) = 0.0
     END IF
@@ -322,7 +322,7 @@ IF(Temp(3).GT.0.0) CalcVelocity_maxwell_particle(3) = rnor()*SQRT(BoltzmannConst
 END FUNCTION CalcVelocity_maxwell_particle
 
 
-REAL FUNCTION CalcEVib_particle(iSpec,iPart,TempVib)
+REAL FUNCTION CalcEVib_particle(iSpec,TempVib,iPart)
 !===================================================================================================================================
 !
 !===================================================================================================================================
@@ -334,19 +334,29 @@ USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, PolyatomMolDSMC, VibQuantsPar, DSMC
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)       :: iSpec, iPart
-REAL, INTENT(IN)          :: TempVib
+INTEGER, INTENT(IN)           :: iSpec
+REAL, INTENT(IN)              :: TempVib
+INTEGER, INTENT(IN),OPTIONAL  :: iPart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                      :: iRan
 INTEGER                   :: iQuant, iDOF, iPolyatMole
+LOGICAL                   :: SetVibQuant
 !===================================================================================================================================
+
+IF(PRESENT(iPart)) THEN
+  SetVibQuant = .TRUE.
+ELSE
+  SetVibQuant = .FALSE.
+END IF
 
 IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
   ! set vibrational energy
   iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-  IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
-  ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+  IF(SetVibQuant) THEN
+    IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
+    ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+  END IF
   CalcEVib_particle = 0.0
   DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
     CALL RANDOM_NUMBER(iRan)
@@ -357,7 +367,7 @@ IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
     END DO
     CalcEVib_particle = CalcEVib_particle &
                                 + (iQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
-    VibQuantsPar(iPart)%Quants(iDOF)=iQuant
+    IF(SetVibQuant) VibQuantsPar(iPart)%Quants(iDOF)=iQuant
   END DO
 ELSE
   CALL RANDOM_NUMBER(iRan)
@@ -393,6 +403,8 @@ REAL, INTENT(IN)          :: TempRot
 REAL                      :: PartStateTempVar, NormProb, iRan2
 !===================================================================================================================================
 
+CalcERot_particle = 0.
+
 IF (SpecDSMC(iSpec)%Xi_Rot.EQ.2) THEN
   CALL RANDOM_NUMBER(iRan2)
   CalcERot_particle = -BoltzmannConst*TempRot*LOG(iRan2)
@@ -415,7 +427,7 @@ RETURN
 END FUNCTION CalcERot_particle
 
 
-REAL FUNCTION CalcEElec_particle(iSpec,TempElec, iPart)
+REAL FUNCTION CalcEElec_particle(iSpec,TempElec,iPart)
 !===================================================================================================================================
 !
 !===================================================================================================================================
@@ -427,14 +439,20 @@ USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, DSMC, ElectronicDistriPart
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iSpec, iPart
+INTEGER, INTENT(IN)           :: iSpec
 REAL, INTENT(IN)              :: TempElec
+INTEGER, INTENT(IN),OPTIONAL  :: iPart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                   :: iQua
 REAL                      :: iRan, ElectronicPartition, ElectronicPartitionTemp, tmpExp
 !===================================================================================================================================
 ElectronicPartition  = 0.
+
+IF(.NOT.PRESENT(iPart).AND.DSMC%ElectronicModel.EQ.2) THEN
+  CALL abort(__STAMP__,'ERROR: Calculation of electronic energy using ElectronicModel = 2 requires the input of particle index!')
+END IF
+
 IF (DSMC%ElectronicModel.EQ.2) THEN
   IF(ALLOCATED(ElectronicDistriPart(iPart)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(iPart)%DistriFunc)
   ALLOCATE(ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(iSpec)%MaxElecQuant))

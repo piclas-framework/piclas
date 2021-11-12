@@ -791,11 +791,11 @@ IF (nSpecAnalyze.GT.1) THEN
       IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-          ! %MacroParticleFactor is included in the case of RadialWeighting (also in combination with variable time step)
+          ! %MacroParticleFactor is included in the case of vMPF (also in combination with variable time step)
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
-          ! Case for variable time step without radial weighting (no regular weighting factor applied in GetParticleWeight)
+          ! Case for variable time step without vMPF (no species weighting factor applied in GetParticleWeight)
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF != usevMPF
@@ -804,11 +804,11 @@ IF (nSpecAnalyze.GT.1) THEN
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-          ! %MacroParticleFactor is included in the case of RadialWeighting (also in combination with variable time step)
+          ! %MacroParticleFactor is included in the case of vMPF (also in combination with variable time step)
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
-          ! Case for variable time step without radial weighting (no regular weighting factor applied in GetParticleWeight)
+          ! Case for variable time step without vMPF (no species weighting factor applied in GetParticleWeight)
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF != usevMPF

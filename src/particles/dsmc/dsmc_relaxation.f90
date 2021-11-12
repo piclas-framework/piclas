@@ -374,7 +374,7 @@ SUBROUTINE DSMC_calc_P_vib(iPair, iSpec, jSpec, Xi_rel, iElem, ProbVib)
 USE MOD_Globals            ,ONLY: Abort
 USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, DSMC, VarVibRelaxProb, useRelaxProbCorrFactor, XSec_Relaxation, CollInf, Coll_pData
 USE MOD_DSMC_Vars          ,ONLY: PolyatomMolDSMC, SpecXSec
-USE MOD_DSMC_SpecXSec      ,ONLY: XSec_CalcVibRelaxProb
+USE MOD_MCC_XSec           ,ONLY: XSec_CalcVibRelaxProb
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

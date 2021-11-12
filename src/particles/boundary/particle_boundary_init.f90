@@ -214,7 +214,7 @@ CALL prms%CreateRealOption(     'Part-AuxBC[$]-halfangle'  &
                                 , 'TODO-DEFINE-PARAMETER',  '45.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
                                 , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp','Perform wall temperature adaptation at every macroscopic output.', '.TRUE.')
+CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp','Perform wall temperature adaptation at every macroscopic output.', '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleBoundary
 

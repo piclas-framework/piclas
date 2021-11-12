@@ -48,7 +48,7 @@ USE MOD_Restart_Vars         ,ONLY: DoRestart
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems
 USE MOD_LoadBalance_Vars     ,ONLY: ElemTimeField
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars     ,ONLY: ElemTime 
+USE MOD_LoadBalance_Vars     ,ONLY: ElemTime
 #if USE_HDG
 USE MOD_LoadBalance_Vars     ,ONLY: ElemHDGSides,TotalHDGSides
 USE MOD_Analyze_Vars         ,ONLY: CalcMeshInfo
@@ -59,7 +59,7 @@ USE MOD_LoadDistribution     ,ONLY: ApplyWeightDistributionMethod
 #ifdef PARTICLES
 USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_InitDistribution
 USE MOD_Particle_Vars        ,ONLY: VarTimeStep
-USE MOD_LoadBalance_Vars     ,ONLY: ElemTimePart 
+USE MOD_LoadBalance_Vars     ,ONLY: ElemTimePart
 #endif /*PARTICLES*/
 USE MOD_LoadBalance_Vars     ,ONLY: NewImbalance,MaxWeight,MinWeight,ElemGlobalTime,LoadDistri,PartDistri,TargetWeight
 USE MOD_IO_HDF5

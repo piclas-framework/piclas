@@ -205,6 +205,8 @@ CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WorkFunctionSEE','Photoelect
                            !'Orbital configuration of the solid from which the photoelectrons emerge','0.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-EffectiveIntensityFactor', 'Scaling factor that increases I0 [-]',&
                             '1.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption('Part-Species[$]-Init[$]-TraceSpecies','Flag background species as trace element.'//&
+                              ' Different weighting factor can be used',  '.FALSE.', numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersParticleEmission
 
 
@@ -240,6 +242,8 @@ UseNeutralization = .FALSE.
 BGGas%NumberOfSpecies = 0
 ALLOCATE(BGGas%BackgroundSpecies(nSpecies))
 BGGas%BackgroundSpecies = .FALSE.
+ALLOCATE(BGGas%TraceSpecies(nSpecies))
+BGGas%TraceSpecies = .FALSE.
 ALLOCATE(BGGas%NumberDensity(nSpecies))
 BGGas%NumberDensity = 0.
 BGGas%UseDistribution = GETLOGICAL('Particles-BGGas-UseDistribution')
@@ -406,8 +410,9 @@ DO iSpec = 1, nSpecies
     IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'background') THEN
       IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
         BGGas%NumberOfSpecies = BGGas%NumberOfSpecies + 1
-        BGGas%BackgroundSpecies(iSpec)  = .TRUE.
-        BGGas%NumberDensity(iSpec)      = Species(iSpec)%Init(iInit)%PartDensity
+        BGGas%BackgroundSpecies(iSpec) = .TRUE.
+        BGGas%NumberDensity(iSpec)     = Species(iSpec)%Init(iInit)%PartDensity
+        BGGas%TraceSpecies(iSpec)      = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-TraceSpecies')
         Species(iSpec)%Init(iInit)%ParticleEmissionType = -1
         ! Read-in the species index for background gas distribution
         IF(BGGas%UseDistribution) &

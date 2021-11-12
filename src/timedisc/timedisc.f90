@@ -110,6 +110,9 @@ USE MOD_Part_BR_Elecron_Fluid  ,ONLY: SwitchBRElectronModel,UpdateVariableRefEle
 USE MOD_HDG_Vars               ,ONLY: BRConvertMode,BRTimeStepBackup,BRTimeStepMultiplier,UseBRElectronFluid
 USE MOD_HDG_Vars               ,ONLY: CalcBRVariableElectronTemp
 #endif /*defined(PARTICLES) && USE_HDG*/
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI_Vars               ,ONLY: MPIW8TimeSim
+#endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -295,9 +298,7 @@ DO !iter_t=0,MaxIter
   CALL TimeStepPoissonByLSERK() ! Runge Kutta Explicit, Poisson
 #endif
 #else
-  CALL abort(&
-  __STAMP__&
-  ,'Timedisc 50x only available for EQNSYS Poisson!',PP_N,999.)
+  CALL abort(__STAMP__,'Timedisc 50x only available for EQNSYS Poisson! PP_N=',IntInfoOpt=PP_N)
 #endif /*USE_HDG*/
 #endif
   ! calling the analyze routines
@@ -343,6 +344,9 @@ DO !iter_t=0,MaxIter
       SimulationEfficiency = (time-RestartTime)/((WallTimeEnd-RestartWallTime)*nProcessors/3600.) ! in [s] / [CPUh]
       PID                  = (WallTimeEnd-WallTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_PID)
     END IF
+#if defined(MEASURE_MPI_WAIT)
+    MPIW8TimeSim   = MPIW8TimeSim + (WallTimeEnd-WallTimeStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 #if USE_MPI
 #if defined(PARTICLES) && !defined(LSERK) && !defined(IMPA) && !defined(ROS)
@@ -368,7 +372,7 @@ DO !iter_t=0,MaxIter
 #endif /*USE_LOADBALANCE*/
 
 #else /*NOT USE_MPI*/
-CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
+    CALL WriteElemTimeStatistics(WriteHeader=.FALSE.,time_opt=time)
 #endif /*USE_MPI*/
 
     ! Adjust nSkipAnalyze when, e.g., also adjusting the time step (during load balance, this value is over-written)

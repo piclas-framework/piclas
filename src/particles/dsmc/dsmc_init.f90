@@ -307,12 +307,12 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, VarTimeStep, usevMPF
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly
-USE MOD_DSMC_SpecXSec          ,ONLY: MCC_Init
+USE MOD_MCC_Init               ,ONLY: MCC_Init
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 ! IMPLICIT VARIABLE HANDLING
@@ -338,7 +338,7 @@ ReactionProbGTUnityCounter = 0
 ! reading and reset general DSMC values
 CollisMode = GETINT('Particles-DSMC-CollisMode','1') !0: no collis, 1:elastic col, 2:elast+rela, 3:chem
 SelectionProc = GETINT('Particles-DSMC-SelectionProcedure','1') !1: Laux, 2:Gimelsheim
-IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
   IF(SelectionProc.NE.1) THEN
     CALL abort(__STAMP__&
         ,'ERROR: Radial weighting or variable time step is not implemented with the chosen SelectionProcedure: ' &
@@ -371,7 +371,7 @@ END IF ! DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)
 DSMC%ReservoirSimuRate       = GETLOGICAL('Particles-DSMCReservoirSimRate')
 DSMC%ReservoirRateStatistic  = GETLOGICAL('Particles-DSMCReservoirStatistic')
 DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation')
-IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
   IF(DSMC%DoTEVRRelaxation) THEN
     CALL abort(__STAMP__&
         ,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
@@ -602,8 +602,8 @@ ELSE !CollisMode.GT.0
   CollInf%Coll_CaseNum = 0
   ALLOCATE(CollInf%Coll_SpecPartNum(nSpecies))
   CollInf%Coll_SpecPartNum = 0.
-  ALLOCATE(CollInf%MeanMPF(nCase))
-  CollInf%MeanMPF = 0.
+  ALLOCATE(CollInf%SumPairMPF(nCase))
+  CollInf%SumPairMPF = 0.
   ALLOCATE(CollInf%FracMassCent(nSpecies, nCase)) ! Calculation of mx/(mx+my) and reduced mass
   CollInf%FracMassCent = 0
   ALLOCATE(CollInf%MassRed(nCase))
@@ -680,6 +680,11 @@ ELSE !CollisMode.GT.0
       CALL abort(__STAMP__&
           ,'ERROR: Ambipolar diffusion is not implemented with the regular background gas!')
     END IF
+  END IF
+  ! MCC and variable vibrational relaxation probability is not supported
+  IF(UseMCC.AND.(DSMC%VibRelaxProb.EQ.2.0)) THEN
+    CALL abort(__STAMP__&
+        ,'ERROR: Monte Carlo Collisions and variable vibrational relaxation probability (DSMC-based) are not compatible!')
   END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! reading/writing molecular stuff
@@ -968,17 +973,16 @@ ELSE !CollisMode.GT.0
   !-----------------------------------------------------------------------------------------------------------------------------------
   IF (BGGas%NumberOfSpecies.GT.0) THEN
     IF (DSMC%UseOctree) THEN
-      CALL abort(__STAMP__,&
-          'ERROR: Utilization of the octree and nearest neighbour scheme not possible with the background gas!')
+      CALL abort(__STAMP__,'ERROR: Utilization of the octree and nearest neighbour scheme not possible with the background gas!')
     END IF
     DO iSpec = 1, nSpecies
       IF(BGGas%BackgroundSpecies(iSpec)) THEN
-        IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
-          CALL abort(__STAMP__,&
-            'ERROR in BGGas: Electrons as background gas are not yet available!')
-        END IF
+        IF(SpecDSMC(iSpec)%InterID.EQ.4) CALL abort(__STAMP__,'ERROR in BGGas: Electrons as background gas are not yet available!')
       END IF
     END DO
+  ELSE
+    IF(usevMPF.AND..NOT.RadialWeighting%DoRadialWeighting) &
+      CALL abort(__STAMP__,'ERROR in DSMC: Variable weighting factors are only available with a background gas!')
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate vib collision numbers and characteristic velocity, according to Abe
@@ -1467,7 +1471,7 @@ SDEALLOCATE(CollInf%Cab)
 SDEALLOCATE(CollInf%KronDelta)
 SDEALLOCATE(CollInf%FracMassCent)
 SDEALLOCATE(CollInf%MassRed)
-SDEALLOCATE(CollInf%MeanMPF)
+SDEALLOCATE(CollInf%SumPairMPF)
 SDEALLOCATE(CollInf%alphaVSS)
 SDEALLOCATE(CollInf%omega)
 SDEALLOCATE(CollInf%dref)
@@ -1481,6 +1485,7 @@ CALL DeleteElemNodeVol()
 
 SDEALLOCATE(BGGas%PairingPartner)
 SDEALLOCATE(BGGas%BackgroundSpecies)
+SDEALLOCATE(BGGas%TraceSpecies)
 SDEALLOCATE(BGGas%MapSpecToBGSpec)
 SDEALLOCATE(BGGas%MapBGSpecToSpec)
 SDEALLOCATE(BGGas%SpeciesFraction)
