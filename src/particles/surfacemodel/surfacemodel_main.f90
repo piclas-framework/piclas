@@ -32,7 +32,8 @@ CONTAINS
 
 !===================================================================================================================================
 !> Selection and execution of a gas-surface interaction model
-!> 1.) Initial surface pre-treatment: Porous BC, species swap and charge deposition on dielectrics
+!> 0.) Initial surface pre-treatment: Porous BC and initialization of charge deposition on dielectrics
+!> 1.) species swap
 !> 2.) Count and sample the properties BEFORE the surface interaction
 !> 3.) Perform the selected gas-surface interaction, currently implemented models:
 !           0: Maxwell Scattering
@@ -88,15 +89,12 @@ REAL               :: MPF                             !< macro-particle factor
 iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 
 !===================================================================================================================================
-! 1.) Initial surface pre-treatment
+! 0.) Initial surface pre-treatment
 !===================================================================================================================================
 !---- Treatment of adaptive and porous boundary conditions (deletion of particles in case of circular inflow or porous BC)
 SpecularReflectionOnly = .FALSE.
 IF(UseCircularInflow) CALL SurfaceFluxBasedBoundaryTreatment(PartID,SideID)
 IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(PartID,SideID,SpecularReflectionOnly)
-
-!---- swap species?
-IF (PartBound%NbrOfSpeciesSwaps(iBC).gt.0) CALL SpeciesSwap(PartID,SideID)
 
 locBCID        = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 PartSpecImpact = PartSpecies(PartID)
@@ -104,6 +102,7 @@ ProductSpec(1) = PartSpecImpact
 ProductSpec(2) = 0
 ProductSpecNbr = 0
 TempErgy(1:2)  = PartBound%WallTemp(locBCID)
+
 ! Store info of impacting particle for possible surface charging
 IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charging active + dielectric surface contact
   PartPosImpact(1:3) = LastPartPos(1:3,PartID)+TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
@@ -114,6 +113,11 @@ IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charg
   END IF ! usevMPF
   ChargeImpact = Species(PartSpecies(PartID))%ChargeIC*MPF
 END IF
+!===================================================================================================================================
+! 1.) Species Swap
+!===================================================================================================================================
+IF (PartBound%NbrOfSpeciesSwaps(iBC).GT.0) CALL SpeciesSwap(PartID,SideID)
+
 !===================================================================================================================================
 ! 2.) Count and sample the properties BEFORE the surface interaction
 !===================================================================================================================================
@@ -140,6 +144,7 @@ END IF
 IF(.NOT.PDM%ParticleInside(PartID)) THEN
   ! Increase the counter for deleted/absorbed/adsorbed particles
   IF(CalcSurfCollCounter) SurfAnalyzeNumOfAds(PartSpecImpact) = SurfAnalyzeNumOfAds(PartSpecImpact) + 1
+  IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
   RETURN
 END IF
 !===================================================================================================================================
@@ -159,7 +164,6 @@ CASE (5,6,7,8)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Get electron emission probability
   CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy(2))
-  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
   ! Decide the fate of the impacting particle
   IF (ProductSpec(1).LE.0) THEN
     CALL RemoveParticle(PartID)
@@ -175,7 +179,7 @@ CASE DEFAULT
 END SELECT
 
 !===================================================================================================================================
-! 4.) PIC ONLY: Deposit charges on dielectric surface (when activated), if these were removed/changed in SpeciesSwap or SurfaceModel
+! 4.) PIC ONLY: Deposit charges on dielectric surface (when activated), if these were removed/changed in SurfaceModel
 !===================================================================================================================================
 IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charging active + dielectric surface contact
   IF(.NOT.PDM%ParticleInside(PartID))THEN

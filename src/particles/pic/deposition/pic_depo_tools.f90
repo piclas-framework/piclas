@@ -80,7 +80,7 @@ INTEGER                          :: NodeID(1:8)
 
 ! Skip for neutral particles and reflected particles or species swapped particles where impacting and reflecting particle carry the
 ! same charge. Deposit only particles that are deleted on the surface or change their charge on contact (e.g. neutralization)
-IF(NINT(ABS(Charge)/ElementaryCharge).LE.0) RETURN
+IF(ABS(Charge).LE.0.0) RETURN
 
 #if USE_LOADBALANCE
 ! Only measure time if particle is deposited on local proc
