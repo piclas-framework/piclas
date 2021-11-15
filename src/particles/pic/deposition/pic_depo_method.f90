@@ -829,7 +829,7 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
       PartSourceGlob(:,:,:,:,SendShapeElemID(iElem)) = PartSourceGlob(:,:,:,:,SendShapeElemID(iElem)) + PartSourceProc(:,:,:,:,iElem)
     END DO
   ELSE
-    IF (nSendShapeElems.GT.1) THEN
+    IF (nSendShapeElems.GT.0) THEN
       CALL MPI_ISEND( PartSourceProc                         &
                     , nSendShapeElems*4*(PP_N+1)**3          &
                     , MPI_DOUBLE_PRECISION                   &
@@ -866,7 +866,7 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
       END DO
     END DO
   ELSE
-    IF (nSendShapeElems.GT.1) THEN
+    IF (nSendShapeElems.GT.0) THEN
 #if defined(MEASURE_MPI_WAIT)
       CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
@@ -983,7 +983,7 @@ IF ((stage.EQ.0).OR.(stage.EQ.3)) THEN
                       , IERROR)
     END DO    
   ELSE   
-    IF (nRecvShapeElems.GT.1) THEN
+    IF (nRecvShapeElems.GT.0) THEN
       CALL MPI_IRECV( ShapeRecvBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:nRecvShapeElems)                         &
                     , nRecvShapeElems*4*(PP_N+1)**3          &
                     , MPI_DOUBLE_PRECISION                   &
@@ -1023,19 +1023,21 @@ IF (myComputeNodeRank.EQ.0) THEN
   END DO
   PartSource(:,:,:,:,1:nElems) = PartSource(:,:,:,:,1:nElems) + PartSourceGlob(:,:,:,:,1:nElems)
 ELSE
+  IF (nRecvShapeElems.GT.0) THEN
 #if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterStart)
+    CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
-  CALL MPI_WAIT(SendRequest,MPI_STATUS_IGNORE,IERROR)
+    CALL MPI_WAIT(SendRequest,MPI_STATUS_IGNORE,IERROR)
 #if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimePart(8) = MPIW8TimePart(8) + REAL(CounterEnd-CounterStart,8)/Rate
+    CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+    MPIW8TimePart(8) = MPIW8TimePart(8) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
-  DO iElem = 1, nRecvShapeElems
-    ASSOCIATE( ShapeID => GetGlobalElemID(RecvShapeElemID(iElem))-offSetElem)
-      PartSource(:,:,:,:,ShapeID) = PartSource(:,:,:,:,ShapeID) + ShapeRecvBuffer(:,:,:,:,iElem)
-    END ASSOCIATE
-  END DO
+    DO iElem = 1, nRecvShapeElems
+      ASSOCIATE( ShapeID => GetGlobalElemID(RecvShapeElemID(iElem))-offSetElem)
+        PartSource(:,:,:,:,ShapeID) = PartSource(:,:,:,:,ShapeID) + ShapeRecvBuffer(:,:,:,:,iElem)
+      END ASSOCIATE
+    END DO
+  END IF
 END IF
 #endif
 END IF
