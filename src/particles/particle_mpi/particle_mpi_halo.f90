@@ -61,7 +61,7 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_PICDepo_Vars            ,ONLY: DepositionType, ShapeRecvBuffer, RecvElemShapeID
 USE MOD_PICDepo_Vars            ,ONLY: nSendShapeElems,SendShapeElemID, SendElemShapeID, nRecvShapeElems, RecvShapeElemID
-USE MOD_PICDepo_Vars            ,ONLY: ShapeMapping,CNShapeMapping,r_sf
+USE MOD_PICDepo_Vars            ,ONLY: ShapeMapping,CNShapeMapping,r_sf, DoRecvElem
 USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep
 USE MOD_ReadInTools             ,ONLY: PrintOption
 #if ! (USE_HDG)
@@ -969,7 +969,8 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     DO iProc = 1,nComputeNodeProcessors-1
       IF (ShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
       ALLOCATE(ShapeMapping(iProc)%SendShapeElemID(1:ShapeMapping(iProc)%nSendShapeElems), &
-        ShapeMapping(iProc)%SendBuffer(4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nSendShapeElems))
+        ShapeMapping(iProc)%SendBuffer(4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nSendShapeElems), &
+        ShapeMapping(iProc)%DoSendElem(1:ShapeMapping(iProc)%nSendShapeElems))
 
       CALL MPI_IRECV( ShapeMapping(iProc)%SendShapeElemID   &
                     , ShapeMapping(iProc)%nSendShapeElems   &
@@ -1113,7 +1114,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
 
   ! .NOT. ComputeNodeRoot
   ELSE
-    ALLOCATE(SendRequest(1), ShapeRecvBuffer(1:4,0:PP_N,0:PP_N,0:PP_N, 1:nRecvShapeElems))
+    ALLOCATE(SendRequest(1), ShapeRecvBuffer(1:4,0:PP_N,0:PP_N,0:PP_N, 1:nRecvShapeElems), DoRecvElem(1:nRecvShapeElems))
 
     CALL MPI_ISEND( nSendShapeElems                          &
                   , 1                                        &

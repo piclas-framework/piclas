@@ -164,6 +164,8 @@ TYPE tShapeMapping
   INTEGER                       :: nSendShapeElems
   REAL,ALLOCATABLE              :: RecvBuffer(:,:,:,:,:)
   REAL,ALLOCATABLE              :: SendBuffer(:,:,:,:,:)
+  LOGICAL,ALLOCATABLE           :: DoSendElem(:)
+  INTEGER                       :: nNonZeroSendElems
 END TYPE
 TYPE(tShapeMapping),ALLOCATABLE :: ShapeMapping(:)
 
@@ -185,6 +187,7 @@ INTEGER                         :: nRecvShapeElems            ! number of halo e
 INTEGER,ALLOCATABLE             :: RecvShapeElemID(:)         ! mapping from CNElemID to ShapeElemID
 INTEGER,ALLOCATABLE             :: RecvElemShapeID(:)         ! mapping from ShapeElemID to CNElemID
 REAL, ALLOCATABLE               :: ShapeRecvBuffer(:,:,:,:,:)
+LOGICAL, ALLOCATABLE            :: DoRecvElem(:)
 #endif
 
 #if USE_MPI
