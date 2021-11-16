@@ -248,6 +248,7 @@ ALLOCATE(BGGas%NumberDensity(nSpecies))
 BGGas%NumberDensity = 0.
 BGGas%UseDistribution = GETLOGICAL('Particles-BGGas-UseDistribution')
 IF(BGGas%UseDistribution) THEN
+  IF(usevMPF) CALL abort(__STAMP__,'vMPF not implemented for Particles-BGGas-UseDistribution=T')
   ALLOCATE(BGGas%DistributionSpeciesIndex(nSpecies))
 END IF
 
