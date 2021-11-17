@@ -34,6 +34,7 @@ TYPE tXSecData
                                                             ! 2: Cross-section at the respective energy level [m^2]
   REAL                              :: Prob                 ! Event probability
   REAL                              :: Threshold            ! Energy threshold [J]
+  REAL                              :: Counter              ! Counter of events for rate
 END TYPE tXSecData
 
 TYPE tSpeciesXSec

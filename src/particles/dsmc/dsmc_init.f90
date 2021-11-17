@@ -376,10 +376,8 @@ DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','n
 IF ((DSMC%ElectronicModelDatabase .NE. 'none').AND.&
     ((CollisMode .GT. 1).OR.(CollisMode .EQ. 0))) THEN ! CollisMode=0 is for use of in PIC simulation without collisions
   DSMC%EpsElecBin = GETREAL('EpsMergeElectronicState','1E-4')
-ELSEIF(DSMC%ElectronicModel.GT.0) THEN
-  CALL Abort(&
-      __STAMP__,&
-      'ERROR: Electronic model requires a electronic levels database and CollisMode > 1!')
+ELSEIF(DSMC%ElectronicModel.EQ.1.OR.DSMC%ElectronicModel.EQ.2) THEN
+  CALL Abort(__STAMP__,'ERROR: Electronic models 1 & 2 require an electronic levels database and CollisMode > 1!')
 END IF
 DSMC%NumPolyatomMolecs = 0
 SamplingActive = .FALSE.
@@ -402,9 +400,7 @@ ALLOCATE(DSMC_RHS(1:3,1:PDM%maxParticleNumber))
 DSMC_RHS = 0
 
 IF (nSpecies.LE.0) THEN
-  CALL Abort(&
-      __STAMP__&
-      ,"ERROR: nSpecies .LE. 0:", nSpecies)
+  CALL Abort(__STAMP__,"ERROR: nSpecies .LE. 0:", nSpecies)
 END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------

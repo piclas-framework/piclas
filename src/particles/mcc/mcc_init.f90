@@ -190,6 +190,10 @@ DO iSpec = 1, nSpecies
           SpecXSec(iCase)%ElecLevel(iLevel)%Threshold = SpecXSec(iCase)%ElecLevel(iLevel)%Threshold * ElementaryCharge
         END DO
         IF(SpecXSec(iCase)%UseCollXSec) THEN
+          IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(SpecDSMC(jSpec)%InterID.NE.4)) THEN
+            ! Special treatment required if both collision partners have electronic energy levels (ie. one is not an electron)
+            CALL abort(__STAMP__,'ERROR: Electronic relaxation with cross-section is only possible for electron collisions!')
+          END IF
           ! Collision cross-sections are available
           MaxDim = SIZE(SpecXSec(iCase)%CollXSecData,2)
           ALLOCATE(SpecXSec(iCase)%ElecXSecData(1:2,1:MaxDim))

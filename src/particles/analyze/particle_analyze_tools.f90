@@ -50,7 +50,7 @@ PUBLIC :: CalcRelaxProbRotVib
 #endif
 PUBLIC :: CalcVelocities
 #if (PP_TimeDiscMethod==42)
-PUBLIC :: CollRates,CalcRelaxRates,ReacRates
+PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
 #endif /*(PP_TimeDiscMethod==42)*/
 PUBLIC :: CalcPowerDensity
 PUBLIC :: CalculatePartElemData
@@ -1891,6 +1891,72 @@ END IF
 SpecXSec(:)%VibCount = 0.
 
 END SUBROUTINE CalcRelaxRates
+
+
+SUBROUTINE CalcRelaxRatesElec(ElecRelaxRate)
+!===================================================================================================================================
+!> Calculates the global electronic relaxation rate per case per level for PartAnalyse.csv
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: CollInf
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
+USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
+USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT),ALLOCATABLE  :: ElecRelaxRate(:,:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iCase, iLevel, MaxLevel
+!===================================================================================================================================
+
+MaxLevel = MAXVAL(SpecXSec(:)%NumElecLevel)
+ALLOCATE(ElecRelaxRate(CollInf%NumCase,MaxLevel))
+ElecRelaxRate = 0.
+
+DO iCase=1, CollInf%NumCase
+  IF(SpecXSec(iCase)%UseElecXSec) THEN
+    DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+      ElecRelaxRate(iCase,iLevel) =  SpecXSec(iCase)%ElecLevel(iLevel)%Counter
+    END DO
+  END IF
+END DO
+
+#if USE_MPI
+IF(PartMPI%MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,ElecRelaxRate,CollInf%NumCase*MaxLevel,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+ELSE
+  CALL MPI_REDUCE(ElecRelaxRate,ElecRelaxRate,CollInf%NumCase*MaxLevel,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+END IF
+#endif /*USE_MPI*/
+
+IF(PartMPI%MPIRoot)THEN
+  ElecRelaxRate =  ElecRelaxRate / dt
+  ! Consider Part-AnalyzeStep
+  IF(PartAnalyzeStep.GT.1)THEN
+    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
+      ElecRelaxRate = ElecRelaxRate / iter
+    ELSE
+      ElecRelaxRate = ElecRelaxRate / MIN(PartAnalyzeStep,iter)
+    END IF
+  END IF
+END IF
+
+DO iCase=1, CollInf%NumCase
+  IF(SpecXSec(iCase)%UseElecXSec) THEN
+    DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+      SpecXSec(iCase)%ElecLevel(iLevel)%Counter = 0.
+    END DO
+  END IF
+END DO
+
+END SUBROUTINE CalcRelaxRatesElec
 
 
 SUBROUTINE ReacRates(NumSpec, RRate)

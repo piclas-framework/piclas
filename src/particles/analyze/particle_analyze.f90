@@ -689,12 +689,14 @@ USE MOD_Particle_Analyze_Output ,ONLY: DisplayCoupledPowerPart
 USE MOD_Particle_Mesh_Vars      ,ONLY: MeshVolume
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: BGGas
+USE MOD_MCC_Vars                ,ONLY: SpecXSec
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcRelaxProbRotVib
 #endif
 #if (PP_TimeDiscMethod==42)
+USE MOD_Globals_Vars            ,ONLY: ElementaryCharge
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
-USE MOD_MCC_Vars                ,ONLY: XSec_Relaxation, SpecXSec
-USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,ReacRates
+USE MOD_MCC_Vars                ,ONLY: XSec_Relaxation
+USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
 #endif
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,BRAutomaticElectronRef,RegionElectronRef
@@ -723,20 +725,14 @@ REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
 #endif
 #if (PP_TimeDiscMethod==42)
-INTEGER             :: jSpec, iCase
+INTEGER             :: jSpec, iCase, iLevel
 #endif
 #if USE_MPI
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
 REAL                :: sumMeanCollProb
 #endif
 #endif /*USE_MPI*/
-REAL, ALLOCATABLE   :: CRate(:), RRate(:), VibRelaxRate(:)
-#if (PP_TimeDiscMethod ==42)
-#ifdef CODE_ANALYZE
-CHARACTER(LEN=64)   :: DebugElectronicStateFilename
-INTEGER             :: ii, iunit
-#endif
-#endif
+REAL, ALLOCATABLE   :: CRate(:), RRate(:), VibRelaxRate(:), ElecRelaxRate(:,:)
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
 INTEGER             :: dir
@@ -756,6 +752,10 @@ INTEGER             :: iRegions
       IF(CalcRelaxProb) THEN
         ALLOCATE(VibRelaxRate(CollInf%NumCase))
         VibRelaxRate = 0.0
+        IF(ANY(SpecXSec(:)%UseElecXSec)) THEN
+          ALLOCATE(ElecRelaxRate(CollInf%NumCase,MAXVAL(SpecXSec(:)%NumElecLevel)))
+          ElecRelaxRate = 0.0
+        END IF
       END IF
       IF (CollisMode.EQ.3) THEN
         SDEALLOCATE(RRate)
@@ -1057,6 +1057,19 @@ INTEGER             :: iRegions
               END DO
             END DO
           END IF
+          DO iSpec = 1, nSpecies
+            DO jSpec = iSpec, nSpecies
+              iCase = CollInf%Coll_Case(iSpec,jSpec)
+              IF(SpecXSec(iCase)%UseElecXSec) THEN
+                DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A,F5.2)',ADVANCE='NO') OutputCounter,'-ElecRelaxRate', iSpec, '+', jSpec, '-', &
+                    SpecXSec(iCase)%ElecLevel(iLevel)%Threshold/ElementaryCharge
+                  OutputCounter = OutputCounter + 1
+                END DO
+              END IF
+            END DO
+          END DO
         END IF
         IF(CalcReacRates) THEN ! calculates reaction rate per reaction
           IF(CollisMode.EQ.3) THEN
@@ -1282,7 +1295,10 @@ END IF
 #if (PP_TimeDiscMethod==42)
   IF(iter.GT.0) THEN
     IF(CalcCollRates) CALL CollRates(CRate)
-    IF(CalcRelaxProb) CALL CalcRelaxRates(NumSpecTmp,VibRelaxRate)
+    IF(CalcRelaxProb) THEN
+      CALL CalcRelaxRates(NumSpecTmp,VibRelaxRate)
+      IF(ANY(SpecXSec(:)%UseElecXSec)) CALL CalcRelaxRatesElec(ElecRelaxRate)
+    END IF
     IF(CalcReacRates) THEN
       IF (CollisMode.EQ.3) CALL ReacRates(NumSpecTmp,RRate)
     END IF
@@ -1458,6 +1474,16 @@ IF (PartMPI%MPIROOT) THEN
           END DO
         END DO
       END IF
+      DO iSpec = 1, nSpecies
+        DO jSpec = iSpec, nSpecies
+          iCase = CollInf%Coll_Case(iSpec,jSpec)
+          IF(SpecXSec(iCase)%UseElecXSec) THEN
+            DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+              WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ElecRelaxRate(iCase,iLevel)
+            END DO
+          END IF
+        END DO
+      END DO
     END IF
     IF(CalcReacRates) THEN
       DO iCase=1, ChemReac%NumOfReact

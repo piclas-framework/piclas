@@ -23,7 +23,7 @@ PRIVATE
 
 PUBLIC :: ReadCollXSec, ReadVibXSec, ReadElecXSec, ReadReacXSec
 PUBLIC :: InterpolateCrossSection, InterpolateCrossSection_Vib, InterpolateCrossSection_Elec, InterpolateCrossSection_Chem
-PUBLIC :: XSec_CalcCollisionProb, XSec_CalcVibRelaxProb, XSec_CalcReactionProb
+PUBLIC :: XSec_CalcCollisionProb, XSec_CalcVibRelaxProb, XSec_CalcElecRelaxProb, XSec_CalcReactionProb
 !===================================================================================================================================
 
 CONTAINS
@@ -328,6 +328,7 @@ IF(SpecXSec(iCase)%UseElecXSec) THEN
     ! Get name and size of name
     CALL H5Lget_name_by_idx_f(group_id, ".", H5_INDEX_NAME_F, H5_ITER_INC_F, iElec, dsetname, err, size)
     READ(dsetname,*) SpecXSec(iCase)%ElecLevel(iElec+1)%Threshold
+    SpecXSec(iCase)%ElecLevel(iElec+1)%Counter = 0.
     dsetname = TRIM(groupname)//TRIM(dsetname)
     ! Open the dataset.
     CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
@@ -453,9 +454,8 @@ END FUNCTION InterpolateCrossSection_Vib
 
 PPURE REAL FUNCTION InterpolateCrossSection_Elec(iCase,iLevel,CollisionEnergy)
 !===================================================================================================================================
-!> Interpolate the vibrational cross-section data for specific vibrational level at the given collision energy
+!> Interpolate the electronic cross-section data for specific electronic level at the given collision energy
 !> Note: Requires the data to be sorted by ascending energy values
-!> Assumption: First species given is the particle species, second species input is the background gas species
 !===================================================================================================================================
 ! MODULES
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
@@ -687,6 +687,77 @@ ELSE
 END IF
 
 END SUBROUTINE XSec_CalcVibRelaxProb
+
+
+SUBROUTINE XSec_CalcElecRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
+!===================================================================================================================================
+!> Calculate the electronic relaxation probability using cross-section data.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(IN)            :: iPair
+REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume, dtCell
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: CollEnergy, SpecNumTarget, SpecNumSource, Weight1, Weight2, ReducedMass
+REAL                          :: ReducedMassUnweighted
+INTEGER                       :: targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, iLevel
+!===================================================================================================================================
+
+iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
+iSpec_p1 = PartSpecies(iPart_p1);      iSpec_p2 = PartSpecies(iPart_p2)
+iCase = CollInf%Coll_Case(iSpec_p1,iSpec_p2)
+Weight1 = GetParticleWeight(iPart_p1)
+Weight2 = GetParticleWeight(iPart_p2)
+SpecXSec(iCase)%ElecLevel(:)%Prob = 0.
+
+IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
+  ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
+    / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
+  ReducedMassUnweighted = ReducedMass * 2./(Weight1 + Weight2)
+ELSE
+  ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
+  ReducedMassUnweighted = CollInf%MassRed(Coll_pData(iPair)%PairType)
+END IF
+! Using the relative translational energy of the pair
+CollEnergy = 0.5 * ReducedMassUnweighted * Coll_pData(iPair)%CRela2
+! Calculate the total vibrational cross-section
+DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+  IF(CollEnergy.GT.SpecXSec(iCase)%ElecLevel(iLevel)%Threshold) THEN
+    SpecXSec(iCase)%ElecLevel(iLevel)%Prob = InterpolateCrossSection_Elec(iCase,iLevel,CollEnergy)
+  END IF
+END DO
+
+IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
+  IF(SpecDSMC(iSpec_p1)%UseVibXSec) THEN
+    targetSpec = iSpec_p2; SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
+  ELSE
+    targetSpec = iSpec_p1; SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
+  END IF
+  DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+    IF(CollEnergy.GT.SpecXSec(iCase)%ElecLevel(iLevel)%Threshold) THEN
+      ! Calculate the total vibrational relaxation probability
+      SpecXSec(iCase)%ElecLevel(iLevel)%Prob = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * SpecNumTarget * MacroParticleFactor / Volume &
+                                                      * SpecXSec(iCase)%ElecLevel(iLevel)%Prob * dtCell))
+      IF(BGGas%BackgroundSpecies(targetSpec)) THEN
+        ! Correct the collision probability in the case of the second species being a background species as the number of pairs
+        ! is determined based on the species fraction
+        SpecXSec(iCase)%ElecLevel(iLevel)%Prob = SpecXSec(iCase)%ElecLevel(iLevel)%Prob / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
+      ELSE
+        SpecXSec(iCase)%ElecLevel(iLevel)%Prob = SpecXSec(iCase)%ElecLevel(iLevel)%Prob * SpecNumSource / CollInf%Coll_CaseNum(iCase)
+      END IF
+    END IF
+  END DO
+END IF
+
+END SUBROUTINE XSec_CalcElecRelaxProb
 
 
 PPURE REAL FUNCTION InterpolateCrossSection_Chem(iCase,iPath,CollisionEnergy)

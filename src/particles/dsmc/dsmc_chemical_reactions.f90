@@ -743,7 +743,7 @@ IF (DSMC%ElectronicModel.GT.0) THEN
         PartStateIntEn(3,ReactInx(iProd)) = 0.0
       END IF
       FakXi = FakXi - 0.5*Xi_elec(iProd)
-      CALL ElectronicEnergyExchange(iPair,ReactInx(iProd),FakXi, NewPart = .TRUE., Xi_elec = Xi_elec(iProd))
+      CALL ElectronicEnergyExchange(iPair,ReactInx(iProd),FakXi, NewPart = .TRUE., Xi_elec = Xi_elec(iProd), XSec_Level = 0)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(iProd))*Weight(iProd)
     END IF
   END DO
