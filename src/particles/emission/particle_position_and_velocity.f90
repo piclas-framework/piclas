@@ -139,7 +139,7 @@ USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetPartic
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionCuboidCylinder, SetParticlePositionGyrotronCircle,SetParticlePositionCircle
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionSphere, SetParticlePositionSinDeviation
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
-USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonHoneycomb
+USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonHoneycomb, SetParticlePositionPhotonSEEHoneycomb
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLandmark,SetParticlePositionLandmarkNeutralization
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: SendEmissionParticlesToProcs
@@ -227,7 +227,7 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
   CASE('photon_SEE_disc') ! disc case for surface distribution
     CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_SEE_honeycomb') ! Honeycomb disc case for surface distribution
-    !CALL SetParticlePositionPhotonSEEHoneycomb(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionPhotonSEEHoneycomb(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_cylinder') ! cylinder case for photonionization
     CALL SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_honeycomb') ! Honeycomb case for photonionization

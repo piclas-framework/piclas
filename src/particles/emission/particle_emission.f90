@@ -278,7 +278,7 @@ DO i=1,nSpecies
     CALL SetParticlePosition(i,iInit,NbrOfParticle)
     ! Pairing of "electrons" with the background species and performing the reaction
     IF((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_cylinder').OR.&
-       (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_SEE_honeycomb')) THEN
+       (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_honeycomb')) THEN
       CALL BGGas_PhotoIonization(i,iInit,NbrOfParticle)
       CYCLE
     END IF

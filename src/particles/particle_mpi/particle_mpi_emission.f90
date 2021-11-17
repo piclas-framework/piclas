@@ -109,45 +109,25 @@ DO iSpec=1,nSpecies
       xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
     CASE('photon_SEE_disc','photon_SEE_honeycomb')
-      ! 1. Check if inside outer radius
+      ASSOCIATE( O  => Species(iSpec)%Init(iInit)%BasePointIC ,&
+                 v1 => Species(iSpec)%Init(iInit)%NormalIC     )
+        ! 1. Check if inside outer radius
       radius=Species(iSpec)%Init(iInit)%RadiusIC
-      xlen=radius * SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
-      ylen=radius * SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
-      zlen=radius * SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
+        xlen=radius * SQRT(1.0 - v1(1)*v1(1))
+        ylen=radius * SQRT(1.0 - v1(2)*v1(2))
+        zlen=radius * SQRT(1.0 - v1(3)*v1(3)) + 0.1
       ! all 8 edges
-      xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
-      xCoords(1:3,2) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,-zlen/)
-      xCoords(1:3,3) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,-zlen/)
-      xCoords(1:3,4) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,-zlen/)
-      xCoords(1:3,5) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,+zlen/)
-      xCoords(1:3,6) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,+zlen/)
-      xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
-      xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
+        xCoords(1:3,1) = O+(/-xlen,-ylen,-zlen/)
+        xCoords(1:3,2) = O+(/+xlen,-ylen,-zlen/)
+        xCoords(1:3,3) = O+(/-xlen,+ylen,-zlen/)
+        xCoords(1:3,4) = O+(/+xlen,+ylen,-zlen/)
+        xCoords(1:3,5) = O+(/-xlen,-ylen,+zlen/)
+        xCoords(1:3,6) = O+(/+xlen,-ylen,+zlen/)
+        xCoords(1:3,7) = O+(/-xlen,+ylen,+zlen/)
+        xCoords(1:3,8) = O+(/+xlen,+ylen,+zlen/)
       ! Check if inside box
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-      ! 2. Check if outside of outer radius (if provided)
-      IF(Species(iSpec)%Init(iInit)%Radius2IC.GT.0.0)THEN
-        IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_'))THEN
-          ! Switch from outer radius of honeycomb to inner radius
-          radius=Species(iSpec)%Init(iInit)%Radius4IC
-        ELSE
-          radius=Species(iSpec)%Init(iInit)%Radius2IC
-        END IF ! StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_')
-        xlen=radius * SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
-        ylen=radius * SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
-        zlen=radius * SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
-        ! all 8 edges
-        xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
-        xCoords(1:3,2) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,-zlen/)
-        xCoords(1:3,3) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,-zlen/)
-        xCoords(1:3,4) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,-zlen/)
-        xCoords(1:3,5) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,+zlen/)
-        xCoords(1:3,6) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,+zlen/)
-        xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
-        xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
-        ! Check if outside box
-        RegionOnProc=.NOT.BoxInProc(xCoords(1:3,1:8),8)
-      END IF ! Species(iSpec)%Init(iInit)%Radius2IC.GT.0.0
+      END ASSOCIATE
     CASE('2D_landmark','2D_landmark_copy')
        ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
        ! for low-temperature partially magnetized plasmas (2019)
@@ -313,13 +293,12 @@ DO iSpec=1,nSpecies
       END ASSOCIATE
       RegionOnProc=BoxInProc(xCoords,8)
     CASE('cylinder','photon_cylinder','photon_honeycomb')
+      ASSOCIATE( v1 => Species(iSpec)%Init(iInit)%BaseVector1IC,&
+                 v2 => Species(iSpec)%Init(iInit)%BaseVector2IC)
       ! Cross-product of 1IC and 2IC
-      lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
-        Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
-      lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
-        Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(3)
-      lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
-        Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
+        lineVector(1) = v1(2) * v2(3) - v1(3) * v2(2)
+        lineVector(2) = v1(3) * v2(1) - v1(1) * v2(3)
+        lineVector(3) = v1(1) * v2(2) - v1(2) * v2(1)
       ! Sanity check
       IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
          CALL ABORT(__STAMP__,'BaseVectors are parallel!')
@@ -330,13 +309,11 @@ DO iSpec=1,nSpecies
       ! 1. Check if inside outer radius
       radius = Species(iSpec)%Init(iInit)%RadiusIC
       ! here no radius, already included
-      xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC-Species(iSpec)%Init(iInit)%BaseVector1IC &
-                                                           -Species(iSpec)%Init(iInit)%BaseVector2IC
+        xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC -v1 -v2
 
-      xCoords(1:3,2)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector1IC
-      xCoords(1:3,3)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector2IC
-      xCoords(1:3,4)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector1IC&
-                                   +2.0*Species(iSpec)%Init(iInit)%BaseVector2IC
+        xCoords(1:3,2)=xCoords(1:3,1)+2.0*v1
+        xCoords(1:3,3)=xCoords(1:3,1)+2.0*v2
+        xCoords(1:3,4)=xCoords(1:3,1)+2.0*v1+2.0*v2
 
       height= Species(iSpec)%Init(iInit)%CylinderHeightIC
       DO iNode=1,4
@@ -344,30 +321,7 @@ DO iSpec=1,nSpecies
       END DO ! iNode
       ! Check if inside box
       RegionOnProc=BoxInProc(xCoords,8)
-      ! 2. Check if outside of outer radius (if provided)
-      IF(Species(iSpec)%Init(iInit)%Radius2IC.GT.0.0)THEN
-        IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_'))THEN
-          ! Switch from outer radius of honeycomb to inner radius
-          radius=Species(iSpec)%Init(iInit)%Radius4IC
-        ELSE
-          radius=Species(iSpec)%Init(iInit)%Radius2IC
-        END IF ! StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_')
-        ! here no radius, already included
-        xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC-Species(iSpec)%Init(iInit)%BaseVector1IC &
-                                                             -Species(iSpec)%Init(iInit)%BaseVector2IC
-
-        xCoords(1:3,2)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector1IC
-        xCoords(1:3,3)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector2IC
-        xCoords(1:3,4)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector1IC&
-                                     +2.0*Species(iSpec)%Init(iInit)%BaseVector2IC
-
-        height= Species(iSpec)%Init(iInit)%CylinderHeightIC
-        DO iNode=1,4
-          xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
-        END DO ! iNode
-        ! Check if outside box
-        RegionOnProc=.NOT.BoxInProc(xCoords,8)
-      END IF ! Species(iSpec)%Init(iInit)%Radius2IC.GT.0.0
+      END ASSOCIATE
     CASE('cell_local')
       RegionOnProc=.TRUE.
     CASE('cuboid_equal')
@@ -836,8 +790,7 @@ DO i = 1, chunkSize
       ! ProcID on emission communicator
       tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
       ! Processor is not on emission communicator
-      IF(tProc.EQ.-1) &
-        CALL ABORT(__STAMP__,'Error in particle_mpi_emission: proc not on emission communicator')
+      IF(tProc.EQ.-1) CALL ABORT(__STAMP__,'Error in particle_mpi_emission: proc not on emission communicator')
 
       PartMPILocate%nPartsSend(1,tProc)= PartMPILocate%nPartsSend(1,tProc)+1
 
