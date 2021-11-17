@@ -176,6 +176,8 @@ INTEGER(KIND=8),ALLOCATABLE     :: ElemToElemGlob(:,:,:)             !< mapping 
                                                                      !< [1:6] local sides
                                                                      !< [OffSetElem+1:OffsetElem+PP_nElems]
 INTEGER(KIND=8),ALLOCATABLE     ::  ElemGlobalID(:)                  !< global element id of each element
+INTEGER(KIND=8),ALLOCATABLE     ::  myInvisibleRank(:)               !< global proc ID which the current proc cannot see (particle
+                                                                     !< communication)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=255),ALLOCATABLE   :: BoundaryName(:)
 CHARACTER(LEN=255)               :: MeshFile        !< name of hdf5 meshfile (write with ending .h5!)
