@@ -38,10 +38,6 @@ INTERFACE SetParticleMPF
   MODULE PROCEDURE SetParticleMPF
 END INTERFACE
 
-INTERFACE CalcVelocity_maxwell_lpn
-  MODULE PROCEDURE CalcVelocity_maxwell_lpn
-END INTERFACE
-
 INTERFACE CalcVelocity_taylorgreenvortex
   MODULE PROCEDURE CalcVelocity_taylorgreenvortex
 END INTERFACE
