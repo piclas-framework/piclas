@@ -101,6 +101,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronIonDensity,CalcElectronTempera
 USE MOD_Particle_Analyze_Tools ,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 USE MOD_HDF5_Output_Particles  ,ONLY: AddBRElectronFluidToPartSource
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModSEEelectronTempAutoamtic,SurfModSEEelectronTemp
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
@@ -127,7 +128,7 @@ CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
 #endif /*defined(PARTICLES)*/
 #ifdef PARTICLES
-REAL                           :: NumSpec(nSpecAnalyze)
+REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
@@ -646,6 +647,19 @@ IF (ANY(PartBound%UseAdaptedWallTemp)) CALL WriteAdaptiveWallTempToHDF5(FileName
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
+! For restart purposes, store the electron bulk temperature in .h5 state
+IF(SurfModSEEelectronTempAutoamtic)THEN
+  IF(MPIRoot)THEN ! only root writes the container
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    TmpArray(1,1) = SurfModSEEelectronTemp
+    CALL WriteArrayToHDF5( DataSetName = 'SurfModSEEelectronTemp' , rank = 2 , &
+                           nValGlobal  = (/1_IK , 1_IK/)     , &
+                           nVal        = (/1_IK , 1_IK/)     , &
+                           offset      = (/0_IK , 0_IK/)     , &
+                           collective  = .FALSE., RealArray = TmpArray(1,1))
+    CALL CloseDataFile()
+  END IF ! MPIRoot
+END IF ! SurfModSEEelectronTempAutoamtic
 #endif /*PARTICLES*/
 
 #if USE_LOADBALANCE
