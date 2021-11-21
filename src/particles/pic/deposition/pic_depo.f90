@@ -197,7 +197,8 @@ IF (TRIM(TimeAverageFile).NE.'none') THEN
 END IF
 
 #if USE_MPI
-ALLOCATE(RecvRequest(nComputeNodeProcessors-1),RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1))
+ALLOCATE(RecvRequest(nShapeExchangeProcs),SendRequest(nShapeExchangeProcs), &
+    RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1))
 #endif
 
 !--- init DepositionType-specific vars
@@ -431,7 +432,6 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   IF(myComputeNodeRank.EQ.0) THEN
    ALLOCATE(PartSourceGlob(1:4,0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeTotalElems))
   END IF
-  ALLOCATE(PartSourceProc(1:4,0:PP_N,0:PP_N,0:PP_N,1:nSendShapeElems))  
 #else
   ALLOCATE(ChargeSFDone(1:nElems))
 #endif /*USE_MPI*/
@@ -865,7 +865,6 @@ SDEALLOCATE(PartSource)
 
 #if USE_MPI
 SDEALLOCATE(NodeSourceLoc)
-SDEALLOCATE(PartSourceProc)
 SDEALLOCATE(NodeMapping)
 SDEALLOCATE(nDepoDOFPerProc)
 SDEALLOCATE(nDepoOffsetProc)

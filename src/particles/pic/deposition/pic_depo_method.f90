@@ -744,15 +744,14 @@ USE MOD_Preproc
 USE MOD_globals
 USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,PartMPF,usevMPF
 USE MOD_Particle_Vars               ,ONLY: PartState
-USE MOD_PICDepo_Vars                ,ONLY: PartSource, ShapeRecvBuffer, nRecvShapeElems, RecvShapeElemID !, PartSourceLoc
+USE MOD_PICDepo_Vars                ,ONLY: PartSource
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID, GetGlobalElemID
 #if USE_MPI
 USE MOD_MPI_Shared                  ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, myComputeNodeRank, nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_LEADERS_SHARED, myLeaderGroupRank, nLeaderGroupProcs
-USE MOD_PICDepo_Vars                ,ONLY: PartSourceProc
-USE MOD_PICDepo_Vars                ,ONLY: ShapeMapping, nSendShapeElems, SendShapeElemID
+USE MOD_PICDepo_Vars                ,ONLY: ShapeMapping, nShapeExchangeProcs
 USE MOD_PICDepo_Vars                ,ONLY: CNShapeMapping, nDepoDOFPerProc, PartSourceGlob, nDepoOffsetProc
 USE MOD_PICDepo_Vars                ,ONLY: SendRequest, RecvRequest, RecvRequestCN, SendRequestCN, DoRecvElem
 USE MOD_Mesh_Vars                   ,ONLY: nElems, offsetElem
@@ -772,7 +771,7 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL               :: Charge
-INTEGER            :: iElem, iPart, stage
+INTEGER            :: iElem, iPart, stage, locElem
 #if USE_MPI
 INTEGER            :: iProc, CNElemID, nNonZeroRecvElems
 #endif
@@ -789,7 +788,10 @@ END IF
 
 IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
 #if USE_MPI
-  PartSourceProc = 0.
+  DO iProc = 1, nShapeExchangeProcs
+    ShapeMapping(iProc)%SendBuffer = 0.
+  END DO
+  IF (myComputeNodeRank.EQ.0) PartSourceGlob = 0.
 #endif
 
   DO iPart=1,PDM%ParticleVecLength
@@ -809,37 +811,27 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
   END DO
 #if USE_MPI
   ! Communication
-
-  ! 1 of 2: Inner-Node Communication
-  IF (myComputeNodeRank.EQ.0) THEN
-    PartSourceGlob = 0.
-    DO iProc = 1,nComputeNodeProcessors-1
-        IF (ShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
-        CALL MPI_IRECV( ShapeMapping(iProc)%RecvBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nRecvShapeElems)&
-                      , ShapeMapping(iProc)%nRecvShapeElems*4*(PP_N+1)**3                                   &
-                      , MPI_DOUBLE_PRECISION                &
-                      , iProc                               &
-                      , 2001                                &
-                      , MPI_COMM_SHARED                     &
-                      , RecvRequest(iProc)                  &
-                      , IERROR)
-    END DO
-    ! Add contribution of node root
-    DO iElem = 1, nSendShapeElems
-      PartSourceGlob(:,:,:,:,SendShapeElemID(iElem)) = PartSourceGlob(:,:,:,:,SendShapeElemID(iElem)) + PartSourceProc(:,:,:,:,iElem)
-    END DO
-  ELSE
-    IF (nSendShapeElems.GT.0) THEN
-      CALL MPI_ISEND( PartSourceProc                         &
-                    , nSendShapeElems*4*(PP_N+1)**3          &
+  ! 1 of 2: Inner-Node Communication  
+  DO iProc = 1,nShapeExchangeProcs
+      CALL MPI_IRECV( ShapeMapping(iProc)%RecvBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nRecvShapeElems)&
+                    , ShapeMapping(iProc)%nRecvShapeElems*4*(PP_N+1)**3                                   &
+                    , MPI_DOUBLE_PRECISION                &
+                    , ShapeMapping(iProc)%Rank            &
+                    , 2001                                &
+                    , MPI_COMM_SHARED                     &
+                    , RecvRequest(iProc)                  &
+                    , IERROR)
+    IF (myComputeNodeRank.NE.0) THEN
+      CALL MPI_ISEND( ShapeMapping(iProc)%SendBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nSendShapeElems)                        &
+                    , ShapeMapping(iProc)%nSendShapeElems*4*(PP_N+1)**3          &
                     , MPI_DOUBLE_PRECISION                   &
-                    , 0                                      &
+                    , ShapeMapping(iProc)%Rank                                      &
                     , 2001                                   &
                     , MPI_COMM_SHARED                        &
-                    , SendRequest                            &
+                    , SendRequest(iProc)                            &
                     , IERROR)
     END IF
-  END IF
+  END DO
 #endif
 END IF !stage 1
 
@@ -848,8 +840,7 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
   ! 1 of 2: Inner-Node Communication
   IF (myComputeNodeRank.EQ.0) THEN
     ! Add contributions of node slaves
-    DO iProc = 1,nComputeNodeProcessors-1
-      IF (ShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
+    DO iProc = 1,nShapeExchangeProcs
 #if defined(MEASURE_MPI_WAIT)
       CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
@@ -865,19 +856,20 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
         END ASSOCIATE
       END DO
     END DO
-  ELSE
-    IF (nSendShapeElems.GT.0) THEN
-#if defined(MEASURE_MPI_WAIT)
-      CALL SYSTEM_CLOCK(count=CounterStart)
-#endif /*defined(MEASURE_MPI_WAIT)*/
-      CALL MPI_WAIT(SendRequest,MPI_STATUS_IGNORE,IERROR)
-#if defined(MEASURE_MPI_WAIT)
-      CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-      MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-      IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    END IF
   END IF
+!  ELSE
+!    IF (nSendShapeElems.GT.0) THEN
+!#if defined(MEASURE_MPI_WAIT)
+!      CALL SYSTEM_CLOCK(count=CounterStart)
+!#endif /*defined(MEASURE_MPI_WAIT)*/
+!      CALL MPI_WAIT(SendRequest,MPI_STATUS_IGNORE,IERROR)
+!#if defined(MEASURE_MPI_WAIT)
+!      CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+!      MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
+!#endif /*defined(MEASURE_MPI_WAIT)*/
+!      IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+!    END IF
+!  END IF
 
   IF(nLeaderGroupProcs.GT.1)THEN
     IF(myComputeNodeRank.EQ.0)THEN
@@ -957,73 +949,43 @@ IF ((stage.EQ.0).OR.(stage.EQ.3)) THEN
   !  CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
   END IF ! nLeaderGroupProcs.GT.1
 
-!  CALL MPI_ISCATTERV(&
-!      PartSourceGlob , nDepoDOFPerProc   , nDepoOffsetProc , MPI_DOUBLE_PRECISION , &
-!      PartSourceLoc, 4*(PP_N+1)**3*nElems,              MPI_DOUBLE_PRECISION , &        
-!      0         , MPI_COMM_SHARED ,SendRequest, iError)
-  ! 1 of 2: Inner-Node Communication
-
-!  IF (myComputeNodeRank.EQ.0) THEN
-!    DO iProc = 1,nComputeNodeProcessors-1
-!      IF (ShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
-!      DO iElem = 1, ShapeMapping(iProc)%nSendShapeElems
-!        ASSOCIATE( ShapeID => ShapeMapping(iProc)%SendShapeElemID(iElem))
-!          ShapeMapping(iProc)%SendBuffer(:,:,:,:,iElem) = PartSourceGlob(:,:,:,:,ShapeID)
-!        END ASSOCIATE
-!      END DO
-!    END DO
-!    DO iProc = 1,nComputeNodeProcessors-1
-!        IF (ShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
-!        CALL MPI_ISEND( ShapeMapping(iProc)%SendBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nSendShapeElems)&
-!                      , ShapeMapping(iProc)%nSendShapeElems*4*(PP_N+1)**3                                   &
-!                      , MPI_DOUBLE_PRECISION                &
-!                      , iProc                               &
-!                      , 2001                                &
-!                      , MPI_COMM_SHARED                     &
-!                      , RecvRequest(iProc)                  &
-!                      , IERROR)
-!    END DO    
-!  ELSE   
-!    IF (nRecvShapeElems.GT.0) THEN
-!      CALL MPI_IRECV( ShapeRecvBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:nRecvShapeElems)                         &
-!                    , nRecvShapeElems*4*(PP_N+1)**3          &
-!                    , MPI_DOUBLE_PRECISION                   &
-!                    , 0                                      &
-!                    , 2001                                   &
-!                    , MPI_COMM_SHARED                        &
-!                    , SendRequest                            &
-!                    , IERROR)
-!    END IF
-!  END IF
-
   IF (myComputeNodeRank.EQ.0) THEN
-    DO iProc = 1,nComputeNodeProcessors-1
-      IF (ShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
-      ShapeMapping(iProc)%nNonZeroSendElems = 0
-      ShapeMapping(iProc)%DoSendElem = .FALSE.      
+    DO iProc = 1,nShapeExchangeProcs
       DO iElem = 1, ShapeMapping(iProc)%nSendShapeElems
         ASSOCIATE( ShapeID => ShapeMapping(iProc)%SendShapeElemID(iElem))
-          IF (ANY(PartSourceGlob(:,:,:,:,ShapeID).NE.0.0)) THEN
-            ShapeMapping(iProc)%nNonZeroSendElems = ShapeMapping(iProc)%nNonZeroSendElems + 1
-            ShapeMapping(iProc)%SendBuffer(:,:,:,:,ShapeMapping(iProc)%nNonZeroSendElems) = PartSourceGlob(:,:,:,:,ShapeID)
-            ShapeMapping(iProc)%DoSendElem(iElem) = .TRUE.
-          END IF
+!          IF (ANY(PartSourceGlob(:,:,:,:,ShapeID).NE.0.0)) THEN
+!            ShapeMapping(iProc)%nNonZeroSendElems = ShapeMapping(iProc)%nNonZeroSendElems + 1
+!            ShapeMapping(iProc)%SendBuffer(:,:,:,:,ShapeMapping(iProc)%nNonZeroSendElems) = PartSourceGlob(:,:,:,:,ShapeID)
+!            ShapeMapping(iProc)%DoSendElem(iElem) = .TRUE.
+!          END IF
+          ShapeMapping(iProc)%SendBuffer(:,:,:,:,iElem) = PartSourceGlob(:,:,:,:,ShapeID)
         END ASSOCIATE
       END DO
-    END DO
-    DO iProc=1,  nComputeNodeProcessors-1 
-      IF (ShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
-      CALL MPI_ISEND( ShapeMapping(iProc)%DoSendElem(1:ShapeMapping(iProc)%nSendShapeElems)&
-                    , ShapeMapping(iProc)%nSendShapeElems                                  &
-                    , MPI_LOGICAL                         &
-                    , iProc                               &
+      CALL MPI_ISEND( ShapeMapping(iProc)%SendBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nSendShapeElems)&
+                    , ShapeMapping(iProc)%nSendShapeElems*4*(PP_N+1)**3                                   &
+                    , MPI_DOUBLE_PRECISION                &
+                    , ShapeMapping(iProc)%Rank            &
                     , 2001                                &
                     , MPI_COMM_SHARED                     &
-                    , RecvRequest(iProc)                  &
+                    , SendRequest(iProc)                  &
                     , IERROR)
-    END DO 
-    DO iProc = 1,nComputeNodeProcessors-1
-      IF (ShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
+    END DO    
+  END IF
+#endif
+END IF
+
+IF ((stage.EQ.0).OR.(stage.EQ.4)) THEN
+#if USE_MPI
+  DO iProc = 1,nShapeExchangeProcs
+#if defined(MEASURE_MPI_WAIT)
+    CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+    CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
+#if defined(MEASURE_MPI_WAIT)
+    CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+    MPIW8TimePart(8) = MPIW8TimePart(8) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+    IF (myComputeNodeRank.NE.0) THEN
 #if defined(MEASURE_MPI_WAIT)
       CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
@@ -1033,105 +995,20 @@ IF ((stage.EQ.0).OR.(stage.EQ.3)) THEN
       MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
       IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    END DO 
-
-    DO iProc = 1,nComputeNodeProcessors-1
-        IF (ShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
-        IF (ShapeMapping(iProc)%nNonZeroSendElems.EQ.0) CYCLE
-        CALL MPI_ISEND( ShapeMapping(iProc)%SendBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nNonZeroSendElems)&
-                      , ShapeMapping(iProc)%nNonZeroSendElems*4*(PP_N+1)**3                                   &
-                      , MPI_DOUBLE_PRECISION                &
-                      , iProc                               &
-                      , 2001                                &
-                      , MPI_COMM_SHARED                     &
-                      , RecvRequest(iProc)                  &
-                      , IERROR)
-    END DO    
-  ELSE   
-    IF (nRecvShapeElems.GT.0) THEN
-      CALL MPI_IRECV( DoRecvElem(1:nRecvShapeElems)                         &
-                    , nRecvShapeElems          &
-                    , MPI_LOGICAL                  &
-                    , 0                                      &
-                    , 2001                                   &
-                    , MPI_COMM_SHARED                        &
-                    , SendRequest                            &
-                    , IERROR)
-
-#if defined(MEASURE_MPI_WAIT)
-      CALL SYSTEM_CLOCK(count=CounterStart)
-#endif /*defined(MEASURE_MPI_WAIT)*/
-      CALL MPI_WAIT(SendRequest,MPI_STATUS_IGNORE,IERROR)
-#if defined(MEASURE_MPI_WAIT)
-      CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-      MPIW8TimePart(8) = MPIW8TimePart(8) + REAL(CounterEnd-CounterStart,8)/Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-      nNonZeroRecvElems = COUNT(DoRecvElem)
-      IF (nNonZeroRecvElems.GT.0) THEN
-        CALL MPI_IRECV( ShapeRecvBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:nNonZeroRecvElems)                         &
-                      , nNonZeroRecvElems*4*(PP_N+1)**3          &
-                      , MPI_DOUBLE_PRECISION                   &
-                      , 0                                      &
-                      , 2001                                   &
-                      , MPI_COMM_SHARED                        &
-                      , SendRequest                            &
-                      , IERROR)
-      END IF
-    END IF
-  END IF
-#endif
-END IF
-
-IF ((stage.EQ.0).OR.(stage.EQ.4)) THEN
-#if USE_MPI
-!#if defined(MEASURE_MPI_WAIT)
-!  CALL SYSTEM_CLOCK(count=CounterStart)
-!#endif /*defined(MEASURE_MPI_WAIT)*/
-!  CALL MPI_WAIT(SendRequest,MPI_STATUS_IGNORE,IERROR)
-!#if defined(MEASURE_MPI_WAIT)
-!  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-!  MPIW8TimePart(8) = MPIW8TimePart(8) + REAL(CounterEnd-CounterStart,8)/Rate
-!#endif /*defined(MEASURE_MPI_WAIT)*/
-!PartSource = PartSource + PartSourceLoc
-IF (myComputeNodeRank.EQ.0) THEN
-  DO iProc = 1,nComputeNodeProcessors-1
-    IF (ShapeMapping(iProc)%nSendShapeElems.EQ.0) CYCLE
-    IF (ShapeMapping(iProc)%nNonZeroSendElems.EQ.0) CYCLE
-#if defined(MEASURE_MPI_WAIT)
-    CALL SYSTEM_CLOCK(count=CounterStart)
-#endif /*defined(MEASURE_MPI_WAIT)*/
-    CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
-#if defined(MEASURE_MPI_WAIT)
-    CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-    MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-  END DO
-  PartSource(:,:,:,:,1:nElems) = PartSource(:,:,:,:,1:nElems) + PartSourceGlob(:,:,:,:,1:nElems)
-ELSE
-  IF (nRecvShapeElems.GT.0) THEN
-    nNonZeroRecvElems = COUNT(DoRecvElem)
-    IF (nNonZeroRecvElems.GT.0) THEN
-#if defined(MEASURE_MPI_WAIT)
-      CALL SYSTEM_CLOCK(count=CounterStart)
-#endif /*defined(MEASURE_MPI_WAIT)*/
-      CALL MPI_WAIT(SendRequest,MPI_STATUS_IGNORE,IERROR)
-#if defined(MEASURE_MPI_WAIT)
-      CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-      MPIW8TimePart(8) = MPIW8TimePart(8) + REAL(CounterEnd-CounterStart,8)/Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-      nNonZeroRecvElems = 0
-      DO iElem = 1, nRecvShapeElems
-        ASSOCIATE( ShapeID => GetGlobalElemID(RecvShapeElemID(iElem))-offSetElem)
-          IF (DoRecvElem(iElem)) THEN
-            nNonZeroRecvElems = nNonZeroRecvElems + 1
-            PartSource(:,:,:,:,ShapeID) = PartSource(:,:,:,:,ShapeID) + ShapeRecvBuffer(:,:,:,:,nNonZeroRecvElems)
-          END IF
-        END ASSOCIATE
+      DO iElem = 1, ShapeMapping(iProc)%nRecvShapeElems
+        locElem = GetGlobalElemID(ShapeMapping(iProc)%RecvShapeElemID(iElem))-offsetElem
+        PartSource(:,:,:,:,locElem) = PartSource(:,:,:,:,locElem) + ShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
       END DO
     END IF
+  END DO
+
+  !PartSource = PartSource + PartSourceLoc
+  IF (myComputeNodeRank.EQ.0) THEN
+    DO iElem = 1,nElems
+      CNElemID = GetCNElemID(iElem+offSetElem)
+      PartSource(:,:,:,:,iElem) = PartSource(:,:,:,:,iElem) + PartSourceGlob(:,:,:,:,CNElemID)
+    END DO
   END IF
-END IF
 #endif
 END IF
 
