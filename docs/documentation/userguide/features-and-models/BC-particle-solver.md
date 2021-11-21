@@ -232,7 +232,15 @@ publication.
 The model by Morozov {cite}`Morozov2004` can be applied for dielectric surfaces and is activated via
 `Part-BoundaryX-SurfaceModel=8` and has an additional parameter for setting the reference electron temperature (see model for
 details) via `Part-SurfaceModel-SEE-Te`, which takes the electron temperature in Kelvin as input (default is 50 eV, which
-corresponds to 11604 K). The emission yield is determined from an energy-dependent function.
+corresponds to 11604 K).
+The emission yield is determined from an energy-dependent function.
+The model can be switched to an automatic determination of the bulk electron temperature via
+
+    Part-SurfaceModel-SEE-Te-automatic = T ! Activate automatic bulk temperature calculation
+    Part-SurfaceModel-SEE-Te-Spec      = 2 ! Species ID used for automatic temperature calculation (must correspond to electrons)
+
+where the species ID must be supplied, which corresponds to the electron species for which, during `Part-AnalyzeStep`, the global
+translational temperature is used to adjust the energy dependence.
 
 ## Deposition of Charges on Dielectric Surfaces
 
