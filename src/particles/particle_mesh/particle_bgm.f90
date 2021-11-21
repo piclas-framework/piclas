@@ -1034,8 +1034,8 @@ DO iElem = firstElem,lastElem
   DO kBGM = ElemToBGM_Shared(5,iElem),ElemToBGM_Shared(6,iElem)
     DO jBGM = ElemToBGM_Shared(3,iElem),ElemToBGM_Shared(4,iElem)
       DO iBGM = ElemToBGM_Shared(1,iElem),ElemToBGM_Shared(2,iElem)
-        ASSOCIATE(posElem => (kBGM-1)*(BGMiglobDelta+1)*(BGMjglobDelta+1)                   + (jBGM-1)*(BGMiglobDelta+1)                   + (iBGM-1), &
-                  posRank => ProcRank*(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1) + (kBGM-1)*(BGMiglobDelta+1)*(BGMjglobDelta+1) + (jBGM-1)*(BGMiglobDelta+1) + (iBGM-1))
+        ASSOCIATE(posElem =>     (kBGM-1)*(BGMiglobDelta+1)*(BGMjglobDelta+1)                   + (jBGM-1)*(BGMiglobDelta+1)                   + (iBGM-1), &
+                  posRank => INT(ProcRank*(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1) + (kBGM-1)*(BGMiglobDelta+1)*(BGMjglobDelta+1) + (jBGM-1)*(BGMiglobDelta+1) + (iBGM-1),KIND=MPI_ADDRESS_KIND))
 
           ! Increment number of elements on FIBGM cell
           CALL MPI_FETCH_AND_OP(increment,dummyInt,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_SUM,FIBGM_nTotalElems_Shared_Win,IERROR)

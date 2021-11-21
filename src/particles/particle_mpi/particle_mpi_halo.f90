@@ -88,7 +88,7 @@ INTEGER                        :: iProc,HaloProc
 INTEGER                        :: nExchangeSides
 !INTEGER                        :: nExchangeProcs
 INTEGER,ALLOCATABLE            :: ExchangeSides(:)
-REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:), MPISideBoundsOfNbElemCenter(:,:)
+REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:)
 INTEGER                        :: ExchangeProcLeader
 ! halo_eps reconstruction
 REAL                           :: MPI_halo_eps,MPI_halo_eps_velo,MPI_halo_diag,vec(1:3),deltaT
@@ -242,7 +242,7 @@ END DO
 
 !> Build metrics for all MPI sides on current proc
 ALLOCATE(BoundsOfElemCenter(1:5))
-ALLOCATE(MPISideBoundsOfElemCenter(1:4,1:nExchangeSides), MPISideBoundsOfNbElemCenter(1:4,1:nExchangeSides))
+ALLOCATE(MPISideBoundsOfElemCenter(1:4,1:nExchangeSides))
 ALLOCATE(RotBoundsOfElemCenter(1:4))
 
 DO iSide = 1, nExchangeSides
@@ -253,14 +253,7 @@ DO iSide = 1, nExchangeSides
                                             SUM(  BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
   MPISideBoundsOfElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                                   BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                                  BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
-  ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
-  MPISideBoundsOfNbElemCenter(1:3,iSide) = (/ SUM(  BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                            SUM(  BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                            SUM(  BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-  MPISideBoundsOfNbElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                                  BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                                  BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+                                                  BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)  
 END DO
 
 !> Check all elements in the CN halo region against local MPI sides. Check is identical to particle_bgm.f90
@@ -938,8 +931,10 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
         IF (iProc.EQ.myLeaderGroupRank) CYCLE
         DO iElem = 1, CNShapeMapping(iProc)%nRecvShapeElems
           CNElemID = GetCNElemID(CNShapeMapping(iProc)%RecvShapeElemID(iElem))
-          AdditionalnSendElems = AdditionalnSendElems + 1
-          AdditionalSendElems(AdditionalnSendElems) = CNElemID
+          IF (.NOT.FlagShapeElem(CNElemID)) THEN
+            AdditionalnSendElems = AdditionalnSendElems + 1
+            AdditionalSendElems(AdditionalnSendElems) = CNElemID
+          END IF
         END DO
       END DO
       SDEALLOCATE(SendRequest)
