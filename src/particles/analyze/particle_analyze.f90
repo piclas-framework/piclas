@@ -733,8 +733,9 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,ReacRates
 #endif
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,BRAutomaticElectronRef,RegionElectronRef
-USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge,eV2Kelvin
+USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
 #endif /*USE_HDG*/
+USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfModSEEelectronTempAutoamtic,SurfModSEEelectronTemp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
