@@ -36,7 +36,7 @@ SUBROUTINE QK_Init()
 !> constant also utilizes RColl) and the analytical QK reaction rate
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals         ,ONLY: abort
+USE MOD_Globals         ,ONLY: abort,StringBeginsWith
 USE MOD_Globals_Vars    ,ONLY: Pi, BoltzmannConst
 USE MOD_DSMC_Vars       ,ONLY: DSMC, ChemReac, CollInf, QKChemistry
 ! IMPLICIT VARIABLE HANDLING
@@ -52,7 +52,7 @@ ChemReac%QKTCollCorrFac = 0.
 
 DO iReac = 1, ChemReac%NumOfReact
   ! Skip the special case of photo ionization
-  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
+  IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) CYCLE
   iSpec1 = ChemReac%Reactants(iReac,1)
   iSpec2 = ChemReac%Reactants(iReac,2)
   iCase = CollInf%Coll_Case(iSpec1, iSpec2)

@@ -285,7 +285,7 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-UseVibXSec'  &
 CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
                                                                'should be named with species pair (e.g. "Ar-electron"). The '//&
                                                                'first column shall contain the energy in eV and the second '//&
-                                                               'column the cross-section in m^2', 'none')
+                                                               'column the cross-section in m^2')
 CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
                                   ,'Utilize the null collision method for the determination of the number of pairs '//&
                                   'based on the maximum collision frequency and time step (only with a background gas)' &
@@ -361,17 +361,14 @@ DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%CalcQualityFactors = GETLOGICAL('Particles-DSMC-CalcQualityFactors')
 DSMC%ReservoirSimu = GETLOGICAL('Particles-DSMCReservoirSim')
 IF (DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'ERROR: Do not use DSMC%CalcQualityFactors for CollisMode < 1')
+  CALL abort(__STAMP__,'ERROR: Do not use DSMC%CalcQualityFactors for CollisMode < 1')
 END IF ! DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)
 DSMC%ReservoirSimuRate       = GETLOGICAL('Particles-DSMCReservoirSimRate')
 DSMC%ReservoirRateStatistic  = GETLOGICAL('Particles-DSMCReservoirStatistic')
 DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation')
 IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
   IF(DSMC%DoTEVRRelaxation) THEN
-    CALL abort(__STAMP__&
-        ,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
+    CALL abort(__STAMP__,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
   END IF
 END IF
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
@@ -383,9 +380,7 @@ IF ((DSMC%ElectronicModelDatabase .NE. 'none').AND.&
     ((CollisMode .GT. 1).OR.(CollisMode .EQ. 0))) THEN ! CollisMode=0 is for use of in PIC simulation without collisions
   DSMC%EpsElecBin = GETREAL('EpsMergeElectronicState','1E-4')
 ELSEIF(DSMC%ElectronicModel.GT.0) THEN
-  CALL Abort(&
-      __STAMP__,&
-      'ERROR: Electronic model requires a electronic levels database and CollisMode > 1!')
+  CALL Abort(__STAMP__,'ERROR: Electronic model requires a electronic levels database and CollisMode > 1!')
 END IF
 DSMC%NumPolyatomMolecs = 0
 SamplingActive = .FALSE.
@@ -657,11 +652,8 @@ ELSE !CollisMode.GT.0
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
     SpecDSMC(iSpec)%UseVibXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseVibXSec')
-    IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) THEN
-      CALL Abort(&
-          __STAMP__&
-          ,'ERROR: Please supply the collision cross-section data for the particle species and NOT the background species!')
-    END IF
+    IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) CALL Abort(&
+      __STAMP__,'ERROR: Please supply the collision cross-section data for the particle species and NOT the background species!')
   END DO
   IF(ANY(SpecDSMC(:)%UseCollXSec).OR.ANY(SpecDSMC(:)%UseVibXSec)) THEN
     UseMCC = .TRUE.
@@ -673,16 +665,12 @@ ELSE !CollisMode.GT.0
   END IF
   ! Ambipolar diffusion is not implemented with the regular background gas, only with MCC
   IF(DSMC%DoAmbipolarDiff) THEN
-    IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) THEN
-      CALL abort(__STAMP__&
-          ,'ERROR: Ambipolar diffusion is not implemented with the regular background gas!')
-    END IF
+    IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL abort(__STAMP__,&
+        'ERROR: Ambipolar diffusion is not implemented with the regular background gas!')
   END IF
   ! MCC and variable vibrational relaxation probability is not supported
-  IF(UseMCC.AND.(DSMC%VibRelaxProb.EQ.2.0)) THEN
-    CALL abort(__STAMP__&
+  IF(UseMCC.AND.(DSMC%VibRelaxProb.EQ.2.0)) CALL abort(__STAMP__&
         ,'ERROR: Monte Carlo Collisions and variable vibrational relaxation probability (DSMC-based) are not compatible!')
-  END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! reading/writing molecular stuff
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1088,14 +1076,9 @@ INTEGER,INTENT(IN) :: iSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF(SpecDSMC(iSpec)%Name.EQ.'none') THEN
-  CALL Abort(&
-      __STAMP__,&
-      "Read-in from electronic database requires the definition of species name! Species:",iSpec)
-END IF
-IF(.NOT.SpecDSMC(iSpec)%FullyIonized)THEN
-  CALL ReadSpeciesLevel(SpecDSMC(iSpec)%Name,iSpec)
-END IF
+IF(SpecDSMC(iSpec)%Name.EQ.'none') CALL Abort(__STAMP__,&
+    "Read-in from electronic database requires the definition of species name! Species:",IntInfoOpt=iSpec)
+IF(.NOT.SpecDSMC(iSpec)%FullyIonized) CALL ReadSpeciesLevel(SpecDSMC(iSpec)%Name,iSpec)
 END SUBROUTINE SetElectronicModel
 
 
@@ -1481,6 +1464,8 @@ SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
 SDEALLOCATE(SpecXSec)
+SDEALLOCATE(SpecPhotonXSecInterpolated)
+SDEALLOCATE(PhotonDistribution)
 END SUBROUTINE FinalizeDSMC
 
 

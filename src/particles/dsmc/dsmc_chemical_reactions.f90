@@ -350,7 +350,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac)
 ! Routine performs an exchange reaction of the type A + B + C -> D + E + F, where A, B, C, D, E, F can be anything
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: abort, DOTPRODUCT
+USE MOD_Globals                ,ONLY: abort,DOTPRODUCT,StringBeginsWith
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
@@ -418,8 +418,7 @@ IF(EductReac(3).NE.0) THEN
       ChemReac%RecombParticle = 0
     END IF
   ELSE
-    CALL Abort(__STAMP__,&
-      'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
+    CALL Abort(__STAMP__,'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',IntInfoOpt=iReac)
   END IF
 END IF
 
@@ -470,7 +469,7 @@ DO iPart = 1, NumEduct
 END DO
 
 IF(CalcPartBalance) THEN
-  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') THEN
+  IF(.NOT.StringBeginsWith(ChemReac%ReactModel(iReac),'phIon'))THEN
     DO iPart = 1, NumEduct
       IF(BGGas%BackgroundSpecies(EductReac(iPart))) CYCLE
       nPartOut(EductReac(iPart))=nPartOut(EductReac(iPart)) + 1
@@ -479,7 +478,7 @@ IF(CalcPartBalance) THEN
   END IF
 END IF
 
-IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
+IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon'))THEN
   MassRed = 0.
 ELSE
   IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
@@ -498,10 +497,7 @@ IF(EductReac(3).EQ.0) THEN
     ! === Get free particle index for the 3rd product
     DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
     ReactInx(3) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-    IF (ReactInx(3).EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
-    END IF
+    IF (ReactInx(3).EQ.0) CALL abort(__STAMP__,'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
     PDM%ParticleInside(ReactInx(3)) = .true.
     PDM%IsNewPart(ReactInx(3)) = .true.
     PDM%dtFracPush(ReactInx(3)) = .FALSE.
@@ -537,10 +533,7 @@ IF(ProductReac(4).NE.0) THEN
   ! === Get free particle index for the 4th product
   DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
   ReactInx(4) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-  IF (ReactInx(4).EQ.0) THEN
-    CALL abort(__STAMP__,&
-    'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
-  END IF
+  IF (ReactInx(4).EQ.0) CALL abort(__STAMP__,'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
   PDM%ParticleInside(ReactInx(4)) = .true.
   PDM%IsNewPart(ReactInx(4)) = .true.
   PDM%dtFracPush(ReactInx(4)) = .FALSE.
@@ -800,7 +793,7 @@ IF(ProductReac(3).NE.0) THEN
     VeloCOM(1:3) = FracMassCent1 * PartState(4:6,ReactInx(1)) + FracMassCent2 * PartState(4:6,ReactInx(3))
   ELSE
     ! Scattering 2 -> 3/4
-    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
+    IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) THEN
     ! Do not consider the momentum of the photon
       FracMassCent1 = 1.
       FracMassCent2 = 0.
@@ -949,7 +942,7 @@ ELSEIF(ProductReac(3).EQ.0) THEN
     ! therefore, there is no need to set change the index as the proper species, ProductReac(2), was utilized for the relaxation
   ELSE
     ! Scattering 2 -> 2
-    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
+    IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) THEN
     ! Do not consider the momentum of the photon
       FracMassCent1 = 1.
       FracMassCent2 = 0.
@@ -1428,7 +1421,8 @@ SUBROUTINE CalcPhotoIonizationNumber(i,NbrOfPhotons,NbrOfReactions)
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: c
 USE MOD_Particle_Vars ,ONLY: Species
-USE MOD_DSMC_Vars     ,ONLY: BGGas, ChemReac
+USE MOD_DSMC_Vars     ,ONLY: BGGas,ChemReac,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
+USE MOD_DSMC_Vars     ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,PhotoReacToReac
 USE MOD_TimeDisc_Vars ,ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1441,20 +1435,42 @@ REAL, INTENT(IN)              :: NbrOfPhotons
 REAL, INTENT(OUT)             :: NbrOfReactions
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: bgSpec, iReac
+INTEGER                       :: iReac,iPhotoReac,iLine
+REAL                          :: density
 !===================================================================================================================================
 
 NbrOfReactions = 0.
 
+IF(NbrOfPhotonXsecReactions.GT.0)THEN
+  ! Distribute the photons according to the distribution function
+  PhotonDistribution = SpecPhotonXSecInterpolated(:,2) * NbrOfPhotons
+
+  DO iPhotoReac = 1, NbrOfPhotonXsecReactions
+    iReac          = PhotoReacToReac(iPhotoReac)
+    density        = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(ChemReac%Reactants(iReac,1)))
+    ! Only consider lines with cross-section larger than zero
+    DO iLine = PhotoIonFirstLine, PhotoIonLastLine
+      ASSOCIATE( CrossSection => SpecPhotonXSecInterpolated(iLine,2+iPhotoReac) )
+        ! Consider the ratio of the cross-section to the sum of al cross-sections
+        NbrOfReactions = NbrOfReactions + density * PhotonDistribution(iLine) * CrossSection * c * dt / Species(i)%MacroParticleFactor
+      END ASSOCIATE
+    END DO ! PhotoIonFirstLine, PhotoIonLastLine
+  END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions
+END IF ! NbrOfPhotonXsecReactions.GT.0
+
+! Photoionization reactions with constant cross sections
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
   IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
+  IF(NbrOfPhotonXsecReactions.GT.0) CALL abort(__STAMP__,&
+      'Photoionization reactions with constant cross-sections cannot be combined with XSec data cross-sections for photoionization')
   ! First reactant of the reaction is the actual heavy particle species
-  bgSpec = BGGas%MapSpecToBGSpec(ChemReac%Reactants(iReac,1))
-  ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
-  ! Number of reactions: N = Z * dt * V (number of photons cancels out the volume)
-  NbrOfReactions = NbrOfReactions + BGGas%NumberDensity(bgSpec) * NbrOfPhotons * ChemReac%CrossSection(iReac) * c &
-                                     *dt / Species(i)%MacroParticleFactor
+  ASSOCIATE( density      => BGGas%NumberDensity(BGGas%MapSpecToBGSpec(ChemReac%Reactants(iReac,1))) ,&
+             CrossSection => ChemReac%CrossSection(iReac))
+    ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
+    ! Number of reactions: N = Z * dt * V (number of photons cancels out the volume)
+    NbrOfReactions = NbrOfReactions + density * NbrOfPhotons * CrossSection * c * dt / Species(i)%MacroParticleFactor
+  END ASSOCIATE
 END DO
 
 END SUBROUTINE CalcPhotoIonizationNumber

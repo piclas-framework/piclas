@@ -1216,30 +1216,22 @@ ELSE ! interpolate
       location_Upper = location
       location_Lower = location-1
     ELSE
-      CALL abort(&
-      __STAMP__,&
-      'InterpolateGeometry Error when location is upper of x_IN: interpolated outside of array dimension?!')
+      CALL abort(__STAMP__,'InterpolateGeometry Error when location is upper of x_IN: interpolated outside of array dimension?!')
     END IF
   ELSEIF(x_IN.GE.Geometry(location,dim_x))THEN ! location is lower of x_IN
     IF(location.GE.1)THEN
       location_Upper = location+1
       location_Lower = location
     ELSE
-      CALL abort(&
-      __STAMP__,&
-      'InterpolateGeometry Error when location is lower of x_IN: interpolated outside of array dimension?!')
+      CALL abort(__STAMP__,'InterpolateGeometry Error when location is lower of x_IN: interpolated outside of array dimension?!')
     END IF
   ELSE
-    CALL abort(&
-    __STAMP__,&
-    'InterpolateGeometry Error location: interpolated outside of array dimension?!')
+    CALL abort(__STAMP__,'InterpolateGeometry Error location: interpolated outside of array dimension?!')
   END IF
 
   ! sanity check
   IF((location.LT.1).OR.(location.GT.GeometryNPoints))THEN
-    CALL abort(&
-    __STAMP__,&
-    'InterpolateGeometry Error: interpolated outside of array dimension?!')
+    CALL abort(__STAMP__,'InterpolateGeometry Error: interpolated outside of array dimension?!')
   END IF
   ! do the actual interpolation
   x1 = Geometry(location_Lower,dim_x)
