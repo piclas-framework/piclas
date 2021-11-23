@@ -64,7 +64,7 @@ CALL H5OPEN_F(err)
 
 ! Check if file exists
 IF(.NOT.FILEEXISTS(XSec_Database)) THEN
-  CALL abort(__STAMP__,'ERROR: Database '//TRIM(XSec_Database)//' does not exist.')
+  CALL abort(__STAMP__,'ERROR: Database ['//TRIM(XSec_Database)//'] does not exist.')
 END IF
 
 ! Open the file.

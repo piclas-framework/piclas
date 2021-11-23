@@ -140,7 +140,7 @@ USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_MCC_Init                ,ONLY: MCC_Chemistry_Init
-USE MOD_DSMC_Vars               ,ONLY: UseMCC,XSec_Database,NbrOfPhotonXsecReactions
+USE MOD_DSMC_Vars               ,ONLY: XSec_Database,NbrOfPhotonXsecReactions
 USE MOD_DSMC_Vars               ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -353,7 +353,7 @@ DO iReac = 1, ReadInNumOfReact
 END DO
 
 ! Get XSec database name
-IF(UseMCC.OR.(NbrOfPhotonXsecReactions.GT.0)) XSec_Database = TRIM(GETSTR('Particles-CollXSec-Database'))
+IF((NbrOfPhotonXsecReactions.GT.0).AND.(TRIM(XSec_Database).EQ.'none')) XSec_Database = GETSTR('Particles-CollXSec-Database')
 
 ! Get cross-sections for photoionization
 IF(NbrOfPhotonXsecReactions.GT.0) CALL InitPhotoionizationXSec()

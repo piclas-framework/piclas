@@ -655,7 +655,9 @@ ELSE !CollisMode.GT.0
     IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) CALL Abort(&
       __STAMP__,'ERROR: Please supply the collision cross-section data for the particle species and NOT the background species!')
   END DO
+  XSec_Database = 'none'! Initialize
   IF(ANY(SpecDSMC(:)%UseCollXSec).OR.ANY(SpecDSMC(:)%UseVibXSec)) THEN
+    XSec_Database = GETSTR('Particles-CollXSec-Database')
     UseMCC = .TRUE.
     CALL MCC_Init()
   ELSE
