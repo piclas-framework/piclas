@@ -379,7 +379,6 @@ CASE('maxwell_lpn','2D_landmark','2D_landmark_copy','2D_landmark_neutralization'
 CASE('2D_Liu2010_neutralization','3D_Liu2010_neutralization')
   IF(.NOT.SurfModSEEelectronTempAutoamtic) CALL abort(__STAMP__,&
       'Velocity distribution 2D_Liu2010_neutralization requires SurfModSEEelectronTempAutoamtic=T')
-  WRITE (*,*) "SurfModSEEelectronTemp =", SurfModSEEelectronTemp
   ! Use the global electron temperature if available
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
