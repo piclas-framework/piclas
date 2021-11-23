@@ -36,8 +36,8 @@ sudo apt-get install openvpn openssl openssh-client -y
 sudo apt-get install liblapack3 liblapack-dev zlib1g-dev exuberant-ctags -y
 
 # for documentation
-sudo apt-get install pandoc pandoc-citeproc -y
-sudo apt-get install texlive-full -y
+sudo apt-get install texlive-base -y
+sudo apt-get install texlive-latex-extra -y
 
 # hdf5-file viewer
 sudo apt-get install hdfview -y
