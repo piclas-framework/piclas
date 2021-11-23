@@ -1483,9 +1483,10 @@ SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, iInit, InitSpec)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: eV2Joule
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting
-USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
+USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
+USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi,PhotonEnergies,PhotoIonLastLine,PhotoIonFirstLine
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
@@ -1505,10 +1506,10 @@ INTEGER, INTENT(IN)           :: iPair, iReac, iInit, InitSpec
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iSpec, iProd, NumProd
+INTEGER                       :: iPart, iSpec, iProd, NumProd,iLine
 INTEGER                       :: ReactInx(1:4), EductReac(1:3), ProductReac(1:4)
 REAL                          :: Weight(1:4), SumWeightProd, Mass_Electron, CRela2_Electron, RandVal, NumElec
-REAL                          :: VeloCOM(1:3), Temp_Trans, Temp_Rot, Temp_Vib, Temp_Elec
+REAL                          :: VeloCOM(1:3), Temp_Trans, Temp_Rot, Temp_Vib, Temp_Elec,EForm,PhotonEnergy
 !===================================================================================================================================
 
 EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
@@ -1553,10 +1554,7 @@ IF(EductReac(3).EQ.0) THEN
     ! === Get free particle index for the 3rd product
     DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
     ReactInx(3) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-    IF (ReactInx(3).EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
-    END IF
+    IF (ReactInx(3).EQ.0) CALL abort(__STAMP__,'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
     PDM%ParticleInside(ReactInx(3)) = .true.
     PDM%IsNewPart(ReactInx(3)) = .true.
     PDM%dtFracPush(ReactInx(3)) = .FALSE.
@@ -1587,10 +1585,7 @@ IF(ProductReac(4).NE.0) THEN
   ! === Get free particle index for the 4th product
   DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
   ReactInx(4) = PDM%nextFreePosition(DSMCSumOfFormedParticles+PDM%CurrentNextFreePosition)
-  IF (ReactInx(4).EQ.0) THEN
-    CALL abort(__STAMP__,&
-    'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
-  END IF
+  IF (ReactInx(4).EQ.0) CALL abort(__STAMP__,'New Particle Number greater max Part Num in DSMC_Chemistry. Reaction: ',iReac)
   PDM%ParticleInside(ReactInx(4)) = .true.
   PDM%IsNewPart(ReactInx(4)) = .true.
   PDM%dtFracPush(ReactInx(4)) = .FALSE.
@@ -1616,15 +1611,37 @@ IF(ProductReac(4).NE.0) THEN
   END IF
 END IF
 
+! Set the formation energy
+IF(NbrOfPhotonXsecReactions.GT.0)THEN
+  ! Get random photon energy of line that is occupied
+  DO
+    ! Get 1st random number
+    CALL RANDOM_NUMBER(RandVal)
+    ! Get random wavelength (from line spectrum)
+    iLine = NINT(RandVal*REAL(PhotoIonLastLine-PhotoIonFirstLine))+PhotoIonFirstLine
+    IF(PhotonEnergies(iLine).GT.0)THEN
+      ! Remove one photon from line
+      PhotonEnergies(iLine) = PhotonEnergies(iLine) - 1
+      ! Set photon energy
+      PhotonEnergy = SpecPhotonXSecInterpolated(iLine,1)*eV2Joule
+      ! Exit the loop
+      EXIT
+    END IF ! PhotonEnergies(iLine).GT.0
+  END DO
+  ! Add photon energy to the formation energy of the reaction
+  EForm = ChemReac%EForm(iReac) + PhotonEnergy
+ELSE
+  EForm = ChemReac%EForm(iReac)
+END IF ! NbrOfPhotonXsecReactions.GT.0
+
 ! Only consider the remaining energy from the photo-ionization
-Coll_pData(iPair)%Ec = ChemReac%EForm(iReac)*SumWeightProd/NumProd
+Coll_pData(iPair)%Ec = EForm*SumWeightProd/NumProd
 
 IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
   ! Weighting factor already included in the weights
-  ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)*SumWeightProd/NumProd
+  ChemEnergySum = ChemEnergySum + EForm*SumWeightProd/NumProd
 ELSE
-  ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)*Species(EductReac(1))%MacroParticleFactor &
-                                  *SumWeightProd/NumProd
+  ChemEnergySum = ChemEnergySum + EForm*Species(EductReac(1))%MacroParticleFactor*SumWeightProd/NumProd
 END IF
 
 ! Saving the velocity of the background particle as the centre of mass velocity
@@ -1682,9 +1699,9 @@ DO iProd = 1, NumProd
   iSpec = ProductReac(iProd)
   IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
     PartState(4:6,iPart) = VeloCOM(1:3) + SQRT(CRela2_Electron) * DiceUnitVector()
-  ! Change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
+    ! Change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
     ASSOCIATE( b1 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector1IC(1:3)) ,&
-             b2 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector2IC(1:3)) )
+               b2 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector2IC(1:3)) )
       ! Get random vector b3 in b1-b2-plane
       CALL RANDOM_NUMBER(RandVal)
       PartState(4:6,iPart) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart),RandVal)

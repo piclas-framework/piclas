@@ -211,6 +211,7 @@ INTEGER                             :: NbrOfPhotonXsecLines ! Number of photoion
 INTEGER                             :: PhotoIonFirstLine    ! First energy level (wavelength) for which a cross-section is not zero
 INTEGER                             :: PhotoIonLastLine     ! Last energy level (wavelength) for which a cross-section is not zero
 REAL,ALLOCATABLE                    :: PhotonDistribution(:)! Distribution of photons (calculated from the spectrum)
+INTEGER,ALLOCATABLE                 :: PhotonEnergies(:)    ! Energy spectrum for emission (calculated from the input spectrum)
 REAL,ALLOCATABLE                    :: PhotonSpectrum(:,:)  ! Photon energy spectrum
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: energy fraction (sum equals unity)
@@ -442,6 +443,7 @@ TYPE tChemReactions
                                                             !    TCE (total collision energy)
                                                             !    QK (quantum kinetic)
                                                             !    phIon (photon-ionization)
+                                                            !    phIonXSec (photon-ionization based on cross-section data)
                                                             !    XSec (based on cross-section data)
   INTEGER, ALLOCATABLE            :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
   INTEGER, ALLOCATABLE            :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]

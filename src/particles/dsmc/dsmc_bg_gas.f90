@@ -480,7 +480,7 @@ USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_ChemReact         ,ONLY: PhotoIonization_InsertProducts
 USE MOD_DSMC_AmbipolarDiffusion,ONLY: AD_DeleteParticles
 USE MOD_DSMC_Vars              ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
-USE MOD_DSMC_Vars              ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotoReacToReac
+USE MOD_DSMC_Vars              ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotoReacToReac,PhotonEnergies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -524,6 +524,7 @@ END DO ! iReac = 1, ChemReac%NumOfReact
 
 !> 1.) Compute the number of photoionization events in the local domain of each proc
 IF(NbrOfPhotonXsecReactions.GT.0)THEN
+  PhotonEnergies = 0 ! Nullify
   ! Loop until all reactions have been matched with a specific wavelength
   DO WHILE(TotalNbrOfReactionsTmp.GT.0)
     ! 1.1) Select a wave length (or corresponding photon energy)
@@ -536,23 +537,27 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
     CALL RANDOM_NUMBER(RandVal)
     ! Probe if the line is accepted by comparing against the energy fraction (maximum is 1.)
     IF(RandVal.GT.SpecPhotonXSecInterpolated(iLine,2)/MAXVAL(SpecPhotonXSecInterpolated(:,2))) CYCLE
+    ! Store photon energy for later chemical reaction
+    PhotonEnergies(iLine) = PhotonEnergies(iLine) + 1
 
     ! 1.2) Select a cross-section
-    ! Get 3rd random number
-    CALL RANDOM_NUMBER(RandVal)
-    ! Get random cross-section
-    iPhotoReac = NINT(RandVal*REAL(NbrOfPhotonXsecReactions-1.0))+1
+    PDF: DO
+      ! Get 3rd random number
+      CALL RANDOM_NUMBER(RandVal)
+      ! Get random cross-section
+      iPhotoReac = NINT(RandVal*REAL(NbrOfPhotonXsecReactions-1.0))+1
 
-    ! Get 4th random number
-    CALL RANDOM_NUMBER(RandVal)
-    ! Probe if the line is accepted by comparing against the energy fraction (maximum is 1.)
-    IF(RandVal.GT.SpecPhotonXSecInterpolated(iLine,2+iPhotoReac)&
-          /MAXVAL(SpecPhotonXSecInterpolated(:,2+1:2+NbrOfPhotonXsecReactions))) CYCLE
+      ! Get 4th random number
+      CALL RANDOM_NUMBER(RandVal)
+      ! Probe if the line is accepted by comparing against the energy fraction (maximum is 1.)
+      IF(RandVal.LE.SpecPhotonXSecInterpolated(iLine,2+iPhotoReac)&
+            /MAXVAL(SpecPhotonXSecInterpolated(:,2+1:2+NbrOfPhotonXsecReactions))) EXIT PDF
+    END DO PDF
 
     ! 1.3) Reaction and line have been selected
     iReac = PhotoReacToReac(iPhotoReac)
     NumPhotoIonization(iReac) = NumPhotoIonization(iReac) + 1
-    TotalNbrOfReactionsTmp = TotalNbrOfReactionsTmp - 1
+    TotalNbrOfReactionsTmp    = TotalNbrOfReactionsTmp - 1
   END DO ! WHILE(TotalNbrOfReactionsTmp.GT.0)
 ELSE
   ! Photoionization with const. cross-section data
@@ -660,12 +665,9 @@ PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle + iNewPart
 ! Update the current next free position
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle + iNewPart
 
-IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
-  CALL Abort(&
-    __STAMP__&
-    ,'ERROR in PhotoIonization: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &
-    , IntInfoOpt=PDM%ParticleVecLength)
-END IF
+IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL Abort(__STAMP__&
+  ,'ERROR in PhotoIonization: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &
+  , IntInfoOpt=PDM%ParticleVecLength)
 
 !> 4.) Perform the reaction, distribute the collision energy (including photon energy) and emit electrons perpendicular
 !>     to the photon's path

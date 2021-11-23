@@ -132,7 +132,7 @@ SUBROUTINE DSMC_chemical_init()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi,eV2Joule
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
@@ -140,8 +140,8 @@ USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_MCC_Init                ,ONLY: MCC_Chemistry_Init
-USE MOD_DSMC_Vars               ,ONLY: UseMCC,XSec_Database
-USE MOD_DSMC_Vars               ,ONLY: NbrOfPhotonXsecReactions
+USE MOD_DSMC_Vars               ,ONLY: UseMCC,XSec_Database,NbrOfPhotonXsecReactions
+USE MOD_DSMC_Vars               ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -150,6 +150,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER           :: iLine
 CHARACTER(LEN=3)      :: hilf
 INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
@@ -410,7 +411,8 @@ DO iReac = 1, ChemReac%NumOfReact
         __STAMP__,'ERROR: Ionization reactions require the definition of at least the ionization energy as electronic level!',iReac)
     END IF
   END DO
-  IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) THEN
+  ! Check whether the photon energy is sufficient to trigger the chemical reaction
+  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
     PhotonEnergy = 0.
     DO iSpec = 1, nSpecies
       DO iInit = 1, Species(iSpec)%NumberOfInits
@@ -421,12 +423,16 @@ DO iReac = 1, ChemReac%NumOfReact
         END IF
       END DO
     END DO
+
     ChemReac%EForm(iReac) = ChemReac%EForm(iReac) + PhotonEnergy
     IF(ChemReac%EForm(iReac).LE.0.0) THEN
-      CALL abort(&
-      __STAMP__&
-      ,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
+      CALL abort(__STAMP__,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
     END IF
+  ELSEIF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIonXSec') THEN
+    DO iLine = PhotoIonFirstLine, PhotoIonLastLine
+      IF(ChemReac%EForm(iReac)+SpecPhotonXSecInterpolated(iLine,1)*eV2Joule.LE.0.0) CALL abort(__STAMP__,&
+          'Photoionization not possible because the photon energy is too low for this reaction. This is not considered yet.')
+    END DO ! iLine = , PhotoIonLastLine
   END IF
 END DO
 
@@ -440,8 +446,7 @@ DO iReac = 1, ChemReac%NumOfReact
   ! Proof of recombination definition
   IF (TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
     IF ((ChemReac%Reactants(iReac,1)*ChemReac%Reactants(iReac,2)*ChemReac%Reactants(iReac,3)).EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'Recombination - Error in Definition: Not all reactant species are defined! ReacNbr: ',iReac)
+      CALL abort(__STAMP__,'Recombination - Error in Definition: Not all reactant species are defined! ReacNbr: ',iReac)
     END IF
     IF (ChemReac%Reactants(iReac,3).NE.ChemReac%Products(iReac,2)) THEN
       CALL abort(__STAMP__,&
@@ -449,16 +454,14 @@ DO iReac = 1, ChemReac%NumOfReact
     END IF
   ELSE IF (.NOT.StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) THEN
     IF ((ChemReac%Reactants(iReac,1)*ChemReac%Reactants(iReac,2)).EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
+      CALL abort(__STAMP__,'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
     END IF
   END IF
   ! Proof of dissociation definition
   IF (TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
     ! Three product species are given
     IF ((ChemReac%Products(iReac,1)*ChemReac%Products(iReac,2)*ChemReac%Products(iReac,3)).EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'Dissociation - Error in Definition: Not all product species are defined!  ReacNbr: ',iReac)
+      CALL abort(__STAMP__,'Dissociation - Error in Definition: Not all product species are defined!  ReacNbr: ',iReac)
     END IF
     IF(TRIM(ChemReac%ReactModel(iReac)).NE.'XSec') THEN
       ! Cross-section based chemistry does not require this definition as no backward reaction rates are implemented
@@ -475,8 +478,7 @@ DO iReac = 1, ChemReac%NumOfReact
     END IF
   ELSE
     IF ((ChemReac%Products(iReac,1)*ChemReac%Products(iReac,2)).EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'Chemistry - Error in Definition: Product species not properly defined. ReacNbr:',iReac)
+      CALL abort(__STAMP__,'Chemistry - Error in Definition: Product species not properly defined. ReacNbr:',iReac)
     END IF
   END IF
   ! Check if the maximum species index is not greater than the number of species
@@ -555,7 +557,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,PhotonSpectrum,NbrOfPhotonXsecLines
 USE MOD_DSMC_Vars ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution
 USE MOD_MCC_XSec  ,ONLY: ReadReacPhotonXSec,ReadReacPhotonSpectrum
-USE MOD_DSMC_Vars ,ONLY: SpecDSMC,ChemReac
+USE MOD_DSMC_Vars ,ONLY: SpecDSMC,ChemReac,PhotonEnergies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -665,6 +667,7 @@ DO iLine = 1, NbrOfPhotonXsecLines
   END IF ! SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3).GT.0.
 END DO ! iLine = 1, NbrOfPhotonXsecLines
 IF(PhotoIonLastLine.LT.PhotoIonFirstLine) CALL abort(__STAMP__,'Photoionization XSec read-in failed. No lines interpolated.')
+ALLOCATE(PhotonEnergies(PhotoIonFirstLine:PhotoIonLastLine))
 
 ! Check how much energy is cut off
 IF(MPIRoot)THEN
@@ -688,7 +691,7 @@ IF(MPIRoot)THEN
 END IF ! MPIRoot
 !write(*,*) "SpecPhotonXSecInterpolated"
 !DO iLine = 1, NbrOfPhotonXsecLines
-!  WRITE (*,*) SpecPhotonXSecInterpolated(iLine,:)
+  !WRITE (*,*) SpecPhotonXSecInterpolated(iLine,:)
 !END DO ! iLine = 1, dims(2)
 !read*
 
@@ -899,7 +902,7 @@ DO iReacForward = 1, ChemReac%NumOfReactWOBackward
       ! definition of the recombination reaction (e.g. CH3 + H + M -> CH4 + M but CH4 + M -> CH3 + M + H)
       ChemReac%Reactants(iReac,2)      = ChemReac%Products(iReacForward,3)
       ChemReac%Reactants(iReac,3)      = ChemReac%Products(iReacForward,2)
-      ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
+      ChemReac%Products(iReac,1:3)     = ChemReac%Reactants(iReacForward,1:3)
       ChemReac%EForm(iReac)            = -ChemReac%EForm(iReacForward)
       ChemReac%EActiv(iReac) = 0.0
     ELSE
@@ -914,23 +917,21 @@ DO iReacForward = 1, ChemReac%NumOfReactWOBackward
       ChemReac%Reactants(iReac,1)      = ChemReac%Products(iReacForward,1)
       ChemReac%Reactants(iReac,2)      = ChemReac%Products(iReacForward,3)
       ChemReac%Reactants(iReac,3)      = ChemReac%Products(iReacForward,2)
-      ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
+      ChemReac%Products(iReac,1:3)     = ChemReac%Reactants(iReacForward,1:3)
       ChemReac%EActiv(iReac) = 0.0
     ELSEIF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'E') THEN
       ChemReac%ReactType(iReac) = 'E'
       ChemReac%ReactModel(iReac) = 'TCE'
       ChemReac%Reactants(iReac,1:3)      = ChemReac%Products(iReacForward,1:3)
       ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
-      ChemReac%EActiv(iReac)                = ChemReac%EForm(iReacForward) + ChemReac%EActiv(iReacForward)
+      ChemReac%EActiv(iReac)             = ChemReac%EForm(iReacForward) + ChemReac%EActiv(iReacForward)
       IF(ChemReac%EActiv(iReac).LT.0.0) THEN
         ! The absolute value of the heat of formation cannot be larger than the activation energy but Arrhenius fits require
         ! sometimes a different value to better reproduce the experimental results. Doesnt matter for backward rate.
         ChemReac%EActiv(iReac) = 0.0
       END IF
     ELSE
-      CALL abort(&
-      __STAMP__&
-      ,'Automatic calculation of backward reaction rate not supported with the chosen react type:',iReac)
+      CALL abort(__STAMP__,'Automatic calculation of backward reaction rate not supported with the chosen react type:',iReac)
     END IF
     ChemReac%Arrhenius_Prefactor(iReac)     = ChemReac%Arrhenius_Prefactor(iReacForward)
     ChemReac%Arrhenius_Powerfactor(iReac)   = ChemReac%Arrhenius_Powerfactor(iReacForward)

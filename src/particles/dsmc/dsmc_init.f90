@@ -1466,6 +1466,8 @@ SDEALLOCATE(SymmetrySide)
 SDEALLOCATE(SpecXSec)
 SDEALLOCATE(SpecPhotonXSecInterpolated)
 SDEALLOCATE(PhotonDistribution)
+SDEALLOCATE(PhotonEnergies)
+SDEALLOCATE(PhotoReacToReac)
 END SUBROUTINE FinalizeDSMC
 
 
