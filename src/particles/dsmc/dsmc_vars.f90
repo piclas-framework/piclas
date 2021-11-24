@@ -206,6 +206,7 @@ TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:)          ! Species cross-sect
 
 ! Photoionization based on cross-sections from tables
 INTEGER,ALLOCATABLE                 :: PhotoReacToReac(:)  ! Mapping from iPhotoReac to iReac
+INTEGER,ALLOCATABLE                 :: ReacToPhotoReac(:)  ! Mapping from iReac to iPhotoReac
 INTEGER                             :: NbrOfPhotonXsecReactions ! Number of photoionization reactions
 INTEGER                             :: NbrOfPhotonXsecLines ! Number of photoionization wavelengths
 INTEGER                             :: PhotoIonFirstLine    ! First energy level (wavelength) for which a cross-section is not zero

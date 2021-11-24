@@ -555,7 +555,7 @@ SUBROUTINE InitPhotoionizationXSec()
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,PhotonSpectrum,NbrOfPhotonXsecLines
-USE MOD_DSMC_Vars ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution
+USE MOD_DSMC_Vars ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,ReacToPhotoReac
 USE MOD_MCC_XSec  ,ONLY: ReadReacPhotonXSec,ReadReacPhotonSpectrum
 USE MOD_DSMC_Vars ,ONLY: SpecDSMC,ChemReac,PhotonEnergies
 ! IMPLICIT VARIABLE HANDLING
@@ -572,13 +572,16 @@ INTEGER               :: ReadInNumOfReact,dims(2),iLine,location(3)
 ReadInNumOfReact = ChemReac%NumOfReact
 ! Set Mapping
 ALLOCATE(PhotoReacToReac(NbrOfPhotonXsecReactions))
+PhotoReacToReac = -1 ! Initialize
+ALLOCATE(ReacToPhotoReac(ReadInNumOfReact))
+ReacToPhotoReac = -1 ! Initialize
 iPhotoReac = 0
 DO iReac = 1, ReadInNumOfReact
   IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIonXSec')THEN
-    ! Create mapping
+    ! Create mappings
     iPhotoReac = iPhotoReac + 1
     PhotoReacToReac(iPhotoReac) = iReac
-    ! Check names
+    ReacToPhotoReac(iReac) = iPhotoReac
     EductPair = TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)//'-photon'
     IF(iPhotoReac.GT.1)THEN
       IF(TRIM(EductPair).NE.TRIM(EductPairOld)) CALL abort(__STAMP__,'Currently only one photo reaction is implemented')
@@ -689,11 +692,11 @@ IF(MPIRoot)THEN
         SUM(LostEnergy)/TotalEnergyFraction*100., "% (total)"
   END IF ! SUM(LostEnergy).GT.0.
 END IF ! MPIRoot
-!write(*,*) "SpecPhotonXSecInterpolated"
-!DO iLine = 1, NbrOfPhotonXsecLines
-  !WRITE (*,*) SpecPhotonXSecInterpolated(iLine,:)
-!END DO ! iLine = 1, dims(2)
-!read*
+! write(*,*) "SpecPhotonXSecInterpolated"
+! DO iLine = 1, NbrOfPhotonXsecLines
+!   WRITE (*,*) SpecPhotonXSecInterpolated(iLine,:)
+! END DO ! iLine = 1, dims(2)
+! read*
 
 END SUBROUTINE InitPhotoionizationXSec
 

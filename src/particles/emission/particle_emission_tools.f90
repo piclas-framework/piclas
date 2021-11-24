@@ -1713,20 +1713,20 @@ t_2 = t_2 - tShift - NbrOfRepetitions * Period
 ! check if t_2 is outside of the pulse
 IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
 
-  ! Integral of I(r,t) = I_0 exp(-(t/tau)**2)exp(-(r/w_b)**2)
-  ! Integrate I(r,t)*r dr dt dphi and don't forget the Jacobian
-  !   dr : from 0 to R
-  !   dt : from t1 to t2
-  ! dphi : from 0 to 2*PI
-  IF((TRIM(IC).EQ.'photon_SEE_honeycomb').OR.(TRIM(IC).EQ.'photon_honeycomb'))THEN
-   E_Intensity = 0.5 * I_0 * SQRT(PI) * tau &
-               * (ERF(t_2/tau)-ERF(t_1/tau)) &
-               * (1.5*SQRT(3.0)) &
-               * (Rout**2-Rin**2)
-  ELSE
+! Integral of I(r,t) = I_0 exp(-(t/tau)**2)exp(-(r/w_b)**2)
+! Integrate I(r,t)*r dr dt dphi and don't forget the Jacobian
+!   dr : from 0 to R
+!   dt : from t1 to t2
+! dphi : from 0 to 2*PI
+IF((TRIM(IC).EQ.'photon_SEE_honeycomb').OR.(TRIM(IC).EQ.'photon_honeycomb'))THEN
+  E_Intensity = 0.5 * I_0 * SQRT(PI) * tau &
+      * (ERF(t_2/tau)-ERF(t_1/tau)) &
+      * (1.5*SQRT(3.0)) &
+      * (Rout**2-Rin**2)
+ELSE
   E_Intensity = 0.5 * I_0 * PI**(3.0/2.0) * w_b**2 * tau &
-              * (1.0-EXP(-Radius**2/w_b**2)) &
-              * (ERF(t_2/tau)-ERF(t_1/tau))
+      * (1.0-EXP(-Radius**2/w_b**2)) &
+      * (ERF(t_2/tau)-ERF(t_1/tau))
 END IF ! (SpaceIC.EQ.'photon_SEE_honeycomb').OR.(SpaceIC.EQ.'photon_honeycomb')
 
 IF(NbrOfPhotonXsecReactions.GT.0)THEN

@@ -531,7 +531,7 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
     ! Get 1st random number
     CALL RANDOM_NUMBER(RandVal)
     ! Get random wavelength (from line spectrum)
-    iLine = NINT(RandVal*REAL(PhotoIonLastLine-PhotoIonFirstLine))+PhotoIonFirstLine
+    iLine = NINT(RandVal*REAL(PhotoIonLastLine-PhotoIonFirstLine)) + PhotoIonFirstLine
 
     ! Get 2nd random number
     CALL RANDOM_NUMBER(RandVal)
@@ -545,7 +545,7 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
       ! Get 3rd random number
       CALL RANDOM_NUMBER(RandVal)
       ! Get random cross-section
-      iPhotoReac = NINT(RandVal*REAL(NbrOfPhotonXsecReactions-1.0))+1
+      iPhotoReac = NINT(RandVal*REAL(NbrOfPhotonXsecReactions-1.0)) + 1
 
       ! Get 4th random number
       CALL RANDOM_NUMBER(RandVal)

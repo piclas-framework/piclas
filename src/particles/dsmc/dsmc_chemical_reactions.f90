@@ -1487,6 +1487,7 @@ USE MOD_Globals_Vars            ,ONLY: eV2Joule
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi,PhotonEnergies,PhotoIonLastLine,PhotoIonFirstLine
+USE MOD_DSMC_Vars               ,ONLY: ReacToPhotoReac
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
@@ -1506,7 +1507,7 @@ INTEGER, INTENT(IN)           :: iPair, iReac, iInit, InitSpec
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iSpec, iProd, NumProd,iLine
+INTEGER                       :: iPart, iSpec, iProd, NumProd,iLine,iPhotoReac
 INTEGER                       :: ReactInx(1:4), EductReac(1:3), ProductReac(1:4)
 REAL                          :: Weight(1:4), SumWeightProd, Mass_Electron, CRela2_Electron, RandVal, NumElec
 REAL                          :: VeloCOM(1:3), Temp_Trans, Temp_Rot, Temp_Vib, Temp_Elec,EForm,PhotonEnergy
@@ -1620,6 +1621,9 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
     ! Get random wavelength (from line spectrum)
     iLine = NINT(RandVal*REAL(PhotoIonLastLine-PhotoIonFirstLine))+PhotoIonFirstLine
     IF(PhotonEnergies(iLine).GT.0)THEN
+      ! Check if iReac is allowed for the selected iLine
+      iPhotoReac = ReacToPhotoReac(iReac)
+      IF(SpecPhotonXSecInterpolated(iLine,iPhotoReac).LE.0.) CYCLE
       ! Remove one photon from line
       PhotonEnergies(iLine) = PhotonEnergies(iLine) - 1
       ! Set photon energy

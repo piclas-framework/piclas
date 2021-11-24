@@ -1470,6 +1470,7 @@ SDEALLOCATE(SpecPhotonXSecInterpolated)
 SDEALLOCATE(PhotonDistribution)
 SDEALLOCATE(PhotonEnergies)
 SDEALLOCATE(PhotoReacToReac)
+SDEALLOCATE(ReacToPhotoReac)
 END SUBROUTINE FinalizeDSMC
 
 
