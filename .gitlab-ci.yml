@@ -174,7 +174,11 @@ build:
         git clone https://github.com/flexi-framework/hopr.git hopr;
         cd hopr ; mkdir -p build ; cd build;
         echo `pwd`;
-        cmake .. -DHOPR_BUILD_HDF5=OFF ; make -j all;
+        cmake .. -DHOPR_BUILD_HDF5=OFF;
+        make -j all &> output.txt;
+        tail -n 20 output.txt;
+        rm output.txt;
+        ls bin/hopr;
       fi
 
 build_maxwell:
