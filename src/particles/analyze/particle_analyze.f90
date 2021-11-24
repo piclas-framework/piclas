@@ -972,8 +972,7 @@ INTEGER             :: iRegions
             END DO
           END IF
         END IF
-        IF(DSMC%CalcQualityFactors) THEN ! calculates flow-field variable maximum collision probability, time-averaged mean
-                                         ! collision probability, mean collision separation distance over mean free path
+        IF(DSMC%CalcQualityFactors) THEN ! calculates maximum collision probability, mean collision probability & mean free path
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-Pmean'
           OutputCounter = OutputCounter + 1
@@ -1122,7 +1121,8 @@ INTEGER             :: iRegions
     END IF
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
-! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell)
+! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell reservoirs,
+! in case of more cells, the value of the last element of the root is shown)
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
   MaxCollProb = 0.0
   MeanCollProb = 0.0
@@ -1175,14 +1175,6 @@ INTEGER             :: iRegions
       CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl       ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PCouplAverage,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
-    IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
-      ! Determining the maximal (MPI_MAX) and mean (MPI_SUM) collision probabilities
-      CALL MPI_REDUCE(MPI_IN_PLACE,MaxCollProb    ,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
-      CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-      MeanCollProb = sumMeanCollProb / REAL(PartMPI%nProcs)
-    END IF
-#endif
     IF(FPInitDone) THEN
       IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
         CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactor       ,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
@@ -1213,12 +1205,6 @@ INTEGER             :: iRegions
       CALL MPI_REDUCE(PCoupl       ,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PCouplAverage,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
-    IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
-      CALL MPI_REDUCE(MaxCollProb ,0,1,MPI_DOUBLE_PRECISION,MPI_MAX,0, PartMPI%COMM, IERROR)
-      CALL MPI_REDUCE(MeanCollProb,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PartMPI%COMM, IERROR)
-    END IF
-#endif
     IF(FPInitDone) THEN
       IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
         CALL MPI_REDUCE(FP_MeanRelaxFactor       ,0,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
