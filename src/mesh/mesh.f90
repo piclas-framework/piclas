@@ -398,7 +398,6 @@ IF(CalcMeshInfo)THEN
 #if USE_MPI
   ALLOCATE(myInvisibleRank(1:nElems))
   myInvisibleRank=0
-  CALL AddToElemData(ElementOut,'myInvisibleRank',LongIntArray=myInvisibleRank)
 #endif /*USE_MPI*/
 
   CALL AddToElemData(ElementOut,'myRank',IntScalar=myRank)

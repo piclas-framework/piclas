@@ -70,6 +70,7 @@ USE MOD_CalcTimeStep            ,ONLY: CalcTimeStep
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars           ,ONLY: nRKStages,RK_c
 #endif
+USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -409,12 +410,6 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
   BoundsOfElemCenter(4)   = VECNORM ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                         BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                         BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
-  ! IF (MeshHasPeriodic .OR. MeshHasRotPeriodic) THEN
-  !   BoundsOfElemCenter(5) = MERGE(0.,ABS(DistanceOfElemCenter_Shared(ElemID)),ElemInfo_Shared(ELEM_HALOFLAG,ElemID).EQ.1)
-  ! ELSE
-  !   BoundsOfElemCenter(5) = 0.
-  ! END IF
-
   DO iSide = 1, nExchangeSides
     ! compare distance of centers with sum of element outer radii+halo_eps
     IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iSide)) &
@@ -677,8 +672,10 @@ IF (MPIRoot) THEN
   IF(nNonSymmetricExchangeProcsGlob.GT.0)THEN
     SWRITE(Unit_StdOut,'(A,I0,A)') ' | Found ',nNonSymmetricExchangeProcsGlob, &
                                    ' previously missing non-symmetric particle exchange procs'
+    SWRITE(Unit_StdOut,'(A)')"\n See ElemData container 'myInvisibleRank' for more information on which MPI ranks are non-symmetric"
     IF(CheckExchangeProcs) CALL abort(__STAMP__,&
-      ' Non-symmetric particle exchange procs > 1. This check is optional. You can disable it via CheckExchangeProcs = F')
+      ' Non-symmetric particle exchange procs > 0. This check is optional. You can disable it via CheckExchangeProcs = F')
+    CALL AddToElemData(ElementOut,'myInvisibleRank',LongIntArray=myInvisibleRank)
   ELSE
     SDEALLOCATE(myInvisibleRank)
   END IF ! nNonSymmetricExchangeProcsGlob.GT.0
