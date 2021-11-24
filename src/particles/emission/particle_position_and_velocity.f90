@@ -385,6 +385,8 @@ CASE('2D_Liu2010_neutralization','3D_Liu2010_neutralization')
     IF (PositionNbr.GT.0) THEN
       CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, Temperature=SurfModSEEelectronTemp*eV2Kelvin)
       PartState(4:6,PositionNbr) = Vec3D(1:3)
+      ! Mirror the x-velocity component (force all electrons to travel in -x direction)
+      PartState(4,PositionNbr) = -ABS(PartState(4,PositionNbr))
     END IF
   END DO
 CASE('taylorgreenvortex')
