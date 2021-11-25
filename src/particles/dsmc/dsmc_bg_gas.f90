@@ -684,7 +684,6 @@ IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL Abort(__STAMP__&
 !>     to the photon's path
 IF(NbrOfPhotonXsecReactions.GT.0)THEN
   DO iPart = 1, SUM(NumPhotoIonization(:))
-    iPair = iPair + 1
     ! Loop over all randomized lines (found above)
     DO iLine = iLineStart, iLineEnd
       ! Check if level is occupied
@@ -697,6 +696,7 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
             ! Reduce cross-section by one
     !IPWRITE(UNIT_StdOut,'(I6,3(A,I3))') "  calling  iLine =",iLine," iPhotoReac =",iPhotoReac," iReac =",PhotoReacToReac(iPhotoReac)
             PhotonEnergies(iLine,1+iPhotoReac) = PhotonEnergies(iLine,1+iPhotoReac) - 1
+            iPair = iPair + 1
             CALL PhotoIonization_InsertProducts(iPair, PhotoReacToReac(iPhotoReac), iInit, iSpec, iLineOpt=iLine)
           END IF ! PhotonEnergies(iLine,1+iPhotoReac).GT.0
         END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions

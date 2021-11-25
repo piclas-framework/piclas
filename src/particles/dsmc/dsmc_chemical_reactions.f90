@@ -1634,8 +1634,15 @@ ELSE
   EForm = ChemReac%EForm(iReac)
 END IF ! NbrOfPhotonXsecReactions.GT.0
 
-! Only consider the remaining energy from the photo-ionization
-Coll_pData(iPair)%Ec = EForm*SumWeightProd/NumProd
+! Consider the energy of the background gas particle and the remaining energy from the photo-reaction
+Coll_pData(iPair)%Ec = 0.5 * Species(PartSpecies(ReactInx(1)))%MassIC * DOTPRODUCT(PartState(4:6,ReactInx(1))) * Weight(1) &
+                      + EForm*SumWeightProd/NumProd
+! Adding the vibrational and rotational energy to the collision energy
+Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (PartStateIntEn(2,ReactInx(1)) + PartStateIntEn(1,ReactInx(1)))*Weight(1)
+! Addition of the electronic energy to the collision energy
+IF (DSMC%ElectronicModel.GT.0) THEN
+  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(1))*Weight(1)
+END IF
 
 IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
   ! Weighting factor already included in the weights
