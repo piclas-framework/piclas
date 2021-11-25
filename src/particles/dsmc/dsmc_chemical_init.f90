@@ -140,8 +140,8 @@ USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_MCC_Init                ,ONLY: MCC_Chemistry_Init
-USE MOD_DSMC_Vars               ,ONLY: XSec_Database,NbrOfPhotonXsecReactions
-USE MOD_DSMC_Vars               ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine
+USE MOD_DSMC_Vars               ,ONLY: XSec_Database,NbrOfPhotonXsecReactions,NbrOfPhotonXsecLines
+USE MOD_DSMC_Vars               ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,ReacToPhotoReac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -150,13 +150,13 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iLine
+INTEGER               :: iLine,iLine2
 CHARACTER(LEN=3)      :: hilf
 INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat
-REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants
-INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact
+REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants,LostEnergy(2)
+INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact,iPhotoReac
 !===================================================================================================================================
 
 NbrOfPhotonXsecReactions = 0
@@ -429,12 +429,66 @@ DO iReac = 1, ChemReac%NumOfReact
       CALL abort(__STAMP__,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
     END IF
   ELSEIF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIonXSec') THEN
+    ! Check each remaining line
     DO iLine = PhotoIonFirstLine, PhotoIonLastLine
-      IF(ChemReac%EForm(iReac)+SpecPhotonXSecInterpolated(iLine,1)*eV2Joule.LE.0.0) CALL abort(__STAMP__,&
+      ! Add photon energy to formation energy (which is negative and should be positive after the addition)
+      IF(ChemReac%EForm(iReac)+SpecPhotonXSecInterpolated(iLine,1)*eV2Joule.LE.0.0)THEN
+        iPhotoReac = ReacToPhotoReac(iReac)
+        ! Check if this photo reaction has a cross-section unequal zero
+        ! If it is zero, this reaction would never happen anyway, therefore ignore it
+        IF(SpecPhotonXSecInterpolated(iLine,2+iPhotoReac).LE.0.) THEN
+          !SWRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,1:2+iPhotoReac-1),"         killed          ",&
+          !SpecPhotonXSecInterpolated(iLine,2+iPhotoReac+1:)
+          CYCLE
+        END IF
+        ! Abort if photon energy is not sufficient and the photo reaction has a cross-section greater zero
+        SWRITE (UNIT_stdOut,*) "      iLine      energy-fraction                              %             iPhotoReac(1)        ........"
+        SWRITE (UNIT_stdOut,*) iLine,SpecPhotonXSecInterpolated(iLine,:)
+        SWRITE (UNIT_stdOut,*) "-----------------------------------------"
+        SWRITE (UNIT_stdOut,*) "iLine                                          = ", iLine
+        SWRITE (UNIT_stdOut,*) "iReac                                          = ", iReac
+        SWRITE (UNIT_stdOut,*) "iPhotoReac                                     = ", iPhotoReac
+        SWRITE (UNIT_stdOut,*) "ChemReac%EForm(iReac)                          = ", ChemReac%EForm(iReac)
+        SWRITE (UNIT_stdOut,*) "PhotonEnergy [J]                               = ", SpecPhotonXSecInterpolated(iLine,1)*eV2Joule
+        SWRITE (UNIT_stdOut,*) "PhotonEnergy [eV]                              = ", SpecPhotonXSecInterpolated(iLine,1)
+        SWRITE (UNIT_stdOut,*) "SpecPhotonXSecInterpolated(iLine,2+iPhotoReac) = ", SpecPhotonXSecInterpolated(iLine,2+iPhotoReac)
+        CALL abort(__STAMP__,&
           'Photoionization not possible because the photon energy is too low for this reaction. This is not considered yet.')
+      END IF
     END DO ! iLine = , PhotoIonLastLine
-  END IF
-END DO
+  END IF ! TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon'
+END DO ! iReac = 1, ChemReac%NumOfReact
+
+IF(NbrOfPhotonXsecReactions.GT.0)THEN
+  ! Check how much energy is cut off
+  IF(MPIRoot)THEN
+    LostEnergy(:) = 0.
+    IF(PhotoIonFirstLine.GT.1)THEN
+      DO iLine = 1, PhotoIonFirstLine-1
+        LostEnergy(1) = LostEnergy(1) + SpecPhotonXSecInterpolated(iLine,2)
+      END DO ! iLine = 1, PhotoIonFirstLine-1
+    END IF ! PhotoIonFirstLine.GT.1
+    IF(PhotoIonLastLine.LT.NbrOfPhotonXsecLines)THEN
+      DO iLine = PhotoIonLastLine+1, NbrOfPhotonXsecLines
+        LostEnergy(2) = LostEnergy(2) + SpecPhotonXSecInterpolated(iLine,2)
+      END DO ! iLine = PhotoIonLastLine+1, NbrOfPhotonXsecLines
+    END IF ! PhotoIonLastLine.LT.NbrOfPhotonXsecLines
+    IF(SUM(LostEnergy).GT.0.)THEN
+      WRITE (UNIT_stdOut,'(A,3(F6.2,A))') "Lost energy content in photoionization XSec: ", &
+          LostEnergy(1)*100., "% (high photon wavelength),",&
+          LostEnergy(2)*100., "% (low photon wavelength),",&
+          SUM(LostEnergy)*100., "% (total)"
+      WRITE (UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') "Only considering level ",PhotoIonFirstLine," to ",PhotoIonLastLine, " from 1 to ",&
+          NbrOfPhotonXsecLines," due to the cut-off"
+    END IF ! SUM(LostEnergy).GT.0.
+  END IF ! MPIRoot
+  !write(*,*) "SpecPhotonXSecInterpolated"
+  !DO iLine = 1, NbrOfPhotonXsecLines
+  !!DO iLine = PhotoIonFirstLine, PhotoIonLastLine
+  !  WRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,:)
+  !END DO ! iLine = 1, dims(2)
+  !read*
+END IF ! NbrOfPhotonXsecReactions.GT.0
 
 ! Populate the background reaction arrays and initialize the required partition functions
 IF(DSMC%BackwardReacRate) THEN
@@ -566,7 +620,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(LEN=50)     :: EductPair,EductPairOld
 INTEGER               :: iReac,iPhotoReac
-REAL                  :: dx,dy,TotalEnergyFraction,LostEnergy(2)
+REAL                  :: dx,dy,TotalEnergyFraction
 INTEGER               :: ReadInNumOfReact,dims(2),iLine,location(3)
 !===================================================================================================================================
 ReadInNumOfReact = ChemReac%NumOfReact
@@ -671,32 +725,6 @@ DO iLine = 1, NbrOfPhotonXsecLines
 END DO ! iLine = 1, NbrOfPhotonXsecLines
 IF(PhotoIonLastLine.LT.PhotoIonFirstLine) CALL abort(__STAMP__,'Photoionization XSec read-in failed. No lines interpolated.')
 ALLOCATE(PhotonEnergies(PhotoIonFirstLine:PhotoIonLastLine))
-
-! Check how much energy is cut off
-IF(MPIRoot)THEN
-  LostEnergy(:) = 0.
-  IF(PhotoIonFirstLine.GT.1)THEN
-    DO iLine = 1, PhotoIonFirstLine-1
-      LostEnergy(1) = LostEnergy(1) + SpecPhotonXSecInterpolated(iLine,2)
-    END DO ! iLine = 1, PhotoIonFirstLine-1
-  END IF ! PhotoIonFirstLine.GT.1
-  IF(PhotoIonLastLine.LT.NbrOfPhotonXsecLines)THEN
-    DO iLine = PhotoIonLastLine+1, NbrOfPhotonXsecLines
-      LostEnergy(2) = LostEnergy(2) + SpecPhotonXSecInterpolated(iLine,2)
-    END DO ! iLine = PhotoIonLastLine+1, NbrOfPhotonXsecLines
-  END IF ! PhotoIonLastLine.LT.NbrOfPhotonXsecLines
-  IF(SUM(LostEnergy).GT.0.)THEN
-    WRITE (UNIT_stdOut,'(A,3(F5.1,A))') "Lost energy content in photoionization XSec: ", &
-        LostEnergy(1)/TotalEnergyFraction*100., "% (high photon wavelength),",&
-        LostEnergy(2)/TotalEnergyFraction*100., "% (low photon wavelength),",&
-        SUM(LostEnergy)/TotalEnergyFraction*100., "% (total)"
-  END IF ! SUM(LostEnergy).GT.0.
-END IF ! MPIRoot
-! write(*,*) "SpecPhotonXSecInterpolated"
-! DO iLine = 1, NbrOfPhotonXsecLines
-!   WRITE (*,*) SpecPhotonXSecInterpolated(iLine,:)
-! END DO ! iLine = 1, dims(2)
-! read*
 
 END SUBROUTINE InitPhotoionizationXSec
 
