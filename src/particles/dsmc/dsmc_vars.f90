@@ -212,7 +212,7 @@ INTEGER                             :: NbrOfPhotonXsecLines ! Number of photoion
 INTEGER                             :: PhotoIonFirstLine    ! First energy level (wavelength) for which a cross-section is not zero
 INTEGER                             :: PhotoIonLastLine     ! Last energy level (wavelength) for which a cross-section is not zero
 REAL,ALLOCATABLE                    :: PhotonDistribution(:)! Distribution of photons (calculated from the spectrum)
-INTEGER,ALLOCATABLE                 :: PhotonEnergies(:)    ! Energy spectrum for emission (calculated from the input spectrum)
+INTEGER,ALLOCATABLE                 :: PhotonEnergies(:,:)  ! Energy spectrum for emission (calculated from the input spectrum)
 REAL,ALLOCATABLE                    :: PhotonSpectrum(:,:)  ! Photon energy spectrum
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: energy fraction (sum equals unity)

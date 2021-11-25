@@ -436,9 +436,17 @@ DO iReac = 1, ChemReac%NumOfReact
         ! Check if this photo reaction has a cross-section unequal zero
         ! If it is zero, this reaction would never happen anyway, therefore ignore it
         IF(SpecPhotonXSecInterpolated(iLine,2+iPhotoReac).LE.0.) THEN
-          !SWRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,1:2+iPhotoReac-1),"         killed          ",&
-          !SpecPhotonXSecInterpolated(iLine,2+iPhotoReac+1:)
+          !IF(iPhotoReac.GT.1)THEN
+          !  SWRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,             1:2+iPhotoReac-1),"         killed          ",&
+          !                     SpecPhotonXSecInterpolated(iLine,2+iPhotoReac+1:              )
+          !ELSE
+          !  SWRITE (*,*) iLine,"         killed          ",SpecPhotonXSecInterpolated(iLine,2+iPhotoReac+1:)
+          !END IF ! iPhotoReac.GT.1
+      !SWRITE (*,*) "iLine,SpecPhotonXSecInterpolated(iLine,:) =", iLine,SpecPhotonXSecInterpolated(iLine,:)
           CYCLE
+        ELSE
+          SWRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,1:2+iPhotoReac-1),"      requires fix       ",&
+          SpecPhotonXSecInterpolated(iLine,2+iPhotoReac+1:)
         END IF
         ! Abort if photon energy is not sufficient and the photo reaction has a cross-section greater zero
         SWRITE (UNIT_stdOut,*) "      iLine      energy-fraction                              %             iPhotoReac(1)        ........"
@@ -457,6 +465,8 @@ DO iReac = 1, ChemReac%NumOfReact
     END DO ! iLine = , PhotoIonLastLine
   END IF ! TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon'
 END DO ! iReac = 1, ChemReac%NumOfReact
+
+!PhotoIonFirstLine = 9
 
 IF(NbrOfPhotonXsecReactions.GT.0)THEN
   ! Check how much energy is cut off
@@ -481,12 +491,12 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
           NbrOfPhotonXsecLines," due to the cut-off"
     END IF ! SUM(LostEnergy).GT.0.
   END IF ! MPIRoot
-  !write(*,*) "SpecPhotonXSecInterpolated"
+  !SWRITE(*,*) "SpecPhotonXSecInterpolated"
   !DO iLine = 1, NbrOfPhotonXsecLines
   !!DO iLine = PhotoIonFirstLine, PhotoIonLastLine
-  !  WRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,:)
+  !  SWRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,:)
   !END DO ! iLine = 1, dims(2)
-  !read*
+  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 END IF ! NbrOfPhotonXsecReactions.GT.0
 
 ! Populate the background reaction arrays and initialize the required partition functions
@@ -632,9 +642,9 @@ iPhotoReac = 0
 DO iReac = 1, ReadInNumOfReact
   IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIonXSec')THEN
     ! Create mappings
-    iPhotoReac = iPhotoReac + 1
+    iPhotoReac                  = iPhotoReac + 1
     PhotoReacToReac(iPhotoReac) = iReac
-    ReacToPhotoReac(iReac) = iPhotoReac
+    ReacToPhotoReac(iReac)      = iPhotoReac
     EductPair = TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)//'-photon'
     IF(iPhotoReac.GT.1)THEN
       IF(TRIM(EductPair).NE.TRIM(EductPairOld)) CALL abort(__STAMP__,'Currently only one photo reaction is implemented')
@@ -723,7 +733,7 @@ DO iLine = 1, NbrOfPhotonXsecLines
   END IF ! SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3).GT.0.
 END DO ! iLine = 1, NbrOfPhotonXsecLines
 IF(PhotoIonLastLine.LT.PhotoIonFirstLine) CALL abort(__STAMP__,'Photoionization XSec read-in failed. No lines interpolated.')
-ALLOCATE(PhotonEnergies(PhotoIonFirstLine:PhotoIonLastLine))
+ALLOCATE(PhotonEnergies(PhotoIonFirstLine:PhotoIonLastLine,1+NbrOfPhotonXsecReactions))
 
 END SUBROUTINE InitPhotoionizationXSec
 

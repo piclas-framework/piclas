@@ -1476,7 +1476,7 @@ END DO
 END SUBROUTINE CalcPhotoIonizationNumber
 
 
-SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, iInit, InitSpec)
+SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, iInit, InitSpec, iLineOpt)
 !===================================================================================================================================
 !> Routine performing the photo-ionization reaction: initializing the heavy species at the background gas temperature (first
 !> reactant) and distributing the remaining collision energy onto the electrons
@@ -1504,14 +1504,15 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: iPair, iReac, iInit, InitSpec
+INTEGER, INTENT(IN), OPTIONAL :: iLineOpt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iSpec, iProd, NumProd,iLine,iPhotoReac
+INTEGER                       :: iPart, iSpec, iProd, NumProd,iPhotoReac
 INTEGER                       :: ReactInx(1:4), EductReac(1:3), ProductReac(1:4)
 REAL                          :: Weight(1:4), SumWeightProd, Mass_Electron, CRela2_Electron, RandVal, NumElec
-REAL                          :: VeloCOM(1:3), Temp_Trans, Temp_Rot, Temp_Vib, Temp_Elec,EForm,PhotonEnergy
+REAL                          :: VeloCOM(1:3), Temp_Trans, Temp_Rot, Temp_Vib, Temp_Elec,EForm
 REAL                          :: FracMassCent1, FracMassCent2, MassRed, cRelaNew(1:3)
 LOGICAL                       :: IonizationReaction
 !===================================================================================================================================
@@ -1617,26 +1618,18 @@ END IF
 
 ! Set the formation energy
 IF(NbrOfPhotonXsecReactions.GT.0)THEN
-  ! Get random photon energy of line that is occupied
-  DO
-    ! Get 1st random number
-    CALL RANDOM_NUMBER(RandVal)
-    ! Get random wavelength (from line spectrum)
-    iLine = NINT(RandVal*REAL(PhotoIonLastLine-PhotoIonFirstLine))+PhotoIonFirstLine
-    IF(PhotonEnergies(iLine).GT.0)THEN
-      ! Check if iReac is allowed for the selected iLine
-      iPhotoReac = ReacToPhotoReac(iReac)
-      IF(SpecPhotonXSecInterpolated(iLine,iPhotoReac).LE.0.) CYCLE
-      ! Remove one photon from line
-      PhotonEnergies(iLine) = PhotonEnergies(iLine) - 1
-      ! Set photon energy
-      PhotonEnergy = SpecPhotonXSecInterpolated(iLine,1)*eV2Joule
-      ! Exit the loop
-      EXIT
-    END IF ! PhotonEnergies(iLine).GT.0
-  END DO
+  IF(SpecPhotonXSecInterpolated(iLineOpt,2+ReacToPhotoReac(iReac)).LE.0)THEN
+    IPWRITE(UNIT_StdOut,'(I6,3(A,I3))') " (sigma=0) iLine =",iLineOpt," iPhotoReac =",ReacToPhotoReac(iReac)," iReac =",iReac
+    CALL abort(__STAMP__,'Cross-section for this reaction is zero')
+  END IF
   ! Add photon energy to the formation energy of the reaction
-  EForm = ChemReac%EForm(iReac) + PhotonEnergy
+  EForm = ChemReac%EForm(iReac) + SpecPhotonXSecInterpolated(iLineOpt,1)*eV2Joule
+  IF(EForm.LE.0)THEN
+    IPWRITE(UNIT_StdOut,'(I6,3(A,I3))') " (EForm=0) iLine =",iLineOpt," iPhotoReac =",ReacToPhotoReac(iReac)," iReac =",iReac
+    IPWRITE(UNIT_StdOut,*) "Photon energy [J] =", SpecPhotonXSecInterpolated(iLineOpt,1)*eV2Joule ,&
+        "and in [eV]",SpecPhotonXSecInterpolated(iLineOpt,1)
+    CALL abort(__STAMP__,'Energy of formation for photoionization is zero or negative: ',RealInfoOpt=EForm)
+  END IF
 ELSE
   EForm = ChemReac%EForm(iReac)
 END IF ! NbrOfPhotonXsecReactions.GT.0
@@ -1697,6 +1690,16 @@ DO iProd = 1, NumProd
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - 0.5 * Species(iSpec)%MassIC * DOTPRODUCT(PartState(4:6,iPart)) * Weight(iProd)&
                                               - (PartStateIntEn(1,iPart) + PartStateIntEn(2,iPart))*Weight(iProd)
   IF (DSMC%ElectronicModel.GT.0) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart)*Weight(iProd)
+  IF(Coll_pData(iPair)%Ec.LE.0)THEN
+    IF(NbrOfPhotonXsecReactions.GT.0)THEN
+      IPWRITE(UNIT_StdOut,'(I6,3(A,I3))') " (%Ec=0)   iLine =",iLineOpt," iPhotoReac =",ReacToPhotoReac(iReac)," iReac =",iReac
+      IPWRITE(UNIT_StdOut,'(I6,A,E24.12,A,E15.2)') " Photon energy [J] =", SpecPhotonXSecInterpolated(iLineOpt,1)*eV2Joule ,&
+          "and in [eV]",SpecPhotonXSecInterpolated(iLineOpt,1)
+    ELSE
+      IPWRITE(UNIT_StdOut,*) "iReac =", iReac
+    END IF ! NbrOfPhotonXsecReactions.GT.0
+    CALL abort(__STAMP__,'Coll_pData(iPair)%Ec is zero or negative: ',RealInfoOpt=Coll_pData(iPair)%Ec)
+  END IF
 END DO
 !--------------------------------------------------------------------------------------------------!
 ! Calculation of new electron velocities OR distribute remaining energy onto the heavy species (currently only for 2 products)
@@ -1711,7 +1714,7 @@ IF(IonizationReaction) THEN
       PartState(4:6,iPart) = VeloCOM(1:3) + SQRT(CRela2_Electron) * DiceUnitVector()
       ! Change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
       ASSOCIATE( b1 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector1IC(1:3)) ,&
-                b2 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector2IC(1:3)) )
+                 b2 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector2IC(1:3)) )
         ! Get random vector b3 in b1-b2-plane
         CALL RANDOM_NUMBER(RandVal)
         PartState(4:6,iPart) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart),RandVal)

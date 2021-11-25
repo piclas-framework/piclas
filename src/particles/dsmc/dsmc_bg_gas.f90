@@ -492,9 +492,9 @@ INTEGER, INTENT(IN)           :: iSpec,iInit,TotalNbrOfReactions
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, NewParticleIndex, bgSpec, NbrOfParticle
 REAL                          :: RandVal,NumTmp,ProbRest
-INTEGER                       :: TotalNbrOfReactionsTmp,iCrossSection,NbrCrossSections,iLine,iPhotoReac
+INTEGER                       :: TotalNbrOfReactionsTmp,iCrossSection,NbrCrossSections,iLine,iPhotoReac,iLineStart,iLineEnd
 INTEGER                       :: NumPhotoIonization(ChemReac%NumOfReact)
-REAL                          :: SumCrossSections
+REAL                          :: SumCrossSections,CrossSection,MaxCrossSection,PhotonEnergy
 !===================================================================================================================================
 NumPhotoIonization = 0
 
@@ -524,7 +524,9 @@ END DO ! iReac = 1, ChemReac%NumOfReact
 
 !> 1.) Compute the number of photoionization events in the local domain of each proc
 IF(NbrOfPhotonXsecReactions.GT.0)THEN
-  PhotonEnergies = 0 ! Nullify
+  iLineStart     = HUGE(1) ! Hugeify
+  iLineEnd       = 0       ! Nullify
+  PhotonEnergies = 0       ! Nullify
   ! Loop until all reactions have been matched with a specific wavelength
   DO WHILE(TotalNbrOfReactionsTmp.GT.0)
     ! 1.1) Select a wave length (or corresponding photon energy)
@@ -538,7 +540,7 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
     ! Probe if the line is accepted by comparing against the energy fraction (maximum is 1.)
     IF(RandVal.GT.SpecPhotonXSecInterpolated(iLine,2)/MAXVAL(SpecPhotonXSecInterpolated(:,2))) CYCLE
     ! Store photon energy for later chemical reaction
-    PhotonEnergies(iLine) = PhotonEnergies(iLine) + 1
+    PhotonEnergies(iLine,1) = PhotonEnergies(iLine,1) + 1
 
     ! 1.2) Select a cross-section
     PDF: DO
@@ -549,13 +551,22 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
 
       ! Get 4th random number
       CALL RANDOM_NUMBER(RandVal)
+      ! Check if cross-section is > 0.
+      CrossSection = SpecPhotonXSecInterpolated(iLine,2+iPhotoReac)
+      IF(SpecPhotonXSecInterpolated(iLine,2+iPhotoReac).LE.0.) CYCLE PDF
       ! Probe if the line is accepted by comparing against the energy fraction (maximum is 1.)
-      IF(RandVal.LE.SpecPhotonXSecInterpolated(iLine,2+iPhotoReac)&
-            /MAXVAL(SpecPhotonXSecInterpolated(:,2+1:2+NbrOfPhotonXsecReactions))) EXIT PDF
+      MaxCrossSection = MAXVAL(SpecPhotonXSecInterpolated(:,3:))
+      IF(RandVal.LE.CrossSection/MaxCrossSection) EXIT PDF
     END DO PDF
+    ! Store photon reaction for later chemical reaction
+    PhotonEnergies(iLine,1+iPhotoReac) = PhotonEnergies(iLine,1+iPhotoReac) + 1
+    iLineStart = MIN(iLineStart,iLine)
+    iLineEnd   = MAX(iLineEnd,iLine)
+    !WRITE (*,*) "iLineStart,iLineEnd =", iLineStart,iLineEnd
 
     ! 1.3) Reaction and line have been selected
     iReac = PhotoReacToReac(iPhotoReac)
+    !IPWRITE(UNIT_StdOut,'(I6,10X,3(A,I3),A,E24.12)') " iLine =",iLine," iPhotoReac =",iPhotoReac," iReac =",iReac," CrossSection =",CrossSection
     NumPhotoIonization(iReac) = NumPhotoIonization(iReac) + 1
     TotalNbrOfReactionsTmp    = TotalNbrOfReactionsTmp - 1
   END DO ! WHILE(TotalNbrOfReactionsTmp.GT.0)
@@ -671,14 +682,36 @@ IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL Abort(__STAMP__&
 
 !> 4.) Perform the reaction, distribute the collision energy (including photon energy) and emit electrons perpendicular
 !>     to the photon's path
-DO iReac = 1, ChemReac%NumOfReact
-  ! Only treat photoionization reactions
-  IF(.NOT.StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) CYCLE
-  DO iPart = 1, NumPhotoIonization(iReac)
+IF(NbrOfPhotonXsecReactions.GT.0)THEN
+  DO iPart = 1, SUM(NumPhotoIonization(:))
     iPair = iPair + 1
-    CALL PhotoIonization_InsertProducts(iPair, iReac, iInit, iSpec)
+    ! Loop over all randomized lines (found above)
+    DO iLine = iLineStart, iLineEnd
+      ! Check if level is occupied
+      DO WHILE(PhotonEnergies(iLine,1).GT.0)
+        ! Reduce the level counter by one
+        PhotonEnergies(iLine,1) = PhotonEnergies(iLine,1) - 1
+        ! Check if cross-section is occupied
+        DO iPhotoReac = 1, NbrOfPhotonXsecReactions
+          IF(PhotonEnergies(iLine,1+iPhotoReac).GT.0)THEN
+            ! Reduce cross-section by one
+    !IPWRITE(UNIT_StdOut,'(I6,3(A,I3))') "  calling  iLine =",iLine," iPhotoReac =",iPhotoReac," iReac =",PhotoReacToReac(iPhotoReac)
+            PhotonEnergies(iLine,1+iPhotoReac) = PhotonEnergies(iLine,1+iPhotoReac) - 1
+            CALL PhotoIonization_InsertProducts(iPair, PhotoReacToReac(iPhotoReac), iInit, iSpec, iLineOpt=iLine)
+          END IF ! PhotonEnergies(iLine,1+iPhotoReac).GT.0
+        END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions
+      END DO
+    END DO ! iLine = iLineStart, iLineEnd
   END DO
-END DO
+ELSE
+  DO iReac = 1, ChemReac%NumOfReact
+    IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
+    DO iPart = 1, NumPhotoIonization(iReac)
+      iPair = iPair + 1
+      CALL PhotoIonization_InsertProducts(iPair, iReac, iInit, iSpec)
+    END DO
+  END DO
+END IF ! NbrOfPhotonXsecReactions.GT.0
 
 ! Advance particle vector length and the current next free position with newly created particles
 PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
