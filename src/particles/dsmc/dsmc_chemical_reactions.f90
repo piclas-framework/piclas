@@ -1478,13 +1478,13 @@ END SUBROUTINE CalcPhotoIonizationNumber
 
 SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, iInit, InitSpec)
 !===================================================================================================================================
-!> Routine performing the photo-ionization reaction: initializing the heave species at the background gas temperature (first
+!> Routine performing the photo-ionization reaction: initializing the heavy species at the background gas temperature (first
 !> reactant) and distributing the remaining collision energy onto the electrons
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: eV2Joule
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfFormedParticles, CollInf, DSMC_RHS
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi,PhotonEnergies,PhotoIonLastLine,PhotoIonFirstLine
 USE MOD_DSMC_Vars               ,ONLY: ReacToPhotoReac
@@ -1498,6 +1498,7 @@ USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
+USE MOD_DSMC_CollisVec          ,ONLY: PostCollVec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1511,6 +1512,8 @@ INTEGER                       :: iPart, iSpec, iProd, NumProd,iLine,iPhotoReac
 INTEGER                       :: ReactInx(1:4), EductReac(1:3), ProductReac(1:4)
 REAL                          :: Weight(1:4), SumWeightProd, Mass_Electron, CRela2_Electron, RandVal, NumElec
 REAL                          :: VeloCOM(1:3), Temp_Trans, Temp_Rot, Temp_Vib, Temp_Elec,EForm,PhotonEnergy
+REAL                          :: FracMassCent1, FracMassCent2, MassRed, cRelaNew(1:3)
+LOGICAL                       :: IonizationReaction
 !===================================================================================================================================
 
 EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
@@ -1664,12 +1667,14 @@ IF(DSMC%ElectronicModel.GT.0) Temp_Elec = SpecDSMC(EductReac(1))%Init(1)%TElec
 ! Insert the heavy species at the properties of the background gas
 !-------------------------------------------------------------------------------------------------------------------------------
 NumElec = 0.
+IonizationReaction = .FALSE.
 DO iProd = 1, NumProd
   iPart = ReactInx(iProd)
   iSpec = ProductReac(iProd)
   IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
     NumElec = NumElec + Weight(iProd)
     Mass_Electron = Species(iSpec)%MassIC
+    IonizationReaction = .TRUE.
     CYCLE
   END IF
   ! Set the internal energies
@@ -1694,30 +1699,54 @@ DO iProd = 1, NumProd
   IF (DSMC%ElectronicModel.GT.0) Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart)*Weight(iProd)
 END DO
 !--------------------------------------------------------------------------------------------------!
-! Calculation of new electron velocities 
+! Calculation of new electron velocities OR distribute remaining energy onto the heavy species (currently only for 2 products)
 !--------------------------------------------------------------------------------------------------!
-CRela2_Electron = NumElec * Mass_Electron
-CRela2_Electron = 2. * Coll_pData(iPair)%Ec / CRela2_Electron
-DO iProd = 1, NumProd
-  iPart = ReactInx(iProd)
-  iSpec = ProductReac(iProd)
-  IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
-    PartState(4:6,iPart) = VeloCOM(1:3) + SQRT(CRela2_Electron) * DiceUnitVector()
-    ! Change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
-    ASSOCIATE( b1 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector1IC(1:3)) ,&
-               b2 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector2IC(1:3)) )
-      ! Get random vector b3 in b1-b2-plane
-      CALL RANDOM_NUMBER(RandVal)
-      PartState(4:6,iPart) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart),RandVal)
-      ! Rotate the resulting vector in the b3-NormalIC-plane
-      PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),Species(InitSpec)%Init(iInit)%NormalIC)
-      ! Store the particle information in PartStateBoundary.h5
-      IF(DoBoundaryParticleOutputHDF5) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
-                                        UNITVECTOR(PartState(4:6,iPart)),Species(InitSpec)%Init(iInit)%NormalIC,iBC=-1,&
-                                        mode=2,usevMPF_optIN=.FALSE.)
-    END ASSOCIATE
+IF(IonizationReaction) THEN
+  CRela2_Electron = NumElec * Mass_Electron
+  CRela2_Electron = 2. * Coll_pData(iPair)%Ec / CRela2_Electron
+  DO iProd = 1, NumProd
+    iPart = ReactInx(iProd)
+    iSpec = ProductReac(iProd)
+    IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
+      PartState(4:6,iPart) = VeloCOM(1:3) + SQRT(CRela2_Electron) * DiceUnitVector()
+      ! Change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
+      ASSOCIATE( b1 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector1IC(1:3)) ,&
+                b2 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector2IC(1:3)) )
+        ! Get random vector b3 in b1-b2-plane
+        CALL RANDOM_NUMBER(RandVal)
+        PartState(4:6,iPart) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart),RandVal)
+        ! Rotate the resulting vector in the b3-NormalIC-plane
+        PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),Species(InitSpec)%Init(iInit)%NormalIC)
+        ! Store the particle information in PartStateBoundary.h5
+        IF(DoBoundaryParticleOutputHDF5) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
+                                          UNITVECTOR(PartState(4:6,iPart)),Species(InitSpec)%Init(iInit)%NormalIC,iBC=-1,&
+                                          mode=2,usevMPF_optIN=.FALSE.)
+      END ASSOCIATE
+    END IF
+  END DO
+ELSE
+  IF (RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
+    FracMassCent1 = Species(ProductReac(1))%MassIC *Weight(1) &
+        /(Species(ProductReac(1))%MassIC* Weight(1) + Species(ProductReac(2))%MassIC * Weight(2))
+    FracMassCent2 = Species(ProductReac(2))%MassIC *Weight(2) &
+        /(Species(ProductReac(1))%MassIC* Weight(1) + Species(ProductReac(2))%MassIC * Weight(2))
+    MassRed = Species(ProductReac(1))%MassIC *Weight(1)* Species(ProductReac(2))%MassIC *Weight(2) &
+        / (Species(ProductReac(1))%MassIC*Weight(1) + Species(ProductReac(2))%MassIC *Weight(2))
+  ELSE
+    ! Scattering of (AB)
+    FracMassCent1 = CollInf%FracMassCent(ProductReac(1),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
+    FracMassCent2 = CollInf%FracMassCent(ProductReac(2),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
+    MassRed = CollInf%MassRed(CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
   END IF
-END DO
+
+  Coll_pData(iPair)%cRela2 = 2 * Coll_pData(iPair)%Ec / MassRed
+  cRelaNew(1:3) = PostCollVec(iPair)
+
+  !deltaV particle 1
+  DSMC_RHS(1:3,ReactInx(1)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3) - PartState(4:6,ReactInx(1))
+  !deltaV particle 2
+  DSMC_RHS(1:3,ReactInx(2)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3) - PartState(4:6,ReactInx(2))
+END IF
 
 IF(CalcPartBalance) THEN
   DO iProd = 1, NumProd

@@ -150,9 +150,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iLine,iLine2
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit
+INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit, iLine
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat
 REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants,LostEnergy(2)
