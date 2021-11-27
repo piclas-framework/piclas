@@ -351,7 +351,7 @@ USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
 USE MOD_DSMC_Relaxation       ,ONLY: DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib
 USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_MCC_Vars              ,ONLY: SpecXSec
+USE MOD_MCC_Vars              ,ONLY: UseMCC, SpecXSec
 USE MOD_MCC_XSec              ,ONLY: XSec_CalcElecRelaxProb
 #if (PP_TimeDiscMethod==42)
 USE MOD_MCC_Vars              ,ONLY: XSec_Relaxation
@@ -452,30 +452,32 @@ REAL                          :: Weight1, Weight2
         DoElec2 = .TRUE.
       END SELECT
     END IF
-    IF(SpecXSec(iCase)%UseElecXSec) THEN
-      IF(SpecXSec(iCase)%UseCollXSec) THEN
-        ! Interpolate the electronic cross-section at the current collision energy
-        CALL XSec_CalcElecRelaxProb(iPair)
-        ProbSum = SpecXSec(iCase)%CrossSection
-      ELSE
-        ! Reaction probabilities were saved and added to the total collision probability
-        ProbSum = Coll_pData(iPair)%Prob
-      END IF
-      ProbElec = 0.
-      ! Decide which electronic excitation should occur
-      CALL RANDOM_NUMBER(iRan)
-      DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
-        ProbElec = ProbElec + SpecXSec(iCase)%ElecLevel(iLevel)%Prob
-        IF((ProbElec/ProbSum).GT.iRan) THEN
-          IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
-            DoElec1 = .TRUE.
-          ELSE
-            DoElec2 = .TRUE.
-          END IF
-          ElecLevelRelax = iLevel
-          EXIT
+    IF(UseMCC) THEN
+      IF(SpecXSec(iCase)%UseElecXSec) THEN
+        IF(SpecXSec(iCase)%UseCollXSec) THEN
+          ! Interpolate the electronic cross-section at the current collision energy
+          CALL XSec_CalcElecRelaxProb(iPair)
+          ProbSum = SpecXSec(iCase)%CrossSection
+        ELSE
+          ! Reaction probabilities were saved and added to the total collision probability
+          ProbSum = Coll_pData(iPair)%Prob
         END IF
-      END DO
+        ProbElec = 0.
+        ! Decide which electronic excitation should occur
+        CALL RANDOM_NUMBER(iRan)
+        DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+          ProbElec = ProbElec + SpecXSec(iCase)%ElecLevel(iLevel)%Prob
+          IF((ProbElec/ProbSum).GT.iRan) THEN
+            IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
+              DoElec1 = .TRUE.
+            ELSE
+              DoElec2 = .TRUE.
+            END IF
+            ElecLevelRelax = iLevel
+            EXIT
+          END IF
+        END DO
+      END IF
     END IF
 #if (PP_TimeDiscMethod==42)
     IF(CalcRelaxProb) THEN

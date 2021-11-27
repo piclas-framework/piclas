@@ -91,6 +91,7 @@ END IF
 ALLOCATE(SpecXSec(CollInf%NumCase))
 SpecXSec(:)%UseCollXSec = .FALSE.
 SpecXSec(:)%UseVibXSec = .FALSE.
+SpecXSec(:)%UseElecXSec = .FALSE.
 SpecXSec(:)%CollXSec_Effective = .FALSE.
 SpecXSec(:)%SpeciesToRelax = 0
 TotalProb = 0.
