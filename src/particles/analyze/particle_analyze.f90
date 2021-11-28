@@ -1063,7 +1063,7 @@ INTEGER             :: iRegions
               IF(SpecXSec(iCase)%UseElecXSec) THEN
                 DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A,F5.2)',ADVANCE='NO') OutputCounter,'-ElecRelaxRate', iSpec, '+', jSpec, '-', &
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A,F0.2)',ADVANCE='NO') OutputCounter,'-ElecRelaxRate', iSpec, '+', jSpec, '-', &
                     SpecXSec(iCase)%ElecLevel(iLevel)%Threshold/ElementaryCharge
                   OutputCounter = OutputCounter + 1
                 END DO
@@ -1297,7 +1297,9 @@ END IF
     IF(CalcCollRates) CALL CollRates(CRate)
     IF(CalcRelaxProb) THEN
       CALL CalcRelaxRates(NumSpecTmp,VibRelaxRate)
-      IF(ANY(SpecXSec(:)%UseElecXSec)) CALL CalcRelaxRatesElec(ElecRelaxRate)
+      IF(DSMC%ElectronicModel.EQ.3) THEN
+        IF(ANY(SpecXSec(:)%UseElecXSec)) CALL CalcRelaxRatesElec(ElecRelaxRate)
+      END IF
     END IF
     IF(CalcReacRates) THEN
       IF (CollisMode.EQ.3) CALL ReacRates(NumSpecTmp,RRate)
@@ -1474,16 +1476,18 @@ IF (PartMPI%MPIROOT) THEN
           END DO
         END DO
       END IF
-      DO iSpec = 1, nSpecies
-        DO jSpec = iSpec, nSpecies
-          iCase = CollInf%Coll_Case(iSpec,jSpec)
-          IF(SpecXSec(iCase)%UseElecXSec) THEN
-            DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
-              WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ElecRelaxRate(iCase,iLevel)
-            END DO
-          END IF
+      IF(DSMC%ElectronicModel.EQ.3) THEN
+        DO iSpec = 1, nSpecies
+          DO jSpec = iSpec, nSpecies
+            iCase = CollInf%Coll_Case(iSpec,jSpec)
+            IF(SpecXSec(iCase)%UseElecXSec) THEN
+              DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+                WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ElecRelaxRate(iCase,iLevel)
+              END DO
+            END IF
+          END DO
         END DO
-      END DO
+      END IF
     END IF
     IF(CalcReacRates) THEN
       DO iCase=1, ChemReac%NumOfReact

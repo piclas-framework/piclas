@@ -343,6 +343,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals               ,ONLY: abort
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC_RHS, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, VarTimeStep, PEM, usevMPF
@@ -459,7 +460,8 @@ REAL                          :: Weight1, Weight2
           CALL XSec_CalcElecRelaxProb(iPair)
           ProbSum = SpecXSec(iCase)%CrossSection
         ELSE
-          ! Reaction probabilities were saved and added to the total collision probability
+          ! Probabilities were saved and added to the total collision probability
+          CALL abort(__STAMP__,'Electronic cross-sections only implemented with collision cross-sections!')
           ProbSum = Coll_pData(iPair)%Prob
         END IF
         ProbElec = 0.

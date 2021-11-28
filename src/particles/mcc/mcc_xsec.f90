@@ -736,11 +736,11 @@ DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
 END DO
 
 IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
-  IF(SpecDSMC(iSpec_p1)%UseVibXSec) THEN
-    targetSpec = iSpec_p2; SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
-  ELSE
-    targetSpec = iSpec_p1; SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
-  END IF
+  ! IF(SpecDSMC(iSpec_p1)%UseVibXSec) THEN
+  !   targetSpec = iSpec_p2; SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
+  ! ELSE
+  !   targetSpec = iSpec_p1; SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
+  ! END IF
   DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
     IF(CollEnergy.GT.SpecXSec(iCase)%ElecLevel(iLevel)%Threshold) THEN
       ! Calculate the total vibrational relaxation probability
