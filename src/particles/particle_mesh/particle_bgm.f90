@@ -110,7 +110,6 @@ USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
 #endif /*USE_HDG*/
 #if USE_MPI
 USE MOD_MPI_Shared_Vars
-USE MOD_MPI_vars,  ONLY:offsetElemMPI
 USE MOD_MPI_Shared
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
@@ -1346,7 +1345,7 @@ SUBROUTINE CheckPeriodicSides(EnlargeBGM)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: BoundaryType,nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_MPI_Shared_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
@@ -1361,7 +1360,6 @@ LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM i
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                        :: hasPeriodic
 INTEGER                        :: iElem,firstElem,lastElem,iDir,jDir,kDir
 INTEGER                        :: iLocElem
 INTEGER                        :: iPeriodicVector,jPeriodicVector
@@ -1533,8 +1531,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_MPI_Shared_Vars
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems,GEO
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems,GEO
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 ! IMPLICIT VARIABLE HANDLING
@@ -1546,12 +1543,9 @@ LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM i
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                        :: hasPeriodic
 INTEGER                        :: iElem,firstElem,lastElem
-INTEGER                        :: iSide,firstSide,lastSide
 REAL                           :: RotBoundsOfElemCenter(3)
 REAL                           :: BoundsOfElemCenter(1:4),LocalBoundsOfElemCenter(1:4)
-REAL,ALLOCATABLE               :: PeriodicSideAngle(:)
 INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
 INTEGER                        :: iPeriodicDir,iLocElem
 !===================================================================================================================================
