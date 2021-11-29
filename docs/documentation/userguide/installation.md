@@ -67,6 +67,8 @@ name: tab:installation_prereqs_centos
 |  exuberant-ctags |       o      |
 |   numactl-devel  |       x      |
 |  rdma-core-devel |       o      |
+|     binutils     |       x      |
+|        tar       |       x      |
 ```
 
 On some systems it may be necessary to increase the size of the stack (part of the memory used to store information about active

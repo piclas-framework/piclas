@@ -762,11 +762,6 @@ REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2
 #if (PP_TimeDiscMethod==42)
 INTEGER             :: jSpec, iCase
 #endif
-#if USE_MPI
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
-REAL                :: sumMeanCollProb
-#endif
-#endif /*USE_MPI*/
 REAL, ALLOCATABLE   :: CRate(:), RRate(:), VibRelaxRate(:)
 #if (PP_TimeDiscMethod ==42)
 #ifdef CODE_ANALYZE
@@ -1010,8 +1005,7 @@ INTEGER             :: iRegions
             END DO
           END IF
         END IF
-        IF(DSMC%CalcQualityFactors) THEN ! calculates flow-field variable maximum collision probability, time-averaged mean
-                                         ! collision probability, mean collision separation distance over mean free path
+        IF(DSMC%CalcQualityFactors) THEN ! calculates maximum collision probability, mean collision probability & mean free path
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-Pmean'
           OutputCounter = OutputCounter + 1
@@ -1165,7 +1159,8 @@ INTEGER             :: iRegions
     END IF
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
-! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell)
+! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell reservoirs,
+! in case of more cells, the value of the last element of the root is shown)
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
   MaxCollProb = 0.0
   MeanCollProb = 0.0
@@ -1218,33 +1213,6 @@ INTEGER             :: iRegions
       CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl       ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PCouplAverage,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
-    IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
-      ! Determining the maximal (MPI_MAX) and mean (MPI_SUM) collision probabilities
-      CALL MPI_REDUCE(MPI_IN_PLACE,MaxCollProb    ,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
-      CALL MPI_REDUCE(MeanCollProb,sumMeanCollProb,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-      MeanCollProb = sumMeanCollProb / REAL(PartMPI%nProcs)
-    END IF
-#endif
-    IF(FPInitDone) THEN
-      IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactor       ,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MeanRelaxFactorCounter,1, MPI_INTEGER         , MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(MPI_IN_PLACE,FP_PrandtlNumber         ,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        ! Determining the maximal (MPI_MAX) relaxation factors
-        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MaxRelaxFactor   ,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(MPI_IN_PLACE,FP_MaxRotRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
-      END IF
-    END IF
-    IF(BGKInitDone) THEN
-      IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MeanRelaxFactor       ,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MeanRelaxFactorCounter,1, MPI_INTEGER         , MPI_SUM,0, PartMPI%COMM, IERROR)
-        ! Determining the maximal (MPI_MAX) relaxation factors
-        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MaxRelaxFactor   ,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(MPI_IN_PLACE,BGK_MaxRotRelaxFactor,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
-      END IF
-    END IF
   ELSE ! no Root
     IF (CalcPartBalance)THEN
       CALL MPI_REDUCE(nPartIn    ,0,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
@@ -1255,29 +1223,6 @@ INTEGER             :: iRegions
     IF(CalcCoupledPower) THEN
       CALL MPI_REDUCE(PCoupl       ,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PCouplAverage,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-    END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
-    IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
-      CALL MPI_REDUCE(MaxCollProb ,0,1,MPI_DOUBLE_PRECISION,MPI_MAX,0, PartMPI%COMM, IERROR)
-      CALL MPI_REDUCE(MeanCollProb,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0, PartMPI%COMM, IERROR)
-    END IF
-#endif
-    IF(FPInitDone) THEN
-      IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
-        CALL MPI_REDUCE(FP_MeanRelaxFactor       ,0,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(FP_MeanRelaxFactorCounter,0,1, MPI_INTEGER         , MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(FP_PrandtlNumber         ,0,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(FP_MaxRelaxFactor        ,0,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(FP_MaxRotRelaxFactor     ,0,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
-      END IF
-    END IF
-    IF(BGKInitDone) THEN
-      IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
-        CALL MPI_REDUCE(BGK_MeanRelaxFactor       ,0,1, MPI_DOUBLE_PRECISION, MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(BGK_MeanRelaxFactorCounter,0,1, MPI_INTEGER         , MPI_SUM,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(BGK_MaxRelaxFactor        ,0,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
-        CALL MPI_REDUCE(BGK_MaxRotRelaxFactor     ,0,1, MPI_DOUBLE_PRECISION, MPI_MAX,0, PartMPI%COMM, IERROR)
-      END IF
     END IF
   END IF
 #endif /*USE_MPI*/
@@ -1292,6 +1237,7 @@ IF(PartMPI%MPIRoot) THEN
       PartEkinOut(nSpecies+1) = SUM(PartEkinOut(1:nSpecies))
     END IF
   END IF
+  ! BGK/FP quality factors: only for one cell reservoirs, in case of more cells, the value of the last element of the root is shown
   IF(FPInitDone) THEN
     IF((iter.GT.0).AND.(DSMC%CalcQualityFactors)) THEN
       IF(FP_MeanRelaxFactorCounter.GT.0) THEN
