@@ -52,7 +52,7 @@ USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
 USE MOD_Particle_Vars             ,ONLY: UseCircularInflow
 USE MOD_Dielectric_Vars           ,ONLY: DoDielectricSurfaceCharge
-USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
+USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive, RadialWeighting
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeCount, SurfAnalyzeNumOfAds, SurfAnalyzeNumOfDes
 USE MOD_SurfaceModel_Tools        ,ONLY: SurfaceModel_ParticleEmission
 USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
@@ -60,6 +60,7 @@ USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
 USE MOD_part_operations           ,ONLY: RemoveParticle
+USE MOD_part_tools                ,ONLY: CalcRadWeightMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -85,6 +86,8 @@ LOGICAL            :: SpecularReflectionOnly,DoSample
 REAL               :: ChargeImpact,PartPosImpact(1:3) !< Charge and position of impact of bombarding particle
 REAL               :: ChargeRefl                      !< Charge of reflected particle
 REAL               :: MPF                             !< macro-particle factor
+REAL               :: ChargeHole                      !< Charge of SEE electrons holes
+INTEGER            :: i
 !===================================================================================================================================
 iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 
@@ -173,6 +176,25 @@ CASE (5,6,7,8)
   ! Emit the secondary electrons
   IF (ProductSpec(2).GT.0) THEN
     CALL SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobalElemID)
+    ! Deposit opposite charge of SEE on node
+    IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN
+      ! Get MPF
+      IF (usevMPF) THEN
+        IF (RadialWeighting%DoRadialWeighting) THEN
+          MPF = CalcRadWeightMPF(PartPosImpact(2),ProductSpec(2))
+        ELSE
+          MPF = Species(ProductSpec(2))%MacroParticleFactor
+        END IF
+      ELSE
+        MPF = Species(ProductSpec(2))%MacroParticleFactor
+      END IF
+      ! Calculate the opposite charge
+      ChargeHole = -Species(ProductSpec(2))%ChargeIC*MPF
+      ! Deposit the charge(s)
+      DO i = 1, ProductSpecNbr
+        CALL DepositParticleOnNodes(ChargeHole, PartPosImpact, GlobalElemID)
+      END DO ! i = 1, ProductSpecNbr
+    END IF
   END IF
 CASE DEFAULT
   CALL abort(__STAMP__,'Unknown surface model. PartBound%SurfaceModel(locBCID) = ',IntInfoOpt=PartBound%SurfaceModel(locBCID))
