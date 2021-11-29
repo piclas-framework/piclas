@@ -172,7 +172,11 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
     IF(PP_nVar.NE.nVar_Restart)THEN
       SWRITE(UNIT_StdOut,'(A,I5)')"     PP_nVar =", PP_nVar
       SWRITE(UNIT_StdOut,'(A,I5)')"nVar_Restart =", nVar_Restart
+#if USE_HDG
+      SWRITE(UNIT_StdOut,'(A)')" HDG: Restarting from a different equation system."
+#else
       CALL abort(__STAMP__,'PP_nVar!=nVar_Restart (Number of variables in restart file does no match the compiled equation system).')
+#endif /*USE_HDG*/
     END IF
   END IF
   ! Read in time from restart file

@@ -304,8 +304,7 @@ NbrOfParticle = Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles
 
 IF (chunkSize.GT.0) THEN
   DEALLOCATE(particle_positions, STAT=allocStat)
-  IF (allocStat .NE. 0) &
-    CALL ABORT(__STAMP__,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
+  IF (allocStat .NE. 0) CALL ABORT(__STAMP__,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
 END IF
 
 END SUBROUTINE SetParticlePosition
@@ -318,12 +317,13 @@ SUBROUTINE SetParticleVelocity(FractNbr,iInit,NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst,eV2Kelvin
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_taylorgreenvortex, CalcVelocity_FromWorkFuncSEE
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_gyrotroncircle
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_tools              ,ONLY: BuildTransGaussNums
+USE MOD_SurfaceModel_Vars       ,ONLY: SurfModSEEelectronTempAutoamtic,SurfModSEEelectronTemp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)              :: FractNbr,iInit
@@ -339,11 +339,7 @@ REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3)
 !===================================================================================================================================
 
 IF(NbrOfParticle.LT.1) RETURN
-IF(NbrOfParticle.GT.PDM%maxParticleNumber)THEN
-     CALL abort(&
-__STAMP__&
-,'NbrOfParticle > PDM%maxParticleNumber!')
-END IF
+IF(NbrOfParticle.GT.PDM%maxParticleNumber) CALL abort(__STAMP__,'NbrOfParticle > PDM%maxParticleNumber!')
 
 velocityDistribution=Species(FractNbr)%Init(iInit)%velocityDistribution
 VeloIC=Species(FractNbr)%Init(iInit)%VeloIC
@@ -378,6 +374,19 @@ CASE('maxwell_lpn','2D_landmark','2D_landmark_copy','2D_landmark_neutralization'
     IF (PositionNbr.GT.0) THEN
       CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, iInit=iInit)
       PartState(4:6,PositionNbr) = Vec3D(1:3)
+    END IF
+  END DO
+CASE('2D_Liu2010_neutralization','3D_Liu2010_neutralization')
+  IF(.NOT.SurfModSEEelectronTempAutoamtic) CALL abort(__STAMP__,&
+      'Velocity distribution 2D_Liu2010_neutralization requires SurfModSEEelectronTempAutoamtic=T')
+  ! Use the global electron temperature if available
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr.GT.0) THEN
+      CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, Temperature=SurfModSEEelectronTemp*eV2Kelvin)
+      PartState(4:6,PositionNbr) = Vec3D(1:3)
+      ! Mirror the x-velocity component (force all electrons to travel in -x direction)
+      PartState(4,PositionNbr) = -ABS(PartState(4,PositionNbr))
     END IF
   END DO
 CASE('taylorgreenvortex')

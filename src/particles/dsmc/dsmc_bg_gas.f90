@@ -238,21 +238,23 @@ SUBROUTINE BGGas_AssignParticleProperties(SpecID,PartIndex,bggPartIndex,GetVeloc
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState,PartSpecies,PartPosRef, VarTimeStep, usevMPF, PartMPF
-USE MOD_DSMC_Vars               ,ONLY: CollisMode, SpecDSMC
+USE MOD_DSMC_Vars               ,ONLY: CollisMode, SpecDSMC, BGGas
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_Macro_Restart           ,ONLY: CalcVelocity_maxwell_particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER, INTENT(IN)           :: SpecID             !< Species ID
-INTEGER, INTENT(IN)           :: PartIndex          !< ID of simulation particle
-INTEGER, INTENT(IN)           :: bggPartIndex       !< ID of the newly created background gas particle
-LOGICAL, INTENT(IN), OPTIONAL :: GetVelocity_opt        !< Default: T, get a new velocity vector from the background gas properties
-LOGICAL, INTENT(IN), OPTIONAL :: GetInternalEnergy_opt  !< Default: T, get a new energy values from the background gas properties
+INTEGER, INTENT(IN)             :: SpecID             !< Species ID
+INTEGER, INTENT(IN)             :: PartIndex          !< ID of simulation particle
+INTEGER, INTENT(IN)             :: bggPartIndex       !< ID of the newly created background gas particle
+LOGICAL, INTENT(IN), OPTIONAL   :: GetVelocity_opt        !< Default: T, get a new velocity vector from the background gas properties
+LOGICAL, INTENT(IN), OPTIONAL   :: GetInternalEnergy_opt  !< Default: T, get a new energy values from the background gas properties
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-LOGICAL                       :: GetVelocity, GetInternalEnergy
+INTEGER                         :: bggSpec, LocalElemID
+LOGICAL                         :: GetVelocity, GetInternalEnergy
 !===================================================================================================================================
 
 IF(PRESENT(GetVelocity_opt)) THEN
@@ -267,13 +269,25 @@ ELSE
   GetInternalEnergy = .TRUE.
 END IF
 
+! Global element index (Must be before internal energy: BGGas distribution requires the local element ID and uses the background gas particle index to get it)
+PEM%GlobalElemID(bggPartIndex) = PEM%GlobalElemID(PartIndex)
+PEM%LastGlobalElemID(bggPartIndex) = PEM%GlobalElemID(PartIndex)
+LocalElemID = PEM%LocalElemID(PartIndex)
 ! Position
 PartState(1:3,bggPartIndex) = PartState(1:3,PartIndex)
 IF(TrackingMethod.EQ.REFMAPPING) PartPosRef(1:3,bggPartIndex)=PartPosRef(1:3,PartIndex)
 ! Species
 PartSpecies(bggPartIndex) = SpecID
 ! Velocity
-IF(GetVelocity) CALL CalcVelocity_maxwell_lpn(FractNbr=SpecID, Vec3D=PartState(4:6,bggPartIndex), iInit=1)
+IF(GetVelocity) THEN
+  IF(BGGas%UseDistribution) THEN
+    bggSpec = BGGas%MapSpecToBGSpec(SpecID)
+    PartState(4:6,bggPartIndex) = CalcVelocity_maxwell_particle(SpecID,BGGas%Distribution(bggSpec,4:6,LocalElemID)) &
+                                  + BGGas%Distribution(bggSpec,1:3,LocalElemID)
+  ELSE
+    CALL CalcVelocity_maxwell_lpn(FractNbr=SpecID, Vec3D=PartState(4:6,bggPartIndex), iInit=1)
+  END IF
+END IF
 ! Internal energy
 IF(CollisMode.GT.1) THEN
   IF(GetInternalEnergy) THEN
@@ -284,9 +298,6 @@ IF(CollisMode.GT.1) THEN
     END IF
   END IF
 END IF
-! Global element index
-PEM%GlobalElemID(bggPartIndex) = PEM%GlobalElemID(PartIndex)
-PEM%LastGlobalElemID(bggPartIndex) = PEM%GlobalElemID(PartIndex)
 ! Simulation flags
 PDM%ParticleInside(bggPartIndex) = .TRUE.
 PDM%IsNewPart(bggPartIndex)       = .TRUE.

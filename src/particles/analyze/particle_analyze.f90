@@ -137,6 +137,7 @@ USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElec
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp,BRAutomaticElectronRef
 #endif /*USE_HDG*/
+USE MOD_SurfaceModel_Vars     ,ONLY: SurfModSEEelectronTempAutoamtic
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -502,9 +503,7 @@ IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = HUGE(PartAnalyzeStep)
     IF(MOD(NINT((TEnd-RestartTime)/ManualTimeStep,8),PartAnalyzeStep).NE.0) THEN
       SWRITE(UNIT_stdOut,'(A,I0)') 'NINT((TEnd-RestartTime)/ManualTimeStep) = ',NINT((TEnd-RestartTime)/ManualTimeStep,8)
       SWRITE(UNIT_stdOut,'(A,I0)') '                        PartAnalyzeStep = ',PartAnalyzeStep
-      CALL abort(&
-        __STAMP__&
-        ,'Please specify a PartAnalyzeStep, which is a factor of the total number of iterations!')
+      CALL abort(__STAMP__,'Please specify a PartAnalyzeStep, which is a factor of the total number of iterations!')
     END IF
   END IF
 #endif
@@ -535,6 +534,10 @@ END IF
 
 CalcEint = GETLOGICAL('CalcInternalEnergy','.FALSE.')
 CalcTemp = GETLOGICAL('CalcTemp','.FALSE.')
+IF(SurfModSEEelectronTempAutoamtic.AND.(.NOT.CalcTemp))THEN
+  CalcTemp = .TRUE.
+  CALL PrintOption('SurfModSEEelectronTempAutoamtic = T: Activating CalcTemp','INFO',LogOpt=CalcTemp)
+END IF ! SurfModSEEelectronTempAutoamtic
 IF(CalcTemp.OR.CalcEint) DoPartAnalyze = .TRUE.
 IF(CalcEkin) DoPartAnalyze = .TRUE.
 IF(nSpecies.GT.1) THEN
@@ -732,6 +735,8 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,ReacRates
 USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,BRAutomaticElectronRef,RegionElectronRef
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
 #endif /*USE_HDG*/
+USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModSEEelectronTempAutoamtic,SurfModSEEelectronTemp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1112,6 +1117,11 @@ INTEGER             :: iRegions
           END DO
         END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
 #endif /*USE_HDG*/
+        IF(SurfModSEEelectronTempAutoamtic)THEN
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-SEEBulkElectronTemp-[K]'
+          OutputCounter = OutputCounter + 1
+        END IF ! SurfModSEEelectronTempAutoamtic
+        ! Finish the line with new line character
         WRITE(unit_index,'(A)') ''
       END IF
     END IF
@@ -1506,6 +1516,10 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
 #endif /*USE_HDG*/
+    IF(SurfModSEEelectronTempAutoamtic)THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SurfModSEEelectronTemp*eV2Kelvin ! Temperature in Kelvin
+    END IF ! SurfModSEEelectronTempAutoamtic
+    ! Finish the line with new line character
     WRITE(unit_index,'(A)') ''
 #if USE_MPI
   END IF

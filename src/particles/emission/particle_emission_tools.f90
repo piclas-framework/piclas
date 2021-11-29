@@ -38,10 +38,6 @@ INTERFACE SetParticleMPF
   MODULE PROCEDURE SetParticleMPF
 END INTERFACE
 
-INTERFACE CalcVelocity_maxwell_lpn
-  MODULE PROCEDURE CalcVelocity_maxwell_lpn
-END INTERFACE
-
 INTERFACE CalcVelocity_taylorgreenvortex
   MODULE PROCEDURE CalcVelocity_taylorgreenvortex
 END INTERFACE
@@ -336,8 +332,7 @@ REAL,INTENT(OUT)                :: Vec3D(3)
 ! LOCAL VARIABLES
 REAL                            :: RandVal(3), Velo1, Velo2, Velosq, Tx, ty, Tz, v_drift(3)
 !===================================================================================================================================
-IF(PRESENT(iInit).AND.PRESENT(Temperature)) CALL abort(&
-  __STAMP__&
+IF(PRESENT(iInit).AND.PRESENT(Temperature)) CALL abort(__STAMP__&
   ,'CalcVelocity_maxwell_lpn: iInit and Temperature cannot both be input arguments!')
 IF(PRESENT(iInit))THEN
   Tx=Species(FractNbr)%Init(iInit)%MWTemperatureIC
@@ -350,9 +345,7 @@ ELSE IF(PRESENT(Temperature))THEN
   Tz=Temperature
   v_drift=0.0
 ELSE
-  CALL abort(&
-        __STAMP__&
-        ,'CalcVelocity_maxwell_lpn: No iInit or temperature given for species: ', FractNbr)
+  CALL abort(__STAMP__,'CalcVelocity_maxwell_lpn: No iInit or temperature given for species: ', FractNbr)
 END IF
 
 Velosq = 2

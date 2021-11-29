@@ -81,7 +81,7 @@ INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, jSpec, bgSpe
 INTEGER                       :: iCase, SpecPairNumTemp, nPartAmbi, CNElemID, GlobalElemID
 INTEGER                       :: iVib, nVib, iPartSplit, SplitPartNum, SplitRestPart
 INTEGER,ALLOCATABLE           :: iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:), UseSpecPartNum(:)
-REAL                          :: iRan, ProbRest, SpecPairNumReal, MPF, Volume, MPFRatio
+REAL                          :: iRan, ProbRest, SpecPairNumReal, MPF, Volume, MPFRatio, BGGasNumDens
 INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalAmbiDel(:)
 INTEGER, ALLOCATABLE, TARGET  :: iPartIndx_Node(:), iPartIndx_NodeTotalAmbi(:)
 INTEGER, POINTER              :: iPartIndx_NodeTotal(:)
@@ -148,12 +148,15 @@ END DO
 ! 2.) Determine the particle number of the background species and calculate the cell temperature
 DO bgSpec = 1, BGGas%NumberOfSpecies
   iSpec = BGGas%MapBGSpecToSpec(bgSpec)
-  IF(usevMPF) THEN
-    CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(bgSpec)*Volume
-  ELSEIF(BGGas%UseDistribution) THEN
-    CollInf%Coll_SpecPartNum(iSpec) = BGGas%Distribution(bgSpec,7,iElem)*Volume/Species(iSpec)%MacroParticleFactor
+  IF(BGGas%UseDistribution) THEN
+    BGGasNumDens = BGGas%Distribution(bgSpec,7,iElem)
   ELSE
-    CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(bgSpec)*Volume/Species(iSpec)%MacroParticleFactor
+    BGGasNumDens = BGGas%NumberDensity(bgSpec)
+  END IF
+  IF(usevMPF) THEN
+    CollInf%Coll_SpecPartNum(iSpec) = BGGasNumDens*Volume
+  ELSE
+    CollInf%Coll_SpecPartNum(iSpec) = BGGasNumDens*Volume/Species(iSpec)%MacroParticleFactor
   END IF
 END DO
 
