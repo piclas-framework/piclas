@@ -215,7 +215,7 @@ DO iSpec=1,nSpecies
          CALL CloseDataFile()
 
          NeutralizationBalanceGlobal = NeutralizationBalanceTmp(1)
-         NeutralizationBalance       = NeutralizationBalanceGlobal
+         !NeutralizationBalance       = NeutralizationBalanceGlobal
        END IF
 
 ! Only broadcast the information when MPI is used
