@@ -10,8 +10,7 @@ In that case, you can jump directly to the description of the download and insta
 ## Prerequisites
 **PICLas** has been tested on various Linux distributions. This includes Ubuntu 14.04 LTS, 16.04 LTS and 18.04 LTS, 20.04 LTS
 20.10 and 21.04, OpenSUSE 42.1 and CentOS 7.
-For **tested combinations** of prerequisites (HDF5, OpenMPI, CMake etc.) and known problems that may occur, visit
-Chapter {ref}`userguide/appendix:Appendix`.
+For a list of tested library version combinations, see Section {ref}`sec:required-libs`.
 
 The suggested packages in this section can be replaced by self compiled versions. The required packages for the Ubuntu Linux
 distributions are listed in {numref}`tab:installation_prereqs_ubuntu` and for Centos Linux in
@@ -78,9 +77,23 @@ subroutines) in order to execute **PICLas** correctly. This is done using the co
 
 from the command line. For convenience, you can add this line to your `.bashrc`.
 
+(sec:required-libs)=
 ## Required Libraries
+The following list contains the **recommended library combinations** for the Intel and GNU compiler in combination with HDF5, OpenMPI, CMake etc.
 
-For a list of tested library version combinations, see Chapter {ref}`userguide/appendix:Appendix`.
+| PICLas Version |  Compiler |  HDF5  |      MPI      |   CMake  |
+| :------------: |  :------: | :----: | :-----------: | :------: |
+|      2.3.0     | gcc11.2.0 | 1.12.1 | openmpi-4.1.1 |  3.21.3  |
+|      2.0.0     | intel19.1 |  1.10  |    impi2019   |   3.17   |
+
+and the **minimum requirements**
+
+| PICLas Version |  Compiler |  HDF5  |      MPI      |   CMake  |
+| :------------: |  :------: | :----: | :-----------: | :------: |
+|      2.0.0     | intel18.1 |  1.10  |    impi2018   |   3.17   |
+|      1.4.0     |  gnu7.4.0 | 1.10.5 | openmpi-3.1.3 | 3.15.3-d |
+
+A full list of all previously tested combinations is found in Chapter {ref}`userguide/appendix:Appendix`.
 
 ### Installing/setting up GCC
 
