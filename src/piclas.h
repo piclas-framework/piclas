@@ -33,7 +33,7 @@
 #endif
 ! Particle solver
 #ifdef PARTICLES
-#define MPIW8SIZEPART 8
+#define MPIW8SIZEPART 7
 #else
 #define MPIW8SIZEPART 0
 #endif

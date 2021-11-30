@@ -438,23 +438,22 @@ CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER
     'WallTimeSim'       , &
     'Barrier-and-Sync'    &
 #if USE_HDG
-   ,'HDG-SendLambda'    , &
-    'HDG-ReceiveLambda' , &
-    'HDG-Broadcast'     , &
-    'HDG-Allreduce'       &
+   ,'HDG-SendLambda'    , & ! (1)
+    'HDG-ReceiveLambda' , & ! (2)
+    'HDG-Broadcast'     , & ! (3)
+    'HDG-Allreduce'       & ! (4)
 #else
-   ,'DGSEM-Send'    , &
-    'DGSEM-Receive'   &
+   ,'DGSEM-Send'    , &     ! (1)
+    'DGSEM-Receive'   &     ! (2)
 #endif /*USE_HDG*/
 #if defined(PARTICLES)
-   ,'SendNbrOfParticles'  , &
-    'RecvNbrOfParticles'  , &
-    'SendParticles'       , &
-    'RecvParticles'       , &
-    'EmissionParticles'   , &
-    'PIC-depo-Reduce'     , &
-    'PIC-depo-Wait'       , &
-    'PIC-depo-GatherV'      &
+   ,'SendNbrOfParticles'  , & ! (1)
+    'RecvNbrOfParticles'  , & ! (2)
+    'SendParticles'       , & ! (3)
+    'RecvParticles'       , & ! (4)
+    'EmissionParticles'   , & ! (5)
+    'PIC-depo-Reduce'     , & ! (6)
+    'PIC-depo-Wait'         & ! (7)
 #endif /*defined(PARTICLES)*/
     /)
 ! CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNamesProc(nTotalVars)=(/ CHARACTER(LEN=255) :: &
@@ -538,8 +537,7 @@ IF(FILEEXISTS(outfile))THEN
       delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+4),&
       delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+5),&
       delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+7),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+8) &
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+7) &
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
@@ -597,8 +595,7 @@ DO i = 0,nProcessors-1
       delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+4),&
       delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+5),&
       delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+6),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+7),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+8) &
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+7) &
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line

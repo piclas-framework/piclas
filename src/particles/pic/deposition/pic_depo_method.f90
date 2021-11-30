@@ -963,7 +963,7 @@ IF ((stage.EQ.0).OR.(stage.EQ.4)) THEN
     CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
 #if defined(MEASURE_MPI_WAIT)
     CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-    MPIW8TimePart(8) = MPIW8TimePart(8) + REAL(CounterEnd-CounterStart,8)/Rate
+    MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
     IF (myComputeNodeRank.NE.0) THEN
 #if defined(MEASURE_MPI_WAIT)
