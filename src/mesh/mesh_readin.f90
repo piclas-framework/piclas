@@ -208,9 +208,9 @@ USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE!,createSides
 USE MOD_Mesh_Vars            ,ONLY: ElemInfo,SideInfo
 USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
 #if USE_MPI
-USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc!,offsetElemMPI
+USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc,offsetElemMPI
 USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
-USE MOD_MPI_Shared_Vars      ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared_Vars      ,ONLY: MPI_COMM_SHARED,ComputeNodeRootRank,nComputeNodeProcessors
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshBasics
@@ -392,7 +392,7 @@ END DO
 
 ! Get number of compute-node elements (required for simulations with PARTICLES=ON/OFF)
 #if USE_MPI
-CALL MPI_ALLREDUCE(nElems,nComputeNodeElems,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,IERROR)
+nComputeNodeElems = offsetElemMPI(ComputeNodeRootRank+nComputeNodeProcessors) - offsetElemMPI(ComputeNodeRootRank)
 #else
 nComputeNodeElems = nElems
 #endif /*USE_MPI*/

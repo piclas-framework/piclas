@@ -395,6 +395,11 @@ END IF ! meshMode.GT.1
 
 
 IF(CalcMeshInfo)THEN
+#if USE_MPI
+  ALLOCATE(myInvisibleRank(1:nElems))
+  myInvisibleRank=0
+#endif /*USE_MPI*/
+
   CALL AddToElemData(ElementOut,'myRank',IntScalar=myRank)
   !#ifdef PARTICLES
   ALLOCATE(ElemGlobalID(1:nElems))
@@ -1084,6 +1089,7 @@ SDEALLOCATE(VolToSideIJKA)
 MeshInitIsDone = .FALSE.
 SDEALLOCATE(ElemBaryNGeo)
 SDEALLOCATE(ElemGlobalID)
+SDEALLOCATE(myInvisibleRank)
 END SUBROUTINE FinalizeMesh
 
 END MODULE MOD_Mesh
