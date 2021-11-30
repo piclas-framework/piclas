@@ -54,6 +54,9 @@ USE MOD_DSMC_BGGas             ,ONLY: BGGas_PhotoIonization
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_ReadInTools            ,ONLY: PrintOption
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart
+#endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -73,6 +76,10 @@ REAL                             :: RiseFactor, RiseTime,NbrOfPhotons
 INTEGER                          :: InitGroup
 #endif
 REAL                             :: NbrOfReactions,NbrOfParticlesReal
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)                  :: CounterStart,CounterEnd
+REAL(KIND=8)                     :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
 !---  Emission at time step
@@ -316,7 +323,14 @@ DO i=1,nSpecies
 #if USE_MPI
     InitGroup=Species(i)%Init(iInit)%InitCOMM
     IF (PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL .AND. Species(i)%Init(iInit)%sumOfRequestedParticles.GT.0) THEN
+#if defined(MEASURE_MPI_WAIT)
+      CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
       CALL MPI_WAIT(PartMPI%InitGroup(InitGroup)%Request, MPI_STATUS_IGNORE, iError)
+#if defined(MEASURE_MPI_WAIT)
+      CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+      MPIW8TimePart(5) = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
       IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN
 #endif
