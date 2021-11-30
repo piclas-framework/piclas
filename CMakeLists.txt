@@ -145,7 +145,7 @@ ELSE()
         SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -ffat-lto-objects")
       ENDIF()
     ELSE()
-      SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)  # enable IPO globally
+      SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)  # disable IPO for other compilers as not yet tested (might cause problem in combination with Intel & binutils' objcopy)
     ENDIF()
   ENDIF()
 ENDIF()
