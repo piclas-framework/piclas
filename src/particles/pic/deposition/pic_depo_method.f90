@@ -857,19 +857,6 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
       END DO
     END DO
   END IF
-!  ELSE
-!    IF (nSendShapeElems.GT.0) THEN
-!#if defined(MEASURE_MPI_WAIT)
-!      CALL SYSTEM_CLOCK(count=CounterStart)
-!#endif /*defined(MEASURE_MPI_WAIT)*/
-!      CALL MPI_WAIT(SendRequest,MPI_STATUS_IGNORE,IERROR)
-!#if defined(MEASURE_MPI_WAIT)
-!      CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-!      MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
-!#endif /*defined(MEASURE_MPI_WAIT)*/
-!      IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-!    END IF
-!  END IF
 
   IF(nLeaderGroupProcs.GT.1)THEN
     IF(myComputeNodeRank.EQ.0)THEN
@@ -883,8 +870,8 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
                       , iProc                                                 &
                       , 2002                                                  &
                       , MPI_COMM_LEADERS_SHARED                               &
-                      , RecvRequestCN(iProc)                                  &
-                      , IERROR)
+                     , RecvRequestCN(iProc)                                  &
+                     , IERROR)
       END DO
 
       DO iProc = 0,nLeaderGroupProcs-1
@@ -893,20 +880,19 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
 
         DO iElem=1, CNShapeMapping(iProc)%nSendShapeElems
           CNElemID = GetCNElemID(CNShapeMapping(iProc)%SendShapeElemID(iElem))
-          CNShapeMapping(iProc)%SendBuffer(:,:,:,:,iElem) = PartSourceGlob(:,:,:,:,CNElemID)
+         CNShapeMapping(iProc)%SendBuffer(:,:,:,:,iElem) = PartSourceGlob(:,:,:,:,CNElemID)
         END DO
 
         CALL MPI_ISEND( CNShapeMapping(iProc)%SendBuffer   &
-                      , CNShapeMapping(iProc)%nSendShapeElems*4*(PP_N+1)**3   &
+                     , CNShapeMapping(iProc)%nSendShapeElems*4*(PP_N+1)**3   &
                       , MPI_DOUBLE_PRECISION                                  &
                       , iProc                                                 &
                       , 2002                                                  &
                       , MPI_COMM_LEADERS_SHARED                               &
                       , SendRequestCN(iProc)                                  &
-                      , IERROR)
+                     , IERROR)
       END DO
     END IF ! myComputeNodeRank.EQ.0
-  !  CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
   END IF ! nLeaderGroupProcs.GT.1
 #endif
 END IF
@@ -924,7 +910,7 @@ IF ((stage.EQ.0).OR.(stage.EQ.3)) THEN
 
         IF (CNShapeMapping(iProc)%nRecvShapeElems.NE.0) THEN
           CALL MPI_WAIT(RecvRequestCN(iProc),MPI_STATUS_IGNORE,IERROR)
-          IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+         IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
         END IF
 
         IF (CNShapeMapping(iProc)%nSendShapeElems.NE.0) THEN
@@ -946,18 +932,12 @@ IF ((stage.EQ.0).OR.(stage.EQ.3)) THEN
         END DO
       END DO
     END IF ! myComputeNodeRank.EQ.0
-  !  CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
   END IF ! nLeaderGroupProcs.GT.1
 
   IF (myComputeNodeRank.EQ.0) THEN
     DO iProc = 1,nShapeExchangeProcs
       DO iElem = 1, ShapeMapping(iProc)%nSendShapeElems
         ASSOCIATE( ShapeID => ShapeMapping(iProc)%SendShapeElemID(iElem))
-!          IF (ANY(PartSourceGlob(:,:,:,:,ShapeID).NE.0.0)) THEN
-!            ShapeMapping(iProc)%nNonZeroSendElems = ShapeMapping(iProc)%nNonZeroSendElems + 1
-!            ShapeMapping(iProc)%SendBuffer(:,:,:,:,ShapeMapping(iProc)%nNonZeroSendElems) = PartSourceGlob(:,:,:,:,ShapeID)
-!            ShapeMapping(iProc)%DoSendElem(iElem) = .TRUE.
-!          END IF
           ShapeMapping(iProc)%SendBuffer(:,:,:,:,iElem) = PartSourceGlob(:,:,:,:,ShapeID)
         END ASSOCIATE
       END DO
@@ -1002,7 +982,6 @@ IF ((stage.EQ.0).OR.(stage.EQ.4)) THEN
     END IF
   END DO
 
-  !PartSource = PartSource + PartSourceLoc
   IF (myComputeNodeRank.EQ.0) THEN
     DO iElem = 1,nElems
       CNElemID = GetCNElemID(iElem+offSetElem)
@@ -1010,7 +989,10 @@ IF ((stage.EQ.0).OR.(stage.EQ.4)) THEN
     END DO
   END IF
 #endif
+
 END IF
+
+
 
 END SUBROUTINE DepositionMethod_SF
 

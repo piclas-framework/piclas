@@ -133,7 +133,7 @@ INTEGER                        :: iElem,iLocSide,SideID
 INTEGER                        :: FirstElem,LastElem
 INTEGER                        :: firstNodeID,lastNodeID
 INTEGER                        :: offsetNodeID,nNodeIDs,currentOffset
-INTEGER,PARAMETER              :: moveBGMindex=1,increment=1,haloChange=3
+INTEGER,PARAMETER              :: moveBGMindex=1,increment=1,haloChange=4
 REAL                           :: xmin,xmax,ymin,ymax,zmin,zmax
 INTEGER                        :: iBGM,jBGM,kBGM
 INTEGER                        :: BGMimax,BGMimin,BGMjmax,BGMjmin,BGMkmax,BGMkmin
@@ -944,7 +944,7 @@ ELSE
   END DO
   ! CN-halo elements (periodic)
   DO iElem = 1,nGlobalElems
-    IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.3) THEN
+    IF ((ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.3).OR.(ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.4)) THEN
       nComputeNodeTotalElems = nComputeNodeTotalElems + 1
       CNTotalElem2GlobalElem(nComputeNodeTotalElems) = iElem
       GlobalElem2CNTotalElem(iElem) = nComputeNodeTotalElems
