@@ -672,7 +672,6 @@ USE MOD_Preproc
 USE MOD_Analyze_Vars            ,ONLY: CalcEpot,Wel,Wmag,Wphi,Wpsi
 USE MOD_BGK_Vars                ,ONLY: BGK_MaxRelaxFactor,BGK_MaxRotRelaxFactor,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter
 USE MOD_BGK_Vars                ,ONLY: BGKInitDone
-USE MOD_DSMC_Vars               ,ONLY: CollInf, useDSMC, CollisMode, ChemReac
 USE MOD_DSMC_Vars               ,ONLY: DSMC
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor,FP_MaxRotRelaxFactor,FP_MeanRelaxFactor,FP_MeanRelaxFactorCounter
 USE MOD_FPFlow_Vars             ,ONLY: FP_PrandtlNumber,FPInitDone
@@ -686,16 +685,16 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumPartsOfSpec,CalcShapeEfficiencyR,C
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumberDensity,CalcAdaptBCInfo,CalcTemperature,CalcVelocities
 USE MOD_Particle_Analyze_Output ,ONLY: DisplayCoupledPowerPart
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+USE MOD_DSMC_Vars               ,ONLY: CollisMode
 USE MOD_Particle_Mesh_Vars      ,ONLY: MeshVolume
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: BGGas
-USE MOD_MCC_Vars                ,ONLY: SpecXSec
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcRelaxProbRotVib
 #endif
 #if (PP_TimeDiscMethod==42)
+USE MOD_DSMC_Vars               ,ONLY: CollInf, useDSMC, ChemReac, SpecDSMC
 USE MOD_Globals_Vars            ,ONLY: ElementaryCharge
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
-USE MOD_MCC_Vars                ,ONLY: XSec_Relaxation
+USE MOD_MCC_Vars                ,ONLY: SpecXSec, XSec_Relaxation
 USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
 #endif
 #if USE_HDG
@@ -718,16 +717,16 @@ INTEGER(KIND=IK)    :: SimNumSpec(nSpecAnalyze)
 REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: EkinMax(nSpecies)
-REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
-REAL                :: ETotal
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+REAL                :: ETotal
+REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
 #endif
 #if (PP_TimeDiscMethod==42)
 INTEGER             :: jSpec, iCase, iLevel
-#endif
 REAL, ALLOCATABLE   :: CRate(:), RRate(:), VibRelaxRate(:), ElecRelaxRate(:,:)
+#endif
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
 INTEGER             :: dir
@@ -739,6 +738,7 @@ INTEGER             :: iRegions
     isRestart = .true.
   END IF
   IF (.NOT.DoPartAnalyze) RETURN
+#if (PP_TimeDiscMethod==42)
   IF (useDSMC) THEN
     IF (CollisMode.NE.0) THEN
       SDEALLOCATE(CRate)
@@ -759,6 +759,7 @@ INTEGER             :: iRegions
       END IF
     END IF
   END IF
+#endif
   OutputCounter = 2
   unit_index = 535
   IF (PartMPI%MPIRoot) THEN
@@ -1123,6 +1124,7 @@ INTEGER             :: iRegions
       END IF
 #endif /*USE_MPI*/
   END IF
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
   IF(CalcTemp.OR.CalcEint.OR.DSMC%CalcQualityFactors) THEN
     CALL CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
     IF(CalcEint.AND.(CollisMode.GT.1)) THEN
@@ -1132,7 +1134,6 @@ INTEGER             :: iRegions
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell reservoirs,
 ! in case of more cells, the value of the last element of the root is shown)
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
   MaxCollProb = 0.0
   MeanCollProb = 0.0
   MeanFreePath = 0.0
