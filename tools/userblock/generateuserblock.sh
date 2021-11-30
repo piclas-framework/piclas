@@ -84,7 +84,7 @@ echo $PARENTCOMMIT                 >> userblock.txt
 # Also store binary changes in diff
 echo "{[( GIT DIFF )]}"            >> userblock.txt
 # commited changes
-if [[ -n ${PARENTEXISTS} ]]; then
+if [ -n ${PARENTEXISTS} ]; then
   git diff -p $PARENTCOMMIT..HEAD | head -n 1000   >> userblock.txt
 fi
 # uncommited changes
