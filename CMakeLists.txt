@@ -1,8 +1,8 @@
 # =========================================================================
 # CMake configuration
 # =========================================================================
-# NOTE: use minimum CMake version required by tools/libs (Paraview, HDF5, FFTW)
-CMAKE_MINIMUM_REQUIRED(VERSION 3.5.1)
+# NOTE: use minimum CMake version required
+CMAKE_MINIMUM_REQUIRED(VERSION 3.6.3)
 # Policies (see https://cmake.org/cmake/help/v3.13/manual/cmake-policies.7.html)
 # VERSION_GREATER_EQUAL is incompatible with CMAKE versions < 3.7
 IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.6.0"))

@@ -119,7 +119,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared_Win,FIBGM_nElems_Shared_Wi
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared_Win,FIBGMToProc_Shared_Win,FIBGM_Element_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared_Win,BoundsOfElem_Shared_Win,ElemToBGM_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared
-USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic,MeshHasRotPeriodic,DistanceOfElemCenter_Shared,DistanceOfElemCenter_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic,MeshHasRotPeriodic
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -211,14 +211,6 @@ lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProces
 ! Periodic Sides
 MeshHasPeriodic    = MERGE(.TRUE.,.FALSE.,GEO%nPeriodicVectors.GT.0)
 MeshHasRotPeriodic = GEO%RotPeriodicBC
-IF (MeshHasPeriodic .OR. MeshHasRotPeriodic) THEN
-  CALL Allocate_Shared((/nGlobalElems/),DistanceOfElemCenter_Shared_Win,DistanceOfElemCenter_Shared)
-  CALL MPI_WIN_LOCK_ALL(0,DistanceOfElemCenter_Shared_Win,IERROR)
-  IF (myComputeNodeRank.EQ.0) THEN
-    DistanceOfElemCenter_Shared = HUGE(1.)
-  END IF
-  CALL BARRIER_AND_SYNC(DistanceOfElemCenter_Shared_Win,MPI_COMM_SHARED)
-END IF
 #else
 ! In order to use only one type of variables VarName_Shared in code structure such as tracking etc. for NON_MPI
 ! the same variables are allocated on the single proc and used from mesh_vars instead of mpi_shared_vars
@@ -420,11 +412,7 @@ ELSE
 
   halo_eps2=halo_eps*halo_eps
   CALL PrintOption('halo distance','CALCUL.',RealOpt=halo_eps)
-  IF(halo_eps.LT.0.)THEN
-    CALL abort(&
-    __STAMP__&
-    ,'halo_eps cannot be negative!')
-  END IF ! halo_eps.LT.0.
+  IF(halo_eps.LT.0.)CALL abort(__STAMP__,'halo_eps cannot be negative!')
 END IF
 
 ! The initial cutoff is performed based on the FIBGM elements. However, we have to ensure that all possible halo elements, i.e.
@@ -623,13 +611,7 @@ ELSE
       IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iSide)) &
           .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) CYCLE
       ElemInsideHalo = .TRUE.
-      IF (MeshHasPeriodic .OR. MeshHasRotPeriodic) THEN
-        DistanceOfElemCenter_Shared(ElemID) =      &
-          MIN(DistanceOfElemCenter_Shared(ElemID), &
-          VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iSide))) ! -(BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide)))
-      ELSE
-        EXIT
-      END IF
+      EXIT
     END DO ! iSide = 1, nMPISidesShared
     IF (.NOT.ElemInsideHalo) THEN
       ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 0
@@ -641,11 +623,10 @@ ELSE
     END IF
   END DO ! iElem = firstHaloElem, lastHaloElem
 END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
-IF (MeshHasPeriodic .OR. MeshHasRotPeriodic) CALL BARRIER_AND_SYNC(DistanceOfElemCenter_Shared_Win,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win            ,MPI_COMM_SHARED)
 
 IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
-IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides()!EnlargeBGM)
+IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides(EnlargeBGM)
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
 ! Mortar sides
@@ -1364,13 +1345,12 @@ SUBROUTINE CheckPeriodicSides(EnlargeBGM)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: BoundaryType,nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_MPI_Shared_Vars
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,BoundsOfElem_Shared
-USE MOD_Particle_Mesh_Vars     ,ONLY: DistanceOfElemCenter_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
+USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1380,93 +1360,14 @@ LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM i
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                        :: hasPeriodic
-INTEGER                        :: iElem,firstElem,lastElem
-INTEGER                        :: iSide,firstSide,lastSide
-INTEGER                        :: iPeriodicElem
+INTEGER                        :: iElem,firstElem,lastElem,iDir,jDir,kDir
+INTEGER                        :: iLocElem
 INTEGER                        :: iPeriodicVector,jPeriodicVector
-INTEGER                        :: nPeriodicElems
-REAL                           :: BoundsOfElemCenter(1:4)
-REAL,ALLOCATABLE               :: PeriodicSideBoundsOfElemCenter(:,:)
-INTEGER,ALLOCATABLE            :: nPeriodicVectorsPerElem(:,:)
+REAL                           :: BoundsOfElemCenter(1:4),LocalBoundsOfElemCenter(1:4)
 !===================================================================================================================================
 
 firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
-
-! count number of elements with periodic sides
-nPeriodicElems = 0
-DO iElem = 1,nGlobalElems
-  ! only consider elements within the DG region
-  IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LE.0) CYCLE
-
-  firstSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) + 1
-  lastSide  = ElemInfo_Shared(ELEM_LASTSIDEIND ,iElem)
-
-  DO iSide = firstSide,lastSide
-    ! Side is a boundary side
-    IF (SideInfo_Shared(SIDE_BCID,iSide).GT.0) THEN
-      ! Boundary is a periodic boundary
-      IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%PeriodicBC) THEN
-        nPeriodicElems = nPeriodicElems + 1
-        EXIT
-      END IF
-    END IF
-  END DO
-END DO
-
-! return if there are no periodic elements on the compute node or inside the halo region
-IF (nPeriodicElems.EQ.0) RETURN
-
-ALLOCATE(PeriodicSideBoundsOfElemCenter(1:5,1:nPeriodicElems))
-ALLOCATE(nPeriodicVectorsPerElem(1:3,1:nPeriodicElems))
-
-nPeriodicElems = 0
-nPeriodicVectorsPerElem = 0
-
-! Every proc checks every periodic element. It is assumed that there are not "too many" periodic elements. In order to parallelize
-! this loop, three communications steps would be required. First the offset of the periodic elements must be communicated, then a
-! shared array holding the metrics of the periodic elements must be allocated and filled. Finally, the shared array must be
-! synchronized. The communication overhead would most likely exceed the calculation effort.
-DO iElem = 1,nGlobalElems
-  ! only consider elements within the DG or halo region
-  IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LE.0) CYCLE
-
-  firstSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) + 1
-  lastSide  = ElemInfo_Shared(ELEM_LASTSIDEIND ,iElem)
-
-  hasPeriodic = .FALSE.
-  DO iSide = firstSide,lastSide
-    ! Side is a boundary side
-    IF (SideInfo_Shared(SIDE_BCID,iSide).GT.0) THEN
-    ! Boundary is a periodic boundary
-      IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%PeriodicBC) THEN
-        IF (.NOT.hasPeriodic) THEN
-          nPeriodicElems = nPeriodicElems + 1
-          hasPeriodic    = .TRUE.
-        END IF
-
-        ASSOCIATE( BCType => BoundaryType(SideInfo_Shared(SIDE_BCID,iSide),BC_ALPHA) )
-          IF(BCType.EQ.0) CALL abort(__STAMP__,'Found periodic side with BC ALPHA=0')
-          nPeriodicVectorsPerElem(ABS(BCType),nPeriodicElems) = -SIGN(1, BCType)
-        END ASSOCIATE
-      END IF
-    END IF
-  END DO
-
-  IF (hasPeriodic) THEN
-    ! Get centre
-    PeriodicSideBoundsOfElemCenter(1:3,nPeriodicElems) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)), &
-                                                            SUM(BoundsOfElem_Shared(1:2,2,iElem)), &
-                                                            SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-    ! Get radius
-    PeriodicSideBoundsOfElemCenter(4,nPeriodicElems) = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
-                                                                   BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
-                                                                   BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
-    ! Element is in halo region, reduce considered range
-    PeriodicSideBoundsOfElemCenter(5,nPeriodicElems) = MERGE(0.,ABS(DistanceOfElemCenter_Shared(iElem)),ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.1)
-  END IF
-END DO
 
 ! The code below changes ElemInfo_Shared, identification of periodic elements must complete before
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
@@ -1485,68 +1386,72 @@ DO iElem = firstElem,lastElem
                                       BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
 ! Use a named loop so the entire element can be cycled
-ElemLoop: DO iPeriodicElem = 1,nPeriodicElems
+ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
     ! element might be already added back
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).GT.0) EXIT ElemLoop
 
-    SELECT CASE(SUM(ABS(nPeriodicVectorsPerElem(:,iPeriodicElem))))
+    LocalBoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iLocElem)),                                         &
+                                      SUM(   BoundsOfElem_Shared(1:2,2,iLocElem)),                                         &
+                                      SUM(   BoundsOfElem_Shared(1:2,3,iLocElem)) /) / 2.
+    LocalBoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem),        &
+                                             BoundsOfElem_Shared(2  ,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),        &
+                                             BoundsOfElem_Shared(2  ,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
+
+    SELECT CASE(GEO%nPeriodicVectors)
 
       CASE(1)
-        ! check the only possible periodic vector
-        iPeriodicVector = FINDLOC(ABS(nPeriodicVectorsPerElem(:,iPeriodicElem)),1,1)
-        IF (iPeriodicVector.EQ.-1) &
-          CALL ABORT(__STAMP__,'Error determining periodic vector!')
-        ! check if element is within halo_eps of periodically displaced element
-        IF (VECNORM( BoundsOfElemCenter(1:3)                                                                               &
-                   + GEO%PeriodicVectors(1:3,iPeriodicVector) * nPeriodicVectorsPerElem(iPeriodicVector,iPeriodicElem)     &
-                   - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                    &
-                .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem)                        &
-                                                   -PeriodicSideBoundsOfElemCenter(5,iPeriodicElem)) THEN
-          ! add element back to halo region
-          ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-          IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
-          EXIT ElemLoop
-        END IF
-
-      CASE(2)
-        ! check the two possible periodic vectors. Begin with checking the first periodic vector, followed by the combination of
-        ! the first periodic vector with the other. Finally check the second periodic vector, i.e. 1, 1+2, 2
-        DO iPeriodicVector = 1,3
-          ! element might be already added back
-          IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).GT.0) EXIT ElemLoop
-
-          IF (nPeriodicVectorsPerElem(iPeriodicVector,iPeriodicElem).EQ.0) CYCLE
-
+        ! check two directions
+        DO iDir = -1, 1, 2
           ! check if element is within halo_eps of periodically displaced element
-          IF (VECNORM( BoundsOfElemCenter(1:3)                                                                             &
-                     + GEO%PeriodicVectors(1:3,iPeriodicVector) * nPeriodicVectorsPerElem(iPeriodicVector,iPeriodicElem)   &
-                     - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                  &
-                    .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem)                    &
-                                                       -PeriodicSideBoundsOfElemCenter(5,iPeriodicElem)) THEN
+          IF (VECNORM( BoundsOfElemCenter(1:3) + GEO%PeriodicVectors(1:3,1)*REAL(iDir) - LocalBoundsOfElemCenter(1:3))&
+                  .LE. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4))THEN
             ! add element back to halo region
             ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
             IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
             EXIT ElemLoop
           END IF
+        END DO
 
-          DO jPeriodicVector = 1,3
-            IF (nPeriodicVectorsPerElem(jPeriodicVector,iPeriodicElem).EQ.0) CYCLE
-            IF (iPeriodicVector.GE.jPeriodicVector) CYCLE
+      CASE(2)
+        ! check the two possible periodic vectors. Begin with checking the single periodic vector, followed by the combination of
+        ! the first periodic vector with the other, 1,2,1+2
+        DO iPeriodicVector = 1,2
+          ! element might be already added back
+          IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).GT.0) EXIT ElemLoop
 
+          DO iDir = -1, 1, 2
             ! check if element is within halo_eps of periodically displaced element
-            IF (VECNORM( BoundsOfElemCenter(1:3)                                                                           &
-                       + GEO%PeriodicVectors(1:3,iPeriodicVector) * nPeriodicVectorsPerElem(iPeriodicVector,iPeriodicElem) &
-                       + GEO%PeriodicVectors(1:3,jPeriodicVector) * nPeriodicVectorsPerElem(jPeriodicVector,iPeriodicElem) &
-                       - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                &
-                    .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem)                    &
-                                                       -PeriodicSideBoundsOfElemCenter(5,iPeriodicElem)) THEN
+            IF (VECNORM( BoundsOfElemCenter(1:3)                                                           &
+                      + GEO%PeriodicVectors(1:3,iPeriodicVector)*REAL(iDir) - LocalBoundsOfElemCenter(1:3))&
+                      .LE. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4))THEN
               ! add element back to halo region
               ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
               IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
               EXIT ElemLoop
             END IF
-          END DO
-        END DO
+          END DO ! iDir = -1, 1, 2
+
+          ! Check linear combination of two periodic vectors
+          DO jPeriodicVector = 1,2
+            IF (iPeriodicVector.GE.jPeriodicVector) CYCLE
+
+            DO iDir = -1, 1, 2
+              DO jDir = -1, 1, 2
+                ! check if element is within halo_eps of periodically displaced element
+                IF (VECNORM( BoundsOfElemCenter(1:3)                                                             &
+                          + GEO%PeriodicVectors(1:3,iPeriodicVector)*REAL(iDir)                                  &
+                          + GEO%PeriodicVectors(1:3,jPeriodicVector)*REAL(jDir) - LocalBoundsOfElemCenter(1:3) ) &
+                          .LE. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4))THEN
+                  ! add element back to halo region
+                  ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
+                  IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
+                  EXIT ElemLoop
+                END IF
+              END DO ! jDir = -1, 1, 2
+            END DO ! iDir = -1, 1, 2
+
+          END DO ! jPeriodicVector = 1,2
+        END DO ! iPeriodicVector = 1,2
 
       CASE(3)
         ! check the three periodic vectors. Begin with checking the first periodic vector, followed by the combination of
@@ -1556,55 +1461,59 @@ ElemLoop: DO iPeriodicElem = 1,nPeriodicElems
           IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).GT.0) EXIT ElemLoop
 
           ! check if element is within halo_eps of periodically displaced element
-          IF (VECNORM( BoundsOfElemCenter(1:3)                                                                             &
-                     + GEO%PeriodicVectors(1:3,iPeriodicVector) * nPeriodicVectorsPerElem(iPeriodicVector,iPeriodicElem)   &
-                     - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                  &
-                    .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem)                    &
-                                                       -PeriodicSideBoundsOfElemCenter(5,iPeriodicElem)) THEN
-            ! add element back to halo region
-            ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-            IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
-            EXIT ElemLoop
-          END IF
-
-          DO jPeriodicVector = 1,3
-            IF (iPeriodicVector.GE.jPeriodicVector) CYCLE
-
+          DO iDir = -1, 1, 2
             ! check if element is within halo_eps of periodically displaced element
-            IF (VECNORM( BoundsOfElemCenter(1:3)                                                                           &
-                       + GEO%PeriodicVectors(1:3,iPeriodicVector) * nPeriodicVectorsPerElem(iPeriodicVector,iPeriodicElem) &
-                       + GEO%PeriodicVectors(1:3,jPeriodicVector) * nPeriodicVectorsPerElem(jPeriodicVector,iPeriodicElem) &
-                       - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                &
-                    .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem)                    &
-                                                       -PeriodicSideBoundsOfElemCenter(5,iPeriodicElem)) THEN
+            IF (VECNORM( BoundsOfElemCenter(1:3)                                                           &
+                      + GEO%PeriodicVectors(1:3,iPeriodicVector)*REAL(iDir) - LocalBoundsOfElemCenter(1:3))&
+                      .LE. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4))THEN
               ! add element back to halo region
               ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
               IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
               EXIT ElemLoop
             END IF
+          END DO ! iDir = -1, 1, 2
 
-          END DO
-        END DO
+          ! Combination of two periodic vectors
+          DO jPeriodicVector = 1,3
+            IF (iPeriodicVector.GE.jPeriodicVector) CYCLE
 
-        ! check if element is within halo_eps of periodically displaced element
-        IF (VECNORM( BoundsOfElemCenter(1:3)                                                                               &
-                   + GEO%PeriodicVectors(1:3,1) * nPeriodicVectorsPerElem(1,iPeriodicElem)                                 &
-                   + GEO%PeriodicVectors(1:3,2) * nPeriodicVectorsPerElem(2,iPeriodicElem)                                 &
-                   + GEO%PeriodicVectors(1:3,3) * nPeriodicVectorsPerElem(3,iPeriodicElem)                                 &
-                   - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                    &
-                .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem)                        &
-                                                   -PeriodicSideBoundsOfElemCenter(5,iPeriodicElem)) THEN
-          ! add element back to halo region
-          ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-          IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
-          EXIT ElemLoop
-        END IF
+            DO iDir = -1, 1, 2
+              DO jDir = -1, 1, 2
+                ! check if element is within halo_eps of periodically displaced element
+                IF (VECNORM( BoundsOfElemCenter(1:3)                                                             &
+                          + GEO%PeriodicVectors(1:3,iPeriodicVector)*REAL(iDir)                                  &
+                          + GEO%PeriodicVectors(1:3,jPeriodicVector)*REAL(jDir) - LocalBoundsOfElemCenter(1:3) ) &
+                          .LE. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4))THEN
+                  ! add element back to halo region
+                  ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
+                  IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
+                  EXIT ElemLoop
+                END IF
+              END DO ! jDir = -1, 1, 2
+            END DO ! iDir = -1, 1, 2
 
-      CASE DEFAULT
-        IPWRITE(UNIT_StdOut,'(I0,A,I0)') " iGlobalElem   = ", iElem
-        IPWRITE(UNIT_StdOut,'(I0,A,I0)') " iPeriodicElem = ", iPeriodicElem
-        IPWRITE(UNIT_StdOut,'(I0,A,3(I0))') " nPeriodicVectorsPerElem(:,iPeriodicElem) = ", nPeriodicVectorsPerElem(:,iPeriodicElem)
-        CALL ABORT(__STAMP__,'Periodic vectors .LT.1 or .GT.3!')
+          END DO ! jPeriodicVector = 1,3
+        END DO ! iPeriodicVector = 1,3
+
+        ! Combination of three periodic vectors
+        DO iDir = -1, 1, 2
+          DO jDir = -1, 1, 2
+            DO kDir = -1, 1, 2
+            ! check if element is within halo_eps of periodically displaced element
+              IF (VECNORM( BoundsOfElemCenter(1:3)                                                             &
+                        + GEO%PeriodicVectors(1:3,1)*REAL(iDir)                                  &
+                        + GEO%PeriodicVectors(1:3,2)*REAL(jDir)                                  &
+                        + GEO%PeriodicVectors(1:3,3)*REAL(kDir) - LocalBoundsOfElemCenter(1:3) ) &
+                        .LE. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4))THEN
+                ! add element back to halo region
+                ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
+                IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
+                EXIT ElemLoop
+              END IF
+            END DO ! kDir = -1, 1, 2
+          END DO ! jDir = -1, 1, 2
+        END DO ! iDir = -1, 1, 2
+
       END SELECT
   END DO ElemLoop
 END DO
@@ -1612,8 +1521,7 @@ END DO
 END SUBROUTINE CheckPeriodicSides
 
 
-SUBROUTINE CheckRotPeriodicSides()
-!SUBROUTINE CheckRotPeriodicSides(EnlargeBGM)
+SUBROUTINE CheckRotPeriodicSides(EnlargeBGM)
 !===================================================================================================================================
 !> checks the elements against periodic rotation
 !===================================================================================================================================
@@ -1621,111 +1529,33 @@ SUBROUTINE CheckRotPeriodicSides()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_MPI_Shared_Vars
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,BoundsOfElem_Shared
-USE MOD_Particle_Mesh_Vars     ,ONLY: DistanceOfElemCenter_Shared
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems,GEO
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
+USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-!LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
+LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-LOGICAL                        :: hasPeriodic
 INTEGER                        :: iElem,firstElem,lastElem
-INTEGER                        :: iSide,firstSide,lastSide
-INTEGER                        :: iPeriodicElem
-INTEGER                        :: nPeriodicElems
-REAL                           :: BoundsOfElemCenter(1:4)
 REAL                           :: RotBoundsOfElemCenter(3)
-REAL,ALLOCATABLE               :: PeriodicSideBoundsOfElemCenter(:,:)
-REAL,ALLOCATABLE               :: PeriodicSideAngle(:)
+REAL                           :: BoundsOfElemCenter(1:4),LocalBoundsOfElemCenter(1:4)
 INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
-INTEGER                        :: iPeriodicDir
+INTEGER                        :: iPeriodicDir,iLocElem
 !===================================================================================================================================
 
 firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
 
-! count number of elements with periodic sides
-nPeriodicElems = 0
-DO iElem = 1,nGlobalElems
-  ! only consider elements within the DG region
-  IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.0) CYCLE
-
-  firstSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) + 1
-  lastSide  = ElemInfo_Shared(ELEM_LASTSIDEIND ,iElem)
-
-  DO iSide = firstSide,lastSide
-    ! Side is a boundary side
-    IF (SideInfo_Shared(SIDE_BCID,iSide).GT.0) THEN
-      ! Boundary is a periodic boundary
-      IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicBC) THEN
-        nPeriodicElems = nPeriodicElems + 1
-        EXIT
-      END IF
-    END IF
-  END DO
-END DO
-
-! return if there are no periodic elements on the compute node or inside the halo region
-IF (nPeriodicElems.EQ.0) RETURN
-
-ALLOCATE(PeriodicSideBoundsOfElemCenter(1:5,1:nPeriodicElems))
-ALLOCATE(PeriodicSideAngle(1:nPeriodicElems))
-
-nPeriodicElems = 0
-
-! Every proc checks every periodic element. It is assumed that there are not "too many" periodic elements. In order to parallelize
-! this loop, three communications steps would be required. First the offset of the periodic elements must be communicated, then a
-! shared array holding the metrics of the periodic elements must be allocated and filled. Finally, the shared array must be
-! synchronized. The communication overhead would most likely exceed the calculation effort.
-
-DO iElem = 1,nGlobalElems
-  ! only consider elements within the DG or halo region
-  IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.0) CYCLE
-
-  firstSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem) + 1
-  lastSide  = ElemInfo_Shared(ELEM_LASTSIDEIND ,iElem)
-
-  hasPeriodic = .FALSE.
-  DO iSide = firstSide,lastSide
-    ! Side is a boundary side
-    IF (SideInfo_Shared(SIDE_BCID,iSide).GT.0) THEN
-    ! Boundary is a rot periodic boundary
-      IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicBC) THEN
-        IF (.NOT.hasPeriodic) THEN
-          nPeriodicElems = nPeriodicElems + 1
-          hasPeriodic    = .TRUE.
-        END IF
-      END IF
-    END IF
-  END DO
-
-  IF (hasPeriodic) THEN
-    PeriodicSideBoundsOfElemCenter(1:3,nPeriodicElems) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),                         &
-                                                            SUM(BoundsOfElem_Shared(1:2,2,iElem)),                         &
-                                                            SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-    PeriodicSideBoundsOfElemCenter(4,nPeriodicElems) = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
-                                                                   BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
-                                                                   BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
-    ! Element is in halo region, reduce considered range
-    PeriodicSideBoundsOfElemCenter(5,nPeriodicElems) = MERGE(0.,ABS(DistanceOfElemCenter_Shared(iElem)),ElemInfo_Shared(ELEM_HALOFLAG,iElem).EQ.1)
-  END IF
-END DO
-
-! The code below changes ElemInfo_Shared, identification of periodic elements must complete before
-CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
-
 ! This is a distributed loop. Nonetheless, the load will be unbalanced due to the location of the space-filling curve. Still,
 ! this approach is again preferred compared to the communication overhead.
-DO iElem = firstElem,lastElem
+DO iElem = firstElem ,lastElem
   ! only consider elements that are not already flagged
   IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).NE.0) CYCLE
 
@@ -1736,9 +1566,17 @@ DO iElem = firstElem,lastElem
                                       BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem),                     &
                                       BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
-  DO iPeriodicElem = 1,nPeriodicElems
+  ! Use a named loop so the entire element can be cycled
+  DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
     ! element might be already added back
-    IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).NE.0) EXIT
+    IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).GT.0) EXIT
+
+    LocalBoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iLocElem)),                                         &
+                                      SUM(   BoundsOfElem_Shared(1:2,2,iLocElem)),                                         &
+                                      SUM(   BoundsOfElem_Shared(1:2,3,iLocElem)) /) / 2.
+    LocalBoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem),        &
+                                             BoundsOfElem_Shared(2  ,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),        &
+                                             BoundsOfElem_Shared(2  ,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
     DO iPeriodicDir = 1,2
       ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
         SELECT CASE(GEO%RotPeriodicAxi)
@@ -1757,17 +1595,16 @@ DO iElem = firstElem,lastElem
         END SELECT
       END ASSOCIATE
       ! check if element is within halo_eps of rotationally displaced element
-      IF (VECNORM( RotBoundsOfElemCenter(1:3)                                                                        &
-                 - PeriodicSideBoundsOfElemCenter(1:3,iPeriodicElem))                                                &
-              .LE. halo_eps+BoundsOfElemCenter(4)+PeriodicSideBoundsOfElemCenter(4,iPeriodicElem)                    &
-                                                 -PeriodicSideBoundsOfElemCenter(5,iPeriodicElem)) THEN
+      IF (VECNORM( RotBoundsOfElemCenter(1:3)                               &
+                 - LocalBoundsOfElemCenter(1:3))                            &
+              .LE. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4))THEN
         ! add element back to halo region
         ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-        ! IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
-      END IF
-    END DO
-  END DO
-END DO
+        IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
+      END IF ! VECNORM( ...
+    END DO ! iPeriodicDir = 1,2
+  END DO ! iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
+END DO ! firstElem,lastElem
 
 END SUBROUTINE CheckRotPeriodicSides
 

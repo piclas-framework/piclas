@@ -748,10 +748,7 @@ CLASS IS (RealArrayOption)
 CLASS DEFAULT
   STOP
 END SELECT
-IF(stat.GT.0)THEN
-  CALL Abort(__STAMP__,&
-    "Failed to parse: "//TRIM(this%name))
-END IF
+IF(stat.GT.0) CALL Abort(__STAMP__,"Failed to parse: "//TRIM(this%name))
 
 END SUBROUTINE parse
 
