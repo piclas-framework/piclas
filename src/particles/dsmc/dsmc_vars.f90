@@ -163,8 +163,10 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
                                                             ! ionization)
   ! Collision cross-sections for MCC
   LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
-                                                            ! treated with read-in collision cross-section (currently only with BGG)
+                                                            ! treated with read-in collision cross-section
   LOGICAL                           :: UseVibXSec           ! Flag if the vibrational relaxation probability should be treated,
+                                                            ! using read-in cross-sectional data
+  LOGICAL                           :: UseElecXSec          ! Flag if the electronic relaxation probability should be treated,
                                                             ! using read-in cross-sectional data (currently only with BGG)
 END TYPE tSpeciesDSMC
 

@@ -461,7 +461,6 @@ REAL                          :: Weight1, Weight2
           ProbSum = SpecXSec(iCase)%CrossSection
         ELSE
           ! Probabilities were saved and added to the total collision probability
-          CALL abort(__STAMP__,'Electronic cross-sections only implemented with collision cross-sections!')
           ProbSum = Coll_pData(iPair)%Prob
         END IF
         ProbElec = 0.
@@ -479,6 +478,14 @@ REAL                          :: Weight1, Weight2
             EXIT
           END IF
         END DO
+        ! Reducing the total collision probability if no electronic excitation occurred
+        IF((.NOT.DoElec1).AND.(.NOT.DoElec2)) THEN
+          IF(SpecXSec(iCase)%UseCollXSec) THEN
+            SpecXSec(iCase)%CrossSection = SpecXSec(iCase)%CrossSection - SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
+          ELSE
+            Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob - SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
+          END IF
+        END IF
       END IF
     END IF
 #if (PP_TimeDiscMethod==42)
@@ -490,12 +497,14 @@ REAL                          :: Weight1, Weight2
         ! Weighting factor should be the same for all species anyway (BGG: first species is the non-BGG particle species)
         MacroParticleFactor = Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor
       END IF
-      IF(DoElec1) THEN
-        SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter &
-                                                            + GetParticleWeight(iPart1) * MacroParticleFactor
-      ELSE IF(DoElec2) THEN
-        SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter &
-                                                            + GetParticleWeight(iPart2) * MacroParticleFactor
+      IF (DSMC%ElectronicModel.EQ.3) THEN
+        IF(DoElec1) THEN
+          SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter &
+                                                              + GetParticleWeight(iPart1) * MacroParticleFactor
+        ELSE IF(DoElec2) THEN
+          SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter &
+                                                              + GetParticleWeight(iPart2) * MacroParticleFactor
+        END IF
       END IF
     END IF
 #endif
@@ -551,6 +560,16 @@ END IF
     CALL DSMC_calc_P_vib(iPair, iSpec2, iSpec1, Xi_rel, iElem, ProbVib2)
     IF(ProbVib2.GT.iRan) DoVib2 = .TRUE.
   END IF
+
+! Cross-section model only allows one relaxation process during a single collision
+IF (DSMC%ElectronicModel.EQ.3) THEN
+  IF(DoElec1.OR.DoElec2) THEN
+    IF(SpecXSec(iCase)%UseVibXSec) THEN
+      DoVib1 = .FALSE.
+      DoVib2 = .FALSE.
+    END IF
+  END IF
+END IF
 
   FakXi = 0.5*Xi  - 1.  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
 

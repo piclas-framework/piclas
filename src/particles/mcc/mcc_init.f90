@@ -101,7 +101,8 @@ DO iSpec = 1, nSpecies
     iCase = CollInf%Coll_Case(iSpec,jSpec)
     ! Skip species, which shall not be treated with collision cross-sections
     IF(.NOT.SpecDSMC(iSpec)%UseCollXSec.AND..NOT.SpecDSMC(jSpec)%UseCollXSec.AND. &
-       .NOT.SpecDSMC(iSpec)%UseVibXSec.AND..NOT.SpecDSMC(jSpec)%UseVibXSec) CYCLE
+       .NOT.SpecDSMC(iSpec)%UseVibXSec.AND..NOT.SpecDSMC(jSpec)%UseVibXSec.AND. &
+       .NOT.SpecDSMC(iSpec)%UseElecXSec.AND..NOT.SpecDSMC(jSpec)%UseElecXSec) CYCLE
     ! Skip pairing with itself and pairing with other particle species, if background gas is active
     IF(BGGas%NumberOfSpecies.GT.0) THEN
       IF(iSpec.EQ.jSpec) CYCLE
@@ -112,9 +113,7 @@ DO iSpec = 1, nSpecies
     ! Check if both species were given the UseCollXSec flag and store the energy value in Joule
     IF(SpecXSec(iCase)%UseCollXSec) THEN
       IF(SpecDSMC(iSpec)%UseCollXSec.AND.SpecDSMC(jSpec)%UseCollXSec) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'ERROR: Both species defined to use collisional cross-section, define only the source species with UseCollXSec!')
+        CALL abort(__STAMP__,'ERROR: Both species defined to use collisional cross-section, define only the source species with UseCollXSec!')
       END IF
       ! Store the energy value in J (read-in was in eV)
       SpecXSec(iCase)%CollXSecData(1,:) = SpecXSec(iCase)%CollXSecData(1,:) * ElementaryCharge
@@ -124,9 +123,7 @@ DO iSpec = 1, nSpecies
     ! Vibrational relaxation probabilities: Interpolate and store the probability at the collision cross-section levels
     IF(SpecXSec(iCase)%UseVibXSec) THEN
       IF(SpecDSMC(iSpec)%UseVibXSec.AND.SpecDSMC(jSpec)%UseVibXSec) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'ERROR: Both species defined to use vib. cross-section, define only the source species with UseVibXSec!')
+        CALL abort(__STAMP__,'ERROR: Both species defined to use vib. cross-section, define only the source species with UseVibXSec!')
       END IF
       ! Save which species shall use the vibrational cross-section data for relaxation probabilities
       ! If the species which was given the UseVibXSec flag is diatomic/polyatomic, use the cross-section for that species
@@ -183,13 +180,19 @@ DO iSpec = 1, nSpecies
     END IF      ! SpecXSec(iCase)%UseVibXSec
     ! Read-in electronic cross-section data
     IF(DSMC%ElectronicModel.EQ.3) THEN
-      CALL ReadElecXSec(iCase, iSpec, jSpec)
+      ! Read-in electronic level cross-section data if flags have been defined
+      IF(SpecDSMC(iSpec)%UseElecXSec.OR.SpecDSMC(jSpec)%UseElecXSec) CALL ReadElecXSec(iCase, iSpec, jSpec)
       IF(SpecXSec(iCase)%UseElecXSec) THEN
+        ! Check if only heavy-species - electron combinations were found
+        IF(SpecDSMC(iSpec)%UseElecXSec.AND.SpecDSMC(jSpec)%UseElecXSec) THEN
+          CALL abort(__STAMP__,'ERROR: Electronic excitation using cross-section data is currently only supported through electron collisions!')
+        END IF
         DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
           ! Store the energy value in J (read-in was in eV)
           SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(1,:) = SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(1,:) * ElementaryCharge
           SpecXSec(iCase)%ElecLevel(iLevel)%Threshold = SpecXSec(iCase)%ElecLevel(iLevel)%Threshold * ElementaryCharge
         END DO
+        ! Interpolate and store levels at the collision cross-section intervals
         IF(SpecXSec(iCase)%UseCollXSec) THEN
           IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(SpecDSMC(jSpec)%InterID.NE.4)) THEN
             ! Special treatment required if both collision partners have electronic energy levels (ie. one is not an electron)

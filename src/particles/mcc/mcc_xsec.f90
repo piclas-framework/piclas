@@ -728,7 +728,7 @@ ELSE
 END IF
 ! Using the relative translational energy of the pair
 CollEnergy = 0.5 * ReducedMassUnweighted * Coll_pData(iPair)%CRela2
-! Calculate the total vibrational cross-section
+! Calculate the electronic cross-section
 DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
   IF(CollEnergy.GT.SpecXSec(iCase)%ElecLevel(iLevel)%Threshold) THEN
     SpecXSec(iCase)%ElecLevel(iLevel)%Prob = InterpolateCrossSection_Elec(iCase,iLevel,CollEnergy)
@@ -736,14 +736,14 @@ DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
 END DO
 
 IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
-  ! IF(SpecDSMC(iSpec_p1)%UseVibXSec) THEN
-  !   targetSpec = iSpec_p2; SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
-  ! ELSE
-  !   targetSpec = iSpec_p1; SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
-  ! END IF
+  IF(SpecDSMC(iSpec_p1)%UseElecXSec) THEN
+    targetSpec = iSpec_p2; SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
+  ELSE
+    targetSpec = iSpec_p1; SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
+  END IF
   DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
     IF(CollEnergy.GT.SpecXSec(iCase)%ElecLevel(iLevel)%Threshold) THEN
-      ! Calculate the total vibrational relaxation probability
+      ! Calculate the electronic relaxation probability
       SpecXSec(iCase)%ElecLevel(iLevel)%Prob = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * SpecNumTarget * MacroParticleFactor / Volume &
                                                       * SpecXSec(iCase)%ElecLevel(iLevel)%Prob * dtCell))
       IF(BGGas%BackgroundSpecies(targetSpec)) THEN

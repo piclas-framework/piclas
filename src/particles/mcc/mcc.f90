@@ -67,7 +67,7 @@ USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
-USE MOD_MCC_XSec                ,ONLY: InterpolateCrossSection, InterpolateCrossSection_Vib
+USE MOD_MCC_XSec                ,ONLY: InterpolateCrossSection, InterpolateCrossSection_Vib, InterpolateCrossSection_Elec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -80,7 +80,7 @@ INTEGER, INTENT(IN)           :: iElem
 ! LOCAL VARIABLES
 INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, jSpec, bgSpec, PartIndex, bggPartIndex, RandomPart
 INTEGER                       :: iCase, SpecPairNumTemp, nPartAmbi, CNElemID, GlobalElemID
-INTEGER                       :: iVib, nVib, iPartSplit, SplitPartNum, SplitRestPart
+INTEGER                       :: iLevel, nVib, iPartSplit, SplitPartNum, SplitRestPart
 INTEGER,ALLOCATABLE           :: iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:), UseSpecPartNum(:)
 REAL                          :: iRan, ProbRest, SpecPairNumReal, MPF, Volume, MPFRatio
 INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalAmbiDel(:)
@@ -360,13 +360,14 @@ DO iSpec = 1, nSpecies
             GetInternalEnergy = .FALSE.
           END IF
         END IF
+        ! Vibrational excitation
         IF(SpecXSec(iCase)%UseVibXSec) THEN
           CollEnergy = 0.5 * CollInf%MassRed(iCase) * CRela2
           ! Calculate the total vibrational cross-section
           nVib = SIZE(SpecXSec(iCase)%VibMode)
           SumVibCrossSection = 0.
-          DO iVib = 1, nVib
-            SumVibCrossSection = SumVibCrossSection + InterpolateCrossSection_Vib(iCase,iVib,CollEnergy)
+          DO iLevel = 1, nVib
+            SumVibCrossSection = SumVibCrossSection + InterpolateCrossSection_Vib(iCase,iLevel,CollEnergy)
           END DO
           ! Calculate the total vibrational relaxation probability
           SpecXSec(iCase)%VibProb = 1. - EXP(-SQRT(CRela2) * SumVibCrossSection * BGGas%NumberDensity(bgSpec) * dt)
@@ -374,6 +375,23 @@ DO iSpec = 1, nSpecies
           ! is determined based on the species fraction
           SpecXSec(iCase)%VibProb = SpecXSec(iCase)%VibProb / BGGas%SpeciesFraction(bgSpec)
           CollProb = CollProb + SpecXSec(iCase)%VibProb
+        END IF
+        ! Electronic excitation
+        IF(SpecXSec(iCase)%UseElecXSec) THEN
+          CollEnergy = 0.5 * CollInf%MassRed(iCase) * CRela2
+          DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+            IF(CollEnergy.GT.SpecXSec(iCase)%ElecLevel(iLevel)%Threshold) THEN
+              ! Interpolate the electronic cross-section
+              SpecXSec(iCase)%ElecLevel(iLevel)%Prob = InterpolateCrossSection_Elec(iCase,iLevel,CollEnergy)
+              ! Calculate the electronic excitation probability
+              SpecXSec(iCase)%ElecLevel(iLevel)%Prob = 1. - EXP(-SQRT(CRela2) * SpecXSec(iCase)%ElecLevel(iLevel)%Prob &
+                                                            * BGGas%NumberDensity(bgSpec) * dt)
+              ! Correct the collision probability in the case of the second species being a background species as the number of pairs
+              ! is determined based on the species fraction
+              SpecXSec(iCase)%ElecLevel(iLevel)%Prob = SpecXSec(iCase)%ElecLevel(iLevel)%Prob / BGGas%SpeciesFraction(bgSpec)
+              CollProb = CollProb + SpecXSec(iCase)%ElecLevel(iLevel)%Prob
+            END IF
+          END DO
         END IF
       END IF
       ! ==============================================================================================================================

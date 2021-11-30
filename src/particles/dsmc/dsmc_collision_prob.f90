@@ -45,7 +45,7 @@ USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, Coll_pData, CollInf, DSMC, BGGa
 USE MOD_MCC_Vars                ,ONLY: UseMCC, SpecXSec, XSec_NullCollision
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt
-USE MOD_MCC_XSec                ,ONLY: XSec_CalcCollisionProb, XSec_CalcReactionProb, XSec_CalcVibRelaxProb
+USE MOD_MCC_XSec                ,ONLY: XSec_CalcCollisionProb, XSec_CalcReactionProb, XSec_CalcVibRelaxProb, XSec_CalcElecRelaxProb
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
@@ -137,6 +137,12 @@ SELECT CASE(iPType)
         IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
           CALL XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
           Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SpecXSec(iCase)%VibProb
+        END IF
+      END IF
+      IF(SpecXSec(iCase)%UseElecXSec) THEN
+        IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
+          CALL XSec_CalcElecRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
+          Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
         END IF
       END IF
     ELSE

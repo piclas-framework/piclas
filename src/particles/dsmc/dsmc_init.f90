@@ -283,6 +283,9 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseVibXSec'  &
                                            ,'Utilize vibrational cross sections for the determination of relaxation probabilities' &
                                            ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseElecXSec'  &
+                                           ,'Utilize electronic cross sections, only in combination with ElectronicModel = 3' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -647,12 +650,15 @@ ELSE !CollisMode.GT.0
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
     SpecDSMC(iSpec)%UseVibXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseVibXSec')
+    SpecDSMC(iSpec)%UseElecXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseElecXSec')
     IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) THEN
-      CALL Abort(__STAMP__&
-          ,'ERROR: Please supply the collision cross-section data for the particle species and NOT the background species!')
+      CALL Abort(__STAMP__,'ERROR: Please supply the collision cross-section flag for the particle species and NOT the background species!')
+    END IF
+    IF(SpecDSMC(iSpec)%UseElecXSec.AND.SpecDSMC(iSpec)%InterID.EQ.4) THEN
+      CALL Abort(__STAMP__,'ERROR: Electronic relaxation should be enabled for the respective heavy species, not the electrons!')
     END IF
   END DO
-  IF(ANY(SpecDSMC(:)%UseCollXSec).OR.ANY(SpecDSMC(:)%UseVibXSec)) THEN
+  IF(ANY(SpecDSMC(:)%UseCollXSec).OR.ANY(SpecDSMC(:)%UseVibXSec).OR.ANY(SpecDSMC(:)%UseElecXSec)) THEN
     UseMCC = .TRUE.
     CALL MCC_Init()
   ELSE
@@ -663,8 +669,7 @@ ELSE !CollisMode.GT.0
   ! Ambipolar diffusion is not implemented with the regular background gas, only with MCC
   IF(DSMC%DoAmbipolarDiff) THEN
     IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) THEN
-      CALL abort(__STAMP__&
-          ,'ERROR: Ambipolar diffusion is not implemented with the regular background gas!')
+      CALL abort(__STAMP__,'ERROR: Ambipolar diffusion is not implemented with the regular background gas!')
     END IF
   END IF
   ! MCC and variable vibrational relaxation probability is not supported
