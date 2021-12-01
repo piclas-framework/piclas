@@ -185,7 +185,7 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
       echo ""
       echo -e "Compiling HDF5 SINGLE mode.\nHave the correct modules been loaded?"
       echo -e "This will install HF5 version ${GREEN}${HDF5VERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
-      read -p "If yes, press [Enter] to continue or [Crtl+c] to abort!"
+      read -p "Press [Enter] to continue or [Crtl+c] to abort!"
 
       if [ ! -d "${BUILDDIR}/single" ]; then
         mkdir -p ${BUILDDIR}/single
