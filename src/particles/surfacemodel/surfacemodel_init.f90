@@ -85,11 +85,12 @@ DO iSpec = 1,nSpecies
     hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
     SELECT CASE(PartBound%SurfaceModel(iPartBound))
 !-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(5,6,7,8)
+    CASE(5,6,7,8,9)
       ! 5: SEE by Levko2015
       ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
       ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
-      ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materials is considered for SEE and three different outcomes)
+      ! 8: SEE-E (e- on dielectric materials is considered for SEE and three different outcomes)
+      ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV
 !-----------------------------------------------------------------------------------------------------------------------------------
       SurfModResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
       IF(PartBound%SurfaceModel(iPartBound).EQ.8)THEN

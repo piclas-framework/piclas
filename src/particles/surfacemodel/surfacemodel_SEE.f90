@@ -173,9 +173,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
   IF(v_new.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Particle is faster than the speed of light: ',RealInfoOpt=v_new)
 
 CASE(6) ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
-  CALL abort(&
-  __STAMP__&
-  ,'Not implemented yet')
+  CALL abort(__STAMP__,'Not implemented yet')
 CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
   ProductSpec(1)  = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
   ProductSpecNbr = 0 ! do not create new particle (default value)
@@ -198,8 +196,8 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
   ! Sanity check: is the newly created particle faster than c
   IF(v_new.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Particle is faster than the speed of light: ',RealInfoOpt=v_new)
 
-CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materials is considered for SEE and three different out-
-        ! comes) by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
+CASE(8) ! 8: SEE-E (e- on dielectric materials is considered for SEE and three different outcomes)
+        ! by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
 
     IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
       ASSOCIATE( P0   => 0.9 ,& ! Assumption in paper
@@ -238,6 +236,19 @@ CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materia
       END ASSOCIATE
     END IF
 
+CASE(9) ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV
+  ProductSpec(1)  = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
+  IF(Species(PartSpecies(PartID_IN))%ChargeIC.GT.0.0)THEN ! Bombarding positive ion
+    CALL RANDOM_NUMBER(iRan) ! 1st random number
+    ASSOCIATE( eps_e => 6.8 )! Ejected electron energy [eV]
+      IF(iRan.LT.0.01)THEN ! SEE-I: gamma=0.01 for the bombarding Ar^+ ions
+        ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN)) ! Species of the injected electron
+        ProductSpecNbr = 1 ! Create one new particle
+        v_new          = SQRT(2.*eps_e*ElementaryCharge/ElectronMass) ! Velocity of emitted secondary electron in [m/s]
+        RETURN
+      END IF
+    END ASSOCIATE
+  END IF
 END SELECT
 
 
