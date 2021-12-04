@@ -65,7 +65,7 @@ PUBLIC :: CalcXiElec,ParticleOnProc
 
 CONTAINS
 
-SUBROUTINE UpdateNextFreePosition()
+SUBROUTINE UpdateNextFreePosition(WithOutMPIParts)
 !===================================================================================================================================
 ! Updates next free position
 !===================================================================================================================================
@@ -78,10 +78,14 @@ USE MOD_Particle_VarTimeStep ,ONLY: CalcVarTimeStep
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers   ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_Particle_MPI_Vars    ,ONLY: PartTargetProc
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL, OPTIONAL         :: WithOutMPIParts
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -104,7 +108,7 @@ counter1 = 1
 IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
   PEM%pNumber(:) = 0
 END IF
-
+PDM%ParticleVecLengthOld = PDM%ParticleVecLength
 n = PDM%ParticleVecLength !PDM%maxParticleNumber
 PDM%ParticleVecLength = 0
 PDM%insideParticleNumber = 0
@@ -116,6 +120,29 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
       PDM%nextFreePosition(counter1) = i
       counter1 = counter1 + 1
+#if USE_MPI    
+    ELSE IF (PRESENT(WithOutMPIParts)) THEN
+      IF (PartTargetProc(i).NE.-1) THEN
+        IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
+        PDM%nextFreePosition(counter1) = i
+        counter1 = counter1 + 1      
+      ELSE  
+        ElemID = PEM%LocalElemID(i)
+        IF (PEM%pNumber(ElemID).EQ.0) THEN
+          PEM%pStart(ElemID) = i                     ! Start of Linked List for Particles in Elem
+        ELSE
+          PEM%pNext(PEM%pEnd(ElemID)) = i            ! Next Particle of same Elem (Linked List)
+        END IF
+        PEM%pEnd(ElemID) = i
+        PEM%pNumber(ElemID) = &                      ! Number of Particles in Element
+            PEM%pNumber(ElemID) + 1
+        IF (VarTimeStep%UseVariableTimeStep) THEN
+          VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),ElemID)
+        END IF
+        PDM%ParticleVecLength = i
+        IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
+      END IF
+#endif 
     ELSE
       ElemID = PEM%LocalElemID(i)
       IF (PEM%pNumber(ElemID).EQ.0) THEN
@@ -138,6 +165,16 @@ ELSE ! no DSMC
     IF (.NOT.PDM%ParticleInside(i)) THEN
       PDM%nextFreePosition(counter1) = i
       counter1 = counter1 + 1
+#if USE_MPI
+    ELSE IF (PRESENT(WithOutMPIParts)) THEN
+      IF (PartTargetProc(i).NE.-1) THEN
+        IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
+        PDM%nextFreePosition(counter1) = i
+        counter1 = counter1 + 1    
+      ELSE
+        PDM%ParticleVecLength = i    
+      END IF    
+#endif 
     ELSE
       PDM%ParticleVecLength = i
     END IF

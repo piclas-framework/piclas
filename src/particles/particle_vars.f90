@@ -311,6 +311,7 @@ TYPE tParticleDataManagement
   INTEGER                                :: CurrentNextFreePosition           ! Index of nextfree index in nextFreePosition-Array
   INTEGER                                :: maxParticleNumber                 ! Maximum Number of all Particles
   INTEGER                                :: ParticleVecLength                 ! Vector Length for Particle Push Calculation
+  INTEGER                                :: ParticleVecLengthOld                 ! Vector Length for Particle Push Calculation
   INTEGER                                :: insideParticleNumber              ! Number of all recent Particles inside
   INTEGER , ALLOCATABLE                  :: PartInit(:)                       ! (1:NParts), initial emission condition number
                                                                               ! the calculation area

@@ -148,7 +148,7 @@ USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalElemID,InitGetCNElemID,GetCNE
 USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID,GetGlobalSideID
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
-USE MOD_Mesh_Vars              ,ONLY: useCurveds
+USE MOD_Mesh_Vars              ,ONLY: useCurveds, nElems
 #if USE_MPI
 USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
 #endif /*USE_MPI*/
@@ -214,7 +214,8 @@ SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH ...'
 IF(ParticleMeshInitIsDone) CALL abort(&
 __STAMP__&
 , ' Particle-Mesh is already initialized.')
-
+ALLOCATE(IsExchangeElem(nElems))
+IsExchangeElem = .FALSE.
 ! Potentially curved elements. FIBGM needs to be built on BezierControlPoints rather than NodeCoords to avoid missing elements
 IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING) THEN
   ! Bezier elevation now more important than ever, also determines size of FIBGM extent
@@ -799,6 +800,7 @@ SDEALLOCATE(GEO%DirPeriodicVectors)
 SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%TFIBGM)
+SDEALLOCATE(IsExchangeElem)
 
 ADEALLOCATE(XiEtaZetaBasis)
 ADEALLOCATE(slenXiEtaZetaBasis)

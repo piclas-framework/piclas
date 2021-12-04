@@ -112,7 +112,7 @@ USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,r_sf
-USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2
+USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2, halo_eps_woshape
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,SFAdaptiveSmoothing,dim_sf,dimFactorSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared_Win,FIBGM_nElems_Shared_Win,FIBGMToProcFlag_Shared_Win,FIBGMProcs_Shared_Win
@@ -392,7 +392,7 @@ ELSE
 #else
   halo_eps = halo_eps_velo*deltaT*SafetyFactor ! for RK too large
 #endif
-
+  halo_eps_woshape = halo_eps
   ! Check whether halo_eps is smaller than shape function radius e.g. 'shape_function'
   IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     IF(r_sf.LT.0.) CALL abort(__STAMP__,'Shape function radius not read yet (less than zero)! r_sf=',RealInfoOpt=r_sf)

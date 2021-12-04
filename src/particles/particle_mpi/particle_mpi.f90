@@ -521,7 +521,7 @@ DO iProc=0,nExchangeProcessors-1
     CALL ABORT(__STAMP__,'  Cannot allocate PartSendBuf, local ProcId, ALLOCSTAT',iProc,REAL(ALLOCSTAT))
 
   ! build message
-  DO iPart=1,PDM%ParticleVecLength
+  DO iPart=1,PDM%ParticleVecLengthOld
 
     ! TODO: This seems like a valid check to me, why is it commented out?
     !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -843,7 +843,7 @@ END DO ! iProc
 END SUBROUTINE MPIParticleSend
 
 
-SUBROUTINE MPIParticleRecv()
+SUBROUTINE MPIParticleRecv(DoMPIUpdateNextFreePos)
 !===================================================================================================================================
 ! this routine finishes the communication and places the particle information in the correct arrays. Following steps are performed
 ! 1) Finish all send requests -> MPI_WAIT
@@ -855,11 +855,14 @@ SUBROUTINE MPIParticleRecv()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
-USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
+USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo, DSMC_RHS
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf!,PartMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species
+USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: doParticleMerge, vMPF_SpecNumElem
+USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
 #if defined(LSERK)
 USE MOD_Particle_Vars          ,ONLY: Pt_temp
 #endif
@@ -891,11 +894,12 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
+LOGICAL, OPTIONAL             :: DoMPIUpdateNextFreePos
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, TempNextFreePosition
+INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, TempNextFreePosition, ElemID
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles
 #if defined(ROS) || defined(IMPA)
@@ -1229,6 +1233,30 @@ DO iProc=0,nExchangeProcessors-1
     !>> LastGlobalElemID only know to previous proc
     PEM%LastGlobalElemID(PartID) = -888
 #endif
+    IF (PRESENT(DoMPIUpdateNextFreePos)) THEN
+      ElemID = PEM%LocalElemID(PartID)
+      IF (ElemID.LT.1) THEN
+        CALL abort(__STAMP__,'Particle received in not in proc! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
+      END IF
+      IF(.NOT.IsExchangeElem(ElemID)) THEN
+        CALL abort(__STAMP__,'Particle received in non exchange elem! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
+      END IF
+      IF (useDSMC) DSMC_RHS(1:3,PartID) = 0.0
+      IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
+        IF (PEM%pNumber(ElemID).EQ.0) THEN
+          PEM%pStart(ElemID) = PartID                    ! Start of Linked List for Particles in Elem
+        ELSE
+          PEM%pNext(PEM%pEnd(ElemID)) = PartID            ! Next Particle of same Elem (Linked List)
+        END IF
+        PEM%pEnd(ElemID) = PartID
+        PEM%pNumber(ElemID) = &                      ! Number of Particles in Element
+            PEM%pNumber(ElemID) + 1
+        IF (VarTimeStep%UseVariableTimeStep) THEN
+          VarTimeStep%ParticleTimeStep(PartID) = CalcVarTimeStep(PartState(1,PartID),PartState(2,PartID),ElemID)
+        END IF
+        IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(PartID)) = vMPF_SpecNumElem(ElemID,PartSpecies(PartID)) + 1
+      END IF
+    END IF
   END DO
 
 END DO ! iProc
