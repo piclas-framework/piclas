@@ -81,8 +81,8 @@ INTEGER                       :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(
 INTEGER                       :: SendSurfGlobalID(0:nLeaderGroupProcs-1,1:nComputeNodeSurfTotalSides)
 INTEGER                       :: SampSizeAllocate
 INTEGER                       :: NbGlobalElemID, GlobalSideID, NbGlobalSideID, NbElemRank, NbLeaderID, GlobalElemID, ElemRank
-INTEGER                       :: TestCounter
-INTEGER                       :: SwitchGlobalSideID(1:3,1:nComputeNodeInnerBCs),nSideTmp
+INTEGER                       :: TestCounter(2),iCNinnerBC
+INTEGER                       :: SwitchGlobalSideID(1:3,1:SUM(nComputeNodeInnerBCs)),nSideTmp
 !===================================================================================================================================
 
 nRecvSurfSidesTmp = 0
@@ -132,8 +132,8 @@ DO iSide = 1,nComputeNodeSurfSides
       nSendSurfSidesTmp(NbLeaderID) = nSendSurfSidesTmp(NbLeaderID) + 1
       SendSurfGlobalID(NbLeaderID,nSendSurfSidesTmp(NbLeaderID)) = NbGlobalSideID
       ! Store switcheroo information
-      TestCounter = TestCounter +1
-      SwitchGlobalSideID(1:3,TestCounter) = (/NbLeaderID,GlobalSideID,nSendSurfSidesTmp(NbLeaderID)/)
+      TestCounter(1) = TestCounter(1) + 1
+      SwitchGlobalSideID(1:3,TestCounter(1) ) = (/NbLeaderID,GlobalSideID,nSendSurfSidesTmp(NbLeaderID)/)
     END IF
   END IF
 END DO
@@ -153,8 +153,8 @@ DO iSide = nComputeNodeSurfSides+1,nComputeNodeSurfTotalSides
       nSendSurfSidesTmp(NbLeaderID) = nSendSurfSidesTmp(NbLeaderID) + 1
       SendSurfGlobalID(NbLeaderID,nSendSurfSidesTmp(NbLeaderID)) = NbGlobalSideID
       ! Store switcheroo information
-      TestCounter = TestCounter +1
-      SwitchGlobalSideID(1:3,TestCounter) = (/NbLeaderID,GlobalSideID,nSendSurfSidesTmp(NbLeaderID)/)
+      TestCounter(2) = TestCounter(2) + 1
+      SwitchGlobalSideID(1:3,TestCounter(1)+TestCounter(2) ) = (/NbLeaderID,GlobalSideID,nSendSurfSidesTmp(NbLeaderID)/)
     ELSE
       GlobalElemID = SideInfo_Shared(SIDE_ELEMID,GlobalSideID)
       ElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
@@ -166,14 +166,15 @@ DO iSide = nComputeNodeSurfSides+1,nComputeNodeSurfTotalSides
     ! Count regular halo sampling on surf sides per compute node
     LeaderID = SurfSide2GlobalSide(SURF_LEADER,iSide)
     nSendSurfSidesTmp(LeaderID) = nSendSurfSidesTmp(LeaderID) + 1
-    GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
     SendSurfGlobalID(LeaderID,nSendSurfSidesTmp(LeaderID)) = GlobalSideID
   END IF
 END DO
 
 ! Sanity check for switcheroo:
 ! Compare the number of counted sides above with the number that was calculated in InitParticleBoundarySampling()
-IF(TestCounter.NE.nComputeNodeInnerBCs)THEN
+IF(SUM(TestCounter).NE.SUM(nComputeNodeInnerBCs))THEN
+  IPWRITE(UNIT_StdOut,*) "Non-HALO: TestCounter(1),nComputeNodeInnerBCs(1) =", TestCounter(1),nComputeNodeInnerBCs(1)
+  IPWRITE(UNIT_StdOut,*) "    HALO: TestCounter(2),nComputeNodeInnerBCs(2) =", TestCounter(2),nComputeNodeInnerBCs(2)
   CALL abort(__STAMP__,'InitSurfCommunication: The number of Inner BCs that are redirected to other procs do not match!')
 END IF ! TestCounter.ne.nComputeNodeInnerBCs
 
@@ -302,10 +303,10 @@ DO iProc = 0,nLeaderGroupProcs-1
 END DO
 
 !--- Finish switcheroo
-DO TestCounter = 1, nComputeNodeInnerBCs
-  NbLeaderID   = SwitchGlobalSideID(1,TestCounter)
-  GlobalSideID = SwitchGlobalSideID(2,TestCounter)
-  nSideTmp     = SwitchGlobalSideID(3,TestCounter)
+DO iCNinnerBC = 1, SUM(nComputeNodeInnerBCs)
+  NbLeaderID   = SwitchGlobalSideID(1,iCNinnerBC)
+  GlobalSideID = SwitchGlobalSideID(2,iCNinnerBC)
+  nSideTmp     = SwitchGlobalSideID(3,iCNinnerBC)
   ! Note that you have to cycle yourself, but that halo sides might also have been changed to a different proc (i.e.  to yourself)
   IF (NbLeaderID .EQ. myLeaderGroupRank) CYCLE
   SurfMapping(MPIRankSurfLeader(NbLeaderID))%SendSurfGlobalID(nSideTmp) = GlobalSideID
