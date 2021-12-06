@@ -455,7 +455,7 @@ REAL                          :: Weight1, Weight2
     END IF
     IF(UseMCC) THEN
       IF(SpecXSec(iCase)%UseElecXSec) THEN
-        ! Relaxation only from ground-state
+        ! Excitation only from ground-state
         IF(PartStateIntEn(3,iPart1).EQ.0.0.AND.PartStateIntEn(3,iPart2).EQ.0.0) THEN
           IF(SpecXSec(iCase)%UseCollXSec) THEN
             ! Interpolate the electronic cross-section at the current collision energy
@@ -465,32 +465,35 @@ REAL                          :: Weight1, Weight2
             ! Probabilities were saved and added to the total collision probability
             ProbSum = Coll_pData(iPair)%Prob
           END IF
-          ProbElec = 0.
-          ! Decide which electronic excitation should occur
-          CALL RANDOM_NUMBER(iRan)
-          DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
-            ProbElec = ProbElec + SpecXSec(iCase)%ElecLevel(iLevel)%Prob
-            IF((ProbElec/ProbSum).GT.iRan) THEN
-              IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
-                DoElec1 = .TRUE.
-              ELSE
-                DoElec2 = .TRUE.
+          ! Only proceed if any of the electronic excitation probabilities is above zero
+          IF(SUM(SpecXSec(iCase)%ElecLevel(:)%Prob).GT.0.) THEN
+            ProbElec = 0.
+            ! Decide which electronic excitation should occur
+            CALL RANDOM_NUMBER(iRan)
+            DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+              ProbElec = ProbElec + SpecXSec(iCase)%ElecLevel(iLevel)%Prob
+              IF((ProbElec/ProbSum).GT.iRan) THEN
+                IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
+                  DoElec1 = .TRUE.
+                ELSE
+                  DoElec2 = .TRUE.
+                END IF
+                ElecLevelRelax = iLevel
+                EXIT
               END IF
-              ElecLevelRelax = iLevel
-              EXIT
+            END DO
+            ! Reducing the total collision probability if no electronic excitation occurred
+            IF((.NOT.DoElec1).AND.(.NOT.DoElec2)) THEN
+              IF(SpecXSec(iCase)%UseCollXSec) THEN
+                SpecXSec(iCase)%CrossSection = SpecXSec(iCase)%CrossSection - SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
+              ELSE
+                Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob - SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
+              END IF
             END IF
-          END DO
-          ! Reducing the total collision probability if no electronic excitation occurred
-          IF((.NOT.DoElec1).AND.(.NOT.DoElec2)) THEN
-            IF(SpecXSec(iCase)%UseCollXSec) THEN
-              SpecXSec(iCase)%CrossSection = SpecXSec(iCase)%CrossSection - SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
-            ELSE
-              Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob - SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
-            END IF
-          END IF
-        END IF  ! Electronic energy = 0, ground-state
-      END IF    ! SpecXSec(iCase)%UseElecXSec
-    END IF      ! UseMCC
+          END IF  ! SUM(SpecXSec(iCase)%ElecLevel(:)%Prob).GT.0.
+        END IF    ! Electronic energy = 0, ground-state
+      END IF      ! SpecXSec(iCase)%UseElecXSec
+    END IF        ! UseMCC
 #if (PP_TimeDiscMethod==42)
     IF(CalcRelaxProb) THEN
       IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
