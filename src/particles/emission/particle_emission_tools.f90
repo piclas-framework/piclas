@@ -1907,10 +1907,12 @@ END DO
 END SUBROUTINE SetParticlePositionPhotonSEEDisc
 
 
+!===================================================================================================================================
+!> Set particle position for 'photon_SEE_honeycomb'
+!> 1. Get random position in hollow circle
+!> 2. Check if the position is outside of the outer hexagon or inside of the inner hexagon and loop until the particle is positioned
+!===================================================================================================================================
 SUBROUTINE SetParticlePositionPhotonSEEHoneycomb(FractNbr,iInit,chunkSize,particle_positions)
-!===================================================================================================================================
-! Set particle position for 'photon_SEE_honeycomb'
-!===================================================================================================================================
 ! modules
 USE MOD_Globals
 USE MOD_Particle_Vars ,ONLY: Species

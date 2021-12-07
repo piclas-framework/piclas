@@ -574,7 +574,14 @@ END SUBROUTINE DSMC_chemical_init
 
 
 !===================================================================================================================================
-!> Initialize Photoionization cross-section (XSec)
+!> Initialize Photoionization cross-section (XSec) by reading the data from .h5
+!> 1. Check which reactions are 'phIonXSec'
+!> 2. Check the educts (photon+X), also switch the ordering of the names.e.g, N2-photon or photon-N2 of the container
+!> 3. Load the photon energy spectrum from the container "SPECTRUM" under "N2-photon"
+!> 4. Load the chemical reaction cross-sections but do not vary the order of the container name, e.g., H-HIon1-electron
+!>    if the name is not correctly ordered it will abort
+!> 5. Interpolate the cross-section data to the wavelength spectrum and discard the original data. Keep only the interpolated data.
+!> 6. Find the first and last wavelength for which cross-sections are available, ignore wavelengths outside in the simulation
 !===================================================================================================================================
 SUBROUTINE InitPhotoionizationXSec()
 ! MODULES
@@ -601,12 +608,14 @@ PhotoReacToReac = -1 ! Initialize
 ALLOCATE(ReacToPhotoReac(ReadInNumOfReact))
 ReacToPhotoReac = -1 ! Initialize
 iPhotoReac = 0
+!> 1. Check which reactions are 'phIonXSec'
 DO iReac = 1, ReadInNumOfReact
   IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIonXSec')THEN
     ! Create mappings
     iPhotoReac                  = iPhotoReac + 1
     PhotoReacToReac(iPhotoReac) = iReac
     ReacToPhotoReac(iReac)      = iPhotoReac
+!> 2. Check the educts (photon+X), also switch the ordering of the names.e.g, N2-photon or photon-N2 of the container
     EductPair = TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)//'-photon'
     IF(iPhotoReac.GT.1)THEN
       IF(TRIM(EductPair).NE.TRIM(EductPairOld)) CALL abort(__STAMP__,'Currently only one photo reaction is implemented')
@@ -615,10 +624,11 @@ DO iReac = 1, ReadInNumOfReact
   END IF ! TRIM(ChemReac%ReactModel(iReac)).EQ.'phIonXSec'
 END DO ! iReac = 1, ReadInNumOfReact
 
-! Get the photon spectrum
+!> 3. Load the photon energy spectrum from the container "SPECTRUM" under "N2-photon"
 CALL ReadReacPhotonSpectrum(1) ! 1 corresponds to iPhotoReac=1 and for all reactions, the Educt currently must be the same
 
-! Get the cross-sections
+!> 4. Load the chemical reaction cross-sections but do not vary the order of the container name, e.g., H-HIon1-electron
+!>    if the name is not correctly ordered it will abort
 ALLOCATE(SpecPhotonXSec(NbrOfPhotonXsecReactions))
 DO iPhotoReac = 1, NbrOfPhotonXsecReactions
   CALL ReadReacPhotonXSec(iPhotoReac)
@@ -629,7 +639,7 @@ TotalEnergyFraction = SUM(PhotonSpectrum(2,:))
 IF(.NOT.ALMOSTEQUALRELATIVE(TotalEnergyFraction,1.0,1e-3)) CALL abort(__STAMP__,'Sum of energy fraction is not 1.0')
 PhotonSpectrum(2,:) = PhotonSpectrum(2,:) / TotalEnergyFraction
 
-! Calculate the interpolated cross-sections
+!> 5. Interpolate the cross-section data to the wavelength spectrum and discard the original data. Keep only the interpolated data.
 dims=SHAPE(PhotonSpectrum)
 NbrOfPhotonXsecLines = dims(2)
 ALLOCATE(SpecPhotonXSecInterpolated(NbrOfPhotonXsecLines,NbrOfPhotonXsecReactions+3))
@@ -685,7 +695,7 @@ DO iPhotoReac = 1, NbrOfPhotonXsecReactions
 END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions
 DEALLOCATE(SpecPhotonXSec)
 
-! Get the first and last line of the photon spectrum
+!> 6. Find the first and last wavelength for which cross-sections are available, ignore wavelengths outside in the simulation
 PhotoIonFirstLine = HUGE(1)
 PhotoIonLastLine = 0
 DO iLine = 1, NbrOfPhotonXsecLines
