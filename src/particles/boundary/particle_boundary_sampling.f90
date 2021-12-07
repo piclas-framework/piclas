@@ -372,10 +372,9 @@ IF (myComputeNodeRank.EQ.0) THEN
         NbGlobalElemID = SideInfo_Shared(SIDE_ELEMID,NbGlobalSideID)
         NbElemRank = ElemInfo_Shared(ELEM_RANK,NbGlobalElemID)
         NbLeaderID = INT(NbElemRank/nComputeNodeProcessors)
-        !IF(NbLeaderID.NE.SurfSide2GlobalSide(SURF_LEADER,iSide))THEN
-        IF(NbLeaderID.NE.myrank)THEN
-          nComputeNodeInnerBCs = nComputeNodeInnerBCs + 1
-        END IF ! NbLeaderID.NE.SurfSide2GlobalSide(SURF_LEADER,iSide)
+        IF(NbLeaderID.NE.INT(myRank/nComputeNodeProcessors))THEN
+          nComputeNodeInnerBCs(1) = nComputeNodeInnerBCs(1) + 1
+        END IF
 #endif
         CYCLE! Skip sides with the larger index
       END IF
@@ -393,7 +392,7 @@ IF (myComputeNodeRank.EQ.0) THEN
       ! Only add the side with the smaller index
       IF(GlobalSideID.GT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))THEN
         ! Count larger inner BCs as these may have to be sent to a different leader processor
-        nComputeNodeInnerBCs = nComputeNodeInnerBCs + 1
+        nComputeNodeInnerBCs(2) = nComputeNodeInnerBCs(2) + 1
       END IF
     END IF
   END DO ! iSurfSide = nComputeNodeSurfSides+1, nComputeNodeSurfTotalSides
