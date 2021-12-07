@@ -1,5 +1,5 @@
 # Electronic relaxation with cross-section data
-* Testing a CO2-N2-He reservoir using
+* Testing a N2 reservoir using
   * Effective cross-section data (Phelps database, www.lxcat.net, retrieved on February 18, 2020)
   * VHS modelling
 * Electronic relaxation based on cross-section data read-in from the database
