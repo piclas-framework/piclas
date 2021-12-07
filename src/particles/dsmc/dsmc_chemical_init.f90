@@ -140,7 +140,7 @@ USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_MCC_Init                ,ONLY: MCC_Chemistry_Init
-USE MOD_DSMC_Vars               ,ONLY: XSec_Database,NbrOfPhotonXsecReactions,NbrOfPhotonXsecLines
+USE MOD_DSMC_Vars               ,ONLY: XSec_Database,NbrOfPhotonXsecReactions
 USE MOD_DSMC_Vars               ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,ReacToPhotoReac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -154,7 +154,7 @@ CHARACTER(LEN=3)      :: hilf
 INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit, iLine
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat
-REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants,LostEnergy(2)
+REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants
 INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact,iPhotoReac
 !===================================================================================================================================
 
@@ -436,13 +436,6 @@ DO iReac = 1, ChemReac%NumOfReact
         ! Check if this photo reaction has a cross-section unequal zero
         ! If it is zero, this reaction would never happen anyway, therefore ignore it
         IF(SpecPhotonXSecInterpolated(iLine,2+iPhotoReac).LE.0.) THEN
-          !IF(iPhotoReac.GT.1)THEN
-          !  SWRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,             1:2+iPhotoReac-1),"         killed          ",&
-          !                     SpecPhotonXSecInterpolated(iLine,2+iPhotoReac+1:              )
-          !ELSE
-          !  SWRITE (*,*) iLine,"         killed          ",SpecPhotonXSecInterpolated(iLine,2+iPhotoReac+1:)
-          !END IF ! iPhotoReac.GT.1
-      !SWRITE (*,*) "iLine,SpecPhotonXSecInterpolated(iLine,:) =", iLine,SpecPhotonXSecInterpolated(iLine,:)
           CYCLE
         ELSE
           SWRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,1:2+iPhotoReac-1),"      requires fix       ",&
@@ -466,38 +459,7 @@ DO iReac = 1, ChemReac%NumOfReact
   END IF ! TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon'
 END DO ! iReac = 1, ChemReac%NumOfReact
 
-!PhotoIonFirstLine = 9
-
-IF(NbrOfPhotonXsecReactions.GT.0)THEN
-  ! Check how much energy is cut off
-  IF(MPIRoot)THEN
-    LostEnergy(:) = 0.
-    IF(PhotoIonFirstLine.GT.1)THEN
-      DO iLine = 1, PhotoIonFirstLine-1
-        LostEnergy(1) = LostEnergy(1) + SpecPhotonXSecInterpolated(iLine,2)
-      END DO ! iLine = 1, PhotoIonFirstLine-1
-    END IF ! PhotoIonFirstLine.GT.1
-    IF(PhotoIonLastLine.LT.NbrOfPhotonXsecLines)THEN
-      DO iLine = PhotoIonLastLine+1, NbrOfPhotonXsecLines
-        LostEnergy(2) = LostEnergy(2) + SpecPhotonXSecInterpolated(iLine,2)
-      END DO ! iLine = PhotoIonLastLine+1, NbrOfPhotonXsecLines
-    END IF ! PhotoIonLastLine.LT.NbrOfPhotonXsecLines
-    IF(SUM(LostEnergy).GT.0.)THEN
-      WRITE (UNIT_stdOut,'(A,3(F6.2,A))') "Lost energy content in photoionization XSec: ", &
-          LostEnergy(1)*100., "% (high photon wavelength),",&
-          LostEnergy(2)*100., "% (low photon wavelength),",&
-          SUM(LostEnergy)*100., "% (total)"
-      WRITE (UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') "Only considering level ",PhotoIonFirstLine," to ",PhotoIonLastLine, " from 1 to ",&
-          NbrOfPhotonXsecLines," due to the cut-off"
-    END IF ! SUM(LostEnergy).GT.0.
-  END IF ! MPIRoot
-  !SWRITE(*,*) "SpecPhotonXSecInterpolated"
-  !DO iLine = 1, NbrOfPhotonXsecLines
-  !!DO iLine = PhotoIonFirstLine, PhotoIonLastLine
-  !  SWRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,:)
-  !END DO ! iLine = 1, dims(2)
-  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-END IF ! NbrOfPhotonXsecReactions.GT.0
+IF(NbrOfPhotonXsecReactions.GT.0) CALL CheckPhotoionizationXSec()
 
 ! Populate the background reaction arrays and initialize the required partition functions
 IF(DSMC%BackwardReacRate) THEN
@@ -736,6 +698,70 @@ IF(PhotoIonLastLine.LT.PhotoIonFirstLine) CALL abort(__STAMP__,'Photoionization 
 ALLOCATE(PhotonEnergies(PhotoIonFirstLine:PhotoIonLastLine,1+NbrOfPhotonXsecReactions))
 
 END SUBROUTINE InitPhotoionizationXSec
+
+
+!===================================================================================================================================
+!> 1. Check the wavelengths and corresponding cross sections of the chemical reaction
+!> 2. Determine the lost energy (wavelengths outside of the range of the cross-section data)
+!===================================================================================================================================
+SUBROUTINE CheckPhotoionizationXSec()
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars ,ONLY: NbrOfPhotonXsecReactions,NbrOfPhotonXsecLines
+USE MOD_DSMC_Vars ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: ZeroLine,iLine
+REAL                  :: LostEnergy(2)
+!===================================================================================================================================
+IF(.NOT.MPIRoot) RETURN
+
+! Sanity check: intermediate lines with zero cross sections are not allowed
+ZeroLine = 0
+DO iLine = PhotoIonFirstLine, PhotoIonLastLine
+  IF(SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3).LE.0.)THEN
+    ZeroLine = iLine
+    EXIT
+  END IF ! 
+END DO ! iLine = PhotoIonFirstLine, PhotoIonLastLine
+
+IF(ZeroLine.GT.0)THEN
+  WRITE(UNIT_StdOut,*) ""
+  WRITE(UNIT_StdOut,*) "ERROR: Found intermediate wavelength with no correspoding chemical reaction (cross section > 0)"
+  WRITE(UNIT_StdOut,*) "SpecPhotonXSecInterpolated: Line ",ZeroLine," is broken"
+  DO iLine = PhotoIonFirstLine, PhotoIonLastLine
+    IF(iLine.EQ.ZeroLine) WRITE (*,*) " -------------------------------- HERE -------------------------------- "
+    SWRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,:)
+    IF(iLine.EQ.ZeroLine) WRITE (*,*) " -------------------------------- HERE -------------------------------- "
+  END DO ! iLine = 1, dims(2)
+  CALL abort(__STAMP__,'Found intermediate wavelength with no correspoding chemical reaction (any cross section > 0)')
+END IF ! ZeroLine.GT.0
+
+! Calculate the lost energy (wavelengths for which no reactions are possible)
+LostEnergy(:) = 0.
+IF(PhotoIonFirstLine.GT.1)THEN
+  DO iLine = 1, PhotoIonFirstLine-1
+    LostEnergy(1) = LostEnergy(1) + SpecPhotonXSecInterpolated(iLine,2)
+  END DO ! iLine = 1, PhotoIonFirstLine-1
+END IF ! PhotoIonFirstLine.GT.1
+IF(PhotoIonLastLine.LT.NbrOfPhotonXsecLines)THEN
+  DO iLine = PhotoIonLastLine+1, NbrOfPhotonXsecLines
+    LostEnergy(2) = LostEnergy(2) + SpecPhotonXSecInterpolated(iLine,2)
+  END DO ! iLine = PhotoIonLastLine+1, NbrOfPhotonXsecLines
+END IF ! PhotoIonLastLine.LT.NbrOfPhotonXsecLines
+IF(SUM(LostEnergy).GT.0.)THEN
+  WRITE (UNIT_stdOut,'(A,3(F6.2,A))') "Lost energy content in photoionization XSec: ", &
+      LostEnergy(1)*100., "% (high photon wavelength),",&
+      LostEnergy(2)*100., "% (low photon wavelength),",&
+      SUM(LostEnergy)*100., "% (total)"
+  WRITE (UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') "Only considering level ",PhotoIonFirstLine," to ",PhotoIonLastLine, " from 1 to ",&
+      NbrOfPhotonXsecLines," due to the cut-off"
+END IF ! SUM(LostEnergy).GT.0.
+
+END SUBROUTINE CheckPhotoionizationXSec
 
 
 !===================================================================================================================================
