@@ -494,7 +494,7 @@ INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, N
 REAL                          :: RandVal,NumTmp,ProbRest
 INTEGER                       :: TotalNbrOfReactionsTmp,iCrossSection,NbrCrossSections,iLine,iPhotoReac,iLineStart,iLineEnd
 INTEGER                       :: NumPhotoIonization(ChemReac%NumOfReact)
-REAL                          :: SumCrossSections,CrossSection,MaxCrossSection,PhotonEnergy
+REAL                          :: SumCrossSections,CrossSection,MaxCrossSection
 !===================================================================================================================================
 NumPhotoIonization = 0
 
