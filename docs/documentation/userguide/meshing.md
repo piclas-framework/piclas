@@ -27,35 +27,36 @@ hopr hopr.ini
 
 Note that the path to the **HOPR** executable is omitted in the command (visit {ref}`sec:directory-paths`).
 
-### Mesh generation with HEXPRESS
+### Mesh generation with Coreform Cubit
 
-#### Hexpress Setup
-Download HEXPRESS from the official website and install the program. Execute the configure script under
-```
-/usr/numeca/COMMON/configure
-```
+Export as a Gambit file (`*.neu`), conversion using the corresponding mode:
 
-Add the licence server (e.g. to *.bashrc*)
-```
-NUMECA_LICENSE_FILE=@name_server
-export NUMECA_LICENSE_FILE
-```
-where *name_servers* is the server alias or address.
-Next, adjust the *.driver * file in the *.numeca* directory.
-```
-~/.numeca/.driver
-```
-with the following line
-```
-name_server localhost OPENGL:OPENGL2:X11 X11
-```
+    Mode = 2
 
-#### Hexpress Usage
-CAD model of complete fluid domain with FreeCAD -> Export as STL. CATIA, SolidWorks formats also supported by HEXPRESS.
+### Mesh generation with OMNIS/HEXPRESS
 
-Export as CGNS (ADF)
+As of OMNIS Version 5.2 (November 2021), the CGNS export is not suitable for boundaries with more than one surface (even if they have been grouped together correctly in OMNIS). Instead, the mesh should be exported in the `.sph` format. The following script can be utilized to merge the surfaces
 
-HOPR: CGNS 3.3.1
+    ####################################################
+    # Script to merge surfaces and CGNS export
+    ####################################################
+    # Make sure to insert the correct file name
+    READMESH merge.sph
+    # First, all surfaces within "WALL_IN_OMNIS" BC (as defined in OMNIS) are summarized under the new BC "BC_WALL" (the name to use in HOPR)
+    UNITESELECTIONS BC_WALL 1 WALL_IN_OMNIS*
+    # Second, the original BC group and its surfaces should be deleted. These two commands can be repeated for multiple boundary conditions within a single script.
+    DELETESELECTION WALL_IN_OMNIS*
+    # Export the mesh as CGNS for the conversion with HOPR
+    WRITEMESH mesh.cgns
+    END
+
+The above script can be saved in a text file (e.g. `omnis_mergeBCs.conf`) and executed using the datamapper tool
+
+    hexpressdatamapper101 omnis_mergeBCs.conf
+
+The resulting CGNS file can be converted with HOPR, using the corresponding mode:
+
+    Mode = 3
 
 ### Mesh generation with GridPro
 
