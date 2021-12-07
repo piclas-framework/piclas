@@ -818,69 +818,73 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
   END DO ! iSide = 1, nExchangeSides
 END DO ElemLoop
 
-! Notify every proc which was identified by the local proc
-DO iProc = 0,nProcessors_Global-1
-  IF (iProc.EQ.myRank) CYCLE
+! Notify every proc if it was identified by the local proc
+IF(CheckExchangeProcs)THEN
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
 
-  ! CommFlag holds the information if the local proc wants to communicate with iProc. Cannot be a logical because ISEND might not
-  ! return before the next value is written
-  CommFlag(iProc) = MERGE(.TRUE.,.FALSE.,GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).GT.0)
-  CALL MPI_ISEND( CommFlag(iProc)              &
-                , 1                            &
-                , MPI_LOGICAL                  &
-                , iProc                        &
-                , 1999                         &
-                , MPI_COMM_WORLD               &
-                , SendRequest(iProc)           &
-                , IERROR)
-END DO
+    ! CommFlag holds the information if the local proc wants to communicate with iProc. Cannot be a logical because ISEND might not
+    ! return before the next value is written
+    CommFlag(iProc) = MERGE(.TRUE.,.FALSE.,GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).GT.0)
+    CALL MPI_ISEND( CommFlag(iProc)              &
+                  , 1                            &
+                  , MPI_LOGICAL                  &
+                  , iProc                        &
+                  , 1999                         &
+                  , MPI_COMM_WORLD               &
+                  , SendRequest(iProc)           &
+                  , IERROR)
+  END DO
 
-! Finish communication
-DO iProc = 0,nProcessors_Global-1
-  IF (iProc.EQ.myRank) CYCLE
+  ! Finish communication
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
 
-  CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-  CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
-  IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-END DO
+    CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END DO
 
-! Append previously not found procs to list of exchange processors
-nNonSymmetricExchangeProcs = 0
-DO iProc = 0,nProcessors_Global-1
-  IF (iProc.EQ.myRank) CYCLE
+  ! Append previously not found procs to list of exchange processors
+  nNonSymmetricExchangeProcs = 0
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
 
-  ! Ignore procs that are already flagged or not requesting communication
-  IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).GT.0) CYCLE
-  IF (.NOT.GlobalProcToRecvProc(iProc)) CYCLE
+    ! Ignore procs that are already flagged or not requesting communication
+    IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).GT.0) CYCLE
+    IF (.NOT.GlobalProcToRecvProc(iProc)) CYCLE
 
-  ! Found a previously missing proc
-  GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc) = 2
-  GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,iProc) = nExchangeProcessors
-  nNonSymmetricExchangeProcs = nNonSymmetricExchangeProcs + 1
-  nExchangeProcessors        = nExchangeProcessors + 1
-  DO iElem=1,nElems
-    myInvisibleRank(iElem)=iProc
-  END DO ! iElem=1,nElems
-END DO
+    ! Found a previously missing proc
+    GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc) = 2
+    GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,iProc) = nExchangeProcessors
+    nNonSymmetricExchangeProcs = nNonSymmetricExchangeProcs + 1
+    nExchangeProcessors        = nExchangeProcessors + 1
+    DO iElem=1,nElems
+      myInvisibleRank(iElem)=iProc
+    END DO ! iElem=1,nElems
+  END DO
 
-DEALLOCATE(GlobalProcToRecvProc,RecvRequest,SendRequest,CommFlag)
+  DEALLOCATE(GlobalProcToRecvProc,RecvRequest,SendRequest,CommFlag)
 
-! On smooth grids, nNonSymmetricExchangeProcs should be zero. Only output if previously missing particle exchange procs are found
-CALL MPI_REDUCE(nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-! Only root checks reduced value
-IF (MPIRoot) THEN
-  ! Check sum of nNonSymmetricExchangeProcs over all processors
-  IF(nNonSymmetricExchangeProcsGlob.GT.0)THEN
-    SWRITE(Unit_StdOut,'(A,I0,A)') ' | Found ',nNonSymmetricExchangeProcsGlob, &
-                                   ' previously missing non-symmetric particle exchange procs'
-    SWRITE(Unit_StdOut,'(A)')"\n See ElemData container 'myInvisibleRank' for more information on which MPI ranks are non-symmetric"
-    IF(CheckExchangeProcs) CALL abort(__STAMP__,&
-      ' Non-symmetric particle exchange procs > 0. This check is optional. You can disable it via CheckExchangeProcs = F')
-    CALL AddToElemData(ElementOut,'myInvisibleRank',LongIntArray=myInvisibleRank)
-  ELSE
-    SDEALLOCATE(myInvisibleRank)
-  END IF ! nNonSymmetricExchangeProcsGlob.GT.0
+  ! On smooth grids, nNonSymmetricExchangeProcs should be zero. Only output if previously missing particle exchange procs are found
+  CALL MPI_REDUCE(nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
+  ! Only root checks reduced value
+  IF (MPIRoot) THEN
+    ! Check sum of nNonSymmetricExchangeProcs over all processors
+    IF(nNonSymmetricExchangeProcsGlob.GT.0)THEN
+      SWRITE(Unit_StdOut,'(A,I0,A)') ' | Found ',nNonSymmetricExchangeProcsGlob, &
+                                     ' previously missing non-symmetric particle exchange procs'
+      SWRITE(Unit_StdOut,'(A)')"\n See ElemData container 'myInvisibleRank' for more information on which MPI ranks are non-symmetric"
+      IF(CheckExchangeProcs) CALL abort(__STAMP__,&
+        ' Non-symmetric particle exchange procs > 0. This check is optional. You can disable it via CheckExchangeProcs = F')
+      CALL AddToElemData(ElementOut,'myInvisibleRank',LongIntArray=myInvisibleRank)
+    ELSE
+      SDEALLOCATE(myInvisibleRank)
+    END IF ! nNonSymmetricExchangeProcsGlob.GT.0
+  END IF
+ELSE
+  SDEALLOCATE(myInvisibleRank)
 END IF
 
 ! Build reverse mapping
