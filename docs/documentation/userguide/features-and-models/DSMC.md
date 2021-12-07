@@ -272,9 +272,16 @@ Levels those relative differences are below this parameter will be merged:
     EpsMergeElectronicState = 1E-3
 
 However, this option should be evaluated carefully based on the specific simulation case and tested against a zero/very
-low merge tolerance. Finally, the default relaxation probability can be adjusted by
+low merge tolerance. Finally, the default relaxation probability of 0.01 can be adjusted by
 
-    Particles-DSMC-ElecRelaxProb = 0.01
+    Part-Species$-ElecRelaxProb = 0.3
+
+Additionally, variable relaxation probabilities can be used. For each species where its value differs from the default relaxation probability,
+the following parameter needs to be defined
+
+    Part-Species3-ElecRelaxProb = 1.0
+    Part-Species4-ElecRelaxProb = 0.5
+    Part-Species5-ElecRelaxProb = 0.1
 
 An electronic state database can be created using a Fortran tool in `piclas/tools/electronic_data`. An alternative is to use the
 Python-based script discussed in Section {ref}`sec:tools-xsec-collision` and to adapt it to electronic energy levels.

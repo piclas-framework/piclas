@@ -584,8 +584,8 @@ INTEGER,INTENT(IN)            :: NVisu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iElem, iDG, nVar_State, N_State, nElems_State, nVar_Solution, nDims, iField, nFields, Suffix
-INTEGER                         :: nDimsOffset, nVar_Source
-CHARACTER(LEN=255)              :: MeshFile, NodeType_State, FileString_DG, StrVarNamesTemp(4),StrVarNamesTemp3(3)
+INTEGER                         :: nDimsOffset, nVar_Source,nVar_TD
+CHARACTER(LEN=255)              :: MeshFile, NodeType_State, FileString_DG, StrVarNamesTemp(4),StrVarNamesTemp3(3),StrVarNamesTemp4
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:), StrVarNamesTemp2(:)
 REAL                            :: OutputTime
 REAL,ALLOCATABLE                :: U2(:,:,:,:,:,:)                   !< Solution from state file with additional dimension, rank=6
@@ -597,7 +597,7 @@ REAL,ALLOCATABLE,TARGET         :: Coords_DG(:,:,:,:,:)
 REAL,POINTER                    :: Coords_DG_p(:,:,:,:,:)
 REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             !< Vandermonde from equidistant mesh to visualization nodes
 REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  !< Vandermonde from state to visualization nodes
-LOGICAL                         :: DGSourceExists,DGTimeDerivativeExists
+LOGICAL                         :: DGSourceExists,DGTimeDerivativeExists,TimeExists,DGSourceExtExists
 CHARACTER(LEN=16)               :: hilf
 !===================================================================================================================================
 ! 1.) Open given file to get the number of elements, the order and the name of the mesh file
@@ -619,10 +619,10 @@ CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
 IF (DGSourceExists) THEN
   CALL ReadAttribute(File_ID,'VarNamesSource',4,StrArray=StrVarNamesTemp)
   nVar_State  = nVar_Solution + 4
-  nVar_Source = nVar_State
 ELSE
   nVar_State = nVar_Solution
 END IF
+nVar_Source = nVar_State
 
 ! Check if the DG_TimeDerivative container exists, and if it does save the variable names and increase the nVar_State variable
 CALL DatasetExists(File_ID,'DG_TimeDerivative',DGTimeDerivativeExists)
@@ -630,6 +630,14 @@ IF(DGTimeDerivativeExists)THEN
   CALL ReadAttribute(File_ID,'VarNamesTimeDerivative',3,StrArray=StrVarNamesTemp3)
   nVar_State = nVar_State + 3
 END IF ! DGTimeDerivativeExists
+nVar_TD = nVar_State
+
+! Check if the DG_SourceExt container exists, and if it does save the variable names and increase the nVar_State variable
+CALL DatasetExists(File_ID,'DG_SourceExt',DGSourceExtExists)
+IF(DGSourceExtExists)THEN
+  StrVarNamesTemp4='SurfaceChargeDensity[1/m^3]'
+  nVar_State = nVar_State + 1
+END IF ! DGSourceExtExists
 
 ! Save the variable names for the regular DG_Solution in a temporary array
 SDEALLOCATE(StrVarNamesTemp2)
@@ -641,10 +649,12 @@ SDEALLOCATE(StrVarNames)
 ALLOCATE(StrVarNames(nVar_State))
 StrVarNames(1:nVar_Solution) = StrVarNamesTemp2
 IF(DGSourceExists)         StrVarNames(nVar_Solution+1:nVar_Source) = StrVarNamesTemp(1:4)
-IF(DGTimeDerivativeExists) StrVarNames(nVar_Source  +1:nVar_State)  = StrVarNamesTemp3(1:3)
+IF(DGTimeDerivativeExists) StrVarNames(nVar_Source  +1:nVar_TD)     = StrVarNamesTemp3(1:3)
+IF(DGSourceExtExists)      StrVarNames(nVar_TD      +1:nVar_State)  = StrVarNamesTemp4
 
-! Check if a state file is converted. Read the time stamp from .h5
-IF(OutputName.EQ.'State') CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+! Check if a file with time stamp is converted. Read the time stamp from .h5
+CALL DatasetExists(File_ID,'Time',TimeExists,attrib=.TRUE.)
+IF(TimeExists) CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 CALL CloseDataFile()
 
 SDEALLOCATE(Vdm_EQNgeo_NVisu)
@@ -682,9 +692,12 @@ ASSOCIATE (&
     ! Read nVar_Solution+1:nVar_Source
     IF(DGSourceExists) CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
                                        RealArray=U(nVar_Solution+1:nVar_Source,0:N_State,0:N_State,0:N_State,1:nElems))
-    ! Read nVar_Source+1:nVar_State
+    ! Read nVar_Source+1:nVar_TD
     IF(DGTimeDerivativeExists) CALL ReadArray('DG_TimeDerivative',5,(/3_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
-                            offsetElem,5,RealArray=U(nVar_Source+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
+                            offsetElem,5,RealArray=U(nVar_Source+1:nVar_TD,0:N_State,0:N_State,0:N_State,1:nElems))
+    ! Read nVar_TD+1:nVar_State
+    IF(DGSourceExtExists) CALL ReadArray('DG_SourceExt',5,(/1_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
+                            offsetElem,5,RealArray=U(nVar_TD+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
   ELSE ! more than one field
     SDEALLOCATE(U2)
     ALLOCATE(U2(nVar_State,0:N_State,0:N_State,0:N_State,nElems,nFields))
@@ -719,7 +732,11 @@ DO iField = 1, nFields
   IF(OutputName.EQ.'State')THEN
     FileString_DG=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution',OutputTime))//'.vtu'
   ELSE
-    FileString_DG=TRIM(ProjectName)//'_'//TRIM(OutputName)//'.vtu'
+    IF(TimeExists)THEN
+      FileString_DG=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(OutputName),OutputTime))//'.vtu'
+    ELSE
+      FileString_DG=TRIM(ProjectName)//'_'//TRIM(OutputName)//'.vtu'
+    END IF ! TimeExists
   END IF
 
   IF(nFields.GT.1)THEN

@@ -724,11 +724,11 @@ CHARACTER(32)         :: hilf
 ! Read print flags
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
 nRandomSeeds = GETINT('Part-NumberOfRandomSeeds','0')
-CALL RANDOM_SEED(Size = SeedSize)    ! specifies compiler specific minimum number of seeds
+CALL RANDOM_SEED(Size = SeedSize)    ! Specifies compiler specific minimum number of seeds
 ALLOCATE(Seeds(SeedSize))
 Seeds(:)=1 ! to ensure a solid run when an unfitting number of seeds is provided in ini
 IF(nRandomSeeds.EQ.-1) THEN
-  ! ensures different random numbers through irreproducable random seeds (via System_clock)
+  ! Ensures different random numbers through irreproducible random seeds (via System_clock)
   CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 ELSE IF(nRandomSeeds.EQ.0) THEN
  !   IF (Restart) THEN
@@ -746,11 +746,7 @@ ELSE IF(nRandomSeeds.GT.0) THEN
     WRITE(UNIT=hilf,FMT='(I0)') iSeed
     Seeds(iSeed)= GETINT('Particles-RandomSeed'//TRIM(hilf))
   END DO
-  IF (ALL(Seeds(:).EQ.0)) THEN
-    CALL ABORT(&
-     __STAMP__&
-     ,'Not all seeds can be set to zero ')
-  END IF
+  IF (ALL(Seeds(:).EQ.0)) CALL ABORT(__STAMP__,'Not all seeds can be set to zero ')
   CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 ELSE
   SWRITE (*,*) 'Error: nRandomSeeds not defined.'//&
@@ -759,7 +755,6 @@ ELSE
   '= 0    hard-coded deterministic numbers'//&
   '> 0    numbers from ini. Expected ',SeedSize,'seeds.'
 END IF
-
 END SUBROUTINE InitializeVariablesRandomNumbers
 
 
@@ -1442,11 +1437,11 @@ IF(.NOT. uRandomExists) THEN
     IF (nRandomSeeds.EQ.0) THEN
       AuxilaryClock=AuxilaryClock+PartMPI%MyRank
     ELSE IF(nRandomSeeds.GT.0) THEN
-      AuxilaryClock=AuxilaryClock+(PartMPI%MyRank+1)*Seeds(iSeed)*37
+      AuxilaryClock=AuxilaryClock+(PartMPI%MyRank+1)*INT(Seeds(iSeed),8)*37
     END IF
 #else
     IF (nRandomSeeds.GT.0) THEN
-      AuxilaryClock=AuxilaryClock+Seeds(iSeed)*37
+      AuxilaryClock=AuxilaryClock+INT(Seeds(iSeed),8)*37
     END IF
 #endif
     IF (AuxilaryClock .EQ. 0) THEN
