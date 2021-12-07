@@ -402,7 +402,7 @@ END DO ! iProc
 END SUBROUTINE SendNbOfParticles
 
 
-SUBROUTINE MPIParticleSend()
+SUBROUTINE MPIParticleSend(UseOldVecLength)
 !===================================================================================================================================
 ! this routine sends the particles. Following steps are performed
 ! first steps are performed in SendNbOfParticles
@@ -448,11 +448,12 @@ USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL, INTENT(IN), OPTIONAL :: UseOldVecLength
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart,iPos,iProc,jPos
+INTEGER                       :: iPart,iPos,iProc,jPos, nPartLenth
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
 INTEGER                       :: ALLOCSTAT
@@ -482,6 +483,16 @@ PartCommSize=PartCommSize0+iStage*6
 MsgLengthPoly(:) = PartMPIExchange%nPartsSend(2,:)
 MsgLengthElec(:) = PartMPIExchange%nPartsSend(3,:)
 MsgLengthAmbi(:) = PartMPIExchange%nPartsSend(4,:)
+
+IF (PRESENT(UseOldVecLength))
+  IF (UseOldVecLength) THEN
+    nPartLenth = PDM%ParticleVecLengthOld
+  ELSE
+    nPartLenth = PDM%ParticleVecLength
+  END IF
+ELSE
+  nPartLenth = PDM%ParticleVecLength
+END IF
 
 ! 3) Build Message
 DO iProc=0,nExchangeProcessors-1
@@ -521,7 +532,7 @@ DO iProc=0,nExchangeProcessors-1
     CALL ABORT(__STAMP__,'  Cannot allocate PartSendBuf, local ProcId, ALLOCSTAT',iProc,REAL(ALLOCSTAT))
 
   ! build message
-  DO iPart=1,PDM%ParticleVecLengthOld
+  DO iPart=1,nPartLenth
 
     ! TODO: This seems like a valid check to me, why is it commented out?
     !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -751,7 +762,7 @@ END DO ! iProc
 PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(1,:))
 
 ! nullify data on old particle position for safety
-DO iPart=1,PDM%ParticleVecLength
+DO iPart=1,nPartLenth
   IF(PartTargetProc(iPart).EQ.-1) CYCLE
   PartState(1:6,iPart) = 0.
   PartSpecies(iPart)   = 0

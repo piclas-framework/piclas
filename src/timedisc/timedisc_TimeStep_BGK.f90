@@ -150,7 +150,7 @@ END IF
 
 #if USE_MPI
 ! finish communication of number of particles and send particles
-CALL MPIParticleSend()
+CALL MPIParticleSend(.TRUE.)
 #endif
 IF (CoupledBGKDSMC) THEN
   CALL BGK_DSMC_main(1)
