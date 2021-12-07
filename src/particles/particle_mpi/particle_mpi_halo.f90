@@ -81,7 +81,7 @@ INTEGER                        :: iPeriodicVector,jPeriodicVector,iPeriodicDir,j
 INTEGER,DIMENSION(2),PARAMETER :: DirPeriodicVector = (/-1,1/)
 REAL,DIMENSION(6)              :: xCoordsProc,xCoordsOrigin
 INTEGER                        :: iElem,ElemID,firstElem,lastElem,NbElemID,localElem
-INTEGER                        :: iSide,SideID,firstSide,lastSide,iLocSide, mortarCount
+INTEGER                        :: iSide,SideID,firstSide,lastSide,iLocSide
 !INTEGER                        :: firstSide,lastSide
 INTEGER                        :: iMortar,nMortarElems,NbSideID
 INTEGER                        :: iProc,HaloProc
@@ -93,6 +93,7 @@ REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCente
 INTEGER                        :: ExchangeProcLeader
 ! halo_eps reconstruction
 REAL                           :: MPI_halo_eps,MPI_halo_eps_velo,MPI_halo_diag,vec(1:3),deltaT, MPI_halo_eps_woshape
+REAL                           :: NbElemBounds(2,3)
 LOGICAL                        :: fullMesh
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 INTEGER                        :: iStage
@@ -258,10 +259,10 @@ DO iSide = 1, nExchangeSides
   ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
   ! mortar elem, choose longest distance...
   IF (ElemID.LT.1) THEN
-    mortarCount = 0
     MPISideBoundsOfNbElemCenter(1:4,iSide) = 0.0
     nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
-     
+    NbElemBounds(1,:) = HUGE(1.) 
+    NbElemBounds(2,:) = -HUGE(1.) 
     DO iMortar = 1, nMortarElems
       NbSideID = -SideInfo_Shared(SIDE_LOCALID,SideID + iMortar)
       ! If small mortar side not defined, skip it for now, likely not inside the halo region
@@ -273,17 +274,16 @@ DO iSide = 1, nExchangeSides
 
       ! If any of the small mortar sides is not on the local proc, the side is a MPI side
       IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
-        mortarCount = mortarCount + 1
-        MPISideBoundsOfNbElemCenter(1,iSide) =MPISideBoundsOfNbElemCenter(1,iSide) + SUM(  BoundsOfElem_Shared(1:2,1,NbElemID)) / 2.
-        MPISideBoundsOfNbElemCenter(2,iSide) =MPISideBoundsOfNbElemCenter(2,iSide) + SUM(  BoundsOfElem_Shared(1:2,2,NbElemID)) / 2.
-        MPISideBoundsOfNbElemCenter(3,iSide) =MPISideBoundsOfNbElemCenter(3,iSide) + SUM(  BoundsOfElem_Shared(1:2,3,NbElemID)) / 2.
-        MPISideBoundsOfNbElemCenter(4,iSide) =MPISideBoundsOfNbElemCenter(4,iSide) + &
-                                             VECNORM ((/BoundsOfElem_Shared(2  ,1,NbElemID)-BoundsOfElem_Shared(1,1,NbElemID), &
-                                                        BoundsOfElem_Shared(2  ,2,NbElemID)-BoundsOfElem_Shared(1,2,NbElemID), &
-                                                        BoundsOfElem_Shared(2  ,3,NbElemID)-BoundsOfElem_Shared(1,3,NbElemID) /) / 2.)
+        NbElemBounds(1,:) = MIN(NbElemBounds(1,:),BoundsOfElem_Shared(1,:,NbElemID)))
+        NbElemBounds(2,:) = MAX(NbElemBounds(2,:),BoundsOfElem_Shared(2,:,NbElemID)))
       END IF
     END DO
-    MPISideBoundsOfNbElemCenter(1:4,iSide) = MPISideBoundsOfNbElemCenter(1:4,iSide) / mortarCount
+    MPISideBoundsOfNbElemCenter(1:3,iSide) = (/ SUM(  NbElemBounds(1:2,1)), &
+                                              SUM(  NbElemBounds(1:2,2)), &
+                                              SUM(  NbElemBounds(1:2,3)) /) / 2.
+    MPISideBoundsOfNbElemCenter(4,iSide) = VECNORM ((/NbElemBounds(2  ,1)-NbElemBounds(1,1), &
+                                                    NbElemBounds(2  ,2)-NbElemBounds(1,2), &
+                                                    NbElemBounds(2  ,3)-NbElemBounds(1,3) /) / 2.)
   ELSE
     MPISideBoundsOfNbElemCenter(1:3,iSide) = (/ SUM(  BoundsOfElem_Shared(1:2,1,ElemID)), &
                                               SUM(  BoundsOfElem_Shared(1:2,2,ElemID)), &
