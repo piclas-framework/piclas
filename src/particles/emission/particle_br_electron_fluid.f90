@@ -248,10 +248,11 @@ IF(BRNbrOfRegions.GT.0)THEN
     IF(CalcBRVariableElectronTemp.AND.BRAutomaticElectronRef) &
         CALL abort(__STAMP__,'BRVariableElectronTemp AND BRAutomaticElectronRef cannot both be used at the same time.')
 
+    ! Initialize for all procs
+    RegionElectronRefHDF5 = -1.
     ! Restart: Only root reads state file to prevent access with a large number of processors
-    IF(MPIRoot)THEN
-      RegionElectronRefHDF5 = -1.! Initialize
-      IF(DoRestart)THEN
+    IF(DoRestart)THEN
+      IF(MPIRoot)THEN
         CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
         CALL DatasetExists(File_ID,'RegionElectronRef',RegionElectronRefExists)
         IF(RegionElectronRefExists)THEN
@@ -259,12 +260,12 @@ IF(BRNbrOfRegions.GT.0)THEN
           WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read RegionElectronRef from restart file ["//TRIM(RestartFile)//"] rho0[C/m^3]: ",RegionElectronRefHDF5(1),", phi0[V]: ",RegionElectronRefHDF5(2),", Te[eV]: ",RegionElectronRefHDF5(3)
         END IF ! RegionElectronRefExists
         CALL CloseDataFile()
-      END IF ! DoRestart
-    END IF ! MPIRoot
+      END IF ! MPIRoot
 #if USE_MPI
-    ! Broadcast from root to other processors
-    CALL MPI_BCAST(RegionElectronRefHDF5,3, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
+      ! Broadcast from root to other processors
+      CALL MPI_BCAST(RegionElectronRefHDF5,3, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
 #endif /*USE_MPI*/
+    END IF ! DoRestart
 
     ! Use reference parameters if they were read from .h5
     IF((RegionElectronRefHDF5(1).GT.0.).AND.(RegionElectronRefHDF5(3).GT.0.))THEN! rho_ref and T_ref > 0

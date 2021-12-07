@@ -147,7 +147,7 @@ ELSE()
   ENDIF()
 ENDIF()
 
-MESSAGE(STATUS "Compiling using [${PICLAS_INSTRUCTION}] instruction")
+MESSAGE(STATUS "Compiling with [${CMAKE_Fortran_COMPILER_ID}] fortran compiler using [${PICLAS_INSTRUCTION}] instruction")
 
 # =========================================================================
 # COMPILER FLAGS

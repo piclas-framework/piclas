@@ -72,8 +72,8 @@ sudo apt-get install openvpn openssl openssh-client
 sudo apt-get install liblapack3 liblapack-dev zlib1g-dev exuberant-ctags
 
 # for documentation
-sudo apt-get install pandoc pandoc-citeproc
-sudo apt-get install texlive-full
+sudo apt-get install texlive-base
+sudo apt-get install texlive-latex-extra
 
 # hdf5-file viewer
 sudo apt-get install hdfview 
@@ -118,7 +118,7 @@ rm hdf5-1.10.5.tar.bz2
 ```
 
 otherwise a module environment can be installed at this point, see
-`~/Flexi/piclas/tools/Setup_ModuleEnv/README.txt`, which is explained in detail in Chapter \ref{chap:tools} under Section \ref{sec:tools_module_env}.
+`~/piclas/tools/Setup_ModuleEnv/README.md`, which is explained in detail in Chapter \ref{chap:tools} under Section \ref{sec:tools_module_env}.
 
 When no module environment is to be used on the server, the following commands must be places in the
 *.gitlab-ci.yml* file:
