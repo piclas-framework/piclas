@@ -275,8 +275,8 @@ DO iSide = 1, nExchangeSides
 
       ! If any of the small mortar sides is not on the local proc, the side is a MPI side
       IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
-        NbElemBounds(1,:) = MIN(NbElemBounds(1,:),BoundsOfElem_Shared(1,:,NbElemID)))
-        NbElemBounds(2,:) = MAX(NbElemBounds(2,:),BoundsOfElem_Shared(2,:,NbElemID)))
+        NbElemBounds(1,:) = MIN(NbElemBounds(1,:),BoundsOfElem_Shared(1,:,NbElemID))
+        NbElemBounds(2,:) = MAX(NbElemBounds(2,:),BoundsOfElem_Shared(2,:,NbElemID))
       END IF
     END DO
     MPISideBoundsOfNbElemCenter(1:3,iSide) = (/ SUM(  NbElemBounds(1:2,1)), &

@@ -484,7 +484,7 @@ MsgLengthPoly(:) = PartMPIExchange%nPartsSend(2,:)
 MsgLengthElec(:) = PartMPIExchange%nPartsSend(3,:)
 MsgLengthAmbi(:) = PartMPIExchange%nPartsSend(4,:)
 
-IF (PRESENT(UseOldVecLength))
+IF (PRESENT(UseOldVecLength)) THEN
   IF (UseOldVecLength) THEN
     nPartLenth = PDM%ParticleVecLengthOld
   ELSE
