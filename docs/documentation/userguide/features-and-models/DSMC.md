@@ -317,12 +317,13 @@ A reaction is then defined by
 
 where the reaction model can be defined as follows
 
-| Model | Description                                       |
-| ----: | ------------------------------------------------- |
-|   TCE | Total Collision Energy: Arrhenius-based chemistry |
-|    QK | Quantum Kinetic: Threshold-based chemistry        |
-|  XSec | Cross-section based chemistry                     |
-| phIon | Photo-ionization (e.g. N + ph -> N$^+$ + e)       |
+|   Model   |                                   Description                                  |
+|   ----:   | -------------------------------------------------                              |
+|       TCE | Total Collision Energy: Arrhenius-based chemistry                              |
+|        QK | Quantum Kinetic: Threshold-based chemistry                                     |
+|      XSec | Cross-section based chemistry                                                  |
+|     phIon | Photo-ionization (e.g. N + ph -> N$^+$ + e)                                    |
+| phIonXSec | Photo-ionization (e.g. N + ph -> N$^+$ + e) with cross-section based chemistry |
 
 The reactants (left-hand side) and products (right-hand side) are defined by their respective species index. The photo-ionization
 reaction is a special case to model the ionization process within a defined volume by photon impact (see Section
