@@ -136,19 +136,20 @@ IF (nProcessors.EQ.1) THEN
 END IF
 
 ! Open receive buffer for non-symmetric exchange identification
-DO iProc = 0,nProcessors_Global-1
-  IF (iProc.EQ.myRank) CYCLE
+IF (CheckExchangeProcs) THEN
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
 
-  CALL MPI_IRECV( GlobalProcToRecvProc(iProc)  &
-                , 1                            &
-                , MPI_LOGICAL                  &
-                , iProc                        &
-                , 1999                         &
-                , MPI_COMM_WORLD               &
-                , RecvRequest(iProc)           &
-                , IERROR)
-END DO
-
+    CALL MPI_IRECV( GlobalProcToRecvProc(iProc)  &
+                  , 1                            &
+                  , MPI_LOGICAL                  &
+                  , iProc                        &
+                  , 1999                         &
+                  , MPI_COMM_WORLD               &
+                  , RecvRequest(iProc)           &
+                  , IERROR)
+  END DO
+END IF
 !> Count all MPI sides on current proc.
 firstElem = offsetElem+1
 lastElem  = offsetElem+nElems
@@ -865,8 +866,6 @@ IF(CheckExchangeProcs)THEN
     END DO ! iElem=1,nElems
   END DO
 
-  DEALLOCATE(GlobalProcToRecvProc,RecvRequest,SendRequest,CommFlag)
-
   ! On smooth grids, nNonSymmetricExchangeProcs should be zero. Only output if previously missing particle exchange procs are found
   CALL MPI_REDUCE(nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
   ! Only root checks reduced value
@@ -886,6 +885,10 @@ IF(CheckExchangeProcs)THEN
 ELSE
   SDEALLOCATE(myInvisibleRank)
 END IF
+SDEALLOCATE(GlobalProcToRecvProc)
+SDEALLOCATE(RecvRequest)
+SDEALLOCATE(SendRequest)
+SDEALLOCATE(CommFlag)
 
 ! Build reverse mapping
 !-- EXCHANGE_PROC_TYPE information is currently unused and either -1 (no communication) or 2 (communication). Can be used to
