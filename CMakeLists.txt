@@ -66,12 +66,15 @@ EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh
 # Check IPO support:
 # =========================================================================
 # we need to have languages enabled and compilers defined for this
-IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.9.0"))
+SET(IPO_CMAKE_MINIMUM "3.9.0")
+IF(NOT(${CMAKE_VERSION} VERSION_LESS ${IPO_CMAKE_MINIMUM}))
   CMAKE_POLICY(SET CMP0069 NEW)
   INCLUDE(CheckIPOSupported)
   check_ipo_supported(RESULT HASIPO OUTPUT error)
+  CMAKE_DEPENDENT_OPTION(PICLAS_IPO "Activate Interprocedural optimization (IPO)" ON "HASIPO" OFF)
 ELSE()
-  SET(HASIPO FALSE)
+  MESSAGE(STATUS "Interprocedural optimization (IPO) not supported with this cmake version ${CMAKE_VERSION}, requires at least ${IPO_CMAKE_MINIMUM}")
+  SET(PICLAS_IPO FALSE)
 ENDIF()
 
 # =========================================================================
@@ -119,7 +122,7 @@ IF (BUILD_TYPE_LC MATCHES "debug" OR BUILD_TYPE_LC MATCHES "sanitize")
   ADD_DEFINITIONS(-DUSE_DEBUG=1)
 ELSE()
   ADD_DEFINITIONS(-DUSE_DEBUG=0)
-  IF (HASIPO)
+  IF (PICLAS_IPO)
     # enable IPO globally (IPO branding: Intel => IPO, GNU => LTO, PGI => IPA)
     IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
       # Do not use the standard CMake LTO option for GNU (-flto -fno-fat-lto-objects), as it does not allow speed-up during linking
