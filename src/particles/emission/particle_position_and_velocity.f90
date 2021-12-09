@@ -139,6 +139,7 @@ USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetPartic
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionCuboidCylinder, SetParticlePositionGyrotronCircle,SetParticlePositionCircle
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionSphere, SetParticlePositionSinDeviation
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
+USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonHoneycomb, SetParticlePositionPhotonSEEHoneycomb
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLandmark,SetParticlePositionLandmarkNeutralization
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010Neutralization,SetParticlePositionLiu2010Neutralization3D
 #if USE_MPI
@@ -226,8 +227,12 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     CALL SetParticlePositionSinDeviation(FractNbr,iInit,particle_positions)
   CASE('photon_SEE_disc') ! disc case for surface distribution
     CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
+  CASE('photon_SEE_honeycomb') ! Honeycomb disc case for surface distribution
+    CALL SetParticlePositionPhotonSEEHoneycomb(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_cylinder') ! cylinder case for photonionization
     CALL SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize,particle_positions)
+  CASE('photon_honeycomb') ! Honeycomb case for photonionization
+    CALL SetParticlePositionPhotonHoneycomb(FractNbr,iInit,chunkSize,particle_positions)
   CASE('2D_landmark','2D_landmark_copy')
     ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
     ! for low-temperature partially magnetized plasmas (2019)
