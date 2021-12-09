@@ -605,6 +605,7 @@ INTEGER(HSIZE_T)                  :: iSet                               ! Index
 INTEGER                           :: storage, nSets, max_corder
 LOGICAL                           :: DataSetFound, GroupFound, ReactionFound
 INTEGER                           :: iReac, EductReac(1:3), ProductReac(1:4)
+REAL, ALLOCATABLE                 :: tempArray(:,:)
 !===================================================================================================================================
 iReac = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
 EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
@@ -684,11 +685,31 @@ DO iSet = 0, nSets-1
   END IF
 END DO
 
-IF(.NOT.ReactionFound) CALL abort(__STAMP__,&
-    'No reaction cross-section data found for reaction number:', iReac)
+IF(.NOT.ReactionFound) CALL abort(__STAMP__,'No reaction cross-section data found for reaction number:', iReac)
 
 ! Store the energy value in J (read-in was in eV)
 SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,:) = SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,:) * ElementaryCharge
+
+!
+IF(SpecXSec(iCase)%ReactionPath(iPath)%XSecData(2,1).GT.0.0) THEN
+  ! Store old data in temporary array
+  ALLOCATE(tempArray(dims(1),dims(2)))
+  tempArray = SpecXSec(iCase)%ReactionPath(iPath)%XSecData
+  ! Allocate new array with one additional row
+  DEALLOCATE(SpecXSec(iCase)%ReactionPath(iPath)%XSecData)
+  ALLOCATE(SpecXSec(iCase)%ReactionPath(iPath)%XSecData(dims(1),dims(2)+1))
+  ! Create new cross-section at the reaction threshold
+  SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,1) = -ChemReac%EForm(iReac)
+  SpecXSec(iCase)%ReactionPath(iPath)%XSecData(2,1) = 0.0
+  ! Store the read-in dataset
+  SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1:dims(1),2:dims(2)+1) = tempArray(1:dims(1),1:dims(2))
+  DEALLOCATE(tempArray)
+  IF(SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,1).GE.SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2)) THEN
+    SWRITE(*,*) ' (Negative) Heat of reaction [J]: ', -ChemReac%EForm(iReac)
+    SWRITE(*,*) ' First energy level from database [J]: ', SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2)
+    CALL abort(__STAMP__,' Heat of reaction greater than the first read-in energy level for reaction number:', iReac)
+  END IF
+END IF
 
 ! Close the group
 CALL H5GCLOSE_F(group_id,err)
