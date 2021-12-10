@@ -622,7 +622,7 @@ SUBROUTINE ReadReacXSec(iCase,iPath)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
+USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,Joule2eV
 USE MOD_DSMC_Vars                 ,ONLY: XSec_Database, SpecXSec, SpecDSMC, ChemReac
 USE MOD_HDF5_Input                ,ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
@@ -746,8 +746,9 @@ IF(SpecXSec(iCase)%ReactionPath(iPath)%XSecData(2,1).GT.0.0) THEN
   SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1:dims(1),2:dims(2)+1) = tempArray(1:dims(1),1:dims(2))
   DEALLOCATE(tempArray)
   IF(SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,1).GE.SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2)) THEN
-    SWRITE(*,*) ' (Negative) Heat of reaction [J]: ', -ChemReac%EForm(iReac)
-    SWRITE(*,*) ' First energy level from database [J]: ', SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2)
+    SWRITE(*,*) '      (Negative) Heat of reaction [J]: ', -ChemReac%EForm(iReac),", [eV]: ",-ChemReac%EForm(iReac)*Joule2eV
+    SWRITE(*,*) ' First energy level from database [J]: ', SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2),", [eV]: ",&
+    SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2)*Joule2eV
     CALL abort(__STAMP__,' Heat of reaction greater than the first read-in energy level for reaction number:', iReac)
   END IF
 END IF
