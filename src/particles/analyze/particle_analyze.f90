@@ -57,6 +57,8 @@ CALL prms%CreateLogicalOption(  'CalcDebyeLength'         , 'Compute the Debye l
 CALL prms%CreateLogicalOption(  'CalcPICTimeStep'         , 'Compute the HDG time step in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcElectronTemperature' , 'Compute the electron temperature in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcElectronIonDensity'  , 'Compute the electron density in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcElectronEnergy'      , 'Compute the electron min/max/average energy in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcElectronSEE'         , 'Count the electron emission from BCs where SEE is active','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPlasmaFrequency'     , 'Compute the electron frequency in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCharge'              , 'Compute the global deposited charge and determine the absolute and relative charge error','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcKineticEnergy'       , 'Calculate the global kinetic energy for all particle species.','.FALSE.')
@@ -129,7 +131,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars             ,ONLY: ElemBaryNGeo
-USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
+USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp,BRAutomaticElectronRef
 #endif /*USE_HDG*/
@@ -433,7 +435,7 @@ IF(CalcIonizationDegree)THEN
 END IF
 
 ! PIC Time Step Approximation
-CalcPICTimeStep       = GETLOGICAL('CalcPICTimeStep','.FALSE.')
+CalcPICTimeStep = GETLOGICAL('CalcPICTimeStep','.FALSE.')
 IF(CalcPICTimeStep)THEN
   ALLOCATE( PICTimeStepCell(1:PP_nElems) )
   PICTimeStepCell=0.0
@@ -441,7 +443,7 @@ IF(CalcPICTimeStep)THEN
 END IF
 
 ! Plasma Frequency
-CalcPlasmaFrequency   = GETLOGICAL('CalcPlasmaFrequency','.FALSE.')
+CalcPlasmaFrequency = GETLOGICAL('CalcPlasmaFrequency','.FALSE.')
 IF(CalcPICTimeStep) CalcPlasmaFrequency=.TRUE.
 IF(CalcPlasmaFrequency)THEN
   ALLOCATE( PlasmaFrequencyCell(1:PP_nElems) )
@@ -450,14 +452,22 @@ IF(CalcPlasmaFrequency)THEN
 END IF
 
 ! Electron Density
-CalcElectronIonDensity   = GETLOGICAL('CalcElectronIonDensity','.FALSE.')
+CalcElectronIonDensity = GETLOGICAL('CalcElectronIonDensity','.FALSE.')
 IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcIonizationDegree) CalcElectronIonDensity=.TRUE.
 IF(CalcElectronIonDensity) CALL AllocateElectronIonDensityCell()
 
 ! Electron Temperature
-CalcElectronTemperature   = GETLOGICAL('CalcElectronTemperature','.FALSE.')
+CalcElectronTemperature = GETLOGICAL('CalcElectronTemperature','.FALSE.')
 IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcPICCFLCondition) CalcElectronTemperature=.TRUE.
 IF(CalcElectronTemperature) CALL AllocateElectronTemperatureCell()
+
+! Electron Temperature
+CalcElectronEnergy = GETLOGICAL('CalcElectronEnergy','.FALSE.')
+IF(CalcElectronEnergy) CALL AllocateCalcElectronEnergy()
+
+! Electron SEE emission counter
+CalcElectronSEE   = GETLOGICAL('CalcElectronSEE','.FALSE.')
+
 !--------------------------------------------------------------------------------------------------------------------
 ! PartAnalyzeStep: The interval for the particle analyze output routines (write-out into PartAnalyze.csv)
 !             = 1: Analyze and output every time step
