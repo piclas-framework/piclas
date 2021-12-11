@@ -1335,7 +1335,7 @@ USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, PDM
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 USE MOD_DSMC_Vars             ,ONLY: DSMC, AmbipolElecVelo
-USE MOD_SurfaceModel_Vars     ,ONLY: SurfModSEEelectronTempAutoamtic,SurfModSEEelectronTemp,SurfModSEEelectronTempSpecies
+USE MOD_Particle_Vars         ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,BulkElectronTempSpecID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1405,15 +1405,15 @@ IF(PartMPI%MPIRoot)THEN
 END IF
 
 ! For SEE model that used the bulk electron temperature, use the global electron temperature
-IF(PartMPI%MPIRoot.AND.SurfModSEEelectronTempAutoamtic)THEN
-  ASSOCIATE( Te => SurfModSEEelectronTemp ,&
-             T  => Temp(SurfModSEEelectronTempSpecies)*Kelvin2eV)
+IF(PartMPI%MPIRoot.AND.CalcBulkElectronTemp)THEN
+  ASSOCIATE( Te => BulkElectronTemp ,&
+             T  => Temp(BulkElectronTempSpecID)*Kelvin2eV)
     ! Smooth the bulk electron temperature by adjusting the difference by 50%
     Te = Te + 0.5 * (T - Te)
   END ASSOCIATE
 END IF
 #if USE_MPI
-IF(SurfModSEEelectronTempAutoamtic) CALL MPI_BCAST(SurfModSEEelectronTemp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+IF(CalcBulkElectronTemp) CALL MPI_BCAST(BulkElectronTemp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
 
 END SUBROUTINE CalcTransTemp

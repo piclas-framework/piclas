@@ -137,7 +137,6 @@ USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElec
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp,BRAutomaticElectronRef
 #endif /*USE_HDG*/
-USE MOD_SurfaceModel_Vars     ,ONLY: SurfModSEEelectronTempAutoamtic
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -534,10 +533,9 @@ END IF
 
 CalcEint = GETLOGICAL('CalcInternalEnergy','.FALSE.')
 CalcTemp = GETLOGICAL('CalcTemp','.FALSE.')
-IF(SurfModSEEelectronTempAutoamtic.AND.(.NOT.CalcTemp))THEN
-  CalcTemp = .TRUE.
-  CALL PrintOption('SurfModSEEelectronTempAutoamtic = T: Activating CalcTemp','INFO',LogOpt=CalcTemp)
-END IF ! SurfModSEEelectronTempAutoamtic
+  ! Initialize global electron temperature variable (SEE and/or neutralization BCs)
+CALL InitBulkElectronTemp()
+
 IF(CalcTemp.OR.CalcEint) DoPartAnalyze = .TRUE.
 IF(CalcEkin) DoPartAnalyze = .TRUE.
 IF(nSpecies.GT.1) THEN
@@ -691,6 +689,91 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitParticleAnalyze
 
 
+!===================================================================================================================================
+!> Check whether the global (bulk) electron temperature is required for 1.) SEE 2.) neutralization BC (e.g. landmark)
+!===================================================================================================================================
+SUBROUTINE InitBulkElectronTemp()
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
+USE MOD_Particle_Vars         ,ONLY: nSpecies,Species
+USE MOD_Particle_Vars         ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,BulkElectronTempSpecID
+USE MOD_HDF5_Input            ,ONLY: DatasetExists,ReadArray
+USE MOD_IO_HDF5               ,ONLY: OpenDataFile,CloseDataFile,File_ID
+USE MOD_Restart_Vars          ,ONLY: RestartFile,DoRestart
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcTemp
+USE MOD_ReadInTools           ,ONLY: PrintOption
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER        :: iSpec,iInit
+LOGICAL        :: BulkElectronTempExists
+CHARACTER(255) :: ContainerName
+REAL           :: TmpArray(1,1)
+!===================================================================================================================================
+! Loop all species and check for neutralization BCs
+DO iSpec = 1,nSpecies
+  ! Loop inits and check whether neutralization boundary condition required the bulk electron temperature
+  DO iInit = 1, Species(iSpec)%NumberOfInits
+    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution))
+    CASE('2D_Liu2010_neutralization','3D_Liu2010_neutralization')
+      CalcBulkElectronTemp = .TRUE.
+      ! Check if already set, otherwise, initialize with 5 eV for the BC (if SEE is also used, this will be already have been set)
+      IF(BulkElectronTemp.LE.0) BulkElectronTemp = 5.0
+    END SELECT
+  END DO ! iInit = 1, Species(iSpec)%NumberOfInits
+END DO ! iSpec = 1,nSpecies
+
+! Check if bulk electron temperature is required for either SEE model or neutralization boundary condition
+IF(CalcBulkElectronTemp)THEN
+  ! Activate CalcTemp
+  CalcTemp = .TRUE. ! Force true
+  CALL PrintOption('CalcBulkElectronTemp = T: Activating CalcTemp','INFO',LogOpt=CalcTemp)
+
+  ! Loop over all species and find the index corresponding to the electron species: take the first electron species that is
+  ! encountered
+  DO iSpec = 1, nSpecies
+    IF (Species(iSpec)%ChargeIC.GE.0.0) CYCLE
+      IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1)THEN
+        BulkElectronTempSpecID = iSpec
+      EXIT
+    END IF
+  END DO
+  IF (BulkElectronTempSpecID.EQ.-1) CALL abort(__STAMP__&
+    ,'Electron species not found for bulk electron temperature calculation (CalcBulkElectronTemp set True automatically).')
+
+  ! Restart: Only root reads state file to prevent access with a large number of processors
+  IF(MPIRoot)THEN
+    IF(DoRestart)THEN
+      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+      ! Check old parameter name
+      ContainerName='SurfModSEEelectronTemp'
+      CALL DatasetExists(File_ID,TRIM(ContainerName),BulkElectronTempExists)
+      ! Check for new parameter name
+      IF(.NOT.(BulkElectronTempExists))THEN
+        ContainerName='BulkElectronTemp'
+        CALL DatasetExists(File_ID,'BulkElectronTemp',BulkElectronTempExists)
+      END IF ! .NOT.(BulkElectronTempExists)
+      IF(BulkElectronTempExists)THEN
+        CALL ReadArray(TRIM(ContainerName),2,(/1_IK,1_IK/),0_IK,2,RealArray=TmpArray(1,1))
+        BulkElectronTemp = TmpArray(1,1)
+        WRITE(UNIT_stdOut,'(1(A,ES10.2E3))') " Read BulkElectronTemp from restart file ["//TRIM(RestartFile)//"] Te[eV]:",&
+            BulkElectronTemp
+      END IF ! RegionElectronRefExists
+      CALL CloseDataFile()
+    END IF ! DoRestart
+  END IF ! MPIRoot
+#if USE_MPI
+  ! Broadcast from root to other processors
+  CALL MPI_BCAST(BulkElectronTemp,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
+#endif /*USE_MPI*/
+END IF ! CalcBulkElectronTemp
+
+END SUBROUTINE InitBulkElectronTemp
+
+
 SUBROUTINE AnalyzeParticles(Time)
 !===================================================================================================================================
 ! Initializes variables necessary for analyse subroutines
@@ -736,7 +819,7 @@ USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
 #endif /*USE_HDG*/
 USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfModSEEelectronTempAutoamtic,SurfModSEEelectronTemp
+USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1111,10 +1194,10 @@ INTEGER             :: iRegions
           END DO
         END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
 #endif /*USE_HDG*/
-        IF(SurfModSEEelectronTempAutoamtic)THEN
-          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-SEEBulkElectronTemp-[K]'
+        IF(CalcBulkElectronTemp)THEN
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-BulkElectronTemp-[K]'
           OutputCounter = OutputCounter + 1
-        END IF ! SurfModSEEelectronTempAutoamtic
+        END IF ! CalcBulkElectronTemp
         ! Finish the line with new line character
         WRITE(unit_index,'(A)') ''
       END IF
@@ -1462,9 +1545,9 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
 #endif /*USE_HDG*/
-    IF(SurfModSEEelectronTempAutoamtic)THEN
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SurfModSEEelectronTemp*eV2Kelvin ! Temperature in Kelvin
-    END IF ! SurfModSEEelectronTempAutoamtic
+    IF(CalcBulkElectronTemp)THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BulkElectronTemp*eV2Kelvin ! Temperature in Kelvin
+    END IF ! CalcBulkElectronTemp
     ! Finish the line with new line character
     WRITE(unit_index,'(A)') ''
 #if USE_MPI

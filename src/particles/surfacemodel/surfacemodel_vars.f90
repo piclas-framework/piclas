@@ -26,11 +26,6 @@ INTEGER , ALLOCATABLE            :: SurfModResultSpec(:,:)          ! Resulting 
                                                                     ! (nPartBound,nSpecies)
 CHARACTER(LEN=50) , ALLOCATABLE  :: SurfModEnergyDistribution(:)    ! Energy distribution of the reflected particles
 REAL                             :: BackupVeloABS                   ! Backup of velocity during double-ARMfor 2nd SEE
-REAL                             :: SurfModSEEelectronTemp          ! Bulk electron temperature for SEE model by Morozov2004
-                                                                    ! read-in in Kelvin, but is directly converted to eV for
-                                                                    ! usage in the code
-LOGICAL                          :: SurfModSEEelectronTempAutoamtic ! Automatic bulk electron calculation
-INTEGER                          :: SurfModSEEelectronTempSpecies   ! Species ID (electron) for Automatic bulk electron calculation
 ! === Porous BC ====================================================================================================================
 INTEGER                          :: nPorousBC                       ! Number of porous BCs
 TYPE tPorousBC
