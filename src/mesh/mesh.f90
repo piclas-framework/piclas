@@ -156,9 +156,7 @@ REAL                :: meshScale
 #endif
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'InitMesh not ready to be called or already called.',999,999.)
+  CALL abort(__STAMP__,'InitMesh not ready to be called or already called.')
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MESH...'
@@ -185,9 +183,7 @@ IF(DoSwapMesh)THEN
   END IF
   SwapMeshLevel=GETINT('SwapMeshLevel','0')
   IF((SwapMeshLevel.LT.0).OR.(SwapMeshLevel.GT.99))THEN
-    CALL abort(&
-    __STAMP__&
-    ,'SwapMeshLEvel<0 or SwapMeshLEvel>99, this is invalid!',999,999.)
+    CALL abort(__STAMP__,'SwapMeshLEvel<0 or SwapMeshLEvel>99, this is invalid!')
   END IF
 END IF
 
@@ -301,7 +297,8 @@ IF (meshMode.GT.0) THEN
   MortarInfo=-1
 
   SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
-  CALL fillMeshInfo()
+  ! Call with meshMode to check whether, e.g., HDG load balance info need to be determined or not
+  CALL fillMeshInfo(meshMode)
 
   ! build necessary mappings
   CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
