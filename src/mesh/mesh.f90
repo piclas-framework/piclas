@@ -297,8 +297,12 @@ IF (meshMode.GT.0) THEN
   MortarInfo=-1
 
   SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
+#if USE_HDG && USE_LOADBALANCE
   ! Call with meshMode to check whether, e.g., HDG load balance info need to be determined or not
   CALL fillMeshInfo(meshMode)
+#else
+  CALL fillMeshInfo()
+#endif /*USE_HDG && USE_LOADBALANCE*/
 
   ! build necessary mappings
   CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &

@@ -798,7 +798,11 @@ END SUBROUTINE setLocalSideIDs
 !> as well as the local side IDs of the side within those elements.
 !> The last entry is the flip of the slave with regard to the master element.
 !===================================================================================================================================
+#if USE_HDG && USE_LOADBALANCE
 SUBROUTINE fillMeshInfo(meshMode)
+#else
+SUBROUTINE fillMeshInfo()
+#endif /*USE_HDG && USE_LOADBALANCE*/
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
@@ -818,10 +822,12 @@ USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide
 #endif /*USE_HDG && USE_LOADBALANCE*/
 IMPLICIT NONE
 ! INPUT VARIABLES
+#if USE_HDG && USE_LOADBALANCE
 INTEGER,INTENT(IN) :: meshMode !< 0: only read and build Elem_xGP,
                                !< 1: as 0 + build connectivity
                                !< 2: as 1 + calc metrics
                                !< 3: as 2 but skip InitParticleMesh
+#endif /*USE_HDG && USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
