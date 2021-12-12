@@ -36,7 +36,7 @@ END INTERFACE
 
 PUBLIC :: CalcEkinPart,CalcEkinPart2
 PUBLIC :: CalcNumPartsOfSpec
-PUBLIC :: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
+PUBLIC :: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy,AllocateCalcElectronSEE
 PUBLIC :: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 PUBLIC :: CalcShapeEfficiencyR
 PUBLIC :: CalcKineticEnergy
@@ -355,6 +355,30 @@ CALL AddToElemData(ElementOut,'ElectronAverageEnergyCell[eV]',RealArray=Electron
 END SUBROUTINE AllocateCalcElectronEnergy
 
 
+!===================================================================================================================================
+!> Allocate the required arrays for secondary electron emission analysis
+!===================================================================================================================================
+SUBROUTINE AllocateCalcElectronSEE()
+! MODULES
+USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
+USE MOD_Preproc
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronMinEnergyCell,ElectronMaxEnergyCell,ElectronAverageEnergyCell
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+
+!===================================================================================================================================
+! Check if ElectronMinEnergyCell has already been allocated (CalcElectronEnergy=T)
+!IF(ALLOCATED(ElectronSEECounter)) RETURN
+
+!PartBound%SurfaceModel(locBCID)
+
+END SUBROUTINE AllocateCalcElectronSEE
+
+
 SUBROUTINE CalculatePartElemData()
 !===================================================================================================================================
 ! use the plasma frequency per cell to estimate the pic time step
@@ -662,8 +686,8 @@ IF (UseBRElectronFluid) THEN ! check for BR electrons
     END IF
   END DO ! iElem=1,PP_nElems
   RETURN ! Mixed BR and kinetic electrons are not implemented yet!
-#endif /*USE_HDG*/
 ELSE
+#endif /*USE_HDG*/
   nElectronsPerCell = 0.
   ! 1. loop over all particles and sum-up the electron energy per cell and count the number of electrons per cell
   DO iPart=1,PDM%ParticleVecLength

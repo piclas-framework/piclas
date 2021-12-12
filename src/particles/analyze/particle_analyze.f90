@@ -467,6 +467,7 @@ IF(CalcElectronEnergy) CALL AllocateCalcElectronEnergy()
 
 ! Electron SEE emission counter
 CalcElectronSEE   = GETLOGICAL('CalcElectronSEE','.FALSE.')
+!IF(CalcElectronSEE) CALL AllocateCalcElectronSEE()
 
 !--------------------------------------------------------------------------------------------------------------------
 ! PartAnalyzeStep: The interval for the particle analyze output routines (write-out into PartAnalyze.csv)
@@ -1473,6 +1474,9 @@ SDEALLOCATE(DebyeLengthCell)
 SDEALLOCATE(PICTimeStepCell)
 SDEALLOCATE(ElectronDensityCell)
 SDEALLOCATE(ElectronTemperatureCell)
+SDEALLOCATE(ElectronMinEnergyCell)
+SDEALLOCATE(ElectronMaxEnergyCell)
+SDEALLOCATE(ElectronAverageEnergyCell)
 SDEALLOCATE(PlasmaFrequencyCell)
 SDEALLOCATE(PPSCell)
 SDEALLOCATE(PPSCellCartesian)
