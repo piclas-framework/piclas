@@ -36,7 +36,7 @@ END INTERFACE
 
 PUBLIC :: CalcEkinPart,CalcEkinPart2
 PUBLIC :: CalcNumPartsOfSpec
-PUBLIC :: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy,AllocateCalcElectronSEE
+PUBLIC :: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
 PUBLIC :: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 PUBLIC :: CalcShapeEfficiencyR
 PUBLIC :: CalcKineticEnergy
@@ -353,30 +353,6 @@ ElectronAverageEnergyCell=0.
 CALL AddToElemData(ElementOut,'ElectronAverageEnergyCell[eV]',RealArray=ElectronAverageEnergyCell(1:PP_nElems))
 
 END SUBROUTINE AllocateCalcElectronEnergy
-
-
-!===================================================================================================================================
-!> Allocate the required arrays for secondary electron emission analysis
-!===================================================================================================================================
-SUBROUTINE AllocateCalcElectronSEE()
-! MODULES
-USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
-USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars ,ONLY: ElectronMinEnergyCell,ElectronMaxEnergyCell,ElectronAverageEnergyCell
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT / OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-
-!===================================================================================================================================
-! Check if ElectronMinEnergyCell has already been allocated (CalcElectronEnergy=T)
-!IF(ALLOCATED(ElectronSEECounter)) RETURN
-
-!PartBound%SurfaceModel(locBCID)
-
-END SUBROUTINE AllocateCalcElectronSEE
 
 
 SUBROUTINE CalculatePartElemData()

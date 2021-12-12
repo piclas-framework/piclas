@@ -58,7 +58,6 @@ CALL prms%CreateLogicalOption(  'CalcPICTimeStep'         , 'Compute the HDG tim
 CALL prms%CreateLogicalOption(  'CalcElectronTemperature' , 'Compute the electron temperature in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcElectronIonDensity'  , 'Compute the electron density in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcElectronEnergy'      , 'Compute the electron min/max/average energy in each cell','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcElectronSEE'         , 'Count the electron emission from BCs where SEE is active','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPlasmaFrequency'     , 'Compute the electron frequency in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCharge'              , 'Compute the global deposited charge and determine the absolute and relative charge error','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcKineticEnergy'       , 'Calculate the global kinetic energy for all particle species.','.FALSE.')
@@ -465,10 +464,6 @@ IF(CalcElectronTemperature) CALL AllocateElectronTemperatureCell()
 CalcElectronEnergy = GETLOGICAL('CalcElectronEnergy','.FALSE.')
 IF(CalcElectronEnergy) CALL AllocateCalcElectronEnergy()
 
-! Electron SEE emission counter
-CalcElectronSEE   = GETLOGICAL('CalcElectronSEE','.FALSE.')
-!IF(CalcElectronSEE) CALL AllocateCalcElectronSEE()
-
 !--------------------------------------------------------------------------------------------------------------------
 ! PartAnalyzeStep: The interval for the particle analyze output routines (write-out into PartAnalyze.csv)
 !             = 1: Analyze and output every time step
@@ -483,9 +478,7 @@ IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = HUGE(PartAnalyzeStep)
     IF(MOD(NINT((TEnd-RestartTime)/ManualTimeStep,8),PartAnalyzeStep).NE.0) THEN
       SWRITE(UNIT_stdOut,'(A,I0)') 'NINT((TEnd-RestartTime)/ManualTimeStep) = ',NINT((TEnd-RestartTime)/ManualTimeStep,8)
       SWRITE(UNIT_stdOut,'(A,I0)') '                        PartAnalyzeStep = ',PartAnalyzeStep
-      CALL abort(&
-        __STAMP__&
-        ,'Please specify a PartAnalyzeStep, which is a factor of the total number of iterations!')
+      CALL abort(__STAMP__,'Please specify a PartAnalyzeStep, which is a factor of the total number of iterations!')
     END IF
   END IF
 #endif

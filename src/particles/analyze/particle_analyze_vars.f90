@@ -72,7 +72,6 @@ LOGICAL                       :: CalcPICTimeStep                     !< Compute 
 LOGICAL                       :: CalcElectronIonDensity              !< Compute the electron density in each cell
 LOGICAL                       :: CalcElectronTemperature             !< Compute the electron temperature in each cell
 LOGICAL                       :: CalcElectronEnergy                  !< Compute the electron min/max/average energy in each cell
-LOGICAL                       :: CalcElectronSEE                     !< Count the electron emission from BCs where SEE is active
 LOGICAL                       :: CalcPlasmaParameter                 !< Compute the plasma parameter in each cell
 LOGICAL                       :: CalcPlasmaFrequency                 !< Compute the electron frequency in each cell
 LOGICAL                       :: CalcPointsPerDebyeLength            !< Compute the points per Debye length:
