@@ -55,6 +55,8 @@ USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
 #endif /*USE_LOADBALANCE*/
+#else
+USE MOD_HDG_Vars               ,ONLY: iterationTotal,RunTimeTotal
 #endif /*USE_HDG*/
 #ifdef PP_POIS
 USE MOD_Restart_Vars           ,ONLY: DoRestart
@@ -246,6 +248,11 @@ DO !iter_t=0,MaxIter
 
 #if !(USE_HDG)
   IF(DoPML) CALL PMLTimeRamping(time,PMLTimeRamp)
+#else
+  IF(MPIroot)THEN
+    iterationTotal = 0
+    RunTimeTotal   = 0.
+  END IF ! MPIroot
 #endif /*NOT USE_HDG*/
 
   CALL PrintStatusLine(time,dt,tStart,tEnd)
