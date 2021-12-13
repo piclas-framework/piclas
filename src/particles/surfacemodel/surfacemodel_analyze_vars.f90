@@ -48,7 +48,7 @@ TYPE tBoundaryParticleOutput
 
   INTEGER                       :: NPartBoundaries          !< Total number of boundaries where the particles are counted
   INTEGER,ALLOCATABLE           :: PartBoundaries(:)        !< Part-boundary number on which the particles are counted
-  INTEGER,ALLOCATABLE           :: BCIDToBPOBCID(:)         !< Mapping BCID to BPOBCID (1:BpoNSpecies)
+  INTEGER,ALLOCATABLE           :: BCIDToBPOBCID(:)         !< Mapping BCID to BPOBCID (1:nPartBound)
 
   INTEGER                       :: NSpecies                 !< Total number of species which are considered for counting
   INTEGER,ALLOCATABLE           :: Species(:)               !< Species IDs which are considered for counting
@@ -56,5 +56,19 @@ TYPE tBoundaryParticleOutput
 END TYPE
 
 TYPE(tBoundaryParticleOutput)   :: BPO
+
+!-- Electron SEE emission counter
+LOGICAL :: CalcElectronSEE !< Count the electron emission from BCs where SEE is active
+
+TYPE tSEE
+  REAL,ALLOCATABLE    :: RealElectronOut(:) !< Number of electrons emitted on boundary X
+
+  INTEGER             :: NPartBoundaries    !< Total number of boundaries where the particles are counted
+  INTEGER,ALLOCATABLE :: PartBoundaries(:)  !< Part-boundary number on which the particles are counted
+  INTEGER,ALLOCATABLE :: BCIDToSEEBCID(:)   !< Mapping BCID to SEEBCID (1:nPartBound)
+END TYPE
+
+TYPE(tSEE)   :: SEE
+
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Analyze_Vars

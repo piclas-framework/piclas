@@ -15,3 +15,6 @@
 - Output of temporal derivative of the electric field
 
         CalcElectricTimeDerivative =T
+- Output of min/amax/average electron energy (eV) in each cell
+
+        CalcElectronEnergy = T

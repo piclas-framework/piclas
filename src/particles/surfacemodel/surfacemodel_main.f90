@@ -159,7 +159,7 @@ CASE (0) ! Maxwellian scattering (diffuse/specular reflection)
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL MaxwellScattering(PartID,SideID,n_Loc,SpecularReflectionOnly)
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE (5,6,7,8)
+CASE (SEE_MODELS_ID)
   ! 5: SEE by Levko2015
   ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
   ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)

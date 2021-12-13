@@ -59,6 +59,7 @@ CALL prms%CreateLogicalOption(  'CalcPICTimeStepCyclotron', 'Compute the HDG tim
 CALL prms%CreateLogicalOption(  'CalcElectronTemperature' , 'Compute the electron temperature in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCyclotronFrequency'  , 'Compute the electron cylcotron frequency in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcElectronIonDensity'  , 'Compute the electron density in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcElectronEnergy'      , 'Compute the electron min/max/average energy in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPlasmaFrequency'     , 'Compute the electron frequency in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCharge'              , 'Compute the global deposited charge and determine the absolute and relative charge error','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcKineticEnergy'       , 'Calculate the global kinetic energy for all particle species.','.FALSE.')
@@ -133,7 +134,7 @@ USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthY_Shared_Win
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthZ_Shared_Win
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars             ,ONLY: ElemBaryNGeo
-USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
+USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp,BRAutomaticElectronRef
 #endif /*USE_HDG*/
@@ -406,7 +407,7 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
 END IF
 
 ! Plasma parameter
-CalcPlasmaParameter   = GETLOGICAL('CalcPlasmaParameter','.FALSE.')
+CalcPlasmaParameter   = GETLOGICAL('CalcPlasmaParameter')
 IF(CalcPlasmaParameter)THEN
   ALLOCATE( PlasmaParameterCell(1:PP_nElems) )
   PlasmaParameterCell=0.0
@@ -414,7 +415,7 @@ IF(CalcPlasmaParameter)THEN
 END IF
 
 ! Debye Length
-CalcDebyeLength       = GETLOGICAL('CalcDebyeLength','.FALSE.')
+CalcDebyeLength       = GETLOGICAL('CalcDebyeLength')
 IF(CalcPointsPerDebyeLength.OR.CalcPlasmaParameter) CalcDebyeLength=.TRUE.
 IF(CalcDebyeLength)THEN
   ALLOCATE( DebyeLengthCell(1:PP_nElems) )
@@ -423,7 +424,7 @@ IF(CalcDebyeLength)THEN
 END IF
 
 ! Ionization degree and quasi-neutrality
-CalcIonizationDegree = GETLOGICAL('CalcIonizationDegree','.FALSE.')
+CalcIonizationDegree = GETLOGICAL('CalcIonizationDegree')
 IF(CalcDebyeLength) CalcIonizationDegree=.TRUE.
 IF(CalcIonizationDegree)THEN
   ! degree of ionization
@@ -436,16 +437,16 @@ IF(CalcIonizationDegree)THEN
   CALL AddToElemData(ElementOut,'QuasiNeutralityCell',RealArray=QuasiNeutralityCell(1:PP_nElems))
 END IF
 
-! PIC time step Approximation
-CalcPICTimeStep       = GETLOGICAL('CalcPICTimeStep','.FALSE.')
+! PIC Time Step Approximation
+CalcPICTimeStep = GETLOGICAL('CalcPICTimeStep')
 IF(CalcPICTimeStep)THEN
   ALLOCATE( PICTimeStepCell(1:PP_nElems) )
   PICTimeStepCell=0.0
   CALL AddToElemData(ElementOut,'PICTimeStepCell',RealArray=PICTimeStepCell(1:PP_nElems))
 END IF
 
-! Plasma frequency
-CalcPlasmaFrequency   = GETLOGICAL('CalcPlasmaFrequency','.FALSE.')
+! Plasma Frequency
+CalcPlasmaFrequency = GETLOGICAL('CalcPlasmaFrequency')
 IF(CalcPICTimeStep) CalcPlasmaFrequency=.TRUE.
 IF(CalcPlasmaFrequency)THEN
   ALLOCATE( PlasmaFrequencyCell(1:PP_nElems) )
@@ -454,7 +455,7 @@ IF(CalcPlasmaFrequency)THEN
 END IF
 
 ! PIC time step approximation for gyro motion
-CalcPICTimeStepCyclotron       = GETLOGICAL('CalcPICTimeStepCyclotron','.FALSE.')
+CalcPICTimeStepCyclotron       = GETLOGICAL('CalcPICTimeStepCyclotron')
 IF(CalcPICTimeStepCyclotron)THEN
   ALLOCATE( PICTimeStepCyclotronCell(1:PP_nElems) )
   PICTimeStepCyclotronCell=0.0
@@ -462,7 +463,7 @@ IF(CalcPICTimeStepCyclotron)THEN
 END IF
 
 ! Electron cyclotron frequency and gyroradius
-CalcCyclotronFrequency   = GETLOGICAL('CalcCyclotronFrequency','.FALSE.')
+CalcCyclotronFrequency   = GETLOGICAL('CalcCyclotronFrequency')
 IF(CalcPICTimeStepCyclotron) CalcCyclotronFrequency=.TRUE.
 IF(CalcCyclotronFrequency)THEN
   ALLOCATE( CyclotronFrequencyMaxCell(1:PP_nElems) )
@@ -480,14 +481,19 @@ IF(CalcCyclotronFrequency)THEN
 END IF
 
 ! Electron Density
-CalcElectronIonDensity   = GETLOGICAL('CalcElectronIonDensity','.FALSE.')
+CalcElectronIonDensity = GETLOGICAL('CalcElectronIonDensity')
 IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcIonizationDegree) CalcElectronIonDensity=.TRUE.
 IF(CalcElectronIonDensity) CALL AllocateElectronIonDensityCell()
 
 ! Electron Temperature
-CalcElectronTemperature   = GETLOGICAL('CalcElectronTemperature','.FALSE.')
+CalcElectronTemperature = GETLOGICAL('CalcElectronTemperature')
 IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcPICCFLCondition) CalcElectronTemperature=.TRUE.
 IF(CalcElectronTemperature) CALL AllocateElectronTemperatureCell()
+
+! Electron Temperature
+CalcElectronEnergy = GETLOGICAL('CalcElectronEnergy')
+IF(CalcElectronEnergy) CALL AllocateCalcElectronEnergy()
+
 !--------------------------------------------------------------------------------------------------------------------
 ! PartAnalyzeStep: The interval for the particle analyze output routines (write-out into PartAnalyze.csv)
 !             = 1: Analyze and output every time step
@@ -512,14 +518,14 @@ DoPartAnalyze = .FALSE.
 DoVerifyCharge= .FALSE.
 CalcCharge = .FALSE.
 IF(DoDeposition) THEN
-  DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge','.FALSE.')
-  CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
+  DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge')
+  CalcCharge = GETLOGICAL('CalcCharge')
   IF(CalcCharge) DoPartAnalyze = .TRUE.
 ELSE
   SWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
 END IF
 
-CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
+CalcEkin = GETLOGICAL('CalcKineticEnergy')
 ! Laser-plasma interaction analysis
 CalcLaserInteraction = GETLOGICAL('CalcLaserInteraction')
 IF(CalcLaserInteraction)THEN
@@ -531,8 +537,8 @@ IF(CalcLaserInteraction)THEN
   CalcEkin=.TRUE.
 END IF
 
-CalcEint = GETLOGICAL('CalcInternalEnergy','.FALSE.')
-CalcTemp = GETLOGICAL('CalcTemp','.FALSE.')
+CalcEint = GETLOGICAL('CalcInternalEnergy')
+CalcTemp = GETLOGICAL('CalcTemp')
   ! Initialize global electron temperature variable (SEE and/or neutralization BCs)
 CALL InitBulkElectronTemp()
 
@@ -569,7 +575,7 @@ END IF
 
 !-- PartBalance
 ! compute number of entering and leaving particles and their energy
-CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
+CalcPartBalance = GETLOGICAL('CalcPartBalance')
 IF (CalcPartBalance) THEN
   DoPartAnalyze = .TRUE.
   ALLOCATE( nPartIn(1:nSpecAnalyze)     &
@@ -581,19 +587,19 @@ IF (CalcPartBalance) THEN
   PartEkinOut=0.
   PartEkinIn=0.
 END IF
-TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
+TrackParticlePosition = GETLOGICAL('Part-TrackPosition')
 IF(TrackParticlePosition)THEN
   IF(PDM%ParticleVecLength.GT.1)THEN
     CALL abort(__STAMP__,'Part-TrackPosition=T is currently not supported in combination with more than 1 particle!')
   END IF
-  printDiff=GETLOGICAL('printDiff','.FALSE.')
+  printDiff=GETLOGICAL('printDiff')
   IF(printDiff)THEN
     printDiffTime = GETREAL('printDiffTime','12.')
     printDiffVec  = GETREALARRAY('printDiffVec',6,'0.,0.,0.,0.,0.,0.')
   END IF
 END IF
-CalcSimNumSpec = GETLOGICAL('CalcNumSpec','.FALSE.')
-CalcNumDens    = GETLOGICAL('CalcNumDens','.FALSE.')
+CalcSimNumSpec = GETLOGICAL('CalcNumSpec')
+CalcNumDens    = GETLOGICAL('CalcNumDens')
 CalcAdaptiveBCInfo = GETLOGICAL('CalcAdaptiveBCInfo')
 IF(CalcAdaptiveBCInfo) THEN
   ALLOCATE(MassflowRate(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
@@ -601,9 +607,9 @@ IF(CalcAdaptiveBCInfo) THEN
   ALLOCATE(PressureAdaptiveBC(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
   PressureAdaptiveBC = 0.
 END IF
-CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
-CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
-CalcRelaxProb = GETLOGICAL('CalcRelaxProb','.FALSE.')
+CalcCollRates = GETLOGICAL('CalcCollRates')
+CalcReacRates = GETLOGICAL('CalcReacRates')
+CalcRelaxProb = GETLOGICAL('CalcRelaxProb')
 IF(CalcRelaxProb.AND.(Collismode.LE.1)) THEN
   CALL abort(&
     __STAMP__&
@@ -622,7 +628,7 @@ END IF
 IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcAdaptiveBCInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
 
 !-- Compute transversal or thermal velocity of whole computational domain
-CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
+CalcVelos = GETLOGICAL('CalcVelos')
 IF (CalcVelos) THEN
   IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
     CALL abort(&
@@ -650,7 +656,7 @@ IF (CalcVelos) THEN
 END IF
 
 !-- Shape function efficiency
-CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency','.FALSE.')
+CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency')
 IF (CalcShapeEfficiency) THEN
   DoPartAnalyze = .TRUE.
   CalcShapeEfficiencyMethod = GETSTR('CalcShapeEfficiencyMethod','AllParts')
@@ -667,9 +673,9 @@ END IF
 
 !-- check if total energy should be computed
 IF(DoPartAnalyze)THEN
-  CalcEtot = GETLOGICAL('CalcTotalEnergy','.FALSE.')
+  CalcEtot = GETLOGICAL('CalcTotalEnergy')
 END IF
-IsRestart = GETLOGICAL('IsRestart','.FALSE.')
+IsRestart = GETLOGICAL('IsRestart')
 
 #if USE_HDG
 !-- Check variable ref. electron temperature for BR electron model
@@ -1593,6 +1599,9 @@ SDEALLOCATE(DebyeLengthCell)
 SDEALLOCATE(PICTimeStepCell)
 SDEALLOCATE(ElectronDensityCell)
 SDEALLOCATE(ElectronTemperatureCell)
+SDEALLOCATE(ElectronMinEnergyCell)
+SDEALLOCATE(ElectronMaxEnergyCell)
+SDEALLOCATE(ElectronAverageEnergyCell)
 SDEALLOCATE(PlasmaFrequencyCell)
 SDEALLOCATE(PPSCell)
 SDEALLOCATE(PPSCellCartesian)
