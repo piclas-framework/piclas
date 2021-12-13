@@ -132,10 +132,16 @@ ELSE()
       FIND_PROGRAM(CMAKE_GCC_NM     NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-nm                           HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
       FIND_PROGRAM(CMAKE_GCC_RANLIB NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-ranlib                       HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
       IF(CMAKE_GCC_AR AND CMAKE_GCC_NM AND CMAKE_GCC_RANLIB)
-        MESSAGE(STATUS "Found GCC binutils wrappers for LTO. Linker plugin is enabled.")
         # Static libraries require either fat LTO objects (increases compilation time) or the use of linker plugins (per default enabled); the jobserver option reduces linking time
         # More information at: https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#Optimize-Options
-        SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -fuse-linker-plugin")
+        SET(LTO_AUTO_MIN_GCC_VERSION 10.1)
+        IF(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL LTO_AUTO_MIN_GCC_VERSION)
+          MESSAGE(STATUS "Found GCC binutils wrappers for LTO. Linker plugin is enabled. Using [-flto=auto] as GCC version is ${CMAKE_CXX_COMPILER_VERSION} (>= ${LTO_AUTO_MIN_GCC_VERSION}).")
+          SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=auto -fuse-linker-plugin")
+        ELSE()
+          MESSAGE(STATUS "Found GCC binutils wrappers for LTO. Linker plugin is enabled. Using [-flto=jobserver] as GCC version is ${CMAKE_CXX_COMPILER_VERSION} (< ${LTO_AUTO_MIN_GCC_VERSION})")
+          SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -fuse-linker-plugin")
+        ENDIF()
         # Set the GCC wrapper
         SET(CMAKE_AR     "${CMAKE_GCC_AR}" )
         SET(CMAKE_NM     "${CMAKE_GCC_NM}" )
