@@ -1,5 +1,5 @@
 # Variable Weighting Factors - Split & Merge
-* Testing the merging and splitting algorithms separately and a combination, where electrons are merged and ions are splitted
+* Testing the merging and splitting algorithms separately and a combination, where electrons are merged and ions are split
 * Reservoir with open boundaries, particles leave the domain after a time step
 * Merging:
   * Inserting 10000 particles every iteration, merging them to 1000 particles
