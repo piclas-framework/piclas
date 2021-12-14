@@ -384,10 +384,10 @@ DO iPartBound=1,nPartBound
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
       CASE (0)
         PartBound%Reactive(iPartBound)        = .FALSE.
-      CASE (5,6,7,8)
+      CASE (SEE_MODELS_ID)
         PartBound%Reactive(iPartBound)        = .TRUE.
       CASE DEFAULT
-        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,5,6,7,8! SurfaceModel=',&
+        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,SEE_MODELS_ID! SurfaceModel=',&
         IntInfoOpt=PartBound%SurfaceModel(iPartBound))
       END SELECT
     END IF
