@@ -132,8 +132,11 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
       module list
       echo ""
       echo "Have the correct modules been loaded?"
-      echo -e "This will install ${WHICHCOMPILER} version ${GREEN}${COMPILERVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
-      read -p "If yes, press [Enter] to continue or [Crtl+c] to abort!"
+      echo -e "This will install ${WHICHMPI} version ${GREEN}${MPIVERSION}${NC} for ${WHICHCOMPILER} version ${GREEN}${COMPILERVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
+      read -p "If yes, press [Enter] to continue or [Crtl+c] to abort or [n] to skip this combination and go to the next!" ANSWER
+      if [[ $ANSWER == "n" ]]; then
+        continue
+      fi
 
       # Change to sources directories
       cd ${SOURCESDIR}

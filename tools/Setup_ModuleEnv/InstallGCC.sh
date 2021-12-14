@@ -131,6 +131,7 @@ if [ ! -e "${MODULEFILE}" ]; then
 
   echo ""
   echo -e "This will install GCC compiler version ${GREEN}${GCCVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
+  read -p "Press [Enter] to continue or [Crtl+c] to abort!"
 
   cd ${SOURCESDIR}
 
