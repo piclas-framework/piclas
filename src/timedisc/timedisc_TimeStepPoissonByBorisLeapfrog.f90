@@ -176,6 +176,9 @@ IF (time.GE.DelayTime) THEN
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
     END IF
   END DO
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -194,6 +197,9 @@ IF (time.GE.DelayTime) THEN
 #if USE_MPI
     PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
     CALL Deposition() ! because of emission and UpdateParticlePosition
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))

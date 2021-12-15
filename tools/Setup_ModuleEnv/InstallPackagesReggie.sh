@@ -10,6 +10,15 @@
 # notes       :
 #==============================================================================
 
+# Get OS Distributor ID
+LSBNAME=$(lsb_release -si)
+
+# Check OS
+if [[ ${LSBNAME} != "Ubuntu" ]]; then
+  echo "This script currently only supports Ubuntu. Exit."
+  exit
+fi
+
 # Check for updates
 sudo apt-get update
 
@@ -30,14 +39,17 @@ sudo apt-get install libstdc++5 -y
 
 # tools
 sudo apt-get install gzip gimp htop meld gnuplot gnuplot-x11 vlc okular ddd gmsh unzip -y
+
+# Secure Sockets Layer toolkit - development files
+sudo apt install libssl-dev
 sudo apt-get install openvpn openssl openssh-client -y
 
 # for FLEXI/PICLas
 sudo apt-get install liblapack3 liblapack-dev zlib1g-dev exuberant-ctags -y
 
 # for documentation
-sudo apt-get install pandoc pandoc-citeproc -y
-sudo apt-get install texlive-full -y
+sudo apt-get install texlive-base -y
+sudo apt-get install texlive-latex-extra -y
 
 # hdf5-file viewer
 sudo apt-get install hdfview -y

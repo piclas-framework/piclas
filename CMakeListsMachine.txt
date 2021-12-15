@@ -147,7 +147,7 @@ ELSE()
   ENDIF()
 ENDIF()
 
-MESSAGE(STATUS "Compiling using [${PICLAS_INSTRUCTION}] instruction")
+MESSAGE(STATUS "Compiling with [${CMAKE_Fortran_COMPILER_ID}] fortran compiler using [${PICLAS_INSTRUCTION}] instruction")
 
 # =========================================================================
 # COMPILER FLAGS
@@ -199,7 +199,7 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
   SET (CMAKE_Fortran_FLAGS_PROFILE   "${CMAKE_Fortran_FLAGS} -p -O3 ${PICLAS_INSTRUCTION} -qopt-report0 -qopt-report-phase=vec -no-prec-div")
   SET (CMAKE_Fortran_FLAGS_DEBUG     "${CMAKE_Fortran_FLAGS} -g -O0 -fpe0 -traceback -check all,noarg_temp_created,noformat,nooutput_conversion,pointer,uninit -init=snan -init=arrays")
   # add flags only for compiling not linking!
-  SET (PICLAS_COMPILE_FLAGS "-fpp -allow nofpp_comments -assume bscc")
+  SET (PICLAS_COMPILE_FLAGS "-fPIC -fpp -allow nofpp_comments -assume bscc")
 
 # Cray Compiler
 ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Cray")

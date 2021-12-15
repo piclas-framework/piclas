@@ -170,7 +170,9 @@ USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_Equation_vars         ,ONLY: Wavelength
 #endif /* maxwell */
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
+#if USE_MPI && defined(PARTICLES)
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
+#endif /*USE_MPI && defined(PARTICLES)*/
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 #if USE_HDG
 USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential,PosAverageElectricPotential,CalcElectricTimeDerivative
@@ -1005,7 +1007,6 @@ ELSE
   DoPerformPartAnalyze    =.FALSE.
   DoPerformSurfaceAnalyze =.FALSE.
 END IF
-
 
 ! 2) check analyze with respect to iteration counter
 ! selection criterion depending on iteration counter
