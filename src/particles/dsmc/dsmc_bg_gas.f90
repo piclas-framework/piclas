@@ -38,9 +38,6 @@ SUBROUTINE BGGas_Initialize()
 !> calculation of the molar fraction
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-
-
 USE MOD_ReadInTools
 USE MOD_Globals       ,ONLY: abort
 USE MOD_DSMC_Vars     ,ONLY: BGGas
@@ -110,6 +107,7 @@ DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
     bgSpec = bgSpec + 1
     IF(bgSpec.GT.BGGas%NumberOfSpecies) CALL Abort(__STAMP__,'More background species detected than previously defined!')
+    BGGas%NumberDensity(bgSpec)   = SpeciesDensTmp(iSpec)
     BGGas%MapSpecToBGSpec(iSpec)  = bgSpec
     BGGas%MapBGSpecToSpec(bgSpec) = iSpec
     BGGas%MaxMPF = MAX(BGGas%MaxMPF,Species(iSpec)%MacroParticleFactor)
@@ -126,7 +124,6 @@ DO bgSpec = 1, BGGas%NumberOfSpecies
       BGGas%SpeciesFractionElem(bgSpec,iElem) = BGGas%Distribution(bgSpec,7,iElem) / SUM(BGGas%Distribution(:,7,iElem))
     END DO ! iElem = 1, nElems
   ELSE
-    BGGas%NumberDensity(bgSpec)   = SpeciesDensTmp(iSpec)
     BGGas%SpeciesFraction(bgSpec) = BGGas%NumberDensity(bgSpec) / SUM(SpeciesDensTmp)
   END IF
 END DO ! bgSpec = 1, BGGas%NumberOfSpecies
@@ -167,7 +164,7 @@ ELSE
   BGGas_GetSpecies = BGGas%MapBGSpecToSpec(1)
 END IF
 
-IF(BGGas_GetSpecies.EQ.0) CALL Abort(__STAMP__,'ERROR in BGGas: Background gas species is not set correctly!')
+IF(BGGas_GetSpecies.LE.0.) CALL Abort(__STAMP__,'ERROR in BGGas: Background gas species is not set correctly!')
 
 END FUNCTION BGGas_GetSpecies
 
