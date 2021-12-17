@@ -289,6 +289,7 @@ USE MOD_Particle_Vars              ,ONLY: Symmetry
 USE MOD_BGK_Init                   ,ONLY: InitBGK
 USE MOD_Particle_Vars              ,ONLY: Symmetry
 #endif
+USE MOD_Particle_Vars              ,ONLY: BulkElectronTemp
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -304,6 +305,9 @@ IF(ParticlesInitIsDone)THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLES ...'
+
+! Initialize bulk temperature (might be set in surface model OR later in part analyze routine)
+BulkElectronTemp = 0.
 
 IF(TrackingMethod.NE.TRIATRACKING) THEN
   CALL InitParticleSurfaces()

@@ -104,6 +104,7 @@ PUBLIC :: CalcNbrOfPhotons, CalcPhotonEnergy
 PUBLIC :: CalcIntensity_Gaussian
 PUBLIC :: CalcVelocity_FromWorkFuncSEE, DSMC_SetInternalEnr_LauxVFD
 PUBLIC :: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
+PUBLIC :: SetParticlePositionPhotonHoneycomb, SetParticlePositionPhotonSEEHoneycomb
 PUBLIC :: SetParticlePositionLandmark
 PUBLIC :: SetParticlePositionLandmarkNeutralization
 PUBLIC :: SetParticlePositionLiu2010Neutralization
@@ -1677,7 +1678,10 @@ ASSOCIATE( tau         => Species(i)%Init(iInit)%PulseDuration      ,&
            I_0         => Species(i)%Init(iInit)%IntensityAmplitude ,&
            lambda      => Species(i)%Init(iInit)%WaveLength         ,&
            NbrOfPulses => Species(i)%Init(iInit)%NbrOfPulses        ,&
-           Period      => Species(i)%Init(iInit)%Period              &
+           Period      => Species(i)%Init(iInit)%Period             ,&
+           IC          => Species(i)%Init(iInit)%SpaceIC      ,&
+           Rout        => Species(i)%Init(iInit)%RadiusIC           ,&
+           Rin         => Species(i)%Init(iInit)%Radius2IC          &
           )
 
 ! Temporal bound of integration
@@ -1715,9 +1719,16 @@ IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
 !   dr : from 0 to R
 !   dt : from t1 to t2
 ! dphi : from 0 to 2*PI
+  IF((TRIM(IC).EQ.'photon_SEE_honeycomb').OR.(TRIM(IC).EQ.'photon_honeycomb'))THEN
+   E_Intensity = 0.5 * I_0 * SQRT(PI) * tau &
+               * (ERF(t_2/tau)-ERF(t_1/tau)) &
+               * (1.5*SQRT(3.0)) &
+               * (Rout**2-Rin**2)
+  ELSE
 E_Intensity = 0.5 * I_0 * PI**(3.0/2.0) * w_b**2 * tau &
             * (1.0-EXP(-Radius**2/w_b**2)) &
             * (ERF(t_2/tau)-ERF(t_1/tau))
+  END IF ! (SpaceIC.EQ.'photon_SEE_honeycomb').OR.(SpaceIC.EQ.'photon_honeycomb')
 NbrOfPhotons = E_Intensity / CalcPhotonEnergy(lambda)
 
 END ASSOCIATE
@@ -1834,7 +1845,7 @@ END SUBROUTINE CalcVelocity_FromWorkFuncSEE
 
 SUBROUTINE SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
 !===================================================================================================================================
-! Set particle position
+! Set particle position for 'photon_SEE_disc'
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
@@ -1888,9 +1899,73 @@ END DO
 END SUBROUTINE SetParticlePositionPhotonSEEDisc
 
 
+SUBROUTINE SetParticlePositionPhotonSEEHoneycomb(FractNbr,iInit,chunkSize,particle_positions)
+!===================================================================================================================================
+! Set particle position for 'photon_SEE_honeycomb'
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Particle_Vars ,ONLY: Species
+USE MOD_Globals_Vars  ,ONLY: PI
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: Particle_pos(3)
+INTEGER                 :: i
+REAL                    :: RandVal(2),RandVal1
+REAL                    :: R3,R4,a,b
+!===================================================================================================================================
+ASSOCIATE( R  => Species(FractNbr)%Init(iInit)%RadiusIC  ,&
+           R2 => Species(FractNbr)%Init(iInit)%Radius2IC  )
+  R3 = R  * SQRT(3.0) * 0.5
+  R4 = R2 * SQRT(3.0) * 0.5
+
+  b = R4**2
+  a = R**2-b
+  DO i=1,chunkSize
+    DO
+      CALL RANDOM_NUMBER(RandVal)
+      ! RandVal(1): radius
+      RandVal(1) = SQRT(a*RandVal(1) + b)
+      ! RandVal(2): angle
+      RandVal(2) = 2.0*PI*RandVal(2)
+      ! Transformation
+      Particle_pos(1) = RandVal(1) * COS(RandVal(2))
+      Particle_pos(2) = RandVal(1) * SIN(RandVal(2))
+
+      ASSOCIATE( x1 => Particle_pos(1),&
+                 x2 => Particle_pos(2))
+        ! Check if outside of outer hexagon radius
+        IF(.NOT.InsideHexagon((/x1,x2/),R,R3)) CYCLE
+        ! Check if inside of inner hexagon radius
+        IF(R4.GT.0.)THEN
+          IF(InsideHexagon((/x1,x2/),R2,R4)) CYCLE
+        END IF ! R2.GT.0.
+        ! Accepted both radii
+        EXIT
+        ! End ARM for Gauss distribution
+      END ASSOCIATE
+    END DO
+    CALL RANDOM_NUMBER(RandVal1)
+    particle_positions(i*3-2) = Particle_pos(1) + Species(FractNbr)%Init(iInit)%BasePointIC(1)
+    particle_positions(i*3-1) = Particle_pos(2) + Species(FractNbr)%Init(iInit)%BasePointIC(2)
+    particle_positions(i*3  ) = Species(FractNbr)%Init(iInit)%BasePointIC(3)
+  END DO
+END ASSOCIATE
+END SUBROUTINE SetParticlePositionPhotonSEEHoneycomb
+
+
 SUBROUTINE SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize,particle_positions)
 !===================================================================================================================================
-! Set particle position
+! Set particle position for 'photon_cylinder'
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
@@ -1945,6 +2020,123 @@ DO i=1,chunkSize
   particle_positions(i*3  ) = Particle_pos(3)
 END DO
 END SUBROUTINE SetParticlePositionPhotonCylinder
+
+
+SUBROUTINE SetParticlePositionPhotonHoneycomb(FractNbr,iInit,chunkSize,particle_positions)
+!===================================================================================================================================
+! Set particle position 'photon_honeycomb'
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Globals_Vars  ,ONLY: PI
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: Particle_pos(3)
+INTEGER                 :: i
+REAL                    :: RandVal(2),RandVal1
+REAL                    :: R3,R4,a,b
+!===================================================================================================================================
+ASSOCIATE( R  => Species(FractNbr)%Init(iInit)%RadiusIC  ,&
+           R2 => Species(FractNbr)%Init(iInit)%Radius2IC  )
+  R3 = R  * SQRT(3.0) * 0.5
+  R4 = R2 * SQRT(3.0) * 0.5
+
+  b = R4**2
+  a = R**2-b
+  DO i=1,chunkSize
+    DO
+      CALL RANDOM_NUMBER(RandVal)
+      ! RandVal(1): radius
+      RandVal(1) = SQRT(a*RandVal(1) + b)
+      ! RandVal(2): angle
+      RandVal(2) = 2.0*PI*RandVal(2)
+      ! Transformation
+      Particle_pos(1) = RandVal(1) * COS(RandVal(2))
+      Particle_pos(2) = RandVal(1) * SIN(RandVal(2))
+
+      ASSOCIATE( x1 => Particle_pos(1),&
+                 x2 => Particle_pos(2))
+        ! Check if outside of outer hexagon radius
+        IF(.NOT.InsideHexagon((/x1,x2/),R,R3)) CYCLE
+        ! Check if inside of inner hexagon radius
+        IF(R4.GT.0.)THEN
+          IF(InsideHexagon((/x1,x2/),R2,R4)) CYCLE
+        END IF ! R2.GT.0.
+        ! Accepted both radii
+        EXIT
+      ! End ARM for Gauss distribution
+      END ASSOCIATE
+    END DO
+    CALL RANDOM_NUMBER(RandVal1)
+    Particle_pos(3) = RandVal1 * Species(FractNbr)%Init(iInit)%CylinderHeightIC
+    particle_positions(i*3-2) = Particle_pos(1) + Species(FractNbr)%Init(iInit)%BasePointIC(1)
+    particle_positions(i*3-1) = Particle_pos(2) + Species(FractNbr)%Init(iInit)%BasePointIC(2)
+    particle_positions(i*3  ) = Particle_pos(3) + Species(FractNbr)%Init(iInit)%BasePointIC(3)
+  END DO
+END ASSOCIATE
+END SUBROUTINE SetParticlePositionPhotonHoneycomb
+
+
+!===================================================================================================================================
+!> Check if x,y is inside honeycomb (hexagon)
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION InsideHexagon(X,R,ri) RESULT(L)
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: x(2),R,ri
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL            :: normal(2),corner(2)
+!===================================================================================================================================
+L = .FALSE.
+ASSOCIATE( x => x(1), y => x(2) )
+  ! 1.) Check if outside of bounding box
+  IF(x.GT.  R) RETURN
+  IF(x.LT. -R) RETURN
+  IF(y.GT. ri) RETURN
+  IF(y.LT.-ri) RETURN
+  ! 2.) Check if outside of hexagon
+  ! Check which quadrant (note that normal is a vector that is not normalized)
+  IF(x.GT.0.)THEN
+    IF(y.GT.0.)THEN
+      ! Quadrant 1
+      normal = (/   -ri  , -0.5*R/)
+      corner = (/0.5*R   ,     ri/)
+    ELSE
+      ! Quadrant 2
+      normal = (/   -ri  , 0.5*R/)
+      corner = (/0.5*R   ,   -ri/)
+    END IF
+  ELSE
+    IF(y.LT.0.)THEN
+      ! Quadrant 3
+      normal = (/     ri , 0.5*R/)
+      corner = (/-0.5*R  ,   -ri/)
+    ELSE
+      ! Quadrant 4
+      normal = (/    ri  , -0.5*R/)
+      corner = (/-0.5*R  ,     ri/)
+    END IF
+  END IF
+  corner = (/x,y/) - corner
+  L = DOT_PRODUCT(corner,normal).GT.0.0
+END ASSOCIATE
+END FUNCTION InsideHexagon
 
 
 SUBROUTINE SetParticlePositionLandmark(chunkSize,particle_positions,mode)

@@ -408,5 +408,11 @@ CHARACTER(255)    :: NeutralizationSource        ! Name of the boundary for calc
 INTEGER           :: NeutralizationBalance       ! Counter for charged particles (processor local): Add +1 for electrons and -1 for ions
 INTEGER           :: NeutralizationBalanceGlobal ! Counter for charged particles (global): Add +1 for electrons and -1 for ions
 
+! Bulk electron temperature
+REAL              :: BulkElectronTemp            ! Bulk electron temperature for SEE model by Morozov2004
+                                                 ! read-in in Kelvin (when using the SEE mode), but is directly converted
+                                                 ! to eV for  usage in the code OR for neutralization BC (e.g. landmark)
+LOGICAL           :: CalcBulkElectronTemp        ! Automatic bulk electron calculation
+INTEGER           :: BulkElectronTempSpecID      ! Species ID (electron) for Automatic bulk electron calculation
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

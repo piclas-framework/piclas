@@ -1,3 +1,4 @@
+(sec:FP-Flow)=
 # Fokker-Planck Collision Operator
 
 The implementation of the FP-based collision operator is based on the publications by {cite}`Gorji2014` and {cite}`Pfeiffer2017`.

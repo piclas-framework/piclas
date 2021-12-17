@@ -81,7 +81,7 @@ INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, jSpec, bgSpe
 INTEGER                       :: iCase, SpecPairNumTemp, nPartAmbi, CNElemID, GlobalElemID
 INTEGER                       :: iVib, nVib, iPartSplit, SplitPartNum, SplitRestPart
 INTEGER,ALLOCATABLE           :: iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:), UseSpecPartNum(:)
-REAL                          :: iRan, ProbRest, SpecPairNumReal, MPF, Volume, MPFRatio, BGGasNumDens
+REAL                          :: iRan, ProbRest, SpecPairNumReal, MPF, Volume, MPFRatio, BGGasNumDens, BGGasFraction
 INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalAmbiDel(:)
 INTEGER, ALLOCATABLE, TARGET  :: iPartIndx_Node(:), iPartIndx_NodeTotalAmbi(:)
 INTEGER, POINTER              :: iPartIndx_NodeTotal(:)
@@ -167,7 +167,7 @@ IF(DSMC%CalcQualityFactors) THEN
   DO bgSpec = 1, BGGas%NumberOfSpecies
     iSpec = BGGas%MapBGSpecToSpec(bgSpec)
     IF(BGGas%UseDistribution) THEN
-      DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies+1) + BGGas%SpeciesFraction(bgSpec) &
+      DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies+1) + BGGas%SpeciesFractionElem(bgSpec,iElem) &
                                                                               * SUM(BGGas%Distribution(bgSpec,4:6,iElem)) / 3.
     ELSE
       DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies+1) + BGGas%SpeciesFraction(bgSpec) &
@@ -188,7 +188,11 @@ DO iSpec = 1,nSpecies
       SpecPairNumReal = SpecPartNum(iSpec)*SpecXSec(iCase)%ProbNull
     ELSE
       ! Regular: The maximum number of pairs corresponds to the particle number
-      SpecPairNumReal = BGGas%SpeciesFraction(bgSpec)*SpecPartNum(iSpec)
+      IF(BGGas%UseDistribution)THEN
+        SpecPairNumReal = BGGas%SpeciesFractionElem(bgSpec,iElem)*SpecPartNum(iSpec)
+      ELSE
+        SpecPairNumReal = BGGas%SpeciesFraction(bgSpec)*SpecPartNum(iSpec)
+      END IF ! BGGas%UseDistribution
     END IF
     SpecPairNumTemp = INT(SpecPairNumReal)
     ! Avoid creating more pairs than currently particles in the simulation
@@ -325,6 +329,7 @@ DO iSpec = 1, nSpecies
           END IF
         END IF
       END IF
+
       ! ==============================================================================================================================
       ! Determine collision probability
       ! ==============================================================================================================================
@@ -338,6 +343,15 @@ DO iSpec = 1, nSpecies
       CRela2 = (PartState(4,PartIndex) - VeloBGGPart(1))**2 &
              + (PartState(5,PartIndex) - VeloBGGPart(2))**2 &
              + (PartState(6,PartIndex) - VeloBGGPart(3))**2
+
+      IF(BGGas%UseDistribution) THEN
+        BGGasNumDens  = BGGas%Distribution(bgSpec,7,iElem)
+        BGGasFraction = BGGas%SpeciesFractionElem(bgSpec,iElem)
+      ELSE
+        BGGasNumDens  = BGGas%NumberDensity(bgSpec)
+        BGGasFraction = BGGas%SpeciesFraction(bgSpec)
+      END IF
+
       ! ==========================================================================================
       ! XSec
       IF(SpecXSec(iCase)%UseCollXSec) THEN
@@ -345,18 +359,18 @@ DO iSpec = 1, nSpecies
         CollEnergy = 0.5 * CollInf%MassRed(iCase) * CRela2
         ! Calculate the collision probability
         SpecXSec(iCase)%CrossSection = InterpolateCrossSection(iCase,CollEnergy)
-        CollProb = (1. - EXP(-SQRT(CRela2) * SpecXSec(iCase)%CrossSection * BGGas%NumberDensity(bgSpec) * dt))
+        CollProb = (1. - EXP(-SQRT(CRela2) * SpecXSec(iCase)%CrossSection * BGGasNumDens * dt))
         ! Correct the collision probability in the case of the second species being a background species as the number of pairs
         ! is either determined based on the null collision probability or on the species fraction
         IF(XSec_NullCollision) THEN
           CollProb = CollProb / SpecXSec(iCase)%ProbNull
         ELSE
-          CollProb = CollProb / BGGas%SpeciesFraction(bgSpec)
+          CollProb = CollProb / BGGasNumDens
         END IF
       ELSE
       ! ==========================================================================================
       ! DSMC
-        CollProb = CollInf%Coll_SpecPartNum(iSpec)*BGGas%NumberDensity(bgSpec)/(1+CollInf%KronDelta(iCase))*CollInf%Cab(iCase) &
+        CollProb = CollInf%Coll_SpecPartNum(iSpec)*BGGasNumDens/(1+CollInf%KronDelta(iCase))*CollInf%Cab(iCase) &
                   / CollCaseNum * CRela2 ** (0.5-CollInf%omega(iSpec,jSpec)) * dt
         IF(CollisMode.EQ.3) THEN
           ! Chemical reaction with cross-section based probability
@@ -369,7 +383,7 @@ DO iSpec = 1, nSpecies
               END IF
             END IF
             ! If standard collision modelling is used, the reaction probability is added to the collision probability
-            CALL MCC_CalcReactionProb(iCase,bgSpec,CRela2,PartIndex,bggPartIndex)
+            CALL MCC_CalcReactionProb(iCase,bgSpec,CRela2,PartIndex,bggPartIndex,iElem)
             CollProb = CollProb + SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
             ! If a collision occurs, re-use the energy values set in MCC_CalcReactionProb
             GetInternalEnergy = .FALSE.
@@ -384,13 +398,14 @@ DO iSpec = 1, nSpecies
             SumVibCrossSection = SumVibCrossSection + InterpolateCrossSection_Vib(iCase,iVib,CollEnergy)
           END DO
           ! Calculate the total vibrational relaxation probability
-          SpecXSec(iCase)%VibProb = 1. - EXP(-SQRT(CRela2) * SumVibCrossSection * BGGas%NumberDensity(bgSpec) * dt)
+          SpecXSec(iCase)%VibProb = 1. - EXP(-SQRT(CRela2) * SumVibCrossSection * BGGasNumDens * dt)
           ! Correct the collision probability in the case of the second species being a background species as the number of pairs
           ! is determined based on the species fraction
-          SpecXSec(iCase)%VibProb = SpecXSec(iCase)%VibProb / BGGas%SpeciesFraction(bgSpec)
+          SpecXSec(iCase)%VibProb = SpecXSec(iCase)%VibProb / BGGasFraction
           CollProb = CollProb + SpecXSec(iCase)%VibProb
         END IF
-      END IF
+      END IF ! SpecXSec(iCase)%UseCollXSec
+
       ! ==============================================================================================================================
       ! Check whether a collision occurs
       ! ==============================================================================================================================
@@ -453,6 +468,7 @@ DO iSpec = 1, nSpecies
           END IF
         END IF
       END IF  ! CollProb.GE.iRan
+
       IF(SplitInProgress) THEN
         ! Treatment at the end of the split
         IF(iPartSplit.EQ.SplitPartNum) THEN
@@ -465,6 +481,7 @@ DO iSpec = 1, nSpecies
         END IF
       END IF
       iLoop = iLoop + 1
+
       ! ==============================================================================================
       ! Determine collision probabilities
       IF(DSMC%CalcQualityFactors) THEN
@@ -474,12 +491,13 @@ DO iSpec = 1, nSpecies
           IF(XSec_NullCollision) THEN
             CollProb = CollProb * SpecXSec(iCase)%ProbNull
           ELSE
-            CollProb = CollProb * BGGas%SpeciesFraction(bgSpec)
+            CollProb = CollProb * BGGasFraction
           END IF
         END IF
         DSMC%CollProbMean = DSMC%CollProbMean + CollProb
         DSMC%CollProbMeanCount = DSMC%CollProbMeanCount + 1
-      END IF
+      END IF ! DSMC%CalcQualityFactors
+
 #if (PP_TimeDiscMethod==42)
       ! Sum of collision probabilities for the collision pair, required for the correct reaction rate
       IF(ChemReac%NumOfReact.GT.0) THEN
@@ -489,12 +507,12 @@ DO iSpec = 1, nSpecies
             IF(XSec_NullCollision) THEN
               CollProb = CollProb * SpecXSec(iCase)%ProbNull
             ELSE
-              CollProb = CollProb * BGGas%SpeciesFraction(bgSpec)
+              CollProb = CollProb * BGGasFraction
             END IF
           END IF
           ChemReac%ReacCollMean(iCase) = ChemReac%ReacCollMean(iCase) + CollProb
         END IF
-      END IF
+      END IF ! ChemReac%NumOfReact.GT.0
 #endif
     END DO    ! DO WHILE(iLoop.LE.SpecPairNum(iCase))
     SDEALLOCATE(PartIndexCase)
@@ -533,7 +551,7 @@ END SUBROUTINE MCC
 !===================================================================================================================================
 !> Calculate the collision probability if collision cross-section data is used (only with a background gas)
 !===================================================================================================================================
-SUBROUTINE MCC_CalcReactionProb(iCase,bgSpec,CRela2,PartIndex,bggPartIndex)
+SUBROUTINE MCC_CalcReactionProb(iCase,bgSpec,CRela2,PartIndex,bggPartIndex,iElem)
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, CollInf, BGGas, ChemReac, DSMC, PartStateIntEn, SpecXSec
 USE MOD_TimeDisc_Vars         ,ONLY: dt
@@ -542,7 +560,7 @@ USE MOD_MCC_XSec              ,ONLY: InterpolateCrossSection_Chem
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(IN)            :: iCase,bgSpec,PartIndex,bggPartIndex
+INTEGER,INTENT(IN)            :: iCase,bgSpec,PartIndex,bggPartIndex,iElem
 REAL,INTENT(IN)               :: CRela2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -550,7 +568,7 @@ INTEGER                       :: jSpec, iPath, ReacTest, EductReac(1:3), Product
 INTEGER                       :: NumWeightProd
 REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, CollEnergy
 REAL                          :: CrossSection
-REAL                          :: Temp_Rot, Temp_Vib, Temp_Elec
+REAL                          :: Temp_Rot, Temp_Vib, Temp_Elec, BGGasNumDens, BGGasFraction
 !===================================================================================================================================
 NumWeightProd = 2
 
@@ -601,17 +619,25 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     IF(((CollEnergy-EZeroPoint_Prod).GE.-ChemReac%EForm(ReacTest))) THEN
       CollEnergy = CollEnergy - EZeroPoint_Educt
       CrossSection = InterpolateCrossSection_Chem(iCase,iPath,CollEnergy)
-      IF(SpecXSec(iCase)%UseCollXSec) THEN
-        ! Interpolate the reaction cross-section
-        ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = CrossSection
-      ELSE
-        ! Calculate the reaction probability
-        ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = 1. - EXP(-SQRT(CRela2) * dt * BGGas%NumberDensity(bgSpec) * CrossSection)
-        ! Correct the reaction probability in the case of the second species being a background species as the number of pairs
-        ! is based on the species fraction
-        ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) &
-                                                            / BGGas%SpeciesFraction(bgSpec)
-      END IF
+      ASSOCIATE( ReactionProb => ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) )
+        IF(SpecXSec(iCase)%UseCollXSec) THEN
+          ! Interpolate the reaction cross-section
+          ReactionProb = CrossSection
+        ELSE
+          ! Calculate the reaction probability
+          IF(BGGas%UseDistribution) THEN
+            BGGasNumDens  = BGGas%Distribution(bgSpec,7,iElem)
+            BGGasFraction = BGGas%SpeciesFractionElem(bgSpec,iElem)
+          ELSE
+            BGGasNumDens  = BGGas%NumberDensity(bgSpec)
+            BGGasFraction = BGGas%SpeciesFraction(bgSpec)
+          END IF
+          ReactionProb = 1. - EXP(-SQRT(CRela2) * dt * BGGasNumDens * CrossSection)
+          ! Correct the reaction probability in the case of the second species being a background species as the number of pairs
+          ! is based on the species fraction
+          ReactionProb = ReactionProb / BGGasFraction
+        END IF
+      END ASSOCIATE
     ELSE
       ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = 0.
     END IF

@@ -72,6 +72,7 @@ LOGICAL                       :: CalcPICTimeStep                     !< Compute 
 LOGICAL                       :: CalcPICTimeStepCyclotron            !< Compute the PIC time step from cyclotron motion (min and max) in each cell
 LOGICAL                       :: CalcElectronIonDensity              !< Compute the electron density in each cell
 LOGICAL                       :: CalcElectronTemperature             !< Compute the electron temperature in each cell
+LOGICAL                       :: CalcElectronEnergy                  !< Compute the electron min/max/average energy in each cell
 LOGICAL                       :: CalcPlasmaParameter                 !< Compute the plasma parameter in each cell
 !LOGICAL                       :: ElectronTemperatureIsMaxwell        ! Assumption of Maxwell-Boltzmann or undistributed electrons
 LOGICAL                       :: CalcPlasmaFrequency                 !< Compute the electron plasma frequency in each cell
@@ -127,6 +128,9 @@ REAL,ALLOCATABLE              :: IonDensityCell(:)                   !< Ion dens
 REAL,ALLOCATABLE              :: NeutralDensityCell(:)               !< Neutral density (cell mean value)
 REAL,ALLOCATABLE              :: ChargeNumberCell(:)                 !< Charge number (cell mean value)
 REAL,ALLOCATABLE              :: ElectronTemperatureCell(:)          !< Electron temperature (cell mean value)
+REAL,ALLOCATABLE              :: ElectronMinEnergyCell(:)            !< Electron minimum cell energy [eV]
+REAL,ALLOCATABLE              :: ElectronMaxEnergyCell(:)            !< Electron maximum cell energy [eV]
+REAL,ALLOCATABLE              :: ElectronAverageEnergyCell(:)        !< Electron average cell energy [eV]
 REAL,ALLOCATABLE              :: PlasmaFrequencyCell(:)              !< Plasma electron frequency (cell mean value)
 REAL,ALLOCATABLE              :: CyclotronFrequencyMaxCell(:)        !< Electron cyclotron frequency (cell MAX value)
 REAL,ALLOCATABLE              :: CyclotronFrequencyMinCell(:)        !< Electron cyclotron frequency (cell MIN value)

@@ -198,16 +198,12 @@ SELECT CASE(iPType)
   CASE (-1)
     Coll_pData(iPair)%Prob = 0.
   CASE DEFAULT
-    CALL Abort(&
-      __STAMP__&
-      ,'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
+    CALL Abort(__STAMP__,'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
 END SELECT
 
 IF (ISNAN(Coll_pData(iPair)%Prob)) THEN
   IPWRITE(UNIT_errOut,*)iPair,'in',iElem,'is NaN!'
-  CALL Abort(&
-    __STAMP__&
-    ,'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
+  CALL Abort(__STAMP__,'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
 END IF
 IF(DSMC%CalcQualityFactors) THEN
   CollProb = Coll_pData(iPair)%Prob
@@ -218,7 +214,11 @@ IF(DSMC%CalcQualityFactors) THEN
       IF(XSec_NullCollision) THEN
         CollProb = CollProb * SpecXSec(iCase)%ProbNull
       ELSE
-        CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+        IF(BGGas%UseDistribution)THEN
+          CollProb = CollProb * BGGas%SpeciesFractionElem(BGGas%MapSpecToBGSpec(iSpec_p2),iElem)
+        ELSE
+          CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+        END IF ! BGGas%UseDistribution
       END IF
     END IF
   END IF
@@ -237,7 +237,11 @@ IF(ChemReac%NumOfReact.GT.0) THEN
         IF(XSec_NullCollision) THEN
           CollProb = CollProb * SpecXSec(iCase)%ProbNull
         ELSE
-          CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+          IF(BGGas%UseDistribution)THEN
+            CollProb = CollProb * BGGas%SpeciesFractionElem(BGGas%MapSpecToBGSpec(iSpec_p2),iElem)
+          ELSE
+            CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+          END IF ! BGGas%UseDistribution
         END IF
       END IF
     END IF

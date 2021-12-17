@@ -36,12 +36,14 @@ SUBROUTINE SecondaryElectronEmission(PartID_IN,locBCID,ProductSpec,ProductSpecNb
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals                ,ONLY: abort,VECNORM,PARTISELECTRON
-USE MOD_Globals_Vars           ,ONLY: c,Joule2eV
-USE MOD_Particle_Vars          ,ONLY: PartState,Species,PartSpecies
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge,ElectronMass
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfModResultSpec,SurfModSEEelectronTemp
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Globals                   ,ONLY: abort,VECNORM,PARTISELECTRON
+USE MOD_Globals_Vars              ,ONLY: c,Joule2eV
+USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF,BulkElectronTemp
+USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,ElectronMass
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcElectronSEE,SEE
+USE MOD_PARTICLE_Vars             ,ONLY: usevMPF
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -62,6 +64,7 @@ REAL              :: k_ee   ! Coefficient of emission of secondary electron
 REAL              :: k_refl ! Coefficient for reflection of bombarding electron
 REAL              :: W0,W1,W2
 REAL              :: v
+REAL              :: MPF
 !===================================================================================================================================
 ! Sanity check: is the impacting particle faster than c
 v=VECNORM(PartState(4:6,PartID_IN))
@@ -193,7 +196,6 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
       ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
       ProductSpecNbr = 1 ! Create one new particle
       v_new          = VECNORM(PartState(4:6,PartID_IN)) ! |v_new| = |v_old|
-      RETURN
     END IF
   ELSE ! Neutral bombarding particle
     RETURN ! nothing to do
@@ -206,8 +208,8 @@ CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materia
         ! comes) by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
 
     IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
-      ASSOCIATE( P0   => 0.9                     ,& ! Assumption in paper
-                 Te0  => SurfModSEEelectronTemp  ,& ! Assumed bulk electron temperature [eV] (note this parameter is read as [K])
+      ASSOCIATE( P0   => 0.9               ,& ! Assumption in paper
+                 Te0  => BulkElectronTemp  ,& ! Assumed bulk electron temperature [eV] (note this parameter is read as [K])
                  velo2=> PartState(4,PartID_IN)**2 + PartState(5,PartID_IN)**2 + PartState(6,PartID_IN)**2 ,& ! Velocity squared
                  mass => Species(PartSpecies(PartID_IN))%MassIC  ) ! mass of bombarding particle
         eps_e = 0.5*mass*velo2*Joule2eV ! Incident electron energy [eV]
@@ -244,6 +246,21 @@ CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materia
 
 END SELECT
 
+! Check if SEE counter is active and assign the number of produced electrons to the boundary
+IF(CalcElectronSEE.AND.(ProductSpecNbr.GT.0))THEN
+  ASSOCIATE( iSEEBC => SEE%BCIDToSEEBCID(locBCID) )
+    IF(iSEEBC.EQ.-1) CALL abort(__STAMP__,'SEE%BCIDToSEEBCID(locBCID)) = -1')
+    IF(usevMPF)THEN
+      ! MPF of impacting particle
+      MPF = PartMPF(PartID_IN)
+    ELSE
+      ! MPF of produced species
+      MPF = Species(ProductSpec(2))%MacroParticleFactor
+    END IF
+    ! Consider the number of produced electrons ProductSpecNbr
+    SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) + MPF*ProductSpecNbr
+  END ASSOCIATE
+END IF ! CalcElectronSEE
 
 END SUBROUTINE SecondaryElectronEmission
 

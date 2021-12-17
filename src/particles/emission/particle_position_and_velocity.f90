@@ -139,6 +139,7 @@ USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetPartic
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionCuboidCylinder, SetParticlePositionGyrotronCircle,SetParticlePositionCircle
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionSphere, SetParticlePositionSinDeviation
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
+USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonHoneycomb, SetParticlePositionPhotonSEEHoneycomb
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLandmark,SetParticlePositionLandmarkNeutralization
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010Neutralization,SetParticlePositionLiu2010Neutralization3D
 #if USE_MPI
@@ -226,8 +227,12 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     CALL SetParticlePositionSinDeviation(FractNbr,iInit,particle_positions)
   CASE('photon_SEE_disc') ! disc case for surface distribution
     CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
+  CASE('photon_SEE_honeycomb') ! Honeycomb disc case for surface distribution
+    CALL SetParticlePositionPhotonSEEHoneycomb(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_cylinder') ! cylinder case for photonionization
     CALL SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize,particle_positions)
+  CASE('photon_honeycomb') ! Honeycomb case for photonionization
+    CALL SetParticlePositionPhotonHoneycomb(FractNbr,iInit,chunkSize,particle_positions)
   CASE('2D_landmark','2D_landmark_copy')
     ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
     ! for low-temperature partially magnetized plasmas (2019)
@@ -323,7 +328,7 @@ USE MOD_part_emission_tools     ,ONLY: CalcVelocity_gyrotroncircle
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_tools              ,ONLY: BuildTransGaussNums
-USE MOD_SurfaceModel_Vars       ,ONLY: SurfModSEEelectronTempAutoamtic,SurfModSEEelectronTemp
+USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)              :: FractNbr,iInit
@@ -377,13 +382,13 @@ CASE('maxwell_lpn','2D_landmark','2D_landmark_copy','2D_landmark_neutralization'
     END IF
   END DO
 CASE('2D_Liu2010_neutralization','3D_Liu2010_neutralization')
-  IF(.NOT.SurfModSEEelectronTempAutoamtic) CALL abort(__STAMP__,&
-      'Velocity distribution 2D_Liu2010_neutralization requires SurfModSEEelectronTempAutoamtic=T')
+  IF(.NOT.CalcBulkElectronTemp) CALL abort(__STAMP__,&
+      'Velocity distribution 2D_Liu2010_neutralization requires CalcBulkElectronTemp=T')
   ! Use the global electron temperature if available
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr.GT.0) THEN
-      CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, Temperature=SurfModSEEelectronTemp*eV2Kelvin)
+      CALL CalcVelocity_maxwell_lpn(FractNbr, Vec3D, Temperature=BulkElectronTemp*eV2Kelvin)
       PartState(4:6,PositionNbr) = Vec3D(1:3)
       ! Mirror the x-velocity component (force all electrons to travel in -x direction)
       PartState(4,PositionNbr) = -ABS(PartState(4,PositionNbr))

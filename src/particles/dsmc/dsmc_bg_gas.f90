@@ -38,6 +38,9 @@ SUBROUTINE BGGas_Initialize()
 !> calculation of the molar fraction
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
+
+
 USE MOD_ReadInTools
 USE MOD_Globals       ,ONLY: abort
 USE MOD_DSMC_Vars     ,ONLY: BGGas
@@ -52,8 +55,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iSpec, counterSpec
-REAL              :: SpeciesDensTemp(1:nSpecies)
+INTEGER           :: iSpec, bgSpec, iElem
+REAL              :: SpeciesDensTmp(1:nSpecies)
 !===================================================================================================================================
 
 ! 0.) Variable read-in
@@ -66,55 +69,67 @@ END IF
 
 DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
-    IF ((BGGas%NumberDensity(iSpec).EQ.0.).AND.(.NOT.BGGas%UseDistribution)) &
-      CALL abort(__STAMP__, 'ERROR: NumberDensity is zero but must be defined for a background gas!')
-    IF (Species(iSpec)%NumberOfInits.NE.1) CALL abort(__STAMP__, 'ERROR: BGG species can be used ONLY for BGG!')
+    IF(Species(iSpec)%NumberOfInits.NE.1) CALL abort(__STAMP__, 'BGG species can be used ONLY for BGG!')
+    IF(.NOT.BGGas%UseDistribution)THEN
+      IF(BGGas%NumberDensity(iSpec).EQ.0.) CALL abort(__STAMP__, 'NumberDensity is zero but must be defined for a background gas!')
+    END IF ! .NOT.BGGas%UseDistribution
   END IF
 END DO
 
-IF(DoMacroscopicRestart) THEN
-  CALL abort(__STAMP__, 'ERROR: Constant background gas and macroscopic restart are not compatible!')
-END IF
+IF(DoMacroscopicRestart) CALL abort(__STAMP__, 'Constant background gas and macroscopic restart are not compatible!')
 
 ! 2.) Allocation
 IF(BGGas%UseDistribution) THEN
   ALLOCATE(BGGas%Distribution(1:BGGas%NumberOfSpecies,1:10,1:nElems))
   BGGas%Distribution = 0.
+  ALLOCATE(BGGas%SpeciesFractionElem(1:BGGas%NumberOfSpecies,1:nElems))
+  BGGas%SpeciesFractionElem = 0.
+ELSE
+  ! Backup densities of all background gas species
+  SpeciesDensTmp(1:nSpecies) = BGGas%NumberDensity(1:nSpecies)
+  DEALLOCATE(BGGas%NumberDensity)
+  ! Re-allocate with the correct size
+  ALLOCATE(BGGas%NumberDensity(BGGas%NumberOfSpecies))
+  BGGas%NumberDensity = 0.
+  ALLOCATE(BGGas%SpeciesFraction(BGGas%NumberOfSpecies))
+  BGGas%SpeciesFraction = 0.
 END IF
 
 ALLOCATE(BGGas%PairingPartner(PDM%maxParticleNumber))
 BGGas%PairingPartner = 0
 ALLOCATE(BGGas%MapSpecToBGSpec(nSpecies))
 BGGas%MapSpecToBGSpec = 0
-SpeciesDensTemp(1:nSpecies) = BGGas%NumberDensity(1:nSpecies)
-DEALLOCATE(BGGas%NumberDensity)
-ALLOCATE(BGGas%NumberDensity(BGGas%NumberOfSpecies))
-BGGas%NumberDensity = 0.
-ALLOCATE(BGGas%SpeciesFraction(BGGas%NumberOfSpecies))
-BGGas%SpeciesFraction = 0.
+
 ALLOCATE(BGGas%MapBGSpecToSpec(BGGas%NumberOfSpecies))
 BGGas%MapBGSpecToSpec = 0
 BGGas%MaxMPF = 0.
 
 ! 3.) Create a mapping of background species to regular species and vice versa, calculate the molar fraction
-counterSpec = 0
+bgSpec = 0
 DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
-    counterSpec = counterSpec + 1
-    BGGas%MapSpecToBGSpec(iSpec) = counterSpec
-    BGGas%MapBGSpecToSpec(counterSpec) = iSpec
-    IF(.NOT.BGGas%UseDistribution) THEN
-      BGGas%NumberDensity(counterSpec) = SpeciesDensTemp(iSpec)
-      BGGas%SpeciesFraction(counterSpec) = BGGas%NumberDensity(counterSpec) / SUM(SpeciesDensTemp)
-      BGGas%MaxMPF = MAX(BGGas%MaxMPF,Species(iSpec)%MacroParticleFactor)
-      IF(counterSpec.GT.BGGas%NumberOfSpecies) CALL Abort(__STAMP__,&
-          'ERROR in BGGas: More background species detected than previously defined!')
-    END IF
+    bgSpec = bgSpec + 1
+    IF(bgSpec.GT.BGGas%NumberOfSpecies) CALL Abort(__STAMP__,'More background species detected than previously defined!')
+    BGGas%MapSpecToBGSpec(iSpec)  = bgSpec
+    BGGas%MapBGSpecToSpec(bgSpec) = iSpec
+    BGGas%MaxMPF = MAX(BGGas%MaxMPF,Species(iSpec)%MacroParticleFactor)
   END IF
 END DO
 
 ! 4.) Read-in a background gas distribution
 IF(BGGas%UseDistribution) CALL BGGas_ReadInDistribution()
+
+! 5.) Determine species fraction
+DO bgSpec = 1, BGGas%NumberOfSpecies
+  IF(BGGas%UseDistribution) THEN
+    DO iElem = 1, nElems
+      BGGas%SpeciesFractionElem(bgSpec,iElem) = BGGas%Distribution(bgSpec,7,iElem) / SUM(BGGas%Distribution(:,7,iElem))
+    END DO ! iElem = 1, nElems
+  ELSE
+    BGGas%NumberDensity(bgSpec)   = SpeciesDensTmp(iSpec)
+    BGGas%SpeciesFraction(bgSpec) = BGGas%NumberDensity(bgSpec) / SUM(SpeciesDensTmp)
+  END IF
+END DO ! bgSpec = 1, BGGas%NumberOfSpecies
 
 END SUBROUTINE BGGas_Initialize
 
@@ -152,9 +167,7 @@ ELSE
   BGGas_GetSpecies = BGGas%MapBGSpecToSpec(1)
 END IF
 
-IF(BGGas_GetSpecies.EQ.0) THEN
-  CALL Abort(__STAMP__,'ERROR in BGGas: Background gas species is not set correctly!')
-END IF
+IF(BGGas_GetSpecies.EQ.0) CALL Abort(__STAMP__,'ERROR in BGGas: Background gas species is not set correctly!')
 
 END FUNCTION BGGas_GetSpecies
 
@@ -666,8 +679,7 @@ PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle + iNewPart
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle + iNewPart
 
 IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
-  CALL Abort(&
-    __STAMP__&
+  CALL Abort(__STAMP__&
     ,'ERROR in PhotoIonization: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &
     , IntInfoOpt=PDM%ParticleVecLength)
 END IF
@@ -699,10 +711,10 @@ END IF
 END SUBROUTINE BGGas_PhotoIonization
 
 
-SUBROUTINE BGGas_ReadInDistribution()
 !===================================================================================================================================
 !> Read-in of the element data from a DSMC state and utilization as a cell-local background gas distribution
 !===================================================================================================================================
+SUBROUTINE BGGas_ReadInDistribution()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -710,7 +722,7 @@ USE MOD_io_hdf5
 USE MOD_HDF5_Input    ,ONLY: OpenDataFile,CloseDataFile,ReadArray,GetDataSize,ReadAttribute
 USE MOD_HDF5_Input    ,ONLY: nDims,HSize,File_ID
 USE MOD_Restart_Vars  ,ONLY: MacroRestartFileName
-USE MOD_Mesh_Vars     ,ONLY: offsetElem, nElems
+USE MOD_Mesh_Vars     ,ONLY: offsetElem, nElems,nGlobalElems
 USE MOD_DSMC_Vars     ,ONLY: BGGas
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -720,8 +732,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: nVar_HDF5, iVar, iSpec, iElem, iBGGSpec, nSpecReadin
-REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
+INTEGER                           :: nVarHDF5, nElems_HDF5, iVar, iSpec, iElem, iBGGSpec, nSpecReadin
+REAL, ALLOCATABLE                 :: ElemDataHDF5(:,:)
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,*) 'BGGas distribution - Using macroscopic values from file: ',TRIM(MacroRestartFileName)
@@ -729,16 +741,21 @@ SWRITE(UNIT_stdOut,*) 'BGGas distribution - Using macroscopic values from file: 
 CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
 CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)
-nVar_HDF5=INT(HSize(1),4)
+nVarHDF5  = INT(HSize(1),4)
+IF(nVarHDF5.LT.10) CALL abort(__STAMP__,'Number of variables .h5 file is less than 10')
+
+nElems_HDF5 = INT(HSize(2),4)
+IF(nElems_HDF5.NE.nGlobalElems) CALL abort(__STAMP__,'Number of global elements does not match number of elements in .h5 file')
+
 DEALLOCATE(HSize)
 
-ALLOCATE(ElemData_HDF5(1:nVar_HDF5,1:nElems))
+ALLOCATE(ElemDataHDF5(1:nVarHDF5,1:nElems))
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-  nVar_HDF5  => INT(nVar_HDF5,IK) ,&
+  nVarHDF5   => INT(nVarHDF5,IK) ,&
   offsetElem => INT(offsetElem,IK),&
   nElems     => INT(nElems,IK)    )
-  CALL ReadArray('ElemData',2,(/nVar_HDF5,nElems/),offsetElem,2,RealArray=ElemData_HDF5(:,:))
+  CALL ReadArray('ElemData',2,(/nVarHDF5,nElems/),offsetElem,2,RealArray=ElemDataHDF5(:,:))
 END ASSOCIATE
 
 CALL ReadAttribute(File_ID,'NSpecies',1,IntScalar=nSpecReadin)
@@ -749,15 +766,16 @@ DO iSpec = 1, nSpecReadin
   DO iBGGSpec = 1, BGGas%NumberOfSpecies
     IF(BGGas%DistributionSpeciesIndex(BGGas%MapBGSpecToSpec(iBGGSpec)).EQ.iSpec) THEN
       DO iElem = 1, nElems
-        BGGas%Distribution(iBGGSpec,1:10,iElem) = ElemData_HDF5(iVar:iVar-1+10,iElem)
+        BGGas%Distribution(iBGGSpec,1:10,iElem) = ElemDataHDF5(iVar:iVar-1+10,iElem)
       END DO
-      SWRITE(UNIT_stdOut,*) 'BGGas distribution: Mapped read-in values of species ', iSpec, ' to current species ', BGGas%MapBGSpecToSpec(iBGGSpec)
+      SWRITE(UNIT_stdOut,*) 'BGGas distribution: Mapped read-in values of species ', iSpec, ' to current species ', &
+          BGGas%MapBGSpecToSpec(iBGGSpec)
     END IF
   END DO
   iVar = iVar + DSMC_NVARS
 END DO
 
-DEALLOCATE(ElemData_HDF5)
+DEALLOCATE(ElemDataHDF5)
 
 CALL CloseDataFile()
 
