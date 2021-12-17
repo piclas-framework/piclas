@@ -244,12 +244,14 @@ ALLOCATE(BGGas%BackgroundSpecies(nSpecies))
 BGGas%BackgroundSpecies = .FALSE.
 ALLOCATE(BGGas%TraceSpecies(nSpecies))
 BGGas%TraceSpecies = .FALSE.
-ALLOCATE(BGGas%NumberDensity(nSpecies))
-BGGas%NumberDensity = 0.
+
 BGGas%UseDistribution = GETLOGICAL('Particles-BGGas-UseDistribution')
 IF(BGGas%UseDistribution) THEN
   IF(usevMPF) CALL abort(__STAMP__,'vMPF not implemented for Particles-BGGas-UseDistribution=T')
   ALLOCATE(BGGas%DistributionSpeciesIndex(nSpecies))
+ELSE
+  ALLOCATE(BGGas%NumberDensity(nSpecies))
+  BGGas%NumberDensity = 0.
 END IF
 
 DO iSpec = 1, nSpecies
@@ -415,16 +417,15 @@ DO iSpec = 1, nSpecies
       IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
         BGGas%NumberOfSpecies = BGGas%NumberOfSpecies + 1
         BGGas%BackgroundSpecies(iSpec) = .TRUE.
-        BGGas%NumberDensity(iSpec)     = Species(iSpec)%Init(iInit)%PartDensity
+        IF(.NOT.BGGas%UseDistribution) BGGas%NumberDensity(iSpec) = Species(iSpec)%Init(iInit)%PartDensity
         BGGas%TraceSpecies(iSpec)      = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-TraceSpecies')
         Species(iSpec)%Init(iInit)%ParticleEmissionType = -1
         ! Read-in the species index for background gas distribution
         IF(BGGas%UseDistribution) &
           BGGas%DistributionSpeciesIndex(iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DistributionSpeciesIndex')
-      ELSE
-        CALL abort(__STAMP__, &
-          'ERROR: Only one background definition per species is allowed!')
-      END IF
+        ELSE
+          CALL abort(__STAMP__, 'Only one background definition per species is allowed!')
+        END IF
     END IF
     !--- InflowRise
     IF(Species(iSpec)%Init(iInit)%InflowRiseTime.GT.0.)THEN
@@ -443,7 +444,11 @@ IF (useDSMC) THEN
   IF (BGGas%NumberOfSpecies.GT.0) THEN
     CALL BGGas_Initialize()
   ELSE
-    DEALLOCATE(BGGas%NumberDensity)
+    IF(BGGas%UseDistribution) THEN
+      DEALLOCATE(BGGas%DistributionSpeciesIndex)
+    ELSE
+      DEALLOCATE(BGGas%NumberDensity)
+    END IF
   END IF ! BGGas%NumberOfSpecies.GT.0
 END IF !useDSMC
 

@@ -1097,11 +1097,11 @@ END IF
 END SUBROUTINE CalcKineticEnergyAndMaximum
 
 
-PPURE SUBROUTINE CalcNumberDensity(NumSpec,NumDens)
 !===================================================================================================================================
-!> Computes the number density per species using the total mesh volume and if neccessary particle weights
+!> Computes the number density per species using the total mesh volume and if necessary particle weights
 !> Background gas density is saved as given in the input
 !===================================================================================================================================
+PPURE SUBROUTINE CalcNumberDensity(NumSpec,NumDens)
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: BGGas, RadialWeighting
@@ -1109,6 +1109,7 @@ USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_Particle_Vars         ,ONLY: Species,nSpecies,usevMPF
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+USE MOD_Mesh_Vars             ,ONLY: nElems
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1119,7 +1120,7 @@ REAL,INTENT(IN)                   :: NumSpec(nSpecAnalyze)
 REAL,INTENT(OUT)                  :: NumDens(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: iSpec
+INTEGER                           :: iSpec,bgSpec,iElem
 !===================================================================================================================================
 
 IF (PartMPI%MPIRoot) THEN
@@ -1132,7 +1133,16 @@ IF (PartMPI%MPIRoot) THEN
   IF(BGGas%NumberOfSpecies.GT.0) THEN
     DO iSpec = 1, nSpecies
       IF(BGGas%BackgroundSpecies(iSpec)) THEN
-        NumDens(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))
+        bgSpec = BGGas%MapSpecToBGSpec(iSpec)
+        IF(BGGas%UseDistribution) THEN
+          NumDens(iSpec) = 0.
+          DO iElem = 1, nElems
+            NumDens(iSpec) = NumDens(iSpec) + BGGas%Distribution(bgSpec,7,iElem)
+          END DO ! iElem = 1, nElems
+          NumDens(iSpec) = NumDens(iSpec)/REAL(nElems)
+        ELSE
+          NumDens(iSpec) = BGGas%NumberDensity(bgSpec)
+        END IF
       END IF
     END DO
   END IF

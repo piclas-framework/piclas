@@ -826,6 +826,7 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
 #endif /*USE_HDG*/
 USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
 USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
+USE MOD_Mesh_Vars              ,ONLY: nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -860,7 +861,7 @@ INTEGER             :: ii, iunit
 #endif
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
-INTEGER             :: dir
+INTEGER             :: dir,bgSpec,iElem
 #if USE_HDG
 INTEGER             :: iRegions
 #endif /*USE_HDG*/
@@ -1213,7 +1214,7 @@ INTEGER             :: iRegions
 !===================================================================================================================================
 ! Analyze Routines
 !===================================================================================================================================
-  ! computes the real and simulated number of particles
+  ! Computes the real and simulated number of particles
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec,.TRUE.,CalcSimNumSpec)
   IF(CalcNumDens) CALL CalcNumberDensity(NumSpec,NumDens)
   ! Determine the mass flux [kg/s] and pressure [Pa] per species and surface flux (includes MPI communication)
@@ -1261,7 +1262,16 @@ INTEGER             :: iRegions
       ! actually inserted at the chosen weighting factor, determined here and used later also for the ReacRates subroutine
       DO iSpec = 1, nSpecies
         IF(BGGas%BackgroundSpecies(iSpec)) THEN
-          NumSpecTmp(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))*MeshVolume/Species(iSpec)%MacroParticleFactor
+          bgSpec = BGGas%MapSpecToBGSpec(iSpec)
+          IF(BGGas%UseDistribution) THEN
+            NumSpecTmp(iSpec) = 0. ! dummy for NumDens
+            DO iElem = 1, nElems
+              NumSpecTmp(iSpec) = NumSpecTmp(iSpec) + BGGas%Distribution(bgSpec,7,iElem)
+            END DO ! iElem = 1, nElems
+            NumSpecTmp(iSpec) = NumSpecTmp(iSpec)/REAL(nElems)*MeshVolume/Species(iSpec)%MacroParticleFactor
+          ELSE
+            NumSpecTmp(iSpec) = BGGas%NumberDensity(bgSpec)*MeshVolume/Species(iSpec)%MacroParticleFactor
+          END IF
           IF(nSpecAnalyze.GT.1) THEN
             NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze) + NumSpecTmp(iSpec)
           END IF

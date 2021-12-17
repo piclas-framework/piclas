@@ -299,6 +299,8 @@ TYPE tBGGas
   INTEGER, ALLOCATABLE          :: MapSpecToBGSpec(:)       ! Input: [1:nSpecies], output is the corresponding background species
   INTEGER, ALLOCATABLE          :: MapBGSpecToSpec(:)       ! Input: [1:nBGSpecies], output is the corresponding species index
   REAL, ALLOCATABLE             :: SpeciesFraction(:)       ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
+  REAL, ALLOCATABLE             :: SpeciesFractionElem(:,:) ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
+                                                            ! per element
   REAL, ALLOCATABLE             :: NumberDensity(:)         ! Number densities of the background gas, [1:BGGas%NumberOfSpecies]
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
