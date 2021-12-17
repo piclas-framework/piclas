@@ -122,20 +122,20 @@ SELECT CASE(iPType)
   ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron
     IF(UseMCC) THEN
       ! Coll_pData(iPair)%Prob is set inside the routine
-      CALL XSec_CalcCollisionProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
+      CALL XSec_CalcCollisionProb(iPair,iElem,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
       IF(CollisMode.EQ.3) THEN
         ! Chemical reaction with cross-section based probability
         IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
           IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
           ! If standard collision modelling is used, the reaction probability is added to the collision probability
-            CALL XSec_CalcReactionProb(iPair,iCase,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
+            CALL XSec_CalcReactionProb(iPair,iCase,iElem,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
             Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
           END IF
         END IF
       END IF
       IF(SpecXSec(iCase)%UseVibXSec) THEN
         IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
-          CALL XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
+          CALL XSec_CalcVibRelaxProb(iPair,iElem,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
           Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SpecXSec(iCase)%VibProb
         END IF
       END IF

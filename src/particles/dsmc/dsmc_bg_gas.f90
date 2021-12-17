@@ -131,7 +131,7 @@ END DO ! bgSpec = 1, BGGas%NumberOfSpecies
 END SUBROUTINE BGGas_Initialize
 
 
-INTEGER FUNCTION BGGas_GetSpecies()
+INTEGER FUNCTION BGGas_GetSpecies(iElem)
 !===================================================================================================================================
 !> Get a species index of the background gas by randomly choosing a species based on the molar fraction
 !===================================================================================================================================
@@ -142,12 +142,13 @@ USE MOD_DSMC_Vars             ,ONLY: BGGas
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN) :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL              :: iRan
-INTEGER           :: iSpec
+REAL               :: iRan,FractionSum
+INTEGER            :: iSpec
 !===================================================================================================================================
 
 BGGas_GetSpecies = 0
@@ -155,7 +156,14 @@ BGGas_GetSpecies = 0
 IF(BGGas%NumberOfSpecies.GT.1) THEN
   CALL RANDOM_NUMBER(iRan)
   DO iSpec = 1, BGGas%NumberOfSpecies
-    IF(SUM(BGGas%SpeciesFraction(1:iSpec)).GT.iRan) THEN
+    ! Add up fractions from 1 to iSpec
+    IF(BGGas%UseDistribution)THEN
+      FractionSum = SUM(BGGas%SpeciesFractionElem(1:iSpec,iElem))
+    ELSE
+      FractionSum = SUM(BGGas%SpeciesFraction(1:iSpec))
+    END IF ! BGGas%UseDistribution
+    ! Check if sum of fractions is met
+    IF(FractionSum.GT.iRan) THEN
       BGGas_GetSpecies = BGGas%MapBGSpecToSpec(iSpec)
       RETURN
     END IF
@@ -164,9 +172,10 @@ ELSE
   BGGas_GetSpecies = BGGas%MapBGSpecToSpec(1)
 END IF
 
-IF(BGGas_GetSpecies.LE.0.) CALL Abort(__STAMP__,'ERROR in BGGas: Background gas species is not set correctly!')
+IF(BGGas_GetSpecies.EQ.0) CALL Abort(__STAMP__,'ERROR in BGGas: Background gas species is not set correctly!')
 
 END FUNCTION BGGas_GetSpecies
+
 
 SUBROUTINE BGGas_InsertParticles()
 !===================================================================================================================================
@@ -217,7 +226,7 @@ DO iPart = 1, PDM%ParticleVecLength
       CALL Abort(__STAMP__,'ERROR in BGGas: MaxParticleNumber should be increased to account for the BGG particles!')
     END IF
     ! Get the background gas species
-    iSpec = BGGas_GetSpecies()
+    iSpec = BGGas_GetSpecies(PEM%LocalElemID(iPart))
     ! Assign particle properties
     CALL BGGas_AssignParticleProperties(iSpec,iPart,PositionNbr)
     ! Set the pairing index
@@ -587,9 +596,7 @@ IF(TotalNbrOfReactions.GT.SUM(NumPhotoIonization)) THEN
     PDM%ParticleInside(PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)) = .FALSE.
   END DO
 ELSE IF(TotalNbrOfReactions.LT.SUM(NumPhotoIonization)) THEN
-  CALL Abort(&
-    __STAMP__&
-    ,'ERROR in PhotoIonization: Something is wrong, trying to perform more reactions than anticipated!')
+  CALL Abort(__STAMP__,'PhotoIonization: Something is wrong, trying to perform more reactions than anticipated!')
 END IF
 
 IF(SUM(NumPhotoIonization).EQ.0) RETURN
@@ -627,7 +634,8 @@ DO iPart = 1, NbrOfParticle
   ! Species index given from the initialization
   PartSpecies(ParticleIndex) = iSpec
   ! Get the species index of the background gas
-  bgSpec = BGGas_GetSpecies()
+  LocalElemID = PEM%LocalElemID(NewParticleIndex)
+  bgSpec = BGGas_GetSpecies(LocalElemID)
   PartSpecies(NewParticleIndex) = bgSpec
   ! Particle element
   PEM%GlobalElemID(NewParticleIndex) = PEM%GlobalElemID(ParticleIndex)
@@ -639,7 +647,6 @@ DO iPart = 1, NbrOfParticle
     END IF
   END IF
   IF(BGGas%UseDistribution) THEN
-    LocalElemID = PEM%LocalElemID(NewParticleIndex)
     iBGGSpec = BGGas%MapSpecToBGSpec(bgSpec)
     PartState(4:6,NewParticleIndex) = CalcVelocity_maxwell_particle(bgSpec,BGGas%Distribution(iBGGSpec,4:6,LocalElemID)) &
                                   + BGGas%Distribution(iBGGSpec,1:3,LocalElemID)

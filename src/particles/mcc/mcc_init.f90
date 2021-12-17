@@ -300,9 +300,7 @@ IF(XSec_NullCollision) THEN
         CALL DetermineNullCollProb(iCase,iSpec,jSpec)
         TotalProb = TotalProb + SpecXSec(iCase)%ProbNull
         IF(TotalProb.GT.1.0) THEN
-          CALL abort(&
-          __STAMP__&
-          ,'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: '&
+          CALL abort(__STAMP__,'Total null collision probability is above unity. Please reduce the time step! Probability is: '&
           ,RealInfoOpt=TotalProb)
         END IF
       END IF

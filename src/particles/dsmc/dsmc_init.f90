@@ -669,9 +669,9 @@ ELSE !CollisMode.GT.0
     UseMCC = .TRUE.
     CALL MCC_Init()
   ELSE
-    UseMCC = .FALSE.
-    XSec_NullCollision =.FALSE.
-    XSec_Relaxation = .FALSE.
+    UseMCC             = .FALSE.
+    XSec_NullCollision = .FALSE.
+    XSec_Relaxation    = .FALSE.
   END IF
   ! Ambipolar diffusion is not implemented with the regular background gas, only with MCC
   IF(DSMC%DoAmbipolarDiff) THEN

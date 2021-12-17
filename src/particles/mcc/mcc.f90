@@ -365,7 +365,7 @@ DO iSpec = 1, nSpecies
         IF(XSec_NullCollision) THEN
           CollProb = CollProb / SpecXSec(iCase)%ProbNull
         ELSE
-          CollProb = CollProb / BGGasNumDens
+          CollProb = CollProb / BGGasFraction
         END IF
       ELSE
       ! ==========================================================================================
