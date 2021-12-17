@@ -699,10 +699,10 @@ END IF
 END SUBROUTINE BGGas_PhotoIonization
 
 
-SUBROUTINE BGGas_ReadInDistribution()
 !===================================================================================================================================
 !> Read-in of the element data from a DSMC state and utilization as a cell-local background gas distribution
 !===================================================================================================================================
+SUBROUTINE BGGas_ReadInDistribution()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -710,7 +710,7 @@ USE MOD_io_hdf5
 USE MOD_HDF5_Input    ,ONLY: OpenDataFile,CloseDataFile,ReadArray,GetDataSize,ReadAttribute
 USE MOD_HDF5_Input    ,ONLY: nDims,HSize,File_ID
 USE MOD_Restart_Vars  ,ONLY: MacroRestartFileName
-USE MOD_Mesh_Vars     ,ONLY: offsetElem, nElems
+USE MOD_Mesh_Vars     ,ONLY: offsetElem, nElems,nGlobalElems
 USE MOD_DSMC_Vars     ,ONLY: BGGas
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -720,8 +720,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: nVar_HDF5, iVar, iSpec, iElem, iBGGSpec, nSpecReadin
-REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
+INTEGER                           :: nVarHDF5, nElems_HDF5, iVar, iSpec, iElem, iBGGSpec, nSpecReadin
+REAL, ALLOCATABLE                 :: ElemDataHDF5(:,:)
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,*) 'BGGas distribution - Using macroscopic values from file: ',TRIM(MacroRestartFileName)
@@ -729,16 +729,21 @@ SWRITE(UNIT_stdOut,*) 'BGGas distribution - Using macroscopic values from file: 
 CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
 CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)
-nVar_HDF5=INT(HSize(1),4)
+nVarHDF5  = INT(HSize(1),4)
+IF(nVarHDF5.LT.10) CALL abort(__STAMP__,'Number of variables .h5 file is less than 10')
+
+nElems_HDF5 = INT(HSize(2),4)
+IF(nElems_HDF5.NE.nGlobalElems) CALL abort(__STAMP__,'Number of global elements does not match number of elements in .h5 file')
+
 DEALLOCATE(HSize)
 
-ALLOCATE(ElemData_HDF5(1:nVar_HDF5,1:nElems))
+ALLOCATE(ElemDataHDF5(1:nVarHDF5,1:nElems))
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-  nVar_HDF5  => INT(nVar_HDF5,IK) ,&
+  nVarHDF5   => INT(nVarHDF5,IK) ,&
   offsetElem => INT(offsetElem,IK),&
   nElems     => INT(nElems,IK)    )
-  CALL ReadArray('ElemData',2,(/nVar_HDF5,nElems/),offsetElem,2,RealArray=ElemData_HDF5(:,:))
+  CALL ReadArray('ElemData',2,(/nVarHDF5,nElems/),offsetElem,2,RealArray=ElemDataHDF5(:,:))
 END ASSOCIATE
 
 CALL ReadAttribute(File_ID,'NSpecies',1,IntScalar=nSpecReadin)
@@ -749,7 +754,7 @@ DO iSpec = 1, nSpecReadin
   DO iBGGSpec = 1, BGGas%NumberOfSpecies
     IF(BGGas%DistributionSpeciesIndex(BGGas%MapBGSpecToSpec(iBGGSpec)).EQ.iSpec) THEN
       DO iElem = 1, nElems
-        BGGas%Distribution(iBGGSpec,1:10,iElem) = ElemData_HDF5(iVar:iVar-1+10,iElem)
+        BGGas%Distribution(iBGGSpec,1:10,iElem) = ElemDataHDF5(iVar:iVar-1+10,iElem)
       END DO
       SWRITE(UNIT_stdOut,*) 'BGGas distribution: Mapped read-in values of species ', iSpec, ' to current species ', BGGas%MapBGSpecToSpec(iBGGSpec)
     END IF
@@ -757,7 +762,7 @@ DO iSpec = 1, nSpecReadin
   iVar = iVar + DSMC_NVARS
 END DO
 
-DEALLOCATE(ElemData_HDF5)
+DEALLOCATE(ElemDataHDF5)
 
 CALL CloseDataFile()
 
