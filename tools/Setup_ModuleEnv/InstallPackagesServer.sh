@@ -11,5 +11,14 @@
 # notes       :
 #==============================================================================
 
+# Get OS Distributor ID
+LSBNAME=$(lsb_release -si)
+
+# Check OS
+if [[ ${LSBNAME} != "Ubuntu" ]]; then
+  echo "This script currently only supports Ubuntu. Exit."
+  exit
+fi
+
 # Linux Standard Base support package (LSB): required on, e.g., Ubuntu Server that is equipped only thinly with pre-installed software
 sudo apt-get install  lsb -y

@@ -210,7 +210,7 @@ USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems,nNonUniqueGlobalSides,nNon
 #if USE_MPI
 USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc,offsetElemMPI
 USE MOD_LoadBalance_Tools    ,ONLY: DomainDecomposition
-USE MOD_MPI_Shared_Vars      ,ONLY: MPI_COMM_SHARED,ComputeNodeRootRank,nComputeNodeProcessors
+USE MOD_MPI_Shared_Vars      ,ONLY: ComputeNodeRootRank,nComputeNodeProcessors
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Mesh_Readin, ONLY: ReadMeshBasics

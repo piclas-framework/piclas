@@ -85,7 +85,7 @@ DO iSpec = 1,nSpecies
     hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
     SELECT CASE(PartBound%SurfaceModel(iPartBound))
 !-----------------------------------------------------------------------------------------------------------------------------------
-    CASE(5,6,7,8,9)
+    CASE(SEE_MODELS_ID)
       ! 5: SEE by Levko2015
       ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
       ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
@@ -101,8 +101,8 @@ DO iSpec = 1,nSpecies
 !-----------------------------------------------------------------------------------------------------------------------------------
     END SELECT
 !-----------------------------------------------------------------------------------------------------------------------------------
-  END DO
-END DO
+  END DO ! iPartBound=1,nPartBound
+END DO ! iSpec = 1,nSpecies
 
 END SUBROUTINE InitSurfaceModel
 
@@ -113,7 +113,6 @@ SUBROUTINE FinalizeSurfaceModel()
 !===================================================================================================================================
 ! MODULES
 USE MOD_SurfaceModel_Vars
-USE MOD_SurfaceModel_Analyze_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -123,23 +122,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SurfModelAnalyzeInitIsDone=.FALSE.
-
 SDEALLOCATE(SurfModResultSpec)
 SDEALLOCATE(SurfModEnergyDistribution)
-
-! === Surface Analyze Vars
-SDEALLOCATE(SurfAnalyzeCount)
-SDEALLOCATE(SurfAnalyzeNumOfAds)
-SDEALLOCATE(SurfAnalyzeNumOfDes)
-IF(CalcBoundaryParticleOutput)THEN
-  SDEALLOCATE(BPO%RealPartOut)
-  SDEALLOCATE(BPO%PartBoundaries)
-  SDEALLOCATE(BPO%BCIDToBPOBCID)
-  SDEALLOCATE(BPO%Species)
-  SDEALLOCATE(BPO%SpecIDToBPOSpecID)
-END IF ! CalcBoundaryParticleOutput
-
 END SUBROUTINE FinalizeSurfaceModel
 
 END MODULE MOD_SurfaceModel_Init

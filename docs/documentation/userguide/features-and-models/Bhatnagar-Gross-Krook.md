@@ -1,3 +1,4 @@
+(sec:BGK-Flow)=
 # Bhatnagar-Gross-Krook Collision Operator
 
 The implementation of the BGK-based collision operator is based on the publications by {cite}`Pfeiffer2018a` and {cite}`Pfeiffer2018b`.

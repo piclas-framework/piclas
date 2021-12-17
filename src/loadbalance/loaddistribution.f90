@@ -1035,6 +1035,7 @@ TYPE(tdata), POINTER :: newData, tmpData
 !===================================================================================================================================
 tmpData => firstData
 identical=.FALSE.
+newData => tmpData ! Initialize: Dummy to prevent 'newdata' may be used uninitialized
 DO WHILE(ASSOCIATED(tmpData))
 #ifdef CODE_ANALYZE
   SWRITE(*,*)'stored:',tmpData%offSetElemMPI

@@ -303,3 +303,5 @@
 #define DT_END        3
 #define DT_BR_SWITCH  4
 
+! Secondary electron emission
+#define SEE_MODELS_ID 5,6,7,8,9
