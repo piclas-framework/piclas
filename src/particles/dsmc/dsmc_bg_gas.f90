@@ -121,10 +121,14 @@ IF(BGGas%UseDistribution) CALL BGGas_ReadInDistribution()
 DO bgSpec = 1, BGGas%NumberOfSpecies
   IF(BGGas%UseDistribution) THEN
     DO iElem = 1, nElems
-      BGGas%SpeciesFractionElem(bgSpec,iElem) = BGGas%Distribution(bgSpec,7,iElem) / SUM(BGGas%Distribution(:,7,iElem))
+      IF(SUM(BGGas%Distribution(:,7,iElem)).GT.0.)THEN
+        BGGas%SpeciesFractionElem(bgSpec,iElem) = BGGas%Distribution(bgSpec,7,iElem) / SUM(BGGas%Distribution(:,7,iElem))
+      END IF ! SUM(BGGas%Distribution(:,7,iElem)).GT.0.
     END DO ! iElem = 1, nElems
   ELSE
-    BGGas%SpeciesFraction(bgSpec) = BGGas%NumberDensity(bgSpec) / SUM(SpeciesDensTmp)
+    IF(SUM(SpeciesDensTmp).GT.0.)THEN
+      BGGas%SpeciesFraction(bgSpec) = BGGas%NumberDensity(bgSpec) / SUM(SpeciesDensTmp)
+    END IF ! SUM(SpeciesDensTmp).GT.0.
   END IF
 END DO ! bgSpec = 1, BGGas%NumberOfSpecies
 
