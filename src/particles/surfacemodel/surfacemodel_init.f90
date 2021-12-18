@@ -119,7 +119,6 @@ END DO ! iSpec = 1,nSpecies
 
 ! If SEE model by Morozov is used, read the additional parameter for the electron bulk temperature
 IF(SurfModelElectronTemp)THEN
-  CalcBulkElectronTemp = .TRUE.
   BulkElectronTemp = GETREAL('Part-SurfaceModel-SEE-Te') ! default is 50 eV = 5.80226250308285e5 K
   BulkElectronTemp = BulkElectronTemp*Kelvin2eV    ! convert to eV to be used in the code
   SurfModSEEelectronTempAutoamtic = GETLOGICAL('Part-SurfaceModel-SEE-Te-automatic')
