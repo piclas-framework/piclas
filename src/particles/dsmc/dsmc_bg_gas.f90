@@ -107,7 +107,7 @@ DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
     bgSpec = bgSpec + 1
     IF(bgSpec.GT.BGGas%NumberOfSpecies) CALL Abort(__STAMP__,'More background species detected than previously defined!')
-    BGGas%NumberDensity(bgSpec)   = SpeciesDensTmp(iSpec)
+    IF(.NOT.BGGas%UseDistribution) BGGas%NumberDensity(bgSpec) = SpeciesDensTmp(iSpec)
     BGGas%MapSpecToBGSpec(iSpec)  = bgSpec
     BGGas%MapBGSpecToSpec(bgSpec) = iSpec
     BGGas%MaxMPF = MAX(BGGas%MaxMPF,Species(iSpec)%MacroParticleFactor)
