@@ -411,10 +411,10 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC
       bggSpec = BGGas%MapSpecToBGSpec(iSpec)
       IF(BGGas%UseDistribution) THEN
         DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies+1) &
-                                            + BGGas%SpeciesFraction(bggSpec) * SUM(BGGas%Distribution(bggSpec,4:6,iElem)) / 3.
+                                        + BGGas%SpeciesFractionElem(bggSpec,iElem) * SUM(BGGas%Distribution(bggSpec,4:6,iElem)) / 3.
       ELSE
         DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies+1) &
-                                            + BGGas%SpeciesFraction(bggSpec) * Species(iSpec)%Init(1)%MWTemperatureIC
+                                        + BGGas%SpeciesFraction(bggSpec) * Species(iSpec)%Init(1)%MWTemperatureIC
       END IF
     END IF
   END DO
