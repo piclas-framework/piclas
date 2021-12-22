@@ -807,24 +807,25 @@ IF (ElemOnMyProc(globElemID)) THEN
 !#endif
 #if USE_MPI
 ELSE
-  IF (myComputeNodeRank.EQ.0) THEN  
-    PartSourceGlob(dim1:4,k,l,m,CNElemID) = PartSourceGlob(dim1:4,k,l,m,CNElemID) + Source(dim1:4)
-  ELSE
+!  IF (myComputeNodeRank.EQ.0) THEN  
+!    PartSourceGlob(dim1:4,k,l,m,CNElemID) = PartSourceGlob(dim1:4,k,l,m,CNElemID) + Source(dim1:4)
+!  ELSE
     ASSOCIATE( ShapeID => SendElemShapeID(CNElemID))
       IF(ShapeID.EQ.-1)THEN
         IPWRITE(UNIT_StdOut,*) "CNElemID   =", CNElemID
         IPWRITE(UNIT_StdOut,*) "globElemID =", globElemID
         CALL abort(__STAMP__,'SendElemShapeID(CNElemID)=-1 and therefore not correctly mapped. Increase Particles-HaloEpsVelo!')
       END IF
-      IF (CNElemID.GT.nComputeNodeElems) THEN
-        ExRankID = CNRankToSendRank(0)
-      ELSE        
-        ExRankID = CNRankToSendRank(ElemInfo_Shared(ELEM_RANK,globElemID)-ComputeNodeRootRank)
-      END IF
+!      IF (CNElemID.GT.nComputeNodeElems) THEN
+!        ExRankID = CNRankToSendRank(0)
+!      ELSE        
+!      ExRankID = CNRankToSendRank(ElemInfo_Shared(ELEM_RANK,globElemID)-ComputeNodeRootRank)
+      ExRankID = CNRankToSendRank(ElemInfo_Shared(ELEM_RANK,globElemID))
+!      END IF
   !    PartSourceProc(dim1:4,k,l,m,ShapeID) = PartSourceProc(dim1:4,k,l,m,ShapeID) + Source(dim1:4)
       ShapeMapping(ExRankID)%SendBuffer(dim1:4,k,l,m,ShapeID) = ShapeMapping(ExRankID)%SendBuffer(dim1:4,k,l,m,ShapeID) + Source(dim1:4)
     END ASSOCIATE
-  END IF
+!  END IF
 !#if !((USE_HDG) && (PP_nVar==1))
 !#endif
 END IF

@@ -172,9 +172,11 @@ TYPE(tShapeMapping),ALLOCATABLE :: ShapeMapping(:)
 
 TYPE tCNShapeMapping
   INTEGER,ALLOCATABLE           :: RecvShapeElemID(:)
+  INTEGER,ALLOCATABLE           :: RecvShapeProcElemID(:,:)
   INTEGER,ALLOCATABLE           :: SendShapeElemID(:)
-  INTEGER                       :: nRecvShapeElems
-  INTEGER                       :: nSendShapeElems
+  INTEGER,ALLOCATABLE           :: SendShapeProcElemID(:,:)
+  INTEGER                       :: nRecvShapeElems(2)
+  INTEGER                       :: nSendShapeElems(2)
   REAL,ALLOCATABLE              :: RecvBuffer(:,:,:,:,:)
   REAL,ALLOCATABLE              :: SendBuffer(:,:,:,:,:)
 END TYPE
