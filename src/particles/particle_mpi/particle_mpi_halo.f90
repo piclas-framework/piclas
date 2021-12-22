@@ -988,7 +988,6 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END DO
 
-
     DO iProc = 1, nComputeNodeProcessors -1
       DO iElem = 1, ShapeMapping(iProc)%nRecvShapeElems
         ShapeElemProcSend_Shared(ShapeMapping(iProc)%RecvShapeElemID(iElem), iProc+1+ComputeNodeRootRank) = .TRUE.
@@ -1003,11 +1002,11 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     SDEALLOCATE(RecvRequest)
     ! 2 of 2: Multi-node communication
     ! Second stage of communication, identify and send inter-compute-node information
-    IF (nLeaderGroupProcs.GT.1) THEN   
-      CALL BARRIER_AND_SYNC(ShapeElemProcSend_Shared_Win,MPI_COMM_SHARED)  
+    IF (nLeaderGroupProcs.GT.1) THEN     
+      CALL MPI_WIN_SYNC(ShapeElemProcSend_Shared_Win,iError)
       ALLOCATE(CNShapeMapping(0:nLeaderGroupProcs-1), &
                SendRequest   (0:nLeaderGroupProcs-1), &
-               RecvRequest   (0:nLeaderGroupProcs-1), )
+               RecvRequest   (0:nLeaderGroupProcs-1))
 
       DO iProc = 0,nLeaderGroupProcs-1
         IF (iProc.EQ.myLeaderGroupRank) CYCLE
@@ -1047,7 +1046,6 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                       , SendRequest(iProc)                     &
                       , IERROR)
       END DO
-
       DO iProc = 0,nLeaderGroupProcs-1
         IF (iProc.EQ.myLeaderGroupRank) CYCLE
 
@@ -1154,7 +1152,6 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                 , IERROR)  
         END IF
       END DO
-
       DO iProc = 0,nLeaderGroupProcs-1
         IF (iProc.EQ.myLeaderGroupRank) CYCLE
         IF (CNShapeMapping(iProc)%nRecvShapeElems(1).NE.0) THEN
@@ -1179,6 +1176,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
           END DO
         END DO
       END DO
+
       SDEALLOCATE(SendRequest)
       SDEALLOCATE(RecvRequest)
       SDEALLOCATE(CNShapeMapping)
@@ -1187,7 +1185,6 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   ! .NOT. ComputeNodeRoot
   ELSE
     ALLOCATE(SendRequest(1))
-
     CALL MPI_ISEND( nSendShapeElems                          &
                   , 1                                        &
                   , MPI_INTEGER                              &
