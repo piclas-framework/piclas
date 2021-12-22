@@ -198,6 +198,11 @@ GEO%FIBGMjmaxglob = BGMjmaxglob
 GEO%FIBGMkminglob = BGMkminglob
 GEO%FIBGMkmaxglob = BGMkmaxglob
 
+SWRITE(UNIT_stdOut,'(A,I18,A,I18,A,I18)') ' | Total FIBGM Cells(x,y,z): '                                     &
+                                          , BGMimaxglob - BGMiminglob                                    ,', '&
+                                          , BGMjmaxglob - BGMjminglob                                    ,', '&
+                                          , BGMkmaxglob - BGMkminglob
+
 ! Read periodic vectors from parameter file
 CALL InitPeriodicBC()
 

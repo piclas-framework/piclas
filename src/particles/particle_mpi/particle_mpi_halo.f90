@@ -255,15 +255,15 @@ DO iSide = 1, nExchangeSides
                                             SUM(  BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
   MPISideBoundsOfElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                                   BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                                  BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)  
-  
+                                                  BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+
   ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
   ! mortar elem, choose longest distance...
   IF (ElemID.LT.1) THEN
     MPISideBoundsOfNbElemCenter(1:4,iSide) = 0.0
     nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
-    NbElemBounds(1,:) = HUGE(1.) 
-    NbElemBounds(2,:) = -HUGE(1.) 
+    NbElemBounds(1,:) = HUGE(1.)
+    NbElemBounds(2,:) = -HUGE(1.)
     DO iMortar = 1, nMortarElems
       NbSideID = -SideInfo_Shared(SIDE_LOCALID,SideID + iMortar)
       ! If small mortar side not defined, skip it for now, likely not inside the halo region
@@ -440,7 +440,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                                     +MPISideBoundsOfNbElemCenter(4,iSide)) THEN
                     ! flag the proc as exchange proc (in halo region)
 
-                    IsExchangeElem(localElem) = .TRUE.        
+                    IsExchangeElem(localElem) = .TRUE.
                     CYCLE ElemLoop
                   END IF
                 END DO
@@ -549,7 +549,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     END DO ! iSide = 1, nExchangeSides
     CYCLE ElemLoop
   END IF
- 
+
   ! Skip if the proc is already flagged, only if the exact elements are not required (.NOT.shape_function)
   IF(.NOT.StringBeginsWith(DepositionType,'shape_function'))THEN
     SELECT CASE(GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc))
@@ -948,7 +948,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   END DO
 
   ! 1 of 2: Inner-Node Communication
-  IF (myComputeNodeRank.EQ.0) THEN        
+  IF (myComputeNodeRank.EQ.0) THEN
     ALLOCATE(ShapeMapping(1:nComputeNodeProcessors-1), &
              RecvRequest (1:nComputeNodeProcessors-1))
 
@@ -998,7 +998,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     DO iELem = 1,nSendShapeElems
       ShapeElemProcSend_Shared(SendShapeElemID(iElem), 1+ComputeNodeRootRank) = .TRUE.
     END DO
-    
+
     SDEALLOCATE(ShapeMapping)
     SDEALLOCATE(RecvRequest)
     ! 2 of 2: Multi-node communication
@@ -1218,7 +1218,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   END IF
 
   CALL BARRIER_AND_SYNC(ShapeElemProcSend_Shared_Win,MPI_COMM_SHARED)
-  
+
   !REcv part1
   ALLOCATE(RecvProcs(nProcessors), RecvProcsElems(nProcessors))
   RecvProcs = .FALSE.
@@ -1233,19 +1233,6 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       END IF
     END DO
   END DO
-!  IF (myComputeNodeRank.EQ.0) THEN
-!    IF (nLeaderGroupProcs.GT.1) THEN 
-!      DO CNElemID = 1 + nComputeNodeElems, nComputeNodeTotalElems
-!        DO iProc = 1, nComputeNodeProcessors
-!          IF (myComputeNodeRank.EQ.iProc-1) CYCLE
-!          IF (ShapeElemProcSend_Shared(CNElemID,iProc)) THEN
-!            RecvProcs(iProc) = .TRUE.
-!            RecvProcsElems(iProc) = RecvProcsElems(iProc) + 1
-!          END IF
-!        END DO
-!      END DO
-!    END IF
-!  END IF
 
   nShapeExchangeProcs = COUNT(RecvProcs)
   ALLOCATE(ShapeMapping(1:nShapeExchangeProcs), &
@@ -1257,7 +1244,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     IF (myRank.EQ.iProc-1) CYCLE
     IF (RecvProcs(iProc)) THEN
       exProc = exProc + 1
-      ShapeMapping(exProc)%Rank = iProc -1 
+      ShapeMapping(exProc)%Rank = iProc -1
       CNRankToSendRank(ShapeMapping(exProc)%Rank) = exProc
       ShapeMapping(exProc)%nRecvShapeElems = RecvProcsElems(iProc)
       ShapeMapping(exProc)%nSendShapeElems = 0
@@ -1271,16 +1258,6 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
           ShapeMapping(exProc)%RecvShapeElemID(exElem) = iElem+offSetElem
         END IF  
       END DO    
-!      IF (myComputeNodeRank.EQ.0) THEN
-!        IF (nLeaderGroupProcs.GT.1) THEN 
-!          DO CNElemID = 1 + nComputeNodeElems, nComputeNodeTotalElems
-!            IF (ShapeElemProcSend_Shared(CNElemID,iProc)) THEN
-!              exElem = exElem + 1
-!              ShapeMapping(exProc)%RecvShapeElemID(exElem) = CNElemID
-!            END IF  
-!          END DO
-!        END IF
-!      END IF
     END IF
   END DO
 
