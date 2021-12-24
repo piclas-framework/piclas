@@ -859,7 +859,7 @@ SUBROUTINE ReadReacXSec(iCase,iPath)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_Globals_Vars              ,ONLY: ElementaryCharge, Joule2eV
+USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,Joule2eV
 USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac
 USE MOD_MCC_Vars                  ,ONLY: XSec_Database, SpecXSec
 USE MOD_HDF5_Input                ,ONLY: DatasetExists
