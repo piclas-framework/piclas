@@ -84,6 +84,8 @@ REAL                :: RunTime                !< CG Solver runtime
 REAL                :: RunTimePerIteration    !< CG Solver runtime per iteration
 REAL                :: HDGNorm                !< Norm
 INTEGER             :: iteration              !< number of iterations to achieve the norm
+INTEGER             :: iterationTotal         !< number of iterations over the course of a time step (possibly multiple stages)
+REAL                :: RunTimeTotal           !< CG Solver runtime sum over the course of a time step (possibly multiple stages)
 
 ! --- Boltzmann relation (BR) electron fluid
 LOGICAL               :: UseBRElectronFluid            !< Indicates usage of BR electron fluid model

@@ -1094,7 +1094,7 @@ USE MOD_Globals       ,ONLY: abort,UNIT_stdOut
 #if USE_MPI
 USE MOD_Globals       ,ONLY: mpiroot
 #endif
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst,Joule2eV
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 IMPLICIT NONE
@@ -1137,12 +1137,12 @@ DO iSpec = 1, nSpecies
         ! Add the heat of formation of the ground state
         SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation + SpecDSMC(jSpec)%HeatOfFormation
         WRITE(UNIT=hilf2,FMT='(I0)') iSpec
-        CALL PrintOption('part-species'//TRIM(hilf2)//'-heatofformation_k','CALCUL.',&
+        CALL PrintOption('Part-Species'//TRIM(hilf2)//'-HeatOfFormation_K  [K]','CALCUL.',&
             RealOpt=SpecDSMC(iSpec)%HeatOfFormation/BoltzmannConst)
+        CALL PrintOption('converted to [eV]','CALCUL.',&
+            RealOpt=SpecDSMC(iSpec)%HeatOfFormation*Joule2eV)
       ELSE
-        CALL abort(&
-            __STAMP__&
-            ,'ERROR: Chemical reactions with ionized species require an input of electronic energy level(s)!', iSpec)
+        CALL abort(__STAMP__,'Chemical reactions with ionized species require an input of electronic energy level(s)!', iSpec)
       END IF
     END IF
   END IF

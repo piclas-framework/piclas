@@ -137,38 +137,39 @@ DO BCSideID=1,nBCSides
     CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
     iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
     ! Exclude the symmetry axis (y=0)
-    IF(MAXVAL(NodeCoords_Shared(2,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).GT.0.0) THEN
-      ! The z-plane with the positive z component is chosen
-      IF(MINVAL(NodeCoords_Shared(3,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
-        IF(SymmetrySide(locElemID,1).GT.0) THEN
-          CALL abort(__STAMP__&
-            ,'ERROR: PICLas could not determine a unique symmetry surface for 2D/axisymmetric calculation!'//&
-            ' Please orient your mesh with x as the symmetry axis and positive y as the second/radial direction!')
-        END IF
-        SymmetrySide(locElemID,1) = BCSideID
-        SymmetrySide(locElemID,2) = iLocSide
-        ! The volume calculated at this point (final volume for the 2D case) corresponds to the cell face area (z-dimension=1) in
-        ! the xy-plane.
-        ElemVolume_Shared(CNElemID) = 0.0
-        CALL CalcNormAndTangTriangle(area=triarea(1),TriNum=1, SideID=SideID)
-        CALL CalcNormAndTangTriangle(area=triarea(2),TriNum=2, SideID=SideID)
-        ElemVolume_Shared(CNElemID) = triarea(1) + triarea(2)
-        ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/axisymmetric case
-        ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
-        ! requirement.
-        ElemCharLength_Shared(CNElemID) = SQRT(ElemVolume_Shared(CNElemID))
-        ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
-        ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
-        IF (Symmetry%Axisymmetric) THEN
-          radius = 0.
-          DO iNode = 1, 4
-            radius = radius + NodeCoords_Shared(2,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
-          END DO
-          radius = radius / 4.
-          ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) * 2. * Pi * radius
-        END IF
-        SymmetryBCExists = .TRUE.
-      END IF    ! y-coord greater 0.0
+    IF(Symmetry%Axisymmetric) THEN
+      IF(MAXVAL(NodeCoords_Shared(2,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).LE.0.0) CYCLE
+    END IF
+    ! The z-plane with the positive z component is chosen
+    IF(MINVAL(NodeCoords_Shared(3,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
+      IF(SymmetrySide(locElemID,1).GT.0) THEN
+        CALL abort(__STAMP__&
+          ,'ERROR: PICLas could not determine a unique symmetry surface for 2D/axisymmetric calculation!'//&
+          ' Please orient your mesh with x as the symmetry axis and positive y as the second/radial direction!')
+      END IF
+      SymmetrySide(locElemID,1) = BCSideID
+      SymmetrySide(locElemID,2) = iLocSide
+      ! The volume calculated at this point (final volume for the 2D case) corresponds to the cell face area (z-dimension=1) in
+      ! the xy-plane.
+      ElemVolume_Shared(CNElemID) = 0.0
+      CALL CalcNormAndTangTriangle(area=triarea(1),TriNum=1, SideID=SideID)
+      CALL CalcNormAndTangTriangle(area=triarea(2),TriNum=2, SideID=SideID)
+      ElemVolume_Shared(CNElemID) = triarea(1) + triarea(2)
+      ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/axisymmetric case
+      ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
+      ! requirement.
+      ElemCharLength_Shared(CNElemID) = SQRT(ElemVolume_Shared(CNElemID))
+      ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
+      ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
+      IF (Symmetry%Axisymmetric) THEN
+        radius = 0.
+        DO iNode = 1, 4
+          radius = radius + NodeCoords_Shared(2,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
+        END DO
+        radius = radius / 4.
+        ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) * 2. * Pi * radius
+      END IF
+      SymmetryBCExists = .TRUE.
     END IF      ! Greater z-coord
   END IF
 END DO
