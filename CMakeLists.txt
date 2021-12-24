@@ -66,12 +66,15 @@ EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh
 # Check IPO support:
 # =========================================================================
 # we need to have languages enabled and compilers defined for this
-IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.9.0"))
+SET(IPO_CMAKE_MINIMUM "3.9.0")
+IF(NOT(${CMAKE_VERSION} VERSION_LESS ${IPO_CMAKE_MINIMUM}))
   CMAKE_POLICY(SET CMP0069 NEW)
   INCLUDE(CheckIPOSupported)
   check_ipo_supported(RESULT HASIPO OUTPUT error)
+  CMAKE_DEPENDENT_OPTION(PICLAS_IPO "Activate Interprocedural optimization (IPO)" ON "HASIPO" OFF)
 ELSE()
-  SET(HASIPO FALSE)
+  MESSAGE(STATUS "Interprocedural optimization (IPO) not supported with this cmake version ${CMAKE_VERSION}, requires at least ${IPO_CMAKE_MINIMUM}")
+  SET(PICLAS_IPO FALSE)
 ENDIF()
 
 # =========================================================================
@@ -119,7 +122,7 @@ IF (BUILD_TYPE_LC MATCHES "debug" OR BUILD_TYPE_LC MATCHES "sanitize")
   ADD_DEFINITIONS(-DUSE_DEBUG=1)
 ELSE()
   ADD_DEFINITIONS(-DUSE_DEBUG=0)
-  IF (HASIPO)
+  IF (PICLAS_IPO)
     # enable IPO globally (IPO branding: Intel => IPO, GNU => LTO, PGI => IPA)
     IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
       # Do not use the standard CMake LTO option for GNU (-flto -fno-fat-lto-objects), as it does not allow speed-up during linking
@@ -129,10 +132,16 @@ ELSE()
       FIND_PROGRAM(CMAKE_GCC_NM     NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-nm                           HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
       FIND_PROGRAM(CMAKE_GCC_RANLIB NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-ranlib                       HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
       IF(CMAKE_GCC_AR AND CMAKE_GCC_NM AND CMAKE_GCC_RANLIB)
-        MESSAGE(STATUS "Found GCC binutils wrappers for LTO. Linker plugin is enabled.")
         # Static libraries require either fat LTO objects (increases compilation time) or the use of linker plugins (per default enabled); the jobserver option reduces linking time
         # More information at: https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#Optimize-Options
-        SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -fuse-linker-plugin")
+        SET(LTO_AUTO_MIN_GCC_VERSION 10.1)
+        IF(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL LTO_AUTO_MIN_GCC_VERSION)
+          MESSAGE(STATUS "Found GCC binutils wrappers for LTO. Linker plugin is enabled. Using [-flto=auto] as GCC version is ${CMAKE_CXX_COMPILER_VERSION} (>= ${LTO_AUTO_MIN_GCC_VERSION}).")
+          SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=auto -fuse-linker-plugin")
+        ELSE()
+          MESSAGE(STATUS "Found GCC binutils wrappers for LTO. Linker plugin is enabled. Using [-flto=jobserver] as GCC version is ${CMAKE_CXX_COMPILER_VERSION} (< ${LTO_AUTO_MIN_GCC_VERSION})")
+          SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -fuse-linker-plugin")
+        ENDIF()
         # Set the GCC wrapper
         SET(CMAKE_AR     "${CMAKE_GCC_AR}" )
         SET(CMAKE_NM     "${CMAKE_GCC_NM}" )
@@ -145,7 +154,7 @@ ELSE()
         SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -ffat-lto-objects")
       ENDIF()
     ELSE()
-      SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)  # enable IPO globally
+      SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)  # disable IPO for other compilers as not yet tested (might cause problem in combination with Intel & binutils' objcopy)
     ENDIF()
   ENDIF()
 ENDIF()

@@ -36,7 +36,7 @@ END INTERFACE
 
 PUBLIC :: CalcEkinPart,CalcEkinPart2
 PUBLIC :: CalcNumPartsOfSpec
-PUBLIC :: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
+PUBLIC :: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
 PUBLIC :: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 PUBLIC :: CalcShapeEfficiencyR
 PUBLIC :: CalcKineticEnergy
@@ -322,6 +322,39 @@ CALL AddToElemData(ElementOut,'ElectronTemperatureCell',RealArray=ElectronTemper
 END SUBROUTINE AllocateElectronTemperatureCell
 
 
+!===================================================================================================================================
+!> Allocate the required ElemData arrays for electron min/max/average energy for each element (singly data point in each element)
+!> The energy is given in electron volt (eV)
+!===================================================================================================================================
+SUBROUTINE AllocateCalcElectronEnergy()
+! MODULES
+USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
+USE MOD_Preproc
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronMinEnergyCell,ElectronMaxEnergyCell,ElectronAverageEnergyCell
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+
+!===================================================================================================================================
+! Check if ElectronMinEnergyCell has already been allocated (CalcElectronEnergy=T)
+IF(ALLOCATED(ElectronMinEnergyCell)) RETURN
+
+ALLOCATE(ElectronMinEnergyCell(1:PP_nElems))
+ElectronMinEnergyCell=0.
+CALL AddToElemData(ElementOut,'ElectronMinEnergyCell[eV]',RealArray=ElectronMinEnergyCell(1:PP_nElems))
+ALLOCATE(ElectronMaxEnergyCell(1:PP_nElems))
+ElectronMaxEnergyCell=0.
+CALL AddToElemData(ElementOut,'ElectronMaxEnergyCell[eV]',RealArray=ElectronMaxEnergyCell(1:PP_nElems))
+ALLOCATE(ElectronAverageEnergyCell(1:PP_nElems))
+ElectronAverageEnergyCell=0.
+CALL AddToElemData(ElementOut,'ElectronAverageEnergyCell[eV]',RealArray=ElectronAverageEnergyCell(1:PP_nElems))
+
+END SUBROUTINE AllocateCalcElectronEnergy
+
+
 SUBROUTINE CalculatePartElemData()
 !===================================================================================================================================
 ! use the plasma frequency per cell to estimate the pic time step
@@ -330,7 +363,7 @@ SUBROUTINE CalculatePartElemData()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronIonDensity
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaParameter,CalcPICCFLCondition,CalcMaxPartDisplacement
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaParameter,CalcPICCFLCondition,CalcMaxPartDisplacement,CalcElectronEnergy
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -350,6 +383,9 @@ IF(CalcIonizationDegree) CALL CalculateIonizationCell()
 
 ! electron temperature
 IF(CalcElectronTemperature) CALL CalculateElectronTemperatureCell()
+
+! electron energies
+IF(CalcElectronEnergy) CALL CalculateElectronEnergyCell()
 
 ! plasma frequency
 IF(CalcPlasmaFrequency) CALL CalculatePlasmaFrequencyCell()
@@ -376,12 +412,11 @@ IF(CalcMaxPartDisplacement) CALL CalculateMaxPartDisplacement()
 END SUBROUTINE CalculatePartElemData
 
 
-SUBROUTINE CalculateElectronIonDensityCell()
 !===================================================================================================================================
 ! Count the number of electrons per DG cell and divide it by element-volume
 !===================================================================================================================================
+SUBROUTINE CalculateElectronIonDensityCell()
 ! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
@@ -470,12 +505,11 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE CalculateElectronIonDensityCell
 
 
-SUBROUTINE CalculateElectronTemperatureCell()
 !===================================================================================================================================
 ! Count the number of electrons per DG cell and divide it by element-volume
 !===================================================================================================================================
+SUBROUTINE CalculateElectronTemperatureCell()
 ! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals               ,ONLY: PARTISELECTRON
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass
 USE MOD_Preproc
@@ -497,10 +531,10 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER :: iPart,iElem,ElemID,Method
 REAL    :: nElectronsPerCell(1:PP_nElems)
-REAL    ::  PartVandV2(1:PP_nElems,1:6)
+REAL    :: PartVandV2(1:PP_nElems,1:6)
 REAL    :: Mean_PartV2(1:3)
 REAL    :: MeanPartV_2(1:3)
-REAL    ::   TempDirec(1:3)
+REAL    :: TempDirec(1:3)
 REAL    :: WeightingFactor
 #if USE_HDG
 INTEGER :: RegionID
@@ -531,7 +565,7 @@ PartVandV2 = 0.
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     IF(.NOT.PARTISELECTRON(iPart)) CYCLE  ! ignore anything that is not an electron
-    ElemID                      = PEM%LocalElemID(iPart)
+    ElemID            = PEM%LocalElemID(iPart)
     IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
       WeightingFactor = GetParticleWeight(iPart)
     ELSE
@@ -577,6 +611,95 @@ CASE(1) ! 2.1   remove drift from distribution
 END SELECT
 
 END SUBROUTINE CalculateElectronTemperatureCell
+
+
+!===================================================================================================================================
+! Count the number of electrons per DG cell and divide it by element-volume
+!===================================================================================================================================
+SUBROUTINE CalculateElectronEnergyCell()
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Globals               ,ONLY: PARTISELECTRON
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass,Joule2eV
+USE MOD_Preproc
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronMinEnergyCell,ElectronMaxEnergyCell,ElectronAverageEnergyCell
+USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies
+USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
+#if USE_HDG
+USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
+USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
+#endif /*USE_HDG*/
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iPart,iElem,ElemID
+REAL    :: nElectronsPerCell(1:PP_nElems),Ekin
+REAL    :: WeightingFactor
+#if USE_HDG
+INTEGER :: RegionID
+#endif /*USE_HDG*/
+!===================================================================================================================================
+ElectronMinEnergyCell     = HUGE(1.) ! Set zero before output to .h5 if unchanged (check if maximum is <= 0.)
+ElectronMaxEnergyCell     = 0.
+ElectronAverageEnergyCell = 0.
+#if USE_HDG
+IF (UseBRElectronFluid) THEN ! check for BR electrons
+  DO iElem=1,PP_nElems
+    RegionID=ElemToBRRegion(iElem)
+    IF (RegionID.GT.0) THEN
+      ! Assume <E> = (3/2)*<k_B*T>
+      ! with T = RegionElectronRef(3,RegionID)*ElementaryCharge/BoltzmannConst ! convert eV to K
+      ! T*Joule2eV gives energy in [eV]
+      ElectronMinEnergyCell     = 1.5*RegionElectronRef(3,RegionID) ! convert to [eV] -> factors cancel out
+      ElectronMaxEnergyCell     = ElectronMinEnergyCell
+      ElectronAverageEnergyCell = ElectronMinEnergyCell
+    END IF
+  END DO ! iElem=1,PP_nElems
+  RETURN ! Mixed BR and kinetic electrons are not implemented yet!
+ELSE
+#endif /*USE_HDG*/
+  nElectronsPerCell = 0.
+  ! 1. loop over all particles and sum-up the electron energy per cell and count the number of electrons per cell
+  DO iPart=1,PDM%ParticleVecLength
+    IF(PDM%ParticleInside(iPart))THEN
+      IF(.NOT.PARTISELECTRON(iPart)) CYCLE  ! ignore anything that is not an electron
+      ElemID            = PEM%LocalElemID(iPart)
+      IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        WeightingFactor = GetParticleWeight(iPart)
+      ELSE
+        WeightingFactor = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
+      END IF
+      nElectronsPerCell(ElemID) = nElectronsPerCell(ElemID) + WeightingFactor
+      ! Determine kinetic energy
+      Ekin = CalcEkinPart(iPart)
+      ElectronAverageEnergyCell(ElemID) = ElectronAverageEnergyCell(ElemID) + Ekin
+      ElectronMinEnergyCell(ElemID)     = MIN(ElectronMinEnergyCell(ElemID),Ekin)
+      ElectronMaxEnergyCell(ElemID)     = MAX(ElectronMaxEnergyCell(ElemID),Ekin)
+    END IF ! ParticleInside
+  END DO ! iPart
+
+  ! 2. Loop over all elements and calculate the average, also check if minimum is HUGE(1.)
+  DO iElem=1,PP_nElems
+    IF(nElectronsPerCell(iElem).GT.0.)THEN
+      ElectronAverageEnergyCell(iElem) = ElectronAverageEnergyCell(iElem)/nElectronsPerCell(iElem)*Joule2eV
+      ElectronMinEnergyCell(iElem)     = ElectronMinEnergyCell(iElem)*Joule2eV
+      ElectronMaxEnergyCell(iElem)     = ElectronMaxEnergyCell(iElem)*Joule2eV
+    ELSE
+      ElectronMinEnergyCell(iElem) = 0. ! Set from HUGE(1.) to zero for output to .h5
+    END IF ! nElectronsPerCell(iElem).GT.0.
+  END DO ! iElem=1,PP_nElems
+
+#if USE_HDG
+END IF
+#endif /*USE_HDG*/
+
+END SUBROUTINE CalculateElectronEnergyCell
 
 
 SUBROUTINE CalcShapeEfficiencyR()

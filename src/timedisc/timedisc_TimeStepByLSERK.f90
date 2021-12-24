@@ -100,6 +100,9 @@ END DO
 iStage=1
 
 #ifdef PARTICLES
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
 CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB. Also done for state output of PartsPerElem
 
 #if USE_LOADBALANCE
@@ -119,8 +122,14 @@ END IF
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
   CALL Deposition()
 END IF
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(4))
+#endif /*EXTRAE*/
 ! field solver
 ! time measurement in weakForm
 CALL DGTimeDerivative_weakForm(time,time,0,doSource=.TRUE.)
@@ -168,9 +177,15 @@ END IF
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_PML,tLBStart)
 #endif /*USE_LOADBALANCE*/
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 
 
 #ifdef PARTICLES
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
 LastPartPos(1:3,1:PDM%ParticleVecLength)=PartState(1:3,1:PDM%ParticleVecLength)
 PEM%LastGlobalElemID(1:PDM%ParticleVecLength)=PEM%GlobalElemID(1:PDM%ParticleVecLength)
 IF (time.GE.DelayTime) THEN
@@ -189,6 +204,9 @@ IF (time.GE.DelayTime) THEN
   CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 END IF
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
 #if USE_LOADBALANCE
@@ -243,6 +261,9 @@ DO iStage=2,nRKStages
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
+#ifdef EXTRAE
+    CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
     CALL InterpolateFieldToParticle()
     IF(DoInterpolation) CALL CalcPartRHS()
 #if USE_LOADBALANCE
@@ -250,10 +271,16 @@ DO iStage=2,nRKStages
 #endif /*USE_LOADBALANCE*/
 
     CALL Deposition()
+#ifdef EXTRAE
+    CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
   END IF
   CALL CountPartsPerElem(ResetNumberOfParticles=.FALSE.) !for scaling of tParts of LB !why not rigth after "tStage=time+dt*RK_c(iStage)"?!
 #endif /*PARTICLES*/
 
+#ifdef EXTRAE
+  CALL extrae_eventandcounters(int(9000001), int8(4))
+#endif /*EXTRAE*/
   ! field solver
   CALL DGTimeDerivative_weakForm(time,tStage,0,doSource=.TRUE.)
 #if USE_LOADBALANCE
@@ -299,10 +326,16 @@ DO iStage=2,nRKStages
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PML,tLBStart)
 #endif /*USE_LOADBALANCE*/
+#ifdef EXTRAE
+  CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 
 #ifdef PARTICLES
   ! particle step
   IF (time.GE.DelayTime) THEN
+#ifdef EXTRAE
+    CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -322,6 +355,9 @@ DO iStage=2,nRKStages
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
+#ifdef EXTRAE
+    CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 #if USE_MPI
     CALL IRecvNbofParticles()
 #endif /*USE_MPI*/
@@ -349,6 +385,9 @@ DO iStage=2,nRKStages
 END DO
 
 #ifdef PARTICLES
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
 IF (time.GE.DelayTime) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
@@ -413,6 +452,9 @@ IF (useDSMC) THEN
 #endif /*USE_LOADBALANCE*/
   END IF
 END IF
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
 END SUBROUTINE TimeStepByLSERK
