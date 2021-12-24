@@ -635,7 +635,7 @@ nVar_TD = nVar_State
 ! Check if the DG_SourceExt container exists, and if it does save the variable names and increase the nVar_State variable
 CALL DatasetExists(File_ID,'DG_SourceExt',DGSourceExtExists)
 IF(DGSourceExtExists)THEN
-  StrVarNamesTemp4='SurfaceChargeDensity[1/m^3]'
+  StrVarNamesTemp4='SurfaceChargeDensity[C/m3]'
   nVar_State = nVar_State + 1
 END IF ! DGSourceExtExists
 

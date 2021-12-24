@@ -1409,7 +1409,7 @@ END SUBROUTINE CG_solver
 !===================================================================================================================================
 SUBROUTINE DisplayConvergence(ElapsedTime, iteration, Norm_R2)
 ! MODULES
-USE MOD_HDG_Vars      ,ONLY: HDGDisplayConvergence,HDGNorm,RunTime,RunTimePerIteration
+USE MOD_HDG_Vars      ,ONLY: HDGDisplayConvergence,HDGNorm,RunTime,RunTimePerIteration,iterationTotal,RunTimeTotal
 USE MOD_Globals       ,ONLY: UNIT_StdOut
 USE MOD_TimeDisc_Vars ,ONLY: iter,IterDisplayStep
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1422,7 +1422,9 @@ REAL,INTENT(IN)     :: Norm_R2
 ! LOCAL VARIABLES
 !===================================================================================================================================
 RunTime = ElapsedTime
+RunTimeTotal = RunTimeTotal + RunTime
 IF(iteration.GT.0)THEN
+  iterationTotal = iterationTotal + iteration
   RunTimePerIteration = RunTime/REAL(iteration)
 ELSE
   RunTimePerIteration = 0.
@@ -1430,11 +1432,11 @@ END IF ! iteration.GT.0
 HDGNorm = SQRT(Norm_R2)
 
 IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
-  WRITE(UNIT_StdOut,'(A,1X,I16)')      '#iterations          :',iteration
-  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3)')'RunTime           [s]:',RunTime
-  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3)')'RunTime/iteration [s]:',RunTimePerIteration
+  WRITE(UNIT_StdOut,'(A,1X,I0,A,I0,A)')                '#iterations          :    ',iteration,' (',iterationTotal,' total)'
+  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3,A,ES25.14E3,A)')  'RunTime           [s]:',RunTime,' (',RunTimeTotal,' total)'
+  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3)')                'RunTime/iteration [s]:',RunTimePerIteration
   !WRITE(UNIT_StdOut,'(A,1X,ES16.7)')'RunTime/iteration/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iteration*PP_nElems*nGP_vol)
-  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3)')'Final Residual       :',HDGNorm
+  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3)')                'Final Residual       :',HDGNorm
   WRITE(UNIT_StdOut,'(132("-"))')
 END IF
 END SUBROUTINE DisplayConvergence

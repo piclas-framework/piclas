@@ -11,6 +11,15 @@
 # notes       :
 #==============================================================================
 
+# Get OS Distributor ID
+LSBNAME=$(lsb_release -si)
+
+# Check OS
+if [[ ${LSBNAME} != "Ubuntu" ]]; then
+  echo "This script currently only supports Ubuntu. Exit."
+  exit
+fi
+
 # Check for updates
 sudo apt-get update
 

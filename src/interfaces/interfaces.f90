@@ -323,9 +323,7 @@ IF(PRESENT(GeometryName))THEN
         dim_2 = 2
       CASE DEFAULT
         SWRITE(UNIT_stdOut,'(A)') ' '
-        CALL abort(&
-            __STAMP__,&
-            'Error in CALL FindElementInRegion(GeometryName): GeometryAxis is wrong!')
+        CALL abort(__STAMP__,'Error in CALL FindElementInRegion(GeometryName): GeometryAxis is wrong!')
     END SELECT
     DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
@@ -347,13 +345,49 @@ IF(PRESENT(GeometryName))THEN
         END IF ! DielectricRadiusValueB.GT.0.0
       END IF ! isElem(iElem).EQV.ElementIsInside
     END DO; END DO; END DO; END DO !iElem,k,j,i
+  CASE('HollowCircle') ! Inner (r.LT.DielectricRadiusValueB) and outer radius (Radius) are checked: region between is excluded
+    SELECT CASE(GeometryAxis)
+      CASE(1) ! x-axis
+        dim_1 = 2
+        dim_2 = 3
+      CASE(2) ! y-axis
+        dim_1 = 1
+        dim_2 = 3
+      CASE(3) ! z-axis
+        dim_1 = 1
+        dim_2 = 2
+      CASE DEFAULT
+        SWRITE(UNIT_stdOut,'(A)') ' '
+        CALL abort(__STAMP__,'Error in CALL FindElementInRegion(GeometryName): GeometryAxis is wrong!')
+    END SELECT
+
+    DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+      IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
+
+        ! Calculate 2D radius for x-y-plane
+        r = SQRT(Elem_xGP(dim_1,i,j,k,iElem)**2 + Elem_xGP(dim_2,i,j,k,iElem)**2)
+
+        ! Check if r is smaller than the supplied value .AND. if r is not almost equal to the radius
+        IF(r.LT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
+          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
+        END IF
+
+        ! For dielectric regions, check (optional) 2nd radius and INCLUDE regions within the radius
+        ! Check if r is smaller than the radius DielectricRadiusValueB .AND. if r is not almost equal to the radius DielectricRadiusValueB
+        IF(DielectricRadiusValueB.GT.0.0)THEN
+          IF( (r.LT.DielectricRadiusValueB).AND.&
+              (.NOT.ALMOSTEQUALRELATIVE(r,DielectricRadiusValueB,1e-3)))THEN
+            isElem(iElem) = ElementIsInside ! INCLUDE elements smaller than the radius again
+          END IF ! r.LT.DielectricRadiusValueB
+        END IF ! DielectricRadiusValueB.GT.0.0
+      END IF ! isElem(iElem).EQV.ElementIsInside
+    END DO; END DO; END DO; END DO !iElem,k,j,i
   CASE('default')
     ! Nothing to do, because the geometry is set by using the box coordinates
   CASE DEFAULT
     SWRITE(UNIT_stdOut,'(A)') ' '
     SWRITE(UNIT_stdOut,'(A)') ' TRIM(GeometryName)='//TRIM(GeometryName)
-    CALL abort(&
-        __STAMP__,&
+    CALL abort(__STAMP__,&
         'Error in CALL FindElementInRegion(GeometryName): GeometryName is not defined! Even dummy geometries must be defined.')
   END SELECT
 END IF
@@ -1159,14 +1193,14 @@ CASE('DielectricResonatorAntenna') ! Radius only in x-y (not z)
   ! nothing to set, because rotationally symmetric, as defined by a radius in x-y
 CASE('Circle') ! Radius only in x-y (not z)
   ! nothing to set, because rotationally symmetric, as defined by one or two radii in x-y: DielectricRadiusValue and DielectricRadiusValueB (optional)
+CASE('HollowCircle') ! Radius only in x-y (not z)
+  ! nothing to set, because rotationally symmetric, as defined by one or two radii in x-y: DielectricRadiusValue and DielectricRadiusValueB (optional)
 CASE('default')
   ! Nothing to do, because the geometry is set by using the box coordinates
 CASE DEFAULT
   SWRITE(UNIT_stdOut,'(A)') ' '
   SWRITE(UNIT_stdOut,'(A)') ' TRIM(GeometryName)='//TRIM(GeometryName)
-  CALL abort(&
-  __STAMP__,&
-  'Error in CALL SetGeometry(GeometryName): GeometryName is not defined! Even dummy geometries must be defined.')
+  CALL abort(__STAMP__,'Error in SetGeometry(GeometryName): GeometryName is not defined! Even dummy geometries must be defined.')
 END SELECT
 
 GeometryIsSet=.TRUE.

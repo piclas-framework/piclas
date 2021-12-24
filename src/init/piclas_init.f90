@@ -293,6 +293,7 @@ USE MOD_FPFlow_Init                ,ONLY: FinalizeFPFlow
 USE MOD_BGK_Init                   ,ONLY: FinalizeBGK
 #endif
 USE MOD_SurfaceModel_Init          ,ONLY: FinalizeSurfaceModel
+USE MOD_SurfaceModel_Analyze       ,ONLY: FinalizeSurfaceModelAnalyze
 USE MOD_Particle_Boundary_Sampling ,ONLY: FinalizeParticleBoundarySampling
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone
 USE MOD_PIC_Vars                   ,ONLY: PICInitIsDone
@@ -336,6 +337,7 @@ CALL FinalizeMesh()
 CALL FinalizeMortar()
 #ifdef PARTICLES
 CALL FinalizeSurfaceModel()
+CALL FinalizeSurfaceModelAnalyze()
 CALL FinalizeParticleBoundarySampling()
 CALL FinalizePorousBoundaryCondition()
 CALL FinalizeParticleSurfaces()
