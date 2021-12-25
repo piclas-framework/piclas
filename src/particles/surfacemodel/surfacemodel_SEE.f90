@@ -247,7 +247,6 @@ CASE(9) ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixe
         ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN)) ! Species of the injected electron
         ProductSpecNbr = 1 ! Create one new particle
         v_new          = SQRT(2.*eps_e*ElementaryCharge/ElectronMass) ! Velocity of emitted secondary electron in [m/s]
-        RETURN
       END IF
     END ASSOCIATE
   END IF
