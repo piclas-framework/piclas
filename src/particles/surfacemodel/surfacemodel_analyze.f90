@@ -215,7 +215,7 @@ IF(PartMPI%MPIRoot)THEN
       IF(CalcElectronSEE)THEN
         DO iPartBound = 1, SEE%NPartBoundaries
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A24,A)',ADVANCE='NO') OutputCounter,'-nRealElectronsEmmited-',&
+          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-nRealElectronsEmmited-'//&
               TRIM(PartBound%SourceBoundName(SEE%PartBoundaries(iPartBound)))
           OutputCounter = OutputCounter + 1
         END DO ! iPartBound = 1, SEE%NPartBoundaries
