@@ -1383,6 +1383,7 @@ SDEALLOCATE(RegionElectronRef)
 SDEALLOCATE(RegionElectronRefBackup)
 SDEALLOCATE(BRAverageElemToElem)
 #endif /*USE_HDG*/
+SDEALLOCATE(isNeutralizationElem)
 END SUBROUTINE FinalizeParticles
 
 

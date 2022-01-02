@@ -42,19 +42,23 @@ SUBROUTINE InitEmissionComm()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,MPI_halo_eps
-USE MOD_Particle_Vars,          ONLY:Species,nSpecies
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-#if !(USE_HDG)
-USE MOD_CalcTimeStep,           ONLY:CalcTimeStep
+USE MOD_Particle_MPI_Vars  ,ONLY: PartMPI,MPI_halo_eps
+USE MOD_Particle_Vars      ,ONLY: Species,nSpecies
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO,SideInfo_Shared
+USE MOD_Mesh_Vars          ,ONLY: nElems,BoundaryName
+USE MOD_Particle_Vars      ,ONLY: NeutralizationSource,nNeutralizationElems,isNeutralizationElem
+#if ! (USE_HDG)
+USE MOD_CalcTimeStep       ,ONLY: CalcTimeStep
 #endif /*USE_HDG*/
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iSpec,iInit,iNode,iRank
+INTEGER                         :: GlobalElemID,iElem,BCID,iSide,iSpec,iInit,iNode,iRank
 INTEGER                         :: nInitRegions
 LOGICAL                         :: RegionOnProc,RegionExists
 REAL                            :: xCoords(3,8),lineVector(3),radius,height
@@ -73,6 +77,9 @@ IF(nInitRegions.EQ.0) RETURN
 
 ! allocate communicators
 ALLOCATE( PartMPI%InitGroup(1:nInitRegions))
+
+! Default value for neutralization regions (Landmark and Liu2010)
+nNeutralizationElems = -1
 
 nInitRegions=0
 DO iSpec=1,nSpecies
@@ -213,6 +220,37 @@ DO iSpec=1,nSpecies
        xCoords(1:3,8) = (/x2,y2,z2/)
        RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
       END ASSOCIATE
+    CASE('2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo')
+
+      ! Find all elements that have a neutralization BC and add up the number
+      nNeutralizationElems = 0
+      ALLOCATE(isNeutralizationElem(1:nElems))
+      ELEMLOOP: DO iElem=1,nElems ! loop over all local elems
+        GlobalElemID = iElem + offsetElem
+        ! Check 6 local sides
+        DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID)
+          ! Get BC index of the global side index
+          BCID   = SideInfo_Shared(SIDE_BCID,iSide)
+          ! Only check BC sides with BC index > 0
+          IF(BCID.GT.0)THEN
+            ! Check if neutralization BC is found
+            IF(TRIM(BoundaryName(BCID)).EQ.TRIM(NeutralizationSource))THEN
+              ! Add up the number of neutralization elems
+              nNeutralizationElems = nNeutralizationElems + 1
+              ! Flag element
+              isNeutralizationElem(iElem) = .TRUE.
+              ! Go to the next element
+              CYCLE ELEMLOOP
+            END IF
+          END IF ! BCID.GT.0
+        END DO
+      END DO ELEMLOOP
+
+      ! Only processors with neutralization elements are part of the communicator (+root which outputs global information to .csv)
+      RegionOnProc = nNeutralizationElems.GT.0
+      ! If no neutralization elements are present, deallocate the logical array
+      IF(nNeutralizationElems.EQ.0) DEALLOCATE(isNeutralizationElem)
+
     CASE('3D_Liu2010_neutralization')
       ! Neutralization at right BC (max. z-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)
       ! Check one region (emission at fixed z-position x=30 mm)
@@ -464,7 +502,8 @@ DO iSpec=1,nSpecies
     ! Add PartMPI%MPIRoot to specific inits automatically for output of analysis data to disk
     ! The root sometimes also reads data during restart and broadcasts it to the other processors in the communicator
     SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
-    CASE('2D_landmark_neutralization','2D_Liu2010_neutralization','3D_Liu2010_neutralization')
+    CASE('2D_landmark_neutralization','2D_Liu2010_neutralization','3D_Liu2010_neutralization','2D_Liu2010_neutralization_Szabo',&
+         '3D_Liu2010_neutralization_Szabo')
       IF(PartMPI%MPIRoot) RegionOnProc=.TRUE.
     END SELECT
 

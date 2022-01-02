@@ -49,6 +49,7 @@ USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri,SetParticleTimeStep,CalcNbrOfPhotons
+USE MOD_part_emission_tools    ,ONLY: CountNeutralizationParticles
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_PhotoIonization
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
@@ -248,11 +249,14 @@ DO i=1,nSpecies
            END IF ! NbrOfParticleLandmarkMax.LE.NbrOfParticle
          END IF ! .NOT.ALLOCATED()
        END ASSOCIATE
-     CASE(9) ! '2D_landmark_neutralization'
+     CASE(9) ! '2D_landmark_neutralization',
+             ! '2D_Liu2010_neutralization'      ,'3D_Liu2010_neutralization'
+             ! '2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo'
 #if USE_MPI
        ! Communicate number of particles with all procs in the same init group
        InitGroup=Species(i)%Init(iInit)%InitCOMM
        IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
+         IF(nNeutralizationElems.GT.0) CALL CountNeutralizationParticles()
          ! Only processors which are part of group take part in the communication
          CALL MPI_ALLREDUCE(NeutralizationBalance,NeutralizationBalanceGlobal,1,MPI_INTEGER,MPI_SUM,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
        ELSE

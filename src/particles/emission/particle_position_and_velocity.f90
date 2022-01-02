@@ -247,10 +247,10 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     ! Neutralization at const. x-position from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
     ! for low-temperature partially magnetized plasmas (2019)
     CALL SetParticlePositionLandmarkNeutralization(chunkSize,particle_positions)
-  CASE('2D_Liu2010_neutralization')
+  CASE('2D_Liu2010_neutralization','2D_Liu2010_neutralization_Szabo')
     ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010) - 2D case
     CALL SetParticlePositionLiu2010Neutralization(chunkSize,particle_positions)
-  CASE('3D_Liu2010_neutralization')
+  CASE('3D_Liu2010_neutralization','3D_Liu2010_neutralization_Szabo')
     ! Neutralization at right BC (max. z-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010) - 3D case
     CALL SetParticlePositionLiu2010Neutralization3D(FractNbr,iInit,chunkSize,particle_positions)
   END SELECT
@@ -381,7 +381,7 @@ CASE('maxwell_lpn','2D_landmark','2D_landmark_copy','2D_landmark_neutralization'
       PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF
   END DO
-CASE('2D_Liu2010_neutralization','3D_Liu2010_neutralization')
+CASE('2D_Liu2010_neutralization','3D_Liu2010_neutralization','2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo')
   IF(.NOT.CalcBulkElectronTemp) CALL abort(__STAMP__,&
       'Velocity distribution 2D_Liu2010_neutralization requires CalcBulkElectronTemp=T')
   ! Use the global electron temperature if available

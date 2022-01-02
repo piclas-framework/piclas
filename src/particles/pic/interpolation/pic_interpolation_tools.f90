@@ -278,7 +278,6 @@ FUNCTION GetEMFieldDW(ElemID, PartPos_loc)
 ! MODULES
 USE MOD_Mesh_Vars     ,ONLY: Elem_xGP
 USE MOD_PICInterpolation_Vars ,ONLY: useBGField
-USE MOD_Interpolation_Vars    ,ONLY: NBG,BGField
 USE MOD_Globals
 USE MOD_PreProc
 #if ! (USE_HDG)

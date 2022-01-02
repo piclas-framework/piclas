@@ -170,7 +170,8 @@ USE MOD_Globals
 !USE MOD_PreProc
 USE MOD_Particle_Vars     ,ONLY: Species,nSpecies
 USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
-USE MOD_Particle_Vars     ,ONLY: NeutralizationBalance,NeutralizationBalanceGlobal
+USE MOD_Particle_Vars     ,ONLY: NeutralizationBalanceGlobal
+!USE MOD_Particle_Vars     ,ONLY: NeutralizationBalance
 USE MOD_HDF5_Input        ,ONLY: ReadArray,DatasetExists
 USE MOD_Restart_Vars      ,ONLY: RestartFile
 ! IMPLICIT VARIABLE HANDLING

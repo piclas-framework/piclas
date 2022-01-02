@@ -123,12 +123,11 @@ SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 ! MODULES
 USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, PartMPF, usevMPF
 USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptive, AdaptBCPartNumOut
-USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance
+USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance,nNeutralizationElems
 USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcAdaptiveBCInfo
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
 #if defined(IMPA)
-USE MOD_Particle_Vars             ,ONLY: PartIsImplicit
-USE MOD_Particle_Vars             ,ONLY: DoPartInNewton
+USE MOD_Particle_Vars             ,ONLY: PartIsImplicit,DoPartInNewton
 #endif /*IMPA*/
 USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart
 USE MOD_part_tools                ,ONLY: GetParticleWeight
@@ -174,10 +173,13 @@ IF(PRESENT(BCID)) THEN
       END IF
     END DO
   END IF ! UseAdaptive.OR.CalcAdaptiveBCInfo
-  ! Used for ion thruster simulations: Landmark and Liu2010 (SPT-100)
-  IF(UseNeutralization)THEN
+  ! Ion thruster simulations: Landmark and Liu2010 (SPT-100) if neutralization current is determined from the particle flux over the
+  ! neutralization boundary condition instead of looking into the first row of elements along that BC
+  IF(UseNeutralization.AND.(nNeutralizationElems.EQ.-1))THEN
     IF(TRIM(BoundaryName(BCID)).EQ.TRIM(NeutralizationSource))THEN
-      ! Add +1 for electrons and -1 for ions
+      ! Add +1 for electrons and -1 for ions: This is opposite to the summation in CountNeutralizationParticles() where the surplus
+      ! of ions is calculated and compensated with an equal amount of electrons to force quasi-neutrality in the neutralization
+      ! elements.
       NeutralizationBalance = NeutralizationBalance - INT(SIGN(1.0, Species(iSpec)%ChargeIC))
     END IF
   END IF ! UseNeutralization

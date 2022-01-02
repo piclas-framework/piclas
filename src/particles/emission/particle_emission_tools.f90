@@ -112,6 +112,7 @@ PUBLIC :: SetParticlePositionLiu2010Neutralization3D
 #ifdef CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
+PUBLIC :: CountNeutralizationParticles
 !===================================================================================================================================
 CONTAINS
 
@@ -2281,7 +2282,6 @@ REAL, INTENT(OUT)       :: particle_positions(:)
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(2),radius
 INTEGER                 :: i
-REAL                    :: lineVector(3),lineVector2(3)
 REAL                    :: RandVal(2)
 !===================================================================================================================================
 ! Coordinate system: z-direction is assumed to be the axial direction
@@ -2308,6 +2308,48 @@ ASSOCIATE( R1 => 21.5e-3  ,& ! m
 
 END ASSOCIATE
 END SUBROUTINE SetParticlePositionLiu2010Neutralization3D
+
+
+!===================================================================================================================================
+!> Count the number of charged particles in the first layer of elements at the defined neutralization boundary condition for
+!> emitting particles to neutralize the net charge in this layer of elements
+!===================================================================================================================================
+SUBROUTINE CountNeutralizationParticles()
+! MODULES
+USE MOD_globals
+USE MOD_Particle_Vars ,ONLY: nNeutralizationElems,isNeutralizationElem,PDM,PEM,NeutralizationBalance,PartSpecies,Species
+USE MOD_part_tools    ,ONLY: ParticleOnProc
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER  :: iPart,iElem,iSpec
+!===================================================================================================================================
+! Reset local counter each time
+NeutralizationBalance = 0
+
+! Root is part of the communicator, but might not have any elements, therefore, return here
+IF(nNeutralizationElems.EQ.0) RETURN
+
+! Loop all particles and check whether they are inside a neutralization element and sum up all charges
+DO iPart = 1, PDM%ParticleVecLength
+  ! Check if particle is inside and on current proc
+  IF (PDM%ParticleInside(iPart).AND.ParticleOnProc(iPart)) THEN
+    ! Get local elem ID
+    iElem = PEM%LocalElemID(iPart)
+    ! Get species ID
+    iSpec = PartSpecies(iPart)
+    ! Check if particle is in neutralization element
+    IF(isNeutralizationElem(iElem))THEN
+      ! Add -1 for electrons and +1 for ions:  This is opposite to the summation in RemoveParticle() where the surplus of electrons
+      ! is calculated and re-introduced at the boundary
+      NeutralizationBalance = NeutralizationBalance + INT(SIGN(1.0, Species(iSpec)%ChargeIC))
+    END IF ! isNeutralizationElem(iElem)
+  END IF
+END DO
+
+END SUBROUTINE CountNeutralizationParticles
 
 
 END MODULE MOD_part_emission_tools

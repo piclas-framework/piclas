@@ -403,10 +403,12 @@ REAL, ALLOCATABLE :: PartPosLandmark(:,:)        ! Store particle positions duri
 INTEGER           :: NbrOfParticleLandmarkMax    ! Array maximum size for storing positions
 INTEGER           :: FractNbrOld,chunkSizeOld    ! Auxiliary integers for storing positions
 
-LOGICAL           :: UseNeutralization           ! Flag for counting the charged particles impinging on a surface
-CHARACTER(255)    :: NeutralizationSource        ! Name of the boundary for calculating the particle balance
-INTEGER           :: NeutralizationBalance       ! Counter for charged particles (processor local): Add +1 for electrons and -1 for ions
-INTEGER           :: NeutralizationBalanceGlobal ! Counter for charged particles (global): Add +1 for electrons and -1 for ions
+LOGICAL              :: UseNeutralization           ! Flag for counting the charged particles impinging on a surface
+CHARACTER(255)       :: NeutralizationSource        ! Name of the boundary for calculating the particle balance
+INTEGER              :: nNeutralizationElems        ! Number of elements used for neutralization source (if required)
+LOGICAL, ALLOCATABLE :: isNeutralizationElem(:)     ! Flag each element if it is a neutralization element
+INTEGER              :: NeutralizationBalance       ! Counter for charged particles (processor local): Add +1 for electrons and -1 for ions
+INTEGER              :: NeutralizationBalanceGlobal ! Counter for charged particles (global): Add +1 for electrons and -1 for ions
 
 ! Bulk electron temperature
 REAL              :: BulkElectronTemp            ! Bulk electron temperature for SEE model by Morozov2004

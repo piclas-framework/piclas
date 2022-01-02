@@ -724,7 +724,7 @@ DO iSpec = 1,nSpecies
   ! Loop inits and check whether neutralization boundary condition required the bulk electron temperature
   DO iInit = 1, Species(iSpec)%NumberOfInits
     SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution))
-    CASE('2D_Liu2010_neutralization','3D_Liu2010_neutralization')
+    CASE('2D_Liu2010_neutralization','3D_Liu2010_neutralization','2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo')
       CalcBulkElectronTemp = .TRUE.
       ! Check if already set, otherwise, initialize with 5 eV for the BC (if SEE is also used, this will be already have been set)
       IF(BulkElectronTemp.LE.0) BulkElectronTemp = 5.0
