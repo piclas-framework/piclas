@@ -178,6 +178,33 @@ actual computational domain corresponds only to a quarter of the cylinder:
     Part-Species1-Init1-FirstQuadrantOnly       = T
     Part-Species1-Init2-FirstQuadrantOnly       = T
 
+### Neutralization Boundaries (neutral outflow condition)
+There are different methods implemented to neutralize a charged particle flow, e.g., as encountered when simulation electric
+propulsion systems. Currently all methods require a specific geometry to function properly. For more details, see the regression
+tests under *regressioncheck/NIG_PIC_poisson_Boris-Leapfrog*. The following table lists the *SpaceIC* emission types
+
+|           Distribution          |                                                                Description                                                               |
+|         ---------------         |                             --------------------------------------------------------------------------------                             |
+|    2D_landmark_neutralization   |                   Charoy 2019 2D PIC benchmark, electrons are injected with 10 eV at the cathode if the anode current is negative                   |
+|    2D_Liu2010_neutralization    |                    Liu 2010 2D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                   |
+| 2D_Liu2010_neutralization_Szabo | Liu 2010 2D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
+|    3D_Liu2010_neutralization    |                    Liu 2010 3D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                   |
+| 3D_Liu2010_neutralization_Szabo | Liu 2010 3D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
+
+For the *XD_Liu2010_neutralization* emission, a constant emitted electron temperature is defined via
+
+    Part-SpeciesX-InitX-MWTemperatureIC = 5.80E+04 ! 5.0 eV
+
+whereas it is also possible to use a variable temperature, in which case the global (bulk) electron temperature is used, by setting
+
+    Part-SpeciesX-InitX-velocityDistribution = 2D_Liu2010_neutralization
+
+for the 2D setup and
+
+    Part-SpeciesX-InitX-velocityDistribution = 3D_Liu2010_neutralization
+
+for the 3D setup. The bulk electron temperature is determined automatically and output to *PartAnalyze.csv* as *XXX-BulkElectronTemp-[K]* to track this value over time.
+
 ## Surface Flux
 
 A surface flux enables the emission of particles at a boundary in order to simulate, e.g. a free-stream. They are defined
