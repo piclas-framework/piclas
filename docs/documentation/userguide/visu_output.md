@@ -59,7 +59,29 @@ can be stored for Poisson's equation (`PICLAS_EQNSYSNAME=poisson`) by setting
 Again, the data in the same format as the solution polynomial of degree $N$, i.e., $(N+1)^{3}$ data points for each cell in the
 container `DG_TimeDerivative` in the `*_State_*.h5` file and can be converted to `.vtk` format with `piclas2vtk`.
 
-### Element-constant properties
+### Element-polynomial field properties
+In general, the data is the same format as the solution polynomial of degree $N$, i.e., $(N+1)^{3}$ data points for each cell in the
+respective container in the `.h5` files and can be converted to `.vtk` format with `piclas2vtk`. The resolution of the converted
+data can be adjusted by setting `NVisu` to any integer value, which is the used for the interpolation of the original data.
+
+
+**External electromagnetic field vector**
+When using external electromagnetic fields, either via a constant vector
+
+    PIC-externalField = (/ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 /)
+
+or a cell-local polynomial distribution calculated via `superB` by
+
+    PIC-BGFileName = BGField.h5
+
+the resulting electromagnetic field, that is used by the PIC solver in addition to the calculated fields (superposition), can be
+visualized via
+
+    CalcEMFieldOutput = T
+
+and the resulting data (vector fields for *E* and *B*) is stored in `PROJECT_PIC-EMField.h5`.
+
+### Element-constant field/particle properties
 The determined properties are given by a single value within each cell and are NOT sampled over time as opposed to the output
 described in Section {ref}`sec:sampled-flow-field-and-surface-variables`.
 These parameters are only available for PIC simulations, are part of the regular state file (as a separate container within the
@@ -74,7 +96,7 @@ determined by using
 which calculates the time-averaged power (moving average) coupled to the particles in each cell (average power per cubic metre)
 and stores it in `PCouplDensityAvgElem` for each species separately. Additionally, the properties `PCoupl` (instantaneous) and a
 time-averaged (moving average) value
-`PCoupledMoAv` are stored in the `ParticleAnalyze.csv` output file. 
+`PCoupledMoAv` are stored in the `ParticleAnalyze.csv` output file.
 
 **Plasma Frequency**
 The (cold) plasma frequency can be calculated via
@@ -160,7 +182,7 @@ The calculation is activated by
 
 ### Time-averaged Fields
 At each `Analyze_dt` and at the end of the simulation, additional time-averaged field properties can be written to `*_TimeAvg_*.h5`
-by enabling 
+by enabling
 
     CalcTimeAverage = T
 
