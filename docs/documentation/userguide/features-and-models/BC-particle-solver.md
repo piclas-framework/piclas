@@ -195,12 +195,12 @@ Modelling of reactive surfaces is enabled by setting `Part-BoundaryX-Condition=r
 appropriate particle boundary surface model `Part-BoundaryX-SurfaceModel`.
 The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the table below.
 
-|    Model    | Description                                                                                                                                                                         |
-| :---------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 (default) | Standard extended Maxwellian scattering                                                                                                                                             |
-|      5      | Secondary electron emission as given by Ref. {cite}`Levko2015`.                                                                                                                          |
+|    Model    |                                                                                          Description                                                                                          |
+| :---------: |      :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------      |
+| 0 (default) |                                                                            Standard extended Maxwellian scattering                                                                            |
+|      5      |                                                                Secondary electron emission as given by Ref. {cite}`Levko2015`.                                                                |
 |      7      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. {cite}`Pflug2014` and given by Ref. {cite}`Depla2009` with a constant yield of 13 \%. |
-|      8      | Secondary electron emission due to ion impact (SEE-E with $e^{-}$ on dielectric surfaces) as used in Ref. {cite}`Liu2010` and given by Ref. {cite}`Morozov2004`. |
+|      8      |                Secondary electron emission due to ion impact (SEE-E with $e^{-}$ on dielectric surfaces) as used in Ref. {cite}`Liu2010` and given by Ref. {cite}`Morozov2004`.               |
 
 For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
 
@@ -240,7 +240,8 @@ The model can be switched to an automatic determination of the bulk electron tem
     Part-SurfaceModel-SEE-Te-Spec      = 2 ! Species ID used for automatic temperature calculation (must correspond to electrons)
 
 where the species ID must be supplied, which corresponds to the electron species for which, during `Part-AnalyzeStep`, the global
-translational temperature is used to adjust the energy dependence.
+translational temperature is determined and subsequently used to adjust the energy dependence of the SEE model. The global (bulk)
+electron temperature is written to *PartAnalyze.csv* as *XXX-BulkElectronTemp-[K]*.
 
 ## Deposition of Charges on Dielectric Surfaces
 
