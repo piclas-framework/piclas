@@ -85,7 +85,8 @@ and the resulting data (vector fields for *E* and *B*) is stored in `PROJECT_PIC
 The determined properties are given by a single value within each cell and are NOT sampled over time as opposed to the output
 described in Section {ref}`sec:sampled-flow-field-and-surface-variables`.
 These parameters are only available for PIC simulations, are part of the regular state file (as a separate container within the
-HDF5 file) and automatically included in the conversion to the VTK format.
+HDF5 file) and automatically included in the conversion to the VTK format. They are written to `PROJECT_Solution_000.000*.h5` and
+after conversion are found in `PROJECT_ElemData_000.000*.vtu`.
 
 **Power Coupled to Particles**
 The energy transferred to particles during the push (acceleration due to electromagnetic fields) is
@@ -179,6 +180,57 @@ These values are especially useful when dealing with Cartesian grids.
 The calculation is activated by
 
     CalcMaxPartDisplacement = T
+
+**Electron Cyclotron Motion**
+The gyrokinetic or cyclotron motion of electrons can be analyzed by calculating the cyclotron frequency
+for the non-relativistic case
+
+$$\omega_c = \frac{eB}{m_{e}}$$
+
+|    Symbol   |                             Parameter                             |
+| ----------- |                            -----------                            |
+|  $\omega_c$ |               cyclotron frequency (non-relativistic)              |
+|     $e$     |         elementary charge (of an electron, absolute value)        |
+|     $B$     | magnitude of the magnetic flux density at the electron's position |
+|    $m_e$    |                         electron rest mass                        |
+
+or if the electron velocity is considered to be relativistic (automatic switch), the following formula is used
+
+$$\omega_c = \frac{eB}{\gamma m_e} = \frac{eB}{m_e\sqrt{1-v_e^2/c^2}}$$
+
+|    Symbol   |                             Parameter                             |
+| ----------- |                            -----------                            |
+|  $\omega_c$ |               cyclotron frequency     (relativistic)              |
+|     $e$     |         elementary charge (of an electron, absolute value)        |
+|     $B$     | magnitude of the magnetic flux density at the electron's position |
+|   $\gamma$  |                           Lorentz factor                          |
+|    $m_e$    |                         electron rest mass                        |
+|    $v_e$    |                       magnitude of velocity                       |
+|     $c$     |                           speed of light                          |
+
+and, hence, the required time step (Boris push)
+
+$$\Delta t = \frac{0.02}{\omega_c}$$
+
+to resolve the gyro motion adequately by setting the following two parameters
+
+    CalcPICTimeStepCyclotron = T
+    CalcCyclotronFrequency   = T
+
+The first activates the calculation of the smallest time step in each cell (only regarding the cyclotron motion, not other
+restrictions) and the second activates the calculation of the min/max value of the cyclotron frequency (and also radius) for each
+cell. The containers that are written to `.h5` (and converted to `.vtu`) are
+
+    PICTimeStepCyclotronCell
+
+for the time step restriction and
+
+    CyclotronFrequencyMaxCell
+    CyclotronFrequencyMinCell
+    GyroradiusMinCell
+    GyroradiusMaxCell
+
+for the cyclotron frequency and radius (min/max values).
 
 ### Time-averaged Fields
 At each `Analyze_dt` and at the end of the simulation, additional time-averaged field properties can be written to `*_TimeAvg_*.h5`
