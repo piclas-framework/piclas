@@ -679,8 +679,8 @@ ELSE
       ! Determine kinetic energy
       Ekin = CalcEkinPart(iPart)
       ElectronAverageEnergyCell(ElemID) = ElectronAverageEnergyCell(ElemID) + Ekin
-      ElectronMinEnergyCell(ElemID)     = MIN(ElectronMinEnergyCell(ElemID),Ekin)
-      ElectronMaxEnergyCell(ElemID)     = MAX(ElectronMaxEnergyCell(ElemID),Ekin)
+      ElectronMinEnergyCell(ElemID)     = MIN(ElectronMinEnergyCell(ElemID),Ekin/WeightingFactor) ! Consider energy of single e-
+      ElectronMaxEnergyCell(ElemID)     = MAX(ElectronMaxEnergyCell(ElemID),Ekin/WeightingFactor) ! Consider energy of single e-
     END IF ! ParticleInside
   END DO ! iPart
 
