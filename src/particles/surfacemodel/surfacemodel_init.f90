@@ -54,7 +54,7 @@ SUBROUTINE InitSurfaceModel()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars             ,ONLY: nSpecies
+USE MOD_Particle_Vars             ,ONLY: nSpecies,Species,usevMPF
 USE MOD_ReadInTools               ,ONLY: GETINT
 USE MOD_Particle_Boundary_Vars    ,ONLY: nPartBound, PartBound
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec, SurfModEnergyDistribution
@@ -67,8 +67,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(32)                     :: hilf, hilf2
-INTEGER                           :: iSpec, iPartBound
+CHARACTER(32) :: hilf,hilf2
+REAL          :: MPFiSpec,MPFresultSpec
+INTEGER       :: iSpec,iPartBound
 !===================================================================================================================================
 IF (.NOT.(ANY(PartBound%Reactive))) RETURN
 
@@ -93,6 +94,19 @@ DO iSpec = 1,nSpecies
       ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV
 !-----------------------------------------------------------------------------------------------------------------------------------
       SurfModResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
+      ! Check that the impacting and SEE particles have the same MPF is vMPF is turned off
+      IF(.NOT.usevMPF)THEN
+        MPFiSpec      = Species(iSpec)%MacroParticleFactor
+        MPFresultSpec = Species(SurfModResultSpec(iPartBound,iSpec))%MacroParticleFactor
+        IF(.NOT.(ALMOSTEQUALRELATIVE(MPFiSpec,MPFresultSpec,1e-3)))THEN
+          IPWRITE(UNIT_StdOut,*) "Bombarding particle: SpecID =", iSpec
+          IPWRITE(UNIT_StdOut,*) "Bombarding particle:    MPF =", MPFiSpec
+          IPWRITE(UNIT_StdOut,*) "Secondary electron : SpecID =", SurfModResultSpec(iPartBound,iSpec)
+          IPWRITE(UNIT_StdOut,*) "Secondary electron :    MPF =", MPFresultSpec
+          CALL abort(__STAMP__,'SEE model: MPF of bomarding particle and secondary electron must be the same.')
+        END IF ! .NOT.(ALMOSTEQUALRELATIVE(MPFiSpec,MPFresultSpec,1e-3))
+      END IF ! .NOT.usevMPF
+      ! Set specific distributions functions
       IF(PartBound%SurfaceModel(iPartBound).EQ.8)THEN
         SurfModEnergyDistribution = 'Morozov2004'
       ELSE
