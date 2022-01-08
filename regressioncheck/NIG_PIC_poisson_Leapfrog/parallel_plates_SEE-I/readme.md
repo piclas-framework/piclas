@@ -1,5 +1,6 @@
 # parallel plate testcase
 - 100000 Ar+ ions (a lot are required to statistically meet the 1% SEE yield of one of the models) are accelerated against the right electrode where secondary electron emission (SEE-I) is performed
+  - the 2nd case considers only 2500 Ar+ ions with vMPF=T, they are instantly split with Part-Species2-vMPFSplitThreshold = 10000 into multiple particles with a smaller MPF
 - Two SEE-I models are tested
   - SEE model 7 from D. Depla "Magnetron sputter deposition: Linking discharge voltage with target properties", 2009
       - various metal surfaces with different yields
