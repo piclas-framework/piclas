@@ -96,15 +96,18 @@ DO iSpec = 1,nSpecies
       SurfModResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
       ! Check that the impacting and SEE particles have the same MPF is vMPF is turned off
       IF(.NOT.usevMPF)THEN
-        MPFiSpec      = Species(iSpec)%MacroParticleFactor
-        MPFresultSpec = Species(SurfModResultSpec(iPartBound,iSpec))%MacroParticleFactor
-        IF(.NOT.(ALMOSTEQUALRELATIVE(MPFiSpec,MPFresultSpec,1e-3)))THEN
-          IPWRITE(UNIT_StdOut,*) "Bombarding particle: SpecID =", iSpec
-          IPWRITE(UNIT_StdOut,*) "Bombarding particle:    MPF =", MPFiSpec
-          IPWRITE(UNIT_StdOut,*) "Secondary electron : SpecID =", SurfModResultSpec(iPartBound,iSpec)
-          IPWRITE(UNIT_StdOut,*) "Secondary electron :    MPF =", MPFresultSpec
-          CALL abort(__STAMP__,'SEE model: MPF of bomarding particle and secondary electron must be the same.')
-        END IF ! .NOT.(ALMOSTEQUALRELATIVE(MPFiSpec,MPFresultSpec,1e-3))
+        ! Skip non-initialized values
+        IF(SurfModResultSpec(iPartBound,iSpec).NE.-1)THEN
+          MPFiSpec      = Species(iSpec)%MacroParticleFactor
+          MPFresultSpec = Species(SurfModResultSpec(iPartBound,iSpec))%MacroParticleFactor
+          IF(.NOT.(ALMOSTEQUALRELATIVE(MPFiSpec,MPFresultSpec,1e-3)))THEN
+            IPWRITE(UNIT_StdOut,*) "Bombarding particle: SpecID =", iSpec
+            IPWRITE(UNIT_StdOut,*) "Bombarding particle:    MPF =", MPFiSpec
+            IPWRITE(UNIT_StdOut,*) "Secondary electron : SpecID =", SurfModResultSpec(iPartBound,iSpec)
+            IPWRITE(UNIT_StdOut,*) "Secondary electron :    MPF =", MPFresultSpec
+            CALL abort(__STAMP__,'SEE model: MPF of bomarding particle and secondary electron must be the same.')
+          END IF ! .NOT.(ALMOSTEQUALRELATIVE(MPFiSpec,MPFresultSpec,1e-3))
+        END IF ! MPFresultSpec.NE.-1
       END IF ! .NOT.usevMPF
       ! Set specific distributions functions
       IF(PartBound%SurfaceModel(iPartBound).EQ.8)THEN
