@@ -60,7 +60,7 @@ INTEGER,INTENT(IN) :: ProductSpec(2)   !< 1: product species of incident particl
                                        !< If productSpec is positive the particle is reflected/emitted
                                        !< with respective species
 INTEGER,INTENT(IN) :: ProductSpecNbr   !< number of emitted particles for ProductSpec(1)
-REAL,INTENT(IN)    :: TempErgy(2)      !< temperature, energy or velocity used for VeloFromDistribution
+REAL,INTENT(IN)    :: TempErgy         !< temperature, energy or velocity used for VeloFromDistribution
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -84,7 +84,7 @@ CALL OrthoNormVec(n_loc,tang1,tang2)
 DO iNewPart = 1, ProductSpecNbr
   ! create new particle and assign correct energies
   ! sample newly created velocity
-  NewVelo(1:3) = VeloFromDistribution(SurfModEnergyDistribution(locBCID),TempErgy(2),iNewPart,ProductSpecNbr)
+  NewVelo(1:3) = VeloFromDistribution(SurfModEnergyDistribution(locBCID),TempErgy,iNewPart,ProductSpecNbr)
   ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
   NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
   ! Create new particle and get a free particle index

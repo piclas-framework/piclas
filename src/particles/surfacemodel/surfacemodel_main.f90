@@ -75,7 +75,7 @@ INTEGER            :: ProductSpec(1:2) !< 1: product species of incident particl
                                        !< If productSpec is positive the particle is reflected/emitted
                                        !< with respective species
 INTEGER            :: ProductSpecNbr   !< number of emitted particles for ProductSpec(2)
-REAL               :: TempErgy(2)      !< temperature, energy or velocity used for VeloFromDistribution
+REAL               :: TempErgy         !< temperature, energy or velocity used for VeloFromDistribution
 REAL               :: Xitild,Etatild
 INTEGER            :: SpecID, locBCID
 INTEGER            :: iBC, SurfSideID
@@ -106,7 +106,7 @@ SpecID = PartSpecies(PartID)
 ProductSpec(1) = SpecID
 ProductSpec(2) = 0
 ProductSpecNbr = 0
-TempErgy(1:2)=PartBound%WallTemp(locBCID)
+!TempErgy(1:2)=PartBound%WallTemp(locBCID)
 !===================================================================================================================================
 ! 2.) Count and sample the properties BEFORE the surface interaction
 !===================================================================================================================================
@@ -152,7 +152,7 @@ CASE (SEE_MODELS_ID)
   ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Get electron emission probability
-  CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy(2))
+  CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy)
   !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
   ! Decide the fate of the impacting particle
   IF (ProductSpec(1).LE.0) THEN
