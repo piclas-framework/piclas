@@ -50,7 +50,7 @@ PUBLIC :: CalcRelaxProbRotVib
 #endif
 PUBLIC :: CalcVelocities
 #if (PP_TimeDiscMethod==42)
-PUBLIC :: CollRates,CalcRelaxRates,ReacRates
+PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
 #endif /*(PP_TimeDiscMethod==42)*/
 PUBLIC :: CalcPowerDensity
 PUBLIC :: CalculatePartElemData
@@ -1257,7 +1257,7 @@ USE MOD_Globals
 USE MOD_PARTICLE_Vars             ,ONLY: nSpecies
 USE MOD_Particle_Analyze_Vars     ,ONLY: nSpecAnalyze
 USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
-USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, CollisMode
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, CollisMode, DSMC
 USE MOD_part_tools                ,ONLY: CalcXiElec
 USE MOD_DSMC_Relaxation           ,ONLY: CalcXiVib
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1300,7 +1300,7 @@ IF (CollisMode.GT.1) THEN
         END IF
       END IF
       ! If electronic energy is greater zero, added it to the temperature calculation
-      IF(IntTemp(iSpec,3).GT.0.) THEN
+      IF(IntTemp(iSpec,3).GT.0..AND.(DSMC%ElectronicModel.NE.3)) THEN
         Xi_Elec(iSpec) = CalcXiElec(IntTemp(iSpec,3), iSpec)
         XiTotal = XiTotal + Xi_Elec(iSpec)
         TempTotalDOF = TempTotalDOF + Xi_Elec(iSpec)*IntTemp(iSpec,3)
@@ -1559,7 +1559,7 @@ REAL FUNCTION CalcTelec(MeanEelec, iSpec)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1577,37 +1577,44 @@ REAL,PARAMETER        :: eps_prec=1E-3           !< Relative precision of root-f
 REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the electronic partition function
 !===================================================================================================================================
 
-IF (MeanEelec.GT.0) THEN
-  ! Lower limit: very small value or lowest temperature if ionized
-  IF (SpecDSMC(iSpec)%ElectronicState(2,0).EQ.0.0) THEN
-    LowerTemp = 1.0
-  ELSE
-    LowerTemp = SpecDSMC(iSpec)%ElectronicState(2,0)
-  END IF
-  ! Upper limit: Last excitation level (ionization limit)
-  UpperTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant-1)
-  MiddleTemp = LowerTemp
-  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
-    MiddleTemp = 0.5*( LowerTemp + UpperTemp)
-    SumOne = 0.0
-    SumTwo = 0.0
-    DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
-      TempRatio = SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp
-      IF(CHECKEXP(TempRatio)) THEN
-        SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * EXP(-TempRatio)
-        SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * EXP(-TempRatio)
+CalcTelec = 0.
+
+SELECT CASE(DSMC%ElectronicModel)
+CASE(1,2)
+  IF (MeanEelec.GT.0) THEN
+    ! Lower limit: very small value or lowest temperature if ionized
+    IF (SpecDSMC(iSpec)%ElectronicState(2,0).EQ.0.0) THEN
+      LowerTemp = 1.0
+    ELSE
+      LowerTemp = SpecDSMC(iSpec)%ElectronicState(2,0)
+    END IF
+    ! Upper limit: Last excitation level (ionization limit)
+    UpperTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant-1)
+    MiddleTemp = LowerTemp
+    DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
+      MiddleTemp = 0.5*( LowerTemp + UpperTemp)
+      SumOne = 0.0
+      SumTwo = 0.0
+      DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
+        TempRatio = SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp
+        IF(CHECKEXP(TempRatio)) THEN
+          SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * EXP(-TempRatio)
+          SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * EXP(-TempRatio)
+        END IF
+      END DO
+      IF ( SumTwo / SumOne .GT. MeanEelec / BoltzmannConst ) THEN
+        UpperTemp = MiddleTemp
+      ELSE
+        LowerTemp = MiddleTemp
       END IF
     END DO
-    IF ( SumTwo / SumOne .GT. MeanEelec / BoltzmannConst ) THEN
-      UpperTemp = MiddleTemp
-    ELSE
-      LowerTemp = MiddleTemp
-    END IF
-  END DO
-  CalcTelec = MiddleTemp
-ELSE
-  CalcTelec = 0. ! sup
-END IF
+    CalcTelec = MiddleTemp
+  ELSE
+    CalcTelec = 0. ! sup
+  END IF
+CASE(3)
+  CalcTelec = MeanEelec / BoltzmannConst
+END SELECT
 
 RETURN
 
@@ -1983,7 +1990,8 @@ SUBROUTINE CalcRelaxRates(NumSpec,VibRelaxProbCase)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: nSpecies, Species
-USE MOD_DSMC_Vars             ,ONLY: CollisMode, SpecXSec, XSec_Relaxation, CollInf
+USE MOD_DSMC_Vars             ,ONLY: CollisMode, CollInf
+USE MOD_MCC_Vars              ,ONLY: SpecXSec, XSec_Relaxation
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
 USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
 USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
@@ -2043,6 +2051,72 @@ END IF
 SpecXSec(:)%VibCount = 0.
 
 END SUBROUTINE CalcRelaxRates
+
+
+SUBROUTINE CalcRelaxRatesElec(ElecRelaxRate)
+!===================================================================================================================================
+!> Calculates the global electronic relaxation rate per case per level for PartAnalyse.csv
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: CollInf
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
+USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
+USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT),ALLOCATABLE  :: ElecRelaxRate(:,:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iCase, iLevel, MaxLevel
+!===================================================================================================================================
+
+MaxLevel = MAXVAL(SpecXSec(:)%NumElecLevel)
+ALLOCATE(ElecRelaxRate(CollInf%NumCase,MaxLevel))
+ElecRelaxRate = 0.
+
+DO iCase=1, CollInf%NumCase
+  IF(SpecXSec(iCase)%UseElecXSec) THEN
+    DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+      ElecRelaxRate(iCase,iLevel) =  SpecXSec(iCase)%ElecLevel(iLevel)%Counter
+    END DO
+  END IF
+END DO
+
+#if USE_MPI
+IF(PartMPI%MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,ElecRelaxRate,CollInf%NumCase*MaxLevel,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+ELSE
+  CALL MPI_REDUCE(ElecRelaxRate,ElecRelaxRate,CollInf%NumCase*MaxLevel,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+END IF
+#endif /*USE_MPI*/
+
+IF(PartMPI%MPIRoot)THEN
+  ElecRelaxRate =  ElecRelaxRate / dt
+  ! Consider Part-AnalyzeStep
+  IF(PartAnalyzeStep.GT.1)THEN
+    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
+      ElecRelaxRate = ElecRelaxRate / iter
+    ELSE
+      ElecRelaxRate = ElecRelaxRate / MIN(PartAnalyzeStep,iter)
+    END IF
+  END IF
+END IF
+
+DO iCase=1, CollInf%NumCase
+  IF(SpecXSec(iCase)%UseElecXSec) THEN
+    DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+      SpecXSec(iCase)%ElecLevel(iLevel)%Counter = 0.
+    END DO
+  END IF
+END DO
+
+END SUBROUTINE CalcRelaxRatesElec
 
 
 SUBROUTINE ReacRates(NumSpec, RRate)

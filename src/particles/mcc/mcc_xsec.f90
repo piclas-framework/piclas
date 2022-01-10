@@ -21,9 +21,9 @@ MODULE MOD_MCC_XSec
 IMPLICIT NONE
 PRIVATE
 
-PUBLIC :: ReadCollXSec, ReadVibXSec, ReadReacXSec
-PUBLIC :: InterpolateCrossSection, InterpolateCrossSection_Vib, InterpolateCrossSection_Chem
-PUBLIC :: XSec_CalcCollisionProb, XSec_CalcVibRelaxProb, XSec_CalcReactionProb
+PUBLIC :: ReadCollXSec, ReadVibXSec, ReadElecXSec, ReadReacXSec
+PUBLIC :: InterpolateCrossSection, InterpolateCrossSection_Vib, InterpolateCrossSection_Elec, InterpolateCrossSection_Chem
+PUBLIC :: XSec_CalcCollisionProb, XSec_CalcVibRelaxProb, XSec_CalcElecRelaxProb, XSec_CalcReactionProb
 !===================================================================================================================================
 
 CONTAINS
@@ -36,7 +36,8 @@ SUBROUTINE ReadCollXSec(iCase,iSpec,jSpec)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_DSMC_Vars                 ,ONLY: XSec_Database, SpecXSec, SpecDSMC
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC
+USE MOD_MCC_Vars                  ,ONLY: XSec_Database, SpecXSec
 USE MOD_HDF5_Input                ,ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -135,7 +136,8 @@ SUBROUTINE ReadVibXSec(iCase,iSpec,jSpec)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_DSMC_Vars                 ,ONLY: XSec_Database, SpecXSec, SpecDSMC
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC
+USE MOD_MCC_Vars                  ,ONLY: XSec_Database, SpecXSec
 USE MOD_HDF5_Input                ,ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -147,7 +149,7 @@ INTEGER,INTENT(IN)                :: iCase, iSpec, jSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=64)                 :: dsetname, spec_pair, groupname
-INTEGER                           :: err, nVar
+INTEGER                           :: err
 INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
 INTEGER(HID_T)                    :: file_id_dsmc                       ! File identifier
 INTEGER(HID_T)                    :: group_id                           ! Group identifier
@@ -201,7 +203,6 @@ IF(GroupFound) THEN
   IF(nVib.GT.0) THEN
     SWRITE(UNIT_StdOut,'(A,I3,A)') TRIM(spec_pair)//': Found ', nVib,' vibrational excitation cross section(s).'
     SpecXSec(iCase)%UseVibXSec = .TRUE.
-    nVar = 3
   ELSE
     SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
   END IF
@@ -214,6 +215,7 @@ IF(SpecXSec(iCase)%UseVibXSec) THEN
   DO iVib = 0, nVib-1
     ! Get name and size of name
     CALL H5Lget_name_by_idx_f(group_id, ".", H5_INDEX_NAME_F, H5_ITER_INC_F, iVib, dsetname, err, size)
+    READ(dsetname,*) SpecXSec(iCase)%VibMode(iVib+1)%Threshold
     dsetname = TRIM(groupname)//TRIM(dsetname)
     ! Open the dataset.
     CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
@@ -237,6 +239,119 @@ CALL H5CLOSE_F(err)
 END SUBROUTINE ReadVibXSec
 
 
+SUBROUTINE ReadElecXSec(iCase,iSpec,jSpec)
+!===================================================================================================================================
+!> Read-in of electronic cross-sections from a database. Dataset name is composed of SpeciesName-SpeciesName (e.g. Ar-electron)
+!> Trying to swap the species indices if dataset not found.
+!===================================================================================================================================
+! use module
+USE MOD_io_hdf5
+USE MOD_Globals
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC
+USE MOD_MCC_Vars                  ,ONLY: XSec_Database, SpecXSec
+USE MOD_HDF5_Input                ,ONLY: DatasetExists
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: iCase, iSpec, jSpec
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=64)                 :: dsetname, spec_pair, groupname
+INTEGER                           :: err
+INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
+INTEGER(HID_T)                    :: file_id_dsmc                       ! File identifier
+INTEGER(HID_T)                    :: group_id                           ! Group identifier
+INTEGER(HID_T)                    :: dset_id_dsmc                       ! Dataset identifier
+INTEGER(HID_T)                    :: filespace                          ! filespace identifier
+INTEGER(SIZE_T)                   :: size                               ! Size of name
+INTEGER(HSIZE_T)                  :: iElec                              ! Index
+LOGICAL                           :: GroupFound
+INTEGER                           :: storage, nElec, max_corder
+!===================================================================================================================================
+spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
+
+GroupFound = .FALSE.
+SpecXSec(iCase)%UseElecXSec = .FALSE.
+
+! Initialize FORTRAN interface.
+CALL H5OPEN_F(err)
+
+! Check if file exists
+IF(.NOT.FILEEXISTS(XSec_Database)) THEN
+  CALL abort(__STAMP__,'ERROR: Database '//TRIM(XSec_Database)//' does not exist.')
+END IF
+
+! Open the file.
+CALL H5FOPEN_F (TRIM(XSec_Database), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+
+! Check if the species pair group exists
+CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
+IF(.NOT.GroupFound) THEN
+  ! Try to swap the species names
+  spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
+  CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
+  IF(.NOT.GroupFound) THEN
+    SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+    RETURN
+  END IF
+END IF
+
+! Check if the electronic cross-section group exists
+groupname = TRIM(spec_pair)//'/ELECTRONIC/'
+CALL H5LEXISTS_F(file_id_dsmc, TRIM(groupname), GroupFound, err)
+IF(.NOT.GroupFound) THEN
+  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+  RETURN
+END IF
+
+IF(GroupFound) THEN
+  CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)
+  call H5Gget_info_f(group_id, storage, nElec,max_corder, err)
+  ! If cross-section data is found, set the corresponding flag
+  IF(nElec.GT.0) THEN
+    SWRITE(UNIT_StdOut,'(A,I3,A)') TRIM(spec_pair)//': Found ', nElec,' electronic excitation cross section(s).'
+    SpecXSec(iCase)%UseElecXSec = .TRUE.
+    SpecXSec(iCase)%NumElecLevel = nElec
+  ELSE
+    SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+  END IF
+ELSE
+  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+END IF
+
+IF(SpecXSec(iCase)%UseElecXSec) THEN
+  ALLOCATE(SpecXSec(iCase)%ElecLevel(1:nElec))
+  DO iElec = 0, nElec-1
+    ! Get name and size of name
+    CALL H5Lget_name_by_idx_f(group_id, ".", H5_INDEX_NAME_F, H5_ITER_INC_F, iElec, dsetname, err, size)
+    READ(dsetname,*) SpecXSec(iCase)%ElecLevel(iElec+1)%Threshold
+    SpecXSec(iCase)%ElecLevel(iElec+1)%Counter = 0.
+    dsetname = TRIM(groupname)//TRIM(dsetname)
+    ! Open the dataset.
+    CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
+    ! Get the file space of the dataset.
+    CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
+    ! get size
+    CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+    ALLOCATE(SpecXSec(iCase)%ElecLevel(iElec+1)%XSecData(dims(1),dims(2)))
+    ! read data
+    CALL H5DREAD_F(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecXSec(iCase)%ElecLevel(iElec+1)%XSecData, dims, err)
+  END DO
+  ! Close the group
+  CALL H5GCLOSE_F(group_id,err)
+END IF
+
+! Close the file.
+CALL H5FCLOSE_F(file_id_dsmc, err)
+! Close FORTRAN interface.
+CALL H5CLOSE_F(err)
+
+END SUBROUTINE ReadElecXSec
+
+
 PPURE REAL FUNCTION InterpolateCrossSection(iCase,CollisionEnergy)
 !===================================================================================================================================
 !> Interpolate the collision cross-section [m^2] from the available data at the given collision energy [J]
@@ -245,7 +360,7 @@ PPURE REAL FUNCTION InterpolateCrossSection(iCase,CollisionEnergy)
 !> Assumption: First species given is the particle species, second species input is the background gas species
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecXSec
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -261,16 +376,16 @@ ASSOCIATE( CollXSecData => SpecXSec(iCase)%CollXSecData )
   MaxDOF = SIZE(CollXSecData,2)
 
   IF(CollisionEnergy.GT.CollXSecData(1,MaxDOF)) THEN
-    ! If the collision energy is greater than the maximal value, get the extrapolated value
+    ! If the collision energy is greater than the maximal value, extrapolate from the last two values
     IF((MaxDOF.LT.2).OR.(CollXSecData(2,MaxDOF).LE.0.))THEN
       ! If only one value is given or the last cross-section is zero
       InterpolateCrossSection = CollXSecData(2,MaxDOF)
     ELSE
       ! Extrapolate
-      InterpolateCrossSection = CollXSecData(2,iDOF-1)                          &
-                              +      (CollisionEnergy - CollXSecData(1,iDOF-1)) &
-                              / (CollXSecData(1,iDOF) - CollXSecData(1,iDOF-1)) &
-                              * (CollXSecData(2,iDOF) - CollXSecData(2,iDOF-1))
+      InterpolateCrossSection = CollXSecData(2,MaxDOF-1)                          &
+                              +        (CollisionEnergy - CollXSecData(1,MaxDOF-1)) &
+                              / (CollXSecData(1,MaxDOF) - CollXSecData(1,MaxDOF-1)) &
+                              * (CollXSecData(2,MaxDOF) - CollXSecData(2,MaxDOF-1))
      ! Check if extrapolation drops under zero
      IF(InterpolateCrossSection.LE.0.) InterpolateCrossSection = 0.
     END IF ! (MaxDOF.LT.2).OR.(CollXSecData(2,MaxDOF).LE.0.)
@@ -288,7 +403,7 @@ ASSOCIATE( CollXSecData => SpecXSec(iCase)%CollXSecData )
     IF(CollXSecData(1,iDOF).GT.CollisionEnergy) THEN
       ! Interpolate the cross-section from the data set using the current and the energy level below
       InterpolateCrossSection = CollXSecData(2,iDOF-1)                          &
-                              +      (CollisionEnergy - CollXSecData(1,iDOF-1)) &
+                              + (     CollisionEnergy - CollXSecData(1,iDOF-1)) &
                               / (CollXSecData(1,iDOF) - CollXSecData(1,iDOF-1)) &
                               * (CollXSecData(2,iDOF) - CollXSecData(2,iDOF-1))
       ! Leave routine and do not finish DO loop
@@ -307,7 +422,7 @@ PPURE REAL FUNCTION InterpolateCrossSection_Vib(iCase,iVib,CollisionEnergy)
 !> Assumption: First species given is the particle species, second species input is the background gas species
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecXSec
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -324,18 +439,16 @@ ASSOCIATE( XSecData => SpecXSec(iCase)%VibMode(iVib)%XSecData )
   MaxDOF = SIZE(XSecData,2)
 
   IF(CollisionEnergy.GT.XSecData(1,MaxDOF)) THEN
-    ! If the collision energy is greater than the maximal value, get the cross-section of the last level and leave routine
-
     ! If the collision energy is greater than the maximal value, extrapolate from the last two values
     IF((MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))THEN
       ! If only one value is given or the last cross-section is zero
       InterpolateCrossSection_Vib = XSecData(2,MaxDOF)
     ELSE
       ! Extrapolate
-      InterpolateCrossSection_Vib = XSecData(2,iDOF-1)   &
-                +  (CollisionEnergy - XSecData(1,iDOF-1)) &
-                / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) &
-                * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
+      InterpolateCrossSection_Vib = XSecData(2,MaxDOF-1)   &
+                + (   CollisionEnergy - XSecData(1,MaxDOF-1)) &
+                / (XSecData(1,MaxDOF) - XSecData(1,MaxDOF-1)) &
+                * (XSecData(2,MaxDOF) - XSecData(2,MaxDOF-1))
      ! Check if extrapolation drops under zero
      IF(InterpolateCrossSection_Vib.LE.0.) InterpolateCrossSection_Vib=0.
     END IF ! (MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))
@@ -353,7 +466,7 @@ ASSOCIATE( XSecData => SpecXSec(iCase)%VibMode(iVib)%XSecData )
     IF(XSecData(1,iDOF).GE.CollisionEnergy) THEN
       ! Interpolate the cross-section from the data set using the current and the energy level below
       InterpolateCrossSection_Vib = XSecData(2,iDOF-1) &
-                + (CollisionEnergy - XSecData(1,iDOF-1)) &
+                + ( CollisionEnergy - XSecData(1,iDOF-1)) &
                 / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) &
                 * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
       ! Leave routine and do not finish DO loop
@@ -365,6 +478,68 @@ END ASSOCIATE
 END FUNCTION InterpolateCrossSection_Vib
 
 
+PPURE REAL FUNCTION InterpolateCrossSection_Elec(iCase,iLevel,CollisionEnergy)
+!===================================================================================================================================
+!> Interpolate the electronic cross-section data for specific electronic level at the given collision energy
+!> Note: Requires the data to be sorted by ascending energy values
+!===================================================================================================================================
+! MODULES
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(IN)            :: iCase                            !< Case index
+INTEGER,INTENT(IN)            :: iLevel                           !< 
+REAL,INTENT(IN)               :: CollisionEnergy                  !< Collision energy in [J]
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iDOF, MaxDOF
+!===================================================================================================================================
+
+InterpolateCrossSection_Elec = 0.
+MaxDOF = SIZE(SpecXSec(iCase)%ElecLevel(iLevel)%XSecData,2)
+
+ASSOCIATE( XSecData => SpecXSec(iCase)%ElecLevel(iLevel)%XSecData )
+  IF(CollisionEnergy.GT.XSecData(1,MaxDOF)) THEN
+    ! If the collision energy is greater than the maximal value, extrapolate from the last two values
+    IF((MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))THEN
+      ! If only one value is given or the last cross-section is zero
+      InterpolateCrossSection_Elec = XSecData(2,MaxDOF)
+    ELSE
+      ! Extrapolate
+      InterpolateCrossSection_Elec = XSecData(2,MaxDOF-1)   &
+             + (   CollisionEnergy - XSecData(1,MaxDOF-1)) &
+             / (XSecData(1,MaxDOF) - XSecData(1,MaxDOF-1)) &
+             * (XSecData(2,MaxDOF) - XSecData(2,MaxDOF-1))
+     ! Check if extrapolation drops under zero
+     IF(InterpolateCrossSection_Elec.LE.0.) InterpolateCrossSection_Elec=0.
+    END IF ! (MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))
+    ! Leave routine
+    RETURN
+  ELSE IF(CollisionEnergy.LE.XSecData(1,1)) THEN
+    ! If collision energy is below the minimal value, get the cross-section of the first level and leave routine
+    InterpolateCrossSection_Elec = XSecData(2,1)
+    ! Leave routine
+    RETURN
+  END IF
+
+  DO iDOF = 1, MaxDOF
+    ! Check if the stored energy value is above the collision energy
+    IF(XSecData(1,iDOF).GE.CollisionEnergy) THEN
+      ! Interpolate the cross-section from the data set using the current and the energy level below
+      InterpolateCrossSection_Elec = XSecData(2,iDOF-1) &
+               + ( CollisionEnergy - XSecData(1,iDOF-1)) &
+               / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) &
+               * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
+      ! Leave routine and do not finish DO loop
+      RETURN
+    END IF
+  END DO
+END ASSOCIATE
+
+END FUNCTION InterpolateCrossSection_Elec
+
+
 PPURE REAL FUNCTION InterpolateVibRelaxProb(iCase,CollisionEnergy)
 !===================================================================================================================================
 !> Interpolate the vibrational relaxation probability at the same intervals as the effective collision cross-section
@@ -372,7 +547,7 @@ PPURE REAL FUNCTION InterpolateVibRelaxProb(iCase,CollisionEnergy)
 !> Assumption: First species given is the particle species, second species input is the background gas species
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecXSec
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -420,9 +595,10 @@ SUBROUTINE XSec_CalcCollisionProb(iPair,iElem,SpecNum1,SpecNum2,CollCaseNum,Macr
 !> DSMC collision calculation probability.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, XSec_NullCollision, RadialWeighting
-USE MOD_Particle_Vars ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
-USE MOD_part_tools    ,ONLY: GetParticleWeight
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
+USE MOD_MCC_Vars              ,ONLY: SpecXSec, XSec_NullCollision
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
+USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -494,7 +670,8 @@ SUBROUTINE XSec_CalcVibRelaxProb(iPair,iElem,SpecNum1,SpecNum2,MacroParticleFact
 !> Calculate the relaxation probability using cross-section data.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecXSec, SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
@@ -561,6 +738,77 @@ END IF
 END SUBROUTINE XSec_CalcVibRelaxProb
 
 
+SUBROUTINE XSec_CalcElecRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
+!===================================================================================================================================
+!> Calculate the electronic relaxation probability using cross-section data.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER,INTENT(IN)            :: iPair
+REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume, dtCell
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: CollEnergy, SpecNumTarget, SpecNumSource, Weight1, Weight2, ReducedMass
+REAL                          :: ReducedMassUnweighted
+INTEGER                       :: targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, iLevel
+!===================================================================================================================================
+
+iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
+iSpec_p1 = PartSpecies(iPart_p1);      iSpec_p2 = PartSpecies(iPart_p2)
+iCase = CollInf%Coll_Case(iSpec_p1,iSpec_p2)
+Weight1 = GetParticleWeight(iPart_p1)
+Weight2 = GetParticleWeight(iPart_p2)
+SpecXSec(iCase)%ElecLevel(:)%Prob = 0.
+
+IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
+  ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
+    / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
+  ReducedMassUnweighted = ReducedMass * 2./(Weight1 + Weight2)
+ELSE
+  ReducedMass = CollInf%MassRed(Coll_pData(iPair)%PairType)
+  ReducedMassUnweighted = CollInf%MassRed(Coll_pData(iPair)%PairType)
+END IF
+! Using the relative translational energy of the pair
+CollEnergy = 0.5 * ReducedMassUnweighted * Coll_pData(iPair)%CRela2
+! Calculate the electronic cross-section
+DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+  IF(CollEnergy.GT.SpecXSec(iCase)%ElecLevel(iLevel)%Threshold) THEN
+    SpecXSec(iCase)%ElecLevel(iLevel)%Prob = InterpolateCrossSection_Elec(iCase,iLevel,CollEnergy)
+  END IF
+END DO
+
+IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
+  IF(SpecDSMC(iSpec_p1)%UseElecXSec) THEN
+    targetSpec = iSpec_p2; SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
+  ELSE
+    targetSpec = iSpec_p1; SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
+  END IF
+  DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+    IF(CollEnergy.GT.SpecXSec(iCase)%ElecLevel(iLevel)%Threshold) THEN
+      ! Calculate the electronic relaxation probability
+      SpecXSec(iCase)%ElecLevel(iLevel)%Prob = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * SpecNumTarget * MacroParticleFactor / Volume &
+                                                      * SpecXSec(iCase)%ElecLevel(iLevel)%Prob * dtCell))
+      IF(BGGas%BackgroundSpecies(targetSpec)) THEN
+        ! Correct the collision probability in the case of the second species being a background species as the number of pairs
+        ! is determined based on the species fraction
+        SpecXSec(iCase)%ElecLevel(iLevel)%Prob = SpecXSec(iCase)%ElecLevel(iLevel)%Prob / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
+      ELSE
+        SpecXSec(iCase)%ElecLevel(iLevel)%Prob = SpecXSec(iCase)%ElecLevel(iLevel)%Prob * SpecNumSource / CollInf%Coll_CaseNum(iCase)
+      END IF
+    END IF
+  END DO
+END IF
+
+END SUBROUTINE XSec_CalcElecRelaxProb
+
+
 PPURE REAL FUNCTION InterpolateCrossSection_Chem(iCase,iPath,CollisionEnergy)
 !===================================================================================================================================
 !> Interpolate the reaction cross-section data for specific reaction path at the given collision energy
@@ -568,7 +816,7 @@ PPURE REAL FUNCTION InterpolateCrossSection_Chem(iCase,iPath,CollisionEnergy)
 !> Assumption: First species given is the particle species, second species input is the background gas species
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecXSec
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -591,10 +839,10 @@ ASSOCIATE( XSecData => SpecXSec(iCase)%ReactionPath(iPath)%XSecData )
       InterpolateCrossSection_Chem = XSecData(2,MaxDOF)
     ELSE
       ! Extrapolate
-      InterpolateCrossSection_Chem = XSecData(2,iDOF-1)   &
-                +  (CollisionEnergy - XSecData(1,iDOF-1)) &
-                / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) &
-                * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
+      InterpolateCrossSection_Chem = XSecData(2,MaxDOF-1)   &
+                + (   CollisionEnergy - XSecData(1,MaxDOF-1)) &
+                / (XSecData(1,MaxDOF) - XSecData(1,MaxDOF-1)) &
+                * (XSecData(2,MaxDOF) - XSecData(2,MaxDOF-1))
      ! Check if extrapolation drops under zero
      IF(InterpolateCrossSection_Chem.LE.0.) InterpolateCrossSection_Chem=0.
     END IF ! (MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))
@@ -612,7 +860,7 @@ ASSOCIATE( XSecData => SpecXSec(iCase)%ReactionPath(iPath)%XSecData )
     IF(XSecData(1,iDOF).GT.CollisionEnergy) THEN
       ! Interpolate the cross-section from the data set using the current and the energy level below
       InterpolateCrossSection_Chem = XSecData(2,iDOF-1)   &
-                +  (CollisionEnergy - XSecData(1,iDOF-1)) &
+                + ( CollisionEnergy - XSecData(1,iDOF-1)) &
                 / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) &
                 * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
       ! Leave routine and do not finish DO loop
@@ -633,7 +881,8 @@ SUBROUTINE ReadReacXSec(iCase,iPath)
 USE MOD_io_hdf5
 USE MOD_Globals
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,Joule2eV
-USE MOD_DSMC_Vars                 ,ONLY: XSec_Database, SpecXSec, SpecDSMC, ChemReac
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac
+USE MOD_MCC_Vars                  ,ONLY: XSec_Database, SpecXSec
 USE MOD_HDF5_Input                ,ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -779,7 +1028,8 @@ SUBROUTINE XSec_CalcReactionProb(iPair,iCase,iElem,SpecNum1,SpecNum2,MacroPartic
 !> DSMC collision calculation probability.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn, SpecXSec
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_part_tools            ,ONLY: GetParticleWeight
