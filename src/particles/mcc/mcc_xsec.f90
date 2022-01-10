@@ -267,10 +267,10 @@ ASSOCIATE( CollXSecData => SpecXSec(iCase)%CollXSecData )
       InterpolateCrossSection = CollXSecData(2,MaxDOF)
     ELSE
       ! Extrapolate
-      InterpolateCrossSection = CollXSecData(2,iDOF-1)                          &
-                              +      (CollisionEnergy - CollXSecData(1,iDOF-1)) &
-                              / (CollXSecData(1,iDOF) - CollXSecData(1,iDOF-1)) &
-                              * (CollXSecData(2,iDOF) - CollXSecData(2,iDOF-1))
+      InterpolateCrossSection = CollXSecData(2,MaxDOF-1)                          &
+                              +        (CollisionEnergy - CollXSecData(1,MaxDOF-1)) &
+                              / (CollXSecData(1,MaxDOF) - CollXSecData(1,MaxDOF-1)) &
+                              * (CollXSecData(2,MaxDOF) - CollXSecData(2,MaxDOF-1))
      ! Check if extrapolation drops under zero
      IF(InterpolateCrossSection.LE.0.) InterpolateCrossSection = 0.
     END IF ! (MaxDOF.LT.2).OR.(CollXSecData(2,MaxDOF).LE.0.)
@@ -288,7 +288,7 @@ ASSOCIATE( CollXSecData => SpecXSec(iCase)%CollXSecData )
     IF(CollXSecData(1,iDOF).GT.CollisionEnergy) THEN
       ! Interpolate the cross-section from the data set using the current and the energy level below
       InterpolateCrossSection = CollXSecData(2,iDOF-1)                          &
-                              +      (CollisionEnergy - CollXSecData(1,iDOF-1)) &
+                              + (     CollisionEnergy - CollXSecData(1,iDOF-1)) &
                               / (CollXSecData(1,iDOF) - CollXSecData(1,iDOF-1)) &
                               * (CollXSecData(2,iDOF) - CollXSecData(2,iDOF-1))
       ! Leave routine and do not finish DO loop
@@ -332,10 +332,10 @@ ASSOCIATE( XSecData => SpecXSec(iCase)%VibMode(iVib)%XSecData )
       InterpolateCrossSection_Vib = XSecData(2,MaxDOF)
     ELSE
       ! Extrapolate
-      InterpolateCrossSection_Vib = XSecData(2,iDOF-1)   &
-                +  (CollisionEnergy - XSecData(1,iDOF-1)) &
-                / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) &
-                * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
+      InterpolateCrossSection_Vib = XSecData(2,MaxDOF-1)   &
+                + (   CollisionEnergy - XSecData(1,MaxDOF-1)) &
+                / (XSecData(1,MaxDOF) - XSecData(1,MaxDOF-1)) &
+                * (XSecData(2,MaxDOF) - XSecData(2,MaxDOF-1))
      ! Check if extrapolation drops under zero
      IF(InterpolateCrossSection_Vib.LE.0.) InterpolateCrossSection_Vib=0.
     END IF ! (MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))
@@ -353,7 +353,7 @@ ASSOCIATE( XSecData => SpecXSec(iCase)%VibMode(iVib)%XSecData )
     IF(XSecData(1,iDOF).GE.CollisionEnergy) THEN
       ! Interpolate the cross-section from the data set using the current and the energy level below
       InterpolateCrossSection_Vib = XSecData(2,iDOF-1) &
-                + (CollisionEnergy - XSecData(1,iDOF-1)) &
+                + ( CollisionEnergy - XSecData(1,iDOF-1)) &
                 / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) &
                 * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
       ! Leave routine and do not finish DO loop
@@ -581,10 +581,10 @@ ASSOCIATE( XSecData => SpecXSec(iCase)%ReactionPath(iPath)%XSecData )
       InterpolateCrossSection_Chem = XSecData(2,MaxDOF)
     ELSE
       ! Extrapolate
-      InterpolateCrossSection_Chem = XSecData(2,iDOF-1)   &
-                +  (CollisionEnergy - XSecData(1,iDOF-1)) &
-                / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) &
-                * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
+      InterpolateCrossSection_Chem = XSecData(2,MaxDOF-1)   &
+                + (   CollisionEnergy - XSecData(1,MaxDOF-1)) &
+                / (XSecData(1,MaxDOF) - XSecData(1,MaxDOF-1)) &
+                * (XSecData(2,MaxDOF) - XSecData(2,MaxDOF-1))
      ! Check if extrapolation drops under zero
      IF(InterpolateCrossSection_Chem.LE.0.) InterpolateCrossSection_Chem=0.
     END IF ! (MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))
@@ -602,7 +602,7 @@ ASSOCIATE( XSecData => SpecXSec(iCase)%ReactionPath(iPath)%XSecData )
     IF(XSecData(1,iDOF).GT.CollisionEnergy) THEN
       ! Interpolate the cross-section from the data set using the current and the energy level below
       InterpolateCrossSection_Chem = XSecData(2,iDOF-1)   &
-                +  (CollisionEnergy - XSecData(1,iDOF-1)) &
+                + ( CollisionEnergy - XSecData(1,iDOF-1)) &
                 / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) &
                 * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
       ! Leave routine and do not finish DO loop
