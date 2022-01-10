@@ -499,30 +499,43 @@ INTEGER                       :: iDOF, MaxDOF
 InterpolateCrossSection_Elec = 0.
 MaxDOF = SIZE(SpecXSec(iCase)%ElecLevel(iLevel)%XSecData,2)
 
-IF(CollisionEnergy.GT.SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(1,MaxDOF)) THEN
-  ! If the collision energy is greater than the maximal value, get the cross-section of the last level and leave routine
-  InterpolateCrossSection_Elec = SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(2,MaxDOF)
-  ! Leave routine
-  RETURN
-ELSE IF(CollisionEnergy.LE.SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(1,1)) THEN
-  ! If collision energy is below the minimal value, get the cross-section of the first level and leave routine
-  InterpolateCrossSection_Elec = SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(2,1)
-  ! Leave routine
-  RETURN
-END IF
-
-DO iDOF = 1, MaxDOF
-  ! Check if the stored energy value is above the collision energy
-  IF(SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(1,iDOF).GE.CollisionEnergy) THEN
-    ! Interpolate the cross-section from the data set using the current and the energy level below
-    InterpolateCrossSection_Elec = SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(2,iDOF-1) &
-              + (CollisionEnergy - SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(1,iDOF-1)) &
-              / (SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(1,iDOF) - SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(1,iDOF-1)) &
-              * (SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(2,iDOF) - SpecXSec(iCase)%ElecLevel(iLevel)%XSecData(2,iDOF-1))
-    ! Leave routine and do not finish DO loop
+ASSOCIATE( XSecData => SpecXSec(iCase)%ElecLevel(iLevel)%XSecData )
+  IF(CollisionEnergy.GT.XSecData(1,MaxDOF)) THEN
+    ! If the collision energy is greater than the maximal value, extrapolate from the last two values
+    IF((MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))THEN
+      ! If only one value is given or the last cross-section is zero
+      InterpolateCrossSection_Elec = XSecData(2,MaxDOF)
+    ELSE
+      ! Extrapolate
+      InterpolateCrossSection_Elec = XSecData(2,MaxDOF-1)   &
+             + (   CollisionEnergy - XSecData(1,MaxDOF-1)) &
+             / (XSecData(1,MaxDOF) - XSecData(1,MaxDOF-1)) &
+             * (XSecData(2,MaxDOF) - XSecData(2,MaxDOF-1))
+     ! Check if extrapolation drops under zero
+     IF(InterpolateCrossSection_Elec.LE.0.) InterpolateCrossSection_Elec=0.
+    END IF ! (MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))
+    ! Leave routine
+    RETURN
+  ELSE IF(CollisionEnergy.LE.XSecData(1,1)) THEN
+    ! If collision energy is below the minimal value, get the cross-section of the first level and leave routine
+    InterpolateCrossSection_Elec = XSecData(2,1)
+    ! Leave routine
     RETURN
   END IF
-END DO
+
+  DO iDOF = 1, MaxDOF
+    ! Check if the stored energy value is above the collision energy
+    IF(XSecData(1,iDOF).GE.CollisionEnergy) THEN
+      ! Interpolate the cross-section from the data set using the current and the energy level below
+      InterpolateCrossSection_Elec = XSecData(2,iDOF-1) &
+               + ( CollisionEnergy - XSecData(1,iDOF-1)) &
+               / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) &
+               * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
+      ! Leave routine and do not finish DO loop
+      RETURN
+    END IF
+  END DO
+END ASSOCIATE
 
 END FUNCTION InterpolateCrossSection_Elec
 
