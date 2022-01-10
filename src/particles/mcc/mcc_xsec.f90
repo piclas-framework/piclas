@@ -376,7 +376,7 @@ ASSOCIATE( CollXSecData => SpecXSec(iCase)%CollXSecData )
   MaxDOF = SIZE(CollXSecData,2)
 
   IF(CollisionEnergy.GT.CollXSecData(1,MaxDOF)) THEN
-    ! If the collision energy is greater than the maximal value, get the extrapolated value
+    ! If the collision energy is greater than the maximal value, extrapolate from the last two values
     IF((MaxDOF.LT.2).OR.(CollXSecData(2,MaxDOF).LE.0.))THEN
       ! If only one value is given or the last cross-section is zero
       InterpolateCrossSection = CollXSecData(2,MaxDOF)
@@ -439,8 +439,6 @@ ASSOCIATE( XSecData => SpecXSec(iCase)%VibMode(iVib)%XSecData )
   MaxDOF = SIZE(XSecData,2)
 
   IF(CollisionEnergy.GT.XSecData(1,MaxDOF)) THEN
-    ! If the collision energy is greater than the maximal value, get the cross-section of the last level and leave routine
-
     ! If the collision energy is greater than the maximal value, extrapolate from the last two values
     IF((MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))THEN
       ! If only one value is given or the last cross-section is zero
