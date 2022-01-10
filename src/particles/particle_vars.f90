@@ -407,6 +407,7 @@ LOGICAL              :: UseNeutralization           ! Flag for counting the char
 CHARACTER(255)       :: NeutralizationSource        ! Name of the boundary for calculating the particle balance
 INTEGER              :: nNeutralizationElems        ! Number of elements used for neutralization source (if required)
 LOGICAL, ALLOCATABLE :: isNeutralizationElem(:)     ! Flag each element if it is a neutralization element
+INTEGER, ALLOCATABLE :: NeutralizationBalanceElem(:)! Number of particles to be emitted within each neutralization element
 INTEGER              :: NeutralizationBalance       ! Counter for charged particles (processor local): Add +1 for electrons and -1 for ions
 INTEGER              :: NeutralizationBalanceGlobal ! Counter for charged particles (global): Add +1 for electrons and -1 for ions
 

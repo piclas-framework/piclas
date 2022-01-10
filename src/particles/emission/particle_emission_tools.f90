@@ -108,6 +108,7 @@ PUBLIC :: SetParticlePositionPhotonHoneycomb, SetParticlePositionPhotonSEEHoneyc
 PUBLIC :: SetParticlePositionLandmark
 PUBLIC :: SetParticlePositionLandmarkNeutralization
 PUBLIC :: SetParticlePositionLiu2010Neutralization
+PUBLIC :: SetParticlePositionLiu2010SzaboNeutralization
 PUBLIC :: SetParticlePositionLiu2010Neutralization3D
 #ifdef CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
@@ -2262,6 +2263,75 @@ END DO
 END SUBROUTINE SetParticlePositionLiu2010Neutralization
 
 
+SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization(chunkSize,particle_positions)
+!===================================================================================================================================
+! Create particle position at random position within one of the neutralization elements
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
+USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared
+USE MOD_Particle_Vars          ,ONLY: isNeutralizationElem,NeutralizationBalanceElem
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: i,emittedParticles,iElem,GlobalElemID
+REAL                    :: RandomPos(3)
+LOGICAL                 :: InsideFlag
+!===================================================================================================================================
+SELECT CASE(TrackingMethod)
+CASE(TRACING,REFMAPPING)
+  CALL abort(__STAMP__,'SetParticle Position Liu2010 Szabo Neutralization BC not implemented yet for tracing/refmapping')
+END SELECT
+! Nullify
+emittedParticles = 0
+
+! Loop over all elements
+DO iElem = 1, nElems
+  GlobalElemID = iElem + offsetElem
+  ! Only consider neutralization elements
+  IF(isNeutralizationElem(iElem))THEN
+    ! Loop over the number of required particles per element
+    DO i = 1, NeutralizationBalanceElem(iElem)
+      ! Count number of emitted particles to compare with chunkSize later on
+      emittedParticles = emittedParticles + 1
+      ! Emit at random position in element (assume tri-linear element geometry, if position is outside discard the position)
+      ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z 
+        InsideFlag = .FALSE.
+        DO WHILE(.NOT.InsideFlag)
+          CALL RANDOM_NUMBER(RandomPos)
+          RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
+          ! Use TRIATRACKING inside-element check as the elements must be cuboids for this test case
+          CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag)
+        END DO
+      END ASSOCIATE
+      ! Accept position
+      particle_positions(emittedParticles*3-2) = RandomPos(1)
+      particle_positions(emittedParticles*3-1) = RandomPos(2)
+      particle_positions(emittedParticles*3  ) = RandomPos(3)
+    END DO ! i = 1, NeutralizationBalanceElem(iElem)
+  END IF ! isNeutralizationElem(iElem)
+END DO ! iElem = 1, nElems
+
+! Sanity check: Total number of emitted particles must be equal to the chunkSize
+IF(emittedParticles.NE.chunkSize)THEN
+  IPWRITE(UNIT_StdOut,*) "emittedParticles,chunkSize =", emittedParticles,chunkSize
+  CALL abort(__STAMP__,'Total number of emitted particles must be equal to the chunkSize')
+END IF ! emittedParticles.NE.chunkSize
+END SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization
+
+
 SUBROUTINE SetParticlePositionLiu2010Neutralization3D(FractNbr,iInit,chunkSize,particle_positions)
 !===================================================================================================================================
 ! Set particle position
@@ -2317,8 +2387,11 @@ END SUBROUTINE SetParticlePositionLiu2010Neutralization3D
 SUBROUTINE CountNeutralizationParticles()
 ! MODULES
 USE MOD_globals
-USE MOD_Particle_Vars ,ONLY: nNeutralizationElems,isNeutralizationElem,PDM,PEM,NeutralizationBalance,PartSpecies,Species
+USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
+USE MOD_Particle_Vars ,ONLY: isNeutralizationElem,PDM,PEM,NeutralizationBalance,PartSpecies,Species
+USE MOD_Particle_Vars ,ONLY: NeutralizationBalanceElem
 USE MOD_part_tools    ,ONLY: ParticleOnProc
+USE MOD_Mesh_Vars     ,ONLY: nElems
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -2328,9 +2401,8 @@ INTEGER  :: iPart,iElem,iSpec
 !===================================================================================================================================
 ! Reset local counter each time
 NeutralizationBalance = 0
-
-! Root is part of the communicator, but might not have any elements, therefore, return here
-IF(nNeutralizationElems.EQ.0) RETURN
+! Reset local counter each time
+NeutralizationBalanceElem = 0
 
 ! Loop all particles and check whether they are inside a neutralization element and sum up all charges
 DO iPart = 1, PDM%ParticleVecLength
@@ -2342,12 +2414,19 @@ DO iPart = 1, PDM%ParticleVecLength
     iSpec = PartSpecies(iPart)
     ! Check if particle is in neutralization element
     IF(isNeutralizationElem(iElem))THEN
-      ! Add -1 for electrons and +1 for ions:  This is opposite to the summation in RemoveParticle() where the surplus of electrons
+      ! Add -1 for electrons and +X for ions:  This is opposite to the summation in RemoveParticle() where the surplus of electrons
       ! is calculated and re-introduced at the boundary
-      NeutralizationBalance = NeutralizationBalance + INT(SIGN(1.0, Species(iSpec)%ChargeIC))
+      NeutralizationBalanceElem(iElem) = NeutralizationBalanceElem(iElem) + NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
     END IF ! isNeutralizationElem(iElem)
   END IF
 END DO
+
+! Get the net charge for all elements (only positive ones)
+DO iElem = 1, nElems
+  IF(isNeutralizationElem(iElem).AND.(NeutralizationBalanceElem(iElem).GT.0))THEN
+    NeutralizationBalance = NeutralizationBalance + NeutralizationBalanceElem(iElem)
+  END IF ! (isNeutralizationElem(iElem)).AND.(NeutralizationBalanceElem(iElem).GT.0)
+END DO ! iElem = 1, nElems
 
 END SUBROUTINE CountNeutralizationParticles
 

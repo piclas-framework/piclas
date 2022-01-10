@@ -46,7 +46,7 @@ USE MOD_Particle_MPI_Vars  ,ONLY: PartMPI,MPI_halo_eps
 USE MOD_Particle_Vars      ,ONLY: Species,nSpecies
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,SideInfo_Shared
 USE MOD_Mesh_Vars          ,ONLY: nElems,BoundaryName
-USE MOD_Particle_Vars      ,ONLY: NeutralizationSource,nNeutralizationElems,isNeutralizationElem
+USE MOD_Particle_Vars      ,ONLY: NeutralizationSource,nNeutralizationElems,isNeutralizationElem,NeutralizationBalanceElem
 #if ! (USE_HDG)
 USE MOD_CalcTimeStep       ,ONLY: CalcTimeStep
 #endif /*USE_HDG*/
@@ -225,6 +225,7 @@ DO iSpec=1,nSpecies
       ! Find all elements that have a neutralization BC and add up the number
       nNeutralizationElems = 0
       ALLOCATE(isNeutralizationElem(1:nElems))
+      isNeutralizationElem = .FALSE.
       ELEMLOOP: DO iElem=1,nElems ! loop over all local elems
         GlobalElemID = iElem + offsetElem
         ! Check 6 local sides
@@ -249,7 +250,11 @@ DO iSpec=1,nSpecies
       ! Only processors with neutralization elements are part of the communicator (+root which outputs global information to .csv)
       RegionOnProc = nNeutralizationElems.GT.0
       ! If no neutralization elements are present, deallocate the logical array
-      IF(nNeutralizationElems.EQ.0) DEALLOCATE(isNeutralizationElem)
+      IF(nNeutralizationElems.EQ.0)THEN
+        DEALLOCATE(isNeutralizationElem)
+      ELSE
+        ALLOCATE(NeutralizationBalanceElem(1:nElems))
+      END IF
 
     CASE('3D_Liu2010_neutralization')
       ! Neutralization at right BC (max. z-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)

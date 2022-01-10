@@ -132,7 +132,7 @@ SUBROUTINE SetParticlePosition(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,FractNbrOld,chunkSizeOld
+USE MOD_Particle_Vars          ,ONLY: Species,PDM,PartState,FractNbrOld,chunkSizeOld,NeutralizationBalance
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_part_emission_tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition,SetParticlePositionPoint
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
@@ -142,6 +142,7 @@ USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonSEEDisc, SetParti
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonHoneycomb, SetParticlePositionPhotonSEEHoneycomb
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLandmark,SetParticlePositionLandmarkNeutralization
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010Neutralization,SetParticlePositionLiu2010Neutralization3D
+USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010SzaboNeutralization
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: SendEmissionParticlesToProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
@@ -170,7 +171,7 @@ IF (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cell_local') THEN
 END IF
 
 Species(FractNbr)%Init(iInit)%sumOfRequestedParticles = NbrOfParticle
-IF ((NbrOfParticle .LE. 0).AND. (ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.)) RETURN
+IF((NbrOfParticle.LE.0).AND.(ABS(Species(FractNbr)%Init(iInit)%PartDensity).LE.0.)) RETURN
 
 DimSend  = 3                   !save (and send) only positions
 nChunks  = 1                   ! Standard: Nicht-MPI
@@ -194,16 +195,31 @@ ELSE IF (nbrOfParticle.GT.(PartMPI%InitGroup(InitGroup)%nProcs*10)) THEN
 ELSE
   nChunks = 1
 END IF
+
+! Set default chunkSize
 chunkSize = INT(nbrOfParticle/nChunks)
 IF (PartMPI%InitGroup(InitGroup)%MPIROOT) THEN
   chunkSize = chunkSize*(1-nChunks) + nbrOfParticle
 END IF
+
+#endif
+! Set special chunkSize (also for MPI=OFF)
+SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
+CASE('2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo')
+  ! Override the chunkSize with the processor-local sum of the required number of emitted particles
+  chunkSize = NeutralizationBalance ! Sum over all elements of each processor (not global over all procs)
+  nChunks   = 2 ! dummy value that is greater than 1
+CASE DEFAULT
+END SELECT
+#if USE_MPI
+
 ! all proc taking part in particle inserting
 IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
 #endif
+  ! Allocate part pos buffer
   ALLOCATE( particle_positions(1:chunkSize*DimSend), STAT=allocStat )
-  IF (allocStat .NE. 0) &
-    CALL abort(__STAMP__,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
+  ! Sanity check
+  IF (allocStat .NE. 0) CALL abort(__STAMP__,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
 
   !------------------SpaceIC-cases: start-----------------------------------------------------------!
   SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
@@ -247,12 +263,16 @@ IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     ! Neutralization at const. x-position from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
     ! for low-temperature partially magnetized plasmas (2019)
     CALL SetParticlePositionLandmarkNeutralization(chunkSize,particle_positions)
-  CASE('2D_Liu2010_neutralization','2D_Liu2010_neutralization_Szabo')
+  CASE('2D_Liu2010_neutralization')
     ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010) - 2D case
     CALL SetParticlePositionLiu2010Neutralization(chunkSize,particle_positions)
-  CASE('3D_Liu2010_neutralization','3D_Liu2010_neutralization_Szabo')
+  CASE('3D_Liu2010_neutralization')
     ! Neutralization at right BC (max. z-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010) - 3D case
     CALL SetParticlePositionLiu2010Neutralization3D(FractNbr,iInit,chunkSize,particle_positions)
+  CASE('2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo')
+    ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010) - 2D and 3D case
+    ! Some procs might have nothing to emit (cells are quasi neutral or negatively charged)
+    IF(chunkSize.GT.0) CALL SetParticlePositionLiu2010SzaboNeutralization(chunkSize,particle_positions)
   END SELECT
   !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
 #if USE_MPI

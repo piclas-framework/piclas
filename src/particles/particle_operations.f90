@@ -121,6 +121,7 @@ SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
 USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, PartMPF, usevMPF
 USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptive, AdaptBCPartNumOut
 USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance,nNeutralizationElems
@@ -177,10 +178,10 @@ IF(PRESENT(BCID)) THEN
   ! neutralization boundary condition instead of looking into the first row of elements along that BC
   IF(UseNeutralization.AND.(nNeutralizationElems.EQ.-1))THEN
     IF(TRIM(BoundaryName(BCID)).EQ.TRIM(NeutralizationSource))THEN
-      ! Add +1 for electrons and -1 for ions: This is opposite to the summation in CountNeutralizationParticles() where the surplus
+      ! Add +1 for electrons and -X for ions: This is opposite to the summation in CountNeutralizationParticles() where the surplus
       ! of ions is calculated and compensated with an equal amount of electrons to force quasi-neutrality in the neutralization
       ! elements.
-      NeutralizationBalance = NeutralizationBalance - INT(SIGN(1.0, Species(iSpec)%ChargeIC))
+      NeutralizationBalance = NeutralizationBalance - NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
     END IF
   END IF ! UseNeutralization
   IF(CalcBoundaryParticleOutput)THEN
