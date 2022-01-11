@@ -19,7 +19,7 @@ CHANGED=$(git diff --name-only master.dev)
 # Check if any changes are present
 if [[ -n $CHANGED ]]; then
   # Sort found files by size (-S) in reverse ordering (-r)
-  SORTED=$(ls -Shsr $CHANGED)
+  SORTED=$(ls -Shsr $CHANGED 2> /dev/null)
   # Loop over all changes
   for file in $SORTED; do
     # Check if path is a file that exists
