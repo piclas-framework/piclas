@@ -586,7 +586,7 @@ END SUBROUTINE DSMC_chemical_init
 SUBROUTINE InitPhotoionizationXSec()
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,PhotonSpectrum,NbrOfPhotonXsecLines
+USE MOD_DSMC_Vars ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,PhotonSpectrum,NbrOfPhotonXsecLines,MaxPhotonXSec
 USE MOD_DSMC_Vars ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,ReacToPhotoReac
 USE MOD_MCC_XSec  ,ONLY: ReadReacPhotonXSec,ReadReacPhotonSpectrum
 USE MOD_DSMC_Vars ,ONLY: SpecDSMC,ChemReac,PhotonEnergies
@@ -705,6 +705,7 @@ DO iLine = 1, NbrOfPhotonXsecLines
   END IF ! SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3).GT.0.
 END DO ! iLine = 1, NbrOfPhotonXsecLines
 IF(PhotoIonLastLine.LT.PhotoIonFirstLine) CALL abort(__STAMP__,'Photoionization XSec read-in failed. No lines interpolated.')
+MaxPhotonXSec = MAXVAL(SpecPhotonXSecInterpolated(PhotoIonFirstLine:PhotoIonLastLine,2))
 ALLOCATE(PhotonEnergies(PhotoIonFirstLine:PhotoIonLastLine,1+NbrOfPhotonXsecReactions))
 
 END SUBROUTINE InitPhotoionizationXSec

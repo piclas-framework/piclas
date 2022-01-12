@@ -468,7 +468,7 @@ SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcMeanFreePath
-USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC, MaxPhotonXSec
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
@@ -533,12 +533,12 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
     ! Get 1st random number
     CALL RANDOM_NUMBER(RandVal)
     ! Get random wavelength (from line spectrum)
-    iLine = NINT(RandVal*REAL(PhotoIonLastLine-PhotoIonFirstLine)) + PhotoIonFirstLine
+    iLine = INT(RandVal*REAL(PhotoIonLastLine-PhotoIonFirstLine+1)) + PhotoIonFirstLine
 
     ! Get 2nd random number
     CALL RANDOM_NUMBER(RandVal)
     ! Probe if the line is accepted by comparing against the energy fraction (maximum is 1.)
-    IF(RandVal.GT.SpecPhotonXSecInterpolated(iLine,2)/MAXVAL(SpecPhotonXSecInterpolated(:,2))) CYCLE
+    IF(RandVal.GT.SpecPhotonXSecInterpolated(iLine,2)/MaxPhotonXSec) CYCLE
     ! Store photon energy for later chemical reaction
     PhotonEnergies(iLine,1) = PhotonEnergies(iLine,1) + 1
 
@@ -547,8 +547,7 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
       ! Get 3rd random number
       CALL RANDOM_NUMBER(RandVal)
       ! Get random cross-section
-      iPhotoReac = NINT(RandVal*REAL(NbrOfPhotonXsecReactions-1.0)) + 1
-
+      iPhotoReac = INT(RandVal*REAL(NbrOfPhotonXsecReactions) + 1.0)
       ! Get 4th random number
       CALL RANDOM_NUMBER(RandVal)
       ! Check if cross-section is > 0.

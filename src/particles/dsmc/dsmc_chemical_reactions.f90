@@ -1452,10 +1452,11 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
     DO iLine = PhotoIonFirstLine, PhotoIonLastLine
       ASSOCIATE( CrossSection => SpecPhotonXSecInterpolated(iLine,2+iPhotoReac) )
         ! Consider the ratio of the cross-section to the sum of al cross-sections
-        NbrOfReactions = NbrOfReactions + density * PhotonDistribution(iLine) * CrossSection * c * dt / Species(i)%MacroParticleFactor
+        NbrOfReactions = NbrOfReactions + PhotonDistribution(iLine) * CrossSection
       END ASSOCIATE
     END DO ! PhotoIonFirstLine, PhotoIonLastLine
   END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions
+  NbrOfReactions = NbrOfReactions * density * c * dt / Species(i)%MacroParticleFactor
 END IF ! NbrOfPhotonXsecReactions.GT.0
 
 ! Photoionization reactions with constant cross sections

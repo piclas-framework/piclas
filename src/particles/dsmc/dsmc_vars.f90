@@ -223,6 +223,7 @@ REAL,ALLOCATABLE                    :: SpecPhotonXSecInterpolated(:,:)  ! Interp
                                                             ! 4+: Cross-section at the respective energy level [m^2] Reac2
                                                             ! ...
                                                             ! Last: Total Cross-section at the respective energy level [m^2]
+REAL                                :: MaxPhotonXSec        ! Max of SpecPhotonXSecInterpolated(FirstLine:LastLine,2)
 
 TYPE tSpeciesPhotonXSec
   REAL,ALLOCATABLE                  :: XSecData(:,:)        ! Collision cross-section as read-in from the database
