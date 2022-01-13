@@ -178,6 +178,35 @@ actual computational domain corresponds only to a quarter of the cylinder:
     Part-Species1-Init1-FirstQuadrantOnly       = T
     Part-Species1-Init2-FirstQuadrantOnly       = T
 
+### Polychromatic Photo-ionization
+The volumetric photo-ionization can consider multiple wavelengths (polychromatic spectrum) and/or energy-dependent cross-section data.
+The corresponding ionization reactions are defined described in Section {ref}`sec:DSMC-chemistry` by
+
+    DSMC-NumOfReactions = 1
+    DSMC-Reaction1-ReactionType = phIonXsec
+    DSMC-Reaction1-Reactants    = (/3,0,0/)
+    DSMC-Reaction1-Products     = (/1,2,0/)
+
+where the reaction type `phIonXsec` refers to energy-dependent cross-section data for photoionization reactions.
+In this example, species 3 refers to H2 molecules, species 1 and 2 to electrons and H2+ ions respectively.
+The cross sections and photon energy spectrum must be supplied via
+
+    Particles-CollXSec-Database = XSec_Database_H2_Photoionization.h5
+
+that must contain the data in the following form
+
+    XSec_Database_H2_Photoionization.h5
+      - H2-photon (Group)
+        - REACTION (Group)
+          - H2Ion1-electron (Dataset)
+        - SPECTRUM (Group)
+          - H2-photon (Dataset)
+
+where `HIon1-electron (Dataset)` contains the tabulated cross-sections and `H2-photon (Dataset)` contains the tabulated photon
+energies and energy fractions (the fractions must add up to unity). In principle, the spectrum can contain only 1 single photon
+energy (corresponding to a single wavelength) that contains all the energy, hence, the table contains the energy in eV and the
+number 1. (100% of the energy).
+
 ## Surface Flux
 
 A surface flux enables the emission of particles at a boundary in order to simulate, e.g. a free-stream. They are defined

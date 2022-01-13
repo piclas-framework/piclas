@@ -36,7 +36,7 @@ USE MOD_ReadInTools
 USE MOD_MCC_XSec      ,ONLY: ReadCollXSec, ReadVibXSec, InterpolateCrossSection_Vib
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
-USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation, CollInf
+USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, SpecXSec, XSec_NullCollision, XSec_Relaxation, CollInf
 #if defined(PARTICLES) && USE_HDG
 USE MOD_HDG_Vars      ,ONLY: UseBRElectronFluid,BRNullCollisionDefault
 USE MOD_ReadInTools   ,ONLY: PrintOption
@@ -50,19 +50,12 @@ REAL          :: TotalProb(nSpecies), VibCrossSection
 INTEGER       :: iVib, nVib, iStep, MaxDim
 !===================================================================================================================================
 
-XSec_Database = TRIM(GETSTR('Particles-CollXSec-Database'))
 IF(BGGas%NumberOfSpecies.GT.0) THEN
   XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
 ELSE
   XSec_NullCollision = .FALSE.
 END IF
 XSec_Relaxation = .FALSE.
-
-IF(TRIM(XSec_Database).EQ.'none') THEN
-  CALL abort(&
-  __STAMP__&
-  ,'ERROR: No database for the collision cross-section given!')
-END IF
 
 ALLOCATE(SpecXSec(CollInf%NumCase))
 SpecXSec(:)%UseCollXSec = .FALSE.
@@ -86,11 +79,8 @@ DO iSpec = 1, nSpecies
     IF(SpecDSMC(iSpec)%UseCollXSec.OR.SpecDSMC(jSpec)%UseCollXSec) CALL ReadCollXSec(iCase, iSpec, jSpec)
     ! Check if both species were given the UseCollXSec flag and store the energy value in Joule
     IF(SpecXSec(iCase)%UseCollXSec) THEN
-      IF(SpecDSMC(iSpec)%UseCollXSec.AND.SpecDSMC(jSpec)%UseCollXSec) THEN
-        CALL abort(&
-          __STAMP__&
+      IF(SpecDSMC(iSpec)%UseCollXSec.AND.SpecDSMC(jSpec)%UseCollXSec) CALL abort(__STAMP__&
           ,'ERROR: Both species defined to use collisional cross-section, define only the source species with UseCollXSec!')
-      END IF
       ! Store the energy value in J (read-in was in eV)
       SpecXSec(iCase)%CollXSecData(1,:) = SpecXSec(iCase)%CollXSecData(1,:) * ElementaryCharge
     END IF
@@ -98,11 +88,8 @@ DO iSpec = 1, nSpecies
     IF(SpecDSMC(iSpec)%UseVibXSec.OR.SpecDSMC(jSpec)%UseVibXSec) CALL ReadVibXSec(iCase, iSpec, jSpec)
     ! Vibrational relaxation probabilities: Interpolate and store the probability at the collision cross-section levels
     IF(SpecXSec(iCase)%UseVibXSec) THEN
-      IF(SpecDSMC(iSpec)%UseVibXSec.AND.SpecDSMC(jSpec)%UseVibXSec) THEN
-        CALL abort(&
-          __STAMP__&
+      IF(SpecDSMC(iSpec)%UseVibXSec.AND.SpecDSMC(jSpec)%UseVibXSec) CALL abort(__STAMP__&
           ,'ERROR: Both species defined to use vib. cross-section, define only the source species with UseVibXSec!')
-      END IF
       ! Save which species shall use the vibrational cross-section data for relaxation probabilities
       ! If the species which was given the UseVibXSec flag is diatomic/polyatomic, use the cross-section for that species
       ! If the species is an atom/electron, use the cross-section for the other collision partner (the background species)
@@ -157,11 +144,9 @@ DO iSpec = 1, nSpecies
         END IF
         TotalProb(partSpec) = TotalProb(partSpec) + SpecXSec(iCase)%ProbNull
         ! Sum of null collision probability per particle species should be lower than 1, otherwise not enough collision pairs
-        IF(TotalProb(partSpec).GT.1.0) THEN
-          CALL abort(__STAMP__&
+        IF(TotalProb(partSpec).GT.1.0) CALL abort(__STAMP__&
           ,'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: '&
           ,RealInfoOpt=TotalProb(partSpec))
-        END IF
       END IF
     END IF
   END DO        ! jSpec = iSpec, nSpecies
@@ -247,10 +232,7 @@ INTEGER               :: iStep, MaxDim
 INTEGER               :: iPath, NumPaths
 !===================================================================================================================================
 
-IF(BGGas%NumberOfSpecies.LE.0) THEN
-  CALL abort(__STAMP__,&
-    'Chemistry - Error: Cross-section based chemistry without background gas has not been tested yet!')
-END IF
+IF(BGGas%NumberOfSpecies.LE.0) CALL abort(__STAMP__,'Cross-section-based chemistry without background gas has not been tested yet!')
 
 ! 1.) Read-in of cross-section data for chemical reactions
 DO iCase = 1, CollInf%NumCase
@@ -292,12 +274,8 @@ IF(XSec_NullCollision) THEN
       IF(SpecXSec(iCase)%UseCollXSec) THEN
         CALL DetermineNullCollProb(iCase,iSpec,jSpec)
         TotalProb = TotalProb + SpecXSec(iCase)%ProbNull
-        IF(TotalProb.GT.1.0) THEN
-          CALL abort(&
-          __STAMP__&
-          ,'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: '&
-          ,RealInfoOpt=TotalProb)
-        END IF
+        IF(TotalProb.GT.1.0) CALL abort(__STAMP__,&
+      'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: ',RealInfoOpt=TotalProb)
       END IF
     END DO
   END DO
