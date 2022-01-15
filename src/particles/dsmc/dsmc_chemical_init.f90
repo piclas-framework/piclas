@@ -352,7 +352,6 @@ DO iReac = 1, ReadInNumOfReact
 END DO
 
 ! Get XSec database name
-XSec_Database = 'none'! Initialize
 IF((NbrOfPhotonXsecReactions.GT.0).AND.(TRIM(XSec_Database).EQ.'none')) XSec_Database = GETSTR('Particles-CollXSec-Database')
 
 ! Get cross-sections for photoionization
