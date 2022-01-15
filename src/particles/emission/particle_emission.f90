@@ -236,15 +236,12 @@ DO i=1,nSpecies
            PartPosLandmark=HUGE(1.)
            IF(NbrOfParticleLandmarkMax.LE.0)THEN
              IPWRITE(UNIT_StdOut,*) "NbrOfParticleLandmarkMax =", NbrOfParticleLandmarkMax
-             CALL abort(&
-                 __STAMP__&
-                 ,'NbrOfParticleLandmarkMax.LE.0')
+             CALL abort(__STAMP__,'NbrOfParticleLandmarkMax.LE.0')
            END IF
          ELSE
            IF(NbrOfParticleLandmarkMax.LT.NbrOfParticle)THEN
              IPWRITE(UNIT_StdOut,*) "NbrOfParticleLandmarkMax,NbrOfParticle =", NbrOfParticleLandmarkMax,NbrOfParticle
-             CALL abort(&
-             __STAMP__&
+             CALL abort(__STAMP__&
              ,'NbrOfParticleLandmarkMax.LT.NbrOfParticle is not allowed! Allocate PartPosLandmark to the appropriate size.')
            END IF ! NbrOfParticleLandmarkMax.LE.NbrOfParticle
          END IF ! .NOT.ALLOCATED()
