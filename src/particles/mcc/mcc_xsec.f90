@@ -22,7 +22,7 @@ IMPLICIT NONE
 PRIVATE
 
 PUBLIC :: ReadCollXSec, ReadVibXSec, ReadElecXSec, ReadReacXSec, InterpolateCrossSection_Elec, ReadReacPhotonXSec
-PUBLIC :: InterpolateCrossSection, InterpolateCrossSection_Vib, InterpolateCrossSection_Chem ReadReacPhotonSpectrum
+PUBLIC :: InterpolateCrossSection, InterpolateCrossSection_Vib, InterpolateCrossSection_Chem, ReadReacPhotonSpectrum
 PUBLIC :: XSec_CalcCollisionProb, XSec_CalcVibRelaxProb, XSec_CalcElecRelaxProb, XSec_CalcReactionProb
 !===================================================================================================================================
 
@@ -1021,8 +1021,9 @@ SUBROUTINE ReadReacPhotonXSec(iPhotoReac)
 USE MOD_io_hdf5
 USE MOD_Globals
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
-USE MOD_DSMC_Vars                 ,ONLY: XSec_Database, SpecDSMC, ChemReac, PhotoReacToReac, SpecPhotonXSec
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac
 USE MOD_HDF5_Input                ,ONLY: DatasetExists
+USE MOD_MCC_Vars                  ,ONLY: XSec_Database,SpecPhotonXSec,PhotoReacToReac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1138,8 +1139,10 @@ SUBROUTINE ReadReacPhotonSpectrum(iPhotoReac)
 USE MOD_io_hdf5
 USE MOD_Globals
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
-USE MOD_DSMC_Vars                 ,ONLY: XSec_Database, SpecDSMC, ChemReac, PhotoReacToReac, PhotonSpectrum
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac
+USE MOD_MCC_Vars                  ,ONLY: PhotoReacToReac,PhotonSpectrum
 USE MOD_HDF5_Input                ,ONLY: DatasetExists
+USE MOD_MCC_Vars                  ,ONLY: XSec_Database
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

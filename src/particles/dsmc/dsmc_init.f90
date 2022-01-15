@@ -1485,12 +1485,6 @@ SDEALLOCATE(BGGas%Distribution)
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
-SDEALLOCATE(SpecXSec)
-SDEALLOCATE(SpecPhotonXSecInterpolated)
-SDEALLOCATE(PhotonDistribution)
-SDEALLOCATE(PhotonEnergies)
-SDEALLOCATE(PhotoReacToReac)
-SDEALLOCATE(ReacToPhotoReac)
 END SUBROUTINE FinalizeDSMC
 
 

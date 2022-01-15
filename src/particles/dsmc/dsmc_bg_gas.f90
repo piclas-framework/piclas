@@ -528,7 +528,7 @@ SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcMeanFreePath
-USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC, MaxPhotonXSec
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, BGGas
 USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
@@ -540,8 +540,8 @@ USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_ChemReact         ,ONLY: PhotoIonization_InsertProducts
 USE MOD_DSMC_AmbipolarDiffusion,ONLY: AD_DeleteParticles
 USE MOD_Macro_Restart          ,ONLY: CalcVelocity_maxwell_particle
-USE MOD_DSMC_Vars              ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
-USE MOD_DSMC_Vars              ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotoReacToReac,PhotonEnergies
+USE MOD_MCC_Vars               ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotoReacToReac,PhotonEnergies
+USE MOD_MCC_Vars               ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated,MaxPhotonXSec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

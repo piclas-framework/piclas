@@ -59,7 +59,8 @@ USE MOD_ReadInTools
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
 USE MOD_MCC_XSec      ,ONLY: ReadCollXSec, ReadVibXSec, InterpolateCrossSection_Vib, ReadElecXSec, InterpolateCrossSection_Elec
-USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, SpecXSec, XSec_NullCollision, XSec_Relaxation, CollInf, DSMC
+USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC
+USE MOD_MCC_Vars      ,ONLY: XSec_NullCollision,XSec_Relaxation, SpecXSec
 #if defined(PARTICLES) && USE_HDG
 USE MOD_HDG_Vars      ,ONLY: UseBRElectronFluid,BRNullCollisionDefault
 USE MOD_ReadInTools   ,ONLY: PrintOption
@@ -230,17 +231,17 @@ DO iSpec = 1, nSpecies
         END IF
         TotalProb(partSpec) = TotalProb(partSpec) + SpecXSec(iCase)%ProbNull
         ! Sum of null collision probability per particle species should be lower than 1, otherwise not enough collision pairs
-        IF(TotalProb(partSpec).GT.1.0) CALL abort(__STAMP__&
-          ,'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: '&
+        IF(TotalProb(partSpec).GT.1.0) THEN
+          CALL abort(__STAMP__,'Total null collision probability is above unity. Please reduce the time step! Probability is: '&
           ,RealInfoOpt=TotalProb(partSpec))
         ELSEIF(TotalProb(partSpec).GT.0.1) THEN
           SWRITE(*,*) 'Total null collision probability is above 0.1. A value of 1E-2 is recommended in literature!'
           SWRITE(*,*) 'Particle Species: ', TRIM(SpecDSMC(partSpec)%Name), ' Probability: ', TotalProb(partSpec)
-        END IF
-      END IF
-    END IF
-  END DO        ! jSpec = iSpec, nSpecies
-END DO          ! iSpec = 1, nSpecies
+        END IF ! TotalProb(partSpec).GT.1.0
+      END IF ! XSec_NullCollision
+    END IF ! SpecXSec(iCase)%UseCollXSec
+  END DO ! jSpec = iSpec, nSpecies
+END DO ! iSpec = 1, nSpecies
 
 #if defined(PARTICLES) && USE_HDG
 BRNullCollisionDefault = XSec_NullCollision ! Backup read-in parameter value (for switching null collision on/off)
@@ -399,6 +400,13 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(SpecXSec)
+
+SDEALLOCATE(SpecXSec)
+SDEALLOCATE(SpecPhotonXSecInterpolated)
+SDEALLOCATE(PhotonDistribution)
+SDEALLOCATE(PhotonEnergies)
+SDEALLOCATE(PhotoReacToReac)
+SDEALLOCATE(ReacToPhotoReac)
 END SUBROUTINE FinalizeMCC
 
 END MODULE MOD_MCC_Init

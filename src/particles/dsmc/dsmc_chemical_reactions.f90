@@ -1421,8 +1421,9 @@ SUBROUTINE CalcPhotoIonizationNumber(i,NbrOfPhotons,NbrOfReactions)
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: c
 USE MOD_Particle_Vars ,ONLY: Species
-USE MOD_DSMC_Vars     ,ONLY: BGGas,ChemReac,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
-USE MOD_DSMC_Vars     ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,PhotoReacToReac
+USE MOD_DSMC_Vars     ,ONLY: BGGas,ChemReac
+USE MOD_MCC_Vars      ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
+USE MOD_MCC_Vars      ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,PhotoReacToReac
 USE MOD_TimeDisc_Vars ,ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1486,9 +1487,9 @@ SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, iInit, InitSpec, iLineOp
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: eV2Joule
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfFormedParticles, CollInf, DSMC_RHS
-USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
+USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting
+USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated,ReacToPhotoReac
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
-USE MOD_DSMC_Vars               ,ONLY: ReacToPhotoReac
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
