@@ -277,6 +277,7 @@ ELSE
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL ReadArray('ElemTime',2,(/1_IK,INT(nElems,IK)/),INT(OffsetElem,IK),2,RealArray=ElemTime_tmp)
   CALL CloseDataFile()
+  SWRITE (*,*) "READ elemtime DONE."
 #endif /*USE_LOADBALANCE*/
 END IF ! single
 
