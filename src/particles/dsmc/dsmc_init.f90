@@ -309,7 +309,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
-USE MOD_MCC_Vars               ,ONLY: UseMCC, XSec_NullCollision, XSec_Relaxation, SpecXSec
+USE MOD_MCC_Vars               ,ONLY: UseMCC, XSec_NullCollision, XSec_Relaxation, SpecXSec, XSec_Database
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, VarTimeStep, usevMPF
@@ -663,7 +663,9 @@ ELSE !CollisMode.GT.0
     IF(SpecDSMC(iSpec)%UseElecXSec.AND.SpecDSMC(iSpec)%InterID.EQ.4) CALL Abort(__STAMP__,&
         'ERROR: Electronic relaxation should be enabled for the respective heavy species, not the electrons!')
   END DO
+  XSec_Database = 'none'! Initialize
   IF(ANY(SpecDSMC(:)%UseCollXSec).OR.ANY(SpecDSMC(:)%UseVibXSec).OR.ANY(SpecDSMC(:)%UseElecXSec)) THEN
+    XSec_Database = GETSTR('Particles-CollXSec-Database')
     UseMCC = .TRUE.
     CALL MCC_Init()
   ELSE
