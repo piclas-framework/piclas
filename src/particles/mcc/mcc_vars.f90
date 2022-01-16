@@ -55,6 +55,9 @@ TYPE tSpeciesXSec
                                                             ! 2: Cross-section at the respective energy level [m^2]
   REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
                                                             ! null collision method of MCC
+  REAL,ALLOCATABLE                  :: ProbNullElem(:)      ! Collision probability at the maximal collision frequency for the
+                                                            ! null collision method of MCC for each element when
+                                                            ! BGGas%UseDistribution=T
   LOGICAL                           :: UseVibXSec           ! Flag if cross-section data will be used for the vibrational relaxation
   TYPE(tXSecData),ALLOCATABLE       :: VibMode(:)           ! Vibrational cross-sections (nVib: Number of levels found in database)
   REAL                              :: VibProb              ! Relaxation probability

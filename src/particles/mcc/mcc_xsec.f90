@@ -641,7 +641,11 @@ IF(SpecXSec(iCase)%UseCollXSec) THEN
     ! Correct the collision probability in the case of the second species being a background species as the number of pairs
     ! is either determined based on the null collision probability or on the species fraction
     IF(XSec_NullCollision) THEN
-      Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / SpecXSec(iCase)%ProbNull
+      IF(BGGas%UseDistribution) THEN
+        Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / SpecXSec(iCase)%ProbNullElem(iElem)
+      ELSE
+        Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / SpecXSec(iCase)%ProbNull
+      END IF
     ELSE
       bgSpec = BGGas%MapSpecToBGSpec(targetSpec)
       IF(BGGas%UseDistribution)THEN

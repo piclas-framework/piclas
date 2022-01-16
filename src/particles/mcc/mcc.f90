@@ -92,6 +92,7 @@ LOGICAL                       :: SplitInProgress, GetInternalEnergy
 REAL                          :: CollCaseNum, CollProb, VeloBGGPart(1:3), CRela2, CollEnergy, SumVibCrossSection
 REAL                          :: PartStateSplit(1:6), PartPosRefSplit(1:3), PartStateIntSplit(1:3), PartTimeStepSplit, PartMPFSplit
 INTEGER, ALLOCATABLE          :: VibQuantsParSplit(:), PartIndexCase(:)
+REAL                          :: ProbNull
 !===================================================================================================================================
 
 GlobalElemID = iElem+offSetElem
@@ -188,7 +189,11 @@ DO iSpec = 1,nSpecies
     iCase = CollInf%Coll_Case(iSpec,jSpec)
     IF(SpecXSec(iCase)%UseCollXSec.AND.XSec_NullCollision) THEN
       ! Collision cross-section: The maximum number of pairs to check is collision pair specific and depends on the null collision probability
-      SpecPairNumReal = SpecPartNum(iSpec)*SpecXSec(iCase)%ProbNull
+      IF(BGGas%UseDistribution) THEN
+        SpecPairNumReal = SpecPartNum(iSpec)*SpecXSec(iCase)%ProbNullElem(iElem)
+      ELSE
+        SpecPairNumReal = SpecPartNum(iSpec)*SpecXSec(iCase)%ProbNull
+      END IF
     ELSE
       ! Regular: The maximum number of pairs corresponds to the particle number
       IF(BGGas%UseDistribution)THEN
@@ -350,14 +355,17 @@ DO iSpec = 1, nSpecies
       IF(BGGas%UseDistribution) THEN
         BGGasNumDens  = BGGas%Distribution(bgSpec,7,iElem)
         BGGasFraction = BGGas%SpeciesFractionElem(bgSpec,iElem)
+        IF(XSec_NullCollision) ProbNull = SpecXSec(iCase)%ProbNullElem(iElem)
       ELSE
         BGGasNumDens  = BGGas%NumberDensity(bgSpec)
         BGGasFraction = BGGas%SpeciesFraction(bgSpec)
+        IF(XSec_NullCollision) ProbNull = SpecXSec(iCase)%ProbNull
       END IF
 
-      ! ==========================================================================================
-      ! XSec
       IF(SpecXSec(iCase)%UseCollXSec) THEN
+        ! ==========================================================================================
+        ! XSec
+        ! ==========================================================================================
         ! Using the relative kinetic energy of the particle pair (real energy value per particle pair, no weighting/scaling factors)
         CollEnergy = 0.5 * CollInf%MassRed(iCase) * CRela2
         ! Calculate the collision probability
@@ -366,13 +374,14 @@ DO iSpec = 1, nSpecies
         ! Correct the collision probability in the case of the second species being a background species as the number of pairs
         ! is either determined based on the null collision probability or on the species fraction
         IF(XSec_NullCollision) THEN
-          CollProb = CollProb / SpecXSec(iCase)%ProbNull
+          CollProb = CollProb / ProbNull
         ELSE
           CollProb = CollProb / BGGasFraction
         END IF
       ELSE
-      ! ==========================================================================================
-      ! DSMC
+        ! ==========================================================================================
+        ! DSMC
+        ! ==========================================================================================
         CollProb = CollInf%Coll_SpecPartNum(iSpec)*BGGasNumDens/(1+CollInf%KronDelta(iCase))*CollInf%Cab(iCase) &
                   / CollCaseNum * CRela2 ** (0.5-CollInf%omega(iSpec,jSpec)) * dt
         IF(CollisMode.EQ.3) THEN
@@ -511,7 +520,7 @@ DO iSpec = 1, nSpecies
         ! Remove the correction factor for the mean collision probability
         IF(SpecXSec(iSpec)%UseCollXSec) THEN
           IF(XSec_NullCollision) THEN
-            CollProb = CollProb * SpecXSec(iCase)%ProbNull
+            CollProb = CollProb * ProbNull
           ELSE
             CollProb = CollProb * BGGasFraction
           END IF
@@ -527,7 +536,7 @@ DO iSpec = 1, nSpecies
           IF(SpecXSec(iSpec)%UseCollXSec) THEN
             ! Calculate the collision probability for the null collision probability case
             IF(XSec_NullCollision) THEN
-              CollProb = CollProb * SpecXSec(iCase)%ProbNull
+              CollProb = CollProb * ProbNull
             ELSE
               CollProb = CollProb * BGGasFraction
             END IF

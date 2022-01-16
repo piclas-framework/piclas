@@ -218,7 +218,11 @@ IF(DSMC%CalcQualityFactors) THEN
   IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
     IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
       IF(XSec_NullCollision) THEN
-        CollProb = CollProb * SpecXSec(iCase)%ProbNull
+        IF(BGGas%UseDistribution) THEN
+          CollProb = CollProb * SpecXSec(iCase)%ProbNullElem(iElem)
+        ELSE
+          CollProb = CollProb * SpecXSec(iCase)%ProbNull
+        END IF
       ELSE
         IF(BGGas%UseDistribution)THEN
           CollProb = CollProb * BGGas%SpeciesFractionElem(BGGas%MapSpecToBGSpec(iSpec_p2),iElem)
@@ -241,7 +245,11 @@ IF(ChemReac%NumOfReact.GT.0) THEN
       ! Calculate the collision probability for the null collision probability case
       IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
         IF(XSec_NullCollision) THEN
-          CollProb = CollProb * SpecXSec(iCase)%ProbNull
+          IF(BGGas%UseDistribution) THEN
+            CollProb = CollProb * SpecXSec(iCase)%ProbNullElem(iElem)
+          ELSE
+            CollProb = CollProb * SpecXSec(iCase)%ProbNull
+          END IF
         ELSE
           IF(BGGas%UseDistribution)THEN
             CollProb = CollProb * BGGas%SpeciesFractionElem(BGGas%MapSpecToBGSpec(iSpec_p2),iElem)
