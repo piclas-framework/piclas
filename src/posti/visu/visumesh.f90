@@ -95,7 +95,8 @@ USE MOD_Interpolation ,ONLY: DefineParametersInterpolation,InitInterpolation,Fin
 USE MOD_Mesh_Vars     ,ONLY: nElems,Ngeo
 USE MOD_Mesh          ,ONLY: DefineParametersMesh,InitMesh,FinalizeMesh
 USE MOD_VTK           ,ONLY: WriteCoordsToVTK_array
-USE MOD_HDF5_Input    ,ONLY: ReadAttribute,File_ID,OpenDataFile,CloseDataFile
+USE MOD_HDF5_Input    ,ONLY: ReadAttribute,File_ID
+USE MOD_IO_HDF5       ,ONLY: OpenDataFile,CloseDataFile
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)           :: mpi_comm_IN    

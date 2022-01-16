@@ -240,7 +240,7 @@ LOGICAL             :: ElemTimeExists
 ! Read data file either single=.TRUE. (only MPI root) or single=.FALSE. (all ranks)
 IF(single)THEN
   nElems         = nGlobalElems ! Temporarily set nElems as nGlobalElems for GetArrayAndName
-  offsetElem     = 0            ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
+  OffsetElem     = 0            ! Offset is the index of first entry, hdf5 array starts at 0-.GT. -1
 
   ! NEW method
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
@@ -275,7 +275,17 @@ ELSE
   ALLOCATE(ElemTime_tmp(1:nElems))
   ElemTime_tmp=0.
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-  CALL ReadArray('ElemTime',2,(/1_IK,INT(nElems,IK)/),INT(OffsetElem,IK),2,RealArray=ElemTime_tmp)
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  CALL DatasetExists(File_ID,'ElemTime',ElemTimeExists)
+  IPWRITE(UNIT_StdOut,*) "TEST: ElemTimeExists =", ElemTimeExists
+  IF(.NOT.ElemTimeExists) CALL abort(__STAMP__,'ElemTime does not exit in .h5 file.')
+  !CALL ReadArray('ElemTime',2,(/1_IK,INT(nElems,IK)/),INT(OffsetElem,IK),2,RealArray=ElemTime_tmp)
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nElems      => INT(nElems,IK)   ,&
+        offsetElem  => INT(offsetElem,IK)   )
+    CALL ReadArray('ElemTime',2,(/1_IK,nElems/),offsetElem,2,RealArray=ElemTime_tmp)
+  END ASSOCIATE
   CALL CloseDataFile()
   SWRITE (*,*) "READ elemtime DONE."
 #endif /*USE_LOADBALANCE*/

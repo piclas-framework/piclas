@@ -58,8 +58,8 @@ USE MOD_IO_HDF5               ,ONLY: InitIOHDF5,DefineParametersIO
 USE MOD_MPI                   ,ONLY: InitMPI
 USE MOD_ReadInTools           ,ONLY: prms,PrintDefaultParameterFile
 USE MOD_ReadInTools           ,ONLY: GETINT,GETSTR,GETLOGICAL
-USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,DatasetExists
-USE MOD_HDF5_Input            ,ONLY: ISVALIDHDF5FILE
+USE MOD_IO_HDF5               ,ONLY: OpenDataFile,CloseDataFile
+USE MOD_HDF5_Input            ,ONLY: ISVALIDHDF5FILE,ReadAttribute,File_ID,DatasetExists
 USE MOD_Mesh_Vars             ,ONLY: nGlobalElems
 USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation,InitInterpolation
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh,InitMesh
@@ -564,7 +564,8 @@ SUBROUTINE ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,OutputName,DGS
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: ProjectName
-USE MOD_HDF5_Input            ,ONLY: OpenDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize,GetDataProps,CloseDataFile
+USE MOD_IO_HDF5               ,ONLY: OpenDataFile,CloseDataFile
+USE MOD_HDF5_Input            ,ONLY: ReadAttribute,File_ID,ReadArray,GetDataSize,GetDataProps
 USE MOD_HDF5_Input            ,ONLY: DatasetExists
 USE MOD_Mesh_Vars             ,ONLY: NodeCoords,nElems,offsetElem,NGeo
 USE MOD_Interpolation_Vars    ,ONLY: NodeTypeVisu
@@ -783,8 +784,8 @@ SUBROUTINE ConvertPartData(InputStateFile)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars ,ONLY: ProjectName
-USE MOD_IO_HDF5      ,ONLY: HSize
-USE MOD_HDF5_Input   ,ONLY: OpenDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize,CloseDataFile
+USE MOD_IO_HDF5      ,ONLY: HSize,OpenDataFile,CloseDataFile
+USE MOD_HDF5_Input   ,ONLY: ReadAttribute,File_ID,ReadArray,GetDataSize
 USE MOD_HDF5_Input   ,ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -890,8 +891,8 @@ SUBROUTINE ConvertElemData(InputStateFile,ArrayName,VarName)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars    ,ONLY: ProjectName
-USE MOD_IO_HDF5         ,ONLY: HSize
-USE MOD_HDF5_Input      ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize
+USE MOD_IO_HDF5         ,ONLY: HSize,OpenDataFile,CloseDataFile
+USE MOD_HDF5_Input      ,ONLY: ReadAttribute,File_ID,ReadArray,GetDataSize
 USE MOD_Mesh_Vars       ,ONLY: nElems, offsetElem
 USE MOD_piclas2vtk_Vars ,ONLY: nUniqueNodes, NodeCoords_Connect, ElemUniqueNodeID
 ! IMPLICIT VARIABLE HANDLING
@@ -959,8 +960,8 @@ SUBROUTINE ConvertSurfaceData(InputStateFile)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars    ,ONLY: ProjectName
-USE MOD_IO_HDF5         ,ONLY: HSize
-USE MOD_HDF5_Input      ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray
+USE MOD_IO_HDF5         ,ONLY: HSize,OpenDataFile,CloseDataFile
+USE MOD_HDF5_Input      ,ONLY: ReadAttribute,GetDataSize,File_ID,ReadArray
 USE MOD_piclas2vtk_Vars ,ONLY: SurfConnect
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1042,8 +1043,8 @@ END SUBROUTINE ConvertSurfaceData
 SUBROUTINE BuildSurfMeshConnectivity(InputStateFile)
 ! MODULES
 USE MOD_Globals
-USE MOD_IO_HDF5            ,ONLY: HSize
-USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray,GetDataSize
+USE MOD_IO_HDF5            ,ONLY: HSize,OpenDataFile,CloseDataFile
+USE MOD_HDF5_Input         ,ONLY: ReadAttribute,GetDataSize,File_ID,ReadArray,GetDataSize
 USE MOD_Mesh_ReadIn        ,ONLY: readMesh
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars          ,ONLY: BoundaryName

@@ -95,7 +95,8 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 #endif /*USE_LOADBALANCE*/
 USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
 USE MOD_Restart_Vars
-USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
+USE MOD_IO_HDF5                ,ONLY: OpenDataFile,CloseDataFile
+USE MOD_HDF5_Input             ,ONLY: GetDataProps,ReadAttribute,File_ID
 USE MOD_HDF5_Input             ,ONLY: DatasetExists
 #ifdef PARTICLES
 USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
@@ -304,7 +305,8 @@ USE MOD_Mesh_Vars              ,ONLY: nSides
 #endif
 USE MOD_Restart_Vars           ,ONLY: DoRestart,N_Restart,RestartFile,RestartTime,InterpolateSolution,RestartNullifySolution
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_HDF5_input             ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
+USE MOD_HDF5_input             ,ONLY: ReadArray,ReadAttribute,GetDataSize
+USE MOD_IO_HDF5                ,ONLY: OpenDataFile,CloseDataFile
 USE MOD_HDF5_Output            ,ONLY: FlushHDF5
 #if ! (USE_HDG)
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
@@ -1735,7 +1737,8 @@ SUBROUTINE MacroscopicRestart()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_io_hdf5
-USE MOD_HDF5_Input    ,ONLY: OpenDataFile,ReadArray,GetDataSize,ReadAttribute
+USE MOD_IO_HDF5       ,ONLY: OpenDataFile
+USE MOD_HDF5_Input    ,ONLY: ReadArray,GetDataSize,ReadAttribute
 USE MOD_HDF5_Input    ,ONLY: nDims,HSize,File_ID
 USE MOD_Restart_Vars  ,ONLY: MacroRestartFileName, MacroRestartValues
 USE MOD_Mesh_Vars     ,ONLY: offsetElem, nElems

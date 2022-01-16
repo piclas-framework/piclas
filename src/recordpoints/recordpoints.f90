@@ -170,10 +170,11 @@ SUBROUTINE ReadRPList(FileString)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDF5_Input
-USE MOD_Mesh_Vars             ,ONLY:MeshFile,nGlobalElems
-USE MOD_Mesh_Vars             ,ONLY:OffsetElem
-USE MOD_RecordPoints_Vars     ,ONLY:RP_onProc
-USE MOD_RecordPoints_Vars     ,ONLY:OffsetRP,RP_ElemID,nRP,nGlobalRP,offsetRP
+USE MOD_IO_HDF5           ,ONLY: OpenDataFile,CloseDataFile
+USE MOD_Mesh_Vars         ,ONLY: MeshFile,nGlobalElems
+USE MOD_Mesh_Vars         ,ONLY: OffsetElem
+USE MOD_RecordPoints_Vars ,ONLY: RP_onProc
+USE MOD_RecordPoints_Vars ,ONLY: OffsetRP,RP_ElemID,nRP,nGlobalRP,offsetRP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

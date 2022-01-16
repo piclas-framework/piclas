@@ -165,9 +165,10 @@ USE MOD_Mesh_Vars        ,ONLY: nGlobalElems,nElems
 USE MOD_LoadBalance_Vars ,ONLY: LoadDistri,ParticleMPIWeight,WeightSum,WeightDistributionMethod
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars ,ONLY: PartDistri
-USE MOD_HDF5_Input       ,ONLY: File_ID,ReadArray,DatasetExists,OpenDataFile,CloseDataFile
+USE MOD_HDF5_Input       ,ONLY: File_ID,ReadArray,DatasetExists
+USE MOD_IO_HDF5          ,ONLY: OpenDataFile,CloseDataFile
 USE MOD_Restart_Vars     ,ONLY: RestartFile
-USE MOD_Particle_Vars     ,ONLY: VarTimeStep
+USE MOD_Particle_Vars    ,ONLY: VarTimeStep
 #endif /*PARTICLES*/
 USE MOD_ReadInTools      ,ONLY: GETINT,GETREAL
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -305,7 +306,8 @@ CASE(1)
     iDistriIter=0
     DO WHILE(.NOT.FoundDistribution)
       iDistriIter=iDistriIter+1
-      SWRITE(*,'(A19,I0,A19,ES11.4,A,ES11.4,A)') 'LoadDistriIter: ',iDistriIter,'    TargetWeight: ',TargetWeight_loc,'    (last proc: ',LastProcDiff,')'
+      SWRITE(*,'(A,A17,ES11.4,A,ES11.4)') ' Accepted distribution',&
+          '    TargetWeight: ',TargetWeight_loc,'    LastProcDiff: ',LastProcDiff
       TargetWeight_loc=TargetWeight_loc+LastProcDiff/REAL(nProcessors)
       curiElem=1
       offSetElemMPI=0
@@ -377,7 +379,8 @@ CASE(1)
     END DO  ! .NOT.FoundDistribution
   END IF    ! MPIRoot
   ! Send the load distribution to all other procs
-  SWRITE(*,'(A,A17,ES11.4,A,ES11.4,A)') ' Accepted distribution','    TargetWeight: ',TargetWeight_loc,'    (last proc: ',LastProcDiff,')'
+  SWRITE(*,'(A,A17,ES11.4,A,ES11.4)') ' Accepted distribution',&
+      '    TargetWeight: ',TargetWeight_loc,'    LastProcDiff: ',LastProcDiff
   CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
   !------------------------------------------------------------------------------------------------------------------------------!
 CASE(2)

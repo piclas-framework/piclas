@@ -98,9 +98,9 @@ SUBROUTINE ConvertToVisu_GenericData(mpi_comm_IN,statefile)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Visu_Vars
-USE MOD_IO_HDF5            ,ONLY: HSize
+USE MOD_IO_HDF5            ,ONLY: HSize,OpenDataFile,CloseDataFile
 USE MOD_HDF5_Input         ,ONLY: File_ID,GetVarNames
-USE MOD_HDF5_Input         ,ONLY: OpenDataFile,ReadArray,CloseDataFile,DatasetExists,ReadAttribute,GetDataSize
+USE MOD_HDF5_Input         ,ONLY: ReadArray,DatasetExists,ReadAttribute,GetDataSize
 USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem
 USE MOD_StringTools        ,ONLY: STRICMP,split_string
 USE MOD_Interpolation      ,ONLY: GetVandermonde
