@@ -17,6 +17,12 @@ IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.13.0"))
 ENDIF()
 
 # =========================================================================
+# Git configuration
+# =========================================================================
+# Setup git hooks
+EXECUTE_PROCESS(COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/.githooks/pre-commit ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
+
+# =========================================================================
 # Project definition
 # =========================================================================
 #PROJECT(PICLas Fortran C CXX)
