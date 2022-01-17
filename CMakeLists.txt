@@ -20,7 +20,17 @@ ENDIF()
 # Git configuration
 # =========================================================================
 # Setup git hooks
-EXECUTE_PROCESS(COMMAND ln -sf ${CMAKE_CURRENT_SOURCE_DIR}/.githooks/pre-commit ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
+SET(PRECOMMIT_FILE ".githooks/pre-commit")
+# Check if the symlink exists, and create otherwise
+IF (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
+  EXECUTE_PROCESS(COMMAND ln -s ${CMAKE_CURRENT_SOURCE_DIR}/$[PRECOMMIT_FILE} ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
+# Check if the symlink already points to the correct location
+ELSE()
+  EXECUTE_PROCESS(COMMAND readlink ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit COMMAND rev COMMAND cut -d "/" -f1,2 COMMAND rev OUTPUT_VARIABLE PRECOMMIT_LINK OUTPUT_STRIP_TRAILING_WHITESPACE)
+  IF (NOT ${PRECOMMIT_LINK} MATCHES ${PRECOMMIT_FILE})
+    MESSAGE (STATUS "Custom pre-commit hook detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
+  ENDIF()
+ENDIF()
 
 # =========================================================================
 # Project definition
