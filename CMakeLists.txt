@@ -28,8 +28,16 @@ IF (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
 ELSE()
   EXECUTE_PROCESS(COMMAND readlink ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit COMMAND rev COMMAND cut -d "/" -f1,2 COMMAND rev OUTPUT_VARIABLE PRECOMMIT_LINK OUTPUT_STRIP_TRAILING_WHITESPACE)
   IF (NOT ${PRECOMMIT_LINK} MATCHES ${PRECOMMIT_FILE})
-    MESSAGE (STATUS "Custom pre-commit hook detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
+    MESSAGE (WARNING "Custom pre-commit hook detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
   ENDIF()
+ENDIF()
+
+# Check if the hook actually gets loaded
+EXECUTE_PROCESS(COMMAND git config --get core.hooksPath OUTPUT_VARIABLE HOOKSPATH OUTPUT_STRIP_TRAILING_WHITESPACE)
+IF (DEFINED HOOKSPATH  AND NOT "${HOOKSPATH}" STREQUAL "")
+  # STRING(ASCII 27 ESCAPE)
+  # MESSAGE (STATUS "${ESCAPE}[34mCustom hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.${ESCAPE}[0m")
+  MESSAGE (WARNING "Custom hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
 ENDIF()
 
 # =========================================================================
