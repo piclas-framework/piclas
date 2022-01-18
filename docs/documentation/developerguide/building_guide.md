@@ -1,4 +1,6 @@
-# Building the Documentation
+# Documentation
+
+## Building documentation
 
 The user and developer guides are built automatically via Read The Docs.
 When changing the guides, build the html and pdf files locally before committing changes to the repository.
@@ -58,3 +60,16 @@ and check if the pdf exists
     ls _build/latex/piclas.pdf
 
 Note that you can simply run the script *buildPDF.sh* in the *documentation* directory for this task.
+
+## Writing documentation
+
+### Figures
+
+Graphics are supported as long as their size is not above 1 MB, recommended size is below 100 KB. The conversion of PDF plots/graphics produced with pgfplots/tikz can be performed via terminal using the `libvips` package available for most distributions
+
+    sudo apt install libvips-dev
+    vips copy example.pdf[dpi=150] example.jpg[Q=90,strip]
+
+Modify `dpi=150` to scale the PDF and `Q=90` (between 0 and 100) to change the quality of the JPEG. Vector graphics might give better quality using SVG as the end format by converting from PDF
+
+    pdf2svg example.pdf example.svg

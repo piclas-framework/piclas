@@ -1,0 +1,39 @@
+\documentclass[varwidth=20cm]{standalone}
+
+\usepackage{tikz, pgfplots}
+\usepackage[exponent-product = \cdot]{siunitx}
+
+% Set default column separator for table (csv files)
+\pgfplotsset{compat=1.16,table/col sep=comma}
+% Space as thousand separator.
+\pgfkeys{/pgf/number format/.cd,1000 sep={\,}}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}[
+width=5.0cm,
+height=5.0cm,
+scale only axis,
+scaled ticks=false,
+unbounded coords=jump,
+xmin=0,
+xmax=25.544,
+ymin=5,
+ymax=10.5,
+xlabel style={name=xlabel},
+xlabel={Distance on surface $\left[\si{mm}\right]$},
+ylabel style={name=ylabel},
+ylabel={Heat flux $\left[\si{\frac{kW}{m^2}}\right]$},
+axis x line*=bottom,
+axis y line*=left,
+legend style={at={(0.5,1.1)},anchor=south, legend cell align=left,legend columns=3, /tikz/every even column/.append style={column sep=0.5cm}}
+]
+\addplot[color=black,style=thick]  table [col sep=comma, x=S, y=HeatFlux] {./dsmc-cone-heatflux.csv};
+\addlegendentry{PICLas};
+\addplot[only marks,mark=x,mark size=4pt,color=black,style=thick]  table [col sep=comma, x=S, y=alpha_0] {./Allegre1997_set1_heatflux.csv};
+\addlegendentry{Experiment};
+\end{axis}
+\draw [-latex] (xlabel.east) -- ++(0.5,0);
+\draw [-latex] (ylabel.east) -- ++(0,0.5);
+\end{tikzpicture}
+\end{document}

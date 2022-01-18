@@ -1,0 +1,45 @@
+\documentclass[varwidth]{standalone}
+
+\usepackage{tikz, pgfplots}
+\usepackage[exponent-product = \cdot]{siunitx}
+
+% Set default column separator for table (csv files)
+\pgfplotsset{table/col sep=comma}
+% Space as thousand separator.
+\pgfkeys{/pgf/number format/.cd,1000 sep={\,}}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}[
+width=5.0cm,
+height=5.0cm,
+scale only axis,
+scaled ticks=false,
+unbounded coords=jump,
+filter discard warning=false,
+xmin=0,
+xmax=5,
+ymin=5000,
+ymax=10000,
+xlabel style={name=xlabel},
+xlabel={$t$ $\left[\SI{e-6}{s}\right]$},
+ylabel style={name=ylabel},
+ylabel={Temperature $T$ $\left[\si{K}\right]$},
+axis x line*=bottom,
+axis y line*=left,
+legend style={legend cell align=left, align=left},
+%each nth point=65
+]
+
+\addplot[color=black]  table [col sep=comma, x=TIME, y=003-TempTra-001] {./dsmc-reservoir-temperature-relaxation.csv};
+\addlegendentry{$T_\text{trans}$};
+\addplot[dotted,color=black]  table [col sep=comma, x=TIME, y=004-TempVib001] {./dsmc-reservoir-temperature-relaxation.csv};
+\addlegendentry{$T_\text{vib}$};
+\addplot[dashed,color=black]  table [col sep=comma, x=TIME, y=006-TempRot001] {./dsmc-reservoir-temperature-relaxation.csv};
+\addlegendentry{$T_\text{rot}$};
+
+\end{axis}
+\draw [-latex] (xlabel.east) -- ++(0.5,0);
+\draw [-latex] (ylabel.east) -- ++(0,0.5);
+\end{tikzpicture}
+\end{document}
