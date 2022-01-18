@@ -89,12 +89,11 @@ if [[ -n $CHANGED ]]; then
           FILEERR=1
         fi
         printf "$LINE\n"
-      fi
       # Check the file size warning
-      if [[ $FILESIZE -gt $SIZESINGLEWARN ]]; then
+      elif [[ $FILESIZE -gt $SIZESINGLEWARN ]]; then
         # Error header
         if [[ $FILEWARN == 0 ]]; then
-          printf "${YELLOW}The following file(s) large files are about to be committed (>$SIZESINGLEWARN bytes)${NC}\n"
+          printf "${YELLOW}The following large file(s) are about to be committed (>$SIZESINGLEWARN bytes)${NC}\n"
           FILEWARN=1
         fi
         printf "$LINE\n"
@@ -106,9 +105,8 @@ if [[ -n $CHANGED ]]; then
       # Error header
       printf "${RED}The total file size exceeds the size limit ($SIZETOTALLIMIT bytes)${NC}\n"
       ERROR=1
-    fi
     # Check the file size warning
-    if [[ $FILESUM -gt $SIZETOTALWARN ]]; then
+    elif [[ $FILESUM -gt $SIZETOTALWARN ]]; then
       # Error header
       printf "${YELLOW}Total file size to be committed ($FILESUM bytes)${NC}\n"
     fi
