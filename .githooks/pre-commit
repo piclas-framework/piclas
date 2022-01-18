@@ -30,7 +30,7 @@ SIZETOTALLIMIT=1000000
 SIZETOTALWARN=100000
 
 # Number of existing files plus 100
-NUMBERLIMIT=$(git ls-files | wc -l)
+NUMBERLIMIT=$(git ls-tree --full-tree -r --name-only HEAD | wc -l)
 NUMBERLIMIT=$(($NUMBERLIMIT + 100))
 NUMBERWARN=100
 
