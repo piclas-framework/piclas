@@ -649,12 +649,12 @@ ELSE
       IF (VECNORM(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
         .GT. (BC_halo_eps + ElemRadiusNGeo(iElem) + ElemRadiusNGeo(BCCNElemID))) CYCLE
 
-!      ! loop over all local sides of the element
-       IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
-         .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
-            nBCSidesElem = nBCSidesElem + 1
-            nBCSidesProc = nBCSidesProc + 1
-       END IF
+      ! loop over all local sides of the element
+      IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
+        .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
+           nBCSidesElem = nBCSidesElem + 1
+           nBCSidesProc = nBCSidesProc + 1
+      END IF
     END DO ! iBCSide
 
     ! Write local mapping from Elem to BC sides. The number is already correct, the offset must be corrected later
@@ -774,13 +774,13 @@ ELSE
       IF (VECNORM(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
         .GT. (BC_halo_eps + ElemRadiusNGeo(iElem) + ElemRadiusNGeo(BCCNElemID))) CYCLE
 
-!      ! loop over all local sides of the element
-       IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
-         .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
-           nBCSidesProc = nBCSidesProc + 1
-           SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)
-           SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(ElemID)
-       END IF
+      ! loop over all local sides of the element
+      IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
+        .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
+          nBCSidesProc = nBCSidesProc + 1
+          SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)
+          SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(ElemID)
+      END IF
     END DO ! iBCSide
   END DO ! iElem
 END IF ! fullMesh

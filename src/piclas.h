@@ -159,6 +159,7 @@
 ! Entry position in FIBGMToProc
 #define FIBGM_FIRSTPROCIND 1
 #define FIBGM_NPROCS       2
+#define FIBGM_NLOCALPROCS  3
 
 ! Entry position in SideBCMetrics
 #define BCSIDE_SIDEID      1
