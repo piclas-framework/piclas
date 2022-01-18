@@ -29,8 +29,8 @@ the simulation code's features from a developer's point of view.
   the Gitlab environment, and the necessary steps to create a release, deploy updates to the Collaborative Numerics Group and GitHub.
 * The second Chapter {ref}`developerguide/styleguide:Style Guide` describes the rules and guidelines regarding code development 
   such as how the header of functions and subroutines look like.
-* Chapter {ref}`developerguide/building_guide:Building the Documentation` describes how to build the html and pdf files
-  locally before committing changes to the repository.
+* Chapter {ref}`developerguide/building_guide:Documentation` describes how to build the html/pdf files
+  locally before committing changes to the repository and pointers on writing documentation.
 * Chapter {ref}`developerguide/functions_and_subroutines:Useful Functions` contains a summary of useful functions
   and subroutines that might be re-used in the future.
 * Chapter {ref}`developerguide/mpi:MPI Implementation` describes how PICLas subroutines and functions are parallelized.
