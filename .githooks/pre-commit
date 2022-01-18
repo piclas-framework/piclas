@@ -16,6 +16,12 @@
 # Check the number and total size of files about to be commited
 #===================================================================================================================================
 
+# Check if override is requested
+if [[ $GIT_OVERRIDE_LIMITS == "1" ]]; then
+  echo 'Detected "GIT_OVERRIDE_LIMITS=1", overriding pre-commit check ...'
+  exit 0
+fi
+
 # General variables
 # SIZELIMIT=1048576 # 1 MB
 SIZESINGLELIMIT=1000000
@@ -110,6 +116,8 @@ if [[ -n $CHANGED ]]; then
 
   # Abort if hook encountered any error
   if [[ $ERROR != 0 ]]; then
+    echo '------------------------------------------------------------------------------------------------------------------------------------'
+    echo 'Commit rejected! You can override this check by passing "GIT_OVERRIDE_LIMITS=1" to git.'
     exit 1
   fi
 
