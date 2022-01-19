@@ -784,8 +784,8 @@ IF(DoRestart)THEN
           changedVars=.FALSE.
         END IF ! PartDataSize_HDF5.NE.PartDataSize
         IF (changedVars) THEN
-          SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart-file!!!'
-          IF (.NOT.implemented) CALL Abort(__STAMP__,"not implemented yet!")
+          SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart-file'
+          IF (.NOT.implemented) CALL Abort(__STAMP__,"change in VarNamesParticles not implemented yet")
           readVarFromState=.FALSE.
           DO iVar=1,PartDataSize_HDF5
             IF (TRIM(StrVarNames(iVar)).EQ.TRIM(StrVarNames_HDF5(iVar))) THEN
