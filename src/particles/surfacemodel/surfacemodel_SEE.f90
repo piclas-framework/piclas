@@ -246,21 +246,26 @@ CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materia
 
 END SELECT
 
-! Check if SEE counter is active and assign the number of produced electrons to the boundary
-IF(CalcElectronSEE.AND.(ProductSpecNbr.GT.0))THEN
-  ASSOCIATE( iSEEBC => SEE%BCIDToSEEBCID(locBCID) )
-    IF(iSEEBC.EQ.-1) CALL abort(__STAMP__,'SEE%BCIDToSEEBCID(locBCID)) = -1')
-    IF(usevMPF)THEN
-      ! MPF of impacting particle
-      MPF = PartMPF(PartID_IN)
-    ELSE
-      ! MPF of produced species
-      MPF = Species(ProductSpec(2))%MacroParticleFactor
-    END IF
-    ! Consider the number of produced electrons ProductSpecNbr
-    SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) + MPF*ProductSpecNbr
-  END ASSOCIATE
-END IF ! CalcElectronSEE
+IF(ProductSpecNbr.GT.0)THEN
+  ! Sanity check
+  IF(ProductSpec(2).LE.0) CALL abort(__STAMP__,'SEE model trying to create particle with 0 or negative speciesID. ProductSpec(2)=',&
+      IntInfoOpt=ProductSpec(2))
+  ! Check if SEE counter is active and assign the number of produced electrons to the boundary
+  IF(CalcElectronSEE)THEN
+    ASSOCIATE( iSEEBC => SEE%BCIDToSEEBCID(locBCID) )
+      IF(iSEEBC.EQ.-1) CALL abort(__STAMP__,'SEE%BCIDToSEEBCID(locBCID)) = -1')
+      IF(usevMPF)THEN
+        ! MPF of impacting particle
+        MPF = PartMPF(PartID_IN)
+      ELSE
+        ! MPF of produced species
+        MPF = Species(ProductSpec(2))%MacroParticleFactor
+      END IF
+      ! Consider the number of produced electrons ProductSpecNbr
+      SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) + MPF*ProductSpecNbr
+    END ASSOCIATE
+  END IF ! CalcElectronSEE
+END IF ! ProductSpecNbr.GT.0
 
 END SUBROUTINE SecondaryElectronEmission
 

@@ -535,9 +535,9 @@ IMPLICIT NONE
 !===================================================================================================================================
 #if USE_MPI
 IF (PartMPI%MPIRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,SEE%RealElectronOut,SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE        , SEE%RealElectronOut, SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
 ELSE
-  CALL MPI_REDUCE(SEE%RealElectronOut,0,SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(SEE%RealElectronOut , 0                  , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
   ! Reset non PartMPI%MPIRoot counters, PartMPI%MPIRoot counters are reset after writing the data to the file
   SEE%RealElectronOut = 0.
 END IF

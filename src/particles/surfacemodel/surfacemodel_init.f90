@@ -48,8 +48,6 @@ CALL prms%CreateRealOption('Part-SurfaceModel-SEE-Te','Bulk electron temperature
                            ' corresponds to 50 eV)','5.80226250308285e5')
 CALL prms%CreateLogicalOption( 'Part-SurfaceModel-SEE-Te-automatic','Automatically set the bulk electron temperature by using '//&
                                'the global electron temperature for SEE model by Morozov2004', '.FALSE.')
-CALL prms%CreateIntOption( 'Part-SurfaceModel-SEE-Te-Spec','Electron species index when using the global electron '//&
-                           'temperature for SEE model by Morozov2004')
 
 END SUBROUTINE DefineParametersSurfModel
 
@@ -75,9 +73,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(32) :: hilf, hilf2
-INTEGER       :: iSpec, iPartBound
-LOGICAL       :: SurfModelElectronTemp,SurfModSEEelectronTempAutoamtic
+CHARACTER(32)        :: hilf, hilf2
+INTEGER              :: iSpec, iPartBound
+LOGICAL              :: SurfModelElectronTemp,SurfModSEEelectronTempAutoamtic
+INTEGER, ALLOCATABLE :: SumOfResultSpec(:)
 !===================================================================================================================================
 IF (.NOT.(ANY(PartBound%Reactive))) RETURN
 
@@ -89,6 +88,8 @@ ALLOCATE(SurfModResultSpec(1:nPartBound,1:nSpecies))
 SurfModResultSpec = 0
 ALLOCATE(SurfModEnergyDistribution(1:nPartBound))
 SurfModEnergyDistribution = ''
+ALLOCATE(SumOfResultSpec(nPartBound))
+SumOfResultSpec = 0
 
 ! Loop all species
 DO iSpec = 1,nSpecies
@@ -106,6 +107,9 @@ DO iSpec = 1,nSpecies
       ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
       ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materials is considered for SEE and three different outcomes)
       SurfModResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
+      SumOfResultSpec(iPartBound) = SumOfResultSpec(iPartBound) + SurfModResultSpec(iPartBound,iSpec)
+      IF(SumOfResultSpec(iPartBound).EQ.-nSpecies) CALL abort(__STAMP__,&
+          'SEE surface model: All resulting species are -1. Define at least one species that can be created by an SEE event.')
       IF(PartBound%SurfaceModel(iPartBound).EQ.8)THEN
         SurfModEnergyDistribution  = 'Morozov2004'
         SurfModelElectronTemp = .TRUE.
@@ -116,6 +120,8 @@ DO iSpec = 1,nSpecies
   END DO ! iPartBound=1,nPartBound
 
 END DO ! iSpec = 1,nSpecies
+
+DEALLOCATE(SumOfResultSpec)
 
 ! If SEE model by Morozov is used, read the additional parameter for the electron bulk temperature
 IF(SurfModelElectronTemp)THEN
