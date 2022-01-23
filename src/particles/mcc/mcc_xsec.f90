@@ -731,7 +731,11 @@ END SUBROUTINE XSec_CalcVibRelaxProb
 
 SUBROUTINE XSec_ElectronicRelaxation(iPair,iCase,iPart_p1,iPart_p2,DoElec1,DoElec2,ElecLevelRelax)
 !===================================================================================================================================
-!> Calculate the electronic relaxation probability using cross-section data.
+!> Determines whether a relaxation occurs based on the electronic relaxation probability
+!> 1. Interpolate the cross-section (MCC) or use the probability (VHS)
+!> 2. Determine which electronic level is to be excited
+!> 3. Reduce the total collision probability if no electronic excitation occurred
+!> 4. 4. Count the number of relaxation process for the relaxation rate (TimeDisc=42 only)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn
@@ -767,6 +771,7 @@ ElecLevelRelax = 0
 
 ! Excitation only from ground-state
 IF(PartStateIntEn(3,iPart_p1).EQ.0.0.AND.PartStateIntEn(3,iPart_p2).EQ.0.0) THEN
+  ! 1. Interpolate the cross-section (MCC) or use the probability (VHS)
   IF(SpecXSec(iCase)%UseCollXSec) THEN
     ! Interpolate the electronic cross-section at the current collision energy
     CALL XSec_CalcElecRelaxProb(iPair)
@@ -778,7 +783,7 @@ IF(PartStateIntEn(3,iPart_p1).EQ.0.0.AND.PartStateIntEn(3,iPart_p2).EQ.0.0) THEN
   ! Only proceed if any of the electronic excitation probabilities is above zero
   IF(SUM(SpecXSec(iCase)%ElecLevel(:)%Prob).GT.0.) THEN
     ProbElec = 0.
-    ! Decide which electronic excitation should occur
+    ! 2. Decide which electronic excitation should occur
     CALL RANDOM_NUMBER(iRan)
     DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
       ProbElec = ProbElec + SpecXSec(iCase)%ElecLevel(iLevel)%Prob
@@ -792,7 +797,7 @@ IF(PartStateIntEn(3,iPart_p1).EQ.0.0.AND.PartStateIntEn(3,iPart_p2).EQ.0.0) THEN
         EXIT
       END IF
     END DO
-    ! Reducing the total collision probability if no electronic excitation occurred
+    ! 3. Reducing the total collision probability if no electronic excitation occurred
     IF((.NOT.DoElec1).AND.(.NOT.DoElec2)) THEN
       IF(SpecXSec(iCase)%UseCollXSec) THEN
         SpecXSec(iCase)%CrossSection = SpecXSec(iCase)%CrossSection - SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
@@ -804,6 +809,7 @@ IF(PartStateIntEn(3,iPart_p1).EQ.0.0.AND.PartStateIntEn(3,iPart_p2).EQ.0.0) THEN
 END IF    ! Electronic energy = 0, ground-state
 
 #if (PP_TimeDiscMethod==42)
+! 4. Count the number of relaxation process for the relaxation rate
 IF(CalcRelaxProb) THEN
   IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
     ! Weighting factor already included in GetParticleWeight
