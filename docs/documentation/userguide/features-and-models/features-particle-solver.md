@@ -15,6 +15,7 @@ The particle velocity distribution within the domain is then generated assuming 
 translational temperature per direction of each species per cell. The rotational and vibrational energy per species is initialized
 assuming an equilibrium distribution.
 
+(sec:variable-time-step)=
 ## Variable Time Step
 
 A spatially variable time step (VTS) can be activated for steady-state simulations, where two options are currently available and

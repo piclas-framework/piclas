@@ -1648,12 +1648,13 @@ SUBROUTINE CalcNbrOfPhotons(i,iInit,NbrOfPhotons)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: PI
+USE MOD_Globals_Vars  ,ONLY: PI,eV2Joule
 USE MOD_Particle_Vars ,ONLY: Species
 USE MOD_Timedisc_Vars ,ONLY: dt,time
 #ifdef LSERK
 USE MOD_Timedisc_Vars ,ONLY: iStage, RK_c, nRKStages
 #endif
+USE MOD_MCC_Vars      ,ONLY: NbrOfPhotonXsecReactions,NbrOfPhotonXsecLines,SpecPhotonXSecInterpolated
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1665,8 +1666,8 @@ REAL, INTENT(OUT)     :: NbrOfPhotons
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: t_1, t_2
-REAL                  :: E_Intensity
-INTEGER               :: NbrOfRepetitions
+REAL                  :: E_Intensity,EnergyPhoton
+INTEGER               :: NbrOfRepetitions,iLine
 !===================================================================================================================================
 
 ASSOCIATE( tau         => Species(i)%Init(iInit)%PulseDuration      ,&
@@ -1717,17 +1718,26 @@ IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
 !   dr : from 0 to R
 !   dt : from t1 to t2
 ! dphi : from 0 to 2*PI
-  IF((TRIM(IC).EQ.'photon_SEE_honeycomb').OR.(TRIM(IC).EQ.'photon_honeycomb'))THEN
-   E_Intensity = 0.5 * I_0 * SQRT(PI) * tau &
-               * (ERF(t_2/tau)-ERF(t_1/tau)) &
-               * (1.5*SQRT(3.0)) &
-               * (Rout**2-Rin**2)
-  ELSE
-E_Intensity = 0.5 * I_0 * PI**(3.0/2.0) * w_b**2 * tau &
-            * (1.0-EXP(-Radius**2/w_b**2)) &
-            * (ERF(t_2/tau)-ERF(t_1/tau))
-  END IF ! (SpaceIC.EQ.'photon_SEE_honeycomb').OR.(SpaceIC.EQ.'photon_honeycomb')
-NbrOfPhotons = E_Intensity / CalcPhotonEnergy(lambda)
+IF((TRIM(IC).EQ.'photon_SEE_honeycomb').OR.(TRIM(IC).EQ.'photon_honeycomb'))THEN
+  E_Intensity = 0.5 * I_0 * SQRT(PI) * tau &
+      * (ERF(t_2/tau)-ERF(t_1/tau)) &
+      * (1.5*SQRT(3.0)) &
+      * (Rout**2-Rin**2)
+ELSE
+  E_Intensity = 0.5 * I_0 * PI**(3.0/2.0) * w_b**2 * tau &
+      * (1.0-EXP(-Radius**2/w_b**2)) &
+      * (ERF(t_2/tau)-ERF(t_1/tau))
+END IF ! (SpaceIC.EQ.'photon_SEE_honeycomb').OR.(SpaceIC.EQ.'photon_honeycomb')
+
+IF(NbrOfPhotonXsecReactions.GT.0)THEN
+  NbrOfPhotons = 0.
+  DO iLine = 1, NbrOfPhotonXsecLines
+    EnergyPhoton = SpecPhotonXSecInterpolated(iLine,1)*eV2Joule
+    NbrOfPhotons = NbrOfPhotons + E_Intensity * SpecPhotonXSecInterpolated(iLine,2) / EnergyPhoton
+  END DO ! iLine = 1, ofLines
+ELSE
+  NbrOfPhotons = E_Intensity / CalcPhotonEnergy(lambda)
+END IF ! NbrOfPhotonXsecReactions.GT.0
 
 END ASSOCIATE
 
@@ -1897,10 +1907,12 @@ END DO
 END SUBROUTINE SetParticlePositionPhotonSEEDisc
 
 
+!===================================================================================================================================
+!> Set particle position for 'photon_SEE_honeycomb'
+!> 1. Get random position in hollow circle
+!> 2. Check if the position is outside of the outer hexagon or inside of the inner hexagon and loop until the particle is positioned
+!===================================================================================================================================
 SUBROUTINE SetParticlePositionPhotonSEEHoneycomb(FractNbr,iInit,chunkSize,particle_positions)
-!===================================================================================================================================
-! Set particle position for 'photon_SEE_honeycomb'
-!===================================================================================================================================
 ! modules
 USE MOD_Globals
 USE MOD_Particle_Vars ,ONLY: Species

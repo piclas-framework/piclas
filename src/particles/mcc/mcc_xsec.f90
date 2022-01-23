@@ -21,9 +21,10 @@ MODULE MOD_MCC_XSec
 IMPLICIT NONE
 PRIVATE
 
-PUBLIC :: ReadCollXSec, ReadVibXSec, ReadElecXSec, ReadReacXSec
+PUBLIC :: ReadCollXSec, ReadVibXSec, ReadElecXSec, ReadReacXSec, ReadReacPhotonXSec, ReadReacPhotonSpectrum
 PUBLIC :: InterpolateCrossSection, InterpolateCrossSection_Vib, InterpolateCrossSection_Elec, InterpolateCrossSection_Chem
 PUBLIC :: XSec_CalcCollisionProb, XSec_CalcVibRelaxProb, XSec_CalcElecRelaxProb, XSec_CalcReactionProb
+PUBLIC :: XSec_ElectronicRelaxation
 !===================================================================================================================================
 
 CONTAINS
@@ -65,7 +66,7 @@ CALL H5OPEN_F(err)
 
 ! Check if file exists
 IF(.NOT.FILEEXISTS(XSec_Database)) THEN
-  CALL abort(__STAMP__,'ERROR: Database '//TRIM(XSec_Database)//' does not exist.')
+  CALL abort(__STAMP__,'ERROR: Database ['//TRIM(XSec_Database)//'] does not exist.')
 END IF
 
 ! Open the file.
@@ -728,19 +729,117 @@ END IF
 END SUBROUTINE XSec_CalcVibRelaxProb
 
 
+SUBROUTINE XSec_ElectronicRelaxation(iPair,iCase,iPart_p1,iPart_p2,DoElec1,DoElec2,ElecLevelRelax)
+!===================================================================================================================================
+!> Calculate the electronic relaxation probability using cross-section data.
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Particle_Vars         ,ONLY: PartSpecies
+#if (PP_TimeDiscMethod==42)
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
+USE MOD_Particle_Vars         ,ONLY: Species, usevMPF
+USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting
+#endif
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)            :: iPair, iCase, iPart_p1, iPart_p2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)           :: DoElec1, DoElec2
+INTEGER,INTENT(OUT)           :: ElecLevelRelax
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iSpec_p1, iSpec_p2, iLevel
+REAL                          :: ProbSum, ProbElec, iRan
+#if (PP_TimeDiscMethod==42)
+REAL                          :: MacroParticleFactor
+#endif
+!===================================================================================================================================
+
+iSpec_p1 = PartSpecies(iPart_p1)
+iSpec_p2 = PartSpecies(iPart_p2)
+
+ElecLevelRelax = 0
+
+! Excitation only from ground-state
+IF(PartStateIntEn(3,iPart_p1).EQ.0.0.AND.PartStateIntEn(3,iPart_p2).EQ.0.0) THEN
+  IF(SpecXSec(iCase)%UseCollXSec) THEN
+    ! Interpolate the electronic cross-section at the current collision energy
+    CALL XSec_CalcElecRelaxProb(iPair)
+    ProbSum = SpecXSec(iCase)%CrossSection
+  ELSE
+    ! Probabilities were saved and added to the total collision probability
+    ProbSum = Coll_pData(iPair)%Prob
+  END IF
+  ! Only proceed if any of the electronic excitation probabilities is above zero
+  IF(SUM(SpecXSec(iCase)%ElecLevel(:)%Prob).GT.0.) THEN
+    ProbElec = 0.
+    ! Decide which electronic excitation should occur
+    CALL RANDOM_NUMBER(iRan)
+    DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+      ProbElec = ProbElec + SpecXSec(iCase)%ElecLevel(iLevel)%Prob
+      IF((ProbElec/ProbSum).GT.iRan) THEN
+        IF((SpecDSMC(iSpec_p1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec_p1)%FullyIonized)) THEN
+          DoElec1 = .TRUE.
+        ELSE
+          DoElec2 = .TRUE.
+        END IF
+        ElecLevelRelax = iLevel
+        EXIT
+      END IF
+    END DO
+    ! Reducing the total collision probability if no electronic excitation occurred
+    IF((.NOT.DoElec1).AND.(.NOT.DoElec2)) THEN
+      IF(SpecXSec(iCase)%UseCollXSec) THEN
+        SpecXSec(iCase)%CrossSection = SpecXSec(iCase)%CrossSection - SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
+      ELSE
+        Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob - SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
+      END IF
+    END IF
+  END IF  ! SUM(SpecXSec(iCase)%ElecLevel(:)%Prob).GT.0.
+END IF    ! Electronic energy = 0, ground-state
+
+#if (PP_TimeDiscMethod==42)
+IF(CalcRelaxProb) THEN
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    ! Weighting factor already included in GetParticleWeight
+    MacroParticleFactor = 1.
+  ELSE
+    ! Weighting factor should be the same for all species anyway (BGG: first species is the non-BGG particle species)
+    MacroParticleFactor = Species(iSpec_p1)%MacroParticleFactor
+  END IF
+  IF (DSMC%ElectronicModel.EQ.3) THEN
+    IF(DoElec1) THEN
+      SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter &
+                                                          + GetParticleWeight(iPart_p1) * MacroParticleFactor
+    ELSE IF(DoElec2) THEN
+      SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter &
+                                                          + GetParticleWeight(iPart_p2) * MacroParticleFactor
+    END IF
+  END IF
+END IF
+#endif
+
+END SUBROUTINE XSec_ElectronicRelaxation
+
+
 SUBROUTINE XSec_CalcElecRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
 !===================================================================================================================================
 !> Calculate the electronic relaxation probability using cross-section data.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
+USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
-! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
 INTEGER,INTENT(IN)            :: iPair
 REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume, dtCell
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -916,25 +1015,16 @@ IF(.NOT.GroupFound) THEN
   ! Try to swap the species names
   EductPair = TRIM(SpecDSMC(EductReac(2))%Name)//'-'//TRIM(SpecDSMC(EductReac(1))%Name)
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
-  IF(.NOT.GroupFound) THEN
-    CALL abort(__STAMP__,&
-      'No reaction cross sections found in database for reaction number:',iReac)
-  END IF
+  IF(.NOT.GroupFound) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
 END IF
 
 groupname = TRIM('/'//TRIM(EductPair)//'/REACTION/')
 CALL H5LEXISTS_F(file_id_dsmc, groupname, GroupFound, err)
-IF(.NOT.GroupFound) THEN
-  CALL abort(__STAMP__,&
-    'No reaction cross sections found in database for reaction number:',iReac)
-END IF
+IF(.NOT.GroupFound) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
 
 CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)
 CALL H5Gget_info_f(group_id, storage, nSets,max_corder, err)
-IF(nSets.EQ.0) THEN
-  CALL abort(__STAMP__,&
-    'No reaction cross sections found in database for reaction number:',iReac)
-END IF
+IF(nSets.EQ.0) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
 
 SWRITE(UNIT_StdOut,'(A,I0)') 'Read cross section for '//TRIM(EductPair)//' from '//TRIM(XSec_Database)//' for reaction # ', iReac
 
@@ -948,8 +1038,7 @@ CASE(4)
   ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)//&
                 &'-'//TRIM(SpecDSMC(ProductReac(3))%Name)//'-'//TRIM(SpecDSMC(ProductReac(4))%Name)
 CASE DEFAULT
-  CALL abort(__STAMP__,&
-      'Number of products is not supported yet! Reaction number:', iReac)
+  CALL abort(__STAMP__,'Number of products is not supported yet! Reaction number:', IntInfoOpt=iReac)
 END SELECT
 
 ReactionFound = .FALSE.
@@ -975,7 +1064,7 @@ DO iSet = 0, nSets-1
   END IF
 END DO
 
-IF(.NOT.ReactionFound) CALL abort(__STAMP__,'No reaction cross-section data found for reaction number:', iReac)
+IF(.NOT.ReactionFound) CALL abort(__STAMP__,'No reaction cross-section data found for reaction number:', IntInfoOpt=iReac)
 
 ! Store the energy value in J (read-in was in eV)
 SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,:) = SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,:) * ElementaryCharge
@@ -1010,6 +1099,229 @@ CALL H5FCLOSE_F(file_id_dsmc, err)
 CALL H5CLOSE_F(err)
 
 END SUBROUTINE ReadReacXSec
+
+
+SUBROUTINE ReadReacPhotonXSec(iPhotoReac)
+!===================================================================================================================================
+!> Read-in of photoionization reaction cross-sections from a given database. Check whether the
+!> group exists. Trying to swap the species indices if dataset not found.
+!===================================================================================================================================
+! use module
+USE MOD_io_hdf5
+USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac
+USE MOD_MCC_Vars                  ,ONLY: XSec_Database, PhotoReacToReac, SpecPhotonXSec
+USE MOD_HDF5_Input                ,ONLY: DatasetExists
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: iPhotoReac
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=128)                :: dsetname, groupname, EductPair, dsetname2, ProductPair
+INTEGER                           :: err
+INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
+INTEGER(HID_T)                    :: file_id_dsmc                       ! File identifier
+INTEGER(HID_T)                    :: group_id                           ! Group identifier
+INTEGER(HID_T)                    :: dset_id_dsmc                       ! Dataset identifier
+INTEGER(HID_T)                    :: filespace                          ! filespace identifier
+INTEGER(SIZE_T)                   :: size                               ! Size of name
+INTEGER(HSIZE_T)                  :: iSet                               ! Index
+INTEGER                           :: storage, nSets, max_corder
+LOGICAL                           :: GroupFound, ReactionFound
+INTEGER                           :: iReac, ProductReac(1:4)
+!===================================================================================================================================
+iReac = PhotoReacToReac(iPhotoReac)
+
+! Sanity check
+IF(ChemReac%Reactants(iReac,1).EQ.0) CALL abort(__STAMP__,'phIonXSec reaction: The first educt species ID cannot be zero.')
+EductPair = TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)//'-photon'
+ProductReac(1:4) = ChemReac%Products(iReac,1:4)
+
+GroupFound = .FALSE.
+
+! Initialize FORTRAN interface.
+CALL H5OPEN_F(err)
+! Open the file.
+CALL H5FOPEN_F (TRIM(XSec_Database), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+
+! Check if the species pair group exists
+CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
+IF(.NOT.GroupFound) THEN
+  ! Try to swap the species names
+  EductPair = 'photon-'//TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)
+  CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
+  IF(.NOT.GroupFound) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
+END IF
+
+groupname = TRIM('/'//TRIM(EductPair)//'/REACTION/')
+CALL H5LEXISTS_F(file_id_dsmc, groupname, GroupFound, err)
+IF(.NOT.GroupFound) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
+
+CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)
+CALL H5Gget_info_f(group_id, storage, nSets,max_corder, err)
+IF(nSets.EQ.0) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
+
+SWRITE(UNIT_StdOut,'(A,I0)') 'Read cross section for '//TRIM(EductPair)//' from '//TRIM(XSec_Database)//' for reaction # ', iReac
+
+SELECT CASE(COUNT(ProductReac.GT.0))
+CASE(2)
+  ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)
+CASE(3)
+  ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)//&
+                &'-'//TRIM(SpecDSMC(ProductReac(3))%Name)
+CASE(4)
+  ProductPair = TRIM(SpecDSMC(ProductReac(1))%Name)//'-'//TRIM(SpecDSMC(ProductReac(2))%Name)//&
+                &'-'//TRIM(SpecDSMC(ProductReac(3))%Name)//'-'//TRIM(SpecDSMC(ProductReac(4))%Name)
+CASE DEFAULT
+  CALL abort(__STAMP__,'Number of products is not supported yet! Reaction number:', IntInfoOpt=iReac)
+END SELECT
+
+ReactionFound = .FALSE.
+
+DO iSet = 0, nSets-1
+  ! Get name and size of name
+  CALL H5Lget_name_by_idx_f(group_id, ".", H5_INDEX_NAME_F, H5_ITER_INC_F, iSet, dsetname, err, size)
+  dsetname2 = TRIM(groupname)//TRIM(dsetname)
+  ! Look for the correct reaction path
+  IF(TRIM(ProductPair).EQ.TRIM(dsetname)) THEN
+    ! Open the dataset.
+    CALL H5DOPEN_F(file_id_dsmc, dsetname2, dset_id_dsmc, err)
+    ! Get the file space of the dataset.
+    CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
+    ! get size
+    CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+    ALLOCATE(SpecPhotonXSec(iPhotoReac)%XSecData(dims(1),dims(2)))
+    ! read data
+    CALL H5DREAD_F(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecPhotonXSec(iPhotoReac)%XSecData, dims, err)
+    ReactionFound = .TRUE.
+    ! stop looking for other reaction paths
+    EXIT
+  END IF
+END DO
+
+IF(.NOT.ReactionFound) CALL abort(__STAMP__,'No reaction cross-section data found for reaction number:', IntInfoOpt=iReac)
+
+! Store the energy value in J (read-in was in eV)
+!SpecPhotonXSec(iPhotoReac)%XSecData= SpecPhotonXSec(iPhotoReac)%XSecData * ElementaryCharge
+
+! Close the group
+CALL H5GCLOSE_F(group_id,err)
+! Close the file.
+CALL H5FCLOSE_F(file_id_dsmc, err)
+! Close FORTRAN interface.
+CALL H5CLOSE_F(err)
+
+END SUBROUTINE ReadReacPhotonXSec
+
+
+SUBROUTINE ReadReacPhotonSpectrum(iPhotoReac)
+!===================================================================================================================================
+!> Read-in of photoionization reaction cross-sections from a given database. Check whether the
+!> group exists. Trying to swap the species indices if dataset not found.
+!===================================================================================================================================
+! use module
+USE MOD_io_hdf5
+USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac
+USE MOD_MCC_Vars                  ,ONLY: XSec_Database, PhotoReacToReac, PhotonSpectrum
+USE MOD_HDF5_Input                ,ONLY: DatasetExists
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: iPhotoReac
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=128)                :: dsetname, groupname, EductPair, dsetname2, ProductPair
+INTEGER                           :: err
+INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
+INTEGER(HID_T)                    :: file_id_dsmc                       ! File identifier
+INTEGER(HID_T)                    :: group_id                           ! Group identifier
+INTEGER(HID_T)                    :: dset_id_dsmc                       ! Dataset identifier
+INTEGER(HID_T)                    :: filespace                          ! filespace identifier
+INTEGER(SIZE_T)                   :: size                               ! Size of name
+INTEGER(HSIZE_T)                  :: iSet                               ! Index
+INTEGER                           :: storage, nSets, max_corder
+LOGICAL                           :: GroupFound, ReactionFound
+INTEGER                           :: iReac
+!===================================================================================================================================
+iReac = PhotoReacToReac(iPhotoReac)
+
+! Sanity check
+IF(ChemReac%Reactants(iReac,1).EQ.0) CALL abort(__STAMP__,'phIonXSec reaction: The first educt species ID cannot be zero.')
+EductPair   = TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)//'-photon'
+ProductPair = EductPair
+
+GroupFound = .FALSE.
+
+! Initialize FORTRAN interface.
+CALL H5OPEN_F(err)
+! Open the file.
+CALL H5FOPEN_F (TRIM(XSec_Database), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+
+! Check if the species pair group exists
+CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
+IF(.NOT.GroupFound) THEN
+  ! Try to swap the species names
+  EductPair = 'photon-'//TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)
+  CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
+  IF(.NOT.GroupFound) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
+END IF
+
+groupname = TRIM('/'//TRIM(EductPair)//'/SPECTRUM/')
+CALL H5LEXISTS_F(file_id_dsmc, groupname, GroupFound, err)
+IF(.NOT.GroupFound) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
+
+CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)
+CALL H5Gget_info_f(group_id, storage, nSets,max_corder, err)
+IF(nSets.EQ.0) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
+
+SWRITE(UNIT_StdOut,'(A)') 'Read photon energy spectrum for '//TRIM(EductPair)//' from '//TRIM(XSec_Database)
+
+ReactionFound = .FALSE.
+
+DO iSet = 0, nSets-1
+  ! Get name and size of name
+  CALL H5Lget_name_by_idx_f(group_id, ".", H5_INDEX_NAME_F, H5_ITER_INC_F, iSet, dsetname, err, size)
+  dsetname2 = TRIM(groupname)//TRIM(dsetname)
+  ! Look for the correct reaction path
+  IF(TRIM(ProductPair).EQ.TRIM(dsetname)) THEN
+    ! Open the dataset.
+    CALL H5DOPEN_F(file_id_dsmc, dsetname2, dset_id_dsmc, err)
+    ! Get the file space of the dataset.
+    CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
+    ! get size
+    CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+    ALLOCATE(PhotonSpectrum(dims(1),dims(2)))
+    ! read data
+    CALL H5DREAD_F(dset_id_dsmc, H5T_NATIVE_DOUBLE, PhotonSpectrum, dims, err)
+    ReactionFound = .TRUE.
+    ! stop looking for other reaction paths
+    EXIT
+  END IF
+END DO
+
+IF(.NOT.ReactionFound) CALL abort(__STAMP__,'No reaction cross-section data found for reaction number:', IntInfoOpt=iReac)
+
+! Store the energy value in J (read-in was in eV)
+!SpecPhotonXSec(iPhotoReac)%XSecData= SpecPhotonXSec(iPhotoReac)%XSecData * ElementaryCharge
+
+! Close the group
+CALL H5GCLOSE_F(group_id,err)
+! Close the file.
+CALL H5FCLOSE_F(file_id_dsmc, err)
+! Close FORTRAN interface.
+CALL H5CLOSE_F(err)
+
+END SUBROUTINE ReadReacPhotonSpectrum
 
 
 SUBROUTINE XSec_CalcReactionProb(iPair,iCase,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
