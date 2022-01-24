@@ -54,8 +54,9 @@ CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactionModel'  &
                                            ,'Used reaction model\n'//&
                                             'TCE: Total Collision Energy\n'//&
                                             'phIon: photon-ionization\n'//&
+                                            'phIonXSec: photon-ionization with cross-section-based data for the reaction\n'//&
                                             'QK: quantum kinetic\n'//&
-                                            'XSec: cross-section based data for the reaction)', 'TCE', numberedmulti=.TRUE.)
+                                            'XSec: cross-section-based data for the reaction', 'TCE', numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Reactants'  &
                                            ,'Reactants of Reaction[$]\n'//&
                                             '(SpecNumOfReactant1,\n'//&
@@ -131,7 +132,7 @@ SUBROUTINE DSMC_chemical_init()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi,eV2Joule
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
@@ -139,6 +140,8 @@ USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_MCC_Init                ,ONLY: MCC_Chemistry_Init
+USE MOD_MCC_Vars                ,ONLY: XSec_Database,NbrOfPhotonXsecReactions
+USE MOD_MCC_Vars                ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,ReacToPhotoReac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -148,20 +151,19 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit
+INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit, iLine
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat
 REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants
-INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact
+INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact,iPhotoReac
 !===================================================================================================================================
 
+NbrOfPhotonXsecReactions = 0
 ChemReac%NumOfReact = GETINT('DSMC-NumOfReactions')
 ReadInNumOfReact = ChemReac%NumOfReact
 ChemReac%NumOfReactWOBackward = ChemReac%NumOfReact
 IF(ChemReac%NumOfReact.LE.0) THEN
-  CALL Abort(&
-    __STAMP__&
-    ,' CollisMode = 3 requires a chemical reaction database. DSMC-NumOfReactions cannot be zero!')
+  CALL Abort(__STAMP__,' CollisMode = 3 requires a chemical reaction database. DSMC-NumOfReactions cannot be zero!')
 END IF
 ChemReac%AnyQKReaction = .FALSE.
 ChemReac%AnyXSecReaction = .FALSE.
@@ -315,15 +317,15 @@ DO iReac = 1, ReadInNumOfReact
       END IF
     CASE('phIon')
       ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
+    CASE('phIonXSec')
+      NbrOfPhotonXsecReactions = NbrOfPhotonXsecReactions + 1
     CASE DEFAULT
-      CALL abort(__STAMP__,&
-        'Selected reaction model is not supported in reaction number: ', iReac)
+      CALL abort(__STAMP__,'Selected reaction model is not supported in reaction number: ', IntInfoOpt=iReac)
   END SELECT
   ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
   IF((ChemReac%Reactants(iReac,2).EQ.0).AND.(ChemReac%Products(iReac,2).EQ.0)) THEN
     IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'Error in Definition: Non-reacting partner(s) has to be defined!',iReac)
+      CALL abort(__STAMP__,'Error in Definition: Non-reacting partner(s) has to be defined!',IntInfoOpt=iReac)
     END IF
     DO iReac2 = 1, ChemReac%ArbDiss(iReac)%NumOfNonReactives
       IF(iReac2.EQ.1) THEN
@@ -345,15 +347,20 @@ DO iReac = 1, ReadInNumOfReact
     END DO
     iReacDiss = iReacDiss + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
   ELSE IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.NE.0) THEN
-    CALL abort(__STAMP__,&
-      'Dissociation/Ionization - Error in Definition: Non-reacting partner(s) has to be zero!',iReac)
+    CALL abort(__STAMP__,'Dissociation/Ionization - Error in Definition: Non-reacting partner(s) has to be zero!',iReac)
   END IF
 END DO
+
+! Get XSec database name
+IF((NbrOfPhotonXsecReactions.GT.0).AND.(TRIM(XSec_Database).EQ.'none')) XSec_Database = GETSTR('Particles-CollXSec-Database')
+
+! Get cross-sections for photoionization
+IF(NbrOfPhotonXsecReactions.GT.0) CALL InitPhotoionizationXSec()
 
 ! Automatic determination of the reaction type based on the number of reactants, products and charge balance (for ionization)
 DO iReac = 1, ChemReac%NumOfReact
   ! Skip photo-ionization reactions
-  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
+  IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) CYCLE
   IF (ChemReac%Reactants(iReac,3).NE.0) THEN
     ChemReac%ReactType(iReac)           = 'R'
   ELSE IF (ChemReac%Products(iReac,3).NE.0) THEN
@@ -362,9 +369,9 @@ DO iReac = 1, ChemReac%NumOfReact
         + ABS(Species(ChemReac%Products(iReac,3))%ChargeIC)
     IF (ChemReac%Products(iReac,4).GT.0) ChargeProducts = ChargeProducts + ABS(Species(ChemReac%Products(iReac,4))%ChargeIC)
     IF (ChargeReactants.NE.ChargeProducts) THEN
-      ChemReac%ReactType(iReac)           = 'I'
+      ChemReac%ReactType(iReac)         = 'I'
     ELSE
-      ChemReac%ReactType(iReac)           = 'D'
+      ChemReac%ReactType(iReac)         = 'D'
     END IF
   ELSE
     ChemReac%ReactType(iReac)           = 'E'
@@ -399,13 +406,11 @@ DO iReac = 1, ChemReac%NumOfReact
                           + ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,1)*SpecDSMC(iSpec)%HeatOfFormation
     ! For the impact-ionization, the heat of reaction is equal to the ionization energy
     IF(TRIM(ChemReac%ReactType(iReac)).EQ.'I') THEN
-      IF(.NOT.ALLOCATED(SpecDSMC(ChemReac%Reactants(iReac,1))%ElectronicState)) THEN
-        CALL abort(&
-        __STAMP__&
-        ,'ERROR: Ionization reactions require the definition of at least the ionization energy as electronic level!',iReac)
-      END IF
+      IF(.NOT.ALLOCATED(SpecDSMC(ChemReac%Reactants(iReac,1))%ElectronicState)) CALL abort(&
+        __STAMP__,'ERROR: Ionization reactions require the definition of at least the ionization energy as electronic level!',iReac)
     END IF
   END DO
+  ! Check whether the photon energy is sufficient to trigger the chemical reaction
   IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
     PhotonEnergy = 0.
     DO iSpec = 1, nSpecies
@@ -417,14 +422,44 @@ DO iReac = 1, ChemReac%NumOfReact
         END IF
       END DO
     END DO
+
     ChemReac%EForm(iReac) = ChemReac%EForm(iReac) + PhotonEnergy
     IF(ChemReac%EForm(iReac).LE.0.0) THEN
-      CALL abort(&
-      __STAMP__&
-      ,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
+      CALL abort(__STAMP__,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
     END IF
-  END IF
-END DO
+  ELSEIF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIonXSec') THEN
+    ! Check each remaining line
+    DO iLine = PhotoIonFirstLine, PhotoIonLastLine
+      ! Add photon energy to formation energy (which is negative and should be positive after the addition)
+      IF(ChemReac%EForm(iReac)+SpecPhotonXSecInterpolated(iLine,1)*eV2Joule.LE.0.0)THEN
+        iPhotoReac = ReacToPhotoReac(iReac)
+        ! Check if this photo reaction has a cross-section unequal zero
+        ! If it is zero, this reaction would never happen anyway, therefore ignore it
+        IF(SpecPhotonXSecInterpolated(iLine,2+iPhotoReac).LE.0.) THEN
+          CYCLE
+        ELSE
+          SWRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,1:2+iPhotoReac-1),"      requires fix       ",&
+          SpecPhotonXSecInterpolated(iLine,2+iPhotoReac+1:)
+        END IF
+        ! Abort if photon energy is not sufficient and the photo reaction has a cross-section greater zero
+        SWRITE (UNIT_stdOut,*) "      iLine      energy-fraction                              %             iPhotoReac(1)        ........"
+        SWRITE (UNIT_stdOut,*) iLine,SpecPhotonXSecInterpolated(iLine,:)
+        SWRITE (UNIT_stdOut,*) "-----------------------------------------"
+        SWRITE (UNIT_stdOut,*) "iLine                                          = ", iLine
+        SWRITE (UNIT_stdOut,*) "iReac                                          = ", iReac
+        SWRITE (UNIT_stdOut,*) "iPhotoReac                                     = ", iPhotoReac
+        SWRITE (UNIT_stdOut,*) "ChemReac%EForm(iReac)                          = ", ChemReac%EForm(iReac)
+        SWRITE (UNIT_stdOut,*) "PhotonEnergy [J]                               = ", SpecPhotonXSecInterpolated(iLine,1)*eV2Joule
+        SWRITE (UNIT_stdOut,*) "PhotonEnergy [eV]                              = ", SpecPhotonXSecInterpolated(iLine,1)
+        SWRITE (UNIT_stdOut,*) "SpecPhotonXSecInterpolated(iLine,2+iPhotoReac) = ", SpecPhotonXSecInterpolated(iLine,2+iPhotoReac)
+        CALL abort(__STAMP__,&
+          'Photoionization not possible because the photon energy is too low for this reaction. This is not considered yet.')
+      END IF
+    END DO ! iLine = , PhotoIonLastLine
+  END IF ! TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon'
+END DO ! iReac = 1, ChemReac%NumOfReact
+
+IF(NbrOfPhotonXsecReactions.GT.0) CALL CheckPhotoionizationXSec()
 
 ! Populate the background reaction arrays and initialize the required partition functions
 IF(DSMC%BackwardReacRate) THEN
@@ -436,25 +471,22 @@ DO iReac = 1, ChemReac%NumOfReact
   ! Proof of recombination definition
   IF (TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
     IF ((ChemReac%Reactants(iReac,1)*ChemReac%Reactants(iReac,2)*ChemReac%Reactants(iReac,3)).EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'Recombination - Error in Definition: Not all reactant species are defined! ReacNbr: ',iReac)
+      CALL abort(__STAMP__,'Recombination - Error in Definition: Not all reactant species are defined! ReacNbr: ',iReac)
     END IF
     IF (ChemReac%Reactants(iReac,3).NE.ChemReac%Products(iReac,2)) THEN
       CALL abort(__STAMP__,&
       'Recombination - Error in Definition: Third-collision partner does not correspond to the second product! ReacNbr: ',iReac)
     END IF
-  ELSE IF (TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') THEN
+  ELSE IF (.NOT.StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) THEN
     IF ((ChemReac%Reactants(iReac,1)*ChemReac%Reactants(iReac,2)).EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
+      CALL abort(__STAMP__,'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
     END IF
   END IF
   ! Proof of dissociation definition
   IF (TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
     ! Three product species are given
     IF ((ChemReac%Products(iReac,1)*ChemReac%Products(iReac,2)*ChemReac%Products(iReac,3)).EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'Dissociation - Error in Definition: Not all product species are defined!  ReacNbr: ',iReac)
+      CALL abort(__STAMP__,'Dissociation - Error in Definition: Not all product species are defined!  ReacNbr: ',iReac)
     END IF
     IF(TRIM(ChemReac%ReactModel(iReac)).NE.'XSec') THEN
       ! Cross-section based chemistry does not require this definition as no backward reaction rates are implemented
@@ -471,16 +503,13 @@ DO iReac = 1, ChemReac%NumOfReact
     END IF
   ELSE
     IF ((ChemReac%Products(iReac,1)*ChemReac%Products(iReac,2)).EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'Chemistry - Error in Definition: Product species not properly defined. ReacNbr:',iReac)
+      CALL abort(__STAMP__,'Chemistry - Error in Definition: Product species not properly defined. ReacNbr:',iReac)
     END IF
   END IF
   ! Check if the maximum species index is not greater than the number of species
   MaxSpecies = MAXVAL(ChemReac%Reactants(iReac,1:3))
-  IF(MaxSpecies.GT.nSpecies) THEN
-    CALL abort(__STAMP__,&
+  IF(MaxSpecies.GT.nSpecies) CALL abort(__STAMP__,&
       'Chemistry - Error in Definition: Defined species does not exist, check number of species. ReacNbr:',iReac)
-  END IF
 END DO
 
 ! Initialize analytic QK reaction rate (required for calculation of backward rate with QK and if multiple QK reactions can occur
@@ -545,6 +574,208 @@ END SUBROUTINE DSMC_chemical_init
 
 
 !===================================================================================================================================
+!> Initialize Photoionization cross-section (XSec) by reading the data from .h5
+!> 1. Check which reactions are 'phIonXSec'
+!> 2. Check the educts (photon+X), also switch the ordering of the names.e.g, N2-photon or photon-N2 of the container
+!> 3. Load the photon energy spectrum from the container "SPECTRUM" under "N2-photon"
+!> 4. Load the chemical reaction cross-sections but do not vary the order of the container name, e.g., H-HIon1-electron
+!>    if the name is not correctly ordered it will abort
+!> 5. Interpolate the cross-section data to the wavelength spectrum and discard the original data. Keep only the interpolated data.
+!> 6. Find the first and last wavelength for which cross-sections are available, ignore wavelengths outside in the simulation
+!===================================================================================================================================
+SUBROUTINE InitPhotoionizationXSec()
+! MODULES
+USE MOD_Globals
+USE MOD_MCC_Vars  ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,NbrOfPhotonXsecLines
+USE MOD_MCC_Vars  ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,ReacToPhotoReac
+USE MOD_MCC_Vars  ,ONLY: PhotonSpectrum,PhotonEnergies,MaxPhotonXSec
+USE MOD_MCC_XSec  ,ONLY: ReadReacPhotonXSec,ReadReacPhotonSpectrum
+USE MOD_DSMC_Vars ,ONLY: SpecDSMC,ChemReac
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=50)     :: EductPair,EductPairOld
+INTEGER               :: iReac,iPhotoReac
+REAL                  :: dx,dy,TotalEnergyFraction
+INTEGER               :: ReadInNumOfReact,dims(2),iLine,location(3)
+!===================================================================================================================================
+ReadInNumOfReact = ChemReac%NumOfReact
+! Set Mapping
+ALLOCATE(PhotoReacToReac(NbrOfPhotonXsecReactions))
+PhotoReacToReac = -1 ! Initialize
+ALLOCATE(ReacToPhotoReac(ReadInNumOfReact))
+ReacToPhotoReac = -1 ! Initialize
+iPhotoReac = 0
+!> 1. Check which reactions are 'phIonXSec'
+DO iReac = 1, ReadInNumOfReact
+  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIonXSec')THEN
+    ! Create mappings
+    iPhotoReac                  = iPhotoReac + 1
+    PhotoReacToReac(iPhotoReac) = iReac
+    ReacToPhotoReac(iReac)      = iPhotoReac
+!> 2. Check the educts (photon+X), also switch the ordering of the names.e.g, N2-photon or photon-N2 of the container
+    EductPair = TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)//'-photon'
+    IF(iPhotoReac.GT.1)THEN
+      IF(TRIM(EductPair).NE.TRIM(EductPairOld)) CALL abort(__STAMP__,'Currently only one photo reaction is implemented')
+    END IF ! iPhotoReac.GT.1
+    EductPairOld = EductPair
+  END IF ! TRIM(ChemReac%ReactModel(iReac)).EQ.'phIonXSec'
+END DO ! iReac = 1, ReadInNumOfReact
+
+!> 3. Load the photon energy spectrum from the container "SPECTRUM" under "N2-photon"
+CALL ReadReacPhotonSpectrum(1) ! 1 corresponds to iPhotoReac=1 and for all reactions, the Educt currently must be the same
+
+!> 4. Load the chemical reaction cross-sections but do not vary the order of the container name, e.g., H-HIon1-electron
+!>    if the name is not correctly ordered it will abort
+ALLOCATE(SpecPhotonXSec(NbrOfPhotonXsecReactions))
+DO iPhotoReac = 1, NbrOfPhotonXsecReactions
+  CALL ReadReacPhotonXSec(iPhotoReac)
+END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions
+
+! Normalize energy fraction
+TotalEnergyFraction = SUM(PhotonSpectrum(2,:))
+IF(.NOT.ALMOSTEQUALRELATIVE(TotalEnergyFraction,1.0,1e-3)) CALL abort(__STAMP__,'Sum of energy fraction is not 1.0')
+PhotonSpectrum(2,:) = PhotonSpectrum(2,:) / TotalEnergyFraction
+
+!> 5. Interpolate the cross-section data to the wavelength spectrum and discard the original data. Keep only the interpolated data.
+dims=SHAPE(PhotonSpectrum)
+NbrOfPhotonXsecLines = dims(2)
+ALLOCATE(SpecPhotonXSecInterpolated(NbrOfPhotonXsecLines,NbrOfPhotonXsecReactions+3))
+SpecPhotonXSecInterpolated = 0.
+ALLOCATE(PhotonDistribution(NbrOfPhotonXsecLines))
+DO iLine = 1, NbrOfPhotonXsecLines
+  SpecPhotonXSecInterpolated(iLine,1:2) = PhotonSpectrum(:,iLine)
+END DO ! iLine = 1, dims(2)
+DEALLOCATE(PhotonSpectrum)
+
+! Interpolate the cross-section data to to photon energy spectrum
+DO iPhotoReac = 1, NbrOfPhotonXsecReactions
+  ASSOCIATE( MINeV => MINVAL(SpecPhotonXSec(iPhotoReac)%XSecData(1,:)), MAXeV => MAXVAL(SpecPhotonXSec(iPhotoReac)%XSecData(1,:)))
+    DO iLine = 1, NbrOfPhotonXsecLines
+      ASSOCIATE( energy => SpecPhotonXSecInterpolated(iLine,1) )
+        IF((energy.GE.MINeV).AND.(energy.LE.MAXeV))THEN
+          ! Get the location of the element in the array with min value
+          location(3) = MINLOC(ABS(SpecPhotonXSec(iPhotoReac)%XSecData(1,:)-energy),1)
+
+          ! Get lower index of photon energy in XSec array
+          IF(energy.LE.SpecPhotonXSec(iPhotoReac)%XSecData(1,location(3)))THEN
+            location(2) = location(3)
+            location(1) = location(3)-1
+          ELSEIF(energy.GE.SpecPhotonXSec(iPhotoReac)%XSecData(1,location(3)))THEN
+            location(2) = location(3)+1
+            location(1) = location(3)
+          ELSE
+            CALL abort(__STAMP__,'Photon spectrum interpolation failed.')
+          END IF ! energy.LE.SpecPhotonXSec(iPhotoReac)%XSecData(1,location(3))
+
+          ! Check if last element is exactly matched
+          IF(location(1).EQ.dims(2))THEN
+            SpecPhotonXSecInterpolated(iLine,2+iPhotoReac) = SpecPhotonXSec(iPhotoReac)%XSecData(location(1),2)
+          ELSE
+            dx = SpecPhotonXSec(iPhotoReac)%XSecData(1,location(2))-SpecPhotonXSec(iPhotoReac)%XSecData(1,location(1))
+            dy = SpecPhotonXSec(iPhotoReac)%XSecData(2,location(2))-SpecPhotonXSec(iPhotoReac)%XSecData(2,location(1))
+            IF(ABS(dx).GT.0.)THEN
+              ! linear interpolation
+              SpecPhotonXSecInterpolated(iLine,2+iPhotoReac) = SpecPhotonXSec(iPhotoReac)%XSecData(2,location(1)) &
+                  + dy/dx * (energy-SpecPhotonXSec(iPhotoReac)%XSecData(1,location(1)))
+            ELSE
+              SpecPhotonXSecInterpolated(iLine,2+iPhotoReac) = SpecPhotonXSec(iPhotoReac)%XSecData(2,location(1))
+            END IF ! dy.G
+          END IF ! location.EQ.dims(2)
+
+          ! Calculate total cross section
+          SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3) = &
+              SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3) + SpecPhotonXSecInterpolated(iLine,2+iPhotoReac)
+        END IF ! (SpecPhotonXSecInterpolated(iLine,1).GE.MINeV).AND.()
+      END ASSOCIATE
+    END DO ! iLine = 1, NbrOfPhotonXsecLines
+  END ASSOCIATE
+END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions
+DEALLOCATE(SpecPhotonXSec)
+
+!> 6. Find the first and last wavelength for which cross-sections are available, ignore wavelengths outside in the simulation
+PhotoIonFirstLine = HUGE(1)
+PhotoIonLastLine = 0
+DO iLine = 1, NbrOfPhotonXsecLines
+  IF(SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3).GT.0.)THEN
+    PhotoIonFirstLine = MIN(iLine,PhotoIonFirstLine)
+    PhotoIonLastLine  = MAX(iLine,PhotoIonLastLine)
+  END IF ! SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3).GT.0.
+END DO ! iLine = 1, NbrOfPhotonXsecLines
+IF(PhotoIonLastLine.LT.PhotoIonFirstLine) CALL abort(__STAMP__,'Photoionization XSec read-in failed. No lines interpolated.')
+MaxPhotonXSec = MAXVAL(SpecPhotonXSecInterpolated(PhotoIonFirstLine:PhotoIonLastLine,2))
+ALLOCATE(PhotonEnergies(PhotoIonFirstLine:PhotoIonLastLine,1+NbrOfPhotonXsecReactions))
+
+END SUBROUTINE InitPhotoionizationXSec
+
+
+!===================================================================================================================================
+!> 1. Check the wavelengths and corresponding cross sections of the chemical reaction
+!> 2. Determine the lost energy (wavelengths outside of the range of the cross-section data)
+!===================================================================================================================================
+SUBROUTINE CheckPhotoionizationXSec()
+! MODULES
+USE MOD_Globals
+USE MOD_MCC_Vars  ,ONLY: NbrOfPhotonXsecReactions,NbrOfPhotonXsecLines,SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: ZeroLine,iLine
+REAL                  :: LostEnergy(2)
+!===================================================================================================================================
+IF(.NOT.MPIRoot) RETURN
+
+! Sanity check: intermediate lines with zero cross sections are not allowed
+ZeroLine = 0
+DO iLine = PhotoIonFirstLine, PhotoIonLastLine
+  IF(SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3).LE.0.)THEN
+    ZeroLine = iLine
+    EXIT
+  END IF ! 
+END DO ! iLine = PhotoIonFirstLine, PhotoIonLastLine
+
+IF(ZeroLine.GT.0)THEN
+  WRITE(UNIT_StdOut,*) ""
+  WRITE(UNIT_StdOut,*) "ERROR: Found intermediate wavelength with no correspoding chemical reaction (cross section > 0)"
+  WRITE(UNIT_StdOut,*) "SpecPhotonXSecInterpolated: Line ",ZeroLine," is broken"
+  DO iLine = PhotoIonFirstLine, PhotoIonLastLine
+    IF(iLine.EQ.ZeroLine) WRITE (*,*) " -------------------------------- HERE -------------------------------- "
+    SWRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,:)
+    IF(iLine.EQ.ZeroLine) WRITE (*,*) " -------------------------------- HERE -------------------------------- "
+  END DO ! iLine = 1, dims(2)
+  CALL abort(__STAMP__,'Found intermediate wavelength with no correspoding chemical reaction (any cross section > 0)')
+END IF ! ZeroLine.GT.0
+
+! Calculate the lost energy (wavelengths for which no reactions are possible)
+LostEnergy(:) = 0.
+IF(PhotoIonFirstLine.GT.1)THEN
+  DO iLine = 1, PhotoIonFirstLine-1
+    LostEnergy(1) = LostEnergy(1) + SpecPhotonXSecInterpolated(iLine,2)
+  END DO ! iLine = 1, PhotoIonFirstLine-1
+END IF ! PhotoIonFirstLine.GT.1
+IF(PhotoIonLastLine.LT.NbrOfPhotonXsecLines)THEN
+  DO iLine = PhotoIonLastLine+1, NbrOfPhotonXsecLines
+    LostEnergy(2) = LostEnergy(2) + SpecPhotonXSecInterpolated(iLine,2)
+  END DO ! iLine = PhotoIonLastLine+1, NbrOfPhotonXsecLines
+END IF ! PhotoIonLastLine.LT.NbrOfPhotonXsecLines
+IF(SUM(LostEnergy).GT.0.)THEN
+  WRITE (UNIT_stdOut,'(A,3(F6.2,A))') "Lost energy content in photoionization XSec: ", &
+      LostEnergy(1)*100., "% (high photon wavelength),",&
+      LostEnergy(2)*100., "% (low photon wavelength),",&
+      SUM(LostEnergy)*100., "% (total)"
+  WRITE (UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') "Only considering level ",PhotoIonFirstLine," to ",PhotoIonLastLine, " from 1 to ",&
+      NbrOfPhotonXsecLines," due to the cut-off"
+END IF ! SUM(LostEnergy).GT.0.
+
+END SUBROUTINE CheckPhotoionizationXSec
+
+
+!===================================================================================================================================
 !> Initialize all possible reaction paths
 !===================================================================================================================================
 SUBROUTINE InitReactionPaths()
@@ -581,7 +812,7 @@ DO iCase = 1, CollInf%NumCase
     END IF
 #endif /*USE_HDG*/
     ! Skip the special case of photo ionization
-    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
+    IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) CYCLE
     iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
     IF(iCase.EQ.iCase2) THEN
       ! Only add recombination reactions once
@@ -618,7 +849,7 @@ DO iCase = 1, CollInf%NumCase
     END IF
 #endif /*USE_HDG*/
     ! Skip the special case of photo ionization
-    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
+    IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) CYCLE
     iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
     ! Save the reaction index for the specific collision case
     IF(iCase.EQ.iCase2) THEN
@@ -748,7 +979,7 @@ DO iReacForward = 1, ChemReac%NumOfReactWOBackward
       ! definition of the recombination reaction (e.g. CH3 + H + M -> CH4 + M but CH4 + M -> CH3 + M + H)
       ChemReac%Reactants(iReac,2)      = ChemReac%Products(iReacForward,3)
       ChemReac%Reactants(iReac,3)      = ChemReac%Products(iReacForward,2)
-      ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
+      ChemReac%Products(iReac,1:3)     = ChemReac%Reactants(iReacForward,1:3)
       ChemReac%EForm(iReac)            = -ChemReac%EForm(iReacForward)
       ChemReac%EActiv(iReac) = 0.0
     ELSE
@@ -763,23 +994,21 @@ DO iReacForward = 1, ChemReac%NumOfReactWOBackward
       ChemReac%Reactants(iReac,1)      = ChemReac%Products(iReacForward,1)
       ChemReac%Reactants(iReac,2)      = ChemReac%Products(iReacForward,3)
       ChemReac%Reactants(iReac,3)      = ChemReac%Products(iReacForward,2)
-      ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
+      ChemReac%Products(iReac,1:3)     = ChemReac%Reactants(iReacForward,1:3)
       ChemReac%EActiv(iReac) = 0.0
     ELSEIF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'E') THEN
       ChemReac%ReactType(iReac) = 'E'
       ChemReac%ReactModel(iReac) = 'TCE'
       ChemReac%Reactants(iReac,1:3)      = ChemReac%Products(iReacForward,1:3)
       ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
-      ChemReac%EActiv(iReac)                = ChemReac%EForm(iReacForward) + ChemReac%EActiv(iReacForward)
+      ChemReac%EActiv(iReac)             = ChemReac%EForm(iReacForward) + ChemReac%EActiv(iReacForward)
       IF(ChemReac%EActiv(iReac).LT.0.0) THEN
         ! The absolute value of the heat of formation cannot be larger than the activation energy but Arrhenius fits require
         ! sometimes a different value to better reproduce the experimental results. Doesnt matter for backward rate.
         ChemReac%EActiv(iReac) = 0.0
       END IF
     ELSE
-      CALL abort(&
-      __STAMP__&
-      ,'Automatic calculation of backward reaction rate not supported with the chosen react type:',iReac)
+      CALL abort(__STAMP__,'Automatic calculation of backward reaction rate not supported with the chosen react type:',iReac)
     END IF
     ChemReac%Arrhenius_Prefactor(iReac)     = ChemReac%Arrhenius_Prefactor(iReacForward)
     ChemReac%Arrhenius_Powerfactor(iReac)   = ChemReac%Arrhenius_Powerfactor(iReacForward)

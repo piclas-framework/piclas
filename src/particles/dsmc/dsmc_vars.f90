@@ -374,10 +374,11 @@ TYPE tChemReactions
                                                             !    R (molecular recombination
                                                             !    D (molecular dissociation)
                                                             !    E (molecular exchange reaction)
-  CHARACTER(LEN=5),ALLOCATABLE    :: ReactModel(:)          ! Model of Reaction (reaction num)
+  CHARACTER(LEN=15),ALLOCATABLE   :: ReactModel(:)          ! Model of Reaction (reaction num)
                                                             !    TCE (total collision energy)
                                                             !    QK (quantum kinetic)
                                                             !    phIon (photon-ionization)
+                                                            !    phIonXSec (photon-ionization based on cross-section data)
                                                             !    XSec (based on cross-section data)
   INTEGER, ALLOCATABLE            :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
   INTEGER, ALLOCATABLE            :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]

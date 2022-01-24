@@ -298,7 +298,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
-USE MOD_MCC_Vars               ,ONLY: UseMCC, XSec_NullCollision, XSec_Relaxation, SpecXSec
+USE MOD_MCC_Vars               ,ONLY: UseMCC, XSec_Database, XSec_NullCollision, XSec_Relaxation, SpecXSec
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, VarTimeStep, usevMPF
@@ -357,17 +357,14 @@ DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%CalcQualityFactors = GETLOGICAL('Particles-DSMC-CalcQualityFactors')
 DSMC%ReservoirSimu = GETLOGICAL('Particles-DSMCReservoirSim')
 IF (DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'ERROR: Do not use DSMC%CalcQualityFactors for CollisMode < 1')
+  CALL abort(__STAMP__,'ERROR: Do not use DSMC%CalcQualityFactors for CollisMode < 1')
 END IF ! DSMC%CalcQualityFactors.AND.(CollisMode.LT.1)
 DSMC%ReservoirSimuRate       = GETLOGICAL('Particles-DSMCReservoirSimRate')
 DSMC%ReservoirRateStatistic  = GETLOGICAL('Particles-DSMCReservoirStatistic')
 DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation')
 IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
   IF(DSMC%DoTEVRRelaxation) THEN
-    CALL abort(__STAMP__&
-        ,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
+    CALL abort(__STAMP__,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
   END IF
 END IF
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
@@ -656,7 +653,16 @@ ELSE !CollisMode.GT.0
     IF(SpecDSMC(iSpec)%UseElecXSec.AND.SpecDSMC(iSpec)%InterID.EQ.4) THEN
       CALL Abort(__STAMP__,'ERROR: Electronic relaxation should be enabled for the respective heavy species, not the electrons!')
     END IF
+#if (PP_TimeDiscMethod!=42)
+    IF(SpecDSMC(iSpec)%UseElecXSec.AND.(.NOT.BGGas%BackgroundSpecies(iSpec))) THEN
+      SWRITE(*,*) 'NOTE: Electronic relaxation via cross-sections for regular DSMC is currently only enabled for the RESERVOIR'
+      SWRITE(*,*) 'NOTE: timedisc to test the calculation of the probabilities during regression testing. For DSMC, a de-excitation'
+      SWRITE(*,*) 'NOTE: model should be implemented. Regression test: WEK_Reservoir/MCC_N2_XSec_Elec'
+      CALL Abort(__STAMP__,'ERROR: Electronic relaxation via cross-section (-UseElecXSec) is only supported with a background gas!')
+    END IF
+#endif
   END DO
+  XSec_Database = 'none'! Initialize
   IF(ANY(SpecDSMC(:)%UseCollXSec).OR.ANY(SpecDSMC(:)%UseVibXSec).OR.ANY(SpecDSMC(:)%UseElecXSec)) THEN
     UseMCC = .TRUE.
     CALL MCC_Init()
@@ -667,15 +673,12 @@ ELSE !CollisMode.GT.0
   END IF
   ! Ambipolar diffusion is not implemented with the regular background gas, only with MCC
   IF(DSMC%DoAmbipolarDiff) THEN
-    IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) THEN
-      CALL abort(__STAMP__,'ERROR: Ambipolar diffusion is not implemented with the regular background gas!')
-    END IF
+    IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL abort(__STAMP__,&
+        'ERROR: Ambipolar diffusion is not implemented with the regular background gas!')
   END IF
   ! MCC and variable vibrational relaxation probability is not supported
-  IF(UseMCC.AND.(DSMC%VibRelaxProb.EQ.2.0)) THEN
-    CALL abort(__STAMP__&
+  IF(UseMCC.AND.(DSMC%VibRelaxProb.EQ.2.0)) CALL abort(__STAMP__&
         ,'ERROR: Monte Carlo Collisions and variable vibrational relaxation probability (DSMC-based) are not compatible!')
-  END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! reading/writing molecular stuff
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1081,14 +1084,9 @@ INTEGER,INTENT(IN) :: iSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF(SpecDSMC(iSpec)%Name.EQ.'none') THEN
-  CALL Abort(&
-      __STAMP__,&
-      "Read-in from electronic database requires the definition of species name! Species:",iSpec)
-END IF
-IF(.NOT.SpecDSMC(iSpec)%FullyIonized)THEN
-  CALL ReadSpeciesLevel(SpecDSMC(iSpec)%Name,iSpec)
-END IF
+IF(SpecDSMC(iSpec)%Name.EQ.'none') CALL Abort(__STAMP__,&
+    "Read-in from electronic database requires the definition of species name! Species:",IntInfoOpt=iSpec)
+IF(.NOT.SpecDSMC(iSpec)%FullyIonized) CALL ReadSpeciesLevel(SpecDSMC(iSpec)%Name,iSpec)
 END SUBROUTINE SetElectronicModel
 
 

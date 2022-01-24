@@ -447,6 +447,7 @@ INTEGER                   :: iQua
 REAL                      :: iRan, ElectronicPartition, ElectronicPartitionTemp, tmpExp
 !===================================================================================================================================
 ElectronicPartition  = 0.
+CalcEElec_particle = 0.
 
 IF(.NOT.PRESENT(iPart).AND.DSMC%ElectronicModel.EQ.2) THEN
   CALL abort(__STAMP__,'ERROR: Calculation of electronic energy using ElectronicModel = 2 requires the input of particle index!')

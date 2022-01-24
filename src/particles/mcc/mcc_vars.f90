@@ -68,5 +68,33 @@ END TYPE tSpeciesXSec
 
 TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:)          ! Species cross-section related data (CollCase)
 
+! Photoionization based on cross-sections from tables
+INTEGER,ALLOCATABLE                 :: PhotoReacToReac(:)  ! Mapping from iPhotoReac to iReac
+INTEGER,ALLOCATABLE                 :: ReacToPhotoReac(:)  ! Mapping from iReac to iPhotoReac
+INTEGER                             :: NbrOfPhotonXsecReactions ! Number of photoionization reactions
+INTEGER                             :: NbrOfPhotonXsecLines ! Number of photoionization wavelengths
+INTEGER                             :: PhotoIonFirstLine    ! First energy level (wavelength) for which a cross-section is not zero
+INTEGER                             :: PhotoIonLastLine     ! Last energy level (wavelength) for which a cross-section is not zero
+REAL,ALLOCATABLE                    :: PhotonDistribution(:)! Distribution of photons (calculated from the spectrum)
+INTEGER,ALLOCATABLE                 :: PhotonEnergies(:,:)  ! Energy spectrum for emission (calculated from the input spectrum)
+REAL,ALLOCATABLE                    :: PhotonSpectrum(:,:)  ! Photon energy spectrum
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: energy fraction (sum equals unity)
+REAL,ALLOCATABLE                    :: SpecPhotonXSecInterpolated(:,:)  ! Interpolated cross-sections
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: Energy fraction (sum equals unity)
+                                                            ! 3+: Cross-section at the respective energy level [m^2] Reac1
+                                                            ! 4+: Cross-section at the respective energy level [m^2] Reac2
+                                                            ! ...
+                                                            ! Last: Total Cross-section at the respective energy level [m^2]
+REAL                                :: MaxPhotonXSec        ! Max of SpecPhotonXSecInterpolated(FirstLine:LastLine,2)
+
+TYPE tSpeciesPhotonXSec
+  REAL,ALLOCATABLE                  :: XSecData(:,:)        ! Collision cross-section as read-in from the database
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: Cross-section at the respective energy level [m^2]
+END TYPE tSpeciesPhotonXSec
+
+TYPE(tSpeciesPhotonXSec), ALLOCATABLE     :: SpecPhotonXSec(:)          ! Species cross-section related data (only photoionization)
 !===================================================================================================================================
 END MODULE MOD_MCC_Vars
