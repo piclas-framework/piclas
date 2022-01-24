@@ -1232,7 +1232,7 @@ USE MOD_SuperB_Tools           ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
 USE MOD_Globals_Vars           ,ONLY: Pi
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac, dt
 USE MOD_PICInterpolation_vars  ,ONLY: useVariableExternalField, VariableExternalField
-USE MOD_PICInterpolation_tools ,ONLY: InterpolateVariableExternalField
+USE MOD_PICInterpolation_tools ,ONLY: InterpolateVariableExternalField1D
 USE MOD_Globals_Vars           ,ONLY: c_inv
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -1293,7 +1293,7 @@ DO i=1,chunkSize
     IF(particle_positions(i*3).LT.VariableExternalField(1,1))THEN ! assume particles travel in positive z-direction
       CALL abort(__STAMP__,'SetParticlePosition: particle_positions(i*3) cannot be smaller than VariableExternalField(1,1). Fix *.csv data or emission!')
     END IF
-    Bintpol = InterpolateVariableExternalField(particle_positions(i*3))
+    Bintpol = InterpolateVariableExternalField1D(particle_positions(i*3))
     rgyrate = 1./ SQRT ( 1. - (Species(FractNbr)%Init(iInit)%VeloIC**2 * (1. + 1./Species(FractNbr)%Init(iInit)%alpha**2)) &
                         * c_inv * c_inv ) * Species(FractNbr)%MassIC * Species(FractNbr)%Init(iInit)%VeloIC / &
               ( Bintpol * abs( Species(FractNbr)%ChargeIC) )

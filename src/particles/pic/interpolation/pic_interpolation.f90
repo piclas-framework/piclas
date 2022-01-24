@@ -96,12 +96,6 @@ CALL prms%CreateIntOption(      'PIC-AlgebraicExternalField'   , &
      , '0')
 
 CALL prms%CreateIntOption(      'PIC-AlgebraicExternalFieldDelta', 'Delta factor for H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)', '2')
-CALL prms%CreateRealArrayOption('PIC-NormVecOfWall'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Normal vector for pushTimeStep', '1. , 0. , 0.')
-CALL prms%CreateRealArrayOption('PIC-BGMdeltas'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Dimensions of PIC background mesh', '0. , 0. , 0.')
-CALL prms%CreateRealArrayOption('PIC-FactorBGM'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Denominator of PIC-BGMdeltas', '1. , 1. , 1.')
 CALL prms%CreateLogicalOption(  'PIC-OutputSource'   , 'Flag for activating the output of particle charge and current density'//&
                                                        'source terms to hdf5', '.FALSE.')
 END SUBROUTINE DefineParametersPICInterpolation
@@ -159,7 +153,9 @@ useBGField         = GETLOGICAL('PIC-BG-Field')
 useVariableExternalField      = .FALSE.
 FileNameVariableExternalField = GETSTR('PIC-variableExternalField')
 IF (FileNameVariableExternalField.NE.'none') THEN ! if supplied, read the data file
+  ! Activate variable external field
   useVariableExternalField = .TRUE.
+  ! Read data from .csv or .h5 file
   CALL ReadVariableExternalField()
 END IF
 
@@ -357,7 +353,192 @@ END SUBROUTINE InterpolateFieldToSingleParticle
 
 SUBROUTINE ReadVariableExternalField()
 !===================================================================================================================================
-! ATTENTION: The extrenal field needs to be defined on equidistant data-points
+! ATTENTION: The external field needs to be defined on equidistant data-points as either .csv or .h5 file
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,FileNameVariableExternalField
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField2D,VariableExternalFieldAxisSym
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER,PARAMETER     :: lenmin=4
+INTEGER               :: lenstr
+!===================================================================================================================================
+SWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
+
+! Defaults
+VariableExternalField2D      = .FALSE.
+VariableExternalFieldAxisSym = .FALSE.
+
+! Check if file exists
+IF(.NOT.FILEEXISTS(FileNameVariableExternalField)) CALL abort(__STAMP__,"File not found: "//TRIM(FileNameVariableExternalField))
+
+! Check length of file name
+lenstr=LEN(TRIM(FileNameVariableExternalField))
+IF(lenstr.LT.lenmin) CALL abort(__STAMP__,"File name too short: "//TRIM(FileNameVariableExternalField))
+
+! Check file ending, either .csv or .h5
+IF(TRIM(FileNameVariableExternalField(lenstr-lenmin+2:lenstr)).EQ.'.h5')THEN
+  CALL ReadVariableExternalFieldFromHDF5()
+ELSEIF(TRIM(FileNameVariableExternalField(lenstr-lenmin+1:lenstr)).EQ.'.csv')THEN
+  CALL ReadVariableExternalFieldFromCSV()
+ELSE
+  CALL abort(__STAMP__,"Unrecognised file format for : "//TRIM(FileNameVariableExternalField))
+END IF
+
+IF(.NOT.ALLOCATED(VariableExternalField)) CALL abort(__STAMP__,"Failed to load data from: "//TRIM(FileNameVariableExternalField))
+
+SWRITE(UNIT_stdOut,'(A)')' ...VARIABLE EXTERNAL FIELD INITIALIZATION DONE'
+END SUBROUTINE ReadVariableExternalField
+
+
+SUBROUTINE ReadVariableExternalFieldFromHDF5()
+!===================================================================================================================================
+!> Read-in of spatially variable external magnetic field from .h5 file
+!> Check for different fields in the file: x,y,z or x,r or y,r or z,r to determine a possible axial symmetry
+!> as well as Bx, By, Bz or Br, Bz etc.
+!===================================================================================================================================
+! use module
+USE MOD_IO_HDF5
+USE MOD_Globals
+USE MOD_HDF5_Input            ,ONLY: DatasetExists,ReadAttribute
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,DeltaExternalField,FileNameVariableExternalField
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField2D,VariableExternalFieldAxisSym,VariableExternalFieldRadInd
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldAxisDir,VariableExternalField2DRows,VariableExternalField2DColumns
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldMin,VariableExternalFieldMax
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=64)                 :: dsetname,AttributeName
+INTEGER                           :: err
+INTEGER                           :: NbrOfRows,NbrOfColumns,i,j
+INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
+INTEGER(HID_T)                    :: file_id_loc                       ! File identifier
+INTEGER(HID_T)                    :: dset_id_loc                       ! Dataset identifier
+INTEGER(HID_T)                    :: filespace                          ! filespace identifier
+LOGICAL                           :: DatasetFound,AttribtueFound
+REAL                              :: delta,deltaOld
+!===================================================================================================================================
+! Initialize FORTRAN interface.
+CALL H5OPEN_F(err)
+
+! Open the file.
+CALL H5FOPEN_F(TRIM(FileNameVariableExternalField), H5F_ACC_RDONLY_F, file_id_loc, err)
+
+! Check if the datasets exist
+DatasetFound = .FALSE.
+dsetname = TRIM('/data')
+CALL H5LEXISTS_F(file_id_loc, TRIM(dsetname), DatasetFound, err)
+IF(DatasetFound) THEN
+  ! Open the dataset.
+  CALL H5DOPEN_F(file_id_loc, dsetname, dset_id_loc, err)
+  ! Get the file space of the dataset.
+  CALL H5DGET_SPACE_F(dset_id_loc, FileSpace, err)
+  ! get size
+  CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+  ! Flip columns and rows between .h5 data and Fortran data
+  NbrOfColumns=INT(dims(2))
+  NbrOfRows=INT(dims(1))
+  ! Read-in the data
+  ALLOCATE(VariableExternalField(1:NbrOfRows,1:NbrOfColumns))
+  VariableExternalField=0.
+  ! read data
+  CALL H5DREAD_F(dset_id_loc, H5T_NATIVE_DOUBLE, VariableExternalField(1:NbrOfRows,1:NbrOfColumns), dims, err)
+ELSE
+  CALL abort(__STAMP__,'Dataset "'//TRIM(dsetname)//'" not found in '//TRIM(FileNameVariableExternalField))
+END IF
+
+! Check attributes
+IF(NbrOfRows.LT.6) VariableExternalField2D=.TRUE.
+
+! Check for radial component
+VariableExternalFieldRadInd=-1
+AttributeName = 'r'
+CALL H5AEXISTS_F(file_id_loc, TRIM(AttributeName), AttribtueFound, iError)
+IF(AttribtueFound) CALL ReadAttribute(file_id_loc,AttributeName,1,IntScalar=VariableExternalFieldRadInd)
+IF(VariableExternalFieldRadInd.GT.0) VariableExternalFieldAxisSym=.TRUE.
+
+! Check if not axial symmetric or not 2D
+IF(.NOT.VariableExternalFieldAxisSym) CALL abort(__STAMP__,'Only axis symmetric variable external field imeplemented currently.')
+IF(.NOT.VariableExternalField2D) CALL abort(__STAMP__,'Only 2D external field imeplemented currently.')
+
+! Check for axial direction when using axis symmetric variable external field
+IF(VariableExternalFieldAxisSym)THEN
+  VariableExternalFieldAxisDir=-1
+  ! Check z-dir
+  AttributeName = 'z'
+  CALL H5AEXISTS_F(file_id_loc, TRIM(AttributeName), AttribtueFound, iError)
+  IF(AttribtueFound) CALL ReadAttribute(file_id_loc,AttributeName,1,IntScalar=VariableExternalFieldAxisDir)
+  IF(VariableExternalFieldAxisDir.GT.0) VariableExternalFieldAxisDir=3
+  ! Check if not axial symmetric with z-direction
+  IF(VariableExternalFieldAxisDir.NE.3) CALL abort(__STAMP__,'Only z-axis symmetric variable external field imeplemented currently.')
+END IF ! VariableExternalFieldAxisSym
+
+! Calculate the deltas and make sure that they are equidistant
+DeltaExternalField = -1.0
+VariableExternalFieldMin=HUGE(1.)
+VariableExternalFieldMax=-HUGE(1.)
+IF(VariableExternalField2D)THEN
+  VariableExternalField2DRows    = -1
+  VariableExternalField2DColumns = -1
+  VariableExternalFieldMin(3) = 0.
+  VariableExternalFieldMax(3) = 0.
+  DeltaExternalField(3) = 0.
+  DO i = 1, 2
+    VariableExternalFieldMin(i) = MINVAL(VariableExternalField(i,:))
+    VariableExternalFieldMax(i) = MAXVAL(VariableExternalField(i,:))
+    deltaOld = -1.0
+    DO j = 1, NbrOfColumns-1
+      delta = VariableExternalField(i,j+1)-VariableExternalField(i,j)
+      !write(*,*) delta
+      IF((deltaOld.GT.0.).AND.(delta.GT.0.))THEN
+        IF(.NOT.ALMOSTEQUALRELATIVE(delta,deltaOld,1e-5)) CALL abort(__STAMP__,'Variable external field: not equidistant.')
+      END IF ! deltaOld.GT.0.
+      ! Backup old value
+      IF(delta.GT.0.)THEN
+        deltaOld = delta
+        DeltaExternalField(i) = delta
+      ELSEIF(delta.LT.0.)THEN
+        IPWRITE(UNIT_StdOut,*) "j =", j
+        IF(VariableExternalField2DRows.LT.0)THEN
+          VariableExternalField2DColumns = j
+          VariableExternalField2DRows    = NbrOfColumns/VariableExternalField2DColumns
+        END IF
+      END IF
+    END DO ! j = 1, NbrOfColumns
+  END DO ! i = 1, 2
+END IF ! VariableExternalField2D
+
+! Sanity check
+IF(VariableExternalField2D)THEN
+  IF(MINVAL(DeltaExternalField(1:2)).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for variable external field.')
+ELSE
+  IF(MINVAL(DeltaExternalField).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for variable external field.')
+END IF ! VariableExternalField2D
+
+! Close the file.
+CALL H5FCLOSE_F(file_id_loc, err)
+! Close FORTRAN interface.
+CALL H5CLOSE_F(err)
+
+END SUBROUTINE ReadVariableExternalFieldFromHDF5
+
+
+SUBROUTINE ReadVariableExternalFieldFromCSV()
+!===================================================================================================================================
+! ATTENTION: The external field needs to be defined on equidistant data-points as .csv and currently on 1D fields are implemented
+! as B = Bz(z)
 ! Usage Information
 ! The file for the variable Bfield contains only the z coordinates and the static Bz-field
 ! Use the following format F8.5,1x,F8.5
@@ -376,8 +557,7 @@ USE MOD_PICInterpolation_Vars, ONLY:VariableExternalField,DeltaExternalField,nIn
 INTEGER               :: ioUnit, ii, err, ncounts
 REAL                  :: dummy, diff_comp, diff_check
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
-!OPEN(NEWUNIT=ioUnit,FILE=VariableExternalField,STATUS='OLD',FORM='FORMATTED')
+! Read from csv file
 OPEN(NEWUNIT=ioUnit,FILE=FileNameVariableExternalField,STATUS='OLD')
 err = 0
 ncounts = 0
@@ -402,35 +582,24 @@ DO ii = 1, ncounts
       SWRITE(UNIT_stdOut,'(A)') "ReadVariableExternalField: Non-equidistant OR non-increasing points for variable external field."
       SWRITE(UNIT_stdOut,WRITEFORMAT) diff_comp
       SWRITE(UNIT_stdOut,WRITEFORMAT) diff_check
-      CALL abort(&
-__STAMP__&
-        ,' Error in dataset!')
+      CALL abort(__STAMP__,' Error in dataset!')
     END IF
   END IF
 END DO
 CLOSE (ioUnit)
 
-!IF (VariableExternalField(1,1) .NE.0) THEN
-  !CALL abort(&
-!__STAMP__&
-!,  &
-      !"ERROR: Points have to start at 0.")
-!END IF
 IF(ncounts.GT.1) THEN
-  DeltaExternalField = VariableExternalField(1,2)  - VariableExternalField(1,1)
-  SWRITE(UNIT_stdOut,'(A,1X,ES25.14E3)') ' Delta external field: ',DeltaExternalField
-  IF(DeltaExternalField.LE.0) THEN
+  DeltaExternalField(1) = VariableExternalField(1,2)  - VariableExternalField(1,1)
+  SWRITE(UNIT_stdOut,'(A,1X,ES25.14E3)') ' Delta external field: ',DeltaExternalField(1)
+  IF(DeltaExternalField(1).LE.0) THEN
     SWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
   END IF
 ELSE
-  CALL abort(&
-__STAMP__&
-, &
-      " ERROR: not enough data points in variable external field file!")
+  CALL abort(__STAMP__," ERROR: not enough data points in variable external field file!")
 END IF
+
 SWRITE(UNIT_stdOut,'(A,I4.0,A)')' Found ', ncounts,' data points.'
-SWRITE(UNIT_stdOut,'(A)')' ...VARIABLE EXTERNAL FIELD INITIALIZATION DONE'
-END SUBROUTINE ReadVariableExternalField
+END SUBROUTINE ReadVariableExternalFieldFromCSV
 
 
 SUBROUTINE GetTimeDependentBGField()
