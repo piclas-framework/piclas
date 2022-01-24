@@ -174,12 +174,11 @@ SUBROUTINE VarTimeStep_InitDistribution()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_io_hdf5
-USE MOD_Mesh_Vars     ,ONLY: nGlobalElems
-USE MOD_HDF5_Input    ,ONLY: DatasetExists,ReadArray,ReadAttribute,GetDataProps
-USE MOD_IO_HDF5       ,ONLY: OpenDataFile,CloseDataFile
-USE MOD_PARTICLE_Vars ,ONLY: VarTimeStep, Symmetry
-USE MOD_Restart_Vars  ,ONLY: DoRestart, RestartFile, DoMacroscopicRestart, MacroRestartFileName
-USE MOD_StringTools   ,ONLY: STRICMP
+USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
+USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray,ReadAttribute,GetDataProps
+USE MOD_PARTICLE_Vars,          ONLY: VarTimeStep, Symmetry
+USE MOD_Restart_Vars,           ONLY: DoRestart, RestartFile, DoMacroscopicRestart, MacroRestartFileName
+USE MOD_StringTools             ,ONLY:STRICMP
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES

@@ -119,6 +119,7 @@ USE MOD_Particle_MPI_Vars ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars         ,ONLY: ElemBaryNGeo
 USE MOD_Globals_Vars      ,ONLY: BoltzmannConst,eps0
+USE MOD_IO_HDF5           ,ONLY: AddToElemData,ElementOut
 USE MOD_Restart_Vars      ,ONLY: RestartFile
 USE MOD_TTM_Vars          ,ONLY: DoImportTTMFile
 USE MOD_TTM_Vars          ,ONLY: TTM_Cell_1,TTM_Cell_2,TTM_Cell_3,TTM_Cell_4,TTM_Cell_5,TTM_Cell_6,TTM_Cell_7,TTM_Cell_8

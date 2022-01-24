@@ -58,8 +58,7 @@ CONTAINS
 SUBROUTINE visu_getVarNamesAndFileType(mpi_comm_IN,statefile,meshfile,varnames_loc, bcnames_loc)
 USE MOD_Globals
 USE MOD_Visu_Vars      ,ONLY: FileType,VarNamesHDF5,nBCNamesAll
-USE MOD_IO_HDF5        ,ONLY: OpenDataFile,CloseDataFile
-USE MOD_HDF5_Input     ,ONLY: GetDataSize,GetVarNames,ISVALIDMESHFILE,ISVALIDHDF5FILE,ReadAttribute
+USE MOD_HDF5_Input     ,ONLY: OpenDataFile,CloseDataFile,GetDataSize,GetVarNames,ISVALIDMESHFILE,ISVALIDHDF5FILE,ReadAttribute
 USE MOD_HDF5_Input     ,ONLY: DatasetExists,HSize,nDims,ReadArray
 USE MOD_IO_HDF5        ,ONLY: GetDatasetNamesInGroup,File_ID
 USE MOD_StringTools    ,ONLY: STRICMP
@@ -207,9 +206,8 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Visu_Vars
 USE MOD_MPI                ,ONLY: InitMPI
-USE MOD_IO_HDF5            ,ONLY: OpenDataFile,CloseDataFile
 USE MOD_HDF5_Input         ,ONLY: ISVALIDMESHFILE,ISVALIDHDF5FILE,GetArrayAndName
-USE MOD_HDF5_Input         ,ONLY: ReadAttribute,File_ID,GetDataProps,ReadArray,DatasetExists
+USE MOD_HDF5_Input         ,ONLY: ReadAttribute,File_ID,OpenDataFile,GetDataProps,CloseDataFile,ReadArray,DatasetExists
 USE MOD_Interpolation_Vars ,ONLY: NodeType
 USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_StringTools        ,ONLY: STRICMP
@@ -324,7 +322,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Visu_Vars
 USE MOD_MPI                 ,ONLY: InitMPI
-USE MOD_HDF5_Input          ,ONLY: ISVALIDMESHFILE,ISVALIDHDF5FILE
+USE MOD_HDF5_Input          ,ONLY: ISVALIDMESHFILE,ISVALIDHDF5FILE,CloseDataFile
 USE MOD_Posti_ReadState     ,ONLY: ReadState
 USE MOD_Posti_VisuMesh      ,ONLY: VisualizeMesh
 !USE MOD_Posti_Calc          ,ONLY: CalcQuantities_DG
@@ -333,7 +331,7 @@ USE MOD_ReadInTools         ,ONLY: prms,ExtractParameterFile,FinalizeParameters
 USE MOD_StringTools         ,ONLY: STRICMP
 USE MOD_Posti_VisuMesh      ,ONLY: BuildVisuCoords
 USE MOD_Posti_Mappings      ,ONLY: Build_mapBCSides
-USE MOD_IO_HDF5             ,ONLY: InitMPIInfo,CloseDataFile
+USE MOD_IO_HDF5             ,ONLY: InitMPIInfo
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)               :: mpi_comm_IN

@@ -257,8 +257,8 @@ SUBROUTINE ReadMeshNodes()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_HDF5_Input         ,ONLY: ReadArray
-USE MOD_IO_HDF5            ,ONLY: CloseDataFile,OpenDataFile
+USE MOD_HDF5_Input         ,ONLY: ReadArray,OpenDataFile
+USE MOD_IO_HDF5            ,ONLY: CloseDataFile
 USE MOD_Mesh_Vars
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI

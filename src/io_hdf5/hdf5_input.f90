@@ -69,6 +69,7 @@ END INTERFACE
 PUBLIC :: ISVALIDHDF5FILE,ISVALIDMESHFILE,GetDataProps,GetAttributeSize,GetHDF5NextFileName
 PUBLIC :: ReadArray,ReadAttribute
 PUBLIC :: File_ID,HSize,nDims        ! Variables that need to be public
+PUBLIC :: OpenDataFile,CloseDataFile ! Subroutines that need to be public
 PUBLIC :: DatasetExists
 PUBLIC :: GetDataSize
 PUBLIC :: GetVarnames

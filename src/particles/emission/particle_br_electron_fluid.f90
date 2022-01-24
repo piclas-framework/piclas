@@ -919,8 +919,7 @@ USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
 USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Vars           ,ONLY: useDSMC
 USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
-USE MOD_HDF5_input          ,ONLY: ReadArray
-USE MOD_IO_HDF5             ,ONLY: OpenDataFile,CloseDataFile
+USE MOD_HDF5_input          ,ONLY: OpenDataFile,CloseDataFile,ReadArray
 USE MOD_HDF5_Input          ,ONLY: File_ID,DatasetExists
 USE MOD_Mesh_Vars           ,ONLY: offsetElem
 USE MOD_Restart_Vars        ,ONLY: RestartFile

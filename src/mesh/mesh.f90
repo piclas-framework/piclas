@@ -111,7 +111,6 @@ USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_PreProc
 USE MOD_Mesh_Vars
 USE MOD_HDF5_Input
-USE MOD_IO_HDF5                ,ONLY: OpenDataFile,CloseDataFile
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
 USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
