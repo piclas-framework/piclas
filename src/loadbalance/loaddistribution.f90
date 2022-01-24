@@ -1157,9 +1157,7 @@ CALL ProcessMemUsage(memory(1),memory(2),memory(3)) ! memUsed,memAvail,memTotal
 
 ! only CN roots communicate available and total memory info (count once per node)
 #if USE_MPI
-IF(nProcessors.EQ.1)THEN
-  memoryGlobal = memory
-ELSE
+IF(nProcessors.GT.1)THEN
   ! Collect data on node roots
   ProcMemoryUsed = memory(1)
   IF (myComputeNodeRank.EQ.0) THEN
@@ -1177,10 +1175,7 @@ ELSE
       CALL MPI_REDUCE(memory       , 0      , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
     END IF ! myLeaderGroupRank.EQ.0
   END IF ! myComputeNodeRank.EQ.0
-
 END IF ! nProcessors.EQ.1
-#else
-memoryGlobal = memory
 #endif /*USE_MPI*/
 
 ! --------------------------------------------------

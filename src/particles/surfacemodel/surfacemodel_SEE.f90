@@ -38,7 +38,7 @@ SUBROUTINE SecondaryElectronEmission(PartID_IN,locBCID,ProductSpec,ProductSpecNb
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                   ,ONLY: abort,VECNORM,PARTISELECTRON
 USE MOD_Globals_Vars              ,ONLY: c,Joule2eV
-USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF,BulkElectronTemp
+USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF,BulkElectronTemp,nSpecies
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,ElectronMass
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
@@ -248,8 +248,8 @@ END SELECT
 
 IF(ProductSpecNbr.GT.0)THEN
   ! Sanity check
-  IF(ProductSpec(2).LE.0) CALL abort(__STAMP__,'SEE model trying to create particle with 0 or negative speciesID. ProductSpec(2)=',&
-      IntInfoOpt=ProductSpec(2))
+  IF((ProductSpec(2).LE.0).OR.(ProductSpec(2).GT.nSpecies)) CALL abort(__STAMP__,&
+      'SEE model trying to create particle with 0, negative or speciesID > nSpecies: ProductSpec(2)=',IntInfoOpt=ProductSpec(2))
   ! Check if SEE counter is active and assign the number of produced electrons to the boundary
   IF(CalcElectronSEE)THEN
     ASSOCIATE( iSEEBC => SEE%BCIDToSEEBCID(locBCID) )

@@ -27,6 +27,8 @@ IF("${GIT_ORIGIN}" MATCHES "gitlab.com")
     SET(LIBS_DLPATH "git@gitlab.com:piclas/")
   # Checked out using HTTPS
   # IF("${GIT_ORIGIN}" MATCHES "^https@")
+  ELSEIF("${GIT_ORIGIN}" MATCHES "^ssh:")
+    SET(LIBS_DLPATH "git@gitlab.com:piclas/")
   ELSE()
     SET(LIBS_DLPATH "https://gitlab.com/piclas/")
   ENDIF()
