@@ -81,7 +81,7 @@ molecule-electron pair. If both species are molecular, priority will be given to
 
 ## Cross-section based electronic relaxation probability
 
-In the following, the utilization of cross-section data is extended to the electronic excitation for neutral-electron collisions. When data is available, it will be read-in by the Python script described above. Each level will be handeled separately, allowing the atom/molecule to be excited in each level. The cross-setion data will be used to determine whether and which excitation will occur. During the excitation procedure the energy of the atom/molecule will be set to respective level. To enable this model, the following flags are required
+In the following, the utilization of cross-section data is extended to the electronic excitation for neutral-electron collisions. When data is available, it will be read-in by the Python script described above. Each level will be handled separately, allowing the atom/molecule to be excited in each level. The cross-section data will be used to determine whether and which excitation will occur. During the excitation procedure the energy of the atom/molecule will be set to respective level. To enable this model, the following flags are required
 
     Particles-DSMC-ElectronicModel    = 3
     Part-Species1-UseElecXSec         = T
