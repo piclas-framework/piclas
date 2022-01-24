@@ -498,16 +498,14 @@ NIG_Photoionization_release:
   stage: reggie_nightly
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_poisson_release ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas ; fi
 
 NIG_Photoionization_debug:
   <<: *defaults_poisson_nightly
   stage: reggie_nightly
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_poisson_debug ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run
