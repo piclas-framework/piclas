@@ -1171,9 +1171,6 @@ INTEGER             :: iRegions
     END IF
     IF(CalcRelaxProb) CALL CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
   END IF
-#else
-  ! Check if CalcTemperature() is not even called for this time disc
-  IF(CalcTemp) CALL abort(__STAMP__,'CalcTemp=T is not implemented for this time discretization')
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Other Analyze Routines
