@@ -140,8 +140,8 @@ USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_MCC_Init                ,ONLY: MCC_Chemistry_Init
-USE MOD_DSMC_Vars               ,ONLY: XSec_Database,NbrOfPhotonXsecReactions
-USE MOD_DSMC_Vars               ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,ReacToPhotoReac
+USE MOD_MCC_Vars                ,ONLY: XSec_Database,NbrOfPhotonXsecReactions
+USE MOD_MCC_Vars                ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,ReacToPhotoReac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -586,10 +586,11 @@ END SUBROUTINE DSMC_chemical_init
 SUBROUTINE InitPhotoionizationXSec()
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,PhotonSpectrum,NbrOfPhotonXsecLines,MaxPhotonXSec
-USE MOD_DSMC_Vars ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,ReacToPhotoReac
+USE MOD_MCC_Vars  ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,NbrOfPhotonXsecLines
+USE MOD_MCC_Vars  ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,ReacToPhotoReac
+USE MOD_MCC_Vars  ,ONLY: PhotonSpectrum,PhotonEnergies,MaxPhotonXSec
 USE MOD_MCC_XSec  ,ONLY: ReadReacPhotonXSec,ReadReacPhotonSpectrum
-USE MOD_DSMC_Vars ,ONLY: SpecDSMC,ChemReac,PhotonEnergies
+USE MOD_DSMC_Vars ,ONLY: SpecDSMC,ChemReac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -718,8 +719,7 @@ END SUBROUTINE InitPhotoionizationXSec
 SUBROUTINE CheckPhotoionizationXSec()
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars ,ONLY: NbrOfPhotonXsecReactions,NbrOfPhotonXsecLines
-USE MOD_DSMC_Vars ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine
+USE MOD_MCC_Vars  ,ONLY: NbrOfPhotonXsecReactions,NbrOfPhotonXsecLines,SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES

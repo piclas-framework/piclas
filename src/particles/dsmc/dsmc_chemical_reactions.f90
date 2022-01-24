@@ -679,16 +679,16 @@ DO iProd = 1, NumProd
 END DO
 !-------------------------------------------------------------------------------------------------------------------------------
 ! Root-finding algorithm to determine the vibrational and electronic degrees of freedom
-IF((nDOFMAX.GT.0).AND.(DSMC%ElectronicModel.GT.0)) THEN
+IF((nDOFMAX.GT.0).AND.((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2))) THEN
   ! Electronic and vibrational energy is considered
   ALLOCATE(XiVibPart(NumProd,nDOFMAX))
   XiVibPart = 0.
   CALL CalcXiTotalEqui(iReac,iPair,NumProd,Xi_total,Weight,XiVibPart=XiVibPart,XiElecPart=Xi_elec)
-ELSEIF(DSMC%ElectronicModel.GT.0) THEN
+ELSEIF((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2)) THEN
   ! Only electronic energy is considered
   CALL CalcXiTotalEqui(iReac,iPair,NumProd,Xi_total,Weight,XiElecPart=Xi_elec)
 ELSEIF(nDOFMAX.GT.0) THEN
-  ! Only vibrational energy is considered
+  ! Only vibrational energy is considered (in case of ElectronicModel = 3, products are always in the ground-state)
   ALLOCATE(XiVibPart(NumProd,nDOFMAX))
   XiVibPart = 0.
   CALL CalcXiTotalEqui(iReac,iPair,NumProd,Xi_total,Weight,XiVibPart=XiVibPart)
@@ -736,7 +736,7 @@ IF (DSMC%ElectronicModel.GT.0) THEN
         PartStateIntEn(3,ReactInx(iProd)) = 0.0
       END IF
       FakXi = FakXi - 0.5*Xi_elec(iProd)
-      CALL ElectronicEnergyExchange(iPair,ReactInx(iProd),FakXi, NewPart = .TRUE., Xi_elec = Xi_elec(iProd))
+      CALL ElectronicEnergyExchange(iPair,ReactInx(iProd),FakXi, NewPart = .TRUE., Xi_elec = Xi_elec(iProd), XSec_Level = 0)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(iProd))*Weight(iProd)
     END IF
   END DO
@@ -1421,8 +1421,9 @@ SUBROUTINE CalcPhotoIonizationNumber(i,NbrOfPhotons,NbrOfReactions)
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: c
 USE MOD_Particle_Vars ,ONLY: Species
-USE MOD_DSMC_Vars     ,ONLY: BGGas,ChemReac,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
-USE MOD_DSMC_Vars     ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,PhotoReacToReac
+USE MOD_DSMC_Vars     ,ONLY: BGGas,ChemReac
+USE MOD_MCC_Vars      ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
+USE MOD_MCC_Vars      ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,PhotoReacToReac
 USE MOD_TimeDisc_Vars ,ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1486,9 +1487,9 @@ SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, iInit, InitSpec, iLineOp
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: eV2Joule
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfFormedParticles, CollInf, DSMC_RHS
-USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
+USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
-USE MOD_DSMC_Vars               ,ONLY: ReacToPhotoReac
+USE MOD_MCC_Vars                ,ONLY: ReacToPhotoReac,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum

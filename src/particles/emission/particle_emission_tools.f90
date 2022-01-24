@@ -1654,7 +1654,7 @@ USE MOD_Timedisc_Vars ,ONLY: dt,time
 #ifdef LSERK
 USE MOD_Timedisc_Vars ,ONLY: iStage, RK_c, nRKStages
 #endif
-USE MOD_DSMC_Vars     ,ONLY: NbrOfPhotonXsecReactions,NbrOfPhotonXsecLines,SpecPhotonXSecInterpolated
+USE MOD_MCC_Vars      ,ONLY: NbrOfPhotonXsecReactions,NbrOfPhotonXsecLines,SpecPhotonXSecInterpolated
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
