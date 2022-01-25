@@ -242,11 +242,7 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          ! Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         ! Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           ! Species to be changed at wall (in, out), out=0: delete
-  INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction
-                                                                            ! 0 perfect/diffusive reflection
-                                                                            ! 5 SEE (secondary e- emission) by Levko2015
-                                                                            ! 6 SEE (secondary e- emission) by Pagonakis2016
-                                                                            !   (originally from Harrower1956)
+  INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction (e.g. SEE models)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
   LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)         

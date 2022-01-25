@@ -46,7 +46,7 @@ PUBLIC :: CalcAdaptBCInfo
 PUBLIC :: CalcTransTemp
 PUBLIC :: CalcMixtureTemp
 PUBLIC :: CalcTelec,CalcTVibPoly
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 PUBLIC :: CalcRelaxProbRotVib
 #endif
 PUBLIC :: CalcVelocities
@@ -1116,23 +1116,24 @@ REAL,INTENT(OUT)                  :: NumDens(nSpecAnalyze)
 INTEGER                           :: iSpec
 !===================================================================================================================================
 
-IF (PartMPI%MPIRoot) THEN
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    NumDens(1:nSpecies) = NumSpec(1:nSpecies) / MeshVolume
-  ELSE
-    NumDens(1:nSpecies) = NumSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / MeshVolume
-  END IF
+! Only root does calculation
+IF(.NOT.PartMPI%MPIRoot) RETURN
 
-  IF(BGGas%NumberOfSpecies.GT.0) THEN
-    DO iSpec = 1, nSpecies
-      IF(BGGas%BackgroundSpecies(iSpec)) THEN
-        NumDens(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))
-      END IF
-    END DO
-  END IF
-
-  IF(nSpecAnalyze.GT.1) NumDens(nSpecAnalyze) = SUM(NumDens(1:nSpecies))
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  NumDens(1:nSpecies) = NumSpec(1:nSpecies) / MeshVolume
+ELSE
+  NumDens(1:nSpecies) = NumSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / MeshVolume
 END IF
+
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  DO iSpec = 1, nSpecies
+    IF(BGGas%BackgroundSpecies(iSpec)) THEN
+      NumDens(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))
+    END IF
+  END DO
+END IF
+
+IF(nSpecAnalyze.GT.1) NumDens(nSpecAnalyze) = SUM(NumDens(1:nSpecies))
 
 END SUBROUTINE CalcNumberDensity
 
@@ -1646,7 +1647,7 @@ RETURN
 END FUNCTION CalcTVibPoly
 
 
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
 !===================================================================================================================================
 ! Calculates global rotational and vibrational relaxation probability for PartAnalyse.csv

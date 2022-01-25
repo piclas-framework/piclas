@@ -106,6 +106,18 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
 END IF
 
 n = PDM%ParticleVecLength !PDM%maxParticleNumber
+
+! Check size of PDM%ParticleInside array vs. PDM%ParticleVecLength. During particle splitting, the max particle number might be
+! exceeded, which may lead to an out-of-bounds here
+IF(usevMPF)THEN
+  IF(n.GT.SIZE(PDM%ParticleInside))THEN
+    IPWRITE(UNIT_StdOut,*) "PDM%ParticleVecLength    :", PDM%ParticleVecLength
+    IPWRITE(UNIT_StdOut,*) "SIZE(PDM%ParticleInside) :", SIZE(PDM%ParticleInside)
+    CALL abort(__STAMP__,'PDM%ParticleVecLength exceeds allocated arrays. Possible vMPF overflow.')
+  END IF ! n.GT.SIZE(PDM%ParticleInside)
+END IF ! usevMPF
+
+! Nullify
 PDM%ParticleVecLength = 0
 PDM%insideParticleNumber = 0
 IF (doParticleMerge) vMPF_SpecNumElem = 0
@@ -304,8 +316,8 @@ USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN) :: distribution   !< specifying keyword for velocity distribution
-REAL,INTENT(IN)             :: Tempergy       !< input temperature [K] or energy [J/eV] or velocity [m/s]
+CHARACTER(LEN=*),INTENT(IN) :: distribution   !< Specifying keyword for velocity distribution
+REAL,INTENT(IN)             :: Tempergy       !< Input temperature in [K] or energy in [J] or [eV] or velocity in [m/s]
 INTEGER,INTENT(IN)          :: iNewPart       !< The i-th particle that is inserted (only required for some distributions)
 INTEGER,INTENT(IN)          :: ProductSpecNbr !< Total number of particles that are inserted (only required for some distributions)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -329,7 +341,7 @@ CASE('deltadistribution')
   ! Mirror z-component of velocity (particles are emitted from surface!)
   VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
   ! Set magnitude
-  VeloFromDistribution = Tempergy*VeloFromDistribution ! Tempergy is [m/s]
+  VeloFromDistribution = Tempergy*VeloFromDistribution ! Tempergy here is [m/s]
 
 CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardment on dielectric surfaces
 
@@ -344,7 +356,7 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
       CALL RANDOM_NUMBER(RandVal) ! random y-coordinate
       IF (RandVal.LT.PDF) ARM = .FALSE.
     END DO
-    VeloABS = SQRT(2.0 * eps * Tempergy * eV2Joule / ElectronMass) ! eV to J
+    VeloABS = SQRT(2.0 * eps * Tempergy * eV2Joule / ElectronMass) ! Tempergy here is [eV], which is converted from eV to J
 
   ELSE ! 2 SEE
 
@@ -366,12 +378,12 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
           IF(RandVal.LT.PDF)THEN
             ARM = .FALSE. ! success, skip this loop and skip the outer loop
             ! eV to J: store 2nd electron velocity for next function call
-            BackupVeloABS = SQRT(2.0 * eps2 * Tempergy * eV2Joule / ElectronMass)
+            BackupVeloABS = SQRT(2.0 * eps2 * Tempergy * eV2Joule / ElectronMass) ! Tempergy here is [eV] (converted from eV to J)
             IF(eps+eps2.GT.1.0) ARM = .TRUE. ! start again for both energies
           END IF
         END IF
       END DO
-      VeloABS = SQRT(2.0 * eps * Tempergy * eV2Joule / ElectronMass) ! eV to J
+      VeloABS = SQRT(2.0 * eps * Tempergy * eV2Joule / ElectronMass) ! Tempergy here is [eV], which is converted from eV to J
 
     ELSE ! 2nd call of this function, velocity already known from last call and stored in "BackupVeloABS"
 

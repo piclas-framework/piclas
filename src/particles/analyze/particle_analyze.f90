@@ -693,7 +693,7 @@ USE MOD_TimeDisc_Vars           ,ONLY: iter, dt, IterDisplayStep
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumPartsOfSpec,CalcShapeEfficiencyR,CalcKineticEnergy,CalcKineticEnergyAndMaximum
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumberDensity,CalcAdaptBCInfo,CalcTransTemp,CalcVelocities
 USE MOD_Particle_Analyze_Output ,ONLY: DisplayCoupledPowerPart
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 USE MOD_DSMC_Vars               ,ONLY: CollisMode
 USE MOD_Particle_Mesh_Vars      ,ONLY: MeshVolume
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
@@ -726,7 +726,7 @@ INTEGER(KIND=IK)    :: SimNumSpec(nSpecAnalyze)
 REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: EkinMax(nSpecies)
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 REAL                :: ETotal
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
@@ -914,7 +914,7 @@ INTEGER             :: iRegions
             OutputCounter = OutputCounter + 1
           END DO
         END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
         IF (CollisMode.GT.1) THEN
           IF(CalcEint(2)) THEN
             DO iSpec=1, nSpecAnalyze
