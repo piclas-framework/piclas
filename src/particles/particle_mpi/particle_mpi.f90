@@ -1250,6 +1250,7 @@ DO iProc=0,nExchangeProcessors-1
         CALL abort(__STAMP__,'Particle received in not in proc! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
       END IF
       IF(.NOT.IsExchangeElem(ElemID)) THEN
+        IPWRITE(*,*) 'Part Pos + Velo:',PartState(1:6,PartID)
         CALL abort(__STAMP__,'Particle received in non exchange elem! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
       END IF
       IF (useDSMC) DSMC_RHS(1:3,PartID) = 0.0

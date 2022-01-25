@@ -178,7 +178,7 @@ DO iElem = firstElem,lastElem
         ! If small mortar side not defined, skip it for now, likely not inside the halo region
         IF (NbSideID.LT.1) CYCLE
 
-        NbElemID = SideInfo_Shared(SIDE_ELEMID,NbSideID)
+        NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID + iMortar)
         ! If small mortar element not defined, skip it for now, likely not inside the halo region
         IF (NbElemID.LT.1) CYCLE
 
@@ -220,7 +220,7 @@ DO iElem = firstElem,lastElem
         ! If small mortar side not defined, skip it for now, likely not inside the halo region
         IF (NbSideID.LT.1) CYCLE
 
-        NbElemID = SideInfo_Shared(SIDE_ELEMID,NbSideID)
+        NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID + iMortar)
         ! If small mortar element not defined, skip it for now, likely not inside the halo region
         IF (NbElemID.LT.1) CYCLE
 
@@ -267,11 +267,11 @@ DO iSide = 1, nExchangeSides
     DO iMortar = 1, nMortarElems
       NbSideID = -SideInfo_Shared(SIDE_LOCALID,SideID + iMortar)
       ! If small mortar side not defined, skip it for now, likely not inside the halo region
-      IF (NbSideID.LT.1) CYCLE
+      IF (NbSideID.LT.1) CALL abort(__STAMP__,'Neighbour side for exchange side missing!')
 
-      NbElemID = SideInfo_Shared(SIDE_ELEMID,NbSideID)
+      NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID + iMortar)
       ! If small mortar element not defined, skip it for now, likely not inside the halo region
-      IF (NbElemID.LT.1) CYCLE
+      IF (NbElemID.LT.1) CALL abort(__STAMP__,'Neighbour element for exchange side missing!')
 
       ! If any of the small mortar sides is not on the local proc, the side is a MPI side
       IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
@@ -376,6 +376,7 @@ xCoordsProc(3) = GEO%ymin
 xCoordsProc(4) = GEO%ymax
 xCoordsProc(5) = GEO%zmin
 xCoordsProc(6) = GEO%zmax
+
 
 ! Use a named loop so the entire element can be cycled
 ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
@@ -818,6 +819,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     END IF
   END DO ! iSide = 1, nExchangeSides
 END DO ElemLoop
+
+!CALL AddToElemData(ElementOut,'IsExchangeElem',LogArray=IsExchangeElem)
 
 ! Notify every proc if it was identified by the local proc
 IF(CheckExchangeProcs)THEN
