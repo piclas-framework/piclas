@@ -21,9 +21,10 @@ MODULE MOD_MCC_XSec
 IMPLICIT NONE
 PRIVATE
 
-PUBLIC :: ReadCollXSec, ReadVibXSec, ReadElecXSec, ReadReacXSec, InterpolateCrossSection_Elec, ReadReacPhotonXSec
-PUBLIC :: InterpolateCrossSection, InterpolateCrossSection_Vib, InterpolateCrossSection_Chem, ReadReacPhotonSpectrum
+PUBLIC :: ReadCollXSec, ReadVibXSec, ReadElecXSec, ReadReacXSec, ReadReacPhotonXSec, ReadReacPhotonSpectrum
+PUBLIC :: InterpolateCrossSection, InterpolateCrossSection_Vib, InterpolateCrossSection_Elec, InterpolateCrossSection_Chem
 PUBLIC :: XSec_CalcCollisionProb, XSec_CalcVibRelaxProb, XSec_CalcElecRelaxProb, XSec_CalcReactionProb
+PUBLIC :: XSec_ElectronicRelaxation
 !===================================================================================================================================
 
 CONTAINS
@@ -742,19 +743,123 @@ END IF
 END SUBROUTINE XSec_CalcVibRelaxProb
 
 
+SUBROUTINE XSec_ElectronicRelaxation(iPair,iCase,iPart_p1,iPart_p2,DoElec1,DoElec2,ElecLevelRelax)
+!===================================================================================================================================
+!> Determines whether a relaxation occurs based on the electronic relaxation probability
+!> 1. Interpolate the cross-section (MCC) or use the probability (VHS)
+!> 2. Determine which electronic level is to be excited
+!> 3. Reduce the total collision probability if no electronic excitation occurred
+!> 4. 4. Count the number of relaxation process for the relaxation rate (TimeDisc=42 only)
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Particle_Vars         ,ONLY: PartSpecies
+#if (PP_TimeDiscMethod==42)
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
+USE MOD_Particle_Vars         ,ONLY: Species, usevMPF
+USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting
+#endif
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)            :: iPair, iCase, iPart_p1, iPart_p2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)           :: DoElec1, DoElec2
+INTEGER,INTENT(OUT)           :: ElecLevelRelax
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iSpec_p1, iSpec_p2, iLevel
+REAL                          :: ProbSum, ProbElec, iRan
+#if (PP_TimeDiscMethod==42)
+REAL                          :: MacroParticleFactor
+#endif
+!===================================================================================================================================
+
+iSpec_p1 = PartSpecies(iPart_p1)
+iSpec_p2 = PartSpecies(iPart_p2)
+
+ElecLevelRelax = 0
+
+! Excitation only from ground-state
+IF(PartStateIntEn(3,iPart_p1).EQ.0.0.AND.PartStateIntEn(3,iPart_p2).EQ.0.0) THEN
+  ! 1. Interpolate the cross-section (MCC) or use the probability (VHS)
+  IF(SpecXSec(iCase)%UseCollXSec) THEN
+    ! Interpolate the electronic cross-section at the current collision energy
+    CALL XSec_CalcElecRelaxProb(iPair)
+    ProbSum = SpecXSec(iCase)%CrossSection
+  ELSE
+    ! Probabilities were saved and added to the total collision probability
+    ProbSum = Coll_pData(iPair)%Prob
+  END IF
+  ! Only proceed if any of the electronic excitation probabilities is above zero
+  IF(SUM(SpecXSec(iCase)%ElecLevel(:)%Prob).GT.0.) THEN
+    ProbElec = 0.
+    ! 2. Decide which electronic excitation should occur
+    CALL RANDOM_NUMBER(iRan)
+    DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+      ProbElec = ProbElec + SpecXSec(iCase)%ElecLevel(iLevel)%Prob
+      IF((ProbElec/ProbSum).GT.iRan) THEN
+        IF((SpecDSMC(iSpec_p1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec_p1)%FullyIonized)) THEN
+          DoElec1 = .TRUE.
+        ELSE
+          DoElec2 = .TRUE.
+        END IF
+        ElecLevelRelax = iLevel
+        EXIT
+      END IF
+    END DO
+    ! 3. Reducing the total collision probability if no electronic excitation occurred
+    IF((.NOT.DoElec1).AND.(.NOT.DoElec2)) THEN
+      IF(SpecXSec(iCase)%UseCollXSec) THEN
+        SpecXSec(iCase)%CrossSection = SpecXSec(iCase)%CrossSection - SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
+      ELSE
+        Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob - SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
+      END IF
+    END IF
+  END IF  ! SUM(SpecXSec(iCase)%ElecLevel(:)%Prob).GT.0.
+END IF    ! Electronic energy = 0, ground-state
+
+#if (PP_TimeDiscMethod==42)
+! 4. Count the number of relaxation process for the relaxation rate
+IF(CalcRelaxProb) THEN
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    ! Weighting factor already included in GetParticleWeight
+    MacroParticleFactor = 1.
+  ELSE
+    ! Weighting factor should be the same for all species anyway (BGG: first species is the non-BGG particle species)
+    MacroParticleFactor = Species(iSpec_p1)%MacroParticleFactor
+  END IF
+  IF (DSMC%ElectronicModel.EQ.3) THEN
+    IF(DoElec1) THEN
+      SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter &
+                                                          + GetParticleWeight(iPart_p1) * MacroParticleFactor
+    ELSE IF(DoElec2) THEN
+      SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter &
+                                                          + GetParticleWeight(iPart_p2) * MacroParticleFactor
+    END IF
+  END IF
+END IF
+#endif
+
+END SUBROUTINE XSec_ElectronicRelaxation
+
+
 SUBROUTINE XSec_CalcElecRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
 !===================================================================================================================================
 !> Calculate the electronic relaxation probability using cross-section data.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
+USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
-! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
 INTEGER,INTENT(IN)            :: iPair
 REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume, dtCell
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1144,9 +1249,8 @@ USE MOD_io_hdf5
 USE MOD_Globals
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
 USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac
-USE MOD_MCC_Vars                  ,ONLY: PhotoReacToReac,PhotonSpectrum
+USE MOD_MCC_Vars                  ,ONLY: XSec_Database, PhotoReacToReac, PhotonSpectrum
 USE MOD_HDF5_Input                ,ONLY: DatasetExists
-USE MOD_MCC_Vars                  ,ONLY: XSec_Database
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -58,10 +58,10 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
-USE MOD_MCC_XSec      ,ONLY: ReadCollXSec, ReadVibXSec, InterpolateCrossSection_Vib, ReadElecXSec, InterpolateCrossSection_Elec
-USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC
-USE MOD_MCC_Vars      ,ONLY: XSec_NullCollision,XSec_Relaxation, SpecXSec
 USE MOD_Mesh_Vars     ,ONLY: nElems
+USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC
+USE MOD_MCC_Vars      ,ONLY: XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
+USE MOD_MCC_XSec      ,ONLY: ReadCollXSec, ReadVibXSec, InterpolateCrossSection_Vib, ReadElecXSec, InterpolateCrossSection_Elec
 #if defined(PARTICLES) && USE_HDG
 USE MOD_HDG_Vars      ,ONLY: UseBRElectronFluid,BRNullCollisionDefault
 USE MOD_ReadInTools   ,ONLY: PrintOption
@@ -74,6 +74,8 @@ INTEGER       :: iSpec, jSpec, iCase, partSpec
 REAL          :: TotalProb(nSpecies), CrossSection
 INTEGER       :: iLevel, nVib, iStep, MaxDim
 !===================================================================================================================================
+
+XSec_Database = GETSTR('Particles-CollXSec-Database')
 
 IF(BGGas%NumberOfSpecies.GT.0) THEN
   XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
@@ -421,7 +423,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(SpecXSec)
-
 SDEALLOCATE(SpecPhotonXSecInterpolated)
 SDEALLOCATE(PhotonDistribution)
 SDEALLOCATE(PhotonEnergies)

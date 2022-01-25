@@ -132,9 +132,12 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) '//&
                                     'by Levko2015 for copper electrodes\n'//&
                                 '6: SEE-E (secondary e- emission due to e- bombardment) '//&
-                                    'by Pagonakis2016 for molybdenum (originally from Harrower1956)'//&
+                                    'by Pagonakis2016 for molybdenum, originally from Harrower1956. Currently not available\n'//&
                                 '7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for '//&
-                                'secondary e- emission with 0.13 probability) by Depla2009\n' &
+                                'secondary e- emission with 0.13 probability) by Depla2009\n'// &
+                                '8: SEE-E (e- on dielectric materials is considered for SEE and three different outcomes) '//&
+                                'by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004'//&
+                                '9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV'&
                                 , '0', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -385,6 +388,7 @@ DO iPartBound=1,nPartBound
       CASE (0)
         PartBound%Reactive(iPartBound)        = .FALSE.
       CASE (SEE_MODELS_ID)
+        ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE.
       CASE DEFAULT
         CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,SEE_MODELS_ID! SurfaceModel=',&

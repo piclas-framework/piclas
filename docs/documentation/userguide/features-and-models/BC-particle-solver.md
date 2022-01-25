@@ -201,6 +201,7 @@ The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the t
 |      5      |                                                                Secondary electron emission as given by Ref. {cite}`Levko2015`.                                                                |
 |      7      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. {cite}`Pflug2014` and given by Ref. {cite}`Depla2009` with a constant yield of 13 \%. |
 |      8      |                Secondary electron emission due to ion impact (SEE-E with $e^{-}$ on dielectric surfaces) as used in Ref. {cite}`Liu2010` and given by Ref. {cite}`Morozov2004`.               |
+|      9      |                  Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$) with a constant yield of 1 \%. Emitted electrons have an energy of 6.8 eV upon emission.                 |
 
 For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
 

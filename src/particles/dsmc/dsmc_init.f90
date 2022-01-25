@@ -289,14 +289,6 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-UseVibXSec'  &
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseElecXSec'  &
                                            ,'Utilize electronic cross sections, only in combination with ElectronicModel = 3' &
                                            ,'.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
-                                                               'should be named with species pair (e.g. "Ar-electron"). The '//&
-                                                               'first column shall contain the energy in eV and the second '//&
-                                                               'column the cross-section in m^2')
-CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
-                                  ,'Utilize the null collision method for the determination of the number of pairs '//&
-                                  'based on the maximum collision frequency and time step (only with a background gas)' &
-                                  ,'.TRUE.')
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -309,7 +301,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
-USE MOD_MCC_Vars               ,ONLY: UseMCC, XSec_NullCollision, XSec_Relaxation, SpecXSec, XSec_Database
+USE MOD_MCC_Vars               ,ONLY: UseMCC, XSec_Database, XSec_NullCollision, XSec_Relaxation, SpecXSec
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, VarTimeStep, usevMPF
@@ -658,14 +650,23 @@ ELSE !CollisMode.GT.0
     SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
     SpecDSMC(iSpec)%UseVibXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseVibXSec')
     SpecDSMC(iSpec)%UseElecXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseElecXSec')
-    IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) CALL Abort(__STAMP__,&
-      'ERROR: Please supply the collision cross-section data for the particle species and NOT the background species!')
-    IF(SpecDSMC(iSpec)%UseElecXSec.AND.SpecDSMC(iSpec)%InterID.EQ.4) CALL Abort(__STAMP__,&
-        'ERROR: Electronic relaxation should be enabled for the respective heavy species, not the electrons!')
+    IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) THEN
+      CALL Abort(__STAMP__,'ERROR: Please supply the collision cross-section flag for the particle species and NOT the background species!')
+    END IF
+    IF(SpecDSMC(iSpec)%UseElecXSec.AND.SpecDSMC(iSpec)%InterID.EQ.4) THEN
+      CALL Abort(__STAMP__,'ERROR: Electronic relaxation should be enabled for the respective heavy species, not the electrons!')
+    END IF
+#if (PP_TimeDiscMethod!=42)
+    IF(SpecDSMC(iSpec)%UseElecXSec.AND.(.NOT.BGGas%BackgroundSpecies(iSpec))) THEN
+      SWRITE(*,*) 'NOTE: Electronic relaxation via cross-sections for regular DSMC is currently only enabled for the RESERVOIR'
+      SWRITE(*,*) 'NOTE: timedisc to test the calculation of the probabilities during regression testing. For DSMC, a de-excitation'
+      SWRITE(*,*) 'NOTE: model should be implemented. Regression test: WEK_Reservoir/MCC_N2_XSec_Elec'
+      CALL Abort(__STAMP__,'ERROR: Electronic relaxation via cross-section (-UseElecXSec) is only supported with a background gas!')
+    END IF
+#endif
   END DO
   XSec_Database = 'none'! Initialize
   IF(ANY(SpecDSMC(:)%UseCollXSec).OR.ANY(SpecDSMC(:)%UseVibXSec).OR.ANY(SpecDSMC(:)%UseElecXSec)) THEN
-    XSec_Database = GETSTR('Particles-CollXSec-Database')
     UseMCC = .TRUE.
     CALL MCC_Init()
   ELSE

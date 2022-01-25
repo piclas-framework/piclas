@@ -31,8 +31,8 @@ LOGICAL                       :: CalcReacRates                       !< Calculat
 LOGICAL                       :: CalcRelaxProb                       !< Calculate relaxation probabilities
 LOGICAL                       :: CalcEkin                            !< Compute the kinetic energy of each species
 LOGICAL                       :: CalcEtot                            !< Compute the total energy as sum of potential and kin eng
-LOGICAL                       :: CalcEint                            !< Compute the internal energy of each species
-LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
+LOGICAL                       :: CalcEint(2)                         !< Compute the internal energy of each species [1: Calculate, 2: Output]
+LOGICAL                       :: CalcTemp(2)                         !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcCoupledPower                    !< Computation of the power that is coupled into plasma
 LOGICAL                       :: DisplayCoupledPower                 !< Display coupled power in UNIT_stdOut
 REAL                          :: EDiff                               !< Difference in kinetic energy before and after the particle

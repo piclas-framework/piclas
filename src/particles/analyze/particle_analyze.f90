@@ -64,7 +64,7 @@ CALL prms%CreateLogicalOption(  'CalcPlasmaFrequency'     , 'Compute the electro
 CALL prms%CreateLogicalOption(  'CalcCharge'              , 'Compute the global deposited charge and determine the absolute and relative charge error','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcKineticEnergy'       , 'Calculate the global kinetic energy for all particle species.','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcInternalEnergy'      , 'Calculate the global internal energies (rotational, vibrational and electronic) for all particle species.','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcTemp'                , 'Calculate the global tranlational temperature for all particle species.','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcTemp'                , 'Calculate the global translational temperature for all particle species.','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPartBalance'         , 'Calculate the global in- and outflow of all particle species','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcVelos'               , 'Calculate the global thermal and flow velocities for all particle species'//&
                                                             'if CalcVelos = T VelocityDirections = (/[int],[int],[int],[int]/)  '//&
@@ -108,7 +108,7 @@ SUBROUTINE InitParticleAnalyze()
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting, Collismode
+USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting, Collismode,BGGas
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems,offsetElem
 USE MOD_Particle_Analyze_Vars
@@ -138,6 +138,7 @@ USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElec
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp,BRAutomaticElectronRef
 #endif /*USE_HDG*/
+USE MOD_Particle_Analyze_Tools,ONLY: CalcNumberDensityBGGasDistri
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -537,17 +538,21 @@ IF(CalcLaserInteraction)THEN
   CalcEkin=.TRUE.
 END IF
 
-CalcEint = GETLOGICAL('CalcInternalEnergy')
-CalcTemp = GETLOGICAL('CalcTemp')
-  ! Initialize global electron temperature variable (SEE and/or neutralization BCs)
+CalcEint(2) = GETLOGICAL('CalcInternalEnergy')
+CalcTemp(2) = GETLOGICAL('CalcTemp')
+! Initialize global electron temperature variable (SEE and/or neutralization BCs), requires CalcTemp(1) = .TRUE.
 CALL InitBulkElectronTemp()
-
-IF(CalcTemp.OR.CalcEint) DoPartAnalyze = .TRUE.
+IF(CalcTemp(2).OR.CalcEint(2)) DoPartAnalyze = .TRUE.
 IF(CalcEkin) DoPartAnalyze = .TRUE.
 IF(nSpecies.GT.1) THEN
   nSpecAnalyze = nSpecies + 1
 ELSE
   nSpecAnalyze = 1
+END IF
+
+IF(CalcTemp(2).OR.CalcEint(2).OR.DSMC%CalcQualityFactors) THEN
+  CalcTemp(1) = .TRUE.
+  CalcEint(1) = .TRUE.
 END IF
 
 !-- Coupled Power
@@ -600,6 +605,8 @@ IF(TrackParticlePosition)THEN
 END IF
 CalcSimNumSpec = GETLOGICAL('CalcNumSpec')
 CalcNumDens    = GETLOGICAL('CalcNumDens')
+! Calculate the global density if for BGGas distribution at the beginning
+IF(CalcNumDens.AND.BGGas%UseDistribution) CALL CalcNumberDensityBGGasDistri()
 CalcAdaptiveBCInfo = GETLOGICAL('CalcAdaptiveBCInfo')
 IF(CalcAdaptiveBCInfo) THEN
   ALLOCATE(MassflowRate(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
@@ -707,7 +714,7 @@ USE MOD_Particle_Vars         ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,BulkE
 USE MOD_HDF5_Input            ,ONLY: DatasetExists,ReadArray
 USE MOD_IO_HDF5               ,ONLY: OpenDataFile,CloseDataFile,File_ID
 USE MOD_Restart_Vars          ,ONLY: RestartFile,DoRestart
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcTemp
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcTemp,DoPartAnalyze
 USE MOD_ReadInTools           ,ONLY: PrintOption
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -735,8 +742,9 @@ END DO ! iSpec = 1,nSpecies
 ! Check if bulk electron temperature is required for either SEE model or neutralization boundary condition
 IF(CalcBulkElectronTemp)THEN
   ! Activate CalcTemp
-  CalcTemp = .TRUE. ! Force true
-  CALL PrintOption('CalcBulkElectronTemp = T: Activating CalcTemp','INFO',LogOpt=CalcTemp)
+  CalcTemp(1) = .TRUE. ! Force true
+  DoPartAnalyze = .TRUE.
+  CALL PrintOption('CalcBulkElectronTemp = T: Activating CalcTemp(1)','INFO',LogOpt=CalcTemp(1))
 
   ! Loop over all species and find the index corresponding to the electron species: take the first electron species that is
   ! encountered
@@ -807,14 +815,14 @@ USE MOD_PIC_Analyze             ,ONLY: CalcDepositedCharge
 USE MOD_Restart_Vars            ,ONLY: RestartTime,DoRestart
 USE MOD_TimeDisc_Vars           ,ONLY: iter, dt, IterDisplayStep
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumPartsOfSpec,CalcShapeEfficiencyR,CalcKineticEnergy,CalcKineticEnergyAndMaximum
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumberDensity,CalcAdaptBCInfo,CalcTemperature,CalcVelocities
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumberDensity,CalcAdaptBCInfo,CalcTransTemp,CalcVelocities
 USE MOD_Particle_Analyze_Output ,ONLY: DisplayCoupledPowerPart
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 USE MOD_DSMC_Vars               ,ONLY: CollisMode
 USE MOD_Particle_Mesh_Vars      ,ONLY: MeshVolume
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: BGGas
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcRelaxProbRotVib
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcMixtureTemp, CalcRelaxProbRotVib
 #endif
 #if (PP_TimeDiscMethod==42)
 USE MOD_DSMC_Vars               ,ONLY: CollInf, useDSMC, ChemReac, SpecDSMC
@@ -978,7 +986,7 @@ INTEGER             :: iRegions
           WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-E-kin+pot'
           OutputCounter = OutputCounter + 1
         END IF
-        IF (CalcTemp) THEN ! calculate translational temperature
+        IF (CalcTemp(2)) THEN ! calculate translational temperature
           DO iSpec=1, nSpecAnalyze
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-TempTra-',iSpec
@@ -1035,7 +1043,7 @@ INTEGER             :: iRegions
         END IF
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
         IF (CollisMode.GT.1) THEN
-          IF(CalcEint) THEN
+          IF(CalcEint(2)) THEN
             DO iSpec=1, nSpecAnalyze
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
               WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-E-Vib',iSpec
@@ -1057,12 +1065,12 @@ INTEGER             :: iRegions
             WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-E-TotalPart'
             OutputCounter = OutputCounter + 1
           END IF
-          IF(CalcEpot .AND. CalcEtot .AND. CalcEint)THEN
+          IF(CalcEpot .AND. CalcEtot .AND. CalcEint(2))THEN
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-E-Tot'
             OutputCounter = OutputCounter + 1
           END IF
-          IF(CalcTemp) THEN
+          IF(CalcTemp(2)) THEN
             DO iSpec=1, nSpecies
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
               WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-TempVib',iSpec
@@ -1236,7 +1244,7 @@ INTEGER             :: iRegions
   IF(CalcAdaptiveBCInfo) CALL CalcAdaptBCInfo()
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
-  IF(CalcEkin.OR.CalcEint)THEN
+  IF(CalcEkin.OR.CalcEint(1))THEN
     IF(CalcLaserInteraction)THEN
       CALL CalcKineticEnergyAndMaximum(Ekin,EkinMax)
 #if USE_MPI
@@ -1257,12 +1265,11 @@ INTEGER             :: iRegions
       END IF
 #endif /*USE_MPI*/
   END IF
+  IF(CalcTemp(1)) CALL CalcTransTemp(NumSpec, Temp)
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
-  IF(CalcTemp.OR.CalcEint.OR.DSMC%CalcQualityFactors) THEN
-    CALL CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
-    IF(CalcEint.AND.(CollisMode.GT.1)) THEN
-      ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
-    END IF
+  IF(CalcTemp(1).OR.CalcEint(1)) THEN
+    CALL CalcMixtureTemp(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
+    ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell reservoirs,
@@ -1455,7 +1462,7 @@ IF (PartMPI%MPIROOT) THEN
     IF (CalcEpot .AND. CalcEkin .AND. CalcEtot) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Ekin(nSpecAnalyze) + WEl + WMag + Wphi+Wpsi
     END IF
-    IF (CalcTemp) THEN
+    IF (CalcTemp(2)) THEN
       DO iSpec=1, nSpecAnalyze
         WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Temp(iSpec)
       END DO
@@ -1481,7 +1488,7 @@ IF (PartMPI%MPIROOT) THEN
 
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
     IF (CollisMode.GT.1) THEN
-      IF(CalcEint) THEN
+      IF(CalcEint(2)) THEN
         DO iSpec=1, nSpecAnalyze
           WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', IntEn(iSpec,1)
         END DO
@@ -1495,10 +1502,10 @@ IF (PartMPI%MPIROOT) THEN
         END IF
         WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ETotal
       END IF
-      IF(CalcEpot .AND. CalcEtot .AND. CalcEint)THEN
+      IF(CalcEpot .AND. CalcEtot .AND. CalcEint(2))THEN
         WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ETotal+WEl+WMag + Wphi+Wpsi
       END IF
-      IF(CalcTemp) THEN
+      IF(CalcTemp(2)) THEN
         DO iSpec=1, nSpecies
           WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', IntTemp(iSpec,1)
         END DO
@@ -1624,6 +1631,7 @@ SUBROUTINE FinalizeParticleAnalyze()
 ! Finalizes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_Particle_Analyze_Vars
 USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLengthX_Shared,ElemCharLengthY_Shared,ElemCharLengthZ_Shared
@@ -1637,7 +1645,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iSpec,iError
+INTEGER           :: iSpec
 !===================================================================================================================================
 ParticleAnalyzeInitIsDone = .FALSE.
 SDEALLOCATE(DebyeLengthCell)
