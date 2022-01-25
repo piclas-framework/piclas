@@ -425,59 +425,65 @@ REAL                     :: InterpolateVariableExternalField2D(1:3)  !< Bz (magn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                  :: iPos,jPos                                     !< index in array (equidistant subdivision assumed)
-REAL                     :: r,z,delta,f(1:2),mat(2,2),dx(1:2),dy(1:2),vec(1:2)
+REAL                     :: r,delta,f(1:2),mat(2,2),dx(1:2),dy(1:2),vec(1:2)
 INTEGER                  :: idx1,idx2,idx3,idx4,i
 !===================================================================================================================================
-r = SQRT(Pos(1)**2+Pos(2)**2)
-z = Pos(3)
-iPos = INT((r-VariableExternalField(1,1))/DeltaExternalField(1)) + 1
-jPos = INT((z-VariableExternalField(2,1))/DeltaExternalField(2)) + 1
+ASSOCIATE(&
+      x => Pos(1) ,&
+      y => Pos(2) ,&
+      z => Pos(3)  &
+      )
+  r = SQRT(x**2+y**2)
+  iPos = INT((r-VariableExternalField(1,1))/DeltaExternalField(1)) + 1
+  jPos = INT((z-VariableExternalField(2,1))/DeltaExternalField(2)) + 1
 
 
-IF(r.GT.VariableExternalFieldMax(1))THEN
-  InterpolateVariableExternalField2D = 0.
-ELSEIF(r.LT.VariableExternalFieldMin(1))THEN
-  InterpolateVariableExternalField2D = 0.
-ELSEIF(z.GT.VariableExternalFieldMax(2))THEN
-  InterpolateVariableExternalField2D = 0.
-ELSEIF(z.LT.VariableExternalFieldMin(2))THEN
-  InterpolateVariableExternalField2D = 0.
-ELSE
-  ! 1.1
-  idx1 = (iPos-1)*VariableExternalField2DColumns + jPos
-  ! 2.1
-  idx2 = (iPos-1)*VariableExternalField2DColumns + jPos + 1
-  ! 1.2
-  idx3 = iPos*VariableExternalField2DColumns + jPos
-  ! 2.2
-  idx4 = iPos*VariableExternalField2DColumns + jPos + 1
+  IF(r.GT.VariableExternalFieldMax(1))THEN
+    InterpolateVariableExternalField2D = 0.
+  ELSEIF(r.LT.VariableExternalFieldMin(1))THEN
+    InterpolateVariableExternalField2D = 0.
+  ELSEIF(z.GT.VariableExternalFieldMax(2))THEN
+    InterpolateVariableExternalField2D = 0.
+  ELSEIF(z.LT.VariableExternalFieldMin(2))THEN
+    InterpolateVariableExternalField2D = 0.
+  ELSE
+    ! 1.1
+    idx1 = (iPos-1)*VariableExternalField2DColumns + jPos
+    ! 2.1
+    idx2 = (iPos-1)*VariableExternalField2DColumns + jPos + 1
+    ! 1.2
+    idx3 = iPos*VariableExternalField2DColumns + jPos
+    ! 2.2
+    idx4 = iPos*VariableExternalField2DColumns + jPos + 1
 
-  ! Interpolate
-  delta = DeltaExternalField(1)*DeltaExternalField(2)
-  delta = 1./delta
+    ! Interpolate
+    delta = DeltaExternalField(1)*DeltaExternalField(2)
+    delta = 1./delta
 
-  dx(1) = VariableExternalField(1,idx4)-r
-  dx(2) = DeltaExternalField(1) - dx(1)
+    dx(1) = VariableExternalField(1,idx4)-r
+    dx(2) = DeltaExternalField(1) - dx(1)
 
-  dy(1) = VariableExternalField(2,idx4)-z
-  dy(2) = DeltaExternalField(2) - dy(1)
+    dy(1) = VariableExternalField(2,idx4)-z
+    dy(2) = DeltaExternalField(2) - dy(1)
 
-  DO i = 1, 2
-    mat(1,1) = VariableExternalField(2+i,idx1)
-    mat(2,1) = VariableExternalField(2+i,idx2)
-    mat(1,2) = VariableExternalField(2+i,idx3)
-    mat(2,2) = VariableExternalField(2+i,idx4)
+    DO i = 1, 2
+      mat(1,1) = VariableExternalField(2+i,idx1)
+      mat(2,1) = VariableExternalField(2+i,idx2)
+      mat(1,2) = VariableExternalField(2+i,idx3)
+      mat(2,2) = VariableExternalField(2+i,idx4)
 
-    vec(1) = dx(1)
-    vec(2) = dx(2)
-    f(i) = delta * DOT_PRODUCT( vec, MATMUL(mat, (/dy(1),dy(2)/) ) )
-  END DO ! i = 1, 2
+      vec(1) = dx(1)
+      vec(2) = dx(2)
+      f(i) = delta * DOT_PRODUCT( vec, MATMUL(mat, (/dy(1),dy(2)/) ) )
+    END DO ! i = 1, 2
 
-  ! TODO: Transform from Br, Bz to Bx, By, Bz
-  InterpolateVariableExternalField2D(1) = f(1)
-  InterpolateVariableExternalField2D(2) = 0.
-  InterpolateVariableExternalField2D(3) = f(2)
-END IF ! r.GT.VariableExternalFieldMax(1)
+    ! Transform from Br, Bz to Bx, By, Bz
+    r=1./r
+    InterpolateVariableExternalField2D(1) = f(1)*x*r
+    InterpolateVariableExternalField2D(2) = f(1)*y*r
+    InterpolateVariableExternalField2D(3) = f(2)
+  END IF ! r.GT.VariableExternalFieldMax(1)
+END ASSOCIATE
 
 END FUNCTION InterpolateVariableExternalField2D
 
