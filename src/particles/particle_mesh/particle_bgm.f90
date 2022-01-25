@@ -154,9 +154,10 @@ INTEGER                        :: firstHaloElem,lastHaloElem
 ! FIBGMToProc
 LOGICAL                        :: dummyLog
 INTEGER                        :: dummyInt
-INTEGER                        :: iProc,ProcRank,nFIBGMToProc,MessageSize
+INTEGER                        :: iProc,ProcRank,nFIBGMToProc,nFIBGM,MessageSize
 INTEGER                        :: BGMiDelta,BGMjDelta,BGMkDelta
 INTEGER                        :: BGMiglobDelta,BGMjglobDelta,BGMkglobDelta
+INTEGER,ALLOCATABLE            :: FIBGM_LocalProcs(:,:,:,:)
 ! Periodic FIBGM
 LOGICAL                        :: PeriodicComponent(1:3)
 INTEGER                        :: iPeriodicVector,iPeriodicComponent
@@ -510,6 +511,9 @@ END DO ! iBGM
 ! first do coarse check with BGM
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
   ElemInfo_Shared(ELEM_HALOFLAG,firstElem:lastElem) = 1
+  ! initial values to eliminate compiler warnings
+  firstHaloElem = -1
+  lastHaloElem  = -1
 ELSE
   ElemInfo_Shared(ELEM_HALOFLAG,firstElem:lastElem) = 0
   DO iElem = firstElem, lastElem
@@ -985,7 +989,27 @@ END IF
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*CODE_ANALYZE*/
 
-! Loop over all elements and build a global FIBGM to processor mapping. This is required to identify potential emission procs
+!===================================================================================================================================
+! Loop over all elements and build a global FIBGM to processor mapping. This is required to identify potential emission procs.
+! However, this step must be performed in a distributed manner to avoid scaling issues during building of FIBGMToProcFlag.
+!===================================================================================================================================
+! This procedure outputs three arrays:
+! - FIBGM_nTotalElems(FIBGMi,FIBGMj,FIBGMk) contains the total number of elements connected to each FIBGM cell
+! - FIBGMProcs(nFIGBMTotalElems)            contains an 1D array of the MPI ranks connected to each FIBGM cell
+! - FIBGMToProc(FIBGMi,FIBGMj,FIBGMk)       contains the offset and the number of MPI ranks connected to each FIGBM cell
+!===================================================================================================================================
+! The procedure consists of the following steps:
+! 1.1) Each MPI rank runs over all local elements, adds them to the compute-node shared FIBGM_nTotalElems array and flags the
+!      FIBGM cells it encounters in FIBGMToProcFlag
+! 1.2) Compute node root adds up FIBGM_nTotalElems
+! 2.1) Compute node root sums up the procs for each FIBGM cell on the current node
+! 2.2) Compute node root communicates with other compute node roots to determine the total number and offset. At the end, the total
+!      size required for the FIBGMProcs is known as well as the positions of each compute node root
+! 2.3) Compute node root broadcasts the information on the compute node to allocate the shared array
+! 2.4) Compute-node root fills the FIBGMToProc as well as the FIBGMProcs with the compute-node local information since it knows the
+!      local FIBGMToProcFlag and its offset
+! 2.5) Compute node root communicates the partially filled arrays between the other compute node roots to obtain the full array
+!===================================================================================================================================
 firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
 
@@ -1000,10 +1024,10 @@ CALL MPI_WIN_LOCK_ALL(0,FIBGM_nTotalElems_Shared_Win,IERROR)
 FIBGM_nTotalElems(BGMiminglob:BGMimaxglob,BGMjminglob:BGMjmaxglob,BGMkminglob:BGMkmaxglob) => FIBGM_nTotalElems_Shared
 
 ! Allocate flags which procs belong to which FIGBM cell
-CALL Allocate_Shared((/(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1)*nProcessors_Global/),FIBGMToProcFlag_Shared_Win,FIBGMToProcFlag_Shared)
+CALL Allocate_Shared((/(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1)*nComputeNodeProcessors/),FIBGMToProcFlag_Shared_Win,FIBGMToProcFlag_Shared)
 CALL MPI_WIN_LOCK_ALL(0,FIBGMToProcFlag_Shared_Win,IERROR)
-FIBGM_nTotalElems(BGMiminglob:BGMimaxglob,BGMjminglob:BGMjmaxglob,BGMkminglob:BGMkmaxglob)                        => FIBGM_nTotalElems_Shared
-FIBGMToProcFlag  (BGMiminglob:BGMimaxglob,BGMjminglob:BGMjmaxglob,BGMkminglob:BGMkmaxglob,0:nProcessors_Global-1) => FIBGMToProcFlag_Shared
+FIBGM_nTotalElems(BGMiminglob:BGMimaxglob,BGMjminglob:BGMjmaxglob,BGMkminglob:BGMkmaxglob)                            => FIBGM_nTotalElems_Shared
+FIBGMToProcFlag  (BGMiminglob:BGMimaxglob,BGMjminglob:BGMjmaxglob,BGMkminglob:BGMkmaxglob,0:nComputeNodeProcessors-1) => FIBGMToProcFlag_Shared
 
 IF (myComputeNodeRank.EQ.0) THEN
   FIBGMToProcFlag   = .FALSE.
@@ -1013,9 +1037,9 @@ END IF
 CALL BARRIER_AND_SYNC(FIBGM_nTotalElems_Shared_Win,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(FIBGMToProcFlag_Shared_Win  ,MPI_COMM_SHARED)
 
-! Count number of global elements
-DO iElem = firstElem,lastElem
-  ProcRank = ElemInfo_Shared(ELEM_RANK,iElem)
+! 1.1) Count number of elements on compute node
+DO iElem = offsetElem+1,offsetElem+nElems
+  ProcRank = myRank - ComputeNodeRootRank
 
   DO kBGM = ElemToBGM_Shared(5,iElem),ElemToBGM_Shared(6,iElem)
     DO jBGM = ElemToBGM_Shared(3,iElem),ElemToBGM_Shared(4,iElem)
@@ -1036,40 +1060,70 @@ END DO
 CALL BARRIER_AND_SYNC(FIBGMToProcFlag_Shared_Win  ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(FIBGM_nTotalElems_Shared_Win,MPI_COMM_SHARED)
 
+! 1.2) FIBGM_nTotalElems can just be added up
+IF (myComputeNodeRank.EQ.0) THEN
+  ! All-reduce between node leaders
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,FIBGM_nTotalElems_Shared,(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1),MPI_INTEGER,MPI_SUM,MPI_COMM_LEADERS_SHARED,iError)
+END IF
+CALL BARRIER_AND_SYNC(FIBGM_nTotalElems_Shared_Win,MPI_COMM_SHARED)
+
 ! Allocate shared array to hold the mapping
-CALL Allocate_Shared((/2,BGMimaxglob-BGMiminglob+1,BGMjmaxglob-BGMjminglob+1,BGMkmaxglob-BGMkminglob+1/),FIBGMToProc_Shared_Win,FIBGMToProc_Shared)
+CALL Allocate_Shared((/2,BGMiglobDelta+1,BGMjglobDelta+1,BGMkglobDelta+1/),FIBGMToProc_Shared_Win,FIBGMToProc_Shared)
 CALL MPI_WIN_LOCK_ALL(0,FIBGMToProc_Shared_Win,IERROR)
 FIBGMToProc => FIBGMToProc_Shared
 
-IF (myComputeNodeRank.EQ.0) THEN
-  FIBGMToProc = 0
-END IF
+IF (myComputeNodeRank.EQ.0) FIBGMToProc = 0
 CALL BARRIER_AND_SYNC(FIBGMToProc_Shared_Win,MPI_COMM_SHARED)
 
-! CN root build the mapping to avoid further communication
 IF (myComputeNodeRank.EQ.0) THEN
-  nFIBGMToProc = 0
 
+  ! Compute-node local array to hold local number of elements
+  ALLOCATE(FIBGM_LocalProcs(3,BGMiglobDelta+1,BGMjglobDelta+1,BGMkglobDelta+1))
+  FIBGM_LocalProcs = 0
+
+  ! 2.1) Count the number of procs on the current root
   DO kBGM = BGMkminglob,BGMkmaxglob
     DO jBGM = BGMjminglob,BGMjmaxglob
       DO iBGM = BGMiminglob,BGMimaxglob
-        ! Save current offset
-        FIBGMToProc(FIBGM_FIRSTPROCIND,iBGM,jBGM,kBGM) = nFIBGMToProc
         ! Save number of procs per FIBGM element
-        DO iProc = 0,nProcessors_Global-1
+        DO iProc = 0,nComputeNodeProcessors-1
           ! Proc belongs to current FIBGM cell
           IF (FIBGMToProcFlag(iBGM,jBGM,kBGM,iProc)) THEN
-            nFIBGMToProc = nFIBGMToProc + 1
-            FIBGMToProc(FIBGM_NPROCS,iBGM,jBGM,kBGM) = FIBGMToProc(FIBGM_NPROCS,iBGM,jBGM,kBGM) + 1
+            FIBGM_LocalProcs(FIBGM_NLOCALPROCS,iBGM,jBGM,kBGM) = FIBGM_LocalProcs(FIBGM_NLOCALPROCS,iBGM,jBGM,kBGM) + 1
           END IF
         END DO
       END DO
     END DO
   END DO
+
+  ALLOCATE(sendbuf(BGMiglobDelta+1,BGMjglobDelta+1,BGMkglobDelta+1)&
+          ,recvbuf(BGMiglobDelta+1,BGMjglobDelta+1,BGMkglobDelta+1))
+
+  ! 2.2) Communicate with other compute node roots to determine the total number and offset
+  sendbuf = FIBGM_LocalProcs(FIBGM_NLOCALPROCS,:,:,:)
+  recvbuf = 0
+
+  CALL MPI_EXSCAN(sendbuf,recvbuf,(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1) &
+                 ,MPI_INTEGER,MPI_SUM            ,MPI_COMM_LEADERS_SHARED,iError)
+
+  ! Save the global proc offset for each FIBGM cell
+  FIBGM_LocalProcs(FIBGM_FIRSTPROCIND,:,:,:) = recvbuf
+
+  ! Last proc knows global number of procs per FIBGM cell
+  sendbuf = recvbuf + FIBGM_LocalProcs(FIBGM_NLOCALPROCS,:,:,:)
+
+  CALL MPI_BCAST (sendbuf        ,(BGMiglobDelta+1)*(BGMjglobDelta+1)*(BGMkglobDelta+1) &
+                 ,MPI_INTEGER,nLeaderGroupProcs-1,MPI_COMM_LEADERS_SHARED,iError)
+  FIBGM_LocalProcs(FIBGM_NPROCS,:,:,:) = sendbuf
+
+  DEALLOCATE(sendbuf)
+  DEALLOCATE(recvbuf)
+
+  ! Determine global size of mapping array
+  nFIBGMToProc = SUM(FIBGM_LocalProcs(FIBGM_NPROCS,:,:,:))
 END IF
 
-! Synchronize array and communicate the information to other procs on CN node
-CALL BARRIER_AND_SYNC(FIBGMToProc_Shared_Win,MPI_COMM_SHARED)
+! 2.3) Broadcast the information on the compute node to allocate the shared array
 CALL MPI_BCAST(nFIBGMToProc,1,MPI_INTEGER,0,MPI_COMM_SHARED,iError)
 
 ! Allocate shared array to hold the proc information
@@ -1077,29 +1131,43 @@ CALL Allocate_Shared((/nFIBGMToProc/),FIBGMProcs_Shared_Win,FIBGMProcs_Shared)
 CALL MPI_WIN_LOCK_ALL(0,FIBGMProcs_Shared_Win,IERROR)
 FIBGMProcs => FIBGMProcs_Shared
 
-IF (myComputeNodeRank.EQ.0) THEN
-  FIBGMProcs= -1
-END IF
+IF (myComputeNodeRank.EQ.0) FIBGMProcs= -1
 CALL BARRIER_AND_SYNC(FIBGMProcs_Shared_Win,MPI_COMM_SHARED)
 
-! CN root fills the information
+! 2.4) Compute-node root fills the information
 IF (myComputeNodeRank.EQ.0) THEN
-  nFIBGMToProc = 0
+  FIBGMToProc(FIBGM_NPROCS,:,:,:) = FIBGM_LocalProcs(FIBGM_NPROCS      ,:,:,:)
+  nFIBGM = 0
 
   DO kBGM = BGMkminglob,BGMkmaxglob
     DO jBGM = BGMjminglob,BGMjmaxglob
       DO iBGM = BGMiminglob,BGMimaxglob
-        ! Save proc ID
-        DO iProc = 0,nProcessors_Global-1
+        ! Save offset of procs per FIBGM element
+        FIBGMToProc(FIBGM_FIRSTPROCIND,iBGM,jBGM,kBGM) = nFIBGM
+
+        ! Save number of procs per FIBGM element
+        nFIBGMToProc = 0
+        DO iProc = 0,nComputeNodeProcessors-1
           ! Proc belongs to current FIBGM cell
           IF (FIBGMToProcFlag(iBGM,jBGM,kBGM,iProc)) THEN
             nFIBGMToProc = nFIBGMToProc + 1
-            FIBGMProcs(nFIBGMToProc) = iProc
+            FIBGMProcs(nFIBGM + FIBGM_LocalProcs(FIBGM_FIRSTPROCIND,iBGM,jBGM,kBGM) + nFIBGMToProc) = iProc + ComputeNodeRootRank
           END IF
         END DO
+
+        ! Increment the offset
+        nFIBGM = nFIBGM + FIBGMToProc(FIBGM_NPROCS,iBGM,jBGM,kBGM)
       END DO
     END DO
   END DO
+
+  ! Restore global size of mapping array
+  nFIBGMToProc = SUM(FIBGM_LocalProcs(FIBGM_NPROCS,:,:,:))
+  DEALLOCATE(FIBGM_LocalProcs)
+
+  ! 2.5) Communicate the partially filled arrays between the procs
+  ! > Technically, this could be an MPI_ALLGATHERV but good luck figuring out the linearized displacements
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,FIBGMProcs,nFIBGMToProc,MPI_INTEGER,MPI_MAX,MPI_COMM_LEADERS_SHARED,iError)
 END IF
 
 ! De-allocate FLAG array
@@ -1111,7 +1179,8 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 ADEALLOCATE(FIBGMToProcFlag_Shared)
 ADEALLOCATE(FIBGMToProcFlag)
 
-CALL BARRIER_AND_SYNC(FIBGMProcs_Shared_Win,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(FIBGMProcs_Shared_Win ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(FIBGMToProc_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 ! and get max number of bgm-elems

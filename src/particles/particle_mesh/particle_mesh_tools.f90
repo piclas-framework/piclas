@@ -1797,8 +1797,8 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: NGeo,BoundaryType
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+USE MOD_Particle_Vars          ,ONLY: PartMeshHasPeriodicBCs
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_MPI_Shared
@@ -1849,7 +1849,7 @@ NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
 NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
 
 ! Find number of periodic vectors
-GEO%nPeriodicVectors = MAXVAL(BoundaryType(:,BC_ALPHA))
+GEO%nPeriodicVectors = MERGE(MAXVAL(BoundaryType(:,BC_ALPHA)),0,PartMeshHasPeriodicBCs)
 IF (GEO%nPeriodicVectors.EQ.0) RETURN
 
 #if USE_MPI
