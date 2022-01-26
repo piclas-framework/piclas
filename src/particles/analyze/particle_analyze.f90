@@ -836,7 +836,6 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
 #endif /*USE_HDG*/
 USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
 USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
-USE MOD_Mesh_Vars              ,ONLY: nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -858,6 +857,7 @@ REAL                :: ETotal
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
+INTEGER             :: bgSpec
 #endif
 #if (PP_TimeDiscMethod==42)
 INTEGER             :: jSpec, iCase, iLevel
@@ -865,7 +865,7 @@ REAL, ALLOCATABLE   :: CRate(:), RRate(:), VibRelaxRate(:), ElecRelaxRate(:,:)
 #endif
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
-INTEGER             :: dir,bgSpec,iElem
+INTEGER             :: dir
 #if USE_HDG
 INTEGER             :: iRegions
 #endif /*USE_HDG*/
@@ -1286,11 +1286,7 @@ INTEGER             :: iRegions
         IF(BGGas%BackgroundSpecies(iSpec)) THEN
           bgSpec = BGGas%MapSpecToBGSpec(iSpec)
           IF(BGGas%UseDistribution) THEN
-            NumSpecTmp(iSpec) = 0. ! dummy for NumDens
-            DO iElem = 1, nElems
-              NumSpecTmp(iSpec) = NumSpecTmp(iSpec) + BGGas%Distribution(bgSpec,7,iElem)
-            END DO ! iElem = 1, nElems
-            NumSpecTmp(iSpec) = NumSpecTmp(iSpec)/REAL(nElems)*MeshVolume/Species(iSpec)%MacroParticleFactor
+            NumSpecTmp(iSpec) = BGGas%DistributionNumDens(bgSpec)*MeshVolume/Species(iSpec)%MacroParticleFactor
           ELSE
             NumSpecTmp(iSpec) = BGGas%NumberDensity(bgSpec)*MeshVolume/Species(iSpec)%MacroParticleFactor
           END IF

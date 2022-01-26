@@ -243,7 +243,7 @@ LOGICAL,INTENT(IN)  :: single !< read data file either single=.TRUE. (only MPI r
 ! LOCAL VARIABLES
 LOGICAL             :: ElemTimeExists
 #if USE_LOADBALANCE
-INTEGER             :: iPRoc,i
+INTEGER             :: iPRoc
 INTEGER,ALLOCATABLE :: ElemProc(:)
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================

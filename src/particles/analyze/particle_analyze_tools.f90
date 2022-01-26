@@ -1111,7 +1111,6 @@ USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_Particle_Vars         ,ONLY: Species,nSpecies,usevMPF
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-USE MOD_Mesh_Vars             ,ONLY: nElems
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1122,7 +1121,7 @@ REAL,INTENT(IN)                   :: NumSpec(nSpecAnalyze)
 REAL,INTENT(OUT)                  :: NumDens(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: iSpec,bgSpec,iElem
+INTEGER                           :: iSpec,bgSpec
 !===================================================================================================================================
 
 ! Only root does calculation
@@ -1159,9 +1158,8 @@ END SUBROUTINE CalcNumberDensity
 SUBROUTINE CalcNumberDensityBGGasDistri()
 ! MODULES                                                                                                                          !
 USE MOD_Globals
-USE MOD_DSMC_Vars             ,ONLY: BGGas, RadialWeighting
-USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
-USE MOD_Particle_Vars         ,ONLY: Species,nSpecies,usevMPF
+USE MOD_DSMC_Vars             ,ONLY: BGGas
+USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume,ElemVolume_Shared
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
@@ -1205,8 +1203,6 @@ BGGas%DistributionNumDens = DistriNumDens
 
 ! Average over total mesh
 BGGas%DistributionNumDens = BGGas%DistributionNumDens / MeshVolume
-WRITE (*,*) "BGGas%DistributionNumDens =", BGGas%DistributionNumDens
-read*
 
 END SUBROUTINE CalcNumberDensityBGGasDistri
 

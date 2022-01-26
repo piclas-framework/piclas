@@ -1145,7 +1145,6 @@ CHARACTER(LEN=255)         :: tmpStr(nOutputVar) ! needed because PerformAnalyze
 CHARACTER(LEN=1000)        :: tmpStr2
 CHARACTER(LEN=1),PARAMETER :: delimiter=","
 REAL                       :: memory(1:3)       ! used, available and total
-REAL                       :: memoryGlobal(1:3) ! Globally used, available (only node roots) and total (also only node roots) memory
 #if USE_MPI
 REAL                       :: ProcMemoryUsed    ! Used memory on a single proc
 REAL                       :: NodeMemoryUsed    ! Sum of used memory across one compute node
