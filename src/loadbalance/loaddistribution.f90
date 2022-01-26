@@ -178,7 +178,7 @@ IMPLICIT NONE
 LOGICAL,INTENT(IN)             :: ElemTimeExists
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iProc,curiElem,MyElems,jProc,NewElems
+INTEGER                        :: iProc,curiElem,MyElems,jProc,NewElems,WeightDistributionMethod_loc
 REAL                           :: MaxLoadDiff,LastLoadDiff,LoadDiff(0:nProcessors-1)
 REAL                           :: LastProcDiff
 REAL                           :: MinLoadVal,MaxLoadVal,MaxLoadVal_opt,MaxLoadVal_opt0
@@ -250,15 +250,15 @@ CALL MPI_BCAST(PartsInElem,nGlobalElems,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 
 ! Every proc needs to get the information to arrive at the same timedisc
 IF (.NOT.ElemTimeExists .AND. ALL(PartsInElem(:).EQ.0)) THEN
-  WeightDistributionMethod = GETINT('WeightDistributionMethod','-1') !-1 is optimum distri for const. elem-weight
-  IF (WeightDistributionMethod.NE.-1) THEN
-    SWRITE(*,*) 'WARNING: WeightDistributionMethod.NE.-1 with neither particles nor ElemTimes!'
-  ELSE
+  IF (WeightDistributionMethod.EQ.-1) THEN
     SWRITE (*,*) "WeightDistributionMethod set to -1: optimum distribution for const. elem-weight"
   END IF
+  WeightDistributionMethod_loc = -1.0
+ELSE
+  WeightDistributionMethod_loc = WeightDistributionMethod
 END IF
 
-SELECT CASE(WeightDistributionMethod)
+SELECT CASE(WeightDistributionMethod_loc)
 CASE(-1) ! same as in no-restart: the elements are equally distributed
   IF(MPIRoot)THEN
     nElems=nGlobalElems/nProcessors
@@ -629,11 +629,11 @@ CASE(5,6)
     nElems=nGlobalElems/nProcessors
     iElem=nGlobalElems-nElems*nProcessors
     itershift=0
-    IF (WeightDistributionMethod.EQ.5) THEN !-- init as for CASE(-1)
+    IF (WeightDistributionMethod_loc.EQ.5) THEN !-- init as for CASE(-1)
       DO iProc=0,nProcessors-1
         offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
       END DO
-    ELSE ! WeightDistributionMethod.EQ.6    !-- init as for CASE(0)
+    ELSE ! WeightDistributionMethod_loc.EQ.6    !-- init as for CASE(0)
       IF(nGlobalElems.EQ.nProcessors) THEN
         DO iProc=0, nProcessors-1
           offsetElemMPI(iProc) = iProc
@@ -652,7 +652,7 @@ CASE(5,6)
           END DO
         END DO
       END IF
-    END IF !WeightDistributionMethod 5 or 6
+    END IF !WeightDistributionMethod_loc 5 or 6
     offsetElemMPI(nProcessors)=nGlobalElems
     !-- calc inital distri
     CALL CalcDistriFromOffsets(nProcessors,nGlobalElems,ElemGlobalTime,offSetElemMPI &
@@ -874,8 +874,8 @@ CASE(5,6)
   !------------------------------------------------------------------------------------------------------------------------------!
 CASE DEFAULT
   CALL abort(__STAMP__, ' Error in mesh-readin: Invalid load balance distribution for WeightDistributionMethod = ',&
-      IntInfoOpt=WeightDistributionMethod)
-END SELECT ! WeightDistributionMethod
+      IntInfoOpt=WeightDistributionMethod_loc)
+END SELECT ! WeightDistributionMethod_loc
 
 ! Set element offset for last processor
 offsetElemMPI(nProcessors)=nGlobalElems
