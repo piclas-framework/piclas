@@ -176,7 +176,7 @@ DO iElem = firstElem,lastElem
         ! If small mortar side not defined, skip it for now, likely not inside the halo region
         IF (NbSideID.LT.1) CYCLE
 
-        NbElemID = SideInfo_Shared(SIDE_ELEMID,NbSideID)
+        NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID + iMortar)
         ! If small mortar element not defined, skip it for now, likely not inside the halo region
         IF (NbElemID.LT.1) CYCLE
 
@@ -218,7 +218,7 @@ DO iElem = firstElem,lastElem
         ! If small mortar side not defined, skip it for now, likely not inside the halo region
         IF (NbSideID.LT.1) CYCLE
 
-        NbElemID = SideInfo_Shared(SIDE_ELEMID,NbSideID)
+        NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID + iMortar)
         ! If small mortar element not defined, skip it for now, likely not inside the halo region
         IF (NbElemID.LT.1) CYCLE
 
