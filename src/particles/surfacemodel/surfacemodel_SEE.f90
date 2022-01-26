@@ -64,6 +64,7 @@ REAL              :: k_ee   ! Coefficient of emission of secondary electron
 REAL              :: k_refl ! Coefficient for reflection of bombarding electron
 REAL              :: W0,W1,W2
 REAL              :: MPF
+REAL              :: SEE_Prob
 !===================================================================================================================================
 ! Default 0
 ProductSpec    = 0
@@ -187,7 +188,6 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
   ELSEIF(Species(PartSpecies(PartID_IN))%ChargeIC.GT.0.0)THEN ! Positive bombarding ion
     CALL RANDOM_NUMBER(iRan)
     IF(iRan.LT.0.13)THEN ! SEE-I: gamma=0.13 for the Ar^+ ions bombarding different metals, see
-                         ! D. Depla, Magnetron sputter deposition: Linking discharge voltage with target properties, 2009
       ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
       ProductSpecNbr = 1 ! Create one new particle
       TempErgy       = VECNORM(PartState(4:6,PartID_IN)) ! |TempErgy| = |v_old|
@@ -252,6 +252,42 @@ CASE(9) ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixe
       END IF
     END ASSOCIATE
   END IF
+  
+CASE(10) ! 10: SEE-I (bombarding electrons are removed, Ar+ on copper is considered for SEE)
+         ! by Joseph G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation" 
+         ! Plasmas 28, 063513 (2021); doi: 10.1063/5.0051095
+  ProductSpec(1)  = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
+  ProductSpecNbr = 0 ! do not create new particle (default value)
+
+  IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
+    RETURN ! nothing to do
+  ELSEIF(Species(PartSpecies(PartID_IN))%ChargeIC.GT.0.0)THEN ! Positive bombarding ion
+        ASSOCIATE (&
+            velo2          => PartState(4,PartID_IN)**2 + PartState(5,PartID_IN)**2 + PartState(6,PartID_IN)**2 ,&
+            mass           => Species(PartSpecies(PartID_IN))%MassIC &! mass of bombarding particle
+            )
+        ! Electron energy in [eV]
+        eps_e = 0.5*mass*velo2/ElementaryCharge
+        IF(eps_e.LT.700) THEN
+          SEE_Prob = 0.09*(eps_e/700.0)**0.05
+        ELSE
+          SEE_Prob = 0.09*(eps_e/700.0)**0.72
+        END IF
+        END ASSOCIATE
+    CALL RANDOM_NUMBER(iRan)
+    IF(iRan.LT.SEE_Prob)THEN                                               
+      ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+      ProductSpecNbr = 1 ! Create one new particle
+      TempErgy       = 0.0 !VECNORM(PartState(4:6,PartID_IN)) ! |v_new| = |v_old|
+    END IF
+  ELSE ! Neutral bombarding particle
+    RETURN ! nothing to do
+  END IF
+
+  ! Sanity check: is the newly created particle faster than c
+  IF(TempErgy.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Particle is faster than the speed of light:'&
+      ,RealInfoOpt=TempErgy)
+      
 END SELECT
 
 ! Check if SEE counter is active and assign the number of produced electrons to the boundary

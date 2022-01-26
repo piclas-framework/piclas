@@ -202,6 +202,7 @@ The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the t
 |      7      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. {cite}`Pflug2014` and given by Ref. {cite}`Depla2009` with a constant yield of 13 \%. |
 |      8      |                Secondary electron emission due to ion impact (SEE-E with $e^{-}$ on dielectric surfaces) as used in Ref. {cite}`Liu2010` and given by Ref. {cite}`Morozov2004`.               |
 |      9      |                  Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$) with a constant yield of 1 \%. Emitted electrons have an energy of 6.8 eV upon emission.                 |
+|     10      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on copper) as used in Ref.  {cite}`Theis2021`                                                                              |
 
 For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
 
@@ -234,6 +235,9 @@ The model by Morozov {cite}`Morozov2004` can be applied for dielectric surfaces 
 `Part-BoundaryX-SurfaceModel=8` and has an additional parameter for setting the reference electron temperature (see model for
 details) via `Part-SurfaceModel-SEE-Te`, which takes the electron temperature in Kelvin as input (default is 50 eV, which
 corresponds to 11604 K). The emission yield is determined from an energy-dependent function.
+
+A energy-dependent model of secondary electron emission due to $Ar^{+}$ ion impact at a copper cathode {cite}`Theis2021` is
+activated via `Part-BoundaryX-SurfaceModel=10`. For more details, see the original publication.
 
 ## Deposition of Charges on Dielectric Surfaces
 
