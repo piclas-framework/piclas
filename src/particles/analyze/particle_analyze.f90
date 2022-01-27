@@ -605,8 +605,6 @@ IF(TrackParticlePosition)THEN
 END IF
 CalcSimNumSpec = GETLOGICAL('CalcNumSpec')
 CalcNumDens    = GETLOGICAL('CalcNumDens')
-! Calculate the global density if for BGGas distribution at the beginning
-IF(CalcNumDens.AND.BGGas%UseDistribution) CALL CalcNumberDensityBGGasDistri()
 CalcAdaptiveBCInfo = GETLOGICAL('CalcAdaptiveBCInfo')
 IF(CalcAdaptiveBCInfo) THEN
   ALLOCATE(MassflowRate(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
@@ -617,19 +615,14 @@ END IF
 CalcCollRates = GETLOGICAL('CalcCollRates')
 CalcReacRates = GETLOGICAL('CalcReacRates')
 CalcRelaxProb = GETLOGICAL('CalcRelaxProb')
-IF(CalcRelaxProb.AND.(Collismode.LE.1)) THEN
-  CALL abort(&
-    __STAMP__&
-    ,'CollisMode has to be greater than 1 to calculate variable relaxation probabilities in PartAnalyze.csv')
-END IF
-
+IF(CalcRelaxProb.AND.(Collismode.LE.1)) CALL abort(__STAMP__,&
+    'CollisMode has to be greater than 1 to calculate variable relaxation probabilities in PartAnalyze.csv')
+! Calculate the global density if for BGGas distribution at the beginning
+IF(BGGas%UseDistribution.AND.(CalcNumDens.OR.DSMC%CalcQualityFactors.OR.CalcReacRates)) CALL CalcNumberDensityBGGasDistri()
 
 IF(CalcReacRates) THEN
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
-  END IF
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CALL abort(__STAMP__,&
+      'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
 END IF
 
 IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcAdaptiveBCInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
