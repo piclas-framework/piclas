@@ -56,13 +56,14 @@ The type of the region is defined by the following parameter
 
 Different `SpaceIC` are available and an overview is given in the table below.
 
-|   Distribution  |                                    Description                                   |                   Reference                  |
-| --------------- | -------------------------------------------------------------------------------- |  ------------------------------------------  |
-|    cell_local   |         Particles are inserted in every cell at a constant number density        |                                              |
-|       disc      |                     Particles are inserted on a circular disc                    |     Section {ref}`sec:particle-disk-init`    |
-|     cylinder    | Particles are inserted in the given cylinder volume at a constant number density |   Section {ref}`sec:particle-cylinder-init`  |
-| photon_cylinder |               Ionization of a background gas through photon impact               | Section {ref}`sec:particle-photo-ionization` |
-|       WIP       |                               **WORK IN PROGRESS**                               |                                              |
+|   Distribution   |                                    Description                                   |                   Reference                  |
+|  --------------- | -------------------------------------------------------------------------------- |  ------------------------------------------  |
+|    cell_local    |         Particles are inserted in every cell at a constant number density        |                                              |
+|       disc       |                     Particles are inserted on a circular disc                    |     Section {ref}`sec:particle-disk-init`    |
+|     cylinder     | Particles are inserted in the given cylinder volume at a constant number density |   Section {ref}`sec:particle-cylinder-init`  |
+|  photon_cylinder |   Ionization of a background gas through photon impact (cylinder distribution)   | Section {ref}`sec:particle-photo-ionization` |
+| photon_honeycomb |   Ionization of a background gas through photon impact (honeycomb distribution)  | Section {ref}`sec:particle-photo-ionization` |
+|        WIP       |                               **WORK IN PROGRESS**                               |                                              |
 
 Common parameters required for most of the insertion routines are given below. The drift velocity is defined by the direction
 vector `VeloVecIC`, which is a unit vector, and a velocity magnitude [m/s]. The thermal velocity of particle is determined based
@@ -176,6 +177,35 @@ actual computational domain corresponds only to a quarter of the cylinder:
 
     Part-Species1-Init1-FirstQuadrantOnly       = T
     Part-Species1-Init2-FirstQuadrantOnly       = T
+
+### Polychromatic Photo-ionization
+The volumetric photo-ionization can consider multiple wavelengths (polychromatic spectrum) and/or energy-dependent cross-section data.
+The corresponding ionization reactions are defined described in Section {ref}`sec:DSMC-chemistry` by
+
+    DSMC-NumOfReactions = 1
+    DSMC-Reaction1-ReactionType = phIonXsec
+    DSMC-Reaction1-Reactants    = (/3,0,0/)
+    DSMC-Reaction1-Products     = (/1,2,0/)
+
+where the reaction type `phIonXsec` refers to energy-dependent cross-section data for photoionization reactions.
+In this example, species 3 refers to H2 molecules, species 1 and 2 to electrons and H2+ ions respectively.
+The cross sections and photon energy spectrum must be supplied via
+
+    Particles-CollXSec-Database = XSec_Database_H2_Photoionization.h5
+
+that must contain the data in the following form
+
+    XSec_Database_H2_Photoionization.h5
+      - H2-photon (Group)
+        - REACTION (Group)
+          - H2Ion1-electron (Dataset)
+        - SPECTRUM (Group)
+          - H2-photon (Dataset)
+
+where `HIon1-electron (Dataset)` contains the tabulated cross-sections and `H2-photon (Dataset)` contains the tabulated photon
+energies and energy fractions (the fractions must add up to unity). In principle, the spectrum can contain only 1 single photon
+energy (corresponding to a single wavelength) that contains all the energy, hence, the table contains the energy in eV and the
+number 1. (100% of the energy).
 
 ## Surface Flux
 

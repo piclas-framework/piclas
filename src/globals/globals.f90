@@ -1107,17 +1107,18 @@ REAL,INTENT(IN)             :: Time, StartTime !< Current simulation time and be
 ! LOCAL VARIABLES
 REAL :: SimulationTime,mins,secs,hours,days
 !===================================================================================================================================
-IF(.NOT.MPIRoot) RETURN
+! Return with all procs except root if not called during abort
+IF(.NOT.MPIRoot.AND.(Message.NE.'ABORTED')) RETURN
 
 SimulationTime = Time-StartTime
 
 ! Get secs, mins, hours and days
 secs = MOD(SimulationTime,60.)
-SimulationTime = SimulationTime / 60
+SimulationTime = SimulationTime / 60.
 mins = MOD(SimulationTime,60.)
-SimulationTime = SimulationTime / 60
+SimulationTime = SimulationTime / 60.
 hours = MOD(SimulationTime,24.)
-SimulationTime = SimulationTime / 24
+SimulationTime = SimulationTime / 24.
 !days = MOD(SimulationTime,365.) ! Use this if years are also to be displayed
 days = SimulationTime
 

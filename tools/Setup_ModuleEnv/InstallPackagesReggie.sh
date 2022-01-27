@@ -10,6 +10,15 @@
 # notes       :
 #==============================================================================
 
+# Get OS Distributor ID
+LSBNAME=$(lsb_release -si)
+
+# Check OS
+if [[ ${LSBNAME} != "Ubuntu" ]]; then
+  echo "This script currently only supports Ubuntu. Exit."
+  exit
+fi
+
 # Check for updates
 sudo apt-get update
 
@@ -30,6 +39,9 @@ sudo apt-get install libstdc++5 -y
 
 # tools
 sudo apt-get install gzip gimp htop meld gnuplot gnuplot-x11 vlc okular ddd gmsh unzip -y
+
+# Secure Sockets Layer toolkit - development files
+sudo apt install libssl-dev
 sudo apt-get install openvpn openssl openssh-client -y
 
 # for FLEXI/PICLas

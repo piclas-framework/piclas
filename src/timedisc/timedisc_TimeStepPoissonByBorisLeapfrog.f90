@@ -176,6 +176,9 @@ IF (time.GE.DelayTime) THEN
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
     END IF
   END DO
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -191,13 +194,16 @@ IF (time.GE.DelayTime) THEN
   CALL MPIParticleRecv()  ! finish communication
 #endif
   IF (velocityOutputAtTime) THEN
+#ifdef EXTRAE
+    CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
     CALL Deposition() ! because of emission and UpdateParticlePosition
 #ifdef EXTRAE
-CALL extrae_eventandcounters(int(9000001), int8(0))
+    CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
     CALL HDG(time,U,iter)
 #ifdef EXTRAE
-CALL extrae_eventandcounters(int(9000001), int8(5))
+    CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
@@ -214,12 +220,18 @@ CALL extrae_eventandcounters(int(9000001), int8(5))
         velocityAtTime(1:3,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt*0.5
       END IF
     END DO
+#ifdef EXTRAE
+    CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF !velocityOutputAtTime
 END IF
 
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
 IF (doParticleMerge) THEN
   IF (.NOT.useDSMC) THEN
 #if USE_LOADBALANCE

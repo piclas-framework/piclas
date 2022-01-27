@@ -47,25 +47,27 @@ CONTAINS
 SUBROUTINE MCC(iElem)
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_BGGas              ,ONLY: BGGas_AssignParticleProperties
-USE MOD_part_tools              ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SpecXSec
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMCSumOfFormedParticles, XSec_NullCollision
-USE MOD_DSMC_Vars               ,ONLY: PolyatomMolDSMC, VibQuantsPar
-USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
+! VARIABLES
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMCSumOfFormedParticles, PolyatomMolDSMC, VibQuantsPar
+USE MOD_MCC_Vars                ,ONLY: SpecXSec, XSec_NullCollision
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Particle_Vars           ,ONLY: WriteMacroVolumeValues
-USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_TimeDisc_Vars           ,ONLY: dt, TEnd, time
+USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
+! ROUTINES
+USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
+USE MOD_DSMC_BGGas              ,ONLY: BGGas_AssignParticleProperties
+USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
-USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
-USE MOD_MCC_XSec                ,ONLY: InterpolateCrossSection, InterpolateCrossSection_Vib
+USE MOD_MCC_XSec                ,ONLY: InterpolateCrossSection, InterpolateCrossSection_Vib, InterpolateCrossSection_Elec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -78,7 +80,7 @@ INTEGER, INTENT(IN)           :: iElem
 ! LOCAL VARIABLES
 INTEGER                       :: iPair, iPart, iLoop, nPart, iSpec, jSpec, bgSpec, PartIndex, bggPartIndex, RandomPart
 INTEGER                       :: iCase, SpecPairNumTemp, nPartAmbi, CNElemID, GlobalElemID
-INTEGER                       :: iVib, nVib, iPartSplit, SplitPartNum, SplitRestPart
+INTEGER                       :: iLevel, nVib, iPartSplit, SplitPartNum, SplitRestPart
 INTEGER,ALLOCATABLE           :: iPartIndexSpec(:,:), SpecPartNum(:), SpecPairNum(:), UseSpecPartNum(:)
 REAL                          :: iRan, ProbRest, SpecPairNumReal, MPF, Volume, MPFRatio
 INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalAmbiDel(:)
@@ -358,13 +360,14 @@ DO iSpec = 1, nSpecies
             GetInternalEnergy = .FALSE.
           END IF
         END IF
+        ! Vibrational excitation
         IF(SpecXSec(iCase)%UseVibXSec) THEN
           CollEnergy = 0.5 * CollInf%MassRed(iCase) * CRela2
           ! Calculate the total vibrational cross-section
           nVib = SIZE(SpecXSec(iCase)%VibMode)
           SumVibCrossSection = 0.
-          DO iVib = 1, nVib
-            SumVibCrossSection = SumVibCrossSection + InterpolateCrossSection_Vib(iCase,iVib,CollEnergy)
+          DO iLevel = 1, nVib
+            SumVibCrossSection = SumVibCrossSection + InterpolateCrossSection_Vib(iCase,iLevel,CollEnergy)
           END DO
           ! Calculate the total vibrational relaxation probability
           SpecXSec(iCase)%VibProb = 1. - EXP(-SQRT(CRela2) * SumVibCrossSection * BGGas%NumberDensity(bgSpec) * dt)
@@ -372,6 +375,23 @@ DO iSpec = 1, nSpecies
           ! is determined based on the species fraction
           SpecXSec(iCase)%VibProb = SpecXSec(iCase)%VibProb / BGGas%SpeciesFraction(bgSpec)
           CollProb = CollProb + SpecXSec(iCase)%VibProb
+        END IF
+        ! Electronic excitation
+        IF(SpecXSec(iCase)%UseElecXSec) THEN
+          CollEnergy = 0.5 * CollInf%MassRed(iCase) * CRela2
+          DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+            IF(CollEnergy.GT.SpecXSec(iCase)%ElecLevel(iLevel)%Threshold) THEN
+              ! Interpolate the electronic cross-section
+              SpecXSec(iCase)%ElecLevel(iLevel)%Prob = InterpolateCrossSection_Elec(iCase,iLevel,CollEnergy)
+              ! Calculate the electronic excitation probability
+              SpecXSec(iCase)%ElecLevel(iLevel)%Prob = 1. - EXP(-SQRT(CRela2) * SpecXSec(iCase)%ElecLevel(iLevel)%Prob &
+                                                            * BGGas%NumberDensity(bgSpec) * dt)
+              ! Correct the collision probability in the case of the second species being a background species as the number of pairs
+              ! is determined based on the species fraction
+              SpecXSec(iCase)%ElecLevel(iLevel)%Prob = SpecXSec(iCase)%ElecLevel(iLevel)%Prob / BGGas%SpeciesFraction(bgSpec)
+              CollProb = CollProb + SpecXSec(iCase)%ElecLevel(iLevel)%Prob
+            END IF
+          END DO
         END IF
       END IF
       ! ==============================================================================================================================
@@ -518,7 +538,8 @@ END SUBROUTINE MCC
 !===================================================================================================================================
 SUBROUTINE MCC_CalcReactionProb(iCase,bgSpec,CRela2,PartIndex,bggPartIndex)
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, CollInf, BGGas, ChemReac, DSMC, PartStateIntEn, SpecXSec
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, CollInf, BGGas, ChemReac, DSMC, PartStateIntEn
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Macro_Restart         ,ONLY: CalcERot_particle, CalcEVib_particle, CalcEElec_particle
 USE MOD_MCC_XSec              ,ONLY: InterpolateCrossSection_Chem

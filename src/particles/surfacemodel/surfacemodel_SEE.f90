@@ -30,18 +30,20 @@ PUBLIC :: SecondaryElectronEmission
 
 CONTAINS
 
-SUBROUTINE SecondaryElectronEmission(PartID_IN,locBCID,ProductSpec,ProductSpecNbr,v_new)
+SUBROUTINE SecondaryElectronEmission(PartID_IN,locBCID,ProductSpec,ProductSpecNbr,TempErgy)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Determine the probability of an electron being emitted due to an impacting particles (ion/electron bombardment)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals                ,ONLY: abort,VECNORM,PARTISELECTRON
-USE MOD_Globals_Vars           ,ONLY: c,Joule2eV
-USE MOD_Particle_Vars          ,ONLY: PartState,Species,PartSpecies
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge,ElectronMass
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfModResultSpec
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Globals                   ,ONLY: abort,VECNORM,PARTISELECTRON
+USE MOD_Globals_Vars              ,ONLY: c,Joule2eV
+USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF
+USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,ElectronMass
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcElectronSEE,SEE
+USE MOD_PARTICLE_Vars             ,ONLY: usevMPF
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -53,7 +55,7 @@ INTEGER,INTENT(IN)      :: locBCID
 INTEGER,INTENT(OUT)     :: ProductSpec(2)      !< ProductSpec(1) new ID of impacting particle (the old one can change)
                                                !< ProductSpec(2) new ID of newly released electron
 INTEGER,INTENT(OUT)     :: ProductSpecNbr      !< number of species for ProductSpec(1)
-REAL,INTENT(OUT)        :: v_new  ! Velocity of emitted secondary electron
+REAL,INTENT(OUT)        :: TempErgy            !< temperature, energy or velocity used for VeloFromDistribution
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL              :: eps_e  ! Energy of bombarding electron in eV
@@ -61,11 +63,12 @@ REAL              :: iRan   ! Random number
 REAL              :: k_ee   ! Coefficient of emission of secondary electron
 REAL              :: k_refl ! Coefficient for reflection of bombarding electron
 REAL              :: W0,W1,W2
+REAL              :: MPF
 !===================================================================================================================================
 ! Default 0
 ProductSpec    = 0
 ProductSpecNbr = 0
-v_new          = 0.0
+TempErgy       = 0.0
 ! Select particle surface modeling
 SELECT CASE(PartBound%SurfaceModel(locBCID))
 CASE(5) ! 5: SEE by Levko2015 for copper electrodes
@@ -104,12 +107,12 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
             !ReflectionIndex = 3 ! SEE + perfect elastic scattering of the bombarding electron
             ProductSpec(2)  = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
             ProductSpecNbr = 1
-            v_new           = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
-            eps_e           = 0.5*mass*(v_new**2)/ElementaryCharge               ! Energy of the injected electron
+            TempErgy        = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
+            eps_e           = 0.5*mass*(TempErgy**2)/ElementaryCharge               ! Energy of the injected electron
 !WRITE (*,*) CHAR(27) // "[0;34mPartID_IN                  =", PartID_IN,CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;34mPartState(1:3,PartID_IN)   =", PartState(1:3,PartID_IN),CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;34mPartState(4:6,PartID_IN)   =", PartState(4:6,PartID_IN),CHAR(27),"[m"
-!WRITE (*,*) CHAR(27) // "[0;34mBombarding electron: v_new =", v_new,CHAR(27),"[m"
+!WRITE (*,*) CHAR(27) // "[0;34mBombarding electron: TempErgy =", TempErgy,CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;34m                     eps_e =", eps_e,CHAR(27),"[m"
           ELSE ! Only perfect elastic scattering of the bombarding electron
             ProductSpecNbr = 0 ! do not create new particle
@@ -140,14 +143,14 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
       !IF(iRan.LT.1.)THEN ! SEE-I: gamma=0.02 for the N2^+ ions and copper material
       IF(iRan.LT.0.02)THEN ! SEE-I: gamma=0.02 for the N2^+ ions and copper material
         !ReflectionIndex = -2       ! SEE + perfect elastic scattering of the bombarding electron
-        ProductSpec(2)  = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+        ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
         ProductSpecNbr = 1
-        eps_e           = I-2.*phi ! Energy of the injected electron
-        v_new           = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
+        eps_e          = I-2.*phi ! Energy of the injected electron
+        TempErgy       = SQRT(2.*(eps_e*ElementaryCharge-ElementaryCharge*phi)/ElectronMass) ! Velocity of emitted secondary electron
 !WRITE (*,*) CHAR(27) // "[0;34mPartID_IN                  =", PartID_IN,CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;31mPartState(1:3,PartID_IN) =", PartState(1:3,PartID_IN),CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;31mPartState(4:6,PartID_IN) =", PartState(4:6,PartID_IN),CHAR(27),"[m"
-!WRITE (*,*) CHAR(27) // "[0;31mPositive bombarding ion: v_new =", v_new,CHAR(27),"[m"
+!WRITE (*,*) CHAR(27) // "[0;31mPositive bombarding ion: TempErgy =", TempErgy,CHAR(27),"[m"
 !WRITE (*,*) CHAR(27) // "[0;31m                         eps_e =", eps_e,CHAR(27),"[m"
       ELSE ! Removal of the bombarding ion
         !ReflectionIndex = -1 ! Only perfect elastic scattering of the bombarding electron
@@ -170,12 +173,11 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
   END ASSOCIATE
 
   ! Sanity check: is the newly created particle faster than c
-  IF(v_new.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Particle is faster than the speed of light: ',RealInfoOpt=v_new)
+  IF(TempErgy.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Particle is faster than the speed of light:'&
+      ,RealInfoOpt=TempErgy)
 
 CASE(6) ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
-  CALL abort(&
-  __STAMP__&
-  ,'Not implemented yet')
+  CALL abort(__STAMP__,'Not implemented yet')
 CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
   ProductSpec(1)  = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
   ProductSpecNbr = 0 ! do not create new particle (default value)
@@ -188,18 +190,18 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
                          ! D. Depla, Magnetron sputter deposition: Linking discharge voltage with target properties, 2009
       ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
       ProductSpecNbr = 1 ! Create one new particle
-      v_new          = VECNORM(PartState(4:6,PartID_IN)) ! |v_new| = |v_old|
-      RETURN
+      TempErgy       = VECNORM(PartState(4:6,PartID_IN)) ! |TempErgy| = |v_old|
     END IF
   ELSE ! Neutral bombarding particle
     RETURN ! nothing to do
   END IF
 
   ! Sanity check: is the newly created particle faster than c
-  IF(v_new.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Particle is faster than the speed of light: ',RealInfoOpt=v_new)
+  IF(TempErgy.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Particle is faster than the speed of light:'&
+      ,RealInfoOpt=TempErgy)
 
-CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materials is considered for SEE and three different out-
-        ! comes) by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
+CASE(8) ! 8: SEE-E (e- on dielectric materials is considered for SEE and three different outcomes)
+        ! by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
 
     IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
       ASSOCIATE( P0   => 0.9 ,& ! Assumption in paper
@@ -230,7 +232,7 @@ CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materia
                 !const          = P20 ! Store constant here for usage in VeloFromDistribution()
               !END ASSOCIATE
             END IF
-            v_new = eps_e
+            TempErgy = eps_e ! electron energy
           ELSE
             ProductSpec(1) = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
           END IF
@@ -238,8 +240,35 @@ CASE(8) ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materia
       END ASSOCIATE
     END IF
 
+CASE(9) ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV
+  ProductSpec(1)  = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
+  IF(Species(PartSpecies(PartID_IN))%ChargeIC.GT.0.0)THEN ! Bombarding positive ion
+    CALL RANDOM_NUMBER(iRan) ! 1st random number
+    ASSOCIATE( eps_e => 6.8 )! Ejected electron energy [eV]
+      IF(iRan.LT.0.01)THEN ! SEE-I: gamma=0.01 for the bombarding Ar^+ ions
+        ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN)) ! Species of the injected electron
+        ProductSpecNbr = 1 ! Create one new particle
+        TempErgy       = SQRT(2.*eps_e*ElementaryCharge/ElectronMass) ! Velocity of emitted secondary electron in [m/s]
+      END IF
+    END ASSOCIATE
+  END IF
 END SELECT
 
+! Check if SEE counter is active and assign the number of produced electrons to the boundary
+IF(CalcElectronSEE.AND.(ProductSpecNbr.GT.0))THEN
+  ASSOCIATE( iSEEBC => SEE%BCIDToSEEBCID(locBCID) )
+    IF(iSEEBC.EQ.-1) CALL abort(__STAMP__,'SEE%BCIDToSEEBCID(locBCID)) = -1')
+    IF(usevMPF)THEN
+      ! MPF of impacting particle
+      MPF = PartMPF(PartID_IN)
+    ELSE
+      ! MPF of produced species
+      MPF = Species(ProductSpec(2))%MacroParticleFactor
+    END IF
+    ! Consider the number of produced electrons ProductSpecNbr
+    SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) + MPF*ProductSpecNbr
+  END ASSOCIATE
+END IF ! CalcElectronSEE
 
 END SUBROUTINE SecondaryElectronEmission
 

@@ -3,13 +3,14 @@
 # Load modules on new boltzplatz reggie
 before_script:
   - ulimit -s unlimited
-  - module purge
-  - module load cmake
-  - module load gcc/9.2.0
-  - module load openmpi/3.1.6/gcc/9.2.0
-  - module load hdf5/1.10.6/gcc/9.2.0/openmpi/3.1.6
-  - python3 -V
-  - python2 -V
+  #- module purge
+  #- module load cmake
+  #- module load gcc/9.2.0
+  #- module load openmpi/3.1.6/gcc/9.2.0
+  #- module load hdf5/1.10.6/gcc/9.2.0/openmpi/3.1.6
+  - module list
+  - python3 -V || true
+  - python2 -V || true
   - if [ -n "${DO_CORE_SPLIT}" ]; then
       echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor-level!";
       export PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE;
@@ -497,16 +498,14 @@ NIG_Photoionization_release:
   stage: reggie_nightly
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_poisson_release ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas ; fi
 
 NIG_Photoionization_debug:
   <<: *defaults_poisson_nightly
   stage: reggie_nightly
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_poisson_debug ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization/volume_emission -e ./bin/piclas ; fi
-    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization/surface_emission -e ./bin/piclas ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run

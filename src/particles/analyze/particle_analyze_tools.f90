@@ -36,21 +36,22 @@ END INTERFACE
 
 PUBLIC :: CalcEkinPart,CalcEkinPart2
 PUBLIC :: CalcNumPartsOfSpec
-PUBLIC :: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
+PUBLIC :: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
 PUBLIC :: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 PUBLIC :: CalcShapeEfficiencyR
 PUBLIC :: CalcKineticEnergy
 PUBLIC :: CalcKineticEnergyAndMaximum
 PUBLIC :: CalcNumberDensity
 PUBLIC :: CalcAdaptBCInfo
-PUBLIC :: CalcTemperature
+PUBLIC :: CalcTransTemp
+PUBLIC :: CalcMixtureTemp
 PUBLIC :: CalcTelec,CalcTVibPoly
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 PUBLIC :: CalcRelaxProbRotVib
 #endif
 PUBLIC :: CalcVelocities
 #if (PP_TimeDiscMethod==42)
-PUBLIC :: CollRates,CalcRelaxRates,ReacRates
+PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
 #endif /*(PP_TimeDiscMethod==42)*/
 PUBLIC :: CalcPowerDensity
 PUBLIC :: CalculatePartElemData
@@ -322,6 +323,39 @@ CALL AddToElemData(ElementOut,'ElectronTemperatureCell',RealArray=ElectronTemper
 END SUBROUTINE AllocateElectronTemperatureCell
 
 
+!===================================================================================================================================
+!> Allocate the required ElemData arrays for electron min/max/average energy for each element (singly data point in each element)
+!> The energy is given in electron volt (eV)
+!===================================================================================================================================
+SUBROUTINE AllocateCalcElectronEnergy()
+! MODULES
+USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
+USE MOD_Preproc
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronMinEnergyCell,ElectronMaxEnergyCell,ElectronAverageEnergyCell
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+
+!===================================================================================================================================
+! Check if ElectronMinEnergyCell has already been allocated (CalcElectronEnergy=T)
+IF(ALLOCATED(ElectronMinEnergyCell)) RETURN
+
+ALLOCATE(ElectronMinEnergyCell(1:PP_nElems))
+ElectronMinEnergyCell=0.
+CALL AddToElemData(ElementOut,'ElectronMinEnergyCell[eV]',RealArray=ElectronMinEnergyCell(1:PP_nElems))
+ALLOCATE(ElectronMaxEnergyCell(1:PP_nElems))
+ElectronMaxEnergyCell=0.
+CALL AddToElemData(ElementOut,'ElectronMaxEnergyCell[eV]',RealArray=ElectronMaxEnergyCell(1:PP_nElems))
+ALLOCATE(ElectronAverageEnergyCell(1:PP_nElems))
+ElectronAverageEnergyCell=0.
+CALL AddToElemData(ElementOut,'ElectronAverageEnergyCell[eV]',RealArray=ElectronAverageEnergyCell(1:PP_nElems))
+
+END SUBROUTINE AllocateCalcElectronEnergy
+
+
 SUBROUTINE CalculatePartElemData()
 !===================================================================================================================================
 ! use the plasma frequency per cell to estimate the pic time step
@@ -330,7 +364,7 @@ SUBROUTINE CalculatePartElemData()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronIonDensity
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaParameter,CalcPICCFLCondition,CalcMaxPartDisplacement
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaParameter,CalcPICCFLCondition,CalcMaxPartDisplacement,CalcElectronEnergy
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -350,6 +384,9 @@ IF(CalcIonizationDegree) CALL CalculateIonizationCell()
 
 ! electron temperature
 IF(CalcElectronTemperature) CALL CalculateElectronTemperatureCell()
+
+! electron energies
+IF(CalcElectronEnergy) CALL CalculateElectronEnergyCell()
 
 ! plasma frequency
 IF(CalcPlasmaFrequency) CALL CalculatePlasmaFrequencyCell()
@@ -376,12 +413,11 @@ IF(CalcMaxPartDisplacement) CALL CalculateMaxPartDisplacement()
 END SUBROUTINE CalculatePartElemData
 
 
-SUBROUTINE CalculateElectronIonDensityCell()
 !===================================================================================================================================
 ! Count the number of electrons per DG cell and divide it by element-volume
 !===================================================================================================================================
+SUBROUTINE CalculateElectronIonDensityCell()
 ! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
@@ -470,12 +506,11 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE CalculateElectronIonDensityCell
 
 
-SUBROUTINE CalculateElectronTemperatureCell()
 !===================================================================================================================================
 ! Count the number of electrons per DG cell and divide it by element-volume
 !===================================================================================================================================
+SUBROUTINE CalculateElectronTemperatureCell()
 ! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals               ,ONLY: PARTISELECTRON
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass
 USE MOD_Preproc
@@ -497,10 +532,10 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER :: iPart,iElem,ElemID,Method
 REAL    :: nElectronsPerCell(1:PP_nElems)
-REAL    ::  PartVandV2(1:PP_nElems,1:6)
+REAL    :: PartVandV2(1:PP_nElems,1:6)
 REAL    :: Mean_PartV2(1:3)
 REAL    :: MeanPartV_2(1:3)
-REAL    ::   TempDirec(1:3)
+REAL    :: TempDirec(1:3)
 REAL    :: WeightingFactor
 #if USE_HDG
 INTEGER :: RegionID
@@ -531,7 +566,7 @@ PartVandV2 = 0.
 DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     IF(.NOT.PARTISELECTRON(iPart)) CYCLE  ! ignore anything that is not an electron
-    ElemID                      = PEM%LocalElemID(iPart)
+    ElemID            = PEM%LocalElemID(iPart)
     IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
       WeightingFactor = GetParticleWeight(iPart)
     ELSE
@@ -577,6 +612,95 @@ CASE(1) ! 2.1   remove drift from distribution
 END SELECT
 
 END SUBROUTINE CalculateElectronTemperatureCell
+
+
+!===================================================================================================================================
+! Count the number of electrons per DG cell and divide it by element-volume
+!===================================================================================================================================
+SUBROUTINE CalculateElectronEnergyCell()
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_Globals               ,ONLY: PARTISELECTRON
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass,Joule2eV
+USE MOD_Preproc
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronMinEnergyCell,ElectronMaxEnergyCell,ElectronAverageEnergyCell
+USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies
+USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
+#if USE_HDG
+USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
+USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
+#endif /*USE_HDG*/
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iPart,iElem,ElemID
+REAL    :: nElectronsPerCell(1:PP_nElems),Ekin
+REAL    :: WeightingFactor
+#if USE_HDG
+INTEGER :: RegionID
+#endif /*USE_HDG*/
+!===================================================================================================================================
+ElectronMinEnergyCell     = HUGE(1.) ! Set zero before output to .h5 if unchanged (check if maximum is <= 0.)
+ElectronMaxEnergyCell     = 0.
+ElectronAverageEnergyCell = 0.
+#if USE_HDG
+IF (UseBRElectronFluid) THEN ! check for BR electrons
+  DO iElem=1,PP_nElems
+    RegionID=ElemToBRRegion(iElem)
+    IF (RegionID.GT.0) THEN
+      ! Assume <E> = (3/2)*<k_B*T>
+      ! with T = RegionElectronRef(3,RegionID)*ElementaryCharge/BoltzmannConst ! convert eV to K
+      ! T*Joule2eV gives energy in [eV]
+      ElectronMinEnergyCell     = 1.5*RegionElectronRef(3,RegionID) ! convert to [eV] -> factors cancel out
+      ElectronMaxEnergyCell     = ElectronMinEnergyCell
+      ElectronAverageEnergyCell = ElectronMinEnergyCell
+    END IF
+  END DO ! iElem=1,PP_nElems
+  RETURN ! Mixed BR and kinetic electrons are not implemented yet!
+ELSE
+#endif /*USE_HDG*/
+  nElectronsPerCell = 0.
+  ! 1. loop over all particles and sum-up the electron energy per cell and count the number of electrons per cell
+  DO iPart=1,PDM%ParticleVecLength
+    IF(PDM%ParticleInside(iPart))THEN
+      IF(.NOT.PARTISELECTRON(iPart)) CYCLE  ! ignore anything that is not an electron
+      ElemID            = PEM%LocalElemID(iPart)
+      IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        WeightingFactor = GetParticleWeight(iPart)
+      ELSE
+        WeightingFactor = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
+      END IF
+      nElectronsPerCell(ElemID) = nElectronsPerCell(ElemID) + WeightingFactor
+      ! Determine kinetic energy
+      Ekin = CalcEkinPart(iPart)
+      ElectronAverageEnergyCell(ElemID) = ElectronAverageEnergyCell(ElemID) + Ekin
+      ElectronMinEnergyCell(ElemID)     = MIN(ElectronMinEnergyCell(ElemID),Ekin/WeightingFactor) ! Consider energy of single e-
+      ElectronMaxEnergyCell(ElemID)     = MAX(ElectronMaxEnergyCell(ElemID),Ekin/WeightingFactor) ! Consider energy of single e-
+    END IF ! ParticleInside
+  END DO ! iPart
+
+  ! 2. Loop over all elements and calculate the average, also check if minimum is HUGE(1.)
+  DO iElem=1,PP_nElems
+    IF(nElectronsPerCell(iElem).GT.0.)THEN
+      ElectronAverageEnergyCell(iElem) = ElectronAverageEnergyCell(iElem)/nElectronsPerCell(iElem)*Joule2eV
+      ElectronMinEnergyCell(iElem)     = ElectronMinEnergyCell(iElem)*Joule2eV
+      ElectronMaxEnergyCell(iElem)     = ElectronMaxEnergyCell(iElem)*Joule2eV
+    ELSE
+      ElectronMinEnergyCell(iElem) = 0. ! Set from HUGE(1.) to zero for output to .h5
+    END IF ! nElectronsPerCell(iElem).GT.0.
+  END DO ! iElem=1,PP_nElems
+
+#if USE_HDG
+END IF
+#endif /*USE_HDG*/
+
+END SUBROUTINE CalculateElectronEnergyCell
 
 
 SUBROUTINE CalcShapeEfficiencyR()
@@ -992,23 +1116,24 @@ REAL,INTENT(OUT)                  :: NumDens(nSpecAnalyze)
 INTEGER                           :: iSpec
 !===================================================================================================================================
 
-IF (PartMPI%MPIRoot) THEN
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    NumDens(1:nSpecies) = NumSpec(1:nSpecies) / MeshVolume
-  ELSE
-    NumDens(1:nSpecies) = NumSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / MeshVolume
-  END IF
+! Only root does calculation
+IF(.NOT.PartMPI%MPIRoot) RETURN
 
-  IF(BGGas%NumberOfSpecies.GT.0) THEN
-    DO iSpec = 1, nSpecies
-      IF(BGGas%BackgroundSpecies(iSpec)) THEN
-        NumDens(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))
-      END IF
-    END DO
-  END IF
-
-  IF(nSpecAnalyze.GT.1) NumDens(nSpecAnalyze) = SUM(NumDens(1:nSpecies))
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  NumDens(1:nSpecies) = NumSpec(1:nSpecies) / MeshVolume
+ELSE
+  NumDens(1:nSpecies) = NumSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / MeshVolume
 END IF
+
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  DO iSpec = 1, nSpecies
+    IF(BGGas%BackgroundSpecies(iSpec)) THEN
+      NumDens(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))
+    END IF
+  END DO
+END IF
+
+IF(nSpecAnalyze.GT.1) NumDens(nSpecAnalyze) = SUM(NumDens(1:nSpecies))
 
 END SUBROUTINE CalcNumberDensity
 
@@ -1107,7 +1232,7 @@ END IF
 END SUBROUTINE CalcAdaptBCInfo
 
 
-SUBROUTINE CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec)
+SUBROUTINE CalcMixtureTemp(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec)
 !===================================================================================================================================
 !> Computes the species-specific and mixture temperature (MPI communication is in the respective subroutines)
 !===================================================================================================================================
@@ -1117,7 +1242,7 @@ USE MOD_Globals
 USE MOD_PARTICLE_Vars             ,ONLY: nSpecies
 USE MOD_Particle_Analyze_Vars     ,ONLY: nSpecAnalyze
 USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
-USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, CollisMode
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, CollisMode, DSMC
 USE MOD_part_tools                ,ONLY: CalcXiElec
 USE MOD_DSMC_Relaxation           ,ONLY: CalcXiVib
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1137,8 +1262,6 @@ REAL, INTENT(OUT)                 :: Xi_Vib(nSpecies), Xi_Elec(nSpecies)
 INTEGER                           :: iSpec
 REAL                              :: TempTotalDOF, XiTotal
 !===================================================================================================================================
-
-CALL CalcTransTemp(NumSpec, Temp)
 
 IF (CollisMode.GT.1) THEN
   CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
@@ -1160,7 +1283,7 @@ IF (CollisMode.GT.1) THEN
         END IF
       END IF
       ! If electronic energy is greater zero, added it to the temperature calculation
-      IF(IntTemp(iSpec,3).GT.0.) THEN
+      IF(IntTemp(iSpec,3).GT.0..AND.(DSMC%ElectronicModel.NE.3)) THEN
         Xi_Elec(iSpec) = CalcXiElec(IntTemp(iSpec,3), iSpec)
         XiTotal = XiTotal + Xi_Elec(iSpec)
         TempTotalDOF = TempTotalDOF + Xi_Elec(iSpec)*IntTemp(iSpec,3)
@@ -1190,7 +1313,7 @@ ELSE
   END IF
 END IF
 
-END SUBROUTINE CalcTemperature
+END SUBROUTINE CalcMixtureTemp
 
 
 SUBROUTINE CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
@@ -1406,7 +1529,7 @@ REAL FUNCTION CalcTelec(MeanEelec, iSpec)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1424,37 +1547,44 @@ REAL,PARAMETER        :: eps_prec=1E-3           !< Relative precision of root-f
 REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the electronic partition function
 !===================================================================================================================================
 
-IF (MeanEelec.GT.0) THEN
-  ! Lower limit: very small value or lowest temperature if ionized
-  IF (SpecDSMC(iSpec)%ElectronicState(2,0).EQ.0.0) THEN
-    LowerTemp = 1.0
-  ELSE
-    LowerTemp = SpecDSMC(iSpec)%ElectronicState(2,0)
-  END IF
-  ! Upper limit: Last excitation level (ionization limit)
-  UpperTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant-1)
-  MiddleTemp = LowerTemp
-  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
-    MiddleTemp = 0.5*( LowerTemp + UpperTemp)
-    SumOne = 0.0
-    SumTwo = 0.0
-    DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
-      TempRatio = SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp
-      IF(CHECKEXP(TempRatio)) THEN
-        SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * EXP(-TempRatio)
-        SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * EXP(-TempRatio)
+CalcTelec = 0.
+
+SELECT CASE(DSMC%ElectronicModel)
+CASE(1,2)
+  IF (MeanEelec.GT.0) THEN
+    ! Lower limit: very small value or lowest temperature if ionized
+    IF (SpecDSMC(iSpec)%ElectronicState(2,0).EQ.0.0) THEN
+      LowerTemp = 1.0
+    ELSE
+      LowerTemp = SpecDSMC(iSpec)%ElectronicState(2,0)
+    END IF
+    ! Upper limit: Last excitation level (ionization limit)
+    UpperTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant-1)
+    MiddleTemp = LowerTemp
+    DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
+      MiddleTemp = 0.5*( LowerTemp + UpperTemp)
+      SumOne = 0.0
+      SumTwo = 0.0
+      DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
+        TempRatio = SpecDSMC(iSpec)%ElectronicState(2,ii) / MiddleTemp
+        IF(CHECKEXP(TempRatio)) THEN
+          SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * EXP(-TempRatio)
+          SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * EXP(-TempRatio)
+        END IF
+      END DO
+      IF ( SumTwo / SumOne .GT. MeanEelec / BoltzmannConst ) THEN
+        UpperTemp = MiddleTemp
+      ELSE
+        LowerTemp = MiddleTemp
       END IF
     END DO
-    IF ( SumTwo / SumOne .GT. MeanEelec / BoltzmannConst ) THEN
-      UpperTemp = MiddleTemp
-    ELSE
-      LowerTemp = MiddleTemp
-    END IF
-  END DO
-  CalcTelec = MiddleTemp
-ELSE
-  CalcTelec = 0. ! sup
-END IF
+    CalcTelec = MiddleTemp
+  ELSE
+    CalcTelec = 0. ! sup
+  END IF
+CASE(3)
+  CalcTelec = MeanEelec / BoltzmannConst
+END SELECT
 
 RETURN
 
@@ -1517,7 +1647,7 @@ RETURN
 END FUNCTION CalcTVibPoly
 
 
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 SUBROUTINE CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
 !===================================================================================================================================
 ! Calculates global rotational and vibrational relaxation probability for PartAnalyse.csv
@@ -1830,7 +1960,8 @@ SUBROUTINE CalcRelaxRates(NumSpec,VibRelaxProbCase)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: nSpecies, Species
-USE MOD_DSMC_Vars             ,ONLY: CollisMode, SpecXSec, XSec_Relaxation, CollInf
+USE MOD_DSMC_Vars             ,ONLY: CollisMode, CollInf
+USE MOD_MCC_Vars              ,ONLY: SpecXSec, XSec_Relaxation
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
 USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
 USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
@@ -1890,6 +2021,72 @@ END IF
 SpecXSec(:)%VibCount = 0.
 
 END SUBROUTINE CalcRelaxRates
+
+
+SUBROUTINE CalcRelaxRatesElec(ElecRelaxRate)
+!===================================================================================================================================
+!> Calculates the global electronic relaxation rate per case per level for PartAnalyse.csv
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: CollInf
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
+USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
+USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT),ALLOCATABLE  :: ElecRelaxRate(:,:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iCase, iLevel, MaxLevel
+!===================================================================================================================================
+
+MaxLevel = MAXVAL(SpecXSec(:)%NumElecLevel)
+ALLOCATE(ElecRelaxRate(CollInf%NumCase,MaxLevel))
+ElecRelaxRate = 0.
+
+DO iCase=1, CollInf%NumCase
+  IF(SpecXSec(iCase)%UseElecXSec) THEN
+    DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+      ElecRelaxRate(iCase,iLevel) =  SpecXSec(iCase)%ElecLevel(iLevel)%Counter
+    END DO
+  END IF
+END DO
+
+#if USE_MPI
+IF(PartMPI%MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,ElecRelaxRate,CollInf%NumCase*MaxLevel,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+ELSE
+  CALL MPI_REDUCE(ElecRelaxRate,ElecRelaxRate,CollInf%NumCase*MaxLevel,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+END IF
+#endif /*USE_MPI*/
+
+IF(PartMPI%MPIRoot)THEN
+  ElecRelaxRate =  ElecRelaxRate / dt
+  ! Consider Part-AnalyzeStep
+  IF(PartAnalyzeStep.GT.1)THEN
+    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
+      ElecRelaxRate = ElecRelaxRate / iter
+    ELSE
+      ElecRelaxRate = ElecRelaxRate / MIN(PartAnalyzeStep,iter)
+    END IF
+  END IF
+END IF
+
+DO iCase=1, CollInf%NumCase
+  IF(SpecXSec(iCase)%UseElecXSec) THEN
+    DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+      SpecXSec(iCase)%ElecLevel(iLevel)%Counter = 0.
+    END DO
+  END IF
+END DO
+
+END SUBROUTINE CalcRelaxRatesElec
 
 
 SUBROUTINE ReacRates(NumSpec, RRate)

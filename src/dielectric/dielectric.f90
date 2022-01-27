@@ -56,7 +56,7 @@ CALL prms%CreateLogicalOption(  'DielectricFluxNonConserving'  , 'Use non-conser
 CALL prms%CreateRealOption(     'DielectricEpsR'               , 'Relative permittivity' , '1.')
 CALL prms%CreateRealOption(     'DielectricMuR'                , 'Relative permeability' , '1.')
 CALL prms%CreateLogicalOption(  'DielectricNoParticles'        , 'Do not insert/emit particles into dielectric regions' , '.TRUE.')
-CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Specific test cases: "FishEyeLens", "FH_lens", "Circle"' , 'default')
+CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Specific test cases: "FishEyeLens", "FH_lens", "Circle", "HollowCircle"' , 'default')
 CALL prms%CreateRealOption(     'DielectricRmax'               , 'Radius parameter for functions' , '1.')
 CALL prms%CreateLogicalOption(  'DielectricCheckRadius'        , 'Use additional parameter "DielectricRadiusValue" for checking'&
                                                                //' if a DOF is within a dielectric region' ,'.FALSE.')

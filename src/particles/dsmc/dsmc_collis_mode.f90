@@ -343,6 +343,8 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals               ,ONLY: abort
+USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC_RHS, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, VarTimeStep, PEM, usevMPF
 USE MOD_DSMC_ElectronicModel  ,ONLY: ElectronicEnergyExchange, TVEEnergyExchange
@@ -350,8 +352,10 @@ USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
 USE MOD_DSMC_Relaxation       ,ONLY: DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib
 USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_MCC_Vars              ,ONLY: UseMCC, SpecXSec
+USE MOD_MCC_XSec              ,ONLY: XSec_CalcElecRelaxProb, XSec_ElectronicRelaxation
 #if (PP_TimeDiscMethod==42)
-USE MOD_DSMC_Vars             ,ONLY: SpecXSec, XSec_Relaxation
+USE MOD_MCC_Vars              ,ONLY: XSec_Relaxation
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
 #endif
 #ifdef CODE_ANALYZE
@@ -375,12 +379,10 @@ REAL (KIND=8)                 :: Xi_rel, Xi, FakXi                ! Factors of D
 REAL                          :: cRelaNew(3)                       ! random relative velocity
 REAL                          :: ReducedMass
 REAL                          :: ProbRot1, ProbRotMax1, ProbRot2, ProbRotMax2, ProbVib1, ProbVib2
-INTEGER                       :: iSpec1, iSpec2, iPart1, iPart2, iElem ! Colliding particles 1 and 2 and their species
+INTEGER                       :: iCase, iSpec1, iSpec2, iPart1, iPart2, iElem ! Colliding particles 1 and 2 and their species
 ! variables for electronic level relaxation and transition
+INTEGER                       :: ElecLevelRelax
 LOGICAL                       :: DoElec1, DoElec2
-#if (PP_TimeDiscMethod==42)
-INTEGER                       :: iCase
-#endif
 #ifdef CODE_ANALYZE
 REAL                          :: Energy_old,Energy_new
 REAL                          :: Weight1, Weight2
@@ -392,6 +394,7 @@ REAL                          :: Weight1, Weight2
   iSpec1 = PartSpecies(iPart1)
   iSpec2 = PartSpecies(iPart2)
   iElem  = PEM%LocalElemID(iPart1)
+  iCase = CollInf%Coll_Case(iSpec1,iSpec2)
 
   DoRot1  = .FALSE.
   DoRot2  = .FALSE.
@@ -427,25 +430,39 @@ REAL                          :: Weight1, Weight2
 !--------------------------------------------------------------------------------------------------!
 ! Decision if Rotation, Vibration and Electronic Relaxation of particles is performed
 !--------------------------------------------------------------------------------------------------!
+!--------------------------------------------------------------------------------------------------!
+! ELECTRONIC
+!--------------------------------------------------------------------------------------------------!
   IF (DSMC%ElectronicModel.GT.0) THEN
+    ! Model 1/2
     IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
-      IF (DSMC%ElectronicModel.EQ.2) THEN
-        DoElec1 = .TRUE.
-      ELSE
+      SELECT CASE(DSMC%ElectronicModel)
+      CASE(1)
         CALL RANDOM_NUMBER(iRan)
         IF (SpecDSMC(iSpec1)%ElecRelaxProb.GT.iRan) DoElec1 = .TRUE.
-      END IF
+      CASE(2)
+        DoElec1 = .TRUE.
+      END SELECT
     END IF
     IF((SpecDSMC(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) THEN
-      IF (DSMC%ElectronicModel.EQ.2) THEN
-        DoElec2 = .TRUE.
-      ELSE
+      SELECT CASE(DSMC%ElectronicModel)
+      CASE(1)
         CALL RANDOM_NUMBER(iRan)
         IF (SpecDSMC(iSpec2)%ElecRelaxProb.GT.iRan) DoElec2 = .TRUE.
-      END IF
+      CASE(2)
+        DoElec2 = .TRUE.
+      END SELECT
     END IF
+    ! Model 3: Cross-section based relaxation
+    IF(UseMCC) THEN
+      IF(SpecXSec(iCase)%UseElecXSec) THEN
+        CALL XSec_ElectronicRelaxation(iPair,iCase,iPart1,iPart2,DoElec1,DoElec2,ElecLevelRelax)
+      END IF      ! SpecXSec(iCase)%UseElecXSec
+    END IF        ! UseMCC
   END IF
-
+!--------------------------------------------------------------------------------------------------!
+! ROTATIONAL + VIBRATIONAL
+!--------------------------------------------------------------------------------------------------!
   IF((SpecDSMC(iSpec1)%InterID.EQ.2).OR.(SpecDSMC(iSpec1)%InterID.EQ.20)) THEN
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_rot(iSpec1, iSpec2, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
@@ -471,7 +488,6 @@ REAL                          :: Weight1, Weight2
 IF(CalcRelaxProb) THEN
   IF(XSec_Relaxation) THEN
     IF(DoVib1) THEN
-      iCase = CollInf%Coll_Case(iSpec1,iSpec2)
       SpecXSec(iCase)%VibCount = SpecXSec(iCase)%VibCount + 1.0
     END IF
   END IF
@@ -498,13 +514,22 @@ END IF
     IF(ProbVib2.GT.iRan) DoVib2 = .TRUE.
   END IF
 
+! Cross-section model only allows one relaxation process during a single collision
+IF (DSMC%ElectronicModel.EQ.3) THEN
+  IF(DoElec1.OR.DoElec2) THEN
+    IF(SpecXSec(iCase)%UseVibXSec) THEN
+      DoVib1 = .FALSE.
+      DoVib2 = .FALSE.
+    END IF
+  END IF
+END IF
+
   FakXi = 0.5*Xi  - 1.  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
 
 #if (PP_TimeDiscMethod==42)
 IF(CalcRelaxProb) THEN
   IF(XSec_Relaxation) THEN
     IF(DoVib2) THEN
-      iCase = CollInf%Coll_Case(iSpec1,iSpec2)
       SpecXSec(iCase)%VibCount = SpecXSec(iCase)%VibCount + 1.0
     END IF
   END IF
@@ -542,7 +567,7 @@ IF (DSMC%ReservoirSimuRate) RETURN
   IF ( DoElec1 ) THEN
     ! calculate energy for electronic relaxation of particle 1
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart1) * GetParticleWeight(iPart1)
-    CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi)
+    CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi,XSec_Level=ElecLevelRelax)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart1) * GetParticleWeight(iPart1)
   END IF
 
@@ -550,7 +575,7 @@ IF (DSMC%ReservoirSimuRate) RETURN
   IF ( DoElec2 ) THEN
     ! calculate energy for electronic relaxation of particle 2
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart2) * GetParticleWeight(iPart2)
-    CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi)
+    CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi,XSec_Level=ElecLevelRelax)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart2) * GetParticleWeight(iPart2)
   END IF
 
@@ -1151,7 +1176,8 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                 ,ONLY: Abort
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, ChemReac, RadialWeighting, SpecXSec
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, ChemReac, RadialWeighting
+USE MOD_MCC_Vars                ,ONLY: SpecXSec
 USE MOD_Particle_Vars           ,ONLY: Species, PartSpecies, PEM, VarTimeStep, usevMPF
 USE MOD_DSMC_ChemReact          ,ONLY: CalcReactionProb, DSMC_Chemistry
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared

@@ -732,9 +732,9 @@ USE MOD_HDG_Vars
 USE MOD_TimeDisc_Vars    ,ONLY: time,iter
 USE MOD_Elem_Mat         ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_part_operations  ,ONLY: RemoveAllElectrons
-USE MOD_DSMC_Vars        ,ONLY: XSec_NullCollision
 USE MOD_DSMC_ChemInit    ,ONLY: InitReactionPaths
-USE MOD_DSMC_Vars        ,ONLY: ChemReac,CollInf,UseDSMC,CollisMode,SpecXSec
+USE MOD_DSMC_Vars        ,ONLY: ChemReac,CollInf,UseDSMC,CollisMode
+USE MOD_MCC_Vars         ,ONLY: XSec_NullCollision, SpecXSec
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: nLoadBalanceSteps
 #endif /*USE_LOADBALANCE*/

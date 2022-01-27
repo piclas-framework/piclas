@@ -31,8 +31,8 @@ LOGICAL                       :: CalcReacRates                       !< Calculat
 LOGICAL                       :: CalcRelaxProb                       !< Calculate relaxation probabilities
 LOGICAL                       :: CalcEkin                            !< Compute the kinetic energy of each species
 LOGICAL                       :: CalcEtot                            !< Compute the total energy as sum of potential and kin eng
-LOGICAL                       :: CalcEint                            !< Compute the internal energy of each species
-LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
+LOGICAL                       :: CalcEint(2)                         !< Compute the internal energy of each species [1: Calculate, 2: Output]
+LOGICAL                       :: CalcTemp(2)                         !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcCoupledPower                    !< Computation of the power that is coupled into plasma
 LOGICAL                       :: DisplayCoupledPower                 !< Display coupled power in UNIT_stdOut
 REAL                          :: EDiff                               !< Difference in kinetic energy before and after the particle
@@ -71,6 +71,7 @@ LOGICAL                       :: CalcDebyeLength                     !< Compute 
 LOGICAL                       :: CalcPICTimeStep                     !< Compute the PIC time step (min and max) in each cell
 LOGICAL                       :: CalcElectronIonDensity              !< Compute the electron density in each cell
 LOGICAL                       :: CalcElectronTemperature             !< Compute the electron temperature in each cell
+LOGICAL                       :: CalcElectronEnergy                  !< Compute the electron min/max/average energy in each cell
 LOGICAL                       :: CalcPlasmaParameter                 !< Compute the plasma parameter in each cell
 LOGICAL                       :: CalcPlasmaFrequency                 !< Compute the electron frequency in each cell
 LOGICAL                       :: CalcPointsPerDebyeLength            !< Compute the points per Debye length:
@@ -121,6 +122,9 @@ REAL,ALLOCATABLE              :: IonDensityCell(:)                   !< Ion dens
 REAL,ALLOCATABLE              :: NeutralDensityCell(:)               !< Neutral density (cell mean value)
 REAL,ALLOCATABLE              :: ChargeNumberCell(:)                 !< Charge number (cell mean value)
 REAL,ALLOCATABLE              :: ElectronTemperatureCell(:)          !< Electron temperature (cell mean value)
+REAL,ALLOCATABLE              :: ElectronMinEnergyCell(:)            !< Electron minimum cell energy [eV]
+REAL,ALLOCATABLE              :: ElectronMaxEnergyCell(:)            !< Electron maximum cell energy [eV]
+REAL,ALLOCATABLE              :: ElectronAverageEnergyCell(:)        !< Electron average cell energy [eV]
 REAL,ALLOCATABLE              :: PlasmaFrequencyCell(:)              !< Plasma electron frequency (cell mean value)
 
 LOGICAL                       :: CalcCharge                          !< Compute the whole deposited charge and abs and relative
