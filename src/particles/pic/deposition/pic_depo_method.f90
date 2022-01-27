@@ -753,7 +753,7 @@ USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, myComputeNodeRank, n
 USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_LEADERS_SHARED, myLeaderGroupRank, nLeaderGroupProcs
 USE MOD_PICDepo_Vars                ,ONLY: ShapeMapping, nShapeExchangeProcs
 USE MOD_PICDepo_Vars                ,ONLY: CNShapeMapping, nDepoDOFPerProc, PartSourceGlob, nDepoOffsetProc
-USE MOD_PICDepo_Vars                ,ONLY: SendRequest, RecvRequest, RecvRequestCN, SendRequestCN, DoRecvElem
+USE MOD_PICDepo_Vars                ,ONLY: SendRequest,RecvRequest
 USE MOD_Mesh_Vars                   ,ONLY: nElems, offsetElem
 #endif /*USE_MPI*/
 USE MOD_Part_Tools                  ,ONLY: isDepositParticle
