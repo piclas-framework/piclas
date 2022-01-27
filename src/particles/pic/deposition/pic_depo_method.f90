@@ -210,7 +210,7 @@ USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
 #endif /*USE_LOADBALANCE*/
-USE MOD_Mesh_Vars              ,ONLY: nElems, offSetElem
+USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if ((USE_HDG) && (PP_nVar==1))
@@ -218,7 +218,6 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
 #endif
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
-USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_PICDepo_Vars           ,ONLY: PartSource
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -356,7 +355,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars          ,ONLY: nElems,OffsetElem
+USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared, NodeCoords_Shared
@@ -394,7 +393,7 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 REAL               :: Charge, TSource(1:4), PartDistDepo(8), DistSum
 REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3)
 INTEGER            :: kk, ll, mm, iPart, iElem, iProc
-INTEGER            :: NodeID(1:8), firstElem, lastElem, firstNode, lastNode, iNode
+INTEGER            :: NodeID(1:8), firstNode, lastNode, iNode
 LOGICAL            :: SucRefPos
 #if !((USE_HDG) && (PP_nVar==1))
 INTEGER, PARAMETER :: SourceDim=1
@@ -749,12 +748,9 @@ USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID, GetGlobalElemID
 #if USE_MPI
 USE MOD_MPI_Shared                  ,ONLY: BARRIER_AND_SYNC
-USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, myComputeNodeRank, nComputeNodeProcessors
-USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_LEADERS_SHARED, myLeaderGroupRank, nLeaderGroupProcs
 USE MOD_PICDepo_Vars                ,ONLY: ShapeMapping, nShapeExchangeProcs
-USE MOD_PICDepo_Vars                ,ONLY: CNShapeMapping, nDepoDOFPerProc, PartSourceGlob, nDepoOffsetProc
 USE MOD_PICDepo_Vars                ,ONLY: SendRequest,RecvRequest
-USE MOD_Mesh_Vars                   ,ONLY: nElems, offsetElem
+USE MOD_Mesh_Vars                   ,ONLY: offsetElem
 #endif /*USE_MPI*/
 USE MOD_Part_Tools                  ,ONLY: isDepositParticle
 #if defined(MEASURE_MPI_WAIT)
@@ -773,7 +769,7 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 REAL               :: Charge
 INTEGER            :: iElem, iPart, stage, locElem
 #if USE_MPI
-INTEGER            :: iProc, CNElemID, nNonZeroRecvElems
+INTEGER            :: iProc
 #endif
 #if defined(MEASURE_MPI_WAIT)
 INTEGER(KIND=8)    :: CounterStart,CounterEnd
