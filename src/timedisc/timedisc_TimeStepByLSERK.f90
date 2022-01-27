@@ -184,6 +184,14 @@ DO iStage = 1,nRKStages
   IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
     IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
     CALL PerformTracking()
+#ifdef EXTRAE
+  CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
+  !IF(iStage.GT.1) CALL ParticleInserting()
+   CALL ParticleInserting()
+#ifdef EXTRAE
+  CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
     IF(MeasureTrackTime) THEN
       CALL CPU_TIME(TimeEnd)
       tTracking=tTracking+TimeEnd-TimeStart

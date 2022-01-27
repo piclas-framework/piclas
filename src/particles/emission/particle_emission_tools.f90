@@ -635,9 +635,7 @@ REAL                 :: NormalIC(1:3), RadiusIC, RadiusICGyro, Alpha, GyroVecDir
 
   IF (ABS(SQRT(Vec3D(1)*Vec3D(1) + Vec3D(2)*Vec3D(2))- VeloIC) .GT. 10.) THEN
     SWRITE(*,'(A,3(E21.14,1X))') 'Velocity=', PartState(4:6,iPart)
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR in gyrotron_circle spaceIC!',iPart)
+    CALL abort(__STAMP__,'ERROR in gyrotron_circle spaceIC!',iPart)
   END If
   IF(ISNAN(VECNORM(Vec3D)))THEN
     SWRITE(*,'(A,3(E21.14,1X))') 'WARNING:! NaN: Velocity=', Vec3D(1:3)
