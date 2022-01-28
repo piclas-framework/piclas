@@ -71,7 +71,6 @@ USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
@@ -188,13 +187,17 @@ DO iStage = 1,nRKStages
   CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
   !IF(iStage.GT.1) CALL ParticleInserting()
-   CALL ParticleInserting()
+   IF(iStage.EQ.5) CALL ParticleInserting()
 #ifdef EXTRAE
   CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
     IF(MeasureTrackTime) THEN
       CALL CPU_TIME(TimeEnd)
-      tTracking=tTracking+TimeEnd-TimeStart
+      IF(iStage.EQ.5)THEN
+        tLocalization = tLocalization+TimeEnd-TimeStart
+      ELSE
+        tTracking     = tTracking    +TimeEnd-TimeStart
+      END IF ! iStage.EQ.5
     END IF
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_TRACK,tLBStart)
