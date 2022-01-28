@@ -284,6 +284,7 @@ SUBROUTINE AddBRElectronFluidToPartSource()
 ! Add BR electron fluid density to PartSource for output to state.h5
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_Globals            ,ONLY: abort
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_PreProc
@@ -316,9 +317,7 @@ DO iElem=1,nElems
 #if ((USE_HDG) && (PP_nVar==1))
       source_e = U(1,i,j,k,iElem)-RegionElectronRef(2,RegionID)
 #else
-      CALL abort(&
-          __STAMP__&
-          ,' CalculateBRElectronsPerCell only implemented for electrostatic HDG!')
+      CALL abort(__STAMP__,' CalculateBRElectronsPerCell only implemented for electrostatic HDG!')
 #endif
       IF (source_e .LT. 0.) THEN
         source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
@@ -327,7 +326,7 @@ DO iElem=1,nElems
         source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
             * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
       END IF
-      PartSource(4,i,j,k,CNElemID) = PartSource(4,i,j,k,CNElemID) - source_e
+      PartSource(4,i,j,k,iElem) = PartSource(4,i,j,k,iElem) - source_e
     END DO; END DO; END DO
   END IF
 END DO ! iElem=1,PP_nElems

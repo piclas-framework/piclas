@@ -625,7 +625,6 @@ IF(DoDeposition)THEN
 #if IMPA
   resu(1)= - (PartSource(4,i,j,k,iElem)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
 #else
-  !IPWRITE(UNIT_StdOut,*) "Phi, PartSource(4,i,j,k,CNElemID),source_e =", Phi,PartSource(4,i,j,k,CNElemID),source_e
   resu(1)= - (PartSource(4,i,j,k,iElem)-source_e)/eps0
 #endif
 END IF
