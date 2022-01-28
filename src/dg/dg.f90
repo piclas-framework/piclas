@@ -305,8 +305,8 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 CALL ProlongToFace(U,U_master,U_slave,doMPISides=.FALSE.)
 CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
 
-#ifdef PARTICLES
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if USE_MPI
+#if defined(PARTICLES) && defined(LSERK)
 IF (time.GE.DelayTime) THEN
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
@@ -318,8 +318,8 @@ IF (time.GE.DelayTime) THEN
   CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 END IF
-#endif /*PP_TimeDiscMethod*/
-#endif /*PARTICLES*/
+#endif /*defined(PARTICLES) && defined(LSERK)*/
+#endif /*USE_MPI*/
 
 ! Nullify arrays
 ! NOTE: IF NEW DG_VOLINT AND LIFTING_VOLINT ARE USED AND CALLED FIRST,
@@ -393,8 +393,7 @@ IF(doSource) CALL CalcSource(tStage,1.0,Ut)
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-#ifdef PARTICLES
-#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
+#if defined(PARTICLES) && defined(LSERK)
 #if USE_MPI
 IF (time.GE.DelayTime) THEN
   CALL MPIParticleRecv()
@@ -403,8 +402,7 @@ END IF
 CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
-#endif /*PP_TimeDiscMethod*/
-#endif /*PARTICLES*/
+#endif /*defined(PARTICLES) && defined(LSERK)*/
 
 END SUBROUTINE DGTimeDerivative_weakForm
 #endif /*USE_HDG*/

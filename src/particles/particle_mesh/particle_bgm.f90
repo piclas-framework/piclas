@@ -168,14 +168,13 @@ INTEGER                        :: offsetElemCNProc
 REAL                           :: BoundingBoxVolume
 ! Mortar
 INTEGER                        :: iMortar,NbElemID,NbSideID,nMortarElems
-! Timer
-REAL                           :: StartT,EndT
 #else
 REAL                           :: halo_eps
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
+REAL                           :: StartT,EndT ! Timer
 !===================================================================================================================================
 
 ! Read parameter for FastInitBackgroundMesh (FIBGM)
