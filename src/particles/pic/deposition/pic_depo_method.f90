@@ -354,7 +354,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared, NodeCoords_Shared
@@ -703,7 +703,7 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 ! Interpolate node source values to volume polynomial
 DO iElem = 1, nElems
   ! Get UniqueNodeID from NonUniqueNodeID = ElemNodeID_Shared(:,GetCNElemID(iElem))
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem)))
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
   DO kk = 0, PP_N
     DO ll = 0, PP_N
       DO mm = 0, PP_N
