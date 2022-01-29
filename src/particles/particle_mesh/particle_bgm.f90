@@ -1014,13 +1014,16 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 !      local FIBGMToProcFlag and its offset
 ! 2.5) Compute node root communicates the partially filled arrays between the other compute node roots to obtain the full array
 !===================================================================================================================================
+#endif /*USE_MPI*/
+
 SWRITE(UNIT_stdOut,'(A)')' BUILDING FIBGM ELEMENT MAPPING ...'
 #if USE_MPI
 StartT=MPI_WTIME()
 #else
 CALL CPU_TIME(StartT)
-#endif
+#endif /*USE_MPI*/
 
+#if USE_MPI
 firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
 
