@@ -874,6 +874,8 @@ SDEALLOCATE(RecvRequest)
 SDEALLOCATE(SendRequest)
 SDEALLOCATE(RecvRequestCN)
 SDEALLOCATE(SendRequestCN)
+SDEALLOCATE(SendElemShapeID)
+SDEALLOCATE(CNRankToSendRank)
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
