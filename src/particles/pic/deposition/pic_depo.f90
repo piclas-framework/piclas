@@ -227,7 +227,6 @@ CASE('cell_volweight')
   DEALLOCATE(wGP_tmp, xGP_tmp)
 CASE('cell_volweight_mean')
 #if USE_MPI
-  ALLOCATE(RecvRequest(nShapeExchangeProcs),SendRequest(nShapeExchangeProcs))
   ALLOCATE(RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1))
 #endif
   IF ((TRIM(InterpolationType).NE.'cell_volweight')) THEN

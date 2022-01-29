@@ -27,10 +27,8 @@ LOGICAL                         :: DoDeposition              ! flag to switch de
 LOGICAL                         :: RelaxDeposition           ! relaxation of current PartSource with RelaxFac into PartSourceOld
 REAL                            :: RelaxFac
 
-REAL,ALLOCATABLE                 :: PartSource(:,:,:,:,:)     ! PartSource(1:4,PP_N,PP_N,PP_N,nComputeNodeTotalElems) containing
+REAL,ALLOCATABLE                 :: PartSource(:,:,:,:,:)    ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) containing
 !                                                            ! current and charge density source terms for Maxwell/Poisson systems
-!                                                            ! Access array with CNElemID = GetCNElemID(GlobalElemID)
-!                                                            !                            = GetCNElemID(iElem+offSetElem)
 REAL,ALLOCATABLE                :: PartSourceGlob(:,:,:,:,:)
 !REAL,ALLOCATABLE                :: PartSourceProc(:,:,:,:,:)
 !REAL,ALLOCATABLE                :: PartSourceLoc(:,:,:,:,:)

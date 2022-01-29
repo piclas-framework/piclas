@@ -289,7 +289,6 @@ USE MOD_Globals            ,ONLY: abort
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_PreProc
 USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,RegionElectronRef
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_DG_Vars            ,ONLY: U
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_PICDepo_Vars       ,ONLY: PartSource
@@ -301,7 +300,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iElem,RegionID,CNElemID
+INTEGER :: iElem,RegionID
 INTEGER :: i,j,k
 REAL    :: source_e
 !===================================================================================================================================
@@ -310,9 +309,6 @@ DO iElem=1,nElems
   ! BR electron fluid region
   RegionID=ElemToBRRegion(iElem)
   IF (RegionID.GT.0) THEN
-    ! CN element ID
-    CNElemID = GetCNElemID(iElem+offSetElem) ! = GetCNElemID(globElemID)
-
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
 #if ((USE_HDG) && (PP_nVar==1))
       source_e = U(1,i,j,k,iElem)-RegionElectronRef(2,RegionID)
