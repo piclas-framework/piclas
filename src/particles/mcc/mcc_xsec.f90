@@ -1001,6 +1001,8 @@ INTEGER                           :: storage, nSets, max_corder
 LOGICAL                           :: DataSetFound, GroupFound, ReactionFound
 INTEGER                           :: iReac, EductReac(1:3), ProductReac(1:4)
 REAL, ALLOCATABLE                 :: tempArray(:,:)
+CHARACTER(LEN=32)                 :: hilf
+REAL                              :: ERatio
 !===================================================================================================================================
 iReac = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
 EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
@@ -1089,11 +1091,17 @@ IF(SpecXSec(iCase)%ReactionPath(iPath)%XSecData(2,1).GT.0.0) THEN
   ! Store the read-in dataset
   SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1:dims(1),2:dims(2)+1) = tempArray(1:dims(1),1:dims(2))
   DEALLOCATE(tempArray)
-  IF(SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,1).GE.SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2)) THEN
+  ! Sanity check: Is the heat of formation larger than the first energy level of the cross-section data
+  ERatio=SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,1)/SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2)
+  IF(ERatio.GT.1.0) THEN
     SWRITE(*,*) '      (Negative) Heat of reaction [J]: ', -ChemReac%EForm(iReac),", [eV]: ",-ChemReac%EForm(iReac)*Joule2eV
     SWRITE(*,*) ' First energy level from database [J]: ', SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2),", [eV]: ",&
     SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2)*Joule2eV
-    CALL abort(__STAMP__,' Heat of reaction greater than the first read-in energy level for reaction number:', iReac)
+    WRITE(UNIT=hilf,FMT='(F8.2)') ERatio
+    SWRITE (*,'(A,I0)') 'Warning: Heat of reaction is factor '//TRIM(ADJUSTL(hilf))//&
+        ' greater than the first read-in energy level for reaction number: ',iReac
+    IF(ERatio.GT.10.0) CALL abort(__STAMP__,&
+        ' Heat of reaction is much greater than the first read-in energy level for reaction number:', iReac)
   END IF
 END IF
 
