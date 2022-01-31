@@ -232,6 +232,10 @@ e.g.,
 
     /opt/hlrs/non-spack/performance/extrae/3.7.1-mpt-2.23-gcc-9.2.0/bin/mpi2prv -f TRACE.mpits -o pilcas.32ranks.prv
 
+or using mpirun
+
+    mpirun -np 64  ${EXTRAE_HOME}/bin/mpimpi2prv -f TRACE.mpits -o tracing.prv
+
 which will create a file containing the tracing events (.prv), list of registered events (.pcf) and cluster topology description (.row).
 
 #### Analysing the results with Paraver

@@ -196,11 +196,6 @@ IF (TRIM(TimeAverageFile).NE.'none') THEN
   END IF
 END IF
 
-#if USE_MPI
-ALLOCATE(RecvRequest(nShapeExchangeProcs),SendRequest(nShapeExchangeProcs), &
-    RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1))
-#endif
-
 !--- init DepositionType-specific vars
 SELECT CASE(TRIM(DepositionType))
 CASE('cell_volweight')
@@ -231,6 +226,9 @@ CASE('cell_volweight')
   DEALLOCATE(Vdm_tmp)
   DEALLOCATE(wGP_tmp, xGP_tmp)
 CASE('cell_volweight_mean')
+#if USE_MPI
+  ALLOCATE(RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1))
+#endif
   IF ((TRIM(InterpolationType).NE.'cell_volweight')) THEN
     ALLOCATE(CellVolWeightFac(0:PP_N))
     CellVolWeightFac(0:PP_N) = xGP(0:PP_N)
@@ -405,6 +403,9 @@ CASE('cell_volweight_mean')
   END IF ! DoDielectricSurfaceCharge
 
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
+#if USE_MPI
+  ALLOCATE(RecvRequest(nShapeExchangeProcs),SendRequest(nShapeExchangeProcs))
+#endif
   ! --- Set shape function radius in each cell when using adaptive shape function
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitShapeFunctionAdaptive()
 
@@ -741,7 +742,6 @@ USE MOD_PIC_Analyze           ,ONLY: VerifyDepositedCharge
 USE MOD_TimeDisc_Vars         ,ONLY: iter
 #if USE_MPI
 USE MOD_MPI_Shared            ,ONLY: BARRIER_AND_SYNC
-USE MOD_MPI_Shared_Vars       ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
 #endif  /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -869,8 +869,12 @@ SDEALLOCATE(NodeMapping)
 SDEALLOCATE(nDepoDOFPerProc)
 SDEALLOCATE(nDepoOffsetProc)
 SDEALLOCATE(RecvRequest)
-SDEALLOCATE(RecvRequestCN) 
+SDEALLOCATE(RecvRequest)
+SDEALLOCATE(SendRequest)
+SDEALLOCATE(RecvRequestCN)
 SDEALLOCATE(SendRequestCN)
+SDEALLOCATE(SendElemShapeID)
+SDEALLOCATE(CNRankToSendRank)
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)

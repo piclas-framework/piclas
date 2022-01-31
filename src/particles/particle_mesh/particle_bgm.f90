@@ -174,6 +174,7 @@ REAL                           :: halo_eps
 #ifdef CODE_ANALYZE
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
+REAL                           :: StartT,EndT ! Timer
 !===================================================================================================================================
 
 ! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -989,6 +990,9 @@ END IF
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*CODE_ANALYZE*/
 
+! ONLY IF HALO_EPS .LT. GLOBAL_DIAG
+! ONLY IF EMISSION .EQ. 1 .OR. 2
+
 !===================================================================================================================================
 ! Loop over all elements and build a global FIBGM to processor mapping. This is required to identify potential emission procs.
 ! However, this step must be performed in a distributed manner to avoid scaling issues during building of FIBGMToProcFlag.
@@ -1010,6 +1014,16 @@ CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 !      local FIBGMToProcFlag and its offset
 ! 2.5) Compute node root communicates the partially filled arrays between the other compute node roots to obtain the full array
 !===================================================================================================================================
+#endif /*USE_MPI*/
+
+SWRITE(UNIT_stdOut,'(A)')' BUILDING FIBGM ELEMENT MAPPING ...'
+#if USE_MPI
+StartT=MPI_WTIME()
+#else
+CALL CPU_TIME(StartT)
+#endif /*USE_MPI*/
+
+#if USE_MPI
 firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
 
@@ -1182,6 +1196,10 @@ ADEALLOCATE(FIBGMToProcFlag)
 CALL BARRIER_AND_SYNC(FIBGMProcs_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(FIBGMToProc_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
+
+EndT = PICLASTIME()
+SWRITE(UNIT_stdOut,'(A,F0.3,A)')' BUILDING FIBGM ELEMENT MAPPING DONE! [',EndT-StartT,'s]'
+SWRITE(UNIT_StdOut,'(132("-"))')
 
 ! and get max number of bgm-elems
 ALLOCATE(Distance    (1:MAXVAL(FIBGM_nElems)) &

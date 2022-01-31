@@ -1005,7 +1005,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     SDEALLOCATE(RecvRequest)
     ! 2 of 2: Multi-node communication
     ! Second stage of communication, identify and send inter-compute-node information
-    IF (nLeaderGroupProcs.GT.1) THEN     
+    IF (nLeaderGroupProcs.GT.1) THEN
       CALL MPI_WIN_SYNC(ShapeElemProcSend_Shared_Win,iError)
       ALLOCATE(CNShapeMapping(0:nLeaderGroupProcs-1), &
                SendRequest   (0:nLeaderGroupProcs-1), &
@@ -1099,7 +1099,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
           jProc = 0
           DO iProc = 0, nComputeNodeProcessors-1
             IF (ShapeElemProcSend_Shared(iElem, iProc+1+ComputeNodeRootRank)) THEN
-              jProc = jProc + 1 
+              jProc = jProc + 1
               CNShapeMapping(GlobalLeaderRank)%SendShapeProcElemID(CNShapeMapping(GlobalLeaderRank)%nSendShapeElems(1),jProc) = iProc+ComputeNodeRootRank+1
             END IF
           END DO
@@ -1142,7 +1142,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                 , 2012                                    &
                 , MPI_COMM_LEADERS_SHARED                 &
                 , RecvRequest(iProc)                      &
-                , IERROR)   
+                , IERROR)
         END IF
         IF (CNShapeMapping(iProc)%nSendShapeElems(1).GT.0) THEN
           CALL MPI_ISEND( CNShapeMapping(iProc)%SendShapeProcElemID   &
@@ -1152,7 +1152,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                 , 2012                                    &
                 , MPI_COMM_LEADERS_SHARED                 &
                 , SendRequest(iProc)                      &
-                , IERROR)  
+                , IERROR)
         END IF
       END DO
       DO iProc = 0,nLeaderGroupProcs-1
@@ -1165,7 +1165,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
         IF (CNShapeMapping(iProc)%nSendShapeElems(1).NE.0) THEN
           CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
           IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-        END IF   
+        END IF
       END DO
 
       DO iProc = 0,nLeaderGroupProcs-1
@@ -1256,8 +1256,8 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
         IF (ShapeElemProcSend_Shared(CNElemID,iProc)) THEN
           exElem = exElem + 1
           ShapeMapping(exProc)%RecvShapeElemID(exElem) = iElem+offSetElem
-        END IF  
-      END DO    
+        END IF
+      END DO
     END IF
   END DO
 

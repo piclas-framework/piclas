@@ -73,7 +73,7 @@ USE MOD_Particle_Analyze_Vars ,ONLY: IsRestart
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 USE MOD_Dielectric_Vars       ,ONLY: DoDielectric
 #if USE_HDG
-USE MOD_HDG_Vars              ,ONLY: HDGNorm,iteration,Runtime,RunTimePerIteration
+USE MOD_HDG_Vars              ,ONLY: HDGNorm,iterationTotal,RunTimeTotal
 USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential,CalcAverageElectricPotential
 #endif /*USE_HDG*/
 #ifdef PARTICLES
@@ -272,9 +272,13 @@ IF(MPIROOT)THEN
 #endif /*PP_nVar=8*/
   END IF
 #if USE_HDG
-  WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(iteration)
-  WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Runtime
-  WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RunTimePerIteration
+  WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(iterationTotal)
+  WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RunTimeTotal
+  IF(iterationTotal.GT.0)THEN
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RunTimeTotal/REAL(iterationTotal)
+  ELSE
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.
+  END IF ! iterationTotal.GT.0
   WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', HDGNorm
 #endif /*USE_HDG*/
 #if (PP_nVar>=6)

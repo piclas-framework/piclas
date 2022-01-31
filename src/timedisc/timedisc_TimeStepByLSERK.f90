@@ -71,7 +71,6 @@ USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
@@ -114,6 +113,9 @@ DO iStage = 1,nRKStages
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
+#ifdef EXTRAE
+  CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
   IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition(stage_opt=1)
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_DEPOSITION,tLBStart)
@@ -174,13 +176,28 @@ DO iStage = 1,nRKStages
     CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF
+#ifdef EXTRAE
+  CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 
   IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
     IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
     CALL PerformTracking()
+#ifdef EXTRAE
+  CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
+  !IF(iStage.GT.1) CALL ParticleInserting()
+   IF(iStage.EQ.5) CALL ParticleInserting()
+#ifdef EXTRAE
+  CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
     IF(MeasureTrackTime) THEN
       CALL CPU_TIME(TimeEnd)
-      tTracking=tTracking+TimeEnd-TimeStart
+      IF(iStage.EQ.5)THEN
+        tLocalization = tLocalization+TimeEnd-TimeStart
+      ELSE
+        tTracking     = tTracking    +TimeEnd-TimeStart
+      END IF ! iStage.EQ.5
     END IF
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_TRACK,tLBStart)
@@ -194,6 +211,9 @@ DO iStage = 1,nRKStages
   END IF
 #endif /*PARTICLES*/
 
+#ifdef EXTRAE
+  CALL extrae_eventandcounters(int(9000001), int8(4))
+#endif /*EXTRAE*/
   ! field solver
   ! time measurement in weakForm
   CALL DGTimeDerivative_weakForm(time,tStage,0,doSource=.TRUE.)
@@ -215,7 +235,6 @@ DO iStage = 1,nRKStages
   CALL DivCleaningDamping_Pois()
 #endif /*PP_POIS*/
 
-  ! first RK step
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -253,9 +272,15 @@ DO iStage = 1,nRKStages
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PML,tLBStart)
 #endif /*USE_LOADBALANCE*/
+#ifdef EXTRAE
+  CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 END DO
 
 #ifdef PARTICLES
+#ifdef EXTRAE
+  CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
 IF (doParticleMerge) THEN
   IF (.NOT.(useDSMC)) THEN
 #if USE_LOADBALANCE
@@ -296,6 +321,9 @@ IF (useDSMC) THEN
 #endif /*USE_LOADBALANCE*/
   END IF
 END IF
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
 END SUBROUTINE TimeStepByLSERK

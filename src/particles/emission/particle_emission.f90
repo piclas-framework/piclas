@@ -196,7 +196,8 @@ DO i=1,nSpecies
               IF(Species(i)%Init(iInit)%FirstQuadrantOnly) NbrOfPhotons = NbrOfPhotons / 4.0
 
               ! Select surface SEE or volumetric emission
-              IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc')THEN
+              IF((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc').OR.&
+                 (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_SEE_honeycomb'))THEN
                 ! SEE based on photon impact
                 NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / Species(i)%MacroParticleFactor &
                               + Species(i)%Init(iInit)%NINT_Correction
@@ -241,15 +242,12 @@ DO i=1,nSpecies
            PartPosLandmark=HUGE(1.)
            IF(NbrOfParticleLandmarkMax.LE.0)THEN
              IPWRITE(UNIT_StdOut,*) "NbrOfParticleLandmarkMax =", NbrOfParticleLandmarkMax
-             CALL abort(&
-                 __STAMP__&
-                 ,'NbrOfParticleLandmarkMax.LE.0')
+             CALL abort(__STAMP__,'NbrOfParticleLandmarkMax.LE.0')
            END IF
          ELSE
            IF(NbrOfParticleLandmarkMax.LT.NbrOfParticle)THEN
              IPWRITE(UNIT_StdOut,*) "NbrOfParticleLandmarkMax,NbrOfParticle =", NbrOfParticleLandmarkMax,NbrOfParticle
-             CALL abort(&
-             __STAMP__&
+             CALL abort(__STAMP__&
              ,'NbrOfParticleLandmarkMax.LT.NbrOfParticle is not allowed! Allocate PartPosLandmark to the appropriate size.')
            END IF ! NbrOfParticleLandmarkMax.LE.NbrOfParticle
          END IF ! .NOT.ALLOCATED()
@@ -283,7 +281,8 @@ DO i=1,nSpecies
 
     CALL SetParticlePosition(i,iInit,NbrOfParticle)
     ! Pairing of "electrons" with the background species and performing the reaction
-    IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
+    IF((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_cylinder').OR.&
+       (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_honeycomb')) THEN
       CALL BGGas_PhotoIonization(i,iInit,NbrOfParticle)
       CYCLE
     END IF
