@@ -868,7 +868,7 @@ USE MOD_Preproc
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo, DSMC_RHS
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf!,PartMPI
-USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
+USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors, ExchangeProcToGlobalProc
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: doParticleMerge, vMPF_SpecNumElem
@@ -1250,7 +1250,7 @@ DO iProc=0,nExchangeProcessors-1
         CALL abort(__STAMP__,'Particle received in not in proc! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
       END IF
       IF(.NOT.IsExchangeElem(ElemID)) THEN
-        IPWRITE(*,*) 'Part Pos + Velo:',PartState(1:6,PartID)
+        IPWRITE(*,*) 'Part Pos + Velo:',PartID,ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc), PartState(1:6,PartID)
         CALL abort(__STAMP__,'Particle received in non exchange elem! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
       END IF
       IF (useDSMC) DSMC_RHS(1:3,PartID) = 0.0
