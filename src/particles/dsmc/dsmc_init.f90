@@ -1484,6 +1484,7 @@ SDEALLOCATE(BGGas%SpeciesFractionElem)
 SDEALLOCATE(BGGas%NumberDensity)
 SDEALLOCATE(BGGas%DistributionSpeciesIndex)
 SDEALLOCATE(BGGas%Distribution)
+SDEALLOCATE(BGGas%DistributionNumDens)
 
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)

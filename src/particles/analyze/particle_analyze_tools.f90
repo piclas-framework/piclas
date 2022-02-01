@@ -1177,6 +1177,8 @@ REAL                              :: DistriNumDens(1:BGGas%NumberOfSpecies)
 !===================================================================================================================================
 ! Initialize
 DistriNumDens = 0.
+ALLOCATE(BGGas%DistributionNumDens(1:BGGas%NumberOfSpecies))
+BGGas%DistributionNumDens = 0.
 
 ! Loop over all species and elements and add up the mass within each element
 DO iSpec = 1, nSpecies
