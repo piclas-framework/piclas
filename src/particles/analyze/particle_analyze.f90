@@ -563,8 +563,7 @@ IF(CalcCoupledPower) THEN
   DoPartAnalyze = .TRUE.
   PCouplAverage = 0.0
 #if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
-  CALL abort(__STAMP__,&
-      'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
+  CALL abort(__STAMP__,'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
 #endif
   ! Allocate type array for all ranks
   ALLOCATE(PCouplSpec(1:nSpecies))
@@ -1260,9 +1259,11 @@ INTEGER             :: iRegions
   END IF
   IF(CalcTemp(1)) CALL CalcTransTemp(NumSpec, Temp)
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
-  IF(CalcTemp(1).OR.CalcEint(1)) THEN
+  ! CalcTemp(1) is required for Temp
+  ! CalcEint(1) is required for Ekin
+  IF(CalcTemp(1).AND.CalcEint(1)) THEN
     CALL CalcMixtureTemp(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
-    ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
+    IF(PartMPI%MPIRoot) ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell reservoirs,

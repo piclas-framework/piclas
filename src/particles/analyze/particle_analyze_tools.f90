@@ -34,6 +34,10 @@ INTERFACE CalcNumPartsOfSpec
   MODULE PROCEDURE CalcNumPartsOfSpec
 END INTERFACE
 
+INTERFACE CalcMixtureTemp
+  MODULE PROCEDURE CalcMixtureTemp
+END INTERFACE
+
 PUBLIC :: CalcEkinPart,CalcEkinPart2
 PUBLIC :: CalcNumPartsOfSpec
 PUBLIC :: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
@@ -1323,7 +1327,7 @@ IMPLICIT NONE
 REAL, INTENT(IN)                  :: NumSpec(nSpecAnalyze)    ! number of real particles (already GLOBAL number)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)                 :: Temp(nSpecAnalyze)
+REAL, INTENT(IN)                  :: Temp(nSpecAnalyze)
 REAL, INTENT(OUT)                 :: IntEn(nSpecAnalyze,3)
 REAL, INTENT(OUT)                 :: IntTemp(nSpecies,3)
 REAL, INTENT(OUT)                 :: TempTotal(nSpecAnalyze)
