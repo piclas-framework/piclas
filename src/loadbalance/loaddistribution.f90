@@ -250,9 +250,7 @@ CALL MPI_BCAST(PartsInElem,nGlobalElems,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 
 ! Every proc needs to get the information to arrive at the same timedisc
 IF (.NOT.ElemTimeExists .AND. ALL(PartsInElem(:).EQ.0)) THEN
-  IF (WeightDistributionMethod.EQ.-1) THEN
-    SWRITE (*,*) "WeightDistributionMethod set to -1: optimum distribution for const. elem-weight"
-  END IF
+  IF((WeightDistributionMethod.NE.-1).AND.MPIRoot) WRITE (*,*) "WeightDistributionMethod set to -1: optimum for const. elem-weight"
   WeightDistributionMethod_loc = -1.0
 ELSE
   WeightDistributionMethod_loc = WeightDistributionMethod
