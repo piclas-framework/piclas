@@ -510,7 +510,6 @@ IF(VariableExternalField2D)THEN
         deltaOld = delta
         DeltaExternalField(i) = delta
       ELSEIF(delta.LT.0.)THEN
-        IPWRITE(UNIT_StdOut,*) "j =", j
         IF(VariableExternalField2DRows.LT.0)THEN
           VariableExternalField2DColumns = j
           VariableExternalField2DRows    = NbrOfColumns/VariableExternalField2DColumns
