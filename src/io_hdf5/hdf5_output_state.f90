@@ -105,7 +105,7 @@ USE MOD_HDF5_Output_Particles  ,ONLY: AddBRElectronFluidToPartSource
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
-USE MOD_Mesh_Vars              ,ONLY: DoWriteStateToHDF5
+USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
 USE MOD_HDF5_Input             ,ONLY: ReadArray
 #if (PP_nVar==8)
