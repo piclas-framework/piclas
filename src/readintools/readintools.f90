@@ -1179,7 +1179,7 @@ CLASS(link),POINTER          :: check
 CLASS(Option),POINTER        :: multi
 CLASS(OPTION),ALLOCATABLE    :: newopt
 CHARACTER(LEN=:),ALLOCATABLE :: testname
-INTEGER                      :: i
+INTEGER                      :: i,k
 CHARACTER(LEN=20)            :: fmtName
 ! Temporary arrays to create new options
 CHARACTER(LEN=255)           :: tmpValue
@@ -1253,21 +1253,23 @@ DO WHILE (associated(current))
       ! Check if we can find a general option, applying to all numberedmulti
       SDEALLOCATE(testname) ! safety check
       ALLOCATE(CHARACTER(LEN_TRIM(name)) :: testname)
+      ! Testname must not be trimmed! Otherwise, the INDEX test will fail as testname < name
       testname = name
       DO i = 1, LEN(name)
         ! Start replacing the index from the left
-        IF(INDEX('0123456789',name(i:i)).GT.0) THEN
+        IF(INDEX('0123456789',testname(i:i)).GT.0) THEN
           testname(i:i) = '$'
-          ! Remove multiple $ in case of multi-digit numbers
-          IF(i.GT.1 .AND. testname(i-1:i-1).EQ.'$')THEN
-            testname(i-1:LEN(testname)-1)         = testname(i:LEN(testname))
+          DO k = i+1, LEN(testname)
+            ! Check if it is a multi-digit number and remove all following numbers
+            IF(SCAN(testname(i+1:i+1),'0123456789').EQ.0) EXIT
+
+            testname(i+1:LEN(testname)-1) = testname(i+2:LEN(testname))
             testname(LEN(testname):LEN(testname)) = ' '
-            testname = TRIM(testname)
-          END IF
+          END DO
           ! Check if we can find this name
           check => prms%firstLink
           DO WHILE (associated(check))
-            IF (check%opt%NAMEEQUALS(testname) .AND. check%opt%isSet) THEN
+            IF (check%opt%NAMEEQUALS(TRIM(testname)) .AND. check%opt%isSet) THEN
               multi => check%opt
               ! copy value from option to result variable
               SELECT TYPE (multi)
@@ -1304,7 +1306,7 @@ DO WHILE (associated(current))
                       value%chars = multi%value
                       ! insert option with numbered name ($ replaced by number)
                       ALLOCATE(stringopt)
-                      WRITE(tmpValue, *) multi%value
+                      WRITE(tmpValue,'(A)') multi%value
                       CALL prms%CreateOption(stringopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
                   END SELECT
               END SELECT
@@ -1408,7 +1410,7 @@ CLASS(link),POINTER          :: check
 CLASS(Option),POINTER        :: multi
 CLASS(OPTION),ALLOCATABLE    :: newopt
 CHARACTER(LEN=:),ALLOCATABLE :: testname
-INTEGER                      :: i,j
+INTEGER                      :: i,j,k
 CHARACTER(LEN=20)            :: fmtName
 ! Temporary arrays to create new options
 CHARACTER(LEN=255)           :: tmpValue
@@ -1484,17 +1486,19 @@ DO WHILE (associated(current))
       ! Check if we can find a general option, applying to all numberedmulti
       SDEALLOCATE(testname) ! safety check
       ALLOCATE(CHARACTER(LEN_TRIM(name)) :: testname)
+      ! Testname must not be trimmed! Otherwise, the INDEX test will fail as testname < name
       testname = name
       DO i = 1, LEN(name)
         ! Start replacing the index from the left
-        IF(INDEX('0123456789',name(i:i)).GT.0) THEN
+        IF(INDEX('0123456789',testname(i:i)).GT.0) THEN
           testname(i:i) = '$'
-          ! Remove multiple $ in case of multi-digit numbers
-          IF(i.GT.1 .AND. testname(i-1:i-1).EQ.'$')THEN
-            testname(i-1:LEN(testname)-1)         = testname(i:LEN(testname))
+          DO k = i+1, LEN(testname)
+            ! Check if it is a multi-digit number and remove all following numbers
+            IF(SCAN(testname(i+1:i+1),'0123456789').EQ.0) EXIT
+
+            testname(i+1:LEN(testname)-1) = testname(i+2:LEN(testname))
             testname(LEN(testname):LEN(testname)) = ' '
-            testname = TRIM(testname)
-          END IF
+          END DO
           ! Check if we can find this name
           check => prms%firstLink
           DO WHILE (associated(check))
@@ -1771,7 +1775,7 @@ CLASS(link),POINTER           :: check
 CLASS(Option),POINTER         :: multi
 CLASS(OPTION),ALLOCATABLE     :: newopt
 CHARACTER(LEN=:),ALLOCATABLE  :: testname
-INTEGER                       :: iChar
+INTEGER                       :: iChar,kChar
 CHARACTER(LEN=20)             :: fmtName
 !==================================================================================================================================
 ! iterate over all options and compare names
@@ -1841,17 +1845,19 @@ DO WHILE (associated(current))
       newopt%numberedmulti = .FALSE.
       newopt%isSet = .FALSE.
       ! Check if we can find a general option, applying to all numberedmulti
+      ! Testname must not be trimmed! Otherwise, the INDEX test will fail as testname < name
       testname = name
       DO iChar = 1, LEN(name)
         ! Start replacing the index from the left
-        IF(INDEX('0123456789',name(iChar:iChar)).GT.0) THEN
+        IF(INDEX('0123456789',testname(iChar:iChar)).GT.0) THEN
           testname(iChar:iChar) = '$'
-          ! Remove multiple $ in case of multi-digit numbers
-          IF(iChar.GT.1 .AND. testname(iChar-1:iChar-1).EQ.'$')THEN
-            testname(iChar-1:LEN(testname)-1)     = testname(iChar:LEN(testname))
+          DO kChar = iChar+1, LEN(testname)
+            ! Check if it is a multi-digit number and remove all following numbers
+            IF(SCAN(testname(iChar+1:iChar+1),'0123456789').EQ.0) EXIT
+
+            testname(iChar+1:LEN(testname)-1) = testname(iChar+2:LEN(testname))
             testname(LEN(testname):LEN(testname)) = ' '
-            testname = TRIM(testname)
-          END IF
+          END DO
           ! Check if we can find this name
           check => prms%firstLink
           DO WHILE (associated(check))

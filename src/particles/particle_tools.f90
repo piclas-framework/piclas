@@ -157,6 +157,8 @@ ELSE ! no DSMC
 ENDIF
 PDM%insideParticleNumber = PDM%ParticleVecLength - counter1+1
 PDM%CurrentNextFreePosition = 0
+
+! Positions after ParticleVecLength in freePosition
 DO i = n+1,PDM%maxParticleNumber
   IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
   PDM%nextFreePosition(counter1) = i
