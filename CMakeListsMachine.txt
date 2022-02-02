@@ -152,9 +152,6 @@ MESSAGE(STATUS "Compiling with [${CMAKE_Fortran_COMPILER_ID}] fortran compiler u
 # =========================================================================
 # COMPILER FLAGS
 # =========================================================================
-IF("${CMAKE_Fortran_COMPILER_ID}" STREQUAL "")
-  ENABLE_LANGUAGE(Fortran C CXX)
-ENDIF()
 
 # FFLAGS depend on the compiler
 GET_FILENAME_COMPONENT (Fortran_COMPILER_NAME ${CMAKE_Fortran_COMPILER} NAME)
