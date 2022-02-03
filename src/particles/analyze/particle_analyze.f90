@@ -742,8 +742,8 @@ IF(CalcBulkElectronTemp)THEN
   ! encountered
   DO iSpec = 1, nSpecies
     IF (Species(iSpec)%ChargeIC.GE.0.0) CYCLE
-      IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1)THEN
-        BulkElectronTempSpecID = iSpec
+    IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1)THEN
+      BulkElectronTempSpecID = iSpec
       EXIT
     END IF
   END DO
