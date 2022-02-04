@@ -17,7 +17,7 @@
 #===================================================================================================================================
 
 # Check if override is requested
-if [[ $GIT_OVERRIDE_LIMITS == "1" ]]; then
+if [ "$GIT_OVERRIDE_LIMITS" = "1" ]; then
   echo 'Detected "GIT_OVERRIDE_LIMITS=1", overriding pre-commit check ...'
   exit 0
 fi
@@ -44,7 +44,7 @@ FILESUM=0
 if test -t 1; then
   # Check if terminal supports color
   NbrOfColors=$(which tput > /dev/null && tput colors)
-  if test -n "$NbrOfColors" && test $NbrOfColors -ge 8; then
+  if test -n "$NbrOfColors" && test "$NbrOfColors" -ge 8; then
     NC="$(tput sgr0)"
     RED="$(tput setaf 1)"
     GREEN="$(tput setaf 2)"
@@ -56,43 +56,43 @@ fi
 CHANGED=$(git diff --staged --name-only)
 
 # Check if any changes are present
-if [[ -n $CHANGED ]]; then
+if [ -n "$CHANGED" ]; then
   # Sort found files by size (-S) in reverse ordering (-r)
-  SORTED=$(ls -Shsr $CHANGED 2> /dev/null)
+  SORTED=$(ls -Shsr "$CHANGED" 2> /dev/null)
   NUMBER=$(git diff --staged --numstat | wc -l)
 
   # Check the number of files
-  if [[ $NUMBER -ge $NUMBERLIMIT ]]; then
+  if [ "$NUMBER" -ge "$NUMBERLIMIT" ]; then
     printf "${RED}Number of changed files ($NUMBER) exceeds limit ($NUMBERLIMIT)!${NC}\n"
     ERROR=1
-  elif [[ $NUMBER -ge $NUMBERWARN ]]; then
+  elif [ "$NUMBER" -ge "$NUMBERWARN" ]; then
     printf "${YELLOW}Number of changed files ($NUMBER)!${NC}\n"
   fi
 
   # Loop over all changes
   for file in $SORTED; do
     # Check if path is a file that exists
-    if [[ -f $file ]]; then
+    if [ -f "$file" ]; then
       # -b, --bytes           equivalent to '--apparent-size --block-size=1'
-      LINE=$(du -h $file)
-      FILESIZE=$(du -b $file | cut -d '	' -f1) # this is a tab, not a white space
+      LINE=$(du -h "$file")
+      FILESIZE=$(du -b "$file" | cut -d '	' -f1) # this is a tab, not a white space
 
       # Sum up the total file sizes
       FILESUM=$(($FILESUM + $FILESIZE))
 
       # Check the file size limit
-      if [[ $FILESIZE -gt $SIZESINGLELIMIT ]]; then
+      if [ "$FILESIZE" -gt "$SIZESINGLELIMIT" ]; then
         # Error header
-        if [[ $FILEERR == 0 ]]; then
+        if [ "$FILEERR" -eq 0 ]; then
           printf "${RED}The following file(s) exceed the file size limit ($SIZESINGLELIMIT bytes)${NC}\n"
           ERROR=1
           FILEERR=1
         fi
         printf "$LINE\n"
       # Check the file size warning
-      elif [[ $FILESIZE -gt $SIZESINGLEWARN ]]; then
+      elif [ "$FILESIZE" -gt "$SIZESINGLEWARN" ]; then
         # Error header
-        if [[ $FILEWARN == 0 ]]; then
+        if [ "$FILEWARN" -eq 0 ]; then
           printf "${YELLOW}The following large file(s) are about to be committed (>$SIZESINGLEWARN bytes)${NC}\n"
           FILEWARN=1
         fi
@@ -101,19 +101,19 @@ if [[ -n $CHANGED ]]; then
     fi
 
     # Check total file size
-    if [[ $FILESUM -gt $SIZETOTALLIMIT ]]; then
+    if [ "$FILESUM" -gt "$SIZETOTALLIMIT" ]; then
       # Error header
       printf "${RED}The total file size exceeds the size limit ($SIZETOTALLIMIT bytes)${NC}\n"
       ERROR=1
     # Check the file size warning
-    elif [[ $FILESUM -gt $SIZETOTALWARN ]]; then
+    elif [ "$FILESUM" -gt "$SIZETOTALWARN" ]; then
       # Error header
       printf "${YELLOW}Total file size to be committed ($FILESUM bytes)${NC}\n"
     fi
   done
 
   # Abort if hook encountered any error
-  if [[ $ERROR != 0 ]]; then
+  if [ "$ERROR" -ne 0 ]; then
     echo '------------------------------------------------------------------------------------------------------------------------------------'
     echo 'Commit rejected! You can override this check by passing "GIT_OVERRIDE_LIMITS=1" to git.'
     exit 1
