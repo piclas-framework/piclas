@@ -130,7 +130,7 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
       counter1 = counter1 + 1
     ELSE
       ! Sanity check corrupted particle list (some or all entries of a particle become zero, including the species ID)
-      IF(PartSpecies(i).eq.0) CALL abort(__STAMP__,'Species ID is zero for ipart=',IntInfoOpt=i)
+      IF(PartSpecies(i).LE.0) CALL abort(__STAMP__,'Species ID is zero for ipart=',IntInfoOpt=i)
       ElemID = PEM%LocalElemID(i)
       IF (PEM%pNumber(ElemID).EQ.0) THEN
         PEM%pStart(ElemID) = i                     ! Start of Linked List for Particles in Elem
