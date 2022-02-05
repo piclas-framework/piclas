@@ -287,8 +287,8 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%CylinderHeightIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-CylinderHeightIC')
       IF(Species(iSpec)%Init(iInit)%Radius2IC.GE.Species(iSpec)%Init(iInit)%RadiusIC) CALL abort(__STAMP__,&
           'For this emission type RadiusIC must be greater than Radius2IC!')
-    CASE('cuboid')
-      Species(iSpec)%Init(iInit)%CuboidHeightIC         = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC')
+    CASE('cuboid','photon_rectangle')
+      Species(iSpec)%Init(iInit)%CuboidHeightIC = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC')
     END SELECT
     ! Space-ICs requiring basic geometry information and other options (all excluding cell_local and background)
     IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local').AND. &
@@ -315,6 +315,11 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%InflowRiseTime         = 0.
       Species(iSpec)%Init(iInit)%NumberOfExcludeRegions = 0
     END IF
+    ! Specifically for photon SEE on rectangle
+    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_rectangle')THEN
+      Species(iSpec)%Init(iInit)%CuboidHeightIC = &
+          MIN(VECNORM(Species(iSpec)%Init(iInit)%BaseVector1IC),VECNORM(Species(iSpec)%Init(iInit)%BaseVector2IC))
+    END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'gyrotron_circle'
     ! Additional read-in for specific cases
     IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sin_deviation') THEN
       Species(iSpec)%Init(iInit)%Amplitude              = GETREAL('Part-Species'//TRIM(hilf2)//'-Amplitude')
@@ -362,8 +367,7 @@ DO iSpec = 1, nSpecies
     ! Check if number density and particle number have been defined
     IF ((Species(iSpec)%Init(iInit)%PartDensity.GT.0.)) THEN
       IF (Species(iSpec)%Init(iInit)%ParticleNumber.GT.0) THEN
-        CALL abort(__STAMP__, &
-          'Either ParticleNumber or PartDensity can be defined for selected parameters, not both!')
+        CALL abort(__STAMP__, 'Either ParticleNumber or PartDensity can be defined for selected parameters, not both!')
       END IF
     END IF
     ! 2D simulation/variable time step only with cell_local and/or surface flux
@@ -629,29 +633,35 @@ REAL                    :: factor
 !===================================================================================================================================
 Species(iSpec)%Init(iInit)%ParticleEmissionType = 7
 ! Check coordinate system of normal vector and two tangential vectors (they must form an orthogonal basis)
-ASSOCIATE( v1 => UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)      ,&
-            v2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC) ,&
-            v3 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC))
-  IF(DOT_PRODUCT(v1,v2).GT.1e-4) CALL abort(&
-      __STAMP__&
-      ,'NormalIC and BaseVector1IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(v1,v2))
-  IF(DOT_PRODUCT(v1,v3).GT.1e-4) CALL abort(&
-      __STAMP__&
-      ,'NormalIC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(v1,v3))
-  IF(DOT_PRODUCT(v2,v3).GT.1e-4) CALL abort(&
-      __STAMP__&
-      ,'BaseVector1IC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(v2,v3))
+ASSOCIATE( n1 => UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)      ,&
+           n2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC) ,&
+           n3 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC) ,&
+           v2 => Species(iSpec)%Init(iInit)%BaseVector1IC             ,&
+           v3 => Species(iSpec)%Init(iInit)%BaseVector2IC             )
+  IF(DOT_PRODUCT(n1,n2).GT.1e-4) CALL abort(__STAMP__&
+      ,'NormalIC and BaseVector1IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n1,n2))
+  IF(DOT_PRODUCT(n1,n3).GT.1e-4) CALL abort(__STAMP__&
+      ,'NormalIC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n1,n3))
+  IF(DOT_PRODUCT(n2,n3).GT.1e-4) CALL abort(__STAMP__&
+      ,'BaseVector1IC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n2,n3))
+  ! Settings only for rectangle emission
+  SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+  CASE('photon_SEE_rectangle','photon_rectangle')
+    ! Area is calculated from the cross product of the two base vectors
+    Species(iSpec)%Init(iInit)%Area = VECNORM(CROSS(v2,v3))
+  END SELECT
 END ASSOCIATE
 Species(iSpec)%Init(iInit)%FirstQuadrantOnly = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-FirstQuadrantOnly')
 Species(iSpec)%Init(iInit)%PulseDuration      = GETREAL('Part-Species'//TRIM(hilf2)//'-PulseDuration')
 Species(iSpec)%Init(iInit)%tShift = SQRT(8.0) * Species(iSpec)%Init(iInit)%PulseDuration
-IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_honeycomb').OR.&
-   (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_honeycomb'))THEN
+! Honeycomb and rectangle do not require a waist radius
+SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+CASE('photon_SEE_honeycomb','photon_honeycomb','photon_SEE_rectangle','photon_rectangle')
   Species(iSpec)%Init(iInit)%WaistRadius        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaistRadius','-1.0')
   IF(Species(iSpec)%Init(iInit)%FirstQuadrantOnly) CALL abort(__STAMP__,'FirstQuadrantOnly=T is not implemented for honeycombs')
-ELSE
-Species(iSpec)%Init(iInit)%WaistRadius        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaistRadius')
-END IF
+CASE DEFAULT
+  Species(iSpec)%Init(iInit)%WaistRadius        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaistRadius')
+END SELECT
 Species(iSpec)%Init(iInit)%WaveLength         = GETREAL('Part-Species'//TRIM(hilf2)//'-WaveLength')
 Species(iSpec)%Init(iInit)%NbrOfPulses        = GETINT('Part-Species'//TRIM(hilf2)//'-NbrOfPulses')
 Species(iSpec)%Init(iInit)%NINT_Correction    = 0.0
@@ -663,7 +673,7 @@ Species(iSpec)%Init(iInit)%RepetitionRate = -1.0
 IF(Species(iSpec)%Init(iInit)%Power.GT.0.0)THEN
   Species(iSpec)%Init(iInit)%RepetitionRate = GETREAL('Part-Species'//TRIM(hilf2)//'-RepetitionRate')
   Species(iSpec)%Init(iInit)%Period = 1./Species(iSpec)%Init(iInit)%RepetitionRate
-  SWRITE(*,*) 'Photoionization in cylindrical/honeycomb volume: Selecting mode [RepetitionRate and Power]'
+  SWRITE(*,*) 'Photoionization in cylindrical/rectangular/honeycomb volume: Selecting mode [RepetitionRate and Power]'
 
   Species(iSpec)%Init(iInit)%Energy = Species(iSpec)%Init(iInit)%Power / Species(iSpec)%Init(iInit)%RepetitionRate
   CALL PrintOption('Single pulse energy: Part-Species'//TRIM(hilf2)//'-Energy [J]','CALCUL.',&
@@ -673,13 +683,16 @@ IF(Species(iSpec)%Init(iInit)%Power.GT.0.0)THEN
              wb   => Species(iSpec)%Init(iInit)%WaistRadius        ,&
              tau  => Species(iSpec)%Init(iInit)%PulseDuration      ,&
              Rout => Species(iSpec)%Init(iInit)%RadiusIC           ,&
-             Rin  => Species(iSpec)%Init(iInit)%Radius2IC          )
-    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_honeycomb').OR.&
-       (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_honeycomb'))THEN
+             Rin  => Species(iSpec)%Init(iInit)%Radius2IC          ,&
+             A    => Species(iSpec)%Init(iInit)%Area               )
+    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+    CASE('photon_SEE_rectangle','photon_rectangle')
+      Species(iSpec)%Init(iInit)%IntensityAmplitude = E0 / (SQRT(PI)*tau*A)
+    CASE('photon_SEE_honeycomb','photon_honeycomb')
       Species(iSpec)%Init(iInit)%IntensityAmplitude = E0 / (SQRT(PI)*tau*(1.5*SQRT(3.0))*(Rout**2-Rin**2))
-    ELSE
+    CASE DEFAULT
       Species(iSpec)%Init(iInit)%IntensityAmplitude = E0 / (wb**2 * tau * PI**(3.0/2.0))
-    END IF
+    END SELECT
   END ASSOCIATE
 
   CALL PrintOption('Intensity amplitude: I0 [W/m^2]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%IntensityAmplitude)
@@ -691,19 +704,22 @@ ELSEIF(Species(iSpec)%Init(iInit)%Energy.GT.0.0)THEN
   ELSE
     Species(iSpec)%Init(iInit)%Period = 2.0 * Species(iSpec)%Init(iInit)%tShift
   END IF ! Species(iSpec)%Init(iInit)%NbrOfPulses
-  SWRITE(*,*) 'Photoionization in cylindrical/honeycomb volume: Selecting mode [Energy]'
+  SWRITE(*,*) 'Photoionization in cylindrical/rectangular/honeycomb volume: Selecting mode [Energy]'
 
   ASSOCIATE( E0   => Species(iSpec)%Init(iInit)%Energy             ,&
              wb   => Species(iSpec)%Init(iInit)%WaistRadius        ,&
              tau  => Species(iSpec)%Init(iInit)%PulseDuration      ,&
              Rout => Species(iSpec)%Init(iInit)%RadiusIC           ,&
-             Rin  => Species(iSpec)%Init(iInit)%Radius2IC          )
-    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_honeycomb').OR.&
-       (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_honeycomb'))THEN
+             Rin  => Species(iSpec)%Init(iInit)%Radius2IC          ,&
+             A    => Species(iSpec)%Init(iInit)%Area               )
+    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+    CASE('photon_SEE_rectangle','photon_rectangle')
+      Species(iSpec)%Init(iInit)%IntensityAmplitude = E0 / (SQRT(PI)*tau*A)
+    CASE('photon_SEE_honeycomb','photon_honeycomb')
       Species(iSpec)%Init(iInit)%IntensityAmplitude = E0 / (SQRT(PI)*tau*(1.5*SQRT(3.0))*(Rout**2-Rin**2))
-    ELSE
+    CASE DEFAULT
       Species(iSpec)%Init(iInit)%IntensityAmplitude = E0 / (wb**2 * tau * PI**(3.0/2.0))
-    END IF
+    END SELECT
   END ASSOCIATE
 
   CALL PrintOption('Intensity amplitude: I0 [W/m^2]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%IntensityAmplitude)
@@ -715,51 +731,57 @@ ELSEIF(Species(iSpec)%Init(iInit)%IntensityAmplitude.GT.0.0)THEN
   ELSE
     Species(iSpec)%Init(iInit)%Period = 2.0 * Species(iSpec)%Init(iInit)%tShift
   END IF ! Species(iSpec)%Init(iInit)%NbrOfPulses
-  SWRITE(*,*) 'Photoionization in cylindrical/honeycomb volume: Selecting mode [IntensityAmplitude]'
+  SWRITE(*,*) 'Photoionization in cylindrical/rectangular/honeycomb volume: Selecting mode [IntensityAmplitude]'
 
   ! Calculate energy: E = I0*w_b**2*tau*PI**(3.0/2.0)
   ASSOCIATE( I0   => Species(iSpec)%Init(iInit)%IntensityAmplitude ,&
              wb   => Species(iSpec)%Init(iInit)%WaistRadius        ,&
              tau  => Species(iSpec)%Init(iInit)%PulseDuration      ,&
              Rout => Species(iSpec)%Init(iInit)%RadiusIC           ,&
-             Rin  => Species(iSpec)%Init(iInit)%Radius2IC          )
-    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_honeycomb').OR.&
-       (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_honeycomb'))THEN
+             Rin  => Species(iSpec)%Init(iInit)%Radius2IC          ,&
+             A    => Species(iSpec)%Init(iInit)%Area               )
+    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+    CASE('photon_SEE_rectangle','photon_rectangle')
+      Species(iSpec)%Init(iInit)%Energy = I0 * SQRT(PI)*tau*A
+    CASE('photon_SEE_honeycomb','photon_honeycomb')
       Species(iSpec)%Init(iInit)%Energy = I0 * SQRT(PI)*tau*(1.5*SQRT(3.0))*(Rout**2-Rin**2)
-    ELSE
+    CASE DEFAULT
       Species(iSpec)%Init(iInit)%Energy = I0 * wb**2*tau*PI**(3.0/2.0)
-    END IF
+    END SELECT
   END ASSOCIATE
 
   CALL PrintOption('Single pulse energy: Part-Species'//TRIM(hilf2)//'-Energy [J]','CALCUL.',&
                     RealOpt=Species(iSpec)%Init(iInit)%Energy)
 ELSE
-  CALL abort(&
-    __STAMP__&
-    ,'Photoionization in cylindrical volume: Supply either power P and repetition rate f, or energy E or intensity maximum I0!')
+  CALL abort(__STAMP__,'Photoionization in cylinder: Either power P and repetition rate f, or energy E or intensity maximum I0!')
 END IF ! use RepetitionRate and Power
 
 ! Sanity check: overlapping of pulses is not implemented (use multiple emissions for this)
-IF(2.0*Species(iSpec)%Init(iInit)%tShift.GT.Species(iSpec)%Init(iInit)%Period) CALL abort(&
-  __STAMP__&
+IF(2.0*Species(iSpec)%Init(iInit)%tShift.GT.Species(iSpec)%Init(iInit)%Period) CALL abort(__STAMP__&
   ,'Pulse length (2*tShift) is greater than the pulse period. This is not implemented!')
 
-! Calculate the corrected intensity amplitude (due to temporal "-tShift to tShift" and spatial cut-off "0 to R")
+! Calculate the corrected intensity amplitude I0_corrected (due to temporal "-tShift to tShift" and spatial cut-off "0 to R")
 ASSOCIATE( tShift => Species(iSpec)%Init(iInit)%tShift             ,&
            wb     => Species(iSpec)%Init(iInit)%WaistRadius        ,&
            tau    => Species(iSpec)%Init(iInit)%PulseDuration      ,&
            Rout   => Species(iSpec)%Init(iInit)%RadiusIC           ,&
-           Rin    => Species(iSpec)%Init(iInit)%Radius2IC          )
-  IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_honeycomb').OR.&
-     (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_honeycomb'))THEN
+           Rin    => Species(iSpec)%Init(iInit)%Radius2IC          ,&
+             A    => Species(iSpec)%Init(iInit)%Area               )
+  SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+  CASE('photon_SEE_rectangle','photon_rectangle')
    ! no need for correction in space because the function is not cut-off in space
-   ! just consider the temporal cut-off
+   ! just consider the temporal cut-off for the rectangle
+    factor = ERF(tShift/tau)
+    factor = SQRT(PI)*tau*A
+  CASE('photon_SEE_honeycomb','photon_honeycomb')
+   ! no need for correction in space because the function is not cut-off in space
+   ! just consider the temporal cut-off for the hexagon
     factor = ERF(tShift/tau)
     factor = SQRT(PI)*tau*(1.5*SQRT(3.0))*(Rout**2-Rin**2) * factor
-  ELSE
+  CASE DEFAULT
     factor = (1.0-EXP(-Rout**2/(wb**2)))*ERF(tShift/tau)
     factor = PI**(3.0/2.0) * wb**2 * tau * factor
-  END IF
+  END SELECT
 END ASSOCIATE
 
 Species(iSpec)%Init(iInit)%IntensityAmplitude = Species(iSpec)%Init(iInit)%Energy / factor
@@ -772,12 +794,13 @@ Species(iSpec)%Init(iInit)%tActive = REAL(Species(iSpec)%Init(iInit)%NbrOfPulses
                                         + 2.0*Species(iSpec)%Init(iInit)%tShift
 CALL PrintOption('Pulse will end at tActive (pulse final time) [s]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%tActive)
 
-IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder').OR.&
-   (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_honeycomb')) THEN
+! Read effective intensity for volume emission or yield for SEE (surface)
+SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+CASE('photon_cylinder','photon_honeycomb','photon_rectangle')
   Species(iSpec)%Init(iInit)%EffectiveIntensityFactor = GETREAL('Part-Species'//TRIM(hilf2)//'-EffectiveIntensityFactor')
-ELSE
-  Species(iSpec)%Init(iInit)%YieldSEE           = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')
-END IF
+CASE DEFAULT
+  Species(iSpec)%Init(iInit)%YieldSEE = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')
+END SELECT
 
 END SUBROUTINE InitializeVariablesPhotoIonization
 

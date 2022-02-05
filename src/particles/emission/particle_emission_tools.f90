@@ -108,6 +108,7 @@ PUBLIC :: CalcNbrOfPhotons, CalcPhotonEnergy
 PUBLIC :: CalcIntensity_Gaussian
 PUBLIC :: CalcVelocity_FromWorkFuncSEE, DSMC_SetInternalEnr_LauxVFD
 PUBLIC :: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
+PUBLIC :: SetParticlePositionPhotonSEERectangle, SetParticlePositionPhotonRectangle
 PUBLIC :: SetParticlePositionPhotonHoneycomb, SetParticlePositionPhotonSEEHoneycomb
 PUBLIC :: SetParticlePositionLandmark
 PUBLIC :: SetParticlePositionLandmarkNeutralization
@@ -1678,66 +1679,72 @@ ASSOCIATE( tau         => Species(i)%Init(iInit)%PulseDuration      ,&
            lambda      => Species(i)%Init(iInit)%WaveLength         ,&
            NbrOfPulses => Species(i)%Init(iInit)%NbrOfPulses        ,&
            Period      => Species(i)%Init(iInit)%Period             ,&
-           IC          => Species(i)%Init(iInit)%SpaceIC      ,&
+           IC          => Species(i)%Init(iInit)%SpaceIC            ,&
            Rout        => Species(i)%Init(iInit)%RadiusIC           ,&
-           Rin         => Species(i)%Init(iInit)%Radius2IC          &
-          )
+           Rin         => Species(i)%Init(iInit)%Radius2IC          ,&
+           A           => Species(i)%Init(iInit)%Area               )
 
-! Temporal bound of integration
+  ! Temporal bound of integration
 #ifdef LSERK
-IF (iStage.EQ.1) THEN
-t_1 = Time
-t_2 = Time + RK_c(2) * dt
-ELSE
-  IF (iStage.NE.nRKStages) THEN
-    t_1 = Time + RK_c(iStage) * dt
-    t_2 = Time + RK_c(iStage+1) * dt
+  IF (iStage.EQ.1) THEN
+  t_1 = Time
+  t_2 = Time + RK_c(2) * dt
   ELSE
-    t_1 = Time + RK_c(iStage) * dt
-    t_2 = Time + dt
+    IF (iStage.NE.nRKStages) THEN
+      t_1 = Time + RK_c(iStage) * dt
+      t_2 = Time + RK_c(iStage+1) * dt
+    ELSE
+      t_1 = Time + RK_c(iStage) * dt
+      t_2 = Time + dt
+    END IF
   END IF
-END IF
 #else
-t_1 = Time
-t_2 = Time + dt
+  t_1 = Time
+  t_2 = Time + dt
 #endif
 
-! Calculate the current pulse
-NbrOfRepetitions = INT(Time/Period)
+  ! Calculate the current pulse
+  NbrOfRepetitions = INT(Time/Period)
 
-! Add arbitrary time shift (-4 sigma_t) so that I_max is not at t=0s
-! Note that sigma_t = tau / sqrt(2)
-t_1 = t_1 - tShift - NbrOfRepetitions * Period
-t_2 = t_2 - tShift - NbrOfRepetitions * Period
+  ! Add arbitrary time shift (-4 sigma_t) so that I_max is not at t=0s
+  ! Note that sigma_t = tau / sqrt(2)
+  t_1 = t_1 - tShift - NbrOfRepetitions * Period
+  t_2 = t_2 - tShift - NbrOfRepetitions * Period
 
-! check if t_2 is outside of the pulse
-IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
+  ! check if t_2 is outside of the pulse
+  IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
 
-! Integral of I(r,t) = I_0 exp(-(t/tau)**2)exp(-(r/w_b)**2)
-! Integrate I(r,t)*r dr dt dphi and don't forget the Jacobian
-!   dr : from 0 to R
-!   dt : from t1 to t2
-! dphi : from 0 to 2*PI
-IF((TRIM(IC).EQ.'photon_SEE_honeycomb').OR.(TRIM(IC).EQ.'photon_honeycomb'))THEN
-  E_Intensity = 0.5 * I_0 * SQRT(PI) * tau &
-      * (ERF(t_2/tau)-ERF(t_1/tau)) &
-      * (1.5*SQRT(3.0)) &
-      * (Rout**2-Rin**2)
-ELSE
-  E_Intensity = 0.5 * I_0 * PI**(3.0/2.0) * w_b**2 * tau &
-      * (1.0-EXP(-Radius**2/w_b**2)) &
-      * (ERF(t_2/tau)-ERF(t_1/tau))
-END IF ! (SpaceIC.EQ.'photon_SEE_honeycomb').OR.(SpaceIC.EQ.'photon_honeycomb')
+  ! Integral of I(r,t) = I_0 exp(-(t/tau)**2)exp(-(r/w_b)**2)
+  ! Integrate I(r,t)*r dr dt dphi and don't forget the Jacobian
+  !   dr : from 0 to R
+  !   dt : from t1 to t2
+  ! dphi : from 0 to 2*PI
+  SELECT CASE(TRIM(IC))
+  CASE('photon_SEE_rectangle','photon_rectangle')
+    E_Intensity = 0.5 * I_0 * SQRT(PI) * tau &
+        * (ERF(t_2/tau)-ERF(t_1/tau)) &
+        * A
+  CASE('photon_SEE_honeycomb','photon_honeycomb')
+    E_Intensity = 0.5 * I_0 * SQRT(PI) * tau &
+        * (ERF(t_2/tau)-ERF(t_1/tau)) &
+        * (1.5*SQRT(3.0)) &
+        * (Rout**2-Rin**2)
+  CASE DEFAULT
+    E_Intensity = 0.5 * I_0 * PI**(3.0/2.0) * w_b**2 * tau &
+        * (1.0-EXP(-Radius**2/w_b**2)) &
+        * (ERF(t_2/tau)-ERF(t_1/tau))
+  END SELECT
 
-IF(NbrOfPhotonXsecReactions.GT.0)THEN
-  NbrOfPhotons = 0.
-  DO iLine = 1, NbrOfPhotonXsecLines
-    EnergyPhoton = SpecPhotonXSecInterpolated(iLine,1)*eV2Joule
-    NbrOfPhotons = NbrOfPhotons + E_Intensity * SpecPhotonXSecInterpolated(iLine,2) / EnergyPhoton
-  END DO ! iLine = 1, ofLines
-ELSE
-  NbrOfPhotons = E_Intensity / CalcPhotonEnergy(lambda)
-END IF ! NbrOfPhotonXsecReactions.GT.0
+  ! Polychromatic or monochromatic
+  IF(NbrOfPhotonXsecReactions.GT.0)THEN
+    NbrOfPhotons = 0.
+    DO iLine = 1, NbrOfPhotonXsecLines
+      EnergyPhoton = SpecPhotonXSecInterpolated(iLine,1)*eV2Joule
+      NbrOfPhotons = NbrOfPhotons + E_Intensity * SpecPhotonXSecInterpolated(iLine,2) / EnergyPhoton
+    END DO ! iLine = 1, ofLines
+  ELSE
+    NbrOfPhotons = E_Intensity / CalcPhotonEnergy(lambda)
+  END IF ! NbrOfPhotonXsecReactions.GT.0
 
 END ASSOCIATE
 
@@ -1907,6 +1914,43 @@ END DO
 END SUBROUTINE SetParticlePositionPhotonSEEDisc
 
 
+SUBROUTINE SetParticlePositionPhotonSEERectangle(FractNbr,iInit,chunkSize,particle_positions)
+!===================================================================================================================================
+! Set particle position for 'photon_SEE_rectangle'
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: Species
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: i
+REAL                    :: RandVal(2)
+REAL                    :: Particle_pos(3)
+!===================================================================================================================================
+! Use the base vectors BaseVector1IC and BaseVector2IC as coordinate system (they must be perpendicular)
+ASSOCIATE( O => Species(FractNbr)%Init(iInit)%BasePointIC         ,&
+          v2 => Species(FractNbr)%Init(iInit)%BaseVector1IC       ,&
+          v3 => Species(FractNbr)%Init(iInit)%BaseVector2IC       )
+  DO i=1,chunkSize
+    CALL RANDOM_NUMBER(RandVal)
+    Particle_pos(1:3) = RandVal(1)*v2 + RandVal(2)*v3
+    particle_positions(i*3-2) = O(1) + Particle_pos(1)
+    particle_positions(i*3-1) = O(2) + Particle_pos(2)
+    particle_positions(i*3  ) = O(3)
+  END DO
+END ASSOCIATE
+END SUBROUTINE SetParticlePositionPhotonSEERectangle
+
+
 !===================================================================================================================================
 !> Set particle position for 'photon_SEE_honeycomb'
 !> 1. Get random position in hollow circle
@@ -1930,7 +1974,7 @@ REAL, INTENT(OUT)       :: particle_positions(:)
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3)
 INTEGER                 :: i
-REAL                    :: RandVal(2),RandVal1
+REAL                    :: RandVal(2)
 REAL                    :: R3,R4,a,b
 !===================================================================================================================================
 ASSOCIATE( R  => Species(FractNbr)%Init(iInit)%RadiusIC  ,&
@@ -1964,7 +2008,6 @@ ASSOCIATE( R  => Species(FractNbr)%Init(iInit)%RadiusIC  ,&
         ! End ARM for Gauss distribution
       END ASSOCIATE
     END DO
-    CALL RANDOM_NUMBER(RandVal1)
     particle_positions(i*3-2) = Particle_pos(1) + Species(FractNbr)%Init(iInit)%BasePointIC(1)
     particle_positions(i*3-1) = Particle_pos(2) + Species(FractNbr)%Init(iInit)%BasePointIC(2)
     particle_positions(i*3  ) = Species(FractNbr)%Init(iInit)%BasePointIC(3)
@@ -2095,6 +2138,44 @@ ASSOCIATE( R  => Species(FractNbr)%Init(iInit)%RadiusIC  ,&
   END DO
 END ASSOCIATE
 END SUBROUTINE SetParticlePositionPhotonHoneycomb
+
+
+SUBROUTINE SetParticlePositionPhotonRectangle(FractNbr,iInit,chunkSize,particle_positions)
+!===================================================================================================================================
+! Set particle position for 'photon_rectangle'
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: Species
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: i
+REAL                    :: RandVal(3)
+REAL                    :: Particle_pos(3)
+!===================================================================================================================================
+! Use the base vectors BaseVector1IC and BaseVector2IC as coordinate system (they must be perpendicular)
+ASSOCIATE( O => Species(FractNbr)%Init(iInit)%BasePointIC         ,&
+          v2 => Species(FractNbr)%Init(iInit)%BaseVector1IC       ,&
+          v3 => Species(FractNbr)%Init(iInit)%BaseVector2IC       ,&
+          h  => Species(FractNbr)%Init(iInit)%CuboidHeightIC )
+  DO i=1,chunkSize
+    CALL RANDOM_NUMBER(RandVal)
+    Particle_pos(1:3) = RandVal(1)*v2 + RandVal(2)*v3 + RandVal(3)*(/0.,0.,h/)
+    particle_positions(i*3-2) = O(1) + Particle_pos(1)
+    particle_positions(i*3-1) = O(2) + Particle_pos(2)
+    particle_positions(i*3  ) = O(3) + Particle_pos(3)
+  END DO
+END ASSOCIATE
+END SUBROUTINE SetParticlePositionPhotonRectangle
 
 
 !===================================================================================================================================

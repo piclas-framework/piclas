@@ -115,7 +115,7 @@ DO iSpec=1,nSpecies
       radius=Species(iSpec)%Init(iInit)%RadiusIC
         xlen=radius * SQRT(1.0 - v1(1)*v1(1))
         ylen=radius * SQRT(1.0 - v1(2)*v1(2))
-        zlen=radius * SQRT(1.0 - v1(3)*v1(3)) + 0.1
+        zlen=radius * SQRT(1.0 - v1(3)*v1(3)) + 0.1*radius ! 10 percent of radius as height
       ! all 8 edges
         xCoords(1:3,1) = O+(/-xlen,-ylen,-zlen/)
         xCoords(1:3,2) = O+(/+xlen,-ylen,-zlen/)
@@ -254,30 +254,30 @@ DO iSpec=1,nSpecies
       xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
       xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-    CASE('cuboid')
-      lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
-        Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
-      lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
-        Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(3)
-      lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
-        Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
-      IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-         CALL ABORT(__STAMP__,'BaseVectors are parallel!')
-      ELSE
-        lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
-          lineVector(3) * lineVector(3))
-      END IF
-      xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC
-      xCoords(1:3,2)=Species(iSpec)%Init(iInit)%BasePointIC+Species(iSpec)%Init(iInit)%BaseVector1IC
-      xCoords(1:3,3)=Species(iSpec)%Init(iInit)%BasePointIC+Species(iSpec)%Init(iInit)%BaseVector2IC
-      xCoords(1:3,4)=Species(iSpec)%Init(iInit)%BasePointIC+Species(iSpec)%Init(iInit)%BaseVector1IC&
-                                                           +Species(iSpec)%Init(iInit)%BaseVector2IC
+    CASE('cuboid','photon_rectangle','photon_SEE_rectangle')
+      ASSOCIATE( O => Species(iSpec)%Init(iInit)%BasePointIC ,&
+                v2 => Species(iSpec)%Init(iInit)%BaseVector1IC ,&
+                v3 => Species(iSpec)%Init(iInit)%BaseVector2IC)
+        lineVector(1) = v2(2) * v3(3) - v2(3) * v3(2)
+        lineVector(2) = v2(3) * v3(1) - v2(1) * v3(3)
+        lineVector(3) = v2(1) * v3(2) - v2(2) * v3(1)
+        IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
+           CALL ABORT(__STAMP__,'BaseVectors are parallel!')
+        ELSE
+          lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
+            lineVector(3) * lineVector(3))
+        END IF
+        xCoords(1:3,1)=O
+        xCoords(1:3,2)=O+v2
+        xCoords(1:3,3)=O+v3
+        xCoords(1:3,4)=O+v2+v3
 
-      height= Species(iSpec)%Init(iInit)%CuboidHeightIC
-      DO iNode=1,4
-        xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
-      END DO ! iNode
-      RegionOnProc=BoxInProc(xCoords,8)
+        height= Species(iSpec)%Init(iInit)%CuboidHeightIC
+        DO iNode=1,4
+          xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
+        END DO ! iNode
+        RegionOnProc=BoxInProc(xCoords,8)
+      END ASSOCIATE
     CASE('sphere')
       ASSOCIATE ( radius => Species(iSpec)%Init(iInit)%RadiusIC        ,&
                   origin => Species(iSpec)%Init(iInit)%BasePointIC(1:3) )
