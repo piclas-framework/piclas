@@ -43,7 +43,8 @@ PUBLIC :: CalcKineticEnergy
 PUBLIC :: CalcKineticEnergyAndMaximum
 PUBLIC :: CalcNumberDensity
 PUBLIC :: CalcAdaptBCInfo
-PUBLIC :: CalcTemperature
+PUBLIC :: CalcTransTemp
+PUBLIC :: CalcMixtureTemp
 PUBLIC :: CalcTelec,CalcTVibPoly
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 PUBLIC :: CalcRelaxProbRotVib
@@ -1231,7 +1232,7 @@ END IF
 END SUBROUTINE CalcAdaptBCInfo
 
 
-SUBROUTINE CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec)
+SUBROUTINE CalcMixtureTemp(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec)
 !===================================================================================================================================
 !> Computes the species-specific and mixture temperature (MPI communication is in the respective subroutines)
 !===================================================================================================================================
@@ -1261,8 +1262,6 @@ REAL, INTENT(OUT)                 :: Xi_Vib(nSpecies), Xi_Elec(nSpecies)
 INTEGER                           :: iSpec
 REAL                              :: TempTotalDOF, XiTotal
 !===================================================================================================================================
-
-CALL CalcTransTemp(NumSpec, Temp)
 
 IF (CollisMode.GT.1) THEN
   CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
@@ -1314,7 +1313,7 @@ ELSE
   END IF
 END IF
 
-END SUBROUTINE CalcTemperature
+END SUBROUTINE CalcMixtureTemp
 
 
 SUBROUTINE CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)

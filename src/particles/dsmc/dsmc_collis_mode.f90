@@ -353,7 +353,7 @@ USE MOD_DSMC_Relaxation       ,ONLY: DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSM
 USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_MCC_Vars              ,ONLY: UseMCC, SpecXSec
-USE MOD_MCC_XSec              ,ONLY: XSec_CalcElecRelaxProb
+USE MOD_MCC_XSec              ,ONLY: XSec_CalcElecRelaxProb, XSec_ElectronicRelaxation
 #if (PP_TimeDiscMethod==42)
 USE MOD_MCC_Vars              ,ONLY: XSec_Relaxation
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
@@ -381,12 +381,8 @@ REAL                          :: ReducedMass
 REAL                          :: ProbRot1, ProbRotMax1, ProbRot2, ProbRotMax2, ProbVib1, ProbVib2
 INTEGER                       :: iCase, iSpec1, iSpec2, iPart1, iPart2, iElem ! Colliding particles 1 and 2 and their species
 ! variables for electronic level relaxation and transition
-INTEGER                       :: iLevel, ElecLevelRelax
+INTEGER                       :: ElecLevelRelax
 LOGICAL                       :: DoElec1, DoElec2
-REAL                          :: ProbElec, ProbSum
-#if (PP_TimeDiscMethod==42)
-REAL                          :: MacroParticleFactor
-#endif
 #ifdef CODE_ANALYZE
 REAL                          :: Energy_old,Energy_new
 REAL                          :: Weight1, Weight2
@@ -434,7 +430,11 @@ REAL                          :: Weight1, Weight2
 !--------------------------------------------------------------------------------------------------!
 ! Decision if Rotation, Vibration and Electronic Relaxation of particles is performed
 !--------------------------------------------------------------------------------------------------!
+!--------------------------------------------------------------------------------------------------!
+! ELECTRONIC
+!--------------------------------------------------------------------------------------------------!
   IF (DSMC%ElectronicModel.GT.0) THEN
+    ! Model 1/2
     IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
       SELECT CASE(DSMC%ElectronicModel)
       CASE(1)
@@ -453,69 +453,16 @@ REAL                          :: Weight1, Weight2
         DoElec2 = .TRUE.
       END SELECT
     END IF
+    ! Model 3: Cross-section based relaxation
     IF(UseMCC) THEN
       IF(SpecXSec(iCase)%UseElecXSec) THEN
-        ! Excitation only from ground-state
-        IF(PartStateIntEn(3,iPart1).EQ.0.0.AND.PartStateIntEn(3,iPart2).EQ.0.0) THEN
-          IF(SpecXSec(iCase)%UseCollXSec) THEN
-            ! Interpolate the electronic cross-section at the current collision energy
-            CALL XSec_CalcElecRelaxProb(iPair)
-            ProbSum = SpecXSec(iCase)%CrossSection
-          ELSE
-            ! Probabilities were saved and added to the total collision probability
-            ProbSum = Coll_pData(iPair)%Prob
-          END IF
-          ! Only proceed if any of the electronic excitation probabilities is above zero
-          IF(SUM(SpecXSec(iCase)%ElecLevel(:)%Prob).GT.0.) THEN
-            ProbElec = 0.
-            ! Decide which electronic excitation should occur
-            CALL RANDOM_NUMBER(iRan)
-            DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
-              ProbElec = ProbElec + SpecXSec(iCase)%ElecLevel(iLevel)%Prob
-              IF((ProbElec/ProbSum).GT.iRan) THEN
-                IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
-                  DoElec1 = .TRUE.
-                ELSE
-                  DoElec2 = .TRUE.
-                END IF
-                ElecLevelRelax = iLevel
-                EXIT
-              END IF
-            END DO
-            ! Reducing the total collision probability if no electronic excitation occurred
-            IF((.NOT.DoElec1).AND.(.NOT.DoElec2)) THEN
-              IF(SpecXSec(iCase)%UseCollXSec) THEN
-                SpecXSec(iCase)%CrossSection = SpecXSec(iCase)%CrossSection - SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
-              ELSE
-                Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob - SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
-              END IF
-            END IF
-          END IF  ! SUM(SpecXSec(iCase)%ElecLevel(:)%Prob).GT.0.
-        END IF    ! Electronic energy = 0, ground-state
+        CALL XSec_ElectronicRelaxation(iPair,iCase,iPart1,iPart2,DoElec1,DoElec2,ElecLevelRelax)
       END IF      ! SpecXSec(iCase)%UseElecXSec
     END IF        ! UseMCC
-#if (PP_TimeDiscMethod==42)
-    IF(CalcRelaxProb) THEN
-      IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-        ! Weighting factor already included in GetParticleWeight
-        MacroParticleFactor = 1.
-      ELSE
-        ! Weighting factor should be the same for all species anyway (BGG: first species is the non-BGG particle species)
-        MacroParticleFactor = Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor
-      END IF
-      IF (DSMC%ElectronicModel.EQ.3) THEN
-        IF(DoElec1) THEN
-          SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter &
-                                                              + GetParticleWeight(iPart1) * MacroParticleFactor
-        ELSE IF(DoElec2) THEN
-          SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter &
-                                                              + GetParticleWeight(iPart2) * MacroParticleFactor
-        END IF
-      END IF
-    END IF
-#endif
   END IF
-
+!--------------------------------------------------------------------------------------------------!
+! ROTATIONAL + VIBRATIONAL
+!--------------------------------------------------------------------------------------------------!
   IF((SpecDSMC(iSpec1)%InterID.EQ.2).OR.(SpecDSMC(iSpec1)%InterID.EQ.20)) THEN
     CALL RANDOM_NUMBER(iRan)
     CALL DSMC_calc_P_rot(iSpec1, iSpec2, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
