@@ -1300,7 +1300,7 @@ END IF
 IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
   IF(SpecXSec(iCase)%UseCollXSec) THEN
     ! Interpolate the reaction cross-section at the current collision energy
-    CALL XSec_CalcReactionProb(iPair,iCase)
+    CALL XSec_CalcReactionProb(iPair,iCase,iElem)
     ReactionProbSum = SpecXSec(iCase)%CrossSection
   ELSE
     ! Reaction probabilities were saved and added to the total collision probability

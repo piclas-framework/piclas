@@ -17,7 +17,7 @@ MODULE MOD_HDF5_Input
 ! Add comments please!
 !===================================================================================================================================
 ! MODULES
-USE MOD_io_hdf5
+USE MOD_IO_HDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
