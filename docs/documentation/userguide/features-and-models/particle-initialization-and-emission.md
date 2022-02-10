@@ -56,14 +56,18 @@ The type of the region is defined by the following parameter
 
 Different `SpaceIC` are available and an overview is given in the table below.
 
-|   Distribution   |                                    Description                                   |                   Reference                  |
-|  --------------- | -------------------------------------------------------------------------------- |  ------------------------------------------  |
-|    cell_local    |         Particles are inserted in every cell at a constant number density        |                                              |
-|       disc       |                     Particles are inserted on a circular disc                    |     Section {ref}`sec:particle-disk-init`    |
-|     cylinder     | Particles are inserted in the given cylinder volume at a constant number density |   Section {ref}`sec:particle-cylinder-init`  |
-|  photon_cylinder |   Ionization of a background gas through photon impact (cylinder distribution)   | Section {ref}`sec:particle-photo-ionization` |
-| photon_honeycomb |   Ionization of a background gas through photon impact (honeycomb distribution)  | Section {ref}`sec:particle-photo-ionization` |
-|        WIP       |                               **WORK IN PROGRESS**                               |                                              |
+|     Distribution     |                                    Description                                   |                   Reference                  |
+|    ---------------   | -------------------------------------------------------------------------------- |  ------------------------------------------  |
+|      cell_local      |         Particles are inserted in every cell at a constant number density        |                                              |
+|         disc         |                     Particles are inserted on a circular disc                    |     Section {ref}`sec:particle-disk-init`    |
+|       cylinder       | Particles are inserted in the given cylinder volume at a constant number density |   Section {ref}`sec:particle-cylinder-init`  |
+|    photon_cylinder   |   Ionization of a background gas through photon impact (cylinder distribution)   | Section {ref}`sec:particle-photo-ionization` |
+|    photon_SEE_disc   |       Secondary electron emission through photon impact (disk distribution)      | Section {ref}`sec:particle-photo-ionization` |
+|   photon_honeycomb   |   Ionization of a background gas through photon impact (honeycomb distribution)  | Section {ref}`sec:particle-photo-ionization` |
+| photon_SEE_honeycomb |    Secondary electron emission through photon impact (honeycomb distribution)    | Section {ref}`sec:particle-photo-ionization` |
+|   photon_rectangle   |  Ionization of a background gas through photon impact (rectangular distribution) | Section {ref}`sec:particle-photo-ionization` |
+| photon_SEE_rectangle |   Secondary electron emission through photon impact (rectangular distribution)   | Section {ref}`sec:particle-photo-ionization` |
+|          WIP         |                               **WORK IN PROGRESS**                               |                                              |
 
 Common parameters required for most of the insertion routines are given below. The drift velocity is defined by the direction
 vector `VeloVecIC`, which is a unit vector, and a velocity magnitude [m/s]. The thermal velocity of particle is determined based
@@ -121,14 +125,15 @@ extruded in the normal direction up to the cylinder height.
 ### Photo-ionization
 
 A special case is the ionization of a background gas through photon impact, modelling a light pulse. The volume affected by the
-light pulse is approximated by a cylinder, which is defined as described in Section {ref}`sec:particle-cylinder-init`. Additionally,
-the SpaceIC has to be adapted and additional parameters are required:
+light pulse is approximated by a cylinder (or honeycomb/rectangle), which is defined as described in
+Section {ref}`sec:particle-cylinder-init`.
+Additionally, the SpaceIC has to be adapted and additional parameters are required:
 
-    Part-Species1-Init1-SpaceIC                 = photon_cylinder
-    Part-Species1-Init1-PulseDuration           = 1         ! [s]
-    Part-Species1-Init1-WaistRadius             = 1E-6      ! [m]
-    Part-Species1-Init1-WaveLength              = 1E-9      ! [m]
-    Part-Species1-Init1-NbrOfPulses             = 1         ! [-], default = 1
+    Part-Species1-Init1-SpaceIC       = photon_cylinder ! or photon_honeycomb, or photon_rectangle
+    Part-Species1-Init1-PulseDuration = 1               ! [s]
+    Part-Species1-Init1-WaistRadius   = 1E-6            ! [m]
+    Part-Species1-Init1-WaveLength    = 1E-9            ! [m]
+    Part-Species1-Init1-NbrOfPulses   = 1               ! [-], default = 1
 
 The pulse duration and waist radius are utilized to define the spatial and temporal Gaussian profile of the intensity.
 The number of pulses allows to consider multiple light pulses within a single simulation. To define the intensity of the light pulse,
@@ -150,10 +155,10 @@ It should be noted that this initialization should be done with a particle speci
 also a product of the ionization reaction. The ionization reactions are defined as described in Section {ref}`sec:DSMC-chemistry` by
 
     DSMC-NumOfReactions = 1
-    DSMC-Reaction1-ReactionType         = phIon
-    DSMC-Reaction1-Reactants            = (/3,0,0/)
-    DSMC-Reaction1-Products             = (/1,2,0/)
-    DSMC-Reaction1-CrossSection         = 4.84E-24      ! [m^2]
+    DSMC-Reaction1-ReactionType = phIon
+    DSMC-Reaction1-Reactants    = (/3,0,0/)
+    DSMC-Reaction1-Products     = (/1,2,0/)
+    DSMC-Reaction1-CrossSection = 4.84E-24      ! [m^2]
 
 The probability that an ionization event occurs is determined based on the given cross-section, which is usually given for a
 certain wave length/photon energy. It should be noted that the background gas species should be given as the sole reactant and
@@ -165,7 +170,7 @@ insertion region (e.g. as an extra initialization for the same species). Additio
 described above (pulse duration, waist radius, wave length, number of pulses, and power/energy/intensity), the following parameters
 have to be set
 
-    Part-Species1-Init2-SpaceIC               = photon_SEE_disc
+    Part-Species1-Init2-SpaceIC               = photon_SEE_disc     ! or photon_SEE_honeycomb, or photon_SEE_rectangle
     Part-Species1-Init2-velocityDistribution  = photon_SEE_energy
     Part-Species1-Init2-YieldSEE              = 0.1                 ! [-]
     Part-Species1-Init2-WorkFunctionSEE       = 2                   ! [eV]
