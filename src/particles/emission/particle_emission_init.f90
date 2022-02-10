@@ -675,6 +675,8 @@ ASSOCIATE( n1 => UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)      ,&
   CASE('photon_SEE_rectangle','photon_rectangle')
     ! Area is calculated from the cross product of the two base vectors
     Species(iSpec)%Init(iInit)%Area = VECNORM(CROSS(v2,v3))
+    CALL PrintOption('Rectangular emission area for Part-Species'//TRIM(hilf2)//': A [m2]','CALCUL.',&
+                    RealOpt=Species(iSpec)%Init(iInit)%Area)
   END SELECT
 END ASSOCIATE
 Species(iSpec)%Init(iInit)%FirstQuadrantOnly = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-FirstQuadrantOnly')
