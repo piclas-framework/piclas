@@ -178,6 +178,33 @@ actual computational domain corresponds only to a quarter of the cylinder:
     Part-Species1-Init1-FirstQuadrantOnly       = T
     Part-Species1-Init2-FirstQuadrantOnly       = T
 
+### Neutralization Boundaries (neutral outflow condition)
+There are different methods implemented to neutralize a charged particle flow, e.g., as encountered when simulation electric
+propulsion systems. Currently all methods require a specific geometry to function properly. For more details, see the regression
+tests under *regressioncheck/NIG_PIC_poisson_Boris-Leapfrog*. The following table lists the *SpaceIC* emission types
+
+|           Distribution          |                                                                Description                                                               |
+|         ---------------         |                             --------------------------------------------------------------------------------                             |
+|    2D_landmark_neutralization   |                   Charoy 2019 2D PIC benchmark, electrons are injected with 10 eV at the cathode if the anode current is negative        |
+|    2D_Liu2010_neutralization    |                    Liu 2010 2D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                   |
+| 2D_Liu2010_neutralization_Szabo | Liu 2010 2D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
+|    3D_Liu2010_neutralization    |                    Liu 2010 3D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                   |
+| 3D_Liu2010_neutralization_Szabo | Liu 2010 3D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
+
+For the *XD_Liu2010_neutralization* emission, a constant emitted electron temperature is defined via
+
+    Part-SpeciesX-InitX-MWTemperatureIC = 5.80E+04 ! 5.0 eV
+
+whereas it is also possible to use a variable temperature, in which case the global (bulk) electron temperature is used, by setting
+
+    Part-SpeciesX-InitX-velocityDistribution = 2D_Liu2010_neutralization
+
+for the 2D setup and
+
+    Part-SpeciesX-InitX-velocityDistribution = 3D_Liu2010_neutralization
+
+for the 3D setup. The bulk electron temperature is determined automatically and output to *PartAnalyze.csv* as *XXX-BulkElectronTemp-[K]* to track this value over time.
+
 ### Polychromatic Photo-ionization
 The volumetric photo-ionization can consider multiple wavelengths (polychromatic spectrum) and/or energy-dependent cross-section data.
 The corresponding ionization reactions are defined described in Section {ref}`sec:DSMC-chemistry` by
@@ -206,6 +233,29 @@ where `HIon1-electron (Dataset)` contains the tabulated cross-sections and `H2-p
 energies and energy fractions (the fractions must add up to unity). In principle, the spectrum can contain only 1 single photon
 energy (corresponding to a single wavelength) that contains all the energy, hence, the table contains the energy in eV and the
 number 1. (100% of the energy).
+
+
+### Initial Ionization
+A neutral DSMC simulation can be converted into a PIC simulation (actually any simulation result state file `*_State_*.h5`) by
+specifying the number of species, their species ID and the desired ionization degree.
+
+    ! Initial Ionization
+    Part-DoInitialIonization       = T       ! ON/OFF Switch
+    InitialIonizationSpecies       = 2       ! Total number of ions/neutrals that are to be created
+    InitialIonizationSpeciesID     = (/1,3/) ! Species 1 und 3 will be created (all read-in particles will be converted).
+                                             ! Electrons do not have to be defined here as they are found automatically.
+    InitialIonizationChargeAverage = 0.1     ! 10% ionization degree
+
+The switch `Part-DoInitialIonization=T` must be deactivated after the ionization was successful in order to prevent multiple
+ionization events of subsequent state files when further restarts are performed.
+Note that all particle species that are found in the state file are considered for ionization, i.e., that the number of species
+(`InitialIonizationSpecies`) is only required for all non-electron species that need to be present after the initial ionization
+has been performed.
+In this example, the state file contains solely particles of species 1 (neutral atoms or molecules).
+These particles are converted to 10 % species 3 (ions) and 90 percent species 1 (the original neutral particles), in addition to
+electrons which are found automatically by comparing the charge of the species (in this example species index 2).
+For each ion an electron is created to maintain charge neutrality.
+The ionization degree (`InitialIonizationChargeAverage`) should be a number between 0 and 1.
 
 ## Surface Flux
 

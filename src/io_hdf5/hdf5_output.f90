@@ -312,7 +312,8 @@ USE MOD_HDF5_Input       ,ONLY: GetHDF5NextFileName
 #if USE_LOADBALANCE
 USE MOD_Loadbalance_Vars ,ONLY: DoLoadBalance,nLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_Mesh_Vars        ,ONLY: DoWriteStateToHDF5
+USE MOD_Output_Vars      ,ONLY: DoWriteStateToHDF5
+USE MOD_Restart_Vars     ,ONLY: DoRestart,FlushInitialState
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -340,8 +341,20 @@ ELSE
   FlushTime=FlushTime_In
 END IF
 
-! delete state files
+! Delete state files
 NextFile=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',FlushTime))//'.h5'
+
+! If the original restart file is not to be deleted, skip this file and go to the next one
+IF(DoRestart.AND.(.NOT.FlushInitialState))THEN
+  ! Read calculation time from file
+#if USE_MPI
+  CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
+#else
+  CALL GetHDF5NextFileName(Inputfile,NextFile)
+#endif
+END IF ! .NOT.FlushInitialState
+
+! Loop over all possible state files that can be deleted
 DO
   InputFile=TRIM(NextFile)
   ! Read calculation time from file
@@ -398,7 +411,7 @@ OPEN ( NEWUNIT= ioUnit,         &
        ACCESS = 'SEQUENTIAL',   &
        IOSTAT = stat          )
 IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
-IF(iError.NE.0) WRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '**** FAILED with iError.NE.0 ****'
+IF(iError.NE.0) WRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '**** FAILED to remove ['//TRIM(InputFile)//'] with iError.NE.0 ****'
 
 WRITE(UNIT_stdOut,'(A)',ADVANCE='YES')'DONE'
 

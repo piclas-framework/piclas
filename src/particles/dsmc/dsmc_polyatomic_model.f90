@@ -183,7 +183,7 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_
 ! MODULES
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar,BGGas
 USE MOD_Particle_Vars         ,ONLY: PEM, Species
 USE MOD_Particle_Sampling_Vars,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
 USE MOD_DSMC_ElectronicModel  ,ONLY: InitElectronShell
@@ -231,6 +231,14 @@ SELECT CASE (init_or_sf)
     __STAMP__&
     ,'Neither iInit nor SurfaceFlux defined as reference!')
 END SELECT
+
+! Background gas distribution
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  IF(BGGas%BackgroundSpecies(iSpecies).AND.BGGas%UseDistribution) THEN
+    TVib = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpecies),DSMC_TVIB,ElemID)
+    TRot = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpecies),DSMC_TROT,ElemID)
+  END IF
+END IF
 
 IF (DSMC%ElectronicModel.GT.0) THEN
   CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)

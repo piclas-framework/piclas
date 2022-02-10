@@ -719,7 +719,7 @@ END SUBROUTINE InitPhotoionizationXSec
 SUBROUTINE CheckPhotoionizationXSec()
 ! MODULES
 USE MOD_Globals
-USE MOD_MCC_Vars  ,ONLY: NbrOfPhotonXsecReactions,NbrOfPhotonXsecLines,SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine
+USE MOD_MCC_Vars ,ONLY: NbrOfPhotonXsecReactions,NbrOfPhotonXsecLines,SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES

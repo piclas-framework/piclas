@@ -41,21 +41,18 @@ PUBLIC:: DepositParticleOnNodes,CalcCellLocNodeVolumes,ReadTimeAverage,beta
 CONTAINS
 
 
-SUBROUTINE DepositParticleOnNodes(iPart,PartPos,GlobalElemID)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Deposit the charge of a single particle on the nodes corresponding to the deposition method 'cell_volweight_mean', where the
-! charge is stored in NodeSourceExtTmp, which is added to NodeSource in the standard deposition procedure.
-! Note that the corresponding volumes are not accounted for yet. The volumes are applied in the deposition routine.
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
+!===================================================================================================================================
+!> Deposit the charge of a single particle on the nodes corresponding to the deposition method 'cell_volweight_mean', where the
+!> charge is stored in NodeSourceExtTmp, which is added to NodeSource in the standard deposition procedure.
+!> Note that the corresponding volumes are not accounted for yet. The volumes are applied in the deposition routine.
+!===================================================================================================================================
+SUBROUTINE DepositParticleOnNodes(Charge,PartPos,GlobalElemID)
+! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY: ElementaryCharge
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Vars      ,ONLY: PartSpecies,Species
-USE MOD_Particle_Vars      ,ONLY: usevMPF,PartMPF,PDM
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
-USE MOD_part_tools         ,ONLY: isChargedParticle
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
@@ -69,41 +66,26 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)               :: iPart
+REAL,INTENT(IN)                  :: Charge        !< Charge that is deposited on nodes
 REAL,INTENT(IN)                  :: PartPos(1:3)
 INTEGER,INTENT(IN)               :: GlobalElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3), Charge
+REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3)
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
 INTEGER                          :: NodeID(1:8)
 !===================================================================================================================================
 
-! Sanity checks
-IF(.NOT.PDM%ParticleInside(iPart))THEN
-  IPWRITE (*,*) "iPart         :", iPart
-  IPWRITE (*,*) "global ElemID :", GlobalElemID
-  CALL abort(__STAMP__,'DepositParticleOnNodes(): Particle not inside element.')
-ELSEIF(PartSpecies(iPart).LT.0)THEN
-  IPWRITE (*,*) "iPart         :", iPart
-  IPWRITE (*,*) "global ElemID :", GlobalElemID
-  CALL abort(__STAMP__,'DepositParticleOnNodes(): Negative speciesID')
-END IF ! PartSpecies(iPart)
-
-! Skip for neutral particles
-IF(.NOT.isChargedParticle(iPart)) RETURN
+! Skip for neutral particles and reflected particles or species swapped particles where impacting and reflecting particle carry the
+! same charge. Deposit only particles that are deleted on the surface or change their charge on contact (e.g. neutralization)
+IF(ABS(Charge).LE.0.0) RETURN
 
 #if USE_LOADBALANCE
 ! Only measure time if particle is deposited on local proc
 IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-IF (usevMPF) THEN
-  Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
-ELSE
-  Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
-END IF
 
 CALL GetPositionInRefElem(PartPos,TempPartPos(1:3),GlobalElemID,ForceMode=.TRUE.)
 

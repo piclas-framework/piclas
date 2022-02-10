@@ -403,18 +403,18 @@ DO iPartBound=1,nPartBound
         PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
             GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
       END DO
-      IF(PartBound%Reactive(iPartBound)) THEN
-        CALL abort(__STAMP__&
+      IF(PartBound%Reactive(iPartBound)) CALL abort(__STAMP__&
           ,'ERROR: Species swap is only supported in combination with Maxwell scattering (SurfModel = 0). PartBound: ',iPartBound)
-      END IF
     END IF
     ! Dielectric Surfaces
     PartBound%Dielectric(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
     ! Sanity check: PartBound%Dielectric=T requires supplying species swap for every species
     IF(PartBound%Dielectric(iPartBound))THEN
-      IF(PartBound%NbrOfSpeciesSwaps(iPartBound).LT.(nSpecies-BGGas%NumberOfSpecies))THEN
-        CALL abort(__STAMP__,&
-          'PartBound%Dielectric=T requires supplying a species swap (Part-BoundaryX-NbrOfSpeciesSwaps) for every species (except background gas species)!')
+      IF((PartBound%NbrOfSpeciesSwaps(iPartBound).LT.(nSpecies-BGGas%NumberOfSpecies)).AND.&
+          (.NOT.PartBound%Reactive(iPartBound)))THEN
+        CALL abort(__STAMP__,'PartBound%Dielectric=T requires\n   a) supplying a species swap (Part-BoundaryX-NbrOfSpeciesSwaps)'//&
+            ' for every species (except background gas species) or\n   '//&
+            'b) surface model that is reactive (Part-BoundaryX-SurfaceModel)!')
       ELSE
         DoDielectricSurfaceCharge=.TRUE.
       END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies

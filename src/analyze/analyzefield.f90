@@ -1581,6 +1581,7 @@ REAL,INTENT(OUT)   :: BoundaryFieldOutput(1:PP_nVar)
 INTEGER           :: BCType,BCState
 #endif /*USE_HDG*/
 !===================================================================================================================================
+BoundaryFieldOutput=0.!Initialize
 #if USE_HDG
 #if (PP_nVar==1)
 BCType =BoundaryType(iBC,BC_TYPE)

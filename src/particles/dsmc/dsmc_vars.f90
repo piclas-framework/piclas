@@ -267,9 +267,17 @@ TYPE tBGGas
   INTEGER, ALLOCATABLE          :: MapSpecToBGSpec(:)       ! Input: [1:nSpecies], output is the corresponding background species
   INTEGER, ALLOCATABLE          :: MapBGSpecToSpec(:)       ! Input: [1:nBGSpecies], output is the corresponding species index
   REAL, ALLOCATABLE             :: SpeciesFraction(:)       ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
+  REAL, ALLOCATABLE             :: SpeciesFractionElem(:,:) ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
+                                                            ! per element
   REAL, ALLOCATABLE             :: NumberDensity(:)         ! Number densities of the background gas, [1:BGGas%NumberOfSpecies]
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
+  LOGICAL                       :: UseDistribution          ! Flag for the utilization of a background gas distribution as read-in
+                                                            ! from a previous DSMC/BGK simulation result
+  REAL, ALLOCATABLE             :: Distribution(:,:,:)      ! Element local background gas [1:BGGSpecies,1:10,1:nElems]
+  REAL, ALLOCATABLE             :: DistributionNumDens(:)   ! When CalcNumDens=T, pre-calculate the density once at the beginning
+  INTEGER, ALLOCATABLE          :: DistributionSpeciesIndex(:)  ! Index of species in the read-in DSMCState file to use
+                                                                ! as a background distribution [1:nSpecies]
   LOGICAL, ALLOCATABLE          :: TraceSpecies(:)          ! Flag, if species is a trace element, Input: [1:nSpecies]
   REAL                          :: MaxMPF                   ! Maximum weighting factor of the background gas species
 END TYPE tBGGas

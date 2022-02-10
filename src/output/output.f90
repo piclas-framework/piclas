@@ -71,10 +71,11 @@ USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Output")
-CALL prms%CreateStringOption(       'ProjectName', "Name of the current simulation (mandatory).")
-CALL prms%CreateLogicalOption(      'Logging',     "Write log files containing debug output.", '.FALSE.')
-CALL prms%CreateLogicalOption(      'WriteErrorFiles',  "Write error files containing error output.", '.FALSE.')
-CALL prms%CreateLogicalOption(      'doPrintStatusLine','Print: percentage of time, ...', '.FALSE.')
+CALL prms%CreateStringOption(  'ProjectName'        , "Name of the current simulation (mandatory).")
+CALL prms%CreateLogicalOption( 'Logging'            , "Write log files containing debug output."     , '.FALSE.')
+CALL prms%CreateLogicalOption( 'WriteErrorFiles'    , "Write error files containing error output."   , '.FALSE.')
+CALL prms%CreateLogicalOption( 'doPrintStatusLine'  , 'Print: percentage of time                     , ...'       , '.FALSE.')
+CALL prms%CreateLogicalOption( 'DoWriteStateToHDF5' , "Write state of calculation to hdf5-file."     , '.TRUE.')
 END SUBROUTINE DefineParametersOutput
 
 SUBROUTINE InitOutput()
@@ -108,10 +109,11 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT OUTPUT...'
 
-ProjectName       = GETSTR('ProjectName')
-Logging           = GETLOGICAL('Logging')
-WriteErrorFiles   = GETLOGICAL('WriteErrorFiles')
-doPrintStatusLine = GETLOGICAL("doPrintStatusLine")
+ProjectName        = GETSTR('ProjectName')
+Logging            = GETLOGICAL('Logging')
+WriteErrorFiles    = GETLOGICAL('WriteErrorFiles')
+doPrintStatusLine  = GETLOGICAL("doPrintStatusLine")
+DoWriteStateToHDF5 = GETLOGICAL('DoWriteStateToHDF5')
 
 IF(WriteErrorFiles)THEN
   ! Open file for error output

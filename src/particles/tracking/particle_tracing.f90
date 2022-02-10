@@ -287,7 +287,6 @@ DO iPart=1,PDM%ParticleVecLength
           iLocSide = currentIntersect%Side
           SideID   = GetGlobalNonUniqueSideID(ElemID,iLocSide)
           CNSideID = GetCNSideID(SideID)
-          ! TODO: missing!!! : mapping from GlobalNonUnique to CNtotalsides
           CALL ComputeBiLinearIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID &
               ,alpha2=currentIntersect%alpha)
           currentIntersect%alpha=HUGE(1.)
@@ -354,8 +353,8 @@ DO iPart=1,PDM%ParticleVecLength
               CALL ComputePlanarCurvedIntersection( foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,flip,SideID  &
                                                   , isCriticalParallelInFace)
             CASE(CURVED)
-              CALL ComputeCurvedIntersection(       foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,     SideID &
-                                            ,       isCriticalParallelInFace)
+              CALL ComputeCurvedIntersection(       foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,flip,SideID &
+                                                                                            ,isCriticalParallelInFace)
             CASE DEFAULT
               CALL abort(__STAMP__,' Missing required side-data. Please increase halo region. ',SideID)
           END SELECT
@@ -929,17 +928,17 @@ ELSE
 
       SELECT CASE(SideType(NbCNSideID))
         CASE(PLANAR_RECT)
-          CALL ComputePlanarRectIntersection(  isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
-                                            ,  locXi,locEta,PartID,0      ,NbSideID)
+          CALL ComputePlanarRectIntersection(   isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
+                                            ,   locXi,locEta,PartID,0      ,NbSideID)
         CASE(BILINEAR,PLANAR_NONRECT)
-          CALL ComputeBiLinearIntersection(    isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
-                                          ,    locXi,locEta,PartID,        NbSideID)
+          CALL ComputeBiLinearIntersection(     isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
+                                          ,     locXi,locEta,PartID,        NbSideID)
         CASE(PLANAR_CURVED)
           CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
                                           ,    locXi,locEta,PartID,0      ,NbSideID)
         CASE(CURVED)
-          CALL ComputeCurvedIntersection(      isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
-                                        ,      locXi,locEta,PartID,        NbSideID)
+          CALL ComputeCurvedIntersection(       isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
+                                        ,       locXi,locEta,PartID,0      ,NbSideID)
       END SELECT
 
       IF (isHit) THEN
