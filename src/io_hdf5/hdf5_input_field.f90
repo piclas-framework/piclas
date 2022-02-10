@@ -25,11 +25,14 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+#if defined(PARTICLES)
 PUBLIC :: ReadVariableExternalFieldFromHDF5
+#endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 
 CONTAINS
 
+#if defined(PARTICLES)
 SUBROUTINE ReadVariableExternalFieldFromHDF5()
 !===================================================================================================================================
 !> Read-in of spatially variable external magnetic field from .h5 file
@@ -164,5 +167,6 @@ CALL H5FCLOSE_F(file_id_loc, err)
 CALL H5CLOSE_F(err)
 
 END SUBROUTINE ReadVariableExternalFieldFromHDF5
+#endif /*defined(PARTICLES)*/
 
 END MODULE MOD_HDF5_Input_Field
