@@ -178,7 +178,7 @@ IMPLICIT NONE
 LOGICAL,INTENT(IN)             :: ElemTimeExists
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iProc,curiElem,MyElems,jProc,NewElems
+INTEGER                        :: iProc,curiElem,MyElems,jProc,NewElems,WeightDistributionMethod_loc
 REAL                           :: MaxLoadDiff,LastLoadDiff,LoadDiff(0:nProcessors-1)
 REAL                           :: LastProcDiff
 REAL                           :: MinLoadVal,MaxLoadVal,MaxLoadVal_opt,MaxLoadVal_opt0
@@ -250,15 +250,13 @@ CALL MPI_BCAST(PartsInElem,nGlobalElems,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 
 ! Every proc needs to get the information to arrive at the same timedisc
 IF (.NOT.ElemTimeExists .AND. ALL(PartsInElem(:).EQ.0)) THEN
-  WeightDistributionMethod = GETINT('WeightDistributionMethod','-1') !-1 is optimum distri for const. elem-weight
-  IF (WeightDistributionMethod.NE.-1) THEN
-    SWRITE(*,*) 'WARNING: WeightDistributionMethod.NE.-1 with neither particles nor ElemTimes!'
-  ELSE
-    SWRITE (*,*) "WeightDistributionMethod set to -1: optimum distribution for const. elem-weight"
-  END IF
+  IF((WeightDistributionMethod.NE.-1).AND.MPIRoot) WRITE (*,*) "WeightDistributionMethod set to -1: optimum for const. elem-weight"
+  WeightDistributionMethod_loc = -1.0
+ELSE
+  WeightDistributionMethod_loc = WeightDistributionMethod
 END IF
 
-SELECT CASE(WeightDistributionMethod)
+SELECT CASE(WeightDistributionMethod_loc)
 CASE(-1) ! same as in no-restart: the elements are equally distributed
   IF(MPIRoot)THEN
     nElems=nGlobalElems/nProcessors
@@ -629,11 +627,11 @@ CASE(5,6)
     nElems=nGlobalElems/nProcessors
     iElem=nGlobalElems-nElems*nProcessors
     itershift=0
-    IF (WeightDistributionMethod.EQ.5) THEN !-- init as for CASE(-1)
+    IF (WeightDistributionMethod_loc.EQ.5) THEN !-- init as for CASE(-1)
       DO iProc=0,nProcessors-1
         offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
       END DO
-    ELSE ! WeightDistributionMethod.EQ.6    !-- init as for CASE(0)
+    ELSE ! WeightDistributionMethod_loc.EQ.6    !-- init as for CASE(0)
       IF(nGlobalElems.EQ.nProcessors) THEN
         DO iProc=0, nProcessors-1
           offsetElemMPI(iProc) = iProc
@@ -652,7 +650,7 @@ CASE(5,6)
           END DO
         END DO
       END IF
-    END IF !WeightDistributionMethod 5 or 6
+    END IF !WeightDistributionMethod_loc 5 or 6
     offsetElemMPI(nProcessors)=nGlobalElems
     !-- calc inital distri
     CALL CalcDistriFromOffsets(nProcessors,nGlobalElems,ElemGlobalTime,offSetElemMPI &
@@ -874,8 +872,8 @@ CASE(5,6)
   !------------------------------------------------------------------------------------------------------------------------------!
 CASE DEFAULT
   CALL abort(__STAMP__, ' Error in mesh-readin: Invalid load balance distribution for WeightDistributionMethod = ',&
-      IntInfoOpt=WeightDistributionMethod)
-END SELECT ! WeightDistributionMethod
+      IntInfoOpt=WeightDistributionMethod_loc)
+END SELECT ! WeightDistributionMethod_loc
 
 ! Set element offset for last processor
 offsetElemMPI(nProcessors)=nGlobalElems
@@ -1145,7 +1143,6 @@ CHARACTER(LEN=255)         :: tmpStr(nOutputVar) ! needed because PerformAnalyze
 CHARACTER(LEN=1000)        :: tmpStr2
 CHARACTER(LEN=1),PARAMETER :: delimiter=","
 REAL                       :: memory(1:3)       ! used, available and total
-REAL                       :: memoryGlobal(1:3) ! Globally used, available (only node roots) and total (also only node roots) memory
 #if USE_MPI
 REAL                       :: ProcMemoryUsed    ! Used memory on a single proc
 REAL                       :: NodeMemoryUsed    ! Sum of used memory across one compute node
@@ -1157,9 +1154,7 @@ CALL ProcessMemUsage(memory(1),memory(2),memory(3)) ! memUsed,memAvail,memTotal
 
 ! only CN roots communicate available and total memory info (count once per node)
 #if USE_MPI
-IF(nProcessors.EQ.1)THEN
-  memoryGlobal = memory
-ELSE
+IF(nProcessors.GT.1)THEN
   ! Collect data on node roots
   ProcMemoryUsed = memory(1)
   IF (myComputeNodeRank.EQ.0) THEN
@@ -1177,10 +1172,7 @@ ELSE
       CALL MPI_REDUCE(memory       , 0      , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
     END IF ! myLeaderGroupRank.EQ.0
   END IF ! myComputeNodeRank.EQ.0
-
 END IF ! nProcessors.EQ.1
-#else
-memoryGlobal = memory
 #endif /*USE_MPI*/
 
 ! --------------------------------------------------

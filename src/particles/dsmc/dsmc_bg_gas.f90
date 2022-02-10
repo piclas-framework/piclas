@@ -39,11 +39,11 @@ SUBROUTINE BGGas_Initialize()
 !===================================================================================================================================
 ! MODULES
 USE MOD_ReadInTools
-USE MOD_Globals       ,ONLY: abort
-USE MOD_DSMC_Vars     ,ONLY: BGGas
-USE MOD_Mesh_Vars     ,ONLY: nElems
-USE MOD_Particle_Vars ,ONLY: PDM, Symmetry, Species, nSpecies, VarTimeStep
-USE MOD_Restart_Vars  ,ONLY: DoMacroscopicRestart, MacroRestartFileName
+USE MOD_Globals               ,ONLY: abort
+USE MOD_DSMC_Vars             ,ONLY: BGGas
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_Particle_Vars         ,ONLY: PDM, Symmetry, Species, nSpecies, VarTimeStep
+USE MOD_Restart_Vars          ,ONLY: DoMacroscopicRestart, MacroRestartFileName
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -101,6 +101,5 @@ TYPE tSpeciesPhotonXSec
 END TYPE tSpeciesPhotonXSec
 
 TYPE(tSpeciesPhotonXSec), ALLOCATABLE     :: SpecPhotonXSec(:)          ! Species cross-section related data (only photoionization)
-
 !===================================================================================================================================
 END MODULE MOD_MCC_Vars

@@ -34,6 +34,10 @@ INTERFACE CalcNumPartsOfSpec
   MODULE PROCEDURE CalcNumPartsOfSpec
 END INTERFACE
 
+INTERFACE CalcMixtureTemp
+  MODULE PROCEDURE CalcMixtureTemp
+END INTERFACE
+
 PUBLIC :: CalcEkinPart,CalcEkinPart2
 PUBLIC :: CalcNumPartsOfSpec
 PUBLIC :: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
@@ -43,7 +47,8 @@ PUBLIC :: CalcKineticEnergy
 PUBLIC :: CalcKineticEnergyAndMaximum
 PUBLIC :: CalcNumberDensity
 PUBLIC :: CalcAdaptBCInfo
-PUBLIC :: CalcTemperature
+PUBLIC :: CalcTransTemp
+PUBLIC :: CalcMixtureTemp
 PUBLIC :: CalcTelec,CalcTVibPoly
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 PUBLIC :: CalcRelaxProbRotVib
@@ -55,6 +60,7 @@ PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
 PUBLIC :: CalcPowerDensity
 PUBLIC :: CalculatePartElemData
 PUBLIC :: CalcCoupledPowerPart
+PUBLIC :: CalcNumberDensityBGGasDistri
 !===================================================================================================================================
 
 CONTAINS
@@ -1109,7 +1115,6 @@ USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_Particle_Vars         ,ONLY: Species,nSpecies,usevMPF
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
-USE MOD_Mesh_Vars             ,ONLY: nElems
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1120,37 +1125,92 @@ REAL,INTENT(IN)                   :: NumSpec(nSpecAnalyze)
 REAL,INTENT(OUT)                  :: NumDens(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: iSpec,bgSpec,iElem
+INTEGER                           :: iSpec,bgSpec
 !===================================================================================================================================
 
-IF (PartMPI%MPIRoot) THEN
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    NumDens(1:nSpecies) = NumSpec(1:nSpecies) / MeshVolume
-  ELSE
-    NumDens(1:nSpecies) = NumSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / MeshVolume
-  END IF
+! Only root does calculation
+IF(.NOT.PartMPI%MPIRoot) RETURN
 
-  IF(BGGas%NumberOfSpecies.GT.0) THEN
-    DO iSpec = 1, nSpecies
-      IF(BGGas%BackgroundSpecies(iSpec)) THEN
-        bgSpec = BGGas%MapSpecToBGSpec(iSpec)
-        IF(BGGas%UseDistribution) THEN
-          NumDens(iSpec) = 0.
-          DO iElem = 1, nElems
-            NumDens(iSpec) = NumDens(iSpec) + BGGas%Distribution(bgSpec,7,iElem)
-          END DO ! iElem = 1, nElems
-          NumDens(iSpec) = NumDens(iSpec)/REAL(nElems)
-        ELSE
-          NumDens(iSpec) = BGGas%NumberDensity(bgSpec)
-        END IF
-      END IF
-    END DO
-  END IF
-
-  IF(nSpecAnalyze.GT.1) NumDens(nSpecAnalyze) = SUM(NumDens(1:nSpecies))
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  NumDens(1:nSpecies) = NumSpec(1:nSpecies) / MeshVolume
+ELSE
+  NumDens(1:nSpecies) = NumSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / MeshVolume
 END IF
 
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  DO iSpec = 1, nSpecies
+    IF(BGGas%BackgroundSpecies(iSpec)) THEN
+      bgSpec = BGGas%MapSpecToBGSpec(iSpec)
+      IF(BGGas%UseDistribution) THEN
+        ! Use pre-calculate value
+        NumDens(iSpec) = BGGas%DistributionNumDens(bgSpec)
+      ELSE
+        NumDens(iSpec) = BGGas%NumberDensity(bgSpec)
+      END IF
+    END IF
+  END DO
+END IF
+
+IF(nSpecAnalyze.GT.1) NumDens(nSpecAnalyze) = SUM(NumDens(1:nSpecies))
+
 END SUBROUTINE CalcNumberDensity
+
+
+!===================================================================================================================================
+!> Computes the number density per species when using BGGas distribution
+!===================================================================================================================================
+SUBROUTINE CalcNumberDensityBGGasDistri()
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: BGGas
+USE MOD_Particle_Vars         ,ONLY: nSpecies
+USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume,ElemVolume_Shared
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+USE MOD_Mesh_Vars             ,ONLY: nElems,offSetElem
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: iSpec,bgSpec,iElem
+REAL                              :: DistriNumDens(1:BGGas%NumberOfSpecies)
+!===================================================================================================================================
+! Initialize
+DistriNumDens = 0.
+ALLOCATE(BGGas%DistributionNumDens(1:BGGas%NumberOfSpecies))
+BGGas%DistributionNumDens = 0.
+
+! Loop over all species and elements and add up the mass within each element
+DO iSpec = 1, nSpecies
+  IF(BGGas%BackgroundSpecies(iSpec)) THEN
+    bgSpec = BGGas%MapSpecToBGSpec(iSpec)
+    DistriNumDens(bgSpec) = 0.
+    DO iElem = 1, nElems
+      ! Calculate mass per element (divide by total mesh volume later on)
+      DistriNumDens(bgSpec) = DistriNumDens(bgSpec) &
+                            + BGGas%Distribution(bgSpec,7,iElem) * ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+    END DO ! iElem = 1, nElems
+  END IF
+END DO
+
+! Communicate
+#if USE_MPI
+IF(PartMPI%MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE , DistriNumDens, BGGas%NumberOfSpecies, MPI_DOUBLE_PRECISION, MPI_SUM, 0,PartMPI%COMM ,IERROR)
+ELSE
+  CALL MPI_REDUCE(DistriNumDens, 0.           , BGGas%NumberOfSpecies, MPI_DOUBLE_PRECISION, MPI_SUM, 0,PartMPI%COMM ,IERROR)
+END IF
+#endif /*USE_MPI*/
+BGGas%DistributionNumDens = DistriNumDens
+
+! Average over total mesh
+BGGas%DistributionNumDens = BGGas%DistributionNumDens / MeshVolume
+
+END SUBROUTINE CalcNumberDensityBGGasDistri
 
 
 SUBROUTINE CalcAdaptBCInfo()
@@ -1247,7 +1307,7 @@ END IF
 END SUBROUTINE CalcAdaptBCInfo
 
 
-SUBROUTINE CalcTemperature(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec)
+SUBROUTINE CalcMixtureTemp(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec)
 !===================================================================================================================================
 !> Computes the species-specific and mixture temperature (MPI communication is in the respective subroutines)
 !===================================================================================================================================
@@ -1267,7 +1327,7 @@ IMPLICIT NONE
 REAL, INTENT(IN)                  :: NumSpec(nSpecAnalyze)    ! number of real particles (already GLOBAL number)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)                 :: Temp(nSpecAnalyze)
+REAL, INTENT(IN)                  :: Temp(nSpecAnalyze)
 REAL, INTENT(OUT)                 :: IntEn(nSpecAnalyze,3)
 REAL, INTENT(OUT)                 :: IntTemp(nSpecies,3)
 REAL, INTENT(OUT)                 :: TempTotal(nSpecAnalyze)
@@ -1277,8 +1337,6 @@ REAL, INTENT(OUT)                 :: Xi_Vib(nSpecies), Xi_Elec(nSpecies)
 INTEGER                           :: iSpec
 REAL                              :: TempTotalDOF, XiTotal
 !===================================================================================================================================
-
-CALL CalcTransTemp(NumSpec, Temp)
 
 IF (CollisMode.GT.1) THEN
   CALL CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
@@ -1330,7 +1388,7 @@ ELSE
   END IF
 END IF
 
-END SUBROUTINE CalcTemperature
+END SUBROUTINE CalcMixtureTemp
 
 
 SUBROUTINE CalcIntTempsAndEn(NumSpec,IntTemp,IntEn)
@@ -2353,7 +2411,7 @@ SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell()
 !
 ! ------------------------------------------------
 ! omega_c = e*B / m_e     (non-relativistic)
-! 
+!
 !   omega_c: cyclotron frequency
 !         e: elementary charge (of an electron, absolute value)
 !         B: magnitude of the magnetic flux density at the electron's position
@@ -2361,7 +2419,7 @@ SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell()
 !
 ! ------------------------------------------------
 ! omega_c = e*B / (gamma*m_e) = e*B / (sqrt(1-v_e^2/c^2)*m_e)
-! 
+!
 !   omega_c: cyclotron frequency     (relativistic)
 !         e: elementary charge (of an electron, absolute value)
 !         B: magnitude of the magnetic flux density at the electron's position
@@ -2427,7 +2485,7 @@ ASSOCIATE( e   => ElementaryCharge,&
         SetFrequency = .TRUE.
         IF(omega_c.GT.0.) SetRadius = .TRUE.
       ELSE
-        gamma1=partV2*c2_inv 
+        gamma1=partV2*c2_inv
         ! Sanity check: Lorentz factor must be below 1.0: gamma in [0,1)
         IF(gamma1.GE.1.0)THEN
           ! don't store this value as cyclotron frequency, keep the zero or an already correctly set value
@@ -2489,7 +2547,7 @@ ASSOCIATE( e   => ElementaryCharge,&
     END IF ! ABS(CyclotronFrequencyMinCell(iElem)).LE.0.
 
     ! Sanity check
-    IF(GyroradiusMinCell(iElem).EQ.HUGE(1.)) GyroradiusMinCell(iElem)=0. 
+    IF(GyroradiusMinCell(iElem).EQ.HUGE(1.)) GyroradiusMinCell(iElem)=0.
   END DO ! iElem=1,PP_nElems
 END ASSOCIATE
 
@@ -2500,7 +2558,7 @@ SUBROUTINE CalculatePICTimeStepCyclotron()
 !===================================================================================================================================
 ! use the gyro frequency per cell to estimate the pic time step
 ! Factor 0.05 = 1/20 from: Qin "Why is Boris algorithm so good?" (2013), PHYSICS OF PLASMAS 20, 084503 (2013)
-! 
+!
 ! dt >= 0.05 / omega_c
 !   omega_c: electron cyclotron frequency
 !===================================================================================================================================

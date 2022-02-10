@@ -586,9 +586,9 @@ END SUBROUTINE DSMC_chemical_init
 SUBROUTINE InitPhotoionizationXSec()
 ! MODULES
 USE MOD_Globals
-USE MOD_MCC_Vars  ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,PhotonSpectrum,NbrOfPhotonXsecLines,MaxPhotonXSec
+USE MOD_MCC_Vars  ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,NbrOfPhotonXsecLines
 USE MOD_MCC_Vars  ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,ReacToPhotoReac
-USE MOD_MCC_Vars  ,ONLY: PhotonEnergies
+USE MOD_MCC_Vars  ,ONLY: PhotonSpectrum,PhotonEnergies,MaxPhotonXSec
 USE MOD_MCC_XSec  ,ONLY: ReadReacPhotonXSec,ReadReacPhotonSpectrum
 USE MOD_DSMC_Vars ,ONLY: SpecDSMC,ChemReac
 ! IMPLICIT VARIABLE HANDLING

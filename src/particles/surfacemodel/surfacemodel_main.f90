@@ -78,7 +78,7 @@ INTEGER            :: ProductSpec(1:2) !< 1: product species of incident particl
                                        !< If productSpec is positive the particle is reflected/emitted
                                        !< with respective species
 INTEGER            :: ProductSpecNbr   !< number of emitted particles for ProductSpec(2)
-REAL               :: TempErgy(2)      !< temperature, energy or velocity used for VeloFromDistribution
+REAL               :: TempErgy         !< temperature, energy or velocity used for VeloFromDistribution
 REAL               :: Xitild,Etatild
 INTEGER            :: PartSpecImpact, locBCID
 INTEGER            :: iBC, SurfSideID
@@ -104,7 +104,6 @@ PartSpecImpact = PartSpecies(PartID)
 ProductSpec(1) = PartSpecImpact
 ProductSpec(2) = 0
 ProductSpecNbr = 0
-TempErgy(1:2)  = PartBound%WallTemp(locBCID)
 
 ! Store info of impacting particle for possible surface charging
 IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charging active + dielectric surface contact
@@ -164,9 +163,12 @@ CASE (SEE_MODELS_ID)
   ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
   ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
   ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materials is considered for SEE and three different outcomes)
+  ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV
+  !10: SEE-I (bombarding electrons are removed, Ar+ on copper is considered for SEE)
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Get electron emission probability
-  CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy(2))
+  CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy)
+  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
   ! Decide the fate of the impacting particle
   IF (ProductSpec(1).LE.0) THEN
     CALL RemoveParticle(PartID)

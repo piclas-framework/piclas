@@ -67,7 +67,6 @@ USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
-USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_MCC_XSec                ,ONLY: InterpolateCrossSection, InterpolateCrossSection_Vib, InterpolateCrossSection_Elec
 USE MOD_Macro_Restart           ,ONLY: CalcVelocity_maxwell_particle
 ! IMPLICIT VARIABLE HANDLING

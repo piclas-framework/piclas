@@ -31,7 +31,7 @@ PUBLIC :: RemoveAllElectrons
 
 CONTAINS
 
-SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID)
+SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID,NewMPF)
 !===================================================================================================================================
 !> creates a single particle at correct array position and assign properties
 !===================================================================================================================================
@@ -56,6 +56,7 @@ REAL, INTENT(IN)              :: RotEnergy     !< Rotational energy
 REAL, INTENT(IN)              :: VibEnergy     !< Vibrational energy
 REAL, INTENT(IN)              :: ElecEnergy    !< Electronic energy
 INTEGER, INTENT(OUT),OPTIONAL :: NewPartID     !< ID of newly created particle
+REAL, INTENT(IN),OPTIONAL     :: NewMPF        !< MPF of newly created particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER :: newParticleID
@@ -101,13 +102,21 @@ IF (VarTimeStep%UseVariableTimeStep) THEN
   VarTimeStep%ParticleTimeStep(newParticleID) = &
     CalcVarTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%LocalElemID(newParticleID))
 END IF
+
+! Set new particle MPF
 IF (usevMPF) THEN
-  IF (RadialWeighting%DoRadialWeighting) THEN
-    PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID),SpecID,newParticleID)
+  IF(PRESENT(NewMPF))THEN
+    ! MPF is already defined via input
+    PartMPF(newParticleID) = NewMPF
   ELSE
-    PartMPF(newParticleID) = Species(SpecID)%MacroParticleFactor
-  END IF
-END IF
+    ! Check if vMPF (and radial weighting is used) to determine the MPF of the new particle
+    IF (RadialWeighting%DoRadialWeighting) THEN
+      PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID),SpecID,newParticleID)
+    ELSE
+      PartMPF(newParticleID) = Species(SpecID)%MacroParticleFactor
+    END IF
+  END IF ! PRESENT(NewMPF)
+END IF ! usevMPF
 
 IF (PRESENT(NewPartID)) NewPartID=newParticleID
 

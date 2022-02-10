@@ -45,6 +45,7 @@ USE MOD_HDF5_Output_State      ,ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
+USE MOD_Restart_Vars           ,ONLY: DoRestart,FlushInitialState
 #if !(USE_HDG)
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
@@ -59,7 +60,6 @@ USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
 USE MOD_HDG_Vars               ,ONLY: iterationTotal,RunTimeTotal
 #endif /*USE_HDG*/
 #ifdef PP_POIS
-USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Equation               ,ONLY: EvalGradient
 #endif /*PP_POIS*/
 #if USE_MPI
@@ -205,7 +205,7 @@ CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 #ifdef PARTICLES
 IF(DoImportIMDFile) CALL WriteIMDStateToHDF5() ! Write IMD particles to state file (and TTM if it exists)
 #endif /*PARTICLES*/
-CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze) ! Write initial state to file
+IF((.NOT.DoRestart).OR.FlushInitialState) CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze) ! Write initial state to file
 
 ! if measurement of particle tracking time (used for analyze, load balancing uses own time measurement for tracking)
 #ifdef PARTICLES

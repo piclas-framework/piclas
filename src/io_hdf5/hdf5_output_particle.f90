@@ -514,6 +514,9 @@ DO iElem_loc=1,PP_nElems
       END IF
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
       PartData(7,iPart)=REAL(PartSpecies(pcount))
+      ! Sanity check: output of particles with species ID zero is prohibited
+      IF(PartData(7,iPart).LE.0) CALL abort(__STAMP__,&
+          'Found particle for output to .h5 with species ID zero, which indicates a corrupted simulation.')
 #ifdef CODE_ANALYZE
       IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
         IF(pcount.EQ.PARTOUT)THEN

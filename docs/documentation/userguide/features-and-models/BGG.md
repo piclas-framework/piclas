@@ -90,3 +90,15 @@ performed. To enable the utilization of these levels, the following flag shall b
 It should be noted that even if Species2 corresponds to an electron, the vibrational cross-section data will be read-in for any
 molecule-electron pair. If both species are molecular, priority will be given to the species utilizing this flag.
 
+## Cross-section based electronic relaxation probability
+
+In the following, the utilization of cross-section data is extended to the electronic excitation for neutral-electron collisions. When data is available, it will be read-in by the Python script described above. Each level will be handled separately, allowing the atom/molecule to be excited in each level. The cross-section data will be used to determine whether and which excitation will occur. During the excitation procedure the energy of the atom/molecule will be set to respective level. To enable this model, the following flags are required
+
+    Particles-DSMC-ElectronicModel    = 3
+    Part-Species1-UseElecXSec         = T
+
+The species-specific flag `UseElecXSec` should be set to `TRUE` for the heavy-species and not the electron species. Currently, this model is only implemented for the background gas, however, an extension to regular DSMC simulations is envisioned. It can be used with cross-section based as well as Variable Hard Sphere (VHS) collision modelling. The output of the relaxation rates is provided through
+
+    CalcRelaxProb = T
+
+However, the electronic temperature is currently not added to the total temperature for the PartAnalyze.csv output.

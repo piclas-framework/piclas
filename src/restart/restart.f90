@@ -76,6 +76,9 @@ CALL prms%CreateLogicalOption('Particles-MacroscopicRestart', &
                               '.FALSE.')
 CALL prms%CreateStringOption( 'Particles-MacroscopicRestart-Filename', &
                               'File name of the DSMCState to be utilized as the input for the particle insertion.')
+CALL prms%CreateLogicalOption('FlushInitialState',&
+                              'Check whether (during restart) the statefile from which the restart is performed should be deleted.'&
+                            , '.FALSE.')
 END SUBROUTINE DefineParametersRestart
 
 
@@ -239,9 +242,6 @@ ELSE IF (InitialAutoRestartSample.EQ.0) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 
-! Set wall time to the beginning of the simulation or when a restart is performed to the current wall time
-RestartWallTime=PICLASTIME()
-
 IF(DoRestart .AND. (N_Restart .NE. PP_N))THEN
   BuildNewMesh       =.TRUE.
   WriteNewMesh       =.TRUE.
@@ -252,6 +252,11 @@ IF(InterpolateSolution)THEN
   CALL initRestartBasis(PP_N,N_Restart,xGP)
 END IF
 
+! Check whether (during restart) the statefile from which the restart is performed should be deleted
+FlushInitialState = GETLOGICAL('FlushInitialState')
+
+! Set wall time to the beginning of the simulation or when a restart is performed to the current wall time
+RestartWallTime=PICLASTIME()
 RestartInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT RESTART DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -846,7 +851,10 @@ IF(DoRestart)THEN
           ! Sanity check: SpecID > 0
           SpecID=INT(PartData(7,offsetnPart+iLoop),4)
           IF(SpecID.LE.0)THEN
-            IPWRITE(UNIT_StdOut,'(I0,A,I0,A)') "Warning: Found particle in restart file with SpecID =", SpecID,", which will be deleted."
+            IPWRITE(UNIT_StdOut,'(I0,A,I0,A,I0,A,3(ES25.14E3),A,I0)') "Warning: Found particle in restart file with SpecID =", &
+                SpecID,"for iLoop=",iLoop,"with pos: ",PartData(1:3,offsetnPart+iLoop)," and offsetnPart:",offsetnPart
+            CALL abort(__STAMP__,'Found particle in restart file with species ID zero, which indicates a corrupted restart file.')
+            !IPWRITE(UNIT_StdOut,'(I0,A,I0,A,I0)') "Warning: Found particle in restart file with SpecID =", SpecID,", which will be deleted. iLoop=",iLoop
             CYCLE
           END IF ! SpecID
           ! Check if species is to be removed during restart
@@ -1112,6 +1120,7 @@ IF(DoRestart)THEN
       ! Combine number of lost particles of all processes and allocate variables
       ! Note: Particles that are lost on MyProc are also searched for here again
       CALL MPI_ALLGATHER(NbrOfLostParticles, 1, MPI_INTEGER, TotalNbrOfMissingParticles, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
+      NbrOfLostParticles=0
       IF (useDSMC) THEN
         IF (DSMC%NumPolyatomMolecs.GT.0) CALL MPI_ALLGATHER(CounterPoly, 1, MPI_INTEGER, LostPartsPoly, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
         IF (DSMC%ElectronicModel.EQ.2)   CALL MPI_ALLGATHER(CounterElec, 1, MPI_INTEGER, LostPartsElec, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
@@ -1428,6 +1437,7 @@ IF(DoRestart)THEN
         WRITE(UNIT_stdOut,'(A,I0)') ' Particles initially lost during restart : ',NbrOfMissingParticles
         WRITE(UNIT_stdOut,'(A,I0)') ' Number of particles permanently lost    : ',NbrOfLostParticles
         WRITE(UNIT_stdOut,'(A,I0)') ' Number of particles relocated           : ',NbrOfMissingParticles-NbrOfLostParticles
+        NbrOfLostParticles = 0
       END IF ! NbrOfMissingParticles.GT.0
 #endif /*USE_MPI*/
 

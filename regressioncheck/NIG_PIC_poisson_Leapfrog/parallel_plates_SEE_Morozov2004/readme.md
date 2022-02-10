@@ -1,5 +1,6 @@
 # parallel plate testcase
-- 5000 e- are accelerated against the right electrode where secondary electron emission (SEE-E) is performed
+- 10000 e- are accelerated against the right electrode where secondary electron emission (SEE-E) is performed
+  - the 2nd case considers only 2500 e- with vMPF=T, they are instantly split with Part-Species1-vMPFSplitThreshold = 1000 into multiple particles with a smaller MPF
 - SEE model from A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
   that is used for dielectric walls 
   - SEE-E model yields three possible outcomes upon electron impact (hence XXX electrons should be created in this setup)
