@@ -27,6 +27,7 @@ PRIVATE
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DefineParametersParticleEmission, InitializeVariablesSpeciesInits, InitialParticleInserting
+PUBLIC :: InitializeVariablesSpeciesBoundary
 !===================================================================================================================================
 
 CONTAINS
@@ -207,6 +208,7 @@ CALL prms%CreateRealOption('Part-Species[$]-Init[$]-EffectiveIntensityFactor', '
                             '1.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption('Part-Species[$]-Init[$]-TraceSpecies','Flag background species as trace element.'//&
                               ' Different weighting factor can be used',  '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption( 'Part-Species[$]-Init[$]-PartBCIndex','Assocaited particle boundary ID','-1',numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersParticleEmission
 
 
@@ -611,21 +613,18 @@ IF (((TRIM(SpecInit%SpaceIC).EQ.'cuboid').OR.(TRIM(SpecInit%SpaceIC).EQ.'cylinde
         - SpecInit%ExcludeRegion(iEx)%BaseVector1IC(2) * SpecInit%ExcludeRegion(iEx)%BaseVector2IC(1)
     ELSE IF ( (TRIM(SpecInit%ExcludeRegion(iEx)%SpaceIC).NE.'cuboid').AND. &
               (TRIM(SpecInit%ExcludeRegion(iEx)%SpaceIC).NE.'cylinder') )THEN
-      CALL abort(__STAMP__&
-        ,'Error in ParticleInit, ExcludeRegions must be cuboid or cylinder!')
+      CALL abort(__STAMP__,'Error in ParticleInit, ExcludeRegions must be cuboid or cylinder!')
     END IF
     IF (DOTPRODUCT(SpecInit%ExcludeRegion(iEx)%NormalIC(1:3)).GT.0.) THEN
       SpecInit%ExcludeRegion(iEx)%NormalIC = SpecInit%ExcludeRegion(iEx)%NormalIC / VECNORM(SpecInit%ExcludeRegion(iEx)%NormalIC)
       SpecInit%ExcludeRegion(iEx)%ExcludeBV_lenghts(1) = VECNORM(SpecInit%ExcludeRegion(iEx)%BaseVector1IC)
       SpecInit%ExcludeRegion(iEx)%ExcludeBV_lenghts(2) = VECNORM(SpecInit%ExcludeRegion(iEx)%BaseVector2IC)
     ELSE
-      CALL abort(__STAMP__&
-        ,'Error in ParticleInit, NormalIC Vector must not be zero!')
+      CALL abort(__STAMP__,'Error in ParticleInit, NormalIC Vector must not be zero!')
     END IF
   END DO !iEx
 ELSE
-  CALL abort(__STAMP__&
-    ,'Error in ParticleInit, ExcludeRegions are currently only implemented for the SpaceIC cuboid, sphere or cylinder!')
+  CALL abort(__STAMP__,'Error in ParticleInit, ExcludeRegions currently only implemented for the SpaceIC cuboid/sphere/cylinder!')
 END IF
 END ASSOCIATE
 
@@ -941,5 +940,40 @@ IF (insertParticles.GT.PDM%maxParticleNumber) THEN
 END IF
 
 END SUBROUTINE DetermineInitialParticleNumber
+
+
+!===================================================================================================================================
+!> Initialize the particle boundary IDs for all emission inits
+!> This routine is only called for DoBoundaryParticleOutputHDF5=T, which is determined in particle boundary init that comes after
+!> the general variable species emission initialization
+!===================================================================================================================================
+SUBROUTINE InitializeVariablesSpeciesBoundary()
+! MODULES
+USE MOD_ReadInTools   ,ONLY: GETREAL,GETINT
+USE MOD_Particle_Vars ,ONLY: Species,nSpecies
+! insert modules here
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER       :: iSpec, iInit
+CHARACTER(32) :: hilf, hilf2
+!===================================================================================================================================
+
+! Loop all species
+DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
+  ! Loop all inits
+  DO iInit = 1, Species(iSpec)%NumberOfInits
+    WRITE(UNIT=hilf2,FMT='(I0)') iInit
+    hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
+    ! Read-in of type and particle number for emission per iteration
+    Species(iSpec)%Init(iInit)%PartBCIndex = GETINT('Part-Species'//TRIM(hilf2)//'-PartBCIndex')
+  END DO ! iInit = 1, Species(iSpec)%NumberOfInits
+END DO ! iSpec = 1, nSpecies
+
+END SUBROUTINE InitializeVariablesSpeciesBoundary
 
 END MODULE MOD_Particle_Emission_Init

@@ -446,8 +446,8 @@ CASE('photon_SEE_energy')
         PartState(4:6,PositionNbr) = Vec3D(1:3)
         ! Store the particle information in PartStateBoundary.h5
         IF(DoBoundaryParticleOutputHDF5) CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
-                                          UNITVECTOR(PartState(4:6,PositionNbr)),Species(FractNbr)%Init(iInit)%NormalIC,iBC=-1,&
-                                          mode=2,usevMPF_optIN=.FALSE.)
+                                          UNITVECTOR(PartState(4:6,PositionNbr)),Species(FractNbr)%Init(iInit)%NormalIC,&
+                                          iBC=Species(FractNbr)%Init(iInit)%PartBCIndex,mode=2,usevMPF_optIN=.FALSE.)
     END IF
   END DO
 CASE DEFAULT

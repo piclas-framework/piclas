@@ -1731,8 +1731,8 @@ IF(IonizationReaction) THEN
         PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),Species(InitSpec)%Init(iInit)%NormalIC)
         ! Store the particle information in PartStateBoundary.h5
         IF(DoBoundaryParticleOutputHDF5) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
-                                          UNITVECTOR(PartState(4:6,iPart)),Species(InitSpec)%Init(iInit)%NormalIC,iBC=-1,&
-                                          mode=2,usevMPF_optIN=.FALSE.)
+                                          UNITVECTOR(PartState(4:6,iPart)),Species(InitSpec)%Init(iInit)%NormalIC,&
+                                          iBC=Species(InitSpec)%Init(iInit)%PartBCIndex,mode=2,usevMPF_optIN=.FALSE.)
       END ASSOCIATE
     END IF
   END DO

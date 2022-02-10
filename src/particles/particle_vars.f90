@@ -164,8 +164,9 @@ TYPE tInit                                                                   ! P
   INTEGER                                :: NumberOfExcludeRegions           ! Number of different regions to be excluded
   TYPE(tExcludeRegion), ALLOCATABLE      :: ExcludeRegion(:)
 #if USE_MPI
-  INTEGER                                :: InitComm                          ! number of init-communicator
+  INTEGER                                :: InitComm                         ! number of init-communicator
 #endif /*USE_MPI*/
+  INTEGER                                :: PartBCIndex                      ! associated particle boundary ID
 !====================================photo ionization =======================================================
   LOGICAL                            :: FirstQuadrantOnly  ! Only insert particles in the first quadrant that is spanned by the
                                                            ! vectors x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R]
