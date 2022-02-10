@@ -108,6 +108,7 @@ DO iSpec = 1,nSpecies
       ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
       ! 8: SEE-E (e- on dielectric materials is considered for SEE and three different outcomes)
       ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV
+      !10: SEE-I (bombarding electrons are removed, Ar+ on copper is considered for SEE)
 !-----------------------------------------------------------------------------------------------------------------------------------
       SurfModResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
       SumOfResultSpec(iPartBound) = SumOfResultSpec(iPartBound) + SurfModResultSpec(iPartBound,iSpec)

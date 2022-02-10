@@ -65,6 +65,7 @@ REAL              :: k_refl ! Coefficient for reflection of bombarding electron
 REAL              :: W0,W1,W2
 REAL              :: v
 REAL              :: MPF
+REAL              :: SEE_Prob
 !===================================================================================================================================
 ! Sanity check: is the impacting particle faster than c
 v=VECNORM(PartState(4:6,PartID_IN))
@@ -256,6 +257,36 @@ CASE(9) ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixe
       END IF
     END ASSOCIATE
   END IF
+
+CASE(10) ! 10: SEE-I (bombarding electrons are removed, Ar+ on copper is considered for SEE)
+         ! by Joseph G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation"
+         ! Plasmas 28, 063513 (2021); doi: 10.1063/5.0051095
+  ProductSpec(1)  = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
+  ProductSpecNbr = 0 ! do not create new particle (default value)
+
+  IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
+    RETURN ! nothing to do
+  ELSEIF(Species(PartSpecies(PartID_IN))%ChargeIC.GT.0.0)THEN ! Positive bombarding ion
+    ASSOCIATE (velo2 => PartState(4,PartID_IN)**2 + PartState(5,PartID_IN)**2 + PartState(6,PartID_IN)**2 ,&
+               mass  => Species(PartSpecies(PartID_IN))%MassIC )! mass of bombarding particle
+      ! Electron energy in [eV]
+      eps_e = 0.5*mass*velo2/ElementaryCharge
+      IF(eps_e.LT.700) THEN
+        SEE_Prob = 0.09*(eps_e/700.0)**0.05
+      ELSE
+        SEE_Prob = 0.09*(eps_e/700.0)**0.72
+      END IF
+    END ASSOCIATE
+    CALL RANDOM_NUMBER(iRan)
+    IF(iRan.LT.SEE_Prob)THEN
+      ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+      ProductSpecNbr = 1 ! Create one new particle
+      TempErgy       = 0.0 ! emit electrons with zero velocity
+    END IF
+  ELSE ! Neutral bombarding particle
+    RETURN ! nothing to do
+  END IF
+
 END SELECT
 
 IF(ProductSpecNbr.GT.0)THEN
