@@ -235,15 +235,3 @@ END SUBROUTINE ReadEmissionVariablesFromHDF5
 
 #endif /*defined(PARTICLES)*/
 END MODULE MOD_HDF5_Input_Particles
-
-
-
-
-
-
-
-
-
-
-
-
