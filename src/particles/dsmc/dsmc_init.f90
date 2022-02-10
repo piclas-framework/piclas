@@ -75,6 +75,9 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-AmbipolarDiffusion', &
                                           'Enables the ambipolar diffusion modelling of electrons, which are attached to the '//&
                                           'ions, however, retain their own velocity vector to participate in collision events.',&
                                           '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-BGGas-UseDistribution', &
+                                          'Utilization of a cell-local background gas distribution as read-in from a previous '//&
+                                          'DSMC/BGK result using Particles-MacroscopicRestart', '.FALSE.')
 !-----------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors', &
                                           'Enables [TRUE] / disables [FALSE] the calculation and output of:\n'//&
@@ -667,9 +670,9 @@ ELSE !CollisMode.GT.0
     UseMCC = .TRUE.
     CALL MCC_Init()
   ELSE
-    UseMCC = .FALSE.
-    XSec_NullCollision =.FALSE.
-    XSec_Relaxation = .FALSE.
+    UseMCC             = .FALSE.
+    XSec_NullCollision = .FALSE.
+    XSec_Relaxation    = .FALSE.
   END IF
   ! Ambipolar diffusion is not implemented with the regular background gas, only with MCC
   IF(DSMC%DoAmbipolarDiff) THEN
@@ -762,6 +765,15 @@ ELSE !CollisMode.GT.0
         SpecDSMC(iSpec)%ElecRelaxProb = GETREAL('Part-Species'//TRIM(hilf)//'-ElecRelaxProb')
         ! multi init stuff
         ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
+        ! Skip the read-in of temperatures if a background gas distribution is used
+        IF(BGGas%NumberOfSpecies.GT.0) THEN
+          IF(BGGas%BackgroundSpecies(iSpec).AND.BGGas%UseDistribution) THEN
+            SpecDSMC(iSpec)%Init(1)%TVib  = 0.
+            SpecDSMC(iSpec)%Init(1)%TRot  = 0.
+            SpecDSMC(iSpec)%Init(1)%Telec = 0.
+            CYCLE
+          END IF
+        END IF
         DO iInit = 1, Species(iSpec)%NumberOfInits
           WRITE(UNIT=hilf2,FMT='(I0)') iInit
           hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
@@ -1461,13 +1473,19 @@ SDEALLOCATE(MacroSurfaceVal)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)
 CALL DeleteElemNodeVol()
+
 SDEALLOCATE(BGGas%PairingPartner)
 SDEALLOCATE(BGGas%BackgroundSpecies)
 SDEALLOCATE(BGGas%TraceSpecies)
 SDEALLOCATE(BGGas%MapSpecToBGSpec)
 SDEALLOCATE(BGGas%MapBGSpecToSpec)
 SDEALLOCATE(BGGas%SpeciesFraction)
+SDEALLOCATE(BGGas%SpeciesFractionElem)
 SDEALLOCATE(BGGas%NumberDensity)
+SDEALLOCATE(BGGas%DistributionSpeciesIndex)
+SDEALLOCATE(BGGas%Distribution)
+SDEALLOCATE(BGGas%DistributionNumDens)
+
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)

@@ -419,7 +419,7 @@ IF((DSMC%VibRelaxProb.GE.0.0).AND.(DSMC%VibRelaxProb.LE.1.0)) THEN
     IF(SpecXSec(iCase)%UseVibXSec) THEN
       IF(SpecXSec(iCase)%SpeciesToRelax.EQ.iSpec) THEN
         IF(SpecXSec(iCase)%UseCollXSec) THEN
-          CALL XSec_CalcVibRelaxProb(iPair)
+          CALL XSec_CalcVibRelaxProb(iPair,iElem)
           ! Cross-section is stored in the VibProb variable
           ProbVib = SpecXSec(iCase)%VibProb / SpecXSec(iCase)%CrossSection
         ELSE
@@ -434,9 +434,7 @@ ELSE IF(DSMC%VibRelaxProb.EQ.2.0) THEN
   ! The average value of the cell is only taken from the vector
   ProbVib = VarVibRelaxProb%ProbVibAv(iElem, iSpec) * CorrFact
 ELSE
-  CALL Abort(&
-  __STAMP__&
-  ,'Error! Model for vibrational relaxation undefined:',RealInfoOpt=DSMC%VibRelaxProb)
+  CALL Abort(__STAMP__,'Error! Model for vibrational relaxation undefined:',RealInfoOpt=DSMC%VibRelaxProb)
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN

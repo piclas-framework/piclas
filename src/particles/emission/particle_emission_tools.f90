@@ -38,10 +38,6 @@ INTERFACE SetParticleMPF
   MODULE PROCEDURE SetParticleMPF
 END INTERFACE
 
-INTERFACE CalcVelocity_maxwell_lpn
-  MODULE PROCEDURE CalcVelocity_maxwell_lpn
-END INTERFACE
-
 INTERFACE CalcVelocity_taylorgreenvortex
   MODULE PROCEDURE CalcVelocity_taylorgreenvortex
 END INTERFACE
@@ -111,9 +107,13 @@ PUBLIC :: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
 PUBLIC :: SetParticlePositionPhotonHoneycomb, SetParticlePositionPhotonSEEHoneycomb
 PUBLIC :: SetParticlePositionLandmark
 PUBLIC :: SetParticlePositionLandmarkNeutralization
+PUBLIC :: SetParticlePositionLiu2010Neutralization
+PUBLIC :: SetParticlePositionLiu2010SzaboNeutralization
+PUBLIC :: SetParticlePositionLiu2010Neutralization3D
 #ifdef CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
+PUBLIC :: CountNeutralizationParticles
 !===================================================================================================================================
 CONTAINS
 
@@ -335,8 +335,7 @@ REAL,INTENT(OUT)                :: Vec3D(3)
 ! LOCAL VARIABLES
 REAL                            :: RandVal(3), Velo1, Velo2, Velosq, Tx, ty, Tz, v_drift(3)
 !===================================================================================================================================
-IF(PRESENT(iInit).AND.PRESENT(Temperature)) CALL abort(&
-  __STAMP__&
+IF(PRESENT(iInit).AND.PRESENT(Temperature)) CALL abort(__STAMP__&
   ,'CalcVelocity_maxwell_lpn: iInit and Temperature cannot both be input arguments!')
 IF(PRESENT(iInit))THEN
   Tx=Species(FractNbr)%Init(iInit)%MWTemperatureIC
@@ -349,9 +348,7 @@ ELSE IF(PRESENT(Temperature))THEN
   Tz=Temperature
   v_drift=0.0
 ELSE
-  CALL abort(&
-        __STAMP__&
-        ,'CalcVelocity_maxwell_lpn: No iInit or temperature given for species: ', FractNbr)
+  CALL abort(__STAMP__,'CalcVelocity_maxwell_lpn: No iInit or temperature given for species: ', FractNbr)
 END IF
 
 Velosq = 2
@@ -387,7 +384,7 @@ SUBROUTINE DSMC_SetInternalEnr_LauxVFD(iSpecies, iInit, iPart, init_or_sf)
 ! MODULES
 USE MOD_Globals                 ,ONLY: abort
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC
+USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC, BGGas
 USE MOD_Particle_Vars           ,ONLY: Species, PEM
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
 USE MOD_DSMC_ElectronicModel    ,ONLY: InitElectronShell
@@ -439,6 +436,13 @@ IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THE
     __STAMP__&
     ,'neither iInit nor Surfaceflux defined as reference!')
   END SELECT
+  ! Background gas distribution
+  IF(BGGas%NumberOfSpecies.GT.0) THEN
+    IF(BGGas%BackgroundSpecies(iSpecies).AND.BGGas%UseDistribution) THEN
+      TVib = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpecies),DSMC_TVIB,ElemID)
+      TRot = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpecies),DSMC_TROT,ElemID)
+    END IF
+  END IF
   ! Set vibrational energy
   CALL RANDOM_NUMBER(iRan)
   iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpecies)%CharaTVib)
@@ -1228,7 +1232,7 @@ USE MOD_SuperB_Tools           ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
 USE MOD_Globals_Vars           ,ONLY: Pi
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac, dt
 USE MOD_PICInterpolation_vars  ,ONLY: useVariableExternalField, VariableExternalField
-USE MOD_PICInterpolation       ,ONLY: InterpolateVariableExternalField
+USE MOD_PICInterpolation_tools ,ONLY: InterpolateVariableExternalField
 USE MOD_Globals_Vars           ,ONLY: c_inv
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -2236,5 +2240,207 @@ DO i=1,chunkSize
   END ASSOCIATE
 END DO
 END SUBROUTINE SetParticlePositionLandmarkNeutralization
+
+
+SUBROUTINE SetParticlePositionLiu2010Neutralization(chunkSize,particle_positions)
+!===================================================================================================================================
+! Set particle position
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: i
+REAL                    :: RandVal
+!===================================================================================================================================
+DO i=1,chunkSize
+  CALL RANDOM_NUMBER(RandVal)
+  ASSOCIATE( Ly => 14.0e-3                          ,& ! m
+             z  => (GEO%zmaxglob+GEO%zminglob)/2.0 )   ! m
+    particle_positions(i*3-2) = 29.99e-3
+    particle_positions(i*3-1) = RandVal * Ly + 21.5e-3
+    particle_positions(i*3  ) = z
+  END ASSOCIATE
+END DO
+END SUBROUTINE SetParticlePositionLiu2010Neutralization
+
+
+SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization(chunkSize,particle_positions)
+!===================================================================================================================================
+! Create particle position at random position within one of the neutralization elements
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
+USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared
+USE MOD_Particle_Vars          ,ONLY: isNeutralizationElem,NeutralizationBalanceElem
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: i,emittedParticles,iElem,GlobalElemID
+REAL                    :: RandomPos(3)
+LOGICAL                 :: InsideFlag
+!===================================================================================================================================
+SELECT CASE(TrackingMethod)
+CASE(TRACING,REFMAPPING)
+  CALL abort(__STAMP__,'SetParticle Position Liu2010 Szabo Neutralization BC not implemented yet for tracing/refmapping')
+END SELECT
+! Nullify
+emittedParticles = 0
+
+! Loop over all elements
+DO iElem = 1, nElems
+  GlobalElemID = iElem + offsetElem
+  ! Only consider neutralization elements
+  IF(isNeutralizationElem(iElem))THEN
+    ! Loop over the number of required particles per element
+    DO i = 1, NeutralizationBalanceElem(iElem)
+      ! Count number of emitted particles to compare with chunkSize later on
+      emittedParticles = emittedParticles + 1
+      ! Emit at random position in element (assume tri-linear element geometry, if position is outside discard the position)
+      ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z 
+        InsideFlag = .FALSE.
+        DO WHILE(.NOT.InsideFlag)
+          CALL RANDOM_NUMBER(RandomPos)
+          RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
+          ! Use TRIATRACKING inside-element check as the elements must be cuboids for this test case
+          CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag)
+        END DO
+      END ASSOCIATE
+      ! Accept position
+      particle_positions(emittedParticles*3-2) = RandomPos(1)
+      particle_positions(emittedParticles*3-1) = RandomPos(2)
+      particle_positions(emittedParticles*3  ) = RandomPos(3)
+    END DO ! i = 1, NeutralizationBalanceElem(iElem)
+  END IF ! isNeutralizationElem(iElem)
+END DO ! iElem = 1, nElems
+
+! Sanity check: Total number of emitted particles must be equal to the chunkSize
+IF(emittedParticles.NE.chunkSize)THEN
+  IPWRITE(UNIT_StdOut,*) "emittedParticles,chunkSize =", emittedParticles,chunkSize
+  CALL abort(__STAMP__,'Total number of emitted particles must be equal to the chunkSize')
+END IF ! emittedParticles.NE.chunkSize
+END SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization
+
+
+SUBROUTINE SetParticlePositionLiu2010Neutralization3D(FractNbr,iInit,chunkSize,particle_positions)
+!===================================================================================================================================
+! Set particle position
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Particle_Vars ,ONLY: Species
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: Particle_pos(2),radius
+INTEGER                 :: i
+REAL                    :: RandVal(2)
+!===================================================================================================================================
+! Coordinate system: z-direction is assumed to be the axial direction
+ASSOCIATE( R1 => 21.5e-3  ,& ! m
+           R2 => 35.5e-3  ,& ! m
+           dR => 14.0e-3  ,& ! m
+           z  => 29.99e-3  ) ! m
+  DO i=1,chunkSize
+    radius = R2 + 1. ! Initialization for the while loop
+    DO WHILE(radius.GT.R2.OR.radius.LT.R1)
+      CALL RANDOM_NUMBER(RandVal)
+      ! Check if particles are to be inserted in the first quadrant only, otherwise map R [0,1] -> R [-1,1]
+      IF(.NOT.Species(FractNbr)%Init(iInit)%FirstQuadrantOnly) RandVal = RandVal * 2. - 1.
+      Particle_pos(1) = R2 * RandVal(1)
+      Particle_pos(2) = R2 * RandVal(2)
+
+      radius = SQRT(Particle_pos(1)**2 + Particle_pos(2)**2)
+
+    END DO
+    particle_positions(i*3-2) = Particle_pos(1)
+    particle_positions(i*3-1) = Particle_pos(2)
+    particle_positions(i*3  ) = z
+  END DO
+
+END ASSOCIATE
+END SUBROUTINE SetParticlePositionLiu2010Neutralization3D
+
+
+!===================================================================================================================================
+!> Count the number of charged particles in the first layer of elements at the defined neutralization boundary condition for
+!> emitting particles to neutralize the net charge in this layer of elements
+!===================================================================================================================================
+SUBROUTINE CountNeutralizationParticles()
+! MODULES
+USE MOD_globals
+USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
+USE MOD_Particle_Vars ,ONLY: isNeutralizationElem,PDM,PEM,NeutralizationBalance,PartSpecies,Species
+USE MOD_Particle_Vars ,ONLY: NeutralizationBalanceElem
+USE MOD_part_tools    ,ONLY: ParticleOnProc
+USE MOD_Mesh_Vars     ,ONLY: nElems
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER  :: iPart,iElem,iSpec
+!===================================================================================================================================
+! Reset local counter each time
+NeutralizationBalance = 0
+! Reset local counter each time
+NeutralizationBalanceElem = 0
+
+! Loop all particles and check whether they are inside a neutralization element and sum up all charges
+DO iPart = 1, PDM%ParticleVecLength
+  ! Check if particle is inside and on current proc
+  IF (PDM%ParticleInside(iPart).AND.ParticleOnProc(iPart)) THEN
+    ! Get local elem ID
+    iElem = PEM%LocalElemID(iPart)
+    ! Get species ID
+    iSpec = PartSpecies(iPart)
+    ! Check if particle is in neutralization element
+    IF(isNeutralizationElem(iElem))THEN
+      ! Add -1 for electrons and +X for ions:  This is opposite to the summation in RemoveParticle() where the surplus of electrons
+      ! is calculated and re-introduced at the boundary
+      NeutralizationBalanceElem(iElem) = NeutralizationBalanceElem(iElem) + NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
+    END IF ! isNeutralizationElem(iElem)
+  END IF
+END DO
+
+! Get the net charge for all elements (only positive ones)
+DO iElem = 1, nElems
+  IF(isNeutralizationElem(iElem).AND.(NeutralizationBalanceElem(iElem).GT.0))THEN
+    NeutralizationBalance = NeutralizationBalance + NeutralizationBalanceElem(iElem)
+  END IF ! (isNeutralizationElem(iElem)).AND.(NeutralizationBalanceElem(iElem).GT.0)
+END DO ! iElem = 1, nElems
+
+END SUBROUTINE CountNeutralizationParticles
+
 
 END MODULE MOD_part_emission_tools

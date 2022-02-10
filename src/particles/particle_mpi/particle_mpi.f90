@@ -1303,8 +1303,6 @@ SDEALLOCATE( PartTargetProc )
 
 ParticleMPIInitIsDone=.FALSE.
 END SUBROUTINE FinalizeParticleMPI
-
-
 #endif /*USE_MPI*/
 
 END MODULE MOD_Particle_MPI

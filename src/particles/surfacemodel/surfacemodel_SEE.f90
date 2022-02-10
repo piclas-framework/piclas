@@ -38,7 +38,7 @@ SUBROUTINE SecondaryElectronEmission(PartID_IN,locBCID,ProductSpec,ProductSpecNb
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                   ,ONLY: abort,VECNORM,PARTISELECTRON
 USE MOD_Globals_Vars              ,ONLY: c,Joule2eV
-USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF
+USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF,BulkElectronTemp,nSpecies
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,ElectronMass
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
@@ -63,9 +63,13 @@ REAL              :: iRan   ! Random number
 REAL              :: k_ee   ! Coefficient of emission of secondary electron
 REAL              :: k_refl ! Coefficient for reflection of bombarding electron
 REAL              :: W0,W1,W2
+REAL              :: v
 REAL              :: MPF
 REAL              :: SEE_Prob
 !===================================================================================================================================
+! Sanity check: is the impacting particle faster than c
+v=VECNORM(PartState(4:6,PartID_IN))
+IF(v.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Bombading particle is faster than the speed of light: ',RealInfoOpt=v)
 ! Default 0
 ProductSpec    = 0
 ProductSpecNbr = 0
@@ -205,8 +209,8 @@ CASE(8) ! 8: SEE-E (e- on dielectric materials is considered for SEE and three d
         ! by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
 
     IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
-      ASSOCIATE( P0   => 0.9 ,& ! Assumption in paper
-                 Te0  => 50  ,& ! Assumed bulk electron temperature [eV]
+      ASSOCIATE( P0   => 0.9               ,& ! Assumption in paper
+                 Te0  => BulkElectronTemp  ,& ! Assumed bulk electron temperature [eV] (note this parameter is read as [K])
                  velo2=> PartState(4,PartID_IN)**2 + PartState(5,PartID_IN)**2 + PartState(6,PartID_IN)**2 ,& ! Velocity squared
                  mass => Species(PartSpecies(PartID_IN))%MassIC  ) ! mass of bombarding particle
         eps_e = 0.5*mass*velo2*Joule2eV ! Incident electron energy [eV]
@@ -285,21 +289,26 @@ CASE(10) ! 10: SEE-I (bombarding electrons are removed, Ar+ on copper is conside
 
 END SELECT
 
-! Check if SEE counter is active and assign the number of produced electrons to the boundary
-IF(CalcElectronSEE.AND.(ProductSpecNbr.GT.0))THEN
-  ASSOCIATE( iSEEBC => SEE%BCIDToSEEBCID(locBCID) )
-    IF(iSEEBC.EQ.-1) CALL abort(__STAMP__,'SEE%BCIDToSEEBCID(locBCID)) = -1')
-    IF(usevMPF)THEN
-      ! MPF of impacting particle
-      MPF = PartMPF(PartID_IN)
-    ELSE
-      ! MPF of produced species
-      MPF = Species(ProductSpec(2))%MacroParticleFactor
-    END IF
-    ! Consider the number of produced electrons ProductSpecNbr
-    SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) + MPF*ProductSpecNbr
-  END ASSOCIATE
-END IF ! CalcElectronSEE
+IF(ProductSpecNbr.GT.0)THEN
+  ! Sanity check
+  IF((ProductSpec(2).LE.0).OR.(ProductSpec(2).GT.nSpecies)) CALL abort(__STAMP__,&
+      'SEE model trying to create particle with 0, negative or speciesID > nSpecies: ProductSpec(2)=',IntInfoOpt=ProductSpec(2))
+  ! Check if SEE counter is active and assign the number of produced electrons to the boundary
+  IF(CalcElectronSEE)THEN
+    ASSOCIATE( iSEEBC => SEE%BCIDToSEEBCID(locBCID) )
+      IF(iSEEBC.EQ.-1) CALL abort(__STAMP__,'SEE%BCIDToSEEBCID(locBCID)) = -1')
+      IF(usevMPF)THEN
+        ! MPF of impacting particle
+        MPF = PartMPF(PartID_IN)
+      ELSE
+        ! MPF of produced species
+        MPF = Species(ProductSpec(2))%MacroParticleFactor
+      END IF
+      ! Consider the number of produced electrons ProductSpecNbr
+      SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) + MPF*ProductSpecNbr
+    END ASSOCIATE
+  END IF ! CalcElectronSEE
+END IF ! ProductSpecNbr.GT.0
 
 END SUBROUTINE SecondaryElectronEmission
 

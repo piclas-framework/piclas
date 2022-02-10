@@ -22,35 +22,36 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL                             :: DoLoadBalance               !> Use dynamic load balancing
-INTEGER                             :: LoadBalanceSampleBackup     !> Loadbalance sample saved until initial autorestart ist finished
-LOGICAL                             :: DoLoadBalanceBackup         !> Loadbalance flag saved until initial autorestart ist finished
-LOGICAL                             :: PerformLoadBalance=.FALSE.  !> Flag if load balance is performed in current time step iteration
-INTEGER                             :: LoadBalanceSample           !> Number of samples for load balance
-LOGICAL                             :: PerformLBSample             !> Flag for enabling time measurement in current
-                                                                   !> Time step (automatically set depending on LB
-                                                                   !> sampling method)
-LOGICAL                             :: PerformPartWeightLB         !> Flag for performing LB with partMPIWeight
-                                                                   !> instead of summed ElemTimes
-                                                                   !> -> nParts*PartWeight written into elemtime array
-LOGICAL                             :: InitLoadBalanceIsDone       !> Switch for checking
+LOGICAL             :: DoLoadBalance              !> Use dynamic load balancing
+INTEGER             :: LoadBalanceSampleBackup    !> Loadbalance sample saved until initial autorestart ist finished
+LOGICAL             :: DoLoadBalanceBackup        !> Loadbalance flag saved until initial autorestart ist finished
+LOGICAL             :: PerformLoadBalance=.FALSE. !> Flag if load balance is performed in current time step iteration
+INTEGER             :: LoadBalanceSample          !> Number of samples for load balance
+LOGICAL             :: PerformLBSample            !> Flag for enabling time measurement in current
+                                                  !> Time step (automatically set depending on LB
+                                                  !> sampling method)
+LOGICAL             :: PerformPartWeightLB        !> Flag for performing LB with partMPIWeight
+                                                  !> instead of summed ElemTimes
+                                                  !> -> nParts*PartWeight written into elemtime array
+LOGICAL             :: InitLoadBalanceIsDone      !> Switch for checking
+INTEGER             :: WeightDistributionMethod   !> Method used for distributing the elements among the available processors
 
 ! time measurement
-REAL,ALLOCATABLE                    :: tCurrent(:)                 !> Time measurement over one step
-                                                                   !> measured elem-independent and later weighted
-                                                                   !> for indices look into piclas.h
+REAL,ALLOCATABLE    :: tCurrent(:)                !> Time measurement over one step
+                                                  !> measured elem-independent and later weighted
+                                                  !> for indices look into piclas.h
 
-REAL,ALLOCATABLE                    :: tCurrent_LB_DG(:)           !> Time measurement over one step
+REAL,ALLOCATABLE    :: tCurrent_LB_DG(:)          !> Time measurement over one step
 ! counter
-INTEGER                             :: nLoadBalance                !> Number of load balances calculations (calls of ComputeElemLoad)
-INTEGER                             :: nLoadBalanceSteps           !> Number of performed load balances steps
-INTEGER                             :: LoadBalanceMaxSteps         !> Number of maximum allowed performed load balances steps
-REAL,ALLOCATABLE                    :: LoadDistri(:)               !> Weighted load distribution of all procs
-INTEGER,ALLOCATABLE                 :: PartDistri(:)               !> Part distribution of all procs
-REAL                                :: MaxWeight                   !> Maximum Weight of proc on domain
-REAL                                :: MinWeight                   !> Minimum Weight of proc on domain
-REAL                                :: CurrentImbalance
-REAL                                :: NewImbalance                !> Imbalance after rebalance step
+INTEGER             :: nLoadBalance               !> Number of load balances calculations (calls of ComputeElemLoad)
+INTEGER             :: nLoadBalanceSteps          !> Number of performed load balances steps
+INTEGER             :: LoadBalanceMaxSteps        !> Number of maximum allowed performed load balances steps
+REAL,ALLOCATABLE    :: LoadDistri(:)              !> Weighted load distribution of all procs
+INTEGER,ALLOCATABLE :: PartDistri(:)              !> Part distribution of all procs
+REAL                :: MaxWeight                  !> Maximum Weight of proc on domain
+REAL                :: MinWeight                  !> Minimum Weight of proc on domain
+REAL                :: CurrentImbalance
+REAL                :: NewImbalance               !> Imbalance after rebalance step
 
 TYPE tData
   INTEGER, ALLOCATABLE :: offsetElemMPI(:)

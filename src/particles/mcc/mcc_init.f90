@@ -58,6 +58,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
+USE MOD_Mesh_Vars     ,ONLY: nElems
 USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC
 USE MOD_MCC_Vars      ,ONLY: XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
 USE MOD_MCC_XSec      ,ONLY: ReadCollXSec, ReadVibXSec, InterpolateCrossSection_Vib, ReadElecXSec, InterpolateCrossSection_Elec
@@ -89,11 +90,18 @@ SpecXSec(:)%UseVibXSec = .FALSE.
 SpecXSec(:)%UseElecXSec = .FALSE.
 SpecXSec(:)%CollXSec_Effective = .FALSE.
 SpecXSec(:)%SpeciesToRelax = 0
+SpecXSec(:)%ProbNull = 0.
 TotalProb = 0.
 
 DO iSpec = 1, nSpecies
   DO jSpec = iSpec, nSpecies
     iCase = CollInf%Coll_Case(iSpec,jSpec)
+    IF(XSec_NullCollision)THEN
+      IF(BGGas%UseDistribution)THEN
+        ALLOCATE(SpecXSec(iCase)%ProbNullElem(1:nElems))
+        SpecXSec(iCase)%ProbNullElem = 0.
+      END IF ! BGGas%UseDistribution
+    END IF ! XSec_NullCollision
     ! Skip species, which shall not be treated with collision cross-sections
     IF(.NOT.SpecDSMC(iSpec)%UseCollXSec.AND..NOT.SpecDSMC(jSpec)%UseCollXSec.AND. &
        .NOT.SpecDSMC(iSpec)%UseVibXSec.AND..NOT.SpecDSMC(jSpec)%UseVibXSec.AND. &
@@ -231,19 +239,23 @@ DO iSpec = 1, nSpecies
         ELSE
           partSpec = iSpec
         END IF
-        TotalProb(partSpec) = TotalProb(partSpec) + SpecXSec(iCase)%ProbNull
+        IF(BGGas%UseDistribution)THEN
+          TotalProb(partSpec) = TotalProb(partSpec) + MAXVAL(SpecXSec(iCase)%ProbNullElem)
+        ELSE
+          TotalProb(partSpec) = TotalProb(partSpec) + SpecXSec(iCase)%ProbNull
+        END IF ! BGGas%UseDistribution
         ! Sum of null collision probability per particle species should be lower than 1, otherwise not enough collision pairs
         IF(TotalProb(partSpec).GT.1.0) THEN
-          CALL abort(__STAMP__,'ERROR: Total null collision probability is above 1. Please reduce the time step! Probability is: '&
+          CALL abort(__STAMP__,'Total null collision probability is above unity. Please reduce the time step! Probability is: '&
           ,RealInfoOpt=TotalProb(partSpec))
         ELSEIF(TotalProb(partSpec).GT.0.1) THEN
           SWRITE(*,*) 'Total null collision probability is above 0.1. A value of 1E-2 is recommended in literature!'
           SWRITE(*,*) 'Particle Species: ', TRIM(SpecDSMC(partSpec)%Name), ' Probability: ', TotalProb(partSpec)
-        END IF
-      END IF
-    END IF
-  END DO        ! jSpec = iSpec, nSpecies
-END DO          ! iSpec = 1, nSpecies
+        END IF ! TotalProb(partSpec).GT.1.0
+      END IF ! XSec_NullCollision
+    END IF ! SpecXSec(iCase)%UseCollXSec
+  END DO ! jSpec = iSpec, nSpecies
+END DO ! iSpec = 1, nSpecies
 
 #if defined(PARTICLES) && USE_HDG
 BRNullCollisionDefault = XSec_NullCollision ! Backup read-in parameter value (for switching null collision on/off)
@@ -263,6 +275,7 @@ SUBROUTINE DetermineNullCollProb(iCase,iSpec,jSpec)
 ! MODULES
 USE MOD_ReadInTools
 USE MOD_Globals_Vars          ,ONLY: Pi
+USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Vars         ,ONLY: Species
 USE MOD_TimeDisc_Vars         ,ONLY: ManualTimeStep
 USE MOD_DSMC_Vars             ,ONLY: BGGas
@@ -275,8 +288,8 @@ INTEGER,INTENT(IN)            :: iSpec
 INTEGER,INTENT(IN)            :: jSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: MaxDOF, bggSpec
-REAL                          :: MaxCollFreq, Mass
+INTEGER                       :: MaxDOF, bggSpec,iElem
+REAL                          :: MaxCollFreq, MaxCollFreqElem, Mass
 REAL,ALLOCATABLE              :: Velocity(:)
 !===================================================================================================================================
 
@@ -295,11 +308,22 @@ ALLOCATE(Velocity(MaxDOF))
 ! Determine the mean relative velocity at the given energy level
 Velocity(1:MaxDOF) = SQRT(2.) * SQRT(8.*SpecXSec(iCase)%CollXSecData(1,1:MaxDOF)/(Pi*Mass))
 
-! Calculate the maximal collision frequency
-MaxCollFreq = MAXVAL(Velocity(1:MaxDOF) * SpecXSec(iCase)%CollXSecData(2,1:MaxDOF) * BGGas%NumberDensity(bggSpec))
+! Calculate the maximal collision frequency: Step 1
+MaxCollFreq = MAXVAL(Velocity(1:MaxDOF) * SpecXSec(iCase)%CollXSecData(2,1:MaxDOF))
 
-! Determine the collision probability
-SpecXSec(iCase)%ProbNull = 1. - EXP(-MaxCollFreq*ManualTimeStep)
+IF(BGGas%UseDistribution) THEN
+  DO iElem = 1, nElems
+    ! Calculate the maximal collision frequency: Step 2
+    MaxCollFreqElem = MaxCollFreq * BGGas%Distribution(bggSpec,7,iElem)
+    ! Determine the collision probability
+    SpecXSec(iCase)%ProbNullElem(iElem) = 1. - EXP(-MaxCollFreqElem*ManualTimeStep)
+  END DO ! iElem = 1, nElems
+ELSE
+  ! Calculate the maximal collision frequency: Step 2
+  MaxCollFreq = MaxCollFreq * BGGas%NumberDensity(bggSpec)
+  ! Determine the collision probability
+  SpecXSec(iCase)%ProbNull = 1. - EXP(-MaxCollFreq*ManualTimeStep)
+END IF
 
 DEALLOCATE(Velocity)
 
@@ -368,7 +392,11 @@ IF(XSec_NullCollision) THEN
       iCase = CollInf%Coll_Case(iSpec,jSpec)
       IF(SpecXSec(iCase)%UseCollXSec) THEN
         CALL DetermineNullCollProb(iCase,iSpec,jSpec)
-        TotalProb = TotalProb + SpecXSec(iCase)%ProbNull
+        IF(BGGas%UseDistribution)THEN
+          TotalProb = TotalProb + MAXVAL(SpecXSec(iCase)%ProbNullElem)
+        ELSE
+          TotalProb = TotalProb + SpecXSec(iCase)%ProbNull
+        END IF ! BGGas%UseDistribution
         IF(TotalProb.GT.1.0) CALL abort(__STAMP__,&
       'ERROR: Total null collision probability is above unity. Please reduce the time step! Probability is: ',RealInfoOpt=TotalProb)
       END IF

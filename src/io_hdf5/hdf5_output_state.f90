@@ -65,7 +65,8 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteNodeSourceExtToHDF5,WriteClonesToHDF5,WriteVibProbInfoToHDF5,WriteAdaptiveWallTempToHDF5
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteAdaptiveInfoToHDF5,WriteParticleToHDF5,WriteBoundaryParticleToHDF5
-USE MOD_HDF5_Output_Particles  ,ONLY: WriteLostParticlesToHDF5
+USE MOD_HDF5_Output_Particles  ,ONLY: WriteLostParticlesToHDF5,WriteEmissionVariablesToHDF5
+USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: E,Phi
@@ -104,7 +105,7 @@ USE MOD_HDF5_Output_Particles  ,ONLY: AddBRElectronFluidToPartSource
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
-USE MOD_Mesh_Vars              ,ONLY: DoWriteStateToHDF5
+USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
 USE MOD_HDF5_Input             ,ONLY: ReadArray
 #if (PP_nVar==8)
@@ -127,7 +128,7 @@ CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
 #endif /*defined(PARTICLES)*/
 #ifdef PARTICLES
-REAL                           :: NumSpec(nSpecAnalyze)
+REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
@@ -646,6 +647,19 @@ IF (ANY(PartBound%UseAdaptedWallTemp)) CALL WriteAdaptiveWallTempToHDF5(FileName
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
+! For restart purposes, store the electron bulk temperature in .h5 state
+IF(CalcBulkElectronTemp)THEN
+  IF(MPIRoot)THEN ! only root writes the container
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    TmpArray(1,1) = BulkElectronTemp
+    CALL WriteArrayToHDF5( DataSetName = 'BulkElectronTemp' , rank = 2 , &
+                           nValGlobal  = (/1_IK , 1_IK/)     , &
+                           nVal        = (/1_IK , 1_IK/)     , &
+                           offset      = (/0_IK , 0_IK/)     , &
+                           collective  = .FALSE., RealArray = TmpArray(1,1))
+    CALL CloseDataFile()
+  END IF ! MPIRoot
+END IF ! CalcBulkElectronTemp
 #endif /*PARTICLES*/
 
 #if USE_LOADBALANCE
@@ -701,6 +715,8 @@ CALL WritePMLDataToHDF5(FileName)
 #ifdef PARTICLES
 ! Write NodeSourceExt (external charge density) field to HDF5 file
 IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
+! Output particle emission data to be read during subsequent restarts
+CALL WriteEmissionVariablesToHDF5(FileName)
 #endif /*PARTICLES*/
 
 EndT=PICLASTIME()

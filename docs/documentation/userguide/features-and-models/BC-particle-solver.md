@@ -234,7 +234,16 @@ publication.
 The model by Morozov {cite}`Morozov2004` can be applied for dielectric surfaces and is activated via
 `Part-BoundaryX-SurfaceModel=8` and has an additional parameter for setting the reference electron temperature (see model for
 details) via `Part-SurfaceModel-SEE-Te`, which takes the electron temperature in Kelvin as input (default is 50 eV, which
-corresponds to 11604 K). The emission yield is determined from an energy-dependent function.
+corresponds to 11604 K).
+The emission yield is determined from an energy-dependent function.
+The model can be switched to an automatic determination of the bulk electron temperature via
+
+    Part-SurfaceModel-SEE-Te-automatic = T ! Activate automatic bulk temperature calculation
+    Part-SurfaceModel-SEE-Te-Spec      = 2 ! Species ID used for automatic temperature calculation (must correspond to electrons)
+
+where the species ID must be supplied, which corresponds to the electron species for which, during `Part-AnalyzeStep`, the global
+translational temperature is determined and subsequently used to adjust the energy dependence of the SEE model. The global (bulk)
+electron temperature is written to *PartAnalyze.csv* as *XXX-BulkElectronTemp-[K]*.
 
 A energy-dependent model of secondary electron emission due to $Ar^{+}$ ion impact at a copper cathode as used in
 Ref. {cite}`Theis2021` originating from {cite}`Phelps1999` is

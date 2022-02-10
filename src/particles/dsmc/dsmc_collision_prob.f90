@@ -122,20 +122,20 @@ SELECT CASE(iPType)
   ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron
     IF(UseMCC) THEN
       ! Coll_pData(iPair)%Prob is set inside the routine
-      CALL XSec_CalcCollisionProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
+      CALL XSec_CalcCollisionProb(iPair,iElem,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
       IF(CollisMode.EQ.3) THEN
         ! Chemical reaction with cross-section based probability
         IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
           IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
           ! If standard collision modelling is used, the reaction probability is added to the collision probability
-            CALL XSec_CalcReactionProb(iPair,iCase,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
+            CALL XSec_CalcReactionProb(iPair,iCase,iElem,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
             Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
           END IF
         END IF
       END IF
       IF(SpecXSec(iCase)%UseVibXSec) THEN
         IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
-          CALL XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
+          CALL XSec_CalcVibRelaxProb(iPair,iElem,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
           Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SpecXSec(iCase)%VibProb
         END IF
       END IF
@@ -204,16 +204,12 @@ SELECT CASE(iPType)
   CASE (-1)
     Coll_pData(iPair)%Prob = 0.
   CASE DEFAULT
-    CALL Abort(&
-      __STAMP__&
-      ,'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
+    CALL Abort(__STAMP__,'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
 END SELECT
 
 IF (ISNAN(Coll_pData(iPair)%Prob)) THEN
   IPWRITE(UNIT_errOut,*)iPair,'in',iElem,'is NaN!'
-  CALL Abort(&
-    __STAMP__&
-    ,'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
+  CALL Abort(__STAMP__,'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
 END IF
 IF(DSMC%CalcQualityFactors) THEN
   CollProb = Coll_pData(iPair)%Prob
@@ -222,9 +218,17 @@ IF(DSMC%CalcQualityFactors) THEN
   IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
     IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
       IF(XSec_NullCollision) THEN
-        CollProb = CollProb * SpecXSec(iCase)%ProbNull
+        IF(BGGas%UseDistribution) THEN
+          CollProb = CollProb * SpecXSec(iCase)%ProbNullElem(iElem)
+        ELSE
+          CollProb = CollProb * SpecXSec(iCase)%ProbNull
+        END IF
       ELSE
-        CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+        IF(BGGas%UseDistribution)THEN
+          CollProb = CollProb * BGGas%SpeciesFractionElem(BGGas%MapSpecToBGSpec(iSpec_p2),iElem)
+        ELSE
+          CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+        END IF ! BGGas%UseDistribution
       END IF
     END IF
   END IF
@@ -241,9 +245,17 @@ IF(ChemReac%NumOfReact.GT.0) THEN
       ! Calculate the collision probability for the null collision probability case
       IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
         IF(XSec_NullCollision) THEN
-          CollProb = CollProb * SpecXSec(iCase)%ProbNull
+          IF(BGGas%UseDistribution) THEN
+            CollProb = CollProb * SpecXSec(iCase)%ProbNullElem(iElem)
+          ELSE
+            CollProb = CollProb * SpecXSec(iCase)%ProbNull
+          END IF
         ELSE
-          CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+          IF(BGGas%UseDistribution)THEN
+            CollProb = CollProb * BGGas%SpeciesFractionElem(BGGas%MapSpecToBGSpec(iSpec_p2),iElem)
+          ELSE
+            CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+          END IF ! BGGas%UseDistribution
         END IF
       END IF
     END IF
