@@ -365,7 +365,7 @@ INTEGER,INTENT(INOUT)           :: NbrOfParticle
 INTEGER                         :: i, PositionNbr
 CHARACTER(30)                   :: velocityDistribution
 REAL                            :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
-REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3)
+REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3),MPF
 !===================================================================================================================================
 
 IF(NbrOfParticle.LT.1) RETURN
@@ -445,9 +445,16 @@ CASE('photon_SEE_energy')
         CALL CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit=iInit)
         PartState(4:6,PositionNbr) = Vec3D(1:3)
         ! Store the particle information in PartStateBoundary.h5
-        IF(DoBoundaryParticleOutputHDF5) CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
-                                          UNITVECTOR(PartState(4:6,PositionNbr)),Species(FractNbr)%Init(iInit)%NormalIC,&
-                                          iBC=Species(FractNbr)%Init(iInit)%PartBCIndex,mode=2,usevMPF_optIN=.FALSE.)
+        IF(DoBoundaryParticleOutputHDF5) THEN
+          IF(usevMPF)THEN
+            MPF = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
+          ELSE
+            MPF = Species(FractNbr)%MacroParticleFactor ! Use species MPF
+          END IF ! usevMPF
+          CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
+               UNITVECTOR(PartState(4:6,PositionNbr)),Species(FractNbr)%Init(iInit)%NormalIC,&
+               iBC=Species(FractNbr)%Init(iInit)%PartBCIndex,mode=2,MPF_optIN=MPF)
+        END IF ! DoBoundaryParticleOutputHDF5
     END IF
   END DO
 CASE DEFAULT
