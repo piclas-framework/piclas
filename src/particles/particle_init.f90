@@ -835,6 +835,7 @@ END IF
 
 END SUBROUTINE InitializeVariablesWriteMacroValues
 
+
 SUBROUTINE InitializeVariablesvMPF()
 !===================================================================================================================================
 ! Initialize the variables first
@@ -845,6 +846,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
+USE MOD_Particle_Emission_Init ,ONLY: InitializeEmissionSpecificMPF
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -858,6 +860,7 @@ CHARACTER(32)         :: hilf
 !===================================================================================================================================
 ! init varibale MPF per particle
 IF (usevMPF) THEN
+  ! --- Split and Merge
   ALLOCATE(vMPFMergeThreshold(nSpecies))
   vMPFMergeThreshold = 0
   ALLOCATE(vMPFSplitThreshold(nSpecies))
@@ -867,7 +870,7 @@ IF (usevMPF) THEN
     vMPFMergeThreshold(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-vMPFMergeThreshold')
     vMPFSplitThreshold(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-vMPFSplitThreshold')
     IF((vMPFMergeThreshold(iSpec).LT.vMPFSplitThreshold(iSpec)).AND.(vMPFMergeThreshold(iSpec).NE.0)) THEN
-      CALL abort(__STAMP__, 'ERROR: Given merge threshold is lower than the split threshold!')
+      CALL abort(__STAMP__,'ERROR: Given merge threshold is lower than the split threshold!')
     END IF
   END DO
   ALLOCATE(CellEelec_vMPF(nSpecies,nElems))
@@ -876,6 +879,11 @@ IF (usevMPF) THEN
   CellEvib_vMPF = 0.0
   UseSplitAndMerge = .FALSE.
   IF(ANY(vMPFMergeThreshold.GT.0).OR.ANY(vMPFSplitThreshold.GT.0)) UseSplitAndMerge = .TRUE.
+
+  ! --- Emission-specific MPF
+  CAll InitializeEmissionSpecificMPF()
+
+  ! --- Old vMPF stuff
   enableParticleMerge = GETLOGICAL('Part-vMPFPartMerge','.FALSE.')
   IF (enableParticleMerge) THEN
     vMPFMergePolyOrder = GETINT('Part-vMPFMergePolOrder','2')
@@ -888,20 +896,14 @@ IF (usevMPF) THEN
     vMPF_velocityDistribution = TRIM(GETSTR('Part-vMPFvelocityDistribution','OVDR'))
     vMPF_relativistic = GETLOGICAL('Part-vMPFrelativistic','.FALSE.')
     IF(vMPF_relativistic.AND.(vMPF_velocityDistribution.EQ.'MBDR')) THEN
-      CALL abort(&
-__STAMP__&
-      ,'Relativistic handling of vMPF is not possible using MBDR velocity distribution!')
+      CALL abort(__STAMP__,'Relativistic handling of vMPF is not possible using MBDR velocity distribution!')
     END IF
     ALLOCATE(vMPF_SpecNumElem(1:nElems,1:nSpecies))
     CALL DefinePolyVec(vMPFMergePolyOrder)
     CALL DefineSplitVec(vMPFMergeCellSplitOrder)
   END IF
   ALLOCATE(PartMPF(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-    ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
-  END IF
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
 END SUBROUTINE InitializeVariablesvMPF
 

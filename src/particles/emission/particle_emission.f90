@@ -73,7 +73,7 @@ REAL                             :: RiseFactor, RiseTime,NbrOfPhotons
 #if USE_MPI
 INTEGER                          :: InitGroup
 #endif
-REAL                             :: NbrOfReactions,NbrOfParticlesReal
+REAL                             :: NbrOfReactions,NbrOfParticlesReal,MPF
 !===================================================================================================================================
 
 !---  Emission at time step
@@ -193,8 +193,12 @@ DO i=1,nSpecies
               SELECT CASE(TRIM(Species(i)%Init(iInit)%SpaceIC))
               CASE('photon_SEE_disc','photon_SEE_honeycomb','photon_SEE_rectangle')
                 ! SEE based on photon impact
-                NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / Species(i)%MacroParticleFactor &
-                              + Species(i)%Init(iInit)%NINT_Correction
+                IF(usevMPF)THEN
+                  MPF = Species(i)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
+                ELSE
+                  MPF = Species(i)%MacroParticleFactor ! Use species MPF
+                END IF ! usevMPF
+                NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / MPF + Species(i)%Init(iInit)%NINT_Correction
                 NbrOfParticle = NINT(NbrOfPhotons)
                 Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - REAL(NbrOfParticle)
               CASE DEFAULT
@@ -293,7 +297,7 @@ DO i=1,nSpecies
 
     CALL SetParticleVelocity(i,iInit,NbrOfParticle)
     CALL SetParticleChargeAndMass(i,NbrOfParticle)
-    IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+    IF (usevMPF) CALL SetParticleMPF(i,iInit,NbrOfParticle)
     IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
     ! define molecule stuff
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN

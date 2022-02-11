@@ -166,7 +166,8 @@ TYPE tInit                                                                   ! P
 #if USE_MPI
   INTEGER                                :: InitComm                         ! number of init-communicator
 #endif /*USE_MPI*/
-  INTEGER                                :: PartBCIndex                      ! associated particle boundary ID
+  INTEGER                                :: PartBCIndex                      ! Associated particle boundary ID
+  REAL                                   :: MacroParticleFactor              ! Emission-specific MPF
 !====================================photo ionization =======================================================
   LOGICAL                            :: FirstQuadrantOnly  ! Only insert particles in the first quadrant that is spanned by the
                                                            ! vectors x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R]
