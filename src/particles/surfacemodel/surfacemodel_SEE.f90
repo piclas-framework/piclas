@@ -77,7 +77,7 @@ TempErgy       = 0.0
 ! Select particle surface modeling
 SELECT CASE(PartBound%SurfaceModel(locBCID))
 CASE(5) ! 5: SEE by Levko2015 for copper electrodes
-  !     ! D. Levko and L. L. Raja, Breakdown of atmospheric pressure microgaps at high excitation, J. Appl. Phys. 117, 173303 (2015)
+  !     !    by D. Levko, Breakdown of atmospheric pressure microgaps at high excitation, J. Appl. Phys. 117, 173303 (2015)
 
   ProductSpec(1)  = PartSpecies(PartID_IN) ! old particle
 
@@ -206,7 +206,7 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
       ,RealInfoOpt=TempErgy)
 
 CASE(8) ! 8: SEE-E (e- on dielectric materials is considered for SEE and three different outcomes)
-        ! by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
+        !    by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
 
     IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
       ASSOCIATE( P0   => 0.9               ,& ! Assumption in paper
@@ -259,8 +259,8 @@ CASE(9) ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixe
   END IF
 
 CASE(10) ! 10: SEE-I (bombarding electrons are removed, Ar+ on copper is considered for SEE)
-         ! by Joseph G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation"
-         ! Plasmas 28, 063513 (2021); doi: 10.1063/5.0051095
+         !     by J.G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation", 2021
+         !     Plasmas 28, 063513, doi: 10.1063/5.0051095
   ProductSpec(1)  = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
   ProductSpecNbr = 0 ! do not create new particle (default value)
 
@@ -283,6 +283,48 @@ CASE(10) ! 10: SEE-I (bombarding electrons are removed, Ar+ on copper is conside
       ProductSpecNbr = 1 ! Create one new particle
       TempErgy       = 0.0 ! emit electrons with zero velocity
     END IF
+  ELSE ! Neutral bombarding particle
+    RETURN ! nothing to do
+  END IF
+
+CASE(11) ! 11: SEE-E by e- on quartz (SiO2) by A. Dunaevsky, "Secondary electron emission from dielectric materials of a Hall
+         !     thruster with segmented electrodes", 2003
+         !     PHYSICS OF PLASMAS, VOLUME 10, NUMBER 6, DOI: 10.1063/1.1568344
+  ProductSpec(1)  = -PartSpecies(PartID_IN) ! Negative value: Remove bombarding particle and sample
+  ProductSpecNbr = 0 ! do not create new particle (default value)
+
+  IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
+    ASSOCIATE (velo2 => PartState(4,PartID_IN)**2 + PartState(5,PartID_IN)**2 + PartState(6,PartID_IN)**2 ,&
+               mass  => Species(PartSpecies(PartID_IN))%MassIC )! mass of bombarding particle
+      ! Electron energy in [eV]
+      eps_e = 0.5*mass*velo2*Joule2eV ! Incident electron energy [eV]
+
+      ! Linear Fit
+      SEE_Prob = 0.8 + 0.2 * eps_e/35.0
+      ! Power Fit
+      !SEE_Prob = (eps_e/30.0)**0.26
+
+    END ASSOCIATE
+    ! If the yield is greater than 1.0 (or 2.0 or even higher) store the integer and roll the dice for the remainder
+    ProductSpecNbr = INT(SEE_Prob)
+    SEE_Prob = SEE_Prob - REAL(ProductSpecNbr)
+
+    ! Roll the dice
+    CALL RANDOM_NUMBER(iRan)
+    IF(iRan.LT.SEE_Prob) ProductSpecNbr = ProductSpecNbr + 1 ! Create one additional electron
+    write(*,*) "ProductSpecNbr=",ProductSpecNbr,PartID_IN
+
+    ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
+    IF(ProductSpecNbr.GT.0) ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
+
+    ! When more than 1 electron is created, give them all part of the impacting energy, otherwise reflect the primary electron
+    IF(ProductSpecNbr.GT.1) eps_e = eps_e/REAL(ProductSpecNbr) ! [eV]
+
+    ! Velocity of reflected primary or secondary electrons in [m/s]
+    TempErgy = SQRT(2.*eps_e*ElementaryCharge/ElectronMass)
+
+  ELSEIF(Species(PartSpecies(PartID_IN))%ChargeIC.GT.0.0)THEN ! Positive bombarding ion
+    RETURN ! nothing to do
   ELSE ! Neutral bombarding particle
     RETURN ! nothing to do
   END IF

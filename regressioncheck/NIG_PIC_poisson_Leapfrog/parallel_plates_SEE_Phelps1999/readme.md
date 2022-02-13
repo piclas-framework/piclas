@@ -1,9 +1,9 @@
-# parallel plate testcase
-- 100000 Ar+ are accelerated against the right electrode where secondary electron emission (SEE-E) is performed
+# Secondary electron emission (Theis2021/Phelps1999)
+- 100000 Ar+ are accelerated against the right electrode where secondary electron emission (SEE-I) is performed
 - SEE model for Ar+ impact
   - used in J. Theis, "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation", 2021 and
   - based on A. Phelps, "Cold-cathode discharges and breakdown in argon: surface and gas phase production of secondary electrons", 1999 that is used for copper surfaces
-  - SEE yield depends on impact energy an gives two functions for >700eV and <700eV
+  - SEE yield depends on impact energy and gives two functions for >700eV and <700eV
   - Tested energies and yields are
     -  100 eV, 0.081656
     -  700 eV, 0.09

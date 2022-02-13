@@ -1741,7 +1741,7 @@ END FUNCTION GETSTRARRAY
 FUNCTION GETDESCRIPTION(name) result(description)
 ! INPUT / OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)          :: name        !< parameter name
-CHARACTER(LEN=1000)                  :: description !< description
+CHARACTER(LEN=1300)                  :: description !< description
 ! LOCAL VARIABLES
 CLASS(link),POINTER :: current
 !==================================================================================================================================
