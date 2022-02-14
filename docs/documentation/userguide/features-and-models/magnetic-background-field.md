@@ -1,7 +1,7 @@
 # Magnetic Background Field
 
 Certain application cases allow the utilization of a constant magnetic background field.
-This background field can either be supplied via .csv or .h5 file, however, in this case the field must be based on an equidistant
+This background field can either be supplied via .csv (1D) or .h5 (2D) file, however, in this case the field must be based on an equidistant
 Cartesian mesh.
 Another method is to use the built-in tool **superB**, which is also available as stand-alone executable to generate magnetic fields
 based on magnets or coils, which results in the creation of a .h5 file containing the field data based on a PICLas (HOPR) mesh file.
@@ -12,7 +12,7 @@ The following two sections give an overview of using the different methods.
 
 One- or two dimensional magnetic fields can be used as fixed background fields for certain time discretization methods (full Maxwell
 time discs and the Poisson Boris-Leapfrog scheme)
-The read-in variable for either .csv or .h5 files is set via
+The read-in variable for either .csv (only for 1D along $z$-direction) or .h5 (only for 2D axis symmetric $z$-direction) files is set via
 
     PIC-variableExternalField = X.csv, X.h5
 
@@ -24,7 +24,7 @@ Two examples are located within the regression test directory
 for 1D and 2D fields, respectively. Note that 1D currently only allows magnetic fields of type $B_{z}(z)$ and 2D only allows the 
 components $B_{r}(r,z)$ and $B_{z}(r,z)$ that comprise a rotationally symmetric vector field $\textbf{B}$.
 
-The first example (1D) uses data via
+The first example (1D and .csv file) uses data via
 
     PIC-variableExternalField = variable_Bz.csv
 
@@ -37,7 +37,7 @@ which is csv-based data in the form (the delimiter is actually not a comma)
     0.0030897959183674	2.6274128336
     ....
 
-and the second (2D)
+and the second (2D and .h5 file)
 
     PIC-variableExternalField = reggie-linear-rot-symmetry.h5 
 
