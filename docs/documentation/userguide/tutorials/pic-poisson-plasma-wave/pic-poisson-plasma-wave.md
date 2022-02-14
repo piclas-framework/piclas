@@ -9,8 +9,8 @@ electric field.
 Before beginning with the tutorial, copy the `pic-poisson-plasma-wave` directory from the tutorial folder in the top level
 directory to a separate location
 
-        cp -r $PICLAS_PATH/tutorials/pic-poisson-plasma-wave .
-        cd pic-poisson-plasma-wave
+    cp -r $PICLAS_PATH/tutorials/pic-poisson-plasma-wave .
+    cd pic-poisson-plasma-wave
 
 ## Mesh Generation with HOPR (pre-processing)
 
