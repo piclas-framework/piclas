@@ -291,12 +291,17 @@ REAL,INTENT(IN)                :: PreviousTime
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName,MeshFile255
 !===================================================================================================================================
+! Set old file name
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),PreviousTime))//'.h5'
-CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+! The restart file name and the file name set here might differ (renamed restart file or changed project name).
+! Therefore, the attribute is only written if the file exists.
+IF(FILEEXISTS(Filename))THEN
+  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 
-MeshFile255=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
-CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=(/MeshFile255/))
-CALL CloseDataFile()
+  MeshFile255=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
+  CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=(/MeshFile255/))
+  CALL CloseDataFile()
+END IF ! FILEEXISTS(Filename)
 
 END SUBROUTINE GenerateNextFileInfo
 
@@ -346,7 +351,7 @@ NextFile=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',FlushTime))//'.h5'
 
 ! If the original restart file is not to be deleted, skip this file and go to the next one
 IF(DoRestart.AND.(.NOT.FlushInitialState))THEN
-  ! Read calculation time from file
+  ! Set next file name
 #if USE_MPI
   CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
 #else
@@ -357,7 +362,7 @@ END IF ! .NOT.FlushInitialState
 ! Loop over all possible state files that can be deleted
 DO
   InputFile=TRIM(NextFile)
-  ! Read calculation time from file
+  ! Set next file name
 #if USE_MPI
   CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
 #else
