@@ -312,7 +312,6 @@ CASE(11) ! 11: SEE-E by e- on quartz (SiO2) by A. Dunaevsky, "Secondary electron
     ! Roll the dice
     CALL RANDOM_NUMBER(iRan)
     IF(iRan.LT.SEE_Prob) ProductSpecNbr = ProductSpecNbr + 1 ! Create one additional electron
-    write(*,*) "ProductSpecNbr=",ProductSpecNbr,PartID_IN
 
     ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
     IF(ProductSpecNbr.GT.0) ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
