@@ -9,8 +9,8 @@ electric field.
 Before beginning with the tutorial, copy the `pic-poisson-plasma-wave` directory from the tutorial folder in the top level
 directory to a separate location
 
-        cp -r $PICLAS_PATH/tutorials/pic-poisson-plasma-wave .
-        cd pic-poisson-plasma-wave
+    cp -r $PICLAS_PATH/tutorials/pic-poisson-plasma-wave .
+    cd pic-poisson-plasma-wave
 
 ## Mesh Generation with HOPR (pre-processing)
 
@@ -394,8 +394,13 @@ The parameters for **piclas2vtk** are stored in the **parameter.ini** file under
     NVisu         = 10
     VisuParticles = T
 
-where `NVisu` is the polynomial visualization degree on which the field solution is interpolated. The flag `VisuParticles` activates
-the output of particle position, velocity and species to the *vtk*-files.
+where `NVisu` is the polynomial visualization degree on which the field solution is interpolated.
+Depending on the used polynomial degree `N` and subsequently the degree of visualization `NVisu`, which should always be higher than
+`N`, the resulting electric potential $\Phi$ and its derivative the electric field strength **E** might show signs of oscillations.
+This is because the PIC simulation is always subject to noise that is influenced by the discretization (number of elements and 
+polynomial degree as well as number of particles) and is visible in the solution as this is a snapshot of the current simulation.
+
+Additionally, the flag `VisuParticles` activates the output of particle position, velocity and species to the *vtk*-files.
 
 Run the command
 
