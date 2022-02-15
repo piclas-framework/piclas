@@ -1963,6 +1963,9 @@ DO iElem=1,PP_nElems
     DO j=0,PP_N
       DO i=0,PP_N
         ASSOCIATE( x => Elem_xGP(1,i,j,k,iElem), y => Elem_xGP(2,i,j,k,iElem), z => Elem_xGP(3,i,j,k,iElem))
+          ! Superposition of the external and calculated electromagnetic field
+          !   GetExternalFieldAtParticle : Get the 1 of 4 external fields (analytic, variable, etc.) at position x,y,z
+          !                   GetEMField : Evaluate the electro-(magnetic) field using the reference position and return the field
           outputArray(1:6,i,j,k,iElem) = GetExternalFieldAtParticle((/x,y,z/)) + GetEMField(iElem,(/xGP(i),xGP(j),xGP(k)/))
         END ASSOCIATE
       END DO ! i

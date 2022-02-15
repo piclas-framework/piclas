@@ -50,7 +50,7 @@ CALL prms%CreateRealOption(   'PIC-RelaxFac'             , 'Relaxation factor of
 
 CALL prms%CreateRealOption(   'PIC-shapefunction-radius'             , 'Radius of shape function'   , '1.')
 CALL prms%CreateIntOption(    'PIC-shapefunction-alpha'              , 'Exponent of shape function' , '2')
-CALL prms%CreateIntOption(    'PIC-shapefunction-dimension'          , '1D                          , 2D or 3D shape function', '3')
+CALL prms%CreateIntOption(    'PIC-shapefunction-dimension'          , '1D, 2D or 3D shape function', '3')
 CALL prms%CreateIntOption(    'PIC-shapefunction-direction'          , &
     'Only required for PIC-shapefunction-dimension 1 or 2: Shape function direction for 1D (the direction in which the charge '//&
     'will be distributed) and 2D (the direction in which the charge will be constant)', '1')

@@ -1079,7 +1079,7 @@ SELECT CASE (dim_sf)
     w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) * (REAL(alpha_sf) + 1.)/(PI*(r_sf_loc**3))
 
   CASE DEFAULT
-    CALL abort(__STAMP__,'Shape function dimensio must be 1, 2 or 3')
+    CALL abort(__STAMP__,'Shape function dimension must be 1, 2 or 3')
 END SELECT
 
 SWRITE(UNIT_stdOut,'(A)') ' The complete charge is '//TRIM(hilf_geo)//' distributed (via '//TRIM(hilf_dim)//'D shape function)'

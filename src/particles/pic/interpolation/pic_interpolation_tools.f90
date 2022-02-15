@@ -31,14 +31,14 @@ INTERFACE GetEMField
   MODULE PROCEDURE GetEMField
 END INTERFACE
 
-INTERFACE InterpolateVariableExternalField
-  MODULE PROCEDURE InterpolateVariableExternalField
+INTERFACE InterpolateVariableExternalField1D
+  MODULE PROCEDURE InterpolateVariableExternalField1D
 END INTERFACE
 
 PUBLIC :: GetExternalFieldAtParticle
 PUBLIC :: GetInterpolatedFieldPartPos
 PUBLIC :: GetEMField
-PUBLIC :: InterpolateVariableExternalField
+PUBLIC :: InterpolateVariableExternalField1D
 !===================================================================================================================================
 
 CONTAINS
@@ -55,7 +55,7 @@ PPURE FUNCTION GetExternalFieldAtParticle(pos)
 !   3. External E and B field from user-supplied vector (const.)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PICInterpolation_Vars ,ONLY: externalField,useVariableExternalField,useAlgebraicExternalField
+USE MOD_PICInterpolation_Vars ,ONLY: externalField,useVariableExternalField,useAlgebraicExternalField,VariableExternalField2D
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
@@ -80,9 +80,14 @@ ELSE ! use variable or fixed external field
 !#if (PP_nVar==8))
   IF(useVariableExternalField)THEN
     ! 1. External E field from user-supplied vector (const.) and
-    !    B field from CSV file (only Bz) that is interpolated to the particle z-coordinate
-    GetExternalFieldAtParticle(1:5) = externalField(1:5)
-    GetExternalFieldAtParticle(6) = InterpolateVariableExternalField(pos(3))
+    GetExternalFieldAtParticle(1:6) = externalField(1:6)
+    IF(VariableExternalField2D)THEN
+      ! B field from .h5 file (only Bz and Br) that is interpolated to the particle z- and r-coordinate
+      GetExternalFieldAtParticle(4:6) = InterpolateVariableExternalField2D(pos(1:3))
+    ELSE
+      ! B field from CSV file (only Bz) that is interpolated to the particle z-coordinate
+      GetExternalFieldAtParticle(6) = InterpolateVariableExternalField1D(pos(3))
+    END IF ! VariableExternalField2D
   ELSEIF(useAlgebraicExternalField)THEN
     ! 2. External E and B field from algebraic expression that is interpolated to the particle position
     GetExternalFieldAtParticle(1:6) = InterpolateAlgebraicExternalField(pos)
@@ -367,7 +372,7 @@ IF(useBGField) CALL abort(__STAMP__,' ERROR BG Field not implemented for GetEMFi
 END FUNCTION GetEMFieldDW
 
 
-PPURE FUNCTION InterpolateVariableExternalField(Pos)
+PPURE FUNCTION InterpolateVariableExternalField1D(Pos)
 !===================================================================================================================================
 !> Interpolates the variable external field to the z-position
 !> NO z-values smaller than VariableExternalField(1,1) are allowed!
@@ -382,22 +387,105 @@ IMPLICIT NONE
 REAL,INTENT(IN)          :: Pos                               !< particle z-position
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                     :: InterpolateVariableExternalField  !< Bz (magnetic field in z-direction)
+REAL                     :: InterpolateVariableExternalField1D  !< Bz (magnetic field in z-direction)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                  :: iPos                              !< index in array (equidistant subdivision assumed)
 !===================================================================================================================================
-iPos = INT((Pos-VariableExternalField(1,1))/DeltaExternalField) + 1
+iPos = INT((Pos-VariableExternalField(1,1))/DeltaExternalField(1)) + 1
 IF(iPos.GE.nIntPoints)THEN ! particle outside of range (greater -> use constant value)
-  InterpolateVariableExternalField = VariableExternalField(2,nIntPoints)
+  InterpolateVariableExternalField1D = VariableExternalField(2,nIntPoints)
 ELSEIF(iPos.LT.1)THEN ! particle outside of range (lower -> use constant value)
-  InterpolateVariableExternalField = VariableExternalField(2,1)
+  InterpolateVariableExternalField1D = VariableExternalField(2,1)
 ELSE ! Linear Interpolation between iPos and iPos+1 B point
-  InterpolateVariableExternalField = (VariableExternalField(2,iPos+1) - VariableExternalField(2,iPos)) & !  dy
+  InterpolateVariableExternalField1D = (VariableExternalField(2,iPos+1) - VariableExternalField(2,iPos)) & !  dy
                                    / (VariableExternalField(1,iPos+1) - VariableExternalField(1,iPos)) & ! /dx
                              * (Pos - VariableExternalField(1,iPos) ) + VariableExternalField(2,iPos)    ! *(z - z_i) + z_i
 END IF
-END FUNCTION InterpolateVariableExternalField
+END FUNCTION InterpolateVariableExternalField1D
+
+
+PPURE FUNCTION InterpolateVariableExternalField2D(Pos)
+!===================================================================================================================================
+!> Interpolates the variable external field to the r- and z-position
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PICInterpolation_Vars ,ONLY: DeltaExternalField,VariableExternalField
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField2DColumns
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldMin,VariableExternalFieldMax
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)          :: Pos(1:3)                                 !< particle z-position
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                     :: InterpolateVariableExternalField2D(1:3)  !< Bz (magnetic field in z-direction)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                  :: iPos,jPos                                     !< index in array (equidistant subdivision assumed)
+REAL                     :: r,delta,f(1:2),mat(2,2),dx(1:2),dy(1:2),vec(1:2)
+INTEGER                  :: idx1,idx2,idx3,idx4,i
+!===================================================================================================================================
+ASSOCIATE(&
+      x => Pos(1) ,&
+      y => Pos(2) ,&
+      z => Pos(3)  &
+      )
+  r = SQRT(x**2+y**2)
+  iPos = INT((r-VariableExternalField(1,1))/DeltaExternalField(1)) + 1
+  jPos = INT((z-VariableExternalField(2,1))/DeltaExternalField(2)) + 1
+
+
+  IF(r.GT.VariableExternalFieldMax(1))THEN
+    InterpolateVariableExternalField2D = 0.
+  ELSEIF(r.LT.VariableExternalFieldMin(1))THEN
+    InterpolateVariableExternalField2D = 0.
+  ELSEIF(z.GT.VariableExternalFieldMax(2))THEN
+    InterpolateVariableExternalField2D = 0.
+  ELSEIF(z.LT.VariableExternalFieldMin(2))THEN
+    InterpolateVariableExternalField2D = 0.
+  ELSE
+    ! 1.1
+    idx1 = (iPos-1)*VariableExternalField2DColumns + jPos
+    ! 2.1
+    idx2 = (iPos-1)*VariableExternalField2DColumns + jPos + 1
+    ! 1.2
+    idx3 = iPos*VariableExternalField2DColumns + jPos
+    ! 2.2
+    idx4 = iPos*VariableExternalField2DColumns + jPos + 1
+
+    ! Interpolate
+    delta = DeltaExternalField(1)*DeltaExternalField(2)
+    delta = 1./delta
+
+    dx(1) = VariableExternalField(1,idx4)-r
+    dx(2) = DeltaExternalField(1) - dx(1)
+
+    dy(1) = VariableExternalField(2,idx4)-z
+    dy(2) = DeltaExternalField(2) - dy(1)
+
+    DO i = 1, 2
+      mat(1,1) = VariableExternalField(2+i,idx1)
+      mat(2,1) = VariableExternalField(2+i,idx2)
+      mat(1,2) = VariableExternalField(2+i,idx3)
+      mat(2,2) = VariableExternalField(2+i,idx4)
+
+      vec(1) = dx(1)
+      vec(2) = dx(2)
+      f(i) = delta * DOT_PRODUCT( vec, MATMUL(mat, (/dy(1),dy(2)/) ) )
+    END DO ! i = 1, 2
+
+    ! Transform from Br, Bz to Bx, By, Bz
+    r=1./r
+    InterpolateVariableExternalField2D(1) = f(1)*x*r
+    InterpolateVariableExternalField2D(2) = f(1)*y*r
+    InterpolateVariableExternalField2D(3) = f(2)
+  END IF ! r.GT.VariableExternalFieldMax(1)
+END ASSOCIATE
+
+END FUNCTION InterpolateVariableExternalField2D
 
 
 PPURE FUNCTION InterpolateAlgebraicExternalField(Pos)
