@@ -37,7 +37,7 @@ CONTAINS
 !> 2.) Count and sample the properties BEFORE the surface interaction
 !> 3.) Perform the selected gas-surface interaction, currently implemented models:
 !           0: Maxwell Scattering
-!       5/6/7: Secondary Electron Emission
+!       5/6/7/8/9/10/11: Secondary Electron Emission
 !> 4.) PIC ONLY: Deposit charges on dielectric surface (when activated), if these were removed/changed in SpeciesSwap or SurfaceModel
 !> 5.) Count and sample the properties AFTER the surface interaction
 !===================================================================================================================================
@@ -163,8 +163,9 @@ CASE (SEE_MODELS_ID)
   ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
   ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
   ! 8: SEE-E (bombarding electrons are reflected, e- on dielectric materials is considered for SEE and three different outcomes)
-  ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV
+  ! 9: SEE-I when Ar+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV
   !10: SEE-I (bombarding electrons are removed, Ar+ on copper is considered for SEE)
+  !11: SEE-E by e- on quartz (SiO2) is considered
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Get electron emission probability
   CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy)

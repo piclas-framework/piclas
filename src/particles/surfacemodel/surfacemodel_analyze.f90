@@ -428,7 +428,7 @@ END SUBROUTINE GetCollCounter
 
 
 !===================================================================================================================================
-!> 
+!> Communicate porous BC data across all ranks
 !===================================================================================================================================
 SUBROUTINE GetPorousBCInfo()
 ! MODULES
@@ -450,9 +450,9 @@ INTEGER            :: iPBC
 !===================================================================================================================================
 #if USE_MPI
 IF(PartMPI%MPIRoot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,PorousBCOutput,5*nPorousBC,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE  , PorousBCOutput, 5*nPorousBC, MPI_DOUBLE_PRECISION, MPI_SUM, 0, PartMPI%COMM, iError)
 ELSE
-  CALL MPI_REDUCE(PorousBCOutput,PorousBCOutput,5*nPorousBC,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,iError)
+  CALL MPI_REDUCE(PorousBCOutput, PorousBCOutput, 5*nPorousBC, MPI_DOUBLE_PRECISION, MPI_SUM, 0, PartMPI%COMM, iError)
 END IF
 #endif /*USE_MPI*/
 
@@ -610,7 +610,8 @@ END SUBROUTINE InitBoundaryParticleOutput
 
 
 !===================================================================================================================================
-!> Allocate the required arrays (mappings and containers) for secondary electron emission analysis
+!> Allocate the required arrays (mappings and containers) for secondary electron emission analysis, which tracks the number of
+!> electrons that are emitted from a surface
 !===================================================================================================================================
 SUBROUTINE InitCalcElectronSEE()
 ! MODULES
