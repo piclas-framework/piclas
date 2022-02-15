@@ -239,6 +239,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -452,6 +453,10 @@ DO iPartBound=1,nPartBound
   PartBound%BoundaryParticleOutputHDF5(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
   IF(PartBound%BoundaryParticleOutputHDF5(iPartBound)) DoBoundaryParticleOutputHDF5=.TRUE.
 END DO
+
+! Connect emission inits to particle boundaries for output
+IF(DoBoundaryParticleOutputHDF5) CALL InitializeVariablesSpeciesBoundary()
+
 AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
 IF(GEO%RotPeriodicBC) THEN
@@ -746,6 +751,7 @@ CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 
 END SUBROUTINE InitAdaptiveWallTemp
 
+
 SUBROUTINE InitializeVariablesAuxBC()
 !===================================================================================================================================
 ! Initialize the variables first
@@ -1000,6 +1006,7 @@ ELSE
 END IF
 
 END SUBROUTINE InitializeVariablesAuxBC
+
 
 SUBROUTINE rotx(mat,a)
 IMPLICIT NONE

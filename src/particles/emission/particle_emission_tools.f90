@@ -271,27 +271,28 @@ END DO
 END SUBROUTINE SetParticleChargeAndMass
 
 
-SUBROUTINE SetParticleMPF(FractNbr,NbrOfParticle)
+SUBROUTINE SetParticleMPF(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! finally, set the MPF
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY : PDM, PartMPF, Species, PartState
-USE MOD_DSMC_Vars               ,ONLY : RadialWeighting
-USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
+USE MOD_Particle_Vars ,ONLY: PDM, PartMPF, Species, PartState
+USE MOD_DSMC_Vars     ,ONLY: RadialWeighting
+USE MOD_part_tools    ,ONLY: CalcRadWeightMPF
 !===================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                       :: FractNbr
+INTEGER,INTENT(IN)        :: FractNbr
+INTEGER,INTENT(IN)        :: iInit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER,INTENT(INOUT)                    :: NbrOfParticle
+INTEGER,INTENT(INOUT)     :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                  :: i,PositionNbr
+INTEGER                   :: i,PositionNbr
 !===================================================================================================================================
 i = 1
 DO WHILE (i .le. NbrOfParticle)
@@ -300,12 +301,14 @@ DO WHILE (i .le. NbrOfParticle)
     IF(RadialWeighting%DoRadialWeighting) THEN
       PartMPF(PositionNbr) = CalcRadWeightMPF(PartState(2,PositionNbr),FractNbr,PositionNbr)
     ELSE
-      PartMPF(PositionNbr) = Species(FractNbr)%MacroParticleFactor
+      IF(iInit.EQ.-1)THEN
+        PartMPF(PositionNbr) = Species(FractNbr)%MacroParticleFactor
+      ELSE
+        PartMPF(PositionNbr) = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF (default is species MPF)
+      END IF ! iInit.EQ.-1
     END IF
   ELSE
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+    CALL abort(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
   END IF
   i = i + 1
 END DO

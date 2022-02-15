@@ -15,7 +15,7 @@ reactions. Example: A node of a HPC cluster has 2 CPUs, each has 12 cores. Thus,
 example (assuming an even particle distribution). The limiting factor here is the amount of RAM available per node.
 
 Regardless whether a standalone PIC, DSMC, or a coupled simulation is performed, the atomic mass [kg], the charge [C] and the
-weighting factor $w$ [-] are required for each species.
+weighting factor $w$ [-], sometimes referred to as macro-particle factor (MPF), are required for each species.
 
     Part-Species1-MassIC=5.31352E-26
     Part-Species1-ChargeIC=0.0
@@ -41,6 +41,13 @@ Different velocity distributions are available for the initialization/emission o
 | maxwell      | Maxwell-Boltzmann distribution                          |
 | maxwell_lpn  | Maxwell-Boltzmann distribution for low particle numbers |
 | WIP          | **WORK IN PROGRESS**                                    |
+
+Some emission types allow the usage of an emission-specific particle weighting factor.
+The default weighting factor given by `Part-Species1-MacroParticleFactor` can be overwritten by supplying a different one for each
+initialization, for which the variable weighting factor (or variable macro-particle factor `vMPF`)  model must be activated
+
+    Part-vMPF = T
+    Part-Species1-Init1-MacroParticleFactor = 1e4
 
 (sec:particle-insertion)=
 ## Initialization
