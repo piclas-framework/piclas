@@ -190,26 +190,31 @@ DO i=1,nSpecies
               IF(Species(i)%Init(iInit)%FirstQuadrantOnly) NbrOfPhotons = NbrOfPhotons / 4.0
 
               ! Select surface SEE or volumetric emission
-              IF((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc').OR.&
-                 (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_SEE_honeycomb'))THEN
+              SELECT CASE(TRIM(Species(i)%Init(iInit)%SpaceIC))
+              CASE('photon_SEE_disc','photon_SEE_honeycomb','photon_SEE_rectangle')
                 ! SEE based on photon impact
                 NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / Species(i)%MacroParticleFactor &
                               + Species(i)%Init(iInit)%NINT_Correction
                 NbrOfParticle = NINT(NbrOfPhotons)
                 Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - REAL(NbrOfParticle)
-              ELSE
+              CASE DEFAULT
                 ! Photo-ionization in the volume
                 ! Calculation of the number of photons (using actual number and applying the weighting factor on the number of reactions)
                 NbrOfPhotons = Species(i)%Init(iInit)%EffectiveIntensityFactor * NbrOfPhotons
                 ! Calculation of the number of photons depending on the cylinder height (ratio of actual to virtual cylinder height, which
                 ! is spanned by the disk and the length given by c*dt)
-                NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
+                IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_rectangle')THEN
+                  NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CuboidHeightIC / (c*dt)
+                ELSE
+                  ! Cylinder and honeycomb
+                  NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
+                END IF
                 ! Calculation of the number of electron resulting from the chemical reactions in the photoionization region
                 CALL CalcPhotoIonizationNumber(i,NbrOfPhotons,NbrOfReactions)
                 NbrOfReactions = NbrOfReactions + Species(i)%Init(iInit)%NINT_Correction
                 NbrOfParticle = NINT(NbrOfReactions)
                 Species(i)%Init(iInit)%NINT_Correction = NbrOfReactions - REAL(NbrOfParticle)
-              END IF
+              END SELECT
             ELSE
               NbrOfParticle = 0
             END IF ! MOD(time, Period) .LE. 2x tShift
@@ -280,11 +285,11 @@ DO i=1,nSpecies
 
     CALL SetParticlePosition(i,iInit,NbrOfParticle)
     ! Pairing of "electrons" with the background species and performing the reaction
-    IF((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_cylinder').OR.&
-       (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_honeycomb')) THEN
+    SELECT CASE(TRIM(Species(i)%Init(iInit)%SpaceIC))
+    CASE('photon_cylinder','photon_honeycomb','photon_rectangle')
       CALL BGGas_PhotoIonization(i,iInit,NbrOfParticle)
       CYCLE
-    END IF
+    END SELECT
 
     CALL SetParticleVelocity(i,iInit,NbrOfParticle)
     CALL SetParticleChargeAndMass(i,NbrOfParticle)

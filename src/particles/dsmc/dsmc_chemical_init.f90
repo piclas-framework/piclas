@@ -415,11 +415,11 @@ DO iReac = 1, ChemReac%NumOfReact
     PhotonEnergy = 0.
     DO iSpec = 1, nSpecies
       DO iInit = 1, Species(iSpec)%NumberOfInits
-        IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder').OR.&
-           (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_honeycomb')) THEN
+        SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+        CASE('photon_cylinder','photon_honeycomb','photon_rectangle')
           PhotonEnergy = CalcPhotonEnergy(Species(iSpec)%Init(iInit)%WaveLength)
           EXIT
-        END IF
+        END SELECT
       END DO
     END DO
 
