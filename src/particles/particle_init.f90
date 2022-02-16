@@ -289,6 +289,7 @@ USE MOD_Particle_Vars              ,ONLY: Symmetry
 USE MOD_BGK_Init                   ,ONLY: InitBGK
 USE MOD_Particle_Vars              ,ONLY: Symmetry
 #endif
+USE MOD_Particle_Vars              ,ONLY: BulkElectronTemp
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -304,6 +305,9 @@ IF(ParticlesInitIsDone)THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLES ...'
+
+! Initialize bulk temperature (might be set in surface model OR later in part analyze routine)
+BulkElectronTemp = 0.
 
 IF(TrackingMethod.NE.TRIATRACKING) THEN
   CALL InitParticleSurfaces()
@@ -831,6 +835,7 @@ END IF
 
 END SUBROUTINE InitializeVariablesWriteMacroValues
 
+
 SUBROUTINE InitializeVariablesvMPF()
 !===================================================================================================================================
 ! Initialize the variables first
@@ -841,6 +846,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
+USE MOD_Particle_Emission_Init ,ONLY: InitializeEmissionSpecificMPF
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -854,6 +860,7 @@ CHARACTER(32)         :: hilf
 !===================================================================================================================================
 ! init varibale MPF per particle
 IF (usevMPF) THEN
+  ! --- Split and Merge
   ALLOCATE(vMPFMergeThreshold(nSpecies))
   vMPFMergeThreshold = 0
   ALLOCATE(vMPFSplitThreshold(nSpecies))
@@ -863,7 +870,7 @@ IF (usevMPF) THEN
     vMPFMergeThreshold(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-vMPFMergeThreshold')
     vMPFSplitThreshold(iSpec) = GETINT('Part-Species'//TRIM(hilf)//'-vMPFSplitThreshold')
     IF((vMPFMergeThreshold(iSpec).LT.vMPFSplitThreshold(iSpec)).AND.(vMPFMergeThreshold(iSpec).NE.0)) THEN
-      CALL abort(__STAMP__, 'ERROR: Given merge threshold is lower than the split threshold!')
+      CALL abort(__STAMP__,'ERROR: Given merge threshold is lower than the split threshold!')
     END IF
   END DO
   ALLOCATE(CellEelec_vMPF(nSpecies,nElems))
@@ -872,6 +879,11 @@ IF (usevMPF) THEN
   CellEvib_vMPF = 0.0
   UseSplitAndMerge = .FALSE.
   IF(ANY(vMPFMergeThreshold.GT.0).OR.ANY(vMPFSplitThreshold.GT.0)) UseSplitAndMerge = .TRUE.
+
+  ! --- Emission-specific MPF
+  CAll InitializeEmissionSpecificMPF()
+
+  ! --- Old vMPF stuff
   enableParticleMerge = GETLOGICAL('Part-vMPFPartMerge','.FALSE.')
   IF (enableParticleMerge) THEN
     vMPFMergePolyOrder = GETINT('Part-vMPFMergePolOrder','2')
@@ -884,20 +896,14 @@ IF (usevMPF) THEN
     vMPF_velocityDistribution = TRIM(GETSTR('Part-vMPFvelocityDistribution','OVDR'))
     vMPF_relativistic = GETLOGICAL('Part-vMPFrelativistic','.FALSE.')
     IF(vMPF_relativistic.AND.(vMPF_velocityDistribution.EQ.'MBDR')) THEN
-      CALL abort(&
-__STAMP__&
-      ,'Relativistic handling of vMPF is not possible using MBDR velocity distribution!')
+      CALL abort(__STAMP__,'Relativistic handling of vMPF is not possible using MBDR velocity distribution!')
     END IF
     ALLOCATE(vMPF_SpecNumElem(1:nElems,1:nSpecies))
     CALL DefinePolyVec(vMPFMergePolyOrder)
     CALL DefineSplitVec(vMPFMergeCellSplitOrder)
   END IF
   ALLOCATE(PartMPF(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-    ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
-  END IF
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
 END SUBROUTINE InitializeVariablesvMPF
 
@@ -1160,7 +1166,8 @@ INTEGER       :: I
 ! Determine the charge number of each species
 DO I = 1, InitialIonizationSpecies
   iSpec = InitialIonizationSpeciesID(I)
-  SpeciesCharge(I) = NINT(Species(iSpec)%ChargeIC/(ElementaryCharge))
+  ! Get charge number of each required species
+  SpeciesCharge(I) = NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
 END DO ! I = 1, InitialIonizationSpecies
 
 ! ---------------------------------------------------------------------------------------------------------------------------------
@@ -1193,12 +1200,12 @@ DO iPart=1,PDM%ParticleVecLength
         ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
         ! species
         location                            = MINLOC(ABS(SpeciesCharge-ChargeLower),1)
-        ElemCharge(PEM%LocalElemID(iPart))      = ElemCharge(PEM%LocalElemID(iPart))+ChargeLower
+        ElemCharge(PEM%LocalElemID(iPart))  = ElemCharge(PEM%LocalElemID(iPart))+ChargeLower
       ELSE ! Select the upper charge number
         ! Determines the location of the element in the array with min value: get the index of the corresponding charged ion
         ! species
         location                            = MINLOC(ABS(SpeciesCharge-ChargeUpper),1)
-        ElemCharge(PEM%LocalElemID(iPart))      = ElemCharge(PEM%LocalElemID(iPart))+ChargeUpper
+        ElemCharge(PEM%LocalElemID(iPart))  = ElemCharge(PEM%LocalElemID(iPart))+ChargeUpper
       END IF
 
       ! Set the species ID to atom/singly charged ion/doubly charged ... and so on
@@ -1224,13 +1231,17 @@ DO iSpec = 1, nSpecies
     EXIT
   END IF
 END DO
-IF (ElecSpecIndx.EQ.-1) CALL abort(&
-  __STAMP__&
+IF (ElecSpecIndx.EQ.-1) CALL abort(__STAMP__&
   ,'Electron species not found. Cannot create electrons without the defined species!')
 
 WRITE(UNIT=hilf,FMT='(I0)') iSpec
 SWRITE(UNIT_stdOut,'(A)')'  Using iSpec='//TRIM(hilf)//' as electron species index.'
-WRITE(UNIT=hilf,FMT=WRITEFORMAT) CellElectronTemperature
+! Get temperature from init (or default value defined in local parameters)
+IF(Species(ElecSpecIndx)%NumberOfInits.GT.0)THEN
+  WRITE(UNIT=hilf,FMT=WRITEFORMAT) Species(ElecSpecIndx)%Init(1)%MWTemperatureIC
+ELSE
+  WRITE(UNIT=hilf,FMT=WRITEFORMAT) CellElectronTemperature
+END IF ! Species(iSpec)%NumberOfInits.GT.0
 SWRITE(UNIT_stdOut,'(A)')'  Using T='//TRIM(hilf)//' K for the initial electron temperatture (maxwell_lpn) in each cell.'
 ! Loop over all elements and the sum of charges in each element (for each charge assigned in an element, an electron is created)
 DO iElem=1,PP_nElems
@@ -1373,6 +1384,8 @@ SDEALLOCATE(RegionElectronRef)
 SDEALLOCATE(RegionElectronRefBackup)
 SDEALLOCATE(BRAverageElemToElem)
 #endif /*USE_HDG*/
+SDEALLOCATE(isNeutralizationElem)
+SDEALLOCATE(NeutralizationBalanceElem)
 END SUBROUTINE FinalizeParticles
 
 

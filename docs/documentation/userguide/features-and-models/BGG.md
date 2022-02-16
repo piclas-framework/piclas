@@ -1,7 +1,7 @@
 (sec:background-gas)=
 # Background Gas
 
-A constant background gas (single species or mixture) can be utilized to enable efficient particle collisions between the
+A constant or spatially varying background gas (single species or mixture) can be utilized to enable efficient particle collisions between the
 background gas and other particle species (represented by actual simulation particles). The assumption is that the density of the
 background gas $n_{\mathrm{gas}}$ is much greater than the density of the particle species, e.g. the charged species in a plasma,
 $n_{\mathrm{charged}}$
@@ -25,6 +25,17 @@ probability is greater than a random number) and it is tested whether additional
 While the VHS model is sufficient to model collisions between neutral species, it cannot reproduce the phenomena of a
 neutral-electron interaction. For this purpose, the cross-section based collision probabilities should be utilized, which are
 discussed in the following section.
+
+A spatially varying background gas distribution may be used by running a pure DSMC simulation beforehand and using a time-averaged
+DSMC state file (*PROJECT_DSMCState_\*.h5*) as input for the actual simulation by setting
+
+    Particles-BGGas-UseDistribution              = T
+    Particles-MacroscopicRestart-Filename        = DSMCResult.h5
+    Part-SpeciesX-InitX-DistributionSpeciesIndex = 1
+
+where the first parameter activates the background gas distribution and the second parameter supplies the relative path to the file
+from which the background gas density, velocity and temperature field is read (cell-constant values).
+The third parameter defines which species index within the DSMC file is to be used as it may contain multiple species.
 
 A mixture as a background gas can be simulated by simply defining multiple background species. If the number densities of the background gas species differ greatly and a specific background species is of interest (or the interaction with it) that has a lower number density compared to the other background species, it can be defined as a so-called trace species as shown below.
 

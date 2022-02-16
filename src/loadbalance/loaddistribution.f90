@@ -162,7 +162,7 @@ USE MOD_Globals
 USE MOD_MPI_Vars         ,ONLY: offsetElemMPI
 USE MOD_LoadBalance_Vars ,ONLY: ElemGlobalTime
 USE MOD_Mesh_Vars        ,ONLY: nGlobalElems,nElems
-USE MOD_LoadBalance_Vars ,ONLY: LoadDistri,ParticleMPIWeight,WeightSum
+USE MOD_LoadBalance_Vars ,ONLY: LoadDistri,ParticleMPIWeight,WeightSum,WeightDistributionMethod
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars ,ONLY: PartDistri
 USE MOD_HDF5_Input       ,ONLY: File_ID,ReadArray,DatasetExists,OpenDataFile,CloseDataFile
@@ -178,8 +178,7 @@ IMPLICIT NONE
 LOGICAL,INTENT(IN)             :: ElemTimeExists
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: WeightDistributionMethod
-INTEGER                        :: iProc,curiElem,MyElems,jProc,NewElems
+INTEGER                        :: iProc,curiElem,MyElems,jProc,NewElems,WeightDistributionMethod_loc
 REAL                           :: MaxLoadDiff,LastLoadDiff,LoadDiff(0:nProcessors-1)
 REAL                           :: LastProcDiff
 REAL                           :: MinLoadVal,MaxLoadVal,MaxLoadVal_opt,MaxLoadVal_opt0
@@ -251,15 +250,13 @@ CALL MPI_BCAST(PartsInElem,nGlobalElems,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 
 ! Every proc needs to get the information to arrive at the same timedisc
 IF (.NOT.ElemTimeExists .AND. ALL(PartsInElem(:).EQ.0)) THEN
-  WeightDistributionMethod = GETINT('WeightDistributionMethod','-1') !-1 is optimum distri for const. elem-weight
-  IF (WeightDistributionMethod.NE.-1) THEN
-    SWRITE(*,*) 'WARNING: WeightDistributionMethod.NE.-1 with neither particles nor ElemTimes!'
-  END IF
+  IF((WeightDistributionMethod.NE.-1).AND.MPIRoot) WRITE (*,*) "WeightDistributionMethod set to -1: optimum for const. elem-weight"
+  WeightDistributionMethod_loc = -1.0
 ELSE
-  WeightDistributionMethod = GETINT('WeightDistributionMethod','1')
+  WeightDistributionMethod_loc = WeightDistributionMethod
 END IF
 
-SELECT CASE(WeightDistributionMethod)
+SELECT CASE(WeightDistributionMethod_loc)
 CASE(-1) ! same as in no-restart: the elements are equally distributed
   IF(MPIRoot)THEN
     nElems=nGlobalElems/nProcessors
@@ -306,8 +303,7 @@ CASE(1)
     iDistriIter=0
     DO WHILE(.NOT.FoundDistribution)
       iDistriIter=iDistriIter+1
-      SWRITE(*,'(A19,I4,A19,G0)') '... LoadDistriIter ',iDistriIter,' with TargetWeight=',TargetWeight_loc
-      SWRITE(*,*)  lastprocdiff
+      SWRITE(*,'(A19,I0,A19,ES11.4,A,ES11.4,A)') 'LoadDistriIter: ',iDistriIter,'    TargetWeight: ',TargetWeight_loc,'    (last proc: ',LastProcDiff,')'
       TargetWeight_loc=TargetWeight_loc+LastProcDiff/REAL(nProcessors)
       curiElem=1
       offSetElemMPI=0
@@ -356,9 +352,7 @@ CASE(1)
       DO iProc=0,nProcessors-1
         ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
         ! sanity check
-        IF(ElemDistri(iProc).LE.0) CALL abort(&
-            __STAMP__&
-            ,' Process received zero elements during load distribution',iProc)
+        IF(ElemDistri(iProc).LE.0) CALL abort(__STAMP__,' Process received zero elements during load distribution',iProc)
       END DO ! iPRoc
       ! Determine the remaining load on the last proc
       IF(ElemDistri(nProcessors-1).EQ.1)THEN
@@ -374,18 +368,14 @@ CASE(1)
         FoundDistribution=.TRUE.
       END IF
       IF(iDistriIter.GT.nProcessors) THEN
-        SWRITE(UNIT_StdOut,'(A)') &
-            'No valid load distribution throughout the processes found! Alter ParticleMPIWeight!'
+        SWRITE(UNIT_StdOut,'(A)') 'No valid load distribution throughout the processes found! Alter ParticleMPIWeight!'
         FoundDistribution=.TRUE.
       END IF
-      IF(ABS(WeightSum-SUM(LoadDistri)).GT.0.5) THEN
-        CALL abort(&
-            __STAMP__&
-            ,' Lost Elements and/or Particles during load distribution!')
-      END IF
+      IF(ABS(WeightSum-SUM(LoadDistri)).GT.0.5) CALL abort(__STAMP__,' Lost Elements and/or Particles during load distribution!')
     END DO  ! .NOT.FoundDistribution
   END IF    ! MPIRoot
   ! Send the load distribution to all other procs
+  SWRITE(*,'(A,A17,ES11.4,A,ES11.4,A)') ' Accepted distribution','    TargetWeight: ',TargetWeight_loc,'    (last proc: ',LastProcDiff,')'
   CALL MPI_BCAST(offSetElemMPI,nProcessors+1, MPI_INTEGER,0,MPI_COMM_WORLD,iERROR)
   !------------------------------------------------------------------------------------------------------------------------------!
 CASE(2)
@@ -448,9 +438,7 @@ CASE(2)
       DO iProc=0,nProcessors-1
         ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
         ! sanity check
-        IF(ElemDistri(iProc).LE.0) CALL abort(&
-            __STAMP__&
-            ,' Process received zero elements during load distribution',iProc)
+        IF(ElemDistri(iProc).LE.0) CALL abort(__STAMP__,' Process received zero elements during load distribution',iProc)
       END DO ! iPRoc
       IF(ElemTimeExists)THEN
         LoadDistri(0)=SUM(ElemGlobalTime(1:offSetElemMPI(1)))
@@ -465,17 +453,14 @@ CASE(2)
       IF(LastProcDiff.GT.0)THEN
         FoundDistribution=.TRUE.
       END IF
-      IF(iDistriIter.EQ.nProcessors) CALL abort(&
-          __STAMP__&
+      IF(iDistriIter.EQ.nProcessors) CALL abort(__STAMP__&
           ,'No valid load distribution throughout the processes found! Alter ParticleMPIWeight!')
       IF(ABS(WeightSum-SUM(LoadDistri)).GT.0.5) THEN
         WRITE(*,*) WeightSum-SUM(LoadDistri)
         WRITE(*,*) OffSetElemMPI(1)
         WRITE(*,*) ElemDistri
         WRITE(*,*) LoadDistri
-        CALL abort(&
-            __STAMP__&
-            ,' Lost Elements and/or Particles during load distribution!')
+        CALL abort(__STAMP__,' Lost Elements and/or Particles during load distribution!')
       END IF
     END DO
   END IF
@@ -541,9 +526,7 @@ CASE(3)
   DO iProc=0,nProcessors-1
     ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
     ! sanity check
-    IF(ElemDistri(iProc).LE.0) CALL abort(&
-        __STAMP__&
-        ,' Process received zero elements during load distribution',iProc)
+    IF(ElemDistri(iProc).LE.0) CALL abort(__STAMP__,' Process received zero elements during load distribution',iProc)
   END DO ! iPRoc
   ! redistribute element weight
   DO iProc=1,nProcessors
@@ -599,9 +582,7 @@ CASE(4)
   DO iProc=0,nProcessors-1
     ElemDistri(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
     ! sanity check
-    IF(ElemDistri(iProc).LE.0) CALL abort(&
-        __STAMP__&
-        ,' Process received zero elements during load distribution',iProc)
+    IF(ElemDistri(iProc).LE.0) CALL abort(__STAMP__,' Process received zero elements during load distribution',iProc)
   END DO ! iPRoc
   ! redistribute element weight
   DO iProc=1,nProcessors
@@ -621,9 +602,7 @@ CASE(4)
     END DO ! jProc=1,nProcessors
     IF(OffSetElemMPI(nProcessors).NE.nGlobalElems) ErrorCode=ErrorCode+10
     IF(SUM(ElemDistri).NE.nGlobalElems) ErrorCode=ErrorCode+1
-    IF(ErrorCode.NE.0) CALL abort(&
-        __STAMP__&
-        ,' Error during re-distribution! ErrorCode:', ErrorCode)
+    IF(ErrorCode.NE.0) CALL abort(__STAMP__,' Error during re-distribution! ErrorCode:', ErrorCode)
   END DO ! jProc=0,nProcessors
   ! compute load distri
   LoadDistri=0.
@@ -648,11 +627,11 @@ CASE(5,6)
     nElems=nGlobalElems/nProcessors
     iElem=nGlobalElems-nElems*nProcessors
     itershift=0
-    IF (WeightDistributionMethod.EQ.5) THEN !-- init as for CASE(-1)
+    IF (WeightDistributionMethod_loc.EQ.5) THEN !-- init as for CASE(-1)
       DO iProc=0,nProcessors-1
         offsetElemMPI(iProc)=nElems*iProc+MIN(iProc,iElem)
       END DO
-    ELSE ! WeightDistributionMethod.EQ.6    !-- init as for CASE(0)
+    ELSE ! WeightDistributionMethod_loc.EQ.6    !-- init as for CASE(0)
       IF(nGlobalElems.EQ.nProcessors) THEN
         DO iProc=0, nProcessors-1
           offsetElemMPI(iProc) = iProc
@@ -671,7 +650,7 @@ CASE(5,6)
           END DO
         END DO
       END IF
-    END IF !WeightDistributionMethod 5 or 6
+    END IF !WeightDistributionMethod_loc 5 or 6
     offsetElemMPI(nProcessors)=nGlobalElems
     !-- calc inital distri
     CALL CalcDistriFromOffsets(nProcessors,nGlobalElems,ElemGlobalTime,offSetElemMPI &
@@ -738,9 +717,8 @@ CASE(5,6)
       iShiftLocal=0
       !-- loop for "smoothing" (moving elems from heavy intervals to light intervals)
       DO WHILE(.NOT.FoundDistribution .AND. MaxLoadIdx.NE.nProcessors-1)
-        IF (MaxLoadIdx.GE.MinLoadIdx) CALL abort(& !should be catched before...
-            __STAMP__, &
-            'MaxLoadIdx.GE.MinLoadIdx! ')
+        ! Should be check and terminated before arriving here
+        IF (MaxLoadIdx.GE.MinLoadIdx) CALL abort(__STAMP__,'MaxLoadIdx.GE.MinLoadIdx! ')
         iShiftLocal=iShiftLocal+1
         iDistriIter=iDistriIter+1
         offsetElemMPI_tmp=offsetElemMPI
@@ -893,10 +871,9 @@ CASE(5,6)
 #endif /*CODE_ANALYZE*/
   !------------------------------------------------------------------------------------------------------------------------------!
 CASE DEFAULT
-  CALL abort(&
-      __STAMP__&
-      , ' Error in mesh-readin: Invalid load balance distribution for WeightDistributionMethod = ',IntInfoOpt=WeightDistributionMethod)
-END SELECT ! WeightDistributionMethod
+  CALL abort(__STAMP__, ' Error in mesh-readin: Invalid load balance distribution for WeightDistributionMethod = ',&
+      IntInfoOpt=WeightDistributionMethod_loc)
+END SELECT ! WeightDistributionMethod_loc
 
 ! Set element offset for last processor
 offsetElemMPI(nProcessors)=nGlobalElems
@@ -981,9 +958,7 @@ SWRITE(*,*)'maxIdx:',MaxLoadIdx,'minIdx:',MinLoadIdx
 IF (nth.GT.1) THEN
   counter=1
   nthMinLoad_Idx=-1
-  IF (.NOT.PRESENT(nthMinLoad_Idx)) CALL abort(&
-__STAMP__&
-,'nthMinLoad_Idx not present!')
+  IF (.NOT.PRESENT(nthMinLoad_Idx)) CALL abort(__STAMP__,'nthMinLoad_Idx not present!')
   DO iProc=MinLoadIdx+1,nProcessors-1
     IF(procList(iProc).GT.MaxLoadIdx) THEN
       counter=counter+1
@@ -1000,9 +975,7 @@ __STAMP__&
 #endif /*CODE_ANALYZE*/
   END IF
 ELSE IF (nth.EQ.1) THEN
-  IF (.NOT.PRESENT(nthMinLoad_Idx)) CALL abort(&
-__STAMP__&
-,'nthMinLoad_Idx not present!')
+  IF (.NOT.PRESENT(nthMinLoad_Idx)) CALL abort(__STAMP__,'nthMinLoad_Idx not present!')
   nthMinLoad_Idx=MinLoadIdx
 END IF
 IF (PRESENT(nth_opt)) nth_opt = nth
@@ -1170,7 +1143,6 @@ CHARACTER(LEN=255)         :: tmpStr(nOutputVar) ! needed because PerformAnalyze
 CHARACTER(LEN=1000)        :: tmpStr2
 CHARACTER(LEN=1),PARAMETER :: delimiter=","
 REAL                       :: memory(1:3)       ! used, available and total
-REAL                       :: memoryGlobal(1:3) ! Globally used, available (only node roots) and total (also only node roots) memory
 #if USE_MPI
 REAL                       :: ProcMemoryUsed    ! Used memory on a single proc
 REAL                       :: NodeMemoryUsed    ! Sum of used memory across one compute node
@@ -1182,9 +1154,7 @@ CALL ProcessMemUsage(memory(1),memory(2),memory(3)) ! memUsed,memAvail,memTotal
 
 ! only CN roots communicate available and total memory info (count once per node)
 #if USE_MPI
-IF(nProcessors.EQ.1)THEN
-  memoryGlobal = memory
-ELSE
+IF(nProcessors.GT.1)THEN
   ! Collect data on node roots
   ProcMemoryUsed = memory(1)
   IF (myComputeNodeRank.EQ.0) THEN
@@ -1202,10 +1172,7 @@ ELSE
       CALL MPI_REDUCE(memory       , 0      , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
     END IF ! myLeaderGroupRank.EQ.0
   END IF ! myComputeNodeRank.EQ.0
-
 END IF ! nProcessors.EQ.1
-#else
-memoryGlobal = memory
 #endif /*USE_MPI*/
 
 ! --------------------------------------------------
@@ -1223,8 +1190,7 @@ memory=memory/1048576.
 
 ! Either create new file or add info to existing file
 IF(WriteHeader)THEN ! create new file
-  IF(.NOT.PRESENT(iter_opt))CALL abort(&
-      __STAMP__, &
+  IF(.NOT.PRESENT(iter_opt))CALL abort(__STAMP__, &
       ' WriteElemTimeStatistics: When creating ElemTimeStatistics.csv (WriteHeader=T) then supply [iter_opt] variable')
   IF(iter_opt.GT.0)                         RETURN ! don't create new file if this is not the first iteration
   IF((DoRestart).AND.(FILEEXISTS(outfile))) RETURN ! don't create new file if this is a restart and the file already exists;

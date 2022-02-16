@@ -64,7 +64,7 @@ or simply run the following command from inside the *build* directory
 
     cmake ../ -DPICLAS_TIMEDISCMETHOD=RESERVOIR
 
-to configure the build process and run `make` afterwards to build the executable. For this setup, the reservoir method, which is based on the DSMC method, is needed to allow for reservoir specific settings. An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`. The physical parameters for this test case are summarized in {numref}`tab:dsmc_chem_off_phys`.
+to configure the build process and run `make` afterwards to build the executable. For this setup, the reservoir method, which is based on the DSMC method, is needed to allow for reservoir specific settings. It is recommended to either utilize a separate build folder (e.g. build_DSMC/) or to delete the contents of the folder beforehand to avoid conflicts between different compiler options (e.g. the setting `PICLAS_EQNSYSNAME = poisson` from the plasma wave tutorial is in conflict with the DSMC method). An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`. The physical parameters for this test case are summarized in {numref}`tab:dsmc_chem_off_phys`.
 
 ```{table} Physical properties at the simulation start
 ---

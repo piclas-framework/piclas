@@ -19,8 +19,8 @@
     axis equal image,
     scaled ticks=false,
     unbounded coords=jump,
-    xmin=-8,
-    xmax=25,
+    xmin=-25,
+    xmax=8,
     ymin=-35,
     ymax=35,
     xlabel style={name=xlabel},
@@ -48,11 +48,11 @@
       xlabel style={yshift=1.8cm},
       xlabel={$T_\text{trans}$ $\left[\si{K}\right]$}}
     ]
-    \addplot graphics [xmin=-8,xmax=25,ymin=0,ymax=35] {./dsmc-cone-visuDSMC-2ms-TempTransMean.png};
-    \addplot graphics [xmin=-8,xmax=25,ymin=-35,ymax=0] {./dsmc-cone-visuDSMC-2ms-TempTransMean-point.png};
-    \addplot [line width=0.5mm] (-8,0) -- (32,0);
-    \node[above,rotate=90] at (32, 17.5) {original};
-    \node[above,rotate=90] at (32, -17.5) {interpolated};
+    \addplot graphics [xmin=-25,xmax=8,ymin=0,ymax=35] {./dsmc-cone-visuDSMC-2ms-TempTransMean.png};
+    \addplot graphics [xmin=-25,xmax=8,ymin=-35,ymax=0] {./dsmc-cone-visuDSMC-2ms-TempTransMean-point.png};
+    \addplot [line width=0.5mm] (-25,0) -- (15,0);
+    \node[above,rotate=90] at (15, 17.5) {original};
+    \node[above,rotate=90] at (15, -17.5) {interpolated};
     \end{axis}
     \draw [-latex] (xlabel.east) -- ++(0.5,0);
     \draw [-latex] (ylabel.east) -- ++(0,0.5);
@@ -63,8 +63,8 @@
     axis equal image,
     scaled ticks=false,
     unbounded coords=jump,
-    xmin=-8,
-    xmax=25,
+    xmin=-25,
+    xmax=8,
     ymin=-35,
     ymax=35,
     xlabel style={name=xlabel},
@@ -92,11 +92,11 @@
       xlabel style={yshift=1.8cm},
       xlabel={$\left|v\right|$ $\left[\si{\frac{m}{s}}\right]$}}
     ]
-    \addplot graphics [xmin=-8,xmax=25,ymin=0,ymax=35] {./dsmc-cone-visuDSMC-2ms-Velo.png};
-    \addplot graphics [xmin=-8,xmax=25,ymin=-35,ymax=0] {./dsmc-cone-visuDSMC-2ms-Velo-point.png};
-    \addplot [line width=0.5mm] (-8,0) -- (32,0);
-    \node[above,rotate=90] at (32, 17.5) {original};
-    \node[above,rotate=90] at (32, -17.5) {interpolated};
+    \addplot graphics [xmin=-25,xmax=8,ymin=0,ymax=35] {./dsmc-cone-visuDSMC-2ms-Velo.png};
+    \addplot graphics [xmin=-25,xmax=8,ymin=-35,ymax=0] {./dsmc-cone-visuDSMC-2ms-Velo-point.png};
+    \addplot [line width=0.5mm] (-25,0) -- (15,0);
+    \node[above,rotate=90] at (15, 17.5) {original};
+    \node[above,rotate=90] at (15, -17.5) {interpolated};
     \end{axis}
     \draw [-latex] (xlabel.east) -- ++(0.5,0);
     \draw [-latex] (ylabel.east) -- ++(0,0.5);

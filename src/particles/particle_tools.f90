@@ -157,6 +157,8 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
       END IF
 #endif
     ELSE
+      ! Sanity check corrupted particle list (some or all entries of a particle become zero, including the species ID)
+      IF(PartSpecies(i).LE.0) CALL abort(__STAMP__,'Species ID is zero for ipart=',IntInfoOpt=i)
       ElemID = PEM%LocalElemID(i)
       ! Start of linked list for particles in elem
       IF (PEM%pNumber(ElemID).EQ.0) THEN
@@ -200,7 +202,7 @@ ELSE
 ENDIF
 PDM%CurrentNextFreePosition = 0
 
-! Positions after ParticleVecLength after freePosition
+! Positions after ParticleVecLength in freePosition
 DO i = n+1,PDM%maxParticleNumber
   IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
   counter = counter + 1

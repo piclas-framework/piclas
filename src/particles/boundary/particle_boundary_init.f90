@@ -126,18 +126,17 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-TemperatureGradientEnd'  &
                                 , 'Impose a temperature gradient by supplying a start/end vector and a second wall temperature.' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
-                                , 'Defining surface to be treated reactively by defining Model used '//&
-                                'for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
+                                , 'Defining surface to be treated reactively by defining Model used for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
                                 '0: Maxwell scattering\n'//&
-                                '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) '//&
-                                    'by Levko2015 for copper electrodes\n'//&
-                                '6: SEE-E (secondary e- emission due to e- bombardment) '//&
-                                    'by Pagonakis2016 for molybdenum, originally from Harrower1956. Currently not available\n'//&
+                                '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) by Levko2015 for copper electrodes\n'//&
+                                '6: SEE-E (secondary e- emission due to e- bombardment) by Pagonakis2016 for molybdenum, originally from Harrower1956. Currently not available\n'//&
                                 '7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for '//&
-                                'secondary e- emission with 0.13 probability) by Depla2009\n'// &
+                                'secondary e- emission with 0.13 probability) by D. Depla, "Magnetron sputter deposition: Linking discharge voltage with target properties", 2009\n'// &
                                 '8: SEE-E (e- on dielectric materials is considered for SEE and three different outcomes) '//&
-                                'by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004'//&
-                                '9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV'&
+                                'by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004\n'//&
+                                '9: SEE-I when Ar+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV\n'//&
+                                '10: SEE-I when Ar+ bombards copper by J.G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation", 2021 (originates from Phelps1999)\n'// &
+                                '11: SEE-E when e- bombard quartz (SiO2) by A. Dunaevsky, "Secondary electron emission from dielectric materials of a Hall thruster with segmented electrodes", 2003'&
                                 , '0', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -239,6 +238,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -403,18 +403,18 @@ DO iPartBound=1,nPartBound
         PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
             GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
       END DO
-      IF(PartBound%Reactive(iPartBound)) THEN
-        CALL abort(__STAMP__&
+      IF(PartBound%Reactive(iPartBound)) CALL abort(__STAMP__&
           ,'ERROR: Species swap is only supported in combination with Maxwell scattering (SurfModel = 0). PartBound: ',iPartBound)
-      END IF
     END IF
     ! Dielectric Surfaces
     PartBound%Dielectric(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
     ! Sanity check: PartBound%Dielectric=T requires supplying species swap for every species
     IF(PartBound%Dielectric(iPartBound))THEN
-      IF(PartBound%NbrOfSpeciesSwaps(iPartBound).LT.(nSpecies-BGGas%NumberOfSpecies))THEN
-        CALL abort(__STAMP__,&
-          'PartBound%Dielectric=T requires supplying a species swap (Part-BoundaryX-NbrOfSpeciesSwaps) for every species (except background gas species)!')
+      IF((PartBound%NbrOfSpeciesSwaps(iPartBound).LT.(nSpecies-BGGas%NumberOfSpecies)).AND.&
+          (.NOT.PartBound%Reactive(iPartBound)))THEN
+        CALL abort(__STAMP__,'PartBound%Dielectric=T requires\n   a) supplying a species swap (Part-BoundaryX-NbrOfSpeciesSwaps)'//&
+            ' for every species (except background gas species) or\n   '//&
+            'b) surface model that is reactive (Part-BoundaryX-SurfaceModel)!')
       ELSE
         DoDielectricSurfaceCharge=.TRUE.
       END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies
@@ -452,6 +452,10 @@ DO iPartBound=1,nPartBound
   PartBound%BoundaryParticleOutputHDF5(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
   IF(PartBound%BoundaryParticleOutputHDF5(iPartBound)) DoBoundaryParticleOutputHDF5=.TRUE.
 END DO
+
+! Connect emission inits to particle boundaries for output
+IF(DoBoundaryParticleOutputHDF5) CALL InitializeVariablesSpeciesBoundary()
+
 AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
 IF(GEO%RotPeriodicBC) THEN
@@ -746,6 +750,7 @@ CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 
 END SUBROUTINE InitAdaptiveWallTemp
 
+
 SUBROUTINE InitializeVariablesAuxBC()
 !===================================================================================================================================
 ! Initialize the variables first
@@ -1000,6 +1005,7 @@ ELSE
 END IF
 
 END SUBROUTINE InitializeVariablesAuxBC
+
 
 SUBROUTINE rotx(mat,a)
 IMPLICIT NONE

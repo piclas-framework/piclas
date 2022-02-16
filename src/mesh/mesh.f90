@@ -71,7 +71,6 @@ CALL prms%CreateStringOption(  'MeshFile',            "(relative) path to meshfi
 CALL prms%CreateLogicalOption( 'useCurveds',          "Controls usage of high-order information in mesh. Turn off to discard "//&
                                                       "high-order data and treat curved meshes as linear meshes.", '.FALSE.')
 
-CALL prms%CreateLogicalOption( 'DoWriteStateToHDF5',  "Write state of calculation to hdf5-file.",'.TRUE.')
 CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this factor (shrink/enlarge).",&
                                                       '1.0')
 CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
@@ -133,6 +132,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: meshScale
 USE MOD_Particle_Vars          ,ONLY: usevMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 #endif
+USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -199,7 +199,6 @@ IF(.NOT.validMesh) &
 
 
 useCurveds=GETLOGICAL('useCurveds')
-DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5')
 #if USE_LOADBALANCE
 IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
   DoWriteStateToHDF5=.TRUE.
