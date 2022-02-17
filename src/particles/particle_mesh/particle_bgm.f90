@@ -504,8 +504,10 @@ END DO ! iBGM
 ! and which element is outside of compute-node domain (0)
 ! first do coarse check with BGM
 IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
+  ! Single-node
   ElemInfo_Shared(ELEM_HALOFLAG,firstElem:lastElem) = 1
 ELSE
+  ! Multi-node
   ElemInfo_Shared(ELEM_HALOFLAG,firstElem:lastElem) = 0
   DO iElem = firstElem, lastElem
     BGMCellXmin = ElemToBGM_Shared(1,iElem)
@@ -1520,10 +1522,10 @@ END DO
 END SUBROUTINE CheckPeriodicSides
 
 
-SUBROUTINE CheckRotPeriodicSides(EnlargeBGM)
 !===================================================================================================================================
 !> checks the elements against periodic rotation
 !===================================================================================================================================
+SUBROUTINE CheckRotPeriodicSides(EnlargeBGM)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
@@ -1533,6 +1535,7 @@ USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems,GEO
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
+USE MOD_Particle_Boundary_Vars ,ONLY: NbrOfRotPeriodicHaloElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1549,6 +1552,7 @@ INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
 INTEGER                        :: iPeriodicDir,iLocElem
 !===================================================================================================================================
 
+NbrOfRotPeriodicHaloElems = 0
 firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
 
@@ -1559,6 +1563,7 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 ! this approach is again preferred compared to the communication overhead.
 DO iElem = firstElem ,lastElem
   ! only consider elements that are not already flagged
+  ! 1: my elements, 2: halo elements (not considering linear or rot periodic)
   IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).NE.0) CYCLE
 
   BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iElem)),                                                   &
@@ -1602,6 +1607,7 @@ DO iElem = firstElem ,lastElem
               .LE. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4))THEN
         ! add element back to halo region
         ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
+        NbrOfRotPeriodicHaloElems = NbrOfRotPeriodicHaloElems + 1 ! count number of halo flag 3 elements
         IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
       END IF ! VECNORM( ...
     END DO ! iPeriodicDir = 1,2

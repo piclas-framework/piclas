@@ -518,21 +518,21 @@ IF(DeprecatedVoltage) CALL abort(__STAMP__&
 END SUBROUTINE InitializeVariablesPartBoundary
 
 
+!===================================================================================================================================
+!> Build Mapping for rotational periodicity: RotPeriodicSide -> SideID2 (Side on corresponding BC).
+!> In RotPeriodicBC (particle_boundary_condition.f90): SideID -> SurfSideID -> RotPeriodicSide
+!>                                                     RotPeriodicSide -> SideID2
+!> (1) counting rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
+!> (2) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
+!>     counting potential rotational periodic sides (for not conform meshes)
+!> (3) reallocate array due to number of potential rotational periodic sides
+!===================================================================================================================================
 SUBROUTINE InitParticleBoundaryRotPeriodic()
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Build Mapping for rotational periodicity: RotPeriodicSide -> SideID2 (Side on corresponding BC).
-! In RotPeriodicBC (particle_boundary_condition.f90): SideID -> SurfSideID -> RotPeriodicSide
-!                                                     RotPeriodicSide -> SideID2
-! (1) counting rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
-! (2) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
-!     counting potential rotational periodic sides (for not conform meshes)
-! (3) reallocate array due to number of potential rotational periodic sides
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSide2GlobalSide,nComputeNodeSurfTotalSides,SurfSide2GlobalSide,PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: NbrOfRotPeriodicHaloElems
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, GEO, ElemInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 #if USE_MPI
@@ -541,6 +541,8 @@ USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,MeshFile,nElems
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
 USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_HDF5_Output_State       ,ONLY: WriteStateToHDF5
+USE MOD_HDF5_Output_ElemData    ,ONLY: WriteLostRotPeriodicSidesToHDF5
+USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors,nProcessors_Global
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -572,6 +574,16 @@ DO iSide=1, nComputeNodeSurfTotalSides
     nRotPeriodicSides = nRotPeriodicSides + 1
     Rot2Glob_temp(nRotPeriodicSides) = SideID
     SurfSide2RotPeriodicSide(iSide) = nRotPeriodicSides
+#if USE_MPI
+    ! Sanity check: Only check for multi-node cases
+    IF(nComputeNodeProcessors.NE.nProcessors_Global)THEN
+      ! Processor element (halo flag 1) is directly at a rot periodic BC but there are no rotationally periodic halo elements
+      ! (halo flag 3)
+      IF((ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.1).AND.(NbrOfRotPeriodicHaloElems.EQ.0)) &
+          CALL abort(__STAMP__,'Found element rot periodic BC without halo region (halo flag 3) global element ID=',&
+          IntInfoOpt=SideInfo_Shared(SIDE_ELEMID,SideID))
+    END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+#endif /*USE_MPI*/
   END IF
 END DO
 
@@ -672,18 +684,20 @@ DO iSide=1, nRotPeriodicSides
         RotPeriodicSideMapping_temp(jSide,NumRotPeriodicNeigh(jSide)) = SideID
         SideIsMapped = .TRUE.
       END IF
-    END DO
-  END DO
+    END DO ! jSide=1, nRotPeriodicSides
+  END DO ! iNode=1, 4
   IF(.NOT.SideIsMapped) THEN
     IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3) THEN
-      !CALL abort(__STAMP__,' ERROR: One rot periodic side did not find a corresponding side.')
+      ! Count number of sides that could not be mapped (warning output + info in h5 file when CalcMeshInfo=T)
       notMapped = notMapped + 1
     ELSE
+      ! Found side on element that is a neighbor element in rot halo region (they have halo flag 3)
       NumRotPeriodicNeigh(iSide) = 1
       RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = -1
-    END IF
-  END IF
-END DO
+    END IF ! ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3
+  END IF ! .NOT.SideIsMapped
+END DO ! iSide=1, nRotPeriodicSides
+
 ! (3) reallocate array due to number of potential rotational periodic sides
 MaxNumRotPeriodicNeigh = MAXVAL(NumRotPeriodicNeigh)
 ALLOCATE(RotPeriodicSideMapping(nRotPeriodicSides,MaxNumRotPeriodicNeigh))
@@ -693,40 +707,30 @@ DO iSide=1, nRotPeriodicSides
   END DO
 END DO
 
-
-!IF(MPIroot)THEN
-!  CALL MPI_REDUCE(MPI_IN_PLACE , notMapped , 1 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-!  write(*,*) notMapped
-!  IF(notMapped.gt.0)THEN
-!    CALL abort(__STAMP__,'yoloo')
-!  END IF ! notMapped.gt.0
-!ELSE
-!  CALL MPI_REDUCE(notMapped , 0            , 1 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-!  ! in this case the receive value is not relevant.
-!END IF
-
 #if USE_MPI
-IF(CalcMeshInfo)THEN
-  CALL MPI_ALLREDUCE(notMapped , notMappedTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_SHARED , IERROR)
-  IF(notMappedTotal.GT.0)THEN
+CALL MPI_ALLREDUCE(notMapped , notMappedTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+IF(notMappedTotal.GT.0)THEN
+  SWRITE(Unit_StdOut,'(A,I0,A)') ' | Warning: Found ',notMappedTotal,' rot periodic sides that did not find a corresponding side.'
+  SWRITE(Unit_StdOut,'(A)')" | The halo region (halo flag 2) merely reaches a rot periodic BC side but not any further."
+  SWRITE(Unit_StdOut,'(A)')" | See ElemData container 'LostRotPeriodicSides' for more information on where sides were unmatched."
+  SWRITE(Unit_StdOut,'(A)')" | This information is written to LostRotPeriodicSides_000.00000000000000000.h5 (CalcMeshInfo=T)"
+  IF(CalcMeshInfo)THEN
     ALLOCATE(LostRotPeriodicSides(1:nElems))
-    LostRotPeriodicSides=0
+    LostRotPeriodicSides=notMapped
     CALL AddToElemData(ElementOut,'LostRotPeriodicSides',LongIntArray=LostRotPeriodicSides)
-    IF(notMapped.GT.0) LostRotPeriodicSides = notMapped
-    CALL WriteStateToHDF5(TRIM(MeshFile),0.0)
-    IF(MPIroot) CALL abort(__STAMP__,'At least one rot periodic side did not find a corresponding side.')
-  END IF ! notMappedTotal.GT.0
-END IF ! CalcMeshInfo
+    CALL WriteLostRotPeriodicSidesToHDF5()
+  END IF ! CalcMeshInfo
+  !IF(MPIroot) CALL abort(__STAMP__,'At least one rot periodic side did not find a corresponding side.')
+END IF ! notMappedTotal.GT.0
 #endif /*USE_MPI*/
-
 
 END SUBROUTINE InitParticleBoundaryRotPeriodic
 
 
-SUBROUTINE InitAdaptiveWallTemp()
 !===================================================================================================================================
 !> Allocate shared array for the side-local wall temperature: BoundaryWallTemp_Shared and initialize with read-in wall temperature
 !===================================================================================================================================
+SUBROUTINE InitAdaptiveWallTemp()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nComputeNodeSurfTotalSides, BoundaryWallTemp, SurfSide2GlobalSide,nSurfSample

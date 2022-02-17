@@ -933,9 +933,10 @@ IF (nVarAdd.GT.0) THEN
         nElems     => INT(nElems,IK)    )
     CALL ReadArray(TRIM(ArrayName),2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData(1:nVarAdd,1:nElems))
   END ASSOCIATE
+  ! Default
+  FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution_'//TRIM(ArrayName),OutputTime))//'.vtu'
+  ! Special file types
   SELECT CASE(TRIM(File_Type))
-    CASE('State')
-      FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution_'//TRIM(ArrayName),OutputTime))//'.vtu'
     CASE('DSMCState','DSMCHOState')
       FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuDSMC',OutputTime))//'.vtu'
   END SELECT
