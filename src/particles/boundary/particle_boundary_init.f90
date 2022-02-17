@@ -512,8 +512,7 @@ DO iPartBound=1,nPartBound
 END DO
 
 !-- Sanity check: Deprecated voltage parameter
-IF(DeprecatedVoltage) CALL abort(&
-  __STAMP__&
+IF(DeprecatedVoltage) CALL abort(__STAMP__&
   ,'Part-Boundary-Voltage is no longer supported. Use corresponding RefState parameter as described in the user guide.')
 
 END SUBROUTINE InitializeVariablesPartBoundary
@@ -536,6 +535,13 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSide2GlobalSide,nComputeNodeSu
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, GEO, ElemInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+#if USE_MPI
+USE MOD_Analyze_Vars            ,ONLY: CalcMeshInfo
+USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,MeshFile,nElems
+USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
+USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_HDF5_Output_State       ,ONLY: WriteStateToHDF5
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -550,6 +556,8 @@ INTEGER,ALLOCATABLE  :: RotPeriodicSideMapping_temp(:,:)
 LOGICAL              :: isMapped,SideIsMapped
 REAL                 :: iNodeVec(1:3), jNodeVec(1:3)
 REAL                 :: iNodeR, iNodeH, jNodeR, jNodeH, Node2Rmin, Node2Rmax, Node2Hmin, Node2Hmax
+INTEGER,PARAMETER    :: NbrOfRotConnections=1000
+INTEGER              :: notMapped,notMappedTotal
 !===================================================================================================================================
 
 ALLOCATE(Rot2Glob_temp(nComputeNodeSurfTotalSides))
@@ -557,7 +565,7 @@ ALLOCATE(SurfSide2RotPeriodicSide(nComputeNodeSurfTotalSides))
 SurfSide2RotPeriodicSide(:) = -1
 nRotPeriodicSides=0
 
-! (1) counting rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
+! (1) Count rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
 DO iSide=1, nComputeNodeSurfTotalSides
   SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
   IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%RotPeriodicBC) THEN
@@ -569,16 +577,16 @@ END DO
 
 ALLOCATE(RotPeriodicSide2GlobalSide(nRotPeriodicSides))
 ALLOCATE(NumRotPeriodicNeigh(nRotPeriodicSides))
-! number of potential rotational periodic sides is unknown => allocate mapping array with fixed number of 1000
+! number of potential rotational periodic sides is unknown => allocate mapping array with fixed number of NbrOfRotConnections
 ! and reallocate at the end of subroutine
-ALLOCATE(RotPeriodicSideMapping_temp(nRotPeriodicSides,1000))
+ALLOCATE(RotPeriodicSideMapping_temp(nRotPeriodicSides,NbrOfRotConnections))
 
 DO iSide=1, nRotPeriodicSides
   RotPeriodicSide2GlobalSide(iSide) = Rot2Glob_temp(iSide)
   NumRotPeriodicNeigh(iSide) = 0
-  RotPeriodicSideMapping_temp(iSide,1:1000) = -1
+  RotPeriodicSideMapping_temp(iSide,1:NbrOfRotConnections) = -1
 END DO
-
+notMapped=0
 MaxNumRotPeriodicNeigh = 0
 ! Defining rotation matrix
 SELECT CASE(GEO%RotPeriodicAxi)
@@ -596,7 +604,7 @@ SELECT CASE(GEO%RotPeriodicAxi)
     m = 2
 END SELECT
 ! (2) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
-!     counting potential rotational periodic sides (for not conform meshes)
+!     counting potential rotational periodic sides (for non-conforming meshes)
 DO iSide=1, nRotPeriodicSides
   SideID    = RotPeriodicSide2GlobalSide(iSide)
   CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
@@ -614,7 +622,7 @@ DO iSide=1, nRotPeriodicSides
       IF(PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ. &
         PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2)))) CYCLE
       isMapped = .FALSE.
-      ! check wether RotPeriodicSides is already mapped
+      ! check whether RotPeriodicSides is already mapped
       IF(NumRotPeriodicNeigh(jSide).GT. 0) THEN
         DO iNeigh=1, NumRotPeriodicNeigh(jSide)
           IF(RotPeriodicSideMapping_temp(jSide,iNeigh).EQ.SideID) THEN
@@ -653,17 +661,13 @@ DO iSide=1, nRotPeriodicSides
       !                                                     2. map:     iSide => SideID2 and
       !                                                     vise versa: jSide => SideID  s.o.
         NumRotPeriodicNeigh(iSide) = NumRotPeriodicNeigh(iSide) + 1
-        IF(NumRotPeriodicNeigh(iSide).GT. 1000) THEN
-          CALL abort(&
-              __STAMP__&
-              ,' ERROR: Number of rotational periodic side exceed fixed number of 1000!.')
+        IF(NumRotPeriodicNeigh(iSide).GT. NbrOfRotConnections) THEN
+          CALL abort(__STAMP__,' ERROR: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
         END IF
         RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = SideID2
         NumRotPeriodicNeigh(jSide) = NumRotPeriodicNeigh(jSide) + 1
-        IF(NumRotPeriodicNeigh(jSide).GT. 1000) THEN
-          CALL abort(&
-              __STAMP__&
-              ,' ERROR: Number of rotational periodic side exceed fixed number of 1000!.')
+        IF(NumRotPeriodicNeigh(jSide).GT. NbrOfRotConnections) THEN
+          CALL abort(__STAMP__,' ERROR: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
         END IF
         RotPeriodicSideMapping_temp(jSide,NumRotPeriodicNeigh(jSide)) = SideID
         SideIsMapped = .TRUE.
@@ -672,9 +676,8 @@ DO iSide=1, nRotPeriodicSides
   END DO
   IF(.NOT.SideIsMapped) THEN
     IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3) THEN
-      CALL abort(&
-          __STAMP__&
-          ,' ERROR: One rot periodic side did not find a corresponding side.')
+      !CALL abort(__STAMP__,' ERROR: One rot periodic side did not find a corresponding side.')
+      notMapped = notMapped + 1
     ELSE
       NumRotPeriodicNeigh(iSide) = 1
       RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = -1
@@ -689,6 +692,33 @@ DO iSide=1, nRotPeriodicSides
     RotPeriodicSideMapping(iSide,iNeigh) = RotPeriodicSideMapping_temp(iSide,iNeigh)
   END DO
 END DO
+
+
+!IF(MPIroot)THEN
+!  CALL MPI_REDUCE(MPI_IN_PLACE , notMapped , 1 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+!  write(*,*) notMapped
+!  IF(notMapped.gt.0)THEN
+!    CALL abort(__STAMP__,'yoloo')
+!  END IF ! notMapped.gt.0
+!ELSE
+!  CALL MPI_REDUCE(notMapped , 0            , 1 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+!  ! in this case the receive value is not relevant.
+!END IF
+
+#if USE_MPI
+IF(CalcMeshInfo)THEN
+  CALL MPI_ALLREDUCE(notMapped , notMappedTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_SHARED , IERROR)
+  IF(notMappedTotal.GT.0)THEN
+    ALLOCATE(LostRotPeriodicSides(1:nElems))
+    LostRotPeriodicSides=0
+    CALL AddToElemData(ElementOut,'LostRotPeriodicSides',LongIntArray=LostRotPeriodicSides)
+    IF(notMapped.GT.0) LostRotPeriodicSides = notMapped
+    CALL WriteStateToHDF5(TRIM(MeshFile),0.0)
+    IF(MPIroot) CALL abort(__STAMP__,'At least one rot periodic side did not find a corresponding side.')
+  END IF ! notMappedTotal.GT.0
+END IF ! CalcMeshInfo
+#endif /*USE_MPI*/
+
 
 END SUBROUTINE InitParticleBoundaryRotPeriodic
 

@@ -1552,6 +1552,9 @@ INTEGER                        :: iPeriodicDir,iLocElem
 firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
 
+! The code below changes ElemInfo_Shared, identification of periodic elements must complete before
+CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
+
 ! This is a distributed loop. Nonetheless, the load will be unbalanced due to the location of the space-filling curve. Still,
 ! this approach is again preferred compared to the communication overhead.
 DO iElem = firstElem ,lastElem
