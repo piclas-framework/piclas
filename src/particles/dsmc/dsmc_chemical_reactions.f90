@@ -227,10 +227,11 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
     Xi_Total = Xi_Total + Xi_elec(iPart) + Xi_vib(iPart) + SpecDSMC(EductReac(iPart))%Xi_Rot
   END DO
   IF(EductReac(3).NE.0) Xi_Total = Xi_Total + 3.
+  ! Calculation of the beta factor (requires the collision pair-specific vibrational and electronic degrees of freedom)
+  ! Not calculated when treating recombination reactions with the automatic backward reactions.
+  IF((TRIM(ChemReac%ReactType(iReac)).NE.'R').OR.(iReac.LE.ChemReac%NumOfReactWOBackward)) BetaReaction = Calc_Beta_TCE(iReac,Xi_Total)
   ! Zero-point energy of educts is removed from the collision energy utilized for the calculation of the reaction probability
   EReact = NumWeightEduct*(Coll_pData(iPair)%Ec - EZeroPoint_Educt)/ SumWeightEduct
-  ! Calculation of the beta factor (requires the collision pair-specific vibrational and electronic degrees of freedom)
-  BetaReaction = Calc_Beta_TCE(iReac,Xi_Total)
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Calculation of the backward reaction rate coefficient and applying to Beta coefficient after Boyd "Modeling backward chemical
   ! rate processes in the direct simulation Monte Carlo method", Phys. Fluids 19, 1261103 (2007)

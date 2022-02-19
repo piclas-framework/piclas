@@ -82,8 +82,7 @@ The temperature is then calculated from
 $$ q_w = \varepsilon \sigma T_w^4,$$
 
 where $\varepsilon$ is the radiative emissivity of the wall (default = 1) and
-$\sigma = \SI{5.67E-8}{\watt\per\square\meter\per\kelvin\tothe{4}}$ is the Stefan-Boltzmann constant. The adaptive boundary is
-enabled by
+$\sigma = \pu{5.67E-8 Wm^{-2}K^{-4}}$ is the Stefan-Boltzmann constant. The adaptive boundary is enabled by
 
     Part-AdaptWallTemp = T
     Part-Boundary1-UseAdaptedWallTemp = T
