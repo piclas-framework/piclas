@@ -88,10 +88,10 @@ as detailed in the following table.
 |   (/10,0/)   |  10: Neumann |                                                  zero-gradient (dPhi/dn=0)                                                 |
 |   (/11,0/)   |  11: Neumann |                                                            q*n=1                                                           |
 
-For each boundary of type *5* (reference state boundary *RefState*), e.g., by setting the boundary in the *hopr.ini* file
+For each boundary of type *5* (reference state boundary *RefState*), e.g., by setting the boundary in the *parameter.ini* file
 
     BoundaryName = BC_WALL ! BC name in the mesh.h5 file
-    BoundaryType = (/5,1/) ! (/ Type, curveIndex, State, alpha /)
+    BoundaryType = (/5,1/) ! (/ Type, State/)
 
 the corresponding *RefState* number must also be supplied in the parameter.ini file (here 1) and is selected from its position
 in the parameter file.
