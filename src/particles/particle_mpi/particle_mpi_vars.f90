@@ -74,6 +74,9 @@ REAL                                      :: halo_eps_velo                  ! ha
 REAL                                      :: halo_eps_woshape               ! halo_eps_woshape
 REAL                                      :: halo_eps                       ! length of halo-region
 REAL                                      :: halo_eps2                      ! length of halo-region^2
+REAL                                      :: MPI_halo_eps                   ! If running on one node, halo_eps is meaningless.
+                                                                            ! Get a representative MPI_halo_eps for MPI proc
+                                                                            ! identification
 
 #if USE_MPI
 INTEGER                                   :: PartCommSize                   ! Number of REAL entries for particle communication

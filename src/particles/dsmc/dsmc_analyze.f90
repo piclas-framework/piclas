@@ -716,7 +716,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
-USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting, BGGas
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry
@@ -737,7 +737,7 @@ REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality,nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iElem, iSpec, nVarCount, nSpecTemp, nVarCountRelax
+INTEGER                 :: iElem, iSpec, nVarCount, nSpecTemp, nVarCountRelax, bgSpec
 REAL                    :: TVib_TempFac, iter_loc
 REAL                    :: MolecPartNum, HeavyPartNum
 !===================================================================================================================================
@@ -845,6 +845,19 @@ DO iElem = 1, nElems ! element/cell main loop
                 IF(nSpecies.GT.1) Total_TempElec = Total_TempElec + Macro_TempElec*Macro_PartNum
               END IF
             END IF
+          END IF
+        END IF
+        ! Write out background gas distribution but do not include it in the totals
+        IF(BGGas%UseDistribution) THEN
+          IF(BGGas%BackgroundSpecies(iSpec)) THEN
+            bgSpec = BGGas%MapSpecToBGSpec(iSpec)
+            Macro_Velo     = BGGas%Distribution(bgSpec,1:3,iElem)
+            Macro_Temp     = BGGas%Distribution(bgSpec,4:6,iElem)
+            Macro_TempMean = SUM(BGGas%Distribution(bgSpec,4:6,iElem)) / 3.
+            Macro_Density  = BGGas%Distribution(bgSpec,7,iElem)
+            Macro_TempVib  = BGGas%Distribution(bgSpec,8,iElem)
+            Macro_TempRot  = BGGas%Distribution(bgSpec,9,iElem)
+            Macro_Tempelec = BGGas%Distribution(bgSpec,10,iElem)
           END IF
         END IF
       END ASSOCIATE

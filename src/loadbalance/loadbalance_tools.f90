@@ -107,6 +107,7 @@ IF (DoRestart) THEN
   ALLOCATE(ElemGlobalTime(1:nGlobalElems)) ! Allocate ElemGlobalTime for all MPI ranks
   ElemGlobalTime = 0.
 
+
   ! 1) Only MPIRoot does readin of ElemTime
   IF(MPIRoot)THEN
     ! read ElemTime by root only
@@ -122,7 +123,7 @@ IF (DoRestart) THEN
   END IF
 
   ! 2) Distribute logical information ElemTimeExists
-  CALL MPI_BCAST (ElemTimeExists,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST(ElemTimeExists,1,MPI_LOGICAL,0,MPI_COMM_WORLD,iError)
 
   ! Distribute the elements according to the selected distribution method
   CALL ApplyWeightDistributionMethod(ElemTimeExists)
@@ -224,9 +225,10 @@ USE MOD_HDF5_Input       ,ONLY: ReadArray,DatasetExists
 USE MOD_LoadBalance_Vars ,ONLY: ElemGlobalTime
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime_tmp
+USE MOD_MPI_Vars         ,ONLY: offsetElemMPI
 #endif /*USE_LOADBALANCE*/
 USE MOD_Mesh_Vars        ,ONLY: offsetElem,nElems,nGlobalElems
-USE MOD_Restart_Vars     ,ONLY: RestartFile
+USE MOD_Restart_Vars     ,ONLY: RestartFile,FlushInitialState
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -236,6 +238,10 @@ LOGICAL,INTENT(IN)  :: single !< read data file either single=.TRUE. (only MPI r
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 LOGICAL             :: ElemTimeExists
+#if USE_LOADBALANCE
+INTEGER             :: iPRoc
+INTEGER,ALLOCATABLE :: ElemProc(:)
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 ! Read data file either single=.TRUE. (only MPI root) or single=.FALSE. (all ranks)
 IF(single)THEN
@@ -271,12 +277,41 @@ IF(single)THEN
   ! END IF
 #if USE_LOADBALANCE
 ELSE
-  SDEALLOCATE(ElemTime_tmp)
-  ALLOCATE(ElemTime_tmp(1:nElems))
-  ElemTime_tmp=0.
+  ! Sanity check: some processors will return ElemTimeExists=F even though it is actually present on the disk
+  ! When this happens, the root process and its processors that are on the same node always return ElemTimeExists=T
+  ! This points to a corrupt state file (accompanied by SpecID=0 particles within the file)
+  ! If the load balance step is performed without h5 I/O in the future, this check can be removed
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-  CALL ReadArray('ElemTime',2,(/1_IK,INT(nElems,IK)/),INT(OffsetElem,IK),2,RealArray=ElemTime_tmp)
+  CALL DatasetExists(File_ID,'ElemTime',ElemTimeExists)
+  IF(.NOT.ElemTimeExists) CALL abort(__STAMP__,'ElemTime does not exit for some processors in .h5 which indicates a corrupt state file')
   CALL CloseDataFile()
+
+  ! Check if the original ElemTime needs to be communicated to all procs for output to a state file
+  IF(FlushInitialState)THEN
+    ! Check is allocated and re-allocate
+    SDEALLOCATE(ElemTime_tmp)
+    ALLOCATE(ElemTime_tmp(1:nElems))
+    ElemTime_tmp=0.
+
+    ! Because on some file systems the data of the new state file which was read here might not be completed yet before it accessed
+    ! here, it is instead synchronized via mpi scatterv from the root process to all other processes.
+    ! This is because HDF5 only guarantees that the data is in the kernel buffer, but not on the disk itself.
+    IF(MPIRoot)THEN
+      ALLOCATE(ElemProc(0:nProcessors-1))
+      DO iProc=0,nProcessors-1
+        ElemProc(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
+      END DO ! iPRoc
+      ! Is this necessary for the root process?
+      ElemTime_tmp(1:nElems) = ElemGlobalTime(1:nElems)
+    END IF ! MPIRoot
+
+    ! Send from root to all other processes
+    CALL MPI_SCATTERV(ElemGlobalTime, ElemProc, offsetElemMPI, MPI_DOUBLE_PRECISION, ElemTime_tmp, nElems, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, IERROR)
+
+    ! Deallocate temporary array
+    IF(MPIRoot) DEALLOCATE(ElemProc)
+  END IF ! FlushInitialState
+
 #endif /*USE_LOADBALANCE*/
 END IF ! single
 

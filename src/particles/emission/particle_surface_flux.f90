@@ -270,12 +270,10 @@ __STAMP__&
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
       IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) AdaptBCPartNumOut(iSpec,iSF) = 0
     END IF
-    IF (NbrOfParticle.NE.iPartTotal) CALL abort(&
-__STAMP__&
-, 'Error 2 in ParticleSurfaceflux!')
+    IF (NbrOfParticle.NE.iPartTotal) CALL abort(__STAMP__, 'Error 2 in ParticleSurfaceflux!')
 !----- 2b.: set remaining properties
     CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
-    IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(iSpec,NbrOfParticle)
+    IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(iSpec,-1,NbrOfParticle)
     ! define molecule stuff
     IF (useDSMC.AND.(CollisMode.GT.1)) CALL SetInnerEnergies(iSpec, iSF, NbrOfParticle)
     IF(CalcPartBalance) THEN

@@ -22,17 +22,12 @@ PRIVATE
 PUBLIC :: InterpolateFieldToParticle
 PUBLIC :: InitializeParticleInterpolation
 PUBLIC :: InterpolateFieldToSingleParticle
-PUBLIC :: InterpolateVariableExternalField
 #ifdef CODE_ANALYZE
 PUBLIC :: InitAnalyticalParticleState
 #endif /*CODE_ANALYZE*/
 PUBLIC :: DefineParametersPICInterpolation
 PUBLIC :: FinalizePICInterpolation
 !===================================================================================================================================
-INTERFACE InterpolateVariableExternalField
-  MODULE PROCEDURE InterpolateVariableExternalField
-END INTERFACE
-
 INTERFACE InterpolateFieldToSingleParticle
   MODULE PROCEDURE InterpolateFieldToSingleParticle
 END INTERFACE
@@ -75,7 +70,8 @@ CALL prms%CreateLogicalOption(  'PIC-DoInterpolation'         , "Interpolate ele
  "  Method 2: PIC-externalField (const. E/B field)\n"//&
  "  Method 3: PIC-variableExternalField (CSV file for Bz(z) that is interpolated)\n"//&
  "  Method 4: PIC-AlgebraicExternalField (E/B pre-defined algebraic expression)\n"//&
- "  Method 5: PIC-BG-Field (read 3D magnetic field from .h5)\n"  , '.TRUE.')
+ "  Method 5: PIC-BG-Field (read 3D magnetic field from .h5)\n"&
+ , '.TRUE.')
 CALL prms%CreateStringOption(   'PIC-Interpolation-Type'      , "Type of Interpolation-Method to calculate the electro(-magnetic)"//&
                                                                 " field values for the particle push. Poisson solver (E field) "//&
                                                                 "and Maxwell solver (E+B field)", 'particle_position')
@@ -92,17 +88,14 @@ CALL prms%CreateStringOption(   'PIC-variableExternalField'   , 'Method 3 of 5: 
                                                                 'for interpolating the variable field at each particle z-position.', 'none')
 
 ! -- external field 4
-CALL prms%CreateIntOption(      'PIC-AlgebraicExternalField'   , 'Method 4 of 5: External E and B field from algebraic expression that is '//&
-                                                                 'interpolated to the particle position\n[1]: Axial Bz(x) field '//&
-                                                                 'from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark '//&
-                                                                 'for low-temperature partially magnetized plasmas (2019)', '0')
+CALL prms%CreateIntOption(      'PIC-AlgebraicExternalField'   , &
+     'Method 4 of 5: External E and B field from algebraic expression that is interpolated to the particle position\n'//&
+     '[1]: Axial Bz(x) field from T. Charoy "2D axial-azimuthal particle-in-cell benchmark for low-temperature partially magnetized plasmas" (2019)\n'//&
+     '[2]: Radial Br(x) field in axial x-direction from H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)\n'//&
+     '[3]: same as [2] but 3D case, where Br(z) = (/Bx(z), By(z)/) in axial z-direction'&
+     , '0')
 
-CALL prms%CreateRealArrayOption('PIC-NormVecOfWall'  , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Normal vector for pushTimeStep', '1. , 0. , 0.')
-CALL prms%CreateRealArrayOption('PIC-BGMdeltas'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Dimensions of PIC background mesh', '0. , 0. , 0.')
-CALL prms%CreateRealArrayOption('PIC-FactorBGM'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                       'Denominator of PIC-BGMdeltas', '1. , 1. , 1.')
+CALL prms%CreateIntOption(      'PIC-AlgebraicExternalFieldDelta', 'Delta factor for H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)', '2')
 CALL prms%CreateLogicalOption(  'PIC-OutputSource'   , 'Flag for activating the output of particle charge and current density'//&
                                                        'source terms to hdf5', '.FALSE.')
 END SUBROUTINE DefineParametersPICInterpolation
@@ -160,7 +153,9 @@ useBGField         = GETLOGICAL('PIC-BG-Field')
 useVariableExternalField      = .FALSE.
 FileNameVariableExternalField = GETSTR('PIC-variableExternalField')
 IF (FileNameVariableExternalField.NE.'none') THEN ! if supplied, read the data file
+  ! Activate variable external field
   useVariableExternalField = .TRUE.
+  ! Read data from .csv or .h5 file
   CALL ReadVariableExternalField()
 END IF
 
@@ -169,9 +164,12 @@ useAlgebraicExternalField    = .FALSE.
 AlgebraicExternalField = GETINT('PIC-AlgebraicExternalField')
 IF(AlgebraicExternalField.GT.0) useAlgebraicExternalField=.TRUE.
 ! Sanity Check: Add all integer values that are possible to the vector for checking
-IF(.NOT.ANY(AlgebraicExternalField.EQ.(/0,1/))) CALL abort(&
+IF(.NOT.ANY(AlgebraicExternalField.EQ.(/0,1,2,3/))) CALL abort(&
   __STAMP__&
   ,'Value for PIC-AlgebraicExternalField not defined',IntInfoOpt=AlgebraicExternalField)
+
+AlgebraicExternalFieldDelta = GETINT('PIC-AlgebraicExternalFieldDelta')
+IF(AlgebraicExternalFieldDelta.LT.0) CALL abort(__STAMP__,'AlgebraicExternalFieldDelta cannot be negative.')
 
 !--- Allocate arrays for interpolation of fields to particles
 ALLOCATE(FieldAtParticle(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
@@ -233,7 +231,7 @@ SUBROUTINE InterpolateFieldToParticle()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Particle_Vars         ,ONLY: PDM,PEM,DoFieldIonization
+USE MOD_Particle_Vars         ,ONLY: PDM,PEM,DoFieldIonization,PartState
 USE MOD_Part_Tools            ,ONLY: isInterpolateParticle
 USE MOD_PIC_Vars
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle,DoInterpolation,InterpolationType
@@ -244,6 +242,7 @@ USE MOD_HDF5_Output_Fields    ,ONLY: WriteBGFieldToHDF5
 USE MOD_AnalyzeField          ,ONLY: CalculateAverageElectricPotential
 USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential
 #endif /*USE_HDG*/
+USE MOD_PICInterpolation_tools,ONLY:GetExternalFieldAtParticle,GetInterpolatedFieldPartPos
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -279,7 +278,7 @@ IF (InterpolationElemLoop) THEN ! element-particle loop
         IF(.NOT.(DoFieldIonization.OR.isInterpolateParticle(iPart))) CYCLE ! Skip neutral particles (if field ionization if off)
         IF(PEM%LocalElemID(iPart).NE.iElem) CYCLE ! Skip particles that are not inside the current element
         ! Add the interpolated electro-(magnetic) field
-        FieldAtParticle(1:6,iPart) = GetExternalFieldAtParticle(iPart)
+        FieldAtParticle(1:6,iPart) = GetExternalFieldAtParticle(PartState(1:3,iPart))
         FieldAtParticle(:,iPart) = FieldAtParticle(:,iPart) + GetInterpolatedFieldPartPos(PEM%GlobalElemID(iPart),iPart)
       END DO ! iPart
     END DO ! iElem=1,PP_nElems
@@ -310,8 +309,9 @@ SUBROUTINE InterpolateFieldToSingleParticle(PartID,FieldAtParticle)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_PIC_Vars
-USE MOD_Particle_Vars         ,ONLY: PEM
+USE MOD_Particle_Vars         ,ONLY: PEM,PartState
 USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolation,InterpolationType
+USE MOD_PICInterpolation_tools,ONLY:GetExternalFieldAtParticle,GetInterpolatedFieldPartPos
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -328,7 +328,7 @@ REAL,INTENT(OUT)             :: FieldAtParticle(1:6)
 IF(.NOT.DoInterpolation) RETURN
 
 !1. Apply any external fields
-FieldAtParticle(1:6) = GetExternalFieldAtParticle(PartID)
+FieldAtParticle(1:6) = GetExternalFieldAtParticle(PartState(1:3,PartID))
 
 !2. Calculate fields at particle
 #if USE_MPI
@@ -351,333 +351,58 @@ END SELECT
 END SUBROUTINE InterpolateFieldToSingleParticle
 
 
-PPURE FUNCTION GetExternalFieldAtParticle(PartID)
-!===================================================================================================================================
-! Get the external field (analytic, variable, etc.) for the particle at position PartState(1:3,PartID)
-! 4 Methods can be used:
-!   0. External field from analytic function (only for convergence tests and compiled with CODE_ANALYZE=ON)
-!   1. External E field from user-supplied vector (const.) and
-!      B field from CSV file (only Bz) that is interpolated to the particle z-coordinate
-!   2. External field from CSV file (only Bz) that is interpolated to the particle z-coordinate
-!   3. External E and B field from user-supplied vector (const.)
-!===================================================================================================================================
-! MODULES
-USE MOD_PICInterpolation_Vars ,ONLY: externalField,useVariableExternalField,useAlgebraicExternalField
-USE MOD_Particle_Vars         ,ONLY: PartState
-#ifdef CODE_ANALYZE
-USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolationAnalytic
-#endif /*CODE_ANALYZE*/
-!----------------------------------------------------------------------------------------------------------------------------------
-  IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN) :: PartID
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL :: GetExternalFieldAtParticle(1:6)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-GetExternalFieldAtParticle=0.
-#ifdef CODE_ANALYZE
-! 0. External field from analytic function (only for convergence tests)
-IF(DoInterpolationAnalytic)THEN ! use analytic/algebraic functions for the field interpolation
-  GetExternalFieldAtParticle(1:6) = GetAnalyticFieldAtParticle(PartState(1:3,PartID))
-ELSE ! use variable or fixed external field
-#endif /*CODE_ANALYZE*/
-!#if (PP_nVar==8))
-  IF(useVariableExternalField)THEN
-    ! 1. External E field from user-supplied vector (const.) and
-    !    B field from CSV file (only Bz) that is interpolated to the particle z-coordinate
-    GetExternalFieldAtParticle(1:5) = externalField(1:5)
-    GetExternalFieldAtParticle(6) = InterpolateVariableExternalField(PartState(3,PartID))
-  ELSEIF(useAlgebraicExternalField)THEN
-    ! 2. External E and B field from algebraic expression that is interpolated to the particle position
-    GetExternalFieldAtParticle(1:6) = InterpolateAlgebraicExternalField(PartState(1:3,PartID))
-  ELSE
-    ! 3. External E and B field from user-supplied vector (const.)
-    GetExternalFieldAtParticle(1:6) = externalField(1:6)
-  END IF
-!#endif /*(PP_nVar==8))*/
-#ifdef CODE_ANALYZE
-END IF
-#endif /*CODE_ANALYZE*/
-
-END FUNCTION GetExternalFieldAtParticle
-
-
-#ifdef CODE_ANALYZE
-PPURE FUNCTION GetAnalyticFieldAtParticle(PartPos)
-!===================================================================================================================================
-! Calculate the electro-(magnetic) field at the particle's position form an analytic solution
-!===================================================================================================================================
-! MODULES
-USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType
-!----------------------------------------------------------------------------------------------------------------------------------
-  IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT / OUTPUT VARIABLES
-REAL,INTENT(IN)    :: PartPos(1:3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL :: GetAnalyticFieldAtParticle(1:6)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-GetAnalyticFieldAtParticle(1:6) = 0.
-SELECT CASE(AnalyticInterpolationType)
-CASE(0) ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
-  GetAnalyticFieldAtParticle(6) = 1.0
-CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
-  ASSOCIATE( B_0 => 1.0, l => 1.0  )
-    GetAnalyticFieldAtParticle(6) = B_0 * EXP(PartPos(1) / l)
-  END ASSOCIATE
-CASE(2)
-  ! const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
-  !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
-  ! Example from Paper by H. Qin: Why is Boris algorithm so good? (2013)
-  ! http://dx.doi.org/10.1063/1.4818428
-  ASSOCIATE( x => PartPos(1), y => PartPos(2) )
-    ! Ex and Ey
-    GetAnalyticFieldAtParticle(1) = 1.0e-2 * (x**2+y**2)**(-1.5) * x
-    GetAnalyticFieldAtParticle(2) = 1.0e-2 * (x**2+y**2)**(-1.5) * y
-    ! Bz
-    GetAnalyticFieldAtParticle(6) = SQRT(x**2+y**2)
-  END ASSOCIATE
-END SELECT
-END FUNCTION GetAnalyticFieldAtParticle
-#endif /*CODE_ANALYZE*/
-
-
-FUNCTION GetInterpolatedFieldPartPos(ElemID,PartID)
-!===================================================================================================================================
-! Evaluate the electro-(magnetic) field using the reference position and return the field
-!===================================================================================================================================
-! MODULES
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM
-USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
-USE MOD_PICDepo_Vars            ,ONLY: DepositionType
-#if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
-USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
-#endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
-!----------------------------------------------------------------------------------------------------------------------------------
-  IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN) :: ElemID !< Global element ID
-INTEGER,INTENT(IN) :: PartID
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL :: GetInterpolatedFieldPartPos(1:6)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                         :: PartPosRef_loc(1:3)
-LOGICAL                      :: SucRefPos
-#if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
-LOGICAL                      :: NotMappedSurfFluxParts
-#else
-LOGICAL,PARAMETER            :: NotMappedSurfFluxParts=.FALSE.
-#endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
-!===================================================================================================================================
-
-! Check Surface Flux Particles
-#if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
-NotMappedSurfFluxParts=DoSurfaceFlux !Surfaceflux particles inserted before interpolation and tracking. Field at wall is needed!
-#endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
-
-SucRefPos = .TRUE. ! Initialize for all methods
-
-! Check if reference position is required
-IF(NotMappedSurfFluxParts .AND.(TrackingMethod.EQ.REFMAPPING))THEN
-  IF(PDM%dtFracPush(PartID)) CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef_loc(1:3),ElemID)
-ELSEIF(TrackingMethod.NE.REFMAPPING)THEN
-  CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef_loc(1:3),ElemID, isSuccessful = SucRefPos)
-ELSE
-  PartPosRef_loc(1:3) = PartPosRef(1:3,PartID)
-END IF
-
-! Interpolate the field and return the vector
-IF ((.NOT.SucRefPos).AND.(TRIM(DepositionType).EQ.'cell_volweight_mean')) THEN
-  GetInterpolatedFieldPartPos(1:6) =  GetFieldDW(PEM%LocalElemID(PartID),PartState(1:3,PartID))
-ELSE
-  GetInterpolatedFieldPartPos(1:6) =  GetField(PEM%LocalElemID(PartID),PartPosRef_loc(1:3))
-END IF
-END FUNCTION GetInterpolatedFieldPartPos
-
-
-PPURE FUNCTION GetField(ElemID,PartPosRef_loc)
-!===================================================================================================================================
-! Evaluate the electro-(magnetic) field using the reference position and return the field
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Eval_xyz      ,ONLY: EvaluateFieldAtRefPos
-#if ! (USE_HDG)
-USE MOD_DG_Vars       ,ONLY: U
-#endif
-#ifdef PP_POIS
-USE MOD_Equation_Vars ,ONLY: E
-#endif
-#if USE_HDG
-#if PP_nVar==1
-USE MOD_Equation_Vars ,ONLY: E
-#elif PP_nVar==3
-USE MOD_Equation_Vars ,ONLY: B
-#else
-USE MOD_Equation_Vars ,ONLY: B,E
-#endif /*PP_nVar==1*/
-#endif /*USE_HDG*/
-!----------------------------------------------------------------------------------------------------------------------------------
-  IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN) :: ElemID !< Local element ID
-REAL,INTENT(IN)    :: PartPosRef_loc(1:3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL :: GetField(1:6)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-#if defined PP_POIS || (USE_HDG && PP_nVar==4)
-REAL :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
-#endif /*(PP_POIS||USE_HDG)*/
-!===================================================================================================================================
-GetField(1:6)=0.
-!--- evaluate at Particle position
-#if (PP_nVar==8)
-#ifdef PP_POIS
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,HelperU,6,GetField(1:6),ElemID)
-#else
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,U(1:6,:,:,:,ElemID),6,GetField(1:6),ElemID)
-#endif
-#else
-#ifdef PP_POIS
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),3,GetField(1:3),ElemID)
-#elif USE_HDG
-#if PP_nVar==1
-#if (PP_TimeDiscMethod==508)
-! Boris: consider B-Field, e.g., from SuperB
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),6,GetField(1:6),ElemID)
-#else
-! Consider only electric fields
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),3,GetField(1:3),ElemID)
-#endif
-#elif PP_nVar==3
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,B(1:3,:,:,:,ElemID),3,GetField(4:6),ElemID)
-#else
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,HelperU,6,GetField(1:6),ElemID)
-#endif
-#else
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,U(1:3,:,:,:,ElemID),3,GetField(1:3),ElemID)
-#endif
-#endif
-END FUNCTION GetField
-
-
-FUNCTION GetFieldDW(ElemID, PartPos_loc)
-!===================================================================================================================================
-! Evaluate the electro-(magnetic) field using the reference position and return the field
-!===================================================================================================================================
-! MODULES
-USE MOD_Mesh_Vars     ,ONLY: Elem_xGP
-USE MOD_PICInterpolation_Vars ,ONLY: useBGField
-USE MOD_Globals
-USE MOD_PreProc
-#if ! (USE_HDG)
-USE MOD_DG_Vars       ,ONLY: U
-#endif
-#ifdef PP_POIS
-USE MOD_Equation_Vars ,ONLY: E
-#endif
-#if USE_HDG
-#if PP_nVar==1
-USE MOD_Equation_Vars ,ONLY: E
-#elif PP_nVar==3
-USE MOD_Equation_Vars ,ONLY: B
-#else
-USE MOD_Equation_Vars ,ONLY: B,E
-#endif /*PP_nVar==1*/
-#endif /*USE_HDG*/
-!----------------------------------------------------------------------------------------------------------------------------------
-  IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN) :: ElemID !< Local element ID
-REAL,INTENT(IN)    :: PartPos_loc(1:3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL :: GetFieldDW(1:6)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL    :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
-REAL    :: PartDistDepo(0:PP_N,0:PP_N,0:PP_N), DistSum
-INTEGER :: k,l,m
-REAL    :: norm
-!===================================================================================================================================
-GetFieldDW(1:6)=0.
-!--- evaluate at Particle position
-#if (PP_nVar==8)
-#ifdef PP_POIS
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-#else
-HelperU(1:6,:,:,:) = U(1:6,:,:,:,ElemID)
-#endif
-#else
-#ifdef PP_POIS
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-#elif USE_HDG
-#if PP_nVar==1
-#if (PP_TimeDiscMethod==508)
-! Boris: consider B-Field, e.g., from SuperB
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-#else
-! Consider only electric fields
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-#endif
-#elif PP_nVar==3
-HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-#else
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
-#endif
-#else
-HelperU(1:3,:,:,:) = U(1:3,:,:,:,ElemID)
-#endif
-#endif
-
-DistSum = 0.0
-DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
-  norm = VECNORM(Elem_xGP(1:3,k,l,m, ElemID)-PartPos_loc(1:3))
-  IF(norm.GT.0.)THEN
-    PartDistDepo(k,l,m) = 1./norm
-  ELSE
-    PartDistDepo(:,:,:) = 0.
-    PartDistDepo(k,l,m) = 1.
-    DistSum = 1.
-    EXIT
-  END IF ! norm.GT.0.
-  DistSum = DistSum + PartDistDepo(k,l,m) 
-END DO; END DO; END DO
-
-GetFieldDW = 0.0
-DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
-  GetFieldDW(1:6) = GetFieldDW(1:6) + PartDistDepo(k,l,m)/DistSum*HelperU(1:6,k,l,m)
-END DO; END DO; END DO
-
-IF(useBGField) CALL abort(__STAMP__,' ERROR BG Field not implemented for GetFieldDW!')
-
-END FUNCTION GetFieldDW
-
-
 SUBROUTINE ReadVariableExternalField()
 !===================================================================================================================================
-! ATTENTION: The extrenal field needs to be defined on equidistant data-points
+! ATTENTION: The external field needs to be defined on equidistant data-points as either .csv or .h5 file
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,FileNameVariableExternalField
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField2D,VariableExternalFieldAxisSym
+USE MOD_HDF5_Input_Field      ,ONLY: ReadVariableExternalFieldFromHDF5
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER,PARAMETER     :: lenmin=4
+INTEGER               :: lenstr
+!===================================================================================================================================
+SWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
+
+! Defaults
+VariableExternalField2D      = .FALSE.
+VariableExternalFieldAxisSym = .FALSE.
+
+! Check if file exists
+IF(.NOT.FILEEXISTS(FileNameVariableExternalField)) CALL abort(__STAMP__,"File not found: "//TRIM(FileNameVariableExternalField))
+
+! Check length of file name
+lenstr=LEN(TRIM(FileNameVariableExternalField))
+IF(lenstr.LT.lenmin) CALL abort(__STAMP__,"File name too short: "//TRIM(FileNameVariableExternalField))
+
+! Check file ending, either .csv or .h5
+IF(TRIM(FileNameVariableExternalField(lenstr-lenmin+2:lenstr)).EQ.'.h5')THEN
+  CALL ReadVariableExternalFieldFromHDF5()
+ELSEIF(TRIM(FileNameVariableExternalField(lenstr-lenmin+1:lenstr)).EQ.'.csv')THEN
+  CALL ReadVariableExternalFieldFromCSV()
+ELSE
+  CALL abort(__STAMP__,"Unrecognised file format for : "//TRIM(FileNameVariableExternalField))
+END IF
+
+IF(.NOT.ALLOCATED(VariableExternalField)) CALL abort(__STAMP__,"Failed to load data from: "//TRIM(FileNameVariableExternalField))
+
+SWRITE(UNIT_stdOut,'(A)')' ...VARIABLE EXTERNAL FIELD INITIALIZATION DONE'
+END SUBROUTINE ReadVariableExternalField
+
+
+SUBROUTINE ReadVariableExternalFieldFromCSV()
+!===================================================================================================================================
+! ATTENTION: The external field needs to be defined on equidistant data-points as .csv and currently on 1D fields are implemented
+! as B = Bz(z)
 ! Usage Information
 ! The file for the variable Bfield contains only the z coordinates and the static Bz-field
 ! Use the following format F8.5,1x,F8.5
@@ -696,8 +421,7 @@ USE MOD_PICInterpolation_Vars, ONLY:VariableExternalField,DeltaExternalField,nIn
 INTEGER               :: ioUnit, ii, err, ncounts
 REAL                  :: dummy, diff_comp, diff_check
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
-!OPEN(NEWUNIT=ioUnit,FILE=VariableExternalField,STATUS='OLD',FORM='FORMATTED')
+! Read from csv file
 OPEN(NEWUNIT=ioUnit,FILE=FileNameVariableExternalField,STATUS='OLD')
 err = 0
 ncounts = 0
@@ -722,141 +446,24 @@ DO ii = 1, ncounts
       SWRITE(UNIT_stdOut,'(A)') "ReadVariableExternalField: Non-equidistant OR non-increasing points for variable external field."
       SWRITE(UNIT_stdOut,WRITEFORMAT) diff_comp
       SWRITE(UNIT_stdOut,WRITEFORMAT) diff_check
-      CALL abort(&
-__STAMP__&
-        ,' Error in dataset!')
+      CALL abort(__STAMP__,' Error in dataset!')
     END IF
   END IF
 END DO
 CLOSE (ioUnit)
 
-!IF (VariableExternalField(1,1) .NE.0) THEN
-  !CALL abort(&
-!__STAMP__&
-!,  &
-      !"ERROR: Points have to start at 0.")
-!END IF
 IF(ncounts.GT.1) THEN
-  DeltaExternalField = VariableExternalField(1,2)  - VariableExternalField(1,1)
-  SWRITE(UNIT_stdOut,'(A,1X,ES25.14E3)') ' Delta external field: ',DeltaExternalField
-  IF(DeltaExternalField.LE.0) THEN
+  DeltaExternalField(1) = VariableExternalField(1,2)  - VariableExternalField(1,1)
+  SWRITE(UNIT_stdOut,'(A,1X,ES25.14E3)') ' Delta external field: ',DeltaExternalField(1)
+  IF(DeltaExternalField(1).LE.0) THEN
     SWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
   END IF
 ELSE
-  CALL abort(&
-__STAMP__&
-, &
-      " ERROR: not enough data points in variable external field file!")
+  CALL abort(__STAMP__," ERROR: not enough data points in variable external field file!")
 END IF
+
 SWRITE(UNIT_stdOut,'(A,I4.0,A)')' Found ', ncounts,' data points.'
-SWRITE(UNIT_stdOut,'(A)')' ...VARIABLE EXTERNAL FIELD INITIALIZATION DONE'
-END SUBROUTINE ReadVariableExternalField
-
-
-PPURE FUNCTION InterpolateVariableExternalField(Pos)
-!===================================================================================================================================
-!> Interpolates the variable external field to the z-position
-!> NO z-values smaller than VariableExternalField(1,1) are allowed!
-!===================================================================================================================================
-! MODULES
-!USE MOD_Globals
-USE MOD_PICInterpolation_Vars   ,ONLY:DeltaExternalField,nIntPoints,VariableExternalField
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)          :: Pos                               !< particle z-position
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL                     :: InterpolateVariableExternalField  !< Bz (magnetic field in z-direction)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                  :: iPos                              !< index in array (equidistant subdivision assumed)
-!===================================================================================================================================
-iPos = INT((Pos-VariableExternalField(1,1))/DeltaExternalField) + 1
-IF(iPos.GE.nIntPoints)THEN ! particle outside of range (greater -> use constant value)
-  InterpolateVariableExternalField = VariableExternalField(2,nIntPoints)
-ELSEIF(iPos.LT.1)THEN ! particle outside of range (lower -> use constant value)
-  InterpolateVariableExternalField = VariableExternalField(2,1)
-ELSE ! Linear Interpolation between iPos and iPos+1 B point
-  InterpolateVariableExternalField = (VariableExternalField(2,iPos+1) - VariableExternalField(2,iPos)) & !  dy
-                                   / (VariableExternalField(1,iPos+1) - VariableExternalField(1,iPos)) & ! /dx
-                             * (Pos - VariableExternalField(1,iPos) ) + VariableExternalField(2,iPos)    ! *(z - z_i) + z_i
-END IF
-END FUNCTION InterpolateVariableExternalField
-
-
-PPURE FUNCTION InterpolateAlgebraicExternalField(Pos)
-!===================================================================================================================================
-!> Interpolates the variable external field to the z-position
-!> NO z-values smaller than VariableExternalField(1,1) are allowed!
-!===================================================================================================================================
-! MODULES
-!USE MOD_Globals
-USE MOD_PICInterpolation_Vars ,ONLY: externalField,AlgebraicExternalField
-#if USE_HDG
-USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential
-#endif /*USE_HDG*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)          :: Pos(1:3)                            !< particle position
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL                     :: InterpolateAlgebraicExternalField(1:6)  !< E and B field at particle position
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-SELECT CASE (AlgebraicExternalField)
-CASE (1)
-#if USE_HDG
-  ! Set Ex = Ue/xe
-  ASSOCIATE( Ue => AverageElectricPotential ,&
-             xe => 2.4e-2                   )
-    InterpolateAlgebraicExternalField(1) = Ue/xe
-  END ASSOCIATE
-#else
-    InterpolateAlgebraicExternalField(1) = externalField(1) ! default
-#endif /*USE_HDG*/
-
-
-  ! Set Ey, Ez, Bx and By
-  InterpolateAlgebraicExternalField(2:5) = externalField(2:5)
-
-  ! Calc Bz
-  ! Original formula
-  !ASSOCIATE(&
-  !      x     => Pos(1)   ,&
-  !      Lx    => 2.50E-2  ,&
-  !      xBmax => 0.750E-2 ,&
-  !      B0    => 6.00E-3  ,&
-  !      BLx   => 1.00E-3  ,&
-  !      Bmax  => 10.0E-3  ,&
-  !      sigma => 0.625E-2  &
-  !      )
-  ASSOCIATE(&
-        x     => Pos(1)   ,&
-        xBmax => 0.750E-2 )
-    IF(Pos(1).LT.xBmax)THEN
-      ! Original formula
-      !ASSOCIATE(a1 => (Bmax-B0)/(1.0-EXP(-0.5*(xBmax/sigma)**2))                              ,&
-      !          b1 => (B0 - Bmax*EXP(-0.5*(xBmax/sigma)**2))/(1.0-EXP(-0.5*(xBmax/sigma)**2))  )
-      !  InterpolateAlgebraicExternalField(6) = a1 * EXP(-0.5*((x-xBmax)/sigma)**2) + b1
-      !END ASSOCIATE
-      InterpolateAlgebraicExternalField(6) = 7.7935072222899814E-003 * EXP(-12800.0*(x-xBmax)**2) + 2.2064927777100192E-003
-    ELSE
-      ! Original formula
-      !ASSOCIATE(a2 => (Bmax-BLx)/(1.0-EXP(-0.5*((Lx-xBmax)/sigma)**2))                                  ,&
-      !          b2 => (BLx - Bmax*EXP(-0.5*((Lx-xBmax)/sigma)**2))/(1.0-EXP(-0.5*((Lx-xBmax)/sigma)**2))  )
-      !  InterpolateAlgebraicExternalField(6) = a2 * EXP(-0.5*((x-xBmax)/sigma)**2) + b2
-      !END ASSOCIATE
-      InterpolateAlgebraicExternalField(6) = 9.1821845944997683E-003 * EXP(-12800.0*(x-xBmax)**2) + 8.1781540550023306E-004
-    END IF ! Pos(1).LT.xBmax
-  END ASSOCIATE
-  !END ASSOCIATE
-END SELECT
-END FUNCTION InterpolateAlgebraicExternalField
+END SUBROUTINE ReadVariableExternalFieldFromCSV
 
 
 SUBROUTINE GetTimeDependentBGField()
@@ -954,7 +561,7 @@ SUBROUTINE FinalizePICInterpolation()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
+USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle,VariableExternalField
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -964,6 +571,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(FieldAtParticle)
+SDEALLOCATE(VariableExternalField)
 END SUBROUTINE FinalizePICInterpolation
 
 

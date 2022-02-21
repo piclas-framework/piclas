@@ -49,6 +49,7 @@ USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri,SetParticleTimeStep,CalcNbrOfPhotons
+USE MOD_part_emission_tools    ,ONLY: CountNeutralizationParticles
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_PhotoIonization
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
@@ -75,7 +76,7 @@ REAL                             :: RiseFactor, RiseTime,NbrOfPhotons
 #if USE_MPI
 INTEGER                          :: InitGroup
 #endif
-REAL                             :: NbrOfReactions,NbrOfParticlesReal
+REAL                             :: NbrOfReactions,NbrOfParticlesReal,MPF
 #if defined(MEASURE_MPI_WAIT)
 INTEGER(KIND=8)                  :: CounterStart,CounterEnd
 REAL(KIND=8)                     :: Rate
@@ -196,26 +197,35 @@ DO i=1,nSpecies
               IF(Species(i)%Init(iInit)%FirstQuadrantOnly) NbrOfPhotons = NbrOfPhotons / 4.0
 
               ! Select surface SEE or volumetric emission
-              IF((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc').OR.&
-                 (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_SEE_honeycomb'))THEN
+              SELECT CASE(TRIM(Species(i)%Init(iInit)%SpaceIC))
+              CASE('photon_SEE_disc','photon_SEE_honeycomb','photon_SEE_rectangle')
                 ! SEE based on photon impact
-                NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / Species(i)%MacroParticleFactor &
-                              + Species(i)%Init(iInit)%NINT_Correction
+                IF(usevMPF)THEN
+                  MPF = Species(i)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
+                ELSE
+                  MPF = Species(i)%MacroParticleFactor ! Use species MPF
+                END IF ! usevMPF
+                NbrOfPhotons = Species(i)%Init(iInit)%YieldSEE * NbrOfPhotons / MPF + Species(i)%Init(iInit)%NINT_Correction
                 NbrOfParticle = NINT(NbrOfPhotons)
                 Species(i)%Init(iInit)%NINT_Correction = NbrOfPhotons - REAL(NbrOfParticle)
-              ELSE
+              CASE DEFAULT
                 ! Photo-ionization in the volume
                 ! Calculation of the number of photons (using actual number and applying the weighting factor on the number of reactions)
                 NbrOfPhotons = Species(i)%Init(iInit)%EffectiveIntensityFactor * NbrOfPhotons
                 ! Calculation of the number of photons depending on the cylinder height (ratio of actual to virtual cylinder height, which
                 ! is spanned by the disk and the length given by c*dt)
-                NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
+                IF(TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_rectangle')THEN
+                  NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CuboidHeightIC / (c*dt)
+                ELSE
+                  ! Cylinder and honeycomb
+                  NbrOfPhotons = NbrOfPhotons * Species(i)%Init(iInit)%CylinderHeightIC / (c*dt)
+                END IF
                 ! Calculation of the number of electron resulting from the chemical reactions in the photoionization region
                 CALL CalcPhotoIonizationNumber(i,NbrOfPhotons,NbrOfReactions)
                 NbrOfReactions = NbrOfReactions + Species(i)%Init(iInit)%NINT_Correction
                 NbrOfParticle = NINT(NbrOfReactions)
                 Species(i)%Init(iInit)%NINT_Correction = NbrOfReactions - REAL(NbrOfParticle)
-              END IF
+              END SELECT
             ELSE
               NbrOfParticle = 0
             END IF ! MOD(time, Period) .LE. 2x tShift
@@ -252,11 +262,16 @@ DO i=1,nSpecies
            END IF ! NbrOfParticleLandmarkMax.LE.NbrOfParticle
          END IF ! .NOT.ALLOCATED()
        END ASSOCIATE
-     CASE(9) ! '2D_landmark_neutralization'
+     CASE(9) ! '2D_landmark_neutralization',
+             ! '2D_Liu2010_neutralization'      ,'3D_Liu2010_neutralization'
+             ! '2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo'
 #if USE_MPI
        ! Communicate number of particles with all procs in the same init group
        InitGroup=Species(i)%Init(iInit)%InitCOMM
+       NeutralizationBalanceGlobal=0 ! always nullify
        IF(PartMPI%InitGroup(InitGroup)%COMM.NE.MPI_COMM_NULL) THEN
+         ! Loop over all elements and count the ion surplus per element if element-local emission is used
+         IF(nNeutralizationElems.GT.0) CALL CountNeutralizationParticles()
          ! Only processors which are part of group take part in the communication
          CALL MPI_ALLREDUCE(NeutralizationBalance,NeutralizationBalanceGlobal,1,MPI_INTEGER,MPI_SUM,PartMPI%InitGroup(InitGroup)%COMM,IERROR)
        ELSE
@@ -269,8 +284,8 @@ DO i=1,nSpecies
        IF(NeutralizationBalanceGlobal.GT.0)THEN
          ! Insert only when positive
          NbrOfParticle = NeutralizationBalanceGlobal
-         ! Reset the counter
-         NeutralizationBalance = 0
+         ! Reset the counter but only when not using element-local emission, nullify later is this case (in SetParticlePosition)
+         IF(nNeutralizationElems.EQ.-1) NeutralizationBalance = 0
        ELSE
          NbrOfParticle = 0
        END IF ! NeutralizationBalance.GT.0
@@ -281,15 +296,15 @@ DO i=1,nSpecies
 
     CALL SetParticlePosition(i,iInit,NbrOfParticle)
     ! Pairing of "electrons" with the background species and performing the reaction
-    IF((TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_cylinder').OR.&
-       (TRIM(Species(i)%Init(iInit)%SpaceIC).EQ.'photon_honeycomb')) THEN
+    SELECT CASE(TRIM(Species(i)%Init(iInit)%SpaceIC))
+    CASE('photon_cylinder','photon_honeycomb','photon_rectangle')
       CALL BGGas_PhotoIonization(i,iInit,NbrOfParticle)
       CYCLE
-    END IF
+    END SELECT
 
     CALL SetParticleVelocity(i,iInit,NbrOfParticle)
     CALL SetParticleChargeAndMass(i,NbrOfParticle)
-    IF (usevMPF) CALL SetParticleMPF(i,NbrOfParticle)
+    IF (usevMPF) CALL SetParticleMPF(i,iInit,NbrOfParticle)
     IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
     ! define molecule stuff
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN

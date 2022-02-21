@@ -26,7 +26,8 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
 !----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC         :: MacroRestart_InsertParticles, CalcERot_particle, CalcEVib_particle, CalcEElec_particle
+PUBLIC         :: MacroRestart_InsertParticles
+PUBLIC         :: CalcVelocity_maxwell_particle, CalcERot_particle, CalcEVib_particle, CalcEElec_particle
 !===================================================================================================================================
 CONTAINS
 
