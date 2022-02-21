@@ -821,7 +821,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 END DO ElemLoop
 
 CALL AddToElemData(ElementOut,'IsExchangeElem',LogArray=IsExchangeElem)
-IF (ALL(IsExchangeElem)) IPWRITE(*,*) 'All Elems are Exchange Elems!'
+
 ! Notify every proc if it was identified by the local proc
 IF(CheckExchangeProcs)THEN
   DO iProc = 0,nProcessors_Global-1

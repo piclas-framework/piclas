@@ -44,6 +44,7 @@ USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,MeasureTrackTime
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -152,11 +153,17 @@ END IF
 ! finish communication of number of particles and send particles
 CALL MPIParticleSend(.TRUE.)
 #endif
-IF (CoupledBGKDSMC) THEN
-  CALL BGK_DSMC_main(1)
-ELSE
-  CALL BGK_main(1)
-END IF
+!IF (CoupledBGKDSMC) THEN
+!  CALL BGK_DSMC_main(1)
+!ELSE
+!  CALL BGK_main(1)
+!END IF
+DO iPart=1,PDM%ParticleVecLength
+  IF (PDM%ParticleInside(iPart)) THEN
+    CALL GetPositionInRefElem(PartState(1:3,iPart),LastPartPos(1:3,iPart),PEM%GlobalElemID(iPart))
+  END IF
+END DO
+
 #if USE_MPI
 ! finish communication
 CALL MPIParticleRecv(.TRUE.)
@@ -172,9 +179,9 @@ CALL MPIParticleRecv(.TRUE.)
 !#endif /*EXTRAE*/
 
 IF (CoupledBGKDSMC) THEN
-  CALL BGK_DSMC_main(2)
+  CALL BGK_DSMC_main()
 ELSE
-  CALL BGK_main(2)
+  CALL BGK_main()
 END IF
 
 !#ifdef EXTRAE
