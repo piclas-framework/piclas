@@ -1645,7 +1645,7 @@ END IF
 
 END SUBROUTINE WriteVibProbInfoToHDF5
 
-  
+
 SUBROUTINE WriteClonesToHDF5(FileName)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
@@ -2061,7 +2061,7 @@ CHARACTER(LEN=*),INTENT(IN) :: FileName
 ! LOCAL VARIABLES
 INTEGER           :: iSpec,iInit ! ,InitGroup
 CHARACTER(LEN=50) :: InitName
-INTEGER           :: NeutralizationBalanceTmp(1:1) ! This is a dummy array of size 1 !
+INTEGER(KIND=IK)  :: NeutralizationBalanceTmp(1:1) ! This is a dummy array of size 1 !
 !===================================================================================================================================
 ! Only root writes the data
 IF(.NOT.PartMPI%MPIRoot) RETURN
