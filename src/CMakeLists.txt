@@ -60,8 +60,16 @@ SET_PROPERTY(CACHE PICLAS_SHARED_MEMORY PROPERTY STRINGS MPI_COMM_TYPE_SHARED
 # MISC
 # =========================================================================
 CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use load balance time measurement" ON "LIBS_USE_MPI" OFF)
+
 OPTION(PICLAS_INTKIND8 "Enable particle numbers larger than 2147483647 (on most systems, huge(4-byte-integer)))" OFF)
+IF (PICLAS_INTKIND8)
+   ADD_DEFINITIONS(-DINTKIND8)
+ENDIF()
+
 OPTION(PICLAS_IMPLICIT_ANALYZE "IMPLICIT_ANALYZE" OFF)
+IF(PICLAS_IMPLICIT_ANALYZE)
+  ADD_DEFINITIONS(-DIMPLICIT_ANALYZE)
+ENDIF(PICLAS_IMPLICIT_ANALYZE)
 
 # =========================================================================
 # Polynomial degree
@@ -256,9 +264,6 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
 ELSE()
    MESSAGE(SEND_ERROR "Unknown time discretization method.")
 ENDIF()
-IF(PICLAS_IMPLICIT_ANALYZE)
-  ADD_DEFINITIONS(-DIMPLICIT_ANALYZE)
-ENDIF(PICLAS_IMPLICIT_ANALYZE)
 
 # =========================================================================
 # HDG
@@ -560,7 +565,7 @@ IF(PICLAS_CTAGS)
     FOREACH(item ${EQNS_WO_ACTUAL})
        SET(EXLUDES "--exclude=src/equations/${item}/*" ${EXLUDES})
     ENDFOREACH()
-  
+
     ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ${CTAGS_PATH} -R --fortran-kinds=+i+L -f ctags.txt ${EXLUDES} src && ${CTAGS_PATH} -R --fortran-kinds=+i+L -f ctags.txt ${EXLUDES} --append src/posti)
     ADD_CUSTOM_TARGET(tags DEPENDS ctags.txt)
     MESSAGE(STATUS "Found ctags: ${CTAGS_PATH}")
