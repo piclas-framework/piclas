@@ -56,8 +56,8 @@ CALL prms%CreateIntOption(      'Surface-AnalyzeStep'   , 'Analyze is performed 
 CALL prms%CreateLogicalOption(  'Surf-CalcCollCounter'  , 'Analyze the number of surface collision and number of '//&
                                                           'adsorbed/desorbed particles per species','.FALSE.')
 CALL prms%CreateLogicalOption(  'Surf-CalcPorousBCInfo' , 'Calculate output of porous BCs such pumping speed, removal '//&
-                                                             'probability and pressure (normalized with the given pressure). '//&
-                                                             'Values are averaged over the whole porous BC.' , '.FALSE.')
+                                                          'probability and pressure. Values are averaged over the whole porous BC.'//&
+                                                          'Disabled per default, but automatically enabled if a sensor is detected.')
 !-- BoundaryParticleOutput
 CALL prms%CreateLogicalOption(  'CalcBoundaryParticleOutput', 'Count number of particles exiting for species X on boundary X' , '.FALSE.')
 CALL prms%CreateIntOption(      'BPO-NPartBoundaries'       , 'Number of boundaries used for CalcBoundaryParticleOutput')
@@ -79,7 +79,7 @@ USE MOD_Preproc
 USE MOD_ReadInTools               ,ONLY: GETLOGICAL,GETINT,GETINTARRAY
 USE MOD_Particle_Vars             ,ONLY: nSpecies
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
-USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, PorousBC
 USE MOD_SurfaceModel_Analyze_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -112,7 +112,12 @@ END IF
 !-- Porous Boundaries
 IF(nPorousBC.GT.0)THEN
   ! Output for porous BC: Pump averaged values
-  CalcPorousBCInfo = GETLOGICAL('Surf-CalcPorousBCInfo')
+  IF(ANY(PorousBC(:)%Type.EQ.'sensor')) THEN
+    ! If a sensor was defined, set the default value to TRUE
+    CalcPorousBCInfo = GETLOGICAL('Surf-CalcPorousBCInfo','.TRUE.')
+  ELSE
+    CalcPorousBCInfo = GETLOGICAL('Surf-CalcPorousBCInfo','.FALSE.')
+  END IF
   IF(CalcPorousBCInfo)THEN
     DoSurfModelAnalyze = .TRUE.
     ALLOCATE(PorousBCOutput(1:5,1:nPorousBC))
@@ -191,12 +196,12 @@ IF(PartMPI%MPIRoot)THEN
         CALL WriteDataHeaderInfo(unit_index,'N_Ads-Spec',OutputCounter,nSpecies)
         CALL WriteDataHeaderInfo(unit_index,'N_Des-Spec',OutputCounter,nSpecies)
       END IF
-      IF(CalcPorousBCInfo)THEN ! calculate porous boundary condition output (pumping speed, removal probability, pressure
-                                ! normalized with given pressure. Values are averaged over the whole porous BC
+      IF(CalcPorousBCInfo)THEN ! calculate porous boundary condition output (pumping speed, removal probability, pressure)
+                               ! Values are averaged over the whole porous BC
         CALL WriteDataHeaderInfo(unit_index,'PumpSpeed-Measure-PorousBC',OutputCounter,nPorousBC)
         CALL WriteDataHeaderInfo(unit_index,'PumpSpeed-Control-PorousBC',OutputCounter,nPorousBC)
         CALL WriteDataHeaderInfo(unit_index,'RemovalProbability-PorousBC',OutputCounter,nPorousBC)
-        CALL WriteDataHeaderInfo(unit_index,'PressureNorm-PorousBC',OutputCounter,nPorousBC)
+        CALL WriteDataHeaderInfo(unit_index,'Pressure-PorousBC',OutputCounter,nPorousBC)
       END IF
       IF(CalcBoundaryParticleOutput)THEN
         DO iPartBound = 1, BPO%NPartBoundaries
