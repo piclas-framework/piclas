@@ -215,7 +215,7 @@ DO iSpec=1,nSpecies
          END IF ! DataExists
          CALL CloseDataFile()
 
-         NeutralizationBalanceGlobal = NeutralizationBalanceTmp(1)
+         NeutralizationBalanceGlobal = INT(NeutralizationBalanceTmp(1),4)
          !NeutralizationBalance       = NeutralizationBalanceGlobal
        END IF
 
