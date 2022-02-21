@@ -384,10 +384,11 @@ INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec, MaxElecQuant
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart
 INTEGER(KIND=IK),ALLOCATABLE   :: PartInt(:,:)
-INTEGER(KIND=IK)               :: locnPart_max
+INTEGER(KIND=8)                :: locnPart_max ! always integer KIND=8
 #if USE_MPI
 INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
 INTEGER(KIND=IK)               :: nParticles(0:nProcessors-1)
+INTEGER(KIND=8)                :: locnPart8 ! always integer KIND=8
 #endif
 INTEGER                        :: ALLOCSTAT
 !=============================================
@@ -465,12 +466,25 @@ CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIN
 !  END DO
 !END IF
 LOGWRITE(*,*)'offsetnPart,locnPart,nGlobalNbrOfParticles',offsetnPart,locnPart,nGlobalNbrOfParticles
-CALL MPI_REDUCE(locnPart, locnPart_max, 1, MPI_INTEGER_INT_KIND, MPI_MAX, 0, MPI_COMM_WORLD, IERROR)
+! Sanity check: Add up all particles with integer KIND=8 and compare 
+locnPart8=INT(locnPart,8)
+CALL MPI_REDUCE(locnPart8, locnPart_max, 1, MPI_INTEGER8, MPI_MAX, 0, MPI_COMM_WORLD, IERROR)
 #else
 offsetnPart=0_IK
 nGlobalNbrOfParticles=locnPart
-locnPart_max=locnPart
+! Sanity check: Add up all particles with integer KIND=8 and compare 
+locnPart_max=INT(locnPart,8)
 #endif
+! Sanity check: Add up all particles with integer KIND=8 and compare 
+IF(MPIRoot)THEN
+  ! Check if offsetnPart is kind=8 is the number of particles is larger than integer KIND=4
+  IF(locnPart_max.GT.INT(HUGE(offsetnPart),8)) THEN
+    WRITE(UNIT_stdOut,'(A,I0)') '\n\n\nTotal number of particles  : ',locnPart_max
+    WRITE(UNIT_stdOut,'(A,I0)')       'Maximum number of particles: ',HUGE(offsetnPart)
+    CALL abort(__STAMP__,'WriteParticleToHDF5 has encountered more than integer KIND=4 particles. Activate PICLAS_INTKIND8!')
+  END IF
+END IF ! MPIRoot
+
 ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
 ALLOCATE(PartData(INT(PartDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
@@ -643,7 +657,7 @@ ASSOCIATE (&
     CALL CloseDataFile()
   END IF
 
-  IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
+  IF(nGlobalNbrOfParticles.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
     IF(MPIRoot)THEN ! only root writes the container
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
       CALL WriteArrayToHDF5(DataSetName='PartData'    , rank=2              , &
@@ -653,7 +667,7 @@ ASSOCIATE (&
                             collective=.FALSE.        , RealArray=PartData)
       CALL CloseDataFile()
     END IF !MPIRoot
-  END IF !locnPart_max.EQ.0
+  END IF !nGlobalNbrOfParticles.EQ.0
 #if USE_MPI
   CALL DistributedWriteArray(FileName                      , &
                              DataSetName  = 'PartData'     , rank= 2        , &
@@ -727,7 +741,7 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (MaxQuantNum           => INT(MaxQuantNum,IK))
-    IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
+    IF(nGlobalNbrOfParticles.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
       IF(MPIRoot)THEN ! only root writes the container
         CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
         CALL WriteArrayToHDF5(DataSetName='VibQuantData', rank=2              , &
@@ -737,7 +751,7 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
                               collective=.FALSE.        , IntegerArray_i4=VibQuantData)
         CALL CloseDataFile()
       END IF !MPIRoot
-    END IF !locnPart_max.EQ.0
+    END IF !nGlobalNbrOfParticles.EQ.0
 #if USE_MPI
     CALL DistributedWriteArray(FileName , &
                               DataSetName ='VibQuantData', rank=2           , &
@@ -792,7 +806,7 @@ IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (MaxElecQuant          => INT(MaxElecQuant,IK))
-    IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
+    IF(nGlobalNbrOfParticles.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
       IF(MPIRoot)THEN ! only root writes the container
         CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
         CALL WriteArrayToHDF5(DataSetName='ElecDistriData', rank=2              , &
@@ -802,7 +816,7 @@ IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
                               collective=.FALSE.          , RealArray=ElecDistriData)
         CALL CloseDataFile()
       END IF !MPIRoot
-    END IF !locnPart_max.EQ.0
+    END IF !nGlobalNbrOfParticles.EQ.0
 #if USE_MPI
     CALL DistributedWriteArray(FileName , &
                               DataSetName ='ElecDistriData', rank=2           , &
@@ -854,7 +868,7 @@ IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
     PartInt(iElem_glob,2)=iPart
   END DO
 
-    IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
+    IF(nGlobalNbrOfParticles.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
       IF(MPIRoot)THEN ! only root writes the container
         CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
         CALL WriteArrayToHDF5(DataSetName='ADVeloData' , rank=2              , &
@@ -864,7 +878,7 @@ IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
                               collective=.FALSE.       , RealArray=AD_Data)
         CALL CloseDataFile()
       END IF !MPIRoot
-    END IF !locnPart_max.EQ.0
+    END IF !nGlobalNbrOfParticles.EQ.0
 #if USE_MPI
     CALL DistributedWriteArray(FileName , &
                               DataSetName ='ADVeloData'  , rank=2           , &
@@ -939,6 +953,7 @@ INTEGER                        :: nVar
 #if USE_MPI
 INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
 INTEGER(KIND=IK)               :: nParticles(0:nProcessors-1)
+INTEGER(KIND=8)                :: locnPart8 ! always integer KIND=8
 #endif
 LOGICAL                        :: reSwitch
 INTEGER                        :: pcount
@@ -946,7 +961,7 @@ INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart,nPart_glob
 REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
-INTEGER(KIND=IK)               :: locnPart_max
+INTEGER(KIND=8)                :: locnPart_max ! always integer KIND=8
 CHARACTER(LEN=255)             :: FileName,PreviousFileName
 REAL                           :: PreviousTime_loc
 INTEGER                        :: ALLOCSTAT
@@ -1009,12 +1024,25 @@ CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER_INT_KIND,nProcessors-1,MPI_COMM_WORLD,iE
 nPart_glob  = sendbuf(1)
 CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_WORLD,iError)
 LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
-CALL MPI_REDUCE(locnPart, locnPart_max, 1, MPI_INTEGER_INT_KIND, MPI_MAX, 0, MPI_COMM_WORLD, IERROR)
+! Sanity check: Add up all particles with integer KIND=8 and compare 
+locnPart8=INT(locnPart,8)
+CALL MPI_REDUCE(locnPart8, locnPart_max, 1, MPI_INTEGER_INT_KIND, MPI_MAX, 0, MPI_COMM_WORLD, IERROR)
 #else
 offsetnPart  = 0_IK
 nPart_glob   = locnPart
-locnPart_max = locnPart
+! Sanity check: Add up all particles with integer KIND=8 and compare 
+locnPart_max = INT(locnPart,8)
 #endif
+! Sanity check: Add up all particles with integer KIND=8 and compare 
+IF(MPIRoot)THEN
+  ! Check if offsetnPart is kind=8 is the number of particles is larger than integer KIND=4
+  IF(locnPart_max.GT.INT(HUGE(offsetnPart),8)) THEN
+    WRITE(UNIT_stdOut,'(A,I0)') '\n\n\nTotal number of particles  : ',locnPart_max
+    WRITE(UNIT_stdOut,'(A,I0)')       'Maximum number of particles: ',HUGE(offsetnPart)
+    CALL abort(__STAMP__,'WriteBoundaryParticleToHDF5 has encountered more than integer KIND=4 particles. Activate PICLAS_INTKIND8!')
+  END IF
+END IF ! MPIRoot
+
 ALLOCATE(PartData(INT(PartDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
@@ -1088,7 +1116,7 @@ ASSOCIATE (&
     CALL CloseDataFile()
   END IF
 
-  IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
+  IF(locnPart_max.EQ.0_8)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
     IF(MPIRoot)THEN ! only root writes the container
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
       CALL WriteArrayToHDF5(DataSetName='PartData'     , rank=2              , &
@@ -1098,7 +1126,7 @@ ASSOCIATE (&
                             collective=.FALSE.         , RealArray=PartData)
       CALL CloseDataFile()
     END IF !MPIRoot
-  END IF !locnPart_max.EQ.0
+  END IF !locnPart_max.EQ.0_8
 #if USE_MPI
   CALL DistributedWriteArray(FileName                       , &
                              DataSetName  = 'PartData'      , rank = 2              , &
@@ -1167,13 +1195,14 @@ INTEGER                        :: nVar
 #if USE_MPI
 INTEGER(KIND=IK)               :: sendbuf(2),recvbuf(2)
 INTEGER(KIND=IK)               :: nParticles(0:nProcessors-1)
+INTEGER(KIND=8)                :: locnPart8 ! always integer KIND=8
 #endif
 LOGICAL                        :: reSwitch
 INTEGER                        :: pcount
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart,nPart_glob
 REAL,ALLOCATABLE               :: PartData(:,:)
-INTEGER(KIND=IK)               :: locnPart_max
+INTEGER(KIND=8)                :: locnPart_max ! always integer KIND=8
 CHARACTER(LEN=255)             :: FileName
 INTEGER                        :: ALLOCSTAT
 !===================================================================================================================================
@@ -1211,12 +1240,24 @@ CALL MPI_BCAST(sendbuf(1),1,MPI_INTEGER_INT_KIND,nProcessors-1,MPI_COMM_WORLD,iE
 nPart_glob  = sendbuf(1)
 CALL MPI_GATHER(locnPart,1,MPI_INTEGER_INT_KIND,nParticles,1,MPI_INTEGER_INT_KIND,0,MPI_COMM_WORLD,iError)
 LOGWRITE(*,*)'offsetnPart,locnPart,nPart_glob',offsetnPart,locnPart,nPart_glob
-CALL MPI_REDUCE(locnPart, locnPart_max, 1, MPI_INTEGER_INT_KIND, MPI_MAX, 0, MPI_COMM_WORLD, IERROR)
+! Sanity check: Add up all particles with integer KIND=8 and compare 
+locnPart8=INT(locnPart,8)
+CALL MPI_REDUCE(locnPart8, locnPart_max, 1, MPI_INTEGER8, MPI_MAX, 0, MPI_COMM_WORLD, IERROR)
 #else
 offsetnPart  = 0_IK
 nPart_glob   = locnPart
-locnPart_max = locnPart
+! Sanity check: Add up all particles with integer KIND=8 and compare 
+locnPart_max = INT(locnPart,8)
 #endif
+! Sanity check: Add up all particles with integer KIND=8 and compare 
+IF(MPIRoot)THEN
+  ! Check if offsetnPart is kind=8 is the number of particles is larger than integer KIND=4
+  IF(locnPart_max.GT.INT(HUGE(offsetnPart),8)) THEN
+    WRITE(UNIT_stdOut,'(A,I0)') '\n\n\nTotal number of particles  : ',locnPart_max
+    WRITE(UNIT_stdOut,'(A,I0)')       'Maximum number of particles: ',HUGE(offsetnPart)
+    CALL abort(__STAMP__,'WriteLostParticlesToHDF5 has encountered more than integer KIND=4 particles. Activate PICLAS_INTKIND8!')
+  END IF
+END IF ! MPIRoot
 
 ALLOCATE(PartData(INT(PartLostDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
@@ -1302,7 +1343,7 @@ ASSOCIATE (&
     CALL CloseDataFile()
   END IF
 
-  IF(locnPart_max.EQ.0)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
+  IF(locnPart_max.EQ.0_8)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
     IF(MPIRoot)THEN ! only root writes the container
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
       CALL WriteArrayToHDF5(DataSetName='PartData'         , rank=2              , &
@@ -1312,7 +1353,7 @@ ASSOCIATE (&
                             collective=.FALSE.             , RealArray=PartData)
       CALL CloseDataFile()
     END IF !MPIRoot
-  END IF !locnPart_max.EQ.0
+  END IF !locnPart_max.EQ.0_8
 #if USE_MPI
   CALL DistributedWriteArray(FileName                           , &
                              DataSetName  = 'PartData'          , rank = 2              , &
