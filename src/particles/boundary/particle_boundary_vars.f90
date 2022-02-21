@@ -111,8 +111,6 @@ INTEGER,ALLOCATABLE                     :: RotPeriodicSide2GlobalSide(:) ! Mappi
 INTEGER,ALLOCATABLE                     :: NumRotPeriodicNeigh(:)        ! Number of adjacent Neigbours sites in rotational periodic BC
 INTEGER,ALLOCATABLE                     :: RotPeriodicSideMapping(:,:)   ! Mapping between rotational periodic sides.
 INTEGER,ALLOCATABLE                     :: SurfSide2RotPeriodicSide(:)   ! Mapping between surf side and periodic sides.
-INTEGER                                 :: NbrOfRotPeriodicHaloElems     ! Number of halo flag 3 elements that are found by
-                                                                         ! rotational periodic transformation
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! required variables

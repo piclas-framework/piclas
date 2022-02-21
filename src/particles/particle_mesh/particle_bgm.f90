@@ -1535,7 +1535,6 @@ USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems,GEO
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
-USE MOD_Particle_Boundary_Vars ,ONLY: NbrOfRotPeriodicHaloElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1552,7 +1551,6 @@ INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
 INTEGER                        :: iPeriodicDir,iLocElem
 !===================================================================================================================================
 
-NbrOfRotPeriodicHaloElems = 0
 firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
 
@@ -1607,7 +1605,6 @@ DO iElem = firstElem ,lastElem
               .LE. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4))THEN
         ! add element back to halo region
         ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-        NbrOfRotPeriodicHaloElems = NbrOfRotPeriodicHaloElems + 1 ! count number of halo flag 3 elements
         IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
       END IF ! VECNORM( ...
     END DO ! iPeriodicDir = 1,2

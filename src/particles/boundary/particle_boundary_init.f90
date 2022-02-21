@@ -532,7 +532,6 @@ SUBROUTINE InitParticleBoundaryRotPeriodic()
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSide2GlobalSide,nComputeNodeSurfTotalSides,SurfSide2GlobalSide,PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide
-USE MOD_Particle_Boundary_Vars  ,ONLY: NbrOfRotPeriodicHaloElems
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, GEO, ElemInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 #if USE_MPI
@@ -574,16 +573,6 @@ DO iSide=1, nComputeNodeSurfTotalSides
     nRotPeriodicSides = nRotPeriodicSides + 1
     Rot2Glob_temp(nRotPeriodicSides) = SideID
     SurfSide2RotPeriodicSide(iSide) = nRotPeriodicSides
-#if USE_MPI
-    ! Sanity check: Only check for multi-node cases
-    IF(nComputeNodeProcessors.NE.nProcessors_Global)THEN
-      ! Processor element (halo flag 1) is directly at a rot periodic BC but there are no rotationally periodic halo elements
-      ! (halo flag 3)
-      IF((ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.1).AND.(NbrOfRotPeriodicHaloElems.EQ.0)) &
-          CALL abort(__STAMP__,'Found element rot periodic BC without halo region (halo flag 3) global element ID=',&
-          IntInfoOpt=SideInfo_Shared(SIDE_ELEMID,SideID))
-    END IF ! nComputeNodeProcessors.NE.nProcessors_Global
-#endif /*USE_MPI*/
   END IF
 END DO
 
