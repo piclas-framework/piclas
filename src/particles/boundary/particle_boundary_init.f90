@@ -536,9 +536,8 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemS
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_Analyze_Vars            ,ONLY: CalcMeshInfo
-USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,MeshFile,nElems
+USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,nElems
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
-USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_HDF5_Output_State       ,ONLY: WriteStateToHDF5
 USE MOD_HDF5_Output_ElemData    ,ONLY: WriteLostRotPeriodicSidesToHDF5
 USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors,nProcessors_Global

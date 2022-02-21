@@ -143,8 +143,8 @@ SUBROUTINE WriteLostRotPeriodicSidesToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars         ,ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars      ,ONLY: ProjectName
+USE MOD_Mesh_Vars    ,ONLY: MeshFile
+USE MOD_Globals_Vars ,ONLY: ProjectName
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -158,7 +158,6 @@ CHARACTER(LEN=255)  :: FileName
 REAL                :: StartT,EndT
 #endif
 REAL                :: OutputTime!,FutureTime
-INTEGER             :: iElem
 !===================================================================================================================================
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE LostRotPeriodicSides TO HDF5 FILE...'
