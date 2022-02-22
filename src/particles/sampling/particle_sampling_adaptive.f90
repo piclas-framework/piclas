@@ -475,7 +475,7 @@ IF(.NOT.initTruncAverage) THEN
     ! Cycle particles inside non-sampling elements
     IF(SampleElemID.LE.0) CYCLE
 #if USE_LOADBALANCE
-    nPartsPerBCElem(ElemID) = nPartsPerBCElem(ElemID) + PEM%pNumber(ElemID)
+    nPartsPerBCElem(ElemID) = nPartsPerBCElem(ElemID) + 1
 #endif /*USE_LOADBALANCE*/
     ! Sample the particle properties
     iSpec = PartSpecies(iPart)
