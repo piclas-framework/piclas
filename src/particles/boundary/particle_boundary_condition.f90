@@ -230,22 +230,16 @@ CASE ('parabol')
   n_loc = UNITVECTOR( intersec - ( r_vec + axis*(DOT_PRODUCT(intersec-r_vec,axis)+0.5*AuxBC_parabol(AuxBCMap(AuxBCIdx))%zfac) ) )
   IF (.NOT.AuxBC_parabol(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
 CASE DEFAULT
-  CALL abort(&
-    __STAMP__&
-    ,'AuxBC does not exist')
+  CALL abort(__STAMP__,'AuxBC does not exist')
 END SELECT
 IF(DOT_PRODUCT(n_loc,TrackInfo%PartTrajectory).LT.0.)  THEN
   crossedBC=.FALSE.
   !RETURN
-  CALL abort(&
-    __STAMP__&
-    ,'Error in GetBoundaryInteractionAuxBC: Particle coming from outside!')
+  CALL abort(__STAMP__,'Error in GetBoundaryInteractionAuxBC: Particle coming from outside!')
 ELSE IF(DOT_PRODUCT(n_loc,TrackInfo%PartTrajectory).GT.0.)  THEN
   crossedBC=.TRUE.
 ELSE
-  CALL abort(&
-    __STAMP__&
-    ,'Error in GetBoundaryInteractionAuxBC: n_vec is perpendicular to PartTrajectory for AuxBC',AuxBCIdx)
+  CALL abort(__STAMP__,'Error in GetBoundaryInteractionAuxBC: n_vec is perpendicular to PartTrajectory for AuxBC',AuxBCIdx)
 END IF
 ! Select the corresponding boundary condition and calculate particle treatment
 SELECT CASE(PartAuxBC%TargetBoundCond(AuxBCIdx))
@@ -283,9 +277,7 @@ CASE(2) !PartAuxBC%ReflectiveBC)
 !print*,'*********************'
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE DEFAULT
-CALL abort(&
-__STAMP__&
-,' ERROR: AuxBC bound not associated!. (unknown case)',999,999.)
+  CALL abort(__STAMP__,' ERROR: AuxBC bound not associated!. (unknown case)',999,999.)
 END SELECT
 
 ! compiler warnings
@@ -501,9 +493,7 @@ RotSideID = SurfSide2RotPeriodicSide((GlobalSide2SurfSide(SURF_SIDEID,SideID)))
 DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
   SideID2 = RotPeriodicSideMapping(RotSideID,iNeigh)
   IF(SideID2.EQ.-1) THEN
-    CALL abort(&
-        __STAMP__&
-        ,' ERROR: Halo-rot-periodic side has no corresponding side.')
+    CALL abort(__STAMP__,' ERROR: Halo-rot-periodic side has no corresponding side.')
   END IF
   ElemID2 = SideInfo_Shared(SIDE_ELEMID,SideID2)
   ! find rotational periodic SideID2 through localization in all potentional rotational periodic sides
