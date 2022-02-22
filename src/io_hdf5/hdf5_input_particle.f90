@@ -185,7 +185,7 @@ IMPLICIT NONE
 INTEGER           :: iSpec,iInit ! ,InitGroup
 LOGICAL           :: DataExists
 CHARACTER(LEN=50) :: InitName
-INTEGER           :: NeutralizationBalanceTmp(1:1) ! This is a dummy array of size 1 !
+INTEGER(KIND=IK)  :: NeutralizationBalanceTmp(1:1) ! This is a dummy array of size 1 !
 !===================================================================================================================================
 ! Loop over all species and inits
 DO iSpec=1,nSpecies
@@ -215,7 +215,7 @@ DO iSpec=1,nSpecies
          END IF ! DataExists
          CALL CloseDataFile()
 
-         NeutralizationBalanceGlobal = NeutralizationBalanceTmp(1)
+         NeutralizationBalanceGlobal = INT(NeutralizationBalanceTmp(1),4)
          !NeutralizationBalance       = NeutralizationBalanceGlobal
        END IF
 
