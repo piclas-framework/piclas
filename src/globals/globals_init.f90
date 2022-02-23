@@ -65,7 +65,7 @@ SUBROUTINE InitGlobals()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals      ,ONLY: LogFile,UNIT_StdOut,MPIRoot,UNIT_logOut,Logging,myRank,abort
+USE MOD_Globals      ,ONLY: LogFile,UNIT_StdOut,UNIT_logOut,Logging,myRank,abort
 USE MOD_Globals_Vars ,ONLY: c,eps0,mu0,ProjectName
 #if USE_READIN_CONSTANTS
 USE MOD_Globals_Vars ,ONLY: c_inv,c2,c2_inv,smu0
@@ -73,6 +73,9 @@ USE MOD_ReadInTools  ,ONLY: GETREAL
 #else
 USE MOD_ReadInTools  ,ONLY: PrintOption
 #endif /*USE_READIN_CONSTANTS*/
+#if USE_MPI
+USE MOD_Globals      ,ONLY: MPIRoot
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

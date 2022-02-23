@@ -354,7 +354,10 @@ END SUBROUTINE InitTimeStep
 !===================================================================================================================================
 SUBROUTINE UpdateTimeStep()
 ! MODULES
-USE MOD_Globals          ,ONLY: abort,UNIT_StdOut,myrank,LESSEQUALTOLERANCE
+USE MOD_Globals          ,ONLY: abort,UNIT_StdOut,LESSEQUALTOLERANCE
+#if USE_MPI
+USE MOD_Globals          ,ONLY: myrank
+#endif /*USE_MPI*/
 USE MOD_TimeDisc_Vars    ,ONLY: dt,time,tEnd,tAnalyze,dt_Min,dtWeight
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: DoLoadBalance,LoadBalanceSample,PerformLBSample

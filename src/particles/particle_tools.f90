@@ -88,9 +88,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER            :: counter1,i,n
 INTEGER            :: ElemID
-#if !USE_MPI
-INTEGER            :: OffSetElemMPI(0) = 0            !> Dummy offset for single-thread mode
-#endif
 #if USE_LOADBALANCE
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/

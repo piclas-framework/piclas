@@ -947,9 +947,7 @@ DO WHILE(ASSOCIATED(e))
   e=>e%next
 END DO
 
-IF(nVar.NE.1) CALL abort(&
-    __STAMP__&
-    ,'WriteElemDataToSeparateContainer: Array not found in ElemData = '//TRIM(ElemDataName))
+IF(nVar.NE.1) CALL abort(__STAMP__,'WriteElemDataToSeparateContainer: Array not found in ElemData = '//TRIM(ElemDataName))
 
 #if USE_LOADBALANCE
 ! Check if ElemTime is all zeros and if this is a restart (save the old values)

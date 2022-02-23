@@ -339,7 +339,6 @@ SUBROUTINE ComputePlanarCurvedIntersection(isHit                        &
 ! particle path = LastPartPos+lengthPartTrajectory*PartTrajectory
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: myRank
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_Globals                ,ONLY: Cross,abort,UNIT_stdOut,CROSSNORM,UNITVECTOR
 USE MOD_Mesh_Vars              ,ONLY: NGeo
@@ -353,6 +352,9 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars ,ONLY: rBoundingBoxChecks
 #endif /*CODE_ANALYZE*/
+#if USE_MPI
+USE MOD_Globals                ,ONLY: myrank
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1931,9 +1933,10 @@ USE MOD_Globals                ,ONLY: UNIT_stdout,abort
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBezier
-USE MOD_Globals                ,ONLY: myrank
 #endif /*CODE_ANALYZE*/
-USE MOD_Globals                ,ONLY: MyRank
+#if USE_MPI
+USE MOD_Globals                ,ONLY: myrank
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

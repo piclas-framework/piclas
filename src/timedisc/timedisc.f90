@@ -35,7 +35,13 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze,dtWeight
+USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze
+#if USE_LOADBALANCE
+USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
+#if defined(PARTICLES)
+USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
+#endif /*defined(PARTICLES)*/
+#endif /*USE_LOADBALANCE*/
 USE MOD_TimeAverage_vars       ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage            ,ONLY: CalcTimeAverage
 USE MOD_Analyze                ,ONLY: PerformAnalyze
@@ -76,7 +82,6 @@ USE MOD_HDF5_output            ,ONLY: RemoveHDF5
 USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 #endif /*USE_MPI*/
 #ifdef PARTICLES
-USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteElectroMagneticPICFieldToHDF5
 USE MOD_HDF5_Output_State      ,ONLY: WriteIMDStateToHDF5
@@ -130,8 +135,8 @@ INTEGER(KIND=8) :: iter_PID                 !> iteration counter since last Init
 REAL            :: WallTimeStart            !> wall time of simulation start
 REAL            :: WallTimeEnd              !> wall time of simulation end
 LOGICAL         :: finalIter
-REAL            :: RestartTimeBackup
 #if USE_LOADBALANCE
+REAL            :: RestartTimeBackup
 LOGICAL         :: ForceInitialLoadBalance  !> Set true when initial load balance steps are completed and force the load balance
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
