@@ -887,6 +887,7 @@ USE MOD_DSMC_Vars                      ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
 USE MOD_Particle_Vars               ,ONLY: WriteMacroSurfaceValues
 USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC
+USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
 #if USE_MPI
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared
@@ -903,7 +904,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 ! Return if nothing was allocated
-IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive)).AND..NOT.(nPorousBC.GT.0)) RETURN
+IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive)).AND..NOT.(nPorousBC.GT.0).AND..NOT.GEO%RotPeriodicBC) RETURN
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI

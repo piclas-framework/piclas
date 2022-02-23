@@ -335,6 +335,7 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 END IF
 
 ! Initialize surface sampling / rotational periodic mapping
+! (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
 IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.GEO%RotPeriodicBC) THEN
   CALL InitParticleBoundarySampling()
   CALL InitParticleBoundaryRotPeriodic()
