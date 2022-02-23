@@ -483,9 +483,9 @@ END SUBROUTINE GetPorousBCInfo
 !===================================================================================================================================
 SUBROUTINE SyncBoundaryParticleOutput()
 ! MODULES
+#if USE_MPI
 USE MOD_Globals
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: BPO
-#if USE_MPI
 USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -496,8 +496,10 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_MPI
 REAL    :: SendBuf(1:BPO%NPartBoundaries*BPO%NSpecies)
 INTEGER :: SendBufSize
+#endif /*USE_MPI*/
 !===================================================================================================================================
 #if USE_MPI
 SendBufSize = BPO%NPartBoundaries*BPO%NSpecies
@@ -524,9 +526,9 @@ END SUBROUTINE SyncBoundaryParticleOutput
 !===================================================================================================================================
 SUBROUTINE SyncElectronSEE()
 ! MODULES
+#if USE_MPI
 USE MOD_Globals
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE
-#if USE_MPI
 USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -556,12 +558,15 @@ END SUBROUTINE SyncElectronSEE
 !===================================================================================================================================
 SUBROUTINE InitBoundaryParticleOutput()
 ! MODULES
-USE MOD_Globals                   ,ONLY: abort,UNIT_stdOut,MPIRoot
+USE MOD_Globals                   ,ONLY: abort,UNIT_stdOut
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: BPO
 USE MOD_Particle_Boundary_Vars    ,ONLY: nPartBound,PartBound
 USE MOD_ReadInTools               ,ONLY: GETLOGICAL,GETINT,GETINTARRAY
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_Particle_Vars             ,ONLY: nSpecies
+#if USE_MPI
+USE MOD_Globals                   ,ONLY: MPIRoot
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!

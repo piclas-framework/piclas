@@ -1166,7 +1166,9 @@ USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume,ElemVolume_Shared
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+#if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+#endif /*USE_MPI*/
 USE MOD_Mesh_Vars             ,ONLY: nElems,offSetElem
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1223,13 +1225,16 @@ SUBROUTINE CalcAdaptBCInfo()
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_TimeDisc_Vars           ,ONLY: dt, iter
-USE MOD_Particle_Analyze_Vars   ,ONLY: MassflowRate, PressureAdaptiveBC, nSpecAnalyze
+USE MOD_Particle_Analyze_Vars   ,ONLY: MassflowRate, PressureAdaptiveBC
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,usevMPF
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCAreaSurfaceFlux
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
+#if USE_MPI
+USE MOD_Particle_Analyze_Vars   ,ONLY: nSpecAnalyze
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1238,8 +1243,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iSpec, iSF, ElemID, SampleElemID, SurfSideID, iSide, iSample, jSample, currentBC, MaxSurfaceFluxBCs
+INTEGER             :: iSpec, iSF, ElemID, SampleElemID, SurfSideID, iSide, iSample, jSample, currentBC
 REAL                :: MacroParticleFactor
+#if USE_MPI
+INTEGER             :: MaxSurfaceFluxBCs
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 IF(iter.EQ.0) RETURN

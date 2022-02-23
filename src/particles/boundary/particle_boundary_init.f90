@@ -557,7 +557,10 @@ LOGICAL              :: isMapped,SideIsMapped
 REAL                 :: iNodeVec(1:3), jNodeVec(1:3)
 REAL                 :: iNodeR, iNodeH, jNodeR, jNodeH, Node2Rmin, Node2Rmax, Node2Hmin, Node2Hmax
 INTEGER,PARAMETER    :: NbrOfRotConnections=1000
-INTEGER              :: notMapped,notMappedTotal
+INTEGER              :: notMapped
+#if USE_MPI
+INTEGER              :: notMappedTotal
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 ALLOCATE(Rot2Glob_temp(nComputeNodeSurfTotalSides))

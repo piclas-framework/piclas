@@ -357,7 +357,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-USE MOD_Mesh_Vars          ,ONLY: nElems,OffsetElem
+USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared, NodeCoords_Shared
@@ -365,6 +365,7 @@ USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExt,Node
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
 #if USE_MPI
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
@@ -394,7 +395,7 @@ LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: de
 ! LOCAL VARIABLES
 REAL               :: Charge, TSource(1:4), PartDistDepo(8), DistSum
 REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3)
-INTEGER            :: kk, ll, mm, iPart, iElem, iProc
+INTEGER            :: kk, ll, mm, iPart, iElem
 INTEGER            :: NodeID(1:8), firstElem, lastElem, firstNode, lastNode, iNode
 LOGICAL            :: SucRefPos
 #if !((USE_HDG) && (PP_nVar==1))
@@ -405,6 +406,7 @@ LOGICAL            :: doCalculateCurrentDensity
 INTEGER            :: SourceDim
 #endif
 #if USE_LOADBALANCE
+INTEGER            :: iProc
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
@@ -750,10 +752,10 @@ USE MOD_Preproc
 USE MOD_globals
 USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,PartMPF,usevMPF
 USE MOD_Particle_Vars               ,ONLY: PartState
-USE MOD_PICDepo_Vars                ,ONLY: PartSource
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 #if USE_MPI
+USE MOD_PICDepo_Vars                ,ONLY: PartSource
 USE MOD_MPI_Shared                  ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, myComputeNodeRank, nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_LEADERS_SHARED, myLeaderGroupRank, nLeaderGroupProcs
@@ -775,8 +777,9 @@ LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: de
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL               :: Charge
-INTEGER            :: iElem, iPart
+INTEGER            :: iPart
 #if USE_MPI
+INTEGER            :: iElem
 INTEGER            :: SendRequest, RecvRequest(nComputeNodeProcessors-1), iProc, CNElemID
 INTEGER            :: RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1)
 #endif

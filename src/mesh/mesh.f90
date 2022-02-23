@@ -123,6 +123,7 @@ USE MOD_Mappings               ,ONLY: InitMappings
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
 #if USE_LOADBALANCE
+USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #endif /*USE_LOADBALANCE*/
@@ -132,7 +133,6 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: meshScale
 USE MOD_Particle_Vars          ,ONLY: usevMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 #endif
-USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
