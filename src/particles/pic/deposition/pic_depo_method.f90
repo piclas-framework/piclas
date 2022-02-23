@@ -406,10 +406,10 @@ LOGICAL            :: doCalculateCurrentDensity
 INTEGER            :: SourceDim
 #endif
 #if USE_LOADBALANCE
-INTEGER            :: iProc
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
+INTEGER            :: iProc
 INTEGER            :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
 INTEGER            :: MessageSize
 #endif
