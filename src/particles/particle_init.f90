@@ -351,13 +351,11 @@ IF (useDSMC) THEN
   CALL InitDSMC()
   CALL InitSurfaceModel()
 #if (PP_TimeDiscMethod==300)
-IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__&
-  ,'ERROR: 1D Fokker-Planck flow is not implemented yet')
+  IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__,'ERROR: 1D Fokker-Planck flow is not implemented yet')
   CALL InitFPFlow()
 #endif
 #if (PP_TimeDiscMethod==400)
-IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__&
-  ,'ERROR: 1D BGK is not implemented yet')
+  IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__,'ERROR: 1D BGK is not implemented yet')
   CALL InitBGK()
 #endif
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN

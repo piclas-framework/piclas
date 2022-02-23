@@ -82,8 +82,7 @@ The temperature is then calculated from
 $$ q_w = \varepsilon \sigma T_w^4,$$
 
 where $\varepsilon$ is the radiative emissivity of the wall (default = 1) and
-$\sigma = \SI{5.67E-8}{\watt\per\square\meter\per\kelvin\tothe{4}}$ is the Stefan-Boltzmann constant. The adaptive boundary is
-enabled by
+$\sigma = \pu{5.67E-8 Wm^{-2}K^{-4}}$ is the Stefan-Boltzmann constant. The adaptive boundary is enabled by
 
     Part-AdaptWallTemp = T
     Part-Boundary1-UseAdaptedWallTemp = T
@@ -131,16 +130,15 @@ previous section) on which the porous condition is.
 
     Surf-nPorousBC=1
     Surf-PorousBC1-BC=2
-    Surf-PorousBC1-Pressure=5.
-    Surf-PorousBC1-Temperature=300.
     Surf-PorousBC1-Type=pump
+    Surf-PorousBC1-Pressure=5.
     Surf-PorousBC1-PumpingSpeed=2e-9
     Surf-PorousBC1-DeltaPumpingSpeed-Kp=0.1
     Surf-PorousBC1-DeltaPumpingSpeed-Ki=0.0
 
-The removal probability is determined through the given pressure [Pa] and temperature [K] at the boundary. A pumping speed can be
-given as a first guess, however, the pumping speed $S$ [$m^3/s$] will be adapted if the proportional factor ($K_{\mathrm{p}}$,
-`DeltaPumpingSpeed-Kp`) is greater than zero
+Currently, two porous BC types are available, `pump` and `sensor`. For the former, the removal probability is determined through
+the given pressure [Pa] at the boundary. A pumping speed can be given as a first guess, however, the pumping speed $S$ [$m^3/s$]
+will be adapted if the proportional factor ($K_{\mathrm{p}}$, `DeltaPumpingSpeed-Kp`) is greater than zero
 
 $$ S^{n+1}(t) = S^{n}(t) + K_{\mathrm{p}} \Delta p(t) + K_{\mathrm{i}} \int_0^t \Delta p(t') dt',$$
 
@@ -181,8 +179,6 @@ Using the regions, multiple pumps can be defined on a single boundary. Additiona
 the respective type:
 
     Surf-PorousBC1-BC=3
-    Surf-PorousBC1-Pressure=5.
-    Surf-PorousBC1-Temperature=300.
     Surf-PorousBC1-Type=sensor
 
 Together with a region definition, a pump as well as a sensor can be defined on a single and/or multiple boundaries, allowing e.g.

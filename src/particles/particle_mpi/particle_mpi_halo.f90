@@ -160,7 +160,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   FlagShapeElem = .FALSE.
 END IF
 
-!>>> For all element, loop over the six sides and check if the neighbor element is on the current proc
+!>>> For all elements, loop over the six sides and check if the neighbor element is on the current proc
 !>>> Special care for big mortar sides, here the SIDE_ELEMID must be used
 nExchangeSides = 0
 
@@ -769,7 +769,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
       END SELECT
 
       ! Check rot periodic Elems and if iSide is on rot periodic BC
-      IF(meshHasRotPeriodic) THEN
+      IF(MeshHasRotPeriodic) THEN
         DO iPeriodicDir = 1,2
           ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
             SELECT CASE(GEO%RotPeriodicAxi)

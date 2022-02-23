@@ -1090,6 +1090,7 @@ MeshInitIsDone = .FALSE.
 SDEALLOCATE(ElemBaryNGeo)
 SDEALLOCATE(ElemGlobalID)
 SDEALLOCATE(myInvisibleRank)
+SDEALLOCATE(LostRotPeriodicSides)
 END SUBROUTINE FinalizeMesh
 
 END MODULE MOD_Mesh
