@@ -12,10 +12,10 @@
 !==================================================================================================================================
 #include "piclas.h"
 
+!===================================================================================================================================
+!> Module contains the routines for load balancing
+!===================================================================================================================================
 MODULE MOD_LoadDistribution
-!===================================================================================================================================
-! Module contains the routines for load balancing
-!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -46,10 +46,10 @@ CONTAINS
 
 #if USE_MPI
 !===================================================================================================================================
-! Calculate the optimal load partition, subroutine taken from sparta.f90 of HALO
-! Modification for performance on root
-!
-! Algorithm can lead to zero elements per proc!!!!
+!> Calculate the optimal load partition, subroutine taken from sparta.f90 of HALO
+!> Modification for performance on root
+!>
+!> Algorithm can lead to zero elements per proc!!!!
 !===================================================================================================================================
 SUBROUTINE SingleStepOptimalPartition(nProcs,OldElems,NewElems,ElemTime)
 ! MODULES
@@ -151,7 +151,7 @@ END SUBROUTINE SingleStepOptimalPartition
 
 
 !===================================================================================================================================
-! Calculate elem distribution according to selected method
+!> Calculate elem distribution according to selected method
 !===================================================================================================================================
 SUBROUTINE ApplyWeightDistributionMethod(ElemTimeExists)
 ! MODULES                                                                                                                          !
@@ -292,7 +292,7 @@ END SUBROUTINE ApplyWeightDistributionMethod
 
 
 !===================================================================================================================================
-! Elements are equally distributed
+!> Elements are equally distributed
 !===================================================================================================================================
 SUBROUTINE WeightDistribution_Equal(nProcs,nGlobalElems,offsetElemMPI)
 ! MODULES
@@ -326,7 +326,7 @@ END SUBROUTINE WeightDistribution_Equal
 
 
 !===================================================================================================================================
-! Distribute to procs using ElemLoads
+!> Distribute to procs using ElemLoads
 !===================================================================================================================================
 SUBROUTINE WeightDistribution_ElemTime(nProcs,nGlobalElems,ElemGlobalTime,offsetElemMPI)
 ! MODULES
@@ -381,7 +381,7 @@ END SUBROUTINE WeightDistribution_ElemTime
 
 
 !===================================================================================================================================
-! Distribute to procs using ElemLoads, last proc recieves least load
+!> Distribute to procs using ElemLoads, last proc recieves least load
 !===================================================================================================================================
 SUBROUTINE WeightDistribution_ElemTimeLeast(nProcs,nGlobalElems,ElemGlobalTime,offsetElemMPI)
 ! MODULES
@@ -511,7 +511,7 @@ END SUBROUTINE WeightDistribution_ElemTimeLeast
 
 
 !===================================================================================================================================
-! Elements are equally distributed
+!> Elements are equally distributed
 !===================================================================================================================================
 SUBROUTINE WeightDistribution_SingleStepOptimal(nProcs,nGlobalElems,ElemGlobalTime,ElemTimeExists,PartsInElem,offsetElemMPI)
 ! MODULES
@@ -676,7 +676,7 @@ END SUBROUTINE WeightDistribution_SingleStepOptimal
 
 
 !===================================================================================================================================
-! Minimize max load of all procs based on CASE(-1,0) with iterative smoothing towards last proc
+!> Minimize max load of all procs based on CASE(-1,0) with iterative smoothing towards last proc
 !===================================================================================================================================
 SUBROUTINE WeightDistribution_Iterative(nProcs,nGlobalElems,ElemGlobalTime,offsetElemMPI)
 ! MODULES
@@ -981,7 +981,7 @@ END SUBROUTINE WeightDistribution_Iterative
 
 
 !===================================================================================================================================
-! Calculate Distribution from offsetElemMPI
+!> Calculate Distribution from offsetElemMPI
 !===================================================================================================================================
 SUBROUTINE CalcDistriFromOffsets(nProcs,nGlobalElems,ElemGlobalTime,offsetElemMPI &
   ,ElemDistri,LoadDistri,MaxLoadIdx,MaxLoadVal,MinLoadIdx,MinLoadVal,MinLoadIdx_glob,nth_opt,nthMinLoad_Idx)
@@ -1077,7 +1077,7 @@ END SUBROUTINE CalcDistriFromOffsets
 
 
 !===================================================================================================================================
-!
+!> Check if resulting config was already present after shift and if or many times (give numOfCalls=0 if no valid found)
 !===================================================================================================================================
 SUBROUTINE checkList(nProcs,offsetElemMPI,identical,numOfCalls)
 ! MODULES
@@ -1145,7 +1145,7 @@ END SUBROUTINE checkList
 
 
 !===================================================================================================================================
-!
+!> Deallocate list
 !===================================================================================================================================
 SUBROUTINE freeList()
 ! MODULES
@@ -1170,7 +1170,7 @@ END SUBROUTINE freeList
 
 
 !===================================================================================================================================
-! Write load balance info to ElemTimeStatistics.csv file
+!> Write load balance info to ElemTimeStatistics.csv file
 !> WriteHeader = T: only write the header line to the file removing old data
 !===================================================================================================================================
 SUBROUTINE WriteElemTimeStatistics(WriteHeader,time_opt,iter_opt)
