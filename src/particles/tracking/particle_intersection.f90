@@ -1933,8 +1933,10 @@ USE MOD_Globals                ,ONLY: UNIT_stdout,abort
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangBezier
-USE MOD_Globals                ,ONLY: myrank
 #endif /*CODE_ANALYZE*/
+#if defined(CODE_ANALYZE) || USE_MPI
+USE MOD_Globals                ,ONLY: myrank
+#endif /*defined(CODE_ANALYZE)*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
