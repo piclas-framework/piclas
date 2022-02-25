@@ -23,6 +23,7 @@ SET(PICLAS_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
 SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           Leapfrog
                                                           Boris-Leapfrog
+                                                          Higuera-Cary
                                                           RK3
                                                           RK4
                                                           RK14
@@ -175,6 +176,13 @@ IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
   ENDIF()
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Higuera-Cary")
+  IF(PICLAS_HDG)
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoissonByHigueraCary.f90)
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=507)
+  ELSE()
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
+  ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Boris-Leapfrog")
   IF(PICLAS_HDG)
       FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoissonByBorisLeapfrog.f90)
@@ -273,6 +281,8 @@ IF(PICLAS_HDG)
   ADD_DEFINITIONS(-DUSE_HDG=1)
   IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
       MESSAGE(STATUS "use HDG with Euler-Explicit")
+    ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Higuera-Cary")
+      MESSAGE(STATUS "use HDG with Higuera-Cary")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Boris-Leapfrog")
       MESSAGE(STATUS "use HDG with Boris-Leapfrog")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Leapfrog")

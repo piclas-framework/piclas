@@ -233,6 +233,8 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LSERK4-5, Poisson'
 #elif (PP_TimeDiscMethod==506)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LSERK4-14, Poisson'
+#elif (PP_TimeDiscMethod==507)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Higuera-Cary, Poisson'
 #elif (PP_TimeDiscMethod==508)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Boris-Leapfrog, Poisson'
 #elif (PP_TimeDiscMethod==509)

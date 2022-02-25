@@ -564,14 +564,15 @@ ASSOCIATE (&
         __STAMP__&
         ,'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)
   END IF
-  ASSOCIATE ( gammas => SQRT(1.0-velosq*c2_inv) ) ! Inverse of Lorentz factor
+  ASSOCIATE ( gammas => SQRT(1.0 - velosq*c2_inv) ) ! Inverse of Lorentz factor
 
     F(1) = E1 + v2 * B3 - v3 * B2
     F(2) = E2 + v3 * B1 - v1 * B3
     F(3) = E3 + v1 * B2 - v2 * B1
 
     ! Calculate the acceleration
-    Pt = gammas * qmt * ( F - DOT_PRODUCT(F,PartState(4:6,PartID))*PartState(4:6,PartID)*c2_inv )
+    !Pt = gammas * qmt * ( F - DOT_PRODUCT(F,PartState(4:6,PartID))*PartState(4:6,PartID)*c2_inv )
+    Pt = gammas * qmt * F
   END ASSOCIATE
 END ASSOCIATE
 

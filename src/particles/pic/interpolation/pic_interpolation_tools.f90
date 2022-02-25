@@ -255,8 +255,8 @@ CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,U(1:6,:,:,:,ElemID),6,GetE
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),3,GetEMField(1:3),ElemID)
 #elif USE_HDG
 #if PP_nVar==1
-#if (PP_TimeDiscMethod==508)
-! Boris: consider B-Field, e.g., from SuperB
+#if (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508)
+! Boris or HC: consider B-Field, e.g., from SuperB
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),6,GetEMField(1:6),ElemID)
 #else
 ! Consider only electric fields
@@ -330,8 +330,8 @@ HelperU(1:6,:,:,:) = U(1:6,:,:,:,ElemID)
 HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
 #elif USE_HDG
 #if PP_nVar==1
-#if (PP_TimeDiscMethod==508)
-! Boris: consider B-Field, e.g., from SuperB
+#if (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508)
+! Boris or HC: consider B-Field, e.g., from SuperB
 HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
 #else
 ! Consider only electric fields

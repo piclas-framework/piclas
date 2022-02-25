@@ -304,6 +304,8 @@ DO !iter_t=0,MaxIter
 #if USE_HDG
 #if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
   CALL TimeStepPoisson() ! Euler Explicit or leapfrog, Poisson
+#elif (PP_TimeDiscMethod==507)
+  CALL TimeStepPoissonByHigueraCary() ! Higuera-Cary, Poisson
 #elif (PP_TimeDiscMethod==508)
   CALL TimeStepPoissonByBorisLeapfrog() ! Boris-Leapfrog, Poisson
 #else

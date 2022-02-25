@@ -562,7 +562,7 @@ IF(CalcCoupledPower) THEN
   DisplayCoupledPower = GETLOGICAL('DisplayCoupledPower')
   DoPartAnalyze = .TRUE.
   PCouplAverage = 0.0
-#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
+#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
   CALL abort(__STAMP__,'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
 #endif
   ! Allocate type array for all ranks
