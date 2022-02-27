@@ -31,7 +31,7 @@ PUBLIC :: RemoveAllElectrons
 
 CONTAINS
 
-SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID)
+SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy,NewPartID,NewMPF)
 !===================================================================================================================================
 !> creates a single particle at correct array position and assign properties
 !===================================================================================================================================
@@ -56,6 +56,7 @@ REAL, INTENT(IN)              :: RotEnergy     !< Rotational energy
 REAL, INTENT(IN)              :: VibEnergy     !< Vibrational energy
 REAL, INTENT(IN)              :: ElecEnergy    !< Electronic energy
 INTEGER, INTENT(OUT),OPTIONAL :: NewPartID     !< ID of newly created particle
+REAL, INTENT(IN),OPTIONAL     :: NewMPF        !< MPF of newly created particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER :: newParticleID
@@ -101,13 +102,21 @@ IF (VarTimeStep%UseVariableTimeStep) THEN
   VarTimeStep%ParticleTimeStep(newParticleID) = &
     CalcVarTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%LocalElemID(newParticleID))
 END IF
+
+! Set new particle MPF
 IF (usevMPF) THEN
-  IF (RadialWeighting%DoRadialWeighting) THEN
-    PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID),SpecID,newParticleID)
+  IF(PRESENT(NewMPF))THEN
+    ! MPF is already defined via input
+    PartMPF(newParticleID) = NewMPF
   ELSE
-    PartMPF(newParticleID) = Species(SpecID)%MacroParticleFactor
-  END IF
-END IF
+    ! Check if vMPF (and radial weighting is used) to determine the MPF of the new particle
+    IF (RadialWeighting%DoRadialWeighting) THEN
+      PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID),SpecID,newParticleID)
+    ELSE
+      PartMPF(newParticleID) = Species(SpecID)%MacroParticleFactor
+    END IF
+  END IF ! PRESENT(NewMPF)
+END IF ! usevMPF
 
 IF (PRESENT(NewPartID)) NewPartID=newParticleID
 
@@ -121,14 +130,14 @@ SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 !>  !!!NOTE!!! This routine is inside particle analyze because of circular definition of modules (CalcEkinPart)
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
 USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, PartMPF, usevMPF
 USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptive, AdaptBCPartNumOut
-USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance
+USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance,nNeutralizationElems
 USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcAdaptiveBCInfo
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
 #if defined(IMPA)
-USE MOD_Particle_Vars             ,ONLY: PartIsImplicit
-USE MOD_Particle_Vars             ,ONLY: DoPartInNewton
+USE MOD_Particle_Vars             ,ONLY: PartIsImplicit,DoPartInNewton
 #endif /*IMPA*/
 USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart
 USE MOD_part_tools                ,ONLY: GetParticleWeight
@@ -174,10 +183,14 @@ IF(PRESENT(BCID)) THEN
       END IF
     END DO
   END IF ! UseAdaptive.OR.CalcAdaptiveBCInfo
-  IF(UseNeutralization)THEN
+  ! Ion thruster simulations: Landmark and Liu2010 (SPT-100) if neutralization current is determined from the particle flux over the
+  ! neutralization boundary condition instead of looking into the first row of elements along that BC
+  IF(UseNeutralization.AND.(nNeutralizationElems.EQ.-1))THEN
     IF(TRIM(BoundaryName(BCID)).EQ.TRIM(NeutralizationSource))THEN
-      ! Add +1 for electrons and -1 for ions
-      NeutralizationBalance = NeutralizationBalance - INT(SIGN(1.0, Species(iSpec)%ChargeIC))
+      ! Add +1 for electrons and -X for ions: This is opposite to the summation in CountNeutralizationParticles() where the surplus
+      ! of ions is calculated and compensated with an equal amount of electrons to force quasi-neutrality in the neutralization
+      ! elements.
+      NeutralizationBalance = NeutralizationBalance - NINT(Species(iSpec)%ChargeIC/ElementaryCharge)
     END IF
   END IF ! UseNeutralization
   IF(CalcBoundaryParticleOutput)THEN

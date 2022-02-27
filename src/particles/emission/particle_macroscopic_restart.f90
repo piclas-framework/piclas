@@ -26,7 +26,8 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
 !----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC         :: MacroRestart_InsertParticles, CalcERot_particle, CalcEVib_particle, CalcEElec_particle
+PUBLIC         :: MacroRestart_InsertParticles
+PUBLIC         :: CalcVelocity_maxwell_particle, CalcERot_particle, CalcEVib_particle, CalcEElec_particle
 !===================================================================================================================================
 CONTAINS
 
@@ -447,31 +448,14 @@ INTEGER                   :: iQua
 REAL                      :: iRan, ElectronicPartition, ElectronicPartitionTemp, tmpExp
 !===================================================================================================================================
 ElectronicPartition  = 0.
+CalcEElec_particle = 0.
 
 IF(.NOT.PRESENT(iPart).AND.DSMC%ElectronicModel.EQ.2) THEN
   CALL abort(__STAMP__,'ERROR: Calculation of electronic energy using ElectronicModel = 2 requires the input of particle index!')
 END IF
 
-IF (DSMC%ElectronicModel.EQ.2) THEN
-  IF(ALLOCATED(ElectronicDistriPart(iPart)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(iPart)%DistriFunc)
-  ALLOCATE(ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(iSpec)%MaxElecQuant))
-  CalcEElec_particle = 0.0
-  DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
-    tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TempElec
-    IF (CHECKEXP(tmpExp)) &
-      ElectronicPartition = ElectronicPartition + SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-tmpExp)
-  END DO
-  DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
-    tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TempElec
-    IF (CHECKEXP(tmpExp)) THEN
-      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpec)%ElectronicState(1,iQua)*EXP(-tmpExp)/ElectronicPartition
-    ELSE
-      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = 0.0
-    END IF
-    CalcEElec_particle = CalcEElec_particle + &
-        ElectronicDistriPart(iPart)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
-  END DO
-ELSE
+SELECT CASE(DSMC%ElectronicModel)
+CASE(1)
   ElectronicPartitionTemp = 0.
   IF(TempElec.GT.0.0) THEN
     ! calculate sum over all energy levels == partition function for temperature Telec
@@ -494,7 +478,31 @@ ELSE
     iQua = 0
   END IF
   CalcEElec_particle = BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
-END IF
+CASE(2)
+  IF(ALLOCATED(ElectronicDistriPart(iPart)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(iPart)%DistriFunc)
+  ALLOCATE(ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(iSpec)%MaxElecQuant))
+  CalcEElec_particle = 0.0
+  DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
+    tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TempElec
+    IF (CHECKEXP(tmpExp)) &
+      ElectronicPartition = ElectronicPartition + SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-tmpExp)
+  END DO
+  DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
+    tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TempElec
+    IF (CHECKEXP(tmpExp)) THEN
+      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpec)%ElectronicState(1,iQua)*EXP(-tmpExp)/ElectronicPartition
+    ELSE
+      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = 0.0
+    END IF
+    CalcEElec_particle = CalcEElec_particle + &
+        ElectronicDistriPart(iPart)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
+  END DO
+CASE(3)
+  ! Initialize in ground state
+  CalcEElec_particle = 0.
+CASE DEFAULT
+  CALL abort(__STAMP__,'ERROR: Unknown electronic relaxation model: ',IntInfoOpt=DSMC%ElectronicModel)
+END SELECT
 
 RETURN
 

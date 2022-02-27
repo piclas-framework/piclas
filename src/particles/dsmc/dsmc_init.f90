@@ -75,6 +75,9 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-AmbipolarDiffusion', &
                                           'Enables the ambipolar diffusion modelling of electrons, which are attached to the '//&
                                           'ions, however, retain their own velocity vector to participate in collision events.',&
                                           '.FALSE.')
+CALL prms%CreateLogicalOption(  'Particles-BGGas-UseDistribution', &
+                                          'Utilization of a cell-local background gas distribution as read-in from a previous '//&
+                                          'DSMC/BGK result using Particles-MacroscopicRestart', '.FALSE.')
 !-----------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors', &
                                           'Enables [TRUE] / disables [FALSE] the calculation and output of:\n'//&
@@ -101,7 +104,8 @@ CALL prms%CreateIntOption(  'Particles-DSMC-ElectronicModel', &
                                           'Select model for the electronic states of atoms and molecules:\n'//&
                                           '0: No electronic energy treatment [default]\n'//&
                                           '1: Model by Liechty, each particle has a specific electronic state\n'//&
-                                          '2: Model by Burt, each particle has an electronic distribution function', '0')
+                                          '2: Model by Burt, each particle has an electronic distribution function\n'//&
+                                          '3: MCC model, utilizing cross-section data for specific levels', '0')
 CALL prms%CreateStringOption(   'Particles-DSMCElectronicDatabase'&
                                           , 'If electronic model is used give (relative) path to (h5) Name of Electronic State'//&
                                           ' Database', 'none')
@@ -282,14 +286,9 @@ CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
 CALL prms%CreateLogicalOption(  'Part-Species[$]-UseVibXSec'  &
                                            ,'Utilize vibrational cross sections for the determination of relaxation probabilities' &
                                            ,'.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Particles-CollXSec-Database', 'File name for the collision cross section database. Container '//&
-                                                               'should be named with species pair (e.g. "Ar-electron"). The '//&
-                                                               'first column shall contain the energy in eV and the second '//&
-                                                               'column the cross-section in m^2')
-CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
-                                  ,'Utilize the null collision method for the determination of the number of pairs '//&
-                                  'based on the maximum collision frequency and time step (only with a background gas)' &
-                                  ,'.TRUE.')
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseElecXSec'  &
+                                           ,'Utilize electronic cross sections, only in combination with ElectronicModel = 3' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -302,6 +301,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
+USE MOD_MCC_Vars               ,ONLY: UseMCC, XSec_Database, XSec_NullCollision, XSec_Relaxation, SpecXSec
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, VarTimeStep, usevMPF
@@ -378,8 +378,8 @@ DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','n
 IF ((DSMC%ElectronicModelDatabase .NE. 'none').AND.&
     ((CollisMode .GT. 1).OR.(CollisMode .EQ. 0))) THEN ! CollisMode=0 is for use of in PIC simulation without collisions
   DSMC%EpsElecBin = GETREAL('EpsMergeElectronicState','1E-4')
-ELSEIF(DSMC%ElectronicModel.GT.0) THEN
-  CALL Abort(__STAMP__,'ERROR: Electronic model requires a electronic levels database and CollisMode > 1!')
+ELSEIF(DSMC%ElectronicModel.EQ.1.OR.DSMC%ElectronicModel.EQ.2) THEN
+  CALL Abort(__STAMP__,'ERROR: Electronic models 1 & 2 require an electronic levels database and CollisMode > 1!')
 END IF
 DSMC%NumPolyatomMolecs = 0
 SamplingActive = .FALSE.
@@ -402,9 +402,7 @@ ALLOCATE(DSMC_RHS(1:3,1:PDM%maxParticleNumber))
 DSMC_RHS = 0
 
 IF (nSpecies.LE.0) THEN
-  CALL Abort(&
-      __STAMP__&
-      ,"ERROR: nSpecies .LE. 0:", nSpecies)
+  CALL Abort(__STAMP__,"ERROR: nSpecies .LE. 0:", nSpecies)
 END IF
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -651,18 +649,30 @@ ELSE !CollisMode.GT.0
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
     SpecDSMC(iSpec)%UseVibXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseVibXSec')
-    IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) CALL Abort(&
-      __STAMP__,'ERROR: Please supply the collision cross-section data for the particle species and NOT the background species!')
+    SpecDSMC(iSpec)%UseElecXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseElecXSec')
+    IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) THEN
+      CALL Abort(__STAMP__,'ERROR: Please supply the collision cross-section flag for the particle species and NOT the background species!')
+    END IF
+    IF(SpecDSMC(iSpec)%UseElecXSec.AND.SpecDSMC(iSpec)%InterID.EQ.4) THEN
+      CALL Abort(__STAMP__,'ERROR: Electronic relaxation should be enabled for the respective heavy species, not the electrons!')
+    END IF
+#if (PP_TimeDiscMethod!=42)
+    IF(SpecDSMC(iSpec)%UseElecXSec.AND.(.NOT.BGGas%BackgroundSpecies(iSpec))) THEN
+      SWRITE(*,*) 'NOTE: Electronic relaxation via cross-sections for regular DSMC is currently only enabled for the RESERVOIR'
+      SWRITE(*,*) 'NOTE: timedisc to test the calculation of the probabilities during regression testing. For DSMC, a de-excitation'
+      SWRITE(*,*) 'NOTE: model should be implemented. Regression test: WEK_Reservoir/MCC_N2_XSec_Elec'
+      CALL Abort(__STAMP__,'ERROR: Electronic relaxation via cross-section (-UseElecXSec) is only supported with a background gas!')
+    END IF
+#endif
   END DO
   XSec_Database = 'none'! Initialize
-  IF(ANY(SpecDSMC(:)%UseCollXSec).OR.ANY(SpecDSMC(:)%UseVibXSec)) THEN
-    XSec_Database = GETSTR('Particles-CollXSec-Database')
+  IF(ANY(SpecDSMC(:)%UseCollXSec).OR.ANY(SpecDSMC(:)%UseVibXSec).OR.ANY(SpecDSMC(:)%UseElecXSec)) THEN
     UseMCC = .TRUE.
     CALL MCC_Init()
   ELSE
-    UseMCC = .FALSE.
-    XSec_NullCollision =.FALSE.
-    XSec_Relaxation = .FALSE.
+    UseMCC             = .FALSE.
+    XSec_NullCollision = .FALSE.
+    XSec_Relaxation    = .FALSE.
   END IF
   ! Ambipolar diffusion is not implemented with the regular background gas, only with MCC
   IF(DSMC%DoAmbipolarDiff) THEN
@@ -755,6 +765,15 @@ ELSE !CollisMode.GT.0
         SpecDSMC(iSpec)%ElecRelaxProb = GETREAL('Part-Species'//TRIM(hilf)//'-ElecRelaxProb')
         ! multi init stuff
         ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
+        ! Skip the read-in of temperatures if a background gas distribution is used
+        IF(BGGas%NumberOfSpecies.GT.0) THEN
+          IF(BGGas%BackgroundSpecies(iSpec).AND.BGGas%UseDistribution) THEN
+            SpecDSMC(iSpec)%Init(1)%TVib  = 0.
+            SpecDSMC(iSpec)%Init(1)%TRot  = 0.
+            SpecDSMC(iSpec)%Init(1)%Telec = 0.
+            CYCLE
+          END IF
+        END IF
         DO iInit = 1, Species(iSpec)%NumberOfInits
           WRITE(UNIT=hilf2,FMT='(I0)') iInit
           hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
@@ -1454,22 +1473,22 @@ SDEALLOCATE(MacroSurfaceVal)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)
 CALL DeleteElemNodeVol()
+
 SDEALLOCATE(BGGas%PairingPartner)
 SDEALLOCATE(BGGas%BackgroundSpecies)
 SDEALLOCATE(BGGas%TraceSpecies)
 SDEALLOCATE(BGGas%MapSpecToBGSpec)
 SDEALLOCATE(BGGas%MapBGSpecToSpec)
 SDEALLOCATE(BGGas%SpeciesFraction)
+SDEALLOCATE(BGGas%SpeciesFractionElem)
 SDEALLOCATE(BGGas%NumberDensity)
+SDEALLOCATE(BGGas%DistributionSpeciesIndex)
+SDEALLOCATE(BGGas%Distribution)
+SDEALLOCATE(BGGas%DistributionNumDens)
+
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
-SDEALLOCATE(SpecXSec)
-SDEALLOCATE(SpecPhotonXSecInterpolated)
-SDEALLOCATE(PhotonDistribution)
-SDEALLOCATE(PhotonEnergies)
-SDEALLOCATE(PhotoReacToReac)
-SDEALLOCATE(ReacToPhotoReac)
 END SUBROUTINE FinalizeDSMC
 
 

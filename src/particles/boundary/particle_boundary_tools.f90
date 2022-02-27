@@ -221,7 +221,7 @@ SampWallImpactNumber(SpecID,SubP,SubQ,SurfSideID) = SampWallImpactNumber(SpecID,
 END SUBROUTINE SampleImpactProperties
 
 
-SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,iBC,mode,usevMPF_optIN)
+SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,iBC,mode,MPF_optIN)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Save particle position, velocity and species to PartDataBoundary container for writing to .h5 later
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -242,8 +242,8 @@ REAL,INTENT(IN)    :: PartTrajectory(1:3)
 REAL,INTENT(IN)    :: SurfaceNormal(1:3)
 INTEGER,INTENT(IN) :: iBC  ! Part-BoundaryX on which the impact occurs
 INTEGER,INTENT(IN) :: mode ! 1: particle impacts on BC (species is stored as positive value)
-                            ! 2: particles is emitted from the BC into the simulation domain (species is stored as negative value)
-LOGICAL,INTENT(IN),OPTIONAL :: usevMPF_optIN ! For setting MPF for cases when PartMPF(iPart) might not yet be set during emission
+                           ! 2: particles is emitted from the BC into the simulation domain (species is stored as negative value)
+REAL,INTENT(IN),OPTIONAL :: MPF_optIN ! Supply the MPF in special cases
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                 :: MPF
@@ -253,14 +253,8 @@ REAL, ALLOCATABLE    :: PartStateBoundary_tmp(:,:) ! (1:11,1:NParts) 1st index: 
 !                                                  !                 2nd index: 1 to number of boundary-crossed particles
 INTEGER              :: ALLOCSTAT
 !===================================================================================================================================
-IF(PRESENT(usevMPF_optIN))THEN
-  IF(usevMPF_optIN)THEN
-    CALL abort(&
-    __STAMP__&
-    ,'StoreBoundaryParticleProperties: usevMPF_optIN cannot be true!')
-  ELSE
-    MPF = Species(SpecID)%MacroParticleFactor
-  END IF ! usevMPF_optIN
+IF(PRESENT(MPF_optIN))THEN
+  MPF = MPF_optIN
 ELSE
   IF (usevMPF) THEN
     MPF = PartMPF(iPart)
@@ -300,14 +294,13 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
 
   PartStateBoundary(1:3,iMax) = PartPos
   PartStateBoundary(4:6,iMax) = PartState(4:6,iPart)
+  ! Mode 1: store normal species ID, mode 2: store negative species ID (special analysis of emitted particles in/from volume/surface)
   IF(mode.EQ.1)THEN
     PartStateBoundary(7  ,iMax) = REAL(SpecID)
   ELSEIF(mode.EQ.2)THEN
     PartStateBoundary(7  ,iMax) = -REAL(SpecID)
   ELSE
-    CALL abort(&
-    __STAMP__&
-    ,'StoreBoundaryParticleProperties: mode must be either 1 or 2! mode=',IntInfoOpt=mode)
+    CALL abort(__STAMP__,'StoreBoundaryParticleProperties: mode must be either 1 or 2! mode=',IntInfoOpt=mode)
   END IF ! mode.EQ.1
   PartStateBoundary(8  ,iMax) = MPF
   PartStateBoundary(9  ,iMax) = time

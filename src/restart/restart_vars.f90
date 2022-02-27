@@ -28,6 +28,7 @@ INTEGER            :: N_Restart = 0
 INTEGER            :: nElems_Restart
 LOGICAl            :: RestartInitIsDone   = .FALSE.
 LOGICAl            :: DoRestart           = .FALSE.
+LOGICAl            :: FlushInitialState   = .FALSE. !< During restart delete the state restart file when FlushInitialState=T
 LOGICAl            :: DoInitialAutoRestart= .FALSE.
 LOGICAl            :: InitialAutoRestartPartWeight= .FALSE.
 INTEGER            :: InitialAutoRestartSample

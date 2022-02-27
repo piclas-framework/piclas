@@ -22,8 +22,6 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL          :: DoWriteStateToHDF5           !< only write HDF5 output if this is true
-!-----------------------------------------------------------------------------------------------------------------------------------
 ! SwapMesh
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL           :: DoSwapMesh                   !< flag for SwapMesh routines
@@ -178,6 +176,7 @@ INTEGER(KIND=8),ALLOCATABLE     :: ElemToElemGlob(:,:,:)             !< mapping 
 INTEGER(KIND=8),ALLOCATABLE     ::  ElemGlobalID(:)                  !< global element id of each element
 INTEGER(KIND=8),ALLOCATABLE     ::  myInvisibleRank(:)               !< global proc ID which the current proc cannot see (particle
                                                                      !< communication)
+INTEGER(KIND=8),ALLOCATABLE     ::  LostRotPeriodicSides(:)          !< Number of lost sides during rotational periodic search
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=255),ALLOCATABLE   :: BoundaryName(:)
 CHARACTER(LEN=255)               :: MeshFile        !< name of hdf5 meshfile (write with ending .h5!)

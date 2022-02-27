@@ -38,11 +38,25 @@ LOGICAL                 :: useVariableExternalField      !< Use given external f
 LOGICAL                 :: useAlgebraicExternalField     !< Use given algebraic expression for the external e and B field
 INTEGER                 :: AlgebraicExternalField        !< External E and B field from algebraic expression that is
                                                          !< interpolated to the particle position:
-                                                         !< 1: Axial B(x) and E(x) field 
-                                                         !<    from T. Charoy, 2D axial-azimuthal particle-in-cell
-                                                         !<    benchmark for low-temperature partially magnetized plasmas (2019)
+                                                         !< [1]: Axial B(x) and E(x) from field solver
+                                                         !<      from T. Charoy " 2D axial-azimuthal particle-in-cell
+                                                         !<      benchmark for low-temperature partially magnetized plasmas" (2019)
+                                                         !< [2]: 2D Radial By(x)=Br(x) and Bx=Bz=0
+                                                         !<      in axial x-direction and E(x) from field solver
+                                                         !<      from H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)
+                                                         !< [3]: same as [2] but 3D case, where Br(z) = (/Bx(z), By(z)/) in axial
+                                                         !<      z-direction
+INTEGER                 :: AlgebraicExternalFieldDelta   !< delta factor for H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)
 REAL,ALLOCATABLE        :: VariableExternalField(:,:)    !< z - Pos , Bz
-REAL                    :: DeltaExternalField            !< equidistant z-spacing for the VariableExternalField (fast computation)
+LOGICAL                 :: VariableExternalField2D       !< True if variable external field data is 2D
+LOGICAL                 :: VariableExternalFieldAxisSym  !< True if the data is axis symmetric, e.g., B(r,z)
+INTEGER                 :: VariableExternalFieldRadInd   !< Index of radial r-coordinate when using 2D data and axis symmetric 
+INTEGER                 :: VariableExternalFieldAxisDir  !< Direction that is used for the axial symmetric direction (1,2 or 3)
+INTEGER                 :: VariableExternalField2DRows   !< Number of rows unrolled in data when using 2D data and axis symmetric
+INTEGER                 :: VariableExternalField2DColumns!< Number of columns in unrolled data when using 2D data and axis symmetric
+REAL                    :: VariableExternalFieldMin(1:3) !< Minimum values in x,y,z
+REAL                    :: VariableExternalFieldMax(1:3) !< Maximum values in x,y,z
+REAL                    :: DeltaExternalField(1:3)       !< equidistant z-spacing for the VariableExternalField (fast computation)
 INTEGER                 :: nIntPoints                    !< number of all interpolation points external field
 
 #ifdef CODE_ANALYZE

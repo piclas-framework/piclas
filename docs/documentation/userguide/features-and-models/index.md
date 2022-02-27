@@ -10,7 +10,7 @@ BC-field-solver.md
 BC-particle-solver.md
 particle-initialization-and-emission.md
 PIC.md
-superB.md
+magnetic-background-field.md
 DSMC.md
 BGG.md
 Fokker-Planck.md

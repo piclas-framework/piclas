@@ -29,5 +29,6 @@ LOGICAL                    :: doPrintStatusLine        !< flag indicating if sta
 INTEGER                    :: userblock_len            !< length of userblock file in bytes
 INTEGER                    :: userblock_total_len      !< length of userblock file + length of ini-file (with header) in bytes
 CHARACTER(LEN=255)         :: UserBlockTmpFile='userblock.tmp' !< name of user block temp file
+LOGICAL                    :: DoWriteStateToHDF5           !< only write HDF5 output if this is true
 !===================================================================================================================================
 END MODULE MOD_Output_Vars

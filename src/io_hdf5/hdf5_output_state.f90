@@ -65,7 +65,8 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteNodeSourceExtToHDF5,WriteClonesToHDF5,WriteVibProbInfoToHDF5,WriteAdaptiveWallTempToHDF5
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteAdaptiveInfoToHDF5,WriteParticleToHDF5,WriteBoundaryParticleToHDF5
-USE MOD_HDF5_Output_Particles  ,ONLY: WriteLostParticlesToHDF5
+USE MOD_HDF5_Output_Particles  ,ONLY: WriteLostParticlesToHDF5,WriteEmissionVariablesToHDF5
+USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #endif /*PARTICLES*/
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: E,Phi
@@ -104,12 +105,13 @@ USE MOD_HDF5_Output_Particles  ,ONLY: AddBRElectronFluidToPartSource
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
-USE MOD_Mesh_Vars              ,ONLY: DoWriteStateToHDF5
+USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
 USE MOD_HDF5_Input             ,ONLY: ReadArray
 #if (PP_nVar==8)
 USE MOD_HDF5_Output_Fields     ,ONLY: WritePMLDataToHDF5
 #endif
+USE MOD_HDF5_Output_ElemData   ,ONLY: WriteAdditionalElemData
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -127,7 +129,7 @@ CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
 #endif /*defined(PARTICLES)*/
 #ifdef PARTICLES
-REAL                           :: NumSpec(nSpecAnalyze)
+REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
@@ -646,6 +648,19 @@ IF (ANY(PartBound%UseAdaptedWallTemp)) CALL WriteAdaptiveWallTempToHDF5(FileName
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
+! For restart purposes, store the electron bulk temperature in .h5 state
+IF(CalcBulkElectronTemp)THEN
+  IF(MPIRoot)THEN ! only root writes the container
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    TmpArray(1,1) = BulkElectronTemp
+    CALL WriteArrayToHDF5( DataSetName = 'BulkElectronTemp' , rank = 2 , &
+                           nValGlobal  = (/1_IK , 1_IK/)     , &
+                           nVal        = (/1_IK , 1_IK/)     , &
+                           offset      = (/0_IK , 0_IK/)     , &
+                           collective  = .FALSE., RealArray = TmpArray(1,1))
+    CALL CloseDataFile()
+  END IF ! MPIRoot
+END IF ! CalcBulkElectronTemp
 #endif /*PARTICLES*/
 
 #if USE_LOADBALANCE
@@ -701,6 +716,8 @@ CALL WritePMLDataToHDF5(FileName)
 #ifdef PARTICLES
 ! Write NodeSourceExt (external charge density) field to HDF5 file
 IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
+! Output particle emission data to be read during subsequent restarts
+CALL WriteEmissionVariablesToHDF5(FileName)
 #endif /*PARTICLES*/
 
 EndT=PICLASTIME()
@@ -930,9 +947,7 @@ DO WHILE(ASSOCIATED(e))
   e=>e%next
 END DO
 
-IF(nVar.NE.1) CALL abort(&
-    __STAMP__&
-    ,'WriteElemDataToSeparateContainer: Array not found in ElemData = '//TRIM(ElemDataName))
+IF(nVar.NE.1) CALL abort(__STAMP__,'WriteElemDataToSeparateContainer: Array not found in ElemData = '//TRIM(ElemDataName))
 
 #if USE_LOADBALANCE
 ! Check if ElemTime is all zeros and if this is a restart (save the old values)
@@ -979,105 +994,6 @@ DEALLOCATE(ElemData)
 
 END SUBROUTINE WriteElemDataToSeparateContainer
 #endif /*USE_LOADBALANCE || defined(PARTICLES)*/
-
-
-SUBROUTINE WriteAdditionalElemData(FileName,ElemList)
-!===================================================================================================================================
-!> Write additional data for analyze purpose to HDF5.
-!> The data is taken from a lists, containing either pointers to data arrays or pointers
-!> to functions to generate the data, along with the respective varnames.
-!>
-!> Two options are available:
-!>    1. WriteAdditionalElemData:
-!>       Element-wise scalar data, e.g. the timestep or indicators.
-!>       The data is collected in a single array and written out in one step.
-!>       DO NOT MISUSE NODAL DATA FOR THIS! IT WILL DRASTICALLY INCREASE FILE SIZE AND SLOW DOWN IO!
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals
-USE MOD_Mesh_Vars        ,ONLY: offsetElem,nGlobalElems,nElems
-USE MOD_LoadBalance_Vars ,ONLY: ElemTime,NullifyElemTime
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=255),INTENT(IN)        :: FileName
-TYPE(tElementOut),POINTER,INTENT(IN) :: ElemList !< Linked list of arrays to write to file
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-REAL,ALLOCATABLE               :: ElemData(:,:)
-INTEGER                        :: nVar,iElem
-TYPE(tElementOut),POINTER      :: e
-!===================================================================================================================================
-
-IF(.NOT. ASSOCIATED(ElemList)) RETURN
-
-! Count the additional variables
-nVar = 0
-e=>ElemList
-DO WHILE(ASSOCIATED(e))
-  nVar=nVar+1
-  e=>e%next
-END DO
-
-! Allocate variable names and data array
-ALLOCATE(StrVarNames(nVar))
-ALLOCATE(ElemData(nVar,nElems))
-
-! Fill the arrays
-nVar = 0
-e=>ElemList
-DO WHILE(ASSOCIATED(e))
-  nVar=nVar+1
-  StrVarNames(nVar)=e%VarName
-  IF(ASSOCIATED(e%RealArray))    ElemData(nVar,:)=e%RealArray(1:nElems)
-  IF(ASSOCIATED(e%RealScalar))   ElemData(nVar,:)=e%RealScalar
-  IF(ASSOCIATED(e%IntArray))     ElemData(nVar,:)=REAL(e%IntArray(1:nElems))
-  IF(ASSOCIATED(e%IntScalar))    ElemData(nVar,:)=REAL(e%IntScalar)
-  IF(ASSOCIATED(e%LongIntArray)) ElemData(nVar,:)=REAL(e%LongIntArray(1:nElems))
-  IF(ASSOCIATED(e%LogArray)) THEN
-    DO iElem=1,nElems
-      IF(e%LogArray(iElem))THEN
-        ElemData(nVar,iElem)=1.
-      ELSE
-        ElemData(nVar,iElem)=0.
-      END IF
-    END DO ! iElem=1,PP_nElems
-  END IF
-  IF(ASSOCIATED(e%eval))       CALL e%eval(ElemData(nVar,:)) ! function fills elemdata
-  e=>e%next
-END DO
-
-IF(MPIRoot)THEN
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar,StrArray=StrVarNames)
-  CALL CloseDataFile()
-END IF
-
-ASSOCIATE (&
-      nVar         => INT(nVar,IK)         ,&
-      nGlobalElems => INT(nGlobalElems,IK) ,&
-      PP_nElems    => INT(PP_nElems,IK)    ,&
-      offsetElem   => INT(offsetElem,IK)   )
-  CALL GatheredWriteArray(FileName,create = .FALSE.,&
-                          DataSetName     = 'ElemData', rank = 2,  &
-                          nValGlobal      = (/nVar,nGlobalElems/),&
-                          nVal            = (/nVar,PP_nElems   /),&
-                          offset          = (/0_IK,offsetElem  /),&
-                          collective      = .TRUE.,RealArray = ElemData)
-END ASSOCIATE
-DEALLOCATE(ElemData,StrVarNames)
-
-! Check if ElemTime is to be nullified (required after user-restart)
-! After writing the old ElemTime values to disk, the array must be nullified (because they correspond to the restart file, which
-! might have been created with a totally different processor number and distribution)
-IF(NullifyElemTime) ElemTime=0.
-
-END SUBROUTINE WriteAdditionalElemData
 
 
 END MODULE MOD_HDF5_Output_State

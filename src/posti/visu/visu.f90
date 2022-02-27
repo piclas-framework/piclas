@@ -422,7 +422,11 @@ LOGICAL                          :: changedPrmFile
 !
 !**********************************************************************************************
 CALL SetStackSizeUnlimited()
+#if USE_MPI
 CALL InitMPI(mpi_comm_IN)
+#else
+CALL InitMPI()
+#endif /*USE_MPI*/
 CALL InitMPIInfo()
 
 CALL FinalizeParameters()

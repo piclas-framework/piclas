@@ -10,7 +10,7 @@ The general information needed to setup a DSMC simulation is given in the previo
 
 ## Mesh Generation with HOPR (pre-processing)
 
-Before the actual simulation is conducted, a mesh file in the HDF5 format has to be supplied. The mesh files used by **piclas** are created by supplying an input file `hopr.ini` with the required information for a mesh that has either been created by an external mesh generator or directly from block-structured information in the `hopr.ini` file itself. Here, a conversion from an external mesh generator is required. The mesh needed for this tutorial is already generated and converted to *70degCone_2D_mesh.h5*. The mesh and the corresponding boundaries are depicted in {numref}`fig:dsmc-cone-mesh`.
+Before the actual simulation is conducted, a mesh file in the HDF5 format has to be supplied. The mesh files used by **piclas** are created by supplying an input file `hopr.ini` with the required information for a mesh that has either been created by an external mesh generator or directly from block-structured information in the `hopr.ini` file itself. Here, a conversion from an external mesh generator would be required, however, the mesh needed for this tutorial has already been generated and converted to *70degCone_2D_mesh.h5*. The mesh and the corresponding boundaries are depicted in {numref}`fig:dsmc-cone-mesh`.
 
 ```{figure} mesh/dsmc-cone-mesh-bcs.jpg
 ---
@@ -40,7 +40,7 @@ The `BoundaryName` needs to be the same as in the CGNS file.
     ! BOUNDARY CONDITIONS
     !=============================================================================== !
     BoundaryName = IN
-    BoundaryType = (/2,0,0,0/)
+    BoundaryType = (/3,0,0,0/)
     BoundaryName = OUT
     BoundaryType = (/3,0,0,0/)
     BoundaryName = WALL
@@ -50,11 +50,11 @@ The `BoundaryName` needs to be the same as in the CGNS file.
     BoundaryName = ROTSYM
     BoundaryType = (/4,0,0,0/)
 
-To create the .h5 mesh file, simply run
+To create the .h5 mesh file, you would simply run
 
     hopr hopr.ini
 
-This would create the mesh file *70degCone_2D_mesh.h5* in HDF5 format. For more information see directly at [https://github.com/hopr-framework/hopr](https://github.com/hopr-framework/hopr).
+This would create the mesh file *70degCone_2D_mesh.h5* in HDF5 format. Please note that this is **not required/possible** for the tutorial as the source mesh file (`70degCone_2D_mesh.cgns`) is not available. For more information see directly at [https://github.com/hopr-framework/hopr](https://github.com/hopr-framework/hopr).
 
 ## Flow simulation with DSMC
 
@@ -66,7 +66,7 @@ or simply run the following command from inside the *build* directory
 
     cmake ../ -DPICLAS_TIMEDISCMETHOD=DSMC
 
-to configure the build process and run `make` afterwards to build the executable. An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`. The values of the general physical properties are listed in {numref}`tab:dsmc_cone_phys`.
+to configure the build process and run `make` afterwards to build the executable. It is recommended to either utilize a separate build folder (e.g. build_DSMC/) or to delete the contents of the folder beforehand to avoid conflicts between different compiler options (e.g. the setting `PICLAS_EQNSYSNAME = poisson` from the plasma wave tutorial is in conflict with the DSMC method). An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`. The values of the general physical properties are listed in {numref}`tab:dsmc_cone_phys`.
 
 ```{table} Physical properties at the simulation start
 ---
@@ -95,28 +95,6 @@ To define an incoming, continuous flow, the procedure is similar to that for ini
     Part-Species1-Surfaceflux1-PartDensity          = 3.715E+20
     Part-Species1-Surfaceflux1-VeloIC               = 1502.57
     Part-Species1-Surfaceflux1-VeloVecIC            = (/1.,0.,0./)
-
-### MPI and Load Balancing
-
-When using several cores, piclas divides the computing load by distributing the computing cells to the various cores. If a particle leaves the boundaries of a core, it is necessary that the surrounding grid is also known. This region is defined by the `Particles-HaloEpsVelo` and the time step. In general, it can be said that this velocity should be greater than or equal to the maximum velocity of any particle in the simulation. This prevents a particle from completely flying through this halo region during a time step.
-
-    Particles-HaloEpsVelo = 8.0E+4
-
-If the conditions change, it could make sense to redistribute the computing load. An example is the build-up of a bow shock during the simulation time: While all cells have the same particle density during initialization, an imbalance will develop after a short time. The cores with cells in the area of the bow shock have significantly more computational effort, since the particle density is significantly higher. As mentioned at the beginning, **piclas** redistributes the computing load each time it is started. To perform a restart, the state file (Projectname_State_Timestamp.h5) must be appended to the standard start command.
-
-    mpirun -np 8 piclas parameter.ini DSMC.ini Projectname_State_Timestamp.h5 > std.out
-
-The parameter `Particles-MPIWeight` indicates whether the distribution should be oriented more towards a uniform distribution of the cells (values less than 1) or a uniform distribution of the particles (values greater than 1). There are options in piclas to automate this process by defining load balancing steps during a single program call. For this, load balancing must have been activated when compiling piclas (which is the default). To activate load balancing based on the number of particles, `DoLoadBalance = T` and `PartWeightLoadBalance = T` must be set. **piclas** then decides after each `Analyze_dt` whether a redistribution is required. This is done using the definable `Load DeviationThreshold`. Should the maximum relative deviation of the calculation load be greater than this value, a load balancing step is carried out. If `DoInitialAutoRestart = T` and `InitialAutoRestart-PartWeightLoadBalance = T` are set, a restart is carried out after the first `Analyze_dt` regardless of the calculated imbalance. To restrict the number of restarts, `LoadBalanceMaxSteps` limits the number of all load balancing steps to the given number.
-
-    ! Load Balancing
-    Particles-MPIWeight                      = 1000
-    DoLoadBalance                            = T
-    PartWeightLoadBalance                    = T
-    DoInitialAutoRestart                     = T
-    InitialAutoRestart-PartWeightLoadBalance = T
-    LoadBalanceMaxSteps                      = 2
-
-Information about the imbalance are shown in the *std.out* and the *ElemTimeStatistics.csv* file.
 
 ### Exploiting symmetry
 
@@ -172,6 +150,38 @@ The second method is activated via `Part-WriteMacroValues = T`. In this approach
     Part-IterationForMacroVal         = 1250
 
 For further information see {ref}`sec:sampled-flow-field-and-surface-variables`.
+
+## Run the simulation
+
+Finally, you can start the simulation using the Message Passing Interface (MPI) on multiple cores
+
+    mpirun -np 8 piclas parameter.ini DSMC.ini > std.out
+
+To continue a simulation after a successful run, you have to provide the state file (`Projectname_State_Timestamp.h5`) you want to restart from
+
+    mpirun -np 8 piclas parameter.ini DSMC.ini Projectname_State_Timestamp.h5 > std.out
+
+The restart also redistributes the computational load and can thus significantly reduce the time to solution. In the following, additional automatic load balancing during the run-time is described.
+
+### MPI and Load Balancing
+
+When using several cores, piclas divides the computing load by distributing the computing cells to the various cores. If a particle leaves the boundaries of a core, it is necessary that the surrounding grid is also known. This region is defined by the `Particles-HaloEpsVelo` and the time step. In general, it can be said that this velocity should be greater than or equal to the maximum velocity of any particle in the simulation. This prevents a particle from completely flying through this halo region during a time step.
+
+    Particles-HaloEpsVelo = 8.0E+4
+
+If the conditions change, it could make sense to redistribute the computing load. An example is the build-up of a bow shock during the simulation time: While all cells have the same particle density during initialization, an imbalance will develop after a short time. The cores with cells in the area of the bow shock have significantly more computational effort, since the particle density is significantly higher. As mentioned at the beginning, **piclas** redistributes the computing load each time it is started.
+
+The parameter `Particles-MPIWeight` indicates whether the distribution should be oriented more towards a uniform distribution of the cells (values less than 1) or a uniform distribution of the particles (values greater than 1). There are options in piclas to automate this process by defining load balancing steps during a single program call. For this, load balancing must have been activated when compiling piclas (which is the default). To activate load balancing based on the number of particles, `DoLoadBalance = T` and `PartWeightLoadBalance = T` must be set. **piclas** then decides after each `Analyze_dt` whether a redistribution is required. This is done using the definable `Load DeviationThreshold`. Should the maximum relative deviation of the calculation load be greater than this value, a load balancing step is carried out. If `DoInitialAutoRestart = T` and `InitialAutoRestart-PartWeightLoadBalance = T` are set, a restart is carried out after the first `Analyze_dt` regardless of the calculated imbalance. To restrict the number of restarts, `LoadBalanceMaxSteps` limits the number of all load balancing steps to the given number.
+
+    ! Load Balancing
+    Particles-MPIWeight                      = 1000
+    DoLoadBalance                            = T
+    PartWeightLoadBalance                    = T
+    DoInitialAutoRestart                     = T
+    InitialAutoRestart-PartWeightLoadBalance = T
+    LoadBalanceMaxSteps                      = 2
+
+Information about the imbalance are shown in the *std.out* and the *ElemTimeStatistics.csv* file.
 
 ## Visualization (post-processing)
 

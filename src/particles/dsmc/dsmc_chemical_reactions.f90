@@ -227,10 +227,11 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
     Xi_Total = Xi_Total + Xi_elec(iPart) + Xi_vib(iPart) + SpecDSMC(EductReac(iPart))%Xi_Rot
   END DO
   IF(EductReac(3).NE.0) Xi_Total = Xi_Total + 3.
+  ! Calculation of the beta factor (requires the collision pair-specific vibrational and electronic degrees of freedom)
+  ! Not calculated when treating recombination reactions with the automatic backward reactions.
+  IF((TRIM(ChemReac%ReactType(iReac)).NE.'R').OR.(iReac.LE.ChemReac%NumOfReactWOBackward)) BetaReaction = Calc_Beta_TCE(iReac,Xi_Total)
   ! Zero-point energy of educts is removed from the collision energy utilized for the calculation of the reaction probability
   EReact = NumWeightEduct*(Coll_pData(iPair)%Ec - EZeroPoint_Educt)/ SumWeightEduct
-  ! Calculation of the beta factor (requires the collision pair-specific vibrational and electronic degrees of freedom)
-  BetaReaction = Calc_Beta_TCE(iReac,Xi_Total)
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Calculation of the backward reaction rate coefficient and applying to Beta coefficient after Boyd "Modeling backward chemical
   ! rate processes in the direct simulation Monte Carlo method", Phys. Fluids 19, 1261103 (2007)
@@ -679,16 +680,16 @@ DO iProd = 1, NumProd
 END DO
 !-------------------------------------------------------------------------------------------------------------------------------
 ! Root-finding algorithm to determine the vibrational and electronic degrees of freedom
-IF((nDOFMAX.GT.0).AND.(DSMC%ElectronicModel.GT.0)) THEN
+IF((nDOFMAX.GT.0).AND.((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2))) THEN
   ! Electronic and vibrational energy is considered
   ALLOCATE(XiVibPart(NumProd,nDOFMAX))
   XiVibPart = 0.
   CALL CalcXiTotalEqui(iReac,iPair,NumProd,Xi_total,Weight,XiVibPart=XiVibPart,XiElecPart=Xi_elec)
-ELSEIF(DSMC%ElectronicModel.GT.0) THEN
+ELSEIF((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2)) THEN
   ! Only electronic energy is considered
   CALL CalcXiTotalEqui(iReac,iPair,NumProd,Xi_total,Weight,XiElecPart=Xi_elec)
 ELSEIF(nDOFMAX.GT.0) THEN
-  ! Only vibrational energy is considered
+  ! Only vibrational energy is considered (in case of ElectronicModel = 3, products are always in the ground-state)
   ALLOCATE(XiVibPart(NumProd,nDOFMAX))
   XiVibPart = 0.
   CALL CalcXiTotalEqui(iReac,iPair,NumProd,Xi_total,Weight,XiVibPart=XiVibPart)
@@ -736,7 +737,7 @@ IF (DSMC%ElectronicModel.GT.0) THEN
         PartStateIntEn(3,ReactInx(iProd)) = 0.0
       END IF
       FakXi = FakXi - 0.5*Xi_elec(iProd)
-      CALL ElectronicEnergyExchange(iPair,ReactInx(iProd),FakXi, NewPart = .TRUE., Xi_elec = Xi_elec(iProd))
+      CALL ElectronicEnergyExchange(iPair,ReactInx(iProd),FakXi, NewPart = .TRUE., Xi_elec = Xi_elec(iProd), XSec_Level = 0)
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(iProd))*Weight(iProd)
     END IF
   END DO
@@ -1421,8 +1422,9 @@ SUBROUTINE CalcPhotoIonizationNumber(i,NbrOfPhotons,NbrOfReactions)
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: c
 USE MOD_Particle_Vars ,ONLY: Species
-USE MOD_DSMC_Vars     ,ONLY: BGGas,ChemReac,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
-USE MOD_DSMC_Vars     ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,PhotoReacToReac
+USE MOD_DSMC_Vars     ,ONLY: BGGas,ChemReac
+USE MOD_MCC_Vars      ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
+USE MOD_MCC_Vars      ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,PhotoReacToReac
 USE MOD_TimeDisc_Vars ,ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1486,9 +1488,9 @@ SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, iInit, InitSpec, iLineOp
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: eV2Joule
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfFormedParticles, CollInf, DSMC_RHS
-USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
+USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
-USE MOD_DSMC_Vars               ,ONLY: ReacToPhotoReac
+USE MOD_MCC_Vars                ,ONLY: ReacToPhotoReac,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
@@ -1514,7 +1516,7 @@ INTEGER                       :: iPart, iSpec, iProd, NumProd
 INTEGER                       :: ReactInx(1:4), EductReac(1:3), ProductReac(1:4)
 REAL                          :: Weight(1:4), SumWeightProd, Mass_Electron, CRela2_Electron, RandVal, NumElec
 REAL                          :: VeloCOM(1:3), Temp_Trans, Temp_Rot, Temp_Vib, Temp_Elec,EForm
-REAL                          :: FracMassCent1, FracMassCent2, MassRed, cRelaNew(1:3)
+REAL                          :: FracMassCent1, FracMassCent2, MassRed, cRelaNew(1:3),MPF
 LOGICAL                       :: IonizationReaction
 !===================================================================================================================================
 
@@ -1718,6 +1720,7 @@ IF(IonizationReaction) THEN
   DO iProd = 1, NumProd
     iPart = ReactInx(iProd)
     iSpec = ProductReac(iProd)
+    ! Check if particle is an electron
     IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
       PartState(4:6,iPart) = VeloCOM(1:3) + SQRT(CRela2_Electron) * DiceUnitVector()
       ! Change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
@@ -1729,9 +1732,15 @@ IF(IonizationReaction) THEN
         ! Rotate the resulting vector in the b3-NormalIC-plane
         PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),Species(InitSpec)%Init(iInit)%NormalIC)
         ! Store the particle information in PartStateBoundary.h5
-        IF(DoBoundaryParticleOutputHDF5) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
-                                          UNITVECTOR(PartState(4:6,iPart)),Species(InitSpec)%Init(iInit)%NormalIC,iBC=-1,&
-                                          mode=2,usevMPF_optIN=.FALSE.)
+        IF(DoBoundaryParticleOutputHDF5) THEN
+          IF(usevMPF)THEN
+            MPF = Species(InitSpec)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
+          ELSE
+            MPF = Species(InitSpec)%MacroParticleFactor ! Use species MPF
+          END IF ! usevMPF
+          CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),UNITVECTOR(PartState(4:6,iPart)),&
+               Species(InitSpec)%Init(iInit)%NormalIC,iBC=Species(InitSpec)%Init(iInit)%PartBCIndex,mode=2,MPF_optIN=MPF)
+        END IF ! DoBoundaryParticleOutputHDF5
       END ASSOCIATE
     END IF
   END DO

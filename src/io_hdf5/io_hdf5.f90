@@ -110,8 +110,11 @@ SUBROUTINE InitIOHDF5()
 ! Initialize HDF5 IO
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals     ,ONLY: nLeaderProcs,nProcessors,UNIT_stdOut,MPIRoot
+USE MOD_Globals     ,ONLY: nLeaderProcs,nProcessors,UNIT_stdOut
 USE MOD_ReadInTools ,ONLY: GETLOGICAL
+#if USE_MPI
+USE MOD_Globals     ,ONLY: MPIRoot
+#endif /*USE_MPI*/
 #ifdef INTEL
 USE IFPORT
 #endif
@@ -340,8 +343,7 @@ IF(PRESENT(eval))THEN
   eout%eval       => Eval
   nOpts=nOpts+1
 ENDIF
-IF(nOpts.NE.1) CALL Abort(__STAMP__,&
-  'More then one optional argument passed to AddToElemData.')
+IF(nOpts.NE.1) CALL Abort(__STAMP__,'More then one optional argument passed to AddToElemData.')
 END SUBROUTINE AddToElemData
 
 

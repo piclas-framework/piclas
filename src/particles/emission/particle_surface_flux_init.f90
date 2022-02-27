@@ -118,11 +118,12 @@ USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas, tBCdata_auxSFRadWeight
 USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, TriaSurfaceFlux
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
-USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, DoTimeDepInflow
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 #if USE_MPI
+USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding, DoTimeDepInflow
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
@@ -625,7 +626,9 @@ INTEGER               :: TmpSideNext(1:nBCSides) !Next: Sides of diff. BCs ar no
 INTEGER               :: countDataBC,iBC,BCSideID,currentBC,iSF,iCount,iLocSide,SideID,CNSideID,iPartBound
 INTEGER               :: ElemID,CNElemID,GlobalElemID
 INTEGER               :: iSample,jSample,iSpec,iSub
+#if USE_MPI
 REAL, ALLOCATABLE     :: areasLoc(:),areasGlob(:)
+#endif /*USE_MPI*/
 REAL                  :: ymax,ymin,yMaxTemp,yMinTemp
 !===================================================================================================================================
 !-- 2.: create Side lists for applicable BCs
@@ -903,7 +906,7 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     nVFR = MAX(tmp_SubSideAreas(iSample,jSample) * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
   CASE('maxwell','maxwell_lpn')
     IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
-      CALL abort(__STAMP__,'Something is wrong with the Surfaceflux parameters!')
+      CALL abort(__STAMP__,' ERROR in SurfaceFlux: Calculated thermal velocity is zero! Temperature input might be missing (-MWTemperatureIC) ')
     END IF
     a = Species(iSpec)%Surfaceflux(iSF)%VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
     vSF = v_thermal / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity through normal sub-face
@@ -966,7 +969,9 @@ INTEGER, INTENT(IN)   :: iSpec, iSF
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_MPI
 INTEGER                :: iProc
+#endif  /*USE_MPI*/
 !===================================================================================================================================
 IF(MPIroot)THEN
   ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs(0:nProcessors-1))

@@ -55,7 +55,7 @@ USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_MPI_Vars       ,ONLY: SafetyFactor,halo_eps,halo_eps_velo
+USE MOD_Particle_MPI_Vars       ,ONLY: SafetyFactor,halo_eps,halo_eps_velo,MPI_halo_eps
 USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc,CheckExchangeProcs
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
@@ -92,7 +92,7 @@ INTEGER,ALLOCATABLE            :: ExchangeSides(:)
 REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:)
 INTEGER                        :: ExchangeProcLeader
 ! halo_eps reconstruction
-REAL                           :: MPI_halo_eps,MPI_halo_eps_velo,MPI_halo_diag,vec(1:3),deltaT
+REAL                           :: MPI_halo_eps_velo,MPI_halo_diag,vec(1:3),deltaT
 LOGICAL                        :: fullMesh
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 INTEGER                        :: iStage
@@ -158,7 +158,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   FlagShapeElem = .FALSE.
 END IF
 
-!>>> For all element, loop over the six sides and check if the neighbor element is on the current proc
+!>>> For all elements, loop over the six sides and check if the neighbor element is on the current proc
 !>>> Special care for big mortar sides, here the SIDE_ELEMID must be used
 nExchangeSides = 0
 
@@ -176,7 +176,7 @@ DO iElem = firstElem,lastElem
         ! If small mortar side not defined, skip it for now, likely not inside the halo region
         IF (NbSideID.LT.1) CYCLE
 
-        NbElemID = SideInfo_Shared(SIDE_ELEMID,NbSideID)
+        NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID + iMortar)
         ! If small mortar element not defined, skip it for now, likely not inside the halo region
         IF (NbElemID.LT.1) CYCLE
 
@@ -218,7 +218,7 @@ DO iElem = firstElem,lastElem
         ! If small mortar side not defined, skip it for now, likely not inside the halo region
         IF (NbSideID.LT.1) CYCLE
 
-        NbElemID = SideInfo_Shared(SIDE_ELEMID,NbSideID)
+        NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID + iMortar)
         ! If small mortar element not defined, skip it for now, likely not inside the halo region
         IF (NbElemID.LT.1) CYCLE
 
@@ -565,7 +565,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
       END SELECT
 
       ! Check rot periodic Elems and if iSide is on rot periodic BC
-      IF(meshHasRotPeriodic) THEN
+      IF(MeshHasRotPeriodic) THEN
         DO iPeriodicDir = 1,2
           ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
             SELECT CASE(GEO%RotPeriodicAxi)

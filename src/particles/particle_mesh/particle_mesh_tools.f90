@@ -1267,11 +1267,11 @@ USE MOD_Basis                  ,ONLY: BuildBezierVdm,BuildBezierDMat
 USE MOD_Basis                  ,ONLY: BarycentricWeights,ChebyGaussLobNodesAndWeights,InitializeVandermonde
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo,dXCL_NGeo,Xi_NGeo
-USE MOD_Mesh_Vars              ,ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1,nElems
+USE MOD_Mesh_Vars              ,ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars ,ONLY: Vdm_Bezier,sVdm_Bezier,D_Bezier
 #if USE_MPI
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem,nElems
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #endif
@@ -1283,7 +1283,9 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
+#if USE_MPI
 INTEGER                        :: iElem
+#endif /*USE_MPI*/
 REAL                           :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
 !===================================================================================================================================
 
@@ -1783,37 +1785,28 @@ SUBROUTINE ComputePeriodicVec()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: NGeo,BoundaryType
+USE MOD_Mesh_Vars              ,ONLY: NGeo,offsetElem,BoundaryType
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
-#if USE_MPI
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
-USE MOD_MPI_Shared
-USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_SHARED
-#else
 USE MOD_Mesh_Vars              ,ONLY: nElems
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
+! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER,PARAMETER              :: iNode=1
-INTEGER                        :: iVec
+INTEGER                        :: iVec,iBC,iPartBC
 INTEGER                        :: firstElem,lastElem,NbSideID,BCALPHA,flip
 INTEGER                        :: SideID,ElemID,NbElemID,localSideID,localSideNbID,nStart
 INTEGER                        :: CornerNodeIDswitch(8),NodeMap(4,6)
-REAL,DIMENSION(3)              :: MasterCoords,SlaveCoords
-LOGICAL,ALLOCPOINT             :: PeriodicFound(:)
+REAL,DIMENSION(3)              :: MasterCoords,SlaveCoords,Vec
+LOGICAL,ALLOCATABLE            :: PeriodicFound(:)
 #if USE_MPI
-REAL,ALLOCATABLE               :: sendbuf(:),recvbuf(:,:)
-INTEGER                        :: PeriodicFound_Win
+REAL                           :: sendbuf
+REAL,ALLOCATABLE               :: recvbuf(:)
 #endif
-INTEGER                        :: iBC,iPartBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
@@ -1840,31 +1833,11 @@ NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
 GEO%nPeriodicVectors = MAXVAL(BoundaryType(:,BC_ALPHA))
 IF (GEO%nPeriodicVectors.EQ.0) RETURN
 
-#if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank*   nGlobalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
-
-! Somehow the pointer is associated at this point, nullify it
-NULLIFY(PeriodicFound)
-CALL Allocate_Shared((/GEO%nPeriodicVectors/),PeriodicFound_Win,PeriodicFound)
-CALL MPI_WIN_LOCK_ALL(0,PeriodicFound_Win,IERROR)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
-#else
-firstElem = 1
-lastElem  = nElems
+firstElem = offsetElem+1
+lastElem  = offsetElem+nElems
 
 ALLOCATE(PeriodicFound(1:GEO%nPeriodicVectors))
-#endif /*USE_MPI*/
-
-! Only root nullifies
-#if USE_MPI
-IF (myComputeNodeRank.EQ.0) THEN
-#endif  /*USE_MPI*/
-  PeriodicFound(:) = .FALSE.
-#if USE_MPI
-END IF
-CALL BARRIER_AND_SYNC(PeriodicFound_Win,MPI_COMM_SHARED)
-#endif /*USE_MPI*/
+PeriodicFound(:) = .FALSE.
 
 ALLOCATE(GEO%PeriodicVectors(1:3,GEO%nPeriodicVectors))
 GEO%PeriodicVectors = 0.
@@ -1873,8 +1846,7 @@ DO ElemID = firstElem,lastElem
   ! Every periodic vector already found
   IF (ALL(PeriodicFound(:))) EXIT
 
-  DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
-
+SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
     ! Get BC
     iBC = SideInfo_Shared(SIDE_BCID,SideID)
     IF(iBC.EQ.0) CYCLE
@@ -1902,49 +1874,53 @@ DO ElemID = firstElem,lastElem
       nStart        = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,NbSideID),10)-1)
 
       ! Only take the first node into account, no benefit in accuracy if running over others as well
-      MasterCoords = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)  +NodeMap(iNode                  ,localSideID))
-      SlaveCoords  = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,NbElemID)+NodeMap(MOD(nStart+5-iNode,4)+1,localSideNbID))
-      GEO%PeriodicVectors(:,BCALPHA) = SlaveCoords - MasterCoords
+      MasterCoords  = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)  +NodeMap(iNode                  ,localSideID))
+      SlaveCoords   = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,NbElemID)+NodeMap(MOD(nStart+5-iNode,4)+1,localSideNbID))
+      Vec           = SlaveCoords-MasterCoords
+
+      ! Might consider aborting here, malformed periodic sides
+      IF (VECNORM(Vec).EQ.0) CYCLE
+
+      ! Check if the periodic vector is ALMOST aligned with a Cartesian direction
+      DO iVec = 1,3
+        ! IF (ABS(Vec(iVec)).GT.0 .AND. ABS(Vec(iVec))*VECNORM(Vec).LT.1E-12) CYCLE SideLoop
+        IF (ABS(Vec(iVec)).GT.0 .AND. ABS(Vec(iVec)).LT.1E-12*VECNORM(Vec)) Vec(iVec) = 0.
+      END DO
+
+      GEO%PeriodicVectors(:,BCALPHA) = Vec
       PeriodicFound(BCALPHA) = .TRUE.
     END IF
-  END DO
+  END DO SideLoop
 END DO
 
 END ASSOCIATE
 
 #if USE_MPI
-ALLOCATE(sendbuf(GEO%nPeriodicVectors)                           ,&
-         recvbuf(GEO%nPeriodicVectors,0:nComputeNodeProcessors-1))
+ALLOCATE(recvbuf(0:nProcessors-1))
 sendbuf = 0.
 recvbuf = 0.
 
 DO iVec = 1,GEO%nPeriodicVectors
-  sendbuf(iVec) = MERGE(VECNORM(GEO%PeriodicVectors(:,iVec)),HUGE(1.),VECNORM(GEO%PeriodicVectors(:,iVec)).GT.0)
-END DO
+  sendbuf = MERGE(VECNORM(GEO%PeriodicVectors(:,iVec)),HUGE(1.),PeriodicFound(iVec))
 
 ! Do it by hand, MPI_ALLREDUCE seems problematic with MPI_2DOUBLE_PRECISION and MPI_MINLOC
 ! https://stackoverflow.com/questions/56307320/mpi-allreduce-not-synchronizing-properly
 !CALL MPI_ALLREDUCE(MPI_IN_PLACE,sendbuf,GEO%nPeriodicVectors,MPI_2DOUBLE_PRECISION,MPI_MINLOC,MPI_COMM_SHARED,iERROR)
-DO iVec = 1,GEO%nPeriodicVectors
-  CALL MPI_ALLGATHER(sendbuf(iVec),1,MPI_DOUBLE_PRECISION,recvbuf(iVec,:),1,MPI_DOUBLE_PRECISION,MPI_COMM_SHARED,iERROR)
-  ! MINLOC does not follow array bounds, so root rank = 1
-  CALL MPI_BCAST(GEO%PeriodicVectors(:,iVec),3,MPI_DOUBLE_PRECISION,MINLOC(recvbuf(iVec,:),1)-1,MPI_COMM_SHARED,iError)
-END DO
 
-! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
-CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-! Deallocate only after MPI_BCAST safely returned
-DEALLOCATE(sendbuf,recvbuf)
-CALL MPI_WIN_UNLOCK_ALL(PeriodicFound_Win,iError)
-CALL MPI_WIN_FREE(      PeriodicFound_Win,iError)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+  CALL MPI_ALLGATHER(sendbuf,1,MPI_DOUBLE_PRECISION,recvbuf(:),1,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iERROR)
+  IF (ALL(recvbuf(:).EQ.HUGE(1.))) CALL CollectiveStop(__STAMP__,'No periodic vector for BC_ALPHA found!',IntInfo=iVec)
+
+  ! MINLOC does not follow array bounds, so root rank = 1
+  CALL MPI_BCAST(GEO%PeriodicVectors(:,iVec),3,MPI_DOUBLE_PRECISION,MINLOC(recvbuf(:),1)-1,MPI_COMM_WORLD,iError)
+END DO
 #endif /*USE_MPI*/
-ADEALLOCATE(PeriodicFound)
+
+SDEALLOCATE(PeriodicFound)
 
 #if USE_MPI
 IF (myRank.EQ.0) THEN
 #endif /*USE_MPI*/
-  WRITE(UNIT_StdOut,'(A,I0,A)') ' Found ',GEO%nPeriodicVectors,' periodic vectors for particle tracking'
+  WRITE(UNIT_stdOut,'(A,I0,A)') ' Found ',GEO%nPeriodicVectors,' periodic vectors for particle tracking'
   DO iVec = 1,GEO%nPeriodicVectors
     WRITE(UNIT_stdOut,'(A,I1,A,F12.8,2(", ",F12.8))') ' | Periodic vector ',iVec,': ', GEO%PeriodicVectors(:,iVec)
   END DO
