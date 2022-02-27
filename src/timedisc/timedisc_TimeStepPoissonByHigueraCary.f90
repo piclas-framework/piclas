@@ -128,7 +128,6 @@ IF (time.GE.DelayTime) THEN
   CALL IRecvNbofParticles() ! open receive buffer for number of particles
 #endif
   CALL PerformTracking()
-  CALL ParticleInserting()
 #if USE_MPI
   CALL SendNbOfParticles() ! send number of particles
   CALL MPIParticleSend()  ! finish communication of number of particles and send particles
