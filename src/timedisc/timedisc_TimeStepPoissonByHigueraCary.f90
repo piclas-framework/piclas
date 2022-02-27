@@ -148,6 +148,8 @@ CALL HDG(time,U,iter)
 
 #ifdef PARTICLES
 IF (time.GE.DelayTime) THEN
+  LastPartPos(1:3,1:PDM%ParticleVecLength) = PartState(1:3,1:PDM%ParticleVecLength)
+  PEM%LastGlobalElemID(1:PDM%ParticleVecLength) = PEM%GlobalElemID(1:PDM%ParticleVecLength)
 #ifdef EXTRAE
   CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
