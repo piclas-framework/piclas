@@ -35,7 +35,7 @@ CONTAINS
 SUBROUTINE CalcAnalyticalParticleState(t,PartStateAnalytic,alpha_out,theta_out)
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars          ,ONLY: PI
+USE MOD_Globals_Vars          ,ONLY: PI,c,c2_inv
 USE MOD_Preproc
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpolationSubType,AnalyticInterpolationP
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase
@@ -58,6 +58,8 @@ REAL    :: gamma_0
 REAL    :: phi_0
 REAL    :: Theta
 REAL    :: beta
+REAL    :: v_perp !< Perpendicular velocity
+REAL    :: B_0    !< Magnetic flux density
 !===================================================================================================================================
 PartStateAnalytic=0. ! default
 
@@ -66,22 +68,51 @@ ASSOCIATE( iPart => 1 )
   SELECT CASE(AnalyticInterpolationType)
   ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
   CASE(0)
-    ASSOCIATE( B_0    => 1.0                                    ,& ! [T] cons. magnetic field
-               v_perp => 1.0                                    ,& ! [m/s] perpendicular velocity (to guiding center)
-               m      => Species(PartSpecies(iPart))%MassIC     ,& ! [kg] particle mass
-               q      => Species(PartSpecies(iPart))%ChargeIC   ,& ! [C] particle charge
-               phi    => AnalyticInterpolationPhase             )  ! [rad] phase shift
-      ASSOCIATE( omega_c => ABS(q)*B_0/m )
-        ASSOCIATE( r_c => v_perp/omega_c )
-          PartStateAnalytic(1) = COS(omega_c*t + phi)*r_c
-          PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c
-          PartStateAnalytic(3) = 0.
-          PartStateAnalytic(4) = -SIN(omega_c*t + phi)*v_perp
-          PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp
-          PartStateAnalytic(6) = 0.
+    ! 0: non-relativistic, 1: relativistic
+    SELECT CASE(AnalyticInterpolationSubType)
+    CASE(0) ! 0: non-relativistic
+      ASSOCIATE( B_0    => 1.0                                    ,& ! [T] cons. magnetic field
+                 v_perp => 1.0                                    ,& ! [m/s] perpendicular velocity (to guiding center)
+                 m      => Species(PartSpecies(iPart))%MassIC     ,& ! [kg] particle mass
+                 q      => Species(PartSpecies(iPart))%ChargeIC   ,& ! [C] particle charge
+                 phi    => AnalyticInterpolationPhase             )  ! [rad] phase shift
+        ASSOCIATE( omega_c => ABS(q)*B_0/m )
+          ASSOCIATE( r_c => v_perp/omega_c )
+            PartStateAnalytic(1) = COS(omega_c*t + phi)*r_c
+            PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c
+            PartStateAnalytic(3) = 0.
+            PartStateAnalytic(4) = -SIN(omega_c*t + phi)*v_perp
+            PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp
+            PartStateAnalytic(6) = 0.
+          END ASSOCIATE
         END ASSOCIATE
       END ASSOCIATE
-    END ASSOCIATE
+    CASE(1) ! 1: relativistic
+      ASSOCIATE( gamma1 => 1e6                        ,& ! Lorentz factor
+                 m      => 1.0                        ,& ! [kg] particle mass
+                 q      => 1.0                        ,& ! [C] particle charge
+                 phi    => AnalyticInterpolationPhase )  ! [rad] phase shift
+        !-- get Lorentz factor gamma1(n)
+        v_perp = c*SQRT(1.0 - 1/(gamma1**2))
+        !v_perp = 2.99792457999850103770999962525942749e8
+        IF(v_perp.GE.c) CALL abort(__STAMP__,'Velocity is geater than c',RealInfoOpt=v_perp)
+        !-- Set const. magnetic field [T]
+        B_0 = gamma1*v_perp
+        !write(*,*) gamma1,v_perp,v_perp/c,B_0,B_0/c,1.0/SQRT(1.0-v_perp**2*c2_inv)
+        ASSOCIATE( omega_c => ABS(q)*B_0/(gamma1*m) )
+          !WRITE (*,*) "omega_c =", omega_c
+          ASSOCIATE( r_c => v_perp/omega_c )
+            PartStateAnalytic(1) = COS(omega_c*t + phi)*r_c
+            PartStateAnalytic(2) = SIN(omega_c*t + phi)*r_c
+            PartStateAnalytic(3) = 0.
+            PartStateAnalytic(4) = -SIN(omega_c*t + phi)*v_perp
+            PartStateAnalytic(5) =  COS(omega_c*t + phi)*v_perp
+            PartStateAnalytic(6) = 0.
+          END ASSOCIATE
+        END ASSOCIATE
+      END ASSOCIATE
+    END SELECT
+
   ! 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
   CASE(1)
     SELECT CASE(AnalyticInterpolationSubType)
@@ -174,6 +205,7 @@ ASSOCIATE( iPart => 1 )
       theta_out = Theta
       WRITE (*,*) "theta_out =", theta_out
     END IF
+
   ! 2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
   !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
   CASE(2)

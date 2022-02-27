@@ -109,7 +109,9 @@ PPURE FUNCTION GetAnalyticFieldAtParticle(PartPos)
 ! Calculate the electro-(magnetic) field at the particle's position form an analytic solution
 !===================================================================================================================================
 ! MODULES
-USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType
+USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpolationSubType
+USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase
+USE MOD_Globals_Vars          ,ONLY: c
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -118,13 +120,28 @@ REAL,INTENT(IN)    :: PartPos(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL :: GetAnalyticFieldAtParticle(1:6)
+REAL :: v_perp ! Perpendicular velocity
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 GetAnalyticFieldAtParticle(1:6) = 0.
 SELECT CASE(AnalyticInterpolationType)
 CASE(0) ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
-  GetAnalyticFieldAtParticle(6) = 1.0
+  ! 0: non-relativistic, 1: relativistic
+  SELECT CASE(AnalyticInterpolationSubType)
+  CASE(0) ! 0: non-relativistic
+    GetAnalyticFieldAtParticle(6) = 1.0
+  CASE(1) ! 1: relativistic
+    ASSOCIATE( gamma1 => 1e6                        ,& ! Lorentz factor
+               m      => 1.0                        ,& ! [kg] particle mass
+               q      => 1.0                        ,& ! [C] particle charge
+               phi    => AnalyticInterpolationPhase )  ! [rad] phase shift
+      !-- get Lorentz factor gamma1(n)
+      v_perp = c*SQRT(1.0 - 1/(gamma1**2))
+      !-- Set const. magnetic field [T]
+      GetAnalyticFieldAtParticle(6) = gamma1*v_perp
+    END ASSOCIATE
+  END SELECT
 CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
   ASSOCIATE( B_0 => 1.0, l => 1.0  )
     GetAnalyticFieldAtParticle(6) = B_0 * EXP(PartPos(1) / l)

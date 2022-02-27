@@ -195,7 +195,8 @@ IF(DoInterpolationAnalytic)THEN
   AnalyticInterpolationPhase = GETREAL('PIC-AnalyticInterpolationPhase')
   SELECT CASE(AnalyticInterpolationType)
   CASE(0) ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
-    ! no special parameters required
+    ! AnalyticInterpolationSubType 0: non-relativistic, 1: relativistic
+    AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
   CASE(1) ! 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
     AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
     AnalyticInterpolationP       = GETREAL('PIC-AnalyticInterpolationP')
@@ -204,9 +205,7 @@ IF(DoInterpolationAnalytic)THEN
     ! no special parameters required
   CASE DEFAULT
     WRITE(TempStr,'(I5)') AnalyticInterpolationType
-    CALL abort(&
-        __STAMP__ &
-        ,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_interpolation.f90')
+    CALL abort(__STAMP__,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_interpolation.f90')
   END SELECT
 
   ! Calculate the initial velocity of the particle from an analytic expression: must be implemented for the different
