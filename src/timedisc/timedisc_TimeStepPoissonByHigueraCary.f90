@@ -90,7 +90,6 @@ REAL, DIMENSION(3)         :: tauVec, tVec, uMinus, uPlus
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition()
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -134,6 +133,14 @@ IF (time.GE.DelayTime) THEN
   CALL MPIParticleRecv()  ! finish communication
 #endif
 END IF ! time.GE.DelayTime
+
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
+IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition()
+#ifdef EXTRAE
+  CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
 ! HDG at x(n+1/2) gives E(x(n+1/2))
