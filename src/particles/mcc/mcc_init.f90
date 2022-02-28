@@ -21,7 +21,7 @@ MODULE MOD_MCC_Init
 IMPLICIT NONE
 PRIVATE
 
-PUBLIC :: DefineParametersMCC, MCC_Init, MCC_Chemistry_Init, FinalizeMCC
+PUBLIC :: DefineParametersMCC, InitMCC, MCC_Chemistry_Init, FinalizeMCC
 !===================================================================================================================================
 
 CONTAINS
@@ -46,12 +46,22 @@ CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
                                   'based on the maximum collision frequency and time step (only with a background gas)' &
                                   ,'.TRUE.')
 
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
+                                           ,'Utilize collision cross sections for the determination of collision probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseVibXSec'  &
+                                           ,'Utilize vibrational cross sections for the determination of relaxation probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseElecXSec'  &
+                                           ,'Utilize electronic cross sections, only in combination with ElectronicModel = 3' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
+
 END SUBROUTINE DefineParametersMCC
 
 
-SUBROUTINE MCC_Init()
+SUBROUTINE InitMCC()
 !===================================================================================================================================
-!> Read-in of the collision and vibrational cross-section database and initialization of the null collision method.
+!> Initialization & read-in of the collision and vibrational cross-section database and initialization of the null collision method.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -59,8 +69,9 @@ USE MOD_ReadInTools
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
 USE MOD_Mesh_Vars     ,ONLY: nElems
-USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC
-USE MOD_MCC_Vars      ,ONLY: XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
+USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC, ChemReac, CollisMode
+USE MOD_MCC_Vars      ,ONLY: UseMCC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
+USE MOD_MCC_Vars      ,ONLY: NbrOfPhotonXsecReactions
 USE MOD_MCC_XSec      ,ONLY: ReadCollXSec, ReadVibXSec, InterpolateCrossSection_Vib, ReadElecXSec, InterpolateCrossSection_Elec
 #if defined(PARTICLES) && USE_HDG
 USE MOD_HDG_Vars      ,ONLY: UseBRElectronFluid,BRNullCollisionDefault
@@ -70,19 +81,65 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER       :: iSpec, jSpec, iCase, partSpec
-REAL          :: TotalProb(nSpecies), CrossSection
-INTEGER       :: iLevel, nVib, iStep, MaxDim
+CHARACTER(LEN=3)      :: hilf
+INTEGER               :: iSpec, jSpec, iCase, partSpec
+REAL                  :: TotalProb(nSpecies), CrossSection
+INTEGER               :: iLevel, nVib, iStep, MaxDim
 !===================================================================================================================================
 
-XSec_Database = GETSTR('Particles-CollXSec-Database')
+UseMCC             = .FALSE.
+XSec_NullCollision = .FALSE.
+XSec_Relaxation    = .FALSE.
 
-IF(BGGas%NumberOfSpecies.GT.0) THEN
-  XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
-ELSE
-  XSec_NullCollision = .FALSE.
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Determine whether cross-section data is utilized
+!-----------------------------------------------------------------------------------------------------------------------------------
+DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
+  SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
+  SpecDSMC(iSpec)%UseVibXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseVibXSec')
+  SpecDSMC(iSpec)%UseElecXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseElecXSec')
+  IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) THEN
+    CALL Abort(__STAMP__,'ERROR: Please supply the collision cross-section flag for the particle species and NOT the background species!')
+  END IF
+  IF(SpecDSMC(iSpec)%UseElecXSec.AND.SpecDSMC(iSpec)%InterID.EQ.4) THEN
+    CALL Abort(__STAMP__,'ERROR: Electronic relaxation should be enabled for the respective heavy species, not the electrons!')
+  END IF
+#if (PP_TimeDiscMethod!=42)
+  IF(SpecDSMC(iSpec)%UseElecXSec.AND.(.NOT.BGGas%BackgroundSpecies(iSpec))) THEN
+    SWRITE(*,*) 'NOTE: Electronic relaxation via cross-sections for regular DSMC is currently only enabled for the RESERVOIR'
+    SWRITE(*,*) 'NOTE: timedisc to test the calculation of the probabilities during regression testing. For DSMC, a de-excitation'
+    SWRITE(*,*) 'NOTE: model should be implemented. Regression test: WEK_Reservoir/MCC_N2_XSec_Elec'
+    CALL Abort(__STAMP__,'ERROR: Electronic relaxation via cross-section (-UseElecXSec) is only supported with a background gas!')
+  END IF
+#endif
+END DO
+
+! Enable MCC if any of the flags was set
+IF(ANY(SpecDSMC(:)%UseCollXSec).OR.ANY(SpecDSMC(:)%UseVibXSec).OR.ANY(SpecDSMC(:)%UseElecXSec).OR.ChemReac%AnyXSecReaction) THEN
+  UseMCC = .TRUE.
 END IF
-XSec_Relaxation = .FALSE.
+
+! Ambipolar diffusion is not implemented with the regular background gas, only with MCC
+IF(DSMC%DoAmbipolarDiff) THEN
+  IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL abort(__STAMP__,&
+      'ERROR: Ambipolar diffusion is not implemented with the regular background gas!')
+END IF
+
+! MCC and variable vibrational relaxation probability is not supported
+IF(UseMCC.AND.(DSMC%VibRelaxProb.EQ.2.0)) CALL abort(__STAMP__&
+      ,'ERROR: Monte Carlo Collisions and variable vibrational relaxation probability (DSMC-based) are not compatible!')
+
+! Leave the routine
+IF(.NOT.UseMCC) RETURN
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Initialize & read-in of cross-section data
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Get XSec database name (if not already has been read-in for photo-ionization)
+IF(NbrOfPhotonXsecReactions.LE.0) XSec_Database = GETSTR('Particles-CollXSec-Database')
+! Null collision method only works with a background gas
+IF(BGGas%NumberOfSpecies.GT.0) XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
 
 ALLOCATE(SpecXSec(CollInf%NumCase))
 SpecXSec(:)%UseCollXSec = .FALSE.
@@ -143,6 +200,7 @@ DO iSpec = 1, nSpecies
         END IF
       END IF
       XSec_Relaxation = .TRUE.
+      SpecXSec(iCase)%VibCount = 0.
       nVib = SIZE(SpecXSec(iCase)%VibMode)
       DO iLevel = 1, nVib
         ! Store the energy value in J (read-in was in eV)
@@ -257,6 +315,13 @@ DO iSpec = 1, nSpecies
   END DO ! jSpec = iSpec, nSpecies
 END DO ! iSpec = 1, nSpecies
 
+! Read-in of the reaction cross-section database and re-calculation of the null collision probability
+IF (CollisMode.EQ.3) THEN
+  IF(ChemReac%AnyXSecReaction) THEN
+    CALL MCC_Chemistry_Init()
+  END IF
+END IF
+
 #if defined(PARTICLES) && USE_HDG
 BRNullCollisionDefault = XSec_NullCollision ! Backup read-in parameter value (for switching null collision on/off)
 IF(XSec_NullCollision.AND.UseBRElectronFluid)THEN
@@ -265,7 +330,7 @@ IF(XSec_NullCollision.AND.UseBRElectronFluid)THEN
 END IF
 #endif /*defined(PARTICLES) && USE_HDG*/
 
-END SUBROUTINE MCC_Init
+END SUBROUTINE InitMCC
 
 
 SUBROUTINE DetermineNullCollProb(iCase,iSpec,jSpec)

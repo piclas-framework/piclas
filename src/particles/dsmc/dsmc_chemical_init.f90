@@ -139,8 +139,7 @@ USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
-USE MOD_MCC_Init                ,ONLY: MCC_Chemistry_Init
-USE MOD_MCC_Vars                ,ONLY: XSec_Database,NbrOfPhotonXsecReactions
+USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions
 USE MOD_MCC_Vars                ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,ReacToPhotoReac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -351,9 +350,6 @@ DO iReac = 1, ReadInNumOfReact
   END IF
 END DO
 
-! Get XSec database name
-IF((NbrOfPhotonXsecReactions.GT.0).AND.(TRIM(XSec_Database).EQ.'none')) XSec_Database = GETSTR('Particles-CollXSec-Database')
-
 ! Get cross-sections for photoionization
 IF(NbrOfPhotonXsecReactions.GT.0) CALL InitPhotoionizationXSec()
 
@@ -525,11 +521,6 @@ ChemReac%CollCaseInfo(:)%NumOfReactionPaths = 0
 ! Initialize reaction paths
 CALL InitReactionPaths()
 
-! Initialize MCC model: Read-in of the reaction cross-section database and re-calculation of the null collision probability
-IF(ChemReac%AnyXSecReaction) THEN
-  CALL MCC_Chemistry_Init()
-END IF
-
 ! Recombination: saving the reaction index based on the third species
 DO iReac = 1, ChemReac%NumOfReact
   IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
@@ -586,7 +577,8 @@ END SUBROUTINE DSMC_chemical_init
 SUBROUTINE InitPhotoionizationXSec()
 ! MODULES
 USE MOD_Globals
-USE MOD_MCC_Vars  ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,NbrOfPhotonXsecLines
+USE MOD_ReadInTools
+USE MOD_MCC_Vars  ,ONLY: XSec_Database,NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,NbrOfPhotonXsecLines
 USE MOD_MCC_Vars  ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,ReacToPhotoReac
 USE MOD_MCC_Vars  ,ONLY: PhotonSpectrum,PhotonEnergies,MaxPhotonXSec
 USE MOD_MCC_XSec  ,ONLY: ReadReacPhotonXSec,ReadReacPhotonSpectrum
@@ -602,6 +594,9 @@ INTEGER               :: iReac,iPhotoReac
 REAL                  :: dx,dy,TotalEnergyFraction
 INTEGER               :: ReadInNumOfReact,dims(2),iLine,location(3)
 !===================================================================================================================================
+
+XSec_Database = GETSTR('Particles-CollXSec-Database')
+
 ReadInNumOfReact = ChemReac%NumOfReact
 ! Set Mapping
 ALLOCATE(PhotoReacToReac(NbrOfPhotonXsecReactions))

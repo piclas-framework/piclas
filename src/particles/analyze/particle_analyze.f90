@@ -878,7 +878,7 @@ INTEGER             :: iRegions
       IF(CalcRelaxProb) THEN
         ALLOCATE(VibRelaxRate(CollInf%NumCase))
         VibRelaxRate = 0.0
-        IF(ANY(SpecXSec(:)%UseElecXSec)) THEN
+        IF(ANY(SpecDSMC(:)%UseElecXSec)) THEN
           ALLOCATE(ElecRelaxRate(CollInf%NumCase,MAXVAL(SpecXSec(:)%NumElecLevel)))
           ElecRelaxRate = 0.0
         END IF
