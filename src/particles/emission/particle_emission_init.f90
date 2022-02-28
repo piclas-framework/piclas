@@ -266,8 +266,12 @@ DO iSpec = 1, nSpecies
        (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'background')) THEN
       Species(iSpec)%Init(iInit)%NormalIC               = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-NormalIC',3)
       Species(iSpec)%Init(iInit)%BasePointIC            = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BasePointIC',3)
+      !--- Get BaseVector1IC and normalize it
       Species(iSpec)%Init(iInit)%BaseVector1IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector1IC',3)
+      Species(iSpec)%Init(iInit)%NormalVector1IC        = UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC)
+      !--- Get BaseVector2IC and normalize it
       Species(iSpec)%Init(iInit)%BaseVector2IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector2IC',3)
+      Species(iSpec)%Init(iInit)%NormalVector2IC        = UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC)
       !--- Normalize NormalIC (and BaseVector 1 & 3 IC for cylinder/sphere) for Inits
       Species(iSpec)%Init(iInit)%NormalIC = Species(iSpec)%Init(iInit)%NormalIC / VECNORM(Species(iSpec)%Init(iInit)%NormalIC)
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
