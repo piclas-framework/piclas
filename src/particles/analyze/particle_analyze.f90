@@ -120,6 +120,7 @@ USE MOD_PICDepo_Vars          ,ONLY: DoDeposition,SFAdaptiveDOF,r_sf,DepositionT
 USE MOD_PICDepo_Vars          ,ONLY: SFAdaptiveSmoothing
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_ReadInTools           ,ONLY: PrintOption
+USE MOD_Particle_Sampling_Vars,ONLY: UseAdaptive
 #if (PP_TimeDiscMethod == 42)
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_TimeDisc_Vars         ,ONLY: ManualTimeStep
@@ -606,10 +607,14 @@ CalcSimNumSpec = GETLOGICAL('CalcNumSpec')
 CalcNumDens    = GETLOGICAL('CalcNumDens')
 CalcAdaptiveBCInfo = GETLOGICAL('CalcAdaptiveBCInfo')
 IF(CalcAdaptiveBCInfo) THEN
-  ALLOCATE(MassflowRate(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
-  MassflowRate = 0.
-  ALLOCATE(PressureAdaptiveBC(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
-  PressureAdaptiveBC = 0.
+  IF(UseAdaptive) THEN
+    ALLOCATE(MassflowRate(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
+    MassflowRate = 0.
+    ALLOCATE(PressureAdaptiveBC(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
+    PressureAdaptiveBC = 0.
+  ELSE
+    CalcAdaptiveBCInfo = .FALSE.
+  END IF
 END IF
 CalcCollRates = GETLOGICAL('CalcCollRates')
 CalcReacRates = GETLOGICAL('CalcReacRates')
@@ -630,9 +635,7 @@ IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcAdapti
 CalcVelos = GETLOGICAL('CalcVelos')
 IF (CalcVelos) THEN
   IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'ERROR: CalcVelos is not supported with radial weighting or variable time step yet!')
+    CALL abort(__STAMP__,'ERROR: CalcVelos is not supported with radial weighting or variable time step yet!')
   END IF
   DoPartAnalyze=.TRUE.
   VeloDirs_hilf = GetIntArray('VelocityDirections',4,'1,1,1,1') ! x,y,z,abs -> 0/1 = T/F
@@ -875,7 +878,7 @@ INTEGER             :: iRegions
       IF(CalcRelaxProb) THEN
         ALLOCATE(VibRelaxRate(CollInf%NumCase))
         VibRelaxRate = 0.0
-        IF(ANY(SpecXSec(:)%UseElecXSec)) THEN
+        IF(ANY(SpecDSMC(:)%UseElecXSec)) THEN
           ALLOCATE(ElecRelaxRate(CollInf%NumCase,MAXVAL(SpecXSec(:)%NumElecLevel)))
           ElecRelaxRate = 0.0
         END IF

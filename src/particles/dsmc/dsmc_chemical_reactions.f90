@@ -1724,8 +1724,8 @@ IF(IonizationReaction) THEN
     IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
       PartState(4:6,iPart) = VeloCOM(1:3) + SQRT(CRela2_Electron) * DiceUnitVector()
       ! Change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
-      ASSOCIATE( b1 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector1IC(1:3)) ,&
-                 b2 => UNITVECTOR(Species(InitSpec)%Init(iInit)%BaseVector2IC(1:3)) )
+      ASSOCIATE( b1 => Species(InitSpec)%Init(iInit)%NormalVector1IC(1:3) ,&
+                 b2 => Species(InitSpec)%Init(iInit)%NormalVector2IC(1:3) )
         ! Get random vector b3 in b1-b2-plane
         CALL RANDOM_NUMBER(RandVal)
         PartState(4:6,iPart) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart),RandVal)

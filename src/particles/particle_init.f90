@@ -259,6 +259,7 @@ SUBROUTINE InitParticles()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
+USE MOD_MCC_Init                   ,ONLY: InitMCC
 USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
@@ -335,6 +336,7 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 END IF
 
 ! Initialize surface sampling / rotational periodic mapping
+! (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
 IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.GEO%RotPeriodicBC) THEN
   CALL InitParticleBoundarySampling()
   CALL InitParticleBoundaryRotPeriodic()
@@ -349,6 +351,7 @@ IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
 
 IF (useDSMC) THEN
   CALL InitDSMC()
+  CALL InitMCC()
   CALL InitSurfaceModel()
 #if (PP_TimeDiscMethod==300)
   IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__,'ERROR: 1D Fokker-Planck flow is not implemented yet')
