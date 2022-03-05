@@ -778,13 +778,14 @@ SUBROUTINE UpdatePartSource(dim1,k,l,m,globElemID,Source)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_PICDepo_Vars ,ONLY: PartSource
-USE MOD_Mesh_Vars    ,ONLY: offsetElem
-USE MOD_Mesh_Tools   ,ONLY: GetCNElemID
+USE MOD_PICDepo_Vars       ,ONLY: PartSource
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #if USE_MPI
-USE MOD_PICDepo_Vars ,ONLY: SendElemShapeID, CNRankToSendRank, PartSourceGlob, ShapeMapping
-USE MOD_MPI_Shared_Vars, ONLY: myComputeNodeRank, ComputeNodeRootRank
-USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems, ElemInfo_Shared
+USE MOD_PICDepo_Vars       ,ONLY: SendElemShapeID, CNRankToSendRank, ShapeMapping !PartSourceGlob
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
+!USE MOD_MPI_Shared_Vars, ONLY: myComputeNodeRank, ComputeNodeRootRank
+!USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems, ElemInfo_Shared
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE

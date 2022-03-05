@@ -991,7 +991,6 @@ USE MOD_Equation_Vars     ,ONLY: c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars      ,ONLY: PartSource,DoDeposition
 USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric
-USE MOD_Mesh_Vars         ,ONLY: offSetElem
 #if IMPA
 USE MOD_LinearSolver_Vars ,ONLY: ExplicitPartSource
 #endif

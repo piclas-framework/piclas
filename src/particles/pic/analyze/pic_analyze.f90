@@ -45,8 +45,8 @@ SUBROUTINE VerifyDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars             ,ONLY: nElems, sJ, offsetElem,Elem_xGP
-USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Mesh_Vars             ,ONLY: nElems, sJ, Elem_xGP
+USE MOD_Interpolation_Vars    ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies ,PartMPF,usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: ChargeCalcDone
 USE MOD_PICDepo_Vars          ,ONLY: sfDepo3D,dimFactorSF,VerifyChargeStr,DepositionType
@@ -154,7 +154,7 @@ SUBROUTINE CalcDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,              ONLY:sJ, offsetElem
+USE MOD_Mesh_Vars,              ONLY:sJ
 USE MOD_Particle_Vars,          ONLY:PDM, Species, PartSpecies, usevmpf, PartMPF
 USE MOD_Interpolation_Vars,     ONLY:wGP
 USE MOD_Particle_Analyze_Vars,  ONLY:PartCharge
