@@ -105,7 +105,11 @@ statefile = cstrToChar255(statefile_IN, strlen_state)
 meshfile  = cstrToChar255(meshfile_IN , strlen_mesh)
 
 CALL InitMPIInfo()
+#if USE_MPI
 CALL InitMPI(mpi_comm_IN)
+#else
+CALL InitMPI()
+#endif /*USE_MPI*/
 CALL visu_getVarNamesAndFileType(mpi_comm_IN,statefile,meshfile,VarnamesAll,BCNamesAll)
 IF (ALLOCATED(VarnamesAll)) THEN
   varnames_pointer => VarnamesAll

@@ -137,7 +137,9 @@ TYPE tInit                                                                   ! P
   REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
   REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
   REAL                                   :: BaseVector1IC(3)                 ! first base vector for IC cuboid
+  REAL                                   :: NormalVector1IC(3)               ! 1st base vector normalized
   REAL                                   :: BaseVector2IC(3)                 ! second base vector for IC cuboid
+  REAL                                   :: NormalVector2IC(3)               ! 2nd base vector normalized
   REAL                                   :: CuboidHeightIC                   ! third measure of cuboid
                                                                              ! (set 0 for flat rectangle),
                                                                              ! negative value = opposite direction

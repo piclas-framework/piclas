@@ -540,7 +540,6 @@ USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,nElems
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
 USE MOD_HDF5_Output_State       ,ONLY: WriteStateToHDF5
 USE MOD_HDF5_Output_ElemData    ,ONLY: WriteLostRotPeriodicSidesToHDF5
-USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors,nProcessors_Global
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -557,7 +556,10 @@ LOGICAL              :: isMapped,SideIsMapped
 REAL                 :: iNodeVec(1:3), jNodeVec(1:3)
 REAL                 :: iNodeR, iNodeH, jNodeR, jNodeH, Node2Rmin, Node2Rmax, Node2Hmin, Node2Hmax
 INTEGER,PARAMETER    :: NbrOfRotConnections=1000
-INTEGER              :: notMapped,notMappedTotal
+INTEGER              :: notMapped
+#if USE_MPI
+INTEGER              :: notMappedTotal
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 ALLOCATE(Rot2Glob_temp(nComputeNodeSurfTotalSides))

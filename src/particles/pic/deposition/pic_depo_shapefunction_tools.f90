@@ -289,12 +289,12 @@ SUBROUTINE depoChargeOnDOFsSF(Position, SourceSize, Fac, r_sf, r2_sf, r2_sf_inv)
 ! use MODULES
 USE MOD_Globals
 USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone
-USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,ElemBaryNgeo,FIBGM_offsetElem,FIBGM_nElems,FIBGM_Element,Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #if USE_LOADBALANCE
+USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -385,15 +385,16 @@ SUBROUTINE calcTotalChargePeriodic_cc(Position, Fac, totalCharge, r_sf, r2_sf, r
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:alpha_sf,ChargeSFDone
-USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
-USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo, ElemsJ
+USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone
+USE MOD_Mesh_Vars          ,ONLY: offSetElem
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ
 USE MOD_Preproc
-USE MOD_Mesh_Tools,             ONLY:GetCNElemID
-USE MOD_Interpolation_Vars,     ONLY:wGP
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Interpolation_Vars ,ONLY: wGP
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
@@ -478,13 +479,14 @@ SUBROUTINE depoChargeOnDOFsSFChargeCon(Position,SourceSize,Fac,r_sf, r2_sf, r2_s
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone,PartSourceTmp
-USE MOD_Mesh_Vars          ,ONLY: nElems, offSetElem
+USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Interpolation_Vars ,ONLY: wGP
 #if USE_LOADBALANCE
+USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -633,7 +635,7 @@ SUBROUTINE depoChargeOnDOFsSFAdaptive(Position,SourceSize,Fac,PartIdx)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,SFElemr2_Shared,ChargeSFDone,sfDepo3D,dimFactorSF
-USE MOD_Mesh_Vars          ,ONLY: nElems, offSetElem
+USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNgeo, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ, ElemToElemMapping,ElemToElemInfo
 USE MOD_Preproc
@@ -641,6 +643,7 @@ USE MOD_Mesh_Tools         ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Particle_Vars      ,ONLY: PEM
 #if USE_LOADBALANCE
+USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -118,11 +118,12 @@ USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, SurfMeshSubSideData, SurfMeshSideAreas, tBCdata_auxSFRadWeight
 USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, TriaSurfaceFlux
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
-USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux, DoPoissonRounding, DoTimeDepInflow
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 #if USE_MPI
+USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding, DoTimeDepInflow
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
@@ -625,7 +626,9 @@ INTEGER               :: TmpSideNext(1:nBCSides) !Next: Sides of diff. BCs ar no
 INTEGER               :: countDataBC,iBC,BCSideID,currentBC,iSF,iCount,iLocSide,SideID,CNSideID,iPartBound
 INTEGER               :: ElemID,CNElemID,GlobalElemID
 INTEGER               :: iSample,jSample,iSpec,iSub
+#if USE_MPI
 REAL, ALLOCATABLE     :: areasLoc(:),areasGlob(:)
+#endif /*USE_MPI*/
 REAL                  :: ymax,ymin,yMaxTemp,yMinTemp
 !===================================================================================================================================
 !-- 2.: create Side lists for applicable BCs
@@ -966,7 +969,9 @@ INTEGER, INTENT(IN)   :: iSpec, iSF
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_MPI
 INTEGER                :: iProc
+#endif  /*USE_MPI*/
 !===================================================================================================================================
 IF(MPIroot)THEN
   ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs(0:nProcessors-1))

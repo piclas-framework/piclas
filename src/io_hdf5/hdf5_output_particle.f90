@@ -2054,10 +2054,6 @@ CALL MPI_BCAST(locnPart8,1,MPI_INTEGER8,nProcessors-1,MPI_COMM_WORLD,iError)
 globnPart8=locnPart8
 GlobalNbrOfParticlesUpdated = .TRUE.
 LOGWRITE(*,*) TRIM(CallingRoutine)//'offsetnPart,locnPart,globnPart8',offsetnPart,locnPart,globnPart8
-#else
-offsetnPart=0_IK
-globnPart8=INT(locnPart,8)
-#endif
 
 ! Sanity check: Add up all particles with integer KIND=8 and compare 
 IF(MPIRoot)THEN
@@ -2071,6 +2067,11 @@ END IF ! MPIRoot
 
 ! Cast to Kind=IK before returning the number
 globnPart=INT(globnPart8,KIND=IK)
+
+#else
+offsetnPart=0_IK
+globnPart=INT(locnPart,KIND=IK)
+#endif
 
 END SUBROUTINE GetOffsetAndGlobalNumberOfParts
 #endif /*defined(PARTICLES)*/

@@ -21,7 +21,7 @@ MODULE MOD_MCC_Init
 IMPLICIT NONE
 PRIVATE
 
-PUBLIC :: DefineParametersMCC, MCC_Init, MCC_Chemistry_Init, FinalizeMCC
+PUBLIC :: DefineParametersMCC, InitMCC, MCC_Chemistry_Init, FinalizeMCC
 !===================================================================================================================================
 
 CONTAINS
@@ -46,12 +46,26 @@ CALL prms%CreateLogicalOption(  'Particles-CollXSec-NullCollision'  &
                                   'based on the maximum collision frequency and time step (only with a background gas)' &
                                   ,'.TRUE.')
 
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseCollXSec'  &
+                                           ,'Utilize collision cross sections for the determination of collision probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseVibXSec'  &
+                                           ,'Utilize vibrational cross sections for the determination of relaxation probabilities' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-UseElecXSec'  &
+                                           ,'Utilize electronic cross sections, only in combination with ElectronicModel = 3' &
+                                           ,'.FALSE.', numberedmulti=.TRUE.)
+
 END SUBROUTINE DefineParametersMCC
 
 
-SUBROUTINE MCC_Init()
+SUBROUTINE InitMCC()
 !===================================================================================================================================
-!> Read-in of the collision and vibrational cross-section database and initialization of the null collision method.
+!> Initialization & read-in of the cross-section database for:
+!> - Collisional, vibrational and electronic relaxation
+!> - Initialization of the null collision method
+!> - Chemical reactions and photo-ionization
+!> NOTE: Must be called after InitDSMC, which contains the initialization of the chemistry module.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -59,8 +73,9 @@ USE MOD_ReadInTools
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
 USE MOD_Mesh_Vars     ,ONLY: nElems
-USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC
-USE MOD_MCC_Vars      ,ONLY: XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
+USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC, ChemReac, CollisMode
+USE MOD_MCC_Vars      ,ONLY: UseMCC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
+USE MOD_MCC_Vars      ,ONLY: NbrOfPhotonXsecReactions
 USE MOD_MCC_XSec      ,ONLY: ReadCollXSec, ReadVibXSec, InterpolateCrossSection_Vib, ReadElecXSec, InterpolateCrossSection_Elec
 #if defined(PARTICLES) && USE_HDG
 USE MOD_HDG_Vars      ,ONLY: UseBRElectronFluid,BRNullCollisionDefault
@@ -70,19 +85,68 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER       :: iSpec, jSpec, iCase, partSpec
-REAL          :: TotalProb(nSpecies), CrossSection
-INTEGER       :: iLevel, nVib, iStep, MaxDim
+CHARACTER(LEN=3)      :: hilf
+INTEGER               :: iSpec, jSpec, iCase, partSpec
+REAL                  :: TotalProb(nSpecies), CrossSection
+INTEGER               :: iLevel, nVib, iStep, MaxDim
 !===================================================================================================================================
 
-XSec_Database = GETSTR('Particles-CollXSec-Database')
+UseMCC             = .FALSE.
+XSec_NullCollision = .FALSE.
+XSec_Relaxation    = .FALSE.
 
-IF(BGGas%NumberOfSpecies.GT.0) THEN
-  XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
-ELSE
-  XSec_NullCollision = .FALSE.
+IF(CollisMode.EQ.0) RETURN
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Determine whether cross-section data is utilized
+!-----------------------------------------------------------------------------------------------------------------------------------
+DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
+  SpecDSMC(iSpec)%UseCollXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseCollXSec')
+  SpecDSMC(iSpec)%UseVibXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseVibXSec')
+  SpecDSMC(iSpec)%UseElecXSec=GETLOGICAL('Part-Species'//TRIM(hilf)//'-UseElecXSec')
+  IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) THEN
+    CALL Abort(__STAMP__,'ERROR: Please supply the collision cross-section flag for the particle species and NOT the background species!')
+  END IF
+  IF(SpecDSMC(iSpec)%UseElecXSec.AND.SpecDSMC(iSpec)%InterID.EQ.4) THEN
+    CALL Abort(__STAMP__,'ERROR: Electronic relaxation should be enabled for the respective heavy species, not the electrons!')
+  END IF
+#if (PP_TimeDiscMethod!=42)
+  IF(SpecDSMC(iSpec)%UseElecXSec.AND.(.NOT.BGGas%BackgroundSpecies(iSpec))) THEN
+    SWRITE(*,*) 'NOTE: Electronic relaxation via cross-sections for regular DSMC is currently only enabled for the RESERVOIR'
+    SWRITE(*,*) 'NOTE: timedisc to test the calculation of the probabilities during regression testing. For DSMC, a de-excitation'
+    SWRITE(*,*) 'NOTE: model should be implemented. Regression test: WEK_Reservoir/MCC_N2_XSec_Elec'
+    CALL Abort(__STAMP__,'ERROR: Electronic relaxation via cross-section (-UseElecXSec) is only supported with a background gas!')
+  END IF
+#endif
+END DO
+
+! Enable MCC if any of the flags was set
+IF(ANY(SpecDSMC(:)%UseCollXSec).OR.ANY(SpecDSMC(:)%UseVibXSec).OR.ANY(SpecDSMC(:)%UseElecXSec).OR.ChemReac%AnyXSecReaction &
+    .OR.(NbrOfPhotonXsecReactions.GT.0)) THEN
+  UseMCC = .TRUE.
 END IF
-XSec_Relaxation = .FALSE.
+
+! Ambipolar diffusion is not implemented with the regular background gas, only with MCC
+IF(DSMC%DoAmbipolarDiff) THEN
+  IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL abort(__STAMP__,&
+      'ERROR: Ambipolar diffusion is not implemented with the regular background gas!')
+END IF
+
+! MCC and variable vibrational relaxation probability is not supported
+IF(UseMCC.AND.(DSMC%VibRelaxProb.EQ.2.0)) CALL abort(__STAMP__&
+      ,'ERROR: Monte Carlo Collisions and variable vibrational relaxation probability (DSMC-based) are not compatible!')
+
+! Leave the routine
+IF(.NOT.UseMCC) RETURN
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Initialize & read-in of cross-section data
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Read-in of the cross-section database
+XSec_Database = GETSTR('Particles-CollXSec-Database')
+! Null collision method only works with a background gas
+IF(BGGas%NumberOfSpecies.GT.0) XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
 
 ALLOCATE(SpecXSec(CollInf%NumCase))
 SpecXSec(:)%UseCollXSec = .FALSE.
@@ -143,6 +207,7 @@ DO iSpec = 1, nSpecies
         END IF
       END IF
       XSec_Relaxation = .TRUE.
+      SpecXSec(iCase)%VibCount = 0.
       nVib = SIZE(SpecXSec(iCase)%VibMode)
       DO iLevel = 1, nVib
         ! Store the energy value in J (read-in was in eV)
@@ -257,6 +322,19 @@ DO iSpec = 1, nSpecies
   END DO ! jSpec = iSpec, nSpecies
 END DO ! iSpec = 1, nSpecies
 
+! Read-in of the reaction cross-section database and re-calculation of the null collision probability
+IF (CollisMode.EQ.3) THEN
+  ! Dissociation, exchange, and ionization through cross-section data
+  IF(ChemReac%AnyXSecReaction) THEN
+    CALL MCC_Chemistry_Init()
+  END IF
+  ! Photo-ionization through cross-section data
+  IF(NbrOfPhotonXsecReactions.GT.0) THEN
+    CALL InitPhotoionizationXSec()
+    CALL CheckPhotoionizationXSec()
+  END IF
+END IF
+
 #if defined(PARTICLES) && USE_HDG
 BRNullCollisionDefault = XSec_NullCollision ! Backup read-in parameter value (for switching null collision on/off)
 IF(XSec_NullCollision.AND.UseBRElectronFluid)THEN
@@ -265,7 +343,7 @@ IF(XSec_NullCollision.AND.UseBRElectronFluid)THEN
 END IF
 #endif /*defined(PARTICLES) && USE_HDG*/
 
-END SUBROUTINE MCC_Init
+END SUBROUTINE InitMCC
 
 
 SUBROUTINE DetermineNullCollProb(iCase,iSpec,jSpec)
@@ -407,9 +485,249 @@ END IF
 END SUBROUTINE MCC_Chemistry_Init
 
 
+!===================================================================================================================================
+!> Initialize Photoionization cross-section (XSec) by reading the data from .h5
+!> 1. Check which reactions are 'phIonXSec'
+!> 2. Check the educts (photon+X), also switch the ordering of the names.e.g, N2-photon or photon-N2 of the container
+!> 3. Load the photon energy spectrum from the container "SPECTRUM" under "N2-photon"
+!> 4. Load the chemical reaction cross-sections but do not vary the order of the container name, e.g., H-HIon1-electron
+!>    if the name is not correctly ordered it will abort
+!> 5. Interpolate the cross-section data to the wavelength spectrum and discard the original data. Keep only the interpolated data.
+!> 6. Find the first and last wavelength for which cross-sections are available, ignore wavelengths outside in the simulation
+!===================================================================================================================================
+SUBROUTINE InitPhotoionizationXSec()
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_MCC_Vars  ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,NbrOfPhotonXsecLines
+USE MOD_MCC_Vars  ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,ReacToPhotoReac
+USE MOD_MCC_Vars  ,ONLY: PhotonSpectrum,PhotonEnergies,MaxPhotonXSec
+USE MOD_MCC_XSec  ,ONLY: ReadReacPhotonXSec,ReadReacPhotonSpectrum
+USE MOD_DSMC_Vars ,ONLY: SpecDSMC,ChemReac
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=50)     :: EductPair,EductPairOld
+INTEGER               :: iReac,iPhotoReac
+REAL                  :: dx,dy,TotalEnergyFraction
+INTEGER               :: ReadInNumOfReact,dims(2),iLine,location(3)
+!===================================================================================================================================
+
+ReadInNumOfReact = ChemReac%NumOfReact
+! Set Mapping
+ALLOCATE(PhotoReacToReac(NbrOfPhotonXsecReactions))
+PhotoReacToReac = -1 ! Initialize
+ALLOCATE(ReacToPhotoReac(ReadInNumOfReact))
+ReacToPhotoReac = -1 ! Initialize
+iPhotoReac = 0
+!> 1. Check which reactions are 'phIonXSec'
+DO iReac = 1, ReadInNumOfReact
+  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIonXSec')THEN
+    ! Create mappings
+    iPhotoReac                  = iPhotoReac + 1
+    PhotoReacToReac(iPhotoReac) = iReac
+    ReacToPhotoReac(iReac)      = iPhotoReac
+!> 2. Check the educts (photon+X), also switch the ordering of the names.e.g, N2-photon or photon-N2 of the container
+    EductPair = TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)//'-photon'
+    IF(iPhotoReac.GT.1)THEN
+      IF(TRIM(EductPair).NE.TRIM(EductPairOld)) CALL abort(__STAMP__,'Currently only one photo reaction is implemented')
+    END IF ! iPhotoReac.GT.1
+    EductPairOld = EductPair
+  END IF ! TRIM(ChemReac%ReactModel(iReac)).EQ.'phIonXSec'
+END DO ! iReac = 1, ReadInNumOfReact
+
+!> 3. Load the photon energy spectrum from the container "SPECTRUM" under "N2-photon"
+CALL ReadReacPhotonSpectrum(1) ! 1 corresponds to iPhotoReac=1 and for all reactions, the Educt currently must be the same
+
+!> 4. Load the chemical reaction cross-sections but do not vary the order of the container name, e.g., H-HIon1-electron
+!>    if the name is not correctly ordered it will abort
+ALLOCATE(SpecPhotonXSec(NbrOfPhotonXsecReactions))
+DO iPhotoReac = 1, NbrOfPhotonXsecReactions
+  CALL ReadReacPhotonXSec(iPhotoReac)
+END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions
+
+! Normalize energy fraction
+TotalEnergyFraction = SUM(PhotonSpectrum(2,:))
+IF(.NOT.ALMOSTEQUALRELATIVE(TotalEnergyFraction,1.0,1e-3)) CALL abort(__STAMP__,'Sum of energy fraction is not 1.0')
+PhotonSpectrum(2,:) = PhotonSpectrum(2,:) / TotalEnergyFraction
+
+!> 5. Interpolate the cross-section data to the wavelength spectrum and discard the original data. Keep only the interpolated data.
+dims=SHAPE(PhotonSpectrum)
+NbrOfPhotonXsecLines = dims(2)
+ALLOCATE(SpecPhotonXSecInterpolated(NbrOfPhotonXsecLines,NbrOfPhotonXsecReactions+3))
+SpecPhotonXSecInterpolated = 0.
+ALLOCATE(PhotonDistribution(NbrOfPhotonXsecLines))
+DO iLine = 1, NbrOfPhotonXsecLines
+  SpecPhotonXSecInterpolated(iLine,1:2) = PhotonSpectrum(:,iLine)
+END DO ! iLine = 1, dims(2)
+DEALLOCATE(PhotonSpectrum)
+
+! Interpolate the cross-section data to to photon energy spectrum
+DO iPhotoReac = 1, NbrOfPhotonXsecReactions
+  ASSOCIATE( MINeV => MINVAL(SpecPhotonXSec(iPhotoReac)%XSecData(1,:)), MAXeV => MAXVAL(SpecPhotonXSec(iPhotoReac)%XSecData(1,:)))
+    DO iLine = 1, NbrOfPhotonXsecLines
+      ASSOCIATE( energy => SpecPhotonXSecInterpolated(iLine,1) )
+        IF((energy.GE.MINeV).AND.(energy.LE.MAXeV))THEN
+          ! Get the location of the element in the array with min value
+          location(3) = MINLOC(ABS(SpecPhotonXSec(iPhotoReac)%XSecData(1,:)-energy),1)
+
+          ! Get lower index of photon energy in XSec array
+          IF(energy.LE.SpecPhotonXSec(iPhotoReac)%XSecData(1,location(3)))THEN
+            location(2) = location(3)
+            location(1) = location(3)-1
+          ELSEIF(energy.GE.SpecPhotonXSec(iPhotoReac)%XSecData(1,location(3)))THEN
+            location(2) = location(3)+1
+            location(1) = location(3)
+          ELSE
+            CALL abort(__STAMP__,'Photon spectrum interpolation failed.')
+          END IF ! energy.LE.SpecPhotonXSec(iPhotoReac)%XSecData(1,location(3))
+
+          ! Check if last element is exactly matched
+          IF(location(1).EQ.dims(2))THEN
+            SpecPhotonXSecInterpolated(iLine,2+iPhotoReac) = SpecPhotonXSec(iPhotoReac)%XSecData(location(1),2)
+          ELSE
+            dx = SpecPhotonXSec(iPhotoReac)%XSecData(1,location(2))-SpecPhotonXSec(iPhotoReac)%XSecData(1,location(1))
+            dy = SpecPhotonXSec(iPhotoReac)%XSecData(2,location(2))-SpecPhotonXSec(iPhotoReac)%XSecData(2,location(1))
+            IF(ABS(dx).GT.0.)THEN
+              ! linear interpolation
+              SpecPhotonXSecInterpolated(iLine,2+iPhotoReac) = SpecPhotonXSec(iPhotoReac)%XSecData(2,location(1)) &
+                  + dy/dx * (energy-SpecPhotonXSec(iPhotoReac)%XSecData(1,location(1)))
+            ELSE
+              SpecPhotonXSecInterpolated(iLine,2+iPhotoReac) = SpecPhotonXSec(iPhotoReac)%XSecData(2,location(1))
+            END IF ! dy.G
+          END IF ! location.EQ.dims(2)
+
+          ! Calculate total cross section
+          SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3) = &
+              SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3) + SpecPhotonXSecInterpolated(iLine,2+iPhotoReac)
+        END IF ! (SpecPhotonXSecInterpolated(iLine,1).GE.MINeV).AND.()
+      END ASSOCIATE
+    END DO ! iLine = 1, NbrOfPhotonXsecLines
+  END ASSOCIATE
+END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions
+DEALLOCATE(SpecPhotonXSec)
+
+!> 6. Find the first and last wavelength for which cross-sections are available, ignore wavelengths outside in the simulation
+PhotoIonFirstLine = HUGE(1)
+PhotoIonLastLine = 0
+DO iLine = 1, NbrOfPhotonXsecLines
+  IF(SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3).GT.0.)THEN
+    PhotoIonFirstLine = MIN(iLine,PhotoIonFirstLine)
+    PhotoIonLastLine  = MAX(iLine,PhotoIonLastLine)
+  END IF ! SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3).GT.0.
+END DO ! iLine = 1, NbrOfPhotonXsecLines
+IF(PhotoIonLastLine.LT.PhotoIonFirstLine) CALL abort(__STAMP__,'Photoionization XSec read-in failed. No lines interpolated.')
+MaxPhotonXSec = MAXVAL(SpecPhotonXSecInterpolated(PhotoIonFirstLine:PhotoIonLastLine,2))
+ALLOCATE(PhotonEnergies(PhotoIonFirstLine:PhotoIonLastLine,1+NbrOfPhotonXsecReactions))
+
+END SUBROUTINE InitPhotoionizationXSec
+
+
+!===================================================================================================================================
+!> 1. Check whether the photon energy is sufficient to trigger the chemical reaction
+!> 2. Check for intermediate lines with zero cross sections (not allowed)
+!> 3. Determine the lost energy (wavelengths outside of the range of the cross-section data)
+!===================================================================================================================================
+SUBROUTINE CheckPhotoionizationXSec()
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars  ,ONLY: eV2Joule
+USE MOD_MCC_Vars      ,ONLY: NbrOfPhotonXsecReactions,NbrOfPhotonXsecLines,SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine
+USE MOD_MCC_Vars      ,ONLY: ReacToPhotoReac
+USE MOD_DSMC_Vars     ,ONLY: ChemReac
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: ZeroLine,iLine,iReac,iPhotoReac
+REAL                  :: LostEnergy(2)
+!===================================================================================================================================
+IF(.NOT.MPIRoot) RETURN
+
+! 1. Check whether the photon energy is sufficient to trigger the chemical reaction
+DO iReac = 1, ChemReac%NumOfReact
+  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIonXSec') CYCLE
+  DO iLine = PhotoIonFirstLine, PhotoIonLastLine
+    ! Add photon energy to formation energy (which is negative and should be positive after the addition)
+    IF(ChemReac%EForm(iReac)+SpecPhotonXSecInterpolated(iLine,1)*eV2Joule.LE.0.0)THEN
+      iPhotoReac = ReacToPhotoReac(iReac)
+      ! Check if this photo reaction has a cross-section unequal zero
+      ! If it is zero, this reaction would never happen anyway, therefore ignore it
+      IF(SpecPhotonXSecInterpolated(iLine,2+iPhotoReac).LE.0.) THEN
+        CYCLE
+      ELSE
+        SWRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,1:2+iPhotoReac-1),"      requires fix       ",&
+        SpecPhotonXSecInterpolated(iLine,2+iPhotoReac+1:)
+      END IF
+      ! Abort if photon energy is not sufficient and the photo reaction has a cross-section greater zero
+      SWRITE (UNIT_stdOut,*) "      iLine      energy-fraction                              %             iPhotoReac(1)        ........"
+      SWRITE (UNIT_stdOut,*) iLine,SpecPhotonXSecInterpolated(iLine,:)
+      SWRITE (UNIT_stdOut,*) "-----------------------------------------"
+      SWRITE (UNIT_stdOut,*) "iLine                                          = ", iLine
+      SWRITE (UNIT_stdOut,*) "iReac                                          = ", iReac
+      SWRITE (UNIT_stdOut,*) "iPhotoReac                                     = ", iPhotoReac
+      SWRITE (UNIT_stdOut,*) "ChemReac%EForm(iReac)                          = ", ChemReac%EForm(iReac)
+      SWRITE (UNIT_stdOut,*) "PhotonEnergy [J]                               = ", SpecPhotonXSecInterpolated(iLine,1)*eV2Joule
+      SWRITE (UNIT_stdOut,*) "PhotonEnergy [eV]                              = ", SpecPhotonXSecInterpolated(iLine,1)
+      SWRITE (UNIT_stdOut,*) "SpecPhotonXSecInterpolated(iLine,2+iPhotoReac) = ", SpecPhotonXSecInterpolated(iLine,2+iPhotoReac)
+      CALL abort(__STAMP__,&
+        'Photoionization not possible because the photon energy is too low for this reaction. This is not considered yet.')
+    END IF
+  END DO ! iLine = , PhotoIonLastLine
+END DO
+
+! 2. Sanity check: intermediate lines with zero cross sections are not allowed
+ZeroLine = 0
+DO iLine = PhotoIonFirstLine, PhotoIonLastLine
+  IF(SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3).LE.0.)THEN
+    ZeroLine = iLine
+    EXIT
+  END IF ! 
+END DO ! iLine = PhotoIonFirstLine, PhotoIonLastLine
+
+IF(ZeroLine.GT.0)THEN
+  WRITE(UNIT_StdOut,*) ""
+  WRITE(UNIT_StdOut,*) "ERROR: Found intermediate wavelength with no correspoding chemical reaction (cross section > 0)"
+  WRITE(UNIT_StdOut,*) "SpecPhotonXSecInterpolated: Line ",ZeroLine," is broken"
+  DO iLine = PhotoIonFirstLine, PhotoIonLastLine
+    IF(iLine.EQ.ZeroLine) WRITE (*,*) " -------------------------------- HERE -------------------------------- "
+    SWRITE (*,*) iLine,SpecPhotonXSecInterpolated(iLine,:)
+    IF(iLine.EQ.ZeroLine) WRITE (*,*) " -------------------------------- HERE -------------------------------- "
+  END DO ! iLine = 1, dims(2)
+  CALL abort(__STAMP__,'Found intermediate wavelength with no correspoding chemical reaction (any cross section > 0)')
+END IF ! ZeroLine.GT.0
+
+! 3. Calculate the lost energy (wavelengths for which no reactions are possible)
+LostEnergy(:) = 0.
+IF(PhotoIonFirstLine.GT.1)THEN
+  DO iLine = 1, PhotoIonFirstLine-1
+    LostEnergy(1) = LostEnergy(1) + SpecPhotonXSecInterpolated(iLine,2)
+  END DO ! iLine = 1, PhotoIonFirstLine-1
+END IF ! PhotoIonFirstLine.GT.1
+IF(PhotoIonLastLine.LT.NbrOfPhotonXsecLines)THEN
+  DO iLine = PhotoIonLastLine+1, NbrOfPhotonXsecLines
+    LostEnergy(2) = LostEnergy(2) + SpecPhotonXSecInterpolated(iLine,2)
+  END DO ! iLine = PhotoIonLastLine+1, NbrOfPhotonXsecLines
+END IF ! PhotoIonLastLine.LT.NbrOfPhotonXsecLines
+IF(SUM(LostEnergy).GT.0.)THEN
+  WRITE (UNIT_stdOut,'(A,3(F6.2,A))') "Lost energy content in photoionization XSec: ", &
+      LostEnergy(1)*100., "% (high photon wavelength),",&
+      LostEnergy(2)*100., "% (low photon wavelength),",&
+      SUM(LostEnergy)*100., "% (total)"
+  WRITE (UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') "Only considering level ",PhotoIonFirstLine," to ",PhotoIonLastLine, " from 1 to ",&
+      NbrOfPhotonXsecLines," due to the cut-off"
+END IF ! SUM(LostEnergy).GT.0.
+
+END SUBROUTINE CheckPhotoionizationXSec
+
+
 SUBROUTINE FinalizeMCC()
 !----------------------------------------------------------------------------------------------------------------------------------!
-! finalize dsmc variables
+! Finalize MCC/XSec variables
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!

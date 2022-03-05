@@ -104,7 +104,10 @@ USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID
-REAL                            :: radius, triarea(2), CNVolume
+REAL                            :: radius, triarea(2)
+#if USE_MPI
+REAL                            :: CNVolume
+#endif /*USE_MPI*/
 LOGICAL                         :: SymmetryBCExists
 INTEGER                         :: firstElem,lastElem
 !===================================================================================================================================

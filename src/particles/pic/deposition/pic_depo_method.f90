@@ -391,7 +391,7 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 ! LOCAL VARIABLES
 REAL               :: Charge, TSource(1:4), PartDistDepo(8), DistSum
 REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3)
-INTEGER            :: kk, ll, mm, iPart, iElem, iProc
+INTEGER            :: kk, ll, mm, iPart, iElem
 INTEGER            :: NodeID(1:8), firstNode, lastNode, iNode
 LOGICAL            :: SucRefPos
 #if !((USE_HDG) && (PP_nVar==1))
@@ -405,6 +405,7 @@ INTEGER            :: SourceDim
 REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
+INTEGER            :: iProc
 INTEGER            :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
 INTEGER            :: MessageSize
 #endif
@@ -726,9 +727,9 @@ END DO !iEle
 #if USE_LOADBALANCE
 CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
-#if USE_MPI
+!#if USE_MPI
 !CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
-#endif /*USE_MPI*/
+!#endif /*USE_MPI*/
 END SUBROUTINE DepositionMethod_CVWM
 
 
@@ -742,10 +743,10 @@ USE MOD_Preproc
 USE MOD_globals
 USE MOD_Particle_Vars               ,ONLY: Species, PartSpecies,PDM,PartMPF,usevMPF
 USE MOD_Particle_Vars               ,ONLY: PartState
-USE MOD_PICDepo_Vars                ,ONLY: PartSource
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID, GetGlobalElemID
 #if USE_MPI
+USE MOD_PICDepo_Vars                ,ONLY: PartSource
 USE MOD_MPI_Shared                  ,ONLY: BARRIER_AND_SYNC
 USE MOD_PICDepo_Vars                ,ONLY: ShapeMapping, nShapeExchangeProcs
 USE MOD_PICDepo_Vars                ,ONLY: SendRequest,RecvRequest
@@ -766,9 +767,10 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL               :: Charge
-INTEGER            :: iElem, iPart, stage, locElem
+INTEGER            :: stage, locElem
+INTEGER            :: iPart
 #if USE_MPI
-INTEGER            :: iProc
+INTEGER            :: iElem,iProc
 #endif
 #if defined(MEASURE_MPI_WAIT)
 INTEGER(KIND=8)    :: CounterStart,CounterEnd
@@ -839,8 +841,6 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
 #if defined(MEASURE_MPI_WAIT)
     CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
     MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-#if defined(MEASURE_MPI_WAIT)
     CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
     CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
@@ -855,7 +855,7 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
     END DO
   END DO
 
-#endif
+#endif /*USE_MPI*/
 
 END IF
 

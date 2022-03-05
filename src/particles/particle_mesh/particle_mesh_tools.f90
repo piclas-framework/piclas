@@ -1279,11 +1279,11 @@ USE MOD_Basis                  ,ONLY: BuildBezierVdm,BuildBezierDMat
 USE MOD_Basis                  ,ONLY: BarycentricWeights,ChebyGaussLobNodesAndWeights,InitializeVandermonde
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo,dXCL_NGeo,Xi_NGeo
-USE MOD_Mesh_Vars              ,ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1,nElems
+USE MOD_Mesh_Vars              ,ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars ,ONLY: Vdm_Bezier,sVdm_Bezier,D_Bezier
 #if USE_MPI
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem,nElems
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #endif
@@ -1295,7 +1295,9 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
+#if USE_MPI
 INTEGER                        :: iElem
+#endif /*USE_MPI*/
 REAL                           :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
 !===================================================================================================================================
 

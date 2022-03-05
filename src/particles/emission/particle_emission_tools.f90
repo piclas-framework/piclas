@@ -1809,11 +1809,10 @@ LOGICAL            :: ARM_SEE_PDF
 REAL               :: Theta_temp
 !===================================================================================================================================
 
-ASSOCIATE( W     => Species(FractNbr)%Init(iInit)%WorkFunctionSEE    ,&
-           m     => Species(FractNbr)%MassIC                         ,&
-           !beta  => Species(FractNbr)%Init(iInit)%AngularBetaSEE     ,&
-           t_vec => Species(FractNbr)%Init(iInit)%BaseVector1IC      ,&
-           n_vec => Species(FractNbr)%Init(iInit)%NormalIC            )
+ASSOCIATE( W     => Species(FractNbr)%Init(iInit)%WorkFunctionSEE ,&
+           m     => Species(FractNbr)%MassIC                      ,&
+           t_vec => Species(FractNbr)%Init(iInit)%NormalVector1IC ,&
+           n_vec => Species(FractNbr)%Init(iInit)%NormalIC        )
 
 ! ARM for energy distribution
 E_max = 50.0 ! in eV (arbitrary)
@@ -1826,6 +1825,7 @@ DO WHILE(ARM_SEE_PDF)
   CALL RANDOM_NUMBER(RandVal)
   IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
 END DO
+! Non-relativistic electron energy (conversion from eV to Joule)
 VeloABS = SQRT(2.0 * E_temp * ElementaryCharge / m)
 
 ! ARM for angular distribution

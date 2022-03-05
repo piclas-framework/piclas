@@ -51,7 +51,6 @@ SUBROUTINE ParticleTriaTracking()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Mesh_Vars                   ,ONLY: offsetElem
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
@@ -67,6 +66,7 @@ USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry               ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 USE MOD_part_tools                  ,ONLY: ParticleOnProc
 #if USE_LOADBALANCE
+USE MOD_Mesh_Vars                   ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING

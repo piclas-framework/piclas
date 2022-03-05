@@ -88,7 +88,6 @@ USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU
 USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,Vdm_EQ_N
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
 USE MOD_PICDepo_Vars
 USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
@@ -97,6 +96,7 @@ USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALAR
 #if USE_MPI
 USE MOD_MPI_vars               ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared_Vars        ,ONLY: ComputeNodeRootRank
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
@@ -115,12 +115,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm
-INTEGER                   :: jElem, NonUniqueNodeID,iNode
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 CHARACTER(255)            :: TimeAverageFile
-INTEGER                   :: UniqueNodeID
 #if USE_MPI
+INTEGER                   :: UniqueNodeID
+INTEGER                   :: jElem, NonUniqueNodeID,iNode
 INTEGER                   :: SendNodeCount, GlobalElemNode, GlobalElemRank, iProc
 INTEGER                   :: TestElemID
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:)
@@ -460,7 +460,7 @@ END SUBROUTINE InitializeDeposition
 SUBROUTINE InitShapeFunctionAdaptive()
 ! MODULES
 USE MOD_Preproc
-USE MOD_Globals                     ,ONLY: UNIT_stdOut,abort,IERROR
+USE MOD_Globals                     ,ONLY: UNIT_stdOut,abort
 USE MOD_PICDepo_Vars                ,ONLY: SFAdaptiveDOF,SFAdaptiveSmoothing,SFElemr2_Shared,dim_sf,dimFactorSF
 USE MOD_ReadInTools                 ,ONLY: GETREAL,GETLOGICAL
 USE MOD_Particle_Mesh_Vars          ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,BoundsOfElem_Shared
@@ -471,6 +471,7 @@ USE MOD_Mesh_Tools                  ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Vars          ,ONLY: NodeCoords_Shared
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: SFNorm
 #if USE_MPI
+USE MOD_Globals                     ,ONLY: IERROR
 USE MOD_PICDepo_Vars                ,ONLY: SFElemr2_Shared_Win
 USE MOD_Globals                     ,ONLY: MPIRoot
 USE MOD_MPI_Shared_Vars             ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_SHARED
@@ -647,7 +648,10 @@ END SUBROUTINE InitShapeFunctionAdaptive
 !===================================================================================================================================
 SUBROUTINE InitPeriodicSFCaseMatrix()
 ! MODULES
-USE MOD_Globals            ,ONLY: MPIRoot,UNIT_StdOut
+USE MOD_Globals            ,ONLY: UNIT_StdOut
+#if USE_MPI
+USE MOD_Globals            ,ONLY: MPIRoot
+#endif /*USE_MPI*/
 USE MOD_Particle_Mesh_Vars ,ONLY: PeriodicSFCaseMatrix,NbrOfPeriodicSFCases
 USE MOD_PICDepo_Vars       ,ONLY: dim_sf,dim_periodic_vec1,dim_periodic_vec2,dim_sf_dir1,dim_sf_dir2
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO

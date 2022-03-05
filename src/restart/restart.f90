@@ -418,11 +418,11 @@ REAL, ALLOCATABLE                  :: SendBuffAmbi(:), RecBuffAmbi(:), SendBuffE
 INTEGER                            :: LostPartsPoly(0:PartMPI%nProcs-1), DisplacePoly(0:PartMPI%nProcs-1)
 INTEGER                            :: LostPartsElec(0:PartMPI%nProcs-1), DisplaceElec(0:PartMPI%nProcs-1)
 INTEGER                            :: LostPartsAmbi(0:PartMPI%nProcs-1), DisplaceAmbi(0:PartMPI%nProcs-1)
+INTEGER                            :: iProc
 #endif /*USE_MPI*/
 REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
 LOGICAL                            :: implemented
 LOGICAL,ALLOCATABLE                :: readVarFromState(:)
-INTEGER                            :: iProc
 #endif
 INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
 #if USE_HDG
