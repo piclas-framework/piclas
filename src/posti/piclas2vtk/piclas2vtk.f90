@@ -399,11 +399,15 @@ INTEGER,ALLOCATABLE           :: VarNameCombine(:), VarNameCombineLen(:)
 nVTKPoints=nNodes
 nVTKCells=nElems
 
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE 3D DATA TO VTX XML BINARY (VTU) FILE "
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '['//TRIM(FileString)//'] ...'
+! Check if no output is present and print info that no file will be created
 IF(nElems.LT.1)THEN
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   NOT CREATING OUTPUT FILE "
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '['//TRIM(FileString)//'] because the dataset is empty...'
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"RETURN"
   RETURN
+ELSE
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE 3D DATA TO VTX XML BINARY (VTU) FILE "
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '['//TRIM(FileString)//'] ...'
 END IF
 
 ! Prepare output of vector variables as a vector variable suitable for VisIt and Paraview
