@@ -9,3 +9,4 @@ because one element interface is strongly deformed
   - this feature is useful if the Jacobians are determined good enough with N and the integration error is then reduced using a much
   higher NAnalyze (in this case the Jacobians are bad from the beginning, which is why the calculation of the error does not improve
   much)
+- also considers superB magnetic field to test functionality of CVWM fallback in combination with B-field
