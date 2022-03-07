@@ -281,9 +281,9 @@ PPURE FUNCTION GetEMFieldDW(ElemID, PartPos_loc)
 ! Evaluate the electro-(magnetic) field using the reference position and return the field
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars     ,ONLY: Elem_xGP
+USE MOD_Mesh_Vars             ,ONLY: Elem_xGP
 USE MOD_PICInterpolation_Vars ,ONLY: useBGField
-USE MOD_Interpolation_Vars    ,ONLY: BGField,BGType
+USE MOD_Interpolation_Vars    ,ONLY: BGField,BGType,BGDataSize
 USE MOD_Globals
 USE MOD_PreProc
 #if ! (USE_HDG)
@@ -384,7 +384,7 @@ IF(useBGField)THEN
   END SELECT
   ! Add contribution of the magnetic field
   DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
-    GetEMFieldDW(ind1:ind2) = GetEMFieldDW(ind1:ind2) + PartDistDepo(k,l,m)/DistSum*BGField(ind1:ind2,k,l,m,ElemID)
+    GetEMFieldDW(ind1:ind2) = GetEMFieldDW(ind1:ind2) + PartDistDepo(k,l,m)/DistSum*BGField(1:BGDataSize,k,l,m,ElemID)
   END DO; END DO; END DO
 END IF ! useBGField
 
