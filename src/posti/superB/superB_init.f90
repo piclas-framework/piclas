@@ -146,6 +146,7 @@ USE MOD_Interpolation      ,ONLY: GetVandermonde
 ! LOCAL VARIABLES
 INTEGER            :: iMagnet, iCoil, iSegment, NbrOfTimeDepCoils
 CHARACTER(LEN=32)  :: hilf,hilf2
+REAL               :: FrequencyTmp
 !===================================================================================================================================
 
 ! Get logical for calculating the error norms L2 and LInf of magnetic field
@@ -215,8 +216,9 @@ IF (NumOfPermanentMagnets.GT.0) THEN
 END IF
 
 ! Get the number of coils/conductors
-NumOfCoils               = GETINT('NumOfCoils','0')
+NumOfCoils        = GETINT('NumOfCoils','0')
 NbrOfTimeDepCoils = 0. ! Initialize
+FrequencyTmp      = 0. ! Initialize
 ALLOCATE(CoilInfo(NumOfCoils))
 ALLOCATE(TimeDepCoil(NumOfCoils))
 ALLOCATE(CurrentInfo(NumOfCoils))
@@ -298,9 +300,13 @@ IF (NumOfCoils.GT.0) THEN
     TimeDepCoil(iCoil) = GETLOGICAL('Coil'//TRIM(hilf)//'-TimeDepCoil')
     IF(TimeDepCoil(iCoil)) THEN
       NbrOfTimeDepCoils = NbrOfTimeDepCoils + 1
-      IF(NbrOfTimeDepCoils.GT.1) CALL abort(__STAMP__,'More than one time-dependent magnetic coil not imeplemented!')
       CurrentInfo(iCoil)%CurrentFreq = GETREAL('Coil'//TRIM(hilf)//'-CurrentFrequency')
       CurrentInfo(iCoil)%CurrentPhase = GETREAL('Coil'//TRIM(hilf)//'-CurrentPhase')
+      ! Check that all time-dependent coils use the same frequency
+      IF((NbrOfTimeDepCoils.GT.1).AND.(.NOT.ALMOSTEQUALRELATIVE(CurrentInfo(iCoil)%CurrentFreq,FrequencyTmp,1e-5)))THEN
+        CALL abort(__STAMP__,'All time-dependent coils must have the same frequency!')
+      END IF
+      FrequencyTmp = CurrentInfo(iCoil)%CurrentFreq
     END IF
     CoilInfo(iCoil)%Current = GETREAL('Coil'//TRIM(hilf)//'-Current')
   END DO
@@ -309,8 +315,8 @@ END IF
 ! Discretisation in time
 UseTimeDepCoil=.FALSE.
 IF (ANY(TimeDepCoil)) THEN
-  UseTimeDepCoil=.TRUE.
-  nTimePoints = GETINT('nTimePoints')
+  UseTimeDepCoil = .TRUE.
+  nTimePoints    = GETINT('nTimePoints')
   IF(nTimePoints.LT.2) CALL abort(__STAMP__,'nTimePoints cannot be smaller than 2')
 END IF
 

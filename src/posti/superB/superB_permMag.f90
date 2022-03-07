@@ -653,7 +653,6 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
       DO I = -1, 2
         ASSOCIATE( idx1 => 2*MAX(I,0),  & ! gives 0, 0, 2, 4
                    idx2 => 2*MIN(I+2,3) ) ! gives 2, 4, 6, 6
-               WRITE (*,*) "idx1,idx2 =", idx1,idx2
           WRITE(1112,'(I0)',ADVANCE="NO") 4*nNodes+2
           DO iPoint=0,2*nNodes-1
             WRITE(1112,'(1X,I0)',ADVANCE="NO") idx1*nNodes + iPoint
