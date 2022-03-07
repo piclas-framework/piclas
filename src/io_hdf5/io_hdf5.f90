@@ -31,6 +31,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 LOGICAL                  :: gatheredWrite       !< flag whether every process should output data or data should first be gathered
+LOGICAL                  :: UseCollectiveIO     !< flag whether DistributedWriteArray() should use H5FD_MPIO_COLLECTIVE_F instead of H5FD_MPIO_INDEPENDENT_F
 INTEGER(HID_T)           :: File_ID             !< file which is currently opened
 INTEGER(HID_T)           :: Plist_File_ID       !< property list of file which is currently opened
 INTEGER(HSIZE_T),POINTER :: HSize(:)            !< HDF5 array size (temporary variable)
@@ -102,6 +103,10 @@ IMPLICIT NONE
 CALL prms%SetSection("IO_HDF5")
 CALL prms%CreateLogicalOption('gatheredWrite', "Set true to activate gathered HDF5 IO for parallel computations. "//&
                                                "Only local group masters will write data after gathering from local slaves.",&
+                                               '.FALSE.')
+CALL prms%CreateLogicalOption('UseCollectiveIO', "Set true to activate collective HDF5 IO during distributed write when possibly "//&
+                                                 "only a subset of all processors carries the data, e.g., the 'PartData' container when not all processors have particles. "//&
+                                                 "This activates the usage of H5FD_MPIO_COLLECTIVE_F instead of H5FD_MPIO_INDEPENDENT_F.",&
                                                '.FALSE.')
 END SUBROUTINE DefineParametersIO
 

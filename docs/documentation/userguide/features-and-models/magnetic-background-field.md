@@ -185,9 +185,9 @@ It should be noted that the base point defines the start of the first segment as
 cross-sections, where it is the middle point of the cross-section.
 
 ### Time-dependent Magnetic Coils
-A time-dependent magnet field can be created by a time-varying electric current running through a coil.
-Note that more than one time-dependent magnetic coil cannot be defined in the parameter file as this is not implemented yet.
-However, one time-dependent coil can be combined with an arbitrary number of permanent magnets and coils (with a constant current).
+A time-dependent magnetic field can be created by a time-varying electric current running through a coil.
+Time-dependent coils can be combined with an arbitrary number of permanent magnets and coils (with a constant current).
+Currently, all time-dependent coils must use the same frequency but can have different phases.
 The time-dependent settings are required in addition to the ones used for a standard coil
 
     Coil1-TimeDepCoil      = T
