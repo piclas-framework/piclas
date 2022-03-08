@@ -38,6 +38,7 @@ USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITV
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
+USE MOD_Globals_Vars           ,ONLY: c2_inv
 !#if (PP_TimeDiscMethod==509)
 !USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 !#endif /*(PP_TimeDiscMethod==509)*/
@@ -80,7 +81,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                    :: iPart
-REAL                       :: dtFrac
+REAL                       :: dtFrac, gamma, gamma_minus
 #if USE_LOADBALANCE
 REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
@@ -154,10 +155,12 @@ IF (time.GE.DelayTime) THEN
         c_1 =  (Species(PartSpecies(iPart))%ChargeIC * dt) / (Species(PartSpecies(iPart))%MassIC * 2.)
 
         !-- v_minus = v(n-1/2) + q/m*E(n)*dt/2
-        v_minus = PartState(4:6,iPart) + c_1 * FieldAtParticle(1:3,iPart)
+        gamma = 1./SQRT(1-(DOTPRODUCT(PartState(4:6,iPart))*c2_inv))
+        v_minus = PartState(4:6,iPart)*gamma + c_1 * FieldAtParticle(1:3,iPart)
 
         !-- t_vec
-        t_vec = TAN(c_1*VECNORM(FieldAtParticle(4:6,iPart))) * UNITVECTOR(FieldAtParticle(4:6,iPart))
+        gamma_minus = SQRT(1+DOTPRODUCT(v_minus)*c2_inv)
+        t_vec = TAN(c_1/gamma_minus*VECNORM(FieldAtParticle(4:6,iPart))) * UNITVECTOR(FieldAtParticle(4:6,iPart))
 
         !-- v_prime = v_minus + v_minus x (q*B/m)*dt/2
         v_prime = v_minus + CROSS(v_minus, t_vec )
@@ -166,7 +169,7 @@ IF (time.GE.DelayTime) THEN
         v_plus = v_minus + (2.0/(1.+DOTPRODUCT(t_vec))) * CROSS(v_prime, t_vec)
 
         !-- v(n+1/2) = v_plus + c_1 * E
-        PartState(4:6,iPart) = v_plus + c_1 * FieldAtParticle(1:3,iPart)
+        PartState(4:6,iPart) = (v_plus + c_1 * FieldAtParticle(1:3,iPart)) / gamma_minus
       END IF
 
       !-- x(n) => x(n+1) by v(n+0.5):
