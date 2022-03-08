@@ -43,7 +43,7 @@ SUBROUTINE RadTrans_main()
 USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY : nElems
 USE MOD_Particle_Mesh_Vars      ,ONLY : GEO, nComputeNodeElems, ElemMidPoint_Shared, ElemVolume_Shared
-USE MOD_RadiationTrans_Vars     ,ONLY : Radiation_Emission_Spec_Total, RadTrans, RadEmiAdaptPhotonNum
+USE MOD_RadiationTrans_Vars     ,ONLY : Radiation_Emission_Spec_Total, RadTrans, RadEmiAdaptPhotonNum, RadTransObsVolumeFrac
 USE MOD_RadiationTrans_Vars     ,ONLY : PhotonProps, RadiationDirectionModel, RadTransPhotPerCellLoc
 USE MOD_RadiationTrans_Vars     ,ONLY : RadTransPhotPerCell, RadTransPhotPerCell_Shared_Win, RadiationPhotonWaveLengthModel
 USE MOD_Photon_Tracking         ,ONLY : PhotonTriaTracking, Photon2DSymTracking
@@ -83,11 +83,11 @@ REAL                :: RandRot(3,3) !, PartPos(1:3)
         RadTransPhotPerCell(iElem) = 0
       ELSE
         IF (RadialWeighting%DoRadialWeighting) THEN
-          RadTransPhotPerCell(iElem) = INT(Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem) &
+          RadTransPhotPerCell(iElem) = INT(Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem) &
             /(1. + ElemMidPoint_Shared(2,iElem)/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.)) &
             / RadTrans%ScaledGlobalRadiationPower*RadTrans%GlobalPhotonNum + 0.5)
         ELSE
-          RadTransPhotPerCell(iElem) = INT(Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem) &
+          RadTransPhotPerCell(iElem) = INT(Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem) &
             / RadTrans%GlobalRadiationPower*RadTrans%GlobalPhotonNum + 0.5)
         END IF
       END IF
@@ -150,7 +150,6 @@ REAL                :: RandRot(3,3) !, PartPos(1:3)
       DO iPhot = 1, RadTransPhotPerCellLoc(iElem)
         IF(MPIroot.AND.(MOD(photVisCount,PhotDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(photVisCount),REAL(1),REAL(LocPhotNum),.TRUE.)
         photVisCount = photVisCount + 1
-        PhotonProps%PhotonEnergy = SetPhotonEnergy(iElem) 
         PhotonProps%PhotonPos(1:3) = SetPhotonPos(iElem, globPhotNum)
         PhotonProps%PhotonLastPos(1:3) = PhotonProps%PhotonPos(1:3)
         PhotonProps%ElemID = GetGlobalElemID(iElem)
@@ -160,6 +159,7 @@ REAL                :: RandRot(3,3) !, PartPos(1:3)
           iPhotLoc = iPhot
         END IF
         PhotonProps%PhotonDirection(1:3) = SetPhotonStartDirection(iElem, iPhotLoc, RandRot)
+        PhotonProps%PhotonEnergy = SetPhotonEnergy(iElem,PhotonProps%PhotonPos(1:3)) 
         IF (RadiationPhotonWaveLengthModel.EQ.1) THEN
           PhotonProps%WaveLength = SetParticleWavelengthAR(iElem)
         ELSE
@@ -177,28 +177,49 @@ REAL                :: RandRot(3,3) !, PartPos(1:3)
 
 END SUBROUTINE RadTrans_main
 
-FUNCTION SetPhotonEnergy(iElem)
+FUNCTION SetPhotonEnergy(iElem, Point)
 !===================================================================================================================================
 !> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars,         ONLY : Pi 
 USE MOD_RadiationTrans_Vars     ,ONLY : RadEmiAdaptPhotonNum, Radiation_Emission_Spec_Total, RadTrans, RadTransPhotPerCell
+USE MOD_RadiationTrans_Vars     ,ONLY : RadObservationPoint, CalcRadObservationPoint,RadTransObsVolumeFrac
 USE MOD_Particle_Mesh_Vars      ,ONLY : ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES  
 INTEGER, INTENT(IN)       :: iElem       
+REAL, INTENT(IN)          :: Point(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL                      :: SetPhotonEnergy      
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+!REAL              :: ProjectedDist(3), Dist(3), ClosestPoint(3), FarthestPoint(3), Vec1(3), Vec2(3), fullangle
+REAL               :: cosTheta, Dist(3), DistNorm(3), spaceangle, absdistnorm
 !===================================================================================================================================
 IF (RadEmiAdaptPhotonNum) THEN
-  SetPhotonEnergy = Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem) / RadTransPhotPerCell(iElem)
+  SetPhotonEnergy = Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem) / RadTransPhotPerCell(iElem)
 ELSE
-  SetPhotonEnergy = Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem) / (RadTrans%NumPhotonsPerCell)
+  SetPhotonEnergy = Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem) / (RadTrans%NumPhotonsPerCell)
+END IF
+
+IF (CalcRadObservationPoint) THEN  
+   Dist(1:3) = Point(1:3) - RadObservationPoint%MidPoint(1:3)
+   absdistnorm = VECNORM(Dist(1:3))
+   DistNorm(1:3) = Dist(1:3)/absdistnorm
+   cosTheta = DOT_PRODUCT(RadObservationPoint%ViewDirection(1:3),DistNorm(1:3))/(VECNORM(RadObservationPoint%ViewDirection(1:3))*VECNORM(DistNorm(1:3)))
+   spaceangle = cosTheta * RadObservationPoint%Area/(absdistnorm*absdistnorm)
+!  ProjectedDist(1:3) = Dist(1:3) - DOT_PRODUCT(RadObservationPoint%ViewDirection(1:3),Dist(1:3))*RadObservationPoint%ViewDirection(1:3)
+!  ClosestPoint(1:3) = RadObservationPoint%MidPoint(1:3) + RadObservationPoint%Diameter/2.*ProjectedDist(1:3)/VECNORM(ProjectedDist(1:3))
+!  FarthestPoint(1:3) = RadObservationPoint%MidPoint(1:3) - RadObservationPoint%Diameter/2.*ProjectedDist(1:3)/VECNORM(ProjectedDist(1:3))
+!  Vec1(1:3) = ClosestPoint(1:3) - Point(1:3)
+!  Vec2(1:3) = FarthestPoint(1:3) - Point(1:3)
+!  fullangle = ACOS(DOT_PRODUCT(Vec1,Vec2)/(VECNORM(Vec1)*VECNORM(Vec2)))
+  SetPhotonEnergy = SetPhotonEnergy * spaceangle/(4.*Pi)
 END IF
 
 END FUNCTION SetPhotonEnergy
@@ -209,12 +230,13 @@ FUNCTION SetPhotonPos(iElem, globPhotNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_RadiationTrans_Vars,   ONLY : RadiationPhotonPosModel
+USE MOD_RadiationTrans_Vars,   ONLY : RadiationPhotonPosModel, CalcRadObservationPoint
 USE MOD_Particle_Mesh_Tools,   ONLY : ParticleInsideQuad3D
 USE MOD_RadiationTrans_Init,   ONLY : HALTON
 !USE MOD_PARTICLE_Vars,         ONLY : Symmetry2DAxisymmetric
 USE MOD_Particle_Mesh_Vars,    ONLY : BoundsOfElem_Shared
 USE MOD_Mesh_Tools,            ONLY: GetGlobalElemID
+USE MOD_Photon_TrackingTools,  ONLY: PointInObsCone
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -247,6 +269,11 @@ INTEGER                   :: globElemID
       SetPhotonPos = Bounds(1,:) + SetPhotonPos*(Bounds(2,:)-Bounds(1,:))
   !    IF (Symmetry2DAxisymmetric) SetPhotonPos(3) = 0.0
       CALL ParticleInsideQuad3D(SetPhotonPos,globElemID,InsideFlag)
+      IF (CalcRadObservationPoint) THEN
+        IF (InsideFlag) THEN
+          InsideFlag = PointInObsCone(SetPhotonPos)
+        END IF
+      END IF
     END DO
   END ASSOCIATE
 END FUNCTION SetPhotonPos
@@ -258,7 +285,8 @@ FUNCTION SetPhotonStartDirection(iElem, iPhot, RandRot)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,         ONLY : Pi 
-USE MOD_RadiationTrans_Vars  ,ONLY : RadiationDirectionModel, RadTransPhotPerCell
+USE MOD_RadiationTrans_Vars  ,ONLY : RadiationDirectionModel, RadTransPhotPerCell, CalcRadObservationPoint,RadObservationPoint
+USE MOD_RadiationTrans_Vars  ,ONLY : PhotonProps
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -289,32 +317,45 @@ INTEGER                          :: RadMod
     __STAMP__&
     ,' ERROR: Radiation-DirectionModel not implemented!. (unknown case)')
   END SELECT !PartBound%MapToPartBC(BC(SideID)
-
-  SELECT CASE(RadMod)
-  CASE(1)
+  IF (CalcRadObservationPoint) THEN
     CALL RANDOM_NUMBER(iRan)
-    RandomDirection(1) = 2.*iRan - 1.
+    RandomDirection(1)  = RadObservationPoint%Diameter/2. * SQRT(iRan)
     CALL RANDOM_NUMBER(iRan)
-    RandomDirection(2) = 2.*Pi*iRan - Pi
-    SetPhotonStartDirection(1)  = SIN(RandomDirection(2))*SQRT(1.-RandomDirection(1)**2.)
-    SetPhotonStartDirection(2)  = COS(RandomDirection(2))*SQRT(1.-RandomDirection(1)**2.)
-    SetPhotonStartDirection(3)  = RandomDirection(1)
-  CASE(2)  
-    SpiralStep = 0.1+1.2*REAL(RadTransPhotPerCell(iElem))
-    start = (-1. + 1./(REAL(RadTransPhotPerCell(iElem))-1.))
-    incr = (2.-2./(REAL(RadTransPhotPerCell(iElem))-1.))/(REAL(RadTransPhotPerCell(iElem))-1.)
-    SpiralPos = start + (REAL(iPhot)-1.) *incr
-    X_new = SpiralPos * SpiralStep
-    Y_new = Pi/2.*SIGN(1.,SpiralPos)*(1.-SQRT(1.-ABS(SpiralPos)))
-    SetPhotonStartDirection(1)  = COS(X_new)*COS(Y_new)
-    SetPhotonStartDirection(2)  = SIN(X_new)*COS(Y_new)
-    SetPhotonStartDirection(3)  = SIN(Y_new) 
-    SetPhotonStartDirection(1:3)  = MATMUL(RandRot, SetPhotonStartDirection(1:3))
-  CASE DEFAULT
-    CALL abort(&
-    __STAMP__&
-    ,' ERROR: Radiation-DirectionModel not implemented!. (unknown case)')
-  END SELECT !PartBound%MapToPartBC(BC(SideID)
+    RandomDirection(2) = iRan * 2. * Pi
+    SetPhotonStartDirection(1) = 0.0
+    SetPhotonStartDirection(2) = RandomDirection(1) * COS(RandomDirection(2))
+    SetPhotonStartDirection(3) = RandomDirection(1) * SIN(RandomDirection(2))
+    SetPhotonStartDirection(1:3) = MATMUL(RadObservationPoint%OrthoNormBasis, SetPhotonStartDirection(1:3))
+    SetPhotonStartDirection(1:3) = SetPhotonStartDirection(1:3) + RadObservationPoint%MidPoint(1:3)
+    SetPhotonStartDirection(1:3) = SetPhotonStartDirection(1:3) - PhotonProps%PhotonPos(1:3) 
+    SetPhotonStartDirection(1:3) = SetPhotonStartDirection(1:3) / VECNORM(SetPhotonStartDirection(1:3))
+  ELSE
+    SELECT CASE(RadMod)
+    CASE(1)
+      CALL RANDOM_NUMBER(iRan)
+      RandomDirection(1) = 2.*iRan - 1.
+      CALL RANDOM_NUMBER(iRan)
+      RandomDirection(2) = 2.*Pi*iRan - Pi
+      SetPhotonStartDirection(1)  = SIN(RandomDirection(2))*SQRT(1.-RandomDirection(1)**2.)
+      SetPhotonStartDirection(2)  = COS(RandomDirection(2))*SQRT(1.-RandomDirection(1)**2.)
+      SetPhotonStartDirection(3)  = RandomDirection(1)
+    CASE(2)  
+      SpiralStep = 0.1+1.2*REAL(RadTransPhotPerCell(iElem))
+      start = (-1. + 1./(REAL(RadTransPhotPerCell(iElem))-1.))
+      incr = (2.-2./(REAL(RadTransPhotPerCell(iElem))-1.))/(REAL(RadTransPhotPerCell(iElem))-1.)
+      SpiralPos = start + (REAL(iPhot)-1.) *incr
+      X_new = SpiralPos * SpiralStep
+      Y_new = Pi/2.*SIGN(1.,SpiralPos)*(1.-SQRT(1.-ABS(SpiralPos)))
+      SetPhotonStartDirection(1)  = COS(X_new)*COS(Y_new)
+      SetPhotonStartDirection(2)  = SIN(X_new)*COS(Y_new)
+      SetPhotonStartDirection(3)  = SIN(Y_new) 
+      SetPhotonStartDirection(1:3)  = MATMUL(RandRot, SetPhotonStartDirection(1:3))
+    CASE DEFAULT
+      CALL abort(&
+      __STAMP__&
+      ,' ERROR: Radiation-DirectionModel not implemented!. (unknown case)')
+    END SELECT !PartBound%MapToPartBC(BC(SideID)
+  END IF
 
 END FUNCTION SetPhotonStartDirection
 

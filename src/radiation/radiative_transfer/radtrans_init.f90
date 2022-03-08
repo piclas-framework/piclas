@@ -45,11 +45,16 @@ IMPLICIT NONE
 CALL prms%SetSection("Radiation Transport")
 
 CALL prms%CreateLogicalOption('Radiation-AdaptivePhotonNumEmission', 'HM','.FALSE.')
+CALL prms%CreateLogicalOption('Radiation-CalcRadObservationPoint', 'HM','.FALSE.')
 CALL prms%CreateIntOption(    'Radiation-DirectionModel', 'HM','1')
 CALL prms%CreateIntOption(    'Radiation-NumPhotonsPerCell', 'HM','1')
 CALL prms%CreateIntOption(    'Radiation-AbsorptionModel', 'HM','1')
 CALL prms%CreateIntOption(    'Radiation-PhotonPosModel', 'HM','1')
 CALL prms%CreateIntOption(    'Radiation-PhotonWaveLengthModel', 'HM','1')
+CALL prms%CreateRealArrayOption('Radiation-ObservationMidPoint', 'HM')
+CALL prms%CreateRealOption('Radiation-ObservationDiameter', 'HM')
+CALL prms%CreateRealArrayOption('Radiation-ObservationViewDirection', 'HM')
+CALL prms%CreateRealOption('Radiation-ObservationAngularAperture', 'HM')
 
 END SUBROUTINE DefineParametersRadiationTrans
 
@@ -68,8 +73,7 @@ USE MOD_Globals_Vars,           ONLY : BoltzmannConst, PlanckConst
 USE MOD_Particle_Boundary_Sampling, ONLY : InitParticleBoundarySampling
 USE MOD_Particle_Boundary_Vars, ONLY : nComputeNodeSurfTotalSides!, SurfMesh
 USE MOD_Radiation_Vars,         ONLY : RadiationParameter, Radiation_Emission_spec, Radiation_Absorption_spec, RadiationSwitches
-USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_Spec_Shared, Radiation_Absorption_Spec_Shared_Win
-USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radiation_Emission_Spec_Shared
+USE MOD_RadiationTrans_Vars,    ONLY : RadObservation_Emission
 USE MOD_Radiation,              ONLY : radiation_main
 USE MOD_DSMC_Vars,              ONLY: RadialWeighting
 USE MOD_Output,                 ONLY: PrintStatusLineRadiation
@@ -78,6 +82,12 @@ USE MOD_Particle_Vars,          ONLY : Symmetry
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Build,    ONLY: BuildMesh2DInfo
+USE MOD_SuperB_Tools,           ONLY: FindLinIndependentVectors, GramSchmidtAlgo
+#if USE_MPI
+USE MOD_RadiationTrans_Vars,    ONLY : RadTransObsVolumeFrac_Shared_Win, RadTransObsVolumeFrac_Shared
+USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_Spec_Shared, Radiation_Absorption_Spec_Shared_Win
+USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radiation_Emission_Spec_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -87,7 +97,8 @@ USE MOD_Particle_Mesh_Build,    ONLY: BuildMesh2DInfo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iWave, iElem, firstElem, lastElem, ElemDisp
-REAL                  :: LocTemp
+REAL                  :: LocTemp, ObsLengt
+LOGICAL               :: ElemInCone
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RADIATION TRANSPORT SOLVER ...'
@@ -95,14 +106,36 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT RADIATION TRANSPORT SOLVER ...'
 ALLOCATE(RadiationElemAbsEnergy(1:nGlobalElems))
 RadiationElemAbsEnergy=0.0
 
-RadiationDirectionModel = GETINT('Radiation-DirectionModel','1')
-RadTrans%NumPhotonsPerCell = GETINT('Radiation-NumPhotonsPerCell','1')
-RadiationAbsorptionModel = GETINT('Radiation-AbsorptionModel','1')
-RadiationPhotonPosModel = GETINT('Radiation-PhotonPosModel','1')
+RadiationDirectionModel = GETINT('Radiation-DirectionModel')
+RadTrans%NumPhotonsPerCell = GETINT('Radiation-NumPhotonsPerCell')
+RadiationAbsorptionModel = GETINT('Radiation-AbsorptionModel')
+RadiationPhotonPosModel = GETINT('Radiation-PhotonPosModel')
 RadiationPhotonWaveLengthModel = GETINT('Radiation-PhotonWaveLengthModel')
-RadEmiAdaptPhotonNum = GETLOGICAL('Radiation-AdaptivePhotonNumEmission','.FALSE.')
+RadEmiAdaptPhotonNum = GETLOGICAL('Radiation-AdaptivePhotonNumEmission')
+CalcRadObservationPoint = GETLOGICAL('Radiation-CalcRadObservationPoint')
+
+IF (CalcRadObservationPoint) THEN
+  RadObservationPoint%AngularAperture = GETREAL('Radiation-ObservationAngularAperture')
+  RadObservationPoint%Diameter = GETREAL('Radiation-ObservationDiameter')
+  RadObservationPoint%MidPoint = GETREALARRAY('Radiation-ObservationMidPoint',3)
+  RadObservationPoint%ViewDirection = GETREALARRAY('Radiation-ObservationViewDirection',3)
+  IF(.NOT.ALL(RadObservationPoint%ViewDirection(:).EQ.0.)) THEN
+    RadObservationPoint%ViewDirection = RadObservationPoint%ViewDirection / VECNORM(RadObservationPoint%ViewDirection)
+  END IF
+  RadObservationPoint%OrthoNormBasis(1:3,1) = RadObservationPoint%ViewDirection(1:3)
+  CALL FindLinIndependentVectors(RadObservationPoint%OrthoNormBasis(1:3,1), RadObservationPoint%OrthoNormBasis(1:3,2), RadObservationPoint%OrthoNormBasis(1:3,3))
+  CALL GramSchmidtAlgo(RadObservationPoint%OrthoNormBasis(1:3,1), RadObservationPoint%OrthoNormBasis(1:3,2), RadObservationPoint%OrthoNormBasis(1:3,3))
+  ObsLengt = RadObservationPoint%Diameter/(2.*TAN(RadObservationPoint%AngularAperture/2.))
+  RadObservationPoint%StartPoint(1:3) = RadObservationPoint%MidPoint(1:3) - ObsLengt*RadObservationPoint%ViewDirection(1:3)
+  RadObservationPoint%Area = Pi*RadObservationPoint%Diameter*RadObservationPoint%Diameter/4.
+END IF
 
 IF(Symmetry%Order.EQ.2) CALL BuildMesh2DInfo()
+IF (CalcRadObservationPoint) THEN
+  ALLOCATE(RadObservation_Emission(RadiationParameter%WaveLenDiscrCoarse),RadObservation_EmissionPart(RadiationParameter%WaveLenDiscrCoarse))
+  RadObservation_Emission = 0.0
+  RadObservation_EmissionPart = 0
+END IF
 
 #if USE_MPI
   ! allocate shared array for Radiation_Emission/Absorption_Spec
@@ -117,13 +150,19 @@ CALL MPI_WIN_LOCK_ALL(0,RadTransPhotPerCell_Shared_Win,IERROR)
 CALL Allocate_Shared((/nComputeNodeElems/), Radiation_Emission_Spec_Total_Shared_Win,Radiation_Emission_Spec_Total_Shared)
 CALL MPI_WIN_LOCK_ALL(0,Radiation_Emission_Spec_Total_Shared_Win,IERROR)
 
+CALL Allocate_Shared((/nComputeNodeElems/), RadTransObsVolumeFrac_Shared_Win,RadTransObsVolumeFrac_Shared)
+CALL MPI_WIN_LOCK_ALL(0,RadTransObsVolumeFrac_Shared_Win,IERROR)
+
 RadTransPhotPerCell => RadTransPhotPerCell_Shared
 Radiation_Emission_Spec_Total => Radiation_Emission_Spec_Total_Shared
+RadTransObsVolumeFrac => RadTransObsVolumeFrac_Shared
 IF (myComputeNodeRank.EQ.0) THEN
   RadTransPhotPerCell         = 0
   Radiation_Emission_Spec_Total = 0.0
+  RadTransObsVolumeFrac     = 1.
 END IF
 CALL BARRIER_AND_SYNC(RadTransPhotPerCell_Shared_Win ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(RadTransObsVolumeFrac_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(Radiation_Emission_Spec_Total_Shared_Win ,MPI_COMM_SHARED)
 
 IF (RadiationPhotonWaveLengthModel.EQ.1) THEN
@@ -140,9 +179,10 @@ ALLOCATE(RadTransPhotPerCellLoc(nComputeNodeElems))
 RadTransPhotPerCellLoc = 0
 #else
 ! allocate local array for ElemInfo
-ALLOCATE(RadTransPhotPerCell(nElems),Radiation_Emission_Spec_Total(nElems),RadTransPhotPerCellLoc(nELems))
+ALLOCATE(RadTransPhotPerCell(nElems),Radiation_Emission_Spec_Total(nElems),RadTransPhotPerCellLoc(nELems), RadTransObsVolumeFrac(nElems))
 RadTransPhotPerCell = 0
 RadTransPhotPerCellLoc = 0
+RadTransObsVolumeFrac = 1.0
 Radiation_Emission_Spec_Total=0.0
 IF (RadiationPhotonWaveLengthModel.EQ.1) THEN
   ALLOCATE(Radiation_Emission_Spec_Max(nElems))
@@ -164,6 +204,10 @@ CASE(1) !calls radition solver module
   ElemDisp = INT((lastElem-firstElem+1)/20)
   DO iElem = firstElem, lastElem
     IF(MPIroot.AND.(MOD(iElem,ElemDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(iElem),REAL(firstElem),REAL(lastElem),.FALSE.)
+    IF (CalcRadObservationPoint) THEN
+      CALL ElemInObsCone(iElem, ElemInCone)
+      IF (.NOT.ElemInCone) CYCLE
+    END IF
     CALL radiation_main(iElem)
     DO iWave = 1, RadiationParameter%WaveLenDiscrCoarse
       Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &
@@ -219,6 +263,7 @@ END SELECT
 
 
 #if USE_MPI
+  CALL BARRIER_AND_SYNC(RadTransObsVolumeFrac_Shared_Win ,MPI_COMM_SHARED)
   IF (RadiationPhotonWaveLengthModel.EQ.1) THEN
     CALL BARRIER_AND_SYNC(Radiation_Emission_Spec_Max_Shared_Win,MPI_COMM_SHARED)
   END IF
@@ -243,10 +288,10 @@ END SELECT
   RadTrans%GlobalRadiationPower = 0.0
   RadTrans%ScaledGlobalRadiationPower = 0.0
   DO iElem = firstElem, lastElem
-    RadTrans%GlobalRadiationPower = RadTrans%GlobalRadiationPower + Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)
+    RadTrans%GlobalRadiationPower = RadTrans%GlobalRadiationPower + Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem)
     IF (RadialWeighting%DoRadialWeighting) THEN
       RadTrans%ScaledGlobalRadiationPower = RadTrans%ScaledGlobalRadiationPower  &
-        + Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem) &
+        + Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem) &
         /(1. + ElemMidPoint_Shared(2,iElem)/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))
     END IF
   END DO
@@ -313,6 +358,70 @@ REAL                          :: primeinv(dims)
 
   RETURN
 END SUBROUTINE HALTON
+
+SUBROUTINE ElemInObsCone(ElemID, ElemInCone)
+!===================================================================================================================================
+! modified particle emmission for LD case
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemInfo_Shared, BoundsOfElem_Shared
+USE MOD_RadiationTrans_Vars       ,ONLY: RadObservationPoint, RadTransObsVolumeFrac
+USE MOD_Particle_Vars             ,ONLY: Symmetry
+USE MOD_Particle_Mesh_Tools       ,ONLY: ParticleInsideQuad3D
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INOUTPUT VARIABLES
+INTEGER, INTENT(IN)             :: ElemID
+LOGICAL, INTENT(OUT)            :: ElemInCone
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iNode, MCVar, iGlobalElem, iPoint
+LOGICAL                       :: NodeInCone(8), InsideFlag
+REAL                          :: NodePoint(3), ConeDist, ConeRadius, orthoDist, RandomPos(3)
+!===================================================================================================================================
+ElemInCone = .FALSE.
+NodeInCone = .FALSE.
+MCVar = 1000000
+DO iNode = 1, 8
+  NodePoint(1:3) = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+iNode)
+  ConeDist = DOT_PRODUCT(NodePoint(1:3) - RadObservationPoint%StartPoint(1:3), RadObservationPoint%ViewDirection(1:3))
+  ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
+  orthoDist = VECNORM(NodePoint(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
+  IF (orthoDist.LE.ConeRadius) THEN
+    NodeInCone(iNode) = .TRUE.    
+  END IF
+END DO
+
+IF (ALL(NodeInCone)) THEN
+  ElemInCone = .TRUE.  
+ELSE IF (ANY(NodeInCone)) THEN
+  iGlobalElem = GetGlobalElemID(ElemID)
+  RadTransObsVolumeFrac(ElemID) = 0.0
+  ElemInCone = .TRUE. 
+  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iGlobalElem) )    
+    DO iPoint = 1, MCVar
+      InsideFlag=.FALSE.
+      DO WHILE(.NOT.InsideFlag)
+        CALL RANDOM_NUMBER(RandomPos)
+        RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
+        IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
+        IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
+        CALL ParticleInsideQuad3D(RandomPos,iGlobalElem,InsideFlag)
+      END DO
+      ConeDist = DOT_PRODUCT(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3), RadObservationPoint%ViewDirection(1:3))
+      ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
+      orthoDist = VECNORM(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
+      IF (orthoDist.LE.ConeRadius)  RadTransObsVolumeFrac(ElemID) = RadTransObsVolumeFrac(ElemID) + 1./REAL(MCVar)
+    END DO    
+  END ASSOCIATE
+END IF
+
+END SUBROUTINE ElemInObsCone
 
 INTEGER FUNCTION PRIME(n)
 !===================================================================================================================================

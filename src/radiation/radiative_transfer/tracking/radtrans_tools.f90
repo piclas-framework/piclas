@@ -26,7 +26,7 @@ INTERFACE PhotonThroughSideCheck3DFast
 END INTERFACE
 
 PUBLIC :: PhotonThroughSideCheck3DFast, PhotonIntersectionWithSide, CalcAbsoprtion, PerfectPhotonReflection, DiffusePhotonReflection
-PUBLIC :: CalcWallAbsoprtion
+PUBLIC :: CalcWallAbsoprtion, PointInObsCone
 PUBLIC :: PhotonIntersectionWithSide2D, RotatePhotonIn2DPlane, PerfectPhotonReflection2D,DiffusePhotonReflection2D
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -468,11 +468,11 @@ SUBROUTINE CalcAbsoprtionAnalytic(IntersectionPos,Element, DONE)
   END IF
   PhotonProps%PhotonEnergy = PhotonProps%PhotonEnergy - LostEnergy
   RadiationElemAbsEnergy(Element) = RadiationElemAbsEnergy(Element) + LostEnergy
-  IF (PhotonProps%PhotonEnergy.LE.(RadTrans%GlobalRadiationPower/(1000.*RadTrans%GlobalPhotonNum))) THEN
-    DONE = .TRUE. 
-  ELSE 
+!  IF (PhotonProps%PhotonEnergy.LE.(RadTrans%GlobalRadiationPower/(1000.*RadTrans%GlobalPhotonNum))) THEN
+!    DONE = .TRUE. 
+!  ELSE 
     PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
-  END IF
+!  END IF
 
 END SUBROUTINE CalcAbsoprtionAnalytic
 
@@ -829,5 +829,31 @@ SUBROUTINE CalcWallAbsoprtion(GlobSideID, DONE)
   END IF
 
 END SUBROUTINE CalcWallAbsoprtion
+
+LOGICAL FUNCTION PointInObsCone(Point)
+!===================================================================================================================================
+! modified particle emmission for LD case
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
+  USE MOD_RadiationTrans_Vars,    ONLY: RadObservationPoint
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INOUTPUT VARIABLES
+REAL, INTENT(IN)             :: Point(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: ConeDist, ConeRadius, orthoDist
+!===================================================================================================================================
+PointInObsCone = .FALSE.
+ConeDist = DOT_PRODUCT(Point(1:3) - RadObservationPoint%StartPoint(1:3), RadObservationPoint%ViewDirection(1:3))
+ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
+orthoDist = VECNORM(Point(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
+IF (orthoDist.LE.ConeRadius) PointInObsCone = .TRUE.
+
+END FUNCTION PointInObsCone
 
 END MODULE MOD_Photon_TrackingTools

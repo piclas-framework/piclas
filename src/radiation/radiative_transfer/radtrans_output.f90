@@ -46,8 +46,8 @@ SUBROUTINE WriteRadiationToHDF5()
   USE MOD_io_HDF5
   USE MOD_HDF5_output         ,ONLY: WriteArrayToHDF5,WriteAttributeToHDF5,WriteHDF5Header
   USE MOD_Mesh_Vars           ,ONLY: offsetElem,nGlobalElems, MeshFile
-  USE MOD_RadiationTrans_Vars ,ONLY: RadiationElemAbsEnergy_Shared
-  USE MOD_RadiationTrans_Vars ,ONLY: Radiation_Emission_Spec_Total, RadTransPhotPerCell
+  USE MOD_RadiationTrans_Vars ,ONLY: RadiationElemAbsEnergy_Shared, CalcRadObservationPoint, RadObservation_Emission, RadObservationPoint
+  USE MOD_RadiationTrans_Vars ,ONLY: Radiation_Emission_Spec_Total, RadTransPhotPerCell, RadObservation_EmissionPart
   USE MOD_Globals_Vars        ,ONLY: ProjectName
   USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
   USE MOD_Radiation_Vars      ,ONLY: RadiationSwitches, Radiation_ElemEnergy_Species, RadiationParameter, Radiation_Absorption_Spec
@@ -176,6 +176,27 @@ SUBROUTINE WriteRadiationToHDF5()
   SWRITE(*,*) 'DONE'
   
   CALL WriteSurfSampleToHDF5()
+  
+  IF (CalcRadObservationPoint) THEN    
+    IF (myRank.EQ.0) THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE,RadObservation_Emission,RadiationParameter%WaveLenDiscrCoarse,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    ELSE
+      CALL MPI_REDUCE(RadObservation_Emission,0                   ,RadiationParameter%WaveLenDiscrCoarse,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    ENDIF
+    IF (myRank.EQ.0) THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE,RadObservation_EmissionPart,RadiationParameter%WaveLenDiscrCoarse,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    ELSE
+      CALL MPI_REDUCE(RadObservation_EmissionPart,0                   ,RadiationParameter%WaveLenDiscrCoarse,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
+    ENDIF
+    IF (myRank.EQ.0) THEN
+      OPEN(unit=20,file='Radiation_ObservationPoint.csv', status='replace',action='write')
+      WRITE(20,*) 'x,y1,y2'
+      DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+        WRITE(20,*) RadiationParameter%MinWaveLen + (iWave-1) * RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave)
+      END DO
+      CLOSE(unit=20)
+    END IF
+  END IF
 
 END SUBROUTINE WriteRadiationToHDF5
 

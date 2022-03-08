@@ -51,9 +51,9 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars,      ONLY:PartBound
-USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps
+USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps,RadObservation_Emission, CalcRadObservationPoint, RadObservation_EmissionPart
 USE MOD_Photon_TrackingTools,        ONLY:PhotonThroughSideCheck3DFast, PhotonIntersectionWithSide,CalcAbsoprtion
-USE MOD_Photon_TrackingTools,        ONLY:PerfectPhotonReflection, DiffusePhotonReflection, CalcWallAbsoprtion
+USE MOD_Photon_TrackingTools,        ONLY:PerfectPhotonReflection, DiffusePhotonReflection, CalcWallAbsoprtion, PointInObsCone
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -224,6 +224,12 @@ DO WHILE (.NOT.Done)
     CASE(1) !PartBound%OpenBC)
       IF (NrOfThroughSides.LT.2) CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos)
       CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
+      IF (CalcRadObservationPoint) THEN
+        IF (PointInObsCone(IntersectionPos(1:3))) THEN
+          RadObservation_Emission(PhotonProps%WaveLength) = RadObservation_Emission(PhotonProps%WaveLength) + PhotonProps%PhotonEnergy
+          RadObservation_EmissionPart(PhotonProps%WaveLength) = RadObservation_EmissionPart(PhotonProps%WaveLength) + 1
+        END IF
+      END IF
       DONE = .TRUE.
     CASE(2)
       IF (PartBound%PhotonSpecularReflection(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
@@ -309,8 +315,8 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars,      ONLY:PartBound
-USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps
-USE MOD_Photon_TrackingTools,        ONLY:CalcAbsoprtion, CalcWallAbsoprtion, DiffusePhotonReflection2D
+USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps, RadObservation_Emission, CalcRadObservationPoint,RadObservation_EmissionPart
+USE MOD_Photon_TrackingTools,        ONLY:CalcAbsoprtion, CalcWallAbsoprtion, DiffusePhotonReflection2D, PointInObsCone
 USE MOD_Photon_TrackingTools,        ONLY:PhotonIntersectionWithSide2D, RotatePhotonIn2DPlane, PerfectPhotonReflection2D
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -426,6 +432,12 @@ DO WHILE (.NOT.Done)
     CASE(1) !PartBound%OpenBC)
       CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
       DONE = .TRUE.
+      IF (CalcRadObservationPoint) THEN
+        IF (PointInObsCone(IntersectionPos(1:3))) THEN
+          RadObservation_Emission(PhotonProps%WaveLength) = RadObservation_Emission(PhotonProps%WaveLength) + PhotonProps%PhotonEnergy
+          RadObservation_EmissionPart(PhotonProps%WaveLength) = RadObservation_EmissionPart(PhotonProps%WaveLength) + 1
+        END IF
+      END IF
       CYCLE
     CASE(2)
       IF (PartBound%PhotonSpecularReflection(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
@@ -461,7 +473,6 @@ DO WHILE (.NOT.Done)
      ,'ERROR: Element not defined! Please increase the size of the halo region (HaloEpsVelo)!')
   END IF
 END DO  ! .NOT.PartisDone
-
 END SUBROUTINE Photon2DSymTracking
 
 END MODULE MOD_Photon_Tracking

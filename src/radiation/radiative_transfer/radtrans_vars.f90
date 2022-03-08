@@ -25,6 +25,22 @@ SAVE
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                                  :: useParticleRadiationSolver
+LOGICAL                                  :: CalcRadObservationPoint
+
+TYPE tRadObservationPoint
+  REAL                                   :: StartPoint(3)
+  REAL                                   :: Area
+  REAL                                   :: AngularAperture
+  REAL                                   :: ViewDirection(3)
+  REAL                                   :: MidPoint(3)
+  REAL                                   :: Diameter
+  REAL                                   :: OrthoNormBasis(3,3)
+END TYPE
+
+TYPE(tRadObservationPoint)               :: RadObservationPoint
+REAL,ALLOCATABLE                         :: RadObservation_Emission(:)  
+INTEGER,ALLOCATABLE                      :: RadObservation_EmissionPart(:)  
+
 TYPE tRadTrans
   INTEGER                                :: NumPhotonsPerCell
   REAL                                   :: GlobalRadiationPower
@@ -57,10 +73,13 @@ REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Total(:)
 REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Max(:)
 INTEGER,ALLOCPOINT              :: RadTransPhotPerCell(:)     ! (WaveLen(:), number of mesh elements)
 INTEGER, ALLOCATABLE            :: RadTransPhotPerCellLoc(:)
+REAL, ALLOCPOINT                :: RadTransObsVolumeFrac(:)
 REAL, ALLOCATABLE               :: PhotonSampWall(:,:)
 #if USE_MPI
 INTEGER                         :: RadTransPhotPerCell_Shared_Win
 INTEGER,ALLOCPOINT              :: RadTransPhotPerCell_Shared(:)
+INTEGER                         :: RadTransObsVolumeFrac_Shared_Win
+REAL,ALLOCPOINT                 :: RadTransObsVolumeFrac_Shared(:)
 INTEGER                         :: Radiation_Emission_Spec_Total_Shared_Win
 REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Total_Shared(:)
 INTEGER                         :: Radiation_Emission_Spec_Max_Shared_Win
