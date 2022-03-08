@@ -73,7 +73,7 @@ PPURE REAL FUNCTION CalcEkinPart(iPart)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Globals_Vars  ,ONLY: c2, c2_inv
+USE MOD_Globals_Vars  ,ONLY: c2, c2_inv, RelativisticLimit
 USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species
 USE MOD_PARTICLE_Vars ,ONLY: usevMPF
 USE MOD_Particle_Vars ,ONLY: PartLorentzType
@@ -104,7 +104,7 @@ IF (PartLorentzType.EQ.5)THEN
   CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
 ELSE
   partV2 = DOTPRODUCT(PartState(4:6,iPart))
-  IF (partV2.LT.1E12)THEN
+  IF (partV2.LT.RelativisticLimit)THEN ! |v| < 1000000 when speed of light is 299792458
     CalcEkinPart= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * WeightingFactor
   ELSE
     gamma1=partV2*c2_inv
@@ -127,7 +127,7 @@ PPURE REAL FUNCTION CalcEkinPart2(velocity,Species_IN,WeightingFactor)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Globals_Vars  ,ONLY: c2,c2_inv
+USE MOD_Globals_Vars  ,ONLY: c2,c2_inv,RelativisticLimit
 USE MOD_Particle_Vars ,ONLY: Species
 USE MOD_Particle_Vars ,ONLY: PartLorentzType
 ! IMPLICIT VARIABLE HANDLING
@@ -151,7 +151,7 @@ IF (PartLorentzType.EQ.5)THEN
   gamma1=SQRT(1.0+partV2*c2_inv)
   CalcEkinPart2=(gamma1-1.0)*Species(Species_IN)%MassIC*c2 * WeightingFactor
 ELSE
-  IF (partV2.LT.1E12)THEN
+  IF (partV2.LT.RelativisticLimit)THEN ! |v| < 1000000 when speed of light is 299792458
     CalcEkinPart2= 0.5 * Species(Species_IN)%MassIC * partV2 * WeightingFactor
   ELSE
     gamma1=partV2*c2_inv
@@ -882,7 +882,7 @@ PPURE SUBROUTINE CalcKineticEnergy(Ekin)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Globals_Vars          ,ONLY: c2, c2_inv
+USE MOD_Globals_Vars          ,ONLY: c2, c2_inv, RelativisticLimit
 USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
@@ -918,7 +918,7 @@ IF (nSpecAnalyze.GT.1) THEN
       ENDIF
 #endif /*USE_HDG*/
       partV2 = DOTPRODUCT(PartState(4:6,i))
-      IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
+      IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           ! %MacroParticleFactor is included in the case of vMPF (also in combination with variable time step)
@@ -929,7 +929,7 @@ IF (nSpecAnalyze.GT.1) THEN
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF != usevMPF
-      ELSE ! partV2 > 1E12
+      ELSE ! partV2 > RelativisticLimit
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
@@ -958,14 +958,14 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
       ENDIF
 #endif /*USE_HDG*/
       partV2 = DOTPRODUCT(PartState(4:6,i))
-      IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
+      IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF ! usevMPF
-      ELSE ! partV2 > 1E12
+      ELSE ! partV2 > RelativisticLimit
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
@@ -974,7 +974,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF ! useuvMPF
-      END IF ! par2
+      END IF ! partV2 .LT. RelativisticLimit
     END IF ! particle inside
   END DO ! particleveclength
 END IF
@@ -990,7 +990,7 @@ PPURE SUBROUTINE CalcKineticEnergyAndMaximum(Ekin,EkinMax)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Globals_Vars          ,ONLY: c2, c2_inv
+USE MOD_Globals_Vars          ,ONLY: c2, c2_inv, RelativisticLimit
 USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpecies
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze,LaserInteractionEkinMaxRadius,LaserInteractionEkinMaxZPosMin
@@ -1030,7 +1030,7 @@ IF (nSpecAnalyze.GT.1) THEN
       ENDIF
 #endif /*USE_HDG*/
       partV2 = DOTPRODUCT(PartState(4:6,i))
-      IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
+      IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           ! %MacroParticleFactor is included in the case of RadialWeighting (also in combination with variable time step)
@@ -1041,7 +1041,7 @@ IF (nSpecAnalyze.GT.1) THEN
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF != usevMPF
-      ELSE ! partV2 > 1E12
+      ELSE ! partV2 > RelativisticLimit
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
@@ -1073,14 +1073,14 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
       ENDIF
 #endif /*USE_HDG*/
       partV2 = DOTPRODUCT(PartState(4:6,i))
-      IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
+      IF ( partV2 .LT. RelativisticLimit) THEN ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF ! usevMPF
-      ELSE ! partV2 > 1E12
+      ELSE ! partV2 > RelativisticLimit
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
@@ -2446,7 +2446,7 @@ SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc
 USE MOD_Globals                ,ONLY: PARTISELECTRON,VECNORM,DOTPRODUCT
-USE MOD_Globals_Vars           ,ONLY: c2_inv
+USE MOD_Globals_Vars           ,ONLY: c2_inv,RelativisticLimit
 USE MOD_Particle_Vars          ,ONLY: PartState
 USE MOD_Particle_Analyze_Vars  ,ONLY: CyclotronFrequencyMaxCell,CyclotronFrequencyMinCell,GyroradiusMinCell,GyroradiusMaxCell
 USE MOD_Globals_Vars           ,ONLY: ElementaryCharge,ElectronMass
@@ -2486,7 +2486,7 @@ ASSOCIATE( e   => ElementaryCharge,&
       partV2 = PartV*PartV
       iGlobElem  = PEM%GlobalElemID(iPart)
       iElem  = PEM%LocalElemID(iPart)
-      IF (partV2.LT.1E12)THEN
+      IF (partV2.LT.RelativisticLimit)THEN ! |v| < 1000000 when speed of light is 299792458
         field(1:6)   = GetExternalFieldAtParticle(PartState(1:3,iPart)) + GetInterpolatedFieldPartPos(iGlobElem,iPart)
         B            = VECNORM(field(4:6))
         omega_c      = e*B/m_e
@@ -2505,7 +2505,7 @@ ASSOCIATE( e   => ElementaryCharge,&
           SetFrequency = .TRUE.
           IF(omega_c.GT.0.) SetRadius = .TRUE.
         END IF ! gamma1.GE.1.0
-      END IF ! partV2.LT.1E12
+      END IF ! partV2.LT.RelativisticLimit
 
       ! Check if values were calculated for this particle
       IF(SetFrequency)THEN

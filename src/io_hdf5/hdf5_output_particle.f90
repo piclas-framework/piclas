@@ -618,46 +618,46 @@ ASSOCIATE (&
   IF(nGlobalNbrOfParticles.EQ.0_IK)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
     IF(MPIRoot)THEN ! only root writes the container
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-      CALL WriteArrayToHDF5(DataSetName='PartData'    , rank=2              , &
-                            nValGlobal=(/PartDataSize , nGlobalNbrOfParticles /)       , &
-                            nVal=      (/PartDataSize , locnPart   /)       , &
-                            offset=    (/0_IK         , offsetnPart/)       , &
-                            collective=.FALSE.        , RealArray=PartData)
+      CALL WriteArrayToHDF5(DataSetName = 'PartData'     , rank = 2                 , &
+                            nValGlobal  = (/PartDataSize , nGlobalNbrOfParticles /) , &
+                            nVal        = (/PartDataSize , locnPart   /)            , &
+                            offset      = (/0_IK         , offsetnPart/)            , &
+                            collective  = .FALSE.        , RealArray = PartData)
       CALL CloseDataFile()
     END IF !MPIRoot
   END IF !nGlobalNbrOfParticles.EQ.0_IK
 #if USE_MPI
-  CALL DistributedWriteArray(FileName                      , &
-                             DataSetName  = 'PartData'     , rank= 2        , &
-                             nValGlobal   = (/PartDataSize , nGlobalNbrOfParticles /)  , &
-                             nVal         = (/PartDataSize , locnPart   /)  , &
-                             offset       = (/0_IK         , offsetnPart/)  , &
-                             collective   = .FALSE.        , offSetDim= 2   , &
-                             communicator = PartMPI%COMM   , RealArray= PartData)
+  CALL DistributedWriteArray(FileName                                                  , &
+                             DataSetName  = 'PartData'      , rank= 2                  , &
+                             nValGlobal   = (/PartDataSize  , nGlobalNbrOfParticles /) , &
+                             nVal         = (/PartDataSize  , locnPart   /)            , &
+                             offset       = (/0_IK          , offsetnPart/)            , &
+                             collective   = UseCollectiveIO , offSetDim= 2             , &
+                             communicator = PartMPI%COMM    , RealArray= PartData)
   ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
-    CALL DistributedWriteArray(FileName , &
-                              DataSetName = 'PartTimeStep'  , rank=2      , &
-                              nValGlobal  = (/nGlobalElems  , 1_IK/)      , &
-                              nVal        = (/PP_nElems     , 1_IK/)      , &
-                              offset      = (/offsetElem    , 0_IK/)      , &
-                              collective  =.FALSE.          , offSetDim=1 , &
-                              communicator=PartMPI%COMM     , RealArray=VarTimeStep%ElemFac)
+    CALL DistributedWriteArray(FileName                                      , &
+                              DataSetName  = 'PartTimeStep'  , rank = 2      , &
+                              nValGlobal   = (/nGlobalElems  , 1_IK/)        , &
+                              nVal         = (/PP_nElems     , 1_IK/)        , &
+                              offset       = (/offsetElem    , 0_IK/)        , &
+                              collective   = UseCollectiveIO , offSetDim = 1 , &
+                              communicator = PartMPI%COMM    , RealArray = VarTimeStep%ElemFac)
   END IF
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  CALL WriteArrayToHDF5(DataSetName = 'PartData'     , rank = 2       , &
-                        nValGlobal  = (/PartDataSize , nGlobalNbrOfParticles /)  , &
-                        nVal        = (/PartDataSize , locnPart   /)  , &
-                        offset      = (/0_IK         , offsetnPart/)  , &
-                        collective  = .TRUE.         , RealArray = PartData)
+  CALL WriteArrayToHDF5(DataSetName = 'PartData'     , rank = 2                 , &
+                        nValGlobal  = (/PartDataSize , nGlobalNbrOfParticles /) , &
+                        nVal        = (/PartDataSize , locnPart   /)            , &
+                        offset      = (/0_IK         , offsetnPart/)            , &
+                        collective  = .FALSE.        , RealArray = PartData)
     ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
-    CALL WriteArrayToHDF5(DataSetName = 'PartTimeStep'  , rank=2, &
-                          nValGlobal  = (/nGlobalElems  , 1_IK/), &
-                          nVal        = (/PP_nElems     , 1_IK/)   ,&
-                          offset      = (/offsetElem    , 0_IK/)  ,&
-                          collective  = .FALSE.         , RealArray=VarTimeStep%ElemFac)
+    CALL WriteArrayToHDF5(DataSetName = 'PartTimeStep' , rank=2 , &
+                          nValGlobal  = (/nGlobalElems , 1_IK/) , &
+                          nVal        = (/PP_nElems    , 1_IK/) , &
+                          offset      = (/offsetElem   , 0_IK/) , &
+                          collective  = .FALSE.        , RealArray=VarTimeStep%ElemFac)
   END IF
   CALL CloseDataFile()
 #endif /*USE_MPI*/
@@ -702,30 +702,30 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
     IF(nGlobalNbrOfParticles.EQ.0_IK)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
       IF(MPIRoot)THEN ! only root writes the container
         CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-        CALL WriteArrayToHDF5(DataSetName='VibQuantData', rank=2              , &
-                              nValGlobal=(/MaxQuantNum  , nGlobalNbrOfParticles /)       , &
-                              nVal=      (/MaxQuantNum  , locnPart   /)       , &
-                              offset=    (/0_IK         , offsetnPart/)       , &
-                              collective=.FALSE.        , IntegerArray_i4=VibQuantData)
+        CALL WriteArrayToHDF5(DataSetName = 'VibQuantData' , rank = 2                 , &
+                              nValGlobal  = (/MaxQuantNum  , nGlobalNbrOfParticles /) , &
+                              nVal        = (/MaxQuantNum  , locnPart   /)            , &
+                              offset      = (/0_IK         , offsetnPart/)            , &
+                              collective  = .FALSE.        , IntegerArray_i4 = VibQuantData)
         CALL CloseDataFile()
       END IF !MPIRoot
     END IF !nGlobalNbrOfParticles.EQ.0_IK
 #if USE_MPI
-    CALL DistributedWriteArray(FileName , &
-                              DataSetName ='VibQuantData', rank=2           , &
-                              nValGlobal  =(/MaxQuantNum , nGlobalNbrOfParticles  /)   , &
-                              nVal        =(/MaxQuantNum , locnPart    /)   , &
-                              offset      =(/0_IK        , offsetnPart /)   , &
-                              collective  =.FALSE.       , offSetDim=2      , &
-                              communicator=PartMPI%COMM  , IntegerArray_i4=VibQuantData)
+    CALL DistributedWriteArray(FileName                                                 , &
+                              DataSetName  = 'VibQuantData'  , rank = 2                 , &
+                              nValGlobal   = (/MaxQuantNum   , nGlobalNbrOfParticles /) , &
+                              nVal         = (/MaxQuantNum   , locnPart    /)           , &
+                              offset       = (/0_IK          , offsetnPart /)           , &
+                              collective   = UseCollectiveIO , offSetDim = 2            , &
+                              communicator = PartMPI%COMM    , IntegerArray_i4 = VibQuantData)
     DEALLOCATE(VibQuantData)
 #else
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteArrayToHDF5(DataSetName = 'VibQuantData' , rank = 2             , &
-                          nValGlobal  = (/ MaxQuantNum , nGlobalNbrOfParticles   /)      , &
-                          nVal        = (/ MaxQuantNum , locnPart     /)      , &
-                          offset      = (/ 0_IK        , offsetnPart  /)      , &
-                          collective  = .TRUE.         , IntegerArray_i4 = VibQuantData)
+    CALL WriteArrayToHDF5(DataSetName = 'VibQuantData' , rank = 2                 , &
+                          nValGlobal  = (/ MaxQuantNum , nGlobalNbrOfParticles /) , &
+                          nVal        = (/ MaxQuantNum , locnPart     /)          , &
+                          offset      = (/ 0_IK        , offsetnPart  /)          , &
+                          collective  = .FALSE.        , IntegerArray_i4 = VibQuantData)
     DEALLOCATE(VibQuantData)
     CALL CloseDataFile()
 #endif /*USE_MPI*/
@@ -767,30 +767,30 @@ IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
     IF(nGlobalNbrOfParticles.EQ.0_IK)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
       IF(MPIRoot)THEN ! only root writes the container
         CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-        CALL WriteArrayToHDF5(DataSetName='ElecDistriData', rank=2              , &
-                              nValGlobal=(/MaxElecQuant   , nGlobalNbrOfParticles /)       , &
-                              nVal=      (/MaxElecQuant   , locnPart   /)       , &
-                              offset=    (/0_IK           , offsetnPart/)       , &
-                              collective=.FALSE.          , RealArray=ElecDistriData)
+        CALL WriteArrayToHDF5(DataSetName = 'ElecDistriData' , rank = 2                 , &
+                              nValGlobal  = (/MaxElecQuant   , nGlobalNbrOfParticles /) , &
+                              nVal        = (/MaxElecQuant   , locnPart   /)            , &
+                              offset      = (/0_IK           , offsetnPart/)            , &
+                              collective  = .FALSE.          , RealArray = ElecDistriData)
         CALL CloseDataFile()
       END IF !MPIRoot
     END IF !nGlobalNbrOfParticles.EQ.0_IK
 #if USE_MPI
-    CALL DistributedWriteArray(FileName , &
-                              DataSetName ='ElecDistriData', rank=2           , &
-                              nValGlobal  =(/MaxElecQuant  , nGlobalNbrOfParticles  /)   , &
-                              nVal        =(/MaxElecQuant  , locnPart    /)   , &
-                              offset      =(/0_IK          , offsetnPart /)   , &
-                              collective  =.FALSE.         , offSetDim=2      , &
-                              communicator=PartMPI%COMM    , RealArray=ElecDistriData)
+    CALL DistributedWriteArray(FileName                                                  , &
+                              DataSetName  = 'ElecDistriData' , rank = 2                 , &
+                              nValGlobal   = (/MaxElecQuant   , nGlobalNbrOfParticles /) , &
+                              nVal         = (/MaxElecQuant   , locnPart    /)           , &
+                              offset       = (/0_IK           , offsetnPart /)           , &
+                              collective   = UseCollectiveIO  , offSetDim = 2            , &
+                              communicator = PartMPI%COMM     , RealArray = ElecDistriData)
     DEALLOCATE(ElecDistriData)
 #else
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteArrayToHDF5(DataSetName = 'ElecDistriData' , rank = 2             , &
-                          nValGlobal  = (/ MaxElecQuant  , nGlobalNbrOfParticles   /)      , &
-                          nVal        = (/ MaxElecQuant  , locnPart     /)      , &
-                          offset      = (/ 0_IK          , offsetnPart  /)      , &
-                          collective  = .TRUE.           , RealArray = ElecDistriData)
+    CALL WriteArrayToHDF5(DataSetName = 'ElecDistriData' , rank = 2                    , &
+                          nValGlobal  = (/ MaxElecQuant  , nGlobalNbrOfParticles   /)  , &
+                          nVal        = (/ MaxElecQuant  , locnPart     /)             , &
+                          offset      = (/ 0_IK          , offsetnPart  /)             , &
+                          collective  = .FALSE.          , RealArray = ElecDistriData)
     DEALLOCATE(ElecDistriData)
     CALL CloseDataFile()
 #endif /*USE_MPI*/
@@ -829,30 +829,30 @@ IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
     IF(nGlobalNbrOfParticles.EQ.0_IK)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
       IF(MPIRoot)THEN ! only root writes the container
         CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-        CALL WriteArrayToHDF5(DataSetName='ADVeloData' , rank=2              , &
-                              nValGlobal=(/3_IK        , nGlobalNbrOfParticles /)       , &
-                              nVal=      (/3_IK        , locnPart   /)       , &
-                              offset=    (/0_IK        , offsetnPart/)       , &
-                              collective=.FALSE.       , RealArray=AD_Data)
+        CALL WriteArrayToHDF5(DataSetName = 'ADVeloData' , rank = 2                 , &
+                              nValGlobal  = (/3_IK       , nGlobalNbrOfParticles /) , &
+                              nVal        = (/3_IK       , locnPart   /)            , &
+                              offset      = (/0_IK       , offsetnPart/)            , &
+                              collective  = .FALSE.      , RealArray = AD_Data)
         CALL CloseDataFile()
       END IF !MPIRoot
     END IF !nGlobalNbrOfParticles.EQ.0_IK
 #if USE_MPI
-    CALL DistributedWriteArray(FileName , &
-                              DataSetName ='ADVeloData'  , rank=2           , &
-                              nValGlobal  =(/3_IK        , nGlobalNbrOfParticles  /)   , &
-                              nVal        =(/3_IK        , locnPart    /)   , &
-                              offset      =(/0_IK        , offsetnPart /)   , &
-                              collective  =.FALSE.       , offSetDim=2      , &
-                              communicator=PartMPI%COMM  , RealArray=AD_Data)
+    CALL DistributedWriteArray(FileName                                                 , &
+                              DataSetName  = 'ADVeloData'    , rank = 2                 , &
+                              nValGlobal   = (/3_IK          , nGlobalNbrOfParticles /) , &
+                              nVal         = (/3_IK          , locnPart    /)           , &
+                              offset       = (/0_IK          , offsetnPart /)           , &
+                              collective   = UseCollectiveIO , offSetDim = 2            , &
+                              communicator = PartMPI%COMM    , RealArray = AD_Data)
     DEALLOCATE(AD_Data)
 #else
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteArrayToHDF5(DataSetName = 'ADVeloData'   , rank = 2             , &
-                          nValGlobal  = (/ 3_IK        , nGlobalNbrOfParticles   /)      , &
-                          nVal        = (/ 3_IK        , locnPart     /)      , &
-                          offset      = (/ 0_IK        , offsetnPart  /)      , &
-                          collective  = .TRUE.         , RealArray = AD_Data)
+    CALL WriteArrayToHDF5(DataSetName = 'ADVeloData' , rank = 2                   , &
+                          nValGlobal  = (/ 3_IK      , nGlobalNbrOfParticles   /) , &
+                          nVal        = (/ 3_IK      , locnPart     /)            , &
+                          offset      = (/ 0_IK      , offsetnPart  /)            , &
+                          collective  = .FALSE.      , RealArray = AD_Data)
     DEALLOCATE(AD_Data)
     CALL CloseDataFile()
 #endif /*USE_MPI*/
@@ -1044,21 +1044,21 @@ ASSOCIATE (&
   IF(globnPart.EQ.0_IK)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
     IF(MPIRoot)THEN ! only root writes the container
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-      CALL WriteArrayToHDF5(DataSetName='PartData'     , rank=2              , &
-                            nValGlobal=(/ PartDataSize , globnPart   /)      , &
-                            nVal=      (/ PartDataSize , locnPart    /)      , &
-                            offset=    (/ 0_IK         , offsetnPart /)      , &
-                            collective=.FALSE.         , RealArray=PartData)
+      CALL WriteArrayToHDF5(DataSetName = 'PartData'      , rank = 2       , &
+                            nValGlobal  = (/ PartDataSize , globnPart   /) , &
+                            nVal        = (/ PartDataSize , locnPart    /) , &
+                            offset      = (/ 0_IK         , offsetnPart /) , &
+                            collective  = .FALSE.         , RealArray = PartData)
       CALL CloseDataFile()
     END IF !MPIRoot
   END IF !globnPart .EQ.0_IK
 #if USE_MPI
-  CALL DistributedWriteArray(FileName                       , &
+  CALL DistributedWriteArray(FileName                                               , &
                              DataSetName  = 'PartData'      , rank = 2              , &
                              nValGlobal   = (/ PartDataSize , globnPart   /)        , &
                              nVal         = (/ PartDataSize , locnPart    /)        , &
                              offset       = (/ 0_IK         , offsetnPart /)        , &
-                             collective   = .FALSE.         , offSetDim = 2         , &
+                             collective   = UseCollectiveIO , offSetDim = 2         , &
                              communicator = PartMPI%COMM    , RealArray = PartData)
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
@@ -1066,7 +1066,7 @@ ASSOCIATE (&
                         nValGlobal  = (/ PartDataSize , globnPart   /)        , &
                         nVal        = (/ PartDataSize , locnPart    /)        , &
                         offset      = (/ 0_IK         , offsetnPart /)        , &
-                        collective  = .TRUE.          , RealArray = PartData)
+                        collective  = .FALSE.         , RealArray = PartData)
   CALL CloseDataFile()
 #endif /*USE_MPI*/
 
@@ -1238,29 +1238,29 @@ ASSOCIATE (&
   IF(globnPart.EQ.0_IK)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
     IF(MPIRoot)THEN ! only root writes the container
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-      CALL WriteArrayToHDF5(DataSetName='PartData'         , rank=2              , &
-                            nValGlobal=(/ PartLostDataSize , globnPart   /)      , &
-                            nVal=      (/ PartLostDataSize , locnPart    /)      , &
-                            offset=    (/ 0_IK             , offsetnPart /)      , &
-                            collective=.FALSE.             , RealArray=PartData)
+      CALL WriteArrayToHDF5(DataSetName = 'PartData'          , rank = 2       , &
+                            nValGlobal  = (/ PartLostDataSize , globnPart   /) , &
+                            nVal        = (/ PartLostDataSize , locnPart    /) , &
+                            offset      = (/ 0_IK             , offsetnPart /) , &
+                            collective  = .FALSE.             , RealArray = PartData)
       CALL CloseDataFile()
     END IF !MPIRoot
   END IF !globnPart.EQ.0_IK
 #if USE_MPI
-  CALL DistributedWriteArray(FileName                           , &
+  CALL DistributedWriteArray(FileName                                                   , &
                              DataSetName  = 'PartData'          , rank = 2              , &
                              nValGlobal   = (/ PartLostDataSize , globnPart   /)        , &
                              nVal         = (/ PartLostDataSize , locnPart    /)        , &
                              offset       = (/ 0_IK             , offsetnPart /)        , &
-                             collective   = .FALSE.             , offSetDim = 2         , &
+                             collective   = UseCollectiveIO     , offSetDim = 2         , &
                              communicator = PartMPI%COMM        , RealArray = PartData)
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  CALL WriteArrayToHDF5(DataSetName = 'PartData'      , rank = 2              , &
+  CALL WriteArrayToHDF5(DataSetName = 'PartData'          , rank = 2              , &
                         nValGlobal  = (/ PartLostDataSize , globnPart   /)        , &
                         nVal        = (/ PartLostDataSize , locnPart    /)        , &
                         offset      = (/ 0_IK             , offsetnPart /)        , &
-                        collective  = .TRUE.              , RealArray = PartData)
+                        collective  = .FALSE.             , RealArray = PartData)
   CALL CloseDataFile()
 #endif /*USE_MPI*/
 
@@ -1353,11 +1353,11 @@ ASSOCIATE (&
       nVarTotal       => INT(nVarTotal,IK)       ,&
       nSpecies        => INT(nSpecies,IK)        ,&
       offsetElem      => INT(offsetElem,IK)      )
-  CALL WriteArrayToHDF5(DataSetName = H5_Name, rank = 2            , &
-                        nValGlobal  = (/nVarTotal , nGlobalElems/) , &
-                        nVal        = (/nVarTotal , nElems      /) , &
-                        offset      = (/0_IK      , offsetElem  /) , &
-                        collective  = .false., RealArray = AdaptiveData)
+  CALL WriteArrayToHDF5(DataSetName = H5_Name     , rank = 2                  , &
+                        nValGlobal  = (/nVarTotal , nGlobalElems/)            , &
+                        nVal        = (/nVarTotal , nElems      /)            , &
+                        offset      = (/0_IK      , offsetElem  /)            , &
+                        collective  = .FALSE.     , RealArray = AdaptiveData)
 END ASSOCIATE
 CALL CloseDataFile()
 SDEALLOCATE(StrVarNames)
@@ -1429,12 +1429,12 @@ ASSOCIATE (&
                         nValGlobal  = (/nVar  , AdaptBCSampIter  , AdaptBCSampleElemNumGlobal, nSpecies/) , &
                         nVal        = (/nVar  , AdaptBCSampIter  , AdaptBCSampleElemNum      , nSpecies/) , &
                         offset      = (/0_IK  , 0_IK             , offSetElemAdaptBCSample   , 0_IK/) , &
-                        collective  = .false. , RealArray = AdaptBCAverage)
+                        collective  = .FALSE. , RealArray = AdaptBCAverage)
   CALL WriteArrayToHDF5(DataSetName = 'AdaptiveRunningAverageIndex' , rank = 1                   , &
                         nValGlobal  = (/AdaptBCSampleElemNumGlobal/) , &
                         nVal        = (/AdaptBCSampleElemNum      /) , &
                         offset      = (/offSetElemAdaptBCSample  /) , &
-                        collective  = .false. , IntegerArray_i4 = AdaptBCAverageIndex)
+                        collective  = .FALSE. , IntegerArray_i4 = AdaptBCAverageIndex)
 END ASSOCIATE
 CALL CloseDataFile()
 DEALLOCATE(AdaptBCAverageIndex)
@@ -1556,11 +1556,11 @@ IF(CollisMode.GT.1) THEN
           nElems          => INT(nElems,IK)          ,&
           nSpecies        => INT(nSpecies,IK)        ,&
           offsetElem      => INT(offsetElem,IK)      )
-      CALL WriteArrayToHDF5(DataSetName = H5_Name , rank = 2        , &
-                            nValGlobal  = (/nGlobalElems, nSpecies/) , &
-                            nVal        = (/nElems      , nSpecies/) , &
-                            offset      = (/offsetElem  ,0_IK     /) , &
-                            collective  = .false. , RealArray = VarVibRelaxProb%ProbVibAv)
+      CALL WriteArrayToHDF5(DataSetName = H5_Name        , rank = 2    , &
+                            nValGlobal  = (/nGlobalElems , nSpecies /) , &
+                            nVal        = (/nElems       , nSpecies /) , &
+                            offset      = (/offsetElem   , 0_IK     /) , &
+                            collective  = .FALSE.        , RealArray = VarVibRelaxProb%ProbVibAv)
     END ASSOCIATE
     CALL CloseDataFile()
     SDEALLOCATE(StrVarNames)
@@ -1932,11 +1932,11 @@ ASSOCIATE (&
   PP_nElems    => INT(PP_nElems,IK)    ,&
   offsetElem   => INT(offsetElem,IK)   ,&
   nGlobalElems => INT(nGlobalElems,IK) )
-CALL WriteArrayToHDF5(DataSetName='DG_Solution'    , rank=5 , &
-                      nValGlobal=(/outputVars , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-                      nVal      =(/outputVars , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-                      offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-                      collective=.false., RealArray=outputArray)
+CALL WriteArrayToHDF5(DataSetName = 'DG_Solution' , rank = 5                                    , &
+                      nValGlobal  = (/outputVars  , N+1_IK   , N+1_IK , N+1_IK , nGlobalElems/) , &
+                      nVal        = (/outputVars  , N+1_IK   , N+1_IK , N+1_IK , PP_nElems/)    , &
+                      offset      = (/0_IK        , 0_IK     , 0_IK   , 0_IK   , offsetElem/)   , &
+                      collective  = .FALSE.       , RealArray = outputArray)
 END ASSOCIATE
 
 CALL CloseDataFile()
@@ -2011,7 +2011,7 @@ DO iSpec=1,nSpecies
                                nValGlobal  = (/nGlobalEntries/) , &
                                nVal        = (/nEntries      /) , &
                                offset      = (/offsetEntries /) , &
-                               collective  = .false. , IntegerArray = NeutralizationBalanceTmp)
+                               collective  = .FALSE. , IntegerArray = NeutralizationBalanceTmp)
        END ASSOCIATE
        CALL CloseDataFile()
 

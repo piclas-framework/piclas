@@ -332,8 +332,7 @@ FieldAtParticle(1:6) = GetExternalFieldAtParticle(PartState(1:3,PartID))
 !2. Calculate fields at particle
 #if USE_MPI
 IF(PEM%LocalElemID(PartID).GT.PP_nElems)THEN! RETURN
-  CALL abort(&
-  __STAMP__&
+  CALL abort(__STAMP__&
   ,'ERROR: This check used to "RETURN" here but is now set to "ABORT". PEM%LocalElemID(PartID).GT.PP_nElems should not happen here.')
 END IF
 #endif
@@ -342,9 +341,7 @@ CASE('particle_position')
   ! Add the interpolated electro-(magnetic) field
   FieldAtParticle(:) = FieldAtParticle(:) + GetInterpolatedFieldPartPos(PEM%GlobalElemID(PartID),PartID)
 CASE DEFAULT
-  CALL abort(&
-  __STAMP__&
-  , 'ERROR: Unknown InterpolationType!')
+  CALL abort(__STAMP__, 'ERROR: Unknown InterpolationType!')
 END SELECT
 
 END SUBROUTINE InterpolateFieldToSingleParticle
