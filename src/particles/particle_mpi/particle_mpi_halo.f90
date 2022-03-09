@@ -71,6 +71,8 @@ USE MOD_CalcTimeStep            ,ONLY: CalcTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: nRKStages,RK_c
 #endif
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
+USE MOD_HDF5_Output_ElemData    ,ONLY: WriteMyInvisibleRankToHDF5
+USE MOD_Globals_Vars            ,ONLY: ProjectName
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -852,6 +854,10 @@ IF(CheckExchangeProcs)THEN
 
   ! Append previously not found procs to list of exchange processors
   nNonSymmetricExchangeProcs = 0
+  ! Flag elements with processor IDs, which we cannot reach (but they reach us)
+  ALLOCATE(myInvisibleRank(1:nElems))
+  myInvisibleRank=-1
+
   DO iProc = 0,nProcessors_Global-1
     IF (iProc.EQ.myRank) CYCLE
 
@@ -870,24 +876,22 @@ IF(CheckExchangeProcs)THEN
   END DO
 
   ! On smooth grids, nNonSymmetricExchangeProcs should be zero. Only output if previously missing particle exchange procs are found
-  CALL MPI_REDUCE(nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-  ! Only root checks reduced value
-  IF (MPIRoot) THEN
-    ! Check sum of nNonSymmetricExchangeProcs over all processors
-    IF(nNonSymmetricExchangeProcsGlob.GT.0)THEN
-      SWRITE(Unit_StdOut,'(A,I0,A)') ' | Found ',nNonSymmetricExchangeProcsGlob, &
-                                     ' previously missing non-symmetric particle exchange procs'
-      SWRITE(Unit_StdOut,'(A)')"\n See ElemData container 'myInvisibleRank' for more information on which MPI ranks are non-symmetric"
-      IF(CheckExchangeProcs) CALL abort(__STAMP__,&
-        ' Non-symmetric particle exchange procs > 0. This check is optional. You can disable it via CheckExchangeProcs = F')
-      CALL AddToElemData(ElementOut,'myInvisibleRank',LongIntArray=myInvisibleRank)
-    ELSE
-      SDEALLOCATE(myInvisibleRank)
-    END IF ! nNonSymmetricExchangeProcsGlob.GT.0
-  END IF
-ELSE
-  SDEALLOCATE(myInvisibleRank)
+  CALL MPI_ALLREDUCE(nNonSymmetricExchangeProcs, nNonSymmetricExchangeProcsGlob, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, IERROR)
+  ! Check sum of nNonSymmetricExchangeProcs over all processors
+  IF(nNonSymmetricExchangeProcsGlob.GT.0)THEN
+    SWRITE(Unit_StdOut,'(A,I0,A)') ' | Found ',nNonSymmetricExchangeProcsGlob, ' previously missing non-symmetric particle exchange procs'
+    SWRITE(Unit_StdOut,'(A)')"\n See ElemData container 'myInvisibleRank' for more information on which MPI ranks are non-symmetric"
+    SWRITE(Unit_StdOut,'(A)')" | This information is written to "//TRIM(ProjectName)//"_MyInvisibleRank.h5 (only when CheckExchangeProcs=T)"
+    CALL AddToElemData(ElementOut,'myInvisibleRank',LongIntArray=myInvisibleRank)
+    CALL WriteMyInvisibleRankToHDF5()
+    ! Only root aborts
+    IF(MPIRoot.AND.CheckExchangeProcs) CALL abort(__STAMP__,&
+      ' Non-symmetric particle exchange procs > 0. This check is optional. You can disable it via CheckExchangeProcs = F')
+  ELSE
+    SDEALLOCATE(myInvisibleRank)
+  END IF ! nNonSymmetricExchangeProcsGlob.GT.0
 END IF
+
 SDEALLOCATE(GlobalProcToRecvProc)
 SDEALLOCATE(RecvRequest)
 SDEALLOCATE(SendRequest)
