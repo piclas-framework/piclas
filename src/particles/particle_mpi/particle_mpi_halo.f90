@@ -73,6 +73,7 @@ USE MOD_TimeDisc_Vars           ,ONLY: nRKStages,RK_c
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
 USE MOD_HDF5_Output_ElemData    ,ONLY: WriteMyInvisibleRankToHDF5
 USE MOD_Globals_Vars            ,ONLY: ProjectName
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -110,6 +111,8 @@ LOGICAL,ALLOCATABLE            :: CommFlag(:)
 INTEGER                        :: nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob
 INTEGER                        :: nExchangeProcessorsGlobal, nSendShapeElems, CNElemID, exElem, exProc, jProc, ProcID
 REAL,ALLOCATABLE               :: RotBoundsOfElemCenter(:)
+LOGICAL                        :: SideIsRotPeriodic
+INTEGER                        :: BCindex
 !=================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -193,7 +196,15 @@ DO iElem = firstElem,lastElem
 
     ! regular side or small mortar side
     ELSE
-      IF ((NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem).AND.(NbElemID.GT.0)) THEN
+      ! Check if SideID is a rot periodic BC
+      BCindex = SideInfo_Shared(SIDE_BCID,SideID)
+      IF(BCindex.GT.0)THEN
+        SideIsRotPeriodic = PartBound%TargetBoundCond(PartBound%MapToPartBC(BCindex)).EQ.PartBound%RotPeriodicBC
+      ELSE
+        SideIsRotPeriodic = .FALSE.
+      END IF ! BCindex.GT.0
+      ! Only check inner (MPI interfaces) sides and rotperiodic sides (BC sides)
+      IF (((NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem).AND.(NbElemID.GT.0)).OR.SideIsRotPeriodic) THEN
         nExchangeSides = nExchangeSides + 1
       END IF
     END IF
@@ -236,7 +247,15 @@ DO iElem = firstElem,lastElem
 
     ! regular side or small mortar side
     ELSE
-      IF ((NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem).AND.(NbElemID.GT.0)) THEN
+      ! Check if SideID is a rot periodic BC
+      BCindex = SideInfo_Shared(SIDE_BCID,SideID)
+      IF(BCindex.GT.0)THEN
+        SideIsRotPeriodic = PartBound%TargetBoundCond(PartBound%MapToPartBC(BCindex)).EQ.PartBound%RotPeriodicBC
+      ELSE
+        SideIsRotPeriodic = .FALSE.
+      END IF ! BCindex.GT.0
+      ! Only check inner (MPI interfaces) sides and rotperiodic sides (BC sides)
+      IF (((NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem).AND.(NbElemID.GT.0)).OR.SideIsRotPeriodic) THEN
         nExchangeSides = nExchangeSides + 1
         ExchangeSides(nExchangeSides) = SideID
       END IF
@@ -260,8 +279,20 @@ DO iSide = 1, nExchangeSides
                                                   BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
 
   ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
-  ! mortar elem, choose longest distance...
-  IF (ElemID.LT.1) THEN
+
+  ! Mortar elements or normal elements (inkl. rot periodic sides)
+  ! Check if SideID is a rot periodic BC
+  BCindex = SideInfo_Shared(SIDE_BCID,SideID)
+  IF(BCindex.GT.0)THEN
+    SideIsRotPeriodic = PartBound%TargetBoundCond(PartBound%MapToPartBC(BCindex)).EQ.PartBound%RotPeriodicBC
+    ! ElemID for BCSide neighbour is zero. Therefore, change it to the ID of the considered element
+    ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+  ELSE
+    SideIsRotPeriodic = .FALSE.
+  END IF ! BCindex.GT.0
+
+  ! Only mortar (MPI interfaces) sides
+  IF ((ElemID.LT.1).AND.(.NOT.SideIsRotPeriodic)) THEN
     MPISideBoundsOfNbElemCenter(1:4,iSide) = 0.0
     nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
     NbElemBounds(1,:) = HUGE(1.)
@@ -288,12 +319,13 @@ DO iSide = 1, nExchangeSides
                                                     NbElemBounds(2  ,2)-NbElemBounds(1,2), &
                                                     NbElemBounds(2  ,3)-NbElemBounds(1,3) /) / 2.)
   ELSE
-    MPISideBoundsOfNbElemCenter(1:3,iSide) = (/ SUM(  BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                              SUM(  BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                              SUM(  BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-    MPISideBoundsOfNbElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                                    BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                                    BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+    ! Non-mortar (MPI interfaces) sides and rotperiodic sides (BC sides)
+    MPISideBoundsOfNbElemCenter(1:3,iSide) = (/ SUM( BoundsOfElem_Shared(1:2,1,ElemID)), &
+                                                SUM( BoundsOfElem_Shared(1:2,2,ElemID)), &
+                                                SUM( BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+    MPISideBoundsOfNbElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                                      BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                                      BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
   END IF
 
 END DO
@@ -513,7 +545,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
         END SELECT
 
         ! Check rot periodic Elems and if iSide is on rot periodic BC
-        IF(meshHasRotPeriodic) THEN
+        IF(MeshHasRotPeriodic) THEN
           DO iPeriodicDir = 1,2
             ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
               SELECT CASE(GEO%RotPeriodicAxi)
@@ -551,7 +583,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
       END IF
     END DO ! iSide = 1, nExchangeSides
     CYCLE ElemLoop
-  END IF
+  END IF ! HaloProc.EQ.myRank
 
   ! Skip if the proc is already flagged, only if the exact elements are not required (.NOT.shape_function)
   IF(.NOT.StringBeginsWith(DepositionType,'shape_function'))THEN
@@ -863,6 +895,7 @@ IF(CheckExchangeProcs)THEN
 
     ! Ignore procs that are already flagged or not requesting communication
     IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).GT.0) CYCLE
+    ! GlobalProcToRecvProc(iProc) is true if iProc has flagged myrank
     IF (.NOT.GlobalProcToRecvProc(iProc)) CYCLE
 
     ! Found a previously missing proc

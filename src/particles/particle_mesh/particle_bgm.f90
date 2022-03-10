@@ -1390,7 +1390,7 @@ ALLOCATE(ElemHaloID(1:PP_nElems))
 DO iElem = 1,PP_nElems
   ElemHaloID(iElem) = offsetElem+iElem
 END DO
-CALL AddToElemData(ElementOut,'ElemID',IntArray=ElemHaloID)
+CALL AddToElemData(ElementOut,'ElemID_ElemHaloInfo',IntArray=ElemHaloID)
 
 END SUBROUTINE WriteHaloInfo
 
@@ -1619,6 +1619,13 @@ END SUBROUTINE CheckPeriodicSides
 
 !===================================================================================================================================
 !> checks the elements against periodic rotation
+!> In addition to halo flat elements (normal halo region), find rotationally periodic elements (halo flag 3), which can be reached
+!> by rotationally periodic transformation (normally 90 degree rotation that is checked in both directions, i.e., +90 and -90
+!> degrees)
+!>   1. Loop over all global elements (split work on node) and skip all elements that do not have halo flag 0
+!>   2. Loop over all compute-node elements (every processors loops over all of these elements)
+!>   3. Rotate the global element and check the distance of all compute-node elements to this element and flag it with halo flag 3
+!>      if the element can be reached by a particle
 !===================================================================================================================================
 SUBROUTINE CheckRotPeriodicSides(EnlargeBGM)
 ! MODULES                                                                                                                          !
@@ -1652,6 +1659,7 @@ lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProces
 ! The code below changes ElemInfo_Shared, identification of periodic elements must complete before
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
+!   1. Loop over all global elements (split work on node) and skip all elements that do not have halo flag 0
 ! This is a distributed loop. Nonetheless, the load will be unbalanced due to the location of the space-filling curve. Still,
 ! this approach is again preferred compared to the communication overhead.
 DO iElem = firstElem ,lastElem
@@ -1666,7 +1674,8 @@ DO iElem = firstElem ,lastElem
                                       BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem),                     &
                                       BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
-  ! Use a named loop so the entire element can be cycled
+  !   2. Loop over all compute-node elements (every processors loops over all of these elements)
+  ! Loop ALL compute-node elements (use global element index)
   DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
     ! element might be already added back
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).GT.0) EXIT
@@ -1677,6 +1686,8 @@ DO iElem = firstElem ,lastElem
     LocalBoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem),        &
                                              BoundsOfElem_Shared(2  ,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),        &
                                              BoundsOfElem_Shared(2  ,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
+    !   3. Rotate the global element and check the distance of all compute-node elements to
+    !      this element and flag it with halo flag 3 if the element can be reached by a particle
     DO iPeriodicDir = 1,2
       ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
         SELECT CASE(GEO%RotPeriodicAxi)
