@@ -35,6 +35,7 @@ TYPE tRadiationInput               ! DSMC output
   REAL                  :: Starkex                          ! Exponent for Stark broadening
   INTEGER               :: NuclCharge                       ! nuclear charge (0: atom, 1: single-ionized atom, ...)
   CHARACTER(LEN=256)    :: RadiationSpectraFileName
+  LOGICAL               :: DoRadiation                      ! Flag to consider/cycle species
 END TYPE
 
 TYPE(tRadiationInput), ALLOCATABLE :: RadiationInput(:)

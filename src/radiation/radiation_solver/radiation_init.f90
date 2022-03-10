@@ -66,6 +66,8 @@ CALL prms%CreateRealOption(   'Part-Species[$]-Starkex',               'Exponent
 CALL prms%CreateIntOption(    'Part-Species[$]-NuclCharge',            'Nuclear charge:\n'//&
                                                                        '1: neutral atom\n'//&
                                                                        '2: singly ionized atom', '1', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption('Part-Species[$]-DoRadiation',           'Considering species for radiative emission', '.TRUE.', &
+                                                                       numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Radiation-MinWaveLen',                  'Lower wavelength limit for radiation calculation', '100.0')
 CALL prms%CreateRealOption(   'Radiation-MaxWaveLen',                  'Upper wavelength limit for radiation calculation','1000.0')
 CALL prms%CreateIntOption(    'Radiation-WaveLenDiscr',                'Number of discretization points', '10000')
@@ -132,11 +134,12 @@ SpeciesRadiation(:)%nLines = 0
 
 IF (RadiationSwitches%RadType.NE.2) THEN
   DO iSpec = 1, nSpecies
+    IF(SpecDSMC(iSpec)%InterID.EQ.4) CYCLE
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     RadiationInput(iSpec)%Ttrans(4) = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTtrans')
     RadiationInput(iSpec)%Telec = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTelec')
     RadiationInput(iSpec)%NumDens = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationNumDens')
-    IF(SpecDSMC(iSpec)%InterID.EQ.2) THEN
+    IF((SpecDSMC(iSpec)%InterID.EQ.2) .OR. (SpecDSMC(iSpec)%InterID.EQ.20)) THEN
       RadiationInput(iSpec)%Tvib = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTvib')
       RadiationInput(iSpec)%Trot = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationTrot')
     END IF
@@ -144,6 +147,8 @@ IF (RadiationSwitches%RadType.NE.2) THEN
     RadiationInput(iSpec)%IonizationEn = RadiationInput(iSpec)%IonizationEn *PlanckConst*c*100.
     RadiationInput(iSpec)%Mass = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationMass_u')
     RadiationInput(iSpec)%Mass = RadiationInput(iSpec)%Mass*1.660539040E-27
+
+    RadiationInput(iSpec)%DoRadiation = GETLOGICAL('Part-Species'//TRIM(hilf)//'-DoRadiation')
 
     IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10)) THEN !Only for atoms (1) and atomic ions (10)
       CALL Radiation_readin_atoms(iSpec)
@@ -369,7 +374,14 @@ SUBROUTINE MacroscopicRadiationInput()
   END DO
 
   IF(.NOT.RadiationSwitches%UseElectronicExcitation) THEN
-    iSpecElectrons    = 11
+    iSpecElectrons = 0
+    DO iSpec = 1, nSpecies
+      IF (SpecDSMC(iSpec)%InterID .EQ. 4) iSpecElectrons = iSpec
+    END DO
+    IF (iSpecElectrons .EQ. 0) THEN
+      PRINT*,  "unknown species number for electrons while reading flow field data"
+      STOP
+    END IF
     IndexElectronTemp = (iSpecElectrons-1)*DSMC_NVARS+1 + 11 !132 for 11th Species
     DO iSpec = 1, nSpecies
       DO iElem = 1, nElems
@@ -377,17 +389,11 @@ SUBROUTINE MacroscopicRadiationInput()
         IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10) .OR. &
         (SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN
           MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem))
+        ELSE IF(SpecDSMC(iSpec)%InterID .EQ. 4) THEN
+          ! MacroRadInputParameters(CNElemID,iSpec,4) = MacroRadInputParameters(CNElemID,iSpec,4)
         ELSE
-          print*, "excitation temperature cannot be matched, unknown InterID for species", iSpec
+          PRINT*, "excitation temperature cannot be matched, unknown InterID for species", iSpec
         END IF
-!        IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10)) THEN
-!          MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem))
-!        ELSEIF((SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN
-!          MacroRadInputParameters(CNElemID,iSpec,4) = SQRT(MacroRadInputParameters(CNElemID,iSpec,2) &
-!              * MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem)))
-!        ELSE
-!          print*, "excitation temperature cannot be matched, unknown InterID for species", iSpec
-!        END IF
       END DO
     END DO
   END IF

@@ -109,9 +109,8 @@ USE MOD_ReadInTools
     SWRITE(*,'(A6,I6,A17)') ' Found ',SpeciesRadiation(iSpec)%nLines,' Line entries in File:'
     SWRITE(*,*) RadiationInput(iSpec)%RadiationSpectraFileName
 
-  CLOSE(unit=42)
-END IF
-
+    CLOSE(unit=42)
+  END IF
 END SUBROUTINE Radiation_readin_atoms
 
 
