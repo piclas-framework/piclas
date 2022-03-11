@@ -46,7 +46,7 @@ SUBROUTINE radiation_molecules(iElem, em_mol)
   USE MOD_Radiation_Vars,    ONLY   : RadiationInput, RadiationParameter, SpeciesRadiation,  &
                                       Radiation_Emission_spec, Radiation_Absorption_spec, NumDensElectrons, TElectrons, &
                                       Radiation_ElemEnergy_Species
-  USE MOD_Particle_Vars,     ONLY   : nSpecies
+  USE MOD_Particle_Vars,     ONLY   : nSpecies, Species
   USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
 
 ! IMPLICIT VARIABLE HANDLING
@@ -115,7 +115,7 @@ SUBROUTINE radiation_molecules(iElem, em_mol)
   ptot = 0.0
 
   DO iSpec = 1, nSpecies
-    rho  = rho + RadiationInput(iSpec)%NumDens * RadiationInput(iSpec)%Mass
+    rho  = rho + RadiationInput(iSpec)%NumDens * Species(iSpec)%MassIC
     ptot = ptot + RadiationInput(iSpec)%NumDens * BoltzmannConst * RadiationInput(iSpec)%Ttrans(4)
   END DO
   ptot = ptot + NumDensElectrons * BoltzmannConst * TElectrons ! TODO: isp -> should be electrons? Radiation: NumDens(N2), Telec
@@ -150,7 +150,7 @@ SUBROUTINE radiation_molecules(iElem, em_mol)
       1.0D-40*ptot/(RadiationInput(iSpec)%Ttrans(4)*BoltzmannConst))
     
       MolWeightForeignGas = 20. * AtomicMassUnit
-      IF(rho .GT. 1.0E-16) MolWeightForeignGas = (rho - RadiationInput(iSpec)%Mass*RadiationInput(iSpec)%NumDens) / NumDensForeignGas
+      IF(rho .GT. 1.0E-16) MolWeightForeignGas = (rho - Species(iSpec)%MassIC*RadiationInput(iSpec)%NumDens) / NumDensForeignGas
       MolWeightForeignGas = MolWeightForeignGas / (AtomicMassUnit * 1.0E-3)
       IF(MolWeightForeignGas .LT. 10.*1.0E-3*AtomicMassUnit)   MolWeightForeignGas = 10.  * 1.0E-3 * AtomicMassUnit
       IF(MolWeightForeignGas .GT. 28.85*1.0E-3*AtomicMassUnit) MolWeightForeignGas = 28.85* 1.0E-3 * AtomicMassUnit
@@ -212,11 +212,11 @@ SUBROUTINE radiation_molecules(iElem, em_mol)
           IF( (0.5/(100.*nubar0)) .GT. RadiationParameter%WaveLen(RadiationParameter%WaveLenDiscr) ) CYCLE
 
   ! --- widths        
-          DlamG = 7.16E-7 / (100.*nubar0) * SQRT(RadiationInput(iSpec)%Ttrans(4)/(RadiationInput(iSpec)%Mass/AtomicMassUnit))
+          DlamG = 7.16E-7 / (100.*nubar0) * SQRT(RadiationInput(iSpec)%Ttrans(4)/(Species(iSpec)%MassIC/AtomicMassUnit))
 
-          DlamL1 = 1.33E-29 * SQRT(2.0/(RadiationInput(iSpec)%Mass/AtomicMassUnit)) &
+          DlamL1 = 1.33E-29 * SQRT(2.0/(Species(iSpec)%MassIC/AtomicMassUnit)) &
               * (0.01/nubar0)**2 * SQRT(RadiationInput(iSpec)%Ttrans(4)) * RadiationInput(iSpec)%NumDens * 1.0E-6 * 10. * 1.0E10
-          DlamL2 = 5.85E-30 * SQRT(1.0/(RadiationInput(iSpec)%Mass/AtomicMassUnit)+1./(MolWeightForeignGas/(AtomicMassUnit*1.0E-3))) &
+          DlamL2 = 5.85E-30 * SQRT(1.0/(Species(iSpec)%MassIC/AtomicMassUnit)+1./(MolWeightForeignGas/(AtomicMassUnit*1.0E-3))) &
               * (0.01/nubar0)**2 * SQRT(RadiationInput(iSpec)%Ttrans(4)) * NumDensForeignGas * 1.0E-6 * 10. * 1.0E10
           DlamL3 = 1.18E-4 * 1.0E-10
           DlamL4 = 1.0E-8 * Stark * (1.0E-22 * MAX(NumDensElectrons, 1.E-6))**0.6 * (0.01/nubar0)**2 * 1.0E10

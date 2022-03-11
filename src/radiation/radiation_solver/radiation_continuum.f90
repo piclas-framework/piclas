@@ -170,7 +170,7 @@ SUBROUTINE Radiation_continuum_bf(iElem)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals_Vars,      ONLY   : BoltzmannConst, PlanckConst, ElementaryCharge, ElectronMass, BohrRadius, Pi
-  USE MOD_Particle_Vars,     ONLY   : nSpecies
+  USE MOD_Particle_Vars,     ONLY   : nSpecies, Species
   USE MOD_Radiation_Vars,    ONLY   : RadiationInput, SpeciesRadiation, RadiationParameter, &
                                       Radiation_Emission_spec, Radiation_Absorption_spec, NumDensElectrons
   USE MOD_Globals_Vars,      ONLY   : c
@@ -210,7 +210,7 @@ SUBROUTINE Radiation_continuum_bf(iElem)
 ! --- determine ionized species
     DO jAtom = 1, nSpecies ! TODO nAtoms instead of nSpecies
       IF((SpecDSMC(jAtom)%InterID .NE. 1) .AND. (SpecDSMC(jAtom)%InterID .NE. 10)) CYCLE
-      IF((RadiationInput(iAtom)%Mass .EQ. RadiationInput(jAtom)%Mass) &
+      IF((Species(iAtom)%MassIC .EQ. Species(jAtom)%MassIC) &
         .AND. (RadiationInput(iAtom)%NuclCharge+1 .EQ. RadiationInput(jAtom)%NuclCharge) ) THEN
         iIon = jAtom
       END IF
@@ -242,8 +242,8 @@ SUBROUTINE Radiation_continuum_bf(iElem)
 ! --- assumed degeneracy of the ion
       geIon      = 1.0d0
 ! --- equilibrium ground state ion number density
-      NumDensIon = ((RadiationInput(iAtom)%Mass-ElectronMass) * 2. * Pi * BoltzmannConst/PlanckConst**2. * ElectronMass &
-        * RadiationInput(1)%Telec / RadiationInput(iAtom)%Mass)**1.5d0 * geIon / SpeciesRadiation(iAtom)%Level(1,1) &
+      NumDensIon = ((Species(iAtom)%MassIC-ElectronMass) * 2. * Pi * BoltzmannConst/PlanckConst**2. * ElectronMass &
+        * RadiationInput(1)%Telec / Species(iAtom)%MassIC)**1.5d0 * geIon / SpeciesRadiation(iAtom)%Level(1,1) &
         * EXP(-ActualIonizationEn/kbTe) * SpeciesRadiation(iAtom)%NumDensExc(1) / MAX(1.0d0, NumDensElectrons)
       ! PRINT*,'bound-free continuum is approximated using equilibrium considerations! (missing data file for ionized species): ', &
         ! TRIM(RadiationInput(iAtom)%RadiationSpectraFileName)
@@ -252,7 +252,7 @@ SUBROUTINE Radiation_continuum_bf(iElem)
     
 ! --- emission coefficient formula is valid for photorecombination from the ion ground state only!
     epsilonBFFactor = 1.719236e-46 * NumDensElectrons * NumDensIon * RadiationInput(iAtom)%NuclCharge**4. / geIon &
-      / c * ( RadiationInput(iAtom)%Mass/((RadiationInput(iAtom)%Mass-ElectronMass) * MAX(250., RadiationInput(iAtom)%Telec) ))**1.5
+      / c * ( Species(iAtom)%MassIC/((Species(iAtom)%MassIC-ElectronMass) * MAX(250., RadiationInput(iAtom)%Telec) ))**1.5
     kappaBFFactor   = 2.815401e25 * RadiationInput(iAtom)%NuclCharge**4.
     
     DO iWave = 1, RadiationParameter%WaveLenDiscr

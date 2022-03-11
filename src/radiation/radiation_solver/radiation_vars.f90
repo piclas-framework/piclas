@@ -30,7 +30,6 @@ TYPE tRadiationInput               ! DSMC output
   REAL                  :: Trot                             ! Rotational Temp
   REAL                  :: Telec                            ! Electronic Temp
   REAL                  :: IonizationEn                     ! ionization energy [1/cm]
-  REAL                  :: Mass
   REAL                  :: Radius
   REAL                  :: Starkex                          ! Exponent for Stark broadening
   INTEGER               :: NuclCharge                       ! nuclear charge (0: atom, 1: single-ionized atom, ...)

@@ -70,6 +70,8 @@ USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
 
   DO iSpec = 1, nSpecies
 
+    IF(.NOT.RadiationInput(iSpec)%DoRadiation) CYCLE
+
 ! --- atoms (1) and atomic ions (10)
     IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10)) THEN
       IF (RadiationInput(iSpec)%Telec.LE.0.0) CYCLE

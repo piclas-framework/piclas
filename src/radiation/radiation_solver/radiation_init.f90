@@ -59,7 +59,6 @@ CALL prms%CreateRealOption(   'Part-Species[$]-RadiationNumDens',      'Number d
 CALL prms%CreateRealOption(   'Part-Species[$]-RadiationTvib',         'Vibrational temperature, K', '0.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Species[$]-RadiationTrot',         'Rotational temperature, K', '0.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Species[$]-RadiationIonizationEn', 'Ionization Energy, 1/cm', '0.0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(   'Part-Species[$]-RadiationMass_u',       'Molar mass, kg/kmol', '0.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Species[$]-RadiationRadius_A',     'Species radius, A', '0.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Species[$]-Starkex',               'Exponent for the determination of Stark broadening', &
                                                                        '0.0', numberedmulti=.TRUE.)
@@ -103,7 +102,7 @@ USE MOD_Globals_Vars,          ONLY : PlanckConst, c
 USE MOD_Mesh_Vars,             ONLY : nElems, nGlobalElems
 USE MOD_Particle_Mesh_Vars,    ONLY : nComputeNodeElems
 USE MOD_ReadInTools
-USE MOD_PARTICLE_Vars,         ONLY : nSpecies
+USE MOD_PARTICLE_Vars,         ONLY : nSpecies, Species
 USE MOD_Radiation_Vars
 USE MOD_DSMC_Vars,             ONLY : SpecDSMC
 USE MOD_Radiation_ReadIn,      ONLY : Radiation_readin_atoms, Radiation_readin_molecules
@@ -145,8 +144,6 @@ IF (RadiationSwitches%RadType.NE.2) THEN
     END IF
     RadiationInput(iSpec)%IonizationEn = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationIonizationEn')
     RadiationInput(iSpec)%IonizationEn = RadiationInput(iSpec)%IonizationEn *PlanckConst*c*100.
-    RadiationInput(iSpec)%Mass = GETREAL('Part-Species'//TRIM(hilf)//'-RadiationMass_u')
-    RadiationInput(iSpec)%Mass = RadiationInput(iSpec)%Mass*1.660539040E-27
 
     RadiationInput(iSpec)%DoRadiation = GETLOGICAL('Part-Species'//TRIM(hilf)//'-DoRadiation')
 
@@ -390,7 +387,7 @@ SUBROUTINE MacroscopicRadiationInput()
         (SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN
           MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem))
         ELSE IF(SpecDSMC(iSpec)%InterID .EQ. 4) THEN
-          ! MacroRadInputParameters(CNElemID,iSpec,4) = MacroRadInputParameters(CNElemID,iSpec,4)
+          CYCLE
         ELSE
           PRINT*, "excitation temperature cannot be matched, unknown InterID for species", iSpec
         END IF

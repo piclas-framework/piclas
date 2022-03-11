@@ -46,7 +46,7 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
   USE MOD_Radiation_Vars,    ONLY   : RadiationInput, RadiationParameter, SpeciesRadiation,  &
                                       Radiation_Emission_spec, Radiation_Absorption_spec, &
                                       NumDensElectrons, Radiation_ElemEnergy_Species
-  USE MOD_Particle_Vars,     ONLY   : nSpecies
+  USE MOD_Particle_Vars,     ONLY   : nSpecies, Species
   USE MOD_Globals_Vars,      ONLY   : c, Pi
   USE MOD_DSMC_Vars,         ONLY   : SpecDSMC
 !USE MOD_Radiation_Excitation, ONLY   : low_IonizationPot
@@ -100,7 +100,7 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
   ntot = 0.0
 
   DO jSpec = 1, nSpecies
-    rho  = rho + RadiationInput(jSpec)%NumDens * RadiationInput(jSpec)%Mass
+    rho  = rho + RadiationInput(jSpec)%NumDens * Species(jSpec)%MassIC
     ntot = ntot + RadiationInput(jSpec)%NumDens
   END DO
 
@@ -136,17 +136,14 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
       coll_freq_ij=0.0
       DO jSpec = 1, nSpecies
         sigma_ij = Pi*(RadiationInput(iSpec)%Radius + RadiationInput(jSpec)%Radius)**2
-        T_mean = (RadiationInput(iSpec)%Mass*RadiationInput(iSpec)%NumDens*RadiationInput(iSpec)%Ttrans(4)+ &
-            RadiationInput(jSpec)%Mass*RadiationInput(jSpec)%NumDens*RadiationInput(jSpec)%Ttrans(4)) / &
-            (RadiationInput(iSpec)%Mass*RadiationInput(iSpec)%NumDens+RadiationInput(jSpec)%Mass*RadiationInput(jSpec)%NumDens)
+        T_mean = (Species(iSpec)%MassIC*RadiationInput(iSpec)%NumDens*RadiationInput(iSpec)%Ttrans(4)+ &
+             Species(jSpec)%MassIC*RadiationInput(jSpec)%NumDens*RadiationInput(jSpec)%Ttrans(4)) / &
+            (Species(iSpec)%MassIC*RadiationInput(iSpec)%NumDens+Species(jSpec)%MassIC*RadiationInput(jSpec)%NumDens)
         coll_freq_ij = coll_freq_ij + 2.0 * RadiationInput(iSpec)%NumDens * RadiationInput(jSpec)%NumDens * sigma_ij &
-          * SQRT(2*BoltzmannConst * T_mean * (RadiationInput(iSpec)%Mass + RadiationInput(jSpec)%Mass) &
-          / (Pi*RadiationInput(iSpec)%Mass*RadiationInput(jSpec)%Mass))
-        ! coll_freq_ij = coll_freq_ij + 2.0 * RadiationInput(iSpec)%NumDens * RadiationInput(iSpec)%NumDens * sigma_ij &
-        !   * SQRT(2*BoltzmannConst* RadiationInput(iSpec)%Ttrans(4) * (RadiationInput(iSpec)%Mass + RadiationInput(jSpec)%Mass) &
-        !   / (Pi*RadiationInput(iSpec)%Mass*RadiationInput(jSpec)%Mass))
+          * SQRT(2*BoltzmannConst * T_mean * (Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
+          / (Pi*Species(iSpec)%MassIC*Species(jSpec)%MassIC))
       END DO
-
+! PRINT*, sigma_ij, T_mean, coll_freq_ij
       nLines_considered = 0
 
   ! --- loop over all transition lines
@@ -194,7 +191,7 @@ SUBROUTINE radiation_atoms(iElem, em_atom)
           Dlaml = Dlams + Dlamvw + Dlamn + Dlamp + Dlamr
 
   ! --- Doppler broadening
-          Dlamd = c_dopp*SpeciesRadiation(iSpec)%LinesReal(k,1)*SQRT(RadiationInput(iSpec)%Ttrans(4)/RadiationInput(iSpec)%Mass )
+          Dlamd = c_dopp*SpeciesRadiation(iSpec)%LinesReal(k,1)*SQRT(RadiationInput(iSpec)%Ttrans(4)/Species(iSpec)%MassIC )
 
   ! --- determine actual wavelength range to be calculated
           wrange = 100. * MAX(Dlaml,Dlamd)
