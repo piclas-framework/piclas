@@ -49,7 +49,9 @@ TYPE tRadiationParameter           ! Radiation Wavelength Parameter
   INTEGER               :: WaveLenDiscrCoarse               ! number of points in calculated spectrum
   INTEGER               :: WaveLenReductionFactor
   REAL                  :: WaveLenIncr                      ! wavelength increments
+  REAL                  :: WaveLenIncrCoarse
   REAL, ALLOCATABLE     :: WaveLen(:)                       ! wavelength array
+  REAL, ALLOCATABLE     :: WaveLenCoarse(:)
 END TYPE tRadiationParameter
 
 TYPE(tRadiationParameter) :: RadiationParameter

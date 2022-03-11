@@ -191,9 +191,15 @@ SUBROUTINE WriteRadiationToHDF5()
     IF (myRank.EQ.0) THEN
       OPEN(unit=20,file='Radiation_ObservationPoint.csv', status='replace',action='write')
       WRITE(20,*) 'x,y1,y2'
-      DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
-        WRITE(20,*) RadiationParameter%MinWaveLen + (iWave-1) * RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave)
-      END DO
+      IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
+        DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+          WRITE(20,*) RadiationParameter%WaveLenCoarse(iWave)*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave)
+        END DO
+      ELSE
+        DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+          WRITE(20,*) RadiationParameter%WaveLen(iWave)*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave)
+        END DO
+      END IF
       CLOSE(unit=20)
     END IF
   END IF

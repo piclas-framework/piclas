@@ -173,6 +173,8 @@ IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
   RadiationParameter%WaveLenDiscrCoarse = NINT(REAL(RadiationParameter%WaveLenDiscr)/ REAL(RadiationParameter%WaveLenReductionFactor))
   RadiationParameter%WaveLenReductionFactor = INT(RadiationParameter%WaveLenDiscr/RadiationParameter%WaveLenDiscrCoarse)
   SWRITE(UNIT_stdOut,'(A)') 'Corrected WaveLenReductionFactor is ', RadiationParameter%WaveLenReductionFactor
+  ALLOCATE(RadiationParameter%WaveLenCoarse(RadiationParameter%WaveLenDiscrCoarse))
+  RadiationParameter%WaveLenCoarse = 0.0
 ELSE
   RadiationParameter%WaveLenDiscrCoarse = RadiationParameter%WaveLenDiscr
 END IF
@@ -195,6 +197,13 @@ RadiationParameter%WaveLen = 0.0
 DO iWaveLen = 1, RadiationParameter%WaveLenDiscr
   RadiationParameter%WaveLen(iWaveLen) = RadiationParameter%MinWaveLen + (iWaveLen-1) * RadiationParameter%WaveLenIncr
 END DO
+IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
+  RadiationParameter%WaveLenIncrCoarse = (RadiationParameter%MaxWaveLen - RadiationParameter%MinWaveLen) &
+  / (RadiationParameter%WaveLenDiscr*RadiationParameter%WaveLenReductionFactor-1)
+  DO iWaveLen = 1, RadiationParameter%WaveLenIncrCoarse
+    RadiationParameter%WaveLenCoarse(iWaveLen) = RadiationParameter%MinWaveLen + (iWaveLen-1) * RadiationParameter%WaveLenIncrCoarse
+  END DO
+END IF
 
 RadiationSwitches%ff                      = GETLOGICAL('Radiation-ff')
 RadiationSwitches%bf                      = GETLOGICAL('Radiation-bf')
@@ -380,8 +389,8 @@ SUBROUTINE MacroscopicRadiationInput()
       STOP
     END IF
     IndexElectronTemp = (iSpecElectrons-1)*DSMC_NVARS+1 + 11 !132 for 11th Species
-    DO iSpec = 1, nSpecies
-      DO iElem = 1, nElems
+    DO iElem = 1, nElems
+      DO iSpec = 1, nSpecies
         CNElemID = GetCNElemID(iElem+offsetElem)
         IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10) .OR. &
         (SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN
