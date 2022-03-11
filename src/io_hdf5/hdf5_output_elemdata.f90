@@ -26,9 +26,12 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-#if USE_MPI && defined(PARTICLES)
+#if USE_MPI
+PUBLIC :: WriteMyInvisibleRankToHDF5
+#if defined(PARTICLES)
 PUBLIC :: WriteLostRotPeriodicSidesToHDF5
-#endif /*USE_MPI && defined(PARTICLES)*/
+#endif /*defined(PARTICLES)*/
+#endif /*USE_MPI*/
 
 PUBLIC :: WriteAdditionalElemData
 !===================================================================================================================================
@@ -135,7 +138,62 @@ IF(NullifyElemTime) ElemTime=0.
 END SUBROUTINE WriteAdditionalElemData
 
 
-#if USE_MPI && defined(PARTICLES)
+#if USE_MPI
+!===================================================================================================================================
+!> write LostRotPeriodicSides field to HDF5 file (as ElemData container)
+!===================================================================================================================================
+SUBROUTINE WriteMyInvisibleRankToHDF5()
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars    ,ONLY: MeshFile
+USE MOD_Globals_Vars ,ONLY: ProjectName
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER,PARAMETER   :: N_variables=1
+CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
+CHARACTER(LEN=255)  :: FileName
+#if USE_MPI
+REAL                :: StartT,EndT
+#endif
+REAL                :: OutputTime!,FutureTime
+!===================================================================================================================================
+IF(MPIROOT)THEN
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE MyInvisibleRank TO HDF5 FILE...'
+#if USE_MPI
+  StartT=MPI_WTIME()
+#endif
+END IF
+OutputTime=0.0
+!FutureTime=0.0
+ALLOCATE(StrVarNames(1:N_variables))
+StrVarNames(1)='dummy'
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+FileName=TRIM(ProjectName)//'_MyInvisibleRank.h5'
+IF(MPIRoot) CALL GenerateFileSkeleton('MyInvisibleRank',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FileNameIn=FileName)
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif
+
+! Write all 'ElemData' arrays to a single container in the state.h5 file
+CALL WriteAdditionalElemData(FileName,ElementOut)
+
+#if USE_MPI
+IF(MPIROOT)THEN
+  EndT=MPI_WTIME()
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+END IF
+#else
+WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+#endif
+END SUBROUTINE WriteMyInvisibleRankToHDF5
+
+
+#if defined(PARTICLES)
 !===================================================================================================================================
 !> write LostRotPeriodicSides field to HDF5 file (as ElemData container)
 !===================================================================================================================================
@@ -170,8 +228,8 @@ OutputTime=0.0
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='dummy'
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_LostRotPeriodicSides',OutputTime))//'.h5'
-IF(MPIRoot) CALL GenerateFileSkeleton('LostRotPeriodicSides',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)!,FutureTime)
+FileName=TRIM(ProjectName)//'_LostRotPeriodicSides.h5'
+IF(MPIRoot) CALL GenerateFileSkeleton('LostRotPeriodicSides',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FileNameIn=FileName)
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
@@ -188,7 +246,8 @@ END IF
 WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 #endif
 END SUBROUTINE WriteLostRotPeriodicSidesToHDF5
-#endif /*USE_MPI && defined(PARTICLES)*/
+#endif /*defined(PARTICLES)*/
+#endif /*USE_MPI*/
 
 
 END MODULE MOD_HDF5_Output_ElemData

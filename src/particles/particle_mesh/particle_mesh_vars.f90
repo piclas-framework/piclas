@@ -45,6 +45,7 @@ INTEGER            :: offsetComputeNodeSide                 !> side offset of co
 INTEGER            :: offsetComputeNodeNode                 !> node offset of compute-node root
 INTEGER            :: nUniqueGlobalNodes                    !> MAXVAL(NodeInfo_Shared)
 
+LOGICAL, ALLOCATABLE :: IsExchangeElem(:)
 ! ====================================================================
 ! MPI3 shared variables
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: ElemBaryNGeo       ! element local basis: origin

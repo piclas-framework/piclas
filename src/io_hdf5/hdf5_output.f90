@@ -175,7 +175,7 @@ END IF
 END SUBROUTINE WriteTimeAverage
 
 
-SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
+SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime,FileNameIn)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
@@ -200,12 +200,13 @@ USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)    :: TypeString
-INTEGER,INTENT(IN)             :: nVar
-CHARACTER(LEN=255)             :: StrVarNames(nVar)
-CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
-REAL,INTENT(IN)                :: OutputTime
-REAL,INTENT(IN),OPTIONAL       :: FutureTime
+CHARACTER(LEN=*),INTENT(IN)          :: TypeString
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: FileNameIn
+INTEGER,INTENT(IN)                   :: nVar
+CHARACTER(LEN=255)                   :: StrVarNames(nVar)
+CHARACTER(LEN=*),INTENT(IN)          :: MeshFileName
+REAL,INTENT(IN)                      :: OutputTime
+REAL,INTENT(IN),OPTIONAL             :: FutureTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -218,7 +219,11 @@ CHARACTER(LEN=255), DIMENSION(1:3),PARAMETER :: TrackingString = (/'refmapping  
 #endif /*PARTICLES*/
 !===================================================================================================================================
 ! Create file
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
+IF(PRESENT(FileNameIn))THEN
+  FileName=FileNameIn
+ELSE
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
+END IF ! PRESENT(FileNameIn)
 CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
 
 ! Write file header

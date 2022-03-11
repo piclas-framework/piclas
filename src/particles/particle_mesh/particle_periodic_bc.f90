@@ -37,9 +37,9 @@ SUBROUTINE InitPeriodicBC()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETINT,GETREALARRAY
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-USE MOD_Mesh_Vars              ,ONLY: BoundaryType,nBCs
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Vars          ,ONLY: PartMeshHasPeriodicBCs
 #if USE_MPI
 USE MOD_Particle_Vars          ,ONLY: PDM
 USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector
@@ -54,21 +54,16 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                :: iBC
-LOGICAL                :: hasPeriodic
 !===================================================================================================================================
 
 GEO%nPeriodicVectors       = GETINT('Part-nPeriodicVectors','0')
 
 ! sanity check with DG. Both must be either periodic or non-periodic.
-hasPeriodic = .FALSE.
-DO iBC=1,nBCs
-  IF(BoundaryType(iBC,BC_TYPE).EQ.1) hasPeriodic=.TRUE.
-END DO ! iBC=1,nBCs
 
-IF (hasPeriodic .AND. GEO%nPeriodicVectors.EQ.0)      &
+IF (PartMeshHasPeriodicBCs .AND. GEO%nPeriodicVectors.EQ.0)      &
   CALL abort(__STAMP__,' Periodic-field-BCs require to set the number of periodic-vectors for the particles!')
 
-IF (.NOT.hasPeriodic .AND. GEO%nPeriodicVectors.GT.0) &
+IF (.NOT.PartMeshHasPeriodicBCs .AND. GEO%nPeriodicVectors.GT.0) &
   CALL abort(__STAMP__,' Periodic particle-BCs and non-periodic-field-BCs: not tested!')
 
 DO iBC = 1, SIZE(PartBound%TargetBoundCond)
@@ -109,7 +104,6 @@ SUBROUTINE CheckPeriodicVectors()
 USE MOD_Globals,            ONLY: Logging,UNIT_errOut,UNIT_logOut,abort
 USE MOD_Particle_Mesh_Vars, ONLY: GEO
 USE MOD_PICDepo_Vars
-!----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -208,7 +208,7 @@ ELSE
 END IF
 EndT=PICLASTIME()
 DomainDecompositionWallTime=EndT-StartT
-SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DOMAIN DECOMPOSITION ... DONE  [',DomainDecompositionWallTime,'s]'
+SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DOMAIN DECOMPOSITION DONE! [',DomainDecompositionWallTime,'s]'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE DomainDecomposition
 

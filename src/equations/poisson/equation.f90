@@ -546,7 +546,6 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 #ifdef PARTICLES
 USE MOD_Mesh_Vars          ,ONLY: offSetElem
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
 USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
 USE MOD_Globals_Vars       ,ONLY: eps0
@@ -574,7 +573,7 @@ REAL                            :: r1,r2
 REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
 #ifdef PARTICLES
 REAL                            :: source_e
-INTEGER                         :: RegionID, CNElemID
+INTEGER                         :: RegionID
 #endif /*PARTICLES*/
 !===================================================================================================================================
 IF(PRESENT(warning_linear)) warning_linear=.FALSE. ! Initialize
@@ -603,7 +602,6 @@ END SELECT ! ExactFunction
 
 #ifdef PARTICLES
 IF(DoDeposition)THEN
-  CNElemID = GetCNElemID(iElem+offSetElem)
   source_e=0.
   IF(UseBRElectronFluid.AND.PRESENT(Phi))THEN
     RegionID=ElemToBRRegion(iElem)
@@ -625,10 +623,9 @@ IF(DoDeposition)THEN
     END IF
   END IF ! UseBRElectronFluid
 #if IMPA
-  resu(1)= - (PartSource(4,i,j,k,CNElemID)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
+  resu(1)= - (PartSource(4,i,j,k,iElem)+ExplicitPartSource(4,i,j,k,iElem)-source_e)/eps0
 #else
-  !IPWRITE(UNIT_StdOut,*) "Phi, PartSource(4,i,j,k,CNElemID),source_e =", Phi,PartSource(4,i,j,k,CNElemID),source_e
-  resu(1)= - (PartSource(4,i,j,k,CNElemID)-source_e)/eps0
+  resu(1)= - (PartSource(4,i,j,k,iElem)-source_e)/eps0
 #endif
 END IF
 #endif /*PARTICLES*/
