@@ -81,7 +81,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                    :: iPart
-REAL                       :: dtFrac, gamma, gamma_minus
+REAL                       :: RandVal, dtFrac, gamma, gamma_minus
 #if USE_LOADBALANCE
 REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
@@ -133,18 +133,25 @@ IF (time.GE.DelayTime) THEN
     IF (PDM%ParticleInside(iPart)) THEN
       ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
-      dtFrac = dt
-      IF (PDM%IsNewPart(iPart)) THEN
-        ! Don't push the velocity component of neutral particles!
-        IF(isPushParticle(iPart).AND.DoInterpolation)THEN
-            !-- Shift particle velocity back in time by half a time step dt/2.
-            !-- get Pt(1:3,iPart) = a(x(n))
-            CALL CalcPartRHSSingleParticle(iPart)
+      IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoSurfaceFlux for compiler-optimization if .FALSE.
+        CALL RANDOM_NUMBER(RandVal)
+        dtFrac = dt * RandVal
+        PDM%IsNewPart(iPart)=.FALSE. !no IsNewPart-treatment for surffluxparts
+        PDM%dtFracPush(iPart) = .FALSE.
+      ELSE
+        dtFrac = dt
+        IF (PDM%IsNewPart(iPart)) THEN
+          ! Don't push the velocity component of neutral particles!
+          IF(isPushParticle(iPart).AND.DoInterpolation)THEN
+              !-- Shift particle velocity back in time by half a time step dt/2.
+              !-- get Pt(1:3,iPart) = a(x(n))
+              CALL CalcPartRHSSingleParticle(iPart)
 
-            !-- v(n) => v(n-0.5) by a(n):
-            PartState(4:6,iPart) = PartState(4:6,iPart) - Pt(1:3,iPart) * dt*0.5
+              !-- v(n) => v(n-0.5) by a(n):
+              PartState(4:6,iPart) = PartState(4:6,iPart) - Pt(1:3,iPart) * dt*0.5
+          END IF
+          PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
         END IF
-        PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
       END IF
 
       IF(isPushParticle(iPart).AND.DoInterpolation)THEN ! Don't push the velocity component of neutral particles!
@@ -152,7 +159,7 @@ IF (time.GE.DelayTime) THEN
         !PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt
 
         !-- const. factor
-        c_1 =  (Species(PartSpecies(iPart))%ChargeIC * dt) / (Species(PartSpecies(iPart))%MassIC * 2.)
+        c_1 =  (Species(PartSpecies(iPart))%ChargeIC * dtFrac) / (Species(PartSpecies(iPart))%MassIC * 2.)
 
         !-- v_minus = v(n-1/2) + q/m*E(n)*dt/2
         gamma = 1./SQRT(1-(DOTPRODUCT(PartState(4:6,iPart))*c2_inv))
@@ -173,7 +180,7 @@ IF (time.GE.DelayTime) THEN
       END IF
 
       !-- x(n) => x(n+1) by v(n+0.5):
-      PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dt
+      PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtFrac
 
       ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
