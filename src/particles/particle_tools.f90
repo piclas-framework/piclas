@@ -58,35 +58,39 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
-PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
+PUBLIC :: UpdateNextFreePosition,DiceUnitVector,VeloFromDistribution,GetParticleWeight,CalcRadWeightMPF,isChargedParticle
+PUBLIC :: isPushParticle,isDepositParticle,isInterpolateParticle,StoreLostParticleProperties,BuildTransGaussNums
 PUBLIC :: CalcXiElec,ParticleOnProc
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE UpdateNextFreePosition()
+SUBROUTINE UpdateNextFreePosition(WithOutMPIParts)
 !===================================================================================================================================
 ! Updates next free position
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars        ,ONLY: PDM,PEM, PartSpecies, doParticleMerge, vMPF_SpecNumElem
-USE MOD_Particle_Vars        ,ONLY: PartState, VarTimeStep, usevMPF
-USE MOD_DSMC_Vars            ,ONLY: useDSMC, CollInf
+USE MOD_DSMC_Vars            ,ONLY: useDSMC,CollInf
+USE MOD_Particle_Vars        ,ONLY: PDM,PEM,PartSpecies,doParticleMerge,vMPF_SpecNumElem
+USE MOD_Particle_Vars        ,ONLY: PartState,VarTimeStep,usevMPF
 USE MOD_Particle_VarTimeStep ,ONLY: CalcVarTimeStep
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers   ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers   ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_Particle_MPI_Vars    ,ONLY: PartTargetProc
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL, OPTIONAL         :: WithOutMPIParts
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: counter1,i,n
+INTEGER            :: counter,i,n
 INTEGER            :: ElemID
 #if USE_LOADBALANCE
 REAL               :: tLBStart
@@ -97,12 +101,15 @@ CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 IF(PDM%maxParticleNumber.EQ.0) RETURN
-counter1 = 1
+
 IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
   PEM%pNumber(:) = 0
 END IF
 
-n = PDM%ParticleVecLength !PDM%maxParticleNumber
+PDM%ParticleVecLengthOld = PDM%ParticleVecLength
+n                        = PDM%ParticleVecLength
+counter                  = 0
+PDM%ParticleVecLength    = 0
 
 ! Check size of PDM%ParticleInside array vs. PDM%ParticleVecLength. During particle splitting, the max particle number might be
 ! exceeded, which may lead to an out-of-bounds here
@@ -114,63 +121,103 @@ IF(usevMPF)THEN
   END IF ! n.GT.SIZE(PDM%ParticleInside)
 END IF ! usevMPF
 
-! Nullify
-PDM%ParticleVecLength = 0
-PDM%insideParticleNumber = 0
 IF (doParticleMerge) vMPF_SpecNumElem = 0
 
 IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
-  DO i=1,n
+  DO i = 1,n
     IF (.NOT.PDM%ParticleInside(i)) THEN
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
-      PDM%nextFreePosition(counter1) = i
-      counter1 = counter1 + 1
+      counter = counter + 1
+      PDM%nextFreePosition(counter) = i
+#if USE_MPI
+    ELSE IF (PRESENT(WithOutMPIParts)) THEN
+      ! Particle is to be sent to another proc
+      IF (PartTargetProc(i).NE.-1) THEN
+        IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
+        counter = counter + 1
+        PDM%nextFreePosition(counter) = i
+      ! Particle will stay on the current proc
+      ELSE
+        ElemID = PEM%LocalElemID(i)
+        ! Start of linked list for particles in elem
+        IF (PEM%pNumber(ElemID).EQ.0) THEN
+          PEM%pStart(ElemID)          = i
+        ! Next particle of same elem (linked list)
+        ELSE
+          PEM%pNext(PEM%pEnd(ElemID)) = i
+        END IF
+        PEM%pEnd(   ElemID)   = i
+        PEM%pNumber(ElemID)   = PEM%pNumber(ElemID) + 1
+        PDM%ParticleVecLength = i
+
+        IF (VarTimeStep%UseVariableTimeStep) &
+          VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),ElemID)
+
+        IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
+      END IF
+#endif
     ELSE
       ! Sanity check corrupted particle list (some or all entries of a particle become zero, including the species ID)
       IF(PartSpecies(i).LE.0) CALL abort(__STAMP__,'Species ID is zero for ipart=',IntInfoOpt=i)
       ElemID = PEM%LocalElemID(i)
+      ! Start of linked list for particles in elem
       IF (PEM%pNumber(ElemID).EQ.0) THEN
-        PEM%pStart(ElemID) = i                     ! Start of Linked List for Particles in Elem
+        PEM%pStart(ElemID)          = i
+      ! Next particle of same elem (linked list)
       ELSE
-        PEM%pNext(PEM%pEnd(ElemID)) = i            ! Next Particle of same Elem (Linked List)
+        PEM%pNext(PEM%pEnd(ElemID)) = i
       END IF
-      PEM%pEnd(ElemID) = i
-      PEM%pNumber(ElemID) = &                      ! Number of Particles in Element
-          PEM%pNumber(ElemID) + 1
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),ElemID)
-      END IF
+      PEM%pEnd(   ElemID)   = i
+      PEM%pNumber(ElemID)   = PEM%pNumber(ElemID) + 1
       PDM%ParticleVecLength = i
+
+      IF (VarTimeStep%UseVariableTimeStep) &
+        VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),ElemID)
+
       IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
     END IF
   END DO
-ELSE ! no DSMC
-  DO i=1,n
+! no DSMC
+ELSE
+  DO i = 1,n
     IF (.NOT.PDM%ParticleInside(i)) THEN
-      PDM%nextFreePosition(counter1) = i
-      counter1 = counter1 + 1
+      counter = counter + 1
+      PDM%nextFreePosition(counter) = i
+#if USE_MPI
+    ELSE IF (PRESENT(WithOutMPIParts)) THEN
+      ! Particle is to be sent to another proc
+      IF (PartTargetProc(i).NE.-1) THEN
+        IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
+        counter = counter + 1
+        PDM%nextFreePosition(counter) = i
+      ! Particle will stay on the current proc
+      ELSE
+        PDM%ParticleVecLength = i
+      END IF
+#endif
     ELSE
       PDM%ParticleVecLength = i
     END IF
   END DO
 ENDIF
-PDM%insideParticleNumber = PDM%ParticleVecLength - counter1+1
 PDM%CurrentNextFreePosition = 0
 
 ! Positions after ParticleVecLength in freePosition
 DO i = n+1,PDM%maxParticleNumber
   IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
-  PDM%nextFreePosition(counter1) = i
-  counter1 = counter1 + 1
+  counter = counter + 1
+  PDM%nextFreePosition(counter) = i
 END DO
-PDM%nextFreePosition(counter1:PDM%MaxParticleNumber)=0 ! exists if MaxParticleNumber is reached!!!
-IF (counter1.GT.PDM%MaxParticleNumber) PDM%nextFreePosition(PDM%MaxParticleNumber)=0
+
+! Set nextFreePosition for occupied slots to zero
+PDM%nextFreePosition(counter+1:PDM%maxParticleNumber) = 0
+! If maxParticleNumber are inside, counter is greater than maxParticleNumber
+IF (counter+1.GT.PDM%MaxParticleNumber) PDM%nextFreePosition(PDM%MaxParticleNumber) = 0
 
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_UNFP,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  RETURN
 END SUBROUTINE UpdateNextFreePosition
 
 
@@ -187,7 +234,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: time
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)          :: iPart
 INTEGER,INTENT(IN)          :: ElemID ! Global element index
 LOGICAL,INTENT(IN),OPTIONAL :: UsePartState_opt
@@ -218,7 +265,7 @@ ASSOCIATE( iMax => PartStateLostVecLength )
   ! Increase maximum number of boundary-impact particles
   iMax = iMax + 1
 
-  ! Check if array maximum is reached. 
+  ! Check if array maximum is reached.
   ! If this happens, re-allocate the arrays and increase their size (every time this barrier is reached, double the size)
   IF(iMax.GT.dims(2))THEN
 
@@ -288,20 +335,20 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                     :: DiceUnitVector(3)
-  REAL                     :: rRan, cos_scatAngle, sin_scatAngle, rotAngle
+REAL                     :: DiceUnitVector(3)
+REAL                     :: rRan, cos_scatAngle, sin_scatAngle, rotAngle
 !===================================================================================================================================
-  CALL RANDOM_NUMBER(rRan)
+CALL RANDOM_NUMBER(rRan)
 
-  cos_scatAngle     = 2.*rRan-1.
-  sin_scatAngle     = SQRT(1. - cos_scatAngle ** 2.)
-  DiceUnitVector(1) = cos_scatAngle
+cos_scatAngle     = 2.*rRan-1.
+sin_scatAngle     = SQRT(1. - cos_scatAngle ** 2.)
+DiceUnitVector(1) = cos_scatAngle
 
-  CALL RANDOM_NUMBER(rRan)
-  rotAngle          = 2. * Pi * rRan
+CALL RANDOM_NUMBER(rRan)
+rotAngle          = 2. * Pi * rRan
 
-  DiceUnitVector(2) = sin_scatAngle * COS(rotAngle)
-  DiceUnitVector(3) = sin_scatAngle * SIN(rotAngle)
+DiceUnitVector(2) = sin_scatAngle * COS(rotAngle)
+DiceUnitVector(3) = sin_scatAngle * SIN(rotAngle)
 
 END FUNCTION DiceUnitVector
 
@@ -635,7 +682,7 @@ DO iLoop = 1, nPart
       iRanPart(I,iLoop) = iRanPart(I,iLoop)/varianceiRan(I)
     ELSE
       iRanPart(I,iLoop) = 0.
-    END IF ! varianceiRan(I).GT.0  
+    END IF ! varianceiRan(I).GT.0
   END DO ! I = 1, 3
 END DO
 

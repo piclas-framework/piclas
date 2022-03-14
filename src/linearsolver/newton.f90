@@ -327,7 +327,6 @@ END IF
   ! finish communication
   CALL MPIParticleRecv()
   ! ALWAYS require
-  PartMPIExchange%nMPIParticles=0
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -535,7 +534,6 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       CALL MPIParticleSend()
       ! finish communication
       CALL MPIParticleRecv()
-      PartMPIExchange%nMPIParticles=0
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -701,7 +699,6 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       CALL MPIParticleSend()
       ! finish communication
       CALL MPIParticleRecv()
-      PartMPIExchange%nMPIParticles=0
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/

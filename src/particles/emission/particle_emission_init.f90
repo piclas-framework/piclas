@@ -14,7 +14,7 @@
 
 MODULE MOD_Particle_Emission_Init
 !===================================================================================================================================
-!> 
+!>
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -451,7 +451,7 @@ IMPLICIT NONE
 INTEGER               :: iSpec, NbrOfParticle,iInit,iPart,PositionNbr
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)') ' Initial particle inserting... '
+SWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING...'
 
 CALL UpdateNextFreePosition()
 
@@ -510,7 +510,7 @@ IF(DoDielectric)THEN
   END IF
 END IF
 
-SWRITE(UNIT_stdOut,'(A)') ' ...DONE '
+SWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING DONE!'
 
 END SUBROUTINE InitialParticleInserting
 

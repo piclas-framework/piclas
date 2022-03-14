@@ -27,16 +27,14 @@ LOGICAL                         :: DoDeposition              ! flag to switch de
 LOGICAL                         :: RelaxDeposition           ! relaxation of current PartSource with RelaxFac into PartSourceOld
 REAL                            :: RelaxFac
 
-REAL,ALLOCPOINT                 :: PartSource(:,:,:,:,:)     ! PartSource(1:4,PP_N,PP_N,PP_N,nComputeNodeTotalElems) containing
+REAL,ALLOCATABLE                 :: PartSource(:,:,:,:,:)    ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) containing
 !                                                            ! current and charge density source terms for Maxwell/Poisson systems
-!                                                            ! Access array with CNElemID = GetCNElemID(GlobalElemID)
-!                                                            !                            = GetCNElemID(iElem+offSetElem)
-#if USE_MPI
-REAL,ALLOCATABLE                :: PartSourceProc(:,:,:,:,:)
-INTEGER                         :: PartSource_Shared_Win
-REAL,ALLOCPOINT                 :: PartSource_Shared(:)
-#endif
+REAL,ALLOCATABLE                :: PartSourceGlob(:,:,:,:,:)
+!REAL,ALLOCATABLE                :: PartSourceProc(:,:,:,:,:)
+!REAL,ALLOCATABLE                :: PartSourceLoc(:,:,:,:,:)
 REAL,ALLOCATABLE                :: PartSourceTmp (:,:,:,:)
+INTEGER, ALLOCATABLE            :: nDepoDOFPerProc(:)
+INTEGER, ALLOCATABLE            :: nDepoOffsetProc(:)
 
 LOGICAL                         :: PartSourceConstExists
 REAL,ALLOCATABLE                :: PartSourceConst(:,:,:,:,:)! PartSource(1:4,PP_N,PP_N,PP_N,nElems) const. part of Source
@@ -160,24 +158,45 @@ TYPE (tNodeMapping),ALLOCATABLE      :: NodeMapping(:)
 TYPE tShapeMapping
   INTEGER,ALLOCATABLE           :: RecvShapeElemID(:)
   INTEGER                       :: nRecvShapeElems
+  INTEGER,ALLOCATABLE           :: SendShapeElemID(:)
+  INTEGER                       :: nSendShapeElems
   REAL,ALLOCATABLE              :: RecvBuffer(:,:,:,:,:)
+  REAL,ALLOCATABLE              :: SendBuffer(:,:,:,:,:)
+  LOGICAL,ALLOCATABLE           :: DoSendElem(:)
+  INTEGER                       :: nNonZeroSendElems
+  INTEGER                       :: Rank
 END TYPE
 TYPE(tShapeMapping),ALLOCATABLE :: ShapeMapping(:)
 
 TYPE tCNShapeMapping
   INTEGER,ALLOCATABLE           :: RecvShapeElemID(:)
+  INTEGER,ALLOCATABLE           :: RecvShapeProcElemID(:,:)
   INTEGER,ALLOCATABLE           :: SendShapeElemID(:)
-  INTEGER                       :: nRecvShapeElems
-  INTEGER                       :: nSendShapeElems
+  INTEGER,ALLOCATABLE           :: SendShapeProcElemID(:,:)
+  INTEGER                       :: nRecvShapeElems(2)
+  INTEGER                       :: nSendShapeElems(2)
   REAL,ALLOCATABLE              :: RecvBuffer(:,:,:,:,:)
   REAL,ALLOCATABLE              :: SendBuffer(:,:,:,:,:)
 END TYPE
 TYPE(tCNShapeMapping),ALLOCATABLE ::CNShapeMapping(:)
 
+INTEGER                         :: ShapeElemProcSend_Shared_Win
+LOGICAL,ALLOCPOINT              :: ShapeElemProcSend_Shared(:,:)
 
-INTEGER                         :: nSendShapeElems            ! number of halo elements on proc to communicate with shape function
-INTEGER,ALLOCATABLE             :: SendShapeElemID(:)         ! mapping from CNElemID to ShapeElemID
+!INTEGER                         :: nSendShapeElems            ! number of halo elements on proc to communicate with shape function
+!INTEGER,ALLOCATABLE             :: SendShapeElemID(:)         ! mapping from CNElemID to ShapeElemID
 INTEGER,ALLOCATABLE             :: SendElemShapeID(:)         ! mapping from ShapeElemID to CNElemID
+!INTEGER                         :: nRecvShapeElems            ! number of halo elements on proc to communicate with shape function
+!INTEGER,ALLOCATABLE             :: RecvShapeElemID(:)         ! mapping from CNElemID to ShapeElemID
+!INTEGER,ALLOCATABLE             :: RecvElemShapeID(:)         ! mapping from ShapeElemID to CNElemID
+!REAL, ALLOCATABLE               :: ShapeRecvBuffer(:,:,:,:,:)
+LOGICAL, ALLOCATABLE            :: DoRecvElem(:)
+
+INTEGER                         :: nShapeExchangeProcs
+
+!INTEGER             :: SendRequest
+INTEGER,ALLOCATABLE :: RecvRequest(:), SendRequest(:), CNRankToSendRank(:)
+INTEGER,ALLOCATABLE :: RecvRequestCN(:), SendRequestCN(:)
 #endif
 
 !===================================================================================================================================

@@ -2292,7 +2292,6 @@ USE MOD_Timeaverage_Vars ,ONLY: DoPowerDensity,PowerDensity
 USE MOD_Particle_Vars    ,ONLY: nSpecies,PartSpecies,PDM
 USE MOD_PICDepo_Vars     ,ONLY: PartSource
 USE MOD_Part_RHS         ,ONLY: PartVeloToImp
-USE MOD_Mesh_Vars        ,ONLY: OffsetElem
 USE MOD_Preproc
 USE MOD_PICDepo          ,ONLY: Deposition
 USE MOD_Mesh_Tools       ,ONLY: GetCNElemID
@@ -2350,24 +2349,24 @@ DO iSpec=1,nSpecies
         DO i=0,PP_N
           ! 1:3 PowerDensity, 4 charge density
 #if !(USE_HDG)
-          PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,GetCNElemID(iElem+offSetElem))*U(1,i,j,k,iElem)
-          PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,GetCNElemID(iElem+offSetElem))*U(2,i,j,k,iElem)
-          PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,GetCNElemID(iElem+offSetElem))*U(3,i,j,k,iElem)
-          PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,GetCNElemID(iElem+offSetElem))
+          PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*U(1,i,j,k,iElem)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*U(2,i,j,k,iElem)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+          PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #else
 #if PP_nVar==1
-          PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,GetCNElemID(iElem+offSetElem))*E(1,i,j,k,iElem)
-          PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,GetCNElemID(iElem+offSetElem))*E(2,i,j,k,iElem)
-          PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,GetCNElemID(iElem+offSetElem))*E(3,i,j,k,iElem)
+          PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*E(1,i,j,k,iElem)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*E(2,i,j,k,iElem)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)*E(3,i,j,k,iElem)
 #else
           PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
 #endif
-          PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,GetCNElemID(iElem+offSetElem))
+          PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #endif
           ! 5:7 current density
-          PowerDensity(5,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,GetCNElemID(iElem+offSetElem))
-          PowerDensity(6,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,GetCNElemID(iElem+offSetElem))
-          PowerDensity(7,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,GetCNElemID(iElem+offSetElem))
+          PowerDensity(5,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)
+          PowerDensity(6,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)
+          PowerDensity(7,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)
         END DO ! i=0,PP_N
       END DO ! j=0,PP_N
     END DO ! k=0,PP_N

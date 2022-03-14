@@ -566,6 +566,7 @@ SUBROUTINE GetMeshMinMax()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY: offsetElem,nElems
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,NodeCoords_Shared
@@ -669,6 +670,17 @@ GEO%ymaxglob = GEO%ymax
 GEO%zminglob = GEO%zmin
 GEO%zmaxglob = GEO%zmax
 #endif /*USE_MPI*/
+
+SWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') ' | Total MESH   Dim (x,y,z): '                                     &
+                                                , MAXVAL(NodeCoords_Shared(1,:))-MINVAL(NodeCoords_Shared(1,:)),', '&
+                                                , MAXVAL(NodeCoords_Shared(2,:))-MINVAL(NodeCoords_Shared(2,:)),', '&
+                                                , MAXVAL(NodeCoords_Shared(3,:))-MINVAL(NodeCoords_Shared(3,:))
+IF (TrackingMethod.EQ.REFMAPPING .OR. TrackingMethod.EQ. TRACING) THEN
+  SWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') ' | Total BEZIER Dim (x,y,z): '                                   &
+                                                  , GEO%xmaxglob-GEO%xminglob,', '                                  &
+                                                  , GEO%ymaxglob-GEO%yminglob,', '                                  &
+                                                  , GEO%zmaxglob-GEO%zminglob
+END IF
 
 END SUBROUTINE GetMeshMinMax
 
@@ -1787,8 +1799,8 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: NGeo,offsetElem,BoundaryType
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+USE MOD_Particle_Vars          ,ONLY: PartMeshHasPeriodicBCs
 USE MOD_Mesh_Vars              ,ONLY: nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1830,7 +1842,7 @@ NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
 NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
 
 ! Find number of periodic vectors
-GEO%nPeriodicVectors = MAXVAL(BoundaryType(:,BC_ALPHA))
+GEO%nPeriodicVectors = MERGE(MAXVAL(BoundaryType(:,BC_ALPHA)),0,PartMeshHasPeriodicBCs)
 IF (GEO%nPeriodicVectors.EQ.0) RETURN
 
 firstElem = offsetElem+1
