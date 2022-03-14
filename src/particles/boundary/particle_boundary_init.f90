@@ -540,6 +540,7 @@ USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,nElems
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
 USE MOD_HDF5_Output_State       ,ONLY: WriteStateToHDF5
 USE MOD_HDF5_Output_ElemData    ,ONLY: WriteLostRotPeriodicSidesToHDF5
+USE MOD_Globals_Vars            ,ONLY: ProjectName
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -705,7 +706,7 @@ IF(notMappedTotal.GT.0)THEN
   SWRITE(Unit_StdOut,'(A,I0,A)') ' | Warning: Found ',notMappedTotal,' rot periodic sides that did not find a corresponding side.'
   SWRITE(Unit_StdOut,'(A)')" | The halo region (halo flag 2) merely reaches a rot periodic BC side but not any further."
   SWRITE(Unit_StdOut,'(A)')" | See ElemData container 'LostRotPeriodicSides' for more information on where sides were unmatched."
-  SWRITE(Unit_StdOut,'(A)')" | This information is written to LostRotPeriodicSides_000.00000000000000000.h5 (CalcMeshInfo=T)"
+  SWRITE(Unit_StdOut,'(A)')" | This information is written to "//TRIM(ProjectName)//"_LostRotPeriodicSides.h5 (only when CalcMeshInfo=T)"
   IF(CalcMeshInfo)THEN
     ALLOCATE(LostRotPeriodicSides(1:nElems))
     LostRotPeriodicSides=notMapped

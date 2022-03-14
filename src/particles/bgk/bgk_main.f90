@@ -35,7 +35,7 @@ PUBLIC :: BGK_main, BGK_DSMC_main
 
 CONTAINS
 
-SUBROUTINE BGK_DSMC_main()
+SUBROUTINE BGK_DSMC_main(stage_opt)
 !===================================================================================================================================
 !> Coupled BGK and DSMC routine: Cell-local decision with BGKDSMCSwitchDens
 !===================================================================================================================================
@@ -55,23 +55,40 @@ USE MOD_Part_Tools          ,ONLY: GetParticleWeight
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
+#if USE_MPI
+USE MOD_Particle_Mesh_Vars  ,ONLY: IsExchangeElem
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN),OPTIONAL :: stage_opt 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart, CNElemID
+INTEGER               :: iElem, nPart, iLoop, iPart, CNElemID, stage
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 LOGICAL               :: DoElement(nElems)
 REAL                  :: dens, partWeight, totalWeight
 !===================================================================================================================================
-DSMC_RHS = 0.0
+IF (PRESENT(stage_opt)) THEN
+  stage = stage_opt
+ELSE
+  stage = 0
+END IF
+
+IF (stage.LE.1) DSMC_RHS = 0.0
 DoElement = .FALSE.
 
 DO iElem = 1, nElems
+#if USE_MPI
+  IF (stage.EQ.1) THEN
+    IF (IsExchangeElem(iElem)) CYCLE
+  ELSE IF (stage.EQ.2) THEN
+    IF (.NOT.IsExchangeElem(iELem)) CYCLE
+  END IF
+#endif
   nPart = PEM%pNumber(iElem)
   CNElemID = GetCNElemID(iElem + offsetElem)
   IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
@@ -140,7 +157,7 @@ CALL DSMC_main(DoElement)
 END SUBROUTINE BGK_DSMC_main
 
 
-SUBROUTINE BGK_main()
+SUBROUTINE BGK_main(stage_opt)
 !===================================================================================================================================
 !> Main routine for the BGK model
 !> 1.) Loop over all elements, call of octree refinement or directly of the collision operator
@@ -160,6 +177,9 @@ USE MOD_DSMC_Analyze        ,ONLY: DSMCMacroSampling
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
+#if USE_MPI
+USE MOD_Particle_Mesh_Vars  ,ONLY: IsExchangeElem
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -168,13 +188,27 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart, CNElemID
+INTEGER               :: iElem, nPart, iLoop, iPart, CNElemID, stage
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
+INTEGER,INTENT(IN),OPTIONAL :: stage_opt 
 !===================================================================================================================================
-DSMC_RHS = 0.0
+IF (PRESENT(stage_opt)) THEN
+  stage = stage_opt
+ELSE
+  stage = 0
+END IF
+
+IF (stage.LE.1) DSMC_RHS = 0.0
 
 IF (DoBGKCellAdaptation) THEN
   DO iElem = 1, nElems
+#if USE_MPI
+    IF (stage.EQ.1) THEN
+      IF (IsExchangeElem(iElem)) CYCLE
+    ELSE IF (stage.EQ.2) THEN
+      IF (.NOT.IsExchangeElem(iELem)) CYCLE
+    END IF
+#endif
     IF(Symmetry%Order.EQ.2) THEN
       CALL BGK_quadtree_adapt(iElem)
     ELSE
@@ -183,6 +217,13 @@ IF (DoBGKCellAdaptation) THEN
   END DO
 ELSE ! No octree cell refinement
   DO iElem = 1, nElems
+#if USE_MPI
+    IF (stage.EQ.1) THEN
+      IF (IsExchangeElem(iElem)) CYCLE
+    ELSE IF (stage.EQ.2) THEN
+      IF (.NOT.IsExchangeElem(iELem)) CYCLE
+    END IF
+#endif
     CNElemID = GetCNElemID(iElem + offsetElem)
     nPart = PEM%pNumber(iElem)
     IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
@@ -223,7 +264,7 @@ END IF ! DoBGKCellAdaptation
 ! Sampling of macroscopic values
 ! (here for a continuous average; average over N iterations is performed in src/analyze/analyze.f90)
 IF (.NOT.WriteMacroVolumeValues .AND. .NOT.WriteMacroSurfaceValues) THEN
-  CALL DSMCMacroSampling()
+  IF ((stage.EQ.0).OR.(stage.EQ.2)) CALL DSMCMacroSampling()
 END IF
 
 END SUBROUTINE BGK_main

@@ -1296,7 +1296,7 @@ USE MOD_Particle_Sampling_Vars
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
 USE MOD_Particle_MPI_Halo  ,ONLY: FinalizePartExchangeProcs
-USE MOD_PICDepo_Vars       ,ONLY: SendShapeElemID,SendElemShapeID,ShapeMapping,CNShapeMapping
+USE MOD_PICDepo_Vars       ,ONLY: SendElemShapeID,ShapeMapping,CNShapeMapping
 #endif /*USE_MPI*/
 #if USE_HDG
 USE MOD_HDG_Vars           ,ONLY: BRRegionBounds,RegionElectronRef,RegionElectronRefBackup,BRAverageElemToElem
@@ -1373,7 +1373,6 @@ SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
 SDEALLOCATE(PartPosLandmark)
 #if USE_MPI
-SDEALLOCATE(SendShapeElemID)
 SDEALLOCATE(SendElemShapeID)
 SDEALLOCATE(ShapeMapping)
 SDEALLOCATE(CNShapeMapping)
