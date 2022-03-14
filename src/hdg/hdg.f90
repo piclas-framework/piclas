@@ -147,6 +147,11 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
 
+#if USE_PETSC
+! initialize PETSc stuff!
+CALL PetscInitialize(PETSC_NULL_CHARACTER,ierr);!CHKERRQ(ierr)
+#endif
+
 HDGDisplayConvergence = GETLOGICAL('HDGDisplayConvergence')
 
 nGP_vol  = (PP_N+1)**3
@@ -325,6 +330,13 @@ ALLOCATE(Ehat(nGP_face,nGP_vol,6,PP_nElems))
 !side matrices
 ALLOCATE(Smat(nGP_face,nGP_face,6,6,PP_nElems))
 
+#if USE_PETSC
+CALL MatCreate(MPI_COMM_SHARED,Smat_petsc,ierr);CHKERRQ(ierr)
+CALL MatSetSizes(Smat_petsc,nSides*nGP_face,nSides*nGP_face,nSides*nGP_face,nSides*nGP_face,ierr);CHKERRQ(ierr) ! TODO MPI
+CALL MatSetType(Smat_petsc,MATSEQAIJ,ierr);CHKERRQ(ierr) ! no blocks TODO do face wise blocks for performance!
+CALL MatSeqAIJSetPreallocation(Smat_petsc,11*nGP_face,PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+CALL MatZeroEntries(Smat_petsc,ierr);CHKERRQ(ierr)
+#endif
 
 !stabilization parameter
 ALLOCATE(Tau(PP_nElems))
@@ -336,6 +348,20 @@ IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as on
   CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
 END IF
 
+#if USE_PETSC
+CALL KSPCreate(MPI_COMM_SHARED,ksp,ierr);CHKERRQ(ierr)
+CALL KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr);CHKERRQ(ierr)
+
+! Use GMRES solver
+! Due to the dirichlet boundary condition, Smat is not symmetric anymore
+! The asymmetric part can be brought to the RHS, TODO...
+CALL KSPSetType(ksp,KSPGMRES,ierr);CHKERRQ(ierr)
+
+! Use if the initial guess shall not be zero, should converge faster?
+!CALL KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr);CHKERRQ(ierr)
+
+CALL KSPSetTolerances(ksp,epsCG,PETSC_DEFAULT_REAL,PETSC_DEFAULT_REAL,MaxIterCG,ierr);CHKERRQ(ierr)
+#endif
 
 CALL BuildPrecond()
 
@@ -345,96 +371,11 @@ ALLOCATE(RHS_vol(PP_nVar, nGP_vol,PP_nElems))
 RHS_vol=0.
 
 #if USE_PETSC
-! initialize PETSc stuff!
-CALL PetscInitialize(PETSC_NULL_CHARACTER,ierr);!CHKERRQ(ierr)
-
 ! allocate RHS & lambda vectors
 CALL VecCreate(MPI_COMM_SHARED,lambda_petsc,ierr);CHKERRQ(ierr)
 CALL VecSetType(lambda_petsc,VECSTANDARD,ierr);CHKERRQ(ierr)
 CALL VecSetSizes(lambda_petsc,nSides*nGP_face,nSides*nGP_face,ierr);CHKERRQ(ierr)
-CALL VecSetUp(lambda_petsc,ierr);CHKERRQ(ierr)
 CALL VecDuplicate(lambda_petsc,RHS_petsc,ierr)
-!CALL VecDuplicate(RHS_petsc,RHS_petsc_dirichlet,ierr)
-
-! allocate system matrix
-CALL MatCreate(MPI_COMM_SHARED,Smat_petsc,ierr);CHKERRQ(ierr)
-CALL MatSetSizes(Smat_petsc,nSides*nGP_face,nSides*nGP_face,nSides*nGP_face,nSides*nGP_face,ierr);CHKERRQ(ierr) ! TODO MPI
-CALL MatSetType(Smat_petsc,MATSEQAIJ,ierr);CHKERRQ(ierr) ! no blocks TODO do face wise blocks for performance!
-CALL MatSeqAIJSetPreallocation(Smat_petsc,11*nGP_face,PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
-CALL MatZeroEntries(Smat_petsc,ierr);CHKERRQ(ierr)
-
-! Fill system matrix
-! Loop over all elements & all sides & all face gauss points
-DO iElem=1,PP_nElems
-  write(*,*)'FIlling Smat, Elem Nr: ', iElem
-  DO iLocSide=1,6
-    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    DO iGP_face=1,nGP_face
-      DO jLocSide=1,6
-        jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
-        DO jGP_face=1,nGP_face
-          CALL MatSetValues(Smat_petsc,1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
-                                       1,(/(jSideID-1)*nGP_face+(jGP_face-1)/), &
-                            Smat(iGP_face,jGP_face,iLocSide,jLocSide,iElem),ADD_VALUES,ierr);CHKERRQ(ierr)
-        END DO
-      END DO
-    END DO
-  END DO
-END DO
-CALL MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-CALL MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-! For Dirichlet BCs, the exact value is given... TODO Delete all entries and set one on diagonal
-! For all other points, this point must be added to the RHS...
-DO BCsideID=1,nDirichletBCSides
-  
-  iSideID=DirichletBC(BCsideID)
-  write(*,*)'BCSide is Side ', iSideID
-  ElemID      = SideToElem(S2E_ELEM_ID,iSideID)
-  !NbElemID    = SideToElem(S2E_NB_ELEM_ID,iSideID) ! There are no neighbours at boundaries...
-  DO iGP_face=1,nGP_face
-    DO jLocSide=1,6
-      jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,ElemID)
-      !jNbSideID=ElemToSide(E2S_SIDE_ID,jLocSide,NbElemID)
-      DO jGP_face=1,nGP_face
-        CALL MatSetValues(Smat_petsc,1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
-                                     1,(/(jSideID-1)*nGP_face+(jGP_face-1)/), &
-                                     0.,INSERT_VALUES,ierr);CHKERRQ(ierr)
-        !CALL MatSetValues(Smat_petsc,1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
-        !                             1,(/(jNbSideID-1)*nGP_face+(jGP_face-1)/), &
-        !                             0.,INSERT_VALUES,ierr);CHKERRQ(ierr)
-        ! S remains symmetric...
-        !CALL MatSetValues(Smat_petsc,1,(/(jSideID-1)*nGP_face+(jGP_face-1)/), &
-        !                             1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
-        !                             0.,INSERT_VALUES,ierr);CHKERRQ(ierr)
-        !CALL MatSetValues(Smat_petsc,1,(/(jNbSideID-1)*nGP_face+(jGP_face-1)/), &
-        !                             1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
-        !                             0.,INSERT_VALUES,ierr);CHKERRQ(ierr)
-      END DO
-    END DO
-    CALL MatSetValues(Smat_petsc,1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
-                                 1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
-                                 1.,INSERT_VALUES,ierr);CHKERRQ(ierr)
-  END DO
-END DO
-write(*,*)'SMATRIX ASSEMBLED'
-
-
-CALL MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-CALL MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-
-! Set up GMRES in Petsc
-CALL KSPCreate(MPI_COMM_SHARED,ksp,ierr);CHKERRQ(ierr)
-CALL KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr);CHKERRQ(ierr)
-CALL KSPSetType(ksp,KSPGMRES,ierr);CHKERRQ(ierr)
-CALL KSPSetInitialGuessNonzero(ksp,PETSC_FALSE,ierr);CHKERRQ(ierr) ! initial guess is zero
-CALL KSPSetTolerances(ksp,1e-6,PETSC_DEFAULT_REAL,PETSC_DEFAULT_REAL,10000,ierr);CHKERRQ(ierr)
-! preconditioner
-CALL KSPSetPCSide(ksp,PC_LEFT,ierr);CHKERRQ(ierr)
-CALL KSPGetPC(ksp,myPC,ierr);CHKERRQ(ierr)
-CALL PCSetType(myPC,PCNONE,ierr);CHKERRQ(ierr)
-
-CALL KSPSetUp(ksp,ierr)
-
 #endif
 
 HDGInitIsDone = .TRUE.
@@ -866,38 +807,25 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 DO iVar=1, PP_nVar
 
 #if USE_PETSC
-! Fill right hand side
-!CALL VecCopy(RHS_petsc_dirichlet,RHS_petsc)
+  ! Fill right hand side
   DO SideID=1,nSides
     DO iGP_face=1,nGP_face
       CALL VecSetValues(RHS_petsc,1,((SideID-1)*nGP_face+(iGP_face-1)),RHS_face(1,iGP_face,SideID),INSERT_VALUES,ierr);CHKERRQ(ierr)
     END DO
   END DO
-  ! Set Dirichlet BCs directly
+  ! Set Dirichlet BCs & ZeroPotentialSide directly
   DO BCsideID=1,nDirichletBCSides
     SideID=DirichletBC(BCsideID)
     DO iGP_face=1,nGP_face
-      ! Fill contributions of dirichlet faces
-
-      !CALL VecSetValues(RHS_petsc,1,((SideID-1)*nGP_face+(iGP_face-1)),0.-Smat(jGP_face,iGP_face,iLocSide,jLocSide,iElem)*lambda(1,iGP_face,SideID),ADD_VALUES,ierr);CHKERRQ(ierr)
-
-      ! Set dirichlet BC...
       CALL VecSetValues(RHS_petsc,1,((SideID-1)*nGP_face+(iGP_face-1)),lambda(1,iGP_face,SideID),INSERT_VALUES,ierr);CHKERRQ(ierr)
     END DO
-    ! Add contribution to the other sides...
+  END DO
+  DO iGP_face=1,nGP_face
+    CALL VecSetValues(RHS_petsc,1,((ZeroPotentialSideID-1)*nGP_face+(iGP_face-1)),lambda(1,iGP_face,ZeroPotentialSideID),INSERT_VALUES,ierr);CHKERRQ(ierr)
   END DO
   CALL VecAssemblyBegin(RHS_petsc,ierr);CHKERRQ(ierr)
   CALL VecAssemblyEnd(RHS_petsc,ierr);CHKERRQ(ierr)
-  CALL VecGetArrayReadF90(RHS_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
-  DO SideID=1,nSides
-    DO iGP_face=1,nGP_face
-      lambda(1,iGP_face,SideID) = lambda_pointer((SideID-1)*nGP_face+iGP_face)
-    END DO
-  END DO
-  CALL VecRestoreArrayReadF90(RHS_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
   
-
-
   ! Calculate lambda
   CALL KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr);CHKERRQ(ierr)
   CALL KSPGetIterationNumber(ksp,iterations,ierr);CHKERRQ(ierr)
@@ -906,8 +834,6 @@ DO iVar=1, PP_nVar
     SWRITE(*,*) 'Attention: GMRES not converged!'
   END IF
   WRITE (*,*) 'iterations',iterations
-  CALL KSPGetResidualNorm(ksp,petscnorm,ierr);CHKERRQ(ierr)
-  write(*,*)petscnorm
 
   ! Fill element local lambda for post processing
   CALL VecGetArrayReadF90(lambda_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
@@ -917,9 +843,6 @@ DO iVar=1, PP_nVar
     END DO
   END DO
   CALL VecRestoreArrayReadF90(lambda_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
-  !DO iLocSide=1,nSides
-  !  write(*,*)'Seite Nr: ', iLocSide, ' hat PETSC Einträge: ', lambda(1,:,iLocSide)
-  !END DO
 #else
   CALL CG_solver(RHS_face(iVar,:,:),lambda(iVar,:,:),iVar)
 #endif
@@ -2065,8 +1988,10 @@ PetscErrorCode       :: ierr
 !===================================================================================================================================
 HDGInitIsDone = .FALSE.
 #if USE_PETSC
-CALL KSPDestroy(ksp,ierr)
-CHKERRQ(ierr)
+CALL KSPDestroy(ksp,ierr); CHKERRQ(ierr)
+CALL MatDestroy(Smat_petsc,ierr); CHKERRQ(ierr)
+CALL VecDestroy(lambda_petsc,ierr); CHKERRQ(ierr)
+CALL VecDestroy(RHS_petsc,ierr); CHKERRQ(ierr)
 CALL PetscFinalize(ierr)
 #endif
 SDEALLOCATE(NonlinVolumeFac)

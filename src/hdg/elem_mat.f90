@@ -11,10 +11,15 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
-MODULE MOD_Elem_Mat
+#if USE_PETSC
+#include "petsc/finclude/petsc.h"
+#endif
+
+
 !===================================================================================================================================
 ! Module for the HDG element matrices
 !===================================================================================================================================
+MODULE MOD_Elem_Mat
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -65,6 +70,9 @@ USE MOD_Basis              ,ONLY: getSPDInverse
 #if defined(PARTICLES)
 USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
+#if USE_PETSC
+USE PETSc
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -85,6 +93,11 @@ REAL                 :: Ktilde(3,3)
 REAL                 :: Stmp1(nGP_vol,nGP_face), Stmp2(nGP_face,nGP_face)
 INTEGER              :: idx(3),jdx(3),gdx(3)
 REAL                 :: time0, time
+#if USE_PETSC
+PetscErrorCode    :: ierr
+INTEGER           :: iSideID,jSideID,iGP_face,jGP_face
+INTEGER           :: ElemID, NbElemID, jNbSideID, BCsideID
+#endif
 !===================================================================================================================================
 
 #if defined(IMPA) || defined(ROS)
@@ -299,6 +312,36 @@ DO iElem=1,PP_nElems
 
 END DO !iElem
 
+#if USE_PETSC
+! Fill Smat Petsc, TODO do this without filling Smat
+DO iElem=1,PP_nElems
+  DO iLocSide=1,6
+    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    ! Only fill diagonal entry with 1 if the Potential is set
+    IF ((iSideID.EQ.ZeroPotentialSideID).OR. MaskedSide(iSideID)) THEN
+      DO iGP_face=1,nGP_face
+        CALL MatSetValues(Smat_petsc,1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
+                                     1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
+                                     1.,ADD_VALUES,ierr);CHKERRQ(ierr)
+      END DO
+    ELSE
+      DO iGP_face=1,nGP_face
+        DO jLocSide=1,6
+          jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
+          DO jGP_face=1,nGP_face
+            CALL MatSetValues(Smat_petsc,1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
+                                        1,(/(jSideID-1)*nGP_face+(jGP_face-1)/), &
+                              Smat(iGP_face,jGP_face,iLocSide,jLocSide,iElem),ADD_VALUES,ierr);CHKERRQ(ierr)
+          END DO
+        END DO
+      END DO
+    END IF
+  END DO
+END DO
+CALL MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+CALL MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+#endif
+
 
 #if defined(IMPA) || defined(ROS)
 IF(DoPrintConvInfo)THEN
@@ -354,6 +397,9 @@ USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
 USE MOD_MPI_Vars
 USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
+#if USE_PETSC
+USE PETSc
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -364,9 +410,25 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER          :: ElemID, locSideID, SideID, igf
 INTEGER           :: lapack_info
+#if USE_PETSC
+PetscErrorCode    :: ierr
+PC                :: pc
+#endif
 !===================================================================================================================================
 
-
+#if USE_PETSC
+CALL KSPGetPC(ksp,pc,ierr);CHKERRQ(ierr)
+SELECT CASE(PrecondType)
+CASE(0)
+  CALL PCSetType(pc,PCNONE,ierr);CHKERRQ(ierr)
+CASE(1)
+  CALL PCSetType(pc,PCJACOBI,ierr);CHKERRQ(ierr)
+CASE(2)
+  CALL PCSetType(pc,PCILU,ierr);CHKERRQ(ierr)
+END SELECT
+!CALL KSPSetFromOptions(ksp,ierr)
+!CALL KSPSetUp(ksp,ierr)
+#else
 SELECT CASE(PrecondType)
 CASE(0)
 ! do nothing
@@ -437,6 +499,7 @@ CASE(2)
     END IF
   END DO !1,nSides-nMPIsides_YOUR
 END SELECT
+#endif
 END SUBROUTINE BuildPrecond
 
 
