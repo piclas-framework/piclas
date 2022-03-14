@@ -11,6 +11,9 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
+#if USE_PETSC
+#include "petsc/finclude/petsc.h"
+#endif
 
 !===================================================================================================================================
 !> Module for the HDG method
@@ -115,6 +118,11 @@ USE MOD_HDG_Vars              ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectro
 USE MOD_Part_BR_Elecron_Fluid ,ONLY: UpdateNonlinVolumeFac
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 #endif /*defined(PARTICLES)*/
+#if USE_PETSC
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED
+USE PETSc
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide, SideToElem
+#endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -125,6 +133,12 @@ IMPLICIT NONE
 INTEGER           :: i,j,k,r,iElem,SideID
 INTEGER           :: BCType,BCState
 REAL              :: D(0:PP_N,0:PP_N)
+#if USE_PETSC
+PetscErrorCode    :: ierr
+PC                :: myPC
+INTEGER           :: iLocSide,jLocSide,iSideID,jSideID,iGP_face,jGP_face
+INTEGER           :: ElemID, NbElemID, jNbSideID, BCsideID
+#endif
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    SWRITE(*,*) "InitHDG already called."
@@ -329,6 +343,99 @@ ALLOCATE(lambda(PP_nVar,nGP_face,nSides))
 lambda=0.
 ALLOCATE(RHS_vol(PP_nVar, nGP_vol,PP_nElems))
 RHS_vol=0.
+
+#if USE_PETSC
+! initialize PETSc stuff!
+CALL PetscInitialize(PETSC_NULL_CHARACTER,ierr);!CHKERRQ(ierr)
+
+! allocate RHS & lambda vectors
+CALL VecCreate(MPI_COMM_SHARED,lambda_petsc,ierr);CHKERRQ(ierr)
+CALL VecSetType(lambda_petsc,VECSTANDARD,ierr);CHKERRQ(ierr)
+CALL VecSetSizes(lambda_petsc,nSides*nGP_face,nSides*nGP_face,ierr);CHKERRQ(ierr)
+CALL VecSetUp(lambda_petsc,ierr);CHKERRQ(ierr)
+CALL VecDuplicate(lambda_petsc,RHS_petsc,ierr)
+!CALL VecDuplicate(RHS_petsc,RHS_petsc_dirichlet,ierr)
+
+! allocate system matrix
+CALL MatCreate(MPI_COMM_SHARED,Smat_petsc,ierr);CHKERRQ(ierr)
+CALL MatSetSizes(Smat_petsc,nSides*nGP_face,nSides*nGP_face,nSides*nGP_face,nSides*nGP_face,ierr);CHKERRQ(ierr) ! TODO MPI
+CALL MatSetType(Smat_petsc,MATSEQAIJ,ierr);CHKERRQ(ierr) ! no blocks TODO do face wise blocks for performance!
+CALL MatSeqAIJSetPreallocation(Smat_petsc,11*nGP_face,PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+CALL MatZeroEntries(Smat_petsc,ierr);CHKERRQ(ierr)
+
+! Fill system matrix
+! Loop over all elements & all sides & all face gauss points
+DO iElem=1,PP_nElems
+  write(*,*)'FIlling Smat, Elem Nr: ', iElem
+  DO iLocSide=1,6
+    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    DO iGP_face=1,nGP_face
+      DO jLocSide=1,6
+        jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
+        DO jGP_face=1,nGP_face
+          CALL MatSetValues(Smat_petsc,1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
+                                       1,(/(jSideID-1)*nGP_face+(jGP_face-1)/), &
+                            Smat(iGP_face,jGP_face,iLocSide,jLocSide,iElem),ADD_VALUES,ierr);CHKERRQ(ierr)
+        END DO
+      END DO
+    END DO
+  END DO
+END DO
+CALL MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+CALL MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+! For Dirichlet BCs, the exact value is given... TODO Delete all entries and set one on diagonal
+! For all other points, this point must be added to the RHS...
+DO BCsideID=1,nDirichletBCSides
+  
+  iSideID=DirichletBC(BCsideID)
+  write(*,*)'BCSide is Side ', iSideID
+  ElemID      = SideToElem(S2E_ELEM_ID,iSideID)
+  !NbElemID    = SideToElem(S2E_NB_ELEM_ID,iSideID) ! There are no neighbours at boundaries...
+  DO iGP_face=1,nGP_face
+    DO jLocSide=1,6
+      jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,ElemID)
+      !jNbSideID=ElemToSide(E2S_SIDE_ID,jLocSide,NbElemID)
+      DO jGP_face=1,nGP_face
+        CALL MatSetValues(Smat_petsc,1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
+                                     1,(/(jSideID-1)*nGP_face+(jGP_face-1)/), &
+                                     0.,INSERT_VALUES,ierr);CHKERRQ(ierr)
+        !CALL MatSetValues(Smat_petsc,1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
+        !                             1,(/(jNbSideID-1)*nGP_face+(jGP_face-1)/), &
+        !                             0.,INSERT_VALUES,ierr);CHKERRQ(ierr)
+        ! S remains symmetric...
+        !CALL MatSetValues(Smat_petsc,1,(/(jSideID-1)*nGP_face+(jGP_face-1)/), &
+        !                             1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
+        !                             0.,INSERT_VALUES,ierr);CHKERRQ(ierr)
+        !CALL MatSetValues(Smat_petsc,1,(/(jNbSideID-1)*nGP_face+(jGP_face-1)/), &
+        !                             1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
+        !                             0.,INSERT_VALUES,ierr);CHKERRQ(ierr)
+      END DO
+    END DO
+    CALL MatSetValues(Smat_petsc,1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
+                                 1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
+                                 1.,INSERT_VALUES,ierr);CHKERRQ(ierr)
+  END DO
+END DO
+write(*,*)'SMATRIX ASSEMBLED'
+
+
+CALL MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+CALL MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+
+! Set up GMRES in Petsc
+CALL KSPCreate(MPI_COMM_SHARED,ksp,ierr);CHKERRQ(ierr)
+CALL KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr);CHKERRQ(ierr)
+CALL KSPSetType(ksp,KSPGMRES,ierr);CHKERRQ(ierr)
+CALL KSPSetInitialGuessNonzero(ksp,PETSC_FALSE,ierr);CHKERRQ(ierr) ! initial guess is zero
+CALL KSPSetTolerances(ksp,1e-6,PETSC_DEFAULT_REAL,PETSC_DEFAULT_REAL,10000,ierr);CHKERRQ(ierr)
+! preconditioner
+CALL KSPSetPCSide(ksp,PC_LEFT,ierr);CHKERRQ(ierr)
+CALL KSPGetPC(ksp,myPC,ierr);CHKERRQ(ierr)
+CALL PCSetType(myPC,PCNONE,ierr);CHKERRQ(ierr)
+
+CALL KSPSetUp(ksp,ierr)
+
+#endif
 
 HDGInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT HDG DONE!'
@@ -572,6 +679,10 @@ USE MOD_Equation_Vars          ,ONLY: B, E
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
+#if USE_PETSC
+USE MOD_HDG_Vars,ONLY: RHS_petsc,lambda_petsc
+USE petsc
+#endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -592,6 +703,14 @@ REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #if USE_LOADBALANCE
 REAL    :: tLBStart
 #endif /*USE_LOADBALANCE*/
+#if USE_PETSC
+INTEGER :: iGP_face
+PetscErrorCode       :: ierr
+PetscScalar, POINTER :: lambda_pointer(:)
+KSPConvergedReason   :: reason
+PetscInt             :: iterations
+PetscReal            :: petscnorm
+#endif
 !===================================================================================================================================
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
@@ -746,7 +865,64 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 ! SOLVE
 DO iVar=1, PP_nVar
 
+#if USE_PETSC
+! Fill right hand side
+!CALL VecCopy(RHS_petsc_dirichlet,RHS_petsc)
+  DO SideID=1,nSides
+    DO iGP_face=1,nGP_face
+      CALL VecSetValues(RHS_petsc,1,((SideID-1)*nGP_face+(iGP_face-1)),RHS_face(1,iGP_face,SideID),INSERT_VALUES,ierr);CHKERRQ(ierr)
+    END DO
+  END DO
+  ! Set Dirichlet BCs directly
+  DO BCsideID=1,nDirichletBCSides
+    SideID=DirichletBC(BCsideID)
+    DO iGP_face=1,nGP_face
+      ! Fill contributions of dirichlet faces
+
+      !CALL VecSetValues(RHS_petsc,1,((SideID-1)*nGP_face+(iGP_face-1)),0.-Smat(jGP_face,iGP_face,iLocSide,jLocSide,iElem)*lambda(1,iGP_face,SideID),ADD_VALUES,ierr);CHKERRQ(ierr)
+
+      ! Set dirichlet BC...
+      CALL VecSetValues(RHS_petsc,1,((SideID-1)*nGP_face+(iGP_face-1)),lambda(1,iGP_face,SideID),INSERT_VALUES,ierr);CHKERRQ(ierr)
+    END DO
+    ! Add contribution to the other sides...
+  END DO
+  CALL VecAssemblyBegin(RHS_petsc,ierr);CHKERRQ(ierr)
+  CALL VecAssemblyEnd(RHS_petsc,ierr);CHKERRQ(ierr)
+  CALL VecGetArrayReadF90(RHS_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
+  DO SideID=1,nSides
+    DO iGP_face=1,nGP_face
+      lambda(1,iGP_face,SideID) = lambda_pointer((SideID-1)*nGP_face+iGP_face)
+    END DO
+  END DO
+  CALL VecRestoreArrayReadF90(RHS_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
+  
+
+
+  ! Calculate lambda
+  CALL KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr);CHKERRQ(ierr)
+  CALL KSPGetIterationNumber(ksp,iterations,ierr);CHKERRQ(ierr)
+  CALL KSPGetConvergedReason(ksp,reason,ierr);CHKERRQ(ierr)
+  IF(reason.LT.0)THEN
+    SWRITE(*,*) 'Attention: GMRES not converged!'
+  END IF
+  WRITE (*,*) 'iterations',iterations
+  CALL KSPGetResidualNorm(ksp,petscnorm,ierr);CHKERRQ(ierr)
+  write(*,*)petscnorm
+
+  ! Fill element local lambda for post processing
+  CALL VecGetArrayReadF90(lambda_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
+  DO SideID=1,nSides
+    DO iGP_face=1,nGP_face
+      lambda(1,iGP_face,SideID) = lambda_pointer((SideID-1)*nGP_face+iGP_face)
+    END DO
+  END DO
+  CALL VecRestoreArrayReadF90(lambda_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
+  !DO iLocSide=1,nSides
+  !  write(*,*)'Seite Nr: ', iLocSide, ' hat PETSC Einträge: ', lambda(1,:,iLocSide)
+  !END DO
+#else
   CALL CG_solver(RHS_face(iVar,:,:),lambda(iVar,:,:),iVar)
+#endif
   !POST PROCESSING
 
 #if USE_LOADBALANCE
@@ -1475,7 +1651,7 @@ R=RHS-mv
 #if (PP_nVar!=1)
 IF (iVar.EQ.4) THEN
 #endif
-
+! TODO direkt als RHS vorgeben! nicht erst hier für PETSC Problem NICHT mehr symmetrisch!
   ! Dirichlet BCs
   DO BCsideID=1,nDirichletBCSides
     R(:,DirichletBC(BCsideID))=0.
@@ -1875,13 +2051,24 @@ END SUBROUTINE RestartHDG
 SUBROUTINE FinalizeHDG()
 ! MODULES
 USE MOD_HDG_Vars
+#if USE_PETSC
+USE petsc
+#endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_PETSC
+PetscErrorCode       :: ierr
+#endif
 !===================================================================================================================================
 HDGInitIsDone = .FALSE.
+#if USE_PETSC
+CALL KSPDestroy(ksp,ierr)
+CHKERRQ(ierr)
+CALL PetscFinalize(ierr)
+#endif
 SDEALLOCATE(NonlinVolumeFac)
 SDEALLOCATE(DirichletBC)
 SDEALLOCATE(NeumannBC)

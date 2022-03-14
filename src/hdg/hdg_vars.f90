@@ -11,11 +11,17 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
+#if USE_PETSC
+#include "petsc/finclude/petsc.h"
+#endif
 !===================================================================================================================================
 !> Contains global variables used by the HDG modules.
 !===================================================================================================================================
 MODULE MOD_HDG_Vars
 ! MODULES
+#if USE_PETSC
+USE PETSc
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -27,6 +33,13 @@ SAVE
 INTEGER             :: nGP_vol                !< =(PP_N+1)**3
 INTEGER             :: nGP_face               !< =(PP_N+1)**2
 
+#if USE_PETSC
+Mat :: Smat_petsc
+Vec :: RHS_petsc
+!Vec :: RHS_petsc_dirichlet
+Vec :: lambda_petsc
+KSP :: ksp
+#endif
 LOGICAL             :: useHDG=.FALSE.
 LOGICAL             :: ExactLambda =.FALSE.   !< Flag to initialize exact function for lambda
 REAL,ALLOCATABLE    :: InvDhat(:,:,:)         !< Inverse of Dhat matrix (nGP_vol,nGP_vol,nElems)

@@ -412,3 +412,48 @@ ENDIF()
 #  ELSE()
 #    ADD_DEFINITIONS(-DUSE_OPENMP=0)
 #  ENDIF()
+
+#=========================================================================
+# PETSc
+#=========================================================================
+OPTION(PICLAS_PETSC "Use the PETSc library" OFF)
+IF(PICLAS_PETSC)
+  ADD_DEFINITIONS(-DUSE_PETSC=1)
+  if(NOT DEFINED PETSC_DIR)
+    set(PETSC_DIR $ENV{PETSC_DIR})
+  endif()
+  if(NOT DEFINED PETSC_ARCH)
+    set(PETSC_ARCH $ENV{PETSC_ARCH})
+  endif()
+
+  if(EXISTS "${PETSC_DIR}/include" AND
+    EXISTS "${PETSC_DIR}/${PETSC_ARCH}/include")
+    set(PETSC_INC "${PETSC_DIR}/include" "${PETSC_DIR}/${PETSC_ARCH}/include")
+  else()
+    message(SEND_ERROR "PETSc includes not found")
+  endif()
+
+  if(EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.so")
+    set(PETSC_LIB "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.so")
+  elseif(EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.a")
+    set(PETSC_LIB "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.a")
+  else()
+    message(SEND_ERROR "PETSc library not found")
+  endif()
+
+  if(EXISTS ${PETSC_DIR}/${PETSC_ARCH}/conf/petscvariables)
+    file(STRINGS ${PETSC_DIR}/${PETSC_ARCH}/conf/petscvariables
+      PETSC_VARIABLES NEWLINE_CONSUME)
+  elseif(EXISTS ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables)
+    file(STRINGS ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables
+      PETSC_VARIABLES NEWLINE_CONSUME)
+  else()
+    message(SEND_ERROR "PETSc variables not found")
+  endif()
+
+  INCLUDE_DIRECTORIES(${PETSC_INC})
+  LIST(APPEND linkedlibs ${PETSC_LIB})
+ELSE()
+  ADD_DEFINITIONS(-DUSE_PETSC=0)
+ENDIF(PICLAS_PETSC)
+
