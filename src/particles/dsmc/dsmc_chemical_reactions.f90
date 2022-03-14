@@ -351,7 +351,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: abort, DOTPRODUCT
-USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
@@ -848,10 +848,9 @@ IF(ProductReac(3).NE.0) THEN
     ! Set the energy for the 2-4 pair
     cRelaNew(1:3) = PostCollVec(iPair)
     ! deltaV particle 2
-    DSMC_RHS(1:3,ReactInx(2)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3) - PartState(4:6,ReactInx(2))
+    PartState(4:6,ReactInx(2)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3)
     ! deltaV particle 4
-    PartState(4:6,ReactInx(4)) = 0.
-    DSMC_RHS(1:3,ReactInx(4)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)
+    PartState(4:6,ReactInx(4)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)
 #ifdef CODE_ANALYZE
     Energy_new=0.5*Species(ProductReac(2))%MassIC*DOTPRODUCT(VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3)) * Weight(2)
     Momentum_new(1:3) = Species(ProductReac(2))%MassIC* (VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3)) * Weight(2)
@@ -884,7 +883,7 @@ IF(ProductReac(3).NE.0) THEN
           , (/Weight(1),Weight(3),Weight(2)/))
     Coll_pData(iPair)%CRela2 = 2 * ERel_React1_React2 / MassRed
     cRelaNew(1:3) = PostCollVec(iPair)
-    DSMC_RHS(1:3,ReactInx(2)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3) - PartState(4:6,ReactInx(2))
+    PartState(4:6,ReactInx(2)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)
 #ifdef CODE_ANALYZE
     Energy_new=0.5*Species(ProductReac(2))%MassIC*DOTPRODUCT(VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3))* Weight(2)
     Momentum_new(1:3) = Species(ProductReac(2))%MassIC* (VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)) * Weight(2)
@@ -920,11 +919,10 @@ IF(ProductReac(3).NE.0) THEN
   cRelaNew(1:3) = PostCollVec(iPair)
 
   !deltaV particle 1
-  DSMC_RHS(1:3,ReactInx(1)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3) - PartState(4:6,ReactInx(1))
+  PartState(4:6,ReactInx(1)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3)
 
   !deltaV particle 3
-  PartState(4:6,ReactInx(3)) = 0.
-  DSMC_RHS(1:3,ReactInx(3)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)
+  PartState(4:6,ReactInx(3)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)
 
 #ifdef CODE_ANALYZE
   ! New total energy
@@ -987,9 +985,9 @@ ELSEIF(ProductReac(3).EQ.0) THEN
   cRelaNew(1:3) = PostCollVec(iPair)
 
   !deltaV particle 1
-  DSMC_RHS(1:3,ReactInx(1)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3) - PartState(4:6,ReactInx(1))
+  PartState(4:6,ReactInx(1)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3)
   !deltaV particle 2
-  DSMC_RHS(1:3,ReactInx(2)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3) - PartState(4:6,ReactInx(2))
+  PartState(4:6,ReactInx(2)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)
 
 #ifdef CODE_ANALYZE
   ! New total energy of remaining products (here, recombination: 2 products)
@@ -1083,13 +1081,13 @@ END DO
 END SUBROUTINE DSMC_Chemistry
 
 
-SUBROUTINE simpleCEX(iReac, iPair, resetRHS_opt)
+SUBROUTINE simpleCEX(iReac, iPair)
 !===================================================================================================================================
 ! simple charge exchange interaction
 ! ION(v1) + ATOM(v2) -> ATOM(v1) + ION(v2)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS
+  USE MOD_DSMC_Vars,             ONLY : Coll_pData
   USE MOD_DSMC_Vars,             ONLY : ChemReac
   USE MOD_Particle_Vars,         ONLY : PartSpecies
 ! IMPLICIT VARIABLE HANDLING
@@ -1097,20 +1095,12 @@ SUBROUTINE simpleCEX(iReac, iPair, resetRHS_opt)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iPair, iReac
-  LOGICAL, INTENT(IN), OPTIONAL :: resetRHS_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                       :: ReactInx(1:2)
-  LOGICAL                       :: resetRHS
 !===================================================================================================================================
-
-  IF (PRESENT(resetRHS_opt)) THEN
-    resetRHS=resetRHS_opt
-  ELSE
-    resetRHS=.TRUE.
-  END IF
 
   IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
     ReactInx(1) = Coll_pData(iPair)%iPart_p1
@@ -1123,17 +1113,6 @@ SUBROUTINE simpleCEX(iReac, iPair, resetRHS_opt)
   PartSpecies(ReactInx(1)) = ChemReac%Products(iReac,1)
   PartSpecies(ReactInx(2)) = ChemReac%Products(iReac,2)
 
-  IF (resetRHS) THEN
-    ! deltaV particle 1
-    DSMC_RHS(1,Coll_pData(iPair)%iPart_p1) = 0.
-    DSMC_RHS(2,Coll_pData(iPair)%iPart_p1) = 0.
-    DSMC_RHS(3,Coll_pData(iPair)%iPart_p1) = 0.
-    ! deltaV particle 2
-    DSMC_RHS(1,Coll_pData(iPair)%iPart_p2) = 0.
-    DSMC_RHS(2,Coll_pData(iPair)%iPart_p2) = 0.
-    DSMC_RHS(3,Coll_pData(iPair)%iPart_p2) = 0.
-  END IF
-
 END SUBROUTINE simpleCEX
 
 
@@ -1144,7 +1123,7 @@ SUBROUTINE simpleMEX(iReac, iPair)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,               ONLY : abort
-  USE MOD_DSMC_Vars,             ONLY : Coll_pData !, DSMC_RHS
+  USE MOD_DSMC_Vars,             ONLY : Coll_pData
   USE MOD_DSMC_Vars,             ONLY : ChemReac
   USE MOD_Particle_Vars,         ONLY : PartSpecies,Species
 ! IMPLICIT VARIABLE HANDLING

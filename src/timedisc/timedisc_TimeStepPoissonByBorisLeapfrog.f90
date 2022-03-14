@@ -58,7 +58,7 @@ USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -260,7 +260,6 @@ IF (useDSMC) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
     IF(UseSplitAndMerge) CALL SplitAndMerge()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DSMC,tLBStart)

@@ -39,7 +39,6 @@ TYPE(tTLU_Data)                           :: TLU_Data
 REAL                          :: Debug_Energy(2)=0.0        ! debug variable energy conservation
 INTEGER                       :: DSMCSumOfFormedParticles   !number of formed particles per iteration in chemical reactions
                                                             ! for counting the nextfreeparticleposition
-REAL  , ALLOCATABLE           :: DSMC_RHS(:,:)              ! RHS of the DSMC Method/ deltaV (npartmax, direction)
 INTEGER                       :: CollisMode                 ! Mode of Collision:, ini_1
                                                             !    0: No Collisions (=free molecular flow with DSMC-Sampling-Routines)
                                                             !    1: Elastic Collision
@@ -168,6 +167,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
                                                             ! treated with read-in collision cross-section (currently only with BGG)
   LOGICAL                           :: UseVibXSec           ! Flag if the vibrational relaxation probability should be treated,
                                                             ! using read-in cross-sectional data (currently only with BGG)
+  REAL,ALLOCATABLE                  :: CollFreqPreFactor(:)
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
@@ -263,6 +263,7 @@ TYPE tDSMC
                                                             !     1: Liechty, each particle has a specific electronic state
                                                             !     2: Burt, each particle has an electronic distribution function
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
+  LOGICAL                       :: DoLTRelaxElectronicState 
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
   REAL                          :: RotRelaxProb             ! Model for calculation of rotational relaxation probability, ini_1
                                                             !    0-1: constant probability  (0: no relaxation)

@@ -161,7 +161,7 @@ SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, To
 ! MODULES
 USE MOD_Globals                
 USE MOD_DSMC_Vars               ,ONLY: BGGas, CollisMode, DSMC, PartStateIntEn, AmbipolElecVelo, RadialWeighting
-USE MOD_DSMC_Vars               ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi, DSMC_RHS
+USE MOD_DSMC_Vars               ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_PARTICLE_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, Species, VarTimeStep, PartMPF, Symmetry, usevMPF
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
 ! IMPLICIT VARIABLE HANDLING
@@ -225,7 +225,6 @@ __STAMP__&
   PEM%GlobalElemID(PositionNbr) = iElem
   PDM%ParticleInside(PositionNbr) = .true.
   PartState(4:6,PositionNbr) = AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3)
-  DSMC_RHS(1:3,PositionNbr) = 0.0
   DEALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)
   IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
     PartStateIntEn( 1,PositionNbr) = 0.
@@ -260,7 +259,7 @@ SUBROUTINE AD_DeleteParticles(iPartIndx_Node, nPart_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_PARTICLE_Vars       ,ONLY: PDM, PartSpecies, Species, PartState, PEM
-USE MOD_DSMC_Vars           ,ONLY: AmbipolElecVelo, newAmbiParts, iPartIndx_NodeNewAmbi, DSMC_RHS
+USE MOD_DSMC_Vars           ,ONLY: AmbipolElecVelo, newAmbiParts, iPartIndx_NodeNewAmbi
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -333,7 +332,7 @@ END IF
 DO iLoop = 1, nElectron
   IF (ALLOCATED(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)) DEALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo)
   ALLOCATE(AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(3))
-  AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3) = PartState(4:6,ElecIndx(iLoop)) + DSMC_RHS(1:3,ElecIndx(iLoop))
+  AmbipolElecVelo(IonIndX(iLoop))%ElecVelo(1:3) = PartState(4:6,ElecIndx(iLoop)) 
   PDM%ParticleInside(ElecIndx(iLoop)) = .FALSE.
 END DO
 

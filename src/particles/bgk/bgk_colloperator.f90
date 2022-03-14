@@ -46,13 +46,13 @@ SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume)
 !> 6.) Sample new particle velocities from the target distribution function, depending on the chosen model
 !> 7.) Determine the new bulk velocity and the new relative velocity of the particles
 !> 8.) Treatment of the vibrational energy of molecules
-!> 9.) Determine the new DSMC_RHS (for molecules, including rotational energy)
+!> 9.) Determine the new PartState (for molecules, including rotational energy)
 !> 9.) Scaling of the rotational energy of molecules
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals               ,ONLY: DOTPRODUCT
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, VarTimeStep
-USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS, SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, RadialWeighting, CollInf
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, RadialWeighting, CollInf
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_BGK_Vars              ,ONLY: SpecBGK, BGKDoVibRelaxation!, BGKMovingAverageLength
 USE MOD_BGK_Vars              ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor
@@ -216,7 +216,7 @@ DO iLoop = 1, nRelax
   iPart = iPartIndx_NodeRelax(iLoop)
   iSpec = PartSpecies(iPart)
   partWeight = GetParticleWeight(iPart)
-  V_rel(1:3) = DSMC_RHS(1:3,iPart) - vBulk(1:3)
+  V_rel(1:3) = PartState(4:6,iPart) - vBulk(1:3)
   NewEn = NewEn + (V_rel(1)**(2.) + V_rel(2)**(2.) + V_rel(3)**(2.))*0.5*Species(iSpec)%MassIC*partWeight
 END DO
 DO iLoop = 1, nPart-nRelax
@@ -234,7 +234,6 @@ END IF
 
 OldEn = OldEn + OldEnRot
 ! 8.) Determine the new particle state and ensure energy conservation by scaling the new velocities with the factor alpha.
-!     The actual update of particle velocity happens in the TimeDisc through the change in the velocity (DSMC_RHS)
 Xi_RotTotal = 0.0
 DO iSpec = 1, nSpecies
   Xi_RotTotal = Xi_RotTotal + Xi_RotSpec(iSpec)*nRotRelaxSpec(iSpec)
@@ -242,11 +241,11 @@ END DO
 alpha = SQRT(OldEn/NewEn*(3.*(nPart-1.))/(Xi_RotTotal+3.*(nPart-1.)))
 DO iLoop = 1, nRelax
   iPart = iPartIndx_NodeRelax(iLoop)
-  DSMC_RHS(1:3,iPart) = vBulkAll(1:3) + alpha*(DSMC_RHS(1:3,iPart)-vBulk(1:3)) - PartState(4:6,iPart)
+  PartState(4:6,iPart) = vBulkAll(1:3) + alpha*(PartState(4:6,iPart)-vBulk(1:3))
 END DO
 DO iLoop = 1, nPart-nRelax
   iPart = iPartIndx_NodeRelaxTemp(iLoop)
-  DSMC_RHS(1:3,iPart) = vBulkAll(1:3) + alpha*(PartState(4:6,iPart)-vBulk(1:3)) - PartState(4:6,iPart)
+  PartState(4:6,iPart) = vBulkAll(1:3) + alpha*(PartState(4:6,iPart)-vBulk(1:3))
 END DO
 
 ! 9.) Rotation: Scale the new rotational state of the molecules to ensure energy conservation
@@ -262,8 +261,8 @@ DO iLoop = 1, nPart
   iPart = iPartIndx_Node(iLoop)
   iSpec = PartSpecies(iPart)
   partWeight = GetParticleWeight(iPart)
-  Momentum_new(1:3) = Momentum_new(1:3) + (DSMC_RHS(1:3,iPart) + PartState(4:6,iPart)) * Species(iSpec)%MassIC*partWeight
-  Energy_new = Energy_new + DOTPRODUCT((DSMC_RHS(1:3,iPart) + PartState(4:6,iPart)))*0.5*Species(iSpec)%MassIC*partWeight
+  Momentum_new(1:3) = Momentum_new(1:3) + (PartState(4:6,iPart)) * Species(iSpec)%MassIC*partWeight
+  Energy_new = Energy_new + DOTPRODUCT((PartState(4:6,iPart)))*0.5*Species(iSpec)%MassIC*partWeight
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     Energy_new = Energy_new + (PartStateIntEn(1,iPart) + PartStateIntEn(2,iPart))*partWeight
   END IF
@@ -741,8 +740,7 @@ SUBROUTINE SampleFromTargetDistr(nRelax, iPartIndx_NodeRelax, Prandtl, u2, u0ij,
 !> Sample new particle velocities from the target distribution function, depending on the chosen model
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species
-USE MOD_DSMC_Vars             ,ONLY: DSMC_RHS
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PartState
 USE MOD_BGK_Vars              ,ONLY: BGKCollModel, ESBGKModel
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
@@ -841,12 +839,12 @@ IF (nRelax.GT.0) THEN
     iSpec = PartSpecies(iPart)
     IF ((BGKCollModel.EQ.1).AND.(ESBGKModel.NE.3)) THEN
       tempVelo(1:3) = SQRT(BoltzmannConst*CellTemp/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
-      DSMC_RHS(1:3,iPart) = vBulkAll(1:3) + MATMUL(SMat,tempVelo)
+      PartState(4:6,iPart) = vBulkAll(1:3) + MATMUL(SMat,tempVelo)
     ELSE
-      DSMC_RHS(1:3,iPart) = vBulkAll(1:3) + SQRT(BoltzmannConst*CellTemp/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
+      PartState(4:6,iPart) = vBulkAll(1:3) + SQRT(BoltzmannConst*CellTemp/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
     END IF
     partWeight = GetParticleWeight(iPart)
-    vBulk(1:3) = vBulk(1:3) + DSMC_RHS(1:3,iPart)*Species(iSpec)%MassIC*partWeight
+    vBulk(1:3) = vBulk(1:3) + PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
   END DO
 END IF ! nRelax.GT.0
 

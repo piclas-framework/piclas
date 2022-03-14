@@ -51,7 +51,7 @@ USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetr
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_FPFlow_Vars         ,ONLY: FPDSMCSwitchDens, FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
+USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_DSMC                ,ONLY: DSMC_main
@@ -71,7 +71,6 @@ INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 LOGICAL               :: DoElement(nElems)
 REAL                  :: dens, partWeight, totalWeight
 !===================================================================================================================================
-DSMC_RHS = 0.0
 DoElement = .FALSE.
 
 DO iElem = 1, nElems
@@ -146,7 +145,7 @@ USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC
+USE MOD_DSMC_Vars           ,ONLY: DSMC
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber
@@ -165,7 +164,6 @@ USE MOD_DSMC_Analyze        ,ONLY: DSMCMacroSampling
 INTEGER                     :: iElem, nPart, iPart, iLoop, CNElemID
 INTEGER, ALLOCATABLE        :: iPartIndx_Node(:)
 !===================================================================================================================================
-DSMC_RHS = 0.0
 
 IF (DoBGKCellAdaptation) THEN
   DO iElem = 1, nElems

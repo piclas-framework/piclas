@@ -38,7 +38,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep, Symmetry
-USE MOD_DSMC_Vars              ,ONLY: DSMC_RHS, DSMC, CollisMode
+USE MOD_DSMC_Vars              ,ONLY: DSMC, CollisMode
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
@@ -176,8 +176,6 @@ CALL extrae_eventandcounters(int(9000001), int8(52))
   ELSE
     CALL BGK_main()
   END IF
-
-PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))

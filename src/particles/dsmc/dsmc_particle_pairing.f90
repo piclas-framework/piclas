@@ -374,12 +374,14 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic,SumVibRelaxProb
 USE MOD_DSMC_Symmetry           ,ONLY: DSMC_2D_TreatIdenticalParticles
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
+USE MOD_DSMC_ElectronicModel    ,ONLY: LT_ElectronicEnergyExchange
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL, INTENT(IN)              :: NodeVolume
-INTEGER, INTENT(IN)           :: PartNum, iElem
+INTEGER, INTENT(IN)           :: iElem
+INTEGER, INTENT(INOUT)        :: PartNum
 INTEGER, INTENT(INOUT), TARGET:: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -534,6 +536,12 @@ END IF
 DEALLOCATE(Coll_pData)
 IF (DSMC%DoAmbipolarDiff) THEN
   CALL AD_DeleteParticles(iPartIndx_NodeTotalAmbiDel,TotalPartNum)
+END IF
+
+
+
+IF (DSMC%ElectronicModel.GT.0.AND.(DSMC%DoLTRelaxElectronicState)) THEN
+  CALL LT_ElectronicEnergyExchange(iPartIndx_Node, PartNum, NodeVolume)
 END IF
 
 END SUBROUTINE PerformPairingAndCollision
