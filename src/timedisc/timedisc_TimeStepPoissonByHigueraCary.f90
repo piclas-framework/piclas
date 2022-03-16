@@ -82,6 +82,7 @@ INTEGER                    :: iPart
 REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
+REAL                       :: RandVal, dtFrac
 REAL                       :: gamma1,c1,gammaMinus,gammaPlus,tau2,sigma,s,uStar
 REAL, DIMENSION(3)         :: tauVec, tVec, uMinus, uPlus
 #endif /*PARTICLES*/
@@ -162,6 +163,14 @@ IF (time.GE.DelayTime) THEN
 
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
+      IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoSurfaceFlux for compiler-optimization if .FALSE.
+        CALL RANDOM_NUMBER(RandVal)
+        dtFrac = dt * RandVal
+        PDM%dtFracPush(iPart) = .FALSE.
+      ELSE
+        dtFrac = dt
+      END IF
+
       ! Don't push the velocity component of neutral particles!
       IF(isPushParticle(iPart).AND.DoInterpolation)THEN
         !-- get Lorentz factor gamma1(n)
@@ -173,7 +182,7 @@ IF (time.GE.DelayTime) THEN
         PartState(4:6,iPart) = PartState(4:6,iPart)*gamma1
 
         !-- const. factor
-        c1 = (Species(PartSpecies(iPart))%ChargeIC * dt) / (Species(PartSpecies(iPart))%MassIC * 2.)
+        c1 = (Species(PartSpecies(iPart))%ChargeIC * dtFrac) / (Species(PartSpecies(iPart))%MassIC * 2.)
 
         !-- u- = u(n) + q/m*E(n+1/2)*dt/2
         uMinus = PartState(4:6,iPart) + c1 * FieldAtParticle(1:3,iPart)
@@ -208,7 +217,7 @@ IF (time.GE.DelayTime) THEN
 
       ! 2nd part of the position update (also neutral particles)
       !-- x(n) => x(n+1) by v(n+0.5):
-      PartState(1:3,iPart) = PartState(1:3,iPart) + 0.5 * PartState(4:6,iPart) * dt
+      PartState(1:3,iPart) = PartState(1:3,iPart) + 0.5 * PartState(4:6,iPart) * dtFrac
 
       ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
