@@ -119,9 +119,12 @@ USE MOD_Part_BR_Elecron_Fluid ,ONLY: UpdateNonlinVolumeFac
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 #endif /*defined(PARTICLES)*/
 #if USE_PETSC
-USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_WORLD,MPI_COMM_SHARED
 USE PETSc
-USE MOD_Mesh_Vars          ,ONLY: ElemToSide, SideToElem
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide, SideToElem, nGlobalUniqueSides, nUniqueSides, OffsetSide
+USE MOD_Mesh_Vars        ,ONLY: GlobalUniqueSideID, nMPISides_YOUR
+USE MOD_MPI               ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
+USE MOD_MPI_Vars
 #endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -147,11 +150,6 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
 
-#if USE_PETSC
-! initialize PETSc stuff!
-CALL PetscInitialize(PETSC_NULL_CHARACTER,ierr);!CHKERRQ(ierr)
-#endif
-
 HDGDisplayConvergence = GETLOGICAL('HDGDisplayConvergence')
 
 nGP_vol  = (PP_N+1)**3
@@ -166,6 +164,25 @@ ELSE
 END IF
 
 HDGNonLinSolver = -1 ! init
+
+#if USE_PETSC
+! initialize PETSc stuff!
+CALL PetscInitialize(PETSC_NULL_CHARACTER,ierr);!CHKERRQ(ierr)
+
+! Create PETSc Mapping
+ALLOCATE(PETScID(1:nGP_face,1:nSides))
+DO SideID=1,nSides-nMPISides_YOUR
+  DO iGP_face=1,nGP_face
+    PETScID(iGP_face,SideID) = iGP_face + nGP_face*(SideID+OffsetSide-1) - 1 ! PETSc arrays start at 0!
+  END DO
+END DO
+#if USE_MPI
+CALL StartReceiveMPIDataInt(1,PETScID,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+CALL StartSendMPIDataInt(   1,PETScID,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+#endif
+WRITE(*,*)'PETSc 1 done!'
+#endif
 
 #if defined(PARTICLES)
 ! BR electron fluid model
@@ -331,10 +348,11 @@ ALLOCATE(Ehat(nGP_face,nGP_vol,6,PP_nElems))
 ALLOCATE(Smat(nGP_face,nGP_face,6,6,PP_nElems))
 
 #if USE_PETSC
-CALL MatCreate(MPI_COMM_SHARED,Smat_petsc,ierr);CHKERRQ(ierr)
-CALL MatSetSizes(Smat_petsc,nSides*nGP_face,nSides*nGP_face,nSides*nGP_face,nSides*nGP_face,ierr);CHKERRQ(ierr) ! TODO MPI
-CALL MatSetType(Smat_petsc,MATSEQAIJ,ierr);CHKERRQ(ierr) ! no blocks TODO do face wise blocks for performance!
-CALL MatSeqAIJSetPreallocation(Smat_petsc,11*nGP_face,PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
+CALL MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr);CHKERRQ(ierr)
+CALL MatSetSizes(Smat_petsc,(nSides-nMPIsides_YOUR)*nGP_face,(nSides-nMPIsides_YOUR)*nGP_face,nGlobalUniqueSides*nGP_face,nGlobalUniqueSides*nGP_face,ierr);CHKERRQ(ierr) ! TODO MPI
+CALL MatSetType(Smat_petsc,MATMPIAIJ,ierr);CHKERRQ(ierr) ! no blocks TODO do face wise blocks for performance!
+CALL MatSetUp(Smat_petsc,ierr)
+CALL MatMPIAIJSetPreallocation(Smat_petsc,11*nGP_face,PETSC_NULL_INTEGER,11*nGP_face,PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
 CALL MatZeroEntries(Smat_petsc,ierr);CHKERRQ(ierr)
 #endif
 
@@ -349,7 +367,7 @@ IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as on
 END IF
 
 #if USE_PETSC
-CALL KSPCreate(MPI_COMM_SHARED,ksp,ierr);CHKERRQ(ierr)
+CALL KSPCreate(PETSC_COMM_WORLD,ksp,ierr);CHKERRQ(ierr)
 CALL KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr);CHKERRQ(ierr)
 
 ! Use GMRES solver
@@ -372,9 +390,10 @@ RHS_vol=0.
 
 #if USE_PETSC
 ! allocate RHS & lambda vectors
-CALL VecCreate(MPI_COMM_SHARED,lambda_petsc,ierr);CHKERRQ(ierr)
+CALL VecCreate(PETSC_COMM_WORLD,lambda_petsc,ierr);CHKERRQ(ierr)
 CALL VecSetType(lambda_petsc,VECSTANDARD,ierr);CHKERRQ(ierr)
-CALL VecSetSizes(lambda_petsc,nSides*nGP_face,nSides*nGP_face,ierr);CHKERRQ(ierr)
+CALL VecSetSizes(lambda_petsc,(nSides-nMPIsides_YOUR)*nGP_face,nGlobalUniqueSides*nGP_face,ierr);CHKERRQ(ierr)
+CALL VecSetUp(lambda_petsc,ierr);CHKERRQ(ierr)
 CALL VecDuplicate(lambda_petsc,RHS_petsc,ierr)
 #endif
 
@@ -622,6 +641,9 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
 USE MOD_HDG_Vars,ONLY: RHS_petsc,lambda_petsc
+USE MOD_Mesh_Vars        ,ONLY: GlobalUniqueSideID, nMPISides_YOUR, OffsetSide
+USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI_Vars
 USE petsc
 #endif
 IMPLICIT NONE
@@ -810,22 +832,24 @@ DO iVar=1, PP_nVar
   ! Fill right hand side
   DO SideID=1,nSides
     DO iGP_face=1,nGP_face
-      CALL VecSetValues(RHS_petsc,1,((SideID-1)*nGP_face+(iGP_face-1)),RHS_face(1,iGP_face,SideID),INSERT_VALUES,ierr);CHKERRQ(ierr)
+      CALL VecSetValues(RHS_petsc,1,PETScID(iGP_face,SideID),RHS_face(1,iGP_face,SideID),INSERT_VALUES,ierr);CHKERRQ(ierr)
     END DO
   END DO
   ! Set Dirichlet BCs & ZeroPotentialSide directly
   DO BCsideID=1,nDirichletBCSides
     SideID=DirichletBC(BCsideID)
     DO iGP_face=1,nGP_face
-      CALL VecSetValues(RHS_petsc,1,((SideID-1)*nGP_face+(iGP_face-1)),lambda(1,iGP_face,SideID),INSERT_VALUES,ierr);CHKERRQ(ierr)
+      CALL VecSetValues(RHS_petsc,1,PETScID(iGP_face,SideID),lambda(1,iGP_face,SideID),INSERT_VALUES,ierr);CHKERRQ(ierr)
     END DO
   END DO
-  DO iGP_face=1,nGP_face
-    CALL VecSetValues(RHS_petsc,1,((ZeroPotentialSideID-1)*nGP_face+(iGP_face-1)),lambda(1,iGP_face,ZeroPotentialSideID),INSERT_VALUES,ierr);CHKERRQ(ierr)
-  END DO
+  IF (ZeroPotentialSideID.GT.0) THEN
+    DO iGP_face=1,nGP_face
+      CALL VecSetValues(RHS_petsc,1,PETScID(iGP_face,ZeroPotentialSideID),lambda(1,iGP_face,ZeroPotentialSideID),INSERT_VALUES,ierr);CHKERRQ(ierr)
+    END DO
+  END IF
   CALL VecAssemblyBegin(RHS_petsc,ierr);CHKERRQ(ierr)
   CALL VecAssemblyEnd(RHS_petsc,ierr);CHKERRQ(ierr)
-  
+
   ! Calculate lambda
   CALL KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr);CHKERRQ(ierr)
   CALL KSPGetIterationNumber(ksp,iterations,ierr);CHKERRQ(ierr)
@@ -837,12 +861,17 @@ DO iVar=1, PP_nVar
 
   ! Fill element local lambda for post processing
   CALL VecGetArrayReadF90(lambda_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
-  DO SideID=1,nSides
+  DO SideID=1,nSides-nMPISides_YOUR
     DO iGP_face=1,nGP_face
-      lambda(1,iGP_face,SideID) = lambda_pointer((SideID-1)*nGP_face+iGP_face)
+      lambda(1,iGP_face,SideID) = lambda_pointer(PETScID(iGP_face,SideID)+1-nGP_face*OffsetSide)
     END DO
   END DO
   CALL VecRestoreArrayReadF90(lambda_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
+#if USE_MPI
+  CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+  CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+#endif
 #else
   CALL CG_solver(RHS_face(iVar,:,:),lambda(iVar,:,:),iVar)
 #endif

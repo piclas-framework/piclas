@@ -39,6 +39,8 @@ Vec :: RHS_petsc
 !Vec :: RHS_petsc_dirichlet
 Vec :: lambda_petsc
 KSP :: ksp
+INTEGER,ALLOCATABLE :: PETScID(:,:)           !< PetScSideID((PP_N+1)**2,SideID) maps the local GaussPointIDs 
+                                              !  to the global position for petsc
 #endif
 LOGICAL             :: useHDG=.FALSE.
 LOGICAL             :: ExactLambda =.FALSE.   !< Flag to initialize exact function for lambda

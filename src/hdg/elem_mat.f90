@@ -72,6 +72,7 @@ USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
 #if USE_PETSC
 USE PETSc
+USE MOD_Mesh_Vars        ,ONLY: GlobalUniqueSideID
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -320,8 +321,8 @@ DO iElem=1,PP_nElems
     ! Only fill diagonal entry with 1 if the Potential is set
     IF ((iSideID.EQ.ZeroPotentialSideID).OR. MaskedSide(iSideID)) THEN
       DO iGP_face=1,nGP_face
-        CALL MatSetValues(Smat_petsc,1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
-                                     1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
+        CALL MatSetValues(Smat_petsc,1,(/PETScID(iGP_face,iSideID)/), &
+                                     1,(/PETScID(iGP_face,iSideID)/), &
                                      1.,ADD_VALUES,ierr);CHKERRQ(ierr)
       END DO
     ELSE
@@ -329,8 +330,8 @@ DO iElem=1,PP_nElems
         DO jLocSide=1,6
           jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
           DO jGP_face=1,nGP_face
-            CALL MatSetValues(Smat_petsc,1,(/(iSideID-1)*nGP_face+(iGP_face-1)/), &
-                                        1,(/(jSideID-1)*nGP_face+(jGP_face-1)/), &
+            CALL MatSetValues(Smat_petsc,1,(/PETScID(iGP_face,iSideID)/), &
+                                         1,(/PETScID(jGP_face,jSideID)/), &
                               Smat(iGP_face,jGP_face,iLocSide,jLocSide,iElem),ADD_VALUES,ierr);CHKERRQ(ierr)
           END DO
         END DO
@@ -424,7 +425,7 @@ CASE(0)
 CASE(1)
   CALL PCSetType(pc,PCJACOBI,ierr);CHKERRQ(ierr)
 CASE(2)
-  CALL PCSetType(pc,PCILU,ierr);CHKERRQ(ierr)
+  CALL PCHYPRESetType(pc,PCILU,ierr);CHKERRQ(ierr)
 END SELECT
 !CALL KSPSetFromOptions(ksp,ierr)
 !CALL KSPSetUp(ksp,ierr)
