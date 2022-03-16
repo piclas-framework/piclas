@@ -151,7 +151,7 @@ REAL                :: RandRot(3,3) !, PartPos(1:3)
         IF(MPIroot.AND.(MOD(photVisCount,PhotDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(photVisCount),REAL(1),REAL(LocPhotNum),.TRUE.)
         photVisCount = photVisCount + 1
         PhotonProps%PhotonPos(1:3) = SetPhotonPos(iElem, globPhotNum)
-        PhotonProps%PhotonLastPos(1:3) = PhotonProps%PhotonPos(1:3)
+        PhotonProps%PhotonLastPos(1:3) = PhotonProps%PhotonPos(1:3)       
         PhotonProps%ElemID = GetGlobalElemID(iElem)
         IF ((photonCount.LT.firstPhoton)) THEN             
           iPhotLoc = firstPhoton - photonCount + iPhot - 1

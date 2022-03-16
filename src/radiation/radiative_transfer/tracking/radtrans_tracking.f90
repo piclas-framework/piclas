@@ -318,6 +318,7 @@ USE MOD_Particle_Boundary_Vars,      ONLY:PartBound
 USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps, RadObservation_Emission, CalcRadObservationPoint,RadObservation_EmissionPart
 USE MOD_Photon_TrackingTools,        ONLY:CalcAbsoprtion, CalcWallAbsoprtion, DiffusePhotonReflection2D, PointInObsCone
 USE MOD_Photon_TrackingTools,        ONLY:PhotonIntersectionWithSide2D, RotatePhotonIn2DPlane, PerfectPhotonReflection2D
+USE MOD_Photon_TrackingTools,        ONLY:PhotonIntersectSensor
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -325,7 +326,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: NbElemID, ind, nbSideID, nMortarElems, BCType, NblocSideID
+INTEGER                          :: NbElemID, ind, nbSideID, nMortarElems, BCType, NblocSideID, OrigElem
 INTEGER                          :: ElemID, OldElemID, LocalSide, NrOfThroughSides, localSideID, nlocSides
 INTEGER                          :: SideID, TempSideID, iLocSide, correctSide, LastSide
 INTEGER                          :: LocSidesTemp(1:6), GlobSideTemp(1:6)
@@ -334,6 +335,7 @@ REAL                             :: IntersectionPos(1:6), IntersectionPosTemp(1:
 !===================================================================================================================================
 Done = .FALSE.
 ElemID = PhotonProps%ElemID
+OrigElem = ElemID
 SideID = 0
 LastSide = 0
 ! 1) Loop tracking until Photon is considered "done" (either absorbed or deleted)
@@ -412,6 +414,7 @@ DO WHILE (.NOT.Done)
       IPWRITE(*,*) 'LastPos: ', PhotonProps%PhotonLastPos(1:3)
       IPWRITE(*,*) 'Pos:     ', PhotonProps%PhotonPos(1:3)
       IPWRITE(*,*) 'Direction:', PhotonProps%PhotonDirection(1:3)
+      IPWRITE(*,*) 'OrigElem:', OrigElem
       IPWRITE(*,*) 'Photon deleted!'
       Done = .TRUE.
       EXIT
@@ -432,10 +435,12 @@ DO WHILE (.NOT.Done)
     CASE(1) !PartBound%OpenBC)
       CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
       DONE = .TRUE.
-      IF (CalcRadObservationPoint) THEN
+      IF (CalcRadObservationPoint) THEN        
         IF (PointInObsCone(IntersectionPos(1:3))) THEN
-          RadObservation_Emission(PhotonProps%WaveLength) = RadObservation_Emission(PhotonProps%WaveLength) + PhotonProps%PhotonEnergy
-          RadObservation_EmissionPart(PhotonProps%WaveLength) = RadObservation_EmissionPart(PhotonProps%WaveLength) + 1
+          IF (PhotonIntersectSensor(IntersectionPos(1:3), PhotonProps%PhotonDirection(1:3))) THEN
+            RadObservation_Emission(PhotonProps%WaveLength) = RadObservation_Emission(PhotonProps%WaveLength) + PhotonProps%PhotonEnergy
+            RadObservation_EmissionPart(PhotonProps%WaveLength) = RadObservation_EmissionPart(PhotonProps%WaveLength) + 1
+          END IF
         END IF
       END IF
       CYCLE
@@ -465,7 +470,7 @@ DO WHILE (.NOT.Done)
       LastSide = SideInfo_Shared(SIDE_NBSIDEID,SideID)
     END IF
   END IF  ! BC(SideID).GT./.LE. 0
- 
+  
   IF (.NOT.DONE) CALL RotatePhotonIn2DPlane(IntersectionPos(1:3))
   IF (ElemID.LT.1) THEN
     CALL abort(&

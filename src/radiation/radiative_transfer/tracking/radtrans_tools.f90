@@ -26,7 +26,7 @@ INTERFACE PhotonThroughSideCheck3DFast
 END INTERFACE
 
 PUBLIC :: PhotonThroughSideCheck3DFast, PhotonIntersectionWithSide, CalcAbsoprtion, PerfectPhotonReflection, DiffusePhotonReflection
-PUBLIC :: CalcWallAbsoprtion, PointInObsCone
+PUBLIC :: CalcWallAbsoprtion, PointInObsCone, PhotonIntersectSensor
 PUBLIC :: PhotonIntersectionWithSide2D, RotatePhotonIn2DPlane, PerfectPhotonReflection2D,DiffusePhotonReflection2D
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -172,7 +172,7 @@ REAL                             :: beta, alpha, deltay, a, b, c, tmpsqrt
   yNode1 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
   xNode2 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
   yNode2 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
-
+  
   x_photon_start=PhotonProps%PhotonLastPos(1)
   y_photon_start=PhotonProps%PhotonLastPos(2) 
 
@@ -238,6 +238,12 @@ REAL                             :: beta, alpha, deltay, a, b, c, tmpsqrt
       IF (ALMOSTEQUAL(S1,S2).AND.ALMOSTEQUAL(ABS(l1),ABS(l2))) THEN
         RETURN
       ELSE IF (ALMOSTEQUAL(S1,S2)) THEN
+        IF (ABS(l1).GT.ABS(l2)) THEN
+          l=l1; S=S1
+        ELSE
+          l=l2; S=S2
+        END IF
+      ELSE IF (ALMOSTZERO(S1).AND.ALMOSTZERO(S2)) THEN
         IF (ABS(l1).GT.ABS(l2)) THEN
           l=l1; S=S1
         ELSE
@@ -855,5 +861,41 @@ orthoDist = VECNORM(Point(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*
 IF (orthoDist.LE.ConeRadius) PointInObsCone = .TRUE.
 
 END FUNCTION PointInObsCone
+
+LOGICAL FUNCTION PhotonIntersectSensor(Point, Direction)
+!===================================================================================================================================
+! modified particle emmission for LD case
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
+  USE MOD_RadiationTrans_Vars,    ONLY: RadObservationPoint
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INOUTPUT VARIABLES
+REAL, INTENT(IN)             :: Point(3), Direction(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: projectedDist, DirectionVec(3)
+!===================================================================================================================================
+PhotonIntersectSensor = .FALSE.
+
+projectedDist = DOT_PRODUCT(RadObservationPoint%ViewDirection(1:3), Direction(1:3))
+IF (projectedDist.LT.0.0) THEN
+  DirectionVec(1:3) =  RadObservationPoint%MidPoint(1:3) - Point(1:3)
+  !distance to travel
+  projectedDist = DOT_PRODUCT(DirectionVec(1:3), RadObservationPoint%ViewDirection(1:3))/projectedDist
+  ! actual intersection point
+  DirectionVec(1:3) = Point(1:3) + projectedDist*Direction(1:3)
+  !Vector from midpoint of sensor
+  DirectionVec(1:3) = DirectionVec(1:3) - RadObservationPoint%MidPoint(1:3)
+  !distance to midpoint
+  projectedDist = VECNORM(DirectionVec(1:3))
+  IF (projectedDist.LE.RadObservationPoint%Diameter/2.) PhotonIntersectSensor = .TRUE. 
+END IF
+
+END FUNCTION PhotonIntersectSensor
 
 END MODULE MOD_Photon_TrackingTools
