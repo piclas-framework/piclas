@@ -141,6 +141,7 @@ INTEGER           :: iGP_face
 INTEGER           :: iProc
 INTEGER           :: OffsetPETScSideMPI(nProcessors)
 INTEGER           :: OffsetPETScSide
+INTEGER           :: PETScLocalID
 #endif
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
@@ -265,27 +266,27 @@ END DO
 #if USE_PETSC
 ! Create PETSc Mappings
 nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR
+IF(ZeroPotentialSideID.GT.0) nPETScUniqueSides = nPETScUniqueSides - 1
 CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
 OffsetPETScSide=0 ! set default for restart!!!
 DO iProc=1, myrank
   OffsetPETScSide = OffsetPETScSide + OffsetPETScSideMPI(iProc)
 END DO
 
-ALLOCATE(PETScID(nGP_face,nSides))
-ALLOCATE(PETScToSideID(nSides-nDirichletBCSides))
-nPETScSides=0
-DO SideID=1,nSides
-  IF(MaskedSide(SideID)) CYCLE
-  nPETScSides=nPETScSides+1
-  PETScToSideID(nPETScSides)=SideID
-  DO iGP_face=1,nGP_face
-    PETScID(iGP_face,SideID) = iGP_face + nGP_face*(nPETScSides+OffsetPETScSide-1) - 1 ! PETSc arrays start at 0!
-  END DO
+ALLOCATE(PETScGlobal(nSides))
+ALLOCATE(PETScLocalToSideID(nPETScUniqueSides))
+PETScGlobal=-1
+PETScLocalToSideID=-1
+PETScLocalID=0 ! = nSides-nDirichletBCSides (-ZeroPotentialSide)
+DO SideID=1,nSides-nMPISides_YOUR
+  IF(MaskedSide(SideID).OR.(SideID.EQ.ZeroPotentialSideID)) CYCLE
+  PETScLocalID=PETScLocalID+1
+  PETScLocalToSideID(PETScLocalID)=SideID
+  PETScGlobal(SideID)=PETScLocalID+OffsetPETScSide-1 ! PETSc arrays start at 0!
 END DO
-
 #if USE_MPI
-CALL StartReceiveMPIDataInt(1,PETScID,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-CALL StartSendMPIDataInt(   1,PETScID,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+CALL StartReceiveMPIDataInt(1,PETScGlobal,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+CALL StartSendMPIDataInt(   1,PETScGlobal,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
 #endif
@@ -364,6 +365,10 @@ ALLOCATE(Smat(nGP_face,nGP_face,6,6,PP_nElems))
 #if USE_PETSC
 ALLOCATE(Smat_BC(nGP_face,nGP_face,6,nDirichletBCSides))
 Smat_BC = 0.
+IF(ZeroPotentialSideID.GT.0) THEN
+  ALLOCATE(Smat_zeroPotential(nGP_face,nGP_face,6))
+  Smat_zeroPotential = 0.
+END IF
 
 CALL MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr);CHKERRQ(ierr)
 CALL MatSetSizes(Smat_petsc,nPETScUniqueSides*nGP_Face,nPETScUniqueSides*nGP_Face,PETSC_DECIDE,PETSC_DECIDE,ierr);CHKERRQ(ierr)
@@ -392,7 +397,7 @@ CALL KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr);CHKERRQ(ierr)
 CALL KSPSetType(ksp,KSPCG,ierr);CHKERRQ(ierr)
 
 ! Use if the initial guess shall not be zero, should converge faster?
-!CALL KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr);CHKERRQ(ierr)
+CALL KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr);CHKERRQ(ierr)
 
 CALL KSPSetTolerances(ksp,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr);CHKERRQ(ierr)
 #endif
@@ -409,6 +414,7 @@ RHS_vol=0.
 CALL VecCreate(PETSC_COMM_WORLD,lambda_petsc,ierr);CHKERRQ(ierr)
 CALL VecSetType(lambda_petsc,VECSTANDARD,ierr);CHKERRQ(ierr)
 CALL VecSetSizes(lambda_petsc,nPETScUniqueSides*nGP_Face,PETSC_DECIDE,ierr);CHKERRQ(ierr)
+CALL VecSetBlockSize(lambda_petsc,nGP_face,ierr);CHKERRQ(ierr)
 CALL VecSetUp(lambda_petsc,ierr);CHKERRQ(ierr)
 CALL VecDuplicate(lambda_petsc,RHS_petsc,ierr)
 #endif
@@ -656,7 +662,6 @@ USE MOD_Equation_Vars          ,ONLY: B, E
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
-USE MOD_HDG_Vars,ONLY: RHS_petsc,lambda_petsc
 USE MOD_Mesh_Vars        ,ONLY: SideToElem
 USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_MPI_Vars
@@ -689,7 +694,8 @@ PetscScalar, POINTER :: lambda_pointer(:)
 KSPConvergedReason   :: reason
 PetscInt             :: iterations
 PetscReal            :: petscnorm
-INTEGER :: ElemID,iBCSide,locBCSideID
+INTEGER :: ElemID,iBCSide,locBCSideID, PETScLocalID
+INTEGER :: PETScID_start, PETScID_stop
 #endif
 !===================================================================================================================================
 #if USE_LOADBALANCE
@@ -819,18 +825,29 @@ END DO
 ! add Dirichlet contribution
 DO iBCSide=1,nDirichletBCSides
   BCSideID=DirichletBC(iBCSide)
-  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
   ElemID    = SideToElem(S2E_ELEM_ID,BCSideID)
   DO iLocSide=1,6
     SideID = ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-    IF(iLocSide.EQ.locBCSideID.OR.MaskedSide(SideID)) CYCLE
+    IF(PETScGlobal(SideID).EQ.-1) CYCLE
     CALL DGEMV('N',nGP_face,nGP_face,-1., &
                           Smat_BC(:,:,iLocSide,iBCSide), nGP_face, &
-                          lambda(1,:,iBCSide),1,1.,& !add to RHS_face
+                          lambda(1,:,BCSideID),1,1.,& !add to RHS_face
                           RHS_face(1,:,SideID),1)
   END DO
 END DO
-! TODO ZeroPotentialSide!!!, same as Dirichlet RB!
+!!!! add ZeroPotentialSide
+IF(ZeroPotentialSideID.GT.0)THEN
+  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,ZeroPotentialSideID)
+  ElemID    = SideToElem(S2E_ELEM_ID,ZeroPotentialSideID)
+  DO iLocSide=1,6
+    SideID = ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+    IF(PETScGlobal(SideID).EQ.-1) CYCLE
+    CALL DGEMV('N',nGP_face,nGP_face,-1., &
+                          Smat_zeroPotential(:,:,iLocSide), nGP_face, &
+                          lambda(1,:,ZeroPotentialSideID),1,1.,& !add to RHS_face
+                          RHS_face(1,:,SideID),1)
+  END DO
+END IF
 #endif
 
 #if (PP_nVar!=1)
@@ -865,14 +882,15 @@ DO iVar=1, PP_nVar
 
 #if USE_PETSC
   ! Fill right hand side
-  CALL VecZeroEntries(RHS_petsc,ierr);CHKERRQ(ierr)
-  DO SideID=1,nPETScSides
-    CALL VecSetValues(RHS_petsc,nGP_Face,PETScID(:,PETScToSideID(SideID)), &
-                      RHS_face(1,:,PETScToSideID(SideID)),ADD_VALUES,ierr);CHKERRQ(ierr)
+  !CALL VecZeroEntries(RHS_petsc,ierr);CHKERRQ(ierr)
+  DO PETScLocalID=1,nPETScUniqueSides
+    SideID=PETScLocalToSideID(PETScLocalID)
+    !VecSetValuesBlockedLocal somehow not working...
+    CALL VecSetValuesBlocked(RHS_petsc,1,PETScGlobal(SideID),RHS_face(1,:,SideID),INSERT_VALUES,ierr);CHKERRQ(ierr)
   END DO
   CALL VecAssemblyBegin(RHS_petsc,ierr);CHKERRQ(ierr)
   CALL VecAssemblyEnd(RHS_petsc,ierr);CHKERRQ(ierr)
-
+  
   ! Calculate lambda
   CALL KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr);CHKERRQ(ierr)
   CALL KSPGetIterationNumber(ksp,iterations,ierr);CHKERRQ(ierr)
@@ -887,10 +905,11 @@ DO iVar=1, PP_nVar
 
   ! Fill element local lambda for post processing
   CALL VecGetArrayReadF90(lambda_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
-  DO SideID=1,nPETScUniqueSides
-    DO iGP_face=1,nGP_face
-      lambda(1,iGP_face,PETScToSideID(SideID)) = lambda_pointer((SideID-1)*nGP_face + iGP_face)
-    END DO
+  DO PETScLocalID=1,nPETScUniqueSides
+    SideID=PETScLocalToSideID(PETScLocalID)
+    PETScID_start=1+(PETScLocalID-1)*nGP_face
+    PETScID_stop=PETScLocalID*nGP_face
+    lambda(1,:,SideID) = lambda_pointer(PETScID_start:PETScID_stop)
   END DO
   CALL VecRestoreArrayReadF90(lambda_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
 #if USE_MPI

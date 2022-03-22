@@ -39,10 +39,10 @@ Vec :: RHS_petsc
 !Vec :: RHS_petsc_dirichlet
 Vec :: lambda_petsc
 KSP :: ksp
-INTEGER,ALLOCATABLE :: PETScID(:,:)           !< PetScSID((PP_N+1)**2,SideID) maps the local GaussPointIDs 
-                                              !  to the global position for petsc
-INTEGER,ALLOCATABLE :: PETScToSideID(:)       !< PETScToSideID(PETScUniqueSide) maps the local unique PETSc side to SideID
+INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the local SideID to global PETScSideID 
+INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)  !< PETScLocalToSideID(PETScLocalSideID) maps the local PETSc side to SideID
 REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
+REAL,ALLOCATABLE    :: Smat_zeroPotential(:,:,:) !< side to side matrix for zero potential Side, (ngpface,ngpface,6Sides)
 INTEGER             :: nPETScSides            !< nSides - nDirichletSides - nZeroPotentialSides
 INTEGER             :: nPETScUniqueSides      !< nPETScSides - nMPISides_YOUR
 #endif

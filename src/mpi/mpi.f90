@@ -373,16 +373,16 @@ SUBROUTINE StartReceiveMPIDataInt(firstDim,FaceData,LowerBound,UpperBound,MPIReq
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! OUTPUT VARIABLES
   INTEGER,INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
-  INTEGER,INTENT(OUT) :: FaceData(firstDim,1:((PP_N+1)**2),LowerBound:UpperBound) !< the complete face data (for inner, BC and MPI sides).
+  INTEGER,INTENT(OUT) :: FaceData(firstDim,LowerBound:UpperBound) !< the complete face data (for inner, BC and MPI sides).
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! LOCAL VARIABLES
   !===================================================================================================================================
   DO iNbProc=1,nNbProcs
     IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
-      nRecVal     =firstDim*DataSizeSide*nMPISides_rec(iNbProc,SendID)
+      nRecVal     =firstDim*nMPISides_rec(iNbProc,SendID)
       SideID_start=OffsetMPISides_rec(iNbProc-1,SendID)+1
       SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
-      CALL MPI_IRECV(FaceData(:,:,SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
+      CALL MPI_IRECV(FaceData(:,SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
                       nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
     ELSE
       MPIRequest(iNbProc)=MPI_REQUEST_NULL
@@ -408,16 +408,16 @@ SUBROUTINE StartReceiveMPIDataInt(firstDim,FaceData,LowerBound,UpperBound,MPIReq
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! OUTPUT VARIABLES
   INTEGER, INTENT(OUT)         :: MPIRequest(nNbProcs)
-  INTEGER, INTENT(IN)          :: FaceData(firstDim,1:((PP_N+1)**2),LowerBound:UpperBound)
+  INTEGER, INTENT(IN)          :: FaceData(firstDim,LowerBound:UpperBound)
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! LOCAL VARIABLES
   !===================================================================================================================================
   DO iNbProc=1,nNbProcs
     IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
-      nSendVal    =firstDim*DataSizeSide*nMPISides_send(iNbProc,SendID)
+      nSendVal    =firstDim*nMPISides_send(iNbProc,SendID)
       SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
       SideID_end  =OffsetMPISides_send(iNbProc,SendID)
-      CALL MPI_ISEND(FaceData(:,:,SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
+      CALL MPI_ISEND(FaceData(:,SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
                       nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
     ELSE
       MPIRequest(iNbProc)=MPI_REQUEST_NULL
