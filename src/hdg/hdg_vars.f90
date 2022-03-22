@@ -39,8 +39,12 @@ Vec :: RHS_petsc
 !Vec :: RHS_petsc_dirichlet
 Vec :: lambda_petsc
 KSP :: ksp
-INTEGER,ALLOCATABLE :: PETScID(:,:)           !< PetScSideID((PP_N+1)**2,SideID) maps the local GaussPointIDs 
+INTEGER,ALLOCATABLE :: PETScID(:,:)           !< PetScSID((PP_N+1)**2,SideID) maps the local GaussPointIDs 
                                               !  to the global position for petsc
+INTEGER,ALLOCATABLE :: PETScToSideID(:)       !< PETScToSideID(PETScUniqueSide) maps the local unique PETSc side to SideID
+REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
+INTEGER             :: nPETScSides            !< nSides - nDirichletSides - nZeroPotentialSides
+INTEGER             :: nPETScUniqueSides      !< nPETScSides - nMPISides_YOUR
 #endif
 LOGICAL             :: useHDG=.FALSE.
 LOGICAL             :: ExactLambda =.FALSE.   !< Flag to initialize exact function for lambda

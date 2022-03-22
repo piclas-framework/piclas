@@ -72,7 +72,7 @@ USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
 #if USE_PETSC
 USE PETSc
-USE MOD_Mesh_Vars        ,ONLY: GlobalUniqueSideID
+USE MOD_Mesh_Vars        ,ONLY: SideToElem
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -97,7 +97,8 @@ REAL                 :: time0, time
 #if USE_PETSC
 PetscErrorCode    :: ierr
 INTEGER           :: iSideID,jSideID,iGP_face,jGP_face
-INTEGER           :: ElemID, NbElemID, jNbSideID, BCsideID
+INTEGER           :: ElemID, jNbSideID, BCsideID
+INTEGER           :: iBCSide,locBCSideID
 #endif
 !===================================================================================================================================
 
@@ -310,33 +311,36 @@ DO iElem=1,PP_nElems
       Smat(:,:,jLocSide,iLocSide,iElem) = Smat(:,:,jLocSide,iLocSide,iElem) + TRANSPOSE(Stmp2)
     END DO !iLocSide
   END DO !jLocSide
-
 END DO !iElem
 
 #if USE_PETSC
 ! Fill Smat Petsc, TODO do this without filling Smat
+DO iBCSide=1,nDirichletBCSides
+  BCSideID=DirichletBC(iBCSide)
+  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+  ElemID    = SideToElem(S2E_ELEM_ID,BCSideID)
+  DO iLocSide=1,6
+    Smat_BC(:,:,iLocSide,iBCSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
+  END DO
+  
+END DO
 DO iElem=1,PP_nElems
   DO iLocSide=1,6
     iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
     ! Only fill diagonal entry with 1 if the Potential is set
-    IF ((iSideID.EQ.ZeroPotentialSideID).OR. MaskedSide(iSideID)) THEN
-      DO iGP_face=1,nGP_face
-        CALL MatSetValues(Smat_petsc,1,(/PETScID(iGP_face,iSideID)/), &
-                                     1,(/PETScID(iGP_face,iSideID)/), &
-                                     1.,ADD_VALUES,ierr);CHKERRQ(ierr)
-      END DO
-    ELSE
-      DO iGP_face=1,nGP_face
-        DO jLocSide=1,6
-          jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
-          DO jGP_face=1,nGP_face
-            CALL MatSetValues(Smat_petsc,1,(/PETScID(iGP_face,iSideID)/), &
-                                         1,(/PETScID(jGP_face,jSideID)/), &
-                              Smat(iGP_face,jGP_face,iLocSide,jLocSide,iElem),ADD_VALUES,ierr);CHKERRQ(ierr)
-          END DO
+    IF ((iSideID.EQ.ZeroPotentialSideID).OR. MaskedSide(iSideID)) CYCLE
+    DO iGP_face=1,nGP_face
+      DO jLocSide=1,6
+        jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
+        IF (iSideID.GT.jSideID) CYCLE
+        IF ((jSideID.EQ.ZeroPotentialSideID).OR. MaskedSide(jSideID)) CYCLE
+        DO jGP_face=1,nGP_face
+          CALL MatSetValues(Smat_petsc,1,PETScID(iGP_face,iSideID), &
+                                       1,PETScID(jGP_face,jSideID), &
+                            Smat(iGP_face,jGP_face,iLocSide,jLocSide,iElem),ADD_VALUES,ierr);CHKERRQ(ierr)
         END DO
       END DO
-    END IF
+    END DO
   END DO
 END DO
 CALL MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
