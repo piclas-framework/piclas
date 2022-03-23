@@ -435,6 +435,8 @@ CASE(1)
   CALL PCSetType(pc,PCJACOBI,ierr);CHKERRQ(ierr)
 CASE(2)
   CALL PCHYPRESetType(pc,PCILU,ierr);CHKERRQ(ierr)
+CASE(3)
+  CALL PCSetType(pc,PCCHOLESKY,ierr);CHKERRQ(ierr)
 END SELECT
 !CALL KSPSetFromOptions(ksp,ierr)
 !CALL KSPSetUp(ksp,ierr)

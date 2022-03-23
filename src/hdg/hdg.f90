@@ -119,12 +119,14 @@ USE MOD_Part_BR_Elecron_Fluid ,ONLY: UpdateNonlinVolumeFac
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 #endif /*defined(PARTICLES)*/
 #if USE_PETSC
-USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_WORLD
 USE PETSc
 USE MOD_Mesh_Vars        ,ONLY: nMPISides_YOUR
+#if USE_MPI
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_WORLD
 USE MOD_MPI               ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 USE MOD_MPI_Vars
-#endif
+#endif /*USE_MPI*/
+#endif /*USE_PETSC*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -265,20 +267,22 @@ END DO
 
 #if USE_PETSC
 ! Create PETSc Mappings
+OffsetPETScSide=0
+#if USE_MPI
 nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR
 IF(ZeroPotentialSideID.GT.0) nPETScUniqueSides = nPETScUniqueSides - 1
 CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
-OffsetPETScSide=0 ! set default for restart!!!
 DO iProc=1, myrank
   OffsetPETScSide = OffsetPETScSide + OffsetPETScSideMPI(iProc)
 END DO
+#endif
 
 ALLOCATE(PETScGlobal(nSides))
-ALLOCATE(PETScLocalToSideID(nPETScUniqueSides))
+ALLOCATE(PETScLocalToSideID(nPETScUniqueSides+nMPISides_YOUR))
 PETScGlobal=-1
 PETScLocalToSideID=-1
 PETScLocalID=0 ! = nSides-nDirichletBCSides (-ZeroPotentialSide)
-DO SideID=1,nSides-nMPISides_YOUR
+DO SideID=1,nSides!-nMPISides_YOUR
   IF(MaskedSide(SideID).OR.(SideID.EQ.ZeroPotentialSideID)) CYCLE
   PETScLocalID=PETScLocalID+1
   PETScLocalToSideID(PETScLocalID)=SideID
@@ -372,8 +376,9 @@ END IF
 
 CALL MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr);CHKERRQ(ierr)
 CALL MatSetSizes(Smat_petsc,nPETScUniqueSides*nGP_Face,nPETScUniqueSides*nGP_Face,PETSC_DECIDE,PETSC_DECIDE,ierr);CHKERRQ(ierr)
-CALL MatSetType(Smat_petsc,MATMPISBAIJ,ierr);CHKERRQ(ierr) ! Symmetric sparse mpi matrix
+CALL MatSetType(Smat_petsc,MATSBAIJ,ierr);CHKERRQ(ierr) ! Symmetric sparse (mpi) matrix
 CALL MatSetBlockSize(Smat_petsc,nGP_face,ierr);CHKERRQ(ierr)
+CALL MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,11,PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
 CALL MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,11,PETSC_NULL_INTEGER,10,PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
 CALL MatZeroEntries(Smat_petsc,ierr);CHKERRQ(ierr)
 #endif
@@ -392,14 +397,17 @@ END IF
 CALL KSPCreate(PETSC_COMM_WORLD,ksp,ierr);CHKERRQ(ierr)
 CALL KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr);CHKERRQ(ierr)
 
-! Use CG / GMRES solver
-! Due to the dirichlet boundary condition, Smat is not symmetric anymore
-CALL KSPSetType(ksp,KSPCG,ierr);CHKERRQ(ierr)
+! -----
+CALL KSPSetType(ksp,KSPCG,ierr);CHKERRQ(ierr) ! CG solver for sparse symmetric positive definite matrix
+
 
 ! Use if the initial guess shall not be zero, should converge faster?
 CALL KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr);CHKERRQ(ierr)
 
 CALL KSPSetTolerances(ksp,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr);CHKERRQ(ierr)
+! -----
+!CALL KSPSetType(ksp,KSPPREONLY,ierr);CHKERRQ(ierr) ! Exact solver ... use in combination with cholesky preconditioner
+! ----
 #endif
 
 CALL BuildPrecond()
@@ -662,10 +670,12 @@ USE MOD_Equation_Vars          ,ONLY: B, E
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
+USE PETSc
 USE MOD_Mesh_Vars        ,ONLY: SideToElem
+#if USE_MPI
 USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_MPI_Vars
-USE petsc
+#endif
 #endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -899,9 +909,11 @@ DO iVar=1, PP_nVar
   IF(reason.LT.0)THEN
     SWRITE(*,*) 'Attention: GMRES not converged!' 
   END IF
-  SWRITE(*,*)'Reason: ', reason
-  SWRITE(*,*)'Iterations: ',iterations
-  SWRITE(*,*)'Norm:', petscnorm
+  IF(HDGDisplayConvergence)THEN
+    SWRITE(*,*)'Reason: ', reason
+    SWRITE(*,*)'Iterations: ',iterations
+    SWRITE(*,*)'Norm:', petscnorm
+  END IF
 
   ! Fill element local lambda for post processing
   CALL VecGetArrayReadF90(lambda_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
@@ -2067,6 +2079,10 @@ CALL MatDestroy(Smat_petsc,ierr); CHKERRQ(ierr)
 CALL VecDestroy(lambda_petsc,ierr); CHKERRQ(ierr)
 CALL VecDestroy(RHS_petsc,ierr); CHKERRQ(ierr)
 CALL PetscFinalize(ierr)
+SDEALLOCATE(PETScGlobal)
+SDEALLOCATE(PETScLocalToSideID)
+SDEALLOCATE(Smat_BC)
+SDEALLOCATE(Smat_zeroPotential)
 #endif
 SDEALLOCATE(NonlinVolumeFac)
 SDEALLOCATE(DirichletBC)
