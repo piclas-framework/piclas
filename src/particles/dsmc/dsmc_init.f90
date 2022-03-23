@@ -378,6 +378,15 @@ IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevM
 END IF
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
 DSMC%DoLTRelaxElectronicState = GETLOGICAL('Particles-DSMC-DoLTRelaxElectronicState')
+IF ((DSMC%ElectronicModel.EQ.2).AND.DSMC%DoLTRelaxElectronicState) THEN
+  CALL Abort(&
+      __STAMP__,&
+      'ERROR: LTRelaxElectronicState only possible with DSMC%ElectronicModel=1!')
+END IF
+IF (DSMC%DoLTRelaxElectronicState) THEN
+  ALLOCATE(ElecRelaxPart(1:PDM%maxParticleNumber))
+  ElecRelaxPart = .TRUE.
+END IF
 IF (DSMC%ElectronicModel.EQ.2) THEN
   IF(.NOT.ALLOCATED(ElectronicDistriPart)) ALLOCATE(ElectronicDistriPart(PDM%maxParticleNumber))
 END IF

@@ -352,8 +352,9 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac)
 ! MODULES
 USE MOD_Globals                ,ONLY: abort, DOTPRODUCT
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
-USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas
-USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
+USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas, ElecRelaxPart
+USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, newElecRelaxParts, iPartIndx_NodeNewElecRelax
+USE MOD_DSMC_Vars              ,ONLY: iPartIndx_NodeElecRelaxChem, nElecRelaxChemParts
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
@@ -522,6 +523,10 @@ IF(EductReac(3).EQ.0) THEN
       newAmbiParts = newAmbiParts + 1
       iPartIndx_NodeNewAmbi(newAmbiParts) = ReactInx(3)
     END IF
+    IF (DSMC%ElectronicModel.GT.0.AND.(DSMC%DoLTRelaxElectronicState)) THEN
+      newElecRelaxParts = newElecRelaxParts + 1 
+      iPartIndx_NodeNewElecRelax(newElecRelaxParts) = ReactInx(3)
+    END IF
     Weight(3) = Weight(1)
     NumProd = 3
     SumWeightProd = SumWeightProd + Weight(3)
@@ -560,6 +565,10 @@ IF(ProductReac(4).NE.0) THEN
   IF (DSMC%DoAmbipolarDiff) THEN
     newAmbiParts = newAmbiParts + 1
     iPartIndx_NodeNewAmbi(newAmbiParts) = ReactInx(4)
+  END IF
+  IF (DSMC%ElectronicModel.GT.0.AND.(DSMC%DoLTRelaxElectronicState)) THEN
+    newElecRelaxParts = newElecRelaxParts + 1 
+    iPartIndx_NodeNewElecRelax(newElecRelaxParts) = ReactInx(4)
   END IF
   Weight(4) = Weight(1)
   NumProd = 4
@@ -735,16 +744,30 @@ IF (DSMC%ElectronicModel.GT.0) THEN
         IF(ALLOCATED(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)
       END IF
       PartStateIntEn(3,ReactInx(iProd)) = 0.0
-    ELSE
-      IF (DSMC%ElectronicModel.EQ.2) THEN
-        IF(ALLOCATED(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)
-        ALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc(1:SpecDSMC(ProductReac(iProd))%MaxElecQuant))
-        ElectronicDistriPart(ReactInx(iProd))%DistriFunc = 0.0
-        PartStateIntEn(3,ReactInx(iProd)) = 0.0
+      IF (DSMC%DoLTRelaxElectronicState) THEN
+        nElecRelaxChemParts = nElecRelaxChemParts + 1 
+        iPartIndx_NodeElecRelaxChem(nElecRelaxChemParts) = ReactInx(iProd)
+        ElecRelaxPart(ReactInx(iProd)) = .FALSE.
       END IF
-      FakXi = FakXi - 0.5*Xi_elec(iProd)
-      CALL ElectronicEnergyExchange(iPair,ReactInx(iProd),FakXi, NewPart = .TRUE., Xi_elec = Xi_elec(iProd))
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(iProd))*Weight(iProd)
+    ELSE
+      IF (DSMC%DoLTRelaxElectronicState) THEN
+        PartStateIntEn(3,ReactInx(iProd)) = 0.0
+        IF (DSMC%DoLTRelaxElectronicState) THEN
+          nElecRelaxChemParts = nElecRelaxChemParts + 1 
+          iPartIndx_NodeElecRelaxChem(nElecRelaxChemParts) = ReactInx(iProd)
+          ElecRelaxPart(ReactInx(iProd)) = .FALSE.
+        END IF
+      ELSE
+        IF (DSMC%ElectronicModel.EQ.2) THEN
+          IF(ALLOCATED(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)
+          ALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc(1:SpecDSMC(ProductReac(iProd))%MaxElecQuant))
+          ElectronicDistriPart(ReactInx(iProd))%DistriFunc = 0.0
+          PartStateIntEn(3,ReactInx(iProd)) = 0.0
+        END IF
+        FakXi = FakXi - 0.5*Xi_elec(iProd)
+        CALL ElectronicEnergyExchange(iPair,ReactInx(iProd),FakXi, NewPart = .TRUE., Xi_elec = Xi_elec(iProd))
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(iProd))*Weight(iProd)
+      END IF
     END IF
   END DO
 END IF

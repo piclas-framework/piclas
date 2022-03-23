@@ -650,6 +650,15 @@ INTEGER                         :: iQua
 REAL                            :: TempRatio, SumOne, SumTwo
 !===================================================================================================================================
 
+!IF (Telec.GT.SpecDSMC(iSpec)%MaxXiElec(1)) THEN
+!  CalcXiElec = SpecDSMC(iSpec)%MaxXiElec(2)
+!  RETURN
+!ELSE 
+IF (Telec.LE.0.0) THEN
+  CalcXiElec = 0.0
+  RETURN
+END IF
+
 SumOne = 0.0
 SumTwo = 0.0
 

@@ -168,6 +168,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   LOGICAL                           :: UseVibXSec           ! Flag if the vibrational relaxation probability should be treated,
                                                             ! using read-in cross-sectional data (currently only with BGG)
   REAL,ALLOCATABLE                  :: CollFreqPreFactor(:)
+  REAL                              :: MaxXiElec(2)         ! MaxTemp, MaxXiElec
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
@@ -489,6 +490,12 @@ END TYPE
 TYPE (tAmbipolElecVelo), ALLOCATABLE    :: AmbipolElecVelo(:)
 INTEGER, ALLOCATABLE            :: iPartIndx_NodeNewAmbi(:)
 INTEGER                         :: newAmbiParts
+
+INTEGER, ALLOCATABLE            :: iPartIndx_NodeNewElecRelax(:)
+INTEGER                         :: newElecRelaxParts
+INTEGER, ALLOCATABLE            :: iPartIndx_NodeElecRelaxChem(:)
+INTEGER                         :: nElecRelaxChemParts
+LOGICAL, ALLOCATABLE            :: ElecRelaxPart(:)
 
 TYPE tElectronicDistriPart !DSMC Species Param
   REAL, ALLOCATABLE               :: DistriFunc(:)            ! Vib quants of each DOF for each particle
