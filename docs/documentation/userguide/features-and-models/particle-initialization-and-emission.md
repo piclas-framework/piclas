@@ -15,7 +15,7 @@ reactions. Example: A node of a HPC cluster has 2 CPUs, each has 12 cores. Thus,
 example (assuming an even particle distribution). The limiting factor here is the amount of RAM available per node.
 
 Regardless whether a standalone PIC, DSMC, or a coupled simulation is performed, the atomic mass [kg], the charge [C] and the
-weighting factor $w$ [-] are required for each species.
+weighting factor $w$ [-], sometimes referred to as macro-particle factor (MPF), are required for each species.
 
     Part-Species1-MassIC=5.31352E-26
     Part-Species1-ChargeIC=0.0
@@ -42,6 +42,13 @@ Different velocity distributions are available for the initialization/emission o
 | maxwell_lpn  | Maxwell-Boltzmann distribution for low particle numbers |
 | WIP          | **WORK IN PROGRESS**                                    |
 
+Some emission types allow the usage of an emission-specific particle weighting factor.
+The default weighting factor given by `Part-Species1-MacroParticleFactor` can be overwritten by supplying a different one for each
+initialization, for which the variable weighting factor (or variable macro-particle factor `vMPF`)  model must be activated
+
+    Part-vMPF = T
+    Part-Species1-Init1-MacroParticleFactor = 1e4
+
 (sec:particle-insertion)=
 ## Initialization
 
@@ -56,13 +63,18 @@ The type of the region is defined by the following parameter
 
 Different `SpaceIC` are available and an overview is given in the table below.
 
-|   Distribution  |                                    Description                                   |                   Reference                  |
-| --------------- | -------------------------------------------------------------------------------- |  ------------------------------------------  |
-|    cell_local   |         Particles are inserted in every cell at a constant number density        |                                              |
-|       disc      |                     Particles are inserted on a circular disc                    |     Section {ref}`sec:particle-disk-init`    |
-|     cylinder    | Particles are inserted in the given cylinder volume at a constant number density |   Section {ref}`sec:particle-cylinder-init`  |
-| photon_cylinder |               Ionization of a background gas through photon impact               | Section {ref}`sec:particle-photo-ionization` |
-|       WIP       |                               **WORK IN PROGRESS**                               |                                              |
+|     Distribution     |                                    Description                                   |                   Reference                  |
+|    ---------------   | -------------------------------------------------------------------------------- |  ------------------------------------------  |
+|      cell_local      |         Particles are inserted in every cell at a constant number density        |                                              |
+|         disc         |                     Particles are inserted on a circular disc                    |     Section {ref}`sec:particle-disk-init`    |
+|       cylinder       | Particles are inserted in the given cylinder volume at a constant number density |   Section {ref}`sec:particle-cylinder-init`  |
+|    photon_cylinder   |   Ionization of a background gas through photon impact (cylinder distribution)   | Section {ref}`sec:particle-photo-ionization` |
+|    photon_SEE_disc   |       Secondary electron emission through photon impact (disk distribution)      | Section {ref}`sec:particle-photo-ionization` |
+|   photon_honeycomb   |   Ionization of a background gas through photon impact (honeycomb distribution)  | Section {ref}`sec:particle-photo-ionization` |
+| photon_SEE_honeycomb |    Secondary electron emission through photon impact (honeycomb distribution)    | Section {ref}`sec:particle-photo-ionization` |
+|   photon_rectangle   |  Ionization of a background gas through photon impact (rectangular distribution) | Section {ref}`sec:particle-photo-ionization` |
+| photon_SEE_rectangle |   Secondary electron emission through photon impact (rectangular distribution)   | Section {ref}`sec:particle-photo-ionization` |
+|          WIP         |                               **WORK IN PROGRESS**                               |                                              |
 
 Common parameters required for most of the insertion routines are given below. The drift velocity is defined by the direction
 vector `VeloVecIC`, which is a unit vector, and a velocity magnitude [m/s]. The thermal velocity of particle is determined based
@@ -120,14 +132,15 @@ extruded in the normal direction up to the cylinder height.
 ### Photo-ionization
 
 A special case is the ionization of a background gas through photon impact, modelling a light pulse. The volume affected by the
-light pulse is approximated by a cylinder, which is defined as described in Section {ref}`sec:particle-cylinder-init`. Additionally,
-the SpaceIC has to be adapted and additional parameters are required:
+light pulse is approximated by a cylinder (or honeycomb/rectangle), which is defined as described in
+Section {ref}`sec:particle-cylinder-init`.
+Additionally, the SpaceIC has to be adapted and additional parameters are required:
 
-    Part-Species1-Init1-SpaceIC                 = photon_cylinder
-    Part-Species1-Init1-PulseDuration           = 1         ! [s]
-    Part-Species1-Init1-WaistRadius             = 1E-6      ! [m]
-    Part-Species1-Init1-WaveLength              = 1E-9      ! [m]
-    Part-Species1-Init1-NbrOfPulses             = 1         ! [-], default = 1
+    Part-Species1-Init1-SpaceIC       = photon_cylinder ! or photon_honeycomb, or photon_rectangle
+    Part-Species1-Init1-PulseDuration = 1               ! [s]
+    Part-Species1-Init1-WaistRadius   = 1E-6            ! [m]
+    Part-Species1-Init1-WaveLength    = 1E-9            ! [m]
+    Part-Species1-Init1-NbrOfPulses   = 1               ! [-], default = 1
 
 The pulse duration and waist radius are utilized to define the spatial and temporal Gaussian profile of the intensity.
 The number of pulses allows to consider multiple light pulses within a single simulation. To define the intensity of the light pulse,
@@ -149,10 +162,10 @@ It should be noted that this initialization should be done with a particle speci
 also a product of the ionization reaction. The ionization reactions are defined as described in Section {ref}`sec:DSMC-chemistry` by
 
     DSMC-NumOfReactions = 1
-    DSMC-Reaction1-ReactionType         = phIon
-    DSMC-Reaction1-Reactants            = (/3,0,0/)
-    DSMC-Reaction1-Products             = (/1,2,0/)
-    DSMC-Reaction1-CrossSection         = 4.84E-24      ! [m^2]
+    DSMC-Reaction1-ReactionType = phIon
+    DSMC-Reaction1-Reactants    = (/3,0,0/)
+    DSMC-Reaction1-Products     = (/1,2,0/)
+    DSMC-Reaction1-CrossSection = 4.84E-24      ! [m^2]
 
 The probability that an ionization event occurs is determined based on the given cross-section, which is usually given for a
 certain wave length/photon energy. It should be noted that the background gas species should be given as the sole reactant and
@@ -164,7 +177,7 @@ insertion region (e.g. as an extra initialization for the same species). Additio
 described above (pulse duration, waist radius, wave length, number of pulses, and power/energy/intensity), the following parameters
 have to be set
 
-    Part-Species1-Init2-SpaceIC               = photon_SEE_disc
+    Part-Species1-Init2-SpaceIC               = photon_SEE_disc     ! or photon_SEE_honeycomb, or photon_SEE_rectangle
     Part-Species1-Init2-velocityDistribution  = photon_SEE_energy
     Part-Species1-Init2-YieldSEE              = 0.1                 ! [-]
     Part-Species1-Init2-WorkFunctionSEE       = 2                   ! [eV]
@@ -176,6 +189,85 @@ actual computational domain corresponds only to a quarter of the cylinder:
 
     Part-Species1-Init1-FirstQuadrantOnly       = T
     Part-Species1-Init2-FirstQuadrantOnly       = T
+
+### Neutralization Boundaries (neutral outflow condition)
+There are different methods implemented to neutralize a charged particle flow, e.g., as encountered when simulation electric
+propulsion systems. Currently all methods require a specific geometry to function properly. For more details, see the regression
+tests under *regressioncheck/NIG_PIC_poisson_Boris-Leapfrog*. The following table lists the *SpaceIC* emission types
+
+|           Distribution          |                                                                Description                                                               |
+|         ---------------         |                             --------------------------------------------------------------------------------                             |
+|    2D_landmark_neutralization   |                   Charoy 2019 2D PIC benchmark, electrons are injected with 10 eV at the cathode if the anode current is negative        |
+|    2D_Liu2010_neutralization    |                    Liu 2010 2D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                   |
+| 2D_Liu2010_neutralization_Szabo | Liu 2010 2D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
+|    3D_Liu2010_neutralization    |                    Liu 2010 3D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                   |
+| 3D_Liu2010_neutralization_Szabo | Liu 2010 3D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
+
+For the *XD_Liu2010_neutralization* emission, a constant emitted electron temperature is defined via
+
+    Part-SpeciesX-InitX-MWTemperatureIC = 5.80E+04 ! 5.0 eV
+
+whereas it is also possible to use a variable temperature, in which case the global (bulk) electron temperature is used, by setting
+
+    Part-SpeciesX-InitX-velocityDistribution = 2D_Liu2010_neutralization
+
+for the 2D setup and
+
+    Part-SpeciesX-InitX-velocityDistribution = 3D_Liu2010_neutralization
+
+for the 3D setup. The bulk electron temperature is determined automatically and output to *PartAnalyze.csv* as *XXX-BulkElectronTemp-[K]* to track this value over time.
+
+### Polychromatic Photo-ionization
+The volumetric photo-ionization can consider multiple wavelengths (polychromatic spectrum) and/or energy-dependent cross-section data.
+The corresponding ionization reactions are defined described in Section {ref}`sec:DSMC-chemistry` by
+
+    DSMC-NumOfReactions = 1
+    DSMC-Reaction1-ReactionType = phIonXsec
+    DSMC-Reaction1-Reactants    = (/3,0,0/)
+    DSMC-Reaction1-Products     = (/1,2,0/)
+
+where the reaction type `phIonXsec` refers to energy-dependent cross-section data for photoionization reactions.
+In this example, species 3 refers to H2 molecules, species 1 and 2 to electrons and H2+ ions respectively.
+The cross sections and photon energy spectrum must be supplied via
+
+    Particles-CollXSec-Database = XSec_Database_H2_Photoionization.h5
+
+that must contain the data in the following form
+
+    XSec_Database_H2_Photoionization.h5
+      - H2-photon (Group)
+        - REACTION (Group)
+          - H2Ion1-electron (Dataset)
+        - SPECTRUM (Group)
+          - H2-photon (Dataset)
+
+where `HIon1-electron (Dataset)` contains the tabulated cross-sections and `H2-photon (Dataset)` contains the tabulated photon
+energies and energy fractions (the fractions must add up to unity). In principle, the spectrum can contain only 1 single photon
+energy (corresponding to a single wavelength) that contains all the energy, hence, the table contains the energy in eV and the
+number 1. (100% of the energy).
+
+
+### Initial Ionization
+A neutral DSMC simulation can be converted into a PIC simulation (actually any simulation result state file `*_State_*.h5`) by
+specifying the number of species, their species ID and the desired ionization degree.
+
+    ! Initial Ionization
+    Part-DoInitialIonization       = T       ! ON/OFF Switch
+    InitialIonizationSpecies       = 2       ! Total number of ions/neutrals that are to be created
+    InitialIonizationSpeciesID     = (/1,3/) ! Species 1 und 3 will be created (all read-in particles will be converted).
+                                             ! Electrons do not have to be defined here as they are found automatically.
+    InitialIonizationChargeAverage = 0.1     ! 10% ionization degree
+
+The switch `Part-DoInitialIonization=T` must be deactivated after the ionization was successful in order to prevent multiple
+ionization events of subsequent state files when further restarts are performed.
+Note that all particle species that are found in the state file are considered for ionization, i.e., that the number of species
+(`InitialIonizationSpecies`) is only required for all non-electron species that need to be present after the initial ionization
+has been performed.
+In this example, the state file contains solely particles of species 1 (neutral atoms or molecules).
+These particles are converted to 10 % species 3 (ions) and 90 percent species 1 (the original neutral particles), in addition to
+electrons which are found automatically by comparing the charge of the species (in this example species index 2).
+For each ion an electron is created to maintain charge neutrality.
+The ionization degree (`InitialIonizationChargeAverage`) should be a number between 0 and 1.
 
 ## Surface Flux
 

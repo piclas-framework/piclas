@@ -260,7 +260,6 @@ USE MOD_PreProc
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeCL,NodeType
-USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoRef
 USE MOD_Mesh_Vars              ,ONLY: sJ
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemsJ,ElemEpsOneCell
@@ -429,9 +428,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo,ElemRadiusNGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueBCSides
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
 USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
+USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
@@ -649,12 +648,12 @@ ELSE
       IF (VECNORM(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
         .GT. (BC_halo_eps + ElemRadiusNGeo(iElem) + ElemRadiusNGeo(BCCNElemID))) CYCLE
 
-!      ! loop over all local sides of the element
-       IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
-         .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
-            nBCSidesElem = nBCSidesElem + 1
-            nBCSidesProc = nBCSidesProc + 1
-       END IF
+      ! loop over all local sides of the element
+      IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
+        .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
+           nBCSidesElem = nBCSidesElem + 1
+           nBCSidesProc = nBCSidesProc + 1
+      END IF
     END DO ! iBCSide
 
     ! Write local mapping from Elem to BC sides. The number is already correct, the offset must be corrected later
@@ -774,13 +773,13 @@ ELSE
       IF (VECNORM(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
         .GT. (BC_halo_eps + ElemRadiusNGeo(iElem) + ElemRadiusNGeo(BCCNElemID))) CYCLE
 
-!      ! loop over all local sides of the element
-       IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
-         .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
-           nBCSidesProc = nBCSidesProc + 1
-           SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)
-           SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(ElemID)
-       END IF
+      ! loop over all local sides of the element
+      IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
+        .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
+          nBCSidesProc = nBCSidesProc + 1
+          SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)
+          SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(ElemID)
+      END IF
     END DO ! iBCSide
   END DO ! iElem
 END IF ! fullMesh
@@ -895,10 +894,10 @@ IMPLICIT NONE
 INTEGER,ALLOCATABLE            :: NbrOfElemsOnUniqueNode(:),OffsetNodeToElemMapping(:)
 INTEGER                        :: UniqueNodeID,NonUniqueNodeID,iElem,iNode,TestElemID,jElem,kElem
 INTEGER                        :: OffsetCounter,OffsetElemToElemMapping,OffsetElemToElemCounter
-INTEGER                        :: nNodeToElemMapping,iUniqueNode,firstElem,lastElem,iError,nElemToElemMapping,CountElems
+INTEGER                        :: nNodeToElemMapping,iUniqueNode,firstElem,lastElem,nElemToElemMapping,CountElems
 INTEGER,ALLOCATABLE            :: CheckedElemIDs(:)
 #if USE_MPI
-INTEGER                        :: sendbuf,recvbuf
+INTEGER                        :: sendbuf,recvbuf,iError
 #endif /*USE_MPI*/
 !===================================================================================================================================
 

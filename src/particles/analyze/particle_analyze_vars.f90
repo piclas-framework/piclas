@@ -31,8 +31,8 @@ LOGICAL                       :: CalcReacRates                       !< Calculat
 LOGICAL                       :: CalcRelaxProb                       !< Calculate relaxation probabilities
 LOGICAL                       :: CalcEkin                            !< Compute the kinetic energy of each species
 LOGICAL                       :: CalcEtot                            !< Compute the total energy as sum of potential and kin eng
-LOGICAL                       :: CalcEint                            !< Compute the internal energy of each species
-LOGICAL                       :: CalcTemp                            !< Computation of the temperature (trans, rot, vib, total)
+LOGICAL                       :: CalcEint(2)                         !< Compute the internal energy of each species [1: Calculate, 2: Output]
+LOGICAL                       :: CalcTemp(2)                         !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcCoupledPower                    !< Computation of the power that is coupled into plasma
 LOGICAL                       :: DisplayCoupledPower                 !< Display coupled power in UNIT_stdOut
 REAL                          :: EDiff                               !< Difference in kinetic energy before and after the particle
@@ -68,11 +68,17 @@ REAL,ALLOCATABLE              :: PartEkinOut(:)                      !< Energy a
 
 ! get derived particle properties (for IMD/TTM initialization these values are calculated from the TTM grid values)
 LOGICAL                       :: CalcDebyeLength                     !< Compute the Debye length (min and max) in each cell
-LOGICAL                       :: CalcPICTimeStep                     !< Compute the PIC time step (min and max) in each cell
+LOGICAL                       :: CalcPICTimeStep                     !< Compute the PIC time step from plasma frequency (min and max) in each cell
+LOGICAL                       :: CalcPICTimeStepCyclotron            !< Compute the PIC time step from cyclotron motion (min and max) in each cell
 LOGICAL                       :: CalcElectronIonDensity              !< Compute the electron density in each cell
 LOGICAL                       :: CalcElectronTemperature             !< Compute the electron temperature in each cell
+LOGICAL                       :: CalcElectronEnergy                  !< Compute the electron min/max/average energy in each cell
 LOGICAL                       :: CalcPlasmaParameter                 !< Compute the plasma parameter in each cell
-LOGICAL                       :: CalcPlasmaFrequency                 !< Compute the electron frequency in each cell
+!LOGICAL                       :: ElectronTemperatureIsMaxwell        ! Assumption of Maxwell-Boltzmann or undistributed electrons
+LOGICAL                       :: CalcPlasmaFrequency                 !< Compute the electron plasma frequency in each cell
+LOGICAL                       :: CalcCyclotronFrequency              !< Compute the electron cyclotron frequency in each cell
+!                                                                    !< (requires a magnetic field)
+!LOGICAL                       :: CalcGyroradius                      !< Compute the electron cyclotron radius from the particle velocity and yclotron frequency in each cell
 LOGICAL                       :: CalcPointsPerDebyeLength            !< Compute the points per Debye length:
 LOGICAL                       :: CalcPICCFLCondition                 !< Compute a PIC CFL condition for each cell
 !                                                                    !< in terms of cell lengths in X, Y and Z for each cell
@@ -114,14 +120,22 @@ REAL,ALLOCATABLE              :: ShapeFunctionRadius(:)              !< Addition
                                                                      !< the shared array) for output to .h5 (debugging)
 REAL,ALLOCATABLE              :: ShapeFunctionFraction(:)            !< Element to shape function volume ratio
 REAL,ALLOCATABLE              :: DebyeLengthCell(:)                  !< Debye length (cell mean value)
-REAL,ALLOCATABLE              :: PICTimeStepCell(:)                  !< Approximated PIC Time Step (mean cell value)
+REAL,ALLOCATABLE              :: PICTimeStepCell(:)                  !< Approximated PIC Time Step due to plasma frequency (mean cell value)
+REAL,ALLOCATABLE              :: PICTimeStepCyclotronCell(:)         !< Approximated PIC Time Step due to cyclotron frequency (mean cell value)
 REAL,ALLOCATABLE              :: PlasmaParameterCell(:)              !< Plasma parameter (cell mean value)
 REAL,ALLOCATABLE              :: ElectronDensityCell(:)              !< Electron density (cell mean value)
 REAL,ALLOCATABLE              :: IonDensityCell(:)                   !< Ion density (cell mean value)
 REAL,ALLOCATABLE              :: NeutralDensityCell(:)               !< Neutral density (cell mean value)
 REAL,ALLOCATABLE              :: ChargeNumberCell(:)                 !< Charge number (cell mean value)
 REAL,ALLOCATABLE              :: ElectronTemperatureCell(:)          !< Electron temperature (cell mean value)
+REAL,ALLOCATABLE              :: ElectronMinEnergyCell(:)            !< Electron minimum cell energy [eV]
+REAL,ALLOCATABLE              :: ElectronMaxEnergyCell(:)            !< Electron maximum cell energy [eV]
+REAL,ALLOCATABLE              :: ElectronAverageEnergyCell(:)        !< Electron average cell energy [eV]
 REAL,ALLOCATABLE              :: PlasmaFrequencyCell(:)              !< Plasma electron frequency (cell mean value)
+REAL,ALLOCATABLE              :: CyclotronFrequencyMaxCell(:)        !< Electron cyclotron frequency (cell MAX value)
+REAL,ALLOCATABLE              :: CyclotronFrequencyMinCell(:)        !< Electron cyclotron frequency (cell MIN value)
+REAL,ALLOCATABLE              :: GyroradiusMinCell(:)                !< Electron gyroradius (cyclotron or Larmor radius), from frequency (cell MIN value)
+REAL,ALLOCATABLE              :: GyroradiusMaxCell(:)                !< Electron gyroradius (cyclotron or Larmor radius), from frequency (cell MAX value)
 
 LOGICAL                       :: CalcCharge                          !< Compute the whole deposited charge and abs and relative
                                                                      !< Charge error
@@ -135,5 +149,6 @@ REAL                          :: printDiffVec(6)                     !< TODO
 REAL                          :: ChemEnergySum                       !< TODO
 REAL,ALLOCATABLE              :: MassflowRate(:,:)
 REAL,ALLOCATABLE              :: PressureAdaptiveBC(:,:)
+LOGICAL                       :: CalcEMFieldOutput                   !< Output the electro-magnetic fields on each DOF to .h5 calculated by PIC interpolation external fields and from field solver
 !===================================================================================================================================
 END MODULE MOD_Particle_Analyze_Vars

@@ -126,15 +126,17 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-TemperatureGradientEnd'  &
                                 , 'Impose a temperature gradient by supplying a start/end vector and a second wall temperature.' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
-                                , 'Defining surface to be treated reactively by defining Model used '//&
-                                'for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
+                                , 'Defining surface to be treated reactively by defining Model used for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
                                 '0: Maxwell scattering\n'//&
-                                '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) '//&
-                                    'by Levko2015 for copper electrodes\n'//&
-                                '6: SEE-E (secondary e- emission due to e- bombardment) '//&
-                                    'by Pagonakis2016 for molybdenum (originally from Harrower1956)'//&
+                                '5: SEE-E and SEE-I (secondary e- emission due to e- or i+ bombardment) by Levko2015 for copper electrodes\n'//&
+                                '6: SEE-E (secondary e- emission due to e- bombardment) by Pagonakis2016 for molybdenum, originally from Harrower1956. Currently not available\n'//&
                                 '7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for '//&
-                                'secondary e- emission with 0.13 probability) by Depla2009\n' &
+                                'secondary e- emission with 0.13 probability) by D. Depla, "Magnetron sputter deposition: Linking discharge voltage with target properties", 2009\n'// &
+                                '8: SEE-E (e- on dielectric materials is considered for SEE and three different outcomes) '//&
+                                'by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004\n'//&
+                                '9: SEE-I when Ar+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV\n'//&
+                                '10: SEE-I when Ar+ bombards copper by J.G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation", 2021 (originates from Phelps1999)\n'// &
+                                '11: SEE-E when e- bombard quartz (SiO2) by A. Dunaevsky, "Secondary electron emission from dielectric materials of a Hall thruster with segmented electrodes", 2003'&
                                 , '0', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -236,6 +238,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -384,10 +387,11 @@ DO iPartBound=1,nPartBound
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
       CASE (0)
         PartBound%Reactive(iPartBound)        = .FALSE.
-      CASE (5,6,7,8)
+      CASE (SEE_MODELS_ID)
+        ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE.
       CASE DEFAULT
-        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,5,6,7,8! SurfaceModel=',&
+        CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,SEE_MODELS_ID! SurfaceModel=',&
         IntInfoOpt=PartBound%SurfaceModel(iPartBound))
       END SELECT
     END IF
@@ -399,18 +403,18 @@ DO iPartBound=1,nPartBound
         PartBound%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
             GETINTARRAY('Part-Boundary'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
       END DO
-      IF(PartBound%Reactive(iPartBound)) THEN
-        CALL abort(__STAMP__&
+      IF(PartBound%Reactive(iPartBound)) CALL abort(__STAMP__&
           ,'ERROR: Species swap is only supported in combination with Maxwell scattering (SurfModel = 0). PartBound: ',iPartBound)
-      END IF
     END IF
     ! Dielectric Surfaces
     PartBound%Dielectric(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
     ! Sanity check: PartBound%Dielectric=T requires supplying species swap for every species
     IF(PartBound%Dielectric(iPartBound))THEN
-      IF(PartBound%NbrOfSpeciesSwaps(iPartBound).LT.(nSpecies-BGGas%NumberOfSpecies))THEN
-        CALL abort(__STAMP__,&
-          'PartBound%Dielectric=T requires supplying a species swap (Part-BoundaryX-NbrOfSpeciesSwaps) for every species (except background gas species)!')
+      IF((PartBound%NbrOfSpeciesSwaps(iPartBound).LT.(nSpecies-BGGas%NumberOfSpecies)).AND.&
+          (.NOT.PartBound%Reactive(iPartBound)))THEN
+        CALL abort(__STAMP__,'PartBound%Dielectric=T requires\n   a) supplying a species swap (Part-BoundaryX-NbrOfSpeciesSwaps)'//&
+            ' for every species (except background gas species) or\n   '//&
+            'b) surface model that is reactive (Part-BoundaryX-SurfaceModel)!')
       ELSE
         DoDielectricSurfaceCharge=.TRUE.
       END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies
@@ -448,6 +452,10 @@ DO iPartBound=1,nPartBound
   PartBound%BoundaryParticleOutputHDF5(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
   IF(PartBound%BoundaryParticleOutputHDF5(iPartBound)) DoBoundaryParticleOutputHDF5=.TRUE.
 END DO
+
+! Connect emission inits to particle boundaries for output
+IF(DoBoundaryParticleOutputHDF5) CALL InitializeVariablesSpeciesBoundary()
+
 AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
 IF(GEO%RotPeriodicBC) THEN
@@ -504,30 +512,36 @@ DO iPartBound=1,nPartBound
 END DO
 
 !-- Sanity check: Deprecated voltage parameter
-IF(DeprecatedVoltage) CALL abort(&
-  __STAMP__&
+IF(DeprecatedVoltage) CALL abort(__STAMP__&
   ,'Part-Boundary-Voltage is no longer supported. Use corresponding RefState parameter as described in the user guide.')
 
 END SUBROUTINE InitializeVariablesPartBoundary
 
 
+!===================================================================================================================================
+!> Build Mapping for rotational periodicity: RotPeriodicSide -> SideID2 (Side on corresponding BC).
+!> In RotPeriodicBC (particle_boundary_condition.f90): SideID -> SurfSideID -> RotPeriodicSide
+!>                                                     RotPeriodicSide -> SideID2
+!> (1) counting rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
+!> (2) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
+!>     counting potential rotational periodic sides (for not conform meshes)
+!> (3) reallocate array due to number of potential rotational periodic sides
+!===================================================================================================================================
 SUBROUTINE InitParticleBoundaryRotPeriodic()
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Build Mapping for rotational periodicity: RotPeriodicSide -> SideID2 (Side on corresponding BC).
-! In RotPeriodicBC (particle_boundary_condition.f90): SideID -> SurfSideID -> RotPeriodicSide
-!                                                     RotPeriodicSide -> SideID2
-! (1) counting rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
-! (2) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
-!     counting potential rotational periodic sides (for not conform meshes)
-! (3) reallocate array due to number of potential rotational periodic sides
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSide2GlobalSide,nComputeNodeSurfTotalSides,SurfSide2GlobalSide,PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, GEO, ElemInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+#if USE_MPI
+USE MOD_Analyze_Vars            ,ONLY: CalcMeshInfo
+USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,nElems
+USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
+USE MOD_HDF5_Output_State       ,ONLY: WriteStateToHDF5
+USE MOD_HDF5_Output_ElemData    ,ONLY: WriteLostRotPeriodicSidesToHDF5
+USE MOD_Globals_Vars            ,ONLY: ProjectName
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -542,6 +556,11 @@ INTEGER,ALLOCATABLE  :: RotPeriodicSideMapping_temp(:,:)
 LOGICAL              :: isMapped,SideIsMapped
 REAL                 :: iNodeVec(1:3), jNodeVec(1:3)
 REAL                 :: iNodeR, iNodeH, jNodeR, jNodeH, Node2Rmin, Node2Rmax, Node2Hmin, Node2Hmax
+INTEGER,PARAMETER    :: NbrOfRotConnections=1000
+INTEGER              :: notMapped
+#if USE_MPI
+INTEGER              :: notMappedTotal
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 ALLOCATE(Rot2Glob_temp(nComputeNodeSurfTotalSides))
@@ -549,7 +568,7 @@ ALLOCATE(SurfSide2RotPeriodicSide(nComputeNodeSurfTotalSides))
 SurfSide2RotPeriodicSide(:) = -1
 nRotPeriodicSides=0
 
-! (1) counting rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
+! (1) Count rotational periodic sides and build mapping from SurfSideID -> RotPeriodicSide
 DO iSide=1, nComputeNodeSurfTotalSides
   SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
   IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%RotPeriodicBC) THEN
@@ -561,16 +580,16 @@ END DO
 
 ALLOCATE(RotPeriodicSide2GlobalSide(nRotPeriodicSides))
 ALLOCATE(NumRotPeriodicNeigh(nRotPeriodicSides))
-! number of potential rotational periodic sides is unknown => allocate mapping array with fixed number of 1000
+! number of potential rotational periodic sides is unknown => allocate mapping array with fixed number of NbrOfRotConnections
 ! and reallocate at the end of subroutine
-ALLOCATE(RotPeriodicSideMapping_temp(nRotPeriodicSides,1000))
+ALLOCATE(RotPeriodicSideMapping_temp(nRotPeriodicSides,NbrOfRotConnections))
 
 DO iSide=1, nRotPeriodicSides
   RotPeriodicSide2GlobalSide(iSide) = Rot2Glob_temp(iSide)
   NumRotPeriodicNeigh(iSide) = 0
-  RotPeriodicSideMapping_temp(iSide,1:1000) = -1
+  RotPeriodicSideMapping_temp(iSide,1:NbrOfRotConnections) = -1
 END DO
-
+notMapped=0
 MaxNumRotPeriodicNeigh = 0
 ! Defining rotation matrix
 SELECT CASE(GEO%RotPeriodicAxi)
@@ -588,7 +607,7 @@ SELECT CASE(GEO%RotPeriodicAxi)
     m = 2
 END SELECT
 ! (2) find Side on corresponding BC and build mapping RotPeriodicSide -> SideID2 (and vice versa)
-!     counting potential rotational periodic sides (for not conform meshes)
+!     counting potential rotational periodic sides (for non-conforming meshes)
 DO iSide=1, nRotPeriodicSides
   SideID    = RotPeriodicSide2GlobalSide(iSide)
   CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
@@ -606,7 +625,7 @@ DO iSide=1, nRotPeriodicSides
       IF(PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ. &
         PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2)))) CYCLE
       isMapped = .FALSE.
-      ! check wether RotPeriodicSides is already mapped
+      ! check whether RotPeriodicSides is already mapped
       IF(NumRotPeriodicNeigh(jSide).GT. 0) THEN
         DO iNeigh=1, NumRotPeriodicNeigh(jSide)
           IF(RotPeriodicSideMapping_temp(jSide,iNeigh).EQ.SideID) THEN
@@ -645,34 +664,31 @@ DO iSide=1, nRotPeriodicSides
       !                                                     2. map:     iSide => SideID2 and
       !                                                     vise versa: jSide => SideID  s.o.
         NumRotPeriodicNeigh(iSide) = NumRotPeriodicNeigh(iSide) + 1
-        IF(NumRotPeriodicNeigh(iSide).GT. 1000) THEN
-          CALL abort(&
-              __STAMP__&
-              ,' ERROR: Number of rotational periodic side exceed fixed number of 1000!.')
+        IF(NumRotPeriodicNeigh(iSide).GT. NbrOfRotConnections) THEN
+          CALL abort(__STAMP__,' ERROR: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
         END IF
         RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = SideID2
         NumRotPeriodicNeigh(jSide) = NumRotPeriodicNeigh(jSide) + 1
-        IF(NumRotPeriodicNeigh(jSide).GT. 1000) THEN
-          CALL abort(&
-              __STAMP__&
-              ,' ERROR: Number of rotational periodic side exceed fixed number of 1000!.')
+        IF(NumRotPeriodicNeigh(jSide).GT. NbrOfRotConnections) THEN
+          CALL abort(__STAMP__,' ERROR: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
         END IF
         RotPeriodicSideMapping_temp(jSide,NumRotPeriodicNeigh(jSide)) = SideID
         SideIsMapped = .TRUE.
       END IF
-    END DO
-  END DO
+    END DO ! jSide=1, nRotPeriodicSides
+  END DO ! iNode=1, 4
   IF(.NOT.SideIsMapped) THEN
     IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3) THEN
-      CALL abort(&
-          __STAMP__&
-          ,' ERROR: One rot periodic side did not find a corresponding side.')
+      ! Count number of sides that could not be mapped (warning output + info in h5 file when CalcMeshInfo=T)
+      notMapped = notMapped + 1
     ELSE
+      ! Found side on element that is a neighbor element in rot halo region (they have halo flag 3)
       NumRotPeriodicNeigh(iSide) = 1
       RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = -1
-    END IF
-  END IF
-END DO
+    END IF ! ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3
+  END IF ! .NOT.SideIsMapped
+END DO ! iSide=1, nRotPeriodicSides
+
 ! (3) reallocate array due to number of potential rotational periodic sides
 MaxNumRotPeriodicNeigh = MAXVAL(NumRotPeriodicNeigh)
 ALLOCATE(RotPeriodicSideMapping(nRotPeriodicSides,MaxNumRotPeriodicNeigh))
@@ -682,13 +698,30 @@ DO iSide=1, nRotPeriodicSides
   END DO
 END DO
 
+#if USE_MPI
+CALL MPI_ALLREDUCE(notMapped , notMappedTotal , 1 , MPI_INTEGER , MPI_SUM , MPI_COMM_WORLD , IERROR)
+IF(notMappedTotal.GT.0)THEN
+  SWRITE(Unit_StdOut,'(A,I0,A)') ' | Warning: Found ',notMappedTotal,' rot periodic sides that did not find a corresponding side.'
+  SWRITE(Unit_StdOut,'(A)')" | The halo region (halo flag 2) merely reaches a rot periodic BC side but not any further."
+  SWRITE(Unit_StdOut,'(A)')" | See ElemData container 'LostRotPeriodicSides' for more information on where sides were unmatched."
+  SWRITE(Unit_StdOut,'(A)')" | This information is written to "//TRIM(ProjectName)//"_LostRotPeriodicSides.h5 (only when CalcMeshInfo=T)"
+  IF(CalcMeshInfo)THEN
+    ALLOCATE(LostRotPeriodicSides(1:nElems))
+    LostRotPeriodicSides=notMapped
+    CALL AddToElemData(ElementOut,'LostRotPeriodicSides',LongIntArray=LostRotPeriodicSides)
+    CALL WriteLostRotPeriodicSidesToHDF5()
+  END IF ! CalcMeshInfo
+  !IF(MPIroot) CALL abort(__STAMP__,'At least one rot periodic side did not find a corresponding side.')
+END IF ! notMappedTotal.GT.0
+#endif /*USE_MPI*/
+
 END SUBROUTINE InitParticleBoundaryRotPeriodic
 
 
-SUBROUTINE InitAdaptiveWallTemp()
 !===================================================================================================================================
 !> Allocate shared array for the side-local wall temperature: BoundaryWallTemp_Shared and initialize with read-in wall temperature
 !===================================================================================================================================
+SUBROUTINE InitAdaptiveWallTemp()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nComputeNodeSurfTotalSides, BoundaryWallTemp, SurfSide2GlobalSide,nSurfSample
@@ -741,6 +774,7 @@ CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE InitAdaptiveWallTemp
+
 
 SUBROUTINE InitializeVariablesAuxBC()
 !===================================================================================================================================
@@ -996,6 +1030,7 @@ ELSE
 END IF
 
 END SUBROUTINE InitializeVariablesAuxBC
+
 
 SUBROUTINE rotx(mat,a)
 IMPLICIT NONE

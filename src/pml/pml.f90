@@ -94,7 +94,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_PML_Vars
-USE MOD_HDF5_output       ,ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
+USE MOD_HDF5_output       ,ONLY: GatheredWriteArray,WriteAttributeToHDF5,WriteHDF5Header
 USE MOD_HDF5_Output_Fields,ONLY: WritePMLzetaGlobalToHDF5
 USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
 USE MOD_IO_HDF5           ,ONLY: AddToElemData,ElementOut
@@ -360,7 +360,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER             :: i,j,k,iPMLElem
 REAL                :: XiN
-REAL                :: function_type
+REAL                :: fFuncType
 INTEGER             :: iDir,PMLDir
 REAL                :: xMin,xMax
 !===================================================================================================================================
@@ -422,7 +422,7 @@ IF(usePMLMinMax)THEN ! use xyPMLMinMax -> define the PML region
          (Elem_xGP(PMLDir,i,j,k,PMLToElem(iPMLElem)).LE.xyzPMLMinMax(2*PMLDir)))THEN ! point is in [PMLDir]-direction region
         xMin = xyzPMLMinMax(2*PMLDir-1)-xyzPMLzetaShapeOrigin(PMLDir)               ! min of region defined for PML region
         xMax = xyzPMLMinMax(2*PMLDir  )-xyzPMLzetaShapeOrigin(PMLDir)               ! max of region defined for PML region
-        PMLzeta(PMLDir,i,j,k,iPMLElem) = PMLzeta0*function_type(&
+        PMLzeta(PMLDir,i,j,k,iPMLElem) = PMLzeta0*fFuncType(&
                                        ( Elem_xGP(PMLDir,i,j,k,PMLToElem(iPMLElem))-xyzPMLzetaShapeOrigin(PMLDir)-MIN(xMin,xMax) )/&
                                        ( MAX(xMin,xMax)                                                          -MIN(xMin,xMax) ),&
                                        PMLzetashape)
@@ -435,11 +435,11 @@ ELSE ! use xyzPhysicalMinMax -> define the physical region
       IF          (Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)) .LT.   xyzPhysicalMinMax(2*iDir-1)) THEN ! region is in lower part
         XiN = (ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem))) - ABS(xyzPhysicalMinMax(2*iDir-1)))/&   ! of the domain
               (ABS(xyzMinMax(2*iDir-1))                      - ABS(xyzPhysicalMinMax(2*iDir-1)))
-                    PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*function_type(XiN,PMLzetaShape)
+                    PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*fFuncType(XiN,PMLzetaShape)
       ELSEIF      (Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)) .GT.   xyzPhysicalMinMax(2*iDir)) THEN ! region is in upper part
         XiN = (ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem))) - ABS(xyzPhysicalMinMax(2*iDir)))/&   ! of the domain
               (ABS(xyzMinMax(2*iDir))                        - ABS(xyzPhysicalMinMax(2*iDir)))
-                    PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*function_type(XiN,PMLzetaShape)
+                    PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*fFuncType(XiN,PMLzetaShape)
       END IF
     END DO
   END DO; END DO; END DO; END DO !iElem,k,j,i
@@ -475,7 +475,7 @@ ELSE ! use xyzPhysicalMinMax -> define the physical region
 !    FIX this     END IF
 !    FIX this     delta(2)=MAXVAL((/0.,xi/L/))
 !    FIX this     ! set the ramp value from 1 down to 0: use the larged value of "delta"
-!    FIX this     PMLRamp(j,k,iPMLElem) = 1. - function_type(MAXVAL(delta),PMLzetaShape)
+!    FIX this     PMLRamp(j,k,iPMLElem) = 1. - fFuncType(MAXVAL(delta),PMLzetaShape)
 !    FIX this   END DO; END DO; END DO !iPMLElem,k,j
 END IF ! usePMLMinMax
 ! ----------------------------------------------------------------------------------------------------------------------------------
@@ -616,37 +616,14 @@ END SUBROUTINE FinalizePML
 
 END MODULE MOD_PML
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-!===================================================================================================================================
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! local SUBROUTINES and FUNCTIONS
+!-----------------------------------------------------------------------------------------------------------------------------------
 
-
-REAL FUNCTION function_type(x,PMLzetaShape)
 !===================================================================================================================================
 ! switch between different types of ramping functions for the calculation of the local zeta damping value field
 !===================================================================================================================================
+REAL FUNCTION fFuncType(x,PMLzetaShape)
 ! MODULES
 USE MOD_Globals,       ONLY: abort
 ! IMPLICIT VARIABLE HANDLING
@@ -661,28 +638,27 @@ INTEGER, INTENT(IN) :: PMLzetaShape ! linear, polynomial, const., sinusoidal ram
 ! LOCAL VARIABLES
 REAL                :: fLinear,fSinus,fPolynomial
 !===================================================================================================================================
+fFuncType=0. ! Initialize
 SELECT CASE (PMLzetaShape)
 CASE(0) !Constant Distribution of the Damping Coefficient
-  function_type=1.
+  fFuncType=1.
 CASE(1) ! Linear Distribution of the Damping Coefficient
-  function_type=fLinear(x)
+  fFuncType=fLinear(x)
 CASE(2) ! Sinusoidal  Distribution of the Damping Coefficient
-  function_type=fSinus(x)
+  fFuncType=fSinus(x)
 CASE(3) ! polynomial
-  function_type=fPolynomial(x)
+  fFuncType=fPolynomial(x)
 CASE DEFAULT
-  CALL abort(&
-  __STAMP__&
-  ,'Shape function for damping coefficient in PML region not specified!',999,999.)
+  CALL abort(__STAMP__,'Shape function for damping coefficient in PML region not specified!')
 END SELECT ! PMLzetaShape
 
-END FUNCTION function_type
+END FUNCTION fFuncType
 
 
+!===================================================================================================================================
+! Evaluates a linear function
+!===================================================================================================================================
 REAL FUNCTION fLinear(x)
-!===================================================================================================================================
-!
-!===================================================================================================================================
 ! MODULES
 USE MOD_PML_Vars,            ONLY: PMLRampLength
 ! IMPLICIT VARIABLE HANDLING
@@ -705,10 +681,10 @@ END IF
 END FUNCTION fLinear
 
 
+!===================================================================================================================================
+! Evaluates a sin function
+!===================================================================================================================================
 REAL FUNCTION fSinus(x)
-!===================================================================================================================================
-!
-!===================================================================================================================================
 ! MODULES
 USE MOD_PML_Vars,            ONLY: PMLRampLength
 ! IMPLICIT VARIABLE HANDLING
@@ -731,11 +707,10 @@ END IF
 END FUNCTION fSinus
 
 
-
+!===================================================================================================================================
+! Evaluates the polynomial -3x^4 + 4x^3
+!===================================================================================================================================
 REAL FUNCTION fPolynomial(x)
-!===================================================================================================================================
-!
-!===================================================================================================================================
 ! MODULES
 USE MOD_PML_Vars,            ONLY: PMLRampLength
 ! IMPLICIT VARIABLE HANDLING
@@ -756,5 +731,3 @@ ELSE
   fPolynomial = 1.
 END IF
 END FUNCTION fPolynomial
-
-

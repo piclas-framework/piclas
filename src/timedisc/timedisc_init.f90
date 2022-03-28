@@ -354,7 +354,10 @@ END SUBROUTINE InitTimeStep
 !===================================================================================================================================
 SUBROUTINE UpdateTimeStep()
 ! MODULES
-USE MOD_Globals          ,ONLY: abort,UNIT_StdOut,myrank,LESSEQUALTOLERANCE
+USE MOD_Globals          ,ONLY: abort,UNIT_StdOut,LESSEQUALTOLERANCE
+#if USE_MPI
+USE MOD_Globals          ,ONLY: myrank
+#endif /*USE_MPI*/
 USE MOD_TimeDisc_Vars    ,ONLY: dt,time,tEnd,tAnalyze,dt_Min,dtWeight
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: DoLoadBalance,LoadBalanceSample,PerformLBSample
@@ -391,7 +394,7 @@ END IF
 #if USE_LOADBALANCE
 ! Activate normal load balancing (NOT initial restart load balancing)
 ! 1.) Catch all iterations within sampling interval (make sure to get the first iteration in interval): LESSEQUALTOLERANCE(a,b,tol)
-! 2.)             Load balancing is activated: DoLoadBalance=T 
+! 2.)             Load balancing is activated: DoLoadBalance=T
 IF( LESSEQUALTOLERANCE(dt_Min(DT_ANALYZE), LoadBalanceSample*dt, 1e-5) &
     .AND. DoLoadBalance) PerformLBSample=.TRUE. ! Activate load balancing in this time step
 #endif /*USE_LOADBALANCE*/

@@ -17,7 +17,7 @@ MODULE MOD_HDF5_Input
 ! Add comments please!
 !===================================================================================================================================
 ! MODULES
-USE MOD_io_hdf5
+USE MOD_IO_HDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -522,8 +522,7 @@ LOGWRITE(*,*)'Dimsf,Offset=',Dimsf,Offset_in
 CALL H5SCREATE_SIMPLE_F(Rank, Dimsf, MemSpace, iError)
 CALL H5DOPEN_F(File_ID, TRIM(ArrayName) , DSet_ID, iError)
 
-IF(iError.NE.0) &
-  CALL Abort(__STAMP__,'Array '//TRIM(ArrayName)//' does not exist.')
+IF(iError.NE.0) CALL Abort(__STAMP__,'Array '//TRIM(ArrayName)//' does not exist.')
 
 ! Define and select the hyperslab to use for reading.
 CALL H5DGET_SPACE_F(DSet_ID, FileSpace, iError)

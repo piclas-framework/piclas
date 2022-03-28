@@ -14,7 +14,7 @@
 
 MODULE MOD_Particle_Emission_Init
 !===================================================================================================================================
-!> 
+!>
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -27,6 +27,8 @@ PRIVATE
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DefineParametersParticleEmission, InitializeVariablesSpeciesInits, InitialParticleInserting
+PUBLIC :: InitializeVariablesSpeciesBoundary
+PUBLIC :: InitializeEmissionSpecificMPF
 !===================================================================================================================================
 
 CONTAINS
@@ -42,69 +44,32 @@ IMPLICIT NONE
 
 CALL prms%SetSection("Particle Initialization")
 
-CALL prms%CreateIntOption(      'Part-Species[$]-nInits'  &
-                                , 'Number of different initial particle placements for Species [$]', '0', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-Reset'  &
-                                , 'Flag for resetting species distribution with init during restart' &
-                                , '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-ChargeIC' &
-                                , 'Particle charge of species [$], multiple of an elementary charge [C]' &
-                                , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-MassIC'  &
-                                , 'Atomic mass of species [$] [kg]', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-MacroParticleFactor' &
-                                , 'Particle weighting factor: number of simulation particles per real particle for species [$]' &
-                                , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(    'Part-Species[$]-nInits'  , 'Number of different initial particle placements for Species [$]'      , '0'      , numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption('Part-Species[$]-Reset'   , 'Flag for resetting species distribution with init during restart'     , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Part-Species[$]-ChargeIC', 'Particle charge of species [$], multiple of an elementary charge [C]' , '0.'     , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Part-Species[$]-MassIC'  , 'Atomic mass of species [$] [kg]', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Part-Species[$]-MacroParticleFactor' ,'Particle weighting factor: number of simulation particles per real particle for species [$]' , numberedmulti=.TRUE.)
 #if defined(IMPA)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  &
-                                , 'Flag if specific particle species is implicit', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  , 'Flag if specific particle species is implicit', '.FALSE.', numberedmulti=.TRUE.)
 #endif
-CALL prms%CreateLogicalOption(  'Part-Species[$]-IsIMDSpecies' &
-                                , 'TODO-DEFINE-PARAMETER', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-IsIMDSpecies', 'Flag if particle species is used for IMD coupling', '.FALSE.', numberedmulti=.TRUE.)
 
 CALL prms%SetSection("Particle Initialization (Inits)")
 
-CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-SpaceIC' &
-                                , 'Specifying Keyword for particle space condition of species [$] in case of multiple inits' &
-                                , 'cuboid', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-velocityDistribution'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Specifying keyword for velocity distribution', 'constant'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-InflowRiseTime' &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Time to ramp the number of inflow particles linearly from zero to unity'&
-                                , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusIC'  , 'Radius for IC circle'                 , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-Radius2IC' , 'Radius2 for IC cylinder (ring)' , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusICGyro','Radius for Gyrotron gyro radius','1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-NormalIC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Normal / Orientation of circle', '0. , 0. , 1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-BasePointIC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Base point for IC cuboid and IC sphere ', '0. , 0. , 0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-BaseVector1IC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'First base vector for IC cuboid', '1. , 0. , 0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-BaseVector2IC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Second base vector for IC cuboid', '0. , 1. , 0.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-CuboidHeightIC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Height of cuboid if SpaceIC = cuboid. (set 0 for flat rectangle)'//&
-                                  ',negative value = opposite direction', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-CylinderHeightIC'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Third measure of cylinder  (set 0 for flat rectangle),'//&
-                                  ' negative value = opposite direction', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-VeloIC'  &
-                                , 'Velocity magnitude [m/s]', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-VeloVecIC'  &
-                                , 'Normalized velocity vector', '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-SpaceIC'             , 'Keyword for particle space condition of species [$] in case of multiple inits' , 'cuboid', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-velocityDistribution', 'Keyword for velocity distribution', 'constant', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-InflowRiseTime'      , 'Time to ramp the number of inflow particles linearly from zero to unity', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusIC'            , 'Radius for IC circle'                 , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-Radius2IC'           , 'Radius2 for IC cylinder (ring)' , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusICGyro'        ,'Radius for Gyrotron gyro radius','1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-NormalIC'            ,'Normal / Orientation of circle', '0. , 0. , 1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-BasePointIC'         ,'Base point for IC cuboid and IC sphere ', '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-BaseVector1IC'       ,'First base vector for IC cuboid', '1. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-BaseVector2IC'       ,'Second base vector for IC cuboid', '0. , 1. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-CuboidHeightIC'      ,'Height of cuboid if SpaceIC = cuboid. (set 0 for flat rectangle),negative value = opposite direction', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-CylinderHeightIC'    ,'Third measure of cylinder  (set 0 for flat rectangle), negative value = opposite direction', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-VeloIC', 'Velocity magnitude [m/s]', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-VeloVecIC', 'Normalized velocity vector', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-Amplitude'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Amplitude for sin-deviation initiation.', '0.01', numberedmulti=.TRUE.)
@@ -120,6 +85,9 @@ CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-maxParticleNumber-y'  &
 CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-maxParticleNumber-z'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Maximum Number of all Particles in z direction', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-DistributionSpeciesIndex'  &
+                                , 'Background gas with a distribution: Input the species index to use from the read-in '//&
+                                  'distribution of the DSMCState file', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-Alpha' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'WaveNumber for sin-deviation initiation.', numberedmulti=.TRUE.)
@@ -182,28 +150,23 @@ CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-NeutralizationSource'  
 ! ====================================== photoionization =================================================================
 CALL prms%CreateLogicalOption('Part-Species[$]-Init[$]-FirstQuadrantOnly','Only insert particles in the first quadrant that is'//&
                               ' spanned by the vectors x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R]',  '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-Species[$]-Init[$]-PulseDuration',&
-                           'Pulse duration tau for a Gaussian-tpye pulse with I~exp(-(t/tau)^2) [s]', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WaistRadius',&
-                           'Beam waist radius (in focal spot) w_b for Gaussian-tpye pulse with I~exp(-(r/w_b)^2) [m]',&
-                            numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-Species[$]-Init[$]-IntensityAmplitude',&
-                           'Beam intensity maximum I0 Gaussian-tpye pulse with I=I0*exp(-(t/tau)^2)exp(-(r/w_b)^2) [W/m^2]','-1.0',&
-                            numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-PulseDuration','Pulse duration tau for a Gaussian-tpye pulse with I~exp(-(t/tau)^2) [s]', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WaistRadius','Beam waist radius (in focal spot) w_b for Gaussian-tpye pulse with I~exp(-(r/w_b)^2) [m]',numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-IntensityAmplitude','Beam intensity maximum I0 Gaussian-tpye pulse with I=I0*exp(-(t/tau)^2)exp(-(r/w_b)^2) [W/m^2]','-1.0',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WaveLength','Beam wavelength [m]',numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-Species[$]-Init[$]-YieldSEE','Secondary photoelectron yield [-]',numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-YieldSEE','Secondary photoelectron yield [-]. Number of emitted electrons per incident photon',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-RepetitionRate','Pulse repetition rate (pulses per second) [Hz]',numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-Species[$]-Init[$]-Power','Average pulse power (energy of a single pulse times repetition rate) [W]',&
-                           '-1.0',numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-Power','Average pulse power (energy of a single pulse times repetition rate) [W]','-1.0',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-Energy','Single pulse energy [J]','-1.0',numberedmulti=.TRUE.)
 CALL prms%CreateIntOption( 'Part-Species[$]-Init[$]-NbrOfPulses','Number of pulses [-]','1',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WorkFunctionSEE','Photoelectron work function [eV]', numberedmulti=.TRUE.)
 !CALL prms%CreateRealOption('Part-Species[$]-Init[$]-AngularBetaSEE',&
                            !'Orbital configuration of the solid from which the photoelectrons emerge','0.0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-Species[$]-Init[$]-EffectiveIntensityFactor', 'Scaling factor that increases I0 [-]',&
-                            '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-EffectiveIntensityFactor', 'Scaling factor that increases I0 [-]','1.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption('Part-Species[$]-Init[$]-TraceSpecies','Flag background species as trace element.'//&
                               ' Different weighting factor can be used',  '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption( 'Part-Species[$]-Init[$]-PartBCIndex','Assocaited particle boundary ID','-1',numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-MacroParticleFactor', 'Emission-specific particle weighting factor: number of simulation particles per real particle',numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersParticleEmission
 
 
@@ -232,16 +195,24 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 INTEGER               :: iSpec, iInit
 CHARACTER(32)         :: hilf, hilf2
 !===================================================================================================================================
+ALLOCATE(SpecReset(1:nSpecies))
+SpecReset=.FALSE.
+UseNeutralization = .FALSE.
+! Background gas
 BGGas%NumberOfSpecies = 0
 ALLOCATE(BGGas%BackgroundSpecies(nSpecies))
 BGGas%BackgroundSpecies = .FALSE.
 ALLOCATE(BGGas%TraceSpecies(nSpecies))
 BGGas%TraceSpecies = .FALSE.
-ALLOCATE(BGGas%NumberDensity(nSpecies))
-BGGas%NumberDensity = 0.
-ALLOCATE(SpecReset(1:nSpecies))
-SpecReset=.FALSE.
-UseNeutralization = .FALSE.
+
+BGGas%UseDistribution = GETLOGICAL('Particles-BGGas-UseDistribution')
+IF(BGGas%UseDistribution) THEN
+  IF(usevMPF) CALL abort(__STAMP__,'vMPF not implemented for Particles-BGGas-UseDistribution=T')
+  ALLOCATE(BGGas%DistributionSpeciesIndex(nSpecies))
+ELSE
+  ALLOCATE(BGGas%NumberDensity(nSpecies))
+  BGGas%NumberDensity = 0.
+END IF
 
 DO iSpec = 1, nSpecies
   SWRITE (UNIT_stdOut,'(66(". "))')
@@ -280,20 +251,27 @@ DO iSpec = 1, nSpecies
     END IF
     ! Additional read-in for circular/cuboid cases
     SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
-    CASE('disc','circle','circle_equidistant','gyrotron_circle','cylinder','sphere','photon_cylinder','photon_SEE_disc')
+    CASE('disc','circle','circle_equidistant','gyrotron_circle','cylinder','sphere','photon_cylinder','photon_SEE_disc',&
+          'photon_honeycomb','photon_SEE_honeycomb')
       Species(iSpec)%Init(iInit)%RadiusIC               = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC')
       Species(iSpec)%Init(iInit)%Radius2IC              = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC')
       Species(iSpec)%Init(iInit)%CylinderHeightIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-CylinderHeightIC')
-    CASE('cuboid')
-      Species(iSpec)%Init(iInit)%CuboidHeightIC         = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC')
+      IF(Species(iSpec)%Init(iInit)%Radius2IC.GE.Species(iSpec)%Init(iInit)%RadiusIC) CALL abort(__STAMP__,&
+          'For this emission type RadiusIC must be greater than Radius2IC!')
+    CASE('cuboid','photon_rectangle')
+      Species(iSpec)%Init(iInit)%CuboidHeightIC = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC')
     END SELECT
     ! Space-ICs requiring basic geometry information and other options (all excluding cell_local and background)
     IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local').AND. &
        (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'background')) THEN
       Species(iSpec)%Init(iInit)%NormalIC               = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-NormalIC',3)
       Species(iSpec)%Init(iInit)%BasePointIC            = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BasePointIC',3)
+      !--- Get BaseVector1IC and normalize it
       Species(iSpec)%Init(iInit)%BaseVector1IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector1IC',3)
+      Species(iSpec)%Init(iInit)%NormalVector1IC        = UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC)
+      !--- Get BaseVector2IC and normalize it
       Species(iSpec)%Init(iInit)%BaseVector2IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector2IC',3)
+      Species(iSpec)%Init(iInit)%NormalVector2IC        = UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC)
       !--- Normalize NormalIC (and BaseVector 1 & 3 IC for cylinder/sphere) for Inits
       Species(iSpec)%Init(iInit)%NormalIC = Species(iSpec)%Init(iInit)%NormalIC / VECNORM(Species(iSpec)%Init(iInit)%NormalIC)
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
@@ -312,6 +290,11 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%InflowRiseTime         = 0.
       Species(iSpec)%Init(iInit)%NumberOfExcludeRegions = 0
     END IF
+    ! Specifically for photon SEE on rectangle
+    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_rectangle')THEN
+      Species(iSpec)%Init(iInit)%CuboidHeightIC = &
+          MIN(VECNORM(Species(iSpec)%Init(iInit)%BaseVector1IC),VECNORM(Species(iSpec)%Init(iInit)%BaseVector2IC))
+    END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'gyrotron_circle'
     ! Additional read-in for specific cases
     IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sin_deviation') THEN
       Species(iSpec)%Init(iInit)%Amplitude              = GETREAL('Part-Species'//TRIM(hilf2)//'-Amplitude')
@@ -328,8 +311,8 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%WorkFunctionSEE        = GETREAL('Part-Species'//TRIM(hilf2)//'-WorkFunctionSEE')
     END IF
     ! Photoionization in cylindrical volume and SEE based on photon impact on a surface
-    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_disc').OR. &
-       (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder')) THEN
+    ! photon_cylinder, photon_SEE_disc, photon_honeycomb, photon_SEE_honeycomb
+    IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_'))THEN
       CALL InitializeVariablesPhotoIonization(iSpec,iInit,hilf2)
     END IF
     !--- Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
@@ -338,11 +321,16 @@ DO iSpec = 1, nSpecies
     CASE('2D_landmark','2D_landmark_copy')
       Species(iSpec)%Init(iInit)%ParticleEmissionType = 8
       Species(iSpec)%Init(iInit)%NINT_Correction      = 0.0
-    CASE('2D_landmark_neutralization')
+    CASE('2D_landmark_neutralization','2D_Liu2010_neutralization','3D_Liu2010_neutralization','2D_Liu2010_neutralization_Szabo',&
+         '3D_Liu2010_neutralization_Szabo')
       Species(iSpec)%Init(iInit)%ParticleEmissionType = 9
       NeutralizationSource = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-NeutralizationSource'))
       NeutralizationBalance = 0
       UseNeutralization = .TRUE.
+      IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'3D_Liu2010_neutralization').OR.&
+         (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'3D_Liu2010_neutralization_Szabo'))THEN
+        Species(iSpec)%Init(iInit)%FirstQuadrantOnly = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-FirstQuadrantOnly')
+      END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'3D_Liu2010_neutralization'
     END SELECT ! SpaceIC = '2D_landmark' or '2D_landmark_copy'
     !---Inserted Particles
     Species(iSpec)%Init(iInit)%InsertedParticle         = 0
@@ -359,8 +347,7 @@ DO iSpec = 1, nSpecies
     ! Check if number density and particle number have been defined
     IF ((Species(iSpec)%Init(iInit)%PartDensity.GT.0.)) THEN
       IF (Species(iSpec)%Init(iInit)%ParticleNumber.GT.0) THEN
-        CALL abort(__STAMP__, &
-          'Either ParticleNumber or PartDensity can be defined for selected parameters, not both!')
+        CALL abort(__STAMP__, 'Either ParticleNumber or PartDensity can be defined for selected parameters, not both!')
       END IF
     END IF
     ! 2D simulation/variable time step only with cell_local and/or surface flux
@@ -400,13 +387,15 @@ DO iSpec = 1, nSpecies
       IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
         BGGas%NumberOfSpecies = BGGas%NumberOfSpecies + 1
         BGGas%BackgroundSpecies(iSpec) = .TRUE.
-        BGGas%NumberDensity(iSpec)     = Species(iSpec)%Init(iInit)%PartDensity
+        IF(.NOT.BGGas%UseDistribution) BGGas%NumberDensity(iSpec) = Species(iSpec)%Init(iInit)%PartDensity
         BGGas%TraceSpecies(iSpec)      = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-TraceSpecies')
         Species(iSpec)%Init(iInit)%ParticleEmissionType = -1
-      ELSE
-        CALL abort(__STAMP__, &
-          'ERROR: Only one background definition per species is allowed!')
-      END IF
+        ! Read-in the species index for background gas distribution
+        IF(BGGas%UseDistribution) &
+          BGGas%DistributionSpeciesIndex(iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DistributionSpeciesIndex')
+        ELSE
+          CALL abort(__STAMP__, 'Only one background definition per species is allowed!')
+        END IF
     END IF
     !--- InflowRise
     IF(Species(iSpec)%Init(iInit)%InflowRiseTime.GT.0.)THEN
@@ -425,7 +414,11 @@ IF (useDSMC) THEN
   IF (BGGas%NumberOfSpecies.GT.0) THEN
     CALL BGGas_Initialize()
   ELSE
-    DEALLOCATE(BGGas%NumberDensity)
+    IF(BGGas%UseDistribution) THEN
+      DEALLOCATE(BGGas%DistributionSpeciesIndex)
+    ELSE
+      DEALLOCATE(BGGas%NumberDensity)
+    END IF
   END IF ! BGGas%NumberOfSpecies.GT.0
 END IF !useDSMC
 
@@ -458,7 +451,7 @@ IMPLICIT NONE
 INTEGER               :: iSpec, NbrOfParticle,iInit,iPart,PositionNbr
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)') ' Initial particle inserting... '
+SWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING...'
 
 CALL UpdateNextFreePosition()
 
@@ -480,7 +473,7 @@ DO iSpec = 1,nSpecies
       CALL SetParticleVelocity(iSpec,iInit,NbrOfParticle)
       SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',iSpec,' ... '
       CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
-      IF (usevMPF) CALL SetParticleMPF(iSpec,NbrOfParticle)
+      IF (usevMPF) CALL SetParticleMPF(iSpec,iInit,NbrOfParticle)
       IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
       IF (useDSMC) THEN
         IF (DSMC%DoAmbipolarDiff) CALL AD_SetInitElectronVelo(iSpec,iInit,NbrOfParticle)
@@ -517,7 +510,7 @@ IF(DoDielectric)THEN
   END IF
 END IF
 
-SWRITE(UNIT_stdOut,'(A)') ' ...DONE '
+SWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING DONE!'
 
 END SUBROUTINE InitialParticleInserting
 
@@ -582,21 +575,18 @@ IF (((TRIM(SpecInit%SpaceIC).EQ.'cuboid').OR.(TRIM(SpecInit%SpaceIC).EQ.'cylinde
         - SpecInit%ExcludeRegion(iEx)%BaseVector1IC(2) * SpecInit%ExcludeRegion(iEx)%BaseVector2IC(1)
     ELSE IF ( (TRIM(SpecInit%ExcludeRegion(iEx)%SpaceIC).NE.'cuboid').AND. &
               (TRIM(SpecInit%ExcludeRegion(iEx)%SpaceIC).NE.'cylinder') )THEN
-      CALL abort(__STAMP__&
-        ,'Error in ParticleInit, ExcludeRegions must be cuboid or cylinder!')
+      CALL abort(__STAMP__,'Error in ParticleInit, ExcludeRegions must be cuboid or cylinder!')
     END IF
     IF (DOTPRODUCT(SpecInit%ExcludeRegion(iEx)%NormalIC(1:3)).GT.0.) THEN
       SpecInit%ExcludeRegion(iEx)%NormalIC = SpecInit%ExcludeRegion(iEx)%NormalIC / VECNORM(SpecInit%ExcludeRegion(iEx)%NormalIC)
       SpecInit%ExcludeRegion(iEx)%ExcludeBV_lenghts(1) = VECNORM(SpecInit%ExcludeRegion(iEx)%BaseVector1IC)
       SpecInit%ExcludeRegion(iEx)%ExcludeBV_lenghts(2) = VECNORM(SpecInit%ExcludeRegion(iEx)%BaseVector2IC)
     ELSE
-      CALL abort(__STAMP__&
-        ,'Error in ParticleInit, NormalIC Vector must not be zero!')
+      CALL abort(__STAMP__,'Error in ParticleInit, NormalIC Vector must not be zero!')
     END IF
   END DO !iEx
 ELSE
-  CALL abort(__STAMP__&
-    ,'Error in ParticleInit, ExcludeRegions are currently only implemented for the SpaceIC cuboid, sphere or cylinder!')
+  CALL abort(__STAMP__,'Error in ParticleInit, ExcludeRegions currently only implemented for the SpaceIC cuboid/sphere/cylinder!')
 END IF
 END ASSOCIATE
 
@@ -612,6 +602,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars    ,ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Particle_Vars   ,ONLY: Species
+USE MOD_DSMC_Vars       ,ONLY: BGGas
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -625,24 +616,41 @@ CHARACTER(32)           :: hilf2
 REAL                    :: factor
 !===================================================================================================================================
 Species(iSpec)%Init(iInit)%ParticleEmissionType = 7
+! Abort if a background gas distribution is used (CalcPhotoIonizationNumber assumes a constant distribution)
+IF(BGGas%UseDistribution) CALL abort(__STAMP__,&
+  'ERROR: Photo-ionization and a background gas distribution is not implemented yet!')
 ! Check coordinate system of normal vector and two tangential vectors (they must form an orthogonal basis)
-ASSOCIATE( v1 => UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)      ,&
-            v2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC) ,&
-            v3 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC))
-  IF(DOT_PRODUCT(v1,v2).GT.1e-4) CALL abort(&
-      __STAMP__&
-      ,'NormalIC and BaseVector1IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(v1,v2))
-  IF(DOT_PRODUCT(v1,v3).GT.1e-4) CALL abort(&
-      __STAMP__&
-      ,'NormalIC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(v1,v3))
-  IF(DOT_PRODUCT(v2,v3).GT.1e-4) CALL abort(&
-      __STAMP__&
-      ,'BaseVector1IC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(v2,v3))
+ASSOCIATE( n1 => UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)      ,&
+           n2 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC) ,&
+           n3 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC) ,&
+           v2 => Species(iSpec)%Init(iInit)%BaseVector1IC             ,&
+           v3 => Species(iSpec)%Init(iInit)%BaseVector2IC             )
+  IF(DOT_PRODUCT(n1,n2).GT.1e-4) CALL abort(__STAMP__&
+      ,'NormalIC and BaseVector1IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n1,n2))
+  IF(DOT_PRODUCT(n1,n3).GT.1e-4) CALL abort(__STAMP__&
+      ,'NormalIC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n1,n3))
+  IF(DOT_PRODUCT(n2,n3).GT.1e-4) CALL abort(__STAMP__&
+      ,'BaseVector1IC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n2,n3))
+  ! Settings only for rectangle emission
+  SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+  CASE('photon_SEE_rectangle','photon_rectangle')
+    ! Area is calculated from the cross product of the two base vectors
+    Species(iSpec)%Init(iInit)%Area = VECNORM(CROSS(v2,v3))
+    CALL PrintOption('Rectangular emission area for Part-Species'//TRIM(hilf2)//': A [m2]','CALCUL.',&
+                    RealOpt=Species(iSpec)%Init(iInit)%Area)
+  END SELECT
 END ASSOCIATE
 Species(iSpec)%Init(iInit)%FirstQuadrantOnly = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-FirstQuadrantOnly')
 Species(iSpec)%Init(iInit)%PulseDuration      = GETREAL('Part-Species'//TRIM(hilf2)//'-PulseDuration')
 Species(iSpec)%Init(iInit)%tShift = SQRT(8.0) * Species(iSpec)%Init(iInit)%PulseDuration
-Species(iSpec)%Init(iInit)%WaistRadius        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaistRadius')
+! Honeycomb and rectangle do not require a waist radius
+SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+CASE('photon_SEE_honeycomb','photon_honeycomb','photon_SEE_rectangle','photon_rectangle')
+  Species(iSpec)%Init(iInit)%WaistRadius        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaistRadius','-1.0')
+  IF(Species(iSpec)%Init(iInit)%FirstQuadrantOnly) CALL abort(__STAMP__,'FirstQuadrantOnly=T is not implemented for honeycombs')
+CASE DEFAULT
+  Species(iSpec)%Init(iInit)%WaistRadius        = GETREAL('Part-Species'//TRIM(hilf2)//'-WaistRadius')
+END SELECT
 Species(iSpec)%Init(iInit)%WaveLength         = GETREAL('Part-Species'//TRIM(hilf2)//'-WaveLength')
 Species(iSpec)%Init(iInit)%NbrOfPulses        = GETINT('Part-Species'//TRIM(hilf2)//'-NbrOfPulses')
 Species(iSpec)%Init(iInit)%NINT_Correction    = 0.0
@@ -654,14 +662,27 @@ Species(iSpec)%Init(iInit)%RepetitionRate = -1.0
 IF(Species(iSpec)%Init(iInit)%Power.GT.0.0)THEN
   Species(iSpec)%Init(iInit)%RepetitionRate = GETREAL('Part-Species'//TRIM(hilf2)//'-RepetitionRate')
   Species(iSpec)%Init(iInit)%Period = 1./Species(iSpec)%Init(iInit)%RepetitionRate
-  SWRITE(*,*) 'Photoionization in cylindrical volume: Selecting mode [RepetitionRate and Power]'
+  SWRITE(*,*) 'Photoionization in cylindrical/rectangular/honeycomb volume: Selecting mode [RepetitionRate and Power]'
 
   Species(iSpec)%Init(iInit)%Energy = Species(iSpec)%Init(iInit)%Power / Species(iSpec)%Init(iInit)%RepetitionRate
   CALL PrintOption('Single pulse energy: Part-Species'//TRIM(hilf2)//'-Energy [J]','CALCUL.',&
                     RealOpt=Species(iSpec)%Init(iInit)%Energy)
 
-  Species(iSpec)%Init(iInit)%IntensityAmplitude = Species(iSpec)%Init(iInit)%Energy / &
-    (Species(iSpec)%Init(iInit)%WaistRadius**2 * Species(iSpec)%Init(iInit)%PulseDuration * PI**(3.0/2.0))
+  ASSOCIATE( E0   => Species(iSpec)%Init(iInit)%Energy             ,&
+             wb   => Species(iSpec)%Init(iInit)%WaistRadius        ,&
+             tau  => Species(iSpec)%Init(iInit)%PulseDuration      ,&
+             Rout => Species(iSpec)%Init(iInit)%RadiusIC           ,&
+             Rin  => Species(iSpec)%Init(iInit)%Radius2IC          ,&
+             A    => Species(iSpec)%Init(iInit)%Area               )
+    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+    CASE('photon_SEE_rectangle','photon_rectangle')
+      Species(iSpec)%Init(iInit)%IntensityAmplitude = E0 / (SQRT(PI)*tau*A)
+    CASE('photon_SEE_honeycomb','photon_honeycomb')
+      Species(iSpec)%Init(iInit)%IntensityAmplitude = E0 / (SQRT(PI)*tau*(1.5*SQRT(3.0))*(Rout**2-Rin**2))
+    CASE DEFAULT
+      Species(iSpec)%Init(iInit)%IntensityAmplitude = E0 / (wb**2 * tau * PI**(3.0/2.0))
+    END SELECT
+  END ASSOCIATE
 
   CALL PrintOption('Intensity amplitude: I0 [W/m^2]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%IntensityAmplitude)
 ELSEIF(Species(iSpec)%Init(iInit)%Energy.GT.0.0)THEN
@@ -672,10 +693,23 @@ ELSEIF(Species(iSpec)%Init(iInit)%Energy.GT.0.0)THEN
   ELSE
     Species(iSpec)%Init(iInit)%Period = 2.0 * Species(iSpec)%Init(iInit)%tShift
   END IF ! Species(iSpec)%Init(iInit)%NbrOfPulses
-  SWRITE(*,*) 'Photoionization in cylindrical volume: Selecting mode [Energy]'
+  SWRITE(*,*) 'Photoionization in cylindrical/rectangular/honeycomb volume: Selecting mode [Energy]'
 
-  Species(iSpec)%Init(iInit)%IntensityAmplitude = Species(iSpec)%Init(iInit)%Energy / &
-    (Species(iSpec)%Init(iInit)%WaistRadius**2 * Species(iSpec)%Init(iInit)%PulseDuration * PI**(3.0/2.0))
+  ASSOCIATE( E0   => Species(iSpec)%Init(iInit)%Energy             ,&
+             wb   => Species(iSpec)%Init(iInit)%WaistRadius        ,&
+             tau  => Species(iSpec)%Init(iInit)%PulseDuration      ,&
+             Rout => Species(iSpec)%Init(iInit)%RadiusIC           ,&
+             Rin  => Species(iSpec)%Init(iInit)%Radius2IC          ,&
+             A    => Species(iSpec)%Init(iInit)%Area               )
+    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+    CASE('photon_SEE_rectangle','photon_rectangle')
+      Species(iSpec)%Init(iInit)%IntensityAmplitude = E0 / (SQRT(PI)*tau*A)
+    CASE('photon_SEE_honeycomb','photon_honeycomb')
+      Species(iSpec)%Init(iInit)%IntensityAmplitude = E0 / (SQRT(PI)*tau*(1.5*SQRT(3.0))*(Rout**2-Rin**2))
+    CASE DEFAULT
+      Species(iSpec)%Init(iInit)%IntensityAmplitude = E0 / (wb**2 * tau * PI**(3.0/2.0))
+    END SELECT
+  END ASSOCIATE
 
   CALL PrintOption('Intensity amplitude: I0 [W/m^2]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%IntensityAmplitude)
 ELSEIF(Species(iSpec)%Init(iInit)%IntensityAmplitude.GT.0.0)THEN
@@ -686,28 +720,59 @@ ELSEIF(Species(iSpec)%Init(iInit)%IntensityAmplitude.GT.0.0)THEN
   ELSE
     Species(iSpec)%Init(iInit)%Period = 2.0 * Species(iSpec)%Init(iInit)%tShift
   END IF ! Species(iSpec)%Init(iInit)%NbrOfPulses
-  SWRITE(*,*) 'Photoionization in cylindrical volume: Selecting mode [IntensityAmplitude]'
+  SWRITE(*,*) 'Photoionization in cylindrical/rectangular/honeycomb volume: Selecting mode [IntensityAmplitude]'
 
   ! Calculate energy: E = I0*w_b**2*tau*PI**(3.0/2.0)
-  Species(iSpec)%Init(iInit)%Energy = Species(iSpec)%Init(iInit)%IntensityAmplitude*Species(iSpec)%Init(iInit)%WaistRadius**2&
-                                      *Species(iSpec)%Init(iInit)%PulseDuration*PI**(3.0/2.0)
+  ASSOCIATE( I0   => Species(iSpec)%Init(iInit)%IntensityAmplitude ,&
+             wb   => Species(iSpec)%Init(iInit)%WaistRadius        ,&
+             tau  => Species(iSpec)%Init(iInit)%PulseDuration      ,&
+             Rout => Species(iSpec)%Init(iInit)%RadiusIC           ,&
+             Rin  => Species(iSpec)%Init(iInit)%Radius2IC          ,&
+             A    => Species(iSpec)%Init(iInit)%Area               )
+    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+    CASE('photon_SEE_rectangle','photon_rectangle')
+      Species(iSpec)%Init(iInit)%Energy = I0 * SQRT(PI)*tau*A
+    CASE('photon_SEE_honeycomb','photon_honeycomb')
+      Species(iSpec)%Init(iInit)%Energy = I0 * SQRT(PI)*tau*(1.5*SQRT(3.0))*(Rout**2-Rin**2)
+    CASE DEFAULT
+      Species(iSpec)%Init(iInit)%Energy = I0 * wb**2*tau*PI**(3.0/2.0)
+    END SELECT
+  END ASSOCIATE
+
   CALL PrintOption('Single pulse energy: Part-Species'//TRIM(hilf2)//'-Energy [J]','CALCUL.',&
                     RealOpt=Species(iSpec)%Init(iInit)%Energy)
 ELSE
-  CALL abort(&
-    __STAMP__&
-    ,'Photoionization in cylindrical volume: Supply either power P and repetition rate f, or energy E or intensity maximum I0!')
+  CALL abort(__STAMP__,'Photoionization in cylinder: Either power P and repetition rate f, or energy E or intensity maximum I0!')
 END IF ! use RepetitionRate and Power
 
 ! Sanity check: overlapping of pulses is not implemented (use multiple emissions for this)
-IF(2.0*Species(iSpec)%Init(iInit)%tShift.GT.Species(iSpec)%Init(iInit)%Period) CALL abort(&
-  __STAMP__&
+IF(2.0*Species(iSpec)%Init(iInit)%tShift.GT.Species(iSpec)%Init(iInit)%Period) CALL abort(__STAMP__&
   ,'Pulse length (2*tShift) is greater than the pulse period. This is not implemented!')
 
-! Calculate the corrected intensity amplitude (due to temporal "-tShift to tShift" and spatial cut-off "0 to R")
-factor = PI**(3.0/2.0) * Species(iSpec)%Init(iInit)%WaistRadius**2 * Species(iSpec)%Init(iInit)%PulseDuration * &
-    (1.0-EXP(-Species(iSpec)%Init(iInit)%RadiusIC**2/(Species(iSpec)%Init(iInit)%WaistRadius**2)))*&
-    ERF(Species(iSpec)%Init(iInit)%tShift/Species(iSpec)%Init(iInit)%PulseDuration)
+! Calculate the corrected intensity amplitude I0_corrected (due to temporal "-tShift to tShift" and spatial cut-off "0 to R")
+ASSOCIATE( tShift => Species(iSpec)%Init(iInit)%tShift             ,&
+           wb     => Species(iSpec)%Init(iInit)%WaistRadius        ,&
+           tau    => Species(iSpec)%Init(iInit)%PulseDuration      ,&
+           Rout   => Species(iSpec)%Init(iInit)%RadiusIC           ,&
+           Rin    => Species(iSpec)%Init(iInit)%Radius2IC          ,&
+             A    => Species(iSpec)%Init(iInit)%Area               )
+  SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+  CASE('photon_SEE_rectangle','photon_rectangle')
+   ! no need for correction in space because the function is not cut-off in space
+   ! just consider the temporal cut-off for the rectangle
+    factor = ERF(tShift/tau)
+    factor = SQRT(PI)*tau*A
+  CASE('photon_SEE_honeycomb','photon_honeycomb')
+   ! no need for correction in space because the function is not cut-off in space
+   ! just consider the temporal cut-off for the hexagon
+    factor = ERF(tShift/tau)
+    factor = SQRT(PI)*tau*(1.5*SQRT(3.0))*(Rout**2-Rin**2) * factor
+  CASE DEFAULT
+    factor = (1.0-EXP(-Rout**2/(wb**2)))*ERF(tShift/tau)
+    factor = PI**(3.0/2.0) * wb**2 * tau * factor
+  END SELECT
+END ASSOCIATE
+
 Species(iSpec)%Init(iInit)%IntensityAmplitude = Species(iSpec)%Init(iInit)%Energy / factor
 CALL PrintOption('Corrected Intensity amplitude: I0_corr [W/m^2]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%IntensityAmplitude)
 
@@ -718,11 +783,13 @@ Species(iSpec)%Init(iInit)%tActive = REAL(Species(iSpec)%Init(iInit)%NbrOfPulses
                                         + 2.0*Species(iSpec)%Init(iInit)%tShift
 CALL PrintOption('Pulse will end at tActive (pulse final time) [s]','CALCUL.',RealOpt=Species(iSpec)%Init(iInit)%tActive)
 
-IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
+! Read effective intensity for volume emission or yield for SEE (surface)
+SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+CASE('photon_cylinder','photon_honeycomb','photon_rectangle')
   Species(iSpec)%Init(iInit)%EffectiveIntensityFactor = GETREAL('Part-Species'//TRIM(hilf2)//'-EffectiveIntensityFactor')
-ELSE
-  Species(iSpec)%Init(iInit)%YieldSEE           = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')
-END IF
+CASE DEFAULT
+  Species(iSpec)%Init(iInit)%YieldSEE = GETREAL('Part-Species'//TRIM(hilf2)//'-YieldSEE')
+END SELECT
 
 END SUBROUTINE InitializeVariablesPhotoIonization
 
@@ -835,5 +902,72 @@ IF (insertParticles.GT.PDM%maxParticleNumber) THEN
 END IF
 
 END SUBROUTINE DetermineInitialParticleNumber
+
+
+!===================================================================================================================================
+!> Initialize the particle boundary IDs for all emission inits
+!> This routine is only called for DoBoundaryParticleOutputHDF5=T, which is determined in particle boundary init that comes after
+!> the general variable species emission initialization
+!===================================================================================================================================
+SUBROUTINE InitializeVariablesSpeciesBoundary()
+! MODULES
+USE MOD_ReadInTools   ,ONLY: GETINT
+USE MOD_Particle_Vars ,ONLY: Species,nSpecies
+! insert modules here
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER       :: iSpec, iInit
+CHARACTER(32) :: hilf, hilf2
+!===================================================================================================================================
+
+! Loop all species
+DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
+  ! Loop all inits
+  DO iInit = 1, Species(iSpec)%NumberOfInits
+    WRITE(UNIT=hilf2,FMT='(I0)') iInit
+    hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
+    ! Read-in of type and particle number for emission per iteration
+    Species(iSpec)%Init(iInit)%PartBCIndex = GETINT('Part-Species'//TRIM(hilf2)//'-PartBCIndex')
+  END DO ! iInit = 1, Species(iSpec)%NumberOfInits
+END DO ! iSpec = 1, nSpecies
+
+END SUBROUTINE InitializeVariablesSpeciesBoundary
+
+
+!===================================================================================================================================
+!> Initialize emission-specific macro particle factors when Part-vMPF=T. The default value is the species MPF.
+!===================================================================================================================================
+SUBROUTINE InitializeEmissionSpecificMPF()
+! MODULES
+USE MOD_ReadInTools   ,ONLY: GETREAL,GETINT
+USE MOD_Particle_Vars ,ONLY: Species,nSpecies
+! insert modules here
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER       :: iSpec, iInit
+CHARACTER(32) :: hilf, hilf2, hilf3
+!===================================================================================================================================
+
+! Loop all species
+DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
+  ! Loop all inits
+  DO iInit = 1, Species(iSpec)%NumberOfInits
+    WRITE(UNIT=hilf2,FMT='(I0)') iInit
+    hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
+    ! Read-in of type and particle number for emission per iteration
+    WRITE(UNIT=hilf3,FMT='(G0)') Species(iSpec)%MacroParticleFactor
+    Species(iSpec)%Init(iInit)%MacroParticleFactor = GETREAL('Part-Species'//TRIM(hilf2)//'-MacroParticleFactor',TRIM(hilf3))
+  END DO ! iInit = 1, Species(iSpec)%NumberOfInits
+END DO ! iSpec = 1, nSpecies
+
+END SUBROUTINE InitializeEmissionSpecificMPF
 
 END MODULE MOD_Particle_Emission_Init

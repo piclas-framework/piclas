@@ -23,7 +23,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=6),PARAMETER :: ProgramName  = 'PICLas'              !> name of this program
 INTEGER,PARAMETER          :: MajorVersion = 2                     !> FileVersion number saved in each hdf5 file with hdf5 header
-INTEGER,PARAMETER          :: MinorVersion = 3                     !> FileVersion number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: MinorVersion = 7                     !> FileVersion number saved in each hdf5 file with hdf5 header
 INTEGER,PARAMETER          :: PatchVersion = 0                     !> FileVersion number saved in each hdf5 file with hdf5 header
 REAL,PARAMETER             :: FileVersion  = REAL(MajorVersion,8)+REAL(MinorVersion,8)/10.+REAL(PatchVersion,8)/100. !> FileVersion
                                                                    !> number saved in each hdf5 file with hdf5 header
@@ -73,6 +73,7 @@ REAL           :: c                           !> speed of light c
 REAL           :: c2                          !> c^2
 REAL           :: c2_inv                      !> 1/c^2
 REAL           :: c_inv                       !> 1/c
+REAL           :: RelativisticLimit           !> for comparison with velocity^2 and is automatically set to 0.3% speed of light
 #else
 REAL,PARAMETER :: eps0   = 8.8541878176e-12   !> permittivity eps0 of vacuum [F/m]
 REAL,PARAMETER :: mu0    = 1.2566370614e-6    !> permeability mu0 of vacuum [H/m]
@@ -81,6 +82,7 @@ REAL,PARAMETER :: c      = 299792458.0        !> speed of light c in vacuum [m/s
 REAL,PARAMETER :: c2     = c**2               !> c^2   = 8.9875517873681764e16 [m^2/s^2]
 REAL,PARAMETER :: c2_inv = 1/c2               !> 1/c^2 = 1.1126500560536184e-17 [s^2/m^2]
 REAL,PARAMETER :: c_inv  = 1/c                !> 1/c   = 3.3356409519815204e-9 [s/m]
+REAL,PARAMETER :: RelativisticLimit = 1e12    !> for comparison with velocity^2 when speed of light is 299792458. Corresponds to 0.3% speed of light
 #endif /*USE_READIN_CONSTANTS*/
 !===================================================================================================================================
 

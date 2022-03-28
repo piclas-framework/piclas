@@ -46,8 +46,15 @@ the CMake configuration file for HDF5 (optional).
 Before setting up a simulation, the code must be compiled with the desired parameters. The most important compiler options to be set are:
 
 * ``PICLAS_TIMEDISCMETHOD``: Module selection
-    * DSMC: Direct Simulation Monte Carlo
+    * Leapfrog: 
+    * Boris-Leapfrog: 
+    * RK3: 
     * RK4: Time integration method Runge-Kutta 4th order in time
+    * RK14: 
+    * DSMC: Direct Simulation Monte Carlo, Section {ref}`sec:DSMC`
+    * RESERVOIR: Simplified DSMC module for single cell reservoir simulations
+    * FP-Flow: Fokker-Planck-based collision operator, Section {ref}`sec:FP-Flow`
+    * BGK-Flow: Bhatnagar-Gross-Krook collision operator, Section {ref}`sec:BGK-Flow`
 * ``PICLAS_EQNSYSNAME``: Equation system to be solved
     * maxwell:
     * poisson:

@@ -45,7 +45,7 @@ USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Analyze          ,ONLY: DSMC_data_sampling,CalcSurfaceValues, CalcGammaVib,SamplingRotVibRelaxProb
 USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, BGGas_DeleteParticles
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode, UseMCC, ElecRelaxPart
+USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode, ElecRelaxPart
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Relaxation       ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry
@@ -55,6 +55,7 @@ USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_MCC                   ,ONLY: MCC
+USE MOD_MCC_Vars              ,ONLY: UseMCC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -75,7 +76,7 @@ DSMCSumOfFormedParticles = 0
 ! Insert background gas particles for every simulation particle
 IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_InsertParticles()
 
-IF (DSMC%ElectronicModel.GT.0.AND.(DSMC%DoLTRelaxElectronicState).AND.(CollisMode.EQ.3)) THEN
+IF ((DSMC%ElectronicModel.EQ.4).AND.(CollisMode.EQ.3)) THEN
   ElecRelaxPart(1:PDM%ParticleVecLength) = .TRUE.
 END IF
 #if USE_LOADBALANCE

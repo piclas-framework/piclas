@@ -57,7 +57,7 @@ PUBLIC::LBElemSplitTime
 PUBLIC::LBElemPauseTime
 PUBLIC::LBElemPauseTime_avg
 PUBLIC::LBElemSplitTime_avg
-  
+
 #endif /*PARTICLES*/
 
 PUBLIC::LBStartTime
@@ -144,7 +144,7 @@ END SUBROUTINE LBPauseTime
 #ifdef PARTICLES
 SUBROUTINE LBElemSplitTime(ElemID,tLBStart)
 !===================================================================================================================================
-!> Measure particle-related times for specific elements. Splits the time and resets LB_start. 
+!> Measure particle-related times for specific elements. Splits the time and resets LB_start.
 !> Adds time to Elemtime(ElemID) and ElemTimePart.
 !===================================================================================================================================
 ! MODULES                                                                                                                          !

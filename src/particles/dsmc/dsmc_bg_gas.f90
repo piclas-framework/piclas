@@ -38,10 +38,12 @@ SUBROUTINE BGGas_Initialize()
 !> calculation of the molar fraction
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals       ,ONLY: Abort
-USE MOD_DSMC_Vars     ,ONLY: BGGas
-USE MOD_Particle_Vars ,ONLY: PDM, Symmetry, Species, nSpecies, VarTimeStep
-USE MOD_ReadInTools   ,ONLY: GETLOGICAL
+USE MOD_ReadInTools
+USE MOD_Globals               ,ONLY: abort
+USE MOD_DSMC_Vars             ,ONLY: BGGas
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_Particle_Vars         ,ONLY: PDM, Symmetry, Species, nSpecies, VarTimeStep
+USE MOD_Restart_Vars          ,ONLY: DoMacroscopicRestart, MacroRestartFileName
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -50,9 +52,12 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iSpec, counterSpec
-REAL              :: SpeciesDensTemp(1:nSpecies)
+INTEGER           :: iSpec, bgSpec, iElem
+REAL              :: SpeciesDensTmp(1:nSpecies)
 !===================================================================================================================================
+
+! 0.) Variable read-in
+IF(BGGas%UseDistribution) MacroRestartFileName = GETSTR('Particles-MacroscopicRestart-Filename')
 
 ! 1.) Check compatibility with other features and whether required parameters have been read-in
 IF((Symmetry%Order.EQ.2).OR.VarTimeStep%UseVariableTimeStep) THEN
@@ -61,48 +66,76 @@ END IF
 
 DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
-    IF (BGGas%NumberDensity(iSpec).EQ.0.) CALL abort(__STAMP__&
-                                          ,'ERROR: NumberDensity is zero but must be defined for a background gas!')
-    IF (Species(iSpec)%NumberOfInits.NE.1) &
-      CALL abort(__STAMP__,'ERROR: BGG species can be used ONLY for BGG!')
+    IF(Species(iSpec)%NumberOfInits.NE.1) CALL abort(__STAMP__, 'BGG species can be used ONLY for BGG!')
+    IF(.NOT.BGGas%UseDistribution)THEN
+      IF(BGGas%NumberDensity(iSpec).EQ.0.) CALL abort(__STAMP__, 'NumberDensity is zero but must be defined for a background gas!')
+    END IF ! .NOT.BGGas%UseDistribution
   END IF
 END DO
 
+IF(DoMacroscopicRestart) CALL abort(__STAMP__, 'Constant background gas and macroscopic restart are not compatible!')
+
 ! 2.) Allocation
+IF(BGGas%UseDistribution) THEN
+  ALLOCATE(BGGas%Distribution(1:BGGas%NumberOfSpecies,1:10,1:nElems))
+  BGGas%Distribution = 0.
+  ALLOCATE(BGGas%SpeciesFractionElem(1:BGGas%NumberOfSpecies,1:nElems))
+  BGGas%SpeciesFractionElem = 0.
+ELSE
+  ! Backup densities of all background gas species
+  SpeciesDensTmp(1:nSpecies) = BGGas%NumberDensity(1:nSpecies)
+  DEALLOCATE(BGGas%NumberDensity)
+  ! Re-allocate with the correct size
+  ALLOCATE(BGGas%NumberDensity(BGGas%NumberOfSpecies))
+  BGGas%NumberDensity = 0.
+  ALLOCATE(BGGas%SpeciesFraction(BGGas%NumberOfSpecies))
+  BGGas%SpeciesFraction = 0.
+END IF
+
 ALLOCATE(BGGas%PairingPartner(PDM%maxParticleNumber))
 BGGas%PairingPartner = 0
 ALLOCATE(BGGas%MapSpecToBGSpec(nSpecies))
 BGGas%MapSpecToBGSpec = 0
-SpeciesDensTemp(1:nSpecies) = BGGas%NumberDensity(1:nSpecies)
-DEALLOCATE(BGGas%NumberDensity)
-ALLOCATE(BGGas%NumberDensity(BGGas%NumberOfSpecies))
-BGGas%NumberDensity = 0.
-ALLOCATE(BGGas%SpeciesFraction(BGGas%NumberOfSpecies))
-BGGas%SpeciesFraction = 0.
+
 ALLOCATE(BGGas%MapBGSpecToSpec(BGGas%NumberOfSpecies))
 BGGas%MapBGSpecToSpec = 0
 BGGas%MaxMPF = 0.
 
 ! 3.) Create a mapping of background species to regular species and vice versa, calculate the molar fraction
-counterSpec = 0
+bgSpec = 0
 DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
-    counterSpec = counterSpec + 1
-    BGGas%MapSpecToBGSpec(iSpec) = counterSpec
-    BGGas%MapBGSpecToSpec(counterSpec) = iSpec
-    BGGas%NumberDensity(counterSpec) = SpeciesDensTemp(iSpec)
-    BGGas%SpeciesFraction(counterSpec) = BGGas%NumberDensity(counterSpec) / SUM(SpeciesDensTemp)
+    bgSpec = bgSpec + 1
+    IF(bgSpec.GT.BGGas%NumberOfSpecies) CALL Abort(__STAMP__,'More background species detected than previously defined!')
+    IF(.NOT.BGGas%UseDistribution) BGGas%NumberDensity(bgSpec) = SpeciesDensTmp(iSpec)
+    BGGas%MapSpecToBGSpec(iSpec)  = bgSpec
+    BGGas%MapBGSpecToSpec(bgSpec) = iSpec
     BGGas%MaxMPF = MAX(BGGas%MaxMPF,Species(iSpec)%MacroParticleFactor)
-    IF(counterSpec.GT.BGGas%NumberOfSpecies) THEN
-      CALL Abort(__STAMP__,'ERROR in BGGas: More background species detected than previously defined!')
-    END IF
   END IF
 END DO
+
+! 4.) Read-in a background gas distribution
+IF(BGGas%UseDistribution) CALL BGGas_ReadInDistribution()
+
+! 5.) Determine species fraction
+DO bgSpec = 1, BGGas%NumberOfSpecies
+  IF(BGGas%UseDistribution) THEN
+    DO iElem = 1, nElems
+      IF(SUM(BGGas%Distribution(:,7,iElem)).GT.0.)THEN
+        BGGas%SpeciesFractionElem(bgSpec,iElem) = BGGas%Distribution(bgSpec,7,iElem) / SUM(BGGas%Distribution(:,7,iElem))
+      END IF ! SUM(BGGas%Distribution(:,7,iElem)).GT.0.
+    END DO ! iElem = 1, nElems
+  ELSE
+    IF(SUM(SpeciesDensTmp).GT.0.)THEN
+      BGGas%SpeciesFraction(bgSpec) = BGGas%NumberDensity(bgSpec) / SUM(SpeciesDensTmp)
+    END IF ! SUM(SpeciesDensTmp).GT.0.
+  END IF
+END DO ! bgSpec = 1, BGGas%NumberOfSpecies
 
 END SUBROUTINE BGGas_Initialize
 
 
-INTEGER FUNCTION BGGas_GetSpecies()
+INTEGER FUNCTION BGGas_GetSpecies(iElem)
 !===================================================================================================================================
 !> Get a species index of the background gas by randomly choosing a species based on the molar fraction
 !===================================================================================================================================
@@ -113,12 +146,13 @@ USE MOD_DSMC_Vars             ,ONLY: BGGas
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN) :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL              :: iRan
-INTEGER           :: iSpec
+REAL               :: iRan,FractionSum
+INTEGER            :: iSpec
 !===================================================================================================================================
 
 BGGas_GetSpecies = 0
@@ -126,7 +160,14 @@ BGGas_GetSpecies = 0
 IF(BGGas%NumberOfSpecies.GT.1) THEN
   CALL RANDOM_NUMBER(iRan)
   DO iSpec = 1, BGGas%NumberOfSpecies
-    IF(SUM(BGGas%SpeciesFraction(1:iSpec)).GT.iRan) THEN
+    ! Add up fractions from 1 to iSpec
+    IF(BGGas%UseDistribution)THEN
+      FractionSum = SUM(BGGas%SpeciesFractionElem(1:iSpec,iElem))
+    ELSE
+      FractionSum = SUM(BGGas%SpeciesFraction(1:iSpec))
+    END IF ! BGGas%UseDistribution
+    ! Check if sum of fractions is met
+    IF(FractionSum.GT.iRan) THEN
       BGGas_GetSpecies = BGGas%MapBGSpecToSpec(iSpec)
       RETURN
     END IF
@@ -135,11 +176,10 @@ ELSE
   BGGas_GetSpecies = BGGas%MapBGSpecToSpec(1)
 END IF
 
-IF(BGGas_GetSpecies.EQ.0) THEN
-  CALL Abort(__STAMP__,'ERROR in BGGas: Background gas species is not set correctly!')
-END IF
+IF(BGGas_GetSpecies.EQ.0) CALL Abort(__STAMP__,'ERROR in BGGas: Background gas species is not set correctly!')
 
 END FUNCTION BGGas_GetSpecies
+
 
 SUBROUTINE BGGas_InsertParticles()
 !===================================================================================================================================
@@ -158,7 +198,7 @@ USE MOD_Globals                ,ONLY: Abort
 USE MOD_DSMC_Vars              ,ONLY: BGGas
 USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PEM
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime,LBPauseTime
+USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -190,7 +230,7 @@ DO iPart = 1, PDM%ParticleVecLength
       CALL Abort(__STAMP__,'ERROR in BGGas: MaxParticleNumber should be increased to account for the BGG particles!')
     END IF
     ! Get the background gas species
-    iSpec = BGGas_GetSpecies()
+    iSpec = BGGas_GetSpecies(PEM%LocalElemID(iPart))
     ! Assign particle properties
     CALL BGGas_AssignParticleProperties(iSpec,iPart,PositionNbr)
     ! Set the pairing index
@@ -221,21 +261,23 @@ SUBROUTINE BGGas_AssignParticleProperties(SpecID,PartIndex,bggPartIndex,GetVeloc
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState,PartSpecies,PartPosRef, VarTimeStep, usevMPF, PartMPF
-USE MOD_DSMC_Vars               ,ONLY: CollisMode, SpecDSMC
+USE MOD_DSMC_Vars               ,ONLY: CollisMode, SpecDSMC, BGGas
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER, INTENT(IN)           :: SpecID             !< Species ID
-INTEGER, INTENT(IN)           :: PartIndex          !< ID of simulation particle
-INTEGER, INTENT(IN)           :: bggPartIndex       !< ID of the newly created background gas particle
-LOGICAL, INTENT(IN), OPTIONAL :: GetVelocity_opt        !< Default: T, get a new velocity vector from the background gas properties
-LOGICAL, INTENT(IN), OPTIONAL :: GetInternalEnergy_opt  !< Default: T, get a new energy values from the background gas properties
+INTEGER, INTENT(IN)             :: SpecID             !< Species ID
+INTEGER, INTENT(IN)             :: PartIndex          !< ID of simulation particle
+INTEGER, INTENT(IN)             :: bggPartIndex       !< ID of the newly created background gas particle
+LOGICAL, INTENT(IN), OPTIONAL   :: GetVelocity_opt        !< Default: T, get a new velocity vector from the background gas properties
+LOGICAL, INTENT(IN), OPTIONAL   :: GetInternalEnergy_opt  !< Default: T, get a new energy values from the background gas properties
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-LOGICAL                       :: GetVelocity, GetInternalEnergy
+INTEGER                         :: bggSpec, LocalElemID
+LOGICAL                         :: GetVelocity, GetInternalEnergy
 !===================================================================================================================================
 
 IF(PRESENT(GetVelocity_opt)) THEN
@@ -250,13 +292,25 @@ ELSE
   GetInternalEnergy = .TRUE.
 END IF
 
+! Global element index (Must be before internal energy: BGGas distribution requires the local element ID and uses the background gas particle index to get it)
+PEM%GlobalElemID(bggPartIndex) = PEM%GlobalElemID(PartIndex)
+PEM%LastGlobalElemID(bggPartIndex) = PEM%GlobalElemID(PartIndex)
+LocalElemID = PEM%LocalElemID(PartIndex)
 ! Position
 PartState(1:3,bggPartIndex) = PartState(1:3,PartIndex)
 IF(TrackingMethod.EQ.REFMAPPING) PartPosRef(1:3,bggPartIndex)=PartPosRef(1:3,PartIndex)
 ! Species
 PartSpecies(bggPartIndex) = SpecID
 ! Velocity
-IF(GetVelocity) CALL CalcVelocity_maxwell_lpn(FractNbr=SpecID, Vec3D=PartState(4:6,bggPartIndex), iInit=1)
+IF(GetVelocity) THEN
+  IF(BGGas%UseDistribution) THEN
+    bggSpec = BGGas%MapSpecToBGSpec(SpecID)
+    PartState(4:6,bggPartIndex) = CalcVelocity_maxwell_particle(SpecID,BGGas%Distribution(bggSpec,4:6,LocalElemID)) &
+                                  + BGGas%Distribution(bggSpec,1:3,LocalElemID)
+  ELSE
+    CALL CalcVelocity_maxwell_lpn(FractNbr=SpecID, Vec3D=PartState(4:6,bggPartIndex), iInit=1)
+  END IF
+END IF
 ! Internal energy
 IF(CollisMode.GT.1) THEN
   IF(GetInternalEnergy) THEN
@@ -267,9 +321,6 @@ IF(CollisMode.GT.1) THEN
     END IF
   END IF
 END IF
-! Global element index
-PEM%GlobalElemID(bggPartIndex) = PEM%GlobalElemID(PartIndex)
-PEM%LastGlobalElemID(bggPartIndex) = PEM%GlobalElemID(PartIndex)
 ! Simulation flags
 PDM%ParticleInside(bggPartIndex) = .TRUE.
 PDM%IsNewPart(bggPartIndex)       = .TRUE.
@@ -357,8 +408,14 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC
   DSMC%InstantTransTemp(nSpecies+1) = 0.
   DO iSpec = 1, nSpecies
     IF(BGGas%BackgroundSpecies(iSpec)) THEN
-      DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies+1) &
-                                    + BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec)) * Species(iSpec)%Init(1)%MWTemperatureIC
+      bggSpec = BGGas%MapSpecToBGSpec(iSpec)
+      IF(BGGas%UseDistribution) THEN
+        DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies+1) &
+                                        + BGGas%SpeciesFractionElem(bggSpec,iElem) * SUM(BGGas%Distribution(bggSpec,4:6,iElem)) / 3.
+      ELSE
+        DSMC%InstantTransTemp(nSpecies+1) = DSMC%InstantTransTemp(nSpecies+1) &
+                                        + BGGas%SpeciesFraction(bggSpec) * Species(iSpec)%Init(1)%MWTemperatureIC
+      END IF
     END IF
   END DO
   IF(SelectionProc.EQ.2) CALL CalcGammaVib()
@@ -370,6 +427,9 @@ DO iSpec = 1, nSpecies
     bggSpec   = BGGas%MapSpecToBGSpec(iSpec)
     IF(usevMPF) THEN
       CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(bggSpec)*ElemVolume_Shared(CNElemID)
+    ELSEIF(BGGas%UseDistribution)THEN
+      CollInf%Coll_SpecPartNum(iSpec) = BGGas%Distribution(bggSpec,7,iElem)&
+                                        * ElemVolume_Shared(CNElemID) / Species(iSpec)%MacroParticleFactor
     ELSE
       CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(bggSpec)*ElemVolume_Shared(CNElemID)/Species(iSpec)%MacroParticleFactor
     END IF
@@ -457,7 +517,7 @@ END SUBROUTINE BGGas_DeleteParticles
 SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 !===================================================================================================================================
 !> Particle emission through photo ionization, defined by chemical reactions of the type "phIon" and an emission with SpaceIC
-!> "photon_cylinder" for the 
+!> "photon_cylinder" for the
 !> 0.) Determine the total ionization cross-section
 !> 1.) Compute the number of photoionization events in the local domain of each proc
 !> 2.) Delete left-over inserted particles
@@ -470,7 +530,7 @@ USE MOD_Globals
 USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
+USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, BGGas
 USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
@@ -479,6 +539,9 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_ChemReact         ,ONLY: PhotoIonization_InsertProducts
 USE MOD_DSMC_AmbipolarDiffusion,ONLY: AD_DeleteParticles
+USE MOD_part_tools             ,ONLY: CalcVelocity_maxwell_particle
+USE MOD_MCC_Vars               ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotoReacToReac,PhotonEnergies
+USE MOD_MCC_Vars               ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated,MaxPhotonXSec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -488,11 +551,11 @@ INTEGER, INTENT(IN)           :: iSpec,iInit,TotalNbrOfReactions
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, NewParticleIndex, bgSpec, NbrOfParticle
+INTEGER                       :: iPart, iPair, iNewPart, iReac, ParticleIndex, NewParticleIndex, bgSpec, NbrOfParticle, LocalElemID
 REAL                          :: RandVal,NumTmp,ProbRest
-INTEGER                       :: TotalNbrOfReactionsTmp,iCrossSection,NbrCrossSections
+INTEGER                       :: TotalNbrOfReactionsTmp,iCrossSection,NbrCrossSections,iLine,iPhotoReac,iLineStart,iLineEnd,iBGGSpec
 INTEGER                       :: NumPhotoIonization(ChemReac%NumOfReact)
-REAL                          :: SumCrossSections
+REAL                          :: SumCrossSections,CrossSection,MaxCrossSection
 !===================================================================================================================================
 NumPhotoIonization = 0
 
@@ -509,45 +572,98 @@ SumCrossSections = 0.
 NbrCrossSections = 0
 DO iReac = 1, ChemReac%NumOfReact
   ! Only treat photoionization reactions
-  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
-  SumCrossSections = SumCrossSections + ChemReac%CrossSection(iReac)
-  NbrCrossSections = NbrCrossSections + 1
+  SELECT CASE(ChemReac%ReactModel(iReac))
+  CASE('phIon')
+    SumCrossSections = SumCrossSections + ChemReac%CrossSection(iReac)
+    NbrCrossSections = NbrCrossSections + 1
+  CASE('phIonXsec')
+    ! already calculated
+  CASE DEFAULT
+    CYCLE
+  END SELECT
 END DO ! iReac = 1, ChemReac%NumOfReact
 
 !> 1.) Compute the number of photoionization events in the local domain of each proc
-iCrossSection = 0
-DO iReac = 1, ChemReac%NumOfReact
-  ! Only treat photoionization reactions
-  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
-  iCrossSection  = iCrossSection + 1
-  IF(iCrossSection.EQ.NbrCrossSections)THEN
-    NumPhotoIonization(iReac) = TotalNbrOfReactionsTmp
-    EXIT
-  END IF ! iCrossSection.EQ.NbrCrossSections
-  NumTmp = TotalNbrOfReactionsTmp*ChemReac%CrossSection(iReac)/SumCrossSections
-  SumCrossSections = SumCrossSections - ChemReac%CrossSection(iReac)
-  NumPhotoIonization(iReac) = INT(NumTmp)
-  ProbRest = NumTmp - REAL(NumPhotoIonization(iReac))
-  CALL RANDOM_NUMBER(RandVal)
-  IF (ProbRest.GT.RandVal) NumPhotoIonization(iReac) = NumPhotoIonization(iReac) + 1
-  TotalNbrOfReactionsTmp = TotalNbrOfReactionsTmp - NumPhotoIonization(iReac)
-END DO
+IF(NbrOfPhotonXsecReactions.GT.0)THEN
+  iLineStart     = HUGE(1) ! Hugeify
+  iLineEnd       = 0       ! Nullify
+  PhotonEnergies = 0       ! Nullify
+  ! Loop until all reactions have been matched with a specific wavelength
+  DO WHILE(TotalNbrOfReactionsTmp.GT.0)
+    ! 1.1) Select a wave length (or corresponding photon energy)
+    ! Get 1st random number
+    CALL RANDOM_NUMBER(RandVal)
+    ! Get random wavelength (from line spectrum)
+    iLine = INT(RandVal*REAL(PhotoIonLastLine-PhotoIonFirstLine+1)) + PhotoIonFirstLine
+
+    ! Get 2nd random number
+    CALL RANDOM_NUMBER(RandVal)
+    ! Probe if the line is accepted by comparing against the energy fraction (maximum is 1.)
+    IF(RandVal.GT.SpecPhotonXSecInterpolated(iLine,2)/MaxPhotonXSec) CYCLE
+    ! Store photon energy for later chemical reaction
+    PhotonEnergies(iLine,1) = PhotonEnergies(iLine,1) + 1
+
+    ! 1.2) Select a cross-section
+    PDF: DO
+      ! Get 3rd random number
+      CALL RANDOM_NUMBER(RandVal)
+      ! Get random cross-section
+      iPhotoReac = INT(RandVal*REAL(NbrOfPhotonXsecReactions) + 1.0)
+      ! Get 4th random number
+      CALL RANDOM_NUMBER(RandVal)
+      ! Check if cross-section is > 0.
+      CrossSection = SpecPhotonXSecInterpolated(iLine,2+iPhotoReac)
+      IF(SpecPhotonXSecInterpolated(iLine,2+iPhotoReac).LE.0.) CYCLE PDF
+      ! Probe if the line is accepted by comparing against the energy fraction (maximum is 1.)
+      MaxCrossSection = MAXVAL(SpecPhotonXSecInterpolated(:,3:))
+      IF(RandVal.LE.CrossSection/MaxCrossSection) EXIT PDF
+    END DO PDF
+    ! Store photon reaction for later chemical reaction
+    PhotonEnergies(iLine,1+iPhotoReac) = PhotonEnergies(iLine,1+iPhotoReac) + 1
+    iLineStart = MIN(iLineStart,iLine)
+    iLineEnd   = MAX(iLineEnd,iLine)
+    !WRITE (*,*) "iLineStart,iLineEnd =", iLineStart,iLineEnd
+
+    ! 1.3) Reaction and line have been selected
+    iReac = PhotoReacToReac(iPhotoReac)
+    !IPWRITE(UNIT_StdOut,'(I6,10X,3(A,I3),A,E24.12)') " iLine =",iLine," iPhotoReac =",iPhotoReac," iReac =",iReac," CrossSection =",CrossSection
+    NumPhotoIonization(iReac) = NumPhotoIonization(iReac) + 1
+    TotalNbrOfReactionsTmp    = TotalNbrOfReactionsTmp - 1
+  END DO ! WHILE(TotalNbrOfReactionsTmp.GT.0)
+ELSE
+  ! Photoionization with const. cross-section data
+  iCrossSection = 0
+  DO iReac = 1, ChemReac%NumOfReact
+    ! Only treat photoionization reactions
+    IF(.NOT.StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) CYCLE
+    iCrossSection  = iCrossSection + 1
+    IF(iCrossSection.EQ.NbrCrossSections)THEN
+      NumPhotoIonization(iReac) = TotalNbrOfReactionsTmp
+      EXIT
+    END IF ! iCrossSection.EQ.NbrCrossSections
+    NumTmp = TotalNbrOfReactionsTmp*ChemReac%CrossSection(iReac)/SumCrossSections
+    SumCrossSections = SumCrossSections - ChemReac%CrossSection(iReac)
+    NumPhotoIonization(iReac) = INT(NumTmp)
+    ProbRest = NumTmp - REAL(NumPhotoIonization(iReac))
+    CALL RANDOM_NUMBER(RandVal)
+    IF (ProbRest.GT.RandVal) NumPhotoIonization(iReac) = NumPhotoIonization(iReac) + 1
+    TotalNbrOfReactionsTmp = TotalNbrOfReactionsTmp - NumPhotoIonization(iReac)
+  END DO
+END IF ! NbrOfPhotonXsecReactions.GT.0
+
+NbrOfParticle = SUM(NumPhotoIonization)
 
 !> 2.) Delete left-over inserted particles
-IF(TotalNbrOfReactions.GT.SUM(NumPhotoIonization)) THEN
-  DO iPart = SUM(NumPhotoIonization)+1,TotalNbrOfReactions
+IF(TotalNbrOfReactions.GT.NbrOfParticle) THEN
+  DO iPart = NbrOfParticle+1,TotalNbrOfReactions
     PDM%ParticleInside(PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)) = .FALSE.
   END DO
-ELSE IF(TotalNbrOfReactions.LT.SUM(NumPhotoIonization)) THEN
-  CALL Abort(&
-    __STAMP__&
-    ,'ERROR in PhotoIonization: Something is wrong, trying to perform more reactions than anticipated!')
+ELSE IF(TotalNbrOfReactions.LT.NbrOfParticle) THEN
+  CALL Abort(__STAMP__,'PhotoIonization: Something is wrong, trying to perform more reactions than anticipated!')
 END IF
 
-IF(SUM(NumPhotoIonization).EQ.0) RETURN
-
-!> 3.) Insert the products of the photoionization rections
-NbrOfParticle = SUM(NumPhotoIonization)
+!> 3.) Insert the products of the photoionization reactions
+IF(NbrOfParticle.EQ.0) RETURN
 
 ALLOCATE(Coll_pData(NbrOfParticle))
 Coll_pData%Ec=0.
@@ -579,8 +695,11 @@ DO iPart = 1, NbrOfParticle
   ! Species index given from the initialization
   PartSpecies(ParticleIndex) = iSpec
   ! Get the species index of the background gas
-  bgSpec = BGGas_GetSpecies()
+  LocalElemID = PEM%LocalElemID(NewParticleIndex)
+  bgSpec = BGGas_GetSpecies(LocalElemID)
   PartSpecies(NewParticleIndex) = bgSpec
+  ! Particle element
+  PEM%GlobalElemID(NewParticleIndex) = PEM%GlobalElemID(ParticleIndex)
   IF(CollisMode.GT.1) THEN
     IF(SpecDSMC(bgSpec)%PolyatomicMol) THEN
       CALL DSMC_SetInternalEnr_Poly(bgSpec,1,NewParticleIndex,1)
@@ -588,13 +707,17 @@ DO iPart = 1, NbrOfParticle
       CALL DSMC_SetInternalEnr_LauxVFD(bgSpec,1,NewParticleIndex,1)
     END IF
   END IF
-  CALL CalcVelocity_maxwell_lpn(FractNbr=bgSpec, Vec3D=PartState(4:6,NewParticleIndex), iInit=1)
+  IF(BGGas%UseDistribution) THEN
+    iBGGSpec = BGGas%MapSpecToBGSpec(bgSpec)
+    PartState(4:6,NewParticleIndex) = CalcVelocity_maxwell_particle(bgSpec,BGGas%Distribution(iBGGSpec,4:6,LocalElemID)) &
+                                  + BGGas%Distribution(iBGGSpec,1:3,LocalElemID)
+  ELSE
+    CALL CalcVelocity_maxwell_lpn(FractNbr=bgSpec, Vec3D=PartState(4:6,NewParticleIndex), iInit=1)
+  END IF
   ! Particle flags
   PDM%ParticleInside(NewParticleIndex)  = .TRUE.
   PDM%IsNewPart(NewParticleIndex)       = .TRUE.
   PDM%dtFracPush(NewParticleIndex)      = .FALSE.
-  ! Particle element
-  PEM%GlobalElemID(NewParticleIndex) = PEM%GlobalElemID(ParticleIndex)
   ! Last element ID
   PEM%LastGlobalElemID(NewParticleIndex) = PEM%GlobalElemID(NewParticleIndex)
   PEM%LastGlobalElemID(ParticleIndex) = PEM%GlobalElemID(ParticleIndex)
@@ -608,7 +731,7 @@ DO iPart = 1, NbrOfParticle
     PartMPF(ParticleIndex)    = Species(iSpec)%MacroParticleFactor
     PartMPF(NewParticleIndex) = PartMPF(ParticleIndex)
   END IF
-  ! Velocity (set it to zero, as it will be substracted in the chemistry module)
+  ! Velocity (set it to zero, as it will be subtracted in the chemistry module)
   PartState(4:6,ParticleIndex) = 0.
   ! Internal energies (set it to zero)
   PartStateIntEn(1:2,ParticleIndex) = 0.
@@ -620,23 +743,42 @@ PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle + iNewPart
 ! Update the current next free position
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle + iNewPart
 
-IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
-  CALL Abort(&
-    __STAMP__&
-    ,'ERROR in PhotoIonization: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &
-    , IntInfoOpt=PDM%ParticleVecLength)
-END IF
+IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL Abort(__STAMP__&
+  ,'ERROR in PhotoIonization: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &
+  , IntInfoOpt=PDM%ParticleVecLength)
 
 !> 4.) Perform the reaction, distribute the collision energy (including photon energy) and emit electrons perpendicular
 !>     to the photon's path
-DO iReac = 1, ChemReac%NumOfReact
-  ! Only treat photoionization reactions
-  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
-  DO iPart = 1, NumPhotoIonization(iReac)
-    iPair = iPair + 1
-    CALL PhotoIonization_InsertProducts(iPair, iReac, iInit, iSpec)
+IF(NbrOfPhotonXsecReactions.GT.0)THEN
+  DO iPart = 1, SUM(NumPhotoIonization(:))
+    ! Loop over all randomized lines (found above)
+    DO iLine = iLineStart, iLineEnd
+      ! Check if level is occupied
+      DO WHILE(PhotonEnergies(iLine,1).GT.0)
+        ! Reduce the level counter by one
+        PhotonEnergies(iLine,1) = PhotonEnergies(iLine,1) - 1
+        ! Check if cross-section is occupied
+        DO iPhotoReac = 1, NbrOfPhotonXsecReactions
+          IF(PhotonEnergies(iLine,1+iPhotoReac).GT.0)THEN
+            ! Reduce cross-section by one
+    !IPWRITE(UNIT_StdOut,'(I6,3(A,I3))') "  calling  iLine =",iLine," iPhotoReac =",iPhotoReac," iReac =",PhotoReacToReac(iPhotoReac)
+            PhotonEnergies(iLine,1+iPhotoReac) = PhotonEnergies(iLine,1+iPhotoReac) - 1
+            iPair = iPair + 1
+            CALL PhotoIonization_InsertProducts(iPair, PhotoReacToReac(iPhotoReac), iInit, iSpec, iLineOpt=iLine)
+          END IF ! PhotonEnergies(iLine,1+iPhotoReac).GT.0
+        END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions
+      END DO
+    END DO ! iLine = iLineStart, iLineEnd
   END DO
-END DO
+ELSE
+  DO iReac = 1, ChemReac%NumOfReact
+    IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
+    DO iPart = 1, NumPhotoIonization(iReac)
+      iPair = iPair + 1
+      CALL PhotoIonization_InsertProducts(iPair, iReac, iInit, iSpec)
+    END DO
+  END DO
+END IF ! NbrOfPhotonXsecReactions.GT.0
 
 ! Advance particle vector length and the current next free position with newly created particles
 PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
@@ -652,6 +794,77 @@ IF (DSMC%DoAmbipolarDiff) THEN
 END IF
 
 END SUBROUTINE BGGas_PhotoIonization
+
+
+!===================================================================================================================================
+!> Read-in of the element data from a DSMC state and utilization as a cell-local background gas distribution
+!===================================================================================================================================
+SUBROUTINE BGGas_ReadInDistribution()
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_io_hdf5
+USE MOD_HDF5_Input    ,ONLY: OpenDataFile,CloseDataFile,ReadArray,GetDataSize,ReadAttribute
+USE MOD_HDF5_Input    ,ONLY: nDims,HSize,File_ID
+USE MOD_Restart_Vars  ,ONLY: MacroRestartFileName
+USE MOD_Mesh_Vars     ,ONLY: offsetElem, nElems,nGlobalElems
+USE MOD_DSMC_Vars     ,ONLY: BGGas
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: nVarHDF5, nElems_HDF5, iVar, iSpec, iElem, iBGGSpec, nSpecReadin
+REAL, ALLOCATABLE                 :: ElemDataHDF5(:,:)
+!===================================================================================================================================
+
+SWRITE(UNIT_stdOut,*) 'BGGas distribution - Using macroscopic values from file: ',TRIM(MacroRestartFileName)
+
+CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
+CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)
+nVarHDF5  = INT(HSize(1),4)
+IF(nVarHDF5.LT.10) CALL abort(__STAMP__,'Number of variables .h5 file is less than 10')
+
+nElems_HDF5 = INT(HSize(2),4)
+IF(nElems_HDF5.NE.nGlobalElems) CALL abort(__STAMP__,'Number of global elements does not match number of elements in .h5 file')
+
+DEALLOCATE(HSize)
+
+ALLOCATE(ElemDataHDF5(1:nVarHDF5,1:nElems))
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+  nVarHDF5   => INT(nVarHDF5,IK) ,&
+  offsetElem => INT(offsetElem,IK),&
+  nElems     => INT(nElems,IK)    )
+  CALL ReadArray('ElemData',2,(/nVarHDF5,nElems/),offsetElem,2,RealArray=ElemDataHDF5(:,:))
+END ASSOCIATE
+
+CALL ReadAttribute(File_ID,'NSpecies',1,IntScalar=nSpecReadin)
+
+! Loop over all the read-in species and map them to the background gas species
+iVar = 1
+DO iSpec = 1, nSpecReadin
+  DO iBGGSpec = 1, BGGas%NumberOfSpecies
+    IF(BGGas%DistributionSpeciesIndex(BGGas%MapBGSpecToSpec(iBGGSpec)).EQ.iSpec) THEN
+      DO iElem = 1, nElems
+        BGGas%Distribution(iBGGSpec,1:10,iElem) = ElemDataHDF5(iVar:iVar-1+10,iElem)
+      END DO
+      SWRITE(UNIT_stdOut,*) 'BGGas distribution: Mapped read-in values of species ', iSpec, ' to current species ', &
+          BGGas%MapBGSpecToSpec(iBGGSpec)
+    END IF
+  END DO
+  iVar = iVar + DSMC_NVARS
+END DO
+
+DEALLOCATE(ElemDataHDF5)
+
+CALL CloseDataFile()
+
+END SUBROUTINE BGGas_ReadInDistribution
 
 
 !===================================================================================================================================

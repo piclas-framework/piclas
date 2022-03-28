@@ -196,7 +196,8 @@ END SUBROUTINE CalcXiVib
 
 SUBROUTINE CalcXiTotalEqui(iReac, iPair, nProd, Xi_Total, Weight, XiVibPart, XiElecPart)
 !===================================================================================================================================
-! Calculation of the vibrational degrees of freedom for each characteristic vibrational temperature, used for chemical reactions
+! Calculation of the vibrational degrees of freedom for each characteristic vibrational temperature as well as the electronic
+! degrees of freedom at a common temperature, used for chemical reactions
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars              ,ONLY: BoltzmannConst
@@ -243,7 +244,7 @@ ASSOCIATE( ProductReac => ChemReac%Products(iReac,1:4) )
       ELSE
         IF(PRESENT(XiVibPart)) XiVibPart(iProd,:) = 0.0
       END IF
-      IF(DSMC%ElectronicModel.GT.0) THEN
+      IF((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.4)) THEN
         IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           XiElecPart(iProd) = CalcXiElec(MiddleTemp, iSpec)
           Xi_TotalTemp = Xi_TotalTemp + XiElecPart(iProd)
@@ -372,8 +373,8 @@ SUBROUTINE DSMC_calc_P_vib(iPair, iSpec, jSpec, Xi_rel, iElem, ProbVib)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals            ,ONLY: Abort
-USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, DSMC, VarVibRelaxProb, useRelaxProbCorrFactor, XSec_Relaxation, CollInf, Coll_pData
-USE MOD_DSMC_Vars          ,ONLY: PolyatomMolDSMC, SpecXSec
+USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, DSMC, VarVibRelaxProb, useRelaxProbCorrFactor, PolyatomMolDSMC, CollInf, Coll_pData
+USE MOD_MCC_Vars           ,ONLY: XSec_Relaxation, SpecXSec
 USE MOD_MCC_XSec           ,ONLY: XSec_CalcVibRelaxProb
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -418,7 +419,7 @@ IF((DSMC%VibRelaxProb.GE.0.0).AND.(DSMC%VibRelaxProb.LE.1.0)) THEN
     IF(SpecXSec(iCase)%UseVibXSec) THEN
       IF(SpecXSec(iCase)%SpeciesToRelax.EQ.iSpec) THEN
         IF(SpecXSec(iCase)%UseCollXSec) THEN
-          CALL XSec_CalcVibRelaxProb(iPair)
+          CALL XSec_CalcVibRelaxProb(iPair,iElem)
           ! Cross-section is stored in the VibProb variable
           ProbVib = SpecXSec(iCase)%VibProb / SpecXSec(iCase)%CrossSection
         ELSE
@@ -433,9 +434,7 @@ ELSE IF(DSMC%VibRelaxProb.EQ.2.0) THEN
   ! The average value of the cell is only taken from the vector
   ProbVib = VarVibRelaxProb%ProbVibAv(iElem, iSpec) * CorrFact
 ELSE
-  CALL Abort(&
-  __STAMP__&
-  ,'Error! Model for vibrational relaxation undefined:',RealInfoOpt=DSMC%VibRelaxProb)
+  CALL Abort(__STAMP__,'Error! Model for vibrational relaxation undefined:',RealInfoOpt=DSMC%VibRelaxProb)
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN

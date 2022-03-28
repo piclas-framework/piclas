@@ -175,7 +175,7 @@ END IF
 END SUBROUTINE WriteTimeAverage
 
 
-SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
+SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime,FileNameIn)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
@@ -200,12 +200,13 @@ USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)    :: TypeString
-INTEGER,INTENT(IN)             :: nVar
-CHARACTER(LEN=255)             :: StrVarNames(nVar)
-CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
-REAL,INTENT(IN)                :: OutputTime
-REAL,INTENT(IN),OPTIONAL       :: FutureTime
+CHARACTER(LEN=*),INTENT(IN)          :: TypeString
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: FileNameIn
+INTEGER,INTENT(IN)                   :: nVar
+CHARACTER(LEN=255)                   :: StrVarNames(nVar)
+CHARACTER(LEN=*),INTENT(IN)          :: MeshFileName
+REAL,INTENT(IN)                      :: OutputTime
+REAL,INTENT(IN),OPTIONAL             :: FutureTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -218,7 +219,11 @@ CHARACTER(LEN=255), DIMENSION(1:3),PARAMETER :: TrackingString = (/'refmapping  
 #endif /*PARTICLES*/
 !===================================================================================================================================
 ! Create file
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
+IF(PRESENT(FileNameIn))THEN
+  FileName=FileNameIn
+ELSE
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
+END IF ! PRESENT(FileNameIn)
 CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
 
 ! Write file header
@@ -291,12 +296,17 @@ REAL,INTENT(IN)                :: PreviousTime
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName,MeshFile255
 !===================================================================================================================================
+! Set old file name
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),PreviousTime))//'.h5'
-CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+! The restart file name and the file name set here might differ (renamed restart file or changed project name).
+! Therefore, the attribute is only written if the file exists.
+IF(FILEEXISTS(Filename))THEN
+  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 
-MeshFile255=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
-CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=(/MeshFile255/))
-CALL CloseDataFile()
+  MeshFile255=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
+  CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=(/MeshFile255/))
+  CALL CloseDataFile()
+END IF ! FILEEXISTS(Filename)
 
 END SUBROUTINE GenerateNextFileInfo
 
@@ -312,7 +322,8 @@ USE MOD_HDF5_Input       ,ONLY: GetHDF5NextFileName
 #if USE_LOADBALANCE
 USE MOD_Loadbalance_Vars ,ONLY: DoLoadBalance,nLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_Mesh_Vars        ,ONLY: DoWriteStateToHDF5
+USE MOD_Output_Vars      ,ONLY: DoWriteStateToHDF5
+USE MOD_Restart_Vars     ,ONLY: DoRestart,FlushInitialState
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -340,11 +351,23 @@ ELSE
   FlushTime=FlushTime_In
 END IF
 
-! delete state files
+! Delete state files
 NextFile=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',FlushTime))//'.h5'
+
+! If the original restart file is not to be deleted, skip this file and go to the next one
+IF(DoRestart.AND.(.NOT.FlushInitialState))THEN
+  ! Set next file name
+#if USE_MPI
+  CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
+#else
+  CALL GetHDF5NextFileName(Inputfile,NextFile)
+#endif
+END IF ! .NOT.FlushInitialState
+
+! Loop over all possible state files that can be deleted
 DO
   InputFile=TRIM(NextFile)
-  ! Read calculation time from file
+  ! Set next file name
 #if USE_MPI
   CALL GetHDF5NextFileName(Inputfile,NextFile,.TRUE.)
 #else
@@ -398,7 +421,7 @@ OPEN ( NEWUNIT= ioUnit,         &
        ACCESS = 'SEQUENTIAL',   &
        IOSTAT = stat          )
 IF(stat .EQ. 0) CLOSE ( ioUnit,STATUS = 'DELETE' )
-IF(iError.NE.0) WRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '**** FAILED with iError.NE.0 ****'
+IF(iError.NE.0) WRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '**** FAILED to remove ['//TRIM(InputFile)//'] with iError.NE.0 ****'
 
 WRITE(UNIT_stdOut,'(A)',ADVANCE='YES')'DONE'
 

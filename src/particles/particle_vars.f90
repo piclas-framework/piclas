@@ -128,6 +128,7 @@ TYPE tInit                                                                   ! P
   !Specific Emission/Init values
   CHARACTER(40)                          :: SpaceIC                          ! specifying Keyword for Particle Space condition
   CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
+  REAL                                   :: Area                             ! Area for IC Rectangle
   REAL                                   :: RadiusIC                         ! Radius for IC circle
   REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder (ring)
   REAL                                   :: RadiusICGyro                     ! Radius for Gyrotron gyro radius
@@ -136,7 +137,9 @@ TYPE tInit                                                                   ! P
   REAL                                   :: NormalIC(3)                      ! Normal / Orientation of circle
   REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
   REAL                                   :: BaseVector1IC(3)                 ! first base vector for IC cuboid
+  REAL                                   :: NormalVector1IC(3)               ! 1st base vector normalized
   REAL                                   :: BaseVector2IC(3)                 ! second base vector for IC cuboid
+  REAL                                   :: NormalVector2IC(3)               ! 2nd base vector normalized
   REAL                                   :: CuboidHeightIC                   ! third measure of cuboid
                                                                              ! (set 0 for flat rectangle),
                                                                              ! negative value = opposite direction
@@ -163,8 +166,10 @@ TYPE tInit                                                                   ! P
   INTEGER                                :: NumberOfExcludeRegions           ! Number of different regions to be excluded
   TYPE(tExcludeRegion), ALLOCATABLE      :: ExcludeRegion(:)
 #if USE_MPI
-  INTEGER                                :: InitComm                          ! number of init-communicator
+  INTEGER                                :: InitComm                         ! number of init-communicator
 #endif /*USE_MPI*/
+  INTEGER                                :: PartBCIndex                      ! Associated particle boundary ID
+  REAL                                   :: MacroParticleFactor              ! Emission-specific MPF
 !====================================photo ionization =======================================================
   LOGICAL                            :: FirstQuadrantOnly  ! Only insert particles in the first quadrant that is spanned by the
                                                            ! vectors x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R]
@@ -311,7 +316,7 @@ TYPE tParticleDataManagement
   INTEGER                                :: CurrentNextFreePosition           ! Index of nextfree index in nextFreePosition-Array
   INTEGER                                :: maxParticleNumber                 ! Maximum Number of all Particles
   INTEGER                                :: ParticleVecLength                 ! Vector Length for Particle Push Calculation
-  INTEGER                                :: insideParticleNumber              ! Number of all recent Particles inside
+  INTEGER                                :: ParticleVecLengthOld                 ! Vector Length for Particle Push Calculation
   INTEGER , ALLOCATABLE                  :: PartInit(:)                       ! (1:NParts), initial emission condition number
                                                                               ! the calculation area
   INTEGER ,ALLOCATABLE                   :: nextFreePosition(:)  !  =>NULL()  ! next_free_Position(1:max_Particle_Number)
@@ -403,10 +408,19 @@ REAL, ALLOCATABLE :: PartPosLandmark(:,:)        ! Store particle positions duri
 INTEGER           :: NbrOfParticleLandmarkMax    ! Array maximum size for storing positions
 INTEGER           :: FractNbrOld,chunkSizeOld    ! Auxiliary integers for storing positions
 
-LOGICAL           :: UseNeutralization           ! Flag for counting the charged particles impinging on a surface
-CHARACTER(255)    :: NeutralizationSource        ! Name of the boundary for calculating the particle balance
-INTEGER           :: NeutralizationBalance       ! Counter for charged particles (processor local): Add +1 for electrons and -1 for ions
-INTEGER           :: NeutralizationBalanceGlobal ! Counter for charged particles (global): Add +1 for electrons and -1 for ions
+LOGICAL              :: UseNeutralization           ! Flag for counting the charged particles impinging on a surface
+CHARACTER(255)       :: NeutralizationSource        ! Name of the boundary for calculating the particle balance
+INTEGER              :: nNeutralizationElems        ! Number of elements used for neutralization source (if required)
+LOGICAL, ALLOCATABLE :: isNeutralizationElem(:)     ! Flag each element if it is a neutralization element
+INTEGER, ALLOCATABLE :: NeutralizationBalanceElem(:)! Number of particles to be emitted within each neutralization element
+INTEGER              :: NeutralizationBalance       ! Counter for charged particles (processor local): Add +1 for electrons and -1 for ions
+INTEGER              :: NeutralizationBalanceGlobal ! Counter for charged particles (global): Add +1 for electrons and -1 for ions
 
+! Bulk electron temperature
+REAL              :: BulkElectronTemp            ! Bulk electron temperature for SEE model by Morozov2004
+                                                 ! read-in in Kelvin (when using the SEE mode), but is directly converted
+                                                 ! to eV for  usage in the code OR for neutralization BC (e.g. landmark)
+LOGICAL           :: CalcBulkElectronTemp        ! Automatic bulk electron calculation
+INTEGER           :: BulkElectronTempSpecID      ! Species ID (electron) for Automatic bulk electron calculation
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

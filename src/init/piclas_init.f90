@@ -284,6 +284,7 @@ USE MOD_Particle_Sampling_Adapt    ,ONLY: FinalizeParticleSamplingAdaptive
 USE MOD_Particle_Boundary_Init     ,ONLY: FinalizeParticleBoundary
 USE MOD_TTMInit                    ,ONLY: FinalizeTTM
 USE MOD_DSMC_Init                  ,ONLY: FinalizeDSMC
+USE MOD_MCC_Init                   ,ONLY: FinalizeMCC
 USE MOD_SurfaceModel_Porous        ,ONLY: FinalizePorousBoundaryCondition
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: FinalizeFPFlow
@@ -292,6 +293,7 @@ USE MOD_FPFlow_Init                ,ONLY: FinalizeFPFlow
 USE MOD_BGK_Init                   ,ONLY: FinalizeBGK
 #endif
 USE MOD_SurfaceModel_Init          ,ONLY: FinalizeSurfaceModel
+USE MOD_SurfaceModel_Analyze       ,ONLY: FinalizeSurfaceModelAnalyze
 USE MOD_Particle_Boundary_Sampling ,ONLY: FinalizeParticleBoundarySampling
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone
 USE MOD_PIC_Vars                   ,ONLY: PICInitIsDone
@@ -335,6 +337,7 @@ CALL FinalizeMesh()
 CALL FinalizeMortar()
 #ifdef PARTICLES
 CALL FinalizeSurfaceModel()
+CALL FinalizeSurfaceModelAnalyze()
 CALL FinalizeParticleBoundarySampling()
 CALL FinalizePorousBoundaryCondition()
 CALL FinalizeParticleSurfaces()
@@ -346,6 +349,7 @@ CALL FinalizePICInterpolation()
 CALL FinalizeParticleMPI()
 #endif /*USE_MPI*/
 CALL FinalizeDSMC()
+CALL FinalizeMCC()
 #if (PP_TimeDiscMethod==300)
 CALL FinalizeFPFlow()
 #endif

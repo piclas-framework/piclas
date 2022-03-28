@@ -168,9 +168,7 @@ IF (time.GE.DelayTime) THEN
           CALL RANDOM_NUMBER(RandVal)
           IF (DoForceFreeSurfaceFlux) Pt(1:3,iPart)=0.
         ELSE
-          CALL abort(&
-__STAMP__&
-,'Error in LSERK-HDG-Timedisc: This case should be impossible...')
+          CALL abort(__STAMP__,'Error in LSERK-HDG-Timedisc: This case should be impossible...')
         END IF
         Pa_rebuilt(:,:)=0.
         ! Don't push the velocity component of neutral particles!
@@ -362,9 +360,6 @@ DO iStage=2,nRKStages
 END DO
 
 #ifdef PARTICLES
-#if USE_MPI
-PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero for deposition
-#endif
 IF (doParticleMerge) THEN
   IF (.NOT.useDSMC) THEN
 #if USE_LOADBALANCE

@@ -22,29 +22,27 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER , ALLOCATABLE                   :: SurfModResultSpec(:,:)       ! Resulting species after surface model treatment
-                                                                        ! (nPartBound,nSpecies)
-CHARACTER(LEN=50) , ALLOCATABLE         :: SurfModEnergyDistribution(:) ! Energy distribution of the reflected particles
-
-REAL                                    :: BackupVeloABS                ! Backup of velocity during double-ARMfor 2nd SEE
+INTEGER , ALLOCATABLE            :: SurfModResultSpec(:,:)          ! Resulting species after surface model treatment
+                                                                    ! (nPartBound,nSpecies)
+CHARACTER(LEN=50) , ALLOCATABLE  :: SurfModEnergyDistribution(:)    ! Energy distribution of the reflected particles
+REAL                             :: BackupVeloABS                   ! Backup of velocity during double-ARMfor 2nd SEE
 ! === Porous BC ====================================================================================================================
-INTEGER                                 :: nPorousBC                          ! Number of porous BCs
+INTEGER                          :: nPorousBC                       ! Number of porous BCs
 TYPE tPorousBC
-  INTEGER                               :: BC                     ! Number of the reflective BC to be used as a porous BC
-  REAL                                  :: Pressure               ! Pressure at the BC [Pa], user-given
-  REAL                                  :: Temperature            ! Temperature at the BC [K], user-given
-  CHARACTER(LEN=50)                     :: Type
-  REAL                                  :: PumpingSpeed           ! Given/calculated pumping speed [m3/s]
-  REAL                                  :: DeltaPumpingSpeedKp    ! Proportional factor for the pumping speed controller
-  REAL                                  :: DeltaPumpingSpeedKi    ! Integral factor for the pumping speed controller
-  CHARACTER(LEN=50)                     :: Region                 ! Form of the porous BC: 'circular'
-  LOGICAL                               :: UsingRegion            ! Use only a smaller region on the BC as a porous BC (e.g. pump)
-  INTEGER                               :: dir(3)                 ! axial (1) and orth. coordinates (2,3) of polar system
-  REAL                                  :: origin(2)              ! origin in orth. coordinates of polar system
-  REAL                                  :: rmax                   ! max radius of to-be inserted particles
-  REAL                                  :: rmin                   ! min radius of to-be inserted particles
+  INTEGER                        :: BC                              ! Number of the reflective BC to be used as a porous BC
+  REAL                           :: Pressure                        ! Pressure at the BC [Pa], user-given
+  CHARACTER(LEN=50)              :: Type
+  REAL                           :: PumpingSpeed                    ! Given/calculated pumping speed [m3/s]
+  REAL                           :: DeltaPumpingSpeedKp             ! Proportional factor for the pumping speed controller
+  REAL                           :: DeltaPumpingSpeedKi             ! Integral factor for the pumping speed controller
+  CHARACTER(LEN=50)              :: Region                          ! Form of the porous BC: 'circular'
+  LOGICAL                        :: UsingRegion                     ! Use only a smaller region on the BC as a porous BC (e.g. pump)
+  INTEGER                        :: dir(3)                          ! axial (1) and orth. coordinates (2,3) of polar system
+  REAL                           :: origin(2)                       ! origin in orth. coordinates of polar system
+  REAL                           :: rmax                            ! max radius of to-be inserted particles
+  REAL                           :: rmin                            ! min radius of to-be inserted particles
 END TYPE
-TYPE(tPorousBC), ALLOCATABLE            :: PorousBC(:)            ! Container for the porous BC, allocated with nPorousBC
+TYPE(tPorousBC), ALLOCATABLE     :: PorousBC(:)                     ! Container for the porous BC, allocated with nPorousBC
 
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Vars

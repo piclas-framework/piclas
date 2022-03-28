@@ -71,7 +71,6 @@ CALL prms%CreateStringOption(  'MeshFile',            "(relative) path to meshfi
 CALL prms%CreateLogicalOption( 'useCurveds',          "Controls usage of high-order information in mesh. Turn off to discard "//&
                                                       "high-order data and treat curved meshes as linear meshes.", '.FALSE.')
 
-CALL prms%CreateLogicalOption( 'DoWriteStateToHDF5',  "Write state of calculation to hdf5-file.",'.TRUE.')
 CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this factor (shrink/enlarge).",&
                                                       '1.0')
 CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
@@ -124,6 +123,7 @@ USE MOD_Mappings               ,ONLY: InitMappings
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
 #if USE_LOADBALANCE
+USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #endif /*USE_LOADBALANCE*/
@@ -156,9 +156,7 @@ REAL                :: meshScale
 #endif
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'InitMesh not ready to be called or already called.',999,999.)
+  CALL abort(__STAMP__,'InitMesh not ready to be called or already called.')
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT MESH...'
@@ -185,9 +183,7 @@ IF(DoSwapMesh)THEN
   END IF
   SwapMeshLevel=GETINT('SwapMeshLevel','0')
   IF((SwapMeshLevel.LT.0).OR.(SwapMeshLevel.GT.99))THEN
-    CALL abort(&
-    __STAMP__&
-    ,'SwapMeshLEvel<0 or SwapMeshLEvel>99, this is invalid!',999,999.)
+    CALL abort(__STAMP__,'SwapMeshLEvel<0 or SwapMeshLEvel>99, this is invalid!')
   END IF
 END IF
 
@@ -203,7 +199,6 @@ IF(.NOT.validMesh) &
 
 
 useCurveds=GETLOGICAL('useCurveds')
-DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5')
 #if USE_LOADBALANCE
 IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
   DoWriteStateToHDF5=.TRUE.
@@ -301,7 +296,12 @@ IF (meshMode.GT.0) THEN
   MortarInfo=-1
 
   SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
+#if USE_HDG && USE_LOADBALANCE
+  ! Call with meshMode to check whether, e.g., HDG load balance info need to be determined or not
+  CALL fillMeshInfo(meshMode)
+#else
   CALL fillMeshInfo()
+#endif /*USE_HDG && USE_LOADBALANCE*/
 
   ! build necessary mappings
   CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
@@ -395,11 +395,6 @@ END IF ! meshMode.GT.1
 
 
 IF(CalcMeshInfo)THEN
-#if USE_MPI
-  ALLOCATE(myInvisibleRank(1:nElems))
-  myInvisibleRank=0
-#endif /*USE_MPI*/
-
   CALL AddToElemData(ElementOut,'myRank',IntScalar=myRank)
   !#ifdef PARTICLES
   ALLOCATE(ElemGlobalID(1:nElems))
@@ -1090,6 +1085,7 @@ MeshInitIsDone = .FALSE.
 SDEALLOCATE(ElemBaryNGeo)
 SDEALLOCATE(ElemGlobalID)
 SDEALLOCATE(myInvisibleRank)
+SDEALLOCATE(LostRotPeriodicSides)
 END SUBROUTINE FinalizeMesh
 
 END MODULE MOD_Mesh

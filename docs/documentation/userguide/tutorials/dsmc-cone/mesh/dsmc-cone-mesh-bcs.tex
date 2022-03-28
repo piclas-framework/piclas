@@ -1,0 +1,62 @@
+\documentclass{standalone}
+
+\usepackage[textfont=it]{caption}
+\usepackage{subcaption}
+\usepackage{tikz, pgfplots}
+\usepgfplotslibrary{colorbrewer}
+\pgfplotsset{cycle list/Dark2-8}
+\usepackage[exponent-product = \cdot]{siunitx}
+
+% Set default column separator for table (csv files)
+\pgfplotsset{compat=1.16,table/col sep=comma}
+% Space as thousand separator.
+\pgfkeys{/pgf/number format/.cd,1000 sep={\,}}
+
+\begin{document}
+\begin{tikzpicture}
+\begin{axis}[
+width=10.0cm,
+axis equal image,
+scaled ticks=false,
+unbounded coords=jump,
+xmin=-8,
+xmax=25,
+ymin=0,
+ymax=35,
+xlabel style={name=xlabel},
+xlabel={$x$ $\left[\si{mm}\right]$},
+ylabel style={name=ylabel},
+ylabel={$y$ $\left[\si{mm}\right]$},
+axis x line*=bottom,
+axis y line*=left,
+axis on top=true,
+legend style={at={(1.1,0.5)},anchor=west, legend cell align=left},
+clip=false
+]
+\addlegendimage{empty legend}
+\addlegendentry{\hspace{-.6cm}\textbf{Boundary Names}}
+\addplot [forget plot] graphics [xmin=-8,xmax=25,ymin=0,ymax=35] {./dsmc-cone-mesh.png};
+\addplot [index of colormap=0 of Dark2-8,line width=0.5mm,mark=none] 
+  coordinates {
+    (-8.0,0.0)
+    (-8.0,35.0)}; \addlegendentry {IN}
+\addplot [index of colormap=2 of Dark2-8,line width=0.5mm,mark=none] 
+  coordinates {
+    (-8.0,35.0)
+    (25.0,35.0)
+    (25.0,24.0)}; \addlegendentry {OUT}
+\draw [index of colormap=1 of Dark2-8,line width=0.5mm] (17.0,0.0) arc [radius=12.5,start angle=180,end angle=160];
+\addplot [index of colormap=1 of Dark2-8,line width=0.5mm,mark=none] 
+  coordinates {
+    (25.0,24.0)
+    (17.7538,4.2753)}; \addlegendentry {WALL}
+\addplot [index of colormap=3 of Dark2-8,line width=0.5mm,mark=none] 
+  coordinates {
+    (-8.0,0.0)
+    (17.0,0.0)}; \addlegendentry {SYMAXIS}
+
+\end{axis}
+\draw [-latex] (xlabel.east) -- ++(0.5,0);
+\draw [-latex] (ylabel.east) -- ++(0,0.5);
+\end{tikzpicture}
+\end{document}

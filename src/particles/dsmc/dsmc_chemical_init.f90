@@ -54,8 +54,9 @@ CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactionModel'  &
                                            ,'Used reaction model\n'//&
                                             'TCE: Total Collision Energy\n'//&
                                             'phIon: photon-ionization\n'//&
+                                            'phIonXSec: photon-ionization with cross-section-based data for the reaction\n'//&
                                             'QK: quantum kinetic\n'//&
-                                            'XSec: cross-section based data for the reaction)', 'TCE', numberedmulti=.TRUE.)
+                                            'XSec: cross-section-based data for the reaction', 'TCE', numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Reactants'  &
                                            ,'Reactants of Reaction[$]\n'//&
                                             '(SpecNumOfReactant1,\n'//&
@@ -138,7 +139,7 @@ USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
-USE MOD_MCC_Init                ,ONLY: MCC_Chemistry_Init
+USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -155,13 +156,12 @@ REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeR
 INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact
 !===================================================================================================================================
 
+NbrOfPhotonXsecReactions = 0
 ChemReac%NumOfReact = GETINT('DSMC-NumOfReactions')
 ReadInNumOfReact = ChemReac%NumOfReact
 ChemReac%NumOfReactWOBackward = ChemReac%NumOfReact
 IF(ChemReac%NumOfReact.LE.0) THEN
-  CALL Abort(&
-    __STAMP__&
-    ,' CollisMode = 3 requires a chemical reaction database. DSMC-NumOfReactions cannot be zero!')
+  CALL Abort(__STAMP__,' CollisMode = 3 requires a chemical reaction database. DSMC-NumOfReactions cannot be zero!')
 END IF
 ChemReac%AnyQKReaction = .FALSE.
 ChemReac%AnyXSecReaction = .FALSE.
@@ -314,16 +314,18 @@ DO iReac = 1, ReadInNumOfReact
         ChemReac%MEXb(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-MEXb','175.269')
       END IF
     CASE('phIon')
+      ! Photo-ionization reactions
       ChemReac%CrossSection(iReac)                 = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-CrossSection')
+    CASE('phIonXSec')
+      ! Photo-ionization reactions (data read-in from database)
+      NbrOfPhotonXsecReactions = NbrOfPhotonXsecReactions + 1
     CASE DEFAULT
-      CALL abort(__STAMP__,&
-        'Selected reaction model is not supported in reaction number: ', iReac)
+      CALL abort(__STAMP__,'Selected reaction model is not supported in reaction number: ', IntInfoOpt=iReac)
   END SELECT
   ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
   IF((ChemReac%Reactants(iReac,2).EQ.0).AND.(ChemReac%Products(iReac,2).EQ.0)) THEN
     IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'Error in Definition: Non-reacting partner(s) has to be defined!',iReac)
+      CALL abort(__STAMP__,'Error in Definition: Non-reacting partner(s) has to be defined!',IntInfoOpt=iReac)
     END IF
     DO iReac2 = 1, ChemReac%ArbDiss(iReac)%NumOfNonReactives
       IF(iReac2.EQ.1) THEN
@@ -345,15 +347,14 @@ DO iReac = 1, ReadInNumOfReact
     END DO
     iReacDiss = iReacDiss + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
   ELSE IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.NE.0) THEN
-    CALL abort(__STAMP__,&
-      'Dissociation/Ionization - Error in Definition: Non-reacting partner(s) has to be zero!',iReac)
+    CALL abort(__STAMP__,'Dissociation/Ionization - Error in Definition: Non-reacting partner(s) has to be zero!',iReac)
   END IF
 END DO
 
 ! Automatic determination of the reaction type based on the number of reactants, products and charge balance (for ionization)
 DO iReac = 1, ChemReac%NumOfReact
   ! Skip photo-ionization reactions
-  IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
+  IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) CYCLE
   IF (ChemReac%Reactants(iReac,3).NE.0) THEN
     ChemReac%ReactType(iReac)           = 'R'
   ELSE IF (ChemReac%Products(iReac,3).NE.0) THEN
@@ -362,9 +363,9 @@ DO iReac = 1, ChemReac%NumOfReact
         + ABS(Species(ChemReac%Products(iReac,3))%ChargeIC)
     IF (ChemReac%Products(iReac,4).GT.0) ChargeProducts = ChargeProducts + ABS(Species(ChemReac%Products(iReac,4))%ChargeIC)
     IF (ChargeReactants.NE.ChargeProducts) THEN
-      ChemReac%ReactType(iReac)           = 'I'
+      ChemReac%ReactType(iReac)         = 'I'
     ELSE
-      ChemReac%ReactType(iReac)           = 'D'
+      ChemReac%ReactType(iReac)         = 'D'
     END IF
   ELSE
     ChemReac%ReactType(iReac)           = 'E'
@@ -399,31 +400,29 @@ DO iReac = 1, ChemReac%NumOfReact
                           + ChemReac%ReactInfo(iReac)%StoichCoeff(iSpec,1)*SpecDSMC(iSpec)%HeatOfFormation
     ! For the impact-ionization, the heat of reaction is equal to the ionization energy
     IF(TRIM(ChemReac%ReactType(iReac)).EQ.'I') THEN
-      IF(.NOT.ALLOCATED(SpecDSMC(ChemReac%Reactants(iReac,1))%ElectronicState)) THEN
-        CALL abort(&
-        __STAMP__&
-        ,'ERROR: Ionization reactions require the definition of at least the ionization energy as electronic level!',iReac)
-      END IF
+      IF(.NOT.ALLOCATED(SpecDSMC(ChemReac%Reactants(iReac,1))%ElectronicState)) CALL abort(&
+        __STAMP__,'ERROR: Ionization reactions require the definition of at least the ionization energy as electronic level!',iReac)
     END IF
   END DO
+  ! Check whether the photon energy is sufficient to trigger the chemical reaction
   IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') THEN
     PhotonEnergy = 0.
     DO iSpec = 1, nSpecies
       DO iInit = 1, Species(iSpec)%NumberOfInits
-        IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_cylinder') THEN
+        SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+        CASE('photon_cylinder','photon_honeycomb','photon_rectangle')
           PhotonEnergy = CalcPhotonEnergy(Species(iSpec)%Init(iInit)%WaveLength)
           EXIT
-        END IF
+        END SELECT
       END DO
     END DO
+
     ChemReac%EForm(iReac) = ChemReac%EForm(iReac) + PhotonEnergy
     IF(ChemReac%EForm(iReac).LE.0.0) THEN
-      CALL abort(&
-      __STAMP__&
-      ,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
+      CALL abort(__STAMP__,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
     END IF
-  END IF
-END DO
+  END IF ! TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon'
+END DO ! iReac = 1, ChemReac%NumOfReact
 
 ! Populate the background reaction arrays and initialize the required partition functions
 IF(DSMC%BackwardReacRate) THEN
@@ -435,25 +434,22 @@ DO iReac = 1, ChemReac%NumOfReact
   ! Proof of recombination definition
   IF (TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
     IF ((ChemReac%Reactants(iReac,1)*ChemReac%Reactants(iReac,2)*ChemReac%Reactants(iReac,3)).EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'Recombination - Error in Definition: Not all reactant species are defined! ReacNbr: ',iReac)
+      CALL abort(__STAMP__,'Recombination - Error in Definition: Not all reactant species are defined! ReacNbr: ',iReac)
     END IF
     IF (ChemReac%Reactants(iReac,3).NE.ChemReac%Products(iReac,2)) THEN
       CALL abort(__STAMP__,&
       'Recombination - Error in Definition: Third-collision partner does not correspond to the second product! ReacNbr: ',iReac)
     END IF
-  ELSE IF (TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') THEN
+  ELSE IF (.NOT.StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) THEN
     IF ((ChemReac%Reactants(iReac,1)*ChemReac%Reactants(iReac,2)).EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
+      CALL abort(__STAMP__,'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
     END IF
   END IF
   ! Proof of dissociation definition
   IF (TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
     ! Three product species are given
     IF ((ChemReac%Products(iReac,1)*ChemReac%Products(iReac,2)*ChemReac%Products(iReac,3)).EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'Dissociation - Error in Definition: Not all product species are defined!  ReacNbr: ',iReac)
+      CALL abort(__STAMP__,'Dissociation - Error in Definition: Not all product species are defined!  ReacNbr: ',iReac)
     END IF
     IF(TRIM(ChemReac%ReactModel(iReac)).NE.'XSec') THEN
       ! Cross-section based chemistry does not require this definition as no backward reaction rates are implemented
@@ -470,16 +466,13 @@ DO iReac = 1, ChemReac%NumOfReact
     END IF
   ELSE
     IF ((ChemReac%Products(iReac,1)*ChemReac%Products(iReac,2)).EQ.0) THEN
-      CALL abort(__STAMP__,&
-      'Chemistry - Error in Definition: Product species not properly defined. ReacNbr:',iReac)
+      CALL abort(__STAMP__,'Chemistry - Error in Definition: Product species not properly defined. ReacNbr:',iReac)
     END IF
   END IF
   ! Check if the maximum species index is not greater than the number of species
   MaxSpecies = MAXVAL(ChemReac%Reactants(iReac,1:3))
-  IF(MaxSpecies.GT.nSpecies) THEN
-    CALL abort(__STAMP__,&
+  IF(MaxSpecies.GT.nSpecies) CALL abort(__STAMP__,&
       'Chemistry - Error in Definition: Defined species does not exist, check number of species. ReacNbr:',iReac)
-  END IF
 END DO
 
 ! Initialize analytic QK reaction rate (required for calculation of backward rate with QK and if multiple QK reactions can occur
@@ -494,11 +487,6 @@ ChemReac%CollCaseInfo(:)%NumOfReactionPaths = 0
 
 ! Initialize reaction paths
 CALL InitReactionPaths()
-
-! Initialize MCC model: Read-in of the reaction cross-section database and re-calculation of the null collision probability
-IF(ChemReac%AnyXSecReaction) THEN
-  CALL MCC_Chemistry_Init()
-END IF
 
 ! Recombination: saving the reaction index based on the third species
 DO iReac = 1, ChemReac%NumOfReact
@@ -580,7 +568,7 @@ DO iCase = 1, CollInf%NumCase
     END IF
 #endif /*USE_HDG*/
     ! Skip the special case of photo ionization
-    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
+    IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) CYCLE
     iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
     IF(iCase.EQ.iCase2) THEN
       ! Only add recombination reactions once
@@ -617,7 +605,7 @@ DO iCase = 1, CollInf%NumCase
     END IF
 #endif /*USE_HDG*/
     ! Skip the special case of photo ionization
-    IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon') CYCLE
+    IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) CYCLE
     iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
     ! Save the reaction index for the specific collision case
     IF(iCase.EQ.iCase2) THEN
@@ -747,7 +735,7 @@ DO iReacForward = 1, ChemReac%NumOfReactWOBackward
       ! definition of the recombination reaction (e.g. CH3 + H + M -> CH4 + M but CH4 + M -> CH3 + M + H)
       ChemReac%Reactants(iReac,2)      = ChemReac%Products(iReacForward,3)
       ChemReac%Reactants(iReac,3)      = ChemReac%Products(iReacForward,2)
-      ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
+      ChemReac%Products(iReac,1:3)     = ChemReac%Reactants(iReacForward,1:3)
       ChemReac%EForm(iReac)            = -ChemReac%EForm(iReacForward)
       ChemReac%EActiv(iReac) = 0.0
     ELSE
@@ -762,23 +750,21 @@ DO iReacForward = 1, ChemReac%NumOfReactWOBackward
       ChemReac%Reactants(iReac,1)      = ChemReac%Products(iReacForward,1)
       ChemReac%Reactants(iReac,2)      = ChemReac%Products(iReacForward,3)
       ChemReac%Reactants(iReac,3)      = ChemReac%Products(iReacForward,2)
-      ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
+      ChemReac%Products(iReac,1:3)     = ChemReac%Reactants(iReacForward,1:3)
       ChemReac%EActiv(iReac) = 0.0
     ELSEIF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'E') THEN
       ChemReac%ReactType(iReac) = 'E'
       ChemReac%ReactModel(iReac) = 'TCE'
       ChemReac%Reactants(iReac,1:3)      = ChemReac%Products(iReacForward,1:3)
       ChemReac%Products(iReac,1:3)       = ChemReac%Reactants(iReacForward,1:3)
-      ChemReac%EActiv(iReac)                = ChemReac%EForm(iReacForward) + ChemReac%EActiv(iReacForward)
+      ChemReac%EActiv(iReac)             = ChemReac%EForm(iReacForward) + ChemReac%EActiv(iReacForward)
       IF(ChemReac%EActiv(iReac).LT.0.0) THEN
         ! The absolute value of the heat of formation cannot be larger than the activation energy but Arrhenius fits require
         ! sometimes a different value to better reproduce the experimental results. Doesnt matter for backward rate.
         ChemReac%EActiv(iReac) = 0.0
       END IF
     ELSE
-      CALL abort(&
-      __STAMP__&
-      ,'Automatic calculation of backward reaction rate not supported with the chosen react type:',iReac)
+      CALL abort(__STAMP__,'Automatic calculation of backward reaction rate not supported with the chosen react type:',iReac)
     END IF
     ChemReac%Arrhenius_Prefactor(iReac)     = ChemReac%Arrhenius_Prefactor(iReacForward)
     ChemReac%Arrhenius_Powerfactor(iReac)   = ChemReac%Arrhenius_Powerfactor(iReacForward)

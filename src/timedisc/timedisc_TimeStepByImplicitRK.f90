@@ -529,8 +529,6 @@ DO iStage=2,nRKStages
     CALL MPIParticleSend()
     ! finish communication
     CALL MPIParticleRecv()
-    ! set exchanged number of particles to zero
-    PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_PARTCOMM,tLBStart)
@@ -543,7 +541,6 @@ DO iStage=2,nRKStages
 #endif /*USE_LOADBALANCE*/
     ! deposit explicit, local particles
     CALL Deposition(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
-    !PartMPIExchange%nMPIParticles=0
     IF(DoDeposition) THEN
       DO iElem=1,PP_nElems
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N

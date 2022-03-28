@@ -17,6 +17,30 @@ IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.13.0"))
 ENDIF()
 
 # =========================================================================
+# Git configuration
+# =========================================================================
+# Setup git hooks
+SET(PRECOMMIT_FILE ".githooks/pre-commit")
+# Check if the symlink exists, and create otherwise
+IF (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
+  EXECUTE_PROCESS(COMMAND ln -s ${CMAKE_CURRENT_SOURCE_DIR}/${PRECOMMIT_FILE} ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
+# Check if the symlink already points to the correct location
+ELSE()
+  EXECUTE_PROCESS(COMMAND readlink ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit COMMAND rev COMMAND cut -d "/" -f1,2 COMMAND rev OUTPUT_VARIABLE PRECOMMIT_LINK OUTPUT_STRIP_TRAILING_WHITESPACE)
+  IF (NOT ${PRECOMMIT_LINK} MATCHES ${PRECOMMIT_FILE})
+    MESSAGE (WARNING "Custom pre-commit hook detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
+  ENDIF()
+ENDIF()
+
+# Check if the hook actually gets loaded
+EXECUTE_PROCESS(COMMAND git config --get core.hooksPath OUTPUT_VARIABLE HOOKSPATH OUTPUT_STRIP_TRAILING_WHITESPACE)
+IF (DEFINED HOOKSPATH  AND NOT "${HOOKSPATH}" STREQUAL "")
+  # STRING(ASCII 27 ESCAPE)
+  # MESSAGE (STATUS "${ESCAPE}[34mCustom hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.${ESCAPE}[0m")
+  MESSAGE (WARNING "Custom hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
+ENDIF()
+
+# =========================================================================
 # Project definition
 # =========================================================================
 #PROJECT(PICLas Fortran C CXX)
@@ -66,12 +90,15 @@ EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh
 # Check IPO support:
 # =========================================================================
 # we need to have languages enabled and compilers defined for this
-IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.9.0"))
+SET(IPO_CMAKE_MINIMUM "3.9.0")
+IF(NOT(${CMAKE_VERSION} VERSION_LESS ${IPO_CMAKE_MINIMUM}))
   CMAKE_POLICY(SET CMP0069 NEW)
   INCLUDE(CheckIPOSupported)
   check_ipo_supported(RESULT HASIPO OUTPUT error)
+  CMAKE_DEPENDENT_OPTION(PICLAS_IPO "Activate Interprocedural optimization (IPO)" ON "HASIPO" OFF)
 ELSE()
-  SET(HASIPO FALSE)
+  MESSAGE(STATUS "Interprocedural optimization (IPO) not supported with this cmake version ${CMAKE_VERSION}, requires at least ${IPO_CMAKE_MINIMUM}")
+  SET(PICLAS_IPO FALSE)
 ENDIF()
 
 # =========================================================================
@@ -119,7 +146,7 @@ IF (BUILD_TYPE_LC MATCHES "debug" OR BUILD_TYPE_LC MATCHES "sanitize")
   ADD_DEFINITIONS(-DUSE_DEBUG=1)
 ELSE()
   ADD_DEFINITIONS(-DUSE_DEBUG=0)
-  IF (HASIPO)
+  IF (PICLAS_IPO)
     # enable IPO globally (IPO branding: Intel => IPO, GNU => LTO, PGI => IPA)
     IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
       # Do not use the standard CMake LTO option for GNU (-flto -fno-fat-lto-objects), as it does not allow speed-up during linking
@@ -129,10 +156,16 @@ ELSE()
       FIND_PROGRAM(CMAKE_GCC_NM     NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-nm                           HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
       FIND_PROGRAM(CMAKE_GCC_RANLIB NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-ranlib                       HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
       IF(CMAKE_GCC_AR AND CMAKE_GCC_NM AND CMAKE_GCC_RANLIB)
-        MESSAGE(STATUS "Found GCC binutils wrappers for LTO. Linker plugin is enabled.")
         # Static libraries require either fat LTO objects (increases compilation time) or the use of linker plugins (per default enabled); the jobserver option reduces linking time
         # More information at: https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#Optimize-Options
-        SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -fuse-linker-plugin")
+        SET(LTO_AUTO_MIN_GCC_VERSION 10.1)
+        IF(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL LTO_AUTO_MIN_GCC_VERSION)
+          MESSAGE(STATUS "Found GCC binutils wrappers for LTO. Linker plugin is enabled. Using [-flto=auto] as GCC version is ${CMAKE_CXX_COMPILER_VERSION} (>= ${LTO_AUTO_MIN_GCC_VERSION}).")
+          SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=auto -fuse-linker-plugin")
+        ELSE()
+          MESSAGE(STATUS "Found GCC binutils wrappers for LTO. Linker plugin is enabled. Using [-flto=jobserver] as GCC version is ${CMAKE_CXX_COMPILER_VERSION} (< ${LTO_AUTO_MIN_GCC_VERSION})")
+          SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -fuse-linker-plugin")
+        ENDIF()
         # Set the GCC wrapper
         SET(CMAKE_AR     "${CMAKE_GCC_AR}" )
         SET(CMAKE_NM     "${CMAKE_GCC_NM}" )
@@ -145,7 +178,7 @@ ELSE()
         SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -ffat-lto-objects")
       ENDIF()
     ELSE()
-      SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)  # enable IPO globally
+      SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)  # disable IPO for other compilers as not yet tested (might cause problem in combination with Intel & binutils' objcopy)
     ENDIF()
   ENDIF()
 ENDIF()

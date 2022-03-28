@@ -35,8 +35,6 @@ END TYPE
 
 TYPE(tTLU_Data)                           :: TLU_Data
 
-
-REAL                          :: Debug_Energy(2)=0.0        ! debug variable energy conservation
 INTEGER                       :: DSMCSumOfFormedParticles   !number of formed particles per iteration in chemical reactions
                                                             ! for counting the nextfreeparticleposition
 INTEGER                       :: CollisMode                 ! Mode of Collision:, ini_1
@@ -164,45 +162,15 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
                                                             ! ionization)
   ! Collision cross-sections for MCC
   LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
-                                                            ! treated with read-in collision cross-section (currently only with BGG)
+                                                            ! treated with read-in collision cross-section
   LOGICAL                           :: UseVibXSec           ! Flag if the vibrational relaxation probability should be treated,
+                                                            ! using read-in cross-sectional data
+  LOGICAL                           :: UseElecXSec          ! Flag if the electronic relaxation probability should be treated,
                                                             ! using read-in cross-sectional data (currently only with BGG)
   REAL,ALLOCATABLE                  :: CollFreqPreFactor(:)
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
-
-TYPE tXSecData
-  REAL,ALLOCATABLE                  :: XSecData(:,:)        ! Cross-section as read-in from the database
-                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
-                                                            ! 2: Cross-section at the respective energy level [m^2]
-  REAL                              :: Prob                 ! Event probability
-END TYPE tXSecData
-
-TYPE tSpeciesXSec
-  LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species pair should be treated with
-                                                            ! read-in collision cross-section (currently only with BGG)
-  LOGICAL                           :: CollXSec_Effective   ! Flag whether the given cross-section data is "effective" (complete set
-                                                            ! including other processes such as e.g.excitation and ionization) or
-                                                            ! "elastic", including only the elastic collision cross-section.
-  REAL                              :: CrossSection         ! Current collision cross-section
-  REAL,ALLOCATABLE                  :: CollXSecData(:,:)    ! Collision cross-section as read-in from the database
-                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
-                                                            ! 2: Cross-section at the respective energy level [m^2]
-  REAL,ALLOCATABLE                  :: VibXSecData(:,:)     ! Vibrational cross-section as read-in from the database
-                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
-                                                            ! 2: Cross-section at the respective energy level [m^2]
-  REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
-                                                            ! null collision method of MCC
-  LOGICAL                           :: UseVibXSec           ! Flag if cross-section data will be used for the relaxation probability
-  TYPE(tXSecData),ALLOCATABLE       :: VibMode(:)           ! Vibrational cross-sections (nVib: Number of levels found in database)
-  REAL                              :: VibProb              ! Relaxation probability
-  REAL                              :: VibCount             ! Event counter
-  INTEGER                           :: SpeciesToRelax       ! Save which species shall use the vibrational cross-sections
-  TYPE(tXSecData),ALLOCATABLE       :: ReactionPath(:)      ! Reaction cross-sections (nPaths: Number of reactions for that case)
-END TYPE tSpeciesXSec
-
-TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:)          ! Species cross-section related data (CollCase)
 
 TYPE tDSMC
   INTEGER                       :: ElectronSpecies          ! Species of the electron
@@ -263,7 +231,6 @@ TYPE tDSMC
                                                             !     1: Liechty, each particle has a specific electronic state
                                                             !     2: Burt, each particle has an electronic distribution function
   CHARACTER(LEN=64)             :: ElectronicModelDatabase  ! Name of Electronic State Database | h5 file
-  LOGICAL                       :: DoLTRelaxElectronicState 
   INTEGER                       :: NumPolyatomMolecs        ! Number of polyatomic molecules
   REAL                          :: RotRelaxProb             ! Model for calculation of rotational relaxation probability, ini_1
                                                             !    0-1: constant probability  (0: no relaxation)
@@ -300,19 +267,22 @@ TYPE tBGGas
   INTEGER, ALLOCATABLE          :: MapSpecToBGSpec(:)       ! Input: [1:nSpecies], output is the corresponding background species
   INTEGER, ALLOCATABLE          :: MapBGSpecToSpec(:)       ! Input: [1:nBGSpecies], output is the corresponding species index
   REAL, ALLOCATABLE             :: SpeciesFraction(:)       ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
+  REAL, ALLOCATABLE             :: SpeciesFractionElem(:,:) ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
+                                                            ! per element
   REAL, ALLOCATABLE             :: NumberDensity(:)         ! Number densities of the background gas, [1:BGGas%NumberOfSpecies]
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
+  LOGICAL                       :: UseDistribution          ! Flag for the utilization of a background gas distribution as read-in
+                                                            ! from a previous DSMC/BGK simulation result
+  REAL, ALLOCATABLE             :: Distribution(:,:,:)      ! Element local background gas [1:BGGSpecies,1:10,1:nElems]
+  REAL, ALLOCATABLE             :: DistributionNumDens(:)   ! When CalcNumDens=T, pre-calculate the density once at the beginning
+  INTEGER, ALLOCATABLE          :: DistributionSpeciesIndex(:)  ! Index of species in the read-in DSMCState file to use
+                                                                ! as a background distribution [1:nSpecies]
   LOGICAL, ALLOCATABLE          :: TraceSpecies(:)          ! Flag, if species is a trace element, Input: [1:nSpecies]
   REAL                          :: MaxMPF                   ! Maximum weighting factor of the background gas species
 END TYPE tBGGas
 
 TYPE(tBGGas)                    :: BGGas
-
-LOGICAL                             :: UseMCC               ! Flag (set automatically) to differentiate between MCC/XSec and regular DSMC
-CHARACTER(LEN=256)                  :: XSec_Database        ! Name of the cross-section database
-LOGICAL                             :: XSec_NullCollision   ! Flag (read-in) whether null collision method (determining number of pairs based on maximum relaxation frequency)
-LOGICAL                             :: XSec_Relaxation      ! Flag (set automatically): usage of XSec data for the total relaxation probability
 
 TYPE tPairData
   REAL                          :: CRela2                       ! squared relative velo of the particles in a pair
@@ -412,10 +382,11 @@ TYPE tChemReactions
                                                             !    R (molecular recombination
                                                             !    D (molecular dissociation)
                                                             !    E (molecular exchange reaction)
-  CHARACTER(LEN=5),ALLOCATABLE    :: ReactModel(:)          ! Model of Reaction (reaction num)
+  CHARACTER(LEN=15),ALLOCATABLE   :: ReactModel(:)          ! Model of Reaction (reaction num)
                                                             !    TCE (total collision energy)
                                                             !    QK (quantum kinetic)
                                                             !    phIon (photon-ionization)
+                                                            !    phIonXSec (photon-ionization based on cross-section data)
                                                             !    XSec (based on cross-section data)
   INTEGER, ALLOCATABLE            :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
   INTEGER, ALLOCATABLE            :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
@@ -450,7 +421,7 @@ TYPE tChemReactions
   REAL, ALLOCATABLE               :: CrossSection(:)        ! Cross-section of the given photo-ionization reaction
   TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase)
   ! XSec Chemistry
-  LOGICAL                         :: AnyXSecReaction          ! Defines if any QK reaction present
+  LOGICAL                         :: AnyXSecReaction        ! Defines if any XSec reaction is present
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac

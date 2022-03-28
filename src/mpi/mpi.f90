@@ -80,14 +80,20 @@ END SUBROUTINE DefineParametersMPI
 !===================================================================================================================================
 !> Basic MPI initialization.
 !===================================================================================================================================
+#if USE_MPI
 SUBROUTINE InitMPI(mpi_comm_IN)
+#else
+SUBROUTINE InitMPI()
+#endif /*USE_MPI*/
 ! MODULES
 USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+#if USE_MPI
 INTEGER,INTENT(IN),OPTIONAL      :: mpi_comm_IN !< MPI communicator
+#endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -438,22 +444,22 @@ CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER
     'WallTimeSim'       , &
     'Barrier-and-Sync'    &
 #if USE_HDG
-   ,'HDG-SendLambda'    , &
-    'HDG-ReceiveLambda' , &
-    'HDG-Broadcast'     , &
-    'HDG-Allreduce'       &
+   ,'HDG-SendLambda'    , & ! (1)
+    'HDG-ReceiveLambda' , & ! (2)
+    'HDG-Broadcast'     , & ! (3)
+    'HDG-Allreduce'       & ! (4)
 #else
-   ,'DGSEM-Send'    , &
-    'DGSEM-Receive'   &
+   ,'DGSEM-Send'    , &     ! (1)
+    'DGSEM-Receive'   &     ! (2)
 #endif /*USE_HDG*/
 #if defined(PARTICLES)
-   ,'SendNbrOfParticles'  , &
-    'RecvNbrOfParticles'  , &
-    'SendParticles'       , &
-    'RecvParticles'       , &
-    'EmissionParticles'   , &
-    'PIC-depo-Reduce'     , &
-    'PIC-depo-Wait'         &
+   ,'SendNbrOfParticles'  , & ! (1)
+    'RecvNbrOfParticles'  , & ! (2)
+    'SendParticles'       , & ! (3)
+    'RecvParticles'       , & ! (4)
+    'EmissionParticles'   , & ! (5)
+    'PIC-depo-Reduce'     , & ! (6)
+    'PIC-depo-Wait'         & ! (7)
 #endif /*defined(PARTICLES)*/
     /)
 ! CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNamesProc(nTotalVars)=(/ CHARACTER(LEN=255) :: &
