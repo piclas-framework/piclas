@@ -168,7 +168,6 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   LOGICAL                           :: UseVibXSec           ! Flag if the vibrational relaxation probability should be treated,
                                                             ! using read-in cross-sectional data (currently only with BGG)
   REAL,ALLOCATABLE                  :: CollFreqPreFactor(:)
-  REAL                              :: MaxXiElec(2)         ! MaxTemp, MaxXiElec
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)

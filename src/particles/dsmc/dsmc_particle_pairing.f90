@@ -388,13 +388,13 @@ INTEGER, INTENT(INOUT), TARGET:: iPartIndx_Node(:)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: nPair, iPair, iPart, nPart, TotalPartNum, nPartElecRelac
+INTEGER                       :: nPair, iPair, iPart, nPart, TotalPartNum, nPartElecRelac, iLoop
 INTEGER                       :: cSpec1, cSpec2, iCase
 REAL                          :: iRan
 INTEGER, ALLOCATABLE, TARGET  :: iPartIndx_NodeTotalAmbi(:)
 INTEGER, POINTER              :: iPartIndx_NodeTotal(:)
 INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalAmbiDel(:)
-INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalElecExc(:)
+INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalElecExc(:), iPartIndx_NodeTotalElecRelax(:)
 !===================================================================================================================================
 
 ! 0). Ambipolar Diffusion
@@ -411,6 +411,10 @@ ELSE
   iPartIndx_NodeTotal => iPartIndx_Node
 END IF
 
+IF (DSMC%ElectronicModel.GT.0.AND.(DSMC%DoLTRelaxElectronicState)) THEN
+  ALLOCATE(iPartIndx_NodeTotalElecRelax(TotalPartNum))
+  iPartIndx_NodeTotalElecRelax = iPartIndx_NodeTotal
+END IF
 IF (DSMC%ElectronicModel.GT.0.AND.(DSMC%DoLTRelaxElectronicState).AND.(CollisMode.EQ.3)) THEN
   newElecRelaxParts = 0; nElecRelaxChemParts = 0
   ALLOCATE(iPartIndx_NodeNewElecRelax(2*PartNum), iPartIndx_NodeElecRelaxChem(2*PartNum))
@@ -445,7 +449,7 @@ IF (CollisMode.EQ.3) THEN
 END IF
 
 IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors &
-.OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1)).OR.(DSMC%ElectronicModel.EQ.2)) THEN
+.OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1)).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%DoLTRelaxElectronicState)) THEN
   ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
   !           relaxation probability (CalcGammaVib)
   ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
@@ -546,11 +550,11 @@ DEALLOCATE(Coll_pData)
 IF (DSMC%ElectronicModel.GT.0.AND.(DSMC%DoLTRelaxElectronicState)) THEN
   IF (CollisMode.EQ.3) THEN
     CALL LT_ElectronicEnergyExchangeChem(iPartIndx_NodeElecRelaxChem, nElecRelaxChemParts)
-    CALL LT_ElectronicExc_ConstructPartList(iPartIndx_NodeTotal, iPartIndx_NodeTotalElecExc,  TotalPartNum, nPartElecRelac)
+    CALL LT_ElectronicExc_ConstructPartList(iPartIndx_NodeTotalElecRelax, iPartIndx_NodeTotalElecExc,  TotalPartNum, nPartElecRelac)
     CALL LT_ElectronicEnergyExchange(iPartIndx_NodeTotalElecExc, nPartElecRelac, NodeVolume)
     DEALLOCATE(iPartIndx_NodeTotalElecExc, iPartIndx_NodeNewElecRelax, iPartIndx_NodeElecRelaxChem)
   ELSE
-    CALL LT_ElectronicEnergyExchange(iPartIndx_NodeTotal, TotalPartNum, NodeVolume)
+    CALL LT_ElectronicEnergyExchange(iPartIndx_NodeTotalElecRelax, TotalPartNum, NodeVolume)
   END IF
 END IF
 
