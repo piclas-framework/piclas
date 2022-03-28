@@ -400,17 +400,14 @@ END SUBROUTINE ElectronicEnergyExchange
 
 SUBROUTINE LT_ElectronicEnergyExchange(iPartIndx_Node, nPart, NodeVolume)
 !===================================================================================================================================
-!> Subroutine for the cell-local BGK collision operator:
+!> Subroutine for the cell-local Landau-Teller based electronic excitation relaxation using BGK approach:
 !> 1.) Moment calculation: Summing up the relative velocities and their squares
-!> 2.) Calculation of the relaxation frequency of the distribution function towards the target distribution function
-!> 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency
-!> 4.) Determine the number of particles undergoing a relaxation (including vibration and rotation)
-!> 5.) Determine the new rotational and vibrational state of molecules undergoing a relaxation
-!> 6.) Sample new particle velocities from the target distribution function, depending on the chosen model
-!> 7.) Determine the new bulk velocity and the new relative velocity of the particles
-!> 8.) Treatment of the vibrational energy of molecules
-!> 9.) Determine the new DSMC_RHS (for molecules, including rotational energy)
-!> 9.) Scaling of the rotational energy of molecules
+!> 2.) Calculation of the relaxation frequency of the distribution function towards the target electronic temperature
+!> 3.) determination of the electronic relaxation frequency
+!> 4.) Determine the number of particles undergoing a relaxation
+!> 5.) Determine the new electronic state of molecules undergoing a relaxation
+!> 6.) Treatment of the electronic energy of molecules
+!> 7.) Determine the new PartState
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, VarTimeStep
@@ -459,8 +456,7 @@ ELSE
   dens = totalWeight * Species(1)%MacroParticleFactor / NodeVolume
 END IF
 
-! Calculation of the rotational and vibrational degrees of freedom for molecules
-
+! Calculation of the electronic degrees of freedom for molecules
 Xi_ElecSpec=0.; Xi_Elec_oldSpec=0.; TElecSpec=0.
 DO iSpec = 1, nSpecies
   IF (nSpec(iSpec).EQ.0) CYCLE
@@ -471,8 +467,7 @@ DO iSpec = 1, nSpecies
   END IF
 END DO
 
-! 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency using the collision frequency,
-!     which is not the same as the relaxation frequency of distribution function, calculated above.
+! 3.) Determination of electronic relaxation frequency using the collision frequency
 collisionfreqSpec = 0.0
 DO iSpec = 1, nSpecies
   DO jSpec = 1, nSpecies
@@ -519,7 +514,7 @@ DO iLoop = 1, nPart
 END DO
 IF ((nElecRelax.EQ.0)) RETURN
 
-! 5.) Determine the new rotational and vibrational state of molecules undergoing a relaxation
+! 5.) Determine the new electronical state of molecules undergoing a relaxation
 NewEnElec = 0.0
 DO iLoop = 1, nElecRelax
   iPart = iPartIndx_NodeRelaxElec(iLoop)
@@ -530,10 +525,10 @@ DO iLoop = 1, nElecRelax
   NewEnElec = NewEnElec + PartStateIntEn(3,iPart) * partWeight
 END DO
 
-! 7.) Vibrational energy of the molecules: Ensure energy conservation by scaling the new vibrational states with the factor alpha
+! 6.) Vibrational energy of the molecules: Ensure energy conservation by scaling the new electronic states with the factor alpha
 CALL EnergyConsElec(nPart, nElecRelax, nElecRelaxSpec, iPartIndx_NodeRelaxElec, NewEnElec, OldEn, Xi_ElecSpec, TEqui)
-! 8.) Determine the new particle state and ensure energy conservation by scaling the new velocities with the factor alpha.
 
+! 8.) Determine the new particle state and ensure energy conservation by scaling the new velocities with the factor alpha.
 alpha = SQRT(OldEn/NewEn)
 DO iLoop = 1, nPart
   iPart = iPartIndx_Node(iLoop) 
@@ -545,7 +540,9 @@ END SUBROUTINE LT_ElectronicEnergyExchange
 
 SUBROUTINE LT_ElectronicEnergyExchangeChem(iPartIndx_Node, nPart)
 !===================================================================================================================================
-!> Subroutine for the electronic excitation of chemical reacting particles
+!> Subroutine for the electronic excitation of chemical reacting particles, same steps as LT_ElectronicEnergyExchange but only for 
+!> chemical reacting particles assuming an thermal equilibrium between translation and electronical excitation after the chemical
+!> reaction
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies
@@ -570,6 +567,7 @@ REAL                  :: MaxTemp, MinTemp, TempEn, Xi_ElecTotal, V_rel(3), Total
 !===================================================================================================================================
 IF(nPart.LT.2) RETURN
 
+! Calculate necessary moments
 totalWeightSpec = 0.0; vBulkAll=0.0; TotalMass=0.0; nSpec=0
 DO iLoop = 1, nPart
   iPart = iPartIndx_Node(iLoop)
@@ -603,8 +601,7 @@ DO iLoop = 1, nPart
   END IF
 END DO
 
-! Calculation of the rotational and vibrational degrees of freedom for molecules
-
+! Calculation of equilibrium temperature by using DOF's with a bisection
 Xi_ElecSpec=0.
 MaxTemp=5.*DSMC%InstantTransTemp(nSpecies + 1)
 MinTemp=1E-6
@@ -650,7 +647,7 @@ END DO
 
 ALLOCATE(iPartIndx_NodeRelaxElec(nPart))
 iPartIndx_NodeRelaxElec = 0
-! 5.) Determine the new rotational and vibrational state of molecules undergoing a relaxation
+! Determine the new electronic state of molecules undergoing a relaxation
 NewEnElec = 0.0
 nElecRelax = 0
 DO iLoop = 1, nPart
@@ -667,7 +664,7 @@ DO iLoop = 1, nPart
   END IF
 END DO
 
-! 7.) Vibrational energy of the molecules: Ensure energy conservation by scaling the new vibrational states with the factor alpha
+! 7.) Electronical energy of the molecules: Ensure energy conservation by scaling the new electroncal states with the factor alpha
 CALL EnergyConsElec(nPart, nElecRelax, nElecRelaxSpec, iPartIndx_NodeRelaxElec, NewEnElec, OldEn, Xi_ElecSpec, TEqui)
 ! 8.) Determine the new particle state and ensure energy conservation by scaling the new velocities with the factor alpha.
 
@@ -682,7 +679,8 @@ END SUBROUTINE LT_ElectronicEnergyExchangeChem
 
 SUBROUTINE LT_ElectronicExc_ConstructPartList(iPartIndx_NodeTotal, iPartIndx_NodeTotalElecExc,  nPart, nPartRelax)
 !===================================================================================================================================
-!> Construct List of Particles that must be checked for electronic excitation
+!> Construct List of Particles that must be checked for electronic excitation. 
+!> Sort out the particles that have already been relaxed by a chemical reaction.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -839,7 +837,7 @@ END SUBROUTINE CalcMoments_ElectronicExchange
 SUBROUTINE CalcTEquiMultiElec(nPart, nSpec, CellTemp, TElecSpec, Xi_ElecSpec, Xi_Elec_oldSpec, ElecExpSpec,   &
       TEqui, elecrelaxfreqSpec, dtCell, meanEelecSpec)
 !===================================================================================================================================
-! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
+! Calculation of the equilibrium temperature for electronic excitation
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars,           ONLY: BoltzmannConst
@@ -928,7 +926,7 @@ END SUBROUTINE CalcTEquiMultiElec
 
 SUBROUTINE EnergyConsElec(nPart, nElecRelax, nElecRelaxSpec, iPartIndx_NodeRelaxElec, NewEnElec, OldEn, Xi_ElecSpec, TEqui)
 !===================================================================================================================================
-!> Routine to ensure energy conservation when including vibrational degrees of freedom (continuous and quantized)
+!> Routine to ensure energy conservation electroncal degrees of freedom
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies
