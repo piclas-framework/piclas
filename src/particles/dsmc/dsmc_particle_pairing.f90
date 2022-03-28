@@ -388,7 +388,7 @@ INTEGER, INTENT(INOUT), TARGET:: iPartIndx_Node(:)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: nPair, iPair, iPart, nPart, TotalPartNum, nPartElecRelac, iLoop
+INTEGER                       :: nPair, iPair, iPart, nPart, TotalPartNum, nPartElecRelac
 INTEGER                       :: cSpec1, cSpec2, iCase
 REAL                          :: iRan
 INTEGER, ALLOCATABLE, TARGET  :: iPartIndx_NodeTotalAmbi(:)

@@ -414,7 +414,7 @@ SUBROUTINE LT_ElectronicEnergyExchange(iPartIndx_Node, nPart, NodeVolume)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, VarTimeStep
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, RadialWeighting, CollInf, ElecRelaxPart
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting, CollInf, ElecRelaxPart
 USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_part_tools              ,ONLY: GetParticleWeight, CalcEElec_particle, CalcXiElec
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
@@ -564,9 +564,9 @@ INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
 ! LOCAL VARIABLES
 REAL                  :: alpha, NewEn, OldEn, TEqui, NewEnElec
 INTEGER, ALLOCATABLE  :: iPartIndx_NodeRelaxElec(:)
-INTEGER               :: iSpec, nSpec(nSpecies), jSpec, nElecRelax, iLoop, iPart, nElecRelaxSpec(nSpecies)
-REAL                  :: vBulkAll(3), totalWeightSpec(nSpecies), totalWeight, partWeight, Xi_ElecSpec(nSpecies), EElecMean(nSpecies)
-REAL                  :: MaxTemp, MinTemp, TempEn, Xi_ElecTotal, V_rel(3), TotalMass, vmag2,  TElecSpec(nSpecies)
+INTEGER               :: iSpec, nSpec(nSpecies), nElecRelax, iLoop, iPart, nElecRelaxSpec(nSpecies)
+REAL                  :: vBulkAll(3), totalWeightSpec(nSpecies), totalWeight, partWeight, Xi_ElecSpec(nSpecies)
+REAL                  :: MaxTemp, MinTemp, TempEn, Xi_ElecTotal, V_rel(3), TotalMass, vmag2
 !===================================================================================================================================
 IF(nPart.LT.2) RETURN
 
@@ -748,8 +748,6 @@ USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, 
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-
-USE MOD_TimeDisc_Vars, ONLY:iter
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -846,7 +844,6 @@ SUBROUTINE CalcTEquiMultiElec(nPart, nSpec, CellTemp, TElecSpec, Xi_ElecSpec, Xi
 ! MODULES
 USE MOD_Globals_Vars,           ONLY: BoltzmannConst
 USE MOD_DSMC_Vars,              ONLY: SpecDSMC
-USE MOD_BGK_Vars,               ONLY: BGKDoVibRelaxation
 USE MOD_Particle_Vars,          ONLY: nSpecies
 USE MOD_part_tools,             ONLY: CalcXiElec
 USE MOD_Particle_Analyze_Tools, ONLY: CalcEelec
@@ -935,8 +932,7 @@ SUBROUTINE EnergyConsElec(nPart, nElecRelax, nElecRelaxSpec, iPartIndx_NodeRelax
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, DSMC, SpecDSMC
-USE MOD_BGK_Vars              ,ONLY: BGKDoVibRelaxation, BGKUseQuantVibEn
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
@@ -950,11 +946,10 @@ REAL, INTENT(INOUT)           :: OldEn
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, iDOF, iSpec, iQuant, iQuaMax, iPolyatMole
-REAL                          :: alpha, partWeight, betaV, iRan, MaxColQua, Xi_ElecTotal, Prob, NewEnElectmp
+INTEGER                       :: iPart, iLoop, iSpec, iQuant, iQuaMax
+REAL                          :: alpha, partWeight, betaV, iRan, Xi_ElecTotal, Prob
 !===================================================================================================================================
 IF ((NewEnElec.GT.0.0)) THEN
-  NewEnElectmp = NewEnElec
   Xi_ElecTotal = 0.0
   DO iSpec = 1, nSpecies
     Xi_ElecTotal = Xi_ElecTotal + Xi_ElecSpec(iSpec)*nElecRelaxSpec(iSpec)
@@ -1135,8 +1130,8 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
   INTEGER(HID_T)                                        :: filespace                          ! filespace identifier
   REAL,ALLOCATABLE                                      :: ElectronicState(:,:)
   INTEGER, ALLOCATABLE                                  :: SortElectronicState(:)
-  INTEGER                                               :: iQua, nQuants, iQuaTemp, nTelec, iTelec
-  REAL                                                  :: tempEnergyDiff, tempEnergy, SumOne, SumTwo, XiElecTmp, Telec, TempRatio
+  INTEGER                                               :: iQua, nQuants, iQuaTemp
+  REAL                                                  :: tempEnergyDiff, tempEnergy
   LOGICAL                                               :: DataSetFound
 !===================================================================================================================================
   SWRITE(UNIT_StdOut,'(A)') 'Read electronic level entries '//TRIM(dsetname)//' from '//TRIM(DSMC%ElectronicModelDatabase)
