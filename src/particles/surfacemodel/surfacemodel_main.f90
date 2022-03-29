@@ -109,8 +109,8 @@ ProductSpec(2) = 0
 ProductSpecNbr = 0
 
 ! Store info of impacting particle for possible surface charging
+PartPosImpact(1:3) = LastPartPos(1:3,PartID)+TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charging active + dielectric surface contact
-  PartPosImpact(1:3) = LastPartPos(1:3,PartID)+TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
   IF(usevMPF)THEN
     MPF = PartMPF(PartID)
   ELSE
@@ -181,7 +181,7 @@ CASE (SEE_MODELS_ID)
   END IF
   ! Emit the secondary electrons
   IF (ProductSpec(2).GT.0) THEN
-    CALL SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobalElemID)
+    CALL SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobalElemID,PartPosImpact(1:3))
     ! Deposit opposite charge of SEE on node
     IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN
       ! Get MPF
