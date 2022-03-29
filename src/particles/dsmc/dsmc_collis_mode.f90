@@ -159,7 +159,7 @@ END SUBROUTINE DSMC_Elastic_Col
 !! which is interpolated from a lookup table.
 !!===================================================================================================================================
 !! MODULES
-!  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, TLU_Data, ChemReac
+!  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, TLU_Data, ChemReac
 !  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState
 !  USE MOD_DSMC_ChemReact,         ONLY : simpleCEX, simpleMEX
 !
@@ -246,13 +246,13 @@ END SUBROUTINE DSMC_Elastic_Col
 !
 !    ! Transformation to laboratory frame
 !    ! deltaV particle 1
-!    DSMC_RHS(1,iPart1) = VeloMx + FracMassCent2*CRelaxN - PartState(4,iPart1)
-!    DSMC_RHS(2,iPart1) = VeloMy + FracMassCent2*CRelayN - PartState(5,iPart1)
-!    DSMC_RHS(3,iPart1) = VeloMz + FracMassCent2*CRelazN - PartState(6,iPart1)
+!    PartState(4,iPart1) = VeloMx + FracMassCent2*CRelaxN  
+!    PartState(5,iPart1) = VeloMy + FracMassCent2*CRelayN  
+!    PartState(6,iPart1) = VeloMz + FracMassCent2*CRelazN  
 !    ! deltaV particle 2
-!    DSMC_RHS(1,iPart2) = VeloMx - FracMassCent1*CRelaxN - PartState(4,iPart2)
-!    DSMC_RHS(2,iPart2) = VeloMy - FracMassCent1*CRelayN - PartState(5,iPart2)
-!    DSMC_RHS(3,iPart2) = VeloMz - FracMassCent1*CRelazN - PartState(6,iPart2)
+!    PartState(4,iPart2) = VeloMx - FracMassCent1*CRelaxN 
+!    PartState(5,iPart2) = VeloMy - FracMassCent1*CRelayN  
+!    PartState(6,iPart2) = VeloMz - FracMassCent1*CRelazN  
 !
 !    ! Decision concerning CEX
 !    P_CEX = 0.5

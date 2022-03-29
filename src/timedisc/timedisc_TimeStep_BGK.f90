@@ -189,17 +189,11 @@ END IF
 !#endif /*EXTRAE*/
 
 
-<<<<<<< HEAD
-#ifdef EXTRAE
-CALL extrae_eventandcounters(int(9000001), int8(0))
-#endif /*EXTRAE*/
-=======
-PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 
 !#ifdef EXTRAE
 !CALL extrae_eventandcounters(int(9000001), int8(0))
 !#endif /*EXTRAE*/
->>>>>>> 9075f3ddc7357aab4fbbfe8f26f16b98f8677622
+
 END SUBROUTINE TimeStep_BGK
 
 
