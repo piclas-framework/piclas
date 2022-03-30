@@ -416,6 +416,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                                         BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                         BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
 
+#if (PP_TimeDiscMethod==400)
   IF (HaloProc.EQ.myRank) THEN
     DO iSide = 1, nExchangeSides
       ! compare distance of centers with sum of element outer radii+halo_eps
@@ -575,6 +576,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     END DO ! iSide = 1, nExchangeSides
     CYCLE ElemLoop
   END IF ! HaloProc.EQ.myRank
+#endif /*(PP_TimeDiscMethod==400)*/
 
   ! Skip if the proc is already flagged, only if the exact elements are not required (.NOT.shape_function)
   IF(.NOT.StringBeginsWith(DepositionType,'shape_function'))THEN
@@ -844,8 +846,6 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     END IF
   END DO ! iSide = 1, nExchangeSides
 END DO ElemLoop
-
-CALL AddToElemData(ElementOut,'IsExchangeElem',LogArray=IsExchangeElem)
 
 ! Notify every proc if it was identified by the local proc
 IF(CheckExchangeProcs)THEN

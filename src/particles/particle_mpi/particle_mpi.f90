@@ -878,7 +878,9 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: doParticleMerge, vMPF_SpecNumElem, LastPartPos
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+#if (PP_TimeDiscMethod==400)
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
+#endif /*(PP_TimeDiscMethod==400)*/
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if defined(LSERK)
 USE MOD_Particle_Vars          ,ONLY: Pt_temp
@@ -1255,10 +1257,12 @@ DO iProc=0,nExchangeProcessors-1
       IF (ElemID.LT.1) THEN
         CALL abort(__STAMP__,'Particle received in not in proc! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
       END IF
+#if (PP_TimeDiscMethod==400)
       IF(.NOT.IsExchangeElem(ElemID)) THEN
         IPWRITE(*,*) 'Part Pos + Velo:',PartID,ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc), PartState(1:6,PartID)
         CALL abort(__STAMP__,'Particle received in non exchange elem! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
       END IF
+#endif /*(PP_TimeDiscMethod==400)*/
       IF (useDSMC) THEN 
         DSMC_RHS(1:3,PartID) = 0.0
         CALL GetPositionInRefElem(PartState(1:3,PartID),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID))
