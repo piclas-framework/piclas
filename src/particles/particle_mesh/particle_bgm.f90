@@ -644,7 +644,7 @@ IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
 IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides(EnlargeBGM)
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
-! Mortar sides
+! Mortar sides: Only multi-node
 IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
   DO iElem = firstElem, lastElem
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.1) CYCLE

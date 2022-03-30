@@ -105,8 +105,13 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI ... '
 IF(ParticleMPIInitIsDone) CALL ABORT(__STAMP__,' Particle MPI already initialized!')
 
-! Get flag for ignoring the abort if the number of global exchange procs is non-symmetric
+! Get flag for ignoring the check and/or abort if the number of global exchange procs is non-symmetric
 CheckExchangeProcs = GETLOGICAL('CheckExchangeProcs')
+IF(.NOT.CheckExchangeProcs)THEN
+  AbortExchangeProcs = GETLOGICAL('AbortExchangeProcs')
+ELSE
+  AbortExchangeProcs=.TRUE.
+END IF ! .NOT.CheckExchangeProcs
 
 #if USE_MPI
 CALL MPI_COMM_DUP (MPI_COMM_WORLD,PartMPI%COMM,iError)
