@@ -176,7 +176,7 @@ __STAMP__&
 
         !-- Set Positions
         IF(Symmetry%Axisymmetric) THEN
-          CALL CalcPartPosRadWeight(minPos, RVec, PartInsSubSide, PartInsSideSubSub, particle_positions)
+          CALL CalcPartPosRadWeight(iSpec, iSF, iSide, minPos, RVec, PartInsSubSide, PartInsSideSubSub, particle_positions)
         ELSE
           DO WHILE (iPart+allowedRejections .LE. PartInsSubSide)
             IF (TriaSurfaceFlux) THEN
@@ -705,14 +705,16 @@ END FUNCTION CalcPartPosTriaSurface
 !===================================================================================================================================
 !> Calculate random normalized vector in 3D (unit space)
 !===================================================================================================================================
-SUBROUTINE CalcPartPosRadWeight(minPos, RVec, PartInsSubSide, PartInsSideSubSub, particle_positions)
+SUBROUTINE CalcPartPosRadWeight(iSpec, iSF, iSide, minPos, RVec, PartInsSubSide, PartInsSideSubSub, particle_positions)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
+USE MOD_Particle_Vars           ,ONLY: Species
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER, INTENT(IN)         :: iSpec, iSF, iSide
 INTEGER, INTENT(IN)         :: PartInsSubSide, PartInsSideSubSub(:)
 REAL, INTENT(IN)            :: minPos(2), RVec(2)
 REAL, INTENT(OUT)           :: particle_positions(:)
@@ -734,6 +736,9 @@ IF (RadialWeighting%DoRadialWeighting.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)
       particle_positions(iPart*3-2) = Particle_pos(1)
       particle_positions(iPart*3-1) = Particle_pos(2)
       particle_positions(iPart*3  ) = 0.
+      IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
+        IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, (/Particle_pos(1),Particle_pos(2),0.0/))) CYCLE
+      END IF ! CircularInflow
       iPart = iPart + 1
     END DO
   ELSE
@@ -749,6 +754,9 @@ IF (RadialWeighting%DoRadialWeighting.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)
         particle_positions(iPart*3-2) = Particle_pos(1)
         particle_positions(iPart*3-1) = Particle_pos(2)
         particle_positions(iPart*3  ) = 0.
+        IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
+          IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, (/Particle_pos(1),Particle_pos(2),0.0/))) CYCLE
+        END IF ! CircularInflow
         iPart = iPart + 1
         iPartSub = iPartSub + 1
       END DO
@@ -768,6 +776,9 @@ ELSE
     particle_positions(iPart*3-2) = Particle_pos(1)
     particle_positions(iPart*3-1) = Particle_pos(2)
     particle_positions(iPart*3  ) = 0.
+    IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
+      IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, (/Particle_pos(1),Particle_pos(2),0.0/))) CYCLE
+    END IF ! CircularInflow
     iPart = iPart + 1
   END DO
 END IF
