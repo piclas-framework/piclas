@@ -344,12 +344,12 @@ DO iElem=1,PP_nElems
       jPETScGlobal=PETScGlobal(jSideID)
       IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
       CALL MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal, &
-                                Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr);CHKERRQ(ierr)
+                                Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr);PetscCall(ierr)
     END DO
   END DO
 END DO
-CALL MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
-CALL MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);CHKERRQ(ierr)
+CALL MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);PetscCall(ierr)
+CALL MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);PetscCall(ierr)
 #endif
 
 
@@ -428,25 +428,25 @@ PetscInt          :: lens(nPETScUniqueSides)
 !===================================================================================================================================
 
 #if USE_PETSC
-CALL KSPGetPC(ksp,pc,ierr);CHKERRQ(ierr)
+CALL KSPGetPC(ksp,pc,ierr);PetscCall(ierr)
 SELECT CASE(PrecondType)
 CASE(0)
-  CALL PCSetType(pc,PCNONE,ierr);CHKERRQ(ierr)
+  CALL PCSetType(pc,PCNONE,ierr);PetscCall(ierr)
 CASE(1)
-  CALL PCSetType(pc,PCJACOBI,ierr);CHKERRQ(ierr)
+  CALL PCSetType(pc,PCJACOBI,ierr);PetscCall(ierr)
 CASE(2)
-  CALL PCHYPRESetType(pc,PCILU,ierr);CHKERRQ(ierr)
+  CALL PCHYPRESetType(pc,PCILU,ierr);PetscCall(ierr)
 CASE(3)
-  CALL PCHYPRESetType(pc,PCSPAI,ierr);CHKERRQ(ierr)
+  CALL PCHYPRESetType(pc,PCSPAI,ierr);PetscCall(ierr)
 CASE(4)
   lens=nGP_Face
-  CALL PCSetType(pc,PCBJACOBI,ierr);CHKERRQ(ierr)
-  CALL PCBJacobiSetLocalBlocks(pc,nPETScUniqueSides,lens,ierr);CHKERRQ(ierr)
+  CALL PCSetType(pc,PCBJACOBI,ierr);PetscCall(ierr)
+  CALL PCBJacobiSetLocalBlocks(pc,nPETScUniqueSides,lens,ierr);PetscCall(ierr)
   CALL KSPSetUp(ksp,ierr)
 case(10)
-  CALL PCSetType(pc,PCCHOLESKY,ierr);CHKERRQ(ierr)
+  CALL PCSetType(pc,PCCHOLESKY,ierr);PetscCall(ierr)
 case(11)
-  CALL PCSetType(pc,PCLU,ierr);CHKERRQ(ierr)
+  CALL PCSetType(pc,PCLU,ierr);PetscCall(ierr)
 END SELECT
 #else
 SELECT CASE(PrecondType)

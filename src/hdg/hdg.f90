@@ -170,7 +170,7 @@ HDGNonLinSolver = -1 ! init
 
 #if USE_PETSC
 ! initialize PETSc stuff!
-CALL PetscInitialize(PETSC_NULL_CHARACTER,ierr);!CHKERRQ(ierr)
+CALL PetscInitialize(PETSC_NULL_CHARACTER,ierr);!PetscCall(ierr)
 #endif
 
 #if defined(PARTICLES)
@@ -374,13 +374,13 @@ IF(ZeroPotentialSideID.GT.0) THEN
   Smat_zeroPotential = 0.
 END IF
 
-CALL MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr);CHKERRQ(ierr)
-CALL MatSetSizes(Smat_petsc,nPETScUniqueSides*nGP_Face,nPETScUniqueSides*nGP_Face,PETSC_DECIDE,PETSC_DECIDE,ierr);CHKERRQ(ierr)
-CALL MatSetType(Smat_petsc,MATSBAIJ,ierr);CHKERRQ(ierr) ! Symmetric sparse (mpi) matrix
-CALL MatSetBlockSize(Smat_petsc,nGP_face,ierr);CHKERRQ(ierr)
-CALL MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,11,PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
-CALL MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,11,PETSC_NULL_INTEGER,10,PETSC_NULL_INTEGER,ierr);CHKERRQ(ierr)
-CALL MatZeroEntries(Smat_petsc,ierr);CHKERRQ(ierr)
+CALL MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr);PetscCall(ierr)
+CALL MatSetSizes(Smat_petsc,nPETScUniqueSides*nGP_Face,nPETScUniqueSides*nGP_Face,PETSC_DECIDE,PETSC_DECIDE,ierr);PetscCall(ierr)
+CALL MatSetType(Smat_petsc,MATSBAIJ,ierr);PetscCall(ierr) ! Symmetric sparse (mpi) matrix
+CALL MatSetBlockSize(Smat_petsc,nGP_face,ierr);PetscCall(ierr)
+CALL MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,11,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
+CALL MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,11,PETSC_NULL_INTEGER,10,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
+CALL MatZeroEntries(Smat_petsc,ierr);PetscCall(ierr)
 #endif
 
 !stabilization parameter
@@ -394,18 +394,18 @@ IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as on
 END IF
 
 #if USE_PETSC
-CALL KSPCreate(PETSC_COMM_WORLD,ksp,ierr);CHKERRQ(ierr)
-CALL KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr);CHKERRQ(ierr)
+CALL KSPCreate(PETSC_COMM_WORLD,ksp,ierr);PetscCall(ierr)
+CALL KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr);PetscCall(ierr)
 
 IF(PrecondType.GE.10) THEN
-  CALL KSPSetType(ksp,KSPPREONLY,ierr);CHKERRQ(ierr) ! Exact solver
+  CALL KSPSetType(ksp,KSPPREONLY,ierr);PetscCall(ierr) ! Exact solver
 ELSE
-  CALL KSPSetType(ksp,KSPCG,ierr);CHKERRQ(ierr) ! CG solver for sparse symmetric positive definite matrix
+  CALL KSPSetType(ksp,KSPCG,ierr);PetscCall(ierr) ! CG solver for sparse symmetric positive definite matrix
 
-  CALL KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr);CHKERRQ(ierr)
+  CALL KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr);PetscCall(ierr)
   
-  CALL KSPSetNormType(ksp, KSP_NORM_UNPRECONDITIONED, ierr);CHKERRQ(ierr)
-  CALL KSPSetTolerances(ksp,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr);CHKERRQ(ierr)
+  CALL KSPSetNormType(ksp, KSP_NORM_UNPRECONDITIONED, ierr);PetscCall(ierr)
+  CALL KSPSetTolerances(ksp,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr);PetscCall(ierr)
 END IF
 #endif
 
@@ -418,11 +418,11 @@ RHS_vol=0.
 
 #if USE_PETSC
 ! allocate RHS & lambda vectors
-CALL VecCreate(PETSC_COMM_WORLD,lambda_petsc,ierr);CHKERRQ(ierr)
-CALL VecSetType(lambda_petsc,VECSTANDARD,ierr);CHKERRQ(ierr)
-CALL VecSetSizes(lambda_petsc,nPETScUniqueSides*nGP_Face,PETSC_DECIDE,ierr);CHKERRQ(ierr)
-CALL VecSetBlockSize(lambda_petsc,nGP_face,ierr);CHKERRQ(ierr)
-CALL VecSetUp(lambda_petsc,ierr);CHKERRQ(ierr)
+CALL VecCreate(PETSC_COMM_WORLD,lambda_petsc,ierr);PetscCall(ierr)
+CALL VecSetType(lambda_petsc,VECSTANDARD,ierr);PetscCall(ierr)
+CALL VecSetSizes(lambda_petsc,nPETScUniqueSides*nGP_Face,PETSC_DECIDE,ierr);PetscCall(ierr)
+CALL VecSetBlockSize(lambda_petsc,nGP_face,ierr);PetscCall(ierr)
+CALL VecSetUp(lambda_petsc,ierr);PetscCall(ierr)
 CALL VecDuplicate(lambda_petsc,RHS_petsc,ierr)
 #endif
 
@@ -891,20 +891,20 @@ DO iVar=1, PP_nVar
 
 #if USE_PETSC
   ! Fill right hand side
-  !CALL VecZeroEntries(RHS_petsc,ierr);CHKERRQ(ierr)
+  !CALL VecZeroEntries(RHS_petsc,ierr);PetscCall(ierr)
   DO PETScLocalID=1,nPETScUniqueSides
     SideID=PETScLocalToSideID(PETScLocalID)
     !VecSetValuesBlockedLocal somehow not working...
-    CALL VecSetValuesBlocked(RHS_petsc,1,PETScGlobal(SideID),RHS_face(1,:,SideID),INSERT_VALUES,ierr);CHKERRQ(ierr)
+    CALL VecSetValuesBlocked(RHS_petsc,1,PETScGlobal(SideID),RHS_face(1,:,SideID),INSERT_VALUES,ierr);PetscCall(ierr)
   END DO
-  CALL VecAssemblyBegin(RHS_petsc,ierr);CHKERRQ(ierr)
-  CALL VecAssemblyEnd(RHS_petsc,ierr);CHKERRQ(ierr)
+  CALL VecAssemblyBegin(RHS_petsc,ierr);PetscCall(ierr)
+  CALL VecAssemblyEnd(RHS_petsc,ierr);PetscCall(ierr)
   
   ! Calculate lambda
-  CALL KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr);CHKERRQ(ierr)
-  CALL KSPGetIterationNumber(ksp,iterations,ierr);CHKERRQ(ierr)
-  CALL KSPGetConvergedReason(ksp,reason,ierr);CHKERRQ(ierr)
-  CALL KSPGetResidualNorm(ksp,petscnorm,ierr);CHKERRQ(ierr)
+  CALL KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr);PetscCall(ierr)
+  CALL KSPGetIterationNumber(ksp,iterations,ierr);PetscCall(ierr)
+  CALL KSPGetConvergedReason(ksp,reason,ierr);PetscCall(ierr)
+  CALL KSPGetResidualNorm(ksp,petscnorm,ierr);PetscCall(ierr)
   IF(reason.LT.0)THEN
     SWRITE(*,*) 'Attention: GMRES not converged!' 
   END IF
@@ -915,14 +915,14 @@ DO iVar=1, PP_nVar
   END IF
 
   ! Fill element local lambda for post processing
-  CALL VecGetArrayReadF90(lambda_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
+  CALL VecGetArrayReadF90(lambda_petsc,lambda_pointer,ierr);PetscCall(ierr)
   DO PETScLocalID=1,nPETScUniqueSides
     SideID=PETScLocalToSideID(PETScLocalID)
     PETScID_start=1+(PETScLocalID-1)*nGP_face
     PETScID_stop=PETScLocalID*nGP_face
     lambda(1,:,SideID) = lambda_pointer(PETScID_start:PETScID_stop)
   END DO
-  CALL VecRestoreArrayReadF90(lambda_petsc,lambda_pointer,ierr);CHKERRQ(ierr)
+  CALL VecRestoreArrayReadF90(lambda_petsc,lambda_pointer,ierr);PetscCall(ierr)
 #if USE_MPI
   CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
   CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
@@ -2073,10 +2073,10 @@ PetscErrorCode       :: ierr
 !===================================================================================================================================
 HDGInitIsDone = .FALSE.
 #if USE_PETSC
-CALL KSPDestroy(ksp,ierr); CHKERRQ(ierr)
-CALL MatDestroy(Smat_petsc,ierr); CHKERRQ(ierr)
-CALL VecDestroy(lambda_petsc,ierr); CHKERRQ(ierr)
-CALL VecDestroy(RHS_petsc,ierr); CHKERRQ(ierr)
+CALL KSPDestroy(ksp,ierr); PetscCall(ierr)
+CALL MatDestroy(Smat_petsc,ierr); PetscCall(ierr)
+CALL VecDestroy(lambda_petsc,ierr); PetscCall(ierr)
+CALL VecDestroy(RHS_petsc,ierr); PetscCall(ierr)
 CALL PetscFinalize(ierr)
 SDEALLOCATE(PETScGlobal)
 SDEALLOCATE(PETScLocalToSideID)
