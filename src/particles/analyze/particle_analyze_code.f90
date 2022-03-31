@@ -98,6 +98,7 @@ ASSOCIATE( iPart => 1 )
         IF(v_perp.GE.c) CALL abort(__STAMP__,'Velocity is geater than c',RealInfoOpt=v_perp)
         !-- Set const. magnetic field [T]
         B_0 = gamma1*v_perp
+
         !write(*,*) gamma1,v_perp,v_perp/c,B_0,B_0/c,1.0/SQRT(1.0-v_perp**2*c2_inv)
         ASSOCIATE( omega_c => ABS(q)*B_0/(gamma1*m) )
           !WRITE (*,*) "omega_c =", omega_c
@@ -240,6 +241,12 @@ USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,L_2_Error_Part_time
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM
 ! OLD METHOD: considering TEnd:
 ! USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+USE MOD_TimeDisc_Vars         ,ONLY: dt
+USE MOD_Particle_Vars         ,ONLY: Pt
+USE MOD_part_RHS              ,ONLY: CalcPartRHSSingleParticle
+!USE MOD_PICInterpolation      ,ONLY: InterpolateFieldToParticle ! already known from previous call (causes circular definition)
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -252,6 +259,14 @@ REAL,INTENT(INOUT)            :: PartStateAnalytic(1:6)   !< analytic position a
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart,iPartState
+REAL                          :: PartStateLoc(1:6),PartStateLocAnalytic(1:6)
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+INTEGER,PARAMETER             :: Method=1 !< 1: shift numerical solution from v(n-1/2) to v(n), gives O(2) for x and v for Boris-LF
+                                          !<    for const. magnetic field
+                                          !< 2: shift analytical solution from v(n) to v(n-1/2), gives no order of convergence for
+                                          !<    the velocity components Boris-LF and const. magnetic field due to conservation of
+                                          !<    energy
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 !===================================================================================================================================
 ! Get analytic particle position
 CALL CalcAnalyticalParticleState(t,PartStateAnalytic)
@@ -263,19 +278,39 @@ IF(iter.LT.1)THEN ! first iteration
 ELSE
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
+
+      ! Store particle state in temp. variable
+      PartStateLoc = PartState(1:6,iPart)
+      PartStateLocAnalytic(1:6) = PartStateAnalytic(1:6)
+
+      !-- Only for time-staggered methods (Leapfrog and Boris-Leapfrog):
+      ! Set analytic velocity at v(n-0.5) from analytic particle solution
+#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+      IF(Method.EQ.1)THEN
+        !CALL InterpolateFieldToParticle()   ! forces on particles, already known from previous call (causes circular definition)
+        CALL CalcPartRHSSingleParticle(iPart)
+
+        !-- v(n+0.5) => v(n+1) by a(n+1):
+        PartStateLoc(4:6) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt*0.5
+      ELSE
+        CALL CalcAnalyticalParticleState(t-dt*0.5,PartStateAnalytic)
+        PartStateLocAnalytic(4:6) = PartStateAnalytic(4:6)
+      END IF ! Method.EQ.1
+#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
+
       DO iPartState = 1, 6
         ! OLD METHOD: original
         ! L_2_Error_Part(iPartState) = SQRT( ( (L_2_Error_Part(iPartState))**2*REAL(iter-1) + &
-        !                               (PartStateAnalytic(iPartState)-PartState(iPartState,iPart))**2 )/ REAL(iter))
+        !                               (PartStateAnalytic(iPartState)-PartStateLoc(iPartState))**2 )/ REAL(iter))
 
         ! OLD METHOD: considering TEnd
         ! L_2_Error_Part(iPartState) = SQRT( Tend * ( (L_2_Error_Part(iPartState))**2*REAL(iter-1) + &
-        !                               (PartStateAnalytic(iPartState)-PartState(iPartState,iPart))**2 ) &
+        !                               (PartStateAnalytic(iPartState)-PartStateLoc(iPartState))**2 ) &
         !                      / REAL(iter))
 
         ! NEW METHOD: considering variable time step
         L_2_Error_Part(iPartState) = SQRT(  (L_2_Error_Part(iPartState))**2 + &
-                                   (t-L_2_Error_Part_time)*(PartStateAnalytic(iPartState)-PartState(iPartState,iPart))**2 )
+                                   (t-L_2_Error_Part_time)*(PartStateLocAnalytic(iPartState)-PartStateLoc(iPartState))**2 )
       END DO ! iPartState = 1, 6
       L_2_Error_Part_time = t
     ELSE
