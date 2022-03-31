@@ -423,6 +423,7 @@ INTEGER           :: lapack_info
 #if USE_PETSC
 PetscErrorCode    :: ierr
 PC                :: pc
+PetscInt          :: lens(nPETScUniqueSides)
 #endif
 !===================================================================================================================================
 
@@ -436,10 +437,17 @@ CASE(1)
 CASE(2)
   CALL PCHYPRESetType(pc,PCILU,ierr);CHKERRQ(ierr)
 CASE(3)
+  CALL PCHYPRESetType(pc,PCSPAI,ierr);CHKERRQ(ierr)
+CASE(4)
+  lens=nGP_Face
+  CALL PCSetType(pc,PCBJACOBI,ierr);CHKERRQ(ierr)
+  CALL PCBJacobiSetLocalBlocks(pc,nPETScUniqueSides,lens,ierr);CHKERRQ(ierr)
+  CALL KSPSetUp(ksp,ierr)
+case(10)
   CALL PCSetType(pc,PCCHOLESKY,ierr);CHKERRQ(ierr)
+case(11)
+  CALL PCSetType(pc,PCLU,ierr);CHKERRQ(ierr)
 END SELECT
-!CALL KSPSetFromOptions(ksp,ierr)
-!CALL KSPSetUp(ksp,ierr)
 #else
 SELECT CASE(PrecondType)
 CASE(0)

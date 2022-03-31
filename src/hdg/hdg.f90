@@ -397,17 +397,16 @@ END IF
 CALL KSPCreate(PETSC_COMM_WORLD,ksp,ierr);CHKERRQ(ierr)
 CALL KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr);CHKERRQ(ierr)
 
-! -----
-CALL KSPSetType(ksp,KSPCG,ierr);CHKERRQ(ierr) ! CG solver for sparse symmetric positive definite matrix
+IF(PrecondType.GE.10) THEN
+  CALL KSPSetType(ksp,KSPPREONLY,ierr);CHKERRQ(ierr) ! Exact solver
+ELSE
+  CALL KSPSetType(ksp,KSPCG,ierr);CHKERRQ(ierr) ! CG solver for sparse symmetric positive definite matrix
 
-
-! Use if the initial guess shall not be zero, should converge faster?
-CALL KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr);CHKERRQ(ierr)
-
-CALL KSPSetTolerances(ksp,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr);CHKERRQ(ierr)
-! -----
-!CALL KSPSetType(ksp,KSPPREONLY,ierr);CHKERRQ(ierr) ! Exact solver ... use in combination with cholesky preconditioner
-! ----
+  CALL KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr);CHKERRQ(ierr)
+  
+  CALL KSPSetNormType(ksp, KSP_NORM_UNPRECONDITIONED, ierr);CHKERRQ(ierr)
+  CALL KSPSetTolerances(ksp,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr);CHKERRQ(ierr)
+END IF
 #endif
 
 CALL BuildPrecond()
@@ -1667,7 +1666,7 @@ IF (iVar.EQ.4) THEN
   END DO ! SideID=1,nSides
 
   ! Set potential to zero
-  IF(ZeroPotentialSideID.GT.0) R(:,ZeroPotentialSideID)= ZeroPotentialValue
+  IF(ZeroPotentialSideID.GT.0) R(:,ZeroPotentialSideID)= 0.
 
 #if (PP_nVar!=1)
 END IF
@@ -1832,7 +1831,7 @@ DO BCsideID=1,nDirichletBCSides
 END DO ! SideID=1,nSides
 
   ! Set potential to zero
-  IF(ZeroPotentialSideID.GT.0) mv(:,ZeroPotentialSideID) = ZeroPotentialValue
+  IF(ZeroPotentialSideID.GT.0) mv(:,ZeroPotentialSideID) = 0.
 
 #if (PP_nVar!=1)
 END IF
