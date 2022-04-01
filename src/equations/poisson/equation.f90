@@ -73,8 +73,13 @@ CALL prms%CreateRealOption(     'chitensRadius'    , 'TODO-DEFINE-PARAMETER', '-
 
 CALL prms%CreateIntOption(      'AlphaShape'       , 'TODO-DEFINE-PARAMETER', '2')
 CALL prms%CreateRealOption(     'r_cutoff'         , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Modified for curved and shape-function influence'//&
-     ' (c*dt*SafetyFactor+r_cutoff)' , '1.0')
+                                                     'Modified for curved and shape-function influence (c*dt*SafetyFactor+r_cutoff)' , '1.0')
+
+! Special BC with linear potential ramp (constant in time)
+CALL prms%CreateRealArrayOption('LinPhiBasePoint'  , 'Origin of coordinate system for linear potential ramp for BoundaryType = (/2,1/)' )
+CALL prms%CreateRealArrayOption('LinPhiNormal'     , 'Normal vector of coordinate system for linear potential ramp for BoundaryType = (/2,1/)' )
+CALL prms%CreateRealOption(     'LinPhiHeight'     , 'Interval for ramping from 0 to LinPhi potential ramp for BoundaryType = (/2,1/)' )
+CALL prms%CreateRealOption(     'LinPhi'           , 'Target potential value for ramping from 0 for BoundaryType = (/2,1/)' )
 
 END SUBROUTINE DefineParametersEquation
 
@@ -134,6 +139,15 @@ DO i=1,nBCs
         ,'BCState is <= 0 for BCType=5 is not allowed! Set a positive integer for the n-th RefState')
   ELSEIF(BCType.EQ.5.AND.BCState.GT.0)THEN
     nRefStateMax = MAX(nRefStateMax,BCState)
+  ELSEIF(BCType.EQ.2)THEN
+    ! Special BC with linear potential ramp (constant in time)
+    IF(BCState.NE.1) CALL abort(__STAMP__,'BCType=2 requires BCState=1 but was given BCState=',IntInfoOpt=BCState)
+    ! Read linear potential parameters
+    LinPhiBasePoint = GETREALARRAY('LinPhiBasePoint',3)
+    LinPhiNormal    = GETREALARRAY('LinPhiNormal',3)
+    LinPhiNormal    = UNITVECTOR(LinPhiNormal)
+    LinPhiHeight    = GETREAL('LinPhiHeight')
+    LinPhi          = GETREAL('LinPhi')
   END IF
 END DO
 
@@ -142,8 +156,7 @@ nRefState=CountOption('RefState')
 IF(nRefStateMax.GT.nRefState)THEN
   SWRITE(*,'(A,I0)') "nRefStateMax: ",nRefStateMax
   SWRITE(*,'(A,I0,A)') "   nRefState: ",nRefState," (number of times RefState = (/x,x,x/) occurs in the parameter file)"
-  CALL abort(&
-      __STAMP__&
+  CALL abort(__STAMP__&
       ,'nRefStateMax > nRefState: The given RefState number for boundary type 5 is larger than the supplied RefStates. '//&
        'Define the correct number of RefStates via, e.g., \n\n  RefState = (/100.0 , 13.56E6 , -1.57079632679/) '//&
        '! RefState Nbr 1: Voltage, Frequency and Phase shift\n  RefState = (/ 50.0 , 13.56E6 ,  1.57079632679/) '//&
@@ -210,7 +223,7 @@ SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState)
 ! MODULES
 USE MOD_Globals         ,ONLY: Abort,mpiroot
 USE MOD_Globals_Vars    ,ONLY: PI
-USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState
+USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinPhi,LinPhiHeight,LinPhiNormal,LinPhiBasePoint
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
 USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
@@ -227,11 +240,7 @@ INTEGER,INTENT(IN),OPTIONAL     :: iRefState        ! ElemID
 REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: Omega
-REAL                            :: r1,r2
-REAL                            :: r_2D,r_3D,r_bary
-REAL                            :: cos_theta
-REAL                            :: eps1,eps2
+REAL                            :: Omega,r1,r2,r_2D,r_3D,r_bary,cos_theta,eps1,eps2,xi
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
 CASE(-2) ! Signal without zero-crossing (always positive or negative), otherwise  like CASE(-1):
@@ -248,8 +257,26 @@ CASE(-1) ! Signal with zero-crossing: Amplitude, Frequency and Phase Shift suppl
   ! RefState(3,iRefState): phase shift
   Omega   = 2.*PI*RefState(2,iRefState)
   Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
-CASE(0) !linear
+CASE(0) ! constant 0.
     Resu(:)=0.
+CASE(1) ! linear function with base point, normal vector and heigh: Requires BoundaryType = (/2,1/)
+  ASSOCIATE( origin => LinPhiBasePoint ,&
+             normal => LinPhiNormal    ,&
+             height => LinPhiHeight    ,&
+             phi    => LinPhi          )
+    ASSOCIATE( xVec => x(1:3) - origin(1:3) )
+      xi = DOT_PRODUCT(xVec,normal)
+      IF(xi.GT.0.)THEN
+        IF(xi.GT.height)THEN
+          Resu(:)=phi
+        ELSE
+          Resu(:)=phi*xi/height
+        END IF ! x(3)
+      ELSE
+        Resu(:)=0.0
+      END IF ! xi.GT.0
+    END ASSOCIATE
+  END ASSOCIATE
 CASE(1001) ! linear in y-z
     Resu(:)=x(2)*2340 + x(3)*2340
 CASE(102) !linear: z=-1: 0, z=1, 1000
@@ -431,11 +458,8 @@ CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum
   END IF
 
 CASE DEFAULT
-  CALL abort(&
-  __STAMP__&
-  ,'Exactfunction not specified!')
+  CALL abort(__STAMP__,'Exactfunction not specified!')
 END SELECT ! ExactFunction
-
 
 END SUBROUTINE ExactFunc
 
