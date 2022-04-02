@@ -321,8 +321,7 @@ The absolute coordinates are defined as follows for the respective normal direct
 |      y (=2)      |    (z,x)    |
 |      z (=3)      |    (x,y)    |
 
-Multiple circular inflows can be defined on a single boundary through multiple surface fluxes, e.g. to enable the simulation of
-multiple inlets on a chamber wall.
+Multiple circular inflows can be defined on a single boundary through multiple surface fluxes, e.g. to enable the simulation of multiple inlets on a chamber wall. Circular inflows are also supported with axisymmetric simulations, under the assumptions that the chosen surface is in the yz-plane (and thus has a normal direction in x) and the minimal and maximum radii are in the positive y-direction.
 
 ### Adaptive Boundaries
 

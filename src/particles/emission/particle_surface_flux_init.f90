@@ -919,10 +919,9 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     CALL abort(__STAMP__,&
       'ERROR in SurfaceFlux: Wrong velocity distribution!')
   END SELECT
-  IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
-    IF (Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).EQ.1) THEN ! complete side is outside of valid bounds
-      nVFR = 0.
-    END IF
+  IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+    ! Check whether cell is completely outside of the circular inflow region and set the volume flow rate to zero
+    IF (Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).EQ.1) nVFR = 0.
   END IF
   Species(iSpec)%Surfaceflux(iSF)%VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total + nVFR
   !-- store SF-specific SubSide data in SurfFluxSubSideData (incl. projected velos)
