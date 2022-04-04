@@ -198,7 +198,7 @@ DO iElem = firstElem,lastElem
     ! regular side or small mortar side
     ELSE
       ! Only check inner (MPI interfaces) and boundary sides (NbElemID.EQ.0)
-      ! Boundary sides cannot discarded because one proc might have MPI interfaces and the other not
+      ! Boundary sides cannot be discarded because one proc might have MPI interfaces and the other might not
       ! NbElemID.LT.firstElem is always true for NbElemID.EQ.0 because firstElem.GE.1
       IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
         nExchangeSides = nExchangeSides + 1
@@ -244,7 +244,7 @@ DO iElem = firstElem,lastElem
     ! regular side or small mortar side
     ELSE
       ! Only check inner (MPI interfaces) and boundary sides (NbElemID.EQ.0)
-      ! Boundary sides cannot discarded because one proc might have MPI interfaces and the other not
+      ! Boundary sides cannot be discarded because one proc might have MPI interfaces and the other might not
       ! NbElemID.LT.firstElem is always true for NbElemID.EQ.0 because firstElem.GE.1
       IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
         nExchangeSides = nExchangeSides + 1
@@ -282,7 +282,7 @@ DO iSide = 1, nExchangeSides
     SideIsRotPeriodic = .FALSE.
   END IF ! BCindex.GT.0
 
-  ! Only mortar (MPI interfaces) sides
+  ! Only mortar (MPI interfaces) sides: large mortar side
   IF ((NbElemID.LT.1).AND.(.NOT.SideIsRotPeriodic)) THEN
     MPISideBoundsOfNbElemCenter(1:4,iSide) = 0.0
     nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
@@ -577,6 +577,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     CYCLE ElemLoop
   END IF ! HaloProc.EQ.myRank
 #else
+  ! Skip own myrank
   IF (HaloProc.EQ.myRank) CYCLE
 #endif /*(PP_TimeDiscMethod==400)*/
 
