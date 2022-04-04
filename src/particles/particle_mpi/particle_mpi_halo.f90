@@ -576,6 +576,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     END DO ! iSide = 1, nExchangeSides
     CYCLE ElemLoop
   END IF ! HaloProc.EQ.myRank
+#else
+  IF (HaloProc.EQ.myRank) CYCLE
 #endif /*(PP_TimeDiscMethod==400)*/
 
   ! Skip if the proc is already flagged, only if the exact elements are not required (.NOT.shape_function)

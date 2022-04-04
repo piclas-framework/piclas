@@ -107,10 +107,10 @@ IF(ParticleMPIInitIsDone) CALL ABORT(__STAMP__,' Particle MPI already initialize
 
 ! Get flag for ignoring the check and/or abort if the number of global exchange procs is non-symmetric
 CheckExchangeProcs = GETLOGICAL('CheckExchangeProcs')
-IF(.NOT.CheckExchangeProcs)THEN
+IF(CheckExchangeProcs)THEN
   AbortExchangeProcs = GETLOGICAL('AbortExchangeProcs')
 ELSE
-  AbortExchangeProcs=.TRUE.
+  AbortExchangeProcs=.FALSE.
 END IF ! .NOT.CheckExchangeProcs
 
 #if USE_MPI
