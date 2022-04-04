@@ -59,7 +59,7 @@ PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
 #endif /*(PP_TimeDiscMethod==42)*/
 PUBLIC :: CalcPowerDensity
 PUBLIC :: CalculatePartElemData
-PUBLIC :: CalcCoupledPowerPart
+PUBLIC :: CalcCoupledPowerPart, CalcEelec
 PUBLIC :: CalcNumberDensityBGGasDistri
 !===================================================================================================================================
 
@@ -1646,7 +1646,7 @@ REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the electro
 CalcTelec = 0.
 
 SELECT CASE(DSMC%ElectronicModel)
-CASE(1,2)
+CASE(1,2,4)
   IF (MeanEelec.GT.0) THEN
     ! Lower limit: very small value or lowest temperature if ionized
     IF (SpecDSMC(iSpec)%ElectronicState(2,0).EQ.0.0) THEN
@@ -1685,6 +1685,48 @@ END SELECT
 RETURN
 
 END FUNCTION CalcTelec
+
+
+REAL FUNCTION CalcEelec(TElec, iSpec)
+!===================================================================================================================================
+!> Calculation of the electronic temperature (zero-point search)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)      :: TElec  !< Mean electronic energy
+INTEGER, INTENT(IN)   :: iSpec      !< Species index
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER               :: ii
+REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the electronic partition function
+!===================================================================================================================================
+
+IF (TElec.GT.0) THEN
+  SumOne = 0.0
+  SumTwo = 0.0
+  DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
+    TempRatio = SpecDSMC(iSpec)%ElectronicState(2,ii) / TElec
+    IF(CHECKEXP(TempRatio)) THEN
+      SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * EXP(-TempRatio)
+      SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * EXP(-TempRatio)
+    END IF
+  END DO
+  CalcEelec = SumTwo / SumOne * BoltzmannConst
+ELSE
+  CalcEelec = 0. ! sup
+END IF
+
+RETURN
+
+END FUNCTION CalcEelec
 
 
 REAL FUNCTION CalcTVibPoly(MeanEVib, iSpec)

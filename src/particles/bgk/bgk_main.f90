@@ -50,7 +50,7 @@ USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounte
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC                ,ONLY: DSMC_main
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
+USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_Part_Tools          ,ONLY: GetParticleWeight
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
@@ -79,7 +79,6 @@ ELSE
   stage = 0
 END IF
 
-IF (stage.LE.1) DSMC_RHS = 0.0
 DoElement = .FALSE.
 
 DO iElem = 1, nElems
@@ -176,7 +175,7 @@ USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_Analyze        ,ONLY: DSMCMacroSampling
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC
+USE MOD_DSMC_Vars           ,ONLY: DSMC
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars  ,ONLY: IsExchangeElem
@@ -198,8 +197,6 @@ IF (PRESENT(stage_opt)) THEN
 ELSE
   stage = 0
 END IF
-
-IF (stage.LE.1) DSMC_RHS = 0.0
 
 IF (DoBGKCellAdaptation) THEN
   DO iElem = 1, nElems
