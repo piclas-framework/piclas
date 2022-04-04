@@ -45,11 +45,10 @@ SUBROUTINE VerifyDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars             ,ONLY: nElems, sJ, offsetElem,Elem_xGP
-USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Mesh_Vars             ,ONLY: nElems, sJ, Elem_xGP
+USE MOD_Interpolation_Vars    ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
 USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies ,PartMPF,usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: ChargeCalcDone
-USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_PICDepo_Vars          ,ONLY: sfDepo3D,dimFactorSF,VerifyChargeStr,DepositionType
 #if defined(IMPA)
 USE MOD_LinearSolver_Vars     ,ONLY: ImplicitSource
@@ -66,7 +65,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem, ElemID
+INTEGER           :: iElem
 INTEGER           :: k,l,m,i
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: ChargeNumerical, ChargeLoc, ChargeAnalytical
@@ -81,7 +80,6 @@ SWRITE(UNIT_stdOut,'(A)') ' PERFORMING CHARGE DEPOSITION PLAUSIBILITY CHECK...'
 
 ChargeNumerical=0. ! Nullify
 DO iElem=1,nElems
-  ElemID = GetCNElemID(iElem+offSetElem)
   ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
   CALL ChangeBasis3D(3,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,Elem_xGP(1:3,:,:,:,iElem),Coords_NAnalyze(1:3,:,:,:))
   ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
@@ -91,7 +89,7 @@ DO iElem=1,nElems
 #if defined(IMPA)
   source(1,:,:,:) = ImplicitSource(4,:,:,:,iElem)
 #else
-  source(1,:,:,:) =     PartSource(4,:,:,:,ElemID)
+  source(1,:,:,:) =     PartSource(4,:,:,:,iElem)
 #endif
   CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,source(1,:,:,:),U_NAnalyze(1,:,:,:))
   ChargeLoc=0. ! Nullify
@@ -156,12 +154,11 @@ SUBROUTINE CalcDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,              ONLY:sJ, offsetElem
+USE MOD_Mesh_Vars,              ONLY:sJ
 USE MOD_Particle_Vars,          ONLY:PDM, Species, PartSpecies, usevmpf, PartMPF
 USE MOD_Interpolation_Vars,     ONLY:wGP
 USE MOD_Particle_Analyze_Vars,  ONLY:PartCharge
 USE MOD_TimeDisc_Vars,          ONLY:iter
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 #if defined(IMPA)
 USE MOD_LinearSolver_Vars,      ONLY:ImplicitSource
 #else
@@ -174,7 +171,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem, ElemID
+INTEGER           :: iElem
 INTEGER           :: i,j,k,iPart
 REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: Charge(2)
@@ -192,7 +189,6 @@ DO iElem=1,PP_nElems
   ! compute the deposited charge
   J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  ElemID = GetCNElemID(iElem + offSetElem)
 #if defined(IMPA)
 #if USE_HDG
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(1,i,j,k,iElem) * J_N(1,i,j,k)
@@ -200,7 +196,7 @@ DO iElem=1,PP_nElems
     Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
 #endif
 #else
-    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,ElemID) * J_N(1,i,j,k)
+    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,iElem) * J_N(1,i,j,k)
 #endif
   END DO; END DO; END DO
 END DO

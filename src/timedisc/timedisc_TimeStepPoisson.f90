@@ -56,7 +56,7 @@ USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -82,15 +82,21 @@ REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 #ifdef PARTICLES
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-  ! communicate shape function particles
-  CALL Deposition() ! because of emission and UpdateParticlePosition
-END IF
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
+IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition()
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
 CALL HDG(time,U,iter)
 
 #ifdef PARTICLES
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -144,7 +150,7 @@ IF (time.GE.DelayTime) THEN
 #if (PP_TimeDiscMethod==509)
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart) .AND. .NOT.DoForceFreeSurfaceFlux) THEN
         !-- x(BC) => x(n+1) by v(BC+X):
-        PartState(1:3,iPart) = PartState(1:3,iPart) + ( PartState(4:6,iPart) + Pt(1,iPart) * dtFrac*0.5 ) * dtFrac
+        PartState(1:3,iPart) = PartState(1:3,iPart) + ( PartState(4:6,iPart) + Pt(1:3,iPart) * dtFrac*0.5 ) * dtFrac
         ! Don't push the velocity component of neutral particles!
         IF(isPushParticle(iPart))THEN
           !-- v(BC) => v(n+0.5) by a(BC):
@@ -184,6 +190,9 @@ IF (time.GE.DelayTime) THEN
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
     END IF
   END DO
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 #if USE_LOADBALANCE
   CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -200,8 +209,17 @@ IF (time.GE.DelayTime) THEN
 #endif
 #if (PP_TimeDiscMethod==509)
   IF (velocityOutputAtTime) THEN
+#ifdef EXTRAE
+    CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
     CALL Deposition() ! because of emission and UpdateParticlePosition
+#ifdef EXTRAE
+    CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
     CALL HDG(time,U,iter)
+#ifdef EXTRAE
+    CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -216,6 +234,9 @@ IF (time.GE.DelayTime) THEN
         velocityAtTime(1:3,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt*0.5
       END IF
     END DO
+#ifdef EXTRAE
+    CALL extrae_eventandcounters(int(9000001), int8(0))
+#endif /*EXTRAE*/
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -223,6 +244,9 @@ IF (time.GE.DelayTime) THEN
 #endif /*(PP_TimeDiscMethod==509)*/
 END IF
 
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(5))
+#endif /*EXTRAE*/
 IF (doParticleMerge) THEN
   IF (.NOT.useDSMC) THEN
 #if USE_LOADBALANCE
@@ -257,7 +281,6 @@ IF (useDSMC) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
     IF(UseSplitAndMerge) CALL SplitAndMerge()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DSMC,tLBStart)

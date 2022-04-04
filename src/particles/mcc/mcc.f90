@@ -62,13 +62,12 @@ USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 ! ROUTINES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_BGGas              ,ONLY: BGGas_AssignParticleProperties
-USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_part_tools              ,ONLY: GetParticleWeight, CalcVelocity_maxwell_particle
 USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
 USE MOD_MCC_XSec                ,ONLY: InterpolateCrossSection, InterpolateCrossSection_Vib, InterpolateCrossSection_Elec
-USE MOD_Macro_Restart           ,ONLY: CalcVelocity_maxwell_particle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -586,7 +585,7 @@ SUBROUTINE MCC_CalcReactionProb(iCase,bgSpec,CRela2,PartIndex,bggPartIndex,iElem
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, CollInf, BGGas, ChemReac, DSMC, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_TimeDisc_Vars         ,ONLY: dt
-USE MOD_Macro_Restart         ,ONLY: CalcERot_particle, CalcEVib_particle, CalcEElec_particle
+USE MOD_part_tools            ,ONLY: CalcERot_particle, CalcEVib_particle, CalcEElec_particle
 USE MOD_MCC_XSec              ,ONLY: InterpolateCrossSection_Chem
 IMPLICIT NONE
 ! INPUT VARIABLES

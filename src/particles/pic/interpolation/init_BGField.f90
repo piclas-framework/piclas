@@ -187,14 +187,17 @@ ELSE
   IF(nVar_BField.EQ.3) THEN
     BGDataSize=3
     IF(TRIM(VarNames(1)).EQ.'BG-ElectricFieldX') THEN
+      ! Ex, Ey, Ez
       BGType=1
     ELSE IF(TRIM(VarNames(1)).EQ.'BG-MagneticFieldX') THEN
+      ! Bx, By, Bz
       BGType=2
     ELSE
       CALL abort(__STAMP__,'ERROR Background Field: Variable names do not seem to be correct!')
     END IF
   ELSE
     BGDataSize=6
+    ! Ex,Ey,Ez,Bx,By,Bz
     BGType=3
   END IF
 

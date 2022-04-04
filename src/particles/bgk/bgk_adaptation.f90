@@ -38,7 +38,7 @@ SUBROUTINE BGK_octree_adapt(iElem)
 ! MODULES
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, PartPosRef,Species,WriteMacroVolumeValues, usevMPF
+USE MOD_Particle_Vars           ,ONLY: PEM, PartPosRef,Species,WriteMacroVolumeValues, usevMPF, LastPartPos
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens
@@ -117,7 +117,8 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
     END DO
   ELSE ! position in reference space [-1,1] has to be computed
     DO iLoop = 1, nPart
-      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(1:3,iLoop),GlobalElemID)
+!      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(1:3,iLoop),GlobalElemID)
+      TreeNode%MappedPartStates(1:3,iLoop)=LastPartPos(1:3,TreeNode%iPartIndx_Node(iLoop))
     END DO
   END IF ! TrackingMethod.EQ.REFMAPPING
   TreeNode%NodeDepth = 1

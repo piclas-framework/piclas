@@ -352,9 +352,10 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: abort,DOTPRODUCT,StringBeginsWith
-USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC_RHS, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
-USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas
-USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
+USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas, ElecRelaxPart
+USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, newElecRelaxParts, iPartIndx_NodeNewElecRelax
+USE MOD_DSMC_Vars              ,ONLY: iPartIndx_NodeElecRelaxChem, nElecRelaxChemParts
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
@@ -519,6 +520,10 @@ IF(EductReac(3).EQ.0) THEN
       newAmbiParts = newAmbiParts + 1
       iPartIndx_NodeNewAmbi(newAmbiParts) = ReactInx(3)
     END IF
+    IF (DSMC%ElectronicModel.EQ.4) THEN
+      newElecRelaxParts = newElecRelaxParts + 1 
+      iPartIndx_NodeNewElecRelax(newElecRelaxParts) = ReactInx(3)
+    END IF
     Weight(3) = Weight(1)
     NumProd = 3
     SumWeightProd = SumWeightProd + Weight(3)
@@ -554,6 +559,10 @@ IF(ProductReac(4).NE.0) THEN
   IF (DSMC%DoAmbipolarDiff) THEN
     newAmbiParts = newAmbiParts + 1
     iPartIndx_NodeNewAmbi(newAmbiParts) = ReactInx(4)
+  END IF
+  IF (DSMC%ElectronicModel.EQ.4) THEN
+    newElecRelaxParts = newElecRelaxParts + 1 
+    iPartIndx_NodeNewElecRelax(newElecRelaxParts) = ReactInx(4)
   END IF
   Weight(4) = Weight(1)
   NumProd = 4
@@ -680,12 +689,12 @@ DO iProd = 1, NumProd
 END DO
 !-------------------------------------------------------------------------------------------------------------------------------
 ! Root-finding algorithm to determine the vibrational and electronic degrees of freedom
-IF((nDOFMAX.GT.0).AND.((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2))) THEN
+IF((nDOFMAX.GT.0).AND.((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.4))) THEN
   ! Electronic and vibrational energy is considered
   ALLOCATE(XiVibPart(NumProd,nDOFMAX))
   XiVibPart = 0.
   CALL CalcXiTotalEqui(iReac,iPair,NumProd,Xi_total,Weight,XiVibPart=XiVibPart,XiElecPart=Xi_elec)
-ELSEIF((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2)) THEN
+ELSEIF((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.4)) THEN
   ! Only electronic energy is considered
   CALL CalcXiTotalEqui(iReac,iPair,NumProd,Xi_total,Weight,XiElecPart=Xi_elec)
 ELSEIF(nDOFMAX.GT.0) THEN
@@ -729,16 +738,28 @@ IF (DSMC%ElectronicModel.GT.0) THEN
         IF(ALLOCATED(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)
       END IF
       PartStateIntEn(3,ReactInx(iProd)) = 0.0
-    ELSE
-      IF (DSMC%ElectronicModel.EQ.2) THEN
-        IF(ALLOCATED(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)
-        ALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc(1:SpecDSMC(ProductReac(iProd))%MaxElecQuant))
-        ElectronicDistriPart(ReactInx(iProd))%DistriFunc = 0.0
-        PartStateIntEn(3,ReactInx(iProd)) = 0.0
+      IF (DSMC%ElectronicModel.EQ.4) THEN
+        nElecRelaxChemParts = nElecRelaxChemParts + 1 
+        iPartIndx_NodeElecRelaxChem(nElecRelaxChemParts) = ReactInx(iProd)
+        ElecRelaxPart(ReactInx(iProd)) = .FALSE.
       END IF
-      FakXi = FakXi - 0.5*Xi_elec(iProd)
-      CALL ElectronicEnergyExchange(iPair,ReactInx(iProd),FakXi, NewPart = .TRUE., Xi_elec = Xi_elec(iProd), XSec_Level = 0)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(iProd))*Weight(iProd)
+    ELSE
+      IF (DSMC%ElectronicModel.EQ.4) THEN
+        PartStateIntEn(3,ReactInx(iProd)) = 0.0
+        nElecRelaxChemParts = nElecRelaxChemParts + 1 
+        iPartIndx_NodeElecRelaxChem(nElecRelaxChemParts) = ReactInx(iProd)
+        ElecRelaxPart(ReactInx(iProd)) = .FALSE.
+      ELSE
+        IF (DSMC%ElectronicModel.EQ.2) THEN
+          IF(ALLOCATED(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)
+          ALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc(1:SpecDSMC(ProductReac(iProd))%MaxElecQuant))
+          ElectronicDistriPart(ReactInx(iProd))%DistriFunc = 0.0
+          PartStateIntEn(3,ReactInx(iProd)) = 0.0
+        END IF
+        FakXi = FakXi - 0.5*Xi_elec(iProd)
+        CALL ElectronicEnergyExchange(iPair,ReactInx(iProd),FakXi, NewPart = .TRUE., Xi_elec = Xi_elec(iProd), XSec_Level = 0)
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(iProd))*Weight(iProd)
+      END IF
     END IF
   END DO
 END IF
@@ -842,10 +863,9 @@ IF(ProductReac(3).NE.0) THEN
     ! Set the energy for the 2-4 pair
     cRelaNew(1:3) = PostCollVec(iPair)
     ! deltaV particle 2
-    DSMC_RHS(1:3,ReactInx(2)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3) - PartState(4:6,ReactInx(2))
+    PartState(4:6,ReactInx(2)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3)
     ! deltaV particle 4
-    PartState(4:6,ReactInx(4)) = 0.
-    DSMC_RHS(1:3,ReactInx(4)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)
+    PartState(4:6,ReactInx(4)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)
 #ifdef CODE_ANALYZE
     Energy_new=0.5*Species(ProductReac(2))%MassIC*DOTPRODUCT(VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3)) * Weight(2)
     Momentum_new(1:3) = Species(ProductReac(2))%MassIC* (VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3)) * Weight(2)
@@ -878,7 +898,7 @@ IF(ProductReac(3).NE.0) THEN
           , (/Weight(1),Weight(3),Weight(2)/))
     Coll_pData(iPair)%CRela2 = 2 * ERel_React1_React2 / MassRed
     cRelaNew(1:3) = PostCollVec(iPair)
-    DSMC_RHS(1:3,ReactInx(2)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3) - PartState(4:6,ReactInx(2))
+    PartState(4:6,ReactInx(2)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)
 #ifdef CODE_ANALYZE
     Energy_new=0.5*Species(ProductReac(2))%MassIC*DOTPRODUCT(VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3))* Weight(2)
     Momentum_new(1:3) = Species(ProductReac(2))%MassIC* (VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)) * Weight(2)
@@ -914,11 +934,10 @@ IF(ProductReac(3).NE.0) THEN
   cRelaNew(1:3) = PostCollVec(iPair)
 
   !deltaV particle 1
-  DSMC_RHS(1:3,ReactInx(1)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3) - PartState(4:6,ReactInx(1))
+  PartState(4:6,ReactInx(1)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3)
 
   !deltaV particle 3
-  PartState(4:6,ReactInx(3)) = 0.
-  DSMC_RHS(1:3,ReactInx(3)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)
+  PartState(4:6,ReactInx(3)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)
 
 #ifdef CODE_ANALYZE
   ! New total energy
@@ -981,9 +1000,9 @@ ELSEIF(ProductReac(3).EQ.0) THEN
   cRelaNew(1:3) = PostCollVec(iPair)
 
   !deltaV particle 1
-  DSMC_RHS(1:3,ReactInx(1)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3) - PartState(4:6,ReactInx(1))
+  PartState(4:6,ReactInx(1)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3)
   !deltaV particle 2
-  DSMC_RHS(1:3,ReactInx(2)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3) - PartState(4:6,ReactInx(2))
+  PartState(4:6,ReactInx(2)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)
 
 #ifdef CODE_ANALYZE
   ! New total energy of remaining products (here, recombination: 2 products)
@@ -1077,13 +1096,13 @@ END DO
 END SUBROUTINE DSMC_Chemistry
 
 
-SUBROUTINE simpleCEX(iReac, iPair, resetRHS_opt)
+SUBROUTINE simpleCEX(iReac, iPair)
 !===================================================================================================================================
 ! simple charge exchange interaction
 ! ION(v1) + ATOM(v2) -> ATOM(v1) + ION(v2)
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,             ONLY : Coll_pData, DSMC_RHS
+  USE MOD_DSMC_Vars,             ONLY : Coll_pData
   USE MOD_DSMC_Vars,             ONLY : ChemReac
   USE MOD_Particle_Vars,         ONLY : PartSpecies
 ! IMPLICIT VARIABLE HANDLING
@@ -1091,20 +1110,12 @@ SUBROUTINE simpleCEX(iReac, iPair, resetRHS_opt)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)           :: iPair, iReac
-  LOGICAL, INTENT(IN), OPTIONAL :: resetRHS_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                       :: ReactInx(1:2)
-  LOGICAL                       :: resetRHS
 !===================================================================================================================================
-
-  IF (PRESENT(resetRHS_opt)) THEN
-    resetRHS=resetRHS_opt
-  ELSE
-    resetRHS=.TRUE.
-  END IF
 
   IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
     ReactInx(1) = Coll_pData(iPair)%iPart_p1
@@ -1117,17 +1128,6 @@ SUBROUTINE simpleCEX(iReac, iPair, resetRHS_opt)
   PartSpecies(ReactInx(1)) = ChemReac%Products(iReac,1)
   PartSpecies(ReactInx(2)) = ChemReac%Products(iReac,2)
 
-  IF (resetRHS) THEN
-    ! deltaV particle 1
-    DSMC_RHS(1,Coll_pData(iPair)%iPart_p1) = 0.
-    DSMC_RHS(2,Coll_pData(iPair)%iPart_p1) = 0.
-    DSMC_RHS(3,Coll_pData(iPair)%iPart_p1) = 0.
-    ! deltaV particle 2
-    DSMC_RHS(1,Coll_pData(iPair)%iPart_p2) = 0.
-    DSMC_RHS(2,Coll_pData(iPair)%iPart_p2) = 0.
-    DSMC_RHS(3,Coll_pData(iPair)%iPart_p2) = 0.
-  END IF
-
 END SUBROUTINE simpleCEX
 
 
@@ -1138,7 +1138,7 @@ SUBROUTINE simpleMEX(iReac, iPair)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,               ONLY : abort
-  USE MOD_DSMC_Vars,             ONLY : Coll_pData !, DSMC_RHS
+  USE MOD_DSMC_Vars,             ONLY : Coll_pData
   USE MOD_DSMC_Vars,             ONLY : ChemReac
   USE MOD_Particle_Vars,         ONLY : PartSpecies,Species
 ! IMPLICIT VARIABLE HANDLING
@@ -1487,16 +1487,15 @@ SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, iInit, InitSpec, iLineOp
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: eV2Joule
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfFormedParticles, CollInf, DSMC_RHS
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfFormedParticles, CollInf
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_MCC_Vars                ,ONLY: ReacToPhotoReac,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
-USE MOD_part_tools              ,ONLY: GetParticleWeight, DiceUnitVector
+USE MOD_part_tools              ,ONLY: GetParticleWeight, DiceUnitVector, CalcERot_particle, CalcEVib_particle, CalcEElec_particle
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_Macro_Restart           ,ONLY: CalcERot_particle, CalcEVib_particle, CalcEElec_particle
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
@@ -1763,9 +1762,9 @@ ELSE
   cRelaNew(1:3) = PostCollVec(iPair)
 
   !deltaV particle 1
-  DSMC_RHS(1:3,ReactInx(1)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3) - PartState(4:6,ReactInx(1))
+  PartState(4:6,ReactInx(1)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3)  
   !deltaV particle 2
-  DSMC_RHS(1:3,ReactInx(2)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3) - PartState(4:6,ReactInx(2))
+  PartState(4:6,ReactInx(2)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)  
 END IF
 
 IF(CalcPartBalance) THEN
