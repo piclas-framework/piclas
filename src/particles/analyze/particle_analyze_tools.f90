@@ -1639,7 +1639,7 @@ INTEGER, INTENT(IN)   :: iSpec      !< Species index
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER               :: ii
 REAL                  :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
-REAL,PARAMETER        :: eps_prec=1E-16           !< Relative precision of root-finding algorithm
+REAL,PARAMETER        :: eps_prec=1E-3           !< Relative precision of root-finding algorithm
 REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the electronic partition function
 !===================================================================================================================================
 
