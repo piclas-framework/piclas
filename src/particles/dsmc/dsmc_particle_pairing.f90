@@ -366,7 +366,8 @@ USE MOD_Globals
 USE MOD_DSMC_CollisionProb      ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
-USE MOD_DSMC_Vars               ,ONLY: SelectionProc, useRelaxProbCorrFactor
+USE MOD_DSMC_Vars               ,ONLY: SelectionProc, useRelaxProbCorrFactor, iPartIndx_NodeNewElecRelax, newElecRelaxParts
+USE MOD_DSMC_Vars               ,ONLY: iPartIndx_NodeElecRelaxChem,nElecRelaxChemParts 
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, Symmetry, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath, CalcInstantElecTempXi
@@ -374,23 +375,26 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic,SumVibRelaxProb
 USE MOD_DSMC_Symmetry           ,ONLY: DSMC_2D_TreatIdenticalParticles
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
+USE MOD_DSMC_ElectronicModel    ,ONLY: LT_ElectronicEnergyExchange, LT_ElectronicExc_ConstructPartList, LT_ElectronicEnergyExchangeChem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL, INTENT(IN)              :: NodeVolume
-INTEGER, INTENT(IN)           :: PartNum, iElem
+INTEGER, INTENT(IN)           :: iElem
+INTEGER, INTENT(INOUT)        :: PartNum
 INTEGER, INTENT(INOUT), TARGET:: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: nPair, iPair, iPart, nPart, TotalPartNum
+INTEGER                       :: nPair, iPair, iPart, nPart, TotalPartNum, nPartElecRelac
 INTEGER                       :: cSpec1, cSpec2, iCase
 REAL                          :: iRan
 INTEGER, ALLOCATABLE, TARGET  :: iPartIndx_NodeTotalAmbi(:)
 INTEGER, POINTER              :: iPartIndx_NodeTotal(:)
 INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalAmbiDel(:)
+INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalElecExc(:), iPartIndx_NodeTotalElecRelax(:)
 !===================================================================================================================================
 
 ! 0). Ambipolar Diffusion
@@ -406,6 +410,16 @@ ELSE
   TotalPartNum = PartNum
   iPartIndx_NodeTotal => iPartIndx_Node
 END IF
+
+IF (DSMC%ElectronicModel.EQ.4) THEN
+  ALLOCATE(iPartIndx_NodeTotalElecRelax(TotalPartNum))
+  iPartIndx_NodeTotalElecRelax = iPartIndx_NodeTotal
+  IF (CollisMode.EQ.3) THEN
+    newElecRelaxParts = 0; nElecRelaxChemParts = 0
+    ALLOCATE(iPartIndx_NodeNewElecRelax(2*PartNum), iPartIndx_NodeElecRelaxChem(2*PartNum))
+  END IF
+END IF
+
 ! 1). Reset collision and pair specific variables
 nPair = INT(TotalPartNum/2)
 CollInf%Coll_SpecPartNum = 0
@@ -435,7 +449,7 @@ IF (CollisMode.EQ.3) THEN
 END IF
 
 IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors &
-.OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1)).OR.(DSMC%ElectronicModel.EQ.2)) THEN
+.OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1)).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.4)) THEN
   ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
   !           relaxation probability (CalcGammaVib)
   ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
@@ -532,6 +546,18 @@ IF(DSMC%CalcQualityFactors) THEN
 END IF
 
 DEALLOCATE(Coll_pData)
+
+IF (DSMC%ElectronicModel.EQ.4) THEN
+  IF (CollisMode.EQ.3) THEN
+    CALL LT_ElectronicEnergyExchangeChem(iPartIndx_NodeElecRelaxChem, nElecRelaxChemParts)
+    CALL LT_ElectronicExc_ConstructPartList(iPartIndx_NodeTotalElecRelax, iPartIndx_NodeTotalElecExc,  TotalPartNum, nPartElecRelac)
+    CALL LT_ElectronicEnergyExchange(iPartIndx_NodeTotalElecExc, nPartElecRelac, NodeVolume)
+    DEALLOCATE(iPartIndx_NodeTotalElecExc, iPartIndx_NodeNewElecRelax, iPartIndx_NodeElecRelaxChem)
+  ELSE
+    CALL LT_ElectronicEnergyExchange(iPartIndx_NodeTotalElecRelax, TotalPartNum, NodeVolume)
+  END IF
+END IF
+
 IF (DSMC%DoAmbipolarDiff) THEN
   CALL AD_DeleteParticles(iPartIndx_NodeTotalAmbiDel,TotalPartNum)
 END IF

@@ -41,7 +41,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt
 #ifdef PARTICLES
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM,PEM
-USE MOD_DSMC_Vars              ,ONLY: DSMC_RHS, DSMC
+USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission          ,ONLY: ParticleInserting
@@ -69,7 +69,6 @@ IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
 
   CALL DSMC_main()
 
-  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
   IF(DSMC%CompareLandauTeller) THEN
     DO iPart=1,PDM%ParticleVecLength
       PDM%nextFreePosition(iPart)=iPart
@@ -125,7 +124,6 @@ ELSE
   CALL ParticleInserting()
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
-  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 END IF
 
 END SUBROUTINE TimeStep_DSMC_Debug

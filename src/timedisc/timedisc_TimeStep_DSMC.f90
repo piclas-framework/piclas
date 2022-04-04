@@ -39,7 +39,7 @@ USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
 USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, VarTimeStep, Species, PartSpecies
 USE MOD_Particle_Vars            ,ONLY: UseSplitAndMerge
-USE MOD_DSMC_Vars                ,ONLY: DSMC_RHS, DSMC, CollisMode, AmbipolElecVelo
+USE MOD_DSMC_Vars                ,ONLY: DSMC, CollisMode, AmbipolElecVelo
 USE MOD_DSMC                     ,ONLY: DSMC_main
 USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission            ,ONLY: ParticleInserting
@@ -197,7 +197,6 @@ REAL                  :: tLBStart
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 
   IF(UseSplitAndMerge) CALL SplitAndMerge()
 

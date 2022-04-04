@@ -244,7 +244,7 @@ ASSOCIATE( ProductReac => ChemReac%Products(iReac,1:4) )
       ELSE
         IF(PRESENT(XiVibPart)) XiVibPart(iProd,:) = 0.0
       END IF
-      IF((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2)) THEN
+      IF((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.4)) THEN
         IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           XiElecPart(iProd) = CalcXiElec(MiddleTemp, iSpec)
           Xi_TotalTemp = Xi_TotalTemp + XiElecPart(iProd)

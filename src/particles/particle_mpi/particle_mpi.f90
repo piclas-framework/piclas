@@ -866,7 +866,7 @@ SUBROUTINE MPIParticleRecv(DoMPIUpdateNextFreePos)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
-USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf!,PartMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors, ExchangeProcToGlobalProc
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
@@ -1255,7 +1255,6 @@ DO iProc=0,nExchangeProcessors-1
         CALL abort(__STAMP__,'Particle received in non exchange elem! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
       END IF
       IF (useDSMC) THEN 
-        DSMC_RHS(1:3,PartID) = 0.0
         CALL GetPositionInRefElem(PartState(1:3,PartID),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID))
       END IF
       IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN

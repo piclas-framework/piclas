@@ -265,7 +265,7 @@ USE MOD_DSMC_Vars               ,ONLY: CollisMode, SpecDSMC, BGGas
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_Macro_Restart           ,ONLY: CalcVelocity_maxwell_particle
+USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -539,7 +539,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_ChemReact         ,ONLY: PhotoIonization_InsertProducts
 USE MOD_DSMC_AmbipolarDiffusion,ONLY: AD_DeleteParticles
-USE MOD_Macro_Restart          ,ONLY: CalcVelocity_maxwell_particle
+USE MOD_part_tools             ,ONLY: CalcVelocity_maxwell_particle
 USE MOD_MCC_Vars               ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotoReacToReac,PhotonEnergies
 USE MOD_MCC_Vars               ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated,MaxPhotonXSec
 ! IMPLICIT VARIABLE HANDLING
