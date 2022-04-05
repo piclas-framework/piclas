@@ -95,6 +95,9 @@ INTEGER                        :: nExchangeSides
 INTEGER,ALLOCATABLE            :: ExchangeSides(:)
 REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:), MPISideBoundsOfNbElemCenter(:,:)
 INTEGER                        :: ExchangeProcLeader
+#if !(PP_TimeDiscMethod==400)
+LOGICAL,ALLOCATABLE            :: FlagExchangeElem(:)
+#endif /*!(PP_TimeDiscMethod==400)*/
 ! halo_eps reconstruction
 REAL                           :: MPI_halo_eps_velo,MPI_halo_diag,vec(1:3),deltaT, MPI_halo_eps_woshape
 REAL                           :: NbElemBounds(2,3)
@@ -170,7 +173,17 @@ END IF
 !>>> Special care for big mortar sides, here the SIDE_ELEMID must be used
 nExchangeSides = 0
 
+#if !(PP_TimeDiscMethod==400)
+ALLOCATE(FlagExchangeElem(offsetElem+1:offsetElem+nElems))
+FlagExchangeElem = .FALSE.
+#endif /*!(PP_TimeDiscMethod==400)*/
+
 DO iElem = firstElem,lastElem
+#if !(PP_TimeDiscMethod==400)
+  ! Element already flagged
+  IF (FlagExchangeElem(iElem)) CYCLE
+#endif /*!(PP_TimeDiscMethod==400)*/
+
   DO iLocSide = 1,6
     SideID   = GetGlobalNonUniqueSideID(iElem,iLocSide)
     NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
@@ -191,6 +204,9 @@ DO iElem = firstElem,lastElem
         ! If any of the small mortar sides is not on the local proc, the side is a MPI side
         IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
           nExchangeSides = nExchangeSides + 1
+#if !(PP_TimeDiscMethod==400)
+          FlagExchangeElem(iElem) = .TRUE.
+#endif /*!(PP_TimeDiscMethod==400)*/
           EXIT
         END IF
       END DO
@@ -202,6 +218,9 @@ DO iElem = firstElem,lastElem
       ! NbElemID.LT.firstElem is always true for NbElemID.EQ.0 because firstElem.GE.1
       IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
         nExchangeSides = nExchangeSides + 1
+#if !(PP_TimeDiscMethod==400)
+        FlagExchangeElem(iElem) = .TRUE.
+#endif /*!(PP_TimeDiscMethod==400)*/
       END IF
     END IF
   END DO
@@ -213,9 +232,17 @@ IF (nComputeNodeProcessors.GT.1.AND.nExchangeSides.EQ.0) &
 !> Build mapping for all MPI sides on current proc
 ALLOCATE(ExchangeSides(1:nExchangeSides))
 
-nExchangeSides = 0
+nExchangeSides   = 0
+#if !(PP_TimeDiscMethod==400)
+FlagExchangeElem = .FALSE.
+#endif /*!(PP_TimeDiscMethod==400)*/
 
 DO iElem = firstElem,lastElem
+#if !(PP_TimeDiscMethod==400)
+  ! Element already flagged
+  IF (FlagExchangeElem(iElem)) CYCLE
+#endif /*!(PP_TimeDiscMethod==400)*/
+
   DO iLocSide = 1,6
     SideID   = GetGlobalNonUniqueSideID(iElem,iLocSide)
     NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
@@ -237,6 +264,9 @@ DO iElem = firstElem,lastElem
         IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
           nExchangeSides = nExchangeSides + 1
           ExchangeSides(nExchangeSides) = SideID
+#if !(PP_TimeDiscMethod==400)
+          FlagExchangeElem(iElem) = .TRUE.
+#endif /*!(PP_TimeDiscMethod==400)*/
           EXIT
         END IF
       END DO
@@ -249,10 +279,17 @@ DO iElem = firstElem,lastElem
       IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
         nExchangeSides = nExchangeSides + 1
         ExchangeSides(nExchangeSides) = SideID
+#if !(PP_TimeDiscMethod==400)
+        FlagExchangeElem(iElem) = .TRUE.
+#endif /*!(PP_TimeDiscMethod==400)*/
       END IF
     END IF
   END DO
 END DO
+
+#if !(PP_TimeDiscMethod==400)
+DEALLOCATE(FlagExchangeElem)
+#endif /*!(PP_TimeDiscMethod==400)*/
 
 !> Build metrics for all MPI sides on current proc
 ALLOCATE(BoundsOfElemCenter(1:5))
@@ -405,7 +442,7 @@ xCoordsProc(6) = GEO%zmax
 
 ! Use a named loop so the entire element can be cycled
 ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
-  ElemID   = GetGlobalElemID(iElem)
+  ElemID   = iElem - offsetElem
   localElem = ElemID - offSetElem
   HaloProc = ElemInfo_Shared(ELEM_RANK,ElemID)
 
@@ -1060,7 +1097,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       CNShapeMapping%nSendShapeElems(2) = 0
       ! Count number of elems per CN
       DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
-        GlobalElemID = GetGlobalElemID(iElem)
+        GlobalElemID = iElem - offsetElem
         IF ((ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).GE.2).AND.(ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).NE.4)) THEN
           GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
           GlobalLeaderRank = INT(GlobalElemRank/nComputeNodeProcessors)
@@ -1120,7 +1157,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
 
 
       DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
-        GlobalElemID = GetGlobalElemID(iElem)
+        GlobalElemID = iElem - offsetElem
         IF ((ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).GE.2).AND.(ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).NE.4)) THEN
           GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
           GlobalLeaderRank = INT(GlobalElemRank/nComputeNodeProcessors)
