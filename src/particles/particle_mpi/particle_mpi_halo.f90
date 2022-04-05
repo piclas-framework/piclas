@@ -442,7 +442,7 @@ xCoordsProc(6) = GEO%zmax
 
 ! Use a named loop so the entire element can be cycled
 ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
-  ElemID   = iElem - offsetElem
+  ElemID   = GetGlobalElemID(iElem)
   localElem = ElemID - offSetElem
   HaloProc = ElemInfo_Shared(ELEM_RANK,ElemID)
 
@@ -1097,7 +1097,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       CNShapeMapping%nSendShapeElems(2) = 0
       ! Count number of elems per CN
       DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
-        GlobalElemID = iElem - offsetElem
+        GlobalElemID = GetGlobalElemID(iElem)
         IF ((ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).GE.2).AND.(ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).NE.4)) THEN
           GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
           GlobalLeaderRank = INT(GlobalElemRank/nComputeNodeProcessors)
@@ -1157,7 +1157,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
 
 
       DO iElem = nComputeNodeElems+1,nComputeNodeTotalElems
-        GlobalElemID = iElem - offsetElem
+        GlobalElemID = GetGlobalElemID(iElem)
         IF ((ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).GE.2).AND.(ElemInfo_Shared(ELEM_HALOFLAG,GlobalElemID).NE.4)) THEN
           GlobalElemRank = ElemInfo_Shared(ELEM_RANK,GlobalElemID)
           GlobalLeaderRank = INT(GlobalElemRank/nComputeNodeProcessors)
