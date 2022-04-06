@@ -565,7 +565,7 @@ USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
 #elif (PP_TimeDiscMethod==400) /*BGK*/
 USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
 #else /*all other methods, mainly PIC*/
-USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species,UseRotRefFrame
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -575,7 +575,7 @@ LOGICAL             :: isPushParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0.OR.UseRotRefFrame)THEN
   isPushParticle = .TRUE.
 ELSE
   isPushParticle = .FALSE.

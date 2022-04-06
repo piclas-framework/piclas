@@ -207,6 +207,12 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
   , 'Set [T] to activate sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
   ' have to be enabled as well.', '.FALSE.')
 
+! === Rotational frame of reference
+
+CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'TO-DO ', '.FALSE.')
+CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','TO-DO')
+CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','TO-DO')
+
 END SUBROUTINE DefineParametersParticles
 
 
@@ -505,6 +511,7 @@ CALL InitializeVariablesvMPF()
 CALL InitializeVariablesIonization()
 CALL InitializeVariablesVarTimeStep()
 CALL InitializeVariablesAmbipolarDiff()
+CALL InitializeVariablesRotationalRefFrame()
 
 END SUBROUTINE InitializeVariables
 
@@ -1470,6 +1477,47 @@ END IF
 CALL RANDOM_SEED(PUT=Seeds)
 
 END SUBROUTINE InitRandomSeed
+
+
+SUBROUTINE InitializeVariablesRotationalRefFrame()
+!===================================================================================================================================
+! Initialize the variables first
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Particle_Vars
+USE MOD_Globals_Vars            ,ONLY: ElementaryCharge, PI
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: omegaTemp
+!===================================================================================================================================
+
+UseRotRefFrame = GETLOGICAL('Part-UseRotationalReferenceFrame','.FALSE.')
+
+IF(UseRotRefFrame) THEN
+  RotRefFrameAxis = GETINT('Part-RotRefFrame-Axis')
+  RotRefFrameFreq = GETREAL('Part-RotRefFrame-Frequency')
+  omegaTemp = 2.*PI*RotRefFrameFreq
+  SELECT CASE(RotRefFrameAxis)
+    CASE(1)
+      RotRefFrameOmega = (/omegaTemp,0.,0./)
+    CASE(2)
+      RotRefFrameOmega = (/0.,omegaTemp,0./)
+    CASE(3)
+      RotRefFrameOmega = (/0.,0.,omegaTemp/)
+    CASE DEFAULT
+      CALL abort(__STAMP__,'ERROR Rotaional Reference Frame: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)  
+  END SELECT
+END IF
+
+END SUBROUTINE InitializeVariablesRotationalRefFrame
 
 
 END MODULE MOD_ParticleInit

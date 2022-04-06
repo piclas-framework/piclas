@@ -460,6 +460,16 @@ CASE('photon_SEE_energy')
 CASE DEFAULT
   CALL abort(__STAMP__,'wrong velo-distri! velocityDistribution='//TRIM(velocityDistribution))
 END SELECT
+
+IF(UseRotRefFrame) THEN
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr.GT.0) THEN
+      PartState(4:6,PositionNbr) = PartState(4:6,PositionNbr) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PositionNbr))
+    END IF
+  END DO
+END IF
+
 END SUBROUTINE SetParticleVelocity
 
 END  MODULE MOD_part_pos_and_velo

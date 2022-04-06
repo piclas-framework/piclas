@@ -422,5 +422,12 @@ REAL              :: BulkElectronTemp            ! Bulk electron temperature for
                                                  ! to eV for  usage in the code OR for neutralization BC (e.g. landmark)
 LOGICAL           :: CalcBulkElectronTemp        ! Automatic bulk electron calculation
 INTEGER           :: BulkElectronTempSpecID      ! Species ID (electron) for Automatic bulk electron calculation
+
+! 
+LOGICAL               :: UseRotRefFrame           !>
+INTEGER               :: RotRefFrameAxis          !>
+REAL                  :: RotRefFrameFreq          !
+REAL                  :: RotRefFrameOmega(3)          !
+
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

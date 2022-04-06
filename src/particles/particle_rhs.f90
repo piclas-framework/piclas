@@ -41,6 +41,7 @@ PUBLIC :: CalcPartRHS
 PUBLIC :: PartVeloToImp
 PUBLIC :: PartRHS
 PUBLIC :: CalcPartRHSSingleParticle
+PUBLIC :: CalcPartRHSRotRefFrame
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
@@ -161,7 +162,7 @@ SUBROUTINE CalcPartRHS()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars         ,ONLY: PDM,Pt
+USE MOD_Particle_Vars         ,ONLY: PDM,Pt,UseRotRefFrame
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
 USE MOD_Part_Tools            ,ONLY: isPushParticle
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -175,12 +176,16 @@ INTEGER                          :: iPart
 DO iPart = 1,PDM%ParticleVecLength
   ! Particle is inside and not a neutral particle
   IF(PDM%ParticleInside(iPart))THEN
-    IF(isPushParticle(iPart))THEN
-      CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
-      CYCLE
-    END IF ! isPushParticle(iPart)
+    ! IF(isPushParticle(iPart))THEN
+    !   CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
+    !   CYCLE
+    ! END IF ! isPushParticle(iPart)
+    IF(UseRotRefFrame) THEN
+      ! NOTE: CURRENTLY NOT SUPPORTED WITH OTHER ACCELERATION!!! (see CYCLE above)
+      CALL CalcPartRHSRotRefFrame(iPart,Pt(1:3,iPart))
+    END IF
   END IF ! PDM%ParticleInside(iPart)
-  Pt(:,iPart)=0.
+  ! Pt(:,iPart)=0.
 END DO
 END SUBROUTINE CalcPartRHS
 
@@ -709,6 +714,33 @@ velosq=LorentzFacInvIn ! dummy statement
 velosq=FieldAtParticle(1) ! dummy statement
 
 END SUBROUTINE PartRHS_CEM
+
+
+SUBROUTINE CalcPartRHSRotRefFrame(PartID,Pt_temp)
+!===================================================================================================================================
+!> 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals       ,ONLY: CROSS,DOTPRODUCT
+USE MOD_Particle_Vars ,ONLY: PartState, Pt, RotRefFrameOmega
+USE MOD_TimeDisc_Vars             ,ONLY: iter
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)       :: PartID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)         :: Pt_temp(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                :: v_corr(1:3)
+!===================================================================================================================================
+
+Pt_temp(1:3) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))) &
+                  - 2.*CROSS(RotRefFrameOmega(1:3),PartState(4:6,PartID))
+
+END SUBROUTINE CalcPartRHSRotRefFrame
 
 
 SUBROUTINE PartVeloToImp(VeloToImp,doParticle_In)
