@@ -89,7 +89,8 @@ SUBROUTINE BuildBGMAndIdentifyHaloRegion()
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: c
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem,nBCSides
+USE MOD_Basis                  ,ONLY: DeCasteljauInterpolation
+USE MOD_Mesh_Vars              ,ONLY: NGeo,nElems,offsetElem,nBCSides
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Periodic_BC   ,ONLY: InitPeriodicBC
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
@@ -115,6 +116,7 @@ USE MOD_PICDepo_Vars           ,ONLY: DepositionType,SFAdaptiveSmoothing,dim_sf,
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared_Win,FIBGM_nElems_Shared_Win,FIBGMToProcFlag_Shared_Win,FIBGMProcs_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProc_Shared,FIBGMToProcFlag_Shared,nComputeNodeElems,FIBGMProcs_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems_Shared,FIBGM_Element_Shared,FIBGMProcs
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared,FIBGMToProc
@@ -132,7 +134,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iElem,iLocSide,SideID
+INTEGER                        :: iElem,iHaloElem,iLocSide,SideID
 INTEGER                        :: FirstElem,LastElem
 INTEGER                        :: firstNodeID,lastNodeID
 INTEGER                        :: offsetNodeID,nNodeIDs,currentOffset
@@ -149,11 +151,22 @@ REAL                           :: deltaT
 REAL                           :: globalDiag,maxCellRadius
 INTEGER,ALLOCATABLE            :: sendbuf(:,:,:),recvbuf(:,:,:)
 INTEGER,ALLOCATABLE            :: offsetElemsInBGMCell(:,:,:)
-INTEGER                        :: nHaloElems,nBorderSidesShared
-INTEGER,ALLOCATABLE            :: offsetCNHalo2GlobalElem(:),offsetMPISideShared(:)
-REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:)
+INTEGER                        :: nHaloElems
+INTEGER,ALLOCATABLE            :: offsetCNHalo2GlobalElem(:)
+REAL,ALLOCATABLE               :: MPISideBoundsOfElemCenter(:,:)
+REAL                           :: BoundsOfElemCenter(1:4)
 LOGICAL                        :: ElemInsideHalo
 INTEGER                        :: firstHaloElem,lastHaloElem
+! Halo calculation
+INTEGER                        :: p,q
+INTEGER                        :: iNode,localSideID,nStart,SideCornerNodeIDs(1:4)
+REAL,PARAMETER                 :: xi(1:2)=0.
+INTEGER,ALLOCATABLE            :: offsetMPIElemShared(:)
+INTEGER,ALLOCATABLE            :: offsetMPISideShared(:)
+REAL,ALLOCATABLE               :: metricMPISideShared(:,:)
+INTEGER                        :: nBorderSidesShared,nBorderElemsShared
+REAL                           :: origin(3),vec(3),radius,radiusMax
+INTEGER                        :: CornerNodeIDswitch(8),NodeMap(4,6)
 ! FIBGMToProc
 LOGICAL                        :: dummyLog
 INTEGER                        :: dummyInt
@@ -566,16 +579,138 @@ ELSE
 
   ! sum all MPI-side of compute-node and create correct offset mapping in SideInfo_Shared
   nBorderSidesShared = COUNT(SideInfo_Shared(SIDE_NBELEMTYPE,:).EQ.2) + nBCSides
-  ALLOCATE(offsetMPISideShared(nBorderSidesShared))
+  ALLOCATE(offsetMPISideShared(  nBorderSidesShared)&
+          ,metricMPISideShared(4,nBorderSidesShared))
 
   nBorderSidesShared = 0
   DO iSide = 1, nNonUniqueGlobalSides
     ! MPI side or BC Side
+    ! FIXME: ADD BIG MORTAR SIDES IF POINTING OUTWARDS
     IF ((SideInfo_Shared(SIDE_NBELEMTYPE,iSide).EQ.2).OR.&
-        ((SideInfo_Shared(SIDE_BCID,iSide).GT.0).AND.(ElementOnProc(SideInfo_Shared(SIDE_ELEMID,iSide))))) THEN
+       ((SideInfo_Shared(SIDE_BCID      ,iSide).GT.0).AND.(ElementOnProc(SideInfo_Shared(SIDE_ELEMID,iSide))))) THEN
       nBorderSidesShared = nBorderSidesShared + 1
       offsetMPISideShared(nBorderSidesShared) = iSide
     END IF
+  END DO
+
+  ! calculate center and radius of each outward facing MPI-side of the compute-node
+  SELECT CASE(TrackingMethod)
+    CASE(TRACING,REFMAPPING)
+      DO iSide = 1, nBorderSidesShared
+        SideID = offsetMPISideShared(iSide)
+
+        CALL DeCasteljauInterpolation(NGeo,xi,SideID,origin)
+        metricMPISideShared(1:3,iSide) = origin(1:3)
+
+        !> build side radius
+        radiusMax = 0.
+        DO q = 0,NGeo
+          DO p = 0,NGeo
+            vec(1:3) = BezierControlPoints3D(:,p,q,SideID) - origin
+            radius   = DOTPRODUCT(Vec)
+            radiusMax= MAX(radiusMax,radius)
+          END DO
+        END DO
+        metricMPISideShared(4,iSide) = SQRT(RadiusMax)
+      END DO
+
+    CASE(TRIATRACKING)
+      ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
+      CornerNodeIDswitch(1)=1
+      CornerNodeIDswitch(2)=(Ngeo+1)
+      CornerNodeIDswitch(3)=(Ngeo+1)**2
+      CornerNodeIDswitch(4)=(Ngeo+1)*Ngeo+1
+      CornerNodeIDswitch(5)=(Ngeo+1)**2*Ngeo+1
+      CornerNodeIDswitch(6)=(Ngeo+1)**2*Ngeo+(Ngeo+1)
+      CornerNodeIDswitch(7)=(Ngeo+1)**2*Ngeo+(Ngeo+1)**2
+      CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
+
+      ! New crazy corner node switch (philipesque)
+      ASSOCIATE(CNS => CornerNodeIDswitch )
+        ! CGNS Mapping
+        NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
+        NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
+        NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
+        NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
+        NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
+        NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
+
+      DO iSide = 1, nBorderSidesShared
+        SideID = offsetMPISideShared(iSide)
+        ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+
+        ! FIXME: MORTAR
+        localSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+
+        ! Find start of CGNS mapping from flip
+        IF (SideInfo_Shared(SIDE_ID,SideID).GT.0) THEN
+          nStart = 0
+        ELSE
+          nStart = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,SideID),10)-1)
+        END IF
+        ! Shared memory array starts at 1, but NodeID at 0
+        SideCornerNodeIDs(1:4) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart  ,4)+1,localSideID)-1, &
+                                   ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+1,4)+1,localSideID)-1, &
+                                   ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+2,4)+1,localSideID)-1, &
+                                   ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+NodeMap(MOD(nStart+3,4)+1,localSideID)-1/)
+
+        origin = 0.
+        DO iNode = 1,4
+          origin(1:3) = origin(1:3) + NodeCoords_Shared(1:3,SideCornerNodeIDs(iNode))
+        END DO
+        metricMPISideShared(1:3,iSide)= origin/4.
+
+        !> build side radius
+        radiusMax = 0.
+        DO iNode = 1,4
+          vec(1:3) = metricMPISideShared(1:3,iSide) - origin
+          radius   = DOTPRODUCT(Vec)
+          radiusMax= MAX(radiusMax,radius)
+        END DO
+        metricMPISideShared(4,iSide) = SQRT(RadiusMax)
+      END DO
+
+      END ASSOCIATE
+
+  END SELECT
+
+  ! Find the radius of the largest cell on the compute-node
+  DO iElem = offsetElemMPI(ComputeNodeRootRank)+1,offsetElemMPI(ComputeNodeRootRank+nComputeNodeProcessors)
+    maxCellRadius = MAX(maxCellRadius,VECNORM((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                                                 BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
+                                                 BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem)/)/2.))
+  END DO
+
+  ! Sum of all compute-node elements in range of the MPI-sides of the compute-node
+  nBorderElemsShared = 0
+  DO iElem = offsetElemMPI(ComputeNodeRootRank)+1,offsetElemMPI(ComputeNodeRootRank+nComputeNodeProcessors)
+    BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iElem)), &
+                                 SUM(   BoundsOfElem_Shared(1:2,2,iElem)), &
+                                 SUM(   BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+
+    DO iSide = 1, nBorderSidesShared
+      IF (VECNORM(BoundsOfElemCenter(1:3)-metricMPISideShared(1:3,iSide)) &
+          .LE. halo_eps+maxCellRadius+metricMPISideShared(4,iSide) ) THEN
+        nBorderElemsShared = nBorderElemsShared + 1
+      END IF
+    END DO
+  END DO
+
+  ! Build an array containing all compute-node elements in range of the MPI-sides of the compute-node
+  ALLOCATE(offsetMPIElemShared(nBorderElemsShared))
+  nBorderElemsShared = 0
+  DO iElem = offsetElemMPI(ComputeNodeRootRank)+1,offsetElemMPI(ComputeNodeRootRank+nComputeNodeProcessors)
+    BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iElem)), &
+                                 SUM(   BoundsOfElem_Shared(1:2,2,iElem)), &
+                                 SUM(   BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+
+    DO iSide = 1, nBorderSidesShared
+      IF (VECNORM(BoundsOfElemCenter(1:3)-metricMPISideShared(1:3,iSide)) &
+          .LE. halo_eps+maxCellRadius+metricMPISideShared(4,iSide) ) THEN
+        nBorderElemsShared = nBorderElemsShared + 1
+        offsetMPIElemShared(nBorderElemsShared) = iElem
+      END IF
+    END DO
   END DO
 
   ! Distribute nHaloElements evenly on compute-node procs
@@ -592,15 +727,14 @@ ELSE
   END IF
 
   ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
-  ALLOCATE(MPISideBoundsOfElemCenter(1:4,1:nBorderSidesShared))
-  DO iSide = 1, nBorderSidesShared
-    SideID = offsetMPISideShared(iSide)
-    ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
-    MPISideBoundsOfElemCenter(1:3,iSide) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
+  ALLOCATE(MPISideBoundsOfElemCenter(1:4,1:nBorderElemsShared))
+  DO iElem = 1, nBorderElemsShared
+    ElemID = offsetMPIElemShared(iElem)
+    MPISideBoundsOfElemCenter(1:3,iElem) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
                                               SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
                                               SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
     ! Calculate outer radius of the element on my compute node
-    MPISideBoundsOfElemCenter(4,iSide) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+    MPISideBoundsOfElemCenter(4,iElem) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                                      BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                                      BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
   END DO
@@ -608,9 +742,8 @@ ELSE
   ! do refined check: (refined halo region reduction)
   ! check the bounding box of each element in compute-nodes' halo domain
   ! against the bounding boxes of the elements of the MPI-surface (inter compute-node MPI sides)
-  ALLOCATE(BoundsOfElemCenter(1:4))
-  DO iElem = firstHaloElem, lastHaloElem
-    ElemID = offsetCNHalo2GlobalElem(iElem)
+  DO iHaloElem = firstHaloElem, lastHaloElem
+    ElemID = offsetCNHalo2GlobalElem(iHaloElem)
     ElemInsideHalo = .FALSE.
     BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
                                  SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
@@ -619,13 +752,13 @@ ELSE
     BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                         BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                         BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
-    DO iSide = 1, nBorderSidesShared
+    DO iElem = 1, nBorderElemsShared
       ! compare distance of centers with sum of element outer radii+halo_eps
-      IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iSide)) &
-          .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) CYCLE
+      IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iElem)) &
+          .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iElem) ) CYCLE
       ElemInsideHalo = .TRUE.
       EXIT
-    END DO ! iSide = 1, nBorderSidesShared
+    END DO ! iElem = 1, nBorderElemsShared
     IF (.NOT.ElemInsideHalo) THEN
       ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 0
     ELSE
@@ -634,7 +767,7 @@ ELSE
       ! ELEMENT HERE, WE LOOSE IT. IF WE KEEP IT, WE BREAK AT 589. YOUR CALL.
       CALL AddElementToFIBGM(ElemID)
     END IF
-  END DO ! iElem = firstHaloElem, lastHaloElem
+  END DO ! iHaloElem = firstHaloElem, lastHaloElem
 END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win            ,MPI_COMM_SHARED)
 
