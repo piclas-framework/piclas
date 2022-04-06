@@ -488,7 +488,7 @@ DO iPBC=1,nPartBound
       IF(TrackingMethod.EQ.REFMAPPING)THEN
         SWRITE(UNIT_STDOUT,'(A)') ' Analyze sides are not implemented for RefMapping=T, because '//  &
                                   ' orientation of SideNormVec is unknown.'
-        CALL abort(__STAMP__,' Analyze-BCs cannot be used for internal reflection in general cases! ')
+        !CALL abort(__STAMP__,' Analyze-BCs cannot be used for internal reflection in general cases! ')
       END IF
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN

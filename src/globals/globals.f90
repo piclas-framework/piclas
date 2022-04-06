@@ -1325,4 +1325,34 @@ L = (LocalElemID.GE.1).AND.(LocalElemID.LE.PP_nElems)
 END FUNCTION ElementOnProc
 
 
+!===================================================================================================================================
+!> Check whether element ID is on the current node
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION ElementOnNode(GlobalElemID) RESULT(L)
+! MODULES
+USE MOD_Preproc
+#if USE_MPI
+USE MOD_MPI_Vars        ,ONLY: offsetElemMPI
+USE MOD_MPI_Shared_Vars ,ONLY: ComputeNodeRootRank,nComputeNodeProcessors
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN) :: GlobalElemID ! Global element index
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+!===================================================================================================================================
+#if USE_MPI
+L = (GlobalElemID.GE.offsetElemMPI(ComputeNodeRootRank)+1).AND.&
+    (GlobalElemID.LE.offsetElemMPI(ComputeNodeRootRank+nComputeNodeProcessors))
+#else
+L = .TRUE.
+#endif /*USE_MPI*/
+END FUNCTION ElementOnNode
+
+
 END MODULE MOD_Globals

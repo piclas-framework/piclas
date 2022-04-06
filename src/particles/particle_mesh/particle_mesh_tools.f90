@@ -77,8 +77,8 @@ nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIR
 CNElemID = GetCNElemID(ElemID)
 DO iLocSide = 1,nlocSides
   SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
-  IF (SideInfo_Shared(SIDE_LOCALID,SideID).LE.0) CYCLE
   localSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+  IF (localSideID.LE.0) CYCLE
   DO NodeNum = 1,4
     !--- A = vector from particle to node coords
     A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,localSideID,CNElemID)+1) - PartStateLoc(1:3)
@@ -216,8 +216,8 @@ nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIR
 CNElemID = GetCNElemID(ElemID)
 DO iLocSide = 1,nlocSides
   SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
-  IF (SideInfo_Shared(SIDE_LOCALID,SideID).LE.0) CYCLE
-  localSideID = SideInfo_Shared(SIDE_LOCALID,SideID)      ! for all 6 sides of the element
+  localSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+  IF (localSideID.LE.0) CYCLE
   DO NodeNum = 1,4
   !--- A = vector from particle to node coords
     A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,localSideID,CNElemID)+1) - PartStateLoc(1:3)
@@ -1639,8 +1639,8 @@ ASSOCIATE(CNS => CornerNodeIDswitch )
       ! Get global SideID
       GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
 
-      IF (SideInfo_Shared(SIDE_LOCALID,GlobalSideID).LE.0) CYCLE
       localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+      IF (localSideID.LE.0) CYCLE
       ! Find start of CGNS mapping from flip
       IF (SideInfo_Shared(SIDE_ID,GlobalSideID).GT.0) THEN
         nStart = 0
@@ -1653,8 +1653,8 @@ ASSOCIATE(CNS => CornerNodeIDswitch )
                                                        ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+2,4)+1,localSideID)-1, &
                                                        ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+3,4)+1,localSideID)-1/)
 
-    END DO
-  END DO
+    END DO ! iLocSide = 1,nlocSides
+  END DO ! iElem = firstElem,lastElem
 
 END ASSOCIATE
 #if USE_MPI
@@ -1671,8 +1671,8 @@ DO iElem = firstElem,lastElem
     !--- Check whether the bilinear side is concave
     !--- Node Number 4 and triangle 1-2-3
     GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
-    IF (SideInfo_Shared(SIDE_LOCALID,GlobalSideID).LE.0) CYCLE
     localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+    IF (localSideID.LE.0) CYCLE
     DO NodeNum = 1,3               ! for all 3 nodes of triangle
        A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,localSideID,iElem)+1) &
                     - NodeCoords_Shared(:,ElemSideNodeID_Shared(4      ,localSideID,iElem)+1)

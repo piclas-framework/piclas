@@ -339,10 +339,10 @@ DO iSide = 1, nExchangeSides
         NbElemBounds(1,:) = MIN(NbElemBounds(1,:),BoundsOfElem_Shared(1,:,NbElemID))
         NbElemBounds(2,:) = MAX(NbElemBounds(2,:),BoundsOfElem_Shared(2,:,NbElemID))
       END IF
-    END DO
+    END DO ! iMortar = 1, nMortarElems
     MPISideBoundsOfNbElemCenter(1:3,iSide) = (/ SUM(  NbElemBounds(1:2,1)), &
-                                              SUM(  NbElemBounds(1:2,2)), &
-                                              SUM(  NbElemBounds(1:2,3)) /) / 2.
+                                                SUM(  NbElemBounds(1:2,2)), &
+                                                SUM(  NbElemBounds(1:2,3)) /) / 2.
     MPISideBoundsOfNbElemCenter(4,iSide) = VECNORM ((/NbElemBounds(2  ,1)-NbElemBounds(1,1), &
                                                     NbElemBounds(2  ,2)-NbElemBounds(1,2), &
                                                     NbElemBounds(2  ,3)-NbElemBounds(1,3) /) / 2.)
