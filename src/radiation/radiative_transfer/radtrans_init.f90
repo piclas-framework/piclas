@@ -214,7 +214,7 @@ CASE(1) !calls radition solver module
   ElemDisp = MAX(10,ElemDisp)
 
   DO iElem = firstElem, lastElem
-    IF((myRank.EQ.DisplRank).AND.(MOD(iElem-firstElem,ElemDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(iElem),REAL(firstElem),REAL(lastElem),.FALSE.)
+    IF((myRank.EQ.DisplRank).AND.(MOD(iElem-firstElem,ElemDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(iElem),REAL(firstElem),REAL(lastElem),.FALSE.,DisplRank)
     IF (CalcRadObservationPoint) THEN
       CALL ElemInObsCone(iElem, ElemInCone)
       IF (.NOT.ElemInCone) CYCLE
