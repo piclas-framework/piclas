@@ -1378,7 +1378,7 @@ CASE DEFAULT
 END SELECT
 
 IF(UseRotRefFrame) THEN
-  DO i = 1,NbrOfParticle-PartIns+1,NbrOfParticle
+  DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr.GT.0) THEN
       PartState(4:6,PositionNbr) = PartState(4:6,PositionNbr) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PositionNbr))
