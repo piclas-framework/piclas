@@ -144,7 +144,6 @@ USE MOD_ReadInTools
   RadiationInput(iSpec)%RadiationSpectraFileName = GETSTR('Radiation-Species'//TRIM(hilf)//'-SpectraFileName','none')
   IF (RadiationInput(iSpec)%RadiationSpectraFileName.EQ.'none') THEN
     SpeciesRadiation(iSpec)%nBands = 0
-    print*, 'Nope'
     ! STOP
   END IF
 

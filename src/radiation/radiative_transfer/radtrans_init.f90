@@ -96,7 +96,7 @@ USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radia
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iWave, iElem, firstElem, lastElem, ElemDisp, DisplRank, iSpec
+INTEGER               :: iWave, iElem, firstElem, lastElem, ElemDisp, DisplRank, iSpec, currentRank
 REAL                  :: LocTemp, ObsLengt, MaxSumTemp(2), GlobalMaxTemp(2)
 LOGICAL               :: ElemInCone
 !===================================================================================================================================
@@ -194,6 +194,45 @@ END IF
 #if USE_MPI
   firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeElems)/REAL(nComputeNodeProcessors))+1
   lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeElems)/REAL(nComputeNodeProcessors))
+  IF (nComputeNodeElems.NE.nComputeNodeProcessors) THEN
+    MaxSumTemp(1) = 0.0
+    DO iSpec = 1, nSpecies
+      IF(.NOT.RadiationInput(iSpec)%DoRadiation) CYCLE
+      MaxSumTemp(1) = MaxSumTemp(1) + SUM(MacroRadInputParameters(firstElem:lastElem,iSpec,4))
+    END DO
+    CALL MPI_ALLREDUCE(MaxSumTemp(1), GlobalMaxTemp(1), 1, MPI_DOUBLE_PRECISION, MPI_SUM,MPI_COMM_SHARED,iError)
+    GlobalMaxTemp(1) = GlobalMaxTemp(1) / REAL(nComputeNodeProcessors)
+    MaxSumTemp(1) = 0.0
+    currentRank = 0
+    firstElem = 1
+    ElemLoop: DO iElem = 1, nComputeNodeElems 
+      DO iSpec = 1, nSpecies
+        IF(.NOT.RadiationInput(iSpec)%DoRadiation) CYCLE
+        MaxSumTemp(1) = MaxSumTemp(1) + MacroRadInputParameters(iElem,iSpec,4)
+      END DO
+      IF ((nComputeNodeElems - iElem).EQ.(nComputeNodeProcessors - currentRank - 1)) THEN
+        currentRank = currentRank + 1
+        IF (currentRank.EQ.myComputeNodeRank) THEN
+          firstElem = iElem + 1
+          lastElem = iElem + 1
+          EXIT ElemLoop
+        ELSE
+          CYCLE ElemLoop
+        END IF        
+      END IF
+      IF (MaxSumTemp(1).GE.GlobalMaxTemp(1)) THEN
+        currentRank = currentRank + 1
+        IF (currentRank.GT.myComputeNodeRank) THEN
+          lastElem = iElem
+          EXIT ElemLoop
+        END IF
+        IF (currentRank.EQ.myComputeNodeRank) firstElem = MIN(iElem+1, nComputeNodeElems)
+        MaxSumTemp(1) = 0.0
+      END IF
+    END DO ElemLoop
+    IF (myRank+1.EQ.nComputeNodeProcessors) lastElem = nComputeNodeElems
+  END IF
+  
   MaxSumTemp(2) = REAL(myRank)
   MaxSumTemp(1) = 0.0
   DO iSpec = 1, nSpecies
