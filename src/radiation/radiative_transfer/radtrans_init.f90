@@ -78,15 +78,15 @@ USE MOD_Radiation,              ONLY : radiation_main
 USE MOD_DSMC_Vars,              ONLY: RadialWeighting
 USE MOD_Output,                 ONLY: PrintStatusLineRadiation
 USE MOD_Mesh_Tools,             ONLY : GetGlobalElemID
-USE MOD_Particle_Vars,          ONLY : Symmetry
+USE MOD_Particle_Vars,          ONLY : Symmetry, nSpecies
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Build,    ONLY: BuildMesh2DInfo
 USE MOD_SuperB_Tools,           ONLY: FindLinIndependentVectors, GramSchmidtAlgo
 #if USE_MPI
 USE MOD_RadiationTrans_Vars,    ONLY : RadTransObsVolumeFrac_Shared_Win, RadTransObsVolumeFrac_Shared
-USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_Spec_Shared, Radiation_Absorption_Spec_Shared_Win
-USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radiation_Emission_Spec_Shared
+USE MOD_Radiation_Vars,         ONLY : Radiation_Absorption_Spec_Shared, Radiation_Absorption_Spec_Shared_Win, RadiationInput
+USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radiation_Emission_Spec_Shared, MacroRadInputParameters
 #endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -96,8 +96,8 @@ USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radia
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iWave, iElem, firstElem, lastElem, ElemDisp
-REAL                  :: LocTemp, ObsLengt
+INTEGER               :: iWave, iElem, firstElem, lastElem, ElemDisp, DisplRank, iSpec
+REAL                  :: LocTemp, ObsLengt, MaxSumTemp(2), GlobalMaxTemp(2)
 LOGICAL               :: ElemInCone
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -194,16 +194,27 @@ END IF
 #if USE_MPI
   firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeElems)/REAL(nComputeNodeProcessors))+1
   lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeElems)/REAL(nComputeNodeProcessors))
+  MaxSumTemp(2) = REAL(myRank)
+  MaxSumTemp(1) = 0.0
+  DO iSpec = 1, nSpecies
+    IF(.NOT.RadiationInput(iSpec)%DoRadiation) CYCLE
+    MaxSumTemp(1) = MaxSumTemp(1) + SUM(MacroRadInputParameters(firstElem:lastElem,iSpec,4))
+  END DO
+  CALL MPI_ALLREDUCE(MaxSumTemp, GlobalMaxTemp, 1, MPI_2DOUBLE_PRECISION, MPI_MAXLOC,MPI_COMM_WORLD,iError)
+  DisplRank = NINT(GlobalMaxTemp(2))
 #else
   firstElem = 1
   lastElem  = nElems
+  DisplRank = 0
 #endif
 SELECT CASE(RadiationSwitches%RadType)
 CASE(1) !calls radition solver module
   SWRITE(UNIT_stdOut,'(A)') ' Calculate Radiation Data per Cell ...'
   ElemDisp = INT((lastElem-firstElem+1)/20)
+  ElemDisp = MAX(10,ElemDisp)
+
   DO iElem = firstElem, lastElem
-    IF(MPIroot.AND.(MOD(iElem,ElemDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(iElem),REAL(firstElem),REAL(lastElem),.FALSE.)
+    IF((myRank.EQ.DisplRank).AND.(MOD(iElem-firstElem,ElemDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(iElem),REAL(firstElem),REAL(lastElem),.FALSE.)
     IF (CalcRadObservationPoint) THEN
       CALL ElemInObsCone(iElem, ElemInCone)
       IF (.NOT.ElemInCone) CYCLE
