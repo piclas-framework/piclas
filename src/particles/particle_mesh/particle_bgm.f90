@@ -550,7 +550,7 @@ ELSE
           IF(kBGM.LT.BGMkmin) CYCLE
           IF(kBGM.GT.BGMkmax) CYCLE
           !GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
-          IF(iElem.GE.offsetComputeNodeElem+1 .AND. iElem.LE.offsetComputeNodeElem+nComputeNodeElems) THEN
+          IF(ElementOnNode(iElem)) THEN
             ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 1 ! compute-node element
           ELSE
             ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2 ! halo element
@@ -590,7 +590,7 @@ ELSE
     ! check if the side is a big mortar side. Find big mortar sides that point outwards (node-to-node interfaces)
     NbElemID = SideInfo_Shared(SIDE_NBELEMID,iSide)
     IF (NbElemID.LT.0) THEN ! Mortar side (from particle_tracing.f90)
-    nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,iSide).EQ.-1)
+      nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,iSide).EQ.-1)
 
       DO iMortar = 1,nMortarElems
         NbSideID = SideInfo_Shared(SIDE_NBSIDEID,iSide + iMortar)
