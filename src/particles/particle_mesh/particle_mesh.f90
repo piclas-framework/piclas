@@ -148,7 +148,7 @@ USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalElemID,InitGetCNElemID,GetCNE
 USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID,GetGlobalSideID
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
-USE MOD_Mesh_Vars              ,ONLY: useCurveds, nElems
+USE MOD_Mesh_Vars              ,ONLY: useCurveds
 #if USE_MPI
 USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
 #endif /*USE_MPI*/
@@ -156,6 +156,7 @@ USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: InitPEM_LocalElemID,InitPEM_CNElemID,GetMeshMinMax,IdentifyElemAndSideType
 USE MOD_Particle_Mesh_Tools    ,ONLY: CalcParticleMeshMetrics,InitElemNodeIDs,InitParticleGeometry,CalcBezierControlPoints
+USE MOD_Particle_Mesh_Tools    ,ONLY: CalcXCL_NGeo
 USE MOD_Particle_Surfaces      ,ONLY: GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
@@ -187,7 +188,10 @@ USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBa
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICDepo_Shapefunction_Tools, ONLY:InitShapeFunctionDimensionalty
+#if USE_MPI && (PP_TimeDiscMethod==400)
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+USE MOD_Mesh_Vars              ,ONLY: nElems
+#endif /*USE_MPI && (PP_TimeDiscMethod==400)*/
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -228,9 +232,13 @@ IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING) THEN
   NGeoElevated    = NGeo + BezierElevation
 
   CALL CalcParticleMeshMetrics()
+ELSE
+  NGeoElevated = NGeo
+END IF
+  CALL CalcXCL_NGeo()
 
   CALL CalcBezierControlPoints()
-END IF
+!END IF
 
 ! Mesh min/max must be built on BezierControlPoint for possibly curved elements
 CALL GetMeshMinMax()
@@ -365,10 +373,6 @@ SELECT CASE(TrackingMethod)
     IF(TriaSurfaceFlux.OR.TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitParticleGeometry()
     ! ElemNodeID_Shared required
     IF(FindNeighbourElems) CALL InitElemNodeIDs()
-
-!    CALL CalcParticleMeshMetrics()
-
-!    CALL CalcBezierControlPoints()
 
 #if USE_MPI
     CALL Allocate_Shared((/3,3,nComputeNodeTotalSides/),SideSlabNormals_Shared_Win,SideSlabNormals_Shared)
@@ -692,6 +696,17 @@ SELECT CASE (TrackingMethod)
 
   ! TriaTracking
   CASE(TRIATRACKING)
+#if USE_LOADBALANCE
+    IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+      ! CalcBezierControlPoints()
+      CALL UNLOCK_AND_FREE(BezierControlPoints3D_Shared_Win)
+      IF (BezierElevation.GT.0) CALL UNLOCK_AND_FREE(BezierControlPoints3DElevated_Shared_Win)
+      ADEALLOCATE(BezierControlPoints3D_Shared)
+      ADEALLOCATE(BezierControlPoints3DElevated_Shared)
+#if USE_LOADBALANCE
+    END IF !PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
     ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
