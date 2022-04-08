@@ -570,9 +570,11 @@ ELSE
 
   nBorderSidesShared = 0
   DO iSide = 1, nNonUniqueGlobalSides
-    ! MPI side or BC Side
+    ! Check for MPI sides or BC sides
+    ! Node-to-node MPI interface
     IF ((SideInfo_Shared(SIDE_NBELEMTYPE,iSide).EQ.2).OR.&
-        ((SideInfo_Shared(SIDE_BCID,iSide).GT.0).AND.(ElementOnProc(SideInfo_Shared(SIDE_ELEMID,iSide))))) THEN
+       ! BC side + element on local proc (do not count multiple times) + skip inner BCs (they would otherwise be counted twice)
+       ((SideInfo_Shared(SIDE_BCID      ,iSide).GT.0).AND.(ElementOnProc(SideInfo_Shared(SIDE_ELEMID,iSide)).AND.(SideInfo_Shared(SIDE_NBELEMID,iSide).EQ.0)))) THEN
       nBorderSidesShared = nBorderSidesShared + 1
       offsetMPISideShared(nBorderSidesShared) = iSide
     END IF
