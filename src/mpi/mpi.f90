@@ -73,6 +73,7 @@ CALL prms%CreateIntOption('GroupSize', "Define size of MPI subgroups, used to e.
                                        '0')
 #if defined(PARTICLES)
 CALL prms%CreateLogicalOption('CheckExchangeProcs' , 'Check if proc communication of particle info is non-symmetric', '.TRUE.')
+CALL prms%CreateLogicalOption('AbortExchangeProcs' , 'Abort if proc communication of particle info is non-symmetric (requires CheckExchangeProcs=T)', '.TRUE.')
 #endif /*PARTICLES*/
 END SUBROUTINE DefineParametersMPI
 

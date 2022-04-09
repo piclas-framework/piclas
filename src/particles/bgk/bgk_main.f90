@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_BGK
+#if (PP_TimeDiscMethod==400)
 !===================================================================================================================================
 !> Main module for the the Bhatnagar-Gross-Krook method
 !===================================================================================================================================
@@ -266,4 +267,5 @@ END IF
 
 END SUBROUTINE BGK_main
 
+#endif /*(PP_TimeDiscMethod==400)*/
 END MODULE MOD_BGK
