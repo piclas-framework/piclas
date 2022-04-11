@@ -324,13 +324,6 @@ ReactionProbGTUnityCounter = 0
 ! reading and reset general DSMC values
 CollisMode = GETINT('Particles-DSMC-CollisMode','1') !0: no collis, 1:elastic col, 2:elast+rela, 3:chem
 SelectionProc = GETINT('Particles-DSMC-SelectionProcedure','1') !1: Laux, 2:Gimelsheim
-IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
-  IF(SelectionProc.NE.1) THEN
-    CALL abort(__STAMP__&
-        ,'ERROR: Radial weighting or variable time step is not implemented with the chosen SelectionProcedure: ' &
-        ,IntInfoOpt=SelectionProc)
-  END IF
-END IF
 
 DSMC%MergeSubcells = GETLOGICAL('Particles-DSMC-MergeSubcells')
 IF(DSMC%MergeSubcells.AND.(Symmetry%Order.NE.2)) THEN
