@@ -883,7 +883,7 @@ ELSE !CollisMode.GT.0
     ! 3. Case: Temperature required for the mean free path with the VHS model
     ALLOCATE(DSMC%InstantTransTemp(nSpecies+1))
     DSMC%InstantTransTemp = 0.0
-    IF(DSMC%ElectronicModel.EQ.2) THEN
+    IF((DSMC%ElectronicModel.EQ.2).OR.useRelaxProbCorrFactor) THEN
       ALLOCATE(DSMC%InstantTXiElec(2,nSpecies))
       DSMC%InstantTXiElec = 0.0
     END IF
