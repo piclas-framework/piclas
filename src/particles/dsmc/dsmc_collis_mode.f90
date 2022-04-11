@@ -749,7 +749,6 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   LOGICAL                       :: DoElec1, DoElec2
   REAL (KIND=8)                 :: FakXi, Xi_rel                                ! Factors of DOF
   REAL                          :: cRelaNew(3),ReducedMass                      ! post collision relative velocity
-  REAL                          :: PartStateIntEnTemp                           ! temp. var for inertial energy (needed for vMPF)
   REAL                          :: ProbFrac1, ProbFrac2, ProbFrac3, ProbFrac4   ! probability-fractions according to Zhang
   REAL                          :: ProbFrac5, ProbFrac6, CorrFact               ! probability-fractions according to Zhang
   REAL                          :: ProbRot1, ProbRot2, ProbVib1, ProbVib2       ! probabilities for rot-/vib-relax for part 1/2
