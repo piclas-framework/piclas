@@ -153,16 +153,20 @@ INTEGER,ALLOCATABLE            :: sendbuf(:,:,:),recvbuf(:,:,:)
 INTEGER,ALLOCATABLE            :: offsetElemsInBGMCell(:,:,:)
 INTEGER                        :: nHaloElems
 INTEGER,ALLOCATABLE            :: offsetCNHalo2GlobalElem(:)
-REAL,ALLOCATABLE               :: MPISideBoundsOfElemCenter(:,:)
+REAL,POINTER                   :: MPISideBoundsOfElemCenter_Shared(:,:) => null()
+INTEGER                        :: MPISideBoundsOfElemCenter_Shared_Win
 REAL                           :: BoundsOfElemCenter(1:4)
 LOGICAL                        :: ElemInsideHalo
 INTEGER                        :: firstHaloElem,lastHaloElem
 ! Halo calculation
 INTEGER                        :: p,q
-INTEGER,ALLOCATABLE            :: offsetMPIElemShared(:)
+INTEGER,POINTER                :: offsetMPIElem_Shared(:) => null()
+INTEGER                        :: offsetMPIElem_Shared_Win
 INTEGER,ALLOCATABLE            :: offsetMPISideShared(:)
 REAL,ALLOCATABLE               :: metricMPISideShared(:,:)
-INTEGER                        :: nBorderSidesShared,nBorderElemsShared
+INTEGER                        :: nBorderSidesShared
+INTEGER                        :: nBorderElems,offsetBorderElems,nComputeNodeBorderElems
+INTEGER                        :: sendint,recvint
 REAL                           :: origin(3),vec(3),radius,radiusMax
 !INTEGER                        :: iNode,localSideID,nStart,SideCornerNodeIDs(1:4)
 !INTEGER                        :: CornerNodeIDswitch(8),NodeMap(4,6)
@@ -828,25 +832,36 @@ ELSE
   !  END DO ! i = 1, 4
   !END DO ! iSide = 1, nBorderSidesShared
   ! Sum of all compute-node elements in range of the MPI-sides of the compute-node
-  nBorderElemsShared = 0
-  DO iElem = offsetElemMPI(ComputeNodeRootRank)+1,offsetElemMPI(ComputeNodeRootRank+nComputeNodeProcessors)
+  nBorderElems = 0
+  DO iElem = offsetElem+1,offsetElem+nElems
     BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iElem)), &
                                  SUM(   BoundsOfElem_Shared(1:2,2,iElem)), &
                                  SUM(   BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
 
     DO iSide = 1, nBorderSidesShared
-      !IPWRITE(UNIT_StdOut,*) "VECNORM(BoundsOfElemCenter(1:3)-metricMPISideShared(1:3,iSide)) =", VECNORM(BoundsOfElemCenter(1:3)-metricMPISideShared(1:3,iSide))
-      !IPWRITE(UNIT_StdOut,*) "halo_eps+maxCellRadius+metricMPISideShared(4,iSide) =", halo_eps+maxCellRadius+metricMPISideShared(4,iSide)
       IF (VECNORM(BoundsOfElemCenter(1:3)-metricMPISideShared(1:3,iSide)) &
           .LE. halo_eps+maxCellRadius+metricMPISideShared(4,iSide) ) THEN
-        nBorderElemsShared = nBorderElemsShared + 1
+        nBorderElems = nBorderElems + 1
       END IF
     END DO
   END DO
+
+  sendint = nBorderElems
+  recvint = 0
+  CALL MPI_EXSCAN(sendint,recvint,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+  offsetBorderElems = recvint
+  ! last proc knows CN total number of border elems
+  sendint = offsetBorderElems + nBorderElems
+  CALL MPI_BCAST(sendint,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+  nComputeNodeBorderElems = sendint
+
+  CALL Allocate_Shared((/4,nComputeNodeBorderElems/),MPISideBoundsOfElemCenter_Shared_Win,MPISideBoundsOfElemCenter_Shared)
+  CALL Allocate_Shared((/  nComputeNodeBorderElems/),offsetMPIElem_Shared_Win            ,offsetMPIElem_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,MPISideBoundsOfElemCenter_Shared_Win,IERROR)
+  CALL MPI_WIN_LOCK_ALL(0,offsetMPIElem_Shared_Win            ,IERROR)
 
   ! Build an array containing all compute-node elements in range of the MPI-sides of the compute-node
-  ALLOCATE(offsetMPIElemShared(nBorderElemsShared))
-  nBorderElemsShared = 0
+  nBorderElems = offsetBorderElems
   DO iElem = offsetElemMPI(ComputeNodeRootRank)+1,offsetElemMPI(ComputeNodeRootRank+nComputeNodeProcessors)
     BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iElem)), &
                                  SUM(   BoundsOfElem_Shared(1:2,2,iElem)), &
@@ -855,13 +870,13 @@ ELSE
     DO iSide = 1, nBorderSidesShared
       IF (VECNORM(BoundsOfElemCenter(1:3)-metricMPISideShared(1:3,iSide)) &
           .LE. halo_eps+maxCellRadius+metricMPISideShared(4,iSide) ) THEN
-        nBorderElemsShared = nBorderElemsShared + 1
-        offsetMPIElemShared(nBorderElemsShared) = iElem
+        nBorderElems = nBorderElems + 1
+        offsetMPIElem_Shared(nBorderElems) = iElem
       END IF
     END DO
   END DO
 
-  DEALLOCATE(offsetMPISideShared)
+  CALL BARRIER_AND_SYNC(offsetMPIElem_Shared_Win,IERROR)
   DEALLOCATE(metricMPISideShared)
 
   ! Distribute nHaloElements evenly on compute-node procs
@@ -878,17 +893,18 @@ ELSE
   END IF
 
   ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
-  ALLOCATE(MPISideBoundsOfElemCenter(1:4,1:nBorderElemsShared))
-  DO iElem = 1, nBorderElemsShared
-    ElemID = offsetMPIElemShared(iElem)
-    MPISideBoundsOfElemCenter(1:3,iElem) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                              SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                              SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+  DO iElem = offsetBorderElems+1, offsetBorderElems+nBorderElems
+    ElemID = offsetMPIElem_Shared(iElem)
+    MPISideBoundsOfElemCenter_Shared(1:3,iElem) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
+                                                     SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
+                                                     SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
     ! Calculate outer radius of the element on my compute node
-    MPISideBoundsOfElemCenter(4,iElem) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                                     BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                                     BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+    MPISideBoundsOfElemCenter_Shared(4,iElem) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                                            BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                                            BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
   END DO
+
+  CALL BARRIER_AND_SYNC(MPISideBoundsOfElemCenter_Shared_Win,IERROR)
 
   ! do refined check: (refined halo region reduction)
   ! check the bounding box of each element in compute-nodes' halo domain
@@ -903,13 +919,13 @@ ELSE
     BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                         BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                         BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
-    DO iElem = 1, nBorderElemsShared
+    DO iElem = 1, nBorderElems
       ! compare distance of centers with sum of element outer radii+halo_eps
-      IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iElem)) &
-          .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iElem) ) CYCLE
+      IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter_Shared(1:3,iElem)) &
+          .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter_Shared(4,iElem) ) CYCLE
       ElemInsideHalo = .TRUE.
       EXIT
-    END DO ! iElem = 1, nBorderElemsShared
+    END DO ! iElem = 1, nBorderElems
     IF (.NOT.ElemInsideHalo) THEN
       ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 0
     ELSE
@@ -920,7 +936,18 @@ ELSE
     END IF
   END DO ! iHaloElem = firstHaloElem, lastHaloElem
 END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
-CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win            ,MPI_COMM_SHARED)
+
+! De-allocate FLAG array
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+CALL UNLOCK_AND_FREE(MPISideBoundsOfElemCenter_Shared_Win)
+CALL UNLOCK_AND_FREE(offsetMPIElem_Shared_Win)
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+! Then, free the pointers or arrays
+ADEALLOCATE(MPISideBoundsOfElemCenter_Shared)
+ADEALLOCATE(offsetMPIElem_Shared)
+
+CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
 IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
 IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides(EnlargeBGM)
