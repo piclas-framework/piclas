@@ -431,7 +431,7 @@ REAL                          :: Weight1, Weight2
 !--------------------------------------------------------------------------------------------------!
 ! ELECTRONIC
 !--------------------------------------------------------------------------------------------------!
-  IF ((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2)) THEN
+  IF ((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.3)) THEN
     ! Model 1/2
     IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
       SELECT CASE(DSMC%ElectronicModel)
