@@ -935,19 +935,19 @@ ELSE
       CALL AddElementToFIBGM(ElemID)
     END IF
   END DO ! iHaloElem = firstHaloElem, lastHaloElem
+
+  ! De-allocate FLAG array
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+  CALL UNLOCK_AND_FREE(MPISideBoundsOfElemCenter_Shared_Win)
+  CALL UNLOCK_AND_FREE(offsetMPIElem_Shared_Win)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+  ! Then, free the pointers or arrays
+  ADEALLOCATE(MPISideBoundsOfElemCenter_Shared)
+  ADEALLOCATE(offsetMPIElem_Shared)
+
+  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
-
-! De-allocate FLAG array
-CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-CALL UNLOCK_AND_FREE(MPISideBoundsOfElemCenter_Shared_Win)
-CALL UNLOCK_AND_FREE(offsetMPIElem_Shared_Win)
-CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-
-! Then, free the pointers or arrays
-ADEALLOCATE(MPISideBoundsOfElemCenter_Shared)
-ADEALLOCATE(offsetMPIElem_Shared)
-
-CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
 IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
 IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides(EnlargeBGM)
