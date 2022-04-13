@@ -153,9 +153,7 @@ IF (RelaxDeposition) THEN
   ALLOCATE(PartSourceOld(1:4,1:2,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
 #endif
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-,'ERROR in pic_depo.f90: Cannot allocate PartSourceOld!')
+    CALL abort(__STAMP__,'ERROR in pic_depo.f90: Cannot allocate PartSourceOld!')
   END IF
   PartSourceOld=0.
   OutputSource = .TRUE.
@@ -166,9 +164,7 @@ END IF
 !--- check if charge density is computed from TimeAverageFile
 TimeAverageFile = GETSTR('PIC-TimeAverageFile','none')
 IF (TRIM(TimeAverageFile).NE.'none') THEN
-  CALL abort(&
-  __STAMP__&
-  ,'This feature is currently not working! PartSource must be correctly handled in shared memory context.')
+  CALL abort(__STAMP__,'This feature is currently not working! PartSource must be correctly handled in shared memory context.')
   CALL ReadTimeAverage(TimeAverageFile)
   IF (.NOT.RelaxDeposition) THEN
   !-- switch off deposition: use only the read PartSource
