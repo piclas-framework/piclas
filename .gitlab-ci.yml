@@ -245,12 +245,17 @@ maxwell:
   script:
     - cd build_maxwell ; python ./reggie/reggie.py ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas
 
-poisson:
+poisson_release:
   <<: *defaults_poisson
   stage: reggie_checkin
   script:
     - cd build_poisson_release ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
-    - cd ../build_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
+
+poisson_debug:
+  <<: *defaults_poisson
+  stage: reggie_checkin
+  script:
+    - cd build_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
