@@ -127,11 +127,11 @@ DO iSpec=1, nSpecies
         /(2.*(Species(iSpec)%MassIC * Species(iSpec2)%MassIC)))/CollInf%Tref(iSpec,iSpec2)**(-CollInf%omega(iSpec,iSpec2) +0.5)
   END DO
 END DO
-!IF ((nSpecies.GT.1).AND.(ANY(SpecDSMC(:)%PolyatomicMol))) THEN
-!  CALL abort(&
-!__STAMP__&
-!,' ERROR Multispec not implemented with polyatomic molecules!')
-!END IF
+IF ((nSpecies.GT.1).AND.(ANY(SpecDSMC(:)%PolyatomicMol))) THEN
+  CALL abort(&
+__STAMP__&
+,' ERROR Multispec not implemented with polyatomic molecules!')
+END IF
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
@@ -178,11 +178,11 @@ IF(MoleculePresent) THEN
   ! Vibrational modelling
   BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
   BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
-  IF ((nSpecies.GT.1).AND.(BGKUseQuantVibEn)) THEN
-    CALL abort(&
-      __STAMP__&
-      ,' ERROR Multispec not implemented for quantized vibrational energy!')
-  END IF
+  !IF ((nSpecies.GT.1).AND.(BGKUseQuantVibEn)) THEN
+  !  CALL abort(&
+  !    __STAMP__&
+  !    ,' ERROR Multispec not implemented for quantized vibrational energy!')
+  !END IF
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN
