@@ -203,6 +203,11 @@ END IF
 #endif /*defined(PARTICLES)*/
 
 !CG parameters
+#if USE_PETSC
+SWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: PETSc '
+#else
+SWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: CG '
+#endif /*USE_PETSC*/
 PrecondType          = GETINT('PrecondType')
 epsCG                = GETREAL('epsCG')
 OutIterCG            = GETINT('OutIterCG')
@@ -215,8 +220,7 @@ ALLOCATE(MaskedSide(1:nSides))
 MaskedSide=.FALSE.
 
 IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
-  IF(nMortarMPISides.GT.0) CALL abort( &
-  __STAMP__,&
+  IF(nMortarMPISides.GT.0) CALL abort(__STAMP__,&
   "nMortarMPISides >0: HDG mortar MPI implementation relies on big sides having always only master sides (=> nMortarMPISides=0 )")
 END IF !mortarMesh
 
