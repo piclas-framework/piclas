@@ -92,7 +92,7 @@ REAL,PARAMETER        :: RelEneTol=1e-12 ! Relative tolerance applied to conserv
 REAL                  :: totalWeightSpec(nSpecies), totalWeight, partWeight, CellTemptmp
 REAL                  :: EVibSpec(nSpecies), ERotSpec(nSpecies), Xi_VibSpec(nSpecies), Xi_RotSpec(nSpecies),Xi_Vib_oldSpec(nSpecies)
 REAL                  :: TVibSpec(nSpecies), TRotSpec(nSpecies), RotExpSpec(nSpecies), VibExpSpec(nSpecies)
-REAL                  :: collisionfreqSpec(nSpecies),rotrelaxfreqSpec(nSpecies), vibrelaxfreqSpec(nSpecies), Xi_RotTotal
+REAL                  :: collisionfreqSpec,rotrelaxfreqSpec(nSpecies), vibrelaxfreqSpec(nSpecies), Xi_RotTotal
 INTEGER               :: nVibRelaxSpec(nSpecies), nRotRelaxSpec(nSpecies)
 !===================================================================================================================================
 #ifdef CODE_ANALYZE
@@ -160,18 +160,18 @@ END IF
 IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
   collisionfreqSpec = 0.0
   DO iSpec = 1, nSpecies
-    DO jSpec = 1, nSpecies
+    DO jSpec = 1, iSpec
       IF (iSpec.EQ.jSpec) THEN
         CellTemptmp = CellTemp !SpecTemp(iSpec)
       ELSE
         CellTemptmp = CellTemp
       END IF
-      collisionfreqSpec(iSpec) = collisionfreqSpec(iSpec) + SpecBGK(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(iSpec)*totalWeightSpec(jSpec) &
+      collisionfreqSpec = collisionfreqSpec + SpecBGK(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(iSpec)*totalWeightSpec(jSpec) &
               *Dens *CellTemptmp**(-CollInf%omega(iSpec,jSpec) +0.5) /(totalWeight*totalWeight)
     END DO
   END DO
-  rotrelaxfreqSpec(:) = collisionfreqSpec(:) * DSMC%RotRelaxProb
-  vibrelaxfreqSpec(:) = collisionfreqSpec(:) * DSMC%VibRelaxProb
+  rotrelaxfreqSpec(:) = collisionfreqSpec * DSMC%RotRelaxProb
+  vibrelaxfreqSpec(:) = collisionfreqSpec * DSMC%VibRelaxProb
   RotExpSpec=0.; VibExpSpec=0.
 
   IF(SpecDSMC(1)%PolyatomicMol) THEN
