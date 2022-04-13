@@ -63,6 +63,7 @@ TYPE tRadiationSwitches            ! Radiation types and mechanisms
   LOGICAL               :: bb_at                            ! Switch for atomic line radiation
   LOGICAL               :: bb_mol                           ! Switch for molecular band radiation
   LOGICAL               :: MacroRadInput                    ! Switch for input of DSMC files
+  LOGICAL               :: SortCellsY                       ! Sorts Cells in y-direction for manually created input files (e.g. Laux's test case)
   LOGICAL               :: UseElectronicExcitation          ! Switch for using electronic excitation energies (t) OR T_electron for atoms and sqrt(T_vib*T_electron) for molecules (f)
 END TYPE tRadiationSwitches
 

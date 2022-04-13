@@ -80,6 +80,7 @@ CALL prms%CreateLogicalOption('Radiation-bf',                          'Enable b
 CALL prms%CreateLogicalOption('Radiation-bb-atoms',                    'Enable atomic bound-bound radiation', '.FALSE.')
 CALL prms%CreateLogicalOption('Radiation-bb-molecules',                'Enable molecular bound-bound radiation', '.FALSE.')
 CALL prms%CreateLogicalOption('Radiation-MacroRadInput',               'Reading in flow field data as radiation input', '.FALSE.')
+CALL prms%CreateLogicalOption('Radiation-MacroInput-SortCellsY',       'Sorts Cells in y-direction', '.FALSE.')
 CALL prms%CreateLogicalOption('Radiation-UseElectronicExcitation',     'Use el. excitation to populate upper state densitites', &
 						                        '.TRUE.')
 CALL prms%CreateRealOption(   'Radiation-NumDensElectrons',            'Electron number density, 1/cm3', '0.0')
@@ -210,6 +211,7 @@ RadiationSwitches%bf                      = GETLOGICAL('Radiation-bf')
 RadiationSwitches%bb_at                   = GETLOGICAL('Radiation-bb-atoms')
 RadiationSwitches%bb_mol                  = GETLOGICAL('Radiation-bb-molecules')
 RadiationSwitches%MacroRadInput           = GETLOGICAL('Radiation-MacroRadInput')
+RadiationSwitches%SortCellsY              = GETLOGICAL('Radiation-MacroInput-SortCellsY')
 RadiationSwitches%UseElectronicExcitation = GETLOGICAL('Radiation-UseElectronicExcitation')
 
 IF (RadiationSwitches%MacroRadInput) CALL MacroscopicRadiationInput()
@@ -298,8 +300,7 @@ SUBROUTINE MacroscopicRadiationInput()
   USE MOD_MPI_Shared
   USE MOD_MPI_Shared_Vars
 #endif
-!  USE MOD_Utils                     ,ONLY: BubbleSortID !Laux
-!  USE MOD_Particle_Mesh_Vars        ,ONLY: GEO !Laux
+  USE MOD_Particle_Mesh_Vars        ,ONLY: ElemMidPoint_Shared
   ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -311,8 +312,8 @@ SUBROUTINE MacroscopicRadiationInput()
   INTEGER                           :: nVar_HDF5, N_HDF5, nElems_HDF5, iVar, iSpec, iElem, CNElemID, IndexElectronTemp, iSpecElectrons
   REAL, ALLOCATABLE                 :: ElemData_HDF5(:,:)
   CHARACTER(LEN=300)                :: MacroRadiationInputFile
-!  INTEGER, ALLOCATABLE              :: SortElemInd(:)  !Laux
-!  REAL, ALLOCATABLE                 :: SortElemYPos(:) !Laux
+  INTEGER, ALLOCATABLE              :: SortElemInd(:)
+  REAL, ALLOCATABLE                 :: SortElemYPos(:)
   !===================================================================================================================================
 
   MacroRadiationInputFile = GETSTR('Radiation-MacroInput-Filename')
@@ -342,66 +343,64 @@ SUBROUTINE MacroscopicRadiationInput()
   END ASSOCIATE
 
 
-! --- uncomment for Laux Test Case ----------------------------------------------------------------
-! reanrrages Elem IDs for 1xnElemsx1 meshes (for 3D and 2D rotationally symmetric meshes)
-
-!  ALLOCATE(SortElemInd(nElems), SortElemYPos(nElems))
-!  DO iElem = 1, nElems
-!    SortElemInd(iElem) = iElem
-!  END DO
-!  SortElemYPos(:) = -GEO%ElemMidPoint(2,:)
-!  CALL BubbleSortID(SortElemYPos, SortElemInd, nElems)
-
-
-!  iVar = 1
-!  DO iSpec = 1, nSpecies
-!    DO iElem = 1, nElems
-!      MacroRadInputParameters(SortElemInd(iElem),iSpec,1) = ElemData_HDF5(iVar+ 6,iElem) density
-!      MacroRadInputParameters(SortElemInd(iElem),iSpec,2) = ElemData_HDF5(iVar+ 7,iElem) T_vib
-!      MacroRadInputParameters(SortElemInd(iElem),iSpec,3) = ElemData_HDF5(iVar+ 8,iElem) T_rot
-!      MacroRadInputParameters(SortElemInd(iElem),iSpec,4) = ElemData_HDF5(iVar+ 9,iElem) T_elec
-!      MacroRadInputParameters(SortElemInd(iElem),iSpec,5) = ElemData_HDF5(iVar+11,iElem) T_mean
-!    END DO
-!    iVar = iVar + DSMC_NVARS
-!  END DO
-! -------------------------------------------------------------------------------------------------
-
-  iVar = 1
-  DO iSpec = 1, nSpecies
-   DO iElem = 1, nElems
-     CNElemID = GetCNElemID(iElem+offsetElem)
-     MacroRadInputParameters(CNElemID,iSpec,1) = MAX(0.,ElemData_HDF5(iVar+ 6,iElem)) !density
-     MacroRadInputParameters(CNElemID,iSpec,2) = MAX(0.,ElemData_HDF5(iVar+ 7,iElem)) !T_vib
-     MacroRadInputParameters(CNElemID,iSpec,3) = MAX(0.,ElemData_HDF5(iVar+ 8,iElem)) !T_rot
-     MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(iVar+ 9,iElem)) !T_elec
-     MacroRadInputParameters(CNElemID,iSpec,5) = MAX(0.,ElemData_HDF5(iVar+11,iElem)) !T_mean
-   END DO
-   iVar = iVar + DSMC_NVARS
-  END DO
-
-  IF(.NOT.RadiationSwitches%UseElectronicExcitation) THEN
-    iSpecElectrons = 0
-    DO iSpec = 1, nSpecies
-      IF (SpecDSMC(iSpec)%InterID .EQ. 4) iSpecElectrons = iSpec
-    END DO
-    IF (iSpecElectrons .EQ. 0) THEN
-      PRINT*,  "unknown species number for electrons while reading flow field data"
-      STOP
-    END IF
-    IndexElectronTemp = (iSpecElectrons-1)*DSMC_NVARS+1 + 11 !132 for 11th Species
+  IF(RadiationSwitches%SortCellsY) THEN !Sort cells if manually created input is used
+    ALLOCATE(SortElemInd(nElems), SortElemYPos(nElems))
     DO iElem = 1, nElems
-      DO iSpec = 1, nSpecies
-        CNElemID = GetCNElemID(iElem+offsetElem)
-        IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10) .OR. &
-        (SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN
-          MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem))
-        ELSE IF(SpecDSMC(iSpec)%InterID .EQ. 4) THEN
-          CYCLE
-        ELSE
-          PRINT*, "excitation temperature cannot be matched, unknown InterID for species", iSpec
-        END IF
-      END DO
+      SortElemInd(iElem) = iElem
     END DO
+    SortElemYPos(:) = -ElemMidPoint_Shared(2,:)
+    CALL BubbleSortID(SortElemYPos, SortElemInd, nElems)
+
+    iVar = 1
+    DO iSpec = 1, nSpecies
+      DO iElem = 1, nElems
+        CNElemID = GetCNElemID(iElem+offsetElem)
+        MacroRadInputParameters(SortElemInd(CNElemID),iSpec,1) = MAX(0.,ElemData_HDF5(iVar+ 6,iElem)) !density
+        MacroRadInputParameters(SortElemInd(CNElemID),iSpec,2) = MAX(0.,ElemData_HDF5(iVar+ 7,iElem)) !T_vib
+        MacroRadInputParameters(SortElemInd(CNElemID),iSpec,3) = MAX(0.,ElemData_HDF5(iVar+ 8,iElem)) !T_rot
+        MacroRadInputParameters(SortElemInd(CNElemID),iSpec,4) = MAX(0.,ElemData_HDF5(iVar+ 9,iElem)) !T_elec
+        MacroRadInputParameters(SortElemInd(CNElemID),iSpec,5) = MAX(0.,ElemData_HDF5(iVar+11,iElem)) !T_mean
+      END DO
+      iVar = iVar + DSMC_NVARS
+    END DO
+  ELSE
+    iVar = 1
+    DO iSpec = 1, nSpecies
+      DO iElem = 1, nElems
+        CNElemID = GetCNElemID(iElem+offsetElem)
+        MacroRadInputParameters(CNElemID,iSpec,1) = MAX(0.,ElemData_HDF5(iVar+ 6,iElem)) !density
+        MacroRadInputParameters(CNElemID,iSpec,2) = MAX(0.,ElemData_HDF5(iVar+ 7,iElem)) !T_vib
+        MacroRadInputParameters(CNElemID,iSpec,3) = MAX(0.,ElemData_HDF5(iVar+ 8,iElem)) !T_rot
+        MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(iVar+ 9,iElem)) !T_elec
+        MacroRadInputParameters(CNElemID,iSpec,5) = MAX(0.,ElemData_HDF5(iVar+11,iElem)) !T_mean
+      END DO
+      iVar = iVar + DSMC_NVARS
+    END DO
+
+    IF(.NOT.RadiationSwitches%UseElectronicExcitation) THEN
+      iSpecElectrons = 0
+      DO iSpec = 1, nSpecies
+        IF (SpecDSMC(iSpec)%InterID .EQ. 4) iSpecElectrons = iSpec
+      END DO
+      IF (iSpecElectrons .EQ. 0) THEN
+        PRINT*,  "unknown species number for electrons while reading flow field data"
+        STOP
+      END IF
+      IndexElectronTemp = (iSpecElectrons-1)*DSMC_NVARS+1 + 11 !132 for 11th Species
+      DO iElem = 1, nElems
+        DO iSpec = 1, nSpecies
+          CNElemID = GetCNElemID(iElem+offsetElem)
+          IF((SpecDSMC(iSpec)%InterID .EQ. 1) .OR. (SpecDSMC(iSpec)%InterID .EQ. 10) .OR. &
+          (SpecDSMC(iSpec)%InterID .EQ. 2) .OR. (SpecDSMC(iSpec)%InterID .EQ. 20)) THEN
+            MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(IndexElectronTemp,iElem))
+          ELSE IF(SpecDSMC(iSpec)%InterID .EQ. 4) THEN
+            CYCLE
+          ELSE
+            PRINT*, "excitation temperature cannot be matched, unknown InterID for species", iSpec
+          END IF
+        END DO
+      END DO
+    END IF
   END IF
 
 #if USE_MPI
@@ -411,6 +410,63 @@ SUBROUTINE MacroscopicRadiationInput()
   DEALLOCATE(ElemData_HDF5)
 
 END SUBROUTINE MacroscopicRadiationInput
+
+
+SUBROUTINE BubbleSortID(a,id,len)
+!===================================================================================================================================
+! bubble sort, taken from rosetta-wiki and modified for own use
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: len
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)                :: a(len)
+INTEGER,INTENT(INOUT),OPTIONAL    :: id(len)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                              :: temp
+INTEGER                           :: iloop,jloop, temp2
+LOGICAL                           :: swapped = .TRUE.
+!===================================================================================================================================
+
+IF(PRESENT(id))THEN
+  DO jloop=len-1,1,-1
+    swapped = .FALSE.
+    DO iloop=1,jloop
+      IF (a(iloop).GT.a(iloop+1))THEN
+        ! switch entries
+        temp=a(iloop)
+        a(iloop) = a(iloop+1)
+        a(iloop+1) = temp
+        ! switch ids
+        temp2=id(iloop)
+        id(iloop) = id(iloop+1)
+        id(iloop+1) = temp2
+        swapped = .TRUE.
+      END IF
+    END DO ! iloop
+    IF (.NOT. swapped) EXIT
+  END DO ! jloop
+ELSE
+  DO jloop=len-1,1,-1
+    swapped = .FALSE.
+    DO iloop=1,jloop
+      IF (a(iloop).GT.a(iloop+1))THEN
+        ! switch entries
+        temp=a(iloop)
+        a(iloop) = a(iloop+1)
+        a(iloop+1) = temp
+        swapped = .TRUE.
+      END IF
+    END DO ! iloop
+    IF (.NOT. swapped) EXIT
+  END DO ! jloop
+END IF
+END SUBROUTINE BubbleSortID
 
 
 SUBROUTINE FinalizeRadiation()
