@@ -369,7 +369,7 @@ SUBROUTINE DSMC_calc_P_elec(iSpec1, iSpec2, ProbElec)
 ! Calculation of probability for electronic relaxation. 
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, useRelaxProbCorrFactor
+USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, useRelaxProbCorrFactor, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -377,7 +377,7 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)         :: iSpec1, iSpec2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)         :: ProbRot
+REAL, INTENT(OUT)         :: ProbElec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL              :: CorrFact

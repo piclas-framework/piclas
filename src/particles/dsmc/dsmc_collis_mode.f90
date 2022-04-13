@@ -343,7 +343,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting, useRelaxProbCorrFactor
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, VarTimeStep, PEM, usevMPF
 USE MOD_DSMC_ElectronicModel  ,ONLY: ElectronicEnergyExchange, TVEEnergyExchange
 USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
@@ -431,7 +431,7 @@ REAL                          :: Weight1, Weight2
 !--------------------------------------------------------------------------------------------------!
 ! ELECTRONIC
 !--------------------------------------------------------------------------------------------------!
-  IF (DSMC%ElectronicModel.GT.0.AND.(DSMC%ElectronicModel.NE.4)) THEN
+  IF ((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.3)) THEN
     ! Model 1/2
     IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
       SELECT CASE(DSMC%ElectronicModel)
@@ -816,35 +816,25 @@ IF (DSMC%ReservoirSimuRate) RETURN
   ! calculate probability for rotational/vibrational relaxation for both particles
   IF ((SpecDSMC(iSpec1)%InterID.EQ.2).OR.(SpecDSMC(iSpec1)%InterID.EQ.20)) THEN
     CALL DSMC_calc_P_vib(iPair, iSpec1, iSpec2, Xi_rel, iElem, ProbVib1)
-    CALL DSMC_calc_P_rot(iSpec1, iSpec2, iPair, Coll_pData(iPair)%iPart_p1, Xi_rel, ProbRot1, ProbRotMax1)
+    CALL DSMC_calc_P_rot(iSpec1, iSpec2, iPair, iPart1, Xi_rel, ProbRot1, ProbRotMax1)
   ELSE
     ProbVib1 = 0.
     ProbRot1 = 0.
   END IF
   IF ((SpecDSMC(iSpec2)%InterID.EQ.2).OR.(SpecDSMC(iSpec2)%InterID.EQ.20)) THEN
     CALL DSMC_calc_P_vib(iPair, iSpec2, iSpec1, Xi_rel, iElem, ProbVib2)
-    CALL DSMC_calc_P_rot(iSpec2, iSpec1, iPair, Coll_pData(iPair)%iPart_p2, Xi_rel, ProbRot2, ProbRotMax2)
+    CALL DSMC_calc_P_rot(iSpec2, iSpec1, iPair, iPart2, Xi_rel, ProbRot2, ProbRotMax2)
   ELSE
     ProbVib2 = 0.
     ProbRot2 = 0.
   END IF
-  IF (DSMC%ElectronicModel.GT.0.AND.(DSMC%ElectronicModel.NE.4)) THEN
+  IF (DSMC%ElectronicModel.EQ.1) THEN
     ! Model 1/2
     IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
-      IF(useRelaxProbCorrFactor) THEN
-        CorrFact = 1. + DSMC%InstantTXiElec(2,iSpec1)/Xi_rel
-      ELSE
-        CorrFact = 1.
-      END IF
-      ProbElec1 = SpecDSMC(iSpec1)%ElecRelaxProb* CorrFact
+      CALL DSMC_calc_P_elec(iSpec1, iSpec2, ProbElec1)
     END IF
     IF((SpecDSMC(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) THEN
-      IF(useRelaxProbCorrFactor) THEN
-        CorrFact = 1. + DSMC%InstantTXiElec(2,iSpec2)/Xi_rel
-      ELSE
-        CorrFact = 1.
-      END IF
-      ProbElec2 = SpecDSMC(iSpec2)%ElecRelaxProb* CorrFact
+      CALL DSMC_calc_P_elec(iSpec2, iSpec1, ProbElec2)
     END IF
   END IF
 
@@ -873,23 +863,19 @@ IF (DSMC%ReservoirSimuRate) RETURN
   END IF
   ProbFrac3       = ProbFrac2 + ProbRot1
   ProbFrac4       = ProbFrac3 + ProbRot2
-  IF (DSMC%ElectronicModel.GT.0.AND.(DSMC%ElectronicModel.NE.4)) THEN
+  IF (DSMC%ElectronicModel.EQ.1) THEN
     ProbFrac5 = ProbFrac4 + ProbElec1
     ProbFrac6 = ProbFrac5 + ProbElec2
   END IF
 
   ! Check if sum of probabilities is less than 1.
   IF (ProbFrac4.GT. 1.0) THEN
-    CALL Abort(&
-__STAMP__&
-,'Error! Sum of internal relaxation probabilities > 1.0 for iPair ',iPair)
+    CALL Abort(__STAMP__,'Error! Sum of internal relaxation probabilities > 1.0 for iPair ',iPair)
   END IF
-  IF (DSMC%ElectronicModel.GT.0.AND.(DSMC%ElectronicModel.NE.4)) THEN
+  IF ((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2)) THEN
     ! Check if sum of probabilities is less than 1.
     IF (ProbFrac6.GT. 1.0) THEN
-      CALL Abort(&
-  __STAMP__&
-  ,'Error! Sum of internal relaxation probabilities > 1.0 for iPair ',iPair)
+      CALL Abort(__STAMP__,'Error! Sum of internal relaxation probabilities > 1.0 for iPair ',iPair)
     END IF
   END IF
 
@@ -927,12 +913,17 @@ __STAMP__&
     DoRot1 = .TRUE.
   ELSEIF(iRan .LT. ProbFrac4) THEN                !      A3 <= R1 < A4
     DoRot2 = .TRUE.
-  ELSEIF (DSMC%ElectronicModel.GT.0.AND.(DSMC%ElectronicModel.NE.4)) THEN
+  ELSEIF (DSMC%ElectronicModel.EQ.1) THEN
     IF (iRan .LT. ProbFrac5) THEN                !      A3 <= R1 < A4
       DoElec1 = .TRUE.
     ELSEIF (iRan .LT. ProbFrac6) THEN                !      A3 <= R1 < A4
       DoElec2 = .TRUE.
     END IF
+  END IF
+
+  IF (DSMC%ElectronicModel.EQ.2) THEN
+    IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) DoElec1 = .TRUE.
+    IF((SpecDSMC(iSpec2)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec2)%FullyIonized)) DoElec2 = .TRUE.
   END IF
 
 !--------------------------------------------------------------------------------------------------!
@@ -997,13 +988,13 @@ __STAMP__&
     END IF
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(2,iPart1)*GetParticleWeight(iPart1)
     IF(SpecDSMC(iSpec1)%PolyatomicMol.AND.(SpecDSMC(iSpec1)%Xi_Rot.EQ.3)) THEN
-      CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1, FakXi)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,Coll_pData(iPair)%iPart_p1)
+      CALL DSMC_RotRelaxPoly(iPair, iPart1, FakXi)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart1)
     ELSE
       CALL RANDOM_NUMBER(iRan)
       FakXi = FakXi + 0.5*SpecDSMC(iSpec1)%Xi_Rot
-      PartStateIntEn(2,Coll_pData(iPair)%iPart_p1) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi)*BLCorrFact)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,Coll_pData(iPair)%iPart_p1)
+      PartStateIntEn(2,iPart1) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi)*BLCorrFact)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart1)
       FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
     END IF
     IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
@@ -1014,19 +1005,19 @@ __STAMP__&
   IF(DoRot2) THEN
     !check if correction term in distribution (depending on relaxation model) is needed
     IF(DSMC%RotRelaxProb.EQ.3.0) THEN
-      BLCorrFact = ProbRot1 / ProbRotMax1
+      BLCorrFact = ProbRot2 / ProbRotMax2
     ELSE
       BLCorrFact = 1.
     END IF
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(2,iPart2)*GetParticleWeight(iPart2)
     IF(SpecDSMC(iSpec2)%PolyatomicMol.AND.(SpecDSMC(iSpec2)%Xi_Rot.EQ.3)) THEN
-      CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p2, FakXi)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,Coll_pData(iPair)%iPart_p2)
+      CALL DSMC_RotRelaxPoly(iPair, iPart2, FakXi)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart2)
     ELSE
       CALL RANDOM_NUMBER(iRan)
       FakXi = FakXi + 0.5*SpecDSMC(iSpec2)%Xi_Rot
-      PartStateIntEn(2,Coll_pData(iPair)%iPart_p2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi)*BLCorrFact)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,Coll_pData(iPair)%iPart_p2)
+      PartStateIntEn(2,iPart2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi)*BLCorrFact)
+      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart2)
       FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
     END IF
     IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
@@ -1041,7 +1032,7 @@ __STAMP__&
   IF ( DoElec1 ) THEN
     ! calculate energy for electronic relaxation of particle 1
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1) 
-    CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi)
+    CALL ElectronicEnergyExchange(iPair,iPart1,FakXi)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1)
   END IF
 
@@ -1049,7 +1040,7 @@ __STAMP__&
   IF ( DoElec2 ) THEN
     ! calculate energy for electronic relaxation of particle 2
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart2)*GetParticleWeight(iPart2) 
-    CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi)
+    CALL ElectronicEnergyExchange(iPair,iPart2,FakXi)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart2)*GetParticleWeight(iPart2) 
   END IF
 !--------------------------------------------------------------------------------------------------!
