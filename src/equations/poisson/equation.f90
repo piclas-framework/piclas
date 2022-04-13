@@ -141,13 +141,15 @@ DO i=1,nBCs
     nRefStateMax = MAX(nRefStateMax,BCState)
   ELSEIF(BCType.EQ.2)THEN
     ! Special BC with linear potential ramp (constant in time)
-    IF(BCState.NE.1) CALL abort(__STAMP__,'BCType=2 requires BCState=1 but was given BCState=',IntInfoOpt=BCState)
-    ! Read linear potential parameters
-    LinPhiBasePoint = GETREALARRAY('LinPhiBasePoint',3)
-    LinPhiNormal    = GETREALARRAY('LinPhiNormal',3)
-    LinPhiNormal    = UNITVECTOR(LinPhiNormal)
-    LinPhiHeight    = GETREAL('LinPhiHeight')
-    LinPhi          = GETREAL('LinPhi')
+    ! Only for BoundaryType = (/2,1/)
+    IF(BCState.EQ.1)THEN
+      ! Read linear potential parameters
+      LinPhiBasePoint = GETREALARRAY('LinPhiBasePoint',3)
+      LinPhiNormal    = GETREALARRAY('LinPhiNormal',3)
+      LinPhiNormal    = UNITVECTOR(LinPhiNormal)
+      LinPhiHeight    = GETREAL('LinPhiHeight')
+      LinPhi          = GETREAL('LinPhi')
+    END IF ! BCState.EQ.1
   END IF
 END DO
 
