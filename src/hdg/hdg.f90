@@ -11,6 +11,9 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
+#if USE_PETSC
+#include "petsc/finclude/petsc.h"
+#endif
 
 !===================================================================================================================================
 !> Module for the HDG method
@@ -115,6 +118,15 @@ USE MOD_HDG_Vars              ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectro
 USE MOD_Part_BR_Elecron_Fluid ,ONLY: UpdateNonlinVolumeFac
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 #endif /*defined(PARTICLES)*/
+#if USE_PETSC
+USE PETSc
+USE MOD_Mesh_Vars        ,ONLY: nMPISides_YOUR
+#if USE_MPI
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_WORLD
+USE MOD_MPI               ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
+USE MOD_MPI_Vars
+#endif /*USE_MPI*/
+#endif /*USE_PETSC*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -125,6 +137,14 @@ IMPLICIT NONE
 INTEGER           :: i,j,k,r,iElem,SideID
 INTEGER           :: BCType,BCState
 REAL              :: D(0:PP_N,0:PP_N)
+#if USE_PETSC
+PetscErrorCode    :: ierr
+INTEGER           :: iGP_face
+INTEGER           :: iProc
+INTEGER           :: OffsetPETScSideMPI(nProcessors)
+INTEGER           :: OffsetPETScSide
+INTEGER           :: PETScLocalID
+#endif
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    SWRITE(*,*) "InitHDG already called."
@@ -147,6 +167,11 @@ ELSE
 END IF
 
 HDGNonLinSolver = -1 ! init
+
+#if USE_PETSC
+! initialize PETSc stuff!
+CALL PetscInitialize(PETSC_NULL_CHARACTER,ierr);!PetscCall(ierr)
+#endif
 
 #if defined(PARTICLES)
 ! BR electron fluid model
@@ -240,6 +265,36 @@ DO SideID=1,nBCSides
   END SELECT ! BCType
 END DO
 
+#if USE_PETSC
+! Create PETSc Mappings
+OffsetPETScSide=0
+#if USE_MPI
+nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR
+IF(ZeroPotentialSideID.GT.0) nPETScUniqueSides = nPETScUniqueSides - 1
+CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
+DO iProc=1, myrank
+  OffsetPETScSide = OffsetPETScSide + OffsetPETScSideMPI(iProc)
+END DO
+#endif
+
+ALLOCATE(PETScGlobal(nSides))
+ALLOCATE(PETScLocalToSideID(nPETScUniqueSides+nMPISides_YOUR))
+PETScGlobal=-1
+PETScLocalToSideID=-1
+PETScLocalID=0 ! = nSides-nDirichletBCSides (-ZeroPotentialSide)
+DO SideID=1,nSides!-nMPISides_YOUR
+  IF(MaskedSide(SideID).OR.(SideID.EQ.ZeroPotentialSideID)) CYCLE
+  PETScLocalID=PETScLocalID+1
+  PETScLocalToSideID(PETScLocalID)=SideID
+  PETScGlobal(SideID)=PETScLocalID+OffsetPETScSide-1 ! PETSc arrays start at 0!
+END DO
+#if USE_MPI
+CALL StartReceiveMPIDataInt(1,PETScGlobal,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+CALL StartSendMPIDataInt(   1,PETScGlobal,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+#endif
+#endif
+
 !mappings
 sideDir(  XI_MINUS)=1
 sideDir(   XI_PLUS)=1
@@ -311,6 +366,22 @@ ALLOCATE(Ehat(nGP_face,nGP_vol,6,PP_nElems))
 !side matrices
 ALLOCATE(Smat(nGP_face,nGP_face,6,6,PP_nElems))
 
+#if USE_PETSC
+ALLOCATE(Smat_BC(nGP_face,nGP_face,6,nDirichletBCSides))
+Smat_BC = 0.
+IF(ZeroPotentialSideID.GT.0) THEN
+  ALLOCATE(Smat_zeroPotential(nGP_face,nGP_face,6))
+  Smat_zeroPotential = 0.
+END IF
+
+CALL MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr);PetscCall(ierr)
+CALL MatSetSizes(Smat_petsc,nPETScUniqueSides*nGP_Face,nPETScUniqueSides*nGP_Face,PETSC_DECIDE,PETSC_DECIDE,ierr);PetscCall(ierr)
+CALL MatSetType(Smat_petsc,MATSBAIJ,ierr);PetscCall(ierr) ! Symmetric sparse (mpi) matrix
+CALL MatSetBlockSize(Smat_petsc,nGP_face,ierr);PetscCall(ierr)
+CALL MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,11,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
+CALL MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,11,PETSC_NULL_INTEGER,10,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
+CALL MatZeroEntries(Smat_petsc,ierr);PetscCall(ierr)
+#endif
 
 !stabilization parameter
 ALLOCATE(Tau(PP_nElems))
@@ -322,6 +393,21 @@ IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as on
   CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
 END IF
 
+#if USE_PETSC
+CALL KSPCreate(PETSC_COMM_WORLD,ksp,ierr);PetscCall(ierr)
+CALL KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr);PetscCall(ierr)
+
+IF(PrecondType.GE.10) THEN
+  CALL KSPSetType(ksp,KSPPREONLY,ierr);PetscCall(ierr) ! Exact solver
+ELSE
+  CALL KSPSetType(ksp,KSPCG,ierr);PetscCall(ierr) ! CG solver for sparse symmetric positive definite matrix
+
+  CALL KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr);PetscCall(ierr)
+  
+  CALL KSPSetNormType(ksp, KSP_NORM_UNPRECONDITIONED, ierr);PetscCall(ierr)
+  CALL KSPSetTolerances(ksp,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr);PetscCall(ierr)
+END IF
+#endif
 
 CALL BuildPrecond()
 
@@ -329,6 +415,16 @@ ALLOCATE(lambda(PP_nVar,nGP_face,nSides))
 lambda=0.
 ALLOCATE(RHS_vol(PP_nVar, nGP_vol,PP_nElems))
 RHS_vol=0.
+
+#if USE_PETSC
+! allocate RHS & lambda vectors
+CALL VecCreate(PETSC_COMM_WORLD,lambda_petsc,ierr);PetscCall(ierr)
+CALL VecSetType(lambda_petsc,VECSTANDARD,ierr);PetscCall(ierr)
+CALL VecSetSizes(lambda_petsc,nPETScUniqueSides*nGP_Face,PETSC_DECIDE,ierr);PetscCall(ierr)
+CALL VecSetBlockSize(lambda_petsc,nGP_face,ierr);PetscCall(ierr)
+CALL VecSetUp(lambda_petsc,ierr);PetscCall(ierr)
+CALL VecDuplicate(lambda_petsc,RHS_petsc,ierr)
+#endif
 
 HDGInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT HDG DONE!'
@@ -572,6 +668,14 @@ USE MOD_Equation_Vars          ,ONLY: B, E
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
+#if USE_PETSC
+USE PETSc
+USE MOD_Mesh_Vars        ,ONLY: SideToElem
+#if USE_MPI
+USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI_Vars
+#endif
+#endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -592,6 +696,16 @@ REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #if USE_LOADBALANCE
 REAL    :: tLBStart
 #endif /*USE_LOADBALANCE*/
+#if USE_PETSC
+INTEGER :: iGP_face
+PetscErrorCode       :: ierr
+PetscScalar, POINTER :: lambda_pointer(:)
+KSPConvergedReason   :: reason
+PetscInt             :: iterations
+PetscReal            :: petscnorm
+INTEGER :: ElemID,iBCSide,locBCSideID, PETScLocalID
+INTEGER :: PETScID_start, PETScID_stop
+#endif
 !===================================================================================================================================
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
@@ -716,6 +830,35 @@ DO BCsideID=1,nNeumannBCSides
   RHS_face(:,:,SideID)=RHS_face(:,:,SideID)+qn_face(:,:,BCSideID)
 END DO
 
+#if USE_PETSC
+! add Dirichlet contribution
+DO iBCSide=1,nDirichletBCSides
+  BCSideID=DirichletBC(iBCSide)
+  ElemID    = SideToElem(S2E_ELEM_ID,BCSideID)
+  DO iLocSide=1,6
+    SideID = ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+    IF(PETScGlobal(SideID).EQ.-1) CYCLE
+    CALL DGEMV('N',nGP_face,nGP_face,-1., &
+                          Smat_BC(:,:,iLocSide,iBCSide), nGP_face, &
+                          lambda(1,:,BCSideID),1,1.,& !add to RHS_face
+                          RHS_face(1,:,SideID),1)
+  END DO
+END DO
+!!!! add ZeroPotentialSide
+IF(ZeroPotentialSideID.GT.0)THEN
+  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,ZeroPotentialSideID)
+  ElemID    = SideToElem(S2E_ELEM_ID,ZeroPotentialSideID)
+  DO iLocSide=1,6
+    SideID = ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+    IF(PETScGlobal(SideID).EQ.-1) CYCLE
+    CALL DGEMV('N',nGP_face,nGP_face,-1., &
+                          Smat_zeroPotential(:,:,iLocSide), nGP_face, &
+                          lambda(1,:,ZeroPotentialSideID),1,1.,& !add to RHS_face
+                          RHS_face(1,:,SideID),1)
+  END DO
+END IF
+#endif
+
 #if (PP_nVar!=1)
 DO iVar = 1, PP_nVar
   IF (iVar.LT.4) THEN
@@ -746,7 +889,48 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 ! SOLVE
 DO iVar=1, PP_nVar
 
+#if USE_PETSC
+  ! Fill right hand side
+  !CALL VecZeroEntries(RHS_petsc,ierr);PetscCall(ierr)
+  DO PETScLocalID=1,nPETScUniqueSides
+    SideID=PETScLocalToSideID(PETScLocalID)
+    !VecSetValuesBlockedLocal somehow not working...
+    CALL VecSetValuesBlocked(RHS_petsc,1,PETScGlobal(SideID),RHS_face(1,:,SideID),INSERT_VALUES,ierr);PetscCall(ierr)
+  END DO
+  CALL VecAssemblyBegin(RHS_petsc,ierr);PetscCall(ierr)
+  CALL VecAssemblyEnd(RHS_petsc,ierr);PetscCall(ierr)
+  
+  ! Calculate lambda
+  CALL KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr);PetscCall(ierr)
+  CALL KSPGetIterationNumber(ksp,iterations,ierr);PetscCall(ierr)
+  CALL KSPGetConvergedReason(ksp,reason,ierr);PetscCall(ierr)
+  CALL KSPGetResidualNorm(ksp,petscnorm,ierr);PetscCall(ierr)
+  IF(reason.LT.0)THEN
+    SWRITE(*,*) 'Attention: GMRES not converged!' 
+  END IF
+  IF(HDGDisplayConvergence)THEN
+    SWRITE(*,*)'Reason: ', reason
+    SWRITE(*,*)'Iterations: ',iterations
+    SWRITE(*,*)'Norm:', petscnorm
+  END IF
+
+  ! Fill element local lambda for post processing
+  CALL VecGetArrayReadF90(lambda_petsc,lambda_pointer,ierr);PetscCall(ierr)
+  DO PETScLocalID=1,nPETScUniqueSides
+    SideID=PETScLocalToSideID(PETScLocalID)
+    PETScID_start=1+(PETScLocalID-1)*nGP_face
+    PETScID_stop=PETScLocalID*nGP_face
+    lambda(1,:,SideID) = lambda_pointer(PETScID_start:PETScID_stop)
+  END DO
+  CALL VecRestoreArrayReadF90(lambda_petsc,lambda_pointer,ierr);PetscCall(ierr)
+#if USE_MPI
+  CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+  CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+#endif
+#else
   CALL CG_solver(RHS_face(iVar,:,:),lambda(iVar,:,:),iVar)
+#endif
   !POST PROCESSING
 
 #if USE_LOADBALANCE
@@ -1475,14 +1659,14 @@ R=RHS-mv
 #if (PP_nVar!=1)
 IF (iVar.EQ.4) THEN
 #endif
-
+! TODO direkt als RHS vorgeben! nicht erst hier für PETSC Problem NICHT mehr symmetrisch!
   ! Dirichlet BCs
   DO BCsideID=1,nDirichletBCSides
     R(:,DirichletBC(BCsideID))=0.
   END DO ! SideID=1,nSides
 
   ! Set potential to zero
-  IF(ZeroPotentialSideID.GT.0) R(:,ZeroPotentialSideID)= ZeroPotentialValue
+  IF(ZeroPotentialSideID.GT.0) R(:,ZeroPotentialSideID)= 0.
 
 #if (PP_nVar!=1)
 END IF
@@ -1647,7 +1831,7 @@ DO BCsideID=1,nDirichletBCSides
 END DO ! SideID=1,nSides
 
   ! Set potential to zero
-  IF(ZeroPotentialSideID.GT.0) mv(:,ZeroPotentialSideID) = ZeroPotentialValue
+  IF(ZeroPotentialSideID.GT.0) mv(:,ZeroPotentialSideID) = 0.
 
 #if (PP_nVar!=1)
 END IF
@@ -1875,13 +2059,30 @@ END SUBROUTINE RestartHDG
 SUBROUTINE FinalizeHDG()
 ! MODULES
 USE MOD_HDG_Vars
+#if USE_PETSC
+USE petsc
+#endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_PETSC
+PetscErrorCode       :: ierr
+#endif
 !===================================================================================================================================
 HDGInitIsDone = .FALSE.
+#if USE_PETSC
+CALL KSPDestroy(ksp,ierr); PetscCall(ierr)
+CALL MatDestroy(Smat_petsc,ierr); PetscCall(ierr)
+CALL VecDestroy(lambda_petsc,ierr); PetscCall(ierr)
+CALL VecDestroy(RHS_petsc,ierr); PetscCall(ierr)
+CALL PetscFinalize(ierr)
+SDEALLOCATE(PETScGlobal)
+SDEALLOCATE(PETScLocalToSideID)
+SDEALLOCATE(Smat_BC)
+SDEALLOCATE(Smat_zeroPotential)
+#endif
 SDEALLOCATE(NonlinVolumeFac)
 SDEALLOCATE(DirichletBC)
 SDEALLOCATE(NeumannBC)

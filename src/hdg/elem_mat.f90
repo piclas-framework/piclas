@@ -11,10 +11,15 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
-MODULE MOD_Elem_Mat
+#if USE_PETSC
+#include "petsc/finclude/petsc.h"
+#endif
+
+
 !===================================================================================================================================
 ! Module for the HDG element matrices
 !===================================================================================================================================
+MODULE MOD_Elem_Mat
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -69,6 +74,10 @@ USE MOD_Basis              ,ONLY: getSPDInverse
 #if defined(PARTICLES)
 USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
+#if USE_PETSC
+USE PETSc
+USE MOD_Mesh_Vars        ,ONLY: SideToElem
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -89,6 +98,13 @@ REAL                 :: Ktilde(3,3)
 REAL                 :: Stmp1(nGP_vol,nGP_face), Stmp2(nGP_face,nGP_face)
 INTEGER              :: idx(3),jdx(3),gdx(3)
 REAL                 :: time0, time
+#if USE_PETSC
+PetscErrorCode    :: ierr
+INTEGER           :: iSideID,jSideID,iGP_face,jGP_face
+INTEGER           :: ElemID, jNbSideID, BCsideID
+INTEGER           :: iBCSide,locBCSideID
+INTEGER :: iPETScGlobal, jPETScGlobal
+#endif
 !===================================================================================================================================
 
 #if defined(IMPA) || defined(ROS)
@@ -309,8 +325,45 @@ InvDhat(:,:,iElem)=-getSPDInverse(nGP_vol,-Dhat)
       Smat(:,:,jLocSide,iLocSide,iElem) = Smat(:,:,jLocSide,iLocSide,iElem) + TRANSPOSE(Stmp2)
     END DO !iLocSide
   END DO !jLocSide
-
 END DO !iElem
+
+#if USE_PETSC
+! Fill Smat Petsc, TODO do this without filling Smat
+! Fill Dirichlet BC Smat
+DO iBCSide=1,nDirichletBCSides
+  BCSideID=DirichletBC(iBCSide)
+  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+  ElemID    = SideToElem(S2E_ELEM_ID,BCSideID)
+  DO iLocSide=1,6
+    Smat_BC(:,:,iLocSide,iBCSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
+  END DO
+END DO
+! Fill ZeroPotentialSide Smat
+IF (ZeroPotentialSideID.GT.0) THEN
+  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,ZeroPotentialSideID)
+  ElemID    = SideToElem(S2E_ELEM_ID,ZeroPotentialSideID)
+  DO iLocSide=1,6
+    Smat_zeroPotential(:,:,iLocSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
+  END DO
+END IF
+! Fill Smat for PETSc with remaining DOFs
+DO iElem=1,PP_nElems
+  DO iLocSide=1,6
+    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    IF (PETScGlobal(iSideID).EQ.-1) CYCLE
+    DO jLocSide=1,6
+      jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
+      iPETScGlobal=PETScGlobal(iSideID)
+      jPETScGlobal=PETScGlobal(jSideID)
+      IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
+      CALL MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal, &
+                                Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr);PetscCall(ierr)
+    END DO
+  END DO
+END DO
+CALL MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);PetscCall(ierr)
+CALL MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);PetscCall(ierr)
+#endif
 
 
 #if defined(IMPA) || defined(ROS)
@@ -367,6 +420,9 @@ USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
 USE MOD_MPI_Vars
 USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
+#if USE_PETSC
+USE PETSc
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -377,9 +433,35 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER          :: ElemID, locSideID, SideID, igf
 INTEGER           :: lapack_info
+#if USE_PETSC
+PetscErrorCode    :: ierr
+PC                :: pc
+PetscInt          :: lens(nPETScUniqueSides)
+#endif
 !===================================================================================================================================
 
-
+#if USE_PETSC
+CALL KSPGetPC(ksp,pc,ierr);PetscCall(ierr)
+SELECT CASE(PrecondType)
+CASE(0)
+  CALL PCSetType(pc,PCNONE,ierr);PetscCall(ierr)
+CASE(1)
+  CALL PCSetType(pc,PCJACOBI,ierr);PetscCall(ierr)
+CASE(2)
+  CALL PCHYPRESetType(pc,PCILU,ierr);PetscCall(ierr)
+CASE(3)
+  CALL PCHYPRESetType(pc,PCSPAI,ierr);PetscCall(ierr)
+CASE(4)
+  lens=nGP_Face
+  CALL PCSetType(pc,PCBJACOBI,ierr);PetscCall(ierr)
+  CALL PCBJacobiSetLocalBlocks(pc,nPETScUniqueSides,lens,ierr);PetscCall(ierr)
+  CALL KSPSetUp(ksp,ierr)
+case(10)
+  CALL PCSetType(pc,PCCHOLESKY,ierr);PetscCall(ierr)
+case(11)
+  CALL PCSetType(pc,PCLU,ierr);PetscCall(ierr)
+END SELECT
+#else
 SELECT CASE(PrecondType)
 CASE(0)
 ! do nothing
@@ -450,6 +532,7 @@ CASE(2)
     END IF
   END DO !1,nSides-nMPIsides_YOUR
 END SELECT
+#endif
 END SUBROUTINE BuildPrecond
 
 
