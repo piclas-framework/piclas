@@ -343,11 +343,11 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting, useRelaxProbCorrFactor
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, VarTimeStep, PEM, usevMPF
 USE MOD_DSMC_ElectronicModel  ,ONLY: ElectronicEnergyExchange, TVEEnergyExchange
 USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
-USE MOD_DSMC_Relaxation       ,ONLY: DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib
+USE MOD_DSMC_Relaxation       ,ONLY: DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib, DSMC_calc_P_elec
 USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_MCC_Vars              ,ONLY: UseMCC, SpecXSec
@@ -376,7 +376,7 @@ LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2   ! Check whethe
 REAL (KIND=8)                 :: Xi_rel, Xi, FakXi                ! Factors of DOF
 REAL                          :: cRelaNew(3)                       ! random relative velocity
 REAL                          :: ReducedMass
-REAL                          :: ProbRot1, ProbRotMax1, ProbRot2, ProbRotMax2, ProbVib1, ProbVib2
+REAL                          :: ProbRot1, ProbRotMax1, ProbRot2, ProbRotMax2, ProbVib1, ProbVib2, ProbElec1, ProbElec2
 INTEGER                       :: iCase, iSpec1, iSpec2, iPart1, iPart2, iElem ! Colliding particles 1 and 2 and their species
 ! variables for electronic level relaxation and transition
 INTEGER                       :: ElecLevelRelax
@@ -437,7 +437,8 @@ REAL                          :: Weight1, Weight2
       SELECT CASE(DSMC%ElectronicModel)
       CASE(1)
         CALL RANDOM_NUMBER(iRan)
-        IF (SpecDSMC(iSpec1)%ElecRelaxProb.GT.iRan) DoElec1 = .TRUE.
+        CALL DSMC_calc_P_elec(iSpec1, iSpec2, ProbElec1)
+        IF (ProbElec1.GT.iRan) DoElec1 = .TRUE.
       CASE(2)
         DoElec1 = .TRUE.
       END SELECT
@@ -446,7 +447,8 @@ REAL                          :: Weight1, Weight2
       SELECT CASE(DSMC%ElectronicModel)
       CASE(1)
         CALL RANDOM_NUMBER(iRan)
-        IF (SpecDSMC(iSpec2)%ElecRelaxProb.GT.iRan) DoElec2 = .TRUE.
+        CALL DSMC_calc_P_elec(iSpec2, iSpec1, ProbElec2)
+        IF (ProbElec2.GT.iRan) DoElec2 = .TRUE.
       CASE(2)
         DoElec2 = .TRUE.
       END SELECT
@@ -723,7 +725,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
   USE MOD_DSMC_Vars,              ONLY : RadialWeighting, useRelaxProbCorrFactor
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, PEM, usevMPF, VarTimeStep, Species
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly, DSMC_VibRelaxPolySingle
-  USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib
+  USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib, DSMC_calc_P_elec
   USE MOD_DSMC_CollisVec,         ONLY : PostCollVec
   USE MOD_DSMC_ElectronicModel,   ONLY: ElectronicEnergyExchange
   USE MOD_part_tools            ,ONLY: GetParticleWeight

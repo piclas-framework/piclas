@@ -167,7 +167,8 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
                                                             ! using read-in cross-sectional data
   LOGICAL                           :: UseElecXSec          ! Flag if the electronic relaxation probability should be treated,
                                                             ! using read-in cross-sectional data (currently only with BGG)
-  REAL,ALLOCATABLE                  :: CollFreqPreFactor(:)
+  REAL,ALLOCATABLE                  :: CollFreqPreFactor(:) ! Prefactors for calculating the collision frequency in each time step
+  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:) ! Correction factor for electronical landau-teller relaxation
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)

@@ -868,7 +868,7 @@ ELSE !CollisMode.GT.0
   END IF
 
     ! Check whether calculation of instantaneous translational temperature is required
-  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors &
+  IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors.OR.useRelaxProbCorrFactor &
             .OR.(DSMC%VibRelaxProb.EQ.2).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.4)) THEN
     ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
     !           relaxation probability (CalcGammaVib)
@@ -879,6 +879,11 @@ ELSE !CollisMode.GT.0
     IF((DSMC%ElectronicModel.EQ.2).OR.useRelaxProbCorrFactor) THEN
       ALLOCATE(DSMC%InstantTXiElec(2,nSpecies))
       DSMC%InstantTXiElec = 0.0
+    END IF
+    IF (useRelaxProbCorrFactor.AND.(DSMC%ElectronicModel.EQ.1)) THEN
+      DO iSpec = 1, nSpecies
+        ALLOCATE(SpecDSMC(iSpec)%ElecRelaxCorrectFac(nSpecies))
+      END DO 
     END IF
   END IF
 

@@ -42,7 +42,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel
+PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel, CalcProbCorrFactorElec
 PUBLIC :: RelaxElectronicShellWall, LT_ElectronicEnergyExchange, LT_ElectronicExc_ConstructPartList, LT_ElectronicEnergyExchangeChem
 !===================================================================================================================================
 CONTAINS
@@ -1300,6 +1300,66 @@ SUBROUTINE SortEnergies(ElectronicState, nQuants)
     END DO
   END DO
 END SUBROUTINE SortEnergies
+
+
+SUBROUTINE CalcProbCorrFactorElec()
+!===================================================================================================================================
+!> Calculates the correction factor for electronical relaxation to achieve a landau-teller relaxation.
+!===================================================================================================================================
+! use module
+  USE MOD_Globals_Vars,       ONLY: BoltzmannConst
+  USE MOD_DSMC_Vars,          ONLY: DSMC, SpecDSMC, CollInf
+  USE MOD_Particle_Vars,      ONLY: nSpecies
+  USE MOD_Particle_Analyze_Tools, ONLY: CalcEelec
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                                               :: iLoop, iSpec, jSpec
+  REAL                                                  :: MinTemp, MaxTemp, TEqui, OldEn, NewEn, Xi_rel
+  LOGICAL                                               :: doConverge
+!===================================================================================================================================
+DO iSpec = 1, nSpecies
+  SpecDSMC(iSpec)%ElecRelaxCorrectFac = 0.
+  IF((SpecDSMC(iSpec)%InterID.EQ.4).OR.(SpecDSMC(iSpec)%FullyIonized)) CYCLE
+  DO jSpec = 1, nSpecies
+    doConverge = .TRUE.
+    Xi_rel = 2.*(2. - CollInf%omega(iSpec,jSpec))
+    !Find Equilibrium Temperature
+    MinTemp=MIN(DSMC%InstantTXiElec(1,iSpec),DSMC%InstantTransTemp(nSpecies+1))
+    MaxTemp=MAX(DSMC%InstantTXiElec(1,iSpec),DSMC%InstantTransTemp(nSpecies+1))
+    Tequi= 0.5*(MaxTemp+MinTemp)
+    OldEn =(2./BoltzmannConst*CalcEelec(DSMC%InstantTXiElec(1,iSpec),iSpec)+Xi_rel*DSMC%InstantTransTemp(nSpecies+1))  
+    iLoop = 1
+    DO WHILE(ABS(MaxTemp-TEqui).LT.1E-3)
+      NewEn=2./BoltzmannConst*CalcEelec(TEqui,iSpec)+Xi_rel*Tequi
+      IF (OldEn.LT.NewEn) THEN
+       MaxTemp = TEqui
+      ELSE
+       MinTemp = TEqui
+      END IF 
+      Tequi= 0.5*(MaxTemp+MinTemp)       
+      iLoop = iLoop + 1
+      IF (iLoop.EQ.100) THEN
+        doConverge = .FALSE.
+        EXIT
+      END IF
+    END DO
+    IF (doConverge) THEN
+      SpecDSMC(iSpec)%ElecRelaxCorrectFac(jSpec) = (CalcEelec(DSMC%InstantTransTemp(nSpecies+1),iSpec) & 
+        -CalcEelec(DSMC%InstantTXiElec(1,iSpec),iSpec))/(BoltzmannConst/2.*Xi_rel*(DSMC%InstantTransTemp(nSPecies+1)-TEqui))
+      SpecDSMC(iSpec)%ElecRelaxCorrectFac(jSpec) = MAX(SpecDSMC(iSpec)%ElecRelaxCorrectFac(jSpec),1.)
+    ELSE
+      SpecDSMC(iSpec)%ElecRelaxCorrectFac(jSpec) = 1.
+    END IF
+  END DO
+END DO
+
+END SUBROUTINE CalcProbCorrFactorElec
 
 REAL FUNCTION DiffElecEnergy(En1, En2)
 !===================================================================================================================================
