@@ -100,6 +100,7 @@ DO iElem = 1, nElems ! element/cell main loop
   IF (CollisMode.NE.0) THEN
     CALL InitCalcVibRelaxProb
     IF(BGGas%NumberOfSpecies.GT.0) THEN
+      ! Decide between MCC and DSMC-based background gas
       IF(UseMCC) THEN
         CALL MCC(iElem)
       ELSE

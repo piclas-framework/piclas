@@ -94,9 +94,15 @@ INTEGER, ALLOCATABLE          :: VibQuantsParSplit(:), PartIndexCase(:)
 REAL                          :: ProbNull
 !===================================================================================================================================
 
+! Skip elements outside of any background gas regions
+IF(BGGas%UseRegions) THEN
+  IF(BGGas%RegionElemType(iElem).EQ.0) RETURN
+END IF
+
 GlobalElemID = iElem+offSetElem
 CNElemID = GetCNElemID(GlobalElemID)
 Volume = ElemVolume_Shared(CNElemID)
+
 ! Create particle index list for pairing
 nPart = PEM%pNumber(iElem)
 ALLOCATE(iPartIndx_Node(nPart))
