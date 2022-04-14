@@ -1139,7 +1139,7 @@ END SUBROUTINE BGGas_InitRegions
 
 !===================================================================================================================================
 !> Background gas regions: Set the internal temperatures in case of DSMC and CollisMode = 2/3 (not yet available during 
-!> BGGas_InitRegions). Loop over all elements, species and inits per species to set values for molecues and/or atoms.
+!> BGGas_InitRegions). Loop over all elements, species and inits per species to set values for molecules and/or atoms.
 !===================================================================================================================================
 SUBROUTINE BGGas_RegionsSetInternalTemp()
 ! MODULES
