@@ -61,6 +61,8 @@ CALL prms%CreateIntOption(    'PIC-AnalyticInterpolation-SubType', "SubType of A
 
 CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationP'       , "parameter 'p' for AnalyticInterpolationType = 1", '1.')
 CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationPhase'   , "Phase shift angle phi that is used for cos(w*t + phi)", '0.')
+CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationGamma'   , "Relativistic Lorentz factor", '1.')
+CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationE'       , "Electric field strength")
 #endif /*CODE_ANALYZE*/
 
 CALL prms%CreateLogicalOption(  'PIC-DoInterpolation'         , "Interpolate electric/magnetic fields at charged particle position"//&
@@ -195,14 +197,26 @@ IF(DoInterpolationAnalytic)THEN
   AnalyticInterpolationPhase = GETREAL('PIC-AnalyticInterpolationPhase')
   SELECT CASE(AnalyticInterpolationType)
   CASE(0) ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
-    ! AnalyticInterpolationSubType 0: non-relativistic, 1: relativistic
+    ! AnalyticInterpolationSubType 0: non-relativistic
+    !                              1: relativistic
     AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
+    AnalyticInterpolationGamma   = GETREAL('PIC-AnalyticInterpolationGamma')
   CASE(1) ! 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
     AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
     AnalyticInterpolationP       = GETREAL('PIC-AnalyticInterpolationP')
   CASE(2) !2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
           !                                 E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
     ! no special parameters required
+  CASE(3) ! 3: const. electric field: E = E_x = (/ 1 V/m , 0 , 0 /) = const.
+    AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
+    AnalyticInterpolationGamma   = GETREAL('PIC-AnalyticInterpolationGamma')
+    AnalyticInterpolationE       = GETREAL('PIC-AnalyticInterpolationE')
+  CASE(4) ! 3: uniform electric field: E = E_x = (/ X V/m , 0 , 0 /) = const.
+    !          from Ripperda "A Comprehensive Comparison of Relativistic Particle Integrators", 2018
+    ! AnalyticInterpolationSubType 0: non-relativistic
+    !                              1: relativistic
+    AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
+    AnalyticInterpolationE       = GETREAL('PIC-AnalyticInterpolationE')
   CASE DEFAULT
     WRITE(TempStr,'(I5)') AnalyticInterpolationType
     CALL abort(__STAMP__,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_interpolation.f90')
@@ -211,7 +225,7 @@ IF(DoInterpolationAnalytic)THEN
   ! Calculate the initial velocity of the particle from an analytic expression: must be implemented for the different
   ! AnalyticInterpolationType methods
   ! Note that for time-staggered methods, Leapfrog and Boris, the initial velocity in shifted by -dt/2 into the past
-  IF(DoInterpolationAnalytic.AND.ANY((/0,1/).EQ.AnalyticInterpolationType))THEN
+  IF(DoInterpolationAnalytic.AND.ANY((/0,1,3,4/).EQ.AnalyticInterpolationType))THEN
     DoInitAnalyticalParticleState = .TRUE.
   ELSE
     DoInitAnalyticalParticleState = .FALSE.
@@ -514,7 +528,7 @@ SUBROUTINE InitAnalyticalParticleState()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInitAnalyticalParticleState
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInitAnalyticalParticleState,AnalyticPartDim
 USE MOD_Particle_Analyze_Code  ,ONLY: CalcAnalyticalParticleState
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
@@ -525,7 +539,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL    :: PartStateAnalytic(6)
+REAL    :: PartStateAnalytic(1:AnalyticPartDim)
 INTEGER :: iPart
 !===================================================================================================================================
 ! Return here, if no analytical function can be used

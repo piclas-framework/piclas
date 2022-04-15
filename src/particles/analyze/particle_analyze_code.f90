@@ -22,7 +22,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: WriteParticleTrackingDataAnalytic 
+PUBLIC :: WriteParticleTrackingDataAnalytic
 PUBLIC :: CalcAnalyticalParticleState
 PUBLIC :: AnalyticParticleMovement
 !===================================================================================================================================
@@ -34,11 +34,11 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE CalcAnalyticalParticleState(t,PartStateAnalytic,alpha_out,theta_out)
 ! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars          ,ONLY: PI,c,c2_inv
 USE MOD_Preproc
+USE MOD_Globals               ,ONLY: DOTPRODUCT,abort
+USE MOD_Globals_Vars          ,ONLY: PI,c,c2_inv,c2
 USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpolationSubType,AnalyticInterpolationP
-USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase
+USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase,AnalyticInterpolationGamma,AnalyticInterpolationE,AnalyticPartDim
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_PARTICLE_Vars         ,ONLY: PartSpecies,Species
 ! IMPLICIT VARIABLE HANDLING
@@ -48,9 +48,9 @@ IMPLICIT NONE
 REAL,INTENT(IN)               :: t                        !< simulation time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)              :: PartStateAnalytic(1:6)   !< analytic position and velocity
-REAL,INTENT(OUT),OPTIONAL     :: alpha_out                    !< dimensionless parameter: alpha_out = q*B_0*l / (m*v_perpendicular)
-REAL,INTENT(OUT),OPTIONAL     :: theta_out                    !< angle
+REAL,INTENT(OUT)              :: PartStateAnalytic(1:AnalyticPartDim)   !< analytic position and velocity
+REAL,INTENT(OUT),OPTIONAL     :: alpha_out                              !< dimensionless parameter: alpha_out = q*B_0*l / (m*v_perpendicular)
+REAL,INTENT(OUT),OPTIONAL     :: theta_out                              !< angle
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !REAL    :: p
@@ -60,12 +60,15 @@ REAL    :: Theta
 REAL    :: beta
 REAL    :: v_perp !< Perpendicular velocity
 REAL    :: B_0    !< Magnetic flux density
+REAL    :: c1
+REAL    :: gamma1
 !===================================================================================================================================
 PartStateAnalytic=0. ! default
 
 ASSOCIATE( iPart => 1 )
   ! Select analytical solution depending on the type of the selected (analytic) interpolation
   SELECT CASE(AnalyticInterpolationType)
+
   ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
   CASE(0)
     ! 0: non-relativistic, 1: relativistic
@@ -88,7 +91,7 @@ ASSOCIATE( iPart => 1 )
         END ASSOCIATE
       END ASSOCIATE
     CASE(1) ! 1: relativistic
-      ASSOCIATE( gamma1 => 1e6                        ,& ! Lorentz factor
+      ASSOCIATE( gamma1 => AnalyticInterpolationGamma ,& ! Lorentz factor
                  m      => 1.0                        ,& ! [kg] particle mass
                  q      => 1.0                        ,& ! [C] particle charge
                  phi    => AnalyticInterpolationPhase )  ! [rad] phase shift
@@ -98,6 +101,7 @@ ASSOCIATE( iPart => 1 )
         IF(v_perp.GE.c) CALL abort(__STAMP__,'Velocity is geater than c',RealInfoOpt=v_perp)
         !-- Set const. magnetic field [T]
         B_0 = gamma1*v_perp
+        !IPWRITE(UNIT_StdOut,*) "v_perp,v_perp/c,B_0 =", v_perp,v_perp/c,B_0
 
         !write(*,*) gamma1,v_perp,v_perp/c,B_0,B_0/c,1.0/SQRT(1.0-v_perp**2*c2_inv)
         ASSOCIATE( omega_c => ABS(q)*B_0/(gamma1*m) )
@@ -211,8 +215,85 @@ ASSOCIATE( iPart => 1 )
   !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
   CASE(2)
     ! missing ...
+
+  ! 3: const. electric field: E = E_x = (/ 1 V/m , 0 , 0 /) = const.
+  CASE(3)
+
+    SELECT CASE(AnalyticInterpolationSubType)
+    CASE(0) ! 0: non-relativistic
+      ASSOCIATE( m      => Species(PartSpecies(iPart))%MassIC     ,& ! [kg] particle mass
+                 q      => Species(PartSpecies(iPart))%ChargeIC   ,& ! [C] particle charge
+                 E      => AnalyticInterpolationE                 )  ! [V/m] Electric field strength in x-direction
+
+        ASSOCIATE( a => q*E/m )
+          PartStateAnalytic(1) = 0.5*a*t*t
+          PartStateAnalytic(2) = 0.
+          PartStateAnalytic(3) = 0.
+          PartStateAnalytic(4) = a*t
+          PartStateAnalytic(5) = 0.
+          PartStateAnalytic(6) = 0.
+        END ASSOCIATE
+      END ASSOCIATE
+    CASE(1) ! 1: relativistic
+      ASSOCIATE( m      => Species(PartSpecies(iPart))%MassIC     ,& ! [kg] particle mass
+                 q      => Species(PartSpecies(iPart))%ChargeIC   ,& ! [C] particle charge
+                 E      => AnalyticInterpolationE                 )  ! [V/m] Electric field strength in x-direction
+        ASSOCIATE( aStar => q*E/m )
+          ASSOCIATE( tStar => (c/aStar)*ASINH(aStar*t/c) ,&
+                     b     => c2/aStar )
+          ASSOCIATE( c1 => aStar*tStar/c )
+            ASSOCIATE( gamma1 => COSH(c1)&
+                        )
+              PartStateAnalytic(1) = b*gamma1 -b
+              !WRITE (*,*) "q,E,m,t =", q,E,m,t
+          !PartStateAnalytic(1) = 0.5*q*E/m*t*t
+              PartStateAnalytic(2) = 0.
+              PartStateAnalytic(3) = 0.
+              PartStateAnalytic(4) = c*TANH(c1)
+              PartStateAnalytic(5) = 0.
+              PartStateAnalytic(6) = 0.
+              !WRITE (*,*) "t,PartStateAnalytic =", t,PartStateAnalytic,gamma1
+            END ASSOCIATE
+            END ASSOCIATE
+          END ASSOCIATE
+        END ASSOCIATE
+      END ASSOCIATE
+    END SELECT
+
+  ! 4: const. electric field: E = E_x = (/ X V/m , 0 , 0 /) = const.
+  CASE(4)
+
+    SELECT CASE(AnalyticInterpolationSubType)
+    CASE(0) ! 0: non-relativistic
+    CASE(1) ! 1: relativistic
+      ASSOCIATE( m      => Species(PartSpecies(iPart))%MassIC     ,& ! [kg] particle mass
+                 q      => Species(PartSpecies(iPart))%ChargeIC   ,& ! [C] particle charge
+                 E      => AnalyticInterpolationE                 )  ! [V/m] Electric field strength in x-direction
+             c1 = q*E/m
+             gamma_0 = SQRT(1.0+(c1*t/c)**2)
+             PartStateAnalytic(1) = c**2/c1*(gamma_0-1.0)
+             PartStateAnalytic(2) = 0.
+             PartStateAnalytic(3) = 0.
+             PartStateAnalytic(4) = c1*t/gamma_0
+             PartStateAnalytic(5) = 0.
+             PartStateAnalytic(6) = 0.
+             !WRITE (*,*) "x,v,gamma_0,c =", PartStateAnalytic(1),PartStateAnalytic(4),gamma_0,c
+      END ASSOCIATE
+    END SELECT
+    !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+
   END SELECT
 END ASSOCIATE
+
+
+! Calculate analytical Lorentz factor
+gamma1 = DOTPRODUCT(PartStateAnalytic(4:6))*c2_inv
+! Sanity check: Lorentz factor must be below 1.0
+IF(gamma1.GE.1.0)THEN
+  PartStateAnalytic(7)=-1.0
+ELSE
+  PartStateAnalytic(7)=1.0/SQRT(1.-gamma1)
+END IF
 
 END SUBROUTINE CalcAnalyticalParticleState
 
@@ -237,10 +318,10 @@ END SUBROUTINE CalcAnalyticalParticleState
 !===================================================================================================================================
 SUBROUTINE CalcErrorParticle(t,iter,PartStateAnalytic)
 ! MODULES
-USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,L_2_Error_Part_time
+USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,AnalyticPartDim,L_2_Error_Part_time
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM
-! OLD METHOD: considering TEnd:
-! USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+USE MOD_Globals_Vars          ,ONLY: c2_inv
+USE MOD_globals               ,ONLY: DOTPRODUCT
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_Particle_Vars         ,ONLY: Pt
@@ -253,35 +334,36 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER(KIND=8),INTENT(IN)    :: iter                     !< simulation iteration counter
 REAL,INTENT(IN)               :: t                        !< simulation time
-REAL,INTENT(INOUT)            :: PartStateAnalytic(1:6)   !< analytic position and velocity
+REAL,INTENT(INOUT)            :: PartStateAnalytic(1:AnalyticPartDim)   !< analytic position and velocity
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart,iPartState
-REAL                          :: PartStateLoc(1:6),PartStateLocAnalytic(1:6)
+REAL                          :: PartStateLoc(1:AnalyticPartDim)
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
-INTEGER,PARAMETER             :: Method=1 !< 1: shift numerical solution from v(n-1/2) to v(n), gives O(2) for x and v for Boris-LF
+REAL                          :: PartStateLocAnalytic(1:AnalyticPartDim)
+INTEGER,PARAMETER             :: Method=2 !< 1: shift numerical solution from v(n-1/2) to v(n), gives O(2) for x and v for Boris-LF
                                           !<    for const. magnetic field
                                           !< 2: shift analytical solution from v(n) to v(n-1/2), gives no order of convergence for
                                           !<    the velocity components Boris-LF and const. magnetic field due to conservation of
                                           !<    energy
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
+REAL                          :: gamma1
 !===================================================================================================================================
 ! Get analytic particle position
 CALL CalcAnalyticalParticleState(t,PartStateAnalytic)
 
 ! Depending on the iteration counter, set the L_2 error (re-use the value in the next loop)
 IF(iter.LT.1)THEN ! first iteration
-  L_2_Error_Part(1:6) = 0.
+  L_2_Error_Part(1:AnalyticPartDim) = 0.
   L_2_Error_Part_time = 0.
 ELSE
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
 
       ! Store particle state in temp. variable
-      PartStateLoc = PartState(1:6,iPart)
-      PartStateLocAnalytic(1:6) = PartStateAnalytic(1:6)
+      PartStateLoc(1:6) = PartState(1:6,iPart)
 
       !-- Only for time-staggered methods (Leapfrog and Boris-Leapfrog):
       ! Set analytic velocity at v(n-0.5) from analytic particle solution
@@ -293,12 +375,22 @@ ELSE
         !-- v(n+0.5) => v(n+1) by a(n+1):
         PartStateLoc(4:6) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt*0.5
       ELSE
-        CALL CalcAnalyticalParticleState(t-dt*0.5,PartStateAnalytic)
-        PartStateLocAnalytic(4:6) = PartStateAnalytic(4:6)
+        CALL CalcAnalyticalParticleState(t-dt*0.5,PartStateLocAnalytic)
+        !-- get analytical v(n-0.5)
+        PartStateAnalytic(4:7) = PartStateLocAnalytic(4:7)
       END IF ! Method.EQ.1
 #endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 
-      DO iPartState = 1, 6
+        ! Calculate new Lorentz factor
+        gamma1 = DOTPRODUCT(PartStateLoc(4:6))*c2_inv
+        ! Sanity check: Lorentz factor must be below 1.0
+        IF(gamma1.GE.1.0)THEN
+          PartStateLoc(7)=-1.0
+        ELSE
+          PartStateLoc(7)=1.0/SQRT(1.-gamma1)
+        END IF
+
+      DO iPartState = 1, AnalyticPartDim
         ! OLD METHOD: original
         ! L_2_Error_Part(iPartState) = SQRT( ( (L_2_Error_Part(iPartState))**2*REAL(iter-1) + &
         !                               (PartStateAnalytic(iPartState)-PartStateLoc(iPartState))**2 )/ REAL(iter))
@@ -310,11 +402,15 @@ ELSE
 
         ! NEW METHOD: considering variable time step
         L_2_Error_Part(iPartState) = SQRT(  (L_2_Error_Part(iPartState))**2 + &
-                                   (t-L_2_Error_Part_time)*(PartStateLocAnalytic(iPartState)-PartStateLoc(iPartState))**2 )
+                                   (t-L_2_Error_Part_time)*(PartStateAnalytic(iPartState)-PartStateLoc(iPartState))**2 )
       END DO ! iPartState = 1, 6
+      !WRITE (*,*) "PartStateAnalytic =", PartStateAnalytic
+      !WRITE (*,*) "PartStateLoc      =", PartStateLoc
+      !WRITE (*,*) "L_2_Error_Part    =", L_2_Error_Part
+      !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
       L_2_Error_Part_time = t
     ELSE
-      L_2_Error_Part(1:6) = -1.0
+      L_2_Error_Part(1:AnalyticPartDim) = -1.0
     END IF
   END DO
 END IF
@@ -327,12 +423,12 @@ END SUBROUTINE CalcErrorParticle
 !===================================================================================================================================
 SUBROUTINE AnalyticParticleMovement(time,iter)
 ! MODULES
-USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars           ,ONLY: OutputErrorNorms
-USE MOD_Particle_Analyze_Vars  ,ONLY: TrackParticlePosition
-USE MOD_PICInterpolation_Vars  ,ONLY: L_2_Error_Part
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_Globals               ,ONLY: UNIT_StdOut
+USE MOD_Analyze_Vars          ,ONLY: OutputErrorNorms
+USE MOD_Particle_Analyze_Vars ,ONLY: TrackParticlePosition
+USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,AnalyticPartDim
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -343,14 +439,14 @@ INTEGER(KIND=8),INTENT(IN)    :: iter                        !< iteration
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: PartStateAnalytic(1:6)   !< analytic position and velocity
+REAL                          :: PartStateAnalytic(1:AnalyticPartDim)   !< analytic position and velocity
 CHARACTER(LEN=40)             :: formatStr
 !===================================================================================================================================
 
 CALL CalcErrorParticle(time,iter,PartStateAnalytic)
 IF(PartMPI%MPIRoot.AND.OutputErrorNorms) THEN
   WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',time
-  WRITE(formatStr,'(A5,I1,A7)')'(A13,',6,'ES16.7)'
+  WRITE(formatStr,'(A5,I1,A7)')'(A13,',AnalyticPartDim,'ES16.7)'
   WRITE(UNIT_StdOut,formatStr)' L2_Part   : ',L_2_Error_Part
   OutputErrorNorms=.FALSE.
 END IF
@@ -367,22 +463,21 @@ SUBROUTINE WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals               ,ONLY: MPIRoot,FILEEXISTS,unit_stdout
+USE MOD_Globals               ,ONLY: MPIRoot,FILEEXISTS,unit_stdout,DOTPRODUCT
 USE MOD_Restart_Vars          ,ONLY: DoRestart
-USE MOD_Globals               ,ONLY: abort
-USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part
+USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,AnalyticPartDim
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                  :: time
 INTEGER(KIND=8),INTENT(IN)       :: iter
-REAL(KIND=8),INTENT(IN)          :: PartStateAnalytic(1:6)
+REAL(KIND=8),INTENT(IN)          :: PartStateAnalytic(1:AnalyticPartDim)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=28),PARAMETER              :: outfile='ParticlePositionAnalytic.csv'
 INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=150)                       :: formatStr
-INTEGER,PARAMETER                        :: nOutputVar=13
+INTEGER,PARAMETER                        :: nOutputVar=15
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     '001-time',     &
     'PartPosX_Analytic', &
@@ -391,12 +486,14 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'PartVelX_Analytic', &
     'PartVelY_Analytic', &
     'PartVelZ_Analytic', &
+    'gamma'            , &
     'L2_PartPosX'      , &
     'L2_PartPosY'      , &
     'L2_PartPosZ'      , &
     'L2_PartVelX'      , &
     'L2_PartVelY'      , &
-    'L2_PartVelZ'        &
+    'L2_PartVelZ'      , &
+    'L2_gamma'           &
     /)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
 CHARACTER(LEN=1000)                      :: tmpStr2
@@ -452,12 +549,14 @@ IF(FILEEXISTS(outfile))THEN
       delimiter,PartStateAnalytic(4), &     ! PartVelX analytic solution
       delimiter,PartStateAnalytic(5), &     ! PartVelY analytic solution
       delimiter,PartStateAnalytic(6), &     ! PartVelZ analytic solution
+      delimiter,PartStateAnalytic(7), &     ! Lorentz factor
       delimiter,L_2_Error_Part(1), &     ! L2 error for PartPosX solution
       delimiter,L_2_Error_Part(2), &     ! L2 error for PartPosY solution
       delimiter,L_2_Error_Part(3), &     ! L2 error for PartPosZ solution
       delimiter,L_2_Error_Part(4), &     ! L2 error for PartVelX solution
       delimiter,L_2_Error_Part(5), &     ! L2 error for PartVelY solution
-      delimiter,L_2_Error_Part(6)        ! L2 error for PartVelZ solution
+      delimiter,L_2_Error_Part(6), &     ! L2 error for PartVelZ solution
+      delimiter,L_2_Error_Part(7)        ! L2 error for PartVelZ solution
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
   CLOSE(ioUnit)
 ELSE
@@ -465,7 +564,7 @@ ELSE
 END IF
 
 END SUBROUTINE WriteParticleTrackingDataAnalytic
-  
+
 
 #endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
 END MODULE MOD_Particle_Analyze_Code
