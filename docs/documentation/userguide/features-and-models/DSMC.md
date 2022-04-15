@@ -252,9 +252,9 @@ using an instantaneous translational cell temperature.
 (sec:DSMC-electronic-relaxation)=
 ### Electronic Relaxation
 
-For the modelling of electronic relaxation, two models are available: the model by Liechty et al. {cite}`Liechty2011a`, where each
+For the modelling of electronic relaxation, three models are available: the model by Liechty et al. {cite}`Liechty2011a` and a BGK Landau-Teller like model {cite}`Pfeiffer2018b`,{cite}``Pfeiffer2018b``', where each
 particle has a specific electronic state and the model by Burt and Eswar {cite}`Burt2015b`, where each particle has an electronic
-distribution function attached. Both models utilize tabulated energy levels, which can be found in literature for a wide range of
+distribution function attached. The three models utilize tabulated energy levels, which can be found in literature for a wide range of
 species (e.g. for monatomic {cite}`NISTASD`, diatomic {cite}`Huber1979`, polyatomic {cite}`Herzberg1966` molecules). An example
 database `DSMCSpecies_electronic_state_full_Data.h5` can be found in e.g.
 `piclas/regressioncheck/NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec`, where the energy levels are stored in containers and
@@ -265,6 +265,7 @@ required
     Particles-DSMC-ElectronicModel  = 0     ! No electronic energy is considered (default)
                                     = 1     ! Model by Liechty
                                     = 2     ! Model by Burt
+                                    = 4     ! BGK Landau-Teller like model
     Particles-DSMCElectronicDatabase = DSMCSpecies_electronic_state_full_Data.h5
 
 In case of a large number of electronic levels, their number can be reduced by providing a relative merge tolerance.

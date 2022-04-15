@@ -102,7 +102,8 @@ CALL prms%CreateIntOption(  'Particles-DSMC-ElectronicModel', &
                                           '0: No electronic energy treatment [default]\n'//&
                                           '1: Model by Liechty, each particle has a specific electronic state\n'//&
                                           '2: Model by Burt, each particle has an electronic distribution function\n'//&
-                                          '3: MCC model, utilizing cross-section data for specific levels', '0')
+                                          '3: MCC model, utilizing cross-section data for specific levels\n'//&
+                                          '4: Landau-Teller based model, relaxation of given distribution function', '0')
 CALL prms%CreateStringOption(   'Particles-DSMCElectronicDatabase'&
                                           , 'If electronic model is used give (relative) path to (h5) Name of Electronic State'//&
                                           ' Database', 'none')
@@ -309,7 +310,7 @@ IMPLICIT NONE
 CHARACTER(32)         :: hilf , hilf2
 INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iDOF, VarNum
 INTEGER               :: iColl, jColl, pColl, nCollision ! for collision parameter read in
-REAL                  :: A1, A2     ! species constant for cross section (p. 24 Laux)
+REAL                  :: A1, A2, delta_ij     ! species constant for cross section (p. 24 Laux)
 LOGICAL               :: PostCollPointerSet
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -357,6 +358,10 @@ IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevM
   END IF
 END IF
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
+IF (DSMC%ElectronicModel.EQ.4) THEN
+  ALLOCATE(ElecRelaxPart(1:PDM%maxParticleNumber))
+  ElecRelaxPart = .TRUE.
+END IF
 IF (DSMC%ElectronicModel.EQ.2) THEN
   IF(.NOT.ALLOCATED(ElectronicDistriPart)) ALLOCATE(ElectronicDistriPart(PDM%maxParticleNumber))
 END IF
@@ -364,7 +369,7 @@ DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','n
 IF ((DSMC%ElectronicModelDatabase .NE. 'none').AND.&
     ((CollisMode .GT. 1).OR.(CollisMode .EQ. 0))) THEN ! CollisMode=0 is for use of in PIC simulation without collisions
   DSMC%EpsElecBin = GETREAL('EpsMergeElectronicState','1E-4')
-ELSEIF(DSMC%ElectronicModel.EQ.1.OR.DSMC%ElectronicModel.EQ.2) THEN
+ELSEIF(DSMC%ElectronicModel.EQ.1.OR.DSMC%ElectronicModel.EQ.2.OR.DSMC%ElectronicModel.EQ.4) THEN
   CALL Abort(__STAMP__,'ERROR: Electronic models 1 & 2 require an electronic levels database and CollisMode > 1!')
 END IF
 DSMC%NumPolyatomMolecs = 0
@@ -382,10 +387,6 @@ IF(DSMC%CalcQualityFactors) THEN
   ALLOCATE(DSMC%QualityFacSamp(nElems,VarNum))
   DSMC%QualityFacSamp(1:nElems,1:VarNum) = 0.0
 END IF
-
-! definition of DSMC particle values
-ALLOCATE(DSMC_RHS(1:3,1:PDM%maxParticleNumber))
-DSMC_RHS = 0
 
 IF (nSpecies.LE.0) THEN
   CALL Abort(__STAMP__,"ERROR: nSpecies .LE. 0:", nSpecies)
@@ -876,7 +877,7 @@ ELSE !CollisMode.GT.0
 
     ! Check whether calculation of instantaneous translational temperature is required
   IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors &
-            .OR.(DSMC%VibRelaxProb.EQ.2).OR.(DSMC%ElectronicModel.EQ.2)) THEN
+            .OR.(DSMC%VibRelaxProb.EQ.2).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.4)) THEN
     ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
     !           relaxation probability (CalcGammaVib)
     ! 2. Case: Backward reaction rates
@@ -1021,6 +1022,22 @@ IF(DoFieldIonization.AND.(CollisMode.NE.3))THEN
   ! Set "NextIonizationSpecies" information for field ionization from "PreviousState" info
   ! NextIonizationSpecies => SpeciesID of the next higher ionization level
   CALL SetNextIonizationSpecies()
+END IF
+
+IF (DSMC%ElectronicModel.EQ.4) THEN
+  DO iSpec=1, nSpecies
+    ALLOCATE(SpecDSMC(iSpec)%CollFreqPreFactor(nSpecies))
+    DO jSpec=1, nSpecies
+      IF (iSpec.EQ.jSpec) THEN
+        delta_ij = 1.0
+      ELSE
+        delta_ij = 0.0
+      END IF
+      SpecDSMC(iSpec)%CollFreqPreFactor(jSpec)= 4.*(2.-delta_ij)*CollInf%dref(iSpec,jSpec)**2.0 &
+          * SQRT(Pi*BoltzmannConst*CollInf%Tref(iSpec,jSpec)*(Species(iSpec)%MassIC + Species(jSpec)%MassIC) &
+          /(2.*(Species(iSpec)%MassIC * Species(jSpec)%MassIC)))/CollInf%Tref(iSpec,jSpec)**(-CollInf%omega(iSpec,jSpec) +0.5)
+    END DO
+  END DO
 END IF
 
 SWRITE(UNIT_stdOut,'(A)')' INIT DSMC DONE!'
@@ -1342,7 +1359,6 @@ SDEALLOCATE(DSMC%QualityFacSampVibSamp)
 SDEALLOCATE(DSMC%CalcVibProb)
 SDEALLOCATE(DSMC%CalcRotProb)
 SDEALLOCATE(SampDSMC)
-SDEALLOCATE(DSMC_RHS)
 SDEALLOCATE(PartStateIntEn)
 SDEALLOCATE(SpecDSMC)
 IF(DSMC%NumPolyatomMolecs.GT.0) THEN

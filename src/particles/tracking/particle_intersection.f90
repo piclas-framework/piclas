@@ -557,7 +557,7 @@ BiLinearCoeff(:,4) = 0.25*BaseVectors0(:,SideID)
     IF(PartID.EQ.PARTOUT)THEN
       WRITE(UNIT_stdout,'(110("-"))')
       WRITE(UNIT_stdout,'(A)') '     | Output of bilinear intersection equation constants: '
-      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | SideNormVec  : ',SideNormVec(1:3,SideID)
+      WRITE(UNIT_stdout,'(A,3(1X,G0))') '     | SideNormVec  : ',SideNormVec(1:3,CNSideID)
       WRITE(UNIT_stdout,'(A,4(1X,G0))') '     | BilinearCoeff: ',BilinearCoeff(1,1:4)
       WRITE(UNIT_stdout,'(A,4(1X,G0))') '     | BilinearCoeff: ',BilinearCoeff(2,1:4)
       WRITE(UNIT_stdout,'(A,4(1X,G0))') '     | BilinearCoeff: ',BilinearCoeff(3,1:4)
@@ -1290,7 +1290,6 @@ USE MOD_Globals,                 ONLY:Abort,UNIT_stdOut
 USE MOD_Mesh_Vars,               ONLY:NGeo
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipMaxIter
 USE MOD_Particle_Surfaces_Vars,  ONLY:BezierClipLineVectorMethod
-USE MOD_Particle_Surfaces,       ONLY:EvaluateBezierPolynomialAndGradient
 #ifdef CODE_ANALYZE
 USE MOD_Globals,                 ONLY:MyRank
 USE MOD_Particle_Tracking_Vars,  ONLY:PartOut,MPIRankOut
@@ -1887,7 +1886,6 @@ PPURE FUNCTION ComputeXi(eta,A1,A2)
 IMPLICIT NONE
 !--------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-
 REAL,INTENT(IN)                      :: eta
 REAL,DIMENSION(4),INTENT(IN)         :: A1,A2
 !--------------------------------------------------------------------------------------------------------------------------------

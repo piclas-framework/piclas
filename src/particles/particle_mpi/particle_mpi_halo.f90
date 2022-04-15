@@ -57,6 +57,7 @@ USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_MPI_Vars       ,ONLY: SafetyFactor,halo_eps,halo_eps_velo,MPI_halo_eps,halo_eps_woshape
 USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc,CheckExchangeProcs
+USE MOD_Particle_MPI_Vars       ,ONLY: AbortExchangeProcs
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_PICDepo_Vars            ,ONLY: DepositionType, ShapeElemProcSend_Shared, ShapeElemProcSend_Shared_Win
@@ -94,6 +95,9 @@ INTEGER                        :: nExchangeSides
 INTEGER,ALLOCATABLE            :: ExchangeSides(:)
 REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:), MPISideBoundsOfNbElemCenter(:,:)
 INTEGER                        :: ExchangeProcLeader
+#if !(PP_TimeDiscMethod==400)
+LOGICAL,ALLOCATABLE            :: FlagExchangeElem(:)
+#endif /*!(PP_TimeDiscMethod==400)*/
 ! halo_eps reconstruction
 REAL                           :: MPI_halo_eps_velo,MPI_halo_diag,vec(1:3),deltaT, MPI_halo_eps_woshape
 REAL                           :: NbElemBounds(2,3)
@@ -169,7 +173,17 @@ END IF
 !>>> Special care for big mortar sides, here the SIDE_ELEMID must be used
 nExchangeSides = 0
 
+#if !(PP_TimeDiscMethod==400)
+ALLOCATE(FlagExchangeElem(offsetElem+1:offsetElem+nElems))
+FlagExchangeElem = .FALSE.
+#endif /*!(PP_TimeDiscMethod==400)*/
+
 DO iElem = firstElem,lastElem
+#if !(PP_TimeDiscMethod==400)
+  ! Element already flagged
+  IF (FlagExchangeElem(iElem)) CYCLE
+#endif /*!(PP_TimeDiscMethod==400)*/
+
   DO iLocSide = 1,6
     SideID   = GetGlobalNonUniqueSideID(iElem,iLocSide)
     NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
@@ -190,22 +204,23 @@ DO iElem = firstElem,lastElem
         ! If any of the small mortar sides is not on the local proc, the side is a MPI side
         IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
           nExchangeSides = nExchangeSides + 1
+#if !(PP_TimeDiscMethod==400)
+          FlagExchangeElem(iElem) = .TRUE.
+#endif /*!(PP_TimeDiscMethod==400)*/
           EXIT
         END IF
       END DO
 
     ! regular side or small mortar side
     ELSE
-      ! Check if SideID is a rot periodic BC
-      BCindex = SideInfo_Shared(SIDE_BCID,SideID)
-      IF(BCindex.GT.0)THEN
-        SideIsRotPeriodic = PartBound%TargetBoundCond(PartBound%MapToPartBC(BCindex)).EQ.PartBound%RotPeriodicBC
-      ELSE
-        SideIsRotPeriodic = .FALSE.
-      END IF ! BCindex.GT.0
-      ! Only check inner (MPI interfaces) sides and rotperiodic sides (BC sides)
-      IF (((NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem).AND.(NbElemID.GT.0)).OR.SideIsRotPeriodic) THEN
+      ! Only check inner (MPI interfaces) and boundary sides (NbElemID.EQ.0)
+      ! Boundary sides cannot be discarded because one proc might have MPI interfaces and the other might not
+      ! NbElemID.LT.firstElem is always true for NbElemID.EQ.0 because firstElem.GE.1
+      IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
         nExchangeSides = nExchangeSides + 1
+#if !(PP_TimeDiscMethod==400)
+        FlagExchangeElem(iElem) = .TRUE.
+#endif /*!(PP_TimeDiscMethod==400)*/
       END IF
     END IF
   END DO
@@ -217,9 +232,17 @@ IF (nComputeNodeProcessors.GT.1.AND.nExchangeSides.EQ.0) &
 !> Build mapping for all MPI sides on current proc
 ALLOCATE(ExchangeSides(1:nExchangeSides))
 
-nExchangeSides = 0
+nExchangeSides   = 0
+#if !(PP_TimeDiscMethod==400)
+FlagExchangeElem = .FALSE.
+#endif /*!(PP_TimeDiscMethod==400)*/
 
 DO iElem = firstElem,lastElem
+#if !(PP_TimeDiscMethod==400)
+  ! Element already flagged
+  IF (FlagExchangeElem(iElem)) CYCLE
+#endif /*!(PP_TimeDiscMethod==400)*/
+
   DO iLocSide = 1,6
     SideID   = GetGlobalNonUniqueSideID(iElem,iLocSide)
     NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
@@ -241,27 +264,32 @@ DO iElem = firstElem,lastElem
         IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
           nExchangeSides = nExchangeSides + 1
           ExchangeSides(nExchangeSides) = SideID
+#if !(PP_TimeDiscMethod==400)
+          FlagExchangeElem(iElem) = .TRUE.
+#endif /*!(PP_TimeDiscMethod==400)*/
           EXIT
         END IF
       END DO
 
     ! regular side or small mortar side
     ELSE
-      ! Check if SideID is a rot periodic BC
-      BCindex = SideInfo_Shared(SIDE_BCID,SideID)
-      IF(BCindex.GT.0)THEN
-        SideIsRotPeriodic = PartBound%TargetBoundCond(PartBound%MapToPartBC(BCindex)).EQ.PartBound%RotPeriodicBC
-      ELSE
-        SideIsRotPeriodic = .FALSE.
-      END IF ! BCindex.GT.0
-      ! Only check inner (MPI interfaces) sides and rotperiodic sides (BC sides)
-      IF (((NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem).AND.(NbElemID.GT.0)).OR.SideIsRotPeriodic) THEN
+      ! Only check inner (MPI interfaces) and boundary sides (NbElemID.EQ.0)
+      ! Boundary sides cannot be discarded because one proc might have MPI interfaces and the other might not
+      ! NbElemID.LT.firstElem is always true for NbElemID.EQ.0 because firstElem.GE.1
+      IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
         nExchangeSides = nExchangeSides + 1
         ExchangeSides(nExchangeSides) = SideID
+#if !(PP_TimeDiscMethod==400)
+        FlagExchangeElem(iElem) = .TRUE.
+#endif /*!(PP_TimeDiscMethod==400)*/
       END IF
     END IF
   END DO
 END DO
+
+#if !(PP_TimeDiscMethod==400)
+DEALLOCATE(FlagExchangeElem)
+#endif /*!(PP_TimeDiscMethod==400)*/
 
 !> Build metrics for all MPI sides on current proc
 ALLOCATE(BoundsOfElemCenter(1:5))
@@ -278,21 +306,21 @@ DO iSide = 1, nExchangeSides
                                                   BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                                   BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
 
-  ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
+  NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
 
   ! Mortar elements or normal elements (inkl. rot periodic sides)
   ! Check if SideID is a rot periodic BC
   BCindex = SideInfo_Shared(SIDE_BCID,SideID)
   IF(BCindex.GT.0)THEN
     SideIsRotPeriodic = PartBound%TargetBoundCond(PartBound%MapToPartBC(BCindex)).EQ.PartBound%RotPeriodicBC
-    ! ElemID for BCSide neighbour is zero. Therefore, change it to the ID of the considered element
-    ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+    ! NbElemID for BCSide neighbour is zero. Therefore, change it to the ID of the considered element
+    NbElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
   ELSE
     SideIsRotPeriodic = .FALSE.
   END IF ! BCindex.GT.0
 
-  ! Only mortar (MPI interfaces) sides
-  IF ((ElemID.LT.1).AND.(.NOT.SideIsRotPeriodic)) THEN
+  ! Only mortar (MPI interfaces) sides: large mortar side
+  IF ((NbElemID.LT.1).AND.(.NOT.SideIsRotPeriodic)) THEN
     MPISideBoundsOfNbElemCenter(1:4,iSide) = 0.0
     nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
     NbElemBounds(1,:) = HUGE(1.)
@@ -320,12 +348,12 @@ DO iSide = 1, nExchangeSides
                                                     NbElemBounds(2  ,3)-NbElemBounds(1,3) /) / 2.)
   ELSE
     ! Non-mortar (MPI interfaces) sides and rotperiodic sides (BC sides)
-    MPISideBoundsOfNbElemCenter(1:3,iSide) = (/ SUM( BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                                SUM( BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                                SUM( BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-    MPISideBoundsOfNbElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                                      BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                                      BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+    MPISideBoundsOfNbElemCenter(1:3,iSide) = (/ SUM( BoundsOfElem_Shared(1:2,1,NbElemID)), &
+                                                SUM( BoundsOfElem_Shared(1:2,2,NbElemID)), &
+                                                SUM( BoundsOfElem_Shared(1:2,3,NbElemID)) /) / 2.
+    MPISideBoundsOfNbElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2,1,NbElemID)-BoundsOfElem_Shared(1,1,NbElemID), &
+                                                      BoundsOfElem_Shared(2,2,NbElemID)-BoundsOfElem_Shared(1,2,NbElemID), &
+                                                      BoundsOfElem_Shared(2,3,NbElemID)-BoundsOfElem_Shared(1,3,NbElemID) /) / 2.)
   END IF
 
 END DO
@@ -425,6 +453,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                                         BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                         BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
 
+#if (PP_TimeDiscMethod==400)
   IF (HaloProc.EQ.myRank) THEN
     DO iSide = 1, nExchangeSides
       ! compare distance of centers with sum of element outer radii+halo_eps
@@ -584,6 +613,10 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     END DO ! iSide = 1, nExchangeSides
     CYCLE ElemLoop
   END IF ! HaloProc.EQ.myRank
+#else
+  ! Skip own myrank
+  IF (HaloProc.EQ.myRank) CYCLE
+#endif /*(PP_TimeDiscMethod==400)*/
 
   ! Skip if the proc is already flagged, only if the exact elements are not required (.NOT.shape_function)
   IF(.NOT.StringBeginsWith(DepositionType,'shape_function'))THEN
@@ -854,8 +887,6 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
   END DO ! iSide = 1, nExchangeSides
 END DO ElemLoop
 
-CALL AddToElemData(ElementOut,'IsExchangeElem',LogArray=IsExchangeElem)
-
 ! Notify every proc if it was identified by the local proc
 IF(CheckExchangeProcs)THEN
   DO iProc = 0,nProcessors_Global-1
@@ -912,14 +943,17 @@ IF(CheckExchangeProcs)THEN
   CALL MPI_ALLREDUCE(nNonSymmetricExchangeProcs, nNonSymmetricExchangeProcsGlob, 1, MPI_INTEGER, MPI_SUM, MPI_COMM_WORLD, IERROR)
   ! Check sum of nNonSymmetricExchangeProcs over all processors
   IF(nNonSymmetricExchangeProcsGlob.GT.0)THEN
+    SWRITE(UNIT_StdOut,'(X,131("~"))')
     SWRITE(Unit_StdOut,'(A,I0,A)') ' | Found ',nNonSymmetricExchangeProcsGlob, ' previously missing non-symmetric particle exchange procs'
-    SWRITE(Unit_StdOut,'(A)')"\n See ElemData container 'myInvisibleRank' for more information on which MPI ranks are non-symmetric"
+    SWRITE(Unit_StdOut,'(A)')" | See ElemData container 'myInvisibleRank' for more information on which MPI ranks are non-symmetric"
     SWRITE(Unit_StdOut,'(A)')" | This information is written to "//TRIM(ProjectName)//"_MyInvisibleRank.h5 (only when CheckExchangeProcs=T)"
+    SWRITE(Unit_StdOut,'(A)')" | This check is optional. You can disable it via CheckExchangeProcs = F"
+    SWRITE(UNIT_StdOut,'(X,131("~"))')
     CALL AddToElemData(ElementOut,'myInvisibleRank',LongIntArray=myInvisibleRank)
     CALL WriteMyInvisibleRankToHDF5()
     ! Only root aborts
-    IF(MPIRoot.AND.CheckExchangeProcs) CALL abort(__STAMP__,&
-      ' Non-symmetric particle exchange procs > 0. This check is optional. You can disable it via CheckExchangeProcs = F')
+    IF(AbortExchangeProcs) CALL CollectiveStop(__STAMP__," Non-symmetric particle exchange procs > 0. This abort is optional."//&
+        " You can disable it via AbortExchangeProcs = F.\n          See message above regarding 'myInvisibleRank' output for details.")
   ELSE
     SDEALLOCATE(myInvisibleRank)
   END IF ! nNonSymmetricExchangeProcsGlob.GT.0

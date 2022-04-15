@@ -40,7 +40,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
 ! Performs simple elastic collision (CollisMode = 1)
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, DSMC_RHS, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, VarTimeStep, Species, usevMPF
 USE MOD_DSMC_CollisVec          ,ONLY: PostCollVec
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -106,13 +106,13 @@ IF (DSMC%ReservoirSimuRate) RETURN
   cRelaNew(1:3) = PostCollVec(iPair)
 
  ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
-  DSMC_RHS(1,iPart1) = VeloMx + FracMassCent2 * cRelaNew(1) - PartState(4,iPart1)
-  DSMC_RHS(2,iPart1) = VeloMy + FracMassCent2 * cRelaNew(2) - PartState(5,iPart1)
-  DSMC_RHS(3,iPart1) = VeloMz + FracMassCent2 * cRelaNew(3) - PartState(6,iPart1)
+  PartState(4,iPart1) = VeloMx + FracMassCent2 * cRelaNew(1) 
+  PartState(5,iPart1) = VeloMy + FracMassCent2 * cRelaNew(2)
+  PartState(6,iPart1) = VeloMz + FracMassCent2 * cRelaNew(3)
  ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame)
-  DSMC_RHS(1,iPart2) = VeloMx - FracMassCent1 * cRelaNew(1) - PartState(4,iPart2)
-  DSMC_RHS(2,iPart2) = VeloMy - FracMassCent1 * cRelaNew(2) - PartState(5,iPart2)
-  DSMC_RHS(3,iPart2) = VeloMz - FracMassCent1 * cRelaNew(3) - PartState(6,iPart2)
+  PartState(4,iPart2) = VeloMx - FracMassCent1 * cRelaNew(1) 
+  PartState(5,iPart2) = VeloMy - FracMassCent1 * cRelaNew(2)
+  PartState(6,iPart2) = VeloMz - FracMassCent1 * cRelaNew(3) 
 #ifdef CODE_ANALYZE
   Momentum_new(1:3) = Species(iSpec2)%MassIC* (/VeloMx - FracMassCent1*cRelaNew(1),&
                                                 VeloMy - FracMassCent1*cRelaNew(2),&
@@ -159,7 +159,7 @@ END SUBROUTINE DSMC_Elastic_Col
 !! which is interpolated from a lookup table.
 !!===================================================================================================================================
 !! MODULES
-!  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, TLU_Data, ChemReac
+!  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, TLU_Data, ChemReac
 !  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState
 !  USE MOD_DSMC_ChemReact,         ONLY : simpleCEX, simpleMEX
 !
@@ -246,13 +246,13 @@ END SUBROUTINE DSMC_Elastic_Col
 !
 !    ! Transformation to laboratory frame
 !    ! deltaV particle 1
-!    DSMC_RHS(1,iPart1) = VeloMx + FracMassCent2*CRelaxN - PartState(4,iPart1)
-!    DSMC_RHS(2,iPart1) = VeloMy + FracMassCent2*CRelayN - PartState(5,iPart1)
-!    DSMC_RHS(3,iPart1) = VeloMz + FracMassCent2*CRelazN - PartState(6,iPart1)
+!    PartState(4,iPart1) = VeloMx + FracMassCent2*CRelaxN  
+!    PartState(5,iPart1) = VeloMy + FracMassCent2*CRelayN  
+!    PartState(6,iPart1) = VeloMz + FracMassCent2*CRelazN  
 !    ! deltaV particle 2
-!    DSMC_RHS(1,iPart2) = VeloMx - FracMassCent1*CRelaxN - PartState(4,iPart2)
-!    DSMC_RHS(2,iPart2) = VeloMy - FracMassCent1*CRelayN - PartState(5,iPart2)
-!    DSMC_RHS(3,iPart2) = VeloMz - FracMassCent1*CRelazN - PartState(6,iPart2)
+!    PartState(4,iPart2) = VeloMx - FracMassCent1*CRelaxN 
+!    PartState(5,iPart2) = VeloMy - FracMassCent1*CRelayN  
+!    PartState(6,iPart2) = VeloMz - FracMassCent1*CRelazN  
 !
 !    ! Decision concerning CEX
 !    P_CEX = 0.5
@@ -343,9 +343,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals               ,ONLY: abort
-USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC_RHS, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, VarTimeStep, PEM, usevMPF
 USE MOD_DSMC_ElectronicModel  ,ONLY: ElectronicEnergyExchange, TVEEnergyExchange
 USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
@@ -433,7 +431,7 @@ REAL                          :: Weight1, Weight2
 !--------------------------------------------------------------------------------------------------!
 ! ELECTRONIC
 !--------------------------------------------------------------------------------------------------!
-  IF (DSMC%ElectronicModel.GT.0) THEN
+  IF (DSMC%ElectronicModel.GT.0.AND.(DSMC%ElectronicModel.NE.4)) THEN
     ! Model 1/2
     IF((SpecDSMC(iSpec1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec1)%FullyIonized)) THEN
       SELECT CASE(DSMC%ElectronicModel)
@@ -670,13 +668,13 @@ IF (DSMC%ReservoirSimuRate) RETURN
   cRelaNew(1:3) = PostCollVec(iPair)
 
   ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
-  DSMC_RHS(1,iPart1) = VeloMx + FracMassCent2*cRelaNew(1) - PartState(4,iPart1)
-  DSMC_RHS(2,iPart1) = VeloMy + FracMassCent2*cRelaNew(2) - PartState(5,iPart1)
-  DSMC_RHS(3,iPart1) = VeloMz + FracMassCent2*cRelaNew(3) - PartState(6,iPart1)
+  PartState(4,iPart1) = VeloMx + FracMassCent2*cRelaNew(1)
+  PartState(5,iPart1) = VeloMy + FracMassCent2*cRelaNew(2) 
+  PartState(6,iPart1) = VeloMz + FracMassCent2*cRelaNew(3) 
   ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame)
-  DSMC_RHS(1,iPart2) = VeloMx - FracMassCent1*cRelaNew(1) - PartState(4,iPart2)
-  DSMC_RHS(2,iPart2) = VeloMy - FracMassCent1*cRelaNew(2) - PartState(5,iPart2)
-  DSMC_RHS(3,iPart2) = VeloMz - FracMassCent1*cRelaNew(3) - PartState(6,iPart2)
+  PartState(4,iPart2) = VeloMx - FracMassCent1*cRelaNew(1)
+  PartState(5,iPart2) = VeloMy - FracMassCent1*cRelaNew(2) 
+  PartState(6,iPart2) = VeloMz - FracMassCent1*cRelaNew(3) 
 
 #ifdef CODE_ANALYZE
   Energy_new= 0.5*Species(iSpec2)%MassIC*((VeloMx - FracMassCent1*cRelaNew(1))**2 &
@@ -721,7 +719,7 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals,                ONLY : Abort
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC_RHS, DSMC, PolyatomMolDSMC, SpecDSMC, PartStateIntEn
+  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, PolyatomMolDSMC, SpecDSMC, PartStateIntEn
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, PEM
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly, DSMC_VibRelaxPolySingle
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib
@@ -1010,13 +1008,13 @@ __STAMP__&
   cRelaNew(1:3) = PostCollVec(iPair)
 
   ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
-  DSMC_RHS(1,iPart1) = VeloMx + FracMassCent2*cRelaNew(1) - PartState(4,iPart1)
-  DSMC_RHS(2,iPart1) = VeloMy + FracMassCent2*cRelaNew(2) - PartState(5,iPart1)
-  DSMC_RHS(3,iPart1) = VeloMz + FracMassCent2*cRelaNew(3) - PartState(6,iPart1)
+  PartState(4,iPart1) = VeloMx + FracMassCent2*cRelaNew(1)
+  PartState(5,iPart1) = VeloMy + FracMassCent2*cRelaNew(2)
+  PartState(6,iPart1) = VeloMz + FracMassCent2*cRelaNew(3) 
   ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame)
-  DSMC_RHS(1,iPart2) = VeloMx - FracMassCent1*cRelaNew(1) - PartState(4,iPart2)
-  DSMC_RHS(2,iPart2) = VeloMy - FracMassCent1*cRelaNew(2) - PartState(5,iPart2)
-  DSMC_RHS(3,iPart2) = VeloMz - FracMassCent1*cRelaNew(3) - PartState(6,iPart2)
+  PartState(4,iPart2) = VeloMx - FracMassCent1*cRelaNew(1)
+  PartState(5,iPart2) = VeloMy - FracMassCent1*cRelaNew(2) 
+  PartState(6,iPart2) = VeloMz - FracMassCent1*cRelaNew(3) 
 
 #ifdef CODE_ANALYZE
   Energy_new= 0.5*Species(PartSpecies(iPart2))%MassIC*((VeloMx - FracMassCent1*cRelaNew(1))**2 &
