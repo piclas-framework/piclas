@@ -51,7 +51,7 @@ USE MOD_part_RHS              ,ONLY: CalcPartRHS
 USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolation
 USE MOD_part_emission         ,ONLY: ParticleInserting
 USE MOD_DSMC                  ,ONLY: DSMC_main
-USE MOD_DSMC_Vars             ,ONLY: useDSMC, DSMC_RHS, DSMC
+USE MOD_DSMC_Vars             ,ONLY: useDSMC, DSMC
 USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
 #endif
 USE MOD_Particle_Tracking     ,ONLY: PerformTracking
@@ -128,7 +128,6 @@ CALL DivCleaningDamping()
 CALL UpdateNextFreePosition()
 IF (useDSMC) THEN
   CALL DSMC_main()
-  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 END IF
 
 END SUBROUTINE TimeStepByEulerImplicit

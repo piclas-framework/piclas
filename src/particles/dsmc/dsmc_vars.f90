@@ -37,7 +37,6 @@ TYPE(tTLU_Data)                           :: TLU_Data
 
 INTEGER                       :: DSMCSumOfFormedParticles   !number of formed particles per iteration in chemical reactions
                                                             ! for counting the nextfreeparticleposition
-REAL  , ALLOCATABLE           :: DSMC_RHS(:,:)              ! RHS of the DSMC Method/ deltaV (npartmax, direction)
 INTEGER                       :: CollisMode                 ! Mode of Collision:, ini_1
                                                             !    0: No Collisions (=free molecular flow with DSMC-Sampling-Routines)
                                                             !    1: Elastic Collision
@@ -168,6 +167,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
                                                             ! using read-in cross-sectional data
   LOGICAL                           :: UseElecXSec          ! Flag if the electronic relaxation probability should be treated,
                                                             ! using read-in cross-sectional data (currently only with BGG)
+  REAL,ALLOCATABLE                  :: CollFreqPreFactor(:)
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
@@ -460,6 +460,12 @@ END TYPE
 TYPE (tAmbipolElecVelo), ALLOCATABLE    :: AmbipolElecVelo(:)
 INTEGER, ALLOCATABLE            :: iPartIndx_NodeNewAmbi(:)
 INTEGER                         :: newAmbiParts
+
+INTEGER, ALLOCATABLE            :: iPartIndx_NodeNewElecRelax(:)
+INTEGER                         :: newElecRelaxParts
+INTEGER, ALLOCATABLE            :: iPartIndx_NodeElecRelaxChem(:)
+INTEGER                         :: nElecRelaxChemParts
+LOGICAL, ALLOCATABLE            :: ElecRelaxPart(:)
 
 TYPE tElectronicDistriPart !DSMC Species Param
   REAL, ALLOCATABLE               :: DistriFunc(:)            ! Vib quants of each DOF for each particle

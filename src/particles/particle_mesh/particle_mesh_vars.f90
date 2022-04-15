@@ -45,7 +45,9 @@ INTEGER            :: offsetComputeNodeSide                 !> side offset of co
 INTEGER            :: offsetComputeNodeNode                 !> node offset of compute-node root
 INTEGER            :: nUniqueGlobalNodes                    !> MAXVAL(NodeInfo_Shared)
 
-LOGICAL, ALLOCATABLE :: IsExchangeElem(:)
+#if USE_MPI && (PP_TimeDiscMethod==400)
+LOGICAL, ALLOCATABLE :: IsExchangeElem(:) !> Exchange elements may receive particles during MPI communication and cannot be used for latency hiding
+#endif /*USE_MPI && (PP_TimeDiscMethod==400)*/
 ! ====================================================================
 ! MPI3 shared variables
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: ElemBaryNGeo       ! element local basis: origin

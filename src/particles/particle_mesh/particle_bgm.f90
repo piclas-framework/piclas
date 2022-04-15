@@ -89,7 +89,7 @@ SUBROUTINE BuildBGMAndIdentifyHaloRegion()
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: c
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
+USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem,nBCSides
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Periodic_BC   ,ONLY: InitPeriodicBC
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
@@ -149,7 +149,7 @@ REAL                           :: deltaT
 REAL                           :: globalDiag,maxCellRadius
 INTEGER,ALLOCATABLE            :: sendbuf(:,:,:),recvbuf(:,:,:)
 INTEGER,ALLOCATABLE            :: offsetElemsInBGMCell(:,:,:)
-INTEGER                        :: nHaloElems,nMPISidesShared
+INTEGER                        :: nHaloElems,nBorderSidesShared
 INTEGER,ALLOCATABLE            :: offsetCNHalo2GlobalElem(:),offsetMPISideShared(:)
 REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:)
 LOGICAL                        :: ElemInsideHalo
@@ -376,8 +376,7 @@ ELSE
 #if !(USE_HDG)
     deltaT = CalcTimeStep()
 #else
-     CALL abort(&
-  __STAMP__&
+     CALL abort(__STAMP__&
   , 'ManualTimeStep.LLE0.0 -> ManualTimeStep is not defined correctly! ManualTimeStep = ',RealInfoOpt=ManualTimeStep)
 #endif /*USE_HDG*/
   ELSE
@@ -385,11 +384,7 @@ ELSE
   END IF
   IF (halo_eps_velo.EQ.0) halo_eps_velo = c
 #if (PP_TimeDiscMethod==4 || PP_TimeDiscMethod==200 || PP_TimeDiscMethod==42)
-  IF (halo_eps_velo.EQ.c) THEN
-     CALL abort(&
-  __STAMP__&
-  , 'halo_eps_velo.EQ.c -> Halo Eps Velocity for MPI not defined')
-  END IF
+  IF (halo_eps_velo.EQ.c) CALL abort(__STAMP__, 'halo_eps_velo.EQ.c -> Halo Eps Velocity for MPI not defined')
 #endif
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
   halo_eps = RK_c(2)
@@ -522,6 +517,7 @@ IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
 ELSE
   ! Multi-node
   ElemInfo_Shared(ELEM_HALOFLAG,firstElem:lastElem) = 0
+  ! Loop global elems
   DO iElem = firstElem, lastElem
     BGMCellXmin = ElemToBGM_Shared(1,iElem)
     BGMCellXmax = ElemToBGM_Shared(2,iElem)
@@ -569,14 +565,18 @@ ELSE
   CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
   ! sum all MPI-side of compute-node and create correct offset mapping in SideInfo_Shared
-  nMPISidesShared = COUNT(SideInfo_Shared(SIDE_NBELEMTYPE,:).EQ.2)
-  ALLOCATE(offsetMPISideShared(nMPISidesShared))
+  nBorderSidesShared = COUNT(SideInfo_Shared(SIDE_NBELEMTYPE,:).EQ.2) + nBCSides
+  ALLOCATE(offsetMPISideShared(nBorderSidesShared))
 
-  nMPISidesShared = 0
+  nBorderSidesShared = 0
   DO iSide = 1, nNonUniqueGlobalSides
-    IF (SideInfo_Shared(SIDE_NBELEMTYPE,iSide).EQ.2) THEN
-      nMPISidesShared = nMPISidesShared + 1
-      offsetMPISideShared(nMPISidesShared) = iSide
+    ! Check for MPI sides or BC sides
+    ! Node-to-node MPI interface
+    IF ((SideInfo_Shared(SIDE_NBELEMTYPE,iSide).EQ.2).OR.&
+       ! BC side + element on local proc (do not count multiple times) + skip inner BCs (they would otherwise be counted twice)
+       ((SideInfo_Shared(SIDE_BCID      ,iSide).GT.0).AND.(ElementOnProc(SideInfo_Shared(SIDE_ELEMID,iSide)).AND.(SideInfo_Shared(SIDE_NBELEMID,iSide).EQ.0)))) THEN
+      nBorderSidesShared = nBorderSidesShared + 1
+      offsetMPISideShared(nBorderSidesShared) = iSide
     END IF
   END DO
 
@@ -594,8 +594,8 @@ ELSE
   END IF
 
   ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
-  ALLOCATE(MPISideBoundsOfElemCenter(1:4,1:nMPISidesShared))
-  DO iSide = 1, nMPISidesShared
+  ALLOCATE(MPISideBoundsOfElemCenter(1:4,1:nBorderSidesShared))
+  DO iSide = 1, nBorderSidesShared
     SideID = offsetMPISideShared(iSide)
     ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
     MPISideBoundsOfElemCenter(1:3,iSide) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
@@ -621,13 +621,13 @@ ELSE
     BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                         BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                         BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
-    DO iSide = 1, nMPISidesShared
+    DO iSide = 1, nBorderSidesShared
       ! compare distance of centers with sum of element outer radii+halo_eps
       IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iSide)) &
           .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) CYCLE
       ElemInsideHalo = .TRUE.
       EXIT
-    END DO ! iSide = 1, nMPISidesShared
+    END DO ! iSide = 1, nBorderSidesShared
     IF (.NOT.ElemInsideHalo) THEN
       ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 0
     ELSE
@@ -644,7 +644,7 @@ IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
 IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides(EnlargeBGM)
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
-! Mortar sides
+! Mortar sides: Only multi-node
 IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
   DO iElem = firstElem, lastElem
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.1) CYCLE

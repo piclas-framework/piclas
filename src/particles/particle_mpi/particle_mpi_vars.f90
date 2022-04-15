@@ -31,6 +31,7 @@ INTEGER,ALLOCATABLE                       :: ExchangeProcToGlobalProc(:,:)  ! ma
 INTEGER,ALLOCATABLE                       :: GlobalProcToExchangeProc(:,:)  ! mapping from global proc ID to exchange proc ID
 LOGICAL                                   :: ParticleMPIInitIsDone=.FALSE.
 LOGICAL                                   :: CheckExchangeProcs             ! On default, check if proc communication is symmetric
+LOGICAL                                   :: AbortExchangeProcs             ! Terminate run if proc communication is non-symmetric
 
 TYPE tPartMPIGROUP
   INTEGER                                 :: COMM                           ! MPI communicator for PIC GTS region

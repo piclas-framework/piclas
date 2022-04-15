@@ -105,8 +105,13 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI ... '
 IF(ParticleMPIInitIsDone) CALL ABORT(__STAMP__,' Particle MPI already initialized!')
 
-! Get flag for ignoring the abort if the number of global exchange procs is non-symmetric
+! Get flag for ignoring the check and/or abort if the number of global exchange procs is non-symmetric
 CheckExchangeProcs = GETLOGICAL('CheckExchangeProcs')
+IF(CheckExchangeProcs)THEN
+  AbortExchangeProcs = GETLOGICAL('AbortExchangeProcs')
+ELSE
+  AbortExchangeProcs=.FALSE.
+END IF ! .NOT.CheckExchangeProcs
 
 #if USE_MPI
 CALL MPI_COMM_DUP (MPI_COMM_WORLD,PartMPI%COMM,iError)
@@ -866,14 +871,16 @@ SUBROUTINE MPIParticleRecv(DoMPIUpdateNextFreePos)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
-USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf!,PartMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors, ExchangeProcToGlobalProc
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: doParticleMerge, vMPF_SpecNumElem, LastPartPos
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+#if (PP_TimeDiscMethod==400)
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
+#endif /*(PP_TimeDiscMethod==400)*/
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if defined(LSERK)
 USE MOD_Particle_Vars          ,ONLY: Pt_temp
@@ -1250,12 +1257,13 @@ DO iProc=0,nExchangeProcessors-1
       IF (ElemID.LT.1) THEN
         CALL abort(__STAMP__,'Particle received in not in proc! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
       END IF
+#if (PP_TimeDiscMethod==400)
       IF(.NOT.IsExchangeElem(ElemID)) THEN
         IPWRITE(*,*) 'Part Pos + Velo:',PartID,ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc), PartState(1:6,PartID)
         CALL abort(__STAMP__,'Particle received in non exchange elem! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
       END IF
+#endif /*(PP_TimeDiscMethod==400)*/
       IF (useDSMC) THEN 
-        DSMC_RHS(1:3,PartID) = 0.0
         CALL GetPositionInRefElem(PartState(1:3,PartID),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID))
       END IF
       IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
