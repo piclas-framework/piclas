@@ -403,6 +403,9 @@ ELSE
         ! NEW METHOD: considering variable time step
         L_2_Error_Part(iPartState) = SQRT(  (L_2_Error_Part(iPartState))**2 + &
                                    (t-L_2_Error_Part_time)*(PartStateAnalytic(iPartState)-PartStateLoc(iPartState))**2 )
+
+        ! Additional method: Consider only the last difference
+        !L_2_Error_Part(iPartState) = PartStateAnalytic(iPartState)-PartStateLoc(iPartState)
       END DO ! iPartState = 1, 6
       !WRITE (*,*) "PartStateAnalytic =", PartStateAnalytic
       !WRITE (*,*) "PartStateLoc      =", PartStateLoc
