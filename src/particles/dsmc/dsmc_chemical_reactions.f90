@@ -352,6 +352,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: abort,DOTPRODUCT,StringBeginsWith
+USE MOD_Globals_Vars
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas, ElecRelaxPart
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, newElecRelaxParts, iPartIndx_NodeNewElecRelax
@@ -389,7 +390,7 @@ REAL                          :: ERel_React1_React2, ERel_React1_React3, ERel_Re
 REAL                          :: Xi_elec(1:4), EZeroTempToExec(1:4)
 REAL, ALLOCATABLE             :: XiVibPart(:,:)
 REAL                          :: Weight(1:4), SumWeightProd
-REAL                          :: cRelaNew(3) ! relative velocity
+REAL                          :: cRelaNew(3), GammaFac
 #ifdef CODE_ANALYZE
 REAL,PARAMETER                :: RelMomTol=5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
 REAL,PARAMETER                :: RelEneTol=2e-12 ! Relative tolerance applied to conservation of energy before/after reaction
@@ -595,7 +596,16 @@ IF (EductReac(3).NE.0) Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpeci
 #endif /* CODE_ANALYZE */
 
 ! Add heat of formation to collision energy
-Coll_pData(iPair)%Ec = 0.5 * MassRed *Coll_pData(iPair)%CRela2 + ChemReac%EForm(iReac)*SumWeightProd/REAL(NumProd)
+IF(Coll_pData(iPair)%CRela2 .LT. RelativisticLimit) THEN
+  Coll_pData(iPair)%Ec = 0.5 * MassRed * Coll_pData(iPair)%CRela2
+ELSE
+  ! Relativistic treatment under the assumption that the velocity of the background species is zero or negligible
+  GammaFac = Coll_pData(iPair)%CRela2*c2_inv
+  GammaFac = 1./SQRT(1.-GammaFac)
+  Coll_pData(iPair)%Ec = (GammaFac-1.) * MassRed * c2
+END IF
+
+Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + ChemReac%EForm(iReac)*SumWeightProd/REAL(NumProd)
 
 IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
   ! Weighting factor already included in the weights
