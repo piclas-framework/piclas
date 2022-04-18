@@ -15,7 +15,12 @@ before_script:
       echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor-level!";
       export PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE;
     else
-      echo "Splitting shared memory domains on node-level! Set variable DO_CORE_SPLIT=T to force core-level shared memory splitting for all regression tests.";
+      if [ -n "${DO_NODE_SPLIT}" ]; then
+        echo " PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE. Splitting shared memory domains on sub-node-level with 2 cores per node!";
+        export PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE;
+      else
+        echo "Splitting shared memory domains on node-level! Set variable DO_CORE_SPLIT=T to force core-level OR DO_NODE_SPLIT=T to force sub-node-level shared memory splitting for all regression tests.";
+      fi
     fi
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
