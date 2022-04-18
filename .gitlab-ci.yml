@@ -173,16 +173,6 @@ build:
     - mkdir -p build ; cd build
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
     - cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; make -j all
-    - if [ -n "${DO_NIGHTLY}" ] || [ -n "${DO_WEEKLY}" ]; then
-        git clone https://github.com/flexi-framework/hopr.git hopr;
-        cd hopr ; mkdir -p build ; cd build;
-        echo `pwd`;
-        cmake .. -DHOPR_BUILD_HDF5=OFF;
-        make -j all &> output.txt;
-        tail -n 20 output.txt;
-        rm output.txt;
-        ls bin/hopr;
-      fi
 
 build_maxwell:
   tags:
@@ -229,6 +219,22 @@ build_poisson:
     - mkdir -p build_poisson_debug ; cd build_poisson_debug
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; make -j all
+
+build_hopr:
+  tags:
+    - withmodules-concurrent
+  stage: build
+  script:
+    - git clone https://github.com/hopr-framework/hopr.git hopr;
+    - cd hopr ; mkdir -p build ; cd build;
+    - echo `pwd`;
+    - cmake .. -DHOPR_BUILD_HDF5=OFF;
+    - make -j all &> output.txt;
+    - tail -n 20 output.txt;
+    - rm output.txt;
+    - ls bin/hopr;
+  rules:
+    - if: '$DO_WEEKLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
