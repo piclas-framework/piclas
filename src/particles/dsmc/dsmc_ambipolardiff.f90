@@ -165,7 +165,7 @@ USE MOD_Particle_Vars
 USE MOD_Particle_Surfaces_Vars, ONLY : SurfMeshSubSideData, TriaSurfaceFlux
 USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBezier
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMapElemToSample, AdaptBCMacroVal
-USE MOD_DSMC_Vars               ,ONLY: AmbiPolarSFMapping, AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: AmbiPolarSFMapping, AmbipolElecVelo, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -194,35 +194,35 @@ iSF = AmbiPolarSFMapping(iSpec,iSFIon)
 
 RandN_in_Mem=.FALSE.
 envelope=-1
-currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
+currentBC = Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%BC
 
-IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+IF (.NOT.Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
   vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
   vec_t1(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1(1:3)
   vec_t2(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2(1:3)
 END IF !.NOT.VeloIsNormal
 
-IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
-  VeloIC = Species(iSpec)%Surfaceflux(iSF)%VeloIC
-  T = Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
-  a = Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn
-  projFak = Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak
-  Velo_t1 = Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1
-  Velo_t2 = Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2
-ELSE !Species(iSpec)%Surfaceflux(iSF)%Adaptive
+IF(.NOT.Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%Adaptive) THEN
+  VeloIC = Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIC
+  T = Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%MWTemperatureIC
+  a = Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn
+  projFak = Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak
+  Velo_t1 = Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1
+  Velo_t2 = Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2
+ELSE !Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%Adaptive
   SampleElemID = AdaptBCMapElemToSample(ElemID)
-  SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType)
+  SELECT CASE(Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%AdaptiveType)
   CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
-    T =  Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC
+    T =  Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%MWTemperatureIC
   CASE(2) ! adaptive Outlet/freestream
-    pressure = Species(iSpec)%Surfaceflux(iSF)%AdaptivePressure
-    T = pressure / (BoltzmannConst * AdaptBCMacroVal(4,SampleElemID,iSpec))
+    pressure = Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%AdaptivePressure
+    T = pressure / (BoltzmannConst * AdaptBCMacroVal(4,SampleElemID,DSMC%AmbiDiffElecSpec))
   CASE DEFAULT
     CALL abort(__STAMP__,'ERROR in SurfaceFlux: Wrong adaptive type for Surfaceflux velocities!')
   END SELECT
-  VeloVec(1) = AdaptBCMacroVal(DSMC_VELOX,SampleElemID,iSpec)
-  VeloVec(2) = AdaptBCMacroVal(DSMC_VELOY,SampleElemID,iSpec)
-  VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,SampleElemID,iSpec)
+  VeloVec(1) = AdaptBCMacroVal(DSMC_VELOX,SampleElemID,DSMC%AmbiDiffElecSpec)
+  VeloVec(2) = AdaptBCMacroVal(DSMC_VELOY,SampleElemID,DSMC%AmbiDiffElecSpec)
+  VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,SampleElemID,DSMC%AmbiDiffElecSpec)
   vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
   VeloVec(1:3) = DOT_PRODUCT(VeloVec,vec_nIn)*vec_nIn(1:3)
   VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
@@ -232,7 +232,7 @@ ELSE !Species(iSpec)%Surfaceflux(iSF)%Adaptive
     VeloVecIC = (/1.,0.,0./)
   END IF
   projFak = DOT_PRODUCT(vec_nIn,VeloVecIC) !VeloVecIC projected to inwards normal
-  v_thermal = SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC) !thermal speed
+  v_thermal = SQRT(2.*BoltzmannConst*T/Species(DSMC%AmbiDiffElecSpec)%MassIC) !thermal speed
   IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
     v_thermal = 1.
   END IF
@@ -242,10 +242,10 @@ ELSE !Species(iSpec)%Surfaceflux(iSF)%Adaptive
 END IF !Adaptive SurfaceFlux
 
 ! Set velocities
-SELECT CASE(TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution))
+SELECT CASE(TRIM(Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%velocityDistribution))
 CASE('constant')
-  IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
-    VeloVecIC(1:3) = Species(iSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
+  IF (.NOT.Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+    VeloVecIC(1:3) = Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloVecIC(1:3)
     VeloVecIC(1:3) = VeloVecIC(1:3) / VECNORM(VeloVecIC(1:3))
   END IF
   iPart = 0
@@ -254,11 +254,11 @@ CASE('constant')
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
       ! In case of side-normal velocities: calc n-vector at particle position, xi was saved in PartState(4:5)
-      IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
+      IF (Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
         vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
         vec_t1(1:3) = 0. !dummy
         vec_t2(1:3) = 0. !dummy
-      ELSE IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+      ELSE IF (Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
         ! CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),xi=PartState(4,PositionNbr),eta=PartState(5,PositionNbr),SideID=SideID )
         CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),xi=particle_xis(2*(iPart-1)+1),eta=particle_xis(2*(iPart-1)+2),SideID=SideID )
         vec_nIn(1:3) = -vec_nIn(1:3)
@@ -268,7 +268,7 @@ CASE('constant')
         vec_nIn(1:3) = VeloVecIC(1:3)
       END IF !VeloIsNormal
       ! Build complete velo-vector
-      Vec3D(1:3) = vec_nIn(1:3) * Species(iSpec)%Surfaceflux(iSF)%VeloIC
+      Vec3D(1:3) = vec_nIn(1:3) * Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIC
       ! PartState(4:6,PositionNbr) = Vec3D(1:3)
       IF (PositionNbr.GT.0) THEN
         IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
@@ -304,11 +304,11 @@ CASE('maxwell','maxwell_lpn')
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr .NE. 0) THEN
       !-- 0a.: In case of side-normal velocities: calc n-/t-vectors at particle position, xi was saved in PartState(4:5)
-      IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
+      IF (Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
         vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
         vec_t1(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1(1:3)
         vec_t2(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2(1:3)
-      ELSE IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
+      ELSE IF (Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
         ! CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),tang1=vec_t1(1:3),tang2=vec_t2(1:3) &
         !   ,xi=PartState(4,PositionNbr),eta=PartState(5,PositionNbr),SideID=SideID )
         CALL CalcNormAndTangBezier( nVec=vec_nIn(1:3),tang1=vec_t1(1:3),tang2=vec_t2(1:3) &
@@ -416,7 +416,7 @@ CASE('maxwell','maxwell_lpn')
         CALL abort(__STAMP__,'ERROR in SurfaceFlux: Wrong envelope in SetSurfacefluxVelocities!')
       END SELECT
       !-- 2.: sample normal directions and build complete velo-vector
-      Vec3D(1:3) = vec_nIn(1:3) * SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC)*(a-zstar)
+      Vec3D(1:3) = vec_nIn(1:3) * SQRT(2.*BoltzmannConst*T/Species(DSMC%AmbiDiffElecSpec)%MassIC)*(a-zstar)
 !      IF (.NOT.DoZigguratSampling) THEN !polar method
         Velosq = 2
         DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
@@ -431,8 +431,8 @@ CASE('maxwell','maxwell_lpn')
 !        Velo1=rnor()
 !        Velo2=rnor()
 !      END IF
-      Vec3D(1:3) = Vec3D(1:3) + vec_t1(1:3) * ( Velo_t1+Velo1*SQRT(BoltzmannConst*T/Species(iSpec)%MassIC) )
-      Vec3D(1:3) = Vec3D(1:3) + vec_t2(1:3) * ( Velo_t2+Velo2*SQRT(BoltzmannConst*T/Species(iSpec)%MassIC) )
+      Vec3D(1:3) = Vec3D(1:3) + vec_t1(1:3) * ( Velo_t1+Velo1*SQRT(BoltzmannConst*T/Species(DSMC%AmbiDiffElecSpec)%MassIC) )
+      Vec3D(1:3) = Vec3D(1:3) + vec_t2(1:3) * ( Velo_t2+Velo2*SQRT(BoltzmannConst*T/Species(DSMC%AmbiDiffElecSpec)%MassIC) )
       IF (PositionNbr.GT.0) THEN
         IF (ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
         ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(3))
