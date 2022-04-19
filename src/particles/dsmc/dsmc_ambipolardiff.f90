@@ -189,9 +189,17 @@ REAL                             :: VeloVecIC(1:3),v_thermal, pressure
 !===================================================================================================================================
 
 IF(PartIns.LT.1) RETURN
+IF(Species(iSpec)%ChargeIC.LE.0.0) RETURN
+IF(NbrOfParticle.GT.PDM%maxParticleNumber)THEN
+     CALL abort(&
+__STAMP__&
+,'NbrOfParticle > PDM%maxParticleNumber!')
+END IF
+
+WRITE(*,*) "iSpec",iSpec
+WRITE(*,*) "iSFIon",iSFIon
 
 iSF = AmbiPolarSFMapping(iSpec,iSFIon)
-
 RandN_in_Mem=.FALSE.
 envelope=-1
 currentBC = Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSF)%BC
