@@ -196,9 +196,6 @@ __STAMP__&
 ,'NbrOfParticle > PDM%maxParticleNumber!')
 END IF
 
-WRITE(*,*) "iSpec",iSpec
-WRITE(*,*) "iSFIon",iSFIon
-
 iSF = AmbiPolarSFMapping(iSpec,iSFIon)
 RandN_in_Mem=.FALSE.
 envelope=-1
