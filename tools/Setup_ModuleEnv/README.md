@@ -22,7 +22,7 @@ This cleans the created module file and build directory of the version currently
        sudo ./InstallPackagesUbuntu21.sh
 
    and if you have a server that has been setup with only basic packages, the following might be required
-   
+
        sudo ./InstallPackagesServer.sh
 
 ## 2. Module Environment from [https://sourceforge.net/projects/modules/files/](https://sourceforge.net/projects/modules/files/)
@@ -34,13 +34,13 @@ This cleans the created module file and build directory of the version currently
 
 ## 3. CMake from [https://github.com/Kitware/CMake/releases/](https://github.com/Kitware/CMake/releases/)
        sudo ./InstallCMake.sh
-   
+
 ## 4. GCC Compiler from [ftp://ftp.fu-berlin.de/unix/languages/gcc/releases](ftp://ftp.fu-berlin.de/unix/languages/gcc/releases)
        sudo ./InstallGCC.sh
-   
+
 ## 5. Open MPI from [https://www.open-mpi.org/software/ompi/v4.1/](https://www.open-mpi.org/software/ompi/v4.1/)
        sudo ./InstallMPIallCOMPILERS.sh
-   
+
 ## 6. HDF5 from [https://support.hdfgroup.org/ftp/HDF5/releases/](https://support.hdfgroup.org/ftp/HDF5/releases/)
        sudo ./InstallHDF5.sh
 
@@ -57,3 +57,12 @@ and Paraview itself is installed via
 This installation is optional and creates a module for HOPR by running
 
       sudo ./InstallHOPR.sh
+
+and requires GCC, MPI and HDF5.
+
+## 9. HOPR from [https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/](https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/)
+This installation is optional and creates a module for PETSc by running
+
+      sudo ./InstallPETSc.sh
+
+and requires GCC and MPI.
