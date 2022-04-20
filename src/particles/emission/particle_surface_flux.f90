@@ -82,8 +82,10 @@ REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 DO iSpec=1,nSpecies
-  IF (DSMC%DoAmbipolarDiff) THEN
-    IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+  IF(useDSMC) THEN
+    IF (DSMC%DoAmbipolarDiff) THEN
+      IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+    END IF
   END IF
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
     PartsEmitted = 0
