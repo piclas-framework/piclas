@@ -143,8 +143,9 @@ SUBROUTINE InitMPIvars()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
-USE MOD_Readintools,       ONLY:GETINT
+USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
+USE MOD_Readintools        ,ONLY: GETINT
+USE MOD_MPI_Shared_Vars    ,ONLY: nProcessors_Global
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -155,11 +156,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER :: color,groupsize
 !===================================================================================================================================
-IF(.NOT.InterpolationInitIsDone)THEN
-  CALL Abort(&
-      __STAMP__&
-      ,'InitMPITypes called before InitInterpolation')
-END IF
+IF(.NOT.InterpolationInitIsDone) CALL Abort(__STAMP__,'InitMPITypes called before InitInterpolation')
 ALLOCATE(SendRequest_U(nNbProcs)     )
 ALLOCATE(SendRequest_U2(nNbProcs)     )
 ALLOCATE(SendRequest_GEO(nNbProcs)     )
@@ -198,12 +195,25 @@ DataSizeSide  =(PP_N+1)*(PP_N+1)
 GroupSize=GETINT('GroupSize','0')
 IF(GroupSize.LT.1)THEN ! group procs by node
   ! Split the node communicator (shared memory) from the global communicator on physical processor or node level
-#if USE_CORE_SPLIT
+#if (CORE_SPLIT==1)
   CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,myRank,0,MPI_COMM_NODE,iError)
-#else
+#elif (CORE_SPLIT==0)
   ! Note that using SharedMemoryMethod=OMPI_COMM_TYPE_CORE somehow does not work in every case (intel/amd processors)
   ! Also note that OMPI_COMM_TYPE_CORE is undefined when not using OpenMPI
   CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,SharedMemoryMethod,0,MPI_INFO_NULL,MPI_COMM_NODE,IERROR)
+#else
+  ! Check if more nodes than procs are required or
+  ! if the resulting split would create unequal procs per node
+  IF((CORE_SPLIT.GE.nProcessors_Global).OR.(MOD(nProcessors_Global,CORE_SPLIT).GT.0))THEN
+    SWRITE (*,'(A,I0,A,I0,A,F0.2,A)') ' WARNING: Either more nodes than cores selected (nodes: ',CORE_SPLIT,', cores: ',&
+        nProcessors_Global,') OR unequal number of cores per node (=',REAL(nProcessors_Global)/REAL(CORE_SPLIT),&
+        '). Setting 1 core per node for MPI_COMM_NODE!'
+    color = myRank
+  ELSE
+    ! Group procs so that every CORE_SPLIT procs are in the same group
+    color = INT(REAL(myrank*CORE_SPLIT)/REAL(nProcessors_Global))+1
+  END IF ! (CORE_SPLIT.GE.nProcessors_Global).OR.(MOD().GT.0)
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,0,MPI_COMM_NODE,iError)
 #endif
 ELSE ! use groupsize
   color=myRank/GroupSize
@@ -212,6 +222,14 @@ END IF
 CALL MPI_COMM_RANK(MPI_COMM_NODE,myLocalRank,iError)
 CALL MPI_COMM_SIZE(MPI_COMM_NODE,nLocalProcs,iError)
 MPILocalRoot=(myLocalRank.EQ.0)
+
+IF (nProcessors_Global.EQ.nLocalProcs) THEN
+  SWRITE(UNIT_stdOUt,'(A,I0,A,I0,A)') ' | Starting gathered I/O communication with ',nLocalProcs,' procs in ',1,' group'
+ELSE
+  SWRITE(UNIT_stdOUt,'(A,I0,A,I0,A,I0,A)') ' | Starting gathered I/O communication with ',nLocalProcs,' procs each in ',&
+                                                        nProcessors_Global/nLocalProcs,' groups for a total number of ',&
+                                                        nProcessors_Global,' procs'
+END IF
 
 ! now split global communicator into small group leaders and the others
 MPI_COMM_LEADERS=MPI_COMM_NULL
