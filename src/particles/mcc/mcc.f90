@@ -596,7 +596,7 @@ END SUBROUTINE MCC
 !===================================================================================================================================
 SUBROUTINE MCC_CalcReactionProb(iCase,bgSpec,CRela2,CollEnergy_in,PartIndex,bggPartIndex,iElem)
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, CollInf, BGGas, ChemReac, DSMC, PartStateIntEn
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, BGGas, ChemReac, DSMC, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_part_tools            ,ONLY: CalcERot_particle, CalcEVib_particle, CalcEElec_particle
