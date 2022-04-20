@@ -44,9 +44,9 @@ SUBROUTINE ReadVariableExternalFieldFromHDF5()
 USE MOD_Globals
 !USE MOD_HDF5_Input            ,ONLY: DatasetExists,ReadAttribute
 USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,DeltaExternalField,FileNameVariableExternalField
-USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField2D,VariableExternalFieldAxisSym,VariableExternalFieldRadInd
-USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldAxisDir,VariableExternalField2DRows,VariableExternalField2DColumns
-USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldMin,VariableExternalFieldMax
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldDim,VariableExternalFieldAxisSym,VariableExternalFieldRadInd
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldAxisDir
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldMin,VariableExternalFieldMax,VariableExternalFieldN
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -57,13 +57,14 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(LEN=64)                 :: dsetname,AttributeName
 INTEGER                           :: err
-INTEGER                           :: NbrOfRows,NbrOfColumns,i,j
+INTEGER                           :: NbrOfRows,NbrOfColumns,iDir,j
 INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
 INTEGER(HID_T)                    :: file_id_loc                       ! File identifier
 INTEGER(HID_T)                    :: dset_id_loc                       ! Dataset identifier
 INTEGER(HID_T)                    :: filespace                          ! filespace identifier
 LOGICAL                           :: DatasetFound,AttribtueFound
 REAL                              :: delta,deltaOld
+INTEGER                           :: iDirMax
 !===================================================================================================================================
 ! Initialize FORTRAN interface.
 CALL H5OPEN_F(err)
@@ -83,8 +84,8 @@ IF(DatasetFound) THEN
   ! get size
   CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
   ! Flip columns and rows between .h5 data and Fortran data
-  NbrOfColumns=INT(dims(2))
-  NbrOfRows=INT(dims(1))
+  NbrOfColumns = INT(dims(2)) ! this is the total number of points
+  NbrOfRows    = INT(dims(1)) ! this is the number of properties x,y,z,Bx,By,Bz
   ! Read-in the data
   ALLOCATE(VariableExternalField(1:NbrOfRows,1:NbrOfColumns))
   VariableExternalField=0.
@@ -94,19 +95,28 @@ ELSE
   CALL abort(__STAMP__,'Dataset "'//TRIM(dsetname)//'" not found in '//TRIM(FileNameVariableExternalField))
 END IF
 
-! Check attributes
-IF(NbrOfRows.LT.6) VariableExternalField2D=.TRUE.
+! Set spatial dimension
+IF(NbrOfRows.LT.6)THEN
+  VariableExternalFieldDim = 2
+ELSE
+  VariableExternalFieldDim = 3
+END IF
 
 ! Check for radial component
-VariableExternalFieldRadInd=-1
+VariableExternalFieldRadInd  = -1
+VariableExternalFieldAxisSym = .FALSE.
 AttributeName = 'r'
 CALL H5AEXISTS_F(file_id_loc, TRIM(AttributeName), AttribtueFound, iError)
 IF(AttribtueFound) CALL ReadAttribute(file_id_loc,AttributeName,1,IntScalar=VariableExternalFieldRadInd)
 IF(VariableExternalFieldRadInd.GT.0) VariableExternalFieldAxisSym=.TRUE.
 
-! Check if not axial symmetric or not 2D
-IF(.NOT.VariableExternalFieldAxisSym) CALL abort(__STAMP__,'Only axis symmetric variable external field imeplemented currently.')
-IF(.NOT.VariableExternalField2D) CALL abort(__STAMP__,'Only 2D external field imeplemented currently.')
+! Check if axial symmetric and 2D
+IF(VariableExternalFieldDim.EQ.2)THEN
+  IF(.NOT.VariableExternalFieldAxisSym) CALL abort(__STAMP__,'Only 2D axis symmetric variable external field imeplemented.')
+ELSE
+  ! 3D and symmetric is not possible
+  VariableExternalFieldAxisSym = .FALSE.
+END IF ! VariableExternalFieldDim.EQ.2
 
 ! Check for axial direction when using axis symmetric variable external field
 IF(VariableExternalFieldAxisSym)THEN
@@ -121,46 +131,77 @@ IF(VariableExternalFieldAxisSym)THEN
 END IF ! VariableExternalFieldAxisSym
 
 ! Calculate the deltas and make sure that they are equidistant
-DeltaExternalField = -1.0
-VariableExternalFieldMin=HUGE(1.)
-VariableExternalFieldMax=-HUGE(1.)
-IF(VariableExternalField2D)THEN
-  VariableExternalField2DRows    = -1
-  VariableExternalField2DColumns = -1
+DeltaExternalField          = -1.0
+VariableExternalFieldMin    = HUGE(1.)
+VariableExternalFieldMax    = -HUGE(1.)
+VariableExternalFieldN(1:3) = -1
+IF(VariableExternalFieldDim.EQ.2)THEN
+  ! 2D field
+  iDirMax = 2
   VariableExternalFieldMin(3) = 0.
   VariableExternalFieldMax(3) = 0.
-  DeltaExternalField(3) = 0.
-  DO i = 1, 2
-    VariableExternalFieldMin(i) = MINVAL(VariableExternalField(i,:))
-    VariableExternalFieldMax(i) = MAXVAL(VariableExternalField(i,:))
-    deltaOld = -1.0
-    DO j = 1, NbrOfColumns-1
-      delta = VariableExternalField(i,j+1)-VariableExternalField(i,j)
-      !write(*,*) delta
-      IF((deltaOld.GT.0.).AND.(delta.GT.0.))THEN
-        IF(.NOT.ALMOSTEQUALRELATIVE(delta,deltaOld,1e-5)) CALL abort(__STAMP__,'Variable external field: not equidistant.')
-      END IF ! deltaOld.GT.0.
-      ! Backup old value
-      IF(delta.GT.0.)THEN
-        deltaOld = delta
-        DeltaExternalField(i) = delta
-      ELSEIF(delta.LT.0.)THEN
-        IF(VariableExternalField2DRows.LT.0)THEN
-          VariableExternalField2DColumns = j
-          VariableExternalField2DRows    = NbrOfColumns/VariableExternalField2DColumns
+  DeltaExternalField(3)       = 0.
+ELSE
+  ! 3D field
+  iDirMax = 3
+END IF ! VariableExternalFieldDim.EQ.2
+
+! Loop x, y and z-coordinate and check deltas between points
+DO iDir = 1, iDirMax
+  ! Get global min/max
+  VariableExternalFieldMin(iDir) = MINVAL(VariableExternalField(iDir,:))
+  VariableExternalFieldMax(iDir) = MAXVAL(VariableExternalField(iDir,:))
+  deltaOld = -1.0
+  DO j = 1, NbrOfColumns-1
+    delta = VariableExternalField(iDir,j+1)-VariableExternalField(iDir,j)
+    !write(*,*) delta
+    IF((deltaOld.GT.0.).AND.(delta.GT.0.))THEN
+      !WRITE (*,*) "delta,deltaOld =", iDir,j,delta,deltaOld
+      IF(.NOT.ALMOSTEQUALRELATIVE(delta,deltaOld,1e-5)) CALL abort(__STAMP__,'Variable external field: not equidistant.')
+    END IF ! deltaOld.GT.0.
+    ! Backup old value
+    IF(delta.GT.0.)THEN
+      deltaOld = delta
+      DeltaExternalField(iDir) = delta
+    ELSEIF(delta.LT.0.)THEN
+      IF(VariableExternalFieldDim.EQ.2)THEN
+        IF(VariableExternalFieldN(1).LT.0)THEN
+          ! z-dir
+          VariableExternalFieldN(3) = j
+          ! r-dir
+          VariableExternalFieldN(1) = NbrOfColumns/VariableExternalFieldN(3)
         END IF
-      END IF
-    END DO ! j = 1, NbrOfColumns
-  END DO ! i = 1, 2
-END IF ! VariableExternalField2D
+      ELSE
+        IF(VariableExternalFieldN(iDir).LT.0)THEN
+          IF(iDir.EQ.1)THEN
+            VariableExternalFieldN(iDir) = j
+          ELSE
+            VariableExternalFieldN(2) = j / VariableExternalFieldN(1)
+            VariableExternalFieldN(3) = NbrOfColumns/(VariableExternalFieldN(1)*VariableExternalFieldN(2))
+          END IF
+        END IF ! VariableExternalFieldN(iDir).LT.0
+      END IF ! VariableExternalFieldDim.EQ.2
+    END IF
+  END DO ! j = 1, NbrOfColumns
+END DO ! iDir = 1, iDirMax
 
 ! Sanity check
-IF(VariableExternalField2D)THEN
+IF(VariableExternalFieldDim.EQ.2)THEN
   IF(MINVAL(DeltaExternalField(1:2)).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for variable external field.')
+  IF(NbrOfColumns.NE.VariableExternalFieldN(3)*VariableExternalFieldN(1)) CALL abort(__STAMP__,'Wrong number of points in 2D')
+  SWRITE (UNIT_stdOut,'(A,2(I0,A))') " Read external field with ",VariableExternalFieldN(3)," x ",VariableExternalFieldN(1),&
+      " data points"
 ELSE
   IF(MINVAL(DeltaExternalField).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for variable external field.')
-END IF ! VariableExternalField2D
+  IF(NbrOfColumns.NE.VariableExternalFieldN(1)*VariableExternalFieldN(2)*VariableExternalFieldN(3)) CALL abort(__STAMP__,&
+      'Wrong number of points in 3D')
+  SWRITE (UNIT_stdOut,'(A,3(I0,A))') " Read external field with ",VariableExternalFieldN(1)," x ",VariableExternalFieldN(2)," x ",&
+      VariableExternalFieldN(3)," data points"
+END IF ! VariableExternalFieldDim.EQ.2
 
+!WRITE (*,*) " =", VariableExternalFieldMin
+!WRITE (*,*) " =", VariableExternalFieldMax
+!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 ! Close the file.
 CALL H5FCLOSE_F(file_id_loc, err)
 ! Close FORTRAN interface.

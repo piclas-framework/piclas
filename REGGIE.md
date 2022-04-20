@@ -24,12 +24,13 @@ Overview of the test cases performed after a commit.
 
 Regression testing for PIC, solving the complete Maxwell equations with RK4: [Link to build](regressioncheck/CHE_PIC_maxwell_RK4/builds.ini).
 
-| **No.** |       **Case**       | **CMAKE-CONFIG** |        **Feature**         | **Execution** |     **Comparing**      | **Readme** |
-| :-----: | :------------------: | :--------------: | :------------------------: | :-----------: | :--------------------: | :--------: |
-|   01    | gyrotron_variable_Bz |                  |        variable Bz         |  nProcs=1,2   | Database.csv, relative |            |
-|   02    |     IMD_coupling     |                  | mapping from IMP to PICLas |   nProcs=1    |    PartPata in Box     |            |
-|   03    |  initialIonization   |                  |                            |   nProcs=2    |        PartPata        |            |
-|   04    | single_particle_PML  |                  |            PML             |   particle    |   nProcs=1,2,5,8,10    |            |
+| **No.** |       **Case**       | **CMAKE-CONFIG** |                      **Feature**                     |           **Execution**          |          **Comparing**          | **Readme** |
+| :-----: | :------------------: | :--------------: | :--------------------------------------------------: | :------------------------------: | :-----------------------------: | :--------: |
+|    01   |     2D_variable_B    |                  |    external magnetic field from .h5 (equidistant)    |   nProcs=1,2,3,4,5,10,15,25,80   | PartAnalyze.csv, PIC-EMField.h5 |            |
+|    02   | gyrotron_variable_Bz |                  |                      variable Bz                     |            nProcs=1,2            |      Database.csv, relative     |            |
+|    03   |     IMD_coupling     |                  |              mapping from IMP to PICLas              |             nProcs=1             |         PartPata in Box         |            |
+|    04   |   initialIonization  |                  |                                                      |             nProcs=2             |             PartPata            |            |
+|    05   |  single_particle_PML |                  |                          PML                         |             particle             |        nProcs=1,2,5,8,10        |            |
 
 #### CHE_DSMC
 
