@@ -1452,6 +1452,7 @@ SDEALLOCATE(BGGas%DistributionNumDens)
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
+SDEALLOCATE(AmbiPolarSFMapping)
 END SUBROUTINE FinalizeDSMC
 
 
