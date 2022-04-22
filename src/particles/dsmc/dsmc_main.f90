@@ -71,7 +71,7 @@ REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
-
+! Rotational frame of reference: Transform particle velocity to inertial frame of reference for the DSMC operator
 IF(UseRotRefFrame) THEN
   DO iPart = 1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
