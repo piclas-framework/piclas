@@ -711,6 +711,7 @@ USE MOD_IO_HDF5               ,ONLY: OpenDataFile,CloseDataFile,File_ID
 USE MOD_Restart_Vars          ,ONLY: RestartFile,DoRestart
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcTemp,DoPartAnalyze
 USE MOD_ReadInTools           ,ONLY: PrintOption
+USE MOD_SurfaceModel_Vars     ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutoamtic
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -718,18 +719,21 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER        :: iSpec,iInit
 LOGICAL        :: BulkElectronTempExists
-CHARACTER(255) :: ContainerName
+CHARACTER(255) :: ContainerName,velocityDistribution,hilf
 REAL           :: TmpArray(1,1)
 !===================================================================================================================================
 ! Loop all species and check for neutralization BCs
+velocityDistribution=''
+hilf=''
 DO iSpec = 1,nSpecies
   ! Loop inits and check whether neutralization boundary condition required the bulk electron temperature
   DO iInit = 1, Species(iSpec)%NumberOfInits
     SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution))
     CASE('2D_Liu2010_neutralization','3D_Liu2010_neutralization','2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo')
       CalcBulkElectronTemp = .TRUE.
+      velocityDistribution=TRIM(Species(iSpec)%Init(iInit)%velocityDistribution)
       ! Check if already set, otherwise, initialize with 5 eV for the BC (if SEE is also used, this will be already have been set)
-      IF(BulkElectronTemp.LE.0) BulkElectronTemp = 5.0
+      IF(BulkElectronTemp.LE.0.) BulkElectronTemp = 5.0
     END SELECT
   END DO ! iInit = 1, Species(iSpec)%NumberOfInits
 END DO ! iSpec = 1,nSpecies
@@ -752,6 +756,16 @@ IF(CalcBulkElectronTemp)THEN
   END DO
   IF (BulkElectronTempSpecID.EQ.-1) CALL abort(__STAMP__&
     ,'Electron species not found for bulk electron temperature calculation (CalcBulkElectronTemp set True automatically).')
+  IF(SurfModSEEelectronTempAutoamtic)THEN
+    IF(TRIM(velocityDistribution).NE.'')THEN
+      hilf=' (used for SEE and '//TRIM(velocityDistribution)//')'
+    ELSE
+      hilf=' (used for SEE)'
+    END IF ! TRIM(velocityDistribution).NE.''
+  ELSE
+    hilf=' (used for '//TRIM(velocityDistribution)//')'
+  END IF ! SurfModSEEelectronTempAutoamtic
+  SWRITE(UNIT_stdOut,'(A,I0,A)')' Bulk electron temperature is calculated using species ',BulkElectronTempSpecID,TRIM(hilf)
 
   ! Restart: Only root reads state file to prevent access with a large number of processors
   IF(MPIRoot)THEN
@@ -775,8 +789,9 @@ IF(CalcBulkElectronTemp)THEN
     END IF ! DoRestart
   END IF ! MPIRoot
 #if USE_MPI
-  ! Broadcast from root to other processors
+  ! Broadcast from root to other processors. Only root knows if BulkElectronTempExists=T/F so always broadcast message
   CALL MPI_BCAST(BulkElectronTemp,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
+  IF(SurfModSEEelectronTempAutoamtic) BulkElectronTempSEE = BulkElectronTemp
 #endif /*USE_MPI*/
 END IF ! CalcBulkElectronTemp
 

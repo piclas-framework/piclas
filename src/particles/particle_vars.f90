@@ -417,9 +417,8 @@ INTEGER              :: NeutralizationBalance       ! Counter for charged partic
 INTEGER              :: NeutralizationBalanceGlobal ! Counter for charged particles (global): Add +1 for electrons and -1 for ions
 
 ! Bulk electron temperature
-REAL              :: BulkElectronTemp            ! Bulk electron temperature for SEE model by Morozov2004
-                                                 ! read-in in Kelvin (when using the SEE mode), but is directly converted
-                                                 ! to eV for  usage in the code OR for neutralization BC (e.g. landmark)
+REAL              :: BulkElectronTemp            ! Bulk electron temperature for Neutralization BC (e.g. landmark) OR
+                                                 ! SEE model by Morozov2004 when it is calculated automatically
 LOGICAL           :: CalcBulkElectronTemp        ! Automatic bulk electron calculation
 INTEGER           :: BulkElectronTempSpecID      ! Species ID (electron) for Automatic bulk electron calculation
 !===================================================================================================================================

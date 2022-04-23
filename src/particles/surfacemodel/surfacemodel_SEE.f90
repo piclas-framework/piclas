@@ -38,12 +38,12 @@ SUBROUTINE SecondaryElectronEmission(PartID_IN,locBCID,ProductSpec,ProductSpecNb
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                   ,ONLY: abort,VECNORM,PARTISELECTRON
 USE MOD_Globals_Vars              ,ONLY: c,Joule2eV
-USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF,BulkElectronTemp,nSpecies
+USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF,nSpecies
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,ElectronMass
-USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec,BulkElectronTempSEE
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcElectronSEE,SEE
-USE MOD_PARTICLE_Vars             ,ONLY: usevMPF
+USE MOD_Particle_Vars             ,ONLY: usevMPF
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -210,7 +210,7 @@ CASE(8) ! 8: SEE-E (e- on dielectric materials is considered for SEE and three d
 
     IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
       ASSOCIATE( P0   => 0.9               ,& ! Assumption in paper
-                 Te0  => BulkElectronTemp  ,& ! Assumed bulk electron temperature [eV] (note this parameter is read as [K])
+                 Te0  => BulkElectronTempSEE  ,& ! Assumed bulk electron temperature [eV] (note this parameter is read as [K])
                  velo2=> PartState(4,PartID_IN)**2 + PartState(5,PartID_IN)**2 + PartState(6,PartID_IN)**2 ,& ! Velocity squared
                  mass => Species(PartSpecies(PartID_IN))%MassIC  ) ! mass of bombarding particle
         eps_e = 0.5*mass*velo2*Joule2eV ! Incident electron energy [eV]
