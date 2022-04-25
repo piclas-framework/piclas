@@ -1,0 +1,30 @@
+#%Module1.0#####################################################################
+##
+## modules petsc/petscversion
+##
+## modulefiles/utilities/petsc/petscversion
+##
+proc ModulesHelp { } {
+        global version modroot
+
+        puts stderr "petsc-petscversion - sets the Environment for PETSc-petscversion"
+}
+
+module-whatis   "Sets the environment for using petsc-petscversion"
+
+conflict petsc
+
+prereq cmake/CMAKEVERSIONFLAG
+prereq gcc/GCCVERSIONFLAG
+prereq openmpi/MPIVERSIONFLAG/gcc/GCCVERSIONFLAG
+
+# for Tcl script use only
+set     topdir          PETSCTOPDIR
+set     version         petscversion
+set     sys             linux64
+
+prepend-path    PATH            $topdir/bin
+prepend-path    LD_LIBRARY_PATH $topdir/lib
+prepend-path    PETSC_DIR       $topdir
+setenv          PETSC_ARCH      ""
+#set-alias       paraviewmpi "paraview --mpi$
