@@ -87,7 +87,7 @@ REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
 REAL                       :: c_1
-REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec
+REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec, v_minus_old, gamma_plus, v_n1
 #endif /*PARTICLES*/
 !===================================================================================================================================
 #ifdef PARTICLES
@@ -163,9 +163,13 @@ IF (time.GE.DelayTime) THEN
 
         !-- v_minus = v(n-1/2) + q/m*E(n)*dt/2
         gamma = 1./SQRT(1-(DOTPRODUCT(PartState(4:6,iPart))*c2_inv))
-        v_minus = PartState(4:6,iPart)*gamma + c_1 * FieldAtParticle(1:3,iPart)
+
+        v_minus_old = PartState(4:6,iPart)*gamma
+
+        v_minus = v_minus_old + c_1 * FieldAtParticle(1:3,iPart)
 
         !-- t_vec
+        ! gamma_minus = (SQRT(1+DOTPRODUCT(v_minus_old)*c2_inv) + SQRT(1+DOTPRODUCT(v_minus)*c2_inv) ) / 2.
         gamma_minus = SQRT(1+DOTPRODUCT(v_minus)*c2_inv)
         t_vec = TAN(c_1/gamma_minus*VECNORM(FieldAtParticle(4:6,iPart))) * UNITVECTOR(FieldAtParticle(4:6,iPart))
 
@@ -175,8 +179,12 @@ IF (time.GE.DelayTime) THEN
         !-- v_plus = v_minus + v_prime x 2*t_vec/(1+t_vec^2) where t_vec = c_1 * B
         v_plus = v_minus + (2.0/(1.+DOTPRODUCT(t_vec))) * CROSS(v_prime, t_vec)
 
+        v_n1 = v_plus + c_1 * FieldAtParticle(1:3,iPart)
+
+        gamma_plus = SQRT(1+DOTPRODUCT(v_n1)*c2_inv)
+
         !-- v(n+1/2) = v_plus + c_1 * E
-        PartState(4:6,iPart) = (v_plus + c_1 * FieldAtParticle(1:3,iPart)) / gamma_minus
+        PartState(4:6,iPart) = v_n1 / gamma_plus
       END IF
 
       !-- x(n) => x(n+1) by v(n+0.5):
