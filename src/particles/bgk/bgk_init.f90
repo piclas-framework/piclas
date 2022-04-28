@@ -120,7 +120,7 @@ DO iSpec=1, nSpecies
     IF (iSpec.EQ.iSpec2) THEN
       delta_ij = 1.0
     ELSE
-      delta_ij = 0.0
+      delta_ij = 1.0
     END IF
     SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 4.*(2.-delta_ij)*CollInf%dref(iSpec,iSpec2)**2.0 &
         * SQRT(Pi*BoltzmannConst*CollInf%Tref(iSpec,iSpec2)*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
