@@ -212,7 +212,7 @@ IF (time.GE.DelayTime) THEN
         PartState(4:6,iPart) = uPlus + c1 * FieldAtParticle(1:3,iPart) + CROSS(uPlus, tVec)
 
         !-- v(n+1) = u(n+1)/gamma(n+1)
-        PartState(4:6,iPart) = PartState(4:6,iPart)/gammaPlus
+        PartState(4:6,iPart) = PartState(4:6,iPart)/SQRT(1+DOTPRODUCT(PartState(4:6,iPart))*c2_inv)
       END IF
 
       ! 2nd part of the position update (also neutral particles)

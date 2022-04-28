@@ -87,7 +87,7 @@ REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
 REAL                       :: c_1
-REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec, v_minus_old, gamma_plus, v_n1
+REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec, v_minus_old, v_n1
 #endif /*PARTICLES*/
 !===================================================================================================================================
 #ifdef PARTICLES
@@ -179,12 +179,11 @@ IF (time.GE.DelayTime) THEN
         !-- v_plus = v_minus + v_prime x 2*t_vec/(1+t_vec^2) where t_vec = c_1 * B
         v_plus = v_minus + (2.0/(1.+DOTPRODUCT(t_vec))) * CROSS(v_prime, t_vec)
 
+        !-- v(n+1/2) = v_plus + c_1 * E
         v_n1 = v_plus + c_1 * FieldAtParticle(1:3,iPart)
 
-        gamma_plus = SQRT(1+DOTPRODUCT(v_n1)*c2_inv)
-
-        !-- v(n+1/2) = v_plus + c_1 * E
-        PartState(4:6,iPart) = v_n1 / gamma_plus
+        !-- v(n+1) = u(n+1)/gamma(n+1)
+        PartState(4:6,iPart) = v_n1 / SQRT(1+DOTPRODUCT(v_n1)*c2_inv)
       END IF
 
       !-- x(n) => x(n+1) by v(n+0.5):
