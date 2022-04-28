@@ -1030,7 +1030,7 @@ IF (DSMC%ElectronicModel.EQ.4) THEN
       IF (iSpec.EQ.jSpec) THEN
         delta_ij = 1.0
       ELSE
-        delta_ij = 0.0
+        delta_ij = 1.0
       END IF
       SpecDSMC(iSpec)%CollFreqPreFactor(jSpec)= 4.*(2.-delta_ij)*CollInf%dref(iSpec,jSpec)**2.0 &
           * SQRT(Pi*BoltzmannConst*CollInf%Tref(iSpec,jSpec)*(Species(iSpec)%MassIC + Species(jSpec)%MassIC) &

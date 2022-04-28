@@ -433,7 +433,7 @@ INTEGER               :: iSpec, nSpec(nSpecies), jSpec, nElecRelax, iLoop, iPart
 REAL                  :: vBulkAll(3), SpecTemp(nSpecies), TElecSpec(nSpecies), ElecExpSpec(nSpecies)
 REAL                  :: totalWeightSpec(nSpecies), totalWeight, partWeight, CellTemptmp
 REAL                  :: EElecSpec(nSpecies), Xi_ElecSpec(nSpecies), Xi_Elec_oldSpec(nSpecies), EElecMean(nSpecies)
-REAL                  :: collisionfreqSpec(nSpecies),elecrelaxfreqSpec(nSpecies), ElectronicPartition(nSpecies), CorVolume
+REAL                  :: collisionfreqSpec(nSpecies),elecrelaxfreqSpec(nSpecies), ElectronicPartition(nSpecies)
 LOGICAL               :: SkipEnergyCons(nSpecies)
 !===================================================================================================================================
 IF(nPart.LT.2) RETURN
@@ -453,10 +453,8 @@ END IF
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   ! totalWeight contains the weighted particle number
   dens = totalWeight / NodeVolume
-  CorVolume = NodeVolume
 ELSE
   dens = totalWeight * Species(1)%MacroParticleFactor / NodeVolume
-  CorVolume = NodeVolume / Species(1)%MacroParticleFactor
 END IF
 
 ! Calculation of the electronic degrees of freedom for molecules
@@ -479,8 +477,8 @@ DO iSpec = 1, nSpecies
     ELSE
       CellTemptmp = CellTemp
     END IF
-    collisionfreqSpec(iSpec) = collisionfreqSpec(iSpec) + SpecDSMC(iSpec)%CollFreqPreFactor(jSpec) *totalWeightSpec(jSpec) / CorVolume &
-            *CellTemptmp**(-CollInf%omega(iSpec,jSpec) +0.5) 
+    collisionfreqSpec(iSpec) = collisionfreqSpec(iSpec) + SpecDSMC(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(jSpec) &
+            * (dens / totalWeight) *CellTemptmp**(-CollInf%omega(iSpec,jSpec) +0.5)
   END DO
 END DO
 elecrelaxfreqSpec(:) = collisionfreqSpec(:) * SpecDSMC(:)%ElecRelaxProb
