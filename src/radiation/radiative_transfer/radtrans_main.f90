@@ -232,12 +232,9 @@ ELSEIF (RadObservationPointMethod.EQ.2) THEN
   IF (RadObservationPoint%CalcFullSpectra) THEN
     SetPhotonEnergy = Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr*RadiationParameter%WaveLenReductionFactor &
         *ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem)
-!    print*, 'arg', Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem) /(4.*Pi), SetPhotonEnergy
   ELSE
     SetPhotonEnergy = SetPhotonEnergy /(4.*Pi)
   END IF
-!  print*, iWave, SetPhotonEnergy
-!  read*
 END IF
 
 END FUNCTION SetPhotonEnergy
