@@ -45,7 +45,7 @@ IMPLICIT NONE
 CALL prms%SetSection("Radiation Transport")
 
 CALL prms%CreateLogicalOption('Radiation-AdaptivePhotonNumEmission', 'HM','.FALSE.')
-CALL prms%CreateLogicalOption('Radiation-CalcRadObservationPoint', 'HM','.FALSE.')
+CALL prms%CreateIntOption('Radiation-RadObservationPointMethod', 'HM','0')
 CALL prms%CreateIntOption(    'Radiation-DirectionModel', 'HM','1')
 CALL prms%CreateIntOption(    'Radiation-NumPhotonsPerCell', 'HM','1')
 CALL prms%CreateIntOption(    'Radiation-AbsorptionModel', 'HM','1')
@@ -55,6 +55,7 @@ CALL prms%CreateRealArrayOption('Radiation-ObservationMidPoint', 'HM')
 CALL prms%CreateRealOption('Radiation-ObservationDiameter', 'HM')
 CALL prms%CreateRealArrayOption('Radiation-ObservationViewDirection', 'HM')
 CALL prms%CreateRealOption('Radiation-ObservationAngularAperture', 'HM')
+CALL prms%CreateLogicalOption('Radiation-ObservationCalcFullSpectra','.FALSE.')
 
 END SUBROUTINE DefineParametersRadiationTrans
 
@@ -112,9 +113,9 @@ RadiationAbsorptionModel = GETINT('Radiation-AbsorptionModel')
 RadiationPhotonPosModel = GETINT('Radiation-PhotonPosModel')
 RadiationPhotonWaveLengthModel = GETINT('Radiation-PhotonWaveLengthModel')
 RadEmiAdaptPhotonNum = GETLOGICAL('Radiation-AdaptivePhotonNumEmission')
-CalcRadObservationPoint = GETLOGICAL('Radiation-CalcRadObservationPoint')
+RadObservationPointMethod = GETINT('Radiation-RadObservationPointMethod')
 
-IF (CalcRadObservationPoint) THEN
+IF (RadObservationPointMethod.GT.0) THEN
   RadObservationPoint%AngularAperture = GETREAL('Radiation-ObservationAngularAperture')
   RadObservationPoint%Diameter = GETREAL('Radiation-ObservationDiameter')
   RadObservationPoint%MidPoint = GETREALARRAY('Radiation-ObservationMidPoint',3)
@@ -128,10 +129,17 @@ IF (CalcRadObservationPoint) THEN
   ObsLengt = RadObservationPoint%Diameter/(2.*TAN(RadObservationPoint%AngularAperture/2.))
   RadObservationPoint%StartPoint(1:3) = RadObservationPoint%MidPoint(1:3) - ObsLengt*RadObservationPoint%ViewDirection(1:3)
   RadObservationPoint%Area = Pi*RadObservationPoint%Diameter*RadObservationPoint%Diameter/4.
+  IF (RadObservationPointMethod.EQ.2) THEN
+    RadObservationPoint%CalcFullSpectra = GETLOGICAL('Radiation-ObservationCalcFullSpectra')
+    IF (RadObservationPoint%CalcFullSpectra) THEN
+      RadEmiAdaptPhotonNum = .FALSE.
+      RadTrans%NumPhotonsPerCell = RadiationParameter%WaveLenDiscrCoarse
+    END IF
+  END IF
 END IF
 
 IF(Symmetry%Order.EQ.2) CALL BuildMesh2DInfo()
-IF (CalcRadObservationPoint) THEN
+IF (RadObservationPointMethod.GT.0) THEN
   ALLOCATE(RadObservation_Emission(RadiationParameter%WaveLenDiscrCoarse),RadObservation_EmissionPart(RadiationParameter%WaveLenDiscrCoarse))
   RadObservation_Emission = 0.0
   RadObservation_EmissionPart = 0
@@ -254,8 +262,11 @@ CASE(1) !calls radition solver module
 
   DO iElem = firstElem, lastElem
     IF((myRank.EQ.DisplRank).AND.(MOD(iElem-firstElem,ElemDisp).EQ.0)) CALL PrintStatusLineRadiation(REAL(iElem),REAL(firstElem),REAL(lastElem),.FALSE.,DisplRank)
-    IF (CalcRadObservationPoint) THEN
+    IF (RadObservationPointMethod.EQ.1) THEN
       CALL ElemInObsCone(iElem, ElemInCone)
+      IF (.NOT.ElemInCone) CYCLE
+    ELSE IF (RadObservationPointMethod.EQ.2) THEN
+      CALL ElemOnLineOfSight(iELem, ElemInCone)
       IF (.NOT.ElemInCone) CYCLE
     END IF
     CALL radiation_main(iElem)
@@ -416,10 +427,11 @@ SUBROUTINE ElemInObsCone(ElemID, ElemInCone)
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
-USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemInfo_Shared, BoundsOfElem_Shared
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemInfo_Shared, BoundsOfElem_Shared, SideIsSymSide, SideInfo_Shared
 USE MOD_RadiationTrans_Vars       ,ONLY: RadObservationPoint, RadTransObsVolumeFrac
 USE MOD_Particle_Vars             ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Tools       ,ONLY: ParticleInsideQuad3D
+USE MOD_Photon_TrackingTools      ,ONLY: PhotonIntersectionWithSide2DDir, PhotonThroughSideCheck3DDir
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -430,8 +442,8 @@ INTEGER, INTENT(IN)             :: ElemID
 LOGICAL, INTENT(OUT)            :: ElemInCone
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iNode, MCVar, iGlobalElem, iPoint
-LOGICAL                       :: NodeInCone(8), InsideFlag
+INTEGER                       :: iNode, MCVar, iGlobalElem, iPoint, iLocSide, nlocSides, TempSideID, localSideID, TriNum
+LOGICAL                       :: NodeInCone(8), InsideFlag, ThroughSide
 REAL                          :: NodePoint(3), ConeDist, ConeRadius, orthoDist, RandomPos(3)
 !===================================================================================================================================
 ElemInCone = .FALSE.
@@ -469,9 +481,123 @@ ELSE IF (ANY(NodeInCone)) THEN
       IF (orthoDist.LE.ConeRadius)  RadTransObsVolumeFrac(ElemID) = RadTransObsVolumeFrac(ElemID) + 1./REAL(MCVar)
     END DO    
   END ASSOCIATE
+ELSE 
+  nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+  SideLoop: DO iLocSide=1,nlocSides
+    TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+    localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
+    ! Side is not one of the 6 local sides
+    IF (localSideID.LE.0) CYCLE
+    IF(Symmetry%Axisymmetric) THEN
+      IF (SideIsSymSide(TempSideID)) CYCLE
+      ThroughSide = .FALSE.
+      CALL PhotonIntersectionWithSide2DDir(localSideID,ElemID,ThroughSide, RadObservationPoint%StartPoint(1:3),RadObservationPoint%ViewDirection(1:3))
+      IF (ThroughSide) THEN
+        ElemInCone = .TRUE.
+        ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iGlobalElem) )    
+          DO iPoint = 1, MCVar
+            InsideFlag=.FALSE.
+            DO WHILE(.NOT.InsideFlag)
+              CALL RANDOM_NUMBER(RandomPos)
+              RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
+              IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
+              IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
+              CALL ParticleInsideQuad3D(RandomPos,iGlobalElem,InsideFlag)
+            END DO
+            ConeDist = DOT_PRODUCT(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3), RadObservationPoint%ViewDirection(1:3))
+            ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
+            orthoDist = VECNORM(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
+            IF (orthoDist.LE.ConeRadius)  RadTransObsVolumeFrac(ElemID) = RadTransObsVolumeFrac(ElemID) + 1./REAL(MCVar)
+          END DO    
+        END ASSOCIATE
+        EXIT SideLoop
+      END IF 
+    ELSE
+      DO TriNum = 1,2
+        ThroughSide = .FALSE.
+        CALL PhotonThroughSideCheck3DDir(localSideID,ElemID,ThroughSide,TriNum, RadObservationPoint%StartPoint(1:3),RadObservationPoint%ViewDirection(1:3))
+        IF (ThroughSide) THEN
+          ElemInCone = .TRUE.
+          ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iGlobalElem) )    
+            DO iPoint = 1, MCVar
+              InsideFlag=.FALSE.
+              DO WHILE(.NOT.InsideFlag)
+                CALL RANDOM_NUMBER(RandomPos)
+                RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
+                IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
+                IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
+                CALL ParticleInsideQuad3D(RandomPos,iGlobalElem,InsideFlag)
+              END DO
+              ConeDist = DOT_PRODUCT(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3), RadObservationPoint%ViewDirection(1:3))
+              ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
+              orthoDist = VECNORM(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
+              IF (orthoDist.LE.ConeRadius)  RadTransObsVolumeFrac(ElemID) = RadTransObsVolumeFrac(ElemID) + 1./REAL(MCVar)
+            END DO    
+          END ASSOCIATE
+          EXIT SideLoop
+        END IF
+      END DO
+    END IF
+  END DO SideLoop
 END IF
 
 END SUBROUTINE ElemInObsCone
+
+
+SUBROUTINE ElemOnLineOfSight(ElemID, ElemInCone)
+!===================================================================================================================================
+! modified particle emmission for LD case
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemInfo_Shared, BoundsOfElem_Shared, SideInfo_Shared, SideIsSymSide
+USE MOD_RadiationTrans_Vars       ,ONLY: RadObservationPoint, RadTransObsVolumeFrac
+USE MOD_Particle_Vars             ,ONLY: Symmetry
+USE MOD_Particle_Mesh_Tools       ,ONLY: ParticleInsideQuad3D
+USE MOD_Photon_TrackingTools      ,ONLY: PhotonIntersectionWithSide2DDir, PhotonThroughSideCheck3DDir
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INOUTPUT VARIABLES
+INTEGER, INTENT(IN)             :: ElemID
+LOGICAL, INTENT(OUT)            :: ElemInCone
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iNode, MCVar, iGlobalElem, iPoint, iLocSide, nlocSides, TempSideID, localSideID, TriNum
+LOGICAL                       :: NodeInCone(8), InsideFlag, ThroughSide
+REAL                          :: NodePoint(3), ConeDist, ConeRadius, orthoDist, RandomPos(3)
+!===================================================================================================================================
+ElemInCone = .FALSE.
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+SideLoop: DO iLocSide=1,nlocSides
+  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
+  ! Side is not one of the 6 local sides
+  IF (localSideID.LE.0) CYCLE
+  IF(Symmetry%Axisymmetric) THEN
+    IF (SideIsSymSide(TempSideID)) CYCLE
+    ThroughSide = .FALSE.
+    CALL PhotonIntersectionWithSide2DDir(localSideID,ElemID,ThroughSide, RadObservationPoint%StartPoint(1:3),RadObservationPoint%ViewDirection(1:3))
+    IF (ThroughSide) THEN
+      ElemInCone = .TRUE.
+      EXIT SideLoop
+    END IF 
+  ELSE
+    DO TriNum = 1,2
+      ThroughSide = .FALSE.
+      CALL PhotonThroughSideCheck3DDir(localSideID,ElemID,ThroughSide,TriNum, RadObservationPoint%StartPoint(1:3),RadObservationPoint%ViewDirection(1:3))
+      IF (ThroughSide) THEN
+        ElemInCone = .TRUE.
+        EXIT SideLoop
+      END IF
+    END DO
+  END IF
+END DO SideLoop
+
+END SUBROUTINE ElemOnLineOfSight
 
 INTEGER FUNCTION PRIME(n)
 !===================================================================================================================================

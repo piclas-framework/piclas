@@ -25,7 +25,7 @@ SAVE
 ! GLOBAL VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                                  :: useParticleRadiationSolver
-LOGICAL                                  :: CalcRadObservationPoint
+INTEGER                                  :: RadObservationPointMethod
 
 TYPE tRadObservationPoint
   REAL                                   :: StartPoint(3)
@@ -35,6 +35,7 @@ TYPE tRadObservationPoint
   REAL                                   :: MidPoint(3)
   REAL                                   :: Diameter
   REAL                                   :: OrthoNormBasis(3,3)
+  LOGICAL                                :: CalcFullSpectra
 END TYPE
 
 TYPE(tRadObservationPoint)               :: RadObservationPoint

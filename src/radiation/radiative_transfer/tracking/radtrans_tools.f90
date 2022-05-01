@@ -26,8 +26,8 @@ INTERFACE PhotonThroughSideCheck3DFast
 END INTERFACE
 
 PUBLIC :: PhotonThroughSideCheck3DFast, PhotonIntersectionWithSide, CalcAbsoprtion, PerfectPhotonReflection, DiffusePhotonReflection
-PUBLIC :: CalcWallAbsoprtion, PointInObsCone, PhotonIntersectSensor
-PUBLIC :: PhotonIntersectionWithSide2D, RotatePhotonIn2DPlane, PerfectPhotonReflection2D,DiffusePhotonReflection2D
+PUBLIC :: CalcWallAbsoprtion, PointInObsCone, PhotonIntersectSensor, PhotonThroughSideCheck3DDir, PhotonIntersectionWithSide2DDir
+PUBLIC :: PhotonIntersectionWithSide2D, RotatePhotonIn2DPlane, PerfectPhotonReflection2D,DiffusePhotonReflection2D, PhotonOnLineOfSight
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
@@ -138,6 +138,92 @@ END IF
 RETURN
 
 END SUBROUTINE PhotonThroughSideCheck3DFast
+
+
+SUBROUTINE PhotonThroughSideCheck3DDir(iLocSide,Element,ThroughSide,TriNum,StartPoint,Dir)
+!===================================================================================================================================
+!> Routine to check whether a particle crossed the given triangle of a side. The determinant between the normalix_photon_startd trajectory
+!> vector and the vectors from two of the three nodes to the old particle position is calculated. If the determinants for the three
+!> possible combinations are greater than x_photon_startro, then the particle went through this triangle of the side.
+!> Note that if this is a mortar side, the side of the small neighbouring mortar element has to be checked. Thus, the orientation
+!> is reversed.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars              ,ONLY: EpsMach
+USE MOD_Particle_Mesh_Vars, ONLY : NodeCoords_Shared, ElemSideNodeID_Shared
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)               :: iLocSide
+INTEGER,INTENT(IN)               :: Element
+INTEGER,INTENT(IN)               :: TriNum
+LOGICAL,INTENT(OUT)              :: ThroughSide
+REAL, INTENT(IN)                 :: StartPoint(3), Dir(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID
+INTEGER                          :: n, NodeID
+REAL                             :: Px, Py, Pz
+REAL                             :: Vx, Vy, Vz!, Vall
+REAL                             :: xNode(3), yNode(3), zNode(3), Ax(3), Ay(3), Az(3)
+REAL                             :: det(3)
+!===================================================================================================================================
+CNElemID = GetCNElemID(Element)
+ThroughSide = .FALSE.
+
+Px = StartPoint(1)
+Py = StartPoint(2)
+Pz = StartPoint(3)
+
+! Normalix_photon_startd particle trajectory (PartPos - lastPartPos)/ABS(PartPos - lastPartPos)
+Vx = Dir(1)
+Vy = Dir(2)
+Vz = Dir(3)
+! Get the coordinates of the first node and the vector from the particle position to the node
+xNode(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+yNode(1) = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+zNode(1) = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+Ax(1) = xNode(1) - Px
+Ay(1) = yNode(1) - Py
+Az(1) = zNode(1) - Pz
+! Get the vectors to the other two nodes, depending on the triangle number
+
+DO n = 2,3
+  NodeID = n+TriNum-1       ! m = true node number of the sides (TriNum=1: NodeID=2,3; TriNum=2: NodeID=3,4)
+  xNode(n) = NodeCoords_Shared(1,ElemSideNodeID_Shared(NodeID,iLocSide,CNElemID)+1)
+  yNode(n) = NodeCoords_Shared(2,ElemSideNodeID_Shared(NodeID,iLocSide,CNElemID)+1)
+  zNode(n) = NodeCoords_Shared(3,ElemSideNodeID_Shared(NodeID,iLocSide,CNElemID)+1)
+
+  Ax(n) = xNode(n) - Px
+  Ay(n) = yNode(n) - Py
+  Az(n) = zNode(n) - Pz
+END DO
+
+!--- check whether v and the vectors from the particle to the two edge nodes build
+!--- a right-hand-szstem. If yes for all edges: vector goes potentially through side
+det(1) = ((Ay(1) * Vz - Az(1) * Vy) * Ax(3)  + &
+          (Az(1) * Vx - Ax(1) * Vz) * Ay(3)  + &
+          (Ax(1) * Vy - Ay(1) * Vx) * Az(3))
+
+det(2) = ((Ay(2) * Vz - Az(2) * Vy) * Ax(1)  + &
+          (Az(2) * Vx - Ax(2) * Vz) * Ay(1)  + &
+          (Ax(2) * Vy - Ay(2) * Vx) * Az(1))
+
+det(3) = ((Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + &
+          (Az(3) * Vx - Ax(3) * Vz) * Ay(2)  + &
+          (Ax(3) * Vy - Ay(3) * Vx) * Az(2))
+
+! Comparison of the determinants with eps, where a x_photon_startro is stored (due to machine precision)
+IF ((det(1).ge.-epsMach).AND.(det(2).ge.-epsMach).AND.(det(3).ge.-epsMach)) THEN
+  ThroughSide = .TRUE.
+END IF
+
+RETURN
+
+END SUBROUTINE PhotonThroughSideCheck3DDir
 
 
 SUBROUTINE PhotonIntersectionWithSide2D(iLocSide,Element,ThroughSide,IntersectionPos,isLastSide,Distance)
@@ -282,9 +368,112 @@ REAL                             :: beta, alpha, deltay, a, b, c, tmpsqrt
     Distance = S
   END IF
   
-  RETURN
-  
 END SUBROUTINE PhotonIntersectionWithSide2D
+
+
+SUBROUTINE PhotonIntersectionWithSide2DDir(iLocSide,Element,ThroughSide,StartPoint, Dir)
+!===================================================================================================================================
+!> Routine to check whether a photon crossed the given side.
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Mesh_Vars,          ONLY : ElemSideNodeID2D_Shared, NodeCoords_Shared
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)              :: ThroughSide
+INTEGER,INTENT(IN)               :: iLocSide, Element
+REAL,INTENT(IN)                  :: StartPoint(3), Dir(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID
+REAL                             :: y_photon_start,x_photon_start,yNode1,xNode1,yNode2,xNode2,sy,sz,sx
+REAL                             :: l1,S1,l2,S2,l,S
+REAL                             :: beta, alpha, deltay, a, b, c, tmpsqrt
+!===================================================================================================================================
+  CNElemID = GetCNElemID(Element)
+  ThroughSide = .FALSE.
+
+  xNode1 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+  yNode1 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+  xNode2 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+  yNode2 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+  
+  x_photon_start=StartPoint(1)
+  y_photon_start=StartPoint(2)
+
+  sx=Dir(1)
+  sy=Dir(2)
+  sz=Dir(3)
+
+  IF (sx .EQ. 0.0) THEN
+    l = (x_photon_start-xNode1)/(xNode2-xNode1)
+    a = sy*sy + sz*sz
+    b = 2*sy*y_photon_start
+    c = y_photon_start*y_photon_start - yNode1*yNode1 + 2.*l*yNode1*yNode1 - l*l*yNode1*yNode1 &
+        - 2.*yNode1*yNode2*l + 2.*yNode1*yNode2*l*l - yNode2*yNode2*l*l
+    tmpsqrt = b*b - 4.*a*c
+    IF (tmpsqrt.LE.0.0) THEN
+      RETURN
+    END IF
+    S1 = (-b+SQRT(tmpsqrt))/(2.*a)
+    S2 = (-b-SQRT(tmpsqrt))/(2.*a)
+
+    IF (S1.LE.0.0) THEN
+      S = S2
+    ELSE
+      IF (S2.GT.0.0) THEN
+        IF(S2.GT.S1) THEN
+          S = S1
+        ELSE
+          S = S2
+        END IF
+      ELSE
+        S = S1
+      END IF
+    END IF
+  ELSE
+    alpha = (xNode1 - x_photon_start) / sx
+    beta = (xNode2 - xNode1) / sx
+    deltay = (yNode2 - yNode1)
+    a = beta*beta*sy*sy - deltay*deltay + beta*beta*sz*sz
+    b = 2.*beta*sy*y_photon_start + 2.*alpha*beta*sy*sy - 2.*deltay*yNode1 + 2.*alpha*beta*sz*sz
+    c = y_photon_start*y_photon_start - yNode1*yNode1 + 2.*alpha*sy*y_photon_start + alpha*alpha*sy*sy + sz*sz*alpha*alpha
+    tmpsqrt = b*b - 4.*a*c
+    IF (tmpsqrt.LE.0.0) THEN
+      RETURN
+    END IF
+    l1 = (-b + SQRT(tmpsqrt))/(2.*a)
+    S1 = (xNode1-x_photon_start+(xNode2-xNode1)*l1)/sx
+    l2 = (-b - SQRT(tmpsqrt))/(2.*a)
+    S2 = (xNode1-x_photon_start+(xNode2-xNode1)*l2)/sx
+
+    IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
+      l = l2; S = S2
+    ELSE                                      !1 is valid intersection
+      IF ((S1.LE.0.0)) THEN                   !1 would be moving backwards -> 2
+        l = l2; S = S2
+      ELSE
+        IF ((l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0)) THEN !1 and 2 valid -> chose shorter one
+          IF (S2.GT.S1) THEN
+            l=l1; S=S1
+          ELSE
+            l=l2; S=S2
+          END IF
+        ELSE                                  !1 is only valid intersection -> 1
+          l=l1; S=S1
+        END IF
+      END IF
+    END IF
+
+  END IF
+
+  IF((S .GT. 0.0) .AND. (0.0 .LE. l) .AND. (l .LE. 1.0)) THEN
+    ThroughSide = .TRUE.
+  END IF  
+END SUBROUTINE PhotonIntersectionWithSide2DDir
 
 SUBROUTINE RotatePhotonIn2DPlane(IntersectionPos)
 !===================================================================================================================================
@@ -897,5 +1086,54 @@ IF (projectedDist.LT.0.0) THEN
 END IF
 
 END FUNCTION PhotonIntersectSensor
+
+LOGICAL FUNCTION PhotonOnLineOfSight(Direction)
+!===================================================================================================================================
+! modified particle emmission for LD case
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals
+  USE MOD_RadiationTrans_Vars,    ONLY: RadObservationPoint
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INOUTPUT VARIABLES
+REAL, INTENT(IN)             :: Direction(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: SkalarFactors(3)
+INTEGER                       :: iDir, jDir
+!===================================================================================================================================
+PhotonOnLineOfSight = .FALSE.
+DO iDir = 1, 3
+  IF (Direction(iDir).EQ.0.0) THEN
+    IF (RadObservationPoint%ViewDirection(iDir).NE.0.0) THEN
+      RETURN
+    ELSE
+      SkalarFactors(iDir) = 0.0 
+    END IF
+  ELSE
+    IF (RadObservationPoint%ViewDirection(iDir).EQ.0.0) THEN
+      RETURN
+    ELSE
+      SkalarFactors(iDir) = Direction(iDir)/ RadObservationPoint%ViewDirection(iDir)
+    END IF
+  END IF
+END DO
+PhotonOnLineOfSight = .TRUE.
+DO iDir = 1, 2
+  DO jDir = iDir+1 , 3
+    IF (SkalarFactors(iDir).EQ.0.0) CYCLE
+    IF (SkalarFactors(jDir).EQ.0.0) CYCLE
+    IF (.NOT.ALMOSTEQUAL(SkalarFactors(iDir),SkalarFactors(jDir))) THEN
+      PhotonOnLineOfSight = .FALSE.
+      RETURN
+    END IF
+  END DO
+END DO
+
+END FUNCTION PhotonOnLineOfSight
 
 END MODULE MOD_Photon_TrackingTools

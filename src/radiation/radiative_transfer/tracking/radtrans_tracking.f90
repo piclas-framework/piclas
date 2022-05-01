@@ -51,9 +51,10 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars,      ONLY:PartBound
-USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps,RadObservation_Emission, CalcRadObservationPoint, RadObservation_EmissionPart
-USE MOD_Photon_TrackingTools,        ONLY:PhotonThroughSideCheck3DFast, PhotonIntersectionWithSide,CalcAbsoprtion
+USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps,RadObservation_Emission, RadObservationPointMethod, RadObservation_EmissionPart
+USE MOD_Photon_TrackingTools,        ONLY:PhotonThroughSideCheck3DFast, PhotonIntersectionWithSide,CalcAbsoprtion,PhotonOnLineOfSight
 USE MOD_Photon_TrackingTools,        ONLY:PerfectPhotonReflection, DiffusePhotonReflection, CalcWallAbsoprtion, PointInObsCone
+USE MOD_Photon_TrackingTools,        ONLY:PhotonIntersectSensor
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -224,8 +225,15 @@ DO WHILE (.NOT.Done)
     CASE(1) !PartBound%OpenBC)
       IF (NrOfThroughSides.LT.2) CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos)
       CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
-      IF (CalcRadObservationPoint) THEN
+      IF (RadObservationPointMethod.EQ.1) THEN
         IF (PointInObsCone(IntersectionPos(1:3))) THEN
+          IF (PhotonIntersectSensor(IntersectionPos(1:3), PhotonProps%PhotonDirection(1:3))) THEN
+            RadObservation_Emission(PhotonProps%WaveLength) = RadObservation_Emission(PhotonProps%WaveLength) + PhotonProps%PhotonEnergy
+            RadObservation_EmissionPart(PhotonProps%WaveLength) = RadObservation_EmissionPart(PhotonProps%WaveLength) + 1
+          END IF
+        END IF
+      ELSE IF (RadObservationPointMethod.EQ.2) THEN
+        IF (PhotonOnLineOfSight(PhotonProps%PhotonDirection(1:3))) THEN
           RadObservation_Emission(PhotonProps%WaveLength) = RadObservation_Emission(PhotonProps%WaveLength) + PhotonProps%PhotonEnergy
           RadObservation_EmissionPart(PhotonProps%WaveLength) = RadObservation_EmissionPart(PhotonProps%WaveLength) + 1
         END IF
@@ -315,10 +323,10 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars,      ONLY:PartBound
-USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps, RadObservation_Emission, CalcRadObservationPoint,RadObservation_EmissionPart
+USE MOD_RadiationTrans_Vars,         ONLY:PhotonProps, RadObservation_Emission, RadObservationPointMethod,RadObservation_EmissionPart
 USE MOD_Photon_TrackingTools,        ONLY:CalcAbsoprtion, CalcWallAbsoprtion, DiffusePhotonReflection2D, PointInObsCone
 USE MOD_Photon_TrackingTools,        ONLY:PhotonIntersectionWithSide2D, RotatePhotonIn2DPlane, PerfectPhotonReflection2D
-USE MOD_Photon_TrackingTools,        ONLY:PhotonIntersectSensor
+USE MOD_Photon_TrackingTools,        ONLY:PhotonIntersectSensor, PhotonOnLineOfSight
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -435,12 +443,17 @@ DO WHILE (.NOT.Done)
     CASE(1) !PartBound%OpenBC)
       CALL CalcAbsoprtion(IntersectionPos(1:3),ElemID, DONE)
       DONE = .TRUE.
-      IF (CalcRadObservationPoint) THEN        
+      IF (RadObservationPointMethod.EQ.1) THEN        
         IF (PointInObsCone(IntersectionPos(1:3))) THEN
           IF (PhotonIntersectSensor(IntersectionPos(1:3), PhotonProps%PhotonDirection(1:3))) THEN
             RadObservation_Emission(PhotonProps%WaveLength) = RadObservation_Emission(PhotonProps%WaveLength) + PhotonProps%PhotonEnergy
             RadObservation_EmissionPart(PhotonProps%WaveLength) = RadObservation_EmissionPart(PhotonProps%WaveLength) + 1
           END IF
+        END IF
+      ELSE IF (RadObservationPointMethod.EQ.2) THEN
+        IF (PhotonOnLineOfSight(PhotonProps%PhotonDirection(1:3))) THEN
+          RadObservation_Emission(PhotonProps%WaveLength) = RadObservation_Emission(PhotonProps%WaveLength) + PhotonProps%PhotonEnergy
+          RadObservation_EmissionPart(PhotonProps%WaveLength) = RadObservation_EmissionPart(PhotonProps%WaveLength) + 1
         END IF
       END IF
       CYCLE
