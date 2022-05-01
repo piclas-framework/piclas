@@ -200,6 +200,7 @@ END IF
 
 
 #if USE_MPI
+IF (RadiationSwitches%MacroRadInput) THEN
   firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeElems)/REAL(nComputeNodeProcessors))+1
   lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeElems)/REAL(nComputeNodeProcessors))
   IF (nComputeNodeElems.NE.nComputeNodeProcessors) THEN
@@ -249,6 +250,11 @@ END IF
   END DO
   CALL MPI_ALLREDUCE(MaxSumTemp, GlobalMaxTemp, 1, MPI_2DOUBLE_PRECISION, MPI_MAXLOC,MPI_COMM_WORLD,iError)
   DisplRank = NINT(GlobalMaxTemp(2))
+ELSE
+  firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeElems)/REAL(nComputeNodeProcessors))+1
+  lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeElems)/REAL(nComputeNodeProcessors))
+  DisplRank = 0
+END IF
 #else
   firstElem = 1
   lastElem  = nElems
