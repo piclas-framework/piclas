@@ -104,8 +104,6 @@ do
     #OPENMPIVERSION=3.1.6
     OPENMPIVERSION=4.1.1
 
-    # chose which mpi you want to have installed (openmpi or mpich)
-    WHICHMPI=openmpi
   fi
 
   # Check if re-run mode is selected by the user
@@ -114,6 +112,9 @@ do
   fi
 
 done
+
+# chose which mpi you want to have installed (openmpi or mpich), default is openmpi
+WHICHMPI=openmpi
 
 # DOWNLOAD and INSTALL PETSc (example PETSc-3.17.0)
 PETSCVERSION=3.17.0
@@ -252,10 +253,38 @@ if [ ! -e "${MODULEFILE}" ]; then
 
   # Configure
   MPIINSTALLDIR=${INSTALLDIR}/${WHICHMPI}/${OPENMPIVERSION}/gcc/${GCCVERSION}
-  ./configure PETSC_ARCH=arch-linux --prefix=${PETSCINSTALLDIR} --with-mpi-dir=${MPIINSTALLDIR} --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack
+  if [[ ! -d ${MPIINSTALLDIR} ]]; then
+    echo -e "$RED""Failed: Cannot find MPI directory ${MPIINSTALLDIR}$NC"
+    exit
+  fi
+  ./configure PETSC_ARCH=arch-linux \
+	      --prefix=${PETSCINSTALLDIR} \
+	      --with-mpi-dir=${MPIINSTALLDIR} \
+	      --with-debugging=0 \
+	      COPTFLAGS='-O3 -march=native -mtune=native' \
+	      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
+	      FOPTFLAGS='-O3 -march=native -mtune=native' \
+	      --download-hypre \
+	      --download-mumps \
+	      --download-scalapack
 
-  # Compile source files with NBROFCORES threads
-  make -j${NBROFCORES} PETSC_DIR=${CLONEDIR} PETSC_ARCH=arch-linux all 2>&1 | tee make.out
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo " "
+    echo -e "$RED""Failed command: [./configure PETSC_ARCH=arch-linux \
+	      --prefix=${PETSCINSTALLDIR} \
+	      --with-mpi-dir=${MPIINSTALLDIR} \
+	      --with-debugging=0 \
+	      COPTFLAGS='-O3 -march=native -mtune=native' \
+	      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
+	      FOPTFLAGS='-O3 -march=native -mtune=native' \
+	      --download-hypre \
+	      --download-mumps \
+	      --download-scalapack]$NC"
+    exit
+  else
+    # Compile source files with NBROFCORES threads
+    make -j${NBROFCORES} PETSC_DIR=${CLONEDIR} PETSC_ARCH=arch-linux all 2>&1 | tee make.out
+  fi
 
   # Check if compilation failed
   if [ ${PIPESTATUS[0]} -ne 0 ]; then

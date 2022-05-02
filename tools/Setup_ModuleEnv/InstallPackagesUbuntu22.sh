@@ -21,28 +21,33 @@ if [[ ${LSBNAME} != "Ubuntu" ]]; then
 fi
 
 # Check for updates
-sudo apt-get update
+sudo apt update
 
 # compiler
-sudo apt-get install make cmake cmake-curses-gui gfortran g++ gcc -y
+sudo apt install cmake -y
+sudo apt install cmake-curses-gui -y
+sudo apt install gfortran -y
+sudo apt install g++ -y
 
 # Boost C++ libraries development files
-sudo apt-get install  libboost-dev -y
+sudo apt install  libboost-dev -y
 
 # cmake: developer's libraries for ncurses
-sudo apt-get install  libncurses-dev  libncurses5-dev -y
+sudo apt install libncurses-dev -y
+sudo apt install libncurses5-dev -y
 
 # ctags
-sudo apt-get install  exuberant-ctags -y
+sudo apt install exuberant-ctags -y
 
 # blas and lapack
-sudo apt-get install  libblas-dev  liblapack3  liblapack-dev -y
+sudo apt install libblas-dev -y
+sudo apt install liblapack-dev -y
 
 # tcl (required for module install scripts)
-sudo apt-get install  tcl  tcl8.6-dev -y
-
-# zlib is a library implementing the deflate compression method found in gzip and PKZIP (development)
-sudo apt-get install   zlib1g-dev -y
+sudo apt install tcl8.6-dev -y
 
 # Secure Sockets Layer toolkit - development files
-sudo apt-get install  libssl-dev -y
+sudo apt install libssl-dev -y
+
+# git
+sudo apt install git

@@ -134,6 +134,7 @@ done
 # sudo apt-get install qttools5-dev
 PARAVIEWVERSION=5.9.1
 
+# Fix error ‘numeric_limits’ is not a member of ‘std’ that occurs for 5.9.1
 # find /opt/sources/paraview-5.9.1/. -name "vtkGenericDataArrayLookupHelper.h"
 #   LINENBR=$(grep -n "#include" /opt/sources/paraview-5.9.1/VTK/Filters/HyperTree/vtkHyperTreeGridThreshold.cxx | tail -1 | cut -f1 -d:)
 #   sudo sed -i "$(echo $((LINENBR + 1)))i #include <limits>" /opt/sources/paraview-5.9.1/VTK/Rendering/Core/vtkColorTransferFunction.cxx
@@ -141,18 +142,10 @@ PARAVIEWVERSION=5.9.1
 # sudo vim /opt/sources/paraview-5.9.1/VTK/Common/Core/vtkGenericDataArrayLookupHelper.h
 # #include <limits>
 
-
 myarray=(vtkPiecewiseFunction.cxx
          vtkColorTransferFunction.cxx
          vtkHyperTreeGridThreshold.cxx
          vtkGenericDataArrayLookupHelper.h)
-
-# List file name proposals
-for t in "${myarray[@]}"; do
-  #./pipeline --threads $t
-  #echo "$t"
-  find /opt/sources/paraview-5.9.1/. -name "$t"
-done
 
 # --------------------------------------------------------------------------------------------------
 # Check pre-requisites
@@ -311,6 +304,28 @@ if [ ! -e "${MODULEFILE}" ]; then
   fi
   cd "${SOURCESDIR}/paraview-${PARAVIEWVERSION}/build_gcc/${GCCVERSION}"
 
+  # ------------------------------------------------------------------------------------------------------------------------------------------
+  # Fix paraview files for 5.9.1 by adding #include <limits> in the include section due to the error ‘numeric_limits’ is not a member of ‘std’
+  if [[ ${PARAVIEWVERSION} == '5.9.1' ]]; then
+    for t in "${myarray[@]}"; do
+      FILE=$(find /opt/sources/paraview-5.9.1/. -name "$t")
+      if [[ -f ${FILE} ]]; then
+        LINENBR=$(grep -n "#include" ${FILE} | tail -1 | cut -f1 -d:)
+        if [[ -n ${LINENBR} ]]; then
+          LIMITS=$(grep -n "#include" ${FILE} | grep limits)
+          if [[ -z ${LIMITS} ]]; then
+            echo "Adding #include <limits> to $FILE at line $LINENBR"
+            sudo sed -i "$(echo $((LINENBR + 1)))i #include <limits>" ${FILE}
+          else
+            echo "${LIMITS} already found in ${FILE}"
+          fi
+        fi
+      fi
+    done
+  fi
+  # ------------------------------------------------------------------------------------------------------------------------------------------
+
+
   # CMAKE COMPILE FLAGS DEPEND ON THE CHOSEN PARAVIEW VERSION!
   if [ "$PARAVIEWVERSION" == "5.2.0" ] || [ "$PARAVIEWVERSION" == "5.3.0" ] || [ "$PARAVIEWVERSION" == "5.4.0" ]; then
     cmake -DCMAKE_BUILD_TYPE=Release \
@@ -346,7 +361,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   fi
 
   # Compile source files with NBROFCORES threads
-  make -j${NBROFCORES} 2>&1 | tee make.out
+  make 2>&1 | tee make.out
 
   # Check if compilation failed
   if [ ${PIPESTATUS[0]} -ne 0 ]; then

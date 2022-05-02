@@ -85,14 +85,16 @@ if [ ! -e "${MODULEFILE}" ]; then
   if [[ -n $(module purge 2>&1) ]]; then
     echo -e "${RED}module: command not found.\nThis script must be run in an interactive shell (the first line must read #! /bin/bash -i)${NC}"
     exit
-  #else
+  else
     #echo "MODULEPATH ="$MODULEPATH
     #echo "MODULESHOME="${MODULESHOME}
     #module av
-    #module li
+    echo -e "${YELLOW}Warning: If the default gcc version is used for compiling CMake, the\nrequired GLIBCXX_3.4.XX version might be too new and cmake will not work\n when another gcc version is loaded that does not support the required version.${NC}"
+    module load gcc
+    module li
   fi
 
-  echo -e "This will install Cmake version ${GREEN}${CMAKEVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
+  echo -e "This will install Cmake version ${GREEN}${CMAKEVERSION}${NC} with the either the system gcc compiler or the module loaded version (note the warning above).\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
   read -p "Press [Enter] to continue or [Crtl+c] to abort!"
   cd ${SOURCESDIR}
 
