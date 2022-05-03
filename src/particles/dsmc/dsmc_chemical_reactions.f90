@@ -390,8 +390,7 @@ REAL                          :: ERel_React1_React2, ERel_React1_React3, ERel_Re
 REAL                          :: Xi_elec(1:4), EZeroTempToExec(1:4)
 REAL, ALLOCATABLE             :: XiVibPart(:,:)
 REAL                          :: Weight(1:4), SumWeightProd
-REAL                          :: cRelaNew(3), GammaFac
-LOGICAL                       :: RelativisticTreatment
+REAL                          :: cRelaNew(3)
 #ifdef CODE_ANALYZE
 REAL,PARAMETER                :: RelMomTol=5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
 REAL,PARAMETER                :: RelEneTol=2e-12 ! Relative tolerance applied to conservation of energy before/after reaction
@@ -596,19 +595,7 @@ IF (EductReac(3).NE.0) Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpeci
                                                                 * PartState(4:6,ReactInx(3)) * Weight(3)
 #endif /* CODE_ANALYZE */
 
-! Add heat of formation to collision energy
-! IF(Coll_pData(iPair)%CRela2 .LT. RelativisticLimit) THEN
-  Coll_pData(iPair)%Ec = 0.5 * MassRed * Coll_pData(iPair)%CRela2
-  ! RelativisticTreatment = .FALSE.
-! ELSE
-!   ! Relativistic treatment under the assumption that the velocity of the background species is zero or negligible
-!   GammaFac = Coll_pData(iPair)%CRela2*c2_inv
-!   GammaFac = 1./SQRT(1.-GammaFac)
-!   Coll_pData(iPair)%Ec = (GammaFac-1.) * MassRed * c2
-!   RelativisticTreatment = .TRUE.
-! END IF
-
-Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + ChemReac%EForm(iReac)*SumWeightProd/REAL(NumProd)
+Coll_pData(iPair)%Ec = 0.5 * MassRed * Coll_pData(iPair)%CRela2 + ChemReac%EForm(iReac)*SumWeightProd/REAL(NumProd)
 
 IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
   ! Weighting factor already included in the weights
