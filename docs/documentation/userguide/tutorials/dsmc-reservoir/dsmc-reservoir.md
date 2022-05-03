@@ -225,7 +225,7 @@ The first block from `Part-Species[$]-InteractionID` to `Part-Species[$]-LinearM
 
 The command
 
-    piclas parameter.ini DSMC.ini > std.out
+    ./piclas parameter.ini DSMC.ini | tee std.out
 
 executes the code and dumps all output into the file *std.out*.
 If the run has completed successfully, which should take only a brief moment, the contents of the working folder should look like
@@ -343,7 +343,7 @@ In order to investigate the transient behavior, a longer simulation time was cho
     
 or the whole path to the binary must be used instead. Assuming a run with 4 cores is desired and the **piclas** binary is located at the current directory, the command
 
-    mpirun -np 4 piclas parameter.ini DSMC.ini > std.out
+    mpirun -np 4 piclas parameter.ini DSMC.ini | tee std.out
 
 executes the code and dumps all output into the file *std.out*.
 

@@ -335,9 +335,13 @@ parameters via `piclas --help` or a subset of them by supplying a section, e.g.,
 
 The command
 
-    piclas parameter.ini > std.out
+    ./piclas parameter.ini | tee std.out
 
 executes the code and dumps all output into the file *std.out*.
+To reduce the computation time, the simulation can be run using the Message Passing Interface (MPI) on multiple cores, in this case 4
+	
+    mpirun -np 4 piclas parameter.ini | tee std.out
+
 If the run has completed successfully, which should take only a brief moment, the contents of the working folder should look like
 
     4.0K drwxrwxr-x  4.0K Jun 28 13:07 ./

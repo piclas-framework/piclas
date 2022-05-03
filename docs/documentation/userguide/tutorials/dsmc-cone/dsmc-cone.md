@@ -155,11 +155,11 @@ For further information see {ref}`sec:sampled-flow-field-and-surface-variables`.
 
 Finally, you can start the simulation using the Message Passing Interface (MPI) on multiple cores
 
-    mpirun -np 8 piclas parameter.ini DSMC.ini > std.out
+    mpirun -np 8 piclas parameter.ini DSMC.ini | tee std.out
 
 To continue a simulation after a successful run, you have to provide the state file (`Projectname_State_Timestamp.h5`) you want to restart from
 
-    mpirun -np 8 piclas parameter.ini DSMC.ini Projectname_State_Timestamp.h5 > std.out
+    mpirun -np 8 piclas parameter.ini DSMC.ini Projectname_State_Timestamp.h5 | tee std.out
 
 The restart also redistributes the computational load and can thus significantly reduce the time to solution. In the following, additional automatic load balancing during the run-time is described.
 
