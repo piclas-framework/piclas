@@ -43,6 +43,8 @@ INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the lo
 INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)  !< PETScLocalToSideID(PETScLocalSideID) maps the local PETSc side to SideID
 REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
 REAL,ALLOCATABLE    :: Smat_zeroPotential(:,:,:) !< side to side matrix for zero potential Side, (ngpface,ngpface,6Sides)
+REAL,ALLOCATABLE    :: Mortar_Interpolation(:,:,:,:) !< Matrix M used to interpolate between big side x and small side y y=M*x
+                                                   !<(ngpface, ngpface, 4 [Mortar sides],3 [Mortar types]) 
 INTEGER             :: nPETScSides            !< nSides - nDirichletSides - nZeroPotentialSides
 INTEGER             :: nPETScUniqueSides      !< nPETScSides - nMPISides_YOUR
 #endif
