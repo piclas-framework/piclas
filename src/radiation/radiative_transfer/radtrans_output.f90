@@ -48,6 +48,7 @@ SUBROUTINE WriteRadiationToHDF5()
   USE MOD_Mesh_Vars           ,ONLY: offsetElem,nGlobalElems, MeshFile
   USE MOD_RadiationTrans_Vars ,ONLY: RadiationElemAbsEnergy_Shared, RadObservationPointMethod, RadObservation_Emission, RadObservationPoint
   USE MOD_RadiationTrans_Vars ,ONLY: Radiation_Emission_Spec_Total, RadTransPhotPerCell, RadObservation_EmissionPart
+  USE MOD_RadiationTrans_Vars ,ONLY: ObservationDoConvolution, RadObservation_Emission_Conv
   USE MOD_Globals_Vars        ,ONLY: ProjectName
   USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
   USE MOD_Radiation_Vars      ,ONLY: RadiationSwitches, Radiation_ElemEnergy_Species, RadiationParameter, Radiation_Absorption_Spec
@@ -189,30 +190,59 @@ SUBROUTINE WriteRadiationToHDF5()
       CALL MPI_REDUCE(RadObservation_EmissionPart,0                   ,RadiationParameter%WaveLenDiscrCoarse,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,IERROR)
     ENDIF
     IF (myRank.EQ.0) THEN
-      OPEN(unit=20,file='Radiation_ObservationPoint.csv', status='replace',action='write')
-      WRITE(20,*) 'x,y1,y2'
-      IF (RadObservationPointMethod.EQ.1) THEN    
-        IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
-          DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
-            WRITE(20,*) RadiationParameter%WaveLenCoarse(iWave)*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave)
-          END DO
-        ELSE
-          DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
-            WRITE(20,*) RadiationParameter%WaveLen(iWave)*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave)
-          END DO
+      IF(ObservationDoConvolution) THEN
+        CALL SpectralConvolution(RadObservation_Emission,RadObservation_Emission_Conv)
+        OPEN(unit=20,file='Radiation_ObservationPoint.csv', status='replace',action='write')
+        WRITE(20,*) 'x,y1,y2,y3'
+        IF (RadObservationPointMethod.EQ.1) THEN    
+          IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
+            DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+              WRITE(20,*) RadiationParameter%WaveLenCoarse(iWave)*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave),',',RadObservation_Emission_Conv(iWave)/RadObservationPoint%Area
+            END DO
+          ELSE
+            DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+              WRITE(20,*) RadiationParameter%WaveLen(iWave)*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave),',',RadObservation_Emission_Conv(iWave)/RadObservationPoint%Area
+            END DO
+          END IF
+        ELSEIF (RadObservationPointMethod.EQ.2) THEN
+          IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
+            DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+              WRITE(20,*) RadiationParameter%WaveLenCoarse(iWave)*1.E10,',',RadObservation_Emission(iWave),',',RadObservation_EmissionPart(iWave),',',RadObservation_Emission_Conv(iWave)
+            END DO
+          ELSE
+            DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+              WRITE(20,*) RadiationParameter%WaveLen(iWave)*1.E10,',',RadObservation_Emission(iWave),',',RadObservation_EmissionPart(iWave),',',RadObservation_Emission_Conv(iWave)
+            END DO
+          END IF
         END IF
-      ELSEIF (RadObservationPointMethod.EQ.2) THEN
-        IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
-          DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
-            WRITE(20,*) RadiationParameter%WaveLenCoarse(iWave)*1.E10,',',RadObservation_Emission(iWave),',',RadObservation_EmissionPart(iWave)
-          END DO
-        ELSE
-          DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
-            WRITE(20,*) RadiationParameter%WaveLen(iWave)*1.E10,',',RadObservation_Emission(iWave),',',RadObservation_EmissionPart(iWave)
-          END DO
+        CLOSE(unit=20)
+      ELSE
+        OPEN(unit=20,file='Radiation_ObservationPoint.csv', status='replace',action='write')
+        WRITE(20,*) 'x,y1,y2'
+        IF (RadObservationPointMethod.EQ.1) THEN    
+          IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
+            DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+              WRITE(20,*) RadiationParameter%WaveLenCoarse(iWave)*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave)
+            END DO
+          ELSE
+            DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+              WRITE(20,*) RadiationParameter%WaveLen(iWave)*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave)
+            END DO
+          END IF
+        ELSEIF (RadObservationPointMethod.EQ.2) THEN
+          IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
+            DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+              WRITE(20,*) RadiationParameter%WaveLenCoarse(iWave)*1.E10,',',RadObservation_Emission(iWave),',',RadObservation_EmissionPart(iWave)
+            END DO
+          ELSE
+            DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+              WRITE(20,*) RadiationParameter%WaveLen(iWave)*1.E10,',',RadObservation_Emission(iWave),',',RadObservation_EmissionPart(iWave)
+            END DO
+          END IF
         END IF
+        CLOSE(unit=20)
       END IF
-      CLOSE(unit=20)
+      
     END IF
   END IF
 
@@ -543,5 +573,101 @@ IF (mySurfRank.EQ.0) THEN
 END IF
 
 END SUBROUTINE WriteSurfSampleToHDF5
+
+SUBROUTINE SpectralConvolution(RadObservation_Emission, RadObservation_Emission_Conv)
+  !===================================================================================================================================
+  ! calculates spectral concolution with slit function/instrumental broadening profile/spectral resolution function
+  !===================================================================================================================================
+  ! MODULES
+    ! USE MOD_Globals
+    USE MOD_RadiationTrans_Vars ,ONLY: RadObservationPoint
+    USE MOD_Radiation_Vars      ,ONLY   : RadiationInput, RadiationParameter, SpeciesRadiation
+  ! IMPLICIT VARIABLE HANDLING
+    IMPLICIT NONE
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! INPUT VARIABLES
+    REAL, INTENT(IN)                :: RadObservation_Emission(:)
+    REAL, INTENT(INOUT)             :: RadObservation_Emission_Conv(:)
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! OUTPUT VARIABLES
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! LOCAL VARIABLES
+    REAL               :: topwidth, basewidth
+    INTEGER            :: iWave_min, iWave, i
+    REAL               :: topwidth_half, basewidth_half, slope
+    REAL               :: wavelength_min_base, wavelength_max_base, wavelength_min_top, wavelength_max_top
+    INTEGER            :: io_error, w
+    REAL               :: fractionl, fractionr, delta_base, delta_top
+  !===================================================================================================================================
+ 
+  topwidth = RadObservationPoint%SlitFunction(1)*1.E-10
+  basewidth = RadObservationPoint%SlitFunction(2)*1.E-10
+
+  iWave_min = 1!0
+
+  basewidth_half = 0.5 * basewidth
+  topwidth_half  = 0.5 * topwidth
+  slope          = 1. / (basewidth_half-topwidth_half)
+  RadObservation_Emission_Conv=0.0
+  DO iWave=1, RadiationParameter%WaveLenDiscr
+    wavelength_min_base = RadiationParameter%WaveLen(iWave) - basewidth_half
+    wavelength_max_base = RadiationParameter%WaveLen(iWave) + basewidth_half
+    wavelength_min_top  = RadiationParameter%WaveLen(iWave) - topwidth_half
+    wavelength_max_top  = RadiationParameter%WaveLen(iWave) + topwidth_half
+! --- start index determination
+    DO WHILE(RadiationParameter%WaveLen(iWave_min+1) .LT. wavelength_min_base)
+      iWave_min = iWave_min + 1
+    END DO
+
+! --- slit function
+    DO i = iWave_min, RadiationParameter%WaveLenDiscr-1
+      IF(RadiationParameter%WaveLen(i) .LT. wavelength_min_base) THEN
+        fractionl = 0.
+        IF(RadiationParameter%WaveLen(i+1) .GT. wavelength_min_top) THEN
+          STOP 'slit function: step width is too big!'
+        END IF
+        fractionr  = slope * (RadiationParameter%WaveLen(i+1) - RadiationParameter%WaveLen(iWave) + basewidth_half)
+        delta_base = RadiationParameter%WaveLen(i+1) - wavelength_min_base
+        delta_top  = 0.
+      ELSEIF(RadiationParameter%WaveLen(i+1) .LT. wavelength_min_top) THEN
+        fractionl  = slope * (RadiationParameter%WaveLen(i  ) - RadiationParameter%WaveLen(iWave) + basewidth_half)
+        fractionr  = slope * (RadiationParameter%WaveLen(i+1) - RadiationParameter%WaveLen(iWave) + basewidth_half)
+        delta_base = RadiationParameter%WaveLenIncr
+        delta_top  = 0.
+      ELSEIF(RadiationParameter%WaveLen(i  ) .LT. wavelength_min_top) THEN
+        fractionl  = slope * (RadiationParameter%WaveLen(i  ) - RadiationParameter%WaveLen(iWave) + basewidth_half)
+        fractionr  = 1.
+        delta_base = wavelength_min_top - RadiationParameter%WaveLen(i)
+        delta_top  = RadiationParameter%WaveLen(i+1) - wavelength_min_top
+      ELSEIF(RadiationParameter%WaveLen(i+1) .LT. wavelength_max_top) THEN
+        delta_base = 0.
+        delta_top  = RadiationParameter%WaveLenIncr
+      ELSEIF(RadiationParameter%WaveLen(i  ) .LT. wavelength_max_top) THEN
+        fractionl  = 1.
+        fractionr  = - slope * (RadiationParameter%WaveLen(i+1) - RadiationParameter%WaveLen(iWave) - basewidth_half)
+        delta_base = RadiationParameter%WaveLen(i+1) - wavelength_max_top
+        delta_top  = wavelength_max_top - RadiationParameter%WaveLen(i)
+      ELSEIF(RadiationParameter%WaveLen(i+1) .LT. wavelength_max_base) THEN
+        fractionl  = - slope * (RadiationParameter%WaveLen(i  ) - RadiationParameter%WaveLen(iWave) - basewidth_half)
+        fractionr  = - slope * (RadiationParameter%WaveLen(i+1) - RadiationParameter%WaveLen(iWave) - basewidth_half)
+        delta_base = RadiationParameter%WaveLenIncr
+        delta_top  = 0.
+      ELSEIF(RadiationParameter%WaveLen(i) .LT. wavelength_max_base) THEN
+        fractionl  = - slope * (RadiationParameter%WaveLen(i  ) - RadiationParameter%WaveLen(iWave) - basewidth_half)
+        fractionr  = 0.
+        delta_base = wavelength_max_base - RadiationParameter%WaveLen(i)
+        delta_top  = 0.
+      ELSE
+        exit
+      END IF
+
+      RadObservation_Emission_Conv(iWave) = RadObservation_Emission_Conv(iWave) &
+          + ((fractionl+fractionr)*.5*delta_base+delta_top) &
+          * RadObservation_Emission(i+1)*1.E10
+
+    END DO
+  END DO
+    
+END SUBROUTINE SpectralConvolution
 
 END MODULE MOD_RadTrans_Output
