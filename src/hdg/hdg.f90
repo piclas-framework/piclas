@@ -148,7 +148,7 @@ INTEGER           :: OffsetPETScSideMPI(nProcessors)
 INTEGER           :: OffsetPETScSide
 INTEGER           :: PETScLocalID
 INTEGER           :: MortarSideID,iMortar
-INTEGER           :: locSide, nMortarSlaveSides,nMortars
+INTEGER           :: locSide,nMortarMasterSides,nMortars
 #endif
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
@@ -280,13 +280,13 @@ OffsetPETScSide=0
 #if USE_MPI
 ! Count all Mortar slave sides and remove them from PETSc vector
 ! TODO How to compute those
-nMortarSlaveSides = 0
+nMortarMasterSides = 0
 DO SideID=1,nSides
-  IF(MortarType(1,SideID).EQ.0) THEN
-    nMortarSlaveSides = nMortarSlaveSides + 1
+  IF(SmallMortarInfo(SideID).EQ.1) THEN
+    nMortarMasterSides = nMortarMasterSides + 1
   END IF
 END DO
-nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarSlaveSides
+nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides
 IF(ZeroPotentialSideID.GT.0) nPETScUniqueSides = nPETScUniqueSides - 1
 CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
 DO iProc=1, myrank
@@ -301,7 +301,6 @@ PETScLocalToSideID=-1
 PETScLocalID=0 ! = nSides-nDirichletBCSides (-ZeroPotentialSide)
 DO SideID=1,nSides!-nMPISides_YOUR
   IF(MaskedSide(SideID).OR.(SideID.EQ.ZeroPotentialSideID)) CYCLE
-  IF(MortarType(1,SideID).EQ.0) CYCLE ! Also CYCLE, if it is a small mortar side
   PETScLocalID=PETScLocalID+1
   PETScLocalToSideID(PETScLocalID)=SideID
   PETScGlobal(SideID)=PETScLocalID+OffsetPETScSide-1 ! PETSc arrays start at 0!
@@ -320,31 +319,6 @@ CALL StartReceiveMPIDataInt(1,PETScGlobal,1,nSides, RecRequest_U,SendID=1) ! Rec
 CALL StartSendMPIDataInt(   1,PETScGlobal,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
-
-! Calculate Interpolation Matrix for Mortars y = M * x
-ALLOCATE(Mortar_Interpolation(nGP_face,nGP_face,4,3))
-Mortar_Interpolation=0.
-DO q=0,PP_N; DO p=0,PP_N
-  iGP_face = (PP_N+1)*p+q+1
-  DO j=0,PP_N; DO i=0,PP_N
-    jGP_face = (PP_N+1)*i+j+1
-    ! Type 1: y[p,q] = M0[i,p]*M0[j,q]*x[i,j]
-    Mortar_Interpolation(iGP_face,jGP_face,1,1) = M_0_1(i,p)*M_0_1(j,q)
-    Mortar_Interpolation(iGP_face,jGP_face,2,1) = M_0_1(i,p)*M_0_2(j,q)
-    Mortar_Interpolation(iGP_face,jGP_face,3,1) = M_0_2(i,p)*M_0_1(j,q)
-    Mortar_Interpolation(iGP_face,jGP_face,4,1) = M_0_2(i,p)*M_0_2(j,q)
-    ! Type 2: y[p,q] = M0[i,q] * x[p,i]
-    IF (p.EQ.i) THEN
-      Mortar_Interpolation(iGP_face,jGP_face,1,2) = M_0_1(j,q)
-      Mortar_Interpolation(iGP_face,jGP_face,2,2) = M_0_2(j,q)
-    END IF
-    ! Type 3: y[p,q] = M0[i,p] * x[i,q]
-    IF (q.EQ.j) THEN
-      Mortar_Interpolation(iGP_face,jGP_face,1,3) = M_0_1(i,p)
-      Mortar_Interpolation(iGP_face,jGP_face,2,3) = M_0_2(i,p)
-    END IF
-  END DO; END DO
-END DO; END DO
 #endif
 
 !mappings
