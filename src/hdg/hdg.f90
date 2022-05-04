@@ -126,6 +126,9 @@ USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_WORLD
 USE MOD_MPI               ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 USE MOD_MPI_Vars
 #endif /*USE_MPI*/
+USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mortar_Vars, ONLY: M_0_1,M_0_2
 #endif /*USE_PETSC*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -134,16 +137,18 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,k,r,iElem,SideID
+INTEGER           :: i,j,p,q,k,r,iElem,SideID
 INTEGER           :: BCType,BCState
 REAL              :: D(0:PP_N,0:PP_N)
 #if USE_PETSC
 PetscErrorCode    :: ierr
-INTEGER           :: iGP_face
+INTEGER           :: iGP_face,jGP_face
 INTEGER           :: iProc
 INTEGER           :: OffsetPETScSideMPI(nProcessors)
 INTEGER           :: OffsetPETScSide
 INTEGER           :: PETScLocalID
+INTEGER           :: MortarSideID,iMortar
+INTEGER           :: locSide, nMortarSlaveSides,nMortars
 #endif
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
@@ -269,7 +274,15 @@ END DO
 ! Create PETSc Mappings
 OffsetPETScSide=0
 #if USE_MPI
-nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR
+! Count all Mortar slave sides and remove them from PETSc vector
+! TODO How to compute those
+nMortarSlaveSides = 0
+DO SideID=1,nSides
+  IF(MortarType(1,SideID).EQ.0) THEN
+    nMortarSlaveSides = nMortarSlaveSides + 1
+  END IF
+END DO
+nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarSlaveSides
 IF(ZeroPotentialSideID.GT.0) nPETScUniqueSides = nPETScUniqueSides - 1
 CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
 DO iProc=1, myrank
@@ -284,15 +297,50 @@ PETScLocalToSideID=-1
 PETScLocalID=0 ! = nSides-nDirichletBCSides (-ZeroPotentialSide)
 DO SideID=1,nSides!-nMPISides_YOUR
   IF(MaskedSide(SideID).OR.(SideID.EQ.ZeroPotentialSideID)) CYCLE
+  IF(MortarType(1,SideID).EQ.0) CYCLE ! Also CYCLE, if it is a small mortar side
   PETScLocalID=PETScLocalID+1
   PETScLocalToSideID(PETScLocalID)=SideID
   PETScGlobal(SideID)=PETScLocalID+OffsetPETScSide-1 ! PETSc arrays start at 0!
+END DO
+! Set the Global PETSc Sides of small mortar sides equal to the big mortar side
+DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  locSide=MortarType(2,MortarSideID)
+  DO iMortar=1,nMortars
+    SideID= MortarInfo(MI_SIDEID,iMortar,locSide) !small SideID
+    PETScGlobal(SideID)=PETScGlobal(MortarSideID)
+  END DO !iMortar
 END DO
 #if USE_MPI
 CALL StartReceiveMPIDataInt(1,PETScGlobal,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
 CALL StartSendMPIDataInt(   1,PETScGlobal,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
+
+! Calculate Interpolation Matrix for Mortars y = M * x
+ALLOCATE(Mortar_Interpolation(nGP_face,nGP_face,4,3))
+Mortar_Interpolation=0.
+DO q=0,PP_N; DO p=0,PP_N
+  iGP_face = (PP_N+1)*p+q+1
+  DO j=0,PP_N; DO i=0,PP_N
+    jGP_face = (PP_N+1)*i+j+1
+    ! Type 1: y[p,q] = M0[i,p]*M0[j,q]*x[i,j]
+    Mortar_Interpolation(iGP_face,jGP_face,1,1) = M_0_1(i,p)*M_0_1(j,q)
+    Mortar_Interpolation(iGP_face,jGP_face,2,1) = M_0_1(i,p)*M_0_2(j,q)
+    Mortar_Interpolation(iGP_face,jGP_face,3,1) = M_0_2(i,p)*M_0_1(j,q)
+    Mortar_Interpolation(iGP_face,jGP_face,4,1) = M_0_2(i,p)*M_0_2(j,q)
+    ! Type 2: y[p,q] = M0[i,q] * x[p,i]
+    IF (p.EQ.i) THEN
+      Mortar_Interpolation(iGP_face,jGP_face,1,2) = M_0_1(j,q)
+      Mortar_Interpolation(iGP_face,jGP_face,2,2) = M_0_2(j,q)
+    END IF
+    ! Type 3: y[p,q] = M0[i,p] * x[i,q]
+    IF (q.EQ.j) THEN
+      Mortar_Interpolation(iGP_face,jGP_face,1,3) = M_0_1(i,p)
+      Mortar_Interpolation(iGP_face,jGP_face,2,3) = M_0_2(i,p)
+    END IF
+  END DO; END DO
+END DO; END DO
 #endif
 
 !mappings
@@ -378,8 +426,9 @@ CALL MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr);PetscCall(ierr)
 CALL MatSetSizes(Smat_petsc,nPETScUniqueSides*nGP_Face,nPETScUniqueSides*nGP_Face,PETSC_DECIDE,PETSC_DECIDE,ierr);PetscCall(ierr)
 CALL MatSetType(Smat_petsc,MATSBAIJ,ierr);PetscCall(ierr) ! Symmetric sparse (mpi) matrix
 CALL MatSetBlockSize(Smat_petsc,nGP_face,ierr);PetscCall(ierr)
-CALL MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,11,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
-CALL MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,11,PETSC_NULL_INTEGER,10,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
+! 1 Big mortar side is affected by 6 + 4*4 = 22 other sides...
+CALL MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
+CALL MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,21,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
 CALL MatZeroEntries(Smat_petsc,ierr);PetscCall(ierr)
 #endif
 
@@ -675,6 +724,7 @@ USE MOD_Mesh_Vars        ,ONLY: SideToElem
 USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_MPI_Vars
 #endif
+USE MOD_FillMortar_HDG         ,ONLY: BigToSmallMortar_HDG
 #endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -923,6 +973,8 @@ DO iVar=1, PP_nVar
     lambda(1,:,SideID) = lambda_pointer(PETScID_start:PETScID_stop)
   END DO
   CALL VecRestoreArrayReadF90(lambda_petsc,lambda_pointer,ierr);PetscCall(ierr)
+  ! PETSc Calculate lambda at small mortars from big mortars
+  CALL BigToSmallMortar_HDG(1,lambda)
 #if USE_MPI
   CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
   CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE

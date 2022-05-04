@@ -73,6 +73,8 @@ USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #if USE_PETSC
 USE PETSc
 USE MOD_Mesh_Vars        ,ONLY: SideToElem
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -96,10 +98,11 @@ INTEGER              :: idx(3),jdx(3),gdx(3)
 REAL                 :: time0, time
 #if USE_PETSC
 PetscErrorCode    :: ierr
-INTEGER           :: iSideID,jSideID,iGP_face,jGP_face
-INTEGER           :: ElemID, jNbSideID, BCsideID
+INTEGER           :: iSideID,jSideID
+INTEGER           :: ElemID, BCsideID
 INTEGER           :: iBCSide,locBCSideID
-INTEGER :: iPETScGlobal, jPETScGlobal
+INTEGER           :: iPETScGlobal, jPETScGlobal
+INTEGER           :: iMortar,iSide,locSideID,MortarSideID,nMortars
 #endif
 !===================================================================================================================================
 
@@ -316,6 +319,22 @@ END DO !iElem
 
 #if USE_PETSC
 ! Fill Smat Petsc, TODO do this without filling Smat
+
+! Change Smat for all small mortar sides to account for the interpolation from big to small side
+DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  iSide=MortarType(2,MortarSideID)  !index of Big Side in MortarInfo
+  DO iMortar=1,nMortars
+    iSideID = MortarInfo(MI_SIDEID,iMortar,iSide) !small sideID
+    locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,iSideID)
+    iElem    = SideToElem(S2E_NB_ELEM_ID,iSideID)
+    DO iLocSide=1,6
+      Smat(:,:,iLocSide,locSideID,iElem) = MATMUL(Smat(:,:,iLocSide,locSideID,iElem),Mortar_Interpolation(:,:,iMortar,MortarType(1,MortarSideID)))
+      Smat(:,:,locSideID,iLocSide,iElem) = MATMUL(TRANSPOSE(Mortar_Interpolation(:,:,iMortar,MortarType(1,MortarSideID))),Smat(:,:,locSideID,iLocSide,iElem))
+    END DO
+  END DO
+END DO
+
 ! Fill Dirichlet BC Smat
 DO iBCSide=1,nDirichletBCSides
   BCSideID=DirichletBC(iBCSide)
