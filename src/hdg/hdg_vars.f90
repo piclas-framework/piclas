@@ -43,8 +43,6 @@ INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the lo
 INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)  !< PETScLocalToSideID(PETScLocalSideID) maps the local PETSc side to SideID
 REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
 REAL,ALLOCATABLE    :: Smat_zeroPotential(:,:,:) !< side to side matrix for zero potential Side, (ngpface,ngpface,6Sides)
-REAL,ALLOCATABLE    :: Mortar_Interpolation(:,:,:,:) !< Matrix M used to interpolate between big side x and small side y y=M*x
-                                                   !<(ngpface, ngpface, 4 [Mortar sides],3 [Mortar types]) 
 INTEGER             :: nPETScSides            !< nSides - nDirichletSides - nZeroPotentialSides
 INTEGER             :: nPETScUniqueSides      !< nPETScSides - nMPISides_YOUR
 #endif
@@ -100,6 +98,11 @@ LOGICAL,ALLOCATABLE :: MaskedSide(:)          !< 1:nSides: all sides which are s
 REAL,ALLOCATABLE    :: IntMatMortar(:,:,:,:)  !< Interpolation matrix for mortar: (nGP_face,nGP_Face,1:4(iMortar),1:3(MortarType))
 INTEGER,ALLOCATABLE :: SmallMortarInfo(:)     !< 1:nSides: info on small Mortar sides:
                                               !< -1: is neighbor small mortar , 0: not a small mortar, 1: small mortar on big side
+#if USE_PETSC
+INTEGER,ALLOCATABLE :: SmallMortarType(:,:)   !< Type of Mortar side ([1] Type, [2] Side, nSides)
+                                              !< [1] Type: mortar type this small side belongs to (1-3)
+                                              !< [2] Side: Small side number (1-4)
+#endif
 LOGICAL             :: HDGDisplayConvergence  !< Display divergence criteria: Iterations, Runtime and Residual
 REAL                :: RunTime                !< CG Solver runtime
 REAL                :: RunTimePerIteration    !< CG Solver runtime per iteration

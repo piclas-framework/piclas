@@ -72,7 +72,7 @@ USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
 #if USE_PETSC
 USE PETSc
-USE MOD_Mesh_Vars        ,ONLY: SideToElem
+USE MOD_Mesh_Vars        ,ONLY: SideToElem, nSides
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
 #endif
@@ -103,6 +103,7 @@ INTEGER           :: ElemID, BCsideID
 INTEGER           :: iBCSide,locBCSideID
 INTEGER           :: iPETScGlobal, jPETScGlobal
 INTEGER           :: iMortar,iSide,locSideID,MortarSideID,nMortars
+REAL              :: intMat(nGP_face, nGP_face)
 #endif
 !===================================================================================================================================
 
@@ -321,17 +322,18 @@ END DO !iElem
 ! Fill Smat Petsc, TODO do this without filling Smat
 
 ! Change Smat for all small mortar sides to account for the interpolation from big to small side
-DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
-  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-  iSide=MortarType(2,MortarSideID)  !index of Big Side in MortarInfo
-  DO iMortar=1,nMortars
-    iSideID = MortarInfo(MI_SIDEID,iMortar,iSide) !small sideID
-    locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,iSideID)
-    iElem    = SideToElem(S2E_NB_ELEM_ID,iSideID)
-    DO iLocSide=1,6
-      Smat(:,:,iLocSide,locSideID,iElem) = MATMUL(Smat(:,:,iLocSide,locSideID,iElem),Mortar_Interpolation(:,:,iMortar,MortarType(1,MortarSideID)))
-      Smat(:,:,locSideID,iLocSide,iElem) = MATMUL(TRANSPOSE(Mortar_Interpolation(:,:,iMortar,MortarType(1,MortarSideID))),Smat(:,:,locSideID,iLocSide,iElem))
-    END DO
+DO iSide=1,nSides
+  IF (SmallMortarInfo(iSide).NE.0) THEN
+    locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+    iElem    = SideToElem(S2E_NB_ELEM_ID,iSide)
+    IF (iElem.LT.0) CYCLE
+  ELSE
+    CYCLE
+  END IF
+  intMat = IntMatMortar(:,:,SmallMortarType(2,iSide),SmallMortarType(1,iSide))
+  DO iLocSide=1,6
+    Smat(:,:,iLocSide,locSideID,iElem) = MATMUL(Smat(:,:,iLocSide,locSideID,iElem),intMat)
+    Smat(:,:,locSideID,iLocSide,iElem) = MATMUL(TRANSPOSE(intMat),Smat(:,:,locSideID,iLocSide,iElem))
   END DO
 END DO
 
