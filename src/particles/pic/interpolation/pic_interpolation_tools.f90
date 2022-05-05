@@ -479,13 +479,13 @@ ASSOCIATE(&
     InterpolateVariableExternalField2D = 0.
   ELSE
     ! 1.1
-    idx1 = (iPos-1)*VariableExternalFieldN(3) + jPos
+    idx1 = (iPos-1)*VariableExternalFieldN(1) + jPos
     ! 2.1
-    idx2 = (iPos-1)*VariableExternalFieldN(3) + jPos + 1
+    idx2 = (iPos-1)*VariableExternalFieldN(1) + jPos + 1
     ! 1.2
-    idx3 = iPos*VariableExternalFieldN(3) + jPos
+    idx3 = iPos*VariableExternalFieldN(1) + jPos
     ! 2.2
-    idx4 = iPos*VariableExternalFieldN(3) + jPos + 1
+    idx4 = iPos*VariableExternalFieldN(1) + jPos + 1
 
     ! Interpolate
     delta = DeltaExternalField(1)*DeltaExternalField(2)

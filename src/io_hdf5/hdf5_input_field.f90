@@ -167,9 +167,9 @@ DO iDir = 1, iDirMax
       IF(VariableExternalFieldDim.EQ.2)THEN
         IF(VariableExternalFieldN(1).LT.0)THEN
           ! z-dir
-          VariableExternalFieldN(3) = j
+          VariableExternalFieldN(1) = j
           ! r-dir
-          VariableExternalFieldN(1) = NbrOfColumns/VariableExternalFieldN(3)
+          VariableExternalFieldN(2) = NbrOfColumns/VariableExternalFieldN(1)
         END IF
       ELSE
         IF(VariableExternalFieldN(iDir).LT.0)THEN
@@ -188,7 +188,9 @@ END DO ! iDir = 1, iDirMax
 ! Sanity check
 IF(VariableExternalFieldDim.EQ.2)THEN
   IF(MINVAL(DeltaExternalField(1:2)).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for variable external field.')
-  IF(NbrOfColumns.NE.VariableExternalFieldN(3)*VariableExternalFieldN(1)) CALL abort(__STAMP__,'Wrong number of points in 2D')
+  ! z-dir: VariableExternalFieldN(1)
+  ! r-dir: VariableExternalFieldN(2)
+  IF(NbrOfColumns.NE.VariableExternalFieldN(1)*VariableExternalFieldN(2)) CALL abort(__STAMP__,'Wrong number of points in 2D')
   SWRITE (UNIT_stdOut,'(A,2(I0,A))') " Read external field with ",VariableExternalFieldN(3)," x ",VariableExternalFieldN(1),&
       " data points"
 ELSE
