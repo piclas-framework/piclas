@@ -16,7 +16,7 @@ MODULE MOD_Particle_Boundary_Vars
 ! Contains global variables provided by the particle surfaces routines
 !===================================================================================================================================
 ! MODULES
-#if USE_MPI
+#if USE_MPI 
 USE mpi
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -31,6 +31,8 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: BoundaryWallTemp              !> Wall
 ! ====================================================================
 ! Mesh info
 INTEGER                                 :: nSurfTotalSides
+
+!!!!!!!!! Number of output sides
 INTEGER                                 :: nOutputSides
 
 INTEGER                                 :: nComputeNodeSurfSides         !> Number of surface sampling sides on compute node
@@ -161,7 +163,7 @@ TYPE tSurfaceCOMM
   INTEGER                               :: OutputCOMM=MPI_COMM_NULL      ! communicator for output
 #endif /*USE_MPI*/
 END TYPE
-TYPE (tSurfaceCOMM)                     :: SurfCOMM
+TYPE (tSurfaceCOMM)                     :: SurfCOMM 
 
 TYPE tSurfaceMesh
   INTEGER                               :: SampSize                      ! integer of sampsize
@@ -243,6 +245,20 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         ! Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           ! Species to be changed at wall (in, out), out=0: delete
   INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction (e.g. SEE models)
+  REAL    , ALLOCATABLE                  :: TotalCoverage(:)
+  REAL    , ALLOCATABLE                  :: nMol(:)                       ! number of molecules on the reactive surface
+  REAL    , ALLOCATABLE                  :: LatticeVec(:)                 ! Lattice constant for a fcc crystal
+  REAL    , ALLOCATABLE                  :: MolPerUnitCell(:)             ! Molecules per unit cell
+  REAL    , ALLOCATABLE                  :: SurfArea(:)                   ! Reactive surface area
+  REAL    , ALLOCATABLE                  :: Coverage(:,:)
+  REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)
+  !REAL, ALLOCATABLE                      :: CatCount(:,:)                 ! number of reacted particles for the simple recombnation model
+  REAL, ALLOCATABLE                      :: AdCount(:,:)                  ! number of adsorped molecules for the individual species
+  REAL, ALLOCATABLE                      :: DesCount(:,:)                 ! number of desorped molecules for the individual species
+  REAL, ALLOCATABLE                      :: DesCountIter(:,:)             ! desorption count for the emission routine
+  REAL, ALLOCATABLE                      :: LHCount(:,:)                  ! number of molecules created by the Langmuir-Hinshlewood reaction
+  REAL, ALLOCATABLE                      :: LHCountIter(:,:)              ! reaction count for the emission routine
+  REAL, ALLOCATABLE                      :: ERCount(:,:)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
   LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)         

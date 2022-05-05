@@ -44,10 +44,12 @@ USE MOD_DSMC                     ,ONLY: DSMC_main
 USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission            ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux        ,ONLY: ParticleSurfaceflux
+USE MOD_Particle_SurfChemFlux
 USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Particle_Tracking        ,ONLY: PerformTracking
 USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
-USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC, DoChemSurface
+USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
@@ -78,6 +80,31 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 
     CALL ParticleSurfaceflux()
+  END IF
+
+  IF (DoChemSurface) THEN
+    CALL ParticleSurfChemFlux()
+    ! Write the adsorption and desorption values into separate files for the two reactants
+    OPEN(10, file='adsorbtion_O2.txt', position="APPEND")
+    OPEN(30, file='adsorbtion_CO.txt', position="APPEND")
+    OPEN(20, file='desorption_O2.txt', position="APPEND")
+    OPEN(40, file='desorption_CO.txt', position="APPEND")
+    OPEN(50, file='reaction_LH.txt', position="APPEND")
+    OPEN(60, file='reaction_ER.txt', position="APPEND")
+
+      WRITE(10,*) PartBound%AdCount(1,4)
+      WRITE(20,*) PartBound%DesCount(1,4)
+      WRITE(30,*) PartBound%AdCount(1,2)
+      WRITE(40,*) PartBound%DesCount(1,2)
+      WRITE(50,*) PartBound%LHCount(1,1)
+      WRITE(60,*) PartBound%ERCount(1,1)
+
+    CLOSE(10)
+    CLOSE(20)
+    CLOSE(30)
+    CLOSE(40)
+    CLOSE(50)
+    CLOSE(60)
   END IF
 
 #if USE_LOADBALANCE

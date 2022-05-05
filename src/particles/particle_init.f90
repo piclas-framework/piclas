@@ -273,7 +273,9 @@ USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeVa
 USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptive
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
+USE MOD_Particle_SurfChemFlux_Init ,ONLY: InitializeParticleSurfChemFlux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
+USE MOD_SurfaceModel_Chemistry     ,ONLY: SurfaceModel_Chemistry_Init
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 USE MOD_Particle_Mesh_Vars         ,ONLY: GEO
 USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
@@ -325,7 +327,9 @@ CALL InitializeVariables()
 ! Insert the initial particles
 CALL InitialParticleInserting()
 ! Initialize particle surface flux to be performed per iteration
+CALL SurfaceModel_Chemistry_Init()
 CALL InitializeParticleSurfaceflux()
+CALL InitializeParticleSurfChemFlux()
 
 ! Initialize volume sampling
 IF(useDSMC .OR. WriteMacroVolumeValues) THEN
@@ -1473,3 +1477,4 @@ END SUBROUTINE InitRandomSeed
 
 
 END MODULE MOD_ParticleInit
+ 

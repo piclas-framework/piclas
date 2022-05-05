@@ -16,7 +16,10 @@ MODULE MOD_SurfaceModel_Vars
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
+
+USE MOD_DSMC_Vars,                ONLY:tCollCaseInfo
+
+IMPLICIT NONE 
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -43,6 +46,143 @@ TYPE tPorousBC
   REAL                           :: rmin                            ! min radius of to-be inserted particles
 END TYPE
 TYPE(tPorousBC), ALLOCATABLE     :: PorousBC(:)                     ! Container for the porous BC, allocated with nPorousBC
+!=== Heterogenous Surface BC ========================================================================================================
+
+TYPE tBoundMap
+  INTEGER, ALLOCATABLE            :: Boundaries(:)
+END TYPE
+
+TYPE tSurfFluxMap
+  TYPE(typeSurfaceflux),ALLOCATABLE  :: Surfaceflux(:)                   
+  !INTEGER                           :: nSurfacefluxBCs  
+END TYPE
+
+  LOGICAL                         :: DoChemSurface 
+
+TYPE tSurfReactions
+  INTEGER                         :: NumOfReact             ! Number of possible reactions
+  CHARACTER(LEN=5),ALLOCATABLE    :: ReactType(:)           ! Type of Reaction (reaction num)
+                                                            !    A (adsorption)
+                                                            !    D (desorption)
+                                                            !    LH (Langmuir-Hinshlewood)
+                                                            !    ER (Eley-Rideal)
+  INTEGER, ALLOCATABLE            :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
+  INTEGER, ALLOCATABLE            :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
+  INTEGER, ALLOCATABLE            :: Inhibition(:)      ! Inhibition reaction
+  INTEGER, ALLOCATABLE            :: NumOfBounds(:)         
+  !REAL, ALLOCATABLE               :: ReactProb(:)
+  REAL, ALLOCATABLE               :: EForm(:)
+  ! Parameters for the adsorption
+  REAL, ALLOCATABLE               :: S_initial(:)           ! Initial sticking coefficient
+  REAL, ALLOCATABLE               :: MaxCoverage(:)         ! Maximal surface coverage
+  REAL, ALLOCATABLE               :: DissOrder(:)           ! molecular or dissociative adsorption
+  REAL, ALLOCATABLE               :: EqConstant(:)          ! adsorption/dissociation
+  REAL, ALLOCATABLE               :: StickCoeff(:)         
+  ! Parameters for the desorption
+  REAL, ALLOCATABLE               :: E_initial(:)
+  REAL, ALLOCATABLE               :: W_interact(:)
+  REAL, ALLOCATABLE               :: C_a(:)
+  REAL, ALLOCATABLE               :: C_b(:)
+  ! General Parameters
+  REAL, ALLOCATABLE               :: Rate(:)
+  REAL, ALLOCATABLE               :: Prob(:)
+  REAL, ALLOCATABLE               :: Prefactor(:)
+  REAL, ALLOCATABLE               :: ArrheniusEnergy(:)
+  LOGICAL, ALLOCATABLE            :: BoundisChemSurf(:)  
+  TYPE(tBoundMap), ALLOCATABLE    :: BoundMap(:)        
+  TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase) 
+  TYPE(tSurfFluxMap), ALLOCATABLE :: SFMap(:)
+END TYPE
+TYPE(tSurfReactions)              :: SurfChemReac
+
+! Surface flux for the creation of the particles
+  INTEGER                          :: SurfChemSideSize(2) 
+  REAL,ALLOCATABLE,DIMENSION(:)    :: SurfChemSideAreas
+
+  TYPE tSurfChemSubSideData
+  REAL                                   :: vec_nIn(3)                 
+  REAL                                   :: vec_t1(3)                  
+  REAL                                   :: vec_t2(3)                   
+  REAL                                   :: area                        
+END TYPE tSurfChemSubSideData
+TYPE(tSurfChemSubSideData),ALLOCATABLE   :: SurfChemSubSideData(:,:,:) 
+
+TYPE tTriaSwapGeo
+  REAL                                   :: midpoint(3)                 
+  REAL                                   :: ndist(3)                    
+END TYPE tTriaSwapGeo
+TYPE tTriaSideGeo
+  REAL                                   :: xyzNod(3)                  
+  REAL                                   :: Vectors(3,3)                
+END TYPE tTriaSideGeo
+
+TYPE tBCdata_auxSCF
+  INTEGER                                :: SideNumber                  
+  REAL                                   :: GlobalArea, LocalArea       
+  INTEGER                , ALLOCATABLE   :: SideList(:)                 
+  TYPE(tTriaSwapGeo)     , ALLOCATABLE   :: TriaSwapGeo(:,:,:)            
+  TYPE(tTriaSideGeo)     , ALLOCATABLE   :: TriaSideGeo(:)               
+END TYPE tBCdata_auxSCF
+TYPE(tBCdata_auxSCF),ALLOCATABLE          :: BCdata_auxSCF(:) 
+
+TYPE tBCdata_auxSCFRadWeight
+  REAL, ALLOCATABLE   :: SubSideWeight(:,:)
+  REAL, ALLOCATABLE   :: WeightingFactor(:)
+  REAL, ALLOCATABLE   :: SubSideArea(:,:)
+END TYPE
+
+TYPE typeSurfaceflux
+  INTEGER                                :: BC                             
+  CHARACTER(30)                          :: velocityDistribution           
+  REAL                                   :: VeloIC                        
+  REAL                                   :: VeloVecIC(3)                    
+  REAL                                   :: MWTemperatureIC                              
+  LOGICAL                                :: VeloIsNormal                            
+  REAL                                   :: VFR_total                     
+  REAL                     , ALLOCATABLE :: VFR_total_allProcs(:)      
+  REAL                                   :: VFR_total_allProcsTotal        
+  REAL                                   :: totalAreaSF                    
+  INTEGER(KIND=8)                        :: InsertedParticle                
+  INTEGER(KIND=8)                        :: InsertedParticleSurplus         
+  INTEGER(KIND=8)                        :: tmpInsertedParticle            
+  INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus       
+  TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)      
+  INTEGER                                :: dir(3)                         
+  REAL                                   :: origin(2)                        
+  REAL                                   :: rmax                             
+  REAL                                   :: rmin                            
+  INTEGER, ALLOCATABLE                   :: SurfFluxSideRejectType(:)        
+  REAL, ALLOCATABLE                      :: CircleAreaPerTriaSide(:,:,:)    
+  REAL                                   :: SampledMassflow                  
+  REAL, ALLOCATABLE                      :: nVFRSub(:,:)                     
+END TYPE
+
+TYPE tSurfFluxSubSideData
+  REAL                                   :: projFak                         
+  REAL                                   :: a_nIn                           
+  REAL                                   :: Velo_t1                       
+  REAL                                   :: Velo_t2                         
+  REAL                                   :: nVFR                            
+  REAL                                   :: Dmax                            
+END TYPE tSurfFluxSubSideData
+
+! TYPE tRecombinationModel
+! INTEGER                         :: NumOfReact             ! Number of possible reactions
+! !CHARACTER(LEN=5),ALLOCATABLE    :: ReactType(:)           ! Type of Reaction (reaction num)
+! !                                                            !    A (adsorption)
+! !                                                            !    D (desorption)
+! !                                                            !    LH (Langmuir-Hinshlewood)
+! !                                                            !    ER (Eley-Rideal)
+! INTEGER, ALLOCATABLE            :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
+! INTEGER, ALLOCATABLE            :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
+! INTEGER, ALLOCATABLE            :: NumOfBounds(:)         
+! REAL, ALLOCATABLE               :: RecombCoeff(:)
+! LOGICAL, ALLOCATABLE            :: BoundisCatSurf(:)  
+! TYPE(tBoundMap), ALLOCATABLE    :: BoundMap(:)        
+! TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase) 
+! !TYPE(tSurfFluxMap), ALLOCATABLE :: SFMap(:)             
+! END TYPE tRecombinationModel
+! TYPE(tRecombinationModel),ALLOCATABLE   :: RecombModel(:) 
 
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Vars

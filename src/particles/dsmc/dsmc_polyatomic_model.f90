@@ -176,7 +176,7 @@ DEALLOCATE(iRan, iQuant_old)
 END SUBROUTINE DSMC_FindFirstVibPick
 
 
-SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_or_sf)
+SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_or_sf,iReac)
 !===================================================================================================================================
 ! Initialization of polyatomic molecules by treating every mode separately in a loop
 !===================================================================================================================================
@@ -187,11 +187,14 @@ USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolD
 USE MOD_Particle_Vars         ,ONLY: PEM, Species
 USE MOD_Particle_Sampling_Vars,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
 USE MOD_DSMC_ElectronicModel  ,ONLY: InitElectronShell
+USE MOD_Particle_Boundary_Vars,ONLY: PartBound
+USE MOD_SurfaceModel_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: iSpecies, iInit, iPart, init_or_sf
+INTEGER, INTENT(IN), OPTIONAL :: iReac
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -226,6 +229,9 @@ SELECT CASE (init_or_sf)
       TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
       TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
     END IF
+  CASE(3) ! reactive surface
+    TVib=PartBound%WallTemp(SurfChemReac%SFMap(iReac)%Surfaceflux(iInit)%BC)
+    TRot=PartBound%WallTemp(SurfChemReac%SFMap(iReac)%Surfaceflux(iInit)%BC)
   CASE DEFAULT
     CALL abort(&
     __STAMP__&

@@ -121,6 +121,7 @@ USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
+USE MOD_Particle_SurfChemFlux_Init
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 #if USE_MPI
 USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding, DoTimeDepInflow
@@ -167,6 +168,9 @@ CALL ReadInAndPrepareSurfaceFlux(MaxSurfacefluxBCs, nDataBC)
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoPoissonRounding,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoTimeDepInflow,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
 #endif /*USE_MPI*/
+
+! 
+CALL ReadInAndPrepareSurfChemFlux(nDataBC)
 
 CALL CreateSideListAndFinalizeAreasSurfFlux(nDataBC, BCdata_auxSFTemp)
 

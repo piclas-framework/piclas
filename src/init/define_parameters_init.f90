@@ -78,6 +78,7 @@ USE MOD_SurfaceModel_Porous        ,ONLY: DefineParametersPorousBC
 USE MOD_Particle_VarTimeStep       ,ONLY: DefineParametersVaribleTimeStep
 USE MOD_DSMC_Symmetry              ,ONLY: DefineParametersParticleSymmetry
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
+USE MOD_SurfaceModel_Chemistry     ,ONLY: DefineParametersSurfaceChemistry
 #if USE_MPI
 USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
 #endif /* USE_MPI */
@@ -145,7 +146,8 @@ CALL DefineParametersBGK()
 #endif
 CALL DefineParametersSurfModel()
 CALL DefineParametersSurfModelAnalyze()
-#if USE_MPI && defined(PARTICLES)
+CALL DefineParametersSurfaceChemistry()
+#if USE_MPI && defined(PARTICLES) 
 CALL DefineParametersReadIMDdata()
 #endif /* USE_MPI */
 #endif

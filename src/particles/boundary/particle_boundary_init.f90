@@ -138,6 +138,21 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 '10: SEE-I when Ar+ bombards copper by J.G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation", 2021 (originates from Phelps1999)\n'// &
                                 '11: SEE-E when e- bombard quartz (SiO2) by A. Dunaevsky, "Secondary electron emission from dielectric materials of a Hall thruster with segmented electrodes", 2003'&
                                 , '0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-LatticeVector'  &
+                                , 'Lattice vector for a fcc crystal'&
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-NbrOfMol-UnitCell'  &
+                                , 'Number of molecules in a unit cell defined by the lattice vector'&
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-SurfaceArea'  &
+                                , 'Area of the reactive surface'&
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-Coverage'  &
+                                , 'Initial coverage of the surface by an adsorbed species'&
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-MaxCoverage'  &
+                                , 'Initial coverage of the surface by an adsorbed species'&
+                                , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Number of Species to be changed at wall.', '0', numberedmulti=.TRUE.)
@@ -232,9 +247,9 @@ USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars
-USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars      
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
-USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
+USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary 
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -247,7 +262,7 @@ USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps
+INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, iSpec
 INTEGER               :: ALLOCSTAT, dummy_int
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
@@ -302,6 +317,20 @@ ALLOCATE(PartBound%TempGradVec(  1:3,1:nPartBound))
 PartBound%TempGradVec = 0.
 ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
 PartBound%SurfaceModel = 0
+ALLOCATE(PartBound%Coverage(nPartBound, nSpecies))
+ALLOCATE(PartBound%MaxCoverage(nPartBound, nSpecies))
+ALLOCATE(PartBound%AdCount(nPartBound, nSpecies))
+ALLOCATE(PartBound%DesCount(nPartBound, nSpecies))
+ALLOCATE(PartBound%DesCountIter(nPartBound, nSpecies))
+ALLOCATE(PartBound%ERCount(nPartBound, nSpecies))
+!ALLOCATE(PartBound%CatCount(nPartBound, nSpecies))
+ALLOCATE(PartBound%LHCount(nPartBound, nSpecies))
+ALLOCATE(PartBound%LHCountIter(nPartBound, nSpecies))
+ALLOCATE(PartBound%TotalCoverage(nPartBound))
+ALLOCATE(PartBound%nMol(nPartBound))
+ALLOCATE(PartBound%LatticeVec(nPartBound))
+ALLOCATE(PartBound%MolPerUnitCell(nPartBound))
+ALLOCATE(PartBound%SurfArea(nPartBound))
 ALLOCATE(PartBound%Reactive(         1:nPartBound))
 PartBound%Reactive = .FALSE.
 ALLOCATE(PartBound%Voltage(1:nPartBound))
@@ -387,13 +416,47 @@ DO iPartBound=1,nPartBound
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
       CASE (0)
         PartBound%Reactive(iPartBound)        = .FALSE.
+      CASE (20)
+        PartBound%Reactive(iPartBound)        = .FALSE.
+      !CASE(30)
+       ! PartBound%Reactive(iPartBound)        = .FALSE.
       CASE (SEE_MODELS_ID)
         ! SEE models require reactive BC
-        PartBound%Reactive(iPartBound)        = .TRUE.
+        PartBound%Reactive(iPartBound)        = .TRUE. 
       CASE DEFAULT
         CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,SEE_MODELS_ID! SurfaceModel=',&
         IntInfoOpt=PartBound%SurfaceModel(iPartBound))
       END SELECT
+    END IF
+    PartBound%LatticeVec(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-LatticeVector', '0.')
+    PartBound%MolPerUnitCell(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-NbrOfMol-UnitCell', '1.')
+    PartBound%SurfArea(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SurfaceArea', '0.')
+    IF(PartBound%LatticeVec(iPartBound).GT.0.) THEN
+      ! Surface molecules in dependence of the occupancy of the unit cell
+      PartBound%nMol(iPartBound) = PartBound%MolPerUnitCell(iPartBound) * PartBound%SurfArea(iPartBound) &
+                                  /(PartBound%LatticeVec(iPartBound))**2
+    ELSE
+      ! Alternative calculation by average number of molecules per area for a monolayer
+      PartBound%nMol(iPartBound) = 10.**19 * PartBound%SurfArea(iPartBound)
+    END IF
+    PartBound%TotalCoverage(iPartBound) = 0.
+    DO iSpec=1, nSpecies
+      WRITE(UNIT=hilf2,FMT='(I0)') iSpec
+      PartBound%Coverage(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-Coverage', '0.')
+      PartBound%MaxCoverage(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-MaxCoverage', '1.')
+      PartBound%TotalCoverage(iPartBound) = PartBound%TotalCoverage(iPartBound) + PartBound%Coverage(iPartBound, iSpec)
+      PartBound%AdCount(iPartBound, iSpec) = PartBound%Coverage(iPartBound, iSpec) * PartBound%nMol(iPartBound)
+      PartBound%DesCount(iPartBound, iSpec) = 0.
+      PartBound%DesCountIter(iPartBound, iSpec) = 0.
+      PartBound%ERCount(iPartBound, iSpec) = 0.
+      PartBound%LHCount(iPartBound, iSpec) = 0.
+      PartBound%LHCountIter(iPartBound, iSpec) = 0.
+      !PartBound%CatCount(iPartBound, iSpec) = 0.
+    END DO
+    IF (PartBound%TotalCoverage(iPartBound).GT.1.) THEN
+      CALL abort(&
+    __STAMP__&
+    ,'ERROR: Surface coverage can not be larger than 1.', iPartBound)
     END IF
     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) THEN
       !read Species to be changed at wall (in, out), out=0: delete
@@ -509,6 +572,13 @@ DO iPartBound=1,nPartBound
   BCdata_auxSF(iPartBound)%SideNumber=-1 !init value when not used
   BCdata_auxSF(iPartBound)%GlobalArea=0.
   BCdata_auxSF(iPartBound)%LocalArea=0.
+END DO
+
+ALLOCATE(BCdata_auxSCF(1:nPartBound))
+DO iPartBound=1,nPartBound
+  BCdata_auxSCF(iPartBound)%SideNumber=-1 !init value when not used
+  BCdata_auxSCF(iPartBound)%GlobalArea=0.
+  BCdata_auxSCF(iPartBound)%LocalArea=0.
 END DO
 
 !-- Sanity check: Deprecated voltage parameter

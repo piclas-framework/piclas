@@ -169,6 +169,7 @@ USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
 USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_SurfaceModel_Vars
 #ifdef CODE_ANALYZE
 !USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -476,6 +477,7 @@ IF(FindNeighbourElems) CALL BuildNodeNeighbourhood()
 IF (TriaSurfaceFlux) THEN
   BezierSampleN = 1
   SurfFluxSideSize=(/1,2/)
+  SurfChemSideSize=(/1,2/)
 ELSE
   WRITE(tmpStr,'(I2.2)') NGeo
   BezierSampleN = GETINT('BezierSampleN',tmpStr)

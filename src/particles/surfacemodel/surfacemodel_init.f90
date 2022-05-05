@@ -96,7 +96,7 @@ SumOfResultSpec = 0
 DO iSpec = 1,nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
 
-  ! Loop particle boundaries
+  ! Loop particle boundaries 
   DO iPartBound=1,nPartBound
     IF(.NOT.PartBound%Reactive(iPartBound)) CYCLE
     WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
@@ -150,6 +150,8 @@ IF(SurfModelElectronTemp)THEN
   SurfModSEEelectronTempAutoamtic = GETLOGICAL('Part-SurfaceModel-SEE-Te-automatic')
   IF(SurfModSEEelectronTempAutoamtic) CalcBulkElectronTemp=.TRUE.
 END IF ! SurfModelElectronTemp
+
+!==================================================================================================================================
 
 END SUBROUTINE InitSurfaceModel
 
