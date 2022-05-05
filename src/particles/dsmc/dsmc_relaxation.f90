@@ -512,6 +512,7 @@ INTEGER                   :: cSpec1, cSpec2
 !===================================================================================================================================
 
   ! variable vibrational relaxation probability has to average of all collisions
+IF(Coll_pData(iPair)%cRela2.EQ.0) RETURN
 IF(DSMC%VibRelaxProb.EQ.2.0) THEN
   cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
   cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
