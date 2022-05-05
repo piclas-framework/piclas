@@ -138,9 +138,7 @@ CALL prms%CreateStringOption(   'IMDCutOff'                   , 'Atom cut-off pa
                                                                 '2.) Epot\n'//&
                                                                 '3.) coordinates\n'//&
                                                                 '4.) velocity', 'no_cutoff')
-CALL prms%CreateRealOption(     'IMDCutOffxValue'              ,"Cut-off coordinate for"//&
-                                                                " IMDCutOff='coordiantes'" &
-                                                              , '-999.9')
+CALL prms%CreateRealOption(     'IMDCutOffxValue'              ,"Cut-off coordinate for IMDCutOff='coordiantes'", '-999.9')
 CALL prms%CreateIntOption(      'IMDnSpecies'                 , 'Count of IMD species', '1')
 CALL prms%CreateStringOption(   'IMDInputFile'                , 'Laser data file name containing '//&
                                                                 'PartState(1:6) ' &
@@ -154,9 +152,8 @@ CALL prms%CreateIntOption(      'Part-Species[$]-vMPFMergeThreshold', 'Particle 
                                                                       'per cell and species.', '0',numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-vMPFSplitThreshold', 'Particle number threshold for split routines' //&
                                                                       'per cell and species.', '0',numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-vMPFPartMerge'          , 'DEPRECATED: DELETE THIS\n'//&
-                                                                'Enable Particle Merge routines.'&
-                                                              , '.FALSE.')
+CALL prms%CreateRealOption(     'Part-vMPFSplitLimit'         , 'Do not split particles below this MPF threshold', '1.0')
+CALL prms%CreateLogicalOption(  'Part-vMPFPartMerge'          , 'DEPRECATED: DELETE THIS\nEnable Particle Merge routines.', '.FALSE.')
 ! CALL prms%CreateIntOption(      'Part-vMPFMergePolOrder'      , 'TODO-DEFINE-PARAMETER\n'//&
 !                                                                 'Polynomial degree for vMPF particle merge.'&
 !                                                               , '2')
@@ -880,6 +877,12 @@ IF (usevMPF) THEN
   CellEvib_vMPF = 0.0
   UseSplitAndMerge = .FALSE.
   IF(ANY(vMPFMergeThreshold.GT.0).OR.ANY(vMPFSplitThreshold.GT.0)) UseSplitAndMerge = .TRUE.
+  ! Get split limit (smallest MPF until splitting is stopped)
+  IF(ANY(vMPFSplitThreshold.GT.0))THEN
+    vMPFSplitLimit = GETREAL('Part-vMPFSplitLimit')
+  ELSE
+    vMPFSplitLimit = 0.
+  END IF ! ANY(vMPFSplitThreshold.GT.0)
 
   ! --- Emission-specific MPF
   CAll InitializeEmissionSpecificMPF()
