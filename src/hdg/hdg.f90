@@ -128,7 +128,6 @@ USE MOD_MPI_Vars
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_Mortar_Vars, ONLY: M_0_1,M_0_2
 #endif /*USE_PETSC*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -137,12 +136,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,p,q,k,r,iElem,SideID
+INTEGER           :: i,j,k,r,iElem,SideID
 INTEGER           :: BCType,BCState
 REAL              :: D(0:PP_N,0:PP_N)
 #if USE_PETSC
 PetscErrorCode    :: ierr
-INTEGER           :: iGP_face,jGP_face
 INTEGER           :: iProc
 INTEGER           :: OffsetPETScSideMPI(nProcessors)
 INTEGER           :: OffsetPETScSide
@@ -721,7 +719,6 @@ REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 REAL    :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
-INTEGER :: iGP_face
 PetscErrorCode       :: ierr
 PetscScalar, POINTER :: lambda_pointer(:)
 KSPConvergedReason   :: reason
@@ -2108,6 +2105,7 @@ SDEALLOCATE(PETScGlobal)
 SDEALLOCATE(PETScLocalToSideID)
 SDEALLOCATE(Smat_BC)
 SDEALLOCATE(Smat_zeroPotential)
+SDEALLOCATE(SmallMortarType)
 #endif
 SDEALLOCATE(NonlinVolumeFac)
 SDEALLOCATE(DirichletBC)
