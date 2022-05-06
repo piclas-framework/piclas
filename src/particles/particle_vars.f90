@@ -197,6 +197,8 @@ TYPE tInit                                                                   ! P
   INTEGER                            :: sumOfMatchedParticles    ! Sum of matched particles on all procs
   INTEGER                            :: sumOfRequestedParticles  ! Sum of requested particles on all procs
   INTEGER                            :: mySumOfMatchedParticles  ! Sum of matched particles on current proc
+!=== Background gas regions
+  INTEGER                            :: BGGRegion         ! Region number to be used for the species init
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData

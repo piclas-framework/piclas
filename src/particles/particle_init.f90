@@ -257,7 +257,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
 USE MOD_MCC_Init                   ,ONLY: InitMCC
-USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution
+USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,BGGas
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
@@ -275,6 +275,7 @@ USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 USE MOD_Particle_Mesh_Vars         ,ONLY: GEO
 USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
 USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp
+USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
 !USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
@@ -345,6 +346,9 @@ IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
 ! Allocate sampling of near adaptive boundary element values
 IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
+
+! Initialize backrgound gas regions (requires completed InitParticleGeometry for ElemMidPoint_Shared)
+IF(BGGas%UseRegions) CALL BGGas_InitRegions()
 
 IF (useDSMC) THEN
   CALL InitDSMC()
