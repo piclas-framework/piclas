@@ -1354,10 +1354,11 @@ END SUBROUTINE ReadReacPhotonSpectrum
 
 SUBROUTINE XSec_CalcReactionProb(iPair,iCase,iElem,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
 !===================================================================================================================================
-!> Calculate the collision probability if collision cross-section data is used. Can be utilized in combination with the regular
-!> DSMC collision calculation probability.
+!> Calculate the reaction probability if cross-section data is used. Utilized in combination with the regular DSMC collision
+!> calculation probability (non-MCC routines).
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
@@ -1372,7 +1373,7 @@ REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume
 ! LOCAL VARIABLES
 INTEGER                       :: iPath, ReacTest, EductReac(1:3), ProductReac(1:4), ReactInx(1:2), nPair, iProd
 INTEGER                       :: NumWeightProd, targetSpec, bgSpec
-REAL                          :: EZeroPoint_Prod, dtCell, Weight(1:4), ReducedMass, ReducedMassUnweighted, CollEnergy
+REAL                          :: EZeroPoint_Prod, dtCell, Weight(1:4), ReducedMass, ReducedMassUnweighted, CollEnergy, GammaFac
 REAL                          :: EZeroPoint_Educt, SpecNumTarget, SpecNumSource, CrossSection
 !===================================================================================================================================
 Weight = 0.; ReactInx = 0
@@ -1432,9 +1433,18 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     ELSE
       dtCell = dt
     END IF
-    Coll_pData(iPair)%Ec = 0.5 * ReducedMass * Coll_pData(iPair)%CRela2 &
-                + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
-                + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2)
+
+    IF(Coll_pData(iPair)%cRela2 .LT. RelativisticLimit) THEN
+      Coll_pData(iPair)%Ec = 0.5 * ReducedMass * Coll_pData(iPair)%cRela2
+    ELSE
+      ! Relativistic treatment under the assumption that the velocity of the background species is zero or negligible
+      GammaFac = Coll_pData(iPair)%cRela2*c2_inv
+      GammaFac = 1./SQRT(1.-GammaFac)
+      Coll_pData(iPair)%Ec = (GammaFac-1.) * ReducedMass * c2
+    END IF
+
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
+                                                + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2)
     IF (DSMC%ElectronicModel.GT.0) THEN
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(1))*Weight(1) &
                                                   + PartStateIntEn(3,ReactInx(2))*Weight(2)

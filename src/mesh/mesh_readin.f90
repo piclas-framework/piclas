@@ -136,6 +136,7 @@ END ASSOCIATE
 ChangedPeriodicBC=.FALSE. ! set true if BCs are changed from periodic to non-periodic
 #endif /*USE_HDG*/
 IF(nUserBCs .GT. 0)THEN
+  SWRITE(Unit_StdOut,'(A)')' REMAPPING BOUNDARY CONDITIONS...'
   DO iBC=1,nBCs
     IF(BCMapping(iBC) .NE. 0)THEN
       ! non-periodic to periodic
@@ -154,9 +155,8 @@ IF(nUserBCs .GT. 0)THEN
       END IF
 #endif /*USE_HDG*/
       ! Output
-      SWRITE(Unit_StdOut,'(A,A)')    ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC))
-      SWRITE(Unit_StdOut,'(A,I8,I8)')' |                            was | ',BCType(1,iBC),BCType(3,iBC)
-      SWRITE(Unit_StdOut,'(A,I8,I8)')' |                      is set to | ',BoundaryType(BCMapping(iBC),1:2)
+      SWRITE(Unit_StdOut,'(A,A50,A,I4,I4,A,I4,I4)') ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC)), &
+                                      ' was ', BCType(1,iBC),BCType(3,iBC), ' is set to ',BoundaryType(BCMapping(iBC),1:2)
       BCType(1,iBC) = BoundaryType(BCMapping(iBC),BC_TYPE)
       BCType(3,iBC) = BoundaryType(BCMapping(iBC),BC_STATE)
     END IF
