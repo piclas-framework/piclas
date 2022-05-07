@@ -138,9 +138,7 @@ CALL prms%CreateStringOption(   'IMDCutOff'                   , 'Atom cut-off pa
                                                                 '2.) Epot\n'//&
                                                                 '3.) coordinates\n'//&
                                                                 '4.) velocity', 'no_cutoff')
-CALL prms%CreateRealOption(     'IMDCutOffxValue'              ,"Cut-off coordinate for"//&
-                                                                " IMDCutOff='coordiantes'" &
-                                                              , '-999.9')
+CALL prms%CreateRealOption(     'IMDCutOffxValue'              ,"Cut-off coordinate for IMDCutOff='coordiantes'", '-999.9')
 CALL prms%CreateIntOption(      'IMDnSpecies'                 , 'Count of IMD species', '1')
 CALL prms%CreateStringOption(   'IMDInputFile'                , 'Laser data file name containing '//&
                                                                 'PartState(1:6) ' &
@@ -154,9 +152,8 @@ CALL prms%CreateIntOption(      'Part-Species[$]-vMPFMergeThreshold', 'Particle 
                                                                       'per cell and species.', '0',numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Species[$]-vMPFSplitThreshold', 'Particle number threshold for split routines' //&
                                                                       'per cell and species.', '0',numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-vMPFPartMerge'          , 'DEPRECATED: DELETE THIS\n'//&
-                                                                'Enable Particle Merge routines.'&
-                                                              , '.FALSE.')
+CALL prms%CreateRealOption(     'Part-vMPFSplitLimit'         , 'Do not split particles below this MPF threshold', '1.0')
+CALL prms%CreateLogicalOption(  'Part-vMPFPartMerge'          , 'DEPRECATED: DELETE THIS\nEnable Particle Merge routines.', '.FALSE.')
 ! CALL prms%CreateIntOption(      'Part-vMPFMergePolOrder'      , 'TODO-DEFINE-PARAMETER\n'//&
 !                                                                 'Polynomial degree for vMPF particle merge.'&
 !                                                               , '2')
@@ -260,7 +257,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
 USE MOD_MCC_Init                   ,ONLY: InitMCC
-USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution
+USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,BGGas
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
@@ -278,6 +275,7 @@ USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 USE MOD_Particle_Mesh_Vars         ,ONLY: GEO
 USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
 USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp
+USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
 !USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
@@ -349,6 +347,9 @@ IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
 ! Allocate sampling of near adaptive boundary element values
 IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
+
+! Initialize backrgound gas regions (requires completed InitParticleGeometry for ElemMidPoint_Shared)
+IF(BGGas%UseRegions) CALL BGGas_InitRegions()
 
 IF (useDSMC) THEN
   CALL InitDSMC()
@@ -881,6 +882,12 @@ IF (usevMPF) THEN
   CellEvib_vMPF = 0.0
   UseSplitAndMerge = .FALSE.
   IF(ANY(vMPFMergeThreshold.GT.0).OR.ANY(vMPFSplitThreshold.GT.0)) UseSplitAndMerge = .TRUE.
+  ! Get split limit (smallest MPF until splitting is stopped)
+  IF(ANY(vMPFSplitThreshold.GT.0))THEN
+    vMPFSplitLimit = GETREAL('Part-vMPFSplitLimit')
+  ELSE
+    vMPFSplitLimit = 0.
+  END IF ! ANY(vMPFSplitThreshold.GT.0)
 
   ! --- Emission-specific MPF
   CAll InitializeEmissionSpecificMPF()

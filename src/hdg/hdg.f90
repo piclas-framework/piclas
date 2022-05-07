@@ -126,6 +126,9 @@ USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_WORLD
 USE MOD_MPI               ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 USE MOD_MPI_Vars
 #endif /*USE_MPI*/
+USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mortar_Vars, ONLY: M_0_1,M_0_2
 #endif /*USE_PETSC*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -134,16 +137,18 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,k,r,iElem,SideID
+INTEGER           :: i,j,p,q,k,r,iElem,SideID
 INTEGER           :: BCType,BCState
 REAL              :: D(0:PP_N,0:PP_N)
 #if USE_PETSC
 PetscErrorCode    :: ierr
-INTEGER           :: iGP_face
+INTEGER           :: iGP_face,jGP_face
 INTEGER           :: iProc
 INTEGER           :: OffsetPETScSideMPI(nProcessors)
 INTEGER           :: OffsetPETScSide
 INTEGER           :: PETScLocalID
+INTEGER           :: MortarSideID,iMortar
+INTEGER           :: locSide,nMortarMasterSides,nMortars
 #endif
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
@@ -273,7 +278,15 @@ END DO
 ! Create PETSc Mappings
 OffsetPETScSide=0
 #if USE_MPI
-nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR
+! Count all Mortar slave sides and remove them from PETSc vector
+! TODO How to compute those
+nMortarMasterSides = 0
+DO SideID=1,nSides
+  IF(SmallMortarInfo(SideID).EQ.1) THEN
+    nMortarMasterSides = nMortarMasterSides + 1
+  END IF
+END DO
+nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides
 IF(ZeroPotentialSideID.GT.0) nPETScUniqueSides = nPETScUniqueSides - 1
 CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
 DO iProc=1, myrank
@@ -291,6 +304,15 @@ DO SideID=1,nSides!-nMPISides_YOUR
   PETScLocalID=PETScLocalID+1
   PETScLocalToSideID(PETScLocalID)=SideID
   PETScGlobal(SideID)=PETScLocalID+OffsetPETScSide-1 ! PETSc arrays start at 0!
+END DO
+! Set the Global PETSc Sides of small mortar sides equal to the big mortar side
+DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  locSide=MortarType(2,MortarSideID)
+  DO iMortar=1,nMortars
+    SideID= MortarInfo(MI_SIDEID,iMortar,locSide) !small SideID
+    PETScGlobal(SideID)=PETScGlobal(MortarSideID)
+  END DO !iMortar
 END DO
 #if USE_MPI
 CALL StartReceiveMPIDataInt(1,PETScGlobal,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
@@ -382,8 +404,9 @@ CALL MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr);PetscCall(ierr)
 CALL MatSetSizes(Smat_petsc,nPETScUniqueSides*nGP_Face,nPETScUniqueSides*nGP_Face,PETSC_DECIDE,PETSC_DECIDE,ierr);PetscCall(ierr)
 CALL MatSetType(Smat_petsc,MATSBAIJ,ierr);PetscCall(ierr) ! Symmetric sparse (mpi) matrix
 CALL MatSetBlockSize(Smat_petsc,nGP_face,ierr);PetscCall(ierr)
-CALL MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,11,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
-CALL MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,11,PETSC_NULL_INTEGER,10,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
+! 1 Big mortar side is affected by 6 + 4*4 = 22 other sides...
+CALL MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
+CALL MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,21,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
 CALL MatZeroEntries(Smat_petsc,ierr);PetscCall(ierr)
 #endif
 
@@ -679,6 +702,7 @@ USE MOD_Mesh_Vars        ,ONLY: SideToElem
 USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_MPI_Vars
 #endif
+USE MOD_FillMortar_HDG         ,ONLY: BigToSmallMortar_HDG
 #endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -927,6 +951,8 @@ DO iVar=1, PP_nVar
     lambda(1,:,SideID) = lambda_pointer(PETScID_start:PETScID_stop)
   END DO
   CALL VecRestoreArrayReadF90(lambda_petsc,lambda_pointer,ierr);PetscCall(ierr)
+  ! PETSc Calculate lambda at small mortars from big mortars
+  CALL BigToSmallMortar_HDG(1,lambda)
 #if USE_MPI
   CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
   CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE

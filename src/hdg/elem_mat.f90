@@ -76,7 +76,9 @@ USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
 #if USE_PETSC
 USE PETSc
-USE MOD_Mesh_Vars        ,ONLY: SideToElem
+USE MOD_Mesh_Vars        ,ONLY: SideToElem, nSides
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -100,10 +102,12 @@ INTEGER              :: idx(3),jdx(3),gdx(3)
 REAL                 :: time0, time
 #if USE_PETSC
 PetscErrorCode    :: ierr
-INTEGER           :: iSideID,jSideID,iGP_face,jGP_face
-INTEGER           :: ElemID, jNbSideID, BCsideID
+INTEGER           :: iSideID,jSideID
+INTEGER           :: ElemID, BCsideID
 INTEGER           :: iBCSide,locBCSideID
-INTEGER :: iPETScGlobal, jPETScGlobal
+INTEGER           :: iPETScGlobal, jPETScGlobal
+INTEGER           :: iMortar,iSide,locSideID,MortarSideID,nMortars
+REAL              :: intMat(nGP_face, nGP_face)
 #endif
 !===================================================================================================================================
 
@@ -329,6 +333,23 @@ END DO !iElem
 
 #if USE_PETSC
 ! Fill Smat Petsc, TODO do this without filling Smat
+
+! Change Smat for all small mortar sides to account for the interpolation from big to small side
+DO iSide=1,nSides
+  IF (SmallMortarInfo(iSide).NE.0) THEN
+    locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+    iElem    = SideToElem(S2E_NB_ELEM_ID,iSide)
+    IF (iElem.LT.0) CYCLE
+  ELSE
+    CYCLE
+  END IF
+  intMat = IntMatMortar(:,:,SmallMortarType(2,iSide),SmallMortarType(1,iSide))
+  DO iLocSide=1,6
+    Smat(:,:,iLocSide,locSideID,iElem) = MATMUL(Smat(:,:,iLocSide,locSideID,iElem),intMat)
+    Smat(:,:,locSideID,iLocSide,iElem) = MATMUL(TRANSPOSE(intMat),Smat(:,:,locSideID,iLocSide,iElem))
+  END DO
+END DO
+
 ! Fill Dirichlet BC Smat
 DO iBCSide=1,nDirichletBCSides
   BCSideID=DirichletBC(iBCSide)

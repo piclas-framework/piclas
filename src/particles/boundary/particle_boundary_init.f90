@@ -239,6 +239,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -417,6 +418,8 @@ DO iPartBound=1,nPartBound
             'b) surface model that is reactive (Part-BoundaryX-SurfaceModel)!')
       ELSE
         DoDielectricSurfaceCharge=.TRUE.
+        IF(TRIM(DepositionType).NE.'cell_volweight_mean') CALL CollectiveStop(__STAMP__,&
+            'PartBound%Dielectric=T requires cell_volweight_mean (12) as deposition method')
       END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies
     END IF ! PartBound%Dielectric(iPartBound)
   CASE('periodic')

@@ -61,9 +61,17 @@ SUBROUTINE InitMortar_HDG()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Mortar_Vars, ONLY: M_0_1,M_0_2
-USE MOD_HDG_Vars,    ONLY: MaskedSide,SmallMortarInfo,IntMatMortar,nGP_Face
-USE MOD_Mesh_Vars,   ONLY: nSides,MortarType,MortarInfo
+USE MOD_Mortar_Vars,      ONLY: M_0_1,M_0_2
+USE MOD_HDG_Vars,         ONLY: MaskedSide,SmallMortarInfo,IntMatMortar,nGP_Face
+USE MOD_Mesh_Vars,        ONLY: nSides,MortarType,MortarInfo
+#if USE_PETSC
+USE MOD_HDG_Vars,         ONLY: SmallMortarType
+#if USE_MPI
+USE MOD_MPI_Shared_Vars,  ONLY: MPI_COMM_WORLD
+USE MOD_MPI,              ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
+USE MOD_MPI_Vars
+#endif /*USE_MPI*/
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -78,6 +86,10 @@ REAL        :: dkron(0:PP_N,0:PP_N)
 !===================================================================================================================================
   ALLOCATE(SmallMortarInfo(1:nSides))
   SmallMortarInfo=0
+#if USE_PETSC
+  ALLOCATE(SmallMortarType(2,1:nSides))
+  SmallMortarType=-1
+#endif
 
   !=-1: small mortar neighbor (slave)
   !=0: not a small mortar
@@ -97,6 +109,10 @@ REAL        :: dkron(0:PP_N,0:PP_N)
       iSide=MortarType(2,SideID)  !index of Big Side in MortarInfo
       DO iMortar=1,nMortars
         SmallMortarInfo(  MortarInfo(MI_SIDEID,iMortar,iSide) ) = 1  !small sideID
+#if USE_PETSC
+        SmallMortarType(1,MortarInfo(MI_SIDEID,iMortar,iSide)) = mtype
+        SmallMortarType(2,MortarInfo(MI_SIDEID,iMortar,iSide)) = iMortar
+#endif
         IF(MortarType(1,MortarInfo(MI_SIDEID,iMortar,iSide)).NE.0) THEN
           IPWRITE(*,*)SideID,MortarType(1,MortarInfo(MI_SIDEID,iMortar,iSide))
           CALL abort(__STAMP__&
@@ -109,6 +125,15 @@ REAL        :: dkron(0:PP_N,0:PP_N)
     END IF
     IF(SmallMortarInfo(SideID).NE.0) MaskedSide(SideID)=.TRUE.
   END DO !SideID=1,nSides
+
+#if USE_PETSC
+#if USE_MPI
+  ! Send Mortar data to small sides on other processor (needed for mtype=-10 sides)
+  CALL StartReceiveMPIDataInt(2,SmallMortarType,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+  CALL StartSendMPIDataInt(   2,SmallMortarType,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+#endif /*USE_MPI*/
+#endif
 
   ! not efficient but simpler: build full interpolation matrices for 3 mortartypes
   dkron=0.

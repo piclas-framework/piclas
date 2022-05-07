@@ -197,6 +197,8 @@ TYPE tInit                                                                   ! P
   INTEGER                            :: sumOfMatchedParticles    ! Sum of matched particles on all procs
   INTEGER                            :: sumOfRequestedParticles  ! Sum of requested particles on all procs
   INTEGER                            :: mySumOfMatchedParticles  ! Sum of matched particles on current proc
+!=== Background gas regions
+  INTEGER                            :: BGGRegion         ! Region number to be used for the species init
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData
@@ -340,6 +342,7 @@ INTEGER                                  :: MacroValSamplIterNum              ! 
 
 INTEGER, ALLOCATABLE                     :: vMPFMergeThreshold(:)             ! Max particle number per cell and (iSpec)
 INTEGER, ALLOCATABLE                     :: vMPFSplitThreshold(:)             ! Min particle number per cell and (iSpec)
+REAL                                     :: vMPFSplitLimit                    ! Do not split particles below this MPF threshold
 LOGICAL                                  :: UseSplitAndMerge                  ! Flag for particle merge
 REAL, ALLOCATABLE                        :: CellEelec_vMPF(:,:)
 REAL, ALLOCATABLE                        :: CellEvib_vMPF(:,:)
