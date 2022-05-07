@@ -520,7 +520,7 @@ END SUBROUTINE MergeParticles
 SUBROUTINE SplitParticles(iPartIndx_Node, nPartIn, nPartNew)
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, PEM, PartPosRef, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, PEM, PartPosRef, VarTimeStep, vMPFSplitLimit
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Tracking_Vars,ONLY: TrackingMethod
 !#ifdef CODE_ANALYZE
@@ -549,20 +549,19 @@ DO WHILE(iNewPart.LT.nSplit)
   CALL RANDOM_NUMBER(iRan)
   iPart = INT(iRan*nPart) + 1
   PartIndx = iPartIndx_Node(iPart)
-  ! Check whether the weighting factor would drop below 1
-  IF((PartMPF(PartIndx) / 2.).LT.1.0) THEN
+  ! Check whether the weighting factor would drop below vMPFSplitLimit (can be below one)
+  ! If the resulting MPF is less than 1 you go sub-atomic where the concept of time and space become irrelevant... 
+  IF((PartMPF(PartIndx) / 2.).LT.vMPFSplitLimit) THEN
     ! Skip this particle
     iPartIndx_Node(iPart) = iPartIndx_Node(nPart)
     nPart = nPart - 1
-    ! Leave the DO WHILE loop, if every original particle has been split up to MPF = 1
+    ! Leave the DO WHILE loop, if every original particle has been split up to MPF = vMPFSplitLimit (can be below one)
     IF(nPart.EQ.0) EXIT
   END IF
   PartMPF(PartIndx) = PartMPF(PartIndx) / 2.   ! split particle
   iNewPart = iNewPart + 1
   PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
-  IF (PositionNbr.EQ.0) THEN
-    CALL Abort(__STAMP__,'ERROR in particle split: MaxParticleNumber reached!')
-  END IF
+  IF (PositionNbr.EQ.0) CALL Abort(__STAMP__,'ERROR in particle split: MaxParticleNumber reached!')
   PartState(1:3,PositionNbr) = PartState(1:3,PartIndx)
   IF(TrackingMethod.EQ.REFMAPPING) PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,PartIndx)
   PartState(4:6,PositionNbr) = PartState(4:6,PartIndx)

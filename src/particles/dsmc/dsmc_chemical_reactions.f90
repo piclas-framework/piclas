@@ -163,7 +163,7 @@ END IF
 !---------------------------------------------------------------------------------------------------------------------------------
 ! Calculation of the collision energy
 !---------------------------------------------------------------------------------------------------------------------------------
-Coll_pData(iPair)%Ec = 0.5 * ReducedMass*Coll_pData(iPair)%CRela2
+Coll_pData(iPair)%Ec = 0.5 * ReducedMass*Coll_pData(iPair)%cRela2
 DO iPart = 1, NINT(NumWeightEduct)
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(1,ReactInx(iPart))*Weight(iPart) &
                                               + PartStateIntEn(2,ReactInx(iPart))*Weight(iPart)
@@ -352,6 +352,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: abort,DOTPRODUCT,StringBeginsWith
+USE MOD_Globals_Vars
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas, ElecRelaxPart
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, newElecRelaxParts, iPartIndx_NodeNewElecRelax
@@ -389,7 +390,7 @@ REAL                          :: ERel_React1_React2, ERel_React1_React3, ERel_Re
 REAL                          :: Xi_elec(1:4), EZeroTempToExec(1:4)
 REAL, ALLOCATABLE             :: XiVibPart(:,:)
 REAL                          :: Weight(1:4), SumWeightProd
-REAL                          :: cRelaNew(3) ! relative velocity
+REAL                          :: cRelaNew(3)
 #ifdef CODE_ANALYZE
 REAL,PARAMETER                :: RelMomTol=5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
 REAL,PARAMETER                :: RelEneTol=2e-12 ! Relative tolerance applied to conservation of energy before/after reaction
@@ -594,8 +595,7 @@ IF (EductReac(3).NE.0) Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpeci
                                                                 * PartState(4:6,ReactInx(3)) * Weight(3)
 #endif /* CODE_ANALYZE */
 
-! Add heat of formation to collision energy
-Coll_pData(iPair)%Ec = 0.5 * MassRed *Coll_pData(iPair)%CRela2 + ChemReac%EForm(iReac)*SumWeightProd/REAL(NumProd)
+Coll_pData(iPair)%Ec = 0.5 * MassRed * Coll_pData(iPair)%CRela2 + ChemReac%EForm(iReac)*SumWeightProd/REAL(NumProd)
 
 IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
   ! Weighting factor already included in the weights
@@ -839,8 +839,10 @@ IF(ProductReac(3).NE.0) THEN
     ! FracMassCent's and reduced mass are calculated for the pseudo-molecule (1-3) and the pseudo-molecule (2-4)
     CALL CalcPseudoScatterVars_4Prod(ProductReac(1),ProductReac(3),ProductReac(2),ProductReac(4),FracMassCent1,FracMassCent2, &
           MassRed, Weight)
+
     ! Distribute the remaining collision energy
     Coll_pData(iPair)%CRela2 = 2. * Coll_pData(iPair)%Ec / MassRed
+
     cRelaNew(1:3) = PostCollVec(iPair)
     ! Calculate the energy value (only the relative part) to be distributed onto the products 1 and 3
     ERel_React1_React3 = 0.5 * (Species(ProductReac(1))%MassIC* Weight(1) + Species(ProductReac(3))%MassIC * Weight(3)) * DOTPRODUCT(FracMassCent2*cRelaNew(1:3))
@@ -859,7 +861,9 @@ IF(ProductReac(3).NE.0) THEN
       FracMassCent2 = CollInf%FracMassCent(ProductReac(4),CollInf%Coll_Case(ProductReac(2),ProductReac(4)))
       MassRed = CollInf%MassRed(CollInf%Coll_Case(ProductReac(2),ProductReac(4)))
     END IF
+
     Coll_pData(iPair)%CRela2 = 2. * ERel_React2_React4 / MassRed
+
     ! Set the energy for the 2-4 pair
     cRelaNew(1:3) = PostCollVec(iPair)
     ! deltaV particle 2
@@ -896,7 +900,9 @@ IF(ProductReac(3).NE.0) THEN
     ! this is the non-reacting collision partner
     CALL CalcPseudoScatterVars(ProductReac(1),ProductReac(3),ProductReac(2),FracMassCent1,FracMassCent2,MassRed &
           , (/Weight(1),Weight(3),Weight(2)/))
-    Coll_pData(iPair)%CRela2 = 2 * ERel_React1_React2 / MassRed
+
+    Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React2 / MassRed
+
     cRelaNew(1:3) = PostCollVec(iPair)
     PartState(4:6,ReactInx(2)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)
 #ifdef CODE_ANALYZE
@@ -925,11 +931,7 @@ IF(ProductReac(3).NE.0) THEN
     MassRed = CollInf%MassRed(CollInf%Coll_Case(ProductReac(1),ProductReac(3)))
   END IF
 
-  ! IF(ProductReac(4).NE.0) THEN
-  !   Coll_pData(iPair)%cRela2 = DOTPRODUCT(VeloPseuMolec(1:3))
-  ! ELSE
-    Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / MassRed
-  ! END IF
+  Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / MassRed
 
   cRelaNew(1:3) = PostCollVec(iPair)
 
@@ -997,6 +999,7 @@ ELSEIF(ProductReac(3).EQ.0) THEN
   END IF
 
   Coll_pData(iPair)%cRela2 = 2 * ERel_React1_React3 / MassRed
+
   cRelaNew(1:3) = PostCollVec(iPair)
 
   !deltaV particle 1
