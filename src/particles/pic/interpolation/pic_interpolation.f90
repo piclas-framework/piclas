@@ -368,7 +368,7 @@ SUBROUTINE ReadVariableExternalField()
 ! MODULES
 USE MOD_Globals
 USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,FileNameVariableExternalField
-USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField2D,VariableExternalFieldAxisSym
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldDim,VariableExternalFieldAxisSym
 USE MOD_HDF5_Input_Field      ,ONLY: ReadVariableExternalFieldFromHDF5
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -384,7 +384,7 @@ INTEGER               :: lenstr
 SWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
 
 ! Defaults
-VariableExternalField2D      = .FALSE.
+VariableExternalFieldDim     = 1 ! default is 1D
 VariableExternalFieldAxisSym = .FALSE.
 
 ! Check if file exists
