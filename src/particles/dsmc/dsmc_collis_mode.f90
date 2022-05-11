@@ -1186,9 +1186,7 @@ SELECT CASE(CollisMode)
       CASE(2)
         CALL DSMC_Relax_Col_Gimelshein(iPair)
       CASE DEFAULT
-        CALL Abort(&
-        __STAMP__&
-        ,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
+        CALL Abort(__STAMP__,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
     END SELECT
   CASE(3) ! chemical reactions
     RelaxToDo = .TRUE.
@@ -1204,15 +1202,11 @@ SELECT CASE(CollisMode)
         CASE(2)
           CALL DSMC_Relax_Col_Gimelshein(iPair)
         CASE DEFAULT
-          CALL Abort(&
-          __STAMP__&
-          ,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
+          CALL Abort(__STAMP__,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
       END SELECT
     END IF
   CASE DEFAULT
-    CALL Abort(&
-    __STAMP__&
-    ,'ERROR in DSMC_perform_collision: Wrong Collision Mode:',CollisMode)
+    CALL Abort(__STAMP__,'ERROR in DSMC_perform_collision: Wrong Collision Mode:',CollisMode)
 END SELECT
 
 END SUBROUTINE DSMC_perform_collision
@@ -1284,6 +1278,7 @@ ELSE
   NumDens = nPartNode / Volume * Species(1)%MacroParticleFactor
 END IF
 ! 1.) Calculate the reaction probabilities/test whether any QK reactions are possible
+ReactionProbSum = 0.
 ALLOCATE(ReactionProbArray(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
 ReactionProbArray = 0.
 ! Reset the complete array (only populated for the specific collision case)
@@ -1294,38 +1289,33 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     CALL QK_TestReaction(iPair,ReacTest,PerformReaction(iPath))
   ELSE IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'TCE') THEN
     CALL CalcReactionProb(iPair,ReacTest,ReactionProbArray(iPath),nPair,NumDens)
+    ReactionProbSum = ReactionProbSum + ReactionProbArray(iPath)
   END IF
 END DO
 
-! TCE: Determine the sum of the reaction probabilities
-ReactionProbSum = 0.
-DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
-  ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-  ! Skip QK-based and XSec-based reactions
-  IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'TCE') ReactionProbSum = ReactionProbSum + ReactionProbArray(iPath)
-END DO
-
 ! 2.) Determine which TCE reaction is most likely to occur
-ReactionProb = 0.
-CALL RANDOM_NUMBER(iRan)
-! Check if the reaction probability is greater than a random number
-IF (ReactionProbSum.GT.iRan) THEN
-  ! Decide which reaction should occur
+IF(ReactionProbSum.GT.0.) THEN
+  ReactionProb = 0.
   CALL RANDOM_NUMBER(iRan)
-  DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
-    ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
-    IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'TCE') THEN
-      ReactionProb = ReactionProb + ReactionProbArray(iPath)
-      IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
-        PerformReaction(iPath) = .TRUE.
-        EXIT
+  ! Check if the reaction probability is greater than a random number
+  IF (ReactionProbSum.GT.iRan) THEN
+    ! Decide which reaction should occur
+    CALL RANDOM_NUMBER(iRan)
+    DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
+      ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
+      IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'TCE') THEN
+        ReactionProb = ReactionProb + ReactionProbArray(iPath)
+        IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
+          PerformReaction(iPath) = .TRUE.
+          EXIT
+        END IF
       END IF
-    END IF
-  END DO
+    END DO
+  END IF
 END IF
 
-ReactionProb = 0.; ReacCounter = 0
 ! 3.) Decide which reaction to perform: TCE- and QK-based chemistry
+ReactionProb = 0.; ReacCounter = 0
 ReacCounter = COUNT(PerformReaction(:))
 IF(ReacCounter.GT.0) THEN
   IF(ReacCounter.GT.1) CALL RANDOM_NUMBER(iRan)
@@ -1352,7 +1342,6 @@ IF(ReacCounter.GT.0) THEN
 END IF
 
 ! 4.) Cross-section based chemistry (XSec)
-
 IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
   IF(SpecXSec(iCase)%UseCollXSec) THEN
     ! Interpolate the reaction cross-section at the current collision energy

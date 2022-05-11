@@ -40,6 +40,14 @@ the CMake configuration file for HDF5 (optional).
   output files into the VTK format
   * ``POSTI_USE_PARAVIEW``: Enables the compilation of the ParaView plugin, which enables the direct read-in of output files within ParaView
 
+* ``PICLAS_SHARED_MEMORY``: Split type for creating new communicators based on colors and keys (requires MPI 3 or higher).
+  Options with the prefix OMPI_ are specific to Open MPI.
+  * ``MPI_COMM_TYPE_SHARED``: creates one shared memory domain per physical node (default)
+  * ``OMPI_COMM_TYPE_CORE``:  creates one shared memory domain per MPI thread
+  * ``PICLAS_COMM_TYPE_NODE``: creates one shared memory domain per X numbers of MPI threads defined by ``PICLAS_SHARED_MEMORY_CORES``
+    * ``PICLAS_SHARED_MEMORY_CORES``: Number of MPI threads per virtual node (default is 2). Assumes that all MPI threads run on the
+      same physical node.
+
 (sec:solver-settings)=
 ## Solver settings
 

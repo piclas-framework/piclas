@@ -148,7 +148,7 @@ USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalElemID,InitGetCNElemID,GetCNE
 USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID,GetGlobalSideID
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
-USE MOD_Mesh_Vars              ,ONLY: useCurveds, nElems
+USE MOD_Mesh_Vars              ,ONLY: useCurveds
 #if USE_MPI
 USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
 #endif /*USE_MPI*/
@@ -187,7 +187,10 @@ USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBa
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICDepo_Shapefunction_Tools, ONLY:InitShapeFunctionDimensionalty
+#if USE_MPI && (PP_TimeDiscMethod==400)
+USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+#endif /*USE_MPI && (PP_TimeDiscMethod==400)*/
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -15,7 +15,12 @@ before_script:
       echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor-level!";
       export PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE;
     else
-      echo "Splitting shared memory domains on node-level! Set variable DO_CORE_SPLIT=T to force core-level shared memory splitting for all regression tests.";
+      if [ -n "${DO_NODE_SPLIT}" ]; then
+        echo " PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE. Splitting shared memory domains on sub-node-level with 2 cores per node!";
+        export PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE;
+      else
+        echo "Splitting shared memory domains on node-level! Set variable DO_CORE_SPLIT=T to force core-level OR DO_NODE_SPLIT=T to force sub-node-level shared memory splitting for all regression tests.";
+      fi
     fi
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
@@ -173,16 +178,6 @@ build:
     - mkdir -p build ; cd build
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
     - cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; make -j all
-    - if [ -n "${DO_NIGHTLY}" ] || [ -n "${DO_WEEKLY}" ]; then
-        git clone https://github.com/flexi-framework/hopr.git hopr;
-        cd hopr ; mkdir -p build ; cd build;
-        echo `pwd`;
-        cmake .. -DHOPR_BUILD_HDF5=OFF;
-        make -j all &> output.txt;
-        tail -n 20 output.txt;
-        rm output.txt;
-        ls bin/hopr;
-      fi
 
 build_maxwell:
   tags:
@@ -230,6 +225,22 @@ build_poisson:
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; make -j all
 
+build_hopr:
+  tags:
+    - withmodules-concurrent
+  stage: build
+  script:
+    - git clone https://github.com/hopr-framework/hopr.git hopr;
+    - cd hopr ; mkdir -p build ; cd build;
+    - echo `pwd`;
+    - cmake .. -DHOPR_BUILD_HDF5=OFF;
+    - make -j all &> output.txt;
+    - tail -n 20 output.txt;
+    - rm output.txt;
+    - ls bin/hopr;
+  rules:
+    - if: '$DO_WEEKLY'
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -245,12 +256,17 @@ maxwell:
   script:
     - cd build_maxwell ; python ./reggie/reggie.py ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas
 
-poisson:
+poisson_release:
   <<: *defaults_poisson
   stage: reggie_checkin
   script:
     - cd build_poisson_release ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
-    - cd ../build_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
+
+poisson_debug:
+  <<: *defaults_poisson
+  stage: reggie_checkin
+  script:
+    - cd build_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)

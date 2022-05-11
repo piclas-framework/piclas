@@ -1279,11 +1279,11 @@ IF(.NOT.MPIRoot)RETURN
 
 ! Convert kB to GB
 memory=memory/1048576.
-#if USE_CORE_SPLIT
+#if ! (CORE_SPLIT==0)
   ! When core-level splitting is used, it is not clear how many cores are on the same physical compute node.
   ! Therefore, the values are set to -1.
   memory(2:3) = -1.
-#endif /*USE_CORE_SPLIT*/
+#endif /*! (CORE_SPLIT==0)*/
 
 ! Either create new file or add info to existing file
 !> create new file
