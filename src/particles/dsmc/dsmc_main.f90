@@ -74,7 +74,7 @@ REAL              :: tLBStart
 ! Rotational frame of reference: Transform particle velocity to inertial frame of reference for the DSMC operator
 IF(UseRotRefFrame) THEN
   DO iPart = 1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(iPart)) THEN
+    IF (PDM%ParticleInside(iPart).AND.PDM%InRotRefFrame(iPart)) THEN
       PartState(4:6,iPart) = PartState(4:6,iPart) + CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
     END IF
   END DO
@@ -152,7 +152,7 @@ IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_DeleteParticles
 
 IF(UseRotRefFrame) THEN
   DO iPart = 1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(iPart)) THEN
+    IF (PDM%ParticleInside(iPart).AND.PDM%InRotRefFrame(iPart)) THEN
       PartState(4:6,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
     END IF
   END DO

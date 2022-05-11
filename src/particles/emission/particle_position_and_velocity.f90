@@ -352,7 +352,7 @@ USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_ta
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_gyrotroncircle
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
-USE MOD_part_tools              ,ONLY: BuildTransGaussNums
+USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck
 USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -465,7 +465,10 @@ IF(UseRotRefFrame) THEN
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr.GT.0) THEN
-      PartState(4:6,PositionNbr) = PartState(4:6,PositionNbr) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PositionNbr))
+      IF(InRotRefFrameCheck(PositionNbr)) THEN
+        PDM%InRotRefFrame(PositionNbr) = .TRUE.
+        PartState(4:6,PositionNbr) = PartState(4:6,PositionNbr) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PositionNbr))
+      END IF
     END IF
   END DO
 END IF

@@ -41,6 +41,10 @@ INTERFACE isPushParticle
   MODULE PROCEDURE isPushParticle
 END INTERFACE
 
+INTERFACE InRotRefFrameCheck
+  MODULE PROCEDURE InRotRefFrameCheck
+END INTERFACE
+
 INTERFACE isDepositParticle
   MODULE PROCEDURE isDepositParticle
 END INTERFACE
@@ -61,6 +65,7 @@ END INTERFACE
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
 PUBLIC :: CalcXiElec,ParticleOnProc,  CalcERot_particle, CalcEVib_particle, CalcEElec_particle, CalcVelocity_maxwell_particle
+PUBLIC :: InRotRefFrameCheck
 !===================================================================================================================================
 
 CONTAINS
@@ -565,7 +570,7 @@ USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
 #elif (PP_TimeDiscMethod==400) /*BGK*/
 USE MOD_Particle_Vars ,ONLY: PartSpecies,Species ! Change this when required
 #else /*all other methods, mainly PIC*/
-USE MOD_Particle_Vars ,ONLY: PartSpecies,Species,UseRotRefFrame
+USE MOD_Particle_Vars ,ONLY: PartSpecies,Species
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -575,13 +580,44 @@ LOGICAL             :: isPushParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0.OR.UseRotRefFrame)THEN
+IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
   isPushParticle = .TRUE.
 ELSE
   isPushParticle = .FALSE.
 END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
 END FUNCTION isPushParticle
 
+PPURE FUNCTION InRotRefFrameCheck(iPart)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Check if particle is in a rotating frame of reference region.
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Particle_Vars ,ONLY: PartState,Species,RotRefFramRegion,RotRefFrameAxis,nRefFrameRegions
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)  :: iPart
+LOGICAL             :: InRotRefFrameCheck
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iRegion
+!===================================================================================================================================
+
+IF(nRefFrameRegions.GT.0) THEN
+  InRotRefFrameCheck = .FALSE.
+  DO iRegion = 1, nRefFrameRegions
+    IF((PartState(RotRefFrameAxis,iPart).GT.RotRefFramRegion(1,iRegion)).AND. &
+       (PartState(RotRefFrameAxis,iPart).LT.RotRefFramRegion(2,iRegion))) THEN
+      InRotRefFrameCheck = .TRUE.
+      EXIT
+    END IF
+  END DO
+ELSE
+  InRotRefFrameCheck = .TRUE.
+END IF
+
+END FUNCTION InRotRefFrameCheck
 
 PPURE FUNCTION isDepositParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!

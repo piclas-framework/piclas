@@ -1111,11 +1111,12 @@ END SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight
 SUBROUTINE SetSurfacefluxVelocities(iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,ElemID,NbrOfParticle,PartIns)
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY : PI, BoltzmannConst
+USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars
-USE MOD_Particle_Surfaces_Vars, ONLY : SurfMeshSubSideData, TriaSurfaceFlux
-USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBezier
+USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfMeshSubSideData, TriaSurfaceFlux
+USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangBezier
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMapElemToSample, AdaptBCMacroVal
+USE MOD_Part_Tools              ,ONLY: InRotRefFrameCheck
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1381,7 +1382,11 @@ IF(UseRotRefFrame) THEN
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr.GT.0) THEN
-      PartState(4:6,PositionNbr) = PartState(4:6,PositionNbr) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PositionNbr))
+! detect if particle is within a RotRefDomain
+      IF(InRotRefFrameCheck(PositionNbr)) THEN
+        PDM%InRotRefFrame(PositionNbr) = .TRUE.
+        PartState(4:6,PositionNbr) = PartState(4:6,PositionNbr) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PositionNbr))
+      END IF
     END IF
   END DO
 END IF

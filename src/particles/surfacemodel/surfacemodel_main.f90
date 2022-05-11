@@ -502,11 +502,13 @@ USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_part_tools              ,ONLY: InRotRefFrameCheck
 #if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
 USE MOD_SurfaceModel_Tools      ,ONLY: CalcPostWallCollVelo, SurfaceModel_EnergyAccommodation
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
+
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -560,8 +562,35 @@ POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo
 IF(PartBound%RotVelo(locBCID)) THEN
   CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
 END IF
-IF(UseRotRefFrame) THEN
-  WallVelo = WallVelo - CROSS(RotRefFrameOmega(1:3),POI_vec)
+
+!IF(UseRotRefFrame.AND.PDM%InRotRefFrame(PartID)) THEN
+!  WallVelo = WallVelo - CROSS(RotRefFrameOmega(1:3),POI_vec)
+!END IF
+
+!IF(UseRotRefFrame) THEN
+!  InRotRefFrame_POI = .FALSE.
+!  DO iRegion = 1, nRefFrameRegions
+!    IF((POI_vec(RotRefFrameAxis).GT.RotRefFramRegion(1,iRegion)).AND. &
+!       (POI_vec(RotRefFrameAxis).LT.RotRefFramRegion(2,iRegion))) THEN
+!      InRotRefFrame_POI = .TRUE.
+!      EXIT
+!    END IF
+!  END DO
+!  IF(InRotRefFrame_POI) THEN
+!    WallVelo = WallVelo - CROSS(RotRefFrameOmega(1:3),POI_vec)
+!    IF(.NOT.PDM%InRotRefFrame(PartID)) THEN
+!      PartState(4:6,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),POI_vec)
+!    END IF
+!  ELSE
+!    IF(PDM%InRotRefFrame(PartID)) THEN
+!      PartState(4:6,PartID) = PartState(4:6,PartID) + CROSS(RotRefFrameOmega(1:3),POI_vec)
+!      PDM%InRotRefFrame(PartID) = .FALSE.
+!    END IF
+!  END IF
+!END IF
+
+IF(UseRotRefFrame.AND.PDM%InRotRefFrame(PartID)) THEN
+  PartState(4:6,PartID) = PartState(4:6,PartID) + CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
 END IF
 
 ! 2.) Get the tangential vectors
@@ -693,6 +722,16 @@ END IF !.NOT.IsAuxBC
 
 ! 8.) Saving new particle velocity and recompute the trajectory based on new and old particle position
 PartState(4:6,PartID)   = NewVelo(1:3)
+
+IF(UseRotRefFrame) THEN
+  IF(InRotRefFrameCheck(PartID)) THEN
+    PartState(4:6,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
+    PDM%InRotRefFrame(PartID) = .TRUE.
+  END IF
+ELSE
+  PDM%InRotRefFrame(PartID) = .FALSE.
+END IF
+
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(SpecID)%ChargeIC.GT.0.0) AmbipolElecVelo(PartID)%ElecVelo(1:3) = NewVeloAmbi(1:3)
 END IF

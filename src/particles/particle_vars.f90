@@ -322,6 +322,7 @@ TYPE tParticleDataManagement
   INTEGER ,ALLOCATABLE                   :: nextFreePosition(:)  !  =>NULL()  ! next_free_Position(1:max_Particle_Number)
                                                                               ! List of free Positon
   LOGICAL ,ALLOCATABLE                   :: ParticleInside(:)    !  =>NULL()  ! Particle_inside(1:Particle_Number)
+  LOGICAL ,ALLOCATABLE                   :: InRotRefFrame(:)!  =>NULL()  ! Check for RotRefFrame(1:Particle_Number)
   LOGICAL ,ALLOCATABLE                   :: dtFracPush(:)                     ! Push random fraction only
   LOGICAL ,ALLOCATABLE                   :: IsNewPart(:)                      ! Reconstruct RK-scheme in next stage
 END TYPE
@@ -424,10 +425,13 @@ LOGICAL           :: CalcBulkElectronTemp        ! Automatic bulk electron calcu
 INTEGER           :: BulkElectronTempSpecID      ! Species ID (electron) for Automatic bulk electron calculation
 
 ! 
-LOGICAL               :: UseRotRefFrame           !>
-INTEGER               :: RotRefFrameAxis          !>
-REAL                  :: RotRefFrameFreq          !
-REAL                  :: RotRefFrameOmega(3)          !
+LOGICAL               :: UseRotRefFrame           ! flag for rotational frame of reference
+INTEGER               :: RotRefFrameAxis          ! axis of rotational frame of reference (x=1, y=2, z=3)
+REAL                  :: RotRefFrameFreq          ! frequency of rotational frame of reference
+REAL                  :: RotRefFrameOmega(3)      ! angular velocity of rotational frame of reference
+INTEGER               :: nRefFrameRegions         ! number of rotational frame of reference regions
+REAL, ALLOCATABLE     :: RotRefFramRegion(:,:)    ! MIN/MAX defintion for multiple rotational frame of reference region     
+                                                  ! (i,RegionNumber), MIN:i=1, MAX:i=2
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

@@ -58,9 +58,9 @@ USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,MeasureTrackTime
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime, PEM, PDM, &
-                                      doParticleMerge,DoFieldIonization
+                                      doParticleMerge,DoFieldIonization, UseRotRefFrame
 USE MOD_PICModels              ,ONLY: FieldIonization
-USE MOD_part_RHS               ,ONLY: CalcPartRHS
+USE MOD_part_RHS               ,ONLY: CalcPartRHS, CalcPartRHS_RefFrame
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_DSMC                   ,ONLY: DSMC_main
@@ -131,6 +131,7 @@ DO iStage = 1,nRKStages
   IF (time.GE.DelayTime) THEN
     IF(DoFieldIonization) CALL FieldIonization()
     IF(DoInterpolation)   CALL CalcPartRHS()
+    IF(UseRotRefFrame)    CALL CalcPartRHS_RefFrame()
   END IF
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
@@ -153,7 +154,7 @@ DO iStage = 1,nRKStages
           Pt_temp(  1:3,iPart) = PartState(4:6,iPart)
           PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart)*b_dt(iStage)
           ! Don't push the velocity component of neutral particles!
-          IF (isPushParticle(iPart)) THEN
+          IF (isPushParticle(iPart).OR.PDM%InRotRefFrame(iPart)) THEN
             Pt_temp(  4:6,iPart) = Pt(       1:3,iPart)
             PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart)*b_dt(iStage)
           END IF
@@ -165,7 +166,7 @@ DO iStage = 1,nRKStages
           Pt_temp(  1:3,iPart) = PartState(4:6,iPart) - RK_a(iStage) * Pt_temp(1:3,iPart)
           PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)
           ! Don't push the velocity component of neutral particles!
-          IF (isPushParticle(iPart)) THEN
+          IF (isPushParticle(iPart).OR.PDM%InRotRefFrame(iPart)) THEN
             Pt_temp(  4:6,iPart) =        Pt(1:3,iPart) - RK_a(iStage) * Pt_temp(4:6,iPart)
             PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(4:6,iPart)*b_dt(iStage)
           END IF

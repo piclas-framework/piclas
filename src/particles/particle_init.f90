@@ -210,8 +210,11 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
 ! === Rotational frame of reference
 
 CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'TO-DO ', '.FALSE.')
-CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','TO-DO')
-CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','TO-DO')
+CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','axis of rotational frame of reference (x=1, y=2, z=3)','0')
+CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','frequency of rotational frame of reference','0')
+CALL prms%CreateIntOption(      'Part-nRefFrameRegions','TO-DO','0')
+CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MIN','Minimun of RefFrame Region according to RotRefFrame-Axis',numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MAX','Maximun of RefFrame Region according to RotRefFrame-Axis',numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticles
 
@@ -571,6 +574,7 @@ ALLOCATE(PartState(1:6,1:PDM%maxParticleNumber)       , &
          Pt(1:3,1:PDM%maxParticleNumber)              , &
          PartSpecies(1:PDM%maxParticleNumber)         , &
          PDM%ParticleInside(1:PDM%maxParticleNumber)  , &
+         PDM%InRotRefFrame(1:PDM%maxParticleNumber)   , &
          PDM%nextFreePosition(1:PDM%maxParticleNumber), &
          PDM%dtFracPush(1:PDM%maxParticleNumber)      , &
          PDM%IsNewPart(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
@@ -580,6 +584,7 @@ __STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
 PDM%ParticleInside(1:PDM%maxParticleNumber) = .FALSE.
+PDM%InRotRefFrame(1:PDM%maxParticleNumber)  = .FALSE.
 PDM%dtFracPush(1:PDM%maxParticleNumber)     = .FALSE.
 PDM%IsNewPart(1:PDM%maxParticleNumber)      = .FALSE.
 LastPartPos(1:3,1:PDM%maxParticleNumber)    = 0.
@@ -1354,6 +1359,7 @@ SDEALLOCATE(LastPartPos)
 SDEALLOCATE(PartSpecies)
 SDEALLOCATE(Pt)
 SDEALLOCATE(PDM%ParticleInside)
+SDEALLOCATE(PDM%InRotRefFrame)
 SDEALLOCATE(PDM%nextFreePosition)
 SDEALLOCATE(PDM%nextFreePosition)
 SDEALLOCATE(PDM%dtFracPush)
@@ -1379,6 +1385,7 @@ SDEALLOCATE(PEM%pEnd)
 SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
 SDEALLOCATE(PartPosLandmark)
+SDEALLOCATE(RotRefFramRegion)
 #if USE_MPI
 SDEALLOCATE(SendElemShapeID)
 SDEALLOCATE(ShapeMapping)
@@ -1497,6 +1504,8 @@ USE MOD_Globals_Vars            ,ONLY: ElementaryCharge, PI
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL               :: omegaTemp
+INTEGER            :: iRegion
+CHARACTER(LEN=5)   :: hilf
 !===================================================================================================================================
 
 UseRotRefFrame = GETLOGICAL('Part-UseRotationalReferenceFrame','.FALSE.')
@@ -1515,6 +1524,18 @@ IF(UseRotRefFrame) THEN
     CASE DEFAULT
       CALL abort(__STAMP__,'ERROR Rotaional Reference Frame: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)  
   END SELECT
+  nRefFrameRegions = GETINT('Part-nRefFrameRegions')
+  ALLOCATE(RotRefFramRegion(1:2,1:nRefFrameRegions))
+  IF(nRefFrameRegions.GT.0)THEN
+    DO iRegion=1, nRefFrameRegions
+      WRITE(UNIT=hilf,FMT='(I0)') iRegion
+      RotRefFramRegion(1,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MIN')
+      RotRefFramRegion(2,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MAX')
+      IF(RotRefFramRegion(1,iRegion).GE.RotRefFramRegion(2,iRegion)) THEN
+        CALL abort(__STAMP__,'ERROR Rotaional Reference Frame: MIN > MAX in definition of region ',IntInfoOpt=iRegion)
+      END IF
+    END DO
+  END IF
 END IF
 
 END SUBROUTINE InitializeVariablesRotationalRefFrame

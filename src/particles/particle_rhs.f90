@@ -24,6 +24,10 @@ INTERFACE CalcPartRHS
   MODULE PROCEDURE CalcPartRHS
 END INTERFACE
 
+INTERFACE CalcPartRHS_RefFrame
+  MODULE PROCEDURE CalcPartRHS_RefFrame
+END INTERFACE
+
 INTERFACE CalcPartRHSSingleParticle
   MODULE PROCEDURE CalcPartRHSSingleParticle
 END INTERFACE
@@ -42,6 +46,7 @@ PUBLIC :: PartVeloToImp
 PUBLIC :: PartRHS
 PUBLIC :: CalcPartRHSSingleParticle
 PUBLIC :: CalcPartRHSRotRefFrame
+PUBLIC :: CalcPartRHS_RefFrame
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
@@ -176,18 +181,40 @@ INTEGER                          :: iPart
 DO iPart = 1,PDM%ParticleVecLength
   ! Particle is inside and not a neutral particle
   IF(PDM%ParticleInside(iPart))THEN
-    ! IF(isPushParticle(iPart))THEN
-    !   CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
-    !   CYCLE
-    ! END IF ! isPushParticle(iPart)
-    IF(UseRotRefFrame) THEN
-      ! NOTE: CURRENTLY NOT SUPPORTED WITH OTHER ACCELERATION!!! (see CYCLE above)
-      CALL CalcPartRHSRotRefFrame(iPart,Pt(1:3,iPart))
-    END IF
+     IF(isPushParticle(iPart))THEN
+       CALL PartRHS(iPart,FieldAtParticle(1:6,iPart),Pt(1:3,iPart))
+       CYCLE
+     END IF ! isPushParticle(iPart)
   END IF ! PDM%ParticleInside(iPart)
   ! Pt(:,iPart)=0.
 END DO
 END SUBROUTINE CalcPartRHS
+
+
+SUBROUTINE CalcPartRHS_RefFrame()
+!===================================================================================================================================
+! Computes the acceleration from the Lorentz force with respect to the species data and velocity
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars         ,ONLY: PDM,Pt
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLE
+INTEGER                          :: iPart
+LOGICAL                          :: InRotRefFrame_OLD
+!===================================================================================================================================
+! Loop all particles and call particle right-hand-side calculation
+DO iPart = 1,PDM%ParticleVecLength
+  IF(PDM%ParticleInside(iPart)) THEN
+    IF(PDM%InRotRefFrame(iPart))THEN
+      CALL CalcPartRHSRotRefFrame(iPart,Pt(1:3,iPart))
+    END IF ! PDM%ParticleInside(iPart)
+  END IF
+END DO
+END SUBROUTINE CalcPartRHS_RefFrame
 
 
 SUBROUTINE CalcPartRHSSingleParticle(iPart)
