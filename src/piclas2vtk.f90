@@ -330,7 +330,7 @@ DO iArgs = iArgsStart,nArgs
   END IF
   ! === ElemData ===================================================================================================================
   IF(ElemDataExists) THEN
-    CALL ConvertElemData(InputStateFile,'ElemData','VarNamesAdd')
+    CALL ConvertElemData(InputStateFile,'ElemData','VarNamesAdd',iArgs)
   END IF
   ! === SurfaceData ================================================================================================================
   IF(SurfaceDataExists) THEN
@@ -345,7 +345,7 @@ DO iArgs = iArgsStart,nArgs
   ! === AdaptiveInfo
   IF(VisuAdaptiveInfo) THEN
     IF(AdaptiveInfoExists) THEN
-      CALL ConvertElemData(InputStateFile,'AdaptiveInfo','VarNamesAdaptive')
+      CALL ConvertElemData(InputStateFile,'AdaptiveInfo','VarNamesAdaptive',iArgs)
     END IF
   END IF
 END DO ! iArgs = 2, nArgs
@@ -797,7 +797,7 @@ CALL CloseDataFile()
 END SUBROUTINE ConvertPartData
 
 
-SUBROUTINE ConvertElemData(InputStateFile,ArrayName,VarName)
+SUBROUTINE ConvertElemData(InputStateFile,ArrayName,VarName, iArgs)
 !===================================================================================================================================
 !> Convert element/volume data (single value per cell, e.g. DSMC/BGK results) to a VTK format
 !===================================================================================================================================
@@ -815,11 +815,12 @@ IMPLICIT NONE
 CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 CHARACTER(LEN=*),INTENT(IN)     :: ArrayName
 CHARACTER(LEN=*),INTENT(IN)     :: VarName
+INTEGER, INTENT(IN)             :: iArgs
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)              :: FileString, File_Type
+CHARACTER(LEN=255)              :: FileString, File_Type, File_Num
 REAL                            :: OutputTime
 INTEGER                         :: nDims,nVarAdd
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesAdd(:)
@@ -853,7 +854,8 @@ IF (nVarAdd.GT.0) THEN
     CASE('DSMCState','DSMCHOState')
       FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuDSMC',OutputTime))//'.vtu'
     CASE('RadiationState')
-      FileString=TRIM(TRIM(ProjectName)//'_RadVisu')//'.vtu'
+      WRITE(File_Num, "(I3.3)") iArgs
+      FileString=TRIM(TRIM(ProjectName)//'_RadVisu_'//TRIM(File_Num))//'.vtu'
   END SELECT
   ! TODO: This is probably borked for NGeo>1 because then NodeCoords are not the corner nodes
   CALL WriteDataToVTK_PICLas(8,FileString,nVarAdd,VarNamesAdd(1:nVarAdd),nUniqueNodes,NodeCoords_Connect(1:3,1:nUniqueNodes),nElems,&

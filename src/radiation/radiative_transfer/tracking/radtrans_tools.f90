@@ -140,7 +140,7 @@ RETURN
 END SUBROUTINE PhotonThroughSideCheck3DFast
 
 
-SUBROUTINE PhotonThroughSideCheck3DDir(iLocSide,Element,ThroughSide,TriNum,StartPoint,Dir)
+SUBROUTINE PhotonThroughSideCheck3DDir(iLocSide,CNElemID,ThroughSide,TriNum,StartPoint,Dir)
 !===================================================================================================================================
 !> Routine to check whether a particle crossed the given triangle of a side. The determinant between the normalix_photon_startd trajectory
 !> vector and the vectors from two of the three nodes to the old particle position is calculated. If the determinants for the three
@@ -151,27 +151,24 @@ SUBROUTINE PhotonThroughSideCheck3DDir(iLocSide,Element,ThroughSide,TriNum,Start
 ! MODULES
 USE MOD_Globals_Vars              ,ONLY: EpsMach
 USE MOD_Particle_Mesh_Vars, ONLY : NodeCoords_Shared, ElemSideNodeID_Shared
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)               :: iLocSide
-INTEGER,INTENT(IN)               :: Element
+INTEGER,INTENT(IN)               :: CNElemID
 INTEGER,INTENT(IN)               :: TriNum
 LOGICAL,INTENT(OUT)              :: ThroughSide
 REAL, INTENT(IN)                 :: StartPoint(3), Dir(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: CNElemID
 INTEGER                          :: n, NodeID
 REAL                             :: Px, Py, Pz
 REAL                             :: Vx, Vy, Vz!, Vall
 REAL                             :: xNode(3), yNode(3), zNode(3), Ax(3), Ay(3), Az(3)
 REAL                             :: det(3)
 !===================================================================================================================================
-CNElemID = GetCNElemID(Element)
 ThroughSide = .FALSE.
 
 Px = StartPoint(1)
@@ -371,29 +368,27 @@ REAL                             :: beta, alpha, deltay, a, b, c, tmpsqrt
 END SUBROUTINE PhotonIntersectionWithSide2D
 
 
-SUBROUTINE PhotonIntersectionWithSide2DDir(iLocSide,Element,ThroughSide,StartPoint, Dir)
+SUBROUTINE PhotonIntersectionWithSide2DDir(iLocSide,CNElemID,ThroughSide,StartPoint, Dir, IntersectionPos, Distance)
 !===================================================================================================================================
 !> Routine to check whether a photon crossed the given side.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Mesh_Vars,          ONLY : ElemSideNodeID2D_Shared, NodeCoords_Shared
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)              :: ThroughSide
-INTEGER,INTENT(IN)               :: iLocSide, Element
+INTEGER,INTENT(IN)               :: iLocSide, CNElemID
+REAL, INTENT(OUT), OPTIONAL      :: IntersectionPos(3), Distance
 REAL,INTENT(IN)                  :: StartPoint(3), Dir(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: CNElemID
 REAL                             :: y_photon_start,x_photon_start,yNode1,xNode1,yNode2,xNode2,sy,sz,sx
 REAL                             :: l1,S1,l2,S2,l,S
 REAL                             :: beta, alpha, deltay, a, b, c, tmpsqrt
 !===================================================================================================================================
-  CNElemID = GetCNElemID(Element)
   ThroughSide = .FALSE.
 
   xNode1 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
@@ -472,6 +467,12 @@ REAL                             :: beta, alpha, deltay, a, b, c, tmpsqrt
 
   IF((S .GT. 0.0) .AND. (0.0 .LE. l) .AND. (l .LE. 1.0)) THEN
     ThroughSide = .TRUE.
+    IF (PRESENT(IntersectionPos)) THEN
+      IntersectionPos(1) = StartPoint(1) + S*sx
+      IntersectionPos(2) = StartPoint(2) + S*sy
+      IntersectionPos(3) = S*sz
+      Distance = S
+    END IF
   END IF  
 END SUBROUTINE PhotonIntersectionWithSide2DDir
 

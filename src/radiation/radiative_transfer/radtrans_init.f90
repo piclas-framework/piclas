@@ -126,13 +126,14 @@ IF (RadObservationPointMethod.GT.0) THEN
   RadObservationPoint%OrthoNormBasis(1:3,1) = RadObservationPoint%ViewDirection(1:3)
   CALL FindLinIndependentVectors(RadObservationPoint%OrthoNormBasis(1:3,1), RadObservationPoint%OrthoNormBasis(1:3,2), RadObservationPoint%OrthoNormBasis(1:3,3))
   CALL GramSchmidtAlgo(RadObservationPoint%OrthoNormBasis(1:3,1), RadObservationPoint%OrthoNormBasis(1:3,2), RadObservationPoint%OrthoNormBasis(1:3,3))
-  ObsLengt = RadObservationPoint%Diameter/(2.*TAN(RadObservationPoint%AngularAperture/2.))
+  IF (RadObservationPointMethod.EQ.2) RadObservationPoint%Diameter = 0.0
+  ObsLengt = RadObservationPoint%Diameter/(2.*TAN(RadObservationPoint%AngularAperture/2.))  
   RadObservationPoint%StartPoint(1:3) = RadObservationPoint%MidPoint(1:3) - ObsLengt*RadObservationPoint%ViewDirection(1:3)
   RadObservationPoint%Area = Pi*RadObservationPoint%Diameter*RadObservationPoint%Diameter/4.
   IF (RadObservationPointMethod.EQ.2) THEN
     RadObservationPoint%CalcFullSpectra = GETLOGICAL('Radiation-ObservationCalcFullSpectra')
     IF (RadObservationPoint%CalcFullSpectra) THEN
-      RadEmiAdaptPhotonNum = .FALSE.
+      RadEmiAdaptPhotonNum = .TRUE.
       RadTrans%NumPhotonsPerCell = RadiationParameter%WaveLenDiscrCoarse
     END IF
   END IF
@@ -185,6 +186,14 @@ END IF
 
 ALLOCATE(RadTransPhotPerCellLoc(nComputeNodeElems))
 RadTransPhotPerCellLoc = 0
+
+IF (RadObservationPointMethod.EQ.2) THEN
+  CALL Allocate_Shared((/7,nComputeNodeElems/), RadObservationPOI_Shared_Win,RadObservationPOI_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,RadObservationPOI_Shared_Win,IERROR)
+  RadObservationPOI => RadObservationPOI_Shared
+  IF (myComputeNodeRank.EQ.0) RadObservationPOI = 0.
+  CALL BARRIER_AND_SYNC(RadObservationPOI_Shared_Win ,MPI_COMM_SHARED)
+END IF
 #else
 ! allocate local array for ElemInfo
 ALLOCATE(RadTransPhotPerCell(nElems),Radiation_Emission_Spec_Total(nElems),RadTransPhotPerCellLoc(nELems), RadTransObsVolumeFrac(nElems))
@@ -195,6 +204,10 @@ Radiation_Emission_Spec_Total=0.0
 IF (RadiationPhotonWaveLengthModel.EQ.1) THEN
   ALLOCATE(Radiation_Emission_Spec_Max(nElems))
   Radiation_Emission_Spec_Max=0.0
+END IF
+IF (RadObservationPointMethod.EQ.2) THEN
+  ALLOCATE(RadObservationPOI(7,nElems))
+  RadObservationPOI = 0.
 END IF
 #endif  /*USE_MPI*/
 
@@ -351,6 +364,9 @@ END SELECT
     END IF
   END IF  
   CALL BARRIER_AND_SYNC(Radiation_Absorption_Spec_Shared_Win ,MPI_COMM_SHARED)
+  IF (RadObservationPointMethod.EQ.2) CALL BARRIER_AND_SYNC(RadObservationPOI_Shared_Win ,MPI_COMM_SHARED)
+  print*, 'AHAAAA', SUM(RadObservationPOI(7,:))
+  read*
 #endif
   RadTrans%GlobalRadiationPower = 0.0
   RadTrans%ScaledGlobalRadiationPower = 0.0
@@ -558,10 +574,11 @@ SUBROUTINE ElemOnLineOfSight(ElemID, ElemInCone)
 USE MOD_Globals
 USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemInfo_Shared, BoundsOfElem_Shared, SideInfo_Shared, SideIsSymSide
-USE MOD_RadiationTrans_Vars       ,ONLY: RadObservationPoint, RadTransObsVolumeFrac
+USE MOD_RadiationTrans_Vars       ,ONLY: RadObservationPoint, RadTransObsVolumeFrac, RadObservationPOI
 USE MOD_Particle_Vars             ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Tools       ,ONLY: ParticleInsideQuad3D
 USE MOD_Photon_TrackingTools      ,ONLY: PhotonIntersectionWithSide2DDir, PhotonThroughSideCheck3DDir
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -573,11 +590,15 @@ LOGICAL, INTENT(OUT)            :: ElemInCone
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iNode, MCVar, iGlobalElem, iPoint, iLocSide, nlocSides, TempSideID, localSideID, TriNum
-LOGICAL                       :: NodeInCone(8), InsideFlag, ThroughSide
-REAL                          :: NodePoint(3), ConeDist, ConeRadius, orthoDist, RandomPos(3)
+INTEGER                       :: nThroughSide, BCType
+LOGICAL                       :: NodeInCone(8), InsideFlag, ThroughSide, IsSymElem
+REAL                          :: NodePoint(3), ConeDist, ConeRadius, orthoDist, RandomPos(3),IntersectionPos(1:3), Distance(2)
+REAL                          :: length
 !===================================================================================================================================
 ElemInCone = .FALSE.
+IsSymElem = .FALSE.
 nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+nThroughSide = 0
 SideLoop: DO iLocSide=1,nlocSides
   TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
   localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
@@ -585,11 +606,26 @@ SideLoop: DO iLocSide=1,nlocSides
   IF (localSideID.LE.0) CYCLE
   IF(Symmetry%Axisymmetric) THEN
     IF (SideIsSymSide(TempSideID)) CYCLE
+    IF (SideInfo_Shared(SIDE_BCID,TempSideID).GT.0) THEN
+      BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,TempSideID)))
+      IF (BCType.EQ.PartBound%SymmetryAxis) IsSymElem = .TRUE.
+    END IF
     ThroughSide = .FALSE.
-    CALL PhotonIntersectionWithSide2DDir(localSideID,ElemID,ThroughSide, RadObservationPoint%StartPoint(1:3),RadObservationPoint%ViewDirection(1:3))
+    CALL PhotonIntersectionWithSide2DDir(localSideID,ElemID,ThroughSide, RadObservationPoint%StartPoint(1:3),&
+        RadObservationPoint%ViewDirection(1:3), IntersectionPos(1:3), Distance(nThroughSide+1))
     IF (ThroughSide) THEN
       ElemInCone = .TRUE.
-      EXIT SideLoop
+      RadObservationPOI(1+nThroughSide*3:3+nThroughSide*3, ElemID) = IntersectionPos(1:3)
+      nThroughSide = nThroughSide + 1
+      IF (nThroughSide.EQ.2) THEN
+        IF (Distance(2).LT.Distance(1)) THEN
+          IntersectionPos(1:3) = RadObservationPOI(1:3, ElemID)
+          RadObservationPOI(1:3, ElemID) = RadObservationPOI(4:6, ElemID)
+          RadObservationPOI(4:6, ElemID) = IntersectionPos(1:3)
+        END IF
+        RadObservationPOI(7, ElemID) = VECNORM(RadObservationPOI(4:6, ElemID)-RadObservationPOI(1:3, ElemID))
+        EXIT SideLoop
+      END IF
     END IF 
   ELSE
     DO TriNum = 1,2
@@ -602,6 +638,24 @@ SideLoop: DO iLocSide=1,nlocSides
     END DO
   END IF
 END DO SideLoop
+IF (ElemInCone.AND.(nThroughSide.NE.2)) THEN
+  IF (IsSymElem) THEN
+    IF (nThroughSide.NE.1) THEN
+      CALL abort(&
+      __STAMP__&
+      ,' Cannot find 1 POI of LOS in Elem', ElemID)
+    END IF
+    RadObservationPOI(4:6, ElemID) = RadObservationPOI(1:3, ElemID)
+    length = -RadObservationPoint%StartPoint(2)/RadObservationPoint%ViewDirection(2)
+    RadObservationPOI(2:3, ElemID) = 0.0
+    RadObservationPOI(1, ElemID) = RadObservationPoint%StartPoint(1) + length*RadObservationPoint%ViewDirection(1)
+    RadObservationPOI(7, ElemID) = VECNORM(RadObservationPOI(4:6, ElemID)-RadObservationPOI(1:3, ElemID))
+    RETURN
+  END IF
+  CALL abort(&
+      __STAMP__&
+      ,' Cannot find POI of LOS in Elem', ElemID)
+END IF
 
 END SUBROUTINE ElemOnLineOfSight
 

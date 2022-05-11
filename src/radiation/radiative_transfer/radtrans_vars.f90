@@ -76,6 +76,7 @@ INTEGER,ALLOCPOINT              :: RadTransPhotPerCell(:)     ! (WaveLen(:), num
 INTEGER, ALLOCATABLE            :: RadTransPhotPerCellLoc(:)
 REAL, ALLOCPOINT                :: RadTransObsVolumeFrac(:)
 REAL, ALLOCATABLE               :: PhotonSampWall(:,:)
+REAL, ALLOCPOINT                :: RadObservationPOI(:,:)
 #if USE_MPI
 INTEGER                         :: RadTransPhotPerCell_Shared_Win
 INTEGER,ALLOCPOINT              :: RadTransPhotPerCell_Shared(:)
@@ -89,6 +90,8 @@ INTEGER                         :: PhotonSampWall_Shared_Win
 REAL,POINTER                    :: PhotonSampWall_Shared(:,:)
 INTEGER                         :: RadiationElemAbsEnergy_Shared_Win
 REAL,POINTER                    :: RadiationElemAbsEnergy_Shared(:)
+INTEGER                         :: RadObservationPOI_Shared_Win
+REAL,ALLOCPOINT                 :: RadObservationPOI_Shared(:,:)
 #endif
 !===================================================================================================================================
 END MODULE MOD_RadiationTrans_Vars
