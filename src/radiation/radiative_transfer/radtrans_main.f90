@@ -51,7 +51,7 @@ USE MOD_Photon_Tracking         ,ONLY : PhotonTriaTracking, Photon2DSymTracking
 USE MOD_Radiation_Vars          ,ONLY : RadiationSwitches
 USE MOD_DSMC_Vars               ,ONLY : RadialWeighting
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
-USE MOD_Output,                 ONLY: PrintStatusLineRadiation
+USE MOD_Output                  ,ONLY: PrintStatusLineRadiation
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_Particle_Vars           ,ONLY: Symmetry
@@ -68,7 +68,7 @@ INTEGER             :: firstElem, lastElem, firstPhoton, lastPhoton
 REAL                :: Bounds(1:2,1:3) ! Bounds(1,1:3) --> maxCoords , Bounds(2,1:3) --> minCoords
 REAL                :: RandRot(3,3) !, PartPos(1:3)
 !===================================================================================================================================
-  IF (RadiationSwitches%RadType.EQ.3) RETURN
+  IF ((RadiationSwitches%RadType.EQ.3) .OR. (RadiationSwitches%RadType.EQ.4)) RETURN
 
 #if USE_MPI
   firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeElems)/REAL(nComputeNodeProcessors))+1
