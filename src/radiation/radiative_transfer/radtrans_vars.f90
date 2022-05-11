@@ -26,6 +26,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                                  :: useParticleRadiationSolver
 INTEGER                                  :: RadObservationPointMethod
+LOGICAL                                  :: ObservationDoConvolution
 
 TYPE tRadObservationPoint
   REAL                                   :: StartPoint(3)
@@ -36,10 +37,12 @@ TYPE tRadObservationPoint
   REAL                                   :: Diameter
   REAL                                   :: OrthoNormBasis(3,3)
   LOGICAL                                :: CalcFullSpectra
+  REAL                                   :: SlitFunction(2)
 END TYPE
 
 TYPE(tRadObservationPoint)               :: RadObservationPoint
-REAL,ALLOCATABLE                         :: RadObservation_Emission(:)  
+REAL,ALLOCATABLE                         :: RadObservation_Emission(:)
+REAL,ALLOCATABLE                         :: RadObservation_Emission_Conv(:)  
 INTEGER,ALLOCATABLE                      :: RadObservation_EmissionPart(:)  
 
 TYPE tRadTrans

@@ -52,10 +52,12 @@ CALL prms%CreateIntOption(    'Radiation-AbsorptionModel', 'HM','1')
 CALL prms%CreateIntOption(    'Radiation-PhotonPosModel', 'HM','1')
 CALL prms%CreateIntOption(    'Radiation-PhotonWaveLengthModel', 'HM','1')
 CALL prms%CreateRealArrayOption('Radiation-ObservationMidPoint', 'HM')
+CALL prms%CreateRealArrayOption('Radiation-ObservationSlitFunction', 'Slit function for convolution, trapezoid, 1:topwidth[A] 2:basewidth[A]', '0.,0.')
 CALL prms%CreateRealOption('Radiation-ObservationDiameter', 'HM')
 CALL prms%CreateRealArrayOption('Radiation-ObservationViewDirection', 'HM')
 CALL prms%CreateRealOption('Radiation-ObservationAngularAperture', 'HM')
 CALL prms%CreateLogicalOption('Radiation-ObservationCalcFullSpectra','.FALSE.')
+CALL prms%CreateLogicalOption('Radiation-ObservationDoConvolution','Consider instrumental broadening?','.FALSE.')
 
 END SUBROUTINE DefineParametersRadiationTrans
 
@@ -98,7 +100,7 @@ USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radia
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iWave, iElem, firstElem, lastElem, ElemDisp, DisplRank, iSpec, currentRank
-REAL                  :: LocTemp, ObsLengt, MaxSumTemp(2), GlobalMaxTemp(2)
+REAL                  :: LocTemp, ObsLengt, MaxSumTemp(2), GlobalMaxTemp(2), hilf
 LOGICAL               :: ElemInCone
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -114,6 +116,7 @@ RadiationPhotonPosModel = GETINT('Radiation-PhotonPosModel')
 RadiationPhotonWaveLengthModel = GETINT('Radiation-PhotonWaveLengthModel')
 RadEmiAdaptPhotonNum = GETLOGICAL('Radiation-AdaptivePhotonNumEmission')
 RadObservationPointMethod = GETINT('Radiation-RadObservationPointMethod')
+ObservationDoConvolution = GETLOGICAL('Radiation-ObservationDoConvolution')
 
 IF (RadObservationPointMethod.GT.0) THEN
   RadObservationPoint%AngularAperture = GETREAL('Radiation-ObservationAngularAperture')
@@ -122,6 +125,12 @@ IF (RadObservationPointMethod.GT.0) THEN
   RadObservationPoint%ViewDirection = GETREALARRAY('Radiation-ObservationViewDirection',3)
   IF(.NOT.ALL(RadObservationPoint%ViewDirection(:).EQ.0.)) THEN
     RadObservationPoint%ViewDirection = RadObservationPoint%ViewDirection / VECNORM(RadObservationPoint%ViewDirection)
+  END IF
+  RadObservationPoint%SlitFunction = GETREALARRAY('Radiation-ObservationSlitFunction',2)
+  IF(RadObservationPoint%SlitFunction(1).GT.RadObservationPoint%SlitFunction(2)) THEN
+    hilf = RadObservationPoint%SlitFunction(1)
+    RadObservationPoint%SlitFunction(1) = RadObservationPoint%SlitFunction(2)
+    RadObservationPoint%SlitFunction(2) = hilf
   END IF
   RadObservationPoint%OrthoNormBasis(1:3,1) = RadObservationPoint%ViewDirection(1:3)
   CALL FindLinIndependentVectors(RadObservationPoint%OrthoNormBasis(1:3,1), RadObservationPoint%OrthoNormBasis(1:3,2), RadObservationPoint%OrthoNormBasis(1:3,3))
@@ -141,8 +150,10 @@ END IF
 
 IF(Symmetry%Order.EQ.2) CALL BuildMesh2DInfo()
 IF (RadObservationPointMethod.GT.0) THEN
-  ALLOCATE(RadObservation_Emission(RadiationParameter%WaveLenDiscrCoarse),RadObservation_EmissionPart(RadiationParameter%WaveLenDiscrCoarse))
+  ALLOCATE(RadObservation_Emission(RadiationParameter%WaveLenDiscrCoarse),RadObservation_Emission_Conv(RadiationParameter%WaveLenDiscrCoarse), &
+    RadObservation_EmissionPart(RadiationParameter%WaveLenDiscrCoarse))
   RadObservation_Emission = 0.0
+  RadObservation_Emission_Conv = 0.0
   RadObservation_EmissionPart = 0
 END IF
 
