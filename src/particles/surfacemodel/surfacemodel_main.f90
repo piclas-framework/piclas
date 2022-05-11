@@ -508,6 +508,7 @@ USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
 USE MOD_SurfaceModel_Tools      ,ONLY: CalcPostWallCollVelo, SurfaceModel_EnergyAccommodation
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
+USE MOD_Particle_Vars           ,ONLY: RotRefFramRegion,RotRefFrameAxis,nRefFrameRegions
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -527,7 +528,10 @@ REAL                              :: POI_fak, TildTrajectory(3), adaptTimeStep
 LOGICAL                           :: IsAuxBC
 ! Symmetry
 REAL                              :: rotVelY, rotVelZ, rotPosY
-REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:3), Vector2(1:3)
+REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:3), Vector2(1:3),OldVelo(1:3)
+! Rot Ref Frame
+LOGICAL                           :: InRotRefFramePOI
+INTEGER                           :: iRegion
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN
   IsAuxBC=.TRUE.
@@ -559,6 +563,21 @@ SpecID = PartSpecies(PartID)
 
 POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 
+IF(UseRotRefFrame) THEN
+  IF(nRefFrameRegions.GT.0) THEN
+    InRotRefFramePOI = .FALSE.
+    DO iRegion = 1, nRefFrameRegions
+      IF((POI_vec(RotRefFrameAxis).GT.RotRefFramRegion(1,iRegion)).AND. &
+         (POI_vec(RotRefFrameAxis).LT.RotRefFramRegion(2,iRegion))) THEN
+        InRotRefFramePOI = .TRUE.
+        EXIT
+      END IF
+    END DO
+  ELSE
+    InRotRefFramePOI = .TRUE.
+  END IF
+END IF
+
 IF(PartBound%RotVelo(locBCID)) THEN
   CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
 END IF
@@ -588,7 +607,7 @@ END IF
 !    END IF
 !  END IF
 !END IF
-
+OldVelo = PartState(4:6,PartID)
 IF(UseRotRefFrame.AND.PDM%InRotRefFrame(PartID)) THEN
   PartState(4:6,PartID) = PartState(4:6,PartID) + CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
 END IF
@@ -628,6 +647,7 @@ END IF
 
 ! 3.) Calculate new velocity vector (Extended Maxwellian Model)
 VeloC(1:3) = CalcPostWallCollVelo(SpecID,DOTPRODUCT(PartState(4:6,PartID)),WallTemp,TransACC)
+
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
     VeloCAmbi(1:3) = CalcPostWallCollVelo(DSMC%AmbiDiffElecSpec,DOTPRODUCT(AmbipolElecVelo(PartID)%ElecVelo(1:3)),WallTemp,TransACC)
@@ -676,7 +696,7 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
   END IF ! VarTimeStep%UseVariableTimeStep
   ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
   !TildPos       =PartState(1:3,PartID)-dt*RKdtFrac*PartState(4:6,PartID)
-  TildTrajectory=dt*RKdtFrac*PartState(4:6,PartID)*adaptTimeStep
+  TildTrajectory=dt*RKdtFrac*OldVelo*adaptTimeStep
   POI_fak=1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
   ! travel rest of particle vector
   !PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
@@ -685,7 +705,31 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
   ELSE
     IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
   END IF ! IsAuxBC
+
+  IF(UseRotRefFrame) THEN
+    IF(InRotRefFramePOI) THEN
+      NewVelo(1:3) = NewVelo(1:3) - CROSS(RotRefFrameOmega(1:3),POI_vec(1:3))
+      PDM%InRotRefFrame(PartID) = .TRUE.
+    ELSE
+      PDM%InRotRefFrame(PartID) = .FALSE.
+    END IF
+  END IF
+
   PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3) * adaptTimeStep
+
+  IF(UseRotRefFrame) THEN
+    IF(InRotRefFrameCheck(PartID)) THEN
+      IF(.NOT.InRotRefFramePOI) THEN
+        NewVelo(1:3) = NewVelo(1:3) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
+        PDM%InRotRefFrame(PartID) = .TRUE.
+      END IF
+    ELSE
+      IF(InRotRefFramePOI) THEN
+        NewVelo(1:3) = NewVelo(1:3) + CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
+        PDM%InRotRefFrame(PartID) = .FALSE.
+      END IF
+    END IF
+  END IF
 
 ! 7.) Axisymmetric simulation: Rotate the vector back into the symmetry plane
   IF(Symmetry%Axisymmetric) THEN
@@ -722,15 +766,6 @@ END IF !.NOT.IsAuxBC
 
 ! 8.) Saving new particle velocity and recompute the trajectory based on new and old particle position
 PartState(4:6,PartID)   = NewVelo(1:3)
-
-IF(UseRotRefFrame) THEN
-  IF(InRotRefFrameCheck(PartID)) THEN
-    PartState(4:6,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
-    PDM%InRotRefFrame(PartID) = .TRUE.
-  END IF
-ELSE
-  PDM%InRotRefFrame(PartID) = .FALSE.
-END IF
 
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(SpecID)%ChargeIC.GT.0.0) AmbipolElecVelo(PartID)%ElecVelo(1:3) = NewVeloAmbi(1:3)
