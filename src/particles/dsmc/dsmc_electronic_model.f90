@@ -328,12 +328,12 @@ CASE(2)
   IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ETraRel = ETraRel / GetParticleWeight(iPart1)
   END IF    
-  IF (PRESENT(NewPart)) THEN
-    TransElec = 1./(BoltzmannConst*(FakXi+1.+ Xi_Elec/2.))*ETraRel
-  ELSE
+!  IF (PRESENT(NewPart)) THEN
+!    TransElec = 1./(BoltzmannConst*(FakXi+1.+ Xi_Elec/2.))*ETraRel
+!  ELSE
     TransElec = DSMC%InstantTransTemp(nSpecies + 1)
     IF (TransElec.LE.0.0) TransElec = 1./(BoltzmannConst*(FakXi+1.))*ETraRel
-  END IF
+!  END IF
   ElectronicPartition = 0.0
   DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
     tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TransElec

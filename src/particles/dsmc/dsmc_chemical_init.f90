@@ -743,7 +743,8 @@ DO iReacForward = 1, ChemReac%NumOfReactWOBackward
       'Other reaction types than I and D are not implemented with the automatic backward rate determination, Reaction:', iReac)
     END IF
   ELSE
-    IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D') THEN
+    IF((TRIM(ChemReac%ReactType(iReacForward)).EQ.'I').OR.&
+        (TRIM(ChemReac%ReactType(iReacForward)).EQ.'D'  )) THEN
       ! Analogous to the I case
       ChemReac%ReactType(iReac) = 'R'
       ChemReac%ReactModel(iReac) = 'TCE'
