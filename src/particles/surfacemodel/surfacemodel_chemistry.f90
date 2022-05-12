@@ -203,7 +203,7 @@ DO iReac = 1, ReadInNumOfReact
     __STAMP__&
     ,'ERROR: At least one boundary must be defined for each surface reaction!',iReac)
   END IF
-  ALLOCATE(SurfChemReac%BoundMap(iReac)%nSurfacefluxBCs(SurfChemReac%NumOfBounds(iReac)))
+
   SurfChemReac%BoundMap(iReac)%Boundaries = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Boundaries', &
                                             SurfChemReac%NumOfBounds(iReac))
   ! Define the surface model
@@ -243,31 +243,6 @@ DO iReac = 1, ReadInNumOfReact
   ! Total Collision Energy: Arrhenius-based chemistry model
   ! SurfChemReac%ReactProb(iReac)   = GETREAL('Surface-Reaction'//TRIM(hilf)//'-ReactProbability','0')
   SurfChemReac%EForm(iReac)  = GETREAL('Surface-Reaction'//TRIM(hilf)//'-FormationEnergy','0')
-  ! Filling up ChemReac-Array for the given non-reactive dissociation/electron-impact ionization partners
-
-  ! Calculation of stoichiometric coefficients and calculation of the heat of formation
-  StoichCoeff = 0
-  !SurfChemReac%EForm(iReac) = 0.0
-  DO iSpec=1, nSpecies
-    ! Reactants
-    DO iPart = 1,2
-      IF(SurfChemReac%Reactants(iReac,iPart).EQ.iSpec) THEN
-          StoichCoeff(iSpec,1) = StoichCoeff(iSpec,1) + 1
-      END IF
-    END DO
-    ! Products
-    DO iPart = 1,2
-      IF(SurfChemReac%Products(iReac,iPart).EQ.iSpec) THEN
-        StoichCoeff(iSpec,2) = StoichCoeff(iSpec,2) + 1
-      END IF
-    END DO
-    ! Calculation of the enthalpy of reaction by the summation of the enthalpies of formation of the respective species
-    ! (ionization energy of ionized species was already added in dsmc_init.f90)
-    SurfChemReac%EForm(iReac) = SurfChemReac%EForm(iReac) &
-                            - StoichCoeff(iSpec,2)*SpecDSMC(iSpec)%HeatOfFormation  &
-                            + StoichCoeff(iSpec,1)*SpecDSMC(iSpec)%HeatOfFormation
-  END DO
-  
 END DO
 
 ! ! Simple recombination model

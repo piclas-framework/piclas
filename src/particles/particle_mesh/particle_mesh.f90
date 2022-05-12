@@ -477,7 +477,6 @@ IF(FindNeighbourElems) CALL BuildNodeNeighbourhood()
 IF (TriaSurfaceFlux) THEN
   BezierSampleN = 1
   SurfFluxSideSize=(/1,2/)
-  SurfChemSideSize=(/1,2/)
 ELSE
   WRITE(tmpStr,'(I2.2)') NGeo
   BezierSampleN = GETINT('BezierSampleN',tmpStr)

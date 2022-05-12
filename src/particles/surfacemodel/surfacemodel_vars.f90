@@ -54,7 +54,6 @@ END TYPE
 
 TYPE tSurfFluxMap
   TYPE(typeSurfaceflux),ALLOCATABLE  :: Surfaceflux(:)                   
-  !INTEGER                           :: nSurfacefluxBCs  
 END TYPE
 
   LOGICAL                         :: DoChemSurface 
@@ -95,66 +94,30 @@ TYPE tSurfReactions
 END TYPE
 TYPE(tSurfReactions)              :: SurfChemReac
 
-! Surface flux for the creation of the particles
-  INTEGER                          :: SurfChemSideSize(2) 
-  REAL,ALLOCATABLE,DIMENSION(:)    :: SurfChemSideAreas
-
-  TYPE tSurfChemSubSideData
-  REAL                                   :: vec_nIn(3)                 
-  REAL                                   :: vec_t1(3)                  
-  REAL                                   :: vec_t2(3)                   
-  REAL                                   :: area                        
-END TYPE tSurfChemSubSideData
-TYPE(tSurfChemSubSideData),ALLOCATABLE   :: SurfChemSubSideData(:,:,:) 
-
-TYPE tTriaSwapGeo
-  REAL                                   :: midpoint(3)                 
-  REAL                                   :: ndist(3)                    
-END TYPE tTriaSwapGeo
-TYPE tTriaSideGeo
-  REAL                                   :: xyzNod(3)                  
-  REAL                                   :: Vectors(3,3)                
-END TYPE tTriaSideGeo
-
-TYPE tBCdata_auxSCF
-  INTEGER                                :: SideNumber                  
-  REAL                                   :: GlobalArea, LocalArea       
-  INTEGER                , ALLOCATABLE   :: SideList(:)                 
-  TYPE(tTriaSwapGeo)     , ALLOCATABLE   :: TriaSwapGeo(:,:,:)            
-  TYPE(tTriaSideGeo)     , ALLOCATABLE   :: TriaSideGeo(:)               
-END TYPE tBCdata_auxSCF
-TYPE(tBCdata_auxSCF),ALLOCATABLE          :: BCdata_auxSCF(:) 
-
-TYPE tBCdata_auxSCFRadWeight
-  REAL, ALLOCATABLE   :: SubSideWeight(:,:)
-  REAL, ALLOCATABLE   :: WeightingFactor(:)
-  REAL, ALLOCATABLE   :: SubSideArea(:,:)
-END TYPE
-
 TYPE typeSurfaceflux
-  INTEGER                                :: BC                             
+  INTEGER                                :: BC                              
   CHARACTER(30)                          :: velocityDistribution           
-  REAL                                   :: VeloIC                        
-  REAL                                   :: VeloVecIC(3)                    
-  REAL                                   :: MWTemperatureIC                              
-  LOGICAL                                :: VeloIsNormal                            
-  REAL                                   :: VFR_total                     
-  REAL                     , ALLOCATABLE :: VFR_total_allProcs(:)      
-  REAL                                   :: VFR_total_allProcsTotal        
-  REAL                                   :: totalAreaSF                    
-  INTEGER(KIND=8)                        :: InsertedParticle                
-  INTEGER(KIND=8)                        :: InsertedParticleSurplus         
-  INTEGER(KIND=8)                        :: tmpInsertedParticle            
-  INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus       
-  TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)      
-  INTEGER                                :: dir(3)                         
+  REAL                                   :: VeloIC             
+  REAL                                   :: VeloVecIC(3)            
+  REAL                                   :: MWTemperatureIC                  
+  LOGICAL                                :: VeloIsNormal                    
+  LOGICAL                                :: AcceptReject                    
+  INTEGER                                :: ARM_DmaxSampleN               
+  REAL                                   :: VFR_total                       
+  REAL                     , ALLOCATABLE :: VFR_total_allProcs(:)          
+  REAL                                   :: VFR_total_allProcsTotal         
+  REAL                                   :: totalAreaSF                  
+  INTEGER(KIND=8)                        :: InsertedParticle                 
+  INTEGER(KIND=8)                        :: tmpInsertedParticle              
+  INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus      
+  TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)     
+  INTEGER                                :: dir(3)                          
   REAL                                   :: origin(2)                        
-  REAL                                   :: rmax                             
+  REAL                                   :: rmax                           
   REAL                                   :: rmin                            
-  INTEGER, ALLOCATABLE                   :: SurfFluxSideRejectType(:)        
-  REAL, ALLOCATABLE                      :: CircleAreaPerTriaSide(:,:,:)    
-  REAL                                   :: SampledMassflow                  
-  REAL, ALLOCATABLE                      :: nVFRSub(:,:)                     
+  LOGICAL                                :: Adaptive                        
+  INTEGER                                :: AdaptiveType                
+  REAL, ALLOCATABLE                      :: nVFRSub(:,:)                  
 END TYPE
 
 TYPE tSurfFluxSubSideData

@@ -47,7 +47,7 @@ USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
-
+USE MOD_Particle_Surfaces_Vars
 USE MOD_Particle_Boundary_Vars 
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_SurfaceModel
@@ -174,23 +174,24 @@ DO iReac = 1, SurfNumOfReac
                 DO WHILE(INT(PartBound%DesCountIter(BoundID, iSpec)).GT.1)
                   ! Random distribution of the particles on the surface
                   CALL RANDOM_NUMBER(RanNum)
-                    iSide = INT(BCdata_auxSCF(currentBC)%SideNumber * RanNum)
+                  iSide = INT(BCdata_auxSF(currentBC)%SideNumber * RanNum)
+                  IF(iSide.GT.0) THEN
                     ! Define the necessary variables
-                    BCSideID=BCdata_auxSCF(currentBC)%SideList(iSide)
+                    BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
                     ElemID = SideToElem(S2E_ELEM_ID,BCSideID)
                     iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
                     globElemId = ElemID + offSetElem
                     SideID=GetGlobalNonUniqueSideID(globElemId,iLocSide)
-                    xyzNod(1:3) = BCdata_auxSCF(currentBC)%TriaSideGeo(iSide)%xyzNod(1:3)
+                    xyzNod(1:3) = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%xyzNod(1:3)
 
-                    DO jSample=1,SurfChemSideSize(2); DO iSample=1,SurfChemSideSize(1)
+                    DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
                       ! Number of additional particles to be inserted 
                         Node1 = jSample+1    
                         Node2 = jSample+2     !        
-                        Vector1 = BCdata_auxSCF(currentBC)%TriaSideGeo(iSide)%Vectors(:,Node1-1)
-                        Vector2 = BCdata_auxSCF(currentBC)%TriaSideGeo(iSide)%Vectors(:,Node2-1)
-                        midpoint(1:3) = BCdata_auxSCF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%midpoint(1:3)
-                        ndist(1:3) = BCdata_auxSCF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%ndist(1:3)
+                        Vector1 = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%Vectors(:,Node1-1)
+                        Vector2 = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%Vectors(:,Node2-1)
+                        midpoint(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%midpoint(1:3)
+                        ndist(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%ndist(1:3)
               
                       PartInsSubSide = 1
                        PartBound%DesCountIter(BoundID, iSpec) = PartBound%DesCountIter(BoundID, iSpec) - 1.
@@ -226,6 +227,9 @@ DO iReac = 1, SurfNumOfReac
                       
                       PartsEmitted = PartsEmitted + PartInsSubSide
                     END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
+                  ELSE 
+                    CYCLE
+                  END IF
                   END DO ! iSide
 
                   IF (NbrOfParticle.NE.iPartTotal) CALL abort(__STAMP__, 'Error 2 in ParticleSurfaceflux!')
@@ -324,23 +328,24 @@ DO iReac = 1, SurfNumOfReac
             DO WHILE(INT(PartBound%LHCountIter(BoundID, iSpec)).GT.1)
               ! Random distributions of the particles on the surface
               CALL RANDOM_NUMBER(RanNum)
-              iSide = INT(BCdata_auxSCF(currentBC)%SideNumber * RanNum)
+              iSide = INT(BCdata_auxSF(currentBC)%SideNumber * RanNum)
+                IF(iSide.GT.0.) THEN
                 ! Define the necessary variables
-                BCSideID=BCdata_auxSCF(currentBC)%SideList(iSide)
+                BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
                 ElemID = SideToElem(S2E_ELEM_ID,BCSideID)
                 iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
                 globElemId = ElemID + offSetElem
                 SideID=GetGlobalNonUniqueSideID(globElemId,iLocSide)
-                xyzNod(1:3) = BCdata_auxSCF(currentBC)%TriaSideGeo(iSide)%xyzNod(1:3)
+                xyzNod(1:3) = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%xyzNod(1:3)
 
-                DO jSample=1,SurfChemSideSize(2); DO iSample=1,SurfChemSideSize(1)
+                DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
                   ! Number of additional particles to be inserted 
                     Node1 = jSample+1    
                     Node2 = jSample+2             
-                    Vector1 = BCdata_auxSCF(currentBC)%TriaSideGeo(iSide)%Vectors(:,Node1-1)
-                    Vector2 = BCdata_auxSCF(currentBC)%TriaSideGeo(iSide)%Vectors(:,Node2-1)
-                    midpoint(1:3) = BCdata_auxSCF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%midpoint(1:3)
-                    ndist(1:3) = BCdata_auxSCF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%ndist(1:3)
+                    Vector1 = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%Vectors(:,Node1-1)
+                    Vector2 = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%Vectors(:,Node2-1)
+                    midpoint(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%midpoint(1:3)
+                    ndist(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%ndist(1:3)
           
                   PartInsSubSide = 1
                   PartBound%LHCountIter(BoundID, iSpec) = PartBound%LHCountIter(BoundID, iSpec) -1.  
@@ -378,6 +383,10 @@ DO iReac = 1, SurfNumOfReac
                   PartsEmitted = PartsEmitted + PartInsSubSide
 
                 END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
+
+              ELSE 
+                CYCLE
+              END IF
               END DO ! iSide
 
               IF (NbrOfParticle.NE.iPartTotal) CALL abort(__STAMP__, 'Error 2 in ParticleSurfaceflux!')

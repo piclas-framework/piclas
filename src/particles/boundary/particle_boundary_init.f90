@@ -574,13 +574,6 @@ DO iPartBound=1,nPartBound
   BCdata_auxSF(iPartBound)%LocalArea=0.
 END DO
 
-ALLOCATE(BCdata_auxSCF(1:nPartBound))
-DO iPartBound=1,nPartBound
-  BCdata_auxSCF(iPartBound)%SideNumber=-1 !init value when not used
-  BCdata_auxSCF(iPartBound)%GlobalArea=0.
-  BCdata_auxSCF(iPartBound)%LocalArea=0.
-END DO
-
 !-- Sanity check: Deprecated voltage parameter
 IF(DeprecatedVoltage) CALL abort(__STAMP__&
   ,'Part-Boundary-Voltage is no longer supported. Use corresponding RefState parameter as described in the user guide.')
