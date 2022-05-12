@@ -452,6 +452,7 @@ SWRITE(UNIT_stdOut,*) '_________________________________________________________
 
 CALL FLUSH(UNIT_stdOut)
 #if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 CALL MPI_FINALIZE(iError)
 #endif
 ERROR STOP 1

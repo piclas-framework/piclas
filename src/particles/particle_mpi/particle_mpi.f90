@@ -881,6 +881,7 @@ USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 #if (PP_TimeDiscMethod==400)
 USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
+USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc
 #endif /*(PP_TimeDiscMethod==400)*/
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if defined(LSERK)

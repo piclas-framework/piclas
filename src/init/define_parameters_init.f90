@@ -68,6 +68,7 @@ USE MOD_Particle_Analyze           ,ONLY: DefineParametersParticleAnalyze
 USE MOD_TTMInit                    ,ONLY: DefineParametersTTM
 USE MOD_PICInit                    ,ONLY: DefineParametersPIC
 USE MOD_DSMC_Init                  ,ONLY: DefineParametersDSMC
+USE MOD_DSMC_BGGas                 ,ONLY: DefineParametersBGG
 USE MOD_MCC_Init                   ,ONLY: DefineParametersMCC
 USE MOD_DSMC_ChemInit              ,ONLY: DefineParametersChemistry
 USE MOD_SurfaceModel_Init          ,ONLY: DefineParametersSurfModel
@@ -135,6 +136,7 @@ CALL DefineParametersParticleAnalyze()
 CALL DefineParametersTTM()
 CALL DefineParametersPIC()
 CALL DefineParametersDSMC()
+CALL DefineParametersBGG()
 CALL DefineParametersMCC()
 CALL DefineParametersChemistry()
 #if (PP_TimeDiscMethod==300)

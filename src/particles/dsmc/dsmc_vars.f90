@@ -261,6 +261,18 @@ END TYPE tDSMC
 
 TYPE(tDSMC)                     :: DSMC
 
+TYPE tRegion
+  CHARACTER(40)                 :: Type             ! Geometric type of the region, e.g. cylinder
+                                ! Region-Type: cylinder
+  REAL                          :: RadiusIC
+  REAL                          :: Radius2IC
+  REAL                          :: CylinderHeightIC
+  REAL                          :: BasePointIC(3)
+  REAL                          :: BaseVector1IC(3)
+  REAL                          :: BaseVector2IC(3)
+  REAL                          :: NormalVector(3)
+END TYPE tRegion
+
 TYPE tBGGas
   INTEGER                       :: NumberOfSpecies          ! Number of background gas species
   LOGICAL, ALLOCATABLE          :: BackgroundSpecies(:)     ! Flag, if a species is a background gas species, [1:nSpecies]
@@ -280,6 +292,10 @@ TYPE tBGGas
                                                                 ! as a background distribution [1:nSpecies]
   LOGICAL, ALLOCATABLE          :: TraceSpecies(:)          ! Flag, if species is a trace element, Input: [1:nSpecies]
   REAL                          :: MaxMPF                   ! Maximum weighting factor of the background gas species
+  INTEGER                       :: nRegions                 ! Number of different background gas regions (read-in)
+  LOGICAL                       :: UseRegions               ! Flag for the definition of different background gas regions (set after read-in)
+  INTEGER, ALLOCATABLE          :: RegionElemType(:)        ! 0: outside, positive integers: inside region number
+  TYPE(tRegion), ALLOCATABLE    :: Region(:)                ! Type for the geometry definition of the different regions [1:nRegions]
 END TYPE tBGGas
 
 TYPE(tBGGas)                    :: BGGas
@@ -458,6 +474,7 @@ TYPE tAmbipolElecVelo !DSMC Species Param
 END TYPE
 
 TYPE (tAmbipolElecVelo), ALLOCATABLE    :: AmbipolElecVelo(:)
+INTEGER, ALLOCATABLE            :: AmbiPolarSFMapping(:,:)
 INTEGER, ALLOCATABLE            :: iPartIndx_NodeNewAmbi(:)
 INTEGER                         :: newAmbiParts
 

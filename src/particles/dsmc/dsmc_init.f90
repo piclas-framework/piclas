@@ -75,9 +75,6 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-AmbipolarDiffusion', &
                                           'Enables the ambipolar diffusion modelling of electrons, which are attached to the '//&
                                           'ions, however, retain their own velocity vector to participate in collision events.',&
                                           '.FALSE.')
-CALL prms%CreateLogicalOption(  'Particles-BGGas-UseDistribution', &
-                                          'Utilization of a cell-local background gas distribution as read-in from a previous '//&
-                                          'DSMC/BGK result using Particles-MacroscopicRestart', '.FALSE.')
 !-----------------------------------------------------------------------------------
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcQualityFactors', &
                                           'Enables [TRUE] / disables [FALSE] the calculation and output of:\n'//&
@@ -301,6 +298,7 @@ USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_BGGas             ,ONLY: BGGas_RegionsSetInternalTemp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -714,9 +712,9 @@ ELSE !CollisMode.GT.0
         SpecDSMC(iSpec)%ElecRelaxProb = GETREAL('Part-Species'//TRIM(hilf)//'-ElecRelaxProb')
         ! multi init stuff
         ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
-        ! Skip the read-in of temperatures if a background gas distribution is used
+        ! Skip the read-in of temperatures if a background gas distribution is used but not if background gas regions are used
         IF(BGGas%NumberOfSpecies.GT.0) THEN
-          IF(BGGas%BackgroundSpecies(iSpec).AND.BGGas%UseDistribution) THEN
+          IF(BGGas%BackgroundSpecies(iSpec).AND.BGGas%UseDistribution.AND..NOT.BGGas%UseRegions) THEN
             SpecDSMC(iSpec)%Init(1)%TVib  = 0.
             SpecDSMC(iSpec)%Init(1)%TRot  = 0.
             SpecDSMC(iSpec)%Init(1)%Telec = 0.
@@ -814,6 +812,9 @@ ELSE !CollisMode.GT.0
     END DO
     ! Array not required anymore after the initialization is completed
     DEALLOCATE(PDM%PartInit)
+    IF(BGGas%UseRegions) THEN
+      CALL BGGas_RegionsSetInternalTemp()
+    END IF
   END IF ! CollisMode .EQ. 2 or 3
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! Define chemical reactions (including ionization and backward reaction rate)
@@ -1448,10 +1449,13 @@ SDEALLOCATE(BGGas%NumberDensity)
 SDEALLOCATE(BGGas%DistributionSpeciesIndex)
 SDEALLOCATE(BGGas%Distribution)
 SDEALLOCATE(BGGas%DistributionNumDens)
+SDEALLOCATE(BGGas%Region)
+SDEALLOCATE(BGGas%RegionElemType)
 
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
+SDEALLOCATE(AmbiPolarSFMapping)
 END SUBROUTINE FinalizeDSMC
 
 

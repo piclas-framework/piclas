@@ -48,12 +48,11 @@ INTEGER                 :: AlgebraicExternalField        !< External E and B fie
                                                          !<      z-direction
 INTEGER                 :: AlgebraicExternalFieldDelta   !< delta factor for H. Liu "Particle-in-cell simulation of a Hall thruster" (2010)
 REAL,ALLOCATABLE        :: VariableExternalField(:,:)    !< z - Pos , Bz
-LOGICAL                 :: VariableExternalField2D       !< True if variable external field data is 2D
+INTEGER                 :: VariableExternalFieldDim      !< Spatial dimension of variable external field data: 1D, 2D or 3D
 LOGICAL                 :: VariableExternalFieldAxisSym  !< True if the data is axis symmetric, e.g., B(r,z)
 INTEGER                 :: VariableExternalFieldRadInd   !< Index of radial r-coordinate when using 2D data and axis symmetric 
 INTEGER                 :: VariableExternalFieldAxisDir  !< Direction that is used for the axial symmetric direction (1,2 or 3)
-INTEGER                 :: VariableExternalField2DRows   !< Number of rows unrolled in data when using 2D data and axis symmetric
-INTEGER                 :: VariableExternalField2DColumns!< Number of columns in unrolled data when using 2D data and axis symmetric
+INTEGER                 :: VariableExternalFieldN(1:3)    !< Number of points in x, y and z-direction
 REAL                    :: VariableExternalFieldMin(1:3) !< Minimum values in x,y,z
 REAL                    :: VariableExternalFieldMax(1:3) !< Maximum values in x,y,z
 REAL                    :: DeltaExternalField(1:3)       !< equidistant z-spacing for the VariableExternalField (fast computation)
