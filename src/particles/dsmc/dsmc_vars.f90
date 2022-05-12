@@ -474,6 +474,7 @@ TYPE tAmbipolElecVelo !DSMC Species Param
 END TYPE
 
 TYPE (tAmbipolElecVelo), ALLOCATABLE    :: AmbipolElecVelo(:)
+INTEGER, ALLOCATABLE            :: AmbiPolarSFMapping(:,:)
 INTEGER, ALLOCATABLE            :: iPartIndx_NodeNewAmbi(:)
 INTEGER                         :: newAmbiParts
 

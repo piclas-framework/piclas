@@ -36,7 +36,7 @@ SUBROUTINE ParticleSurfaceflux()
 USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
-USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, RadialWeighting, DSMC
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Part_Tools              ,ONLY: GetParticleWeight
@@ -48,6 +48,7 @@ USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata_auxSF
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
+USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetSFElectronVelo
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 #endif /*IMPA*/
@@ -81,6 +82,11 @@ REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 DO iSpec=1,nSpecies
+  IF(useDSMC) THEN
+    IF (DSMC%DoAmbipolarDiff) THEN
+      IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+    END IF
+  END IF
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
     PartsEmitted = 0
     currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
@@ -246,12 +252,24 @@ __STAMP__&
             CALL abort(__STAMP__,'ERROR in ParticleSurfaceflux: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
           END IF
         END DO
-        DEALLOCATE(particle_positions)
-        IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) DEALLOCATE(particle_xis)
 !----- 2a.: set velocities if special for each subside
         CALL SetSurfacefluxVelocities(iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,ElemID,NbrOfParticle,PartInsSubSide)
 
         PartsEmitted = PartsEmitted + PartInsSubSide
+
+        IF (useDSMC) THEN
+          IF (DSMC%DoAmbipolarDiff) CALL AD_SetSFElectronVelo(iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,ElemID,NbrOfParticle,PartInsSubSide,particle_xis)
+          DO iPart = 1, NbrOfParticle
+            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+            IF (PositionNbr .EQ. 0) THEN
+              CALL abort(__STAMP__,&
+                'ERROR in InitialParticleInserting: No free particle index - maximum nbr of particles reached?')
+            END IF
+          END DO
+        END IF
+
+        IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) DEALLOCATE(particle_xis)
+        DEALLOCATE(particle_positions)
 #if USE_LOADBALANCE
         !used for calculating LoadBalance of tCurrent(LB_SURFFLUX) ==> "2b.: set remaining properties"
         nSurfacefluxPerElem(ElemID)=nSurfacefluxPerElem(ElemID)+PartInsSubSide
