@@ -160,9 +160,9 @@ LOGICAL                        :: ElemInsideHalo
 INTEGER                        :: firstHaloElem,lastHaloElem
 ! Halo calculation
 LOGICAL,ALLOCATABLE            :: MPISideElem(:)
-LOGICAL                        :: MPICNHalo(1:nLeaderGroupProcs)
-LOGICAL                        :: CNHasMPIElem
-INTEGER                        :: iCN,nCNHalo,nMPICNHalo,firstCNHalo,lastCNHalo
+LOGICAL                        :: MPIProcHalo(1:nProcessors)
+LOGICAL                        :: ProcHasMPIElem
+INTEGER                        :: nProcHalo,nMPIProcHalo,firstProcHalo,lastProcHalo
 INTEGER                        :: GlobalElemRank
 INTEGER                        :: nBorderElems,offsetBorderElems,nComputeNodeBorderElems
 INTEGER                        :: sendint,recvint
@@ -654,7 +654,7 @@ ELSE
   ! do refined check: (refined halo region reduction)
   ! check the bounding box of each element in compute-nodes' halo domain
   ! against the bounding boxes of the elements of the MPI-surface (inter compute-node MPI sides)
-  MPICNHalo = .FALSE.
+  MPIProcHalo = .FALSE.
 
   DO iHaloElem = firstHaloElem, lastHaloElem
     ElemID = offsetCNHalo2GlobalElem(iHaloElem)
@@ -679,7 +679,7 @@ ELSE
     ELSE
       ! Flag the compute-node as halo compute-node
       GlobalElemRank = ElemInfo_Shared(ELEM_RANK,ElemID)
-      MPICNHalo(INT(GlobalElemRank/nComputeNodeProcessors)+1) = .TRUE.
+      MPIProcHalo(GlobalElemRank+1) = .TRUE.
 
       ! Only add element to BGM if inside halo region on node.
       ! THIS IS WRONG. WE ARE WORKING ON THE CN HALO REGION. IF WE OMIT THE
@@ -714,52 +714,52 @@ CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 ! |_|_|_|  |_|_|_| > This routine therefore checks for the presence of exchange sides on the procs and unflags the
 !                  > proc if none is found.
 !
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,MPICNHalo,nLeaderGroupProcs,MPI_LOGICAL,MPI_LOR,MPI_COMM_SHARED,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,MPIProcHalo,nProcessors,MPI_LOGICAL,MPI_LOR,MPI_COMM_SHARED,iError)
 
-! Distribute nCNHalo evenly on compute-node procs
-nMPICNHalo = COUNT(MPICNHalo)
+! Distribute nProcHalo evenly on compute-node procs
+nMPIProcHalo = COUNT(MPIProcHalo)
 
-IF (nMPICNHalo.GT.nComputeNodeProcessors) THEN
-  firstCNHalo = INT(REAL( myComputeNodeRank   *nMPICNHalo)/REAL(nComputeNodeProcessors))+1
-  lastCNHalo  = INT(REAL((myComputeNodeRank+1)*nMPICNHalo)/REAL(nComputeNodeProcessors))
+IF (nMPIProcHalo.GT.nComputeNodeProcessors) THEN
+  firstProcHalo = INT(REAL( myComputeNodeRank   *nMPIProcHalo)/REAL(nComputeNodeProcessors))+1
+  lastProcHalo  = INT(REAL((myComputeNodeRank+1)*nMPIProcHalo)/REAL(nComputeNodeProcessors))
 ELSE
-  firstCNHalo = myComputeNodeRank + 1
-  IF (myComputeNodeRank.LT.nMPICNHalo) THEN
-    lastCNHalo = myComputeNodeRank + 1
+  firstProcHalo = myComputeNodeRank + 1
+  IF (myComputeNodeRank.LT.nMPIProcHalo) THEN
+    lastProcHalo = myComputeNodeRank + 1
   ELSE
-    lastCNHalo = 0
+    lastProcHalo = 0
   END IF
 END IF
 
-nCNHalo = 0
+nProcHalo = 0
 
 ! Check if the processor should check at least one halo compute-node
-IF (lastCNHalo.GT.0) THEN
-  DO iCN = 1,nLeaderGroupProcs
+IF (lastProcHalo.GT.0) THEN
+  DO iProc = 1,nProcessors
     ! Ignore compute-nodes with no halo elements
-    IF (.NOT.MPICNHalo(iCN)) CYCLE
+    IF (.NOT.MPIProcHalo(iProc)) CYCLE
 
-    nCNHalo      = nCNHalo + 1
-    CNHasMPIElem = .FALSE.
+    nProcHalo      = nProcHalo + 1
+    ProcHasMPIElem = .FALSE.
 
-    ! Ignore compute-nodes before firstCNHalo, exist after lastCNHalo
-    IF (nCNHalo.LT.firstCNHalo) CYCLE
-    IF (nCNHalo.GT.lastCNHalo)  EXIT
+    ! Ignore compute-nodes before firstProcHalo, exist after lastProcHalo
+    IF (nProcHalo.LT.firstProcHalo) CYCLE
+    IF (nProcHalo.GT.lastProcHalo)  EXIT
 
-    DO iElem = offsetElemMPI((iCN-1)*nComputeNodeProcessors + 1),offsetElemMPI(iCN*nComputeNodeProcessors)
+    DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
       ! Ignore elements other than halo elements
       IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.2) CYCLE
 
       DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iElem)
-        IF (SideIsExchangeSide(iSide)) CNHasMPIElem = .TRUE.
+        IF (SideIsExchangeSide(iSide)) ProcHasMPIElem = .TRUE.
       END DO
     END DO ! iElem = offsetElemMPI((iCN-1)*nComputeNodeProcessors + 1),offsetElemMPI(iCN*nComputeNodeProcessors)
 
     ! Compute-node has halo elements but no MPI sides, remove the halo elements
-    IF (.NOT.CNHasMPIElem) THEN
-      ElemInfo_Shared(ELEM_HALOFLAG,offsetElemMPI((iCN-1)*nComputeNodeProcessors + 1):offsetElemMPI(iCN*nComputeNodeProcessors)) = 0
+    IF (.NOT.ProcHasMPIElem) THEN
+      ElemInfo_Shared(ELEM_HALOFLAG,offsetElemMPI(iProc-1)+1:offsetElemMPI(iProc)) = 0
     END IF
-  END DO ! iCN = 1,nLeaderGroupProcs
+  END DO ! iProc = 1,nProcessors
 END IF
 
 ! Mortar sides: Only multi-node
