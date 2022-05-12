@@ -99,7 +99,10 @@ or simply run the following command from inside the *build* directory
 
 to configure the build process and run `make` afterwards to build the executable. For this setup, we have chosen the Poisson solver
 and selected the three-stage, third-order low-storage Runge-Kutta time discretization method. An overview over the available solver
-and discretization options is given in Section {ref}`sec:solver-settings`.
+and discretization options is given in Section {ref}`sec:solver-settings`. To run the simulation and analyse the results, the *piclas* and *piclas2vtk* executables have to be run. To avoid having to use the entire file path, you can either set aliases for both, copy them to your local tutorial directory or create a link to the files via.
+
+    ln -s $PICLAS_PATH/build/bin/piclas
+    ln -s $PICLAS_PATH/build/bin/piclas2vtk
 
 The simulation setup is defined in *parameter.ini*. For a specific electron number density, the plasma frequency of the system is
 given by
@@ -310,11 +313,12 @@ three Cartesian coordinates, which is not required for this 1D example.
 
 ### Analysis setup
 
-Finally, some parameters for run-time analysis are chosen by setting them `T` (true).
+Finally, some parameters for run-time analysis are chosen by setting them `T` (true). Further, with `TimeStampLength = 13`, the names of the output files are shortened for better postprocessing. If this is not done, e.g. Paraview does not sort the files correctly and will display faulty behaviour over time.
 
     ! =============================================================================== !
     ! Analysis
     ! =============================================================================== !
+    TimeStampLength         = 13 ! Reduces the length of the timestamps in filenames for better postprocessing
     CalcCharge               = T ! writes rel/abs charge error to PartAnalyze.csv
     CalcPotentialEnergy      = T ! writes the potential field energy to FieldAnalyze.csv
     CalcKineticEnergy        = T ! writes the kinetic energy of all particle species to PartAnalyze.csv
@@ -352,17 +356,17 @@ If the run has completed successfully, which should take only a brief moment, th
     8.0K -rw-rw-r--  5.0K Jun 28 13:07 parameter.ini
     156K -rw-rw-r--  151K Jun 28 12:51 PartAnalyze.csv
      32K -rw-rw-r--   32K Jun 26 16:43 plasma_wave_mesh.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:44 plasma_wave_State_000.00000000000000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:45 plasma_wave_State_000.00000000400000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:45 plasma_wave_State_000.00000000800000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:46 plasma_wave_State_000.00000001200000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:47 plasma_wave_State_000.00000001600000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:48 plasma_wave_State_000.00000002000000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:49 plasma_wave_State_000.00000002400000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:50 plasma_wave_State_000.00000002800000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:50 plasma_wave_State_000.00000003200000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:51 plasma_wave_State_000.00000003600000000.h5
-    1.6M -rw-rw-r--  1.6M Jun 28 12:51 plasma_wave_State_000.00000004000000000.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:44 plasma_wave_State_000.000000000.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:45 plasma_wave_State_000.000000004.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:45 plasma_wave_State_000.000000008.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:46 plasma_wave_State_000.000000012.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:47 plasma_wave_State_000.000000016.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:48 plasma_wave_State_000.000000020.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:49 plasma_wave_State_000.000000024.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:50 plasma_wave_State_000.000000028.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:50 plasma_wave_State_000.000000032.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:51 plasma_wave_State_000.000000036.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:51 plasma_wave_State_000.000000040.h5
      72K -rw-rw-r--   71K Jun 28 12:51 std.out
 
 Multiple additional files have been created, which are are named  **Projectname_State_Timestamp.h5**.
@@ -378,7 +382,7 @@ After a successful completion, the last lines in this file should look as shown 
     EFFICIENCY: SIMULATION TIME PER CALCULATION in [s]/[Core-h]: [ 2.38587E-06 sec/h ]
     Timestep  :    5.0000000E-10
     #Timesteps :    8.0000000E+01
-    WRITE STATE TO HDF5 FILE [plasma_wave_State_000.00000004000000000.h5] ...DONE  [.008s]
+    WRITE STATE TO HDF5 FILE [plasma_wave_State_000.000000040.h5] ...DONE  [.008s]
     #Particles :    8.0000000E+02
     --------------------------------------------------------------------------------------------
     ============================================================================================
@@ -408,12 +412,12 @@ Additionally, the flag `VisuParticles` activates the output of particle position
 
 Run the command
 
-    piclas2vtk parameter.ini plasma_wave_State_000.000000*
+    ./piclas2vtk parameter.ini plasma_wave_State_000.000000*
 
 to generate the corresponding *vtk*-files, which can then be loaded into the visualisation tool.
 
-The electric potential field can be viewed, e.g., by opening `plasma_wave_Solution_000.00000040000000000.vtu` and plotting the field
-`Phi`, which should look like the following
+The electric potential field can be viewed, e.g., by opening `plasma_wave_State_000.000000040.vtu` and plotting the field
+`Phi` along the x-axis, which should look like the following
 
 
 ```{figure} results/tut-pic-pw-results.jpg

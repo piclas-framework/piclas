@@ -111,15 +111,17 @@ where the final simulation time `tend` [s], the time step for the field and part
 (sec:tutorial-dsmc-analysis-setup)=
 ### Analysis setup 
 
-For this case our focus is on the run-time analysis to investigate the transient behavior of the reservoir. The first parameter `Part-AnalyzeStep` allows to perform the output every N$^\text{th}$ iteration to reduce the size of the output file and to increase the computational speed. Different parameters for run-time analysis can be enabled, in this case the number of particles per species (`CalcNumSpec`) and the temperature output (`CalcTemp`). It is also recommended to enable `Particles-DSMC-CalcQualityFactors`, which provides outputs to evaluate the quality of the simulation results such as the mean and maximum collision probabilities.
+For this case our focus is on the run-time analysis to investigate the transient behavior of the reservoir. The first parameter `Part-AnalyzeStep` allows to perform the output every N$^\text{th}$ iteration to reduce the size of the output file and to increase the computational speed. Different parameters for run-time analysis can be enabled, in this case the number of particles per species (`CalcNumSpec`) and the temperature output (`CalcTemp`). It is also recommended to enable `Particles-DSMC-CalcQualityFactors`, which provides outputs to evaluate the quality of the simulation results such as the mean and maximum collision probabilities. The parameter `TimeStampLength = 13` reduces the output filename length. It can be needed for postprocessing, as e.g. ParaView sometimes does not sort the files correctly if the timestamps are too long. The displayed time solution would then be faulty.
 
     ! =============================================================================== !
     ! Particle Analysis
     ! =============================================================================== !
+    
     Part-AnalyzeStep = 1
     CalcNumSpec = T
     CalcTemp    = T
     Particles-DSMC-CalcQualityFactors = T
+    TimeStampLength  = 13
 
 All available options with a short description can be displayed using the help of PICLas:
 
@@ -234,9 +236,9 @@ If the run has completed successfully, which should take only a brief moment, th
     drwxrwxr-x 4,0K Dez  4 11:09 ./
     drwxrwxr-x 4,0K Dez  3 01:02 ../
     -rw-rw-r-- 1,4K Dez  4 11:05 DSMC.ini
-    -rw-rw-r-- 8,7K Dez  4 11:09 dsmc_reservoir_chemisty_off_DSMCState_000.00000500000000000.h5
-    -rw-rw-r-- 1,8M Dez  4 11:09 dsmc_reservoir_chemisty_off_State_000.00000000000000000.h5
-    -rw-rw-r-- 1,8M Dez  4 11:09 dsmc_reservoir_chemisty_off_State_000.00000500000000000.h5
+    -rw-rw-r-- 8,7K Dez  4 11:09 dsmc_reservoir_chemisty_off_DSMCState_000.000005000.h5
+    -rw-rw-r-- 1,8M Dez  4 11:09 dsmc_reservoir_chemisty_off_State_000.000000000.h5
+    -rw-rw-r-- 1,8M Dez  4 11:09 dsmc_reservoir_chemisty_off_State_000.000005000.h5
     -rw-rw-r-- 6,9K Nov  1 05:05 dsmc_reservoir_mesh.h5
     -rw-rw-r--  931 Dez  4 11:09 ElemTimeStatistics.csv
     -rw-rw-r-- 7,5K Dez  4 10:49 parameter.ini
@@ -258,7 +260,7 @@ After a successful completion, the last lines in this file should look as shown 
      EFFICIENCY: SIMULATION TIME PER CALCULATION in [s]/[Core-h]: [ 1.19627E-03 sec/h ]
      Timestep  :    2.0000000E-09
     #Timesteps :    2.5000000E+03
-     WRITE STATE TO HDF5 FILE [dsmc_reservoir_chemisty_off_State_000.00000500000000000.h5] ...DONE  [.005s]
+     WRITE STATE TO HDF5 FILE [dsmc_reservoir_chemisty_off_State_000.000005000.h5] ...DONE  [.005s]
     #Particles :    1.9979000E+04
     ------------------------------------------------------------------------
     ========================================================================
@@ -365,7 +367,7 @@ the output of particle position, velocity and species, which is disabled per def
 
 Run the command
 
-    piclas2vtk parameter.ini dsmc_reservoir_chemisty_on_State_000.00000*
+    ./piclas2vtk parameter.ini dsmc_reservoir_chemisty_on_State_000.00000*
 
 to convert the HDF5 file to the binary VTK format (`*.vtu`), which can then be opened with e.g. ParaView.
 
