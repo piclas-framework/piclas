@@ -122,6 +122,7 @@ USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
+USE MOD_DSMC_Vars              ,ONLY: AmbiPolarSFMapping, DSMC, useDSMC
 #if USE_MPI
 USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding, DoTimeDepInflow
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
@@ -138,7 +139,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! Local variable declaration
-INTEGER               :: iSpec,iSF,SideID,BCSideID,iSide,ElemID,iLocSide,iSample,jSample,currentBC
+INTEGER               :: iSpec,iSF,SideID,BCSideID,iSide,ElemID,iLocSide,iSample,jSample,currentBC, MaxSF, iSFElec
 INTEGER               :: iCopy1, iCopy2, iCopy3, MaxSurfacefluxBCs,nDataBC
 REAL                  :: tmp_SubSideDmax(SurfFluxSideSize(1),SurfFluxSideSize(2))
 REAL                  :: tmp_SubSideAreas(SurfFluxSideSize(1),SurfFluxSideSize(2))
@@ -312,6 +313,30 @@ IF (.NOT.DoSurfaceFlux) THEN !-- no SFs defined
   SWRITE(*,*) 'WARNING: No Sides for SurfacefluxBCs found! DoSurfaceFlux is now disabled!'
 END IF
 DoForceFreeSurfaceFlux = GETLOGICAL('DoForceFreeSurfaceFlux','.FALSE.')
+
+IF (useDSMC) THEN
+  IF (DSMC%DoAmbipolarDiff) THEN
+    MaxSF = 0
+    DO iSpec = 1,nSpecies
+      MaxSF = MAX(MaxSF,Species(iSpec)%nSurfacefluxBCs)
+    END DO
+
+    ALLOCATE(AmbiPolarSFMapping(nSpecies,MaxSF))
+    AmbiPolarSFMapping = -1
+    DO iSpec = 1,nSpecies
+      IF (Species(iSpec)%ChargeIC.LE.0.0) CYCLE
+      DO iSF = 1,Species(iSpec)%nSurfacefluxBCs
+        DO iSFElec = 1,Species(DSMC%AmbiDiffElecSpec)%nSurfacefluxBCs
+          IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.Species(DSMC%AmbiDiffElecSpec)%Surfaceflux(iSFElec)%BC) THEN
+            AmbiPolarSFMapping(iSpec,iSF) = iSFElec
+          END IF
+        END DO
+        IF(AmbiPolarSFMapping(iSpec,iSF).EQ.-1) CALL abort(__STAMP__,&
+            'ERROR: No corresponding Electron Surface Flux found for Species: ',IntInfoOpt=iSpec)
+      END DO
+    END DO
+  END IF
+END IF
 
 END SUBROUTINE InitializeParticleSurfaceflux
 
