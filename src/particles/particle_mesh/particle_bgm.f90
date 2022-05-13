@@ -161,7 +161,7 @@ INTEGER                        :: firstHaloElem,lastHaloElem
 ! Halo calculation
 LOGICAL,ALLOCATABLE            :: MPISideElem(:)
 LOGICAL                        :: MPIProcHalo(1:nProcessors)
-LOGICAL                        :: ProcHasMPIElem
+LOGICAL                        :: ProcHasExchangeElem
 INTEGER                        :: nProcHalo,nMPIProcHalo,firstProcHalo,lastProcHalo
 INTEGER                        :: GlobalElemRank
 INTEGER                        :: nBorderElems,offsetBorderElems,nComputeNodeBorderElems
@@ -584,8 +584,8 @@ ELSE
   ! sum all MPI-side of compute-node and create correct offset mapping in SideInfo_Shared
   !nBorderSidesShared = COUNT(SideInfo_Shared(SIDE_NBELEMTYPE,:).EQ.2) + nBCSides
   ALLOCATE(MPISideElem(offsetElem+1:offsetElem+nElems))
-  nBorderElems= 0
-  MPISideElem = .FALSE.
+  nBorderElems = 0
+  MPISideElem  = .FALSE.
 
   DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,offsetElem+nElems)
     ! Check for MPI sides or BC sides
@@ -677,7 +677,7 @@ ELSE
     IF (.NOT.ElemInsideHalo) THEN
       ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 0
     ELSE
-      ! Flag the compute-node as halo compute-node
+      ! Flag the proc as halo proc
       GlobalElemRank = ElemInfo_Shared(ELEM_RANK,ElemID)
       MPIProcHalo(GlobalElemRank+1) = .TRUE.
 
@@ -731,30 +731,34 @@ ELSE
 
   nProcHalo = 0
 
-  ! Check if the processor should check at least one halo compute-node
+  ! Check if the processor should check at least one halo processor
   IF (lastProcHalo.GT.0) THEN
     DO iProc = 1,nProcessors
       ! Ignore compute-nodes with no halo elements
       IF (.NOT.MPIProcHalo(iProc)) CYCLE
 
-      nProcHalo      = nProcHalo + 1
-      ProcHasMPIElem = .FALSE.
+      nProcHalo           = nProcHalo + 1
+      ProcHasExchangeElem = .FALSE.
 
-      ! Ignore compute-nodes before firstProcHalo, exist after lastProcHalo
+      ! Ignore processors before firstProcHalo, exit after lastProcHalo
       IF (nProcHalo.LT.firstProcHalo) CYCLE
       IF (nProcHalo.GT.lastProcHalo)  EXIT
 
-      DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
+      ! Use a named loop so the entire element can be cycled
+ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
         ! Ignore elements other than halo elements
         IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.2) CYCLE
 
         DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iElem)
-          IF (SideIsExchangeSide(iSide)) ProcHasMPIElem = .TRUE.
+          IF (SideIsExchangeSide(iSide)) THEN
+            ProcHasExchangeElem = .TRUE.
+            EXIT ElemLoop
+          END IF
         END DO
-      END DO ! iElem = offsetElemMPI((iCN-1)*nComputeNodeProcessors + 1),offsetElemMPI(iCN*nComputeNodeProcessors)
+      END DO ElemLoop ! iElem = offsetElemMPI((iCN-1)*nComputeNodeProcessors + 1),offsetElemMPI(iCN*nComputeNodeProcessors)
 
-      ! Compute-node has halo elements but no MPI sides, remove the halo elements
-      IF (.NOT.ProcHasMPIElem) THEN
+      ! Processor has halo elements but no MPI sides, remove the halo elements
+      IF (.NOT.ProcHasExchangeElem) THEN
         ElemInfo_Shared(ELEM_HALOFLAG,offsetElemMPI(iProc-1)+1:offsetElemMPI(iProc)) = 0
       END IF
     END DO ! iProc = 1,nProcessors
