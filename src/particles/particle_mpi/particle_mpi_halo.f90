@@ -94,6 +94,7 @@ INTEGER,ALLOCATABLE            :: ExchangeSides(:)
 REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:)
 INTEGER                        :: ExchangeProcLeader
 LOGICAL,ALLOCATABLE            :: MPISideElem(:)
+LOGICAL                        :: ProcHasExchangeElem
 ! halo_eps reconstruction
 REAL                           :: MPI_halo_eps_velo,MPI_halo_diag,vec(1:3),deltaT, MPI_halo_eps_woshape
 LOGICAL                        :: fullMesh
@@ -893,6 +894,71 @@ END DO ElemLoop
 #if (PP_TimeDiscMethod==400)
 SDEALLOCATE(MPISideBoundsOfNbElemCenter)
 #endif /*(PP_TimeDiscMethod==400)*/
+
+! Remove elements if the halo proc contains only internal elements, i.e. we cannot possibly reach the halo element
+!
+!   CN1     CN2    > If a processor contains large changes in element size, internal elements might intersect with
+!  _ _ _    _ _ _  > the MPI sides. Since a processor checks all potential halo elements against only its own exchange
+! |_|_|_|  |_|_|_| > sides, the large elements will only take effect for the proc not containing it. However, if the
+! |_|_|_|  |_| | | > proc flags only large internal elements without flagging a single exchange element, there is no
+! |_|_|_|  |_|_|_| > way for a particle to actually reach.
+! |_|_|_|  |_| | |
+! |_|_|_|  |_|_|_| > This routine therefore checks for the presence of exchange sides on the procs and unflags the
+!                  > proc if none is found.
+!
+DO iProc = 0,nProcessors_Global-1
+  IF (iProc.EQ.myRank) CYCLE
+
+  IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,iProc).LE.0) CYCLE
+
+  ProcHasExchangeElem = .FALSE.
+  ! Use a named loop so the entire element can be cycled
+ExchangeLoop: DO iElem = offsetElemMPI(iProc)+1,offsetElemMPI(iProc+1)
+    ! Ignore elements outside nComputeNodeTotalElems
+    IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.0) CYCLE
+
+    DO iLocSide = 1,6
+      SideID   = GetGlobalNonUniqueSideID(iElem,iLocSide)
+      NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
+
+      ! Mortar side
+      IF (NbElemID.LT.0) THEN
+        nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
+
+        DO iMortar = 1,nMortarElems
+          NbSideID = -SideInfo_Shared(SIDE_LOCALID,SideID + iMortar)
+          ! If small mortar side not defined, skip it for now, likely not inside the halo region
+          IF (NbSideID.LT.1) CYCLE
+
+          NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID + iMortar)
+          ! If small mortar element not defined, skip it for now, likely not inside the halo region
+          IF (NbElemID.LT.1) CYCLE
+
+          ! If any of the small mortar sides is not on the halo proc, the side is a MPI side
+          IF (NbElemID.LT.offsetElemMPI(iProc)+1 .OR. NbElemID.GT.offsetElemMPI(iProc+1)) THEN
+            ProcHasExchangeElem = .TRUE.
+            EXIT ExchangeLoop
+          END IF
+        END DO
+
+      ! regular side or small mortar side
+      ELSE
+        ! Only check inner (MPI interfaces) and boundary sides (NbElemID.EQ.0)
+        ! Boundary sides cannot be discarded because one proc might have MPI interfaces and the other might not
+        IF (NbElemID.LT.offsetElemMPI(iProc)+1 .OR. NbElemID.GT.offsetElemMPI(iProc+1)) THEN
+          ProcHasExchangeElem = .TRUE.
+          EXIT ExchangeLoop
+        END IF
+      END IF
+    END DO
+  END DO ExchangeLoop ! iElem = offsetElemMPI(iProc)+1,offsetElemMPI(iProc+1)
+
+  ! Processor has halo elements but no MPI sides, remove the exchange processor
+  IF (.NOT.ProcHasExchangeElem) THEN
+    GlobalProcToExchangeProc(:,iProc) = 0
+    nExchangeProcessors = nExchangeProcessors - 1
+  END IF
+END DO ! iProc = 1,nExchangeProcessors
 
 ! Notify every proc if it was identified by the local proc
 IF(CheckExchangeProcs)THEN
