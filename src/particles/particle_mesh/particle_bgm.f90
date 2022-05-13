@@ -695,75 +695,72 @@ ELSE
 
   ! Then, free the pointers or arrays
   ADEALLOCATE(MPISideBoundsOfElemCenter_Shared)
-
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
 
-IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
-IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides(EnlargeBGM)
-CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+  IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
+  IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides(EnlargeBGM)
+  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
-! Remove elements if the halo proc contains only internal elements, i.e. we cannot possibly reach the halo element
-!
-!   CN1     CN2    > If a compute-node contains large changes in element size, internal elements might intersect with
-!  _ _ _    _ _ _  > the MPI sides. Since a processor checks all potential halo elements against only its own exchange
-! |_|_|_|  |_|_|_| > sides, the large elements will only take effect for the proc not containing it. However, if the
-! |_|_|_|  |_| | | > proc flags only large internal elements without flagging a single exchange element, there is no
-! |_|_|_|  |_|_|_| > way for a particle to actually reach.
-! |_|_|_|  |_| | |
-! |_|_|_|  |_|_|_| > This routine therefore checks for the presence of exchange sides on the procs and unflags the
-!                  > proc if none is found.
-!
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,MPIProcHalo,nProcessors,MPI_LOGICAL,MPI_LOR,MPI_COMM_SHARED,iError)
+  ! Remove elements if the halo proc contains only internal elements, i.e. we cannot possibly reach the halo element
+  !
+  !   CN1     CN2    > If a compute-node contains large changes in element size, internal elements might intersect with
+  !  _ _ _    _ _ _  > the MPI sides. Since a processor checks all potential halo elements against only its own exchange
+  ! |_|_|_|  |_|_|_| > sides, the large elements will only take effect for the proc not containing it. However, if the
+  ! |_|_|_|  |_| | | > proc flags only large internal elements without flagging a single exchange element, there is no
+  ! |_|_|_|  |_|_|_| > way for a particle to actually reach.
+  ! |_|_|_|  |_| | |
+  ! |_|_|_|  |_|_|_| > This routine therefore checks for the presence of exchange sides on the procs and unflags the
+  !                  > proc if none is found.
+  !
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,MPIProcHalo,nProcessors,MPI_LOGICAL,MPI_LOR,MPI_COMM_SHARED,iError)
 
-! Distribute nProcHalo evenly on compute-node procs
-nMPIProcHalo = COUNT(MPIProcHalo)
+  ! Distribute nProcHalo evenly on compute-node procs
+  nMPIProcHalo = COUNT(MPIProcHalo)
 
-IF (nMPIProcHalo.GT.nComputeNodeProcessors) THEN
-  firstProcHalo = INT(REAL( myComputeNodeRank   *nMPIProcHalo)/REAL(nComputeNodeProcessors))+1
-  lastProcHalo  = INT(REAL((myComputeNodeRank+1)*nMPIProcHalo)/REAL(nComputeNodeProcessors))
-ELSE
-  firstProcHalo = myComputeNodeRank + 1
-  IF (myComputeNodeRank.LT.nMPIProcHalo) THEN
-    lastProcHalo = myComputeNodeRank + 1
+  IF (nMPIProcHalo.GT.nComputeNodeProcessors) THEN
+    firstProcHalo = INT(REAL( myComputeNodeRank   *nMPIProcHalo)/REAL(nComputeNodeProcessors))+1
+    lastProcHalo  = INT(REAL((myComputeNodeRank+1)*nMPIProcHalo)/REAL(nComputeNodeProcessors))
   ELSE
-    lastProcHalo = 0
-  END IF
-END IF
-
-nProcHalo = 0
-
-! Check if the processor should check at least one halo compute-node
-IF (lastProcHalo.GT.0) THEN
-  DO iProc = 1,nProcessors
-    ! Ignore compute-nodes with no halo elements
-    IF (.NOT.MPIProcHalo(iProc)) CYCLE
-
-    nProcHalo      = nProcHalo + 1
-    ProcHasMPIElem = .FALSE.
-
-    ! Ignore compute-nodes before firstProcHalo, exist after lastProcHalo
-    IF (nProcHalo.LT.firstProcHalo) CYCLE
-    IF (nProcHalo.GT.lastProcHalo)  EXIT
-
-    DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
-      ! Ignore elements other than halo elements
-      IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.2) CYCLE
-
-      DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iElem)
-        IF (SideIsExchangeSide(iSide)) ProcHasMPIElem = .TRUE.
-      END DO
-    END DO ! iElem = offsetElemMPI((iCN-1)*nComputeNodeProcessors + 1),offsetElemMPI(iCN*nComputeNodeProcessors)
-
-    ! Compute-node has halo elements but no MPI sides, remove the halo elements
-    IF (.NOT.ProcHasMPIElem) THEN
-      ElemInfo_Shared(ELEM_HALOFLAG,offsetElemMPI(iProc-1)+1:offsetElemMPI(iProc)) = 0
+    firstProcHalo = myComputeNodeRank + 1
+    IF (myComputeNodeRank.LT.nMPIProcHalo) THEN
+      lastProcHalo = myComputeNodeRank + 1
+    ELSE
+      lastProcHalo = 0
     END IF
-  END DO ! iProc = 1,nProcessors
-END IF
+  END IF
 
-! Mortar sides: Only multi-node
-IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+  nProcHalo = 0
+
+  ! Check if the processor should check at least one halo compute-node
+  IF (lastProcHalo.GT.0) THEN
+    DO iProc = 1,nProcessors
+      ! Ignore compute-nodes with no halo elements
+      IF (.NOT.MPIProcHalo(iProc)) CYCLE
+
+      nProcHalo      = nProcHalo + 1
+      ProcHasMPIElem = .FALSE.
+
+      ! Ignore compute-nodes before firstProcHalo, exist after lastProcHalo
+      IF (nProcHalo.LT.firstProcHalo) CYCLE
+      IF (nProcHalo.GT.lastProcHalo)  EXIT
+
+      DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
+        ! Ignore elements other than halo elements
+        IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.2) CYCLE
+
+        DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iElem)
+          IF (SideIsExchangeSide(iSide)) ProcHasMPIElem = .TRUE.
+        END DO
+      END DO ! iElem = offsetElemMPI((iCN-1)*nComputeNodeProcessors + 1),offsetElemMPI(iCN*nComputeNodeProcessors)
+
+      ! Compute-node has halo elements but no MPI sides, remove the halo elements
+      IF (.NOT.ProcHasMPIElem) THEN
+        ElemInfo_Shared(ELEM_HALOFLAG,offsetElemMPI(iProc-1)+1:offsetElemMPI(iProc)) = 0
+      END IF
+    END DO ! iProc = 1,nProcessors
+  END IF
+
+  ! Mortar sides: Only multi-node
   DO iElem = firstElem, lastElem
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.1) CYCLE
 
@@ -788,8 +785,7 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
       END IF
     END DO
   END DO
-END IF
-
+END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 #else
 !ElemInfo_Shared(ELEM_HALOFLAG,:) = 1
