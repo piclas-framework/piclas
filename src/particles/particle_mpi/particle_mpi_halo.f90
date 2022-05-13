@@ -46,15 +46,18 @@ SUBROUTINE IdentifyPartExchangeProcs
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars            ,ONLY: c
+USE MOD_Globals_Vars            ,ONLY: c,ProjectName
 USE MOD_Preproc
+USE MOD_HDF5_Output_ElemData    ,ONLY: WriteMyInvisibleRankToHDF5
+USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,myInvisibleRank
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,MeshHasRotPeriodic,nComputeNodeElems
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,SideInfo_Shared,BoundsOfElem_Shared,NodeCoords_Shared
 USE MOD_Particle_MPI_Vars       ,ONLY: SafetyFactor,halo_eps,halo_eps_velo,MPI_halo_eps,halo_eps_woshape
 USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc,CheckExchangeProcs
 USE MOD_Particle_MPI_Vars       ,ONLY: AbortExchangeProcs
@@ -63,18 +66,16 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_PICDepo_Vars            ,ONLY: DepositionType, ShapeElemProcSend_Shared, ShapeElemProcSend_Shared_Win
 USE MOD_PICDepo_Vars            ,ONLY: SendElemShapeID, CNRankToSendRank, nShapeExchangeProcs
 USE MOD_PICDepo_Vars            ,ONLY: ShapeMapping,CNShapeMapping,r_sf
-USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep
 USE MOD_ReadInTools             ,ONLY: PrintOption
+USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep
 #if ! (USE_HDG)
 USE MOD_CalcTimeStep            ,ONLY: CalcTimeStep
 #endif
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars           ,ONLY: nRKStages,RK_c
-#endif
-USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
-USE MOD_HDF5_Output_ElemData    ,ONLY: WriteMyInvisibleRankToHDF5
-USE MOD_Globals_Vars            ,ONLY: ProjectName
+#elif (PP_TimeDiscMethod==400)
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -86,24 +87,21 @@ INTEGER,DIMENSION(2),PARAMETER :: DirPeriodicVector = (/-1,1/)
 REAL,DIMENSION(6)              :: xCoordsProc,xCoordsOrigin
 INTEGER                        :: iElem,ElemID,firstElem,lastElem,NbElemID,localElem
 INTEGER                        :: iSide,SideID,firstSide,lastSide,iLocSide
-!INTEGER                        :: firstSide,lastSide
 INTEGER                        :: iMortar,nMortarElems,NbSideID
 INTEGER                        :: iProc,HaloProc
-!INTEGER                        :: GlobalProcID
 INTEGER                        :: nExchangeSides
-!INTEGER                        :: nExchangeProcs
 INTEGER,ALLOCATABLE            :: ExchangeSides(:)
-REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:), MPISideBoundsOfNbElemCenter(:,:)
+REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:)
 INTEGER                        :: ExchangeProcLeader
-#if !(PP_TimeDiscMethod==400)
-LOGICAL,ALLOCATABLE            :: FlagExchangeElem(:)
-#endif /*!(PP_TimeDiscMethod==400)*/
+LOGICAL,ALLOCATABLE            :: MPISideElem(:)
 ! halo_eps reconstruction
 REAL                           :: MPI_halo_eps_velo,MPI_halo_diag,vec(1:3),deltaT, MPI_halo_eps_woshape
-REAL                           :: NbElemBounds(2,3)
 LOGICAL                        :: fullMesh
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 INTEGER                        :: iStage
+#elif (PP_TimeDiscMethod==400)
+REAL                           :: NbElemBounds(2,3)
+REAL,ALLOCATABLE               :: MPISideBoundsOfNbElemCenter(:,:)
 #endif
 ! shape function
 INTEGER                        :: GlobalElemID,GlobalElemRank,GlobalLeaderRank
@@ -115,8 +113,10 @@ LOGICAL,ALLOCATABLE            :: CommFlag(:)
 INTEGER                        :: nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob
 INTEGER                        :: nExchangeProcessorsGlobal, nSendShapeElems, CNElemID, exElem, exProc, jProc, ProcID
 REAL,ALLOCATABLE               :: RotBoundsOfElemCenter(:)
+#if (PP_TimeDiscMethod==400)
 LOGICAL                        :: SideIsRotPeriodic
 INTEGER                        :: BCindex
+#endif
 !=================================================================================================================================
 
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -174,14 +174,14 @@ END IF
 nExchangeSides = 0
 
 #if !(PP_TimeDiscMethod==400)
-ALLOCATE(FlagExchangeElem(offsetElem+1:offsetElem+nElems))
-FlagExchangeElem = .FALSE.
+ALLOCATE(MPISideElem(offsetElem+1:offsetElem+nElems))
+MPISideElem = .FALSE.
 #endif /*!(PP_TimeDiscMethod==400)*/
 
 DO iElem = firstElem,lastElem
 #if !(PP_TimeDiscMethod==400)
   ! Element already flagged
-  IF (FlagExchangeElem(iElem)) CYCLE
+  IF (MPISideElem(iElem)) CYCLE
 #endif /*!(PP_TimeDiscMethod==400)*/
 
   DO iLocSide = 1,6
@@ -205,7 +205,7 @@ DO iElem = firstElem,lastElem
         IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
           nExchangeSides = nExchangeSides + 1
 #if !(PP_TimeDiscMethod==400)
-          FlagExchangeElem(iElem) = .TRUE.
+          MPISideElem(iElem) = .TRUE.
 #endif /*!(PP_TimeDiscMethod==400)*/
           EXIT
         END IF
@@ -219,7 +219,7 @@ DO iElem = firstElem,lastElem
       IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
         nExchangeSides = nExchangeSides + 1
 #if !(PP_TimeDiscMethod==400)
-        FlagExchangeElem(iElem) = .TRUE.
+        MPISideElem(iElem) = .TRUE.
 #endif /*!(PP_TimeDiscMethod==400)*/
       END IF
     END IF
@@ -234,13 +234,13 @@ ALLOCATE(ExchangeSides(1:nExchangeSides))
 
 nExchangeSides   = 0
 #if !(PP_TimeDiscMethod==400)
-FlagExchangeElem = .FALSE.
+MPISideElem = .FALSE.
 #endif /*!(PP_TimeDiscMethod==400)*/
 
 DO iElem = firstElem,lastElem
 #if !(PP_TimeDiscMethod==400)
   ! Element already flagged
-  IF (FlagExchangeElem(iElem)) CYCLE
+  IF (MPISideElem(iElem)) CYCLE
 #endif /*!(PP_TimeDiscMethod==400)*/
 
   DO iLocSide = 1,6
@@ -265,7 +265,7 @@ DO iElem = firstElem,lastElem
           nExchangeSides = nExchangeSides + 1
           ExchangeSides(nExchangeSides) = SideID
 #if !(PP_TimeDiscMethod==400)
-          FlagExchangeElem(iElem) = .TRUE.
+          MPISideElem(iElem) = .TRUE.
 #endif /*!(PP_TimeDiscMethod==400)*/
           EXIT
         END IF
@@ -280,7 +280,7 @@ DO iElem = firstElem,lastElem
         nExchangeSides = nExchangeSides + 1
         ExchangeSides(nExchangeSides) = SideID
 #if !(PP_TimeDiscMethod==400)
-        FlagExchangeElem(iElem) = .TRUE.
+        MPISideElem(iElem) = .TRUE.
 #endif /*!(PP_TimeDiscMethod==400)*/
       END IF
     END IF
@@ -288,13 +288,16 @@ DO iElem = firstElem,lastElem
 END DO
 
 #if !(PP_TimeDiscMethod==400)
-DEALLOCATE(FlagExchangeElem)
+DEALLOCATE(MPISideElem)
 #endif /*!(PP_TimeDiscMethod==400)*/
 
 !> Build metrics for all MPI sides on current proc
-ALLOCATE(BoundsOfElemCenter(1:5))
-ALLOCATE(MPISideBoundsOfElemCenter(1:4,1:nExchangeSides),MPISideBoundsOfNbElemCenter(1:4,1:nExchangeSides))
+ALLOCATE(BoundsOfElemCenter(   1:5))
 ALLOCATE(RotBoundsOfElemCenter(1:4))
+ALLOCATE(MPISideBoundsOfElemCenter(  1:4,1:nExchangeSides))
+#if (PP_TimeDiscMethod==400)
+ALLOCATE(MPISideBoundsOfNbElemCenter(1:4,1:nExchangeSides))
+#endif /*(PP_TimeDiscMethod==400)*/
 
 DO iSide = 1, nExchangeSides
   SideID = ExchangeSides(iSide)
@@ -306,6 +309,7 @@ DO iSide = 1, nExchangeSides
                                                   BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                                   BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
 
+#if (PP_TimeDiscMethod==400)
   NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
 
   ! Mortar elements or normal elements (inkl. rot periodic sides)
@@ -344,18 +348,18 @@ DO iSide = 1, nExchangeSides
                                                 SUM(  NbElemBounds(1:2,2)), &
                                                 SUM(  NbElemBounds(1:2,3)) /) / 2.
     MPISideBoundsOfNbElemCenter(4,iSide) = VECNORM ((/NbElemBounds(2  ,1)-NbElemBounds(1,1), &
-                                                    NbElemBounds(2  ,2)-NbElemBounds(1,2), &
-                                                    NbElemBounds(2  ,3)-NbElemBounds(1,3) /) / 2.)
+                                                      NbElemBounds(2  ,2)-NbElemBounds(1,2), &
+                                                      NbElemBounds(2  ,3)-NbElemBounds(1,3) /) / 2.)
   ELSE
     ! Non-mortar (MPI interfaces) sides and rotperiodic sides (BC sides)
-    MPISideBoundsOfNbElemCenter(1:3,iSide) = (/ SUM( BoundsOfElem_Shared(1:2,1,NbElemID)), &
-                                                SUM( BoundsOfElem_Shared(1:2,2,NbElemID)), &
-                                                SUM( BoundsOfElem_Shared(1:2,3,NbElemID)) /) / 2.
-    MPISideBoundsOfNbElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2,1,NbElemID)-BoundsOfElem_Shared(1,1,NbElemID), &
-                                                      BoundsOfElem_Shared(2,2,NbElemID)-BoundsOfElem_Shared(1,2,NbElemID), &
-                                                      BoundsOfElem_Shared(2,3,NbElemID)-BoundsOfElem_Shared(1,3,NbElemID) /) / 2.)
+    MPISideBoundsOfNbElemCenter(1:3,iSide) = (/ SUM(  BoundsOfElem_Shared(1:2,1,NbElemID)), &
+                                                SUM(  BoundsOfElem_Shared(1:2,2,NbElemID)), &
+                                                SUM(  BoundsOfElem_Shared(1:2,3,NbElemID)) /) / 2.
+    MPISideBoundsOfNbElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2  ,1,NbElemID)-BoundsOfElem_Shared(1,1,NbElemID), &
+                                                      BoundsOfElem_Shared(2  ,2,NbElemID)-BoundsOfElem_Shared(1,2,NbElemID), &
+                                                      BoundsOfElem_Shared(2  ,3,NbElemID)-BoundsOfElem_Shared(1,3,NbElemID) /) / 2.)
   END IF
-
+#endif /*(PP_TimeDiscMethod==400)*/
 END DO
 
 !> Check all elements in the CN halo region against local MPI sides. Check is identical to particle_bgm.f90
@@ -439,12 +443,11 @@ xCoordsProc(4) = GEO%ymax
 xCoordsProc(5) = GEO%zmin
 xCoordsProc(6) = GEO%zmax
 
-
 ! Use a named loop so the entire element can be cycled
 ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
-  ElemID   = GetGlobalElemID(iElem)
+  ElemID    = GetGlobalElemID(iElem)
   localElem = ElemID - offSetElem
-  HaloProc = ElemInfo_Shared(ELEM_RANK,ElemID)
+  HaloProc  = ElemInfo_Shared(ELEM_RANK,ElemID)
 
   BoundsOfElemCenter(1:3) = (/SUM(      BoundsOfElem_Shared(1:2,1,ElemID)), &
                               SUM(      BoundsOfElem_Shared(1:2,2,ElemID)), &
@@ -468,9 +471,10 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             DO iPeriodicDir = 1,2
               IF (VECNORM( BoundsOfElemCenter(1:3)                                                       &
                          + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)                  &
-                         - MPISideBoundsOfNbElemCenter(1:3,iSide))                                         &
-                         .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                                         & !-BoundsOfElemCenter(5)                            &
-                                   +MPISideBoundsOfNbElemCenter(4,iSide) ) THEN
+                         - MPISideBoundsOfNbElemCenter(1:3,iSide))                                       &
+                      .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                                    & !-BoundsOfElemCenter(5) &
+                         + MPISideBoundsOfNbElemCenter(4,iSide) ) THEN
+                ! flag the proc as exchange proc (in halo region)
                 IsExchangeElem(localElem) = .TRUE.
                 CYCLE ElemLoop
               END IF
@@ -481,11 +485,11 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             DO iPeriodicVector = 1,2
               DO iPeriodicDir = 1,2
                 ! check if element is within halo_eps of periodically displaced element
-                IF (VECNORM( BoundsOfElemCenter(1:3)                                                    &
-                           + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
-                           - MPISideBoundsOfNbElemCenter(1:3,iSide))                                      &
-                          .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                                       & !-BoundsOfElemCenter(5)                 &
-                                    +MPISideBoundsOfNbElemCenter(4,iSide)) THEN
+                IF (VECNORM( BoundsOfElemCenter(1:3)                                                     &
+                           + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)  &
+                           - MPISideBoundsOfNbElemCenter(1:3,iSide))                                     &
+                        .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                                  & !-BoundsOfElemCenter(5) &
+                           + MPISideBoundsOfNbElemCenter(4,iSide)) THEN
                   ! flag the proc as exchange proc (in halo region)
                   IsExchangeElem(localElem) = .TRUE.
                   CYCLE ElemLoop
@@ -496,14 +500,13 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             DO iPeriodicDir = 1,2
               DO jPeriodicDir = 1,2
                   ! check if element is within halo_eps of periodically displaced element
-                  IF (VECNORM( BoundsOfElemCenter(1:3)                                                  &
-                             + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)             &
-                           + GEO%PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)               &
-                             - MPISideBoundsOfNbElemCenter(1:3,iSide))                                    &
-                          .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                                       & !-BoundsOfElemCenter(5)                 &
-                                    +MPISideBoundsOfNbElemCenter(4,iSide)) THEN
+                  IF (VECNORM( BoundsOfElemCenter(1:3)                                                   &
+                             + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)              &
+                             + GEO%PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)              &
+                             - MPISideBoundsOfNbElemCenter(1:3,iSide))                                   &
+                          .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                                & !-BoundsOfElemCenter(5) &
+                             + MPISideBoundsOfNbElemCenter(4,iSide)) THEN
                     ! flag the proc as exchange proc (in halo region)
-
                     IsExchangeElem(localElem) = .TRUE.
                     CYCLE ElemLoop
                   END IF
@@ -518,11 +521,11 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               DO iPeriodicDir = 1,2
                 ! element might be already added back
                 ! check if element is within halo_eps of periodically displaced element
-                IF (VECNORM( BoundsOfElemCenter(1:3)                                                      &
-                           + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)   &
-                           - MPISideBoundsOfNbElemCenter(1:3,iSide))                                        &
-                          .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                                         & !-BoundsOfElemCenter(5)                   &
-                                    +MPISideBoundsOfNbElemCenter(4,iSide)) THEN
+                IF (VECNORM( BoundsOfElemCenter(1:3)                                                     &
+                           + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)  &
+                           - MPISideBoundsOfNbElemCenter(1:3,iSide))                                     &
+                        .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                                  & !-BoundsOfElemCenter(5) &
+                           + MPISideBoundsOfNbElemCenter(4,iSide)) THEN
                   ! flag the proc as exchange proc (in halo region)
                   IsExchangeElem(localElem) = .TRUE.
                   CYCLE ElemLoop
@@ -535,10 +538,10 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                     ! check if element is within halo_eps of periodically displaced element
                     IF (VECNORM( BoundsOfElemCenter(1:3)                                                      &
                                + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)   &
-                                 + GEO%PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(jPeriodicDir) &
-                               - MPISideBoundsOfNbElemCenter(1:3,iSide))                                        &
-                            .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                                           & !-BoundsOfElemCenter(5)                     &
-                                      +MPISideBoundsOfNbElemCenter(4,iSide)) THEN
+                               + GEO%PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(jPeriodicDir)   &
+                               - MPISideBoundsOfNbElemCenter(1:3,iSide))                                      &
+                            .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                                   & !-BoundsOfElemCenter(5) &
+                               + MPISideBoundsOfNbElemCenter(4,iSide)) THEN
                       ! flag the proc as exchange proc (in halo region)
                       IsExchangeElem(localElem) = .TRUE.
                       CYCLE ElemLoop
@@ -552,13 +555,13 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             DO iPeriodicDir = 1,2
               DO jPeriodicDir = 1,2
                 DO kPeriodicDir = 1,2
-                  IF (VECNORM( BoundsOfElemCenter(1:3)                                                        &
-                             + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)                   &
-                                 + GEO%PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)               &
-                                 + GEO%PeriodicVectors(1:3,3) * DirPeriodicVector(kPeriodicDir)               &
-                             - MPISideBoundsOfNbElemCenter(1:3,iSide))                                          &
-                          .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                                             & !-BoundsOfElemCenter(5)                       &
-                          +MPISideBoundsOfNbElemCenter(4,iSide) ) THEN
+                  IF (VECNORM( BoundsOfElemCenter(1:3)                                                   &
+                             + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)              &
+                             + GEO%PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)              &
+                             + GEO%PeriodicVectors(1:3,3) * DirPeriodicVector(kPeriodicDir)              &
+                             - MPISideBoundsOfNbElemCenter(1:3,iSide))                                   &
+                          .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                                & !-BoundsOfElemCenter(5) &
+                             + MPISideBoundsOfNbElemCenter(4,iSide) ) THEN
                     ! flag the proc as exchange proc (in halo region)
                     IsExchangeElem(localElem) = .TRUE.
                     CYCLE ElemLoop
@@ -594,9 +597,9 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             END ASSOCIATE
             ! check if element is within halo_eps of rotationally displaced element
             IF (VECNORM( RotBoundsOfElemCenter(1:3)                                           &
-                       - MPISideBoundsOfNbElemCenter(1:3,iSide))                                &
-                    .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                                   & !-BoundsOfElemCenter(5)             &
-                              +MPISideBoundsOfNbElemCenter(4,iSide) ) THEN
+                       - MPISideBoundsOfNbElemCenter(1:3,iSide))                              &
+                    .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)                           & !-BoundsOfElemCenter(5) &
+                       + MPISideBoundsOfNbElemCenter(4,iSide) ) THEN
               ! flag the proc as exchange proc (in halo region)
               IsExchangeElem(localElem) = .TRUE.
               CYCLE ElemLoop
@@ -695,8 +698,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             IF (VECNORM( BoundsOfElemCenter(1:3)                                                       &
                        + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)                  &
                        - MPISideBoundsOfElemCenter(1:3,iSide))                                         &
-                       .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                         & !-BoundsOfElemCenter(5)                            &
-                                 +MPISideBoundsOfElemCenter(4,iSide) ) THEN
+                    .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                            & !-BoundsOfElemCenter(5) &
+                       + MPISideBoundsOfElemCenter(4,iSide) ) THEN
               ! flag the proc as exchange proc (in halo region)
               IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                 IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.4) FlagShapeElem(iElem) = .TRUE.
@@ -717,8 +720,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               IF (VECNORM( BoundsOfElemCenter(1:3)                                                    &
                          + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir) &
                          - MPISideBoundsOfElemCenter(1:3,iSide))                                      &
-                        .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                       & !-BoundsOfElemCenter(5)                 &
-                                  +MPISideBoundsOfElemCenter(4,iSide)) THEN
+                      .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                         & !-BoundsOfElemCenter(5) &
+                         + MPISideBoundsOfElemCenter(4,iSide)) THEN
                 ! flag the proc as exchange proc (in halo region)
                 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                   IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.4) FlagShapeElem(iElem) = .TRUE.
@@ -737,10 +740,10 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                 ! check if element is within halo_eps of periodically displaced element
                 IF (VECNORM( BoundsOfElemCenter(1:3)                                                  &
                            + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)             &
-                         + GEO%PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)               &
+                           + GEO%PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)             &
                            - MPISideBoundsOfElemCenter(1:3,iSide))                                    &
-                        .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                       & !-BoundsOfElemCenter(5)                 &
-                                  +MPISideBoundsOfElemCenter(4,iSide)) THEN
+                        .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                       & !-BoundsOfElemCenter(5) &
+                           + MPISideBoundsOfElemCenter(4,iSide)) THEN
                   ! flag the proc as exchange proc (in halo region)
                   IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                     IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.4) FlagShapeElem(iElem) = .TRUE.
@@ -765,8 +768,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               IF (VECNORM( BoundsOfElemCenter(1:3)                                                      &
                          + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)   &
                          - MPISideBoundsOfElemCenter(1:3,iSide))                                        &
-                        .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                         & !-BoundsOfElemCenter(5)                   &
-                                  +MPISideBoundsOfElemCenter(4,iSide)) THEN
+                      .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                           & !-BoundsOfElemCenter(5) &
+                         + MPISideBoundsOfElemCenter(4,iSide)) THEN
                 ! flag the proc as exchange proc (in halo region)
                 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                   IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.4) FlagShapeElem(iElem) = .TRUE.
@@ -785,10 +788,10 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                   ! check if element is within halo_eps of periodically displaced element
                   IF (VECNORM( BoundsOfElemCenter(1:3)                                                      &
                              + GEO%PeriodicVectors(1:3,iPeriodicVector) * DirPeriodicVector(iPeriodicDir)   &
-                               + GEO%PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(jPeriodicDir) &
+                             + GEO%PeriodicVectors(1:3,jPeriodicVector) * DirPeriodicVector(jPeriodicDir)   &
                              - MPISideBoundsOfElemCenter(1:3,iSide))                                        &
-                          .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                           & !-BoundsOfElemCenter(5)                     &
-                                    +MPISideBoundsOfElemCenter(4,iSide)) THEN
+                          .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                           & !-BoundsOfElemCenter(5) &
+                             + MPISideBoundsOfElemCenter(4,iSide)) THEN
                     ! flag the proc as exchange proc (in halo region)
                     IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                       IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.4) FlagShapeElem(iElem) = .TRUE.
@@ -810,11 +813,11 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               DO kPeriodicDir = 1,2
                 IF (VECNORM( BoundsOfElemCenter(1:3)                                                        &
                            + GEO%PeriodicVectors(1:3,1) * DirPeriodicVector(iPeriodicDir)                   &
-                               + GEO%PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)               &
-                               + GEO%PeriodicVectors(1:3,3) * DirPeriodicVector(kPeriodicDir)               &
+                           + GEO%PeriodicVectors(1:3,2) * DirPeriodicVector(jPeriodicDir)                   &
+                           + GEO%PeriodicVectors(1:3,3) * DirPeriodicVector(kPeriodicDir)                   &
                            - MPISideBoundsOfElemCenter(1:3,iSide))                                          &
-                        .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                             & !-BoundsOfElemCenter(5)                       &
-                        +MPISideBoundsOfElemCenter(4,iSide) ) THEN
+                        .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                             & !-BoundsOfElemCenter(5) &
+                           + MPISideBoundsOfElemCenter(4,iSide) ) THEN
                   ! flag the proc as exchange proc (in halo region)
                   IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                     IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.4) FlagShapeElem(iElem) = .TRUE.
@@ -857,8 +860,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           ! check if element is within halo_eps of rotationally displaced element
           IF (VECNORM( RotBoundsOfElemCenter(1:3)                                           &
                      - MPISideBoundsOfElemCenter(1:3,iSide))                                &
-                  .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                   & !-BoundsOfElemCenter(5)             &
-                            +MPISideBoundsOfElemCenter(4,iSide) ) THEN
+                  .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                   & !-BoundsOfElemCenter(5) &
+                     + MPISideBoundsOfElemCenter(4,iSide) ) THEN
             ! flag the proc as exchange proc (in halo region)
             IF(StringBeginsWith(DepositionType,'shape_function'))THEN
               IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.4) FlagShapeElem(iElem) = .TRUE.
@@ -886,6 +889,10 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     END IF
   END DO ! iSide = 1, nExchangeSides
 END DO ElemLoop
+
+#if (PP_TimeDiscMethod==400)
+SDEALLOCATE(MPISideBoundsOfNbElemCenter)
+#endif /*(PP_TimeDiscMethod==400)*/
 
 ! Notify every proc if it was identified by the local proc
 IF(CheckExchangeProcs)THEN
