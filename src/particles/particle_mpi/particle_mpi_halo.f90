@@ -75,6 +75,7 @@ USE MOD_CalcTimeStep            ,ONLY: CalcTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: nRKStages,RK_c
 #elif (PP_TimeDiscMethod==400)
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Mesh_Vars      ,ONLY: IsExchangeElem
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -91,9 +92,12 @@ INTEGER                        :: iMortar,nMortarElems,NbSideID
 INTEGER                        :: iProc,HaloProc
 INTEGER                        :: nExchangeSides
 INTEGER,ALLOCATABLE            :: ExchangeSides(:)
-REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:)
+REAL                           :: BoundsOfElemCenter(1:4)
+REAL,ALLOCATABLE               :: MPISideBoundsOfElemCenter(:,:)
 INTEGER                        :: ExchangeProcLeader
+#if (PP_TimeDiscMethod!=400)
 LOGICAL,ALLOCATABLE            :: MPISideElem(:)
+#endif
 LOGICAL                        :: ProcHasExchangeElem
 ! halo_eps reconstruction
 REAL                           :: MPI_halo_eps_velo,MPI_halo_diag,vec(1:3),deltaT, MPI_halo_eps_woshape
@@ -112,7 +116,7 @@ LOGICAL,ALLOCATABLE            :: GlobalProcToRecvProc(:), RecvProcs(:)
 LOGICAL,ALLOCATABLE            :: CommFlag(:)
 INTEGER                        :: nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob
 INTEGER                        :: nExchangeProcessorsGlobal, nSendShapeElems, CNElemID, exElem, exProc, jProc, ProcID
-REAL,ALLOCATABLE               :: RotBoundsOfElemCenter(:)
+REAL                           :: RotBoundsOfElemCenter(1:3)
 #if (PP_TimeDiscMethod==400)
 LOGICAL                        :: SideIsRotPeriodic
 INTEGER                        :: BCindex
@@ -296,8 +300,6 @@ DEALLOCATE(MPISideElem)
 #endif /*!(PP_TimeDiscMethod==400)*/
 
 !> Build metrics for all MPI sides on current proc
-ALLOCATE(BoundsOfElemCenter(   1:5))
-ALLOCATE(RotBoundsOfElemCenter(1:4))
 ALLOCATE(MPISideBoundsOfElemCenter(  1:4,1:nExchangeSides))
 #if (PP_TimeDiscMethod==400)
 ALLOCATE(MPISideBoundsOfNbElemCenter(1:4,1:nExchangeSides))
