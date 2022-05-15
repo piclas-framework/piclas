@@ -25,6 +25,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                         :: DoDeposition              ! flag to switch deposition on/off
 LOGICAL                         :: RelaxDeposition           ! relaxation of current PartSource with RelaxFac into PartSourceOld
+LOGICAL                         :: DoHaloDepo =.FALSE.
 REAL                            :: RelaxFac
 
 REAL,ALLOCATABLE                 :: PartSource(:,:,:,:,:)    ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) containing
@@ -113,7 +114,13 @@ REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
 
 REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:) ! index 1: radius, index 2: radius squared
 
-REAL,ALLOCPOINT                 :: NodeSource(:,:)
+REAL,ALLOCATABLE                :: NodeSource(:,:)
+INTEGER,ALLOCATABLE             :: GlobalRanktoNodeDepoRank(:)
+INTEGER,ALLOCATABLE             :: NodeDepoRanktoGlobalRank(:)
+INTEGER,ALLOCATABLE             :: DepoNodetoGlobalNode(:)
+INTEGER                         :: nDepoNodes
+INTEGER                         :: nDepoNodesTotal
+INTEGER                         :: nNodeExchangeProcs
 REAL,ALLOCPOINT                 :: NodeSourceExt(:) ! Additional source for cell_volweight_mean (external or surface charge)
 !                                                   ! that accumulates over time in elements adjacent to dielectric interfaces.
 !                                                   ! It contains the global, synchronized surface charge contribution that is
@@ -127,9 +134,6 @@ REAL,ALLOCPOINT                 :: NodeSourceExtTmp(:) ! Additional source for c
 
 #if USE_MPI
 INTEGER                         :: SFElemr2_Shared_Win
-REAL, ALLOCATABLE               :: NodeSourceLoc(:,:)           ! global, synchronized charge/current density on corner nodes
-INTEGER                         :: NodeSource_Shared_Win
-REAL,ALLOCPOINT                 :: NodeSource_Shared(:,:)
 
 !REAL, ALLOCATABLE               :: NodeSourceExtLoc(:)       ! global, synchronized surface charge contribution
 INTEGER                         :: NodeSourceExt_Shared_Win
@@ -182,16 +186,8 @@ TYPE(tCNShapeMapping),ALLOCATABLE ::CNShapeMapping(:)
 
 INTEGER                         :: ShapeElemProcSend_Shared_Win
 LOGICAL,ALLOCPOINT              :: ShapeElemProcSend_Shared(:,:)
-
-!INTEGER                         :: nSendShapeElems            ! number of halo elements on proc to communicate with shape function
-!INTEGER,ALLOCATABLE             :: SendShapeElemID(:)         ! mapping from CNElemID to ShapeElemID
+LOGICAL,ALLOCATABLE             :: FlagShapeElem(:)
 INTEGER,ALLOCATABLE             :: SendElemShapeID(:)         ! mapping from ShapeElemID to CNElemID
-!INTEGER                         :: nRecvShapeElems            ! number of halo elements on proc to communicate with shape function
-!INTEGER,ALLOCATABLE             :: RecvShapeElemID(:)         ! mapping from CNElemID to ShapeElemID
-!INTEGER,ALLOCATABLE             :: RecvElemShapeID(:)         ! mapping from ShapeElemID to CNElemID
-!REAL, ALLOCATABLE               :: ShapeRecvBuffer(:,:,:,:,:)
-LOGICAL, ALLOCATABLE            :: DoRecvElem(:)
-
 INTEGER                         :: nShapeExchangeProcs
 
 !INTEGER             :: SendRequest
