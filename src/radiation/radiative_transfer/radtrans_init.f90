@@ -355,13 +355,12 @@ CASE(4) !Shocktube mode
   END DO
 
   OPEN(unit=40,file='Radiation_Shocktube.csv',status='replace',action='write', iostat=io_error)
-  WRITE(40,"(A2)",ADVANCE="NO") ", "
     DO iElem=1,nGlobalElems
       WRITE(40,CSVFORMAT,ADVANCE="NO") ',', ElemMidPoint_Shared(1,iElem)
     END DO
     WRITE(40,*) 
   DO iWave =1,RadiationParameter%WaveLenDiscr
-    WRITE(40,CSVFORMAT,ADVANCE="NO") ',', RadiationParameter%WaveLen(iWave)*1.E9
+    WRITE(40,'(E23.16E3)',ADVANCE="NO") RadiationParameter%WaveLen(iWave)*1.E9
     DO iElem = 1,nGlobalElems
       WRITE(40,CSVFORMAT,ADVANCE="NO") ',', Radiation_ShockTube_Spec(iWave,iElem)
     END DO
