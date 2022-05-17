@@ -94,7 +94,7 @@ if [ ! -e "${MODULEFILE}" ]; then
     module li
   fi
 
-  echo -e "This will install Cmake version ${GREEN}${CMAKEVERSION}${NC} with the either the system gcc compiler or the module loaded version (note the warning above).\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
+  echo -e "This will install Cmake version ${GREEN}${CMAKEVERSION}${NC} with either the system gcc compiler or the module loaded version (note the warning above).\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
   read -p "Press [Enter] to continue or [Crtl+c] to abort!"
   cd ${SOURCESDIR}
 
