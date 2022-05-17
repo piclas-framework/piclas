@@ -19,7 +19,7 @@ Function calls must always supply the variable name of optional arguments. Alway
 
     USE MODULE, ONLY: ...
     
-this accounts for variables and function/subroutines. An exception are the initilization and finalization routines.
+this accounts for variables and function/subroutines. An exception are the initialization and finalization routines.
 
     !==============================================================
     !> \brief Fills the solution array U with a initial solution.
