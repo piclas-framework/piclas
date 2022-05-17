@@ -566,6 +566,8 @@ INTEGER              :: notMappedTotal
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
+SWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY...'
+
 ALLOCATE(Rot2Glob_temp(nComputeNodeSurfTotalSides))
 ALLOCATE(SurfSide2RotPeriodicSide(nComputeNodeSurfTotalSides))
 SurfSide2RotPeriodicSide(:) = -1
@@ -717,6 +719,8 @@ IF(notMappedTotal.GT.0)THEN
   !IF(MPIroot) CALL abort(__STAMP__,'At least one rot periodic side did not find a corresponding side.')
 END IF ! notMappedTotal.GT.0
 #endif /*USE_MPI*/
+
+SWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY DONE!'
 
 END SUBROUTINE InitParticleBoundaryRotPeriodic
 

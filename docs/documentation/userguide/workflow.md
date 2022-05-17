@@ -53,12 +53,13 @@ the CMake configuration file for HDF5 (optional).
 
 Before setting up a simulation, the code must be compiled with the desired parameters. The most important compiler options to be set are:
 
-* ``PICLAS_TIMEDISCMETHOD``: Module selection
-    * Leapfrog: 
-    * Boris-Leapfrog: 
-    * RK3: 
-    * RK4: Time integration method Runge-Kutta 4th order in time
-    * RK14: 
+* ``PICLAS_TIMEDISCMETHOD``: Time integration method
+    * Leapfrog: 2nd order when only electric fields are relevant (poisson solver)
+    * Boris-Leapfrog: 2nd order for electric and magnetic fields (poisson solver)
+    * Higuera-Cary: 2nd order for electric and magnetic fields (poisson solver)
+    * RK3: Runge-Kutta 3rd order in time
+    * RK4: Runge-Kutta 4th order in time
+    * RK14: Low storage Runge-Kutta 4, 14 stages version - Niegemann et al 2012
     * DSMC: Direct Simulation Monte Carlo, Section {ref}`sec:DSMC`
     * RESERVOIR: Simplified DSMC module for single cell reservoir simulations
     * FP-Flow: Fokker-Planck-based collision operator, Section {ref}`sec:FP-Flow`
@@ -69,8 +70,8 @@ Before setting up a simulation, the code must be compiled with the desired param
 * ``PICLAS_POLYNOMIAL_DEGREE``: Defines the polynomial degree of the solution. The order of convergence follows as $N+1$. Each grid
 cell contains $(N+1)^3$ collocation points to represent the solution.
 * ``PICLAS_NODETYPE``: The nodal collocation points used during the simulation
-    * GAUSS:
-    * GAUSS-LOBATTO:
+    * GAUSS: Legendre-Gauss distributed nodes
+    * GAUSS-LOBATTO: Legendre-Gauss-Lobatto distributed nodes
 * ``PICLAS_INTKIND8``: Enables simulations with particle numbers above 2 147 483 647
 * ``PICLAS_READIN_CONSTANTS``: Enables user-defined natural constants for the speed of light *c0*, permittivity *eps* and
     permeability *mu* of vacuum,
