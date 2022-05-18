@@ -237,7 +237,7 @@ IF (ElemID.EQ.0) THEN
   SideInfo_Shared_tmp(SideID) = 0
 ELSE
 #if USE_MPI
-  IF (ElemID.LE.offsetComputeNodeElem+1 .OR. ElemID.GT.offsetComputeNodeElem+nComputeNodeElems) THEN
+  IF (.NOT.ElementOnNode(ElemID)) THEN
     ! neighbour element is outside of compute-node
     SideInfo_Shared_tmp(SideID) = 2
   ELSE
@@ -519,11 +519,6 @@ nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo_Shared(ELE
 
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
-  ! Update SideInfo with new information
-  SideInfo_Shared(SIDE_NBELEMTYPE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
-  DEALLOCATE(SideInfo_Shared_tmp)
-  CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
-
   IF (myComputeNodeRank.EQ.0) THEN
     SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO") ' Updating mesh on shared memory...'
 
@@ -663,6 +658,18 @@ INTEGER :: iLocSide,jLocSide,nlocSides,nlocSidesNb,NbSideID
 REAL    :: EndT
 !===================================================================================================================================
 
+#if USE_MPI
+! calculate all offsets
+FirstElemInd = offsetElem+1
+LastElemInd  = offsetElem+nElems
+offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND ,LastElemInd) - ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
+#else
+FirstElemInd = 1
+LastElemInd  = nElems
+offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
+#endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
@@ -675,6 +682,16 @@ IF (PerformLoadBalance) THEN
   ! final sync of all mesh shared arrays
   CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
+
+  ! Write compute-node local SIDE_NBELEMTYPE
+  IF (myComputeNodeRank.EQ.0) THEN
+    SideInfo_Shared(SIDE_NBELEMTYPE,:) = 0
+  END IF
+  CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
+
+  SideInfo_Shared(SIDE_NBELEMTYPE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
+  DEALLOCATE(SideInfo_Shared_tmp)
   CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
 
   RETURN
@@ -692,17 +709,6 @@ END IF
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
-
-! calculate all offsets
-FirstElemInd = offsetElem+1
-LastElemInd  = offsetElem+nElems
-offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
-nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND ,LastElemInd) - ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
-#else
-FirstElemInd = 1
-LastElemInd  = nElems
-offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
-nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
 #endif /*USE_MPI*/
 
 DO iElem = FirstElemInd,LastElemInd
@@ -752,6 +758,10 @@ END IF
 ! Write compute-node local SIDE_NBELEMTYPE
 CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
 
+IF (myComputeNodeRank.EQ.0) THEN
+  SideInfo_Shared(SIDE_NBELEMTYPE,:) = 0
+END IF
+CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
 SideInfo_Shared(SIDE_NBELEMTYPE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
 
 ! final sync of all mesh shared arrays

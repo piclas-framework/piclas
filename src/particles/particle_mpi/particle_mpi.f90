@@ -879,6 +879,7 @@ USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,
 USE MOD_Particle_Vars          ,ONLY: doParticleMerge, vMPF_SpecNumElem, LastPartPos
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 #if (PP_TimeDiscMethod==400)
+USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
 USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc
 #endif /*(PP_TimeDiscMethod==400)*/
@@ -1264,7 +1265,7 @@ DO iProc=0,nExchangeProcessors-1
         CALL abort(__STAMP__,'Particle received in non exchange elem! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
       END IF
 #endif /*(PP_TimeDiscMethod==400)*/
-      IF (useDSMC) THEN 
+      IF (useDSMC) THEN
         CALL GetPositionInRefElem(PartState(1:3,PartID),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID))
       END IF
       IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN

@@ -89,7 +89,7 @@ SUBROUTINE BuildBGMAndIdentifyHaloRegion()
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: c
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem,nBCSides
+USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Periodic_BC   ,ONLY: InitPeriodicBC
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
@@ -115,6 +115,7 @@ USE MOD_PICDepo_Vars           ,ONLY: DepositionType,SFAdaptiveSmoothing,dim_sf,
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared_Win,FIBGM_nElems_Shared_Win,FIBGMToProcFlag_Shared_Win,FIBGMProcs_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProc_Shared,FIBGMToProcFlag_Shared,nComputeNodeElems,FIBGMProcs_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems_Shared,FIBGM_Element_Shared,FIBGMProcs
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared,FIBGMToProc
@@ -132,7 +133,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iElem,iLocSide,SideID
+INTEGER                        :: iElem,iHaloElem,iLocSide,SideID
 INTEGER                        :: FirstElem,LastElem
 INTEGER                        :: firstNodeID,lastNodeID
 INTEGER                        :: offsetNodeID,nNodeIDs,currentOffset
@@ -149,11 +150,21 @@ REAL                           :: deltaT
 REAL                           :: globalDiag,maxCellRadius
 INTEGER,ALLOCATABLE            :: sendbuf(:,:,:),recvbuf(:,:,:)
 INTEGER,ALLOCATABLE            :: offsetElemsInBGMCell(:,:,:)
-INTEGER                        :: nHaloElems,nBorderSidesShared
-INTEGER,ALLOCATABLE            :: offsetCNHalo2GlobalElem(:),offsetMPISideShared(:)
-REAL,ALLOCATABLE               :: BoundsOfElemCenter(:),MPISideBoundsOfElemCenter(:,:)
+INTEGER                        :: nHaloElems
+INTEGER,ALLOCATABLE            :: offsetCNHalo2GlobalElem(:)
+REAL,POINTER                   :: MPISideBoundsOfElemCenter_Shared(:,:) => null()
+INTEGER                        :: MPISideBoundsOfElemCenter_Shared_Win
+REAL                           :: BoundsOfElemCenter(1:4)
 LOGICAL                        :: ElemInsideHalo
 INTEGER                        :: firstHaloElem,lastHaloElem
+! Halo calculation
+LOGICAL,ALLOCATABLE            :: MPISideElem(:)
+LOGICAL                        :: MPIProcHalo(1:nProcessors)
+LOGICAL                        :: ProcHasExchangeElem
+INTEGER                        :: nProcHalo,nMPIProcHalo,firstProcHalo,lastProcHalo
+INTEGER                        :: GlobalElemRank
+INTEGER                        :: nBorderElems,offsetBorderElems,nComputeNodeBorderElems
+INTEGER                        :: sendint,recvint
 ! FIBGMToProc
 LOGICAL                        :: dummyLog
 INTEGER                        :: dummyInt
@@ -170,7 +181,7 @@ LOGICAL                        :: EnlargeBGM ! Flag used for enlarging the BGM i
 INTEGER                        :: offsetElemCNProc
 REAL                           :: BoundingBoxVolume
 ! Mortar
-INTEGER                        :: iMortar,NbElemID,NbSideID,nMortarElems
+INTEGER                        :: iMortar,NbElemID,NbSideID,nMortarElems!,nFoundSides,nlocSides,i
 #else
 REAL                           :: halo_eps
 #endif /*USE_MPI*/
@@ -433,6 +444,11 @@ END DO
 ! >> Communicate global maximum
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxCellRadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
 SWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', for building halo BGM ...'
+#if USE_MPI
+StartT=MPI_WTIME()
+#else
+CALL CPU_TIME(StartT)
+#endif /*USE_MPI*/
 
 ! Check, whether the BGM must be enlarged. Periodic sides plus EITHER of the following
 ! 1. RefMapping
@@ -538,7 +554,7 @@ ELSE
           IF(kBGM.LT.BGMkmin) CYCLE
           IF(kBGM.GT.BGMkmax) CYCLE
           !GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
-          IF(iElem.GE.offsetComputeNodeElem+1 .AND. iElem.LE.offsetComputeNodeElem+nComputeNodeElems) THEN
+          IF(ElementOnNode(iElem)) THEN
             ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 1 ! compute-node element
           ELSE
             ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2 ! halo element
@@ -565,20 +581,61 @@ ELSE
   CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
   ! sum all MPI-side of compute-node and create correct offset mapping in SideInfo_Shared
-  nBorderSidesShared = COUNT(SideInfo_Shared(SIDE_NBELEMTYPE,:).EQ.2) + nBCSides
-  ALLOCATE(offsetMPISideShared(nBorderSidesShared))
+  !nBorderSidesShared = COUNT(SideInfo_Shared(SIDE_NBELEMTYPE,:).EQ.2) + nBCSides
+  ALLOCATE(MPISideElem(offsetElem+1:offsetElem+nElems))
+  nBorderElems = 0
+  MPISideElem  = .FALSE.
 
-  nBorderSidesShared = 0
-  DO iSide = 1, nNonUniqueGlobalSides
+  DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,offsetElem+nElems)
     ! Check for MPI sides or BC sides
     ! Node-to-node MPI interface
-    IF ((SideInfo_Shared(SIDE_NBELEMTYPE,iSide).EQ.2).OR.&
-       ! BC side + element on local proc (do not count multiple times) + skip inner BCs (they would otherwise be counted twice)
-       ((SideInfo_Shared(SIDE_BCID      ,iSide).GT.0).AND.(ElementOnProc(SideInfo_Shared(SIDE_ELEMID,iSide)).AND.(SideInfo_Shared(SIDE_NBELEMID,iSide).EQ.0)))) THEN
-      nBorderSidesShared = nBorderSidesShared + 1
-      offsetMPISideShared(nBorderSidesShared) = iSide
+    IF (SideIsExchangeSide(iSide)) THEN
+      ElemID = SideInfo_Shared(SIDE_ELEMID,iSide)
+      IF (MPISideElem(ElemID)) CYCLE
+
+      MPISideElem(ElemID) = .TRUE.
+      nBorderElems= nBorderElems+ 1
+    END IF
+  END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,offsetElem+nElems)
+
+  sendint = nBorderElems
+  recvint = 0
+  CALL MPI_EXSCAN(sendint,recvint,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+  offsetBorderElems = recvint
+  ! last proc knows CN total number of border elems
+  sendint = offsetBorderElems + nBorderElems
+  CALL MPI_BCAST(sendint,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+  nComputeNodeBorderElems = sendint
+
+  CALL Allocate_Shared((/4,nComputeNodeBorderElems/),MPISideBoundsOfElemCenter_Shared_Win,MPISideBoundsOfElemCenter_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,MPISideBoundsOfElemCenter_Shared_Win,IERROR)
+
+  ! Build an array containing all compute-node elements with an exchange (MPI or BC side)
+  nBorderElems = offsetBorderElems
+  MPISideElem  = .FALSE.
+
+  DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,offsetElem+nElems)
+    ! Check for MPI sides or BC sides
+    ! Node-to-node MPI interface
+    IF (SideIsExchangeSide(iSide)) THEN
+      ElemID = SideInfo_Shared(SIDE_ELEMID,iSide)
+      IF (MPISideElem(ElemID)) CYCLE
+
+      MPISideElem(ElemID) = .TRUE.
+      nBorderElems= nBorderElems + 1
+
+      ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
+      MPISideBoundsOfElemCenter_Shared(1:3,nBorderElems) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
+                                                              SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
+                                                              SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+      ! Calculate outer radius of the element on my compute node
+      MPISideBoundsOfElemCenter_Shared(4,nBorderElems) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                                                     BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                                                     BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
     END IF
   END DO
+
+  CALL BARRIER_AND_SYNC(MPISideBoundsOfElemCenter_Shared_Win,MPI_COMM_SHARED)
 
   ! Distribute nHaloElements evenly on compute-node procs
   IF (nHaloElems.GT.nComputeNodeProcessors) THEN
@@ -593,26 +650,13 @@ ELSE
     END IF
   END IF
 
-  ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
-  ALLOCATE(MPISideBoundsOfElemCenter(1:4,1:nBorderSidesShared))
-  DO iSide = 1, nBorderSidesShared
-    SideID = offsetMPISideShared(iSide)
-    ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
-    MPISideBoundsOfElemCenter(1:3,iSide) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                              SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                              SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-    ! Calculate outer radius of the element on my compute node
-    MPISideBoundsOfElemCenter(4,iSide) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                                     BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                                     BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
-  END DO
-
   ! do refined check: (refined halo region reduction)
   ! check the bounding box of each element in compute-nodes' halo domain
   ! against the bounding boxes of the elements of the MPI-surface (inter compute-node MPI sides)
-  ALLOCATE(BoundsOfElemCenter(1:4))
-  DO iElem = firstHaloElem, lastHaloElem
-    ElemID = offsetCNHalo2GlobalElem(iElem)
+  MPIProcHalo = .FALSE.
+
+  DO iHaloElem = firstHaloElem, lastHaloElem
+    ElemID = offsetCNHalo2GlobalElem(iHaloElem)
     ElemInsideHalo = .FALSE.
     BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
                                  SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
@@ -621,31 +665,105 @@ ELSE
     BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                         BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                         BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
-    DO iSide = 1, nBorderSidesShared
+    DO iElem = 1, nComputeNodeBorderElems
       ! compare distance of centers with sum of element outer radii+halo_eps
-      IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iSide)) &
-          .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide) ) CYCLE
+      IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter_Shared(1:3,iElem)) &
+          .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter_Shared(4,iElem) ) CYCLE
       ElemInsideHalo = .TRUE.
       EXIT
-    END DO ! iSide = 1, nBorderSidesShared
+    END DO ! iElem = 1, ComputeNodeBorderElems
+
     IF (.NOT.ElemInsideHalo) THEN
       ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 0
     ELSE
+      ! Flag the proc as halo proc
+      GlobalElemRank = ElemInfo_Shared(ELEM_RANK,ElemID)
+      MPIProcHalo(GlobalElemRank+1) = .TRUE.
+
       ! Only add element to BGM if inside halo region on node.
       ! THIS IS WRONG. WE ARE WORKING ON THE CN HALO REGION. IF WE OMIT THE
       ! ELEMENT HERE, WE LOOSE IT. IF WE KEEP IT, WE BREAK AT 589. YOUR CALL.
       CALL AddElementToFIBGM(ElemID)
     END IF
-  END DO ! iElem = firstHaloElem, lastHaloElem
-END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
-CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win            ,MPI_COMM_SHARED)
+  END DO ! iHaloElem = firstHaloElem, lastHaloElem
 
-IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
-IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides(EnlargeBGM)
-CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+  ! De-allocate FLAG array
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+  CALL UNLOCK_AND_FREE(MPISideBoundsOfElemCenter_Shared_Win)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
-! Mortar sides: Only multi-node
-IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+  ! Then, free the pointers or arrays
+  ADEALLOCATE(MPISideBoundsOfElemCenter_Shared)
+  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+
+  IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
+  IF (MeshHasRotPeriodic) CALL CheckRotPeriodicSides(EnlargeBGM)
+  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+
+  ! Remove elements if the halo proc contains only internal elements, i.e. we cannot possibly reach the halo element
+  !
+  !   CN1     CN2    > If a compute-node contains large changes in element size, internal elements might intersect with
+  !  _ _ _    _ _ _  > the MPI sides. Since a processor checks all potential halo elements against only its own exchange
+  ! |_|_|_|  |_|_|_| > sides, the large elements will only take effect for the proc not containing it. However, if the
+  ! |_|_|_|  |_| | | > proc flags only large internal elements without flagging a single exchange element, there is no
+  ! |_|_|_|  |_|_|_| > way for a particle to actually reach.
+  ! |_|_|_|  |_| | |
+  ! |_|_|_|  |_|_|_| > This routine therefore checks for the presence of exchange sides on the procs and unflags the
+  !                  > proc if none is found.
+  !
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,MPIProcHalo,nProcessors,MPI_LOGICAL,MPI_LOR,MPI_COMM_SHARED,iError)
+
+  ! Distribute nProcHalo evenly on compute-node procs
+  nMPIProcHalo = COUNT(MPIProcHalo)
+
+  IF (nMPIProcHalo.GT.nComputeNodeProcessors) THEN
+    firstProcHalo = INT(REAL( myComputeNodeRank   *nMPIProcHalo)/REAL(nComputeNodeProcessors))+1
+    lastProcHalo  = INT(REAL((myComputeNodeRank+1)*nMPIProcHalo)/REAL(nComputeNodeProcessors))
+  ELSE
+    firstProcHalo = myComputeNodeRank + 1
+    IF (myComputeNodeRank.LT.nMPIProcHalo) THEN
+      lastProcHalo = myComputeNodeRank + 1
+    ELSE
+      lastProcHalo = 0
+    END IF
+  END IF
+
+  nProcHalo = 0
+
+  ! Check if the processor should check at least one halo processor
+  IF (lastProcHalo.GT.0) THEN
+    DO iProc = 1,nProcessors
+      ! Ignore compute-nodes with no halo elements
+      IF (.NOT.MPIProcHalo(iProc)) CYCLE
+
+      nProcHalo           = nProcHalo + 1
+      ProcHasExchangeElem = .FALSE.
+
+      ! Ignore processors before firstProcHalo, exit after lastProcHalo
+      IF (nProcHalo.LT.firstProcHalo) CYCLE
+      IF (nProcHalo.GT.lastProcHalo)  EXIT
+
+      ! Use a named loop so the entire element can be cycled
+ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
+        ! Ignore elements other than halo elements
+        IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.2) CYCLE
+
+        DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iElem)
+          IF (SideIsExchangeSide(iSide)) THEN
+            ProcHasExchangeElem = .TRUE.
+            EXIT ElemLoop
+          END IF
+        END DO
+      END DO ElemLoop ! iElem = offsetElemMPI((iCN-1)*nComputeNodeProcessors + 1),offsetElemMPI(iCN*nComputeNodeProcessors)
+
+      ! Processor has halo elements but no MPI sides, remove the halo elements
+      IF (.NOT.ProcHasExchangeElem) THEN
+        ElemInfo_Shared(ELEM_HALOFLAG,offsetElemMPI(iProc-1)+1:offsetElemMPI(iProc)) = 0
+      END IF
+    END DO ! iProc = 1,nProcessors
+  END IF
+
+  ! Mortar sides: Only multi-node
   DO iElem = firstElem, lastElem
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.1) CYCLE
 
@@ -670,8 +788,7 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
       END IF
     END DO
   END DO
-END IF
-
+END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 #else
 !ElemInfo_Shared(ELEM_HALOFLAG,:) = 1
@@ -994,6 +1111,11 @@ IF (myRank.EQ.0) THEN
 END IF
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*CODE_ANALYZE*/
+
+EndT = PICLASTIME()
+SWRITE(UNIT_stdOut,'(A,E15.7,A,F0.3,A)') ' | Found max. cell radius as',maxCellRadius,', for building halo BGM ... DONE! ['&
+,EndT-StartT,'s]'
+SWRITE(UNIT_StdOut,'(132("-"))')
 
 ! ONLY IF HALO_EPS .LT. GLOBAL_DIAG
 ! ONLY IF EMISSION .EQ. 1 .OR. 2
@@ -1758,6 +1880,62 @@ DO iBGM = BGMCellXmin,BGMCellXmax
 END DO ! iBGM
 
 END SUBROUTINE
+
+
+LOGICAL FUNCTION SideIsExchangeSide(SideID)
+!===================================================================================================================================
+!> checks if the side is the MPI side of the compute-node
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals                ,ONLY: Abort,ElementOnProc,ElementOnNode
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+INTEGER,INTENT(IN)             :: SideID
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: ElemID,NbElemID,nMortarElems
+INTEGER                        :: NbSideID
+INTEGER                        :: iMortar
+!===================================================================================================================================
+
+IF ((SideInfo_Shared(SIDE_NBELEMTYPE,SideID).EQ.2).OR.&
+   ! BC side + element on local proc (do not count multiple times) + skip inner BCs (they would otherwise be counted twice)
+   ((SideInfo_Shared(SIDE_BCID,SideID).GT.0).AND.(ElementOnProc(SideInfo_Shared(SIDE_ELEMID,SideID)).AND.(SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.0)))) THEN
+  SideIsExchangeSide = .TRUE.
+END IF
+
+! check if the side is a big mortar side. Find big mortar sides that point outwards (node-to-node interfaces)
+NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
+IF (NbElemID.LT.0) THEN ! Mortar side (from particle_tracing.f90)
+  nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
+
+  DO iMortar = 1,nMortarElems
+    NbSideID = SideInfo_Shared(SIDE_NBSIDEID,SideID + iMortar)
+
+    ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
+    ! no way to recover it during runtime
+    IF (NbSideID.LT.1) CALL ABORT(__STAMP__,'Small mortar side not defined! SideID + iMortar=',SideID + iMortar)
+
+    NbElemID = SideInfo_Shared(SIDE_ELEMID,NbSideID)
+    ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
+    ! no way to recover it during runtime
+    ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+    IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined! ElemID=',ElemID)
+
+    ! Check if the small mortar element is on my own node or on a different node. Only consider if on a different node
+    IF(.NOT.ElementOnNode(NbElemID))THEN
+      SideIsExchangeSide = .TRUE.
+    END IF ! .NOT.ElementOnNode(NbElemID)
+  END DO ! iMortar = 1,nMortarElems
+END IF ! NbElemID.LT.0
+
+END FUNCTION SideIsExchangeSide
 
 
 #if GCC_VERSION < 90000
