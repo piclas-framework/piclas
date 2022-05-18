@@ -408,7 +408,7 @@ REAL               :: tLBStart
 #if USE_MPI
 INTEGER            :: iProc
 INTEGER            :: RecvRequest(1:nNodeExchangeProcs),SendRequest(1:nNodeExchangeProcs)
-INTEGER            :: MessageSize
+!INTEGER            :: MessageSize
 #endif
 REAL               :: norm
 #if defined(MEASURE_MPI_WAIT)

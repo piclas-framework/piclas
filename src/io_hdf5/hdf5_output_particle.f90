@@ -291,7 +291,6 @@ USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_PreProc
 USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,RegionElectronRef
 USE MOD_DG_Vars            ,ONLY: U
-USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_PICDepo_Vars       ,ONLY: PartSource
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -99,8 +99,8 @@ USE MOD_MPI_Shared_Vars        ,ONLY: ComputeNodeRootRank
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
-USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
-USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myLeaderGroupRank,nLeaderGroupProcs, nProcessors_Global
+USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,nLeaderGroupProcs, nProcessors_Global
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_Restart_Vars           ,ONLY: DoRestart
@@ -121,7 +121,7 @@ CHARACTER(255)            :: TimeAverageFile
 #if USE_MPI
 INTEGER                   :: UniqueNodeID
 INTEGER                   :: jElem, NonUniqueNodeID,iNode
-INTEGER                   :: SendNodeCount, GlobalElemNode, GlobalElemRank, iProc
+INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
 INTEGER                   :: TestElemID, GlobalElemRankOrig, iRank
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:), DoNodeMapping(:), SendNode(:), IsDepoNode(:)
 INTEGER                   :: firstNode,lastNode
