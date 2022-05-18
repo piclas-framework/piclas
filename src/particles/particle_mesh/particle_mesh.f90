@@ -231,14 +231,10 @@ IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING) THEN
   BezierElevation = GETINT('BezierElevation')
   NGeoElevated    = NGeo + BezierElevation
 
-  CALL CalcParticleMeshMetrics()
-ELSE
-  NGeoElevated = NGeo
+  CALL CalcParticleMeshMetrics() ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
+  CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared
+  CALL CalcBezierControlPoints() ! Required for BezierControlPoints3D and BezierControlPoints3DElevated
 END IF
-  CALL CalcXCL_NGeo()
-
-  CALL CalcBezierControlPoints()
-!END IF
 
 ! Mesh min/max must be built on BezierControlPoint for possibly curved elements
 CALL GetMeshMinMax()
@@ -361,9 +357,9 @@ SELECT CASE(TrackingMethod)
     ! Interpolation needs coordinates in reference system
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
     IF (DoInterpolation.OR.DoDeposition) THEN
-      CALL CalcParticleMeshMetrics()
-
-      CALL BuildElemTypeAndBasisTria()
+      CALL CalcParticleMeshMetrics()   ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
+      CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
+      CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved, XiEtaZetaBasis and slenXiEtaZetaBasis. Needs XCL_NGeo_Shared
     END IF ! DoInterpolation.OR.DSMC%UseOctree
 
     IF (DoDeposition) CALL BuildEpsOneCell()
@@ -696,17 +692,6 @@ SELECT CASE (TrackingMethod)
 
   ! TriaTracking
   CASE(TRIATRACKING)
-#if USE_LOADBALANCE
-    IF (.NOT.PerformLoadBalance) THEN
-#endif /*USE_LOADBALANCE*/
-      ! CalcBezierControlPoints()
-      CALL UNLOCK_AND_FREE(BezierControlPoints3D_Shared_Win)
-      IF (BezierElevation.GT.0) CALL UNLOCK_AND_FREE(BezierControlPoints3DElevated_Shared_Win)
-      ADEALLOCATE(BezierControlPoints3D_Shared)
-      ADEALLOCATE(BezierControlPoints3DElevated_Shared)
-#if USE_LOADBALANCE
-    END IF !PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
     ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)

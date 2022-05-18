@@ -89,7 +89,6 @@ SUBROUTINE BuildBGMAndIdentifyHaloRegion()
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: c
 USE MOD_Preproc
-USE MOD_Basis                  ,ONLY: DeCasteljauInterpolation
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Periodic_BC   ,ONLY: InitPeriodicBC

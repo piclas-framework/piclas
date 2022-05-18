@@ -491,7 +491,7 @@ DO iPBC=1,nPartBound
       IF(TrackingMethod.EQ.REFMAPPING)THEN
         SWRITE(UNIT_STDOUT,'(A)') ' Analyze sides are not implemented for RefMapping=T, because '//  &
                                   ' orientation of SideNormVec is unknown.'
-        !CALL abort(__STAMP__,' Analyze-BCs cannot be used for internal reflection in general cases! ')
+        CALL abort(__STAMP__,' Analyze-BCs cannot be used for internal reflection in general cases! ')
       END IF
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
@@ -565,6 +565,8 @@ INTEGER              :: notMapped
 INTEGER              :: notMappedTotal
 #endif /*USE_MPI*/
 !===================================================================================================================================
+
+SWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY...'
 
 ALLOCATE(Rot2Glob_temp(nComputeNodeSurfTotalSides))
 ALLOCATE(SurfSide2RotPeriodicSide(nComputeNodeSurfTotalSides))
@@ -717,6 +719,8 @@ IF(notMappedTotal.GT.0)THEN
   !IF(MPIroot) CALL abort(__STAMP__,'At least one rot periodic side did not find a corresponding side.')
 END IF ! notMappedTotal.GT.0
 #endif /*USE_MPI*/
+
+SWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY DONE!'
 
 END SUBROUTINE InitParticleBoundaryRotPeriodic
 
