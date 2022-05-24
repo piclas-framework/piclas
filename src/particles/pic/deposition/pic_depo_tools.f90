@@ -59,9 +59,9 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
 #if USE_MPI
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc
-#else
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
+#else
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -94,18 +94,18 @@ alpha2=0.5*(TempPartPos(2)+1.0)
 alpha3=0.5*(TempPartPos(3)+1.0)
 
 #if USE_MPI
-ASSOCIATE( NodeSourceExtTmp => NodeSourceExtTmpLoc )
+ASSOCIATE( NodeSourceExt => NodeSourceExtTmp )
 #endif
   ! Apply charge to nodes (note that the volumes are not accounted for yet here!)
   NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
-  NodeSourceExtTmp(NodeID(1)) = NodeSourceExtTmp(NodeID(1)) + (Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
-  NodeSourceExtTmp(NodeID(2)) = NodeSourceExtTmp(NodeID(2)) + (Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
-  NodeSourceExtTmp(NodeID(3)) = NodeSourceExtTmp(NodeID(3)) + (Charge*  (alpha1)*  (alpha2)*(1-alpha3))
-  NodeSourceExtTmp(NodeID(4)) = NodeSourceExtTmp(NodeID(4)) + (Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
-  NodeSourceExtTmp(NodeID(5)) = NodeSourceExtTmp(NodeID(5)) + (Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
-  NodeSourceExtTmp(NodeID(6)) = NodeSourceExtTmp(NodeID(6)) + (Charge*  (alpha1)*(1-alpha2)*  (alpha3))
-  NodeSourceExtTmp(NodeID(7)) = NodeSourceExtTmp(NodeID(7)) + (Charge*  (alpha1)*  (alpha2)*  (alpha3))
-  NodeSourceExtTmp(NodeID(8)) = NodeSourceExtTmp(NodeID(8)) + (Charge*(1-alpha1)*  (alpha2)*  (alpha3))
+  NodeSourceExt(NodeID(1)) = NodeSourceExt(NodeID(1)) + (Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
+  NodeSourceExt(NodeID(2)) = NodeSourceExt(NodeID(2)) + (Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
+  NodeSourceExt(NodeID(3)) = NodeSourceExt(NodeID(3)) + (Charge*  (alpha1)*  (alpha2)*(1-alpha3))
+  NodeSourceExt(NodeID(4)) = NodeSourceExt(NodeID(4)) + (Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
+  NodeSourceExt(NodeID(5)) = NodeSourceExt(NodeID(5)) + (Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
+  NodeSourceExt(NodeID(6)) = NodeSourceExt(NodeID(6)) + (Charge*  (alpha1)*(1-alpha2)*  (alpha3))
+  NodeSourceExt(NodeID(7)) = NodeSourceExt(NodeID(7)) + (Charge*  (alpha1)*  (alpha2)*  (alpha3))
+  NodeSourceExt(NodeID(8)) = NodeSourceExt(NodeID(8)) + (Charge*(1-alpha1)*  (alpha2)*  (alpha3))
 #if USE_MPI
 END ASSOCIATE
 #endif

@@ -234,31 +234,16 @@ CASE('cell_volweight_mean')
 
   ! Initialize sub-cell volumes around nodes
   CALL CalcCellLocNodeVolumes()
-#if USE_MPI
   ALLOCATE(NodeSource(1:4,1:nUniqueGlobalNodes))
   NodeSource=0.0
   IF(DoDielectricSurfaceCharge)THEN
-    firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
-    lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
-
-   ! Global, synchronized surface charge contribution (is added to NodeSource AFTER MPI synchronization)
-    CALL Allocate_Shared((/nUniqueGlobalNodes/),NodeSourceExt_Shared_Win,NodeSourceExt_Shared)
-    CALL MPI_WIN_LOCK_ALL(0,NodeSourceExt_Shared_Win,IERROR)
-    NodeSourceExt => NodeSourceExt_Shared
-    !ALLOCATE(NodeSourceExtLoc(1:1,1:nUniqueGlobalNodes))
-    IF(.NOT.DoRestart)THEN
-      DO iNode=firstNode, lastNode
-        NodeSourceExt(iNode) = 0.
-      END DO
-      CALL BARRIER_AND_SYNC(NodeSourceExt_Shared_Win,MPI_COMM_SHARED)
-    END IF ! .NOT.DoRestart
-
-   ! Local, non-synchronized surface charge contribution (is added to NodeSource BEFORE MPI synchronization)
-    CALL Allocate_Shared((/nUniqueGlobalNodes/),NodeSourceExtTmp_Shared_Win,NodeSourceExtTmp_Shared)
-    CALL MPI_WIN_LOCK_ALL(0,NodeSourceExtTmp_Shared_Win,IERROR)
-    NodeSourceExtTmp => NodeSourceExtTmp_Shared
-    ALLOCATE(NodeSourceExtTmpLoc(1:nUniqueGlobalNodes))
-    NodeSourceExtTmpLoc = 0.
+    ALLOCATE(NodeSourceExt(1:nUniqueGlobalNodes))
+    NodeSourceExt    = 0.
+  END IF ! DoDielectricSurfaceCharge
+#if USE_MPI
+  IF(DoDielectricSurfaceCharge)THEN
+    ALLOCATE(NodeSourceExtTmp(1:nUniqueGlobalNodes))
+    NodeSourceExtTmp = 0.
   END IF ! DoDielectricSurfaceCharge
 
   ALLOCATE(DoNodeMapping(0:nProcessors_Global-1),SendNode(1:nUniqueGlobalNodes))
@@ -439,15 +424,6 @@ CASE('cell_volweight_mean')
     CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
-#else
-  ALLOCATE(NodeSource(1:4,1:nUniqueGlobalNodes))
-  NodeSource=0.0
-  IF(DoDielectricSurfaceCharge)THEN
-    ALLOCATE(NodeSourceExt(1:nUniqueGlobalNodes))
-    ALLOCATE(NodeSourceExtTmp(1:nUniqueGlobalNodes))
-    NodeSourceExt    = 0.
-    NodeSourceExtTmp = 0.
-  END IF ! DoDielectricSurfaceCharge
 #endif /*USE_MPI*/
 
   IF(DoDielectricSurfaceCharge)THEN
@@ -924,9 +900,12 @@ SDEALLOCATE(GlobalRanktoNodeDepoRank)
 SDEALLOCATE(NodeDepoRanktoGlobalRank)
 SDEALLOCATE(DepoNodetoGlobalNode)
 
+SDEALLOCATE(NodeSource)
+SDEALLOCATE(NodeSourceExt)
+SDEALLOCATE(NodeSourceExtTmp)
+
 #if USE_MPI
 SDEALLOCATE(FlagShapeElem)
-SDEALLOCATE(NodeSource)
 SDEALLOCATE(NodeMapping)
 SDEALLOCATE(nDepoDOFPerProc)
 SDEALLOCATE(nDepoOffsetProc)
@@ -946,12 +925,6 @@ IF(DoDeposition)THEN
   SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean')
     CALL UNLOCK_AND_FREE(NodeVolume_Shared_Win)
-
-    ! Surface charging arrays
-    IF(DoDielectricSurfaceCharge)THEN
-      CALL UNLOCK_AND_FREE(NodeSourceExt_Shared_Win)
-      CALL UNLOCK_AND_FREE(NodeSourceExtTmp_Shared_Win)
-    END IF
   CASE('shape_function_adaptive')
     CALL UNLOCK_AND_FREE(SFElemr2_Shared_Win)
   END SELECT
@@ -959,9 +932,6 @@ IF(DoDeposition)THEN
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
   ADEALLOCATE(NodeVolume_Shared)
-  ADEALLOCATE(NodeSourceExt_Shared)
-  ADEALLOCATE(NodeSourceExtTmp_Shared)
-  SDEALLOCATE(NodeSourceExtTmpLoc)
 END IF ! DoDeposition
 
 ! Then, free the pointers or arrays
@@ -970,10 +940,6 @@ END IF ! DoDeposition
 ! Deposition-dependent pointers/arrays
 SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean')
-    ! Surface charging pointers/arrays
-    IF(DoDielectricSurfaceCharge)THEN
-      ADEALLOCATE(NodeSourceExt)
-    END IF ! DoDielectricSurfaceCharge
   CASE('shape_function_adaptive')
     ADEALLOCATE(SFElemr2_Shared)
 END SELECT

@@ -94,12 +94,16 @@ USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
 #if USE_MPI
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc, NodeMapping, NodeSourceExtTmp_Shared_Win,NodeSourceExt_Shared_Win
+USE MOD_PICDepo_Vars       ,ONLY: NodeMapping
 USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
+USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,nNodeExchangeProcs,NodeDepoRanktoGlobalRank,DepoNodetoGlobalNode
 #endif  /*USE_MPI*/
 USE MOD_TimeDisc_Vars      ,ONLY: iter
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart
+#endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -117,10 +121,15 @@ REAL                           :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1)
 INTEGER                        :: NodeID(1:8)
 #if USE_MPI
 INTEGER                        :: iProc
-INTEGER                        :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
+!INTEGER                        :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
+INTEGER                        :: RecvRequest(1:nNodeExchangeProcs),SendRequest(1:nNodeExchangeProcs)
 INTEGER                        :: MessageSize
 #endif /*USE_MPI*/
-INTEGER                        :: firstNode, lastNode, iNode
+INTEGER                        :: globalNode, iNode
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)                :: CounterStart,CounterEnd
+REAL(KIND=8)                   :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 ! create global Eps field for parallel output of Eps distribution
 ALLOCATE(NodeSourceExtGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
@@ -131,84 +140,137 @@ NodeSourceExtGlobal=0.
 ! Skip MPI communication in the first step as nothing has been deposited yet
 IF(iter.NE.0)THEN
 
-  ! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
+!          ! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
+!          #if USE_MPI
+!            MessageSize = nUniqueGlobalNodes
+!            CALL MPI_REDUCE(NodeSourceExtTmpLoc(:) ,NodeSourceExtTmp(:), &
+!                MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+!            ! Reset local surface charge
+!            NodeSourceExtTmpLoc = 0.
+!            CALL BARRIER_AND_SYNC(NodeSourceExtTmp_Shared_Win,MPI_COMM_SHARED)
+!            IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
+!              DO iProc = 0, nLeaderGroupProcs - 1
+!                IF (iProc.EQ.myLeaderGroupRank) CYCLE
+!                IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+!                  CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceExt(:)        &
+!                      , NodeMapping(iProc)%nRecvUniqueNodes           &
+!                      , MPI_DOUBLE_PRECISION                                        &
+!                      , iProc                                                       &
+!                      , 666                                                         &
+!                      , MPI_COMM_LEADERS_SHARED                                       &
+!                      , RecvRequest(iProc)                                          &
+!                      , IERROR)
+!                END IF
+!                IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
+!                  DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
+!                    NodeMapping(iProc)%SendNodeSourceExt(iNode) = &
+!                        NodeSourceExtTmp(NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
+!                  END DO
+!                  CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceExt(:)            &
+!                      , NodeMapping(iProc)%nSendUniqueNodes           &
+!                      , MPI_DOUBLE_PRECISION                                        &
+!                      , iProc                                                       &
+!                      , 666                                                         &
+!                      , MPI_COMM_LEADERS_SHARED                                     &
+!                      , SendRequest(iProc)                                          &
+!                      , IERROR)
+!                END IF
+!              END DO
+!          
+!              DO iProc = 0,nLeaderGroupProcs-1
+!                IF (iProc.EQ.myLeaderGroupRank) CYCLE
+!                IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
+!                  CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+!                  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+!                END IF
+!                IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+!                  CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+!                  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+!                END IF
+!              END DO
+!          
+!              DO iProc = 0, nLeaderGroupProcs - 1
+!                IF (iProc.EQ.myLeaderGroupRank) CYCLE
+!                IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
+!                  DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
+!                    NodeSourceExtTmp(NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)) = &
+!                        NodeSourceExtTmp(NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)) + &
+!                        NodeMapping(iProc)%RecvNodeSourceExt(iNode)
+!                  END DO
+!                END IF
+!              END DO
+!            END IF
+!            CALL BARRIER_AND_SYNC(NodeSourceExtTmp_Shared_Win,MPI_COMM_SHARED)
+!            firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
+!            lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
+!          #else
+!            firstNode = 1
+!            lastNode = nUniqueGlobalNodes
+!          #endif
+
+
+
+
+! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
 #if USE_MPI
-  MessageSize = nUniqueGlobalNodes
-  CALL MPI_REDUCE(NodeSourceExtTmpLoc(:) ,NodeSourceExtTmp(:), &
-      MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
-  ! Reset local surface charge
-  NodeSourceExtTmpLoc = 0.
-  CALL BARRIER_AND_SYNC(NodeSourceExtTmp_Shared_Win,MPI_COMM_SHARED)
-  IF ((myComputeNodeRank.EQ.0).AND.(nLeaderGroupProcs.GT.1)) THEN
-    DO iProc = 0, nLeaderGroupProcs - 1
-      IF (iProc.EQ.myLeaderGroupRank) CYCLE
-      IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-        CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceExt(:)        &
-            , NodeMapping(iProc)%nRecvUniqueNodes           &
-            , MPI_DOUBLE_PRECISION                                        &
-            , iProc                                                       &
-            , 666                                                         &
-            , MPI_COMM_LEADERS_SHARED                                       &
-            , RecvRequest(iProc)                                          &
-            , IERROR)
-      END IF
-      IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
-        DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
-          NodeMapping(iProc)%SendNodeSourceExt(iNode) = &
-              NodeSourceExtTmp(NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
-        END DO
-        CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceExt(:)            &
-            , NodeMapping(iProc)%nSendUniqueNodes           &
-            , MPI_DOUBLE_PRECISION                                        &
-            , iProc                                                       &
-            , 666                                                         &
-            , MPI_COMM_LEADERS_SHARED                                     &
-            , SendRequest(iProc)                                          &
-            , IERROR)
-      END IF
-    END DO
+  ! 1) Send/Receive charge density
+  DO iProc = 1, nNodeExchangeProcs
+    ! Open receive buffer
+    CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceExt(:) &
+              , NodeMapping(iProc)%nRecvUniqueNodes            &
+              , MPI_DOUBLE_PRECISION                           &
+              , NodeDepoRanktoGlobalRank(iProc)                &
+              , 666                                            &
+              , MPI_COMM_WORLD                                 &
+              , RecvRequest(iProc)                             &
+              , IERROR)
 
-    DO iProc = 0,nLeaderGroupProcs-1
-      IF (iProc.EQ.myLeaderGroupRank) CYCLE
-      IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
-        CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
-        IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-      END IF
-      IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-        CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
-        IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-      END IF
+    ! Send message (non-blocking)
+    DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
+      NodeMapping(iProc)%SendNodeSourceExt(iNode) = NodeSourceExtTmp(NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
     END DO
+    CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceExt(:) &
+                  , NodeMapping(iProc)%nSendUniqueNodes        &
+                  , MPI_DOUBLE_PRECISION                       &
+                  , NodeDepoRanktoGlobalRank(iProc)            &
+                  , 666                                        &
+                  , MPI_COMM_WORLD                             &
+                  , SendRequest(iProc)                         &
+                  , IERROR)
+  END DO
+  ! Finish communication
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+  DO iProc = 1, nNodeExchangeProcs
+    CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END DO
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
-    DO iProc = 0, nLeaderGroupProcs - 1
-      IF (iProc.EQ.myLeaderGroupRank) CYCLE
-      IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-        DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
-          NodeSourceExtTmp(NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)) = &
-              NodeSourceExtTmp(NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)) + &
-              NodeMapping(iProc)%RecvNodeSourceExt(iNode)
-        END DO
-      END IF
+  ! 3) Extract messages
+  DO iProc = 1, nNodeExchangeProcs
+    DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
+      ASSOCIATE( NS => NodeSourceExtTmp(NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)))
+        NS = NS + NodeMapping(iProc)%RecvNodeSourceExt(iNode)
+      END ASSOCIATE
     END DO
-  END IF
-  CALL BARRIER_AND_SYNC(NodeSourceExtTmp_Shared_Win,MPI_COMM_SHARED)
-  firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
-  lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
-#else
-  firstNode = 1
-  lastNode = nUniqueGlobalNodes
-#endif
+  END DO
 
   ! Add NodeSourceExtTmp values of the last boundary interaction
-  DO iNode=firstNode, lastNode
-    NodeSourceExt(iNode) = NodeSourceExt(iNode) + NodeSourceExtTmp(iNode)
+  DO iNode = 1, nDepoNodesTotal
+    globalNode = DepoNodetoGlobalNode(iNode)
+    NodeSourceExt(globalNode) = NodeSourceExt(globalNode) + NodeSourceExtTmp(globalNode)
   END DO
-#if USE_MPI
-  CALL BARRIER_AND_SYNC(NodeSourceExt_Shared_Win,MPI_COMM_SHARED)
-#else
   ! Reset local surface charge
   NodeSourceExtTmp = 0.
-#endif
+#endif /*USE_MPI*/
+
 
 end if ! iter.NE.0
 

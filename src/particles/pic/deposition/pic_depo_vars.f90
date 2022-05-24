@@ -121,27 +121,17 @@ INTEGER,ALLOCATABLE             :: DepoNodetoGlobalNode(:)
 INTEGER                         :: nDepoNodes
 INTEGER                         :: nDepoNodesTotal
 INTEGER                         :: nNodeExchangeProcs
-REAL,ALLOCPOINT                 :: NodeSourceExt(:) ! Additional source for cell_volweight_mean (external or surface charge)
-!                                                   ! that accumulates over time in elements adjacent to dielectric interfaces.
-!                                                   ! It contains the global, synchronized surface charge contribution that is
+! Additional source for cell_volweight_mean (external or surface charge) that accumulates over time in elements adjacent to
+! dielectric interfaces.
+REAL,ALLOCATABLE                 :: NodeSourceExt(:) ! It contains the global, synchronized surface charge contribution that is
 !                                                   ! read and written to .h5
-REAL,ALLOCPOINT                 :: NodeSourceExtTmp(:) ! Additional source for cell_volweight_mean (external or surface charge)
-!                                                      ! that accumulates over time in elements adjacent to dielectric interfaces.
-!                                                      ! It contains the local non-synchronized surface charge contribution (does
-!                                                      ! not consider the charge contribution from restart files). This
-!                                                      ! contribution accumulates over time, but remains locally to each processor
-!                                                      ! as it is communicated via the normal NodeSource container NodeSourceExt.
-
 #if USE_MPI
+REAL,ALLOCATABLE                 :: NodeSourceExtTmp(:) ! It contains the local non-synchronized surface charge contribution (does
+!                                                      ! not consider the charge contribution from restart files). This
+!                                                      ! contribution accumulates over time, but remains local to each processor
+!                                                      ! as it is communicated via the container NodeSourceExt.
+
 INTEGER                         :: SFElemr2_Shared_Win
-
-!REAL, ALLOCATABLE               :: NodeSourceExtLoc(:)       ! global, synchronized surface charge contribution
-INTEGER                         :: NodeSourceExt_Shared_Win
-REAL,ALLOCPOINT                 :: NodeSourceExt_Shared(:)
-
-REAL, ALLOCATABLE               :: NodeSourceExtTmpLoc(:)     ! local, non-synchronized surface charge contribution
-INTEGER                         :: NodeSourceExtTmp_Shared_Win
-REAL,ALLOCPOINT                 :: NodeSourceExtTmp_Shared(:)
 
 TYPE tNodeMapping
   INTEGER,ALLOCATABLE           :: RecvNodeUniqueGlobalID(:)

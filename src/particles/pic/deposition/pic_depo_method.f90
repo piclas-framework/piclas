@@ -366,9 +366,7 @@ USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Part_Tools         ,ONLY: isDepositParticle
 #if USE_MPI
 USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmpLoc
 USE MOD_PICDepo_Vars       ,ONLY: NodeMapping, nNodeExchangeProcs, NodeDepoRanktoGlobalRank
-#else
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 #endif  /*USE_MPI*/
 #if USE_LOADBALANCE
@@ -437,7 +435,7 @@ SourceDim=1
 #endif
 
 #if USE_MPI
-ASSOCIATE(NodeSourceExtTmp => NodeSourceExtTmpLoc )
+ASSOCIATE(NodeSourceExt => NodeSourceExtTmp )
 #endif
 
 !  NodeSource=0.0
@@ -509,7 +507,10 @@ ASSOCIATE(NodeSourceExtTmp => NodeSourceExtTmpLoc )
   ! NodeSourceExtTmp. This contribution accumulates over time, but remains locally to each processor as it is communicated via the
   ! normal NodeSource container. The synchronized part is added after communication.
   IF(DoDielectricSurfaceCharge)THEN
-      NodeSource(4,:) = NodeSource(4,:) + NodeSourceExtTmp(:)
+    DO iNode = 1, nDepoNodesTotal
+      globalNode = DepoNodetoGlobalNode(iNode)
+      NodeSource(4,globalNode) = NodeSource(4,globalNode) + NodeSourceExt(globalNode)
+    END DO
   END IF ! DoDielectricSurfaceCharge
 #if USE_LOADBALANCE
   CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
@@ -643,11 +644,12 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 ! 2/2 Add the global, synchronized surface charge contribution (considers the charge contribution from restart files) from
 ! NodeSourceExt. The container NodeSourceExt is updated when it is written to .h5, where, additionally, the container
 ! NodeSourceExtTmp is nullified
-!IF(DoDielectricSurfaceCharge)THEN
-!  DO iNode=firstNode, lastNode
-!    NodeSource(4,iNode) = NodeSource(4,iNode) + NodeSourceExt(iNode)
-!  END DO
-!END IF ! DoDielectricSurfaceCharge
+IF(DoDielectricSurfaceCharge)THEN
+  DO iNode = 1, nDepoNodesTotal
+    globalNode = DepoNodetoGlobalNode(iNode)
+    NodeSource(4,globalNode) = NodeSource(4,globalNode) + NodeSourceExt(globalNode)
+  END DO
+END IF ! DoDielectricSurfaceCharge
 
 ! Currently also "Nodes" are included in time measurement that is averaged across all elements. Can this be improved?
 DO iNode = 1, nDepoNodes
