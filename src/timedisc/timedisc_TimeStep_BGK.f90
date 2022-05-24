@@ -47,6 +47,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
 #endif /*USE_MPI*/
 USE MOD_BGK                    ,ONLY: BGK_main, BGK_DSMC_main
 USE MOD_BGK_Vars               ,ONLY: CoupledBGKDSMC
@@ -152,12 +153,16 @@ END IF
 #if USE_MPI
 ! finish communication of number of particles and send particles
 CALL MPIParticleSend(.TRUE.)
-#endif
-!IF (CoupledBGKDSMC) THEN
-!  CALL BGK_DSMC_main(1)
-!ELSE
-!  CALL BGK_main(1)
-!END IF
+  
+IF(DoParticleLatencyHiding)THEN
+  IF (CoupledBGKDSMC) THEN
+    CALL BGK_DSMC_main(1)
+  ELSE
+    CALL BGK_main(1)
+  END IF
+END IF ! DoParticleLatencyHiding
+#endif /*USE_MPI*/
+
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     CALL GetPositionInRefElem(PartState(1:3,iPart),LastPartPos(1:3,iPart),PEM%GlobalElemID(iPart))
@@ -177,12 +182,23 @@ CALL MPIParticleRecv(.TRUE.)
 !#ifdef EXTRAE
 !CALL extrae_eventandcounters(int(9000001), int8(0))
 !#endif /*EXTRAE*/
-
-IF (CoupledBGKDSMC) THEN
-  CALL BGK_DSMC_main()
+#if USE_MPI
+IF(DoParticleLatencyHiding)THEN
+  IF (CoupledBGKDSMC) THEN
+    CALL BGK_DSMC_main(2)
+  ELSE
+    CALL BGK_main(2)
+  END IF
 ELSE
-  CALL BGK_main()
-END IF
+#endif /*USE_MPI*/
+  IF (CoupledBGKDSMC) THEN
+    CALL BGK_DSMC_main()
+  ELSE
+    CALL BGK_main()
+  END IF
+#if USE_MPI
+END IF ! DoParticleLatencyHiding
+#endif /*USE_MPI*/
 
 !#ifdef EXTRAE
 !CALL extrae_eventandcounters(int(9000001), int8(52))

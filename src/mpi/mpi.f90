@@ -60,7 +60,10 @@ CONTAINS
 !==================================================================================================================================
 SUBROUTINE DefineParametersMPI()
 ! MODULES
-USE MOD_ReadInTools,              ONLY: prms
+USE MOD_ReadInTools       ,ONLY: prms
+#if defined(PARTICLES)
+USE MOD_Particle_MPI_Vars ,ONLY: DoParticleLatencyHiding
+#endif /*defined(PARTICLES))*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
@@ -74,6 +77,7 @@ CALL prms%CreateIntOption('GroupSize', "Define size of MPI subgroups, used to e.
 #if defined(PARTICLES)
 CALL prms%CreateLogicalOption('CheckExchangeProcs' , 'Check if proc communication of particle info is non-symmetric', '.TRUE.')
 CALL prms%CreateLogicalOption('AbortExchangeProcs' , 'Abort if proc communication of particle info is non-symmetric (requires CheckExchangeProcs=T)', '.TRUE.')
+CALL prms%CreateLogicalOption('DoParticleLatencyHiding' , 'Determine the elements that require particle communication and use them for latency hiding', '.FALSE.')
 #endif /*PARTICLES*/
 END SUBROUTINE DefineParametersMPI
 
