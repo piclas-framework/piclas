@@ -148,7 +148,7 @@ SUBROUTINE WriteRadiationToHDF5()
       TempOutput(3, iElem) = Radiation_Emission_Spec_Total(CNElemID)- RadiationElemAbsEnergy_Shared(iElem+offSetElem)/ElemVolume_Shared(CNElemID)
       TempOutput(4, iElem)  = RadTransPhotPerCell(CNElemID)
     END DO
-  ELSE
+  ELSE IF (RadiationSwitches%RadType.EQ.3) THEN
     DO iElem=1, PP_nElems
       CNElemID = GetCNElemID(iElem+offSetElem)
       TempOutput(1, iElem) = Radiation_Emission_Spec_Total(CNElemID)
@@ -159,6 +159,21 @@ SUBROUTINE WriteRadiationToHDF5()
       TempOutput(3, iElem) = Radiation_Emission_Spec_Total(CNElemID) - TempOutput(2, iElem)
       TempOutput(4, iElem) = RadTransPhotPerCell(CNElemID)
     END DO
+  ELSE IF (RadiationSwitches%RadType.EQ.4) THEN
+    DO iElem=1, PP_nElems
+      CNElemID = GetCNElemID(iElem+offSetElem)
+      TempOutput(1, iElem) = Radiation_Emission_Spec_Total(CNElemID)
+      TempOutput(2, iElem) = 0.0
+      DO iWave = 1, RadiationParameter%WaveLenDiscr
+        TempOutput(2, iElem) = TempOutput(2, iElem) + Radiation_Absorption_Spec(iWave, iElem+offSetElem) * RadiationParameter%WaveLenIncr
+      END DO
+      TempOutput(3, iElem) = Radiation_Emission_Spec_Total(CNElemID) - TempOutput(2, iElem)
+      TempOutput(4, iElem) = RadTransPhotPerCell(CNElemID)
+    END DO
+  ELSE
+    CALL abort(&
+      __STAMP__&
+      ,' ERROR: Radiation type is not implemented! (unknown case)')
   END IF
 
   nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)

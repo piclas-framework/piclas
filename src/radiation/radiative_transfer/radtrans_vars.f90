@@ -38,6 +38,7 @@ TYPE tRadObservationPoint
   REAL                                   :: OrthoNormBasis(3,3)
   LOGICAL                                :: CalcFullSpectra
   REAL                                   :: SlitFunction(2)
+  REAL                                   :: ShockTubeDiameter
 END TYPE
 
 TYPE(tRadObservationPoint)               :: RadObservationPoint

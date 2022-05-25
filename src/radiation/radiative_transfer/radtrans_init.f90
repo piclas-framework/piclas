@@ -58,6 +58,7 @@ CALL prms%CreateRealArrayOption('Radiation-ObservationViewDirection', 'HM')
 CALL prms%CreateRealOption('Radiation-ObservationAngularAperture', 'HM')
 CALL prms%CreateLogicalOption('Radiation-ObservationCalcFullSpectra','.FALSE.')
 CALL prms%CreateLogicalOption('Radiation-ObservationDoConvolution','Consider instrumental broadening?','.FALSE.')
+CALL prms%CreateRealOption('Radiation-ShockTubeDiameter', 'Diameter of shock tube in m', '0.0')
 
 END SUBROUTINE DefineParametersRadiationTrans
 
@@ -102,6 +103,8 @@ USE MOD_Radiation_Vars,         ONLY : Radiation_Emission_Spec_Shared_Win, Radia
 INTEGER               :: iWave, iElem, firstElem, lastElem, ElemDisp, DisplRank, iSpec, currentRank
 REAL                  :: LocTemp, ObsLengt, MaxSumTemp(2), GlobalMaxTemp(2), hilf
 LOGICAL               :: ElemInCone
+REAL,ALLOCATABLE      :: Radiation_ShockTube_Spec(:,:)
+INTEGER               :: w, io_error
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RADIATION TRANSPORT SOLVER ...'
@@ -117,6 +120,7 @@ RadiationPhotonWaveLengthModel = GETINT('Radiation-PhotonWaveLengthModel')
 RadEmiAdaptPhotonNum = GETLOGICAL('Radiation-AdaptivePhotonNumEmission')
 RadObservationPointMethod = GETINT('Radiation-RadObservationPointMethod')
 ObservationDoConvolution = GETLOGICAL('Radiation-ObservationDoConvolution')
+RadObservationPoint%ShockTubeDiameter = GETREAL('Radiation-ShockTubeDiameter')
 
 IF (RadObservationPointMethod.GT.0) THEN
   RadObservationPoint%AngularAperture = GETREAL('Radiation-ObservationAngularAperture')
@@ -344,8 +348,38 @@ CASE(3) !only radiation
       Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &
           + 4.*Pi*Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr
     END DO
-
   END DO
+CASE(4) !Shocktube mode
+  ALLOCATE(Radiation_ShockTube_Spec(RadiationParameter%WaveLenDiscr,nGlobalElems))
+  SWRITE(UNIT_stdOut,'(A)') ' Calculate Radiation Data per Cell ...'
+  DO iElem = firstElem, lastElem
+    IF(MPIroot.AND.(MOD(iElem,10).EQ.0)) CALL PrintStatusLineRadiation(REAL(iElem),REAL(firstElem),REAL(lastElem),.FALSE.)
+    CALL radiation_main(iElem)
+    DO iWave = 1, RadiationParameter%WaveLenDiscr
+      Radiation_Emission_Spec_Total(iElem) = Radiation_Emission_Spec_Total(iElem) &
+          + 4.*Pi*Radiation_Emission_Spec(iWave, iElem) * RadiationParameter%WaveLenIncr
+      IF(Radiation_Absorption_Spec(iWave, iElem).EQ.0.0) THEN
+        Radiation_ShockTube_Spec(iWave,iElem) = Radiation_Emission_Spec(iWave, iElem)*RadObservationPoint%ShockTubeDiameter
+      ELSE
+        Radiation_ShockTube_Spec(iWave,iElem) = Radiation_Emission_Spec(iWave, iElem)/Radiation_Absorption_Spec(iWave, iElem) * &
+          (1.-EXP(-Radiation_Absorption_Spec(iWave, iElem)*RadObservationPoint%ShockTubeDiameter))
+      END IF
+    END DO
+  END DO
+
+  OPEN(unit=40,file='Radiation_Shocktube.csv',status='replace',action='write', iostat=io_error)
+    DO iElem=1,nGlobalElems
+      WRITE(40,CSVFORMAT,ADVANCE="NO") ',', ElemMidPoint_Shared(1,iElem)
+    END DO
+    WRITE(40,*) 
+  DO iWave =1,RadiationParameter%WaveLenDiscr
+    WRITE(40,'(E23.16E3)',ADVANCE="NO") RadiationParameter%WaveLen(iWave)*1.E9
+    DO iElem = 1,nGlobalElems
+      WRITE(40,CSVFORMAT,ADVANCE="NO") ',', Radiation_ShockTube_Spec(iWave,iElem)
+    END DO
+    WRITE(40,*) 
+  END DO
+
 CASE DEFAULT
   CALL abort(&
       __STAMP__&
