@@ -92,12 +92,12 @@ USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume,NodeSourceExtTmp
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
-USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
+!USE MOD_Particle_Mesh_Vars ,ONLY: nUniqueGlobalNodes
 #if USE_MPI
 USE MOD_PICDepo_Vars       ,ONLY: NodeMapping
 USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
-USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
-USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
+!USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myLeaderGroupRank
+!USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors, nLeaderGroupProcs
 USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,nNodeExchangeProcs,NodeDepoRanktoGlobalRank,DepoNodetoGlobalNode
 #endif  /*USE_MPI*/
 USE MOD_TimeDisc_Vars      ,ONLY: iter
@@ -123,7 +123,7 @@ INTEGER                        :: NodeID(1:8)
 INTEGER                        :: iProc
 !INTEGER                        :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
 INTEGER                        :: RecvRequest(1:nNodeExchangeProcs),SendRequest(1:nNodeExchangeProcs)
-INTEGER                        :: MessageSize
+!INTEGER                        :: MessageSize
 #endif /*USE_MPI*/
 INTEGER                        :: globalNode, iNode
 #if defined(MEASURE_MPI_WAIT)

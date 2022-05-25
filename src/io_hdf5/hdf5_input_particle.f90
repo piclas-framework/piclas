@@ -49,14 +49,14 @@ USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Mesh_Vars              ,ONLY: Vdm_N_EQ,offsetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes,NodeToElemMapping,NodeToElemInfo
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared!,nUniqueGlobalNodes,NodeToElemMapping,NodeToElemInfo
 USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,NodeVolume
 USE MOD_Restart_Vars           ,ONLY: N_Restart
-#if USE_MPI
-USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
-USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
-USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
-#endif /*USE_MPI*/
+!#if USE_MPI
+!USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
+!USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
+!USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
+!#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -70,7 +70,7 @@ LOGICAL                            :: DG_SourceExtExists
 REAL                               :: NodeSourceExtEqui(1,0:1,0:1,0:1)
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp,N_RestartTmp
 INTEGER                            :: iElem!,CNElemID
-INTEGER                            :: NodeID(1:8),firstNode,lastNode,firstGlobalElemID(1:8),iNode
+INTEGER                            :: NodeID(1:8)!,firstNode,lastNode,firstGlobalElemID(1:8),iNode
 !===================================================================================================================================
 IF(.NOT.DoDielectric) RETURN
 

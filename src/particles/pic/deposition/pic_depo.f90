@@ -100,10 +100,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToEl
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
-USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,nLeaderGroupProcs, nProcessors_Global
+USE MOD_MPI_Shared_Vars        ,ONLY: nLeaderGroupProcs, nProcessors_Global
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
-USE MOD_Restart_Vars           ,ONLY: DoRestart
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -124,7 +123,6 @@ INTEGER                   :: jElem, NonUniqueNodeID,iNode
 INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
 INTEGER                   :: TestElemID, GlobalElemRankOrig, iRank
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:), DoNodeMapping(:), SendNode(:), IsDepoNode(:)
-INTEGER                   :: firstNode,lastNode
 LOGICAL                   :: bordersMyrank
 #endif
 !===================================================================================================================================
@@ -855,7 +853,6 @@ SUBROUTINE FinalizeDeposition()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,PeriodicSFCaseMatrix
 USE MOD_PICDepo_Vars
 #if USE_MPI

@@ -359,7 +359,7 @@ USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared, NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, NodeInfo_Shared, NodeCoords_Shared
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExt,NodeVolume,NodeSource, nDepoNodes, DepoNodetoGlobalNode
 USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
