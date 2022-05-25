@@ -897,7 +897,7 @@ END DO ! iBGM
 #endif  /*USE_MPI*/
 
 #if USE_MPI
-! allocate 1D array for mapping of BGM cell to Element indeces
+! allocate 1D array for mapping of BGM cell to Element indices
 CALL Allocate_Shared((/FIBGM_offsetElem(BGMimax,BGMjmax,BGMkmax)+FIBGM_nElems(BGMimax,BGMjmax,BGMkmax)/),FIBGM_Element_Shared_Win,FIBGM_Element_Shared)
 CALL MPI_WIN_LOCK_ALL(0,FIBGM_Element_Shared_Win,IERROR)
 FIBGM_Element => FIBGM_Element_Shared
@@ -1202,6 +1202,8 @@ DO iElem = offsetElem+1,offsetElem+nElems
   END DO
 END DO
 
+CALL MPI_WIN_FLUSH(0,FIBGM_nTotalElems_Shared_Win,iError)
+CALL MPI_WIN_FLUSH(0,FIBGMToProcFlag_Shared_Win  ,iError)
 CALL BARRIER_AND_SYNC(FIBGMToProcFlag_Shared_Win  ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(FIBGM_nTotalElems_Shared_Win,MPI_COMM_SHARED)
 
@@ -1331,6 +1333,16 @@ CALL BARRIER_AND_SYNC(FIBGMToProc_Shared_Win,MPI_COMM_SHARED)
 EndT = PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F0.3,A)')' BUILDING FIBGM ELEMENT MAPPING DONE! [',EndT-StartT,'s]'
 SWRITE(UNIT_StdOut,'(132("-"))')
+
+#if USE_MPI
+ASSOCIATE(FIBGM_nElems => FIBGM_nTotalElems)
+#endif /*USE_MPI*/
+CALL PrintOption('Elems per FIBGM cell (min,max)','INFO',IntArrayOpt=(/ &
+                  MINVAL(FIBGM_nElems,MASK=FIBGM_nElems.GT.0)          ,&
+                  MAXVAL(FIBGM_nElems)/))
+#if USE_MPI
+END ASSOCIATE
+#endif /*USE_MPI*/
 
 ! and get max number of bgm-elems
 ALLOCATE(Distance    (1:MAXVAL(FIBGM_nElems)) &
