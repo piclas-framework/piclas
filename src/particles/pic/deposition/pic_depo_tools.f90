@@ -49,9 +49,10 @@ CONTAINS
 SUBROUTINE DepositParticleOnNodes(Charge,PartPos,GlobalElemID)
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals            ,ONLY: VECNORM,ElementOnProc
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeCoords_Shared
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
@@ -75,7 +76,9 @@ REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3)
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER                          :: NodeID(1:8)
+INTEGER                          :: NodeID(1:8),iNode
+LOGICAL                          :: SucRefPos
+REAL                             :: norm,PartDistDepo(8),DistSum
 !===================================================================================================================================
 
 ! Skip for neutral particles and reflected particles or species swapped particles where impacting and reflecting particle carry the
@@ -87,25 +90,45 @@ IF(ABS(Charge).LE.0.0) RETURN
 IF(ElementOnProc(GlobalElemID)) CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 
-CALL GetPositionInRefElem(PartPos,TempPartPos(1:3),GlobalElemID,ForceMode=.TRUE.)
-
-alpha1=0.5*(TempPartPos(1)+1.0)
-alpha2=0.5*(TempPartPos(2)+1.0)
-alpha3=0.5*(TempPartPos(3)+1.0)
+CALL GetPositionInRefElem(PartPos, TempPartPos(1:3), GlobalElemID, ForceMode = .TRUE., isSuccessful = SucRefPos)
 
 #if USE_MPI
 ASSOCIATE( NodeSourceExt => NodeSourceExtTmp )
 #endif
-  ! Apply charge to nodes (note that the volumes are not accounted for yet here!)
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
-  NodeSourceExt(NodeID(1)) = NodeSourceExt(NodeID(1)) + (Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
-  NodeSourceExt(NodeID(2)) = NodeSourceExt(NodeID(2)) + (Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
-  NodeSourceExt(NodeID(3)) = NodeSourceExt(NodeID(3)) + (Charge*  (alpha1)*  (alpha2)*(1-alpha3))
-  NodeSourceExt(NodeID(4)) = NodeSourceExt(NodeID(4)) + (Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
-  NodeSourceExt(NodeID(5)) = NodeSourceExt(NodeID(5)) + (Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
-  NodeSourceExt(NodeID(6)) = NodeSourceExt(NodeID(6)) + (Charge*  (alpha1)*(1-alpha2)*  (alpha3))
-  NodeSourceExt(NodeID(7)) = NodeSourceExt(NodeID(7)) + (Charge*  (alpha1)*  (alpha2)*  (alpha3))
-  NodeSourceExt(NodeID(8)) = NodeSourceExt(NodeID(8)) + (Charge*(1-alpha1)*  (alpha2)*  (alpha3))
+  ! Check if GetPositionInRefElem was able to find the reference position (via ref. mapping), else use distance-based deposition
+  IF(SucRefPos)THEN
+    alpha1=0.5*(TempPartPos(1)+1.0)
+    alpha2=0.5*(TempPartPos(2)+1.0)
+    alpha3=0.5*(TempPartPos(3)+1.0)
+
+    ! Apply charge to nodes (note that the volumes are not accounted for yet here!)
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
+    NodeSourceExt(NodeID(1)) = NodeSourceExt(NodeID(1)) + (Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
+    NodeSourceExt(NodeID(2)) = NodeSourceExt(NodeID(2)) + (Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
+    NodeSourceExt(NodeID(3)) = NodeSourceExt(NodeID(3)) + (Charge*  (alpha1)*  (alpha2)*(1-alpha3))
+    NodeSourceExt(NodeID(4)) = NodeSourceExt(NodeID(4)) + (Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
+    NodeSourceExt(NodeID(5)) = NodeSourceExt(NodeID(5)) + (Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
+    NodeSourceExt(NodeID(6)) = NodeSourceExt(NodeID(6)) + (Charge*  (alpha1)*(1-alpha2)*  (alpha3))
+    NodeSourceExt(NodeID(7)) = NodeSourceExt(NodeID(7)) + (Charge*  (alpha1)*  (alpha2)*  (alpha3))
+    NodeSourceExt(NodeID(8)) = NodeSourceExt(NodeID(8)) + (Charge*(1-alpha1)*  (alpha2)*  (alpha3))
+  ELSE
+     NodeID = ElemNodeID_Shared(:,GetCNElemID(GlobalElemID))
+     DO iNode = 1, 8
+       norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) - PartPos(1:3))
+       IF(norm.GT.0.)THEN
+         PartDistDepo(iNode) = 1./norm
+       ELSE
+         PartDistDepo(:) = 0.
+         PartDistDepo(iNode) = 1.0
+         EXIT
+       END IF ! norm.GT.0.
+     END DO
+     DistSum = SUM(PartDistDepo(1:8))
+     DO iNode = 1, 8
+       NodeSourceExt(NodeInfo_Shared(NodeID(iNode))) = NodeSourceExt(NodeInfo_Shared(NodeID(iNode)))  &
+         +  PartDistDepo(iNode)/DistSum*Charge
+     END DO
+  END IF ! SucRefPos
 #if USE_MPI
 END ASSOCIATE
 #endif

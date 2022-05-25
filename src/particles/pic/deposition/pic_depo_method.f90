@@ -487,8 +487,8 @@ ASSOCIATE(NodeSourceExt => NodeSourceExtTmp )
             PartDistDepo(iNode) = 1.0
             EXIT
           END IF ! norm.GT.0.
-        END DO  
-        DistSum = SUM(PartDistDepo(1:8)) 
+        END DO
+        DistSum = SUM(PartDistDepo(1:8))
         DO iNode = 1, 8
           NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(iNode))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(iNode)))  &
             +  PartDistDepo(iNode)/DistSum*TSource(SourceDim:4)
