@@ -509,7 +509,7 @@ ASSOCIATE(NodeSourceExt => NodeSourceExtTmp )
   IF(DoDielectricSurfaceCharge)THEN
     DO iNode = 1, nDepoNodesTotal
       globalNode = DepoNodetoGlobalNode(iNode)
-      NodeSource(4,globalNode) = NodeSource(4,globalNode) + NodeSourceExt(globalNode)
+      NodeSource(4,globalNode) = NodeSource(4,globalNode) + NodeSourceExt(globalNode) ! this is associated to NodeSourceExtTmp
     END DO
   END IF ! DoDielectricSurfaceCharge
 #if USE_LOADBALANCE
@@ -518,20 +518,6 @@ ASSOCIATE(NodeSourceExt => NodeSourceExtTmp )
 
 #if USE_MPI
 END ASSOCIATE
-!MessageSize = (5-SourceDim)*nUniqueGlobalNodes
-!#if defined(MEASURE_MPI_WAIT)
-!CALL SYSTEM_CLOCK(count=CounterStart)
-!#endif /*defined(MEASURE_MPI_WAIT)*/
-!IF(myComputeNodeRank.EQ.0)THEN
-!  CALL MPI_REDUCE(NodeSourceLoc(SourceDim:4,:),NodeSource(SourceDim:4,:),MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
-!ELSE
-!  CALL MPI_REDUCE(NodeSourceLoc(SourceDim:4,:),0                        ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
-!END IF ! myrank.eq.0
-!#if defined(MEASURE_MPI_WAIT)
-!CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-!MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
-!#endif /*defined(MEASURE_MPI_WAIT)*/
-!CALL BARRIER_AND_SYNC(NodeSource_Shared_Win,MPI_COMM_SHARED)
 
   ! 1) Send/Receive charge density
   DO iProc = 1, nNodeExchangeProcs
@@ -571,7 +557,7 @@ END ASSOCIATE
   END DO
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
   ! 2) Send/Receive current density
@@ -613,7 +599,7 @@ END ASSOCIATE
     END DO
 #if defined(MEASURE_MPI_WAIT)
     CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-    MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
+    MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
   END IF ! doCalculateCurrentDensity
 
@@ -807,13 +793,13 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
     CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
 #if defined(MEASURE_MPI_WAIT)
     CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-    MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
+    MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
     CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
     CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
 #if defined(MEASURE_MPI_WAIT)
     CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-    MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
+    MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     DO iElem = 1, ShapeMapping(iProc)%nRecvShapeElems

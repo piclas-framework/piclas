@@ -250,7 +250,7 @@ IF(iter.NE.0)THEN
   END DO
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimePart(7) = MPIW8TimePart(7) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
   ! 3) Extract messages

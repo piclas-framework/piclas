@@ -123,10 +123,10 @@ INTEGER                         :: nDepoNodesTotal
 INTEGER                         :: nNodeExchangeProcs
 ! Additional source for cell_volweight_mean (external or surface charge) that accumulates over time in elements adjacent to
 ! dielectric interfaces.
-REAL,ALLOCATABLE                 :: NodeSourceExt(:) ! It contains the global, synchronized surface charge contribution that is
+REAL,ALLOCATABLE                :: NodeSourceExt(:) ! It contains the global, synchronized surface charge contribution that is
 !                                                   ! read and written to .h5
 #if USE_MPI
-REAL,ALLOCATABLE                 :: NodeSourceExtTmp(:) ! It contains the local non-synchronized surface charge contribution (does
+REAL,ALLOCATABLE                :: NodeSourceExtTmp(:) ! It contains the local non-synchronized surface charge contribution (does
 !                                                      ! not consider the charge contribution from restart files). This
 !                                                      ! contribution accumulates over time, but remains local to each processor
 !                                                      ! as it is communicated via the container NodeSourceExt.
