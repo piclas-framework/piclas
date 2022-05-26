@@ -61,9 +61,6 @@ CONTAINS
 SUBROUTINE DefineParametersMPI()
 ! MODULES
 USE MOD_ReadInTools       ,ONLY: prms
-#if defined(PARTICLES)
-USE MOD_Particle_MPI_Vars ,ONLY: DoParticleLatencyHiding
-#endif /*defined(PARTICLES))*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES

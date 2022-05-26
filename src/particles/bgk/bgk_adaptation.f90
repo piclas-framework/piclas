@@ -38,7 +38,10 @@ SUBROUTINE BGK_octree_adapt(iElem)
 ! MODULES
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
-USE MOD_Particle_Vars           ,ONLY: PEM, PartPosRef,Species,WriteMacroVolumeValues, usevMPF, LastPartPos, PartState
+USE MOD_Particle_Vars           ,ONLY: PEM, PartPosRef,Species,WriteMacroVolumeValues, usevMPF, LastPartPos
+#if PP_TimeDiscMethod==300
+USE MOD_Particle_Vars           ,ONLY: PartState
+#endif /*PP_TimeDiscMethod==300*/
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens
