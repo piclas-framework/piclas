@@ -899,9 +899,9 @@ SDEALLOCATE(DepoNodetoGlobalNode)
 
 SDEALLOCATE(NodeSource)
 SDEALLOCATE(NodeSourceExt)
-SDEALLOCATE(NodeSourceExtTmp)
 
 #if USE_MPI
+SDEALLOCATE(NodeSourceExtTmp)
 SDEALLOCATE(FlagShapeElem)
 SDEALLOCATE(NodeMapping)
 SDEALLOCATE(nDepoDOFPerProc)
