@@ -26,7 +26,7 @@ sudo apt-get update
 # compiler
 sudo apt-get install make cmake cmake-curses-gui gfortran g++ gcc -y
 
-# filesystem operations
+# Boost C++ libraries development files
 sudo apt-get install  libboost-dev -y
 
 # cmake: developer's libraries for ncurses

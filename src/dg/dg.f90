@@ -253,12 +253,12 @@ USE MOD_PML_Vars          ,ONLY: PMLnVar
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
 USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-#ifdef PARTICLES
+#if defined(PARTICLES) && defined(LSERK)
 USE MOD_Particle_Vars     ,ONLY: DelayTime
 USE MOD_TimeDisc_Vars     ,ONLY: time
-#if USE_MPI
+#endif /*defined(PARTICLES) && defined(LSERK)*/
+#ifdef PARTICLES
 USE MOD_Particle_MPI      ,ONLY: MPIParticleSend,MPIParticleRecv
-#endif /*USE_MPI*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBPauseTime,LBSplitTime
