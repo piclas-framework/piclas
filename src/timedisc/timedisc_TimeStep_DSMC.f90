@@ -36,7 +36,7 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals                  ,ONLY: abort
-USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
+USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, UseRotRefFrame
 USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, VarTimeStep, Species, PartSpecies
 USE MOD_Particle_Vars            ,ONLY: UseSplitAndMerge
 USE MOD_DSMC_Vars                ,ONLY: DSMC, CollisMode, AmbipolElecVelo
@@ -49,6 +49,7 @@ USE MOD_Particle_Tracking        ,ONLY: PerformTracking
 USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
+USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -62,29 +63,29 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo
+REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo, Pt_local(1:6)
 INTEGER                    :: iPart
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 #if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
+CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  IF (DoSurfaceFlux) THEN
+IF (DoSurfaceFlux) THEN
 #if USE_LOADBALANCE
-    CALL LBPauseTime(LB_SURF,tLBStart)
+  CALL LBPauseTime(LB_SURF,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-    CALL ParticleSurfaceflux()
-  END IF
+  CALL ParticleSurfaceflux()
+END IF
 
 #if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
+CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  DO iPart=1,PDM%ParticleVecLength
-    IF (PDM%ParticleInside(iPart)) THEN
+DO iPart=1,PDM%ParticleVecLength
+  IF (PDM%ParticleInside(iPart)) THEN
     ! Variable time step: getting the right time step for the particle (can be constant across an element)
     IF (VarTimeStep%UseVariableTimeStep) THEN
       dtVar = dt * VarTimeStep%ParticleTimeStep(iPart)
@@ -101,7 +102,19 @@ REAL                  :: tLBStart
       LastPartPos(1:3,iPart)=PartState(1:3,iPart)
       PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
     END IF
-    PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
+    IF(UseRotRefFrame) THEN
+      IF(PDM%InRotRefFrame(iPart)) THEN
+        CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:6))
+!        PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
+        PartState(1:3,iPart) = PartState(1:3,iPart) + (PartState(4:6,iPart)+dtVar*0.5*Pt_local(1:3)) * dtVar
+!        PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_local(1:3) * dtVar
+        PartState(4:6,iPart) = PartState(4:6,iPart) + (Pt_local(1:3)+dtVar*0.5*Pt_local(4:6)) * dtVar
+      ELSE
+        PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
+      END IF
+    ELSE
+      PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
+    END IF
     ! Axisymmetric treatment of particles: rotation of the position and velocity vector
     IF(Symmetry%Axisymmetric) THEN
       IF (PartState(2,iPart).LT.0.0) THEN
@@ -126,82 +139,82 @@ REAL                  :: tLBStart
       PartState(2,iPart) = NewYPart
       PartState(3,iPart) = 0.0
       PartState(5,iPart) = NewYVelo
-      END IF
     END IF
-  END DO
+  END IF
+END DO
 #if USE_LOADBALANCE
-  CALL LBSplitTime(LB_PUSH,tLBStart)
+CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  ! Resetting the particle positions in the second/third dimension for the 1D/2D/axisymmetric case
-  IF(Symmetry%Order.LT.3) THEN
-    LastPartPos(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
-    PartState(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
-  END IF
+! Resetting the particle positions in the second/third dimension for the 1D/2D/axisymmetric case
+IF(Symmetry%Order.LT.3) THEN
+  LastPartPos(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
+  PartState(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
+END IF
 
 #if USE_MPI
-  ! open receive buffer for number of particles
-  CALL IRecvNbOfParticles()
+! open receive buffer for number of particles
+CALL IRecvNbOfParticles()
 #if USE_LOADBALANCE
-  CALL LBPauseTime(LB_PARTCOMM,tLBStart)
+CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
-  IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
-  ! actual tracking
-  CALL PerformTracking()
-  IF (nPorousBC.GT.0) THEN
-    CALL PorousBoundaryRemovalProb_Pressure()
-  END IF
-  IF(MeasureTrackTime) THEN
-    CALL CPU_TIME(TimeEnd)
-    tTracking=tTracking+TimeEnd-TimeStart
-  END IF
+IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
+! actual tracking
+CALL PerformTracking()
+IF (nPorousBC.GT.0) THEN
+  CALL PorousBoundaryRemovalProb_Pressure()
+END IF
+IF(MeasureTrackTime) THEN
+  CALL CPU_TIME(TimeEnd)
+  tTracking=tTracking+TimeEnd-TimeStart
+END IF
 #if USE_MPI
 #if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
+CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  ! send number of particles
-  CALL SendNbOfParticles()
-  ! finish communication of number of particles and send particles
-  CALL MPIParticleSend()
-  ! finish communication
-  CALL MPIParticleRecv()
+! send number of particles
+CALL SendNbOfParticles()
+! finish communication of number of particles and send particles
+CALL MPIParticleSend()
+! finish communication
+CALL MPIParticleRecv()
 #if USE_LOADBALANCE
-  CALL LBPauseTime(LB_PARTCOMM,tLBStart)
+CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
+CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  CALL ParticleInserting()
+CALL ParticleInserting()
 #if USE_LOADBALANCE
-  CALL LBPauseTime(LB_EMISSION,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
-  IF (CollisMode.NE.0) THEN
-    CALL UpdateNextFreePosition()
-  ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
-            (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
-            WriteMacroVolumeValues.OR.WriteMacroSurfaceValues ) THEN
-    CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
-  ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
-           PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
-    CALL abort(&
-    __STAMP__&
-    ,'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
-  END IF
-
-  CALL DSMC_main()
-
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
+CALL LBPauseTime(LB_EMISSION,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  IF(UseSplitAndMerge) CALL SplitAndMerge()
+IF (CollisMode.NE.0) THEN
+  CALL UpdateNextFreePosition()
+ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
+          (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
+          WriteMacroVolumeValues.OR.WriteMacroSurfaceValues ) THEN
+  CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
+ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
+         PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
+  CALL abort(&
+  __STAMP__&
+  ,'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
+END IF
+
+CALL DSMC_main()
 
 #if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DSMC,tLBStart)
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+
+IF(UseSplitAndMerge) CALL SplitAndMerge()
+
+#if USE_LOADBALANCE
+CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE TimeStep_DSMC

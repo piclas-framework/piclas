@@ -40,6 +40,10 @@ INTERFACE PartRHS
   PROCEDURE PartRHS
 END INTERFACE
 
+INTERFACE CalcPartRHSRotRefFrame
+  PROCEDURE CalcPartRHSRotRefFrame
+END INTERFACE
+
 !----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC :: CalcPartRHS
 PUBLIC :: PartVeloToImp
@@ -210,7 +214,7 @@ LOGICAL                          :: InRotRefFrame_OLD
 DO iPart = 1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
     IF(PDM%InRotRefFrame(iPart))THEN
-      CALL CalcPartRHSRotRefFrame(iPart,Pt(1:3,iPart))
+      !CALL CalcPartRHSRotRefFrame(iPart,Pt(1:3,iPart))
     END IF ! PDM%ParticleInside(iPart)
   END IF
 END DO
@@ -758,14 +762,15 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)       :: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)         :: Pt_temp(1:3)
+REAL,INTENT(OUT)         :: Pt_temp(1:6)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                :: v_corr(1:3)
 !===================================================================================================================================
 
 Pt_temp(1:3) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))) &
                   - 2.*CROSS(RotRefFrameOmega(1:3),PartState(4:6,PartID))
+Pt_temp(4:6) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PartState(4:6,PartID))) &
+                  - 2.*CROSS(RotRefFrameOmega(1:3),Pt_temp(1:3))
 
 END SUBROUTINE CalcPartRHSRotRefFrame
 
