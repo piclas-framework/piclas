@@ -1,13 +1,13 @@
 # =========================================================================
 # Detect machine environments
 # =========================================================================
-
 CMAKE_HOST_SYSTEM_INFORMATION(RESULT CMAKE_FQDN_HOST QUERY FQDN)
 MARK_AS_ADVANCED(FORCE CMAKE_FQDN_HOST)
 MARK_AS_ADVANCED(FORCE CMAKE_HOSTNAME)
 SITE_NAME(CMAKE_HOSTNAME)
 SET(FORCE_VDM_ANALYTICAL OFF)
 
+# =========================================================================
 # CMake generator settings
 # =========================================================================
 IF("${CMAKE_GENERATOR}" MATCHES "Ninja")
@@ -90,8 +90,8 @@ IF ("${CMAKE_HOSTNAME}" MATCHES "login")
 
   # HAWK and SuperMUC name their login nodes identically, so use OS distribution to identify
   FIND_PROGRAM(LSB_RELEASE_EXEC lsb_release)
-  MARK_AS_ADVANCED(FORCE LSB_RELEASE_EXEC)
   EXECUTE_PROCESS(COMMAND ${LSB_RELEASE_EXEC} -is OUTPUT_VARIABLE LSB_RELEASE_ID_SHORT OUTPUT_STRIP_TRAILING_WHITESPACE)
+  MARK_AS_ADVANCED(FORCE LSB_RELEASE_EXEC)
   # HLRS HAWK
   IF (LSB_RELEASE_ID_SHORT MATCHES "CentOS")
     MESSAGE(STATUS "Compiling on Hawk")
@@ -122,6 +122,7 @@ IF ("${CMAKE_HOSTNAME}" MATCHES "login")
 ELSEIF("${CMAKE_HOSTNAME}" MATCHES "^prandtl")
   MESSAGE(STATUS "Compiling on Prandtl")
   MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
+  SET(PICLAS_INSTRUCTION "-march=native")
   # Set LUSTRE definition to account for filesystem
   ADD_DEFINITIONS(-DLUSTRE)
 
@@ -129,6 +130,7 @@ ELSEIF("${CMAKE_HOSTNAME}" MATCHES "^prandtl")
 ELSEIF ("${CMAKE_HOSTNAME}" MATCHES "^grafik0")
   MESSAGE(STATUS "Compiling on ${CMAKE_HOSTNAME}")
   MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
+  SET(PICLAS_INSTRUCTION "-march=native")
 
 ELSEIF ("${CMAKE_HOSTNAME}" MATCHES "^ilahead1")
   MESSAGE(STATUS "Compiling on ILA cluster")
@@ -145,6 +147,7 @@ ELSEIF ("${CMAKE_HOSTNAME}" MATCHES "^ilahead1")
 ELSEIF ("${CMAKE_HOSTNAME}" MATCHES "^xenon")
   MESSAGE(STATUS "Compiling on ILA student cluster")
   MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
+  SET(PICLAS_INSTRUCTION "-march=native")
   # Work around MPI-IO issue 4446 on machines mountng storage via NFS
   ADD_DEFINITIONS(-DNFS)
 
@@ -158,7 +161,7 @@ ELSE()
   ENDIF()
 ENDIF()
 
-MESSAGE(STATUS "Compiling with [${CMAKE_Fortran_COMPILER_ID}] fortran compiler using [${PICLAS_INSTRUCTION}] instruction")
+MESSAGE(STATUS "Compiling with [${CMAKE_Fortran_COMPILER_ID}] (v${CMAKE_Fortran_COMPILER_VERSION}) fortran compiler using [${PICLAS_INSTRUCTION}] instruction")
 
 # =========================================================================
 # COMPILER FLAGS
@@ -172,12 +175,11 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   # set Flags (disable lto type warnings due to false positives with MATMUL, which is a known bug)
   IF (NOT DEFINED C_FLAGS_INITIALIZED )
     SET (C_FLAGS_INITIALIZED "yes" CACHE INTERNAL "Flag if compiler flags are already initialized" )
-    SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -fdefault-double-8 -fbackslash -ffree-line-length-0 -Wno-lto-type-mismatch -DGNU")
+    SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -fdefault-real-8 -fdefault-double-8 -fbackslash -ffree-line-length-0 -finit-real=snan -finit-integer=snan  -Wno-lto-type-mismatch -DGNU")
+    IF(PICLAS_EXTRAE)
+      SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -finstrument-functions")
+    ENDIF(PICLAS_EXTRAE)
   ENDIF()
-  IF(PICLAS_EXTRAE)
-    SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -finstrument-functions")
-  ENDIF(PICLAS_EXTRAE)
-  SET (CMAKE_Fortran_FLAGS           "${CMAKE_Fortran_FLAGS} -finit-real=snan -finit-integer=snan")
   SET (CMAKE_Fortran_FLAGS_NITRO     "${CMAKE_Fortran_FLAGS}  -Ofast ${PICLAS_INSTRUCTION}")
   SET (CMAKE_Fortran_FLAGS_RELEASE   "${CMAKE_Fortran_FLAGS}     -O3 ${PICLAS_INSTRUCTION} -fstack-arrays")
   SET (CMAKE_Fortran_FLAGS_PROFILE   "${CMAKE_Fortran_FLAGS} -pg -O3 ${PICLAS_INSTRUCTION} -fstack-arrays")
@@ -268,4 +270,3 @@ SET(CMAKE_Fortran_FLAGS_RELEASE    "${CMAKE_Fortran_FLAGS_RELEASE}"  CACHE STRIN
 SET(CMAKE_Fortran_FLAGS_PROFILE    "${CMAKE_Fortran_FLAGS_PROFILE}"  CACHE STRING "Profile compiler flags" FORCE)
 SET(CMAKE_Fortran_FLAGS_DEBUG      "${CMAKE_Fortran_FLAGS_DEBUG}"    CACHE STRING "Debug compiler flags"   FORCE)
 SET(CMAKE_Fortran_FLAGS_SANITIZE   "${CMAKE_Fortran_FLAGS_SANITIZE}" CACHE STRING "Sanitize compiler flags"  FORCE)
-
