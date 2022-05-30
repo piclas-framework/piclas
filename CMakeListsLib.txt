@@ -37,6 +37,7 @@ ELSE()
   SET(LIBS_DLPATH "")
 ENDIF()
 
+
 # =========================================================================
 # MPI
 # =========================================================================
@@ -100,6 +101,12 @@ STRING(TOLOWER ${LIB_TYPE} SEARCH_TYPE)
 
 # Use system HDF5
 IF(NOT LIBS_BUILD_HDF5)
+  # Unset leftover paths from old CMake runs
+  UNSET(HDF5_LIBRARIES)
+  UNSET(HDF5_INCLUDE_DIR_FORTRAN)
+  UNSET(HDF5_INCLUDE_DIR)
+  UNSET(HDF5_DIFF_EXECUTABLE)
+
   # Try to find the CMake version
   SET(LIBS_HDF5_CMAKE TRUE)
   FIND_PACKAGE(HDF5 NAMES hdf5 COMPONENTS C Fortran ${SEARCH_TYPE} QUIET PATH_SUFFIXES share/cmake)
@@ -178,6 +185,10 @@ ELSE()
       SET(LIBS_HDF5CC ${CMAKE_C_COMPILER} )
     ENDIF()
 
+    # Set parallel build with maximum number of threads
+    INCLUDE(ProcessorCount)
+    PROCESSORCOUNT(N)
+
     # Optional Features:
     #   --enable-silent-rules   less verbose build output (undo: "make V=1")
     #   --enable-build-mode=(debug|production|clean)
@@ -201,12 +212,14 @@ ELSE()
       PREFIX ${LIBS_HDF5_DIR}
       UPDATE_COMMAND ""
       CONFIGURE_COMMAND FC=${LIBS_HDF5FC} CC=${LIBS_HDF5CC} ${LIBS_HDF5_DIR}/src/HDF5/configure --prefix=${LIBS_HDF5_DIR} --with-pic --enable-fortran ${LIBS_HDF5PARALLEL} --libdir=${LIBS_HDF5_DIR}/lib --enable-build-mode=production --enable-silent-rules --disable-dependency-tracking
-      BUILD_COMMAND ${MAKE}
+      BUILD_BYPRODUCTS ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.a ${LIBS_HDF5_DIR}/lib/libhdf5.a ${LIBS_HDF5_DIR}/bin/h5diff
+      # Configure explicitly requires GNU make
+      BUILD_COMMAND make -j${N}
     )
     SET(LIBS_HDF5_CMAKE FALSE)
 
     # CMake HDF5 is fast but not yet reliable. The following section can be enabled once HDF5 promotes the CMake option to stable
-    #ExternalProject_Add(HDF5
+    #EXTERNALPROJECT_ADD(HDF5
     #  GIT_REPOSITORY ${HDF5DOWNLOAD}
     #  GIT_TAG ${HDF5_TAG}
     #  GIT_PROGRESS TRUE
@@ -340,6 +353,7 @@ ELSE()
         PREFIX ${LIBS_MATH_DIR}
         UPDATE_COMMAND ""
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=${LIBS_MATH_DIR} -DBLAS++=OFF -DLAPACK++=OFF -DBUILD_SHARED_LIBS=ON -DCBLAS=OFF -DLAPACKE=OFF -DBUILD_TESTING=OFF
+        BUILD_BYPRODUCTS ${LIBS_MATH_DIR}/lib/liblapack.so ${LIBS_MATH_DIR}/lib/libblas.so
       )
 
       LIST(APPEND SELFBUILTEXTERNALS ${LIBS_BUILD_MATH_LIB_VENDOR})
@@ -356,6 +370,7 @@ ELSE()
         PREFIX ${LIBS_MATH_DIR}
         UPDATE_COMMAND ""
         CONFIGURE_COMMAND ""
+        BUILD_BYPRODUCTS ${LIBS_MATH_DIR}/src/${LIBS_BUILD_MATH_LIB_VENDOR}/libopenblas.so
         BUILD_IN_SOURCE TRUE
         INSTALL_COMMAND ""
       )
