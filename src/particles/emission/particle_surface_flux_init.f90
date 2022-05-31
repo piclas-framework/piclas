@@ -168,7 +168,7 @@ DoSurfaceFlux=.FALSE.
 CALL ReadInAndPrepareSurfaceFlux(MaxSurfacefluxBCs, nDataBC)
 
 ! Call to the reactive surfaces
-CALL ReadInAndPrepareSurfChemFlux(nDataBC)
+IF (SurfChemReac%NumOfReact.GT.0) CALL ReadInAndPrepareSurfChemFlux(nDataBC)
 
 #if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoPoissonRounding,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs

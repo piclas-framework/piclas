@@ -1,3 +1,4 @@
+#include "piclas.h"
 !==================================================================================================================================
 ! Copyright (c) 2015 - 2019 Wladimir Reschke
 !
@@ -128,6 +129,17 @@ TYPE tSurfFluxSubSideData
   REAL                                   :: nVFR                            
   REAL                                   :: Dmax                            
 END TYPE tSurfFluxSubSideData
+
+REAL,ALLOCATABLE                          :: ChemSampWall(:,:,:,:,:) 
+REAL,ALLOCATABLE                          :: ChemDesorpWall(:,:,:,:,:) 
+REAL,ALLOCPOINT                           :: ChemWallProp(:,:,:,:,:) 
+
+#if USE_MPI
+INTEGER                         :: ChemWallProp_Shared_Win
+REAL,ALLOCPOINT                 :: ChemWallProp_Shared(:,:,:,:,:)
+REAL,POINTER                    :: ChemSampWall_Shared(:,:,:,:,:) 
+INTEGER                                 :: ChemSampWall_Shared_Win
+#endif
 
 ! TYPE tRecombinationModel
 ! INTEGER                         :: NumOfReact             ! Number of possible reactions

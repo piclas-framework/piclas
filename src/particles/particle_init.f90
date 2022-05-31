@@ -266,7 +266,7 @@ USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
 USE MOD_SurfaceModel_Porous        ,ONLY: InitPorousBoundaryCondition
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
-USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC, SurfChemReac
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
@@ -325,9 +325,6 @@ CALL InitializeVariables()
 
 ! Insert the initial particles
 CALL InitialParticleInserting()
-! Initialize particle surface flux to be performed per iteration
-CALL SurfaceModel_Chemistry_Init()
-CALL InitializeParticleSurfaceflux()
 
 ! Initialize volume sampling
 IF(useDSMC .OR. WriteMacroVolumeValues) THEN
@@ -339,12 +336,16 @@ END IF
 
 ! Initialize surface sampling / rotational periodic mapping
 ! (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.GEO%RotPeriodicBC) THEN
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.GEO%RotPeriodicBC.OR.(SurfChemReac%NumOfReact.GT.0)) THEN
   CALL InitParticleBoundarySampling()
   CALL InitParticleBoundaryRotPeriodic()
   CALL InitAdaptiveWallTemp()
 END IF
 
+CALL SurfaceModel_Chemistry_Init()
+
+! Initialize particle surface flux to be performed per iteration
+CALL InitializeParticleSurfaceflux()
 ! Initialize porous boundary condition (requires BCdata_auxSF and SurfMesh from InitParticleBoundarySampling)
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
@@ -397,6 +398,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfChemReac
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: InitEmissionComm
 USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
@@ -428,6 +430,7 @@ CALL InitializeVariablesRandomNumbers()
 ! initialization of surface model flags
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
 DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
+SurfChemReac%NumOfReact = GETINT('Surface-NumOfReactions', '0')
 DelayTime = GETREAL('Part-DelayTime','0.')
 !--- Read Manual Time Step: Old variable name still supported
 ManualTimeStepParticle = GETREAL('Particles-ManualTimeStep')

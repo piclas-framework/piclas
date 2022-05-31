@@ -93,8 +93,12 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies
-USE MOD_Particle_Boundary_Vars  ,ONLY: nPartBound, PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: nPartBound, PartBound, nComputeNodeSurfTotalSides, nSurfSample
 USE MOD_SurfaceModel_Vars     
+#if USE_MPI
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED, myComputeNodeRank
+USE MOD_MPI_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -109,7 +113,6 @@ INTEGER               :: ReadInNumOfReact, ReadInNumOfRecomb
 REAL, ALLOCATABLE     :: StoichCoeff(:,:)
 !===================================================================================================================================
 
-SurfChemReac%NumOfReact = GETINT('Surface-NumOfReactions', '0')
 IF(SurfChemReac%NumOfReact.LE.0) THEN
   RETURN
 END IF
@@ -244,6 +247,31 @@ DO iReac = 1, ReadInNumOfReact
   ! SurfChemReac%ReactProb(iReac)   = GETREAL('Surface-Reaction'//TRIM(hilf)//'-ReactProbability','0')
   SurfChemReac%EForm(iReac)  = GETREAL('Surface-Reaction'//TRIM(hilf)//'-FormationEnergy','0')
 END DO
+
+ALLOCATE( ChemSampWall(1:nSpecies,1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+ALLOCATE(ChemDesorpWall(1:nSpecies,1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+ChemDesorpWall = 0.0
+ChemSampWall = 0.0
+#if USE_MPI
+  CALL Allocate_Shared((/nSpecies,1,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),ChemSampWall_Shared_Win,ChemSampWall_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ChemSampWall_Shared_Win,IERROR)
+  IF (myComputeNodeRank.EQ.0) THEN
+    ChemSampWall_Shared = 0.
+  END IF
+  CALL BARRIER_AND_SYNC(ChemSampWall_Shared_Win,MPI_COMM_SHARED)
+
+  CALL Allocate_Shared((/nSpecies,1,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),ChemWallProp_Shared_Win,ChemWallProp_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ChemWallProp_Shared_Win,IERROR)
+  ChemWallProp => ChemWallProp_Shared
+  IF (myComputeNodeRank.EQ.0) THEN
+    ChemWallProp = 0.
+  END IF
+  CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win,MPI_COMM_SHARED)
+#else
+  ALLOCATE(ChemWallProp(1:nSpecies,1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+  ChemWallProp = 0.0
+#endif /*USE_MPI*/
+
 
 ! ! Simple recombination model
 ! DO iReac = 1, ReadInNumOfRecomb

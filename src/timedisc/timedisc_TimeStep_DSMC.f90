@@ -53,6 +53,7 @@ USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Boundary_Sampling, ONLY: ExchangeChemSurfData
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers       ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -84,6 +85,7 @@ REAL                  :: tLBStart
 
   IF (DoChemSurface) THEN
     CALL ParticleSurfChemFlux()
+    CALL ExchangeChemSurfData()
     ! Write the adsorption and desorption values into separate files for the two reactants
     OPEN(10, file='adsorbtion_O2.txt', position="APPEND")
     OPEN(30, file='adsorbtion_CO.txt', position="APPEND")
