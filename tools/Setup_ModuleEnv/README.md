@@ -20,6 +20,7 @@ This cleans the created module file and build directory of the version currently
        sudo ./InstallPackagesUbuntu16.sh
        sudo ./InstallPackagesUbuntu20.sh
        sudo ./InstallPackagesUbuntu21.sh
+       sudo ./InstallPackagesUbuntu22.sh
 
    and if you have a server that has been setup with only basic packages, the following might be required
 
@@ -33,6 +34,9 @@ This cleans the created module file and build directory of the version currently
    reboot and maybe second time `./InstallModules.sh` is needed if `module list` does not work and returns `command not found: module`.
 
 ## 3. CMake from [https://github.com/Kitware/CMake/releases/](https://github.com/Kitware/CMake/releases/)
+
+  When installing the module env on a new OS (e.g. Ubuntu 22 in combination with gcc 11.2, then it is advised to install gcc first and load the desired gcc version during the installtion of CMake to prevent GLIBCXX_3.4.XX version problems). If an older version of Ubuntu is used in combination with a new gcc version, then continue to install CMake first
+
        sudo ./InstallCMake.sh
 
 ## 4. GCC Compiler from [ftp://ftp.fu-berlin.de/unix/languages/gcc/releases](ftp://ftp.fu-berlin.de/unix/languages/gcc/releases)

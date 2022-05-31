@@ -339,6 +339,10 @@ END DO ! iElem
 CALL LBElemSplitTime_avg(tLBStart) ! Average over the number of elems (and Start again)
 #endif /*USE_LOADBALANCE*/
 DEALLOCATE(BGMSourceCellVol)
+
+! Suppress compiler warnings
+RETURN
+iPart=stage_opt
 END SUBROUTINE DepositionMethod_CVW
 
 
@@ -728,6 +732,10 @@ CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 !#if USE_MPI
 !CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
 !#endif /*USE_MPI*/
+
+! Suppress compiler warnings
+RETURN
+iNode=stage_opt
 END SUBROUTINE DepositionMethod_CVWM
 
 

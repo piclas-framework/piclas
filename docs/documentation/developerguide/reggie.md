@@ -118,7 +118,7 @@ rm hdf5-1.10.5.tar.bz2
 ```
 
 otherwise a module environment can be installed at this point, see
-`~/piclas/tools/Setup_ModuleEnv/README.md`, which is explained in detail in Chapter \ref{chap:tools} under Section \ref{sec:tools_module_env}.
+`~/piclas/tools/Setup_ModuleEnv/README.md`, which is explained in detail in Chapter {ref}`developerguide/tools:Developer Tools` under Section {ref}`developerguide/tools:Module Environment`.
 
 When no module environment is to be used on the server, the following commands must be places in the
 *.gitlab-ci.yml* file:

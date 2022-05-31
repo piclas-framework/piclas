@@ -33,10 +33,17 @@ Hindenlang [bibcite key=Hindenlang2015], Gassner [bibcite key=gassner2011disp]
 
 ## section references
 ## Figures, caption
-![This is the caption\label{mylabel}](https://www.flexi-project.org/wp-content/uploads/2016/01/M7_ROE_N7M10_q_0000060p2000000.jpg)
 
-See figure \ref{mylabel}.
+```{figure} https://www.flexi-project.org/wp-content/uploads/2016/01/M7_ROE_N7M10_q_0000060p2000000.jpg
+---
+name: fig:mylabel
+width: 400px
+align: center
+---
 
+This is an example caption.
+```
+See {numref}`fig:mylabel` for an image from the web embedded in this documentation.
 
 ```{figure} figures/mpi_shared_mesh/dev_mpi_shared_mesh.png
 ---
@@ -47,11 +54,11 @@ align: center
 
 This is an example caption.
 ```
-See {numref}`fig:example`.
+See {numref}`fig:example` for embedding a local file.
 
 ## tables
 ## unnumbered section headings
-  just add 
+  just add
 
     {-}
 
