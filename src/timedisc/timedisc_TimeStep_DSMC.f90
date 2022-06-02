@@ -53,6 +53,7 @@ USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Boundary_Sampling, ONLY: ExchangeChemSurfData
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers       ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -83,28 +84,23 @@ REAL                  :: tLBStart
   END IF
 
   IF (DoChemSurface) THEN
+    CALL ExchangeChemSurfData()
     CALL ParticleSurfChemFlux()
-    ! Write the adsorption and desorption values into separate files for the two reactants
-    OPEN(10, file='adsorbtion_O2.txt', position="APPEND")
-    OPEN(30, file='adsorbtion_CO.txt', position="APPEND")
-    OPEN(20, file='desorption_O2.txt', position="APPEND")
-    OPEN(40, file='desorption_CO.txt', position="APPEND")
-    OPEN(50, file='reaction_LH.txt', position="APPEND")
-    OPEN(60, file='reaction_ER.txt', position="APPEND")
 
-      WRITE(10,*) PartBound%AdCount(1,4)
-      WRITE(20,*) PartBound%DesCount(1,4)
-      WRITE(30,*) PartBound%AdCount(1,2)
-      WRITE(40,*) PartBound%DesCount(1,2)
-      WRITE(50,*) PartBound%LHCount(1,1)
-      WRITE(60,*) PartBound%ERCount(1,1)
+    OPEN(10, file='ads.txt', position="APPEND")
+    OPEN(20, file='des.txt', position="APPEND")
+    OPEN(30, file='des.txt', position="APPEND")
+
+      WRITE(10,*) PartBound%AdCount(1,2)
+      WRITE(20,*) PartBound%DesCount(1,2)
+      WRITE(30,*) PartBound%LHCount(1,1)
 
     CLOSE(10)
     CLOSE(20)
     CLOSE(30)
-    CLOSE(40)
-    CLOSE(50)
-    CLOSE(60)
+
+    PartBound%AdCount(1, 2) = 0.0
+
   END IF
 
 #if USE_LOADBALANCE

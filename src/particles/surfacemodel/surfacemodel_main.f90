@@ -47,10 +47,11 @@ USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
 #if USE_MPI
 USE MOD_Globals                   ,ONLY: myrank
 #endif /*USE_MPI*/
+USE MOD_Globals_Vars              ,ONLY : PI, BoltzmannConst
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
-USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample
-USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfChemReac !, RecombModel
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample,SurfSideArea_Shared
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfChemReac , ChemWallProp, ChemSampWall !, RecombModel
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, BoundsOfElem_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos,PartState 
 USE MOD_Particle_Vars             ,ONLY: UseCircularInflow
@@ -61,7 +62,10 @@ USE MOD_SurfaceModel_Tools        ,ONLY: SurfaceModel_ParticleEmission, GetWallT
 USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
 USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
 USE MOD_SurfaceModel_Chemistry
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
+USE MOD_DSMC_PolyAtomicModel      ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_part_emission_tools       ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
 USE MOD_part_operations           ,ONLY: RemoveParticle, CreateParticle
 USE MOD_part_tools                ,ONLY: CalcRadWeightMPF, VeloFromDistribution
@@ -103,6 +107,7 @@ REAL               :: EqConstant, DissOrder
 REAL               :: WallTemp
 REAL               :: nu, E_act, Rate, Prob
 REAL               :: NewPos(1:3)
+REAL               :: SurfMol
 REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), BoundsOfElemCenter(1:3), NewVelo(3)
 REAL,PARAMETER     :: eps=1e-6
 REAL,PARAMETER     :: eps2=1.0-eps
@@ -114,7 +119,7 @@ INTEGER            :: iCoadsReac, iCoadsSpec
 INTEGER            :: NewPartID
 INTEGER            :: SurfNumOfReac
 INTEGER            :: iNewPart
-INTEGER            :: SurfNumOfRecomb
+INTEGER            :: SurfNumOfRecomb, SubP, SubQ
 !===================================================================================================================================
 iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 
@@ -153,7 +158,7 @@ IF (PartBound%NbrOfSpeciesSwaps(iBC).GT.0) CALL SpeciesSwap(PartID,SideID)
 ! Counter for surface analyze
 IF(CalcSurfCollCounter) SurfAnalyzeCount(PartSpecImpact) = SurfAnalyzeCount(PartSpecImpact) + 1
 ! Sampling
-DoSample = (DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
+DoSample = (DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues).OR.(SurfChemReac%NumOfReact.GT.0)
 IF(DoSample) THEN
   IF (TrackingMethod.EQ.TRIATRACKING) THEN
     TrackInfo%p = 1 ; TrackInfo%q = 1
@@ -186,13 +191,25 @@ CASE (0) ! Maxwellian scattering (diffuse/specular reflection)
   CALL MaxwellScattering(PartID,SideID,n_Loc,SpecularReflectionOnly)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE(20)
-
+  SubP = TrackInfo%p
+  SubQ = TrackInfo%q
   InteractionType = 'None'
   StickCoeff = 0.0
   Prob = 0.0
 
   speciesID = PartSpecies(PartID)
   SurfNumOfReac = SurfChemReac%NumOfReact 
+
+  ! Calculate the number of molecules on the surface
+  IF(PartBound%LatticeVec(locBCID).GT.0.) THEN
+    ! Surface molecules in dependence of the occupancy of the unit cell
+    SurfMol = PartBound%MolPerUnitCell(locBCID) * SurfSideArea_Shared(SubP, SubQ,SurfSideID) &
+                                /(PartBound%LatticeVec(locBCID)*PartBound%LatticeVec(locBCID))
+  ELSE
+    ! Alternative calculation by average number of molecules per area for a monolayer
+    SurfMol = 10.**19 * SurfSideArea_Shared(SubP, SubQ,SurfSideID)
+  END IF
+
   DO iReac = 1, SurfNumOfReac
 
     SELECT CASE (TRIM(SurfChemReac%ReactType(iReac)))
@@ -206,16 +223,20 @@ CASE(20)
           DO iValProd=1, SIZE(SurfChemReac%Products(iReac,:)) 
             IF(SurfChemReac%Products(iReac,iValProd).NE.0) THEN
               iProd = SurfChemReac%Products(iReac,iValProd)
-              Coverage = PartBound%Coverage(locBCID, iProd)
+!              Coverage = PartBound%Coverage(locBCID, iProd)
+               Coverage = ChemWallProp(iProd,1,SubP,SubQ,SurfSideID)
             END IF
           END DO
         ELSE 
-          Coverage = PartBound%Coverage(locBCID, speciesID) 
+          Coverage = ChemWallProp(speciesID,1,SubP,SubQ,SurfSideID)
         END IF
+
+    !    WRITE(*,*) speciesID
+    !    WRITE(*,*) 'Coverage', Coverage
 
          ! Definition of the variables
         MaxCoverage = PartBound%MaxCoverage(locBCID,speciesID)
-        TotalCoverage = PartBound%TotalCoverage(locBCID) 
+        TotalCoverage = SUM(ChemWallProp(:,1,SubP, SubQ, SurfSideID))
         DissOrder = SurfChemReac%DissOrder(iReac)
         S_0 = SurfChemReac%S_initial(iReac)
         EqConstant = SurfChemReac%EqConstant(iReac)
@@ -226,12 +247,14 @@ CASE(20)
         IF(SurfChemReac%Inhibition(iReac).NE.0) THEN
           iCoadsReac = SurfChemReac%Inhibition(iReac)
           iCoadsSpec = SurfChemReac%Reactants(iCoadsReac,1)
-          CoAds_Coverage = PartBound%Coverage(locBCID, iCoadsSpec)
+          CoAds_Coverage = ChemWallProp(iCoadsSpec,1,SubP, SubQ, SurfSideID)
           CoAds_MaxCov = PartBound%MaxCoverage(locBCID,iCoadsSpec)
           Theta = 1.0 - Coverage/MaxCoverage - CoAds_Coverage/CoAds_MaxCov
         ELSE
           Theta = 1.0 - Coverage/MaxCoverage
         END IF
+
+        !WRITE(*,*) 'Theta', Theta
 
         ! Check whether the maximum coverage value is reached:
         IF(Theta.GE.0.0 .AND. TotalCoverage.LT.1.0) THEN
@@ -242,6 +265,8 @@ CASE(20)
         ELSE 
           StickCoeff = 0.0
         END IF
+
+   !     WRITE(*,*) 'StickCoeff', StickCoeff
 
       END IF
 
@@ -260,7 +285,7 @@ CASE(20)
           DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
             IF(SurfChemReac%Reactants(iReac,iValReac).NE.speciesID .AND. SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
               iReactant = SurfChemReac%Reactants(iReac,iValReac)
-              Coverage = PartBound%Coverage(locBCID, iReactant) 
+              Coverage = ChemWallProp(iReactant,1,SubP, SubQ, SurfSideID)
             END IF
           END DO
   
@@ -301,24 +326,27 @@ CASE(20)
       DO iValProd=1, SIZE(SurfChemReac%Products(iReac,:)) 
         IF(SurfChemReac%Products(iReac,iValProd).NE.0) THEN
           iProd = SurfChemReac%Reactants(iReac,iValProd)
-          PartBound%AdCount(locBCID, iProd) = PartBound%AdCount(locBCID, iProd) + DissOrder * MPF
-          PartBound%Coverage(locBCID, iProd) = PartBound%Coverage(locBCID, iProd) + DissOrder * MPF / PartBound%nMol(locBCID)
+          ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) + DissOrder * MPF 
+!          PartBound%AdCount(locBCID, iProd) = PartBound%AdCount(locBCID, iProd) + DissOrder * MPF
+!          PartBound%Coverage(locBCID, iProd) = PartBound%Coverage(locBCID, iProd) + DissOrder * MPF / PartBound%nMol(locBCID)
         END IF
       END DO
     ELSE 
-    PartBound%AdCount(locBCID, speciesID) = PartBound%AdCount(locBCID, speciesID) + DissOrder * MPF
-    PartBound%Coverage(locBCID, speciesID) = PartBound%Coverage(locBCID, speciesID) + DissOrder * MPF / PartBound%nMol(locBCID)
+    ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID) + DissOrder * MPF 
+    
+    PartBound%AdCount(locBCID, speciesID) = PartBound%AdCount(locBCID, speciesID) + 1.
+!    PartBound%AdCount(locBCID, speciesID) = PartBound%AdCount(locBCID, speciesID) + DissOrder * MPF
+!    PartBound%Coverage(locBCID, speciesID) = PartBound%Coverage(locBCID, speciesID) + DissOrder * MPF / PartBound%nMol(locBCID)
     END IF
 
-    PartBound%TotalCoverage(locBCID) = PartBound%TotalCoverage(locBCID) + DissOrder * MPF/PartBound%nMol(locBCID)
+!    PartBound%TotalCoverage(locBCID) = PartBound%TotalCoverage(locBCID) + DissOrder * MPF/PartBound%nMol(locBCID)
 
   CASE('ER')
     CALL RemoveParticle(PartID)
     MPF = Species(speciesID)%MacroParticleFactor
     ! Create the Eley-Rideal reaction product
 
-    SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
-    TempErgy = WallTemp
+    TempErgy = SQRT(2*BoltzmannConst*WallTemp/Species(speciesID)%MassIC)
     WallVelo   = PartBound%WallVelo(1:3,locBCID)
 
     CALL OrthoNormVec(n_loc,tang1,tang2)
@@ -334,17 +362,21 @@ CASE(20)
     DO iValProd=1, SIZE(SurfChemReac%Products(iReac,:))
       IF(SurfChemReac%Products(iReac,iValProd).NE.0) THEN
         iProd = SurfChemReac%Products(iReac,iValProd)
-        PartBound%ERCount(locBCID, iProd) = PartBound%ERCount(locBCID, iProd) + 1.0 * MPF 
+        ! PartBound%ERCount(locBCID, iProd) = PartBound%ERCount(locBCID, iProd) + 1.0 * MPF 
 
-        !NewVelo(1:3) = VeloFromDistribution('deltadistribution',TempErgy,iNewPart,ProductSpecNbr)
+        NewVelo(1:3) = VeloFromDistribution('deltadistribution',TempErgy,1,1)
+
+
         NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_loc(1:3)*NewVelo(3) + WallVelo(1:3)
         NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*PartPosImpact(1:3)
 
-        ProductSpec(2) = iProd
-
-        CALL CreateParticle(ProductSpec(2),NewPos(1:3),GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=MPF)
-              
-        CALL SurfaceModel_EnergyAccommodation(NewPartID,locBCID,WallTemp)
+        CALL CreateParticle(iProd,NewPos(1:3),GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=MPF)
+        
+        IF (SpecDSMC(iProd)%PolyatomicMol) THEN
+          CALL DSMC_SetInternalEnr_Poly(iProd,locBCID,NewPartID,4,iReac)
+        ELSE
+          CALL DSMC_SetInternalEnr_LauxVFD(iProd,locBCID,NewPartID,4,iReac)
+        END IF
       END IF
     END DO
 
@@ -352,35 +384,16 @@ CASE(20)
     DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
       IF(SurfChemReac%Reactants(iReac,iValReac).NE.speciesID .AND. SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
         iReactant = SurfChemReac%Reactants(iReac,iValReac)
-        PartBound%AdCount(locBCID, iReactant) = PartBound%AdCount(locBCID, iReactant) - 1.0 
-        PartBound%Coverage(locBCID, iReactant) = PartBound%Coverage(locBCID, iReactant) - 1.0/PartBound%nMol(locBCID)
-        PartBound%TotalCoverage(locBCID) = PartBound%TotalCoverage(locBCID) - 1.0/PartBound%nMol(locBCID)
+        ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) - 1.0
+!        PartBound%AdCount(locBCID, iReactant) = PartBound%AdCount(locBCID, iReactant) - 1.0 
+!        PartBound%Coverage(locBCID, iReactant) = PartBound%Coverage(locBCID, iReactant) - 1.0/PartBound%nMol(locBCID)
+!        PartBound%TotalCoverage(locBCID) = PartBound%TotalCoverage(locBCID) - 1.0/PartBound%nMol(locBCID)
       END IF
     END DO 
     
   CASE DEFAULT
     CALL MaxwellScattering(PartID,SideID,n_Loc)
   END SELECT
-
-! CASE(30)
-
-!   SurfNumOfRecomb = RecombModel%NumOfReact
-  
-!   DO iReac = 1, SurfNumOfRecomb
-!     IF(ANY(SurfChemReac%Reactants(iReac,:).EQ.speciesID)) THEN
-!       RecombCoeff = RecombModel%RecombCoeff(iReac)
-
-!       ! Perform the reaction
-!       CALL RANDOM_NUMBER(RanNum)
-!       IF (RecombCoeff.GT.RanNum) THEN
-!         CALL RemoveParticle(PartID)
-!         PartBound%CatCount(locBCID, iReactant) = PartBound%CatCount(locBCID, iReactant) + 1.0 
-!         ! Routine to generate the new particle
-
-!     ELSE 
-!       CALL MaxwellScattering(PartID,SideID,n_Loc)
-!     END IF
-!   END DO
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (SEE_MODELS_ID)

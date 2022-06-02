@@ -246,19 +246,19 @@ TYPE tPartBoundary
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           ! Species to be changed at wall (in, out), out=0: delete
   INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction (e.g. SEE models)
   REAL    , ALLOCATABLE                  :: TotalCoverage(:)
-  REAL    , ALLOCATABLE                  :: nMol(:)                       ! number of molecules on the reactive surface
+  !REAL    , ALLOCATABLE                  :: nMol(:)                       ! number of molecules on the reactive surface
   REAL    , ALLOCATABLE                  :: LatticeVec(:)                 ! Lattice constant for a fcc crystal
   REAL    , ALLOCATABLE                  :: MolPerUnitCell(:)             ! Molecules per unit cell
-  REAL    , ALLOCATABLE                  :: SurfArea(:)                   ! Reactive surface area
-  REAL    , ALLOCATABLE                  :: Coverage(:,:)
+  ! REAL    , ALLOCATABLE                  :: SurfArea(:)                   ! Reactive surface area
+  REAL    , ALLOCATABLE                  :: CoverageIni(:,:)               ! Initial boundary coverage
   REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)
   !REAL, ALLOCATABLE                      :: CatCount(:,:)                 ! number of reacted particles for the simple recombnation model
   REAL, ALLOCATABLE                      :: AdCount(:,:)                  ! number of adsorped molecules for the individual species
   REAL, ALLOCATABLE                      :: DesCount(:,:)                 ! number of desorped molecules for the individual species
-  REAL, ALLOCATABLE                      :: DesCountIter(:,:)             ! desorption count for the emission routine
+  ! REAL, ALLOCATABLE                      :: DesCountIter(:,:)             ! desorption count for the emission routine
   REAL, ALLOCATABLE                      :: LHCount(:,:)                  ! number of molecules created by the Langmuir-Hinshlewood reaction
-  REAL, ALLOCATABLE                      :: LHCountIter(:,:)              ! reaction count for the emission routine
-  REAL, ALLOCATABLE                      :: ERCount(:,:)
+  ! REAL, ALLOCATABLE                      :: LHCountIter(:,:)              ! reaction count for the emission routine
+  ! REAL, ALLOCATABLE                      :: ERCount(:,:)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
   LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)         

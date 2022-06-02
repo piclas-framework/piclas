@@ -144,9 +144,9 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-LatticeVector'  &
 CALL prms%CreateRealOption(     'Part-Boundary[$]-NbrOfMol-UnitCell'  &
                                 , 'Number of molecules in a unit cell defined by the lattice vector'&
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-SurfaceArea'  &
-                                , 'Area of the reactive surface'&
-                                , numberedmulti=.TRUE.)
+! CALL prms%CreateRealOption(     'Part-Boundary[$]-SurfaceArea'  &
+!                                 , 'Area of the reactive surface'&
+!                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-Coverage'  &
                                 , 'Initial coverage of the surface by an adsorbed species'&
                                 , numberedmulti=.TRUE.)
@@ -317,20 +317,20 @@ ALLOCATE(PartBound%TempGradVec(  1:3,1:nPartBound))
 PartBound%TempGradVec = 0.
 ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
 PartBound%SurfaceModel = 0
-ALLOCATE(PartBound%Coverage(nPartBound, nSpecies))
+ALLOCATE(PartBound%CoverageIni(nPartBound, nSpecies))
 ALLOCATE(PartBound%MaxCoverage(nPartBound, nSpecies))
 ALLOCATE(PartBound%AdCount(nPartBound, nSpecies))
 ALLOCATE(PartBound%DesCount(nPartBound, nSpecies))
-ALLOCATE(PartBound%DesCountIter(nPartBound, nSpecies))
-ALLOCATE(PartBound%ERCount(nPartBound, nSpecies))
-!ALLOCATE(PartBound%CatCount(nPartBound, nSpecies))
+! ALLOCATE(PartBound%DesCountIter(nPartBound, nSpecies))
+! ALLOCATE(PartBound%ERCount(nPartBound, nSpecies))
+! ALLOCATE(PartBound%CatCount(nPartBound, nSpecies))
 ALLOCATE(PartBound%LHCount(nPartBound, nSpecies))
-ALLOCATE(PartBound%LHCountIter(nPartBound, nSpecies))
+! ALLOCATE(PartBound%LHCountIter(nPartBound, nSpecies))
 ALLOCATE(PartBound%TotalCoverage(nPartBound))
-ALLOCATE(PartBound%nMol(nPartBound))
+!ALLOCATE(PartBound%nMol(nPartBound))
 ALLOCATE(PartBound%LatticeVec(nPartBound))
 ALLOCATE(PartBound%MolPerUnitCell(nPartBound))
-ALLOCATE(PartBound%SurfArea(nPartBound))
+! ALLOCATE(PartBound%SurfArea(nPartBound))
 ALLOCATE(PartBound%Reactive(         1:nPartBound))
 PartBound%Reactive = .FALSE.
 ALLOCATE(PartBound%Voltage(1:nPartBound))
@@ -430,28 +430,28 @@ DO iPartBound=1,nPartBound
     END IF
     PartBound%LatticeVec(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-LatticeVector', '0.')
     PartBound%MolPerUnitCell(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-NbrOfMol-UnitCell', '1.')
-    PartBound%SurfArea(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SurfaceArea', '0.')
-    IF(PartBound%LatticeVec(iPartBound).GT.0.) THEN
-      ! Surface molecules in dependence of the occupancy of the unit cell
-      PartBound%nMol(iPartBound) = PartBound%MolPerUnitCell(iPartBound) * PartBound%SurfArea(iPartBound) &
-                                  /(PartBound%LatticeVec(iPartBound))**2
-    ELSE
-      ! Alternative calculation by average number of molecules per area for a monolayer
-      PartBound%nMol(iPartBound) = 10.**19 * PartBound%SurfArea(iPartBound)
-    END IF
+    !PartBound%SurfArea(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-SurfaceArea', '0.')
+    ! IF(PartBound%LatticeVec(iPartBound).GT.0.) THEN
+    !   ! Surface molecules in dependence of the occupancy of the unit cell
+    !   PartBound%nMol(iPartBound) = PartBound%MolPerUnitCell(iPartBound) * PartBound%SurfArea(iPartBound) &
+    !                               /(PartBound%LatticeVec(iPartBound))**2
+    ! ELSE
+    !   ! Alternative calculation by average number of molecules per area for a monolayer
+    !   PartBound%nMol(iPartBound) = 10.**19 * PartBound%SurfArea(iPartBound)
+    ! END IF
     PartBound%TotalCoverage(iPartBound) = 0.
     DO iSpec=1, nSpecies
       WRITE(UNIT=hilf2,FMT='(I0)') iSpec
-      PartBound%Coverage(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-Coverage', '0.')
+      PartBound%CoverageIni(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-Coverage', '0.')
       PartBound%MaxCoverage(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-MaxCoverage', '1.')
-      PartBound%TotalCoverage(iPartBound) = PartBound%TotalCoverage(iPartBound) + PartBound%Coverage(iPartBound, iSpec)
-      PartBound%AdCount(iPartBound, iSpec) = PartBound%Coverage(iPartBound, iSpec) * PartBound%nMol(iPartBound)
+      PartBound%TotalCoverage(iPartBound) = PartBound%TotalCoverage(iPartBound) + PartBound%CoverageIni(iPartBound, iSpec)
+      PartBound%AdCount(iPartBound, iSpec) = 0.
       PartBound%DesCount(iPartBound, iSpec) = 0.
-      PartBound%DesCountIter(iPartBound, iSpec) = 0.
-      PartBound%ERCount(iPartBound, iSpec) = 0.
+      ! PartBound%DesCountIter(iPartBound, iSpec) = 0.
+      ! PartBound%ERCount(iPartBound, iSpec) = 0.
       PartBound%LHCount(iPartBound, iSpec) = 0.
-      PartBound%LHCountIter(iPartBound, iSpec) = 0.
-      !PartBound%CatCount(iPartBound, iSpec) = 0.
+      ! PartBound%LHCountIter(iPartBound, iSpec) = 0.
+      ! PartBound%CatCount(iPartBound, iSpec) = 0.
     END DO
     IF (PartBound%TotalCoverage(iPartBound).GT.1.) THEN
       CALL abort(&
