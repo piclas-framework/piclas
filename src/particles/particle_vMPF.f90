@@ -557,14 +557,17 @@ DO WHILE(iNewPart.LT.nSplit)
     nPart = nPart - 1
     ! Leave the DO WHILE loop, if every original particle has been split up to MPF = vMPFSplitLimit (can be below one)
     IF(nPart.EQ.0) EXIT
+    ! Limit is reached, therefore go to next particle in reduced list
+    CYCLE
   END IF
+  IF((PartMPF(PartIndx) / 2.).LT.vMPFSplitLimit) CALL abort(__STAMP__,'Particle split below limit: PartMPF(PartIndx) / 2.=',&
+      RealInfoOpt=PartMPF(PartIndx) / 2.)
   PartMPF(PartIndx) = PartMPF(PartIndx) / 2.   ! split particle
   iNewPart = iNewPart + 1
   PositionNbr = PDM%nextFreePosition(iNewPart+PDM%CurrentNextFreePosition)
   IF (PositionNbr.EQ.0) CALL Abort(__STAMP__,'ERROR in particle split: MaxParticleNumber reached!')
-  PartState(1:3,PositionNbr) = PartState(1:3,PartIndx)
+  PartState(1:6,PositionNbr) = PartState(1:6,PartIndx)
   IF(TrackingMethod.EQ.REFMAPPING) PartPosRef(1:3,PositionNbr)=PartPosRef(1:3,PartIndx)
-  PartState(4:6,PositionNbr) = PartState(4:6,PartIndx)
   PartSpecies(PositionNbr) = PartSpecies(PartIndx)
   IF(CollisMode.GT.1) THEN
     PartStateIntEn(1:2,PositionNbr) = PartStateIntEn(1:2,PartIndx)
@@ -581,7 +584,7 @@ DO WHILE(iNewPart.LT.nSplit)
   PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PartIndx)
   LocalElemID = PEM%LocalElemID(PositionNbr)
   PDM%ParticleInside(PositionNbr) = .TRUE.
-  PDM%IsNewPart(PositionNbr)       = .TRUE.
+  PDM%IsNewPart(PositionNbr)       = .FALSE.
   PDM%dtFracPush(PositionNbr)      = .FALSE.
   PEM%pNext(PEM%pEnd(LocalElemID)) = PositionNbr     ! Next Particle of same Elem (Linked List)
   PEM%pEnd(LocalElemID) = PositionNbr
