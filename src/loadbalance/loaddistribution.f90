@@ -1359,7 +1359,7 @@ ELSE !
         delimiter,memory(2)               ,&
         delimiter,memory(3)                &
 #ifdef PARTICLES
-       ,delimiter,REAL(nGlobalNbrOfParticles),&
+       ,delimiter,REAL(nGlobalNbrOfParticles(3)),&
         delimiter,ElemTimeField              ,&
         delimiter,ElemTimePart               ,&
         delimiter,ElemTimeFieldPercent       ,&
