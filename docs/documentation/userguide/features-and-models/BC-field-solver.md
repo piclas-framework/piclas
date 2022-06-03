@@ -66,7 +66,8 @@ as detailed in the following table.
 |   (/1,-1/)   |  1: periodic |                               -1: negative (opposite) direction of the 1st periodicity vector                              |
 |              |              |                                                                                                                            |
 |    (/2,0/)   | 2: Dirichlet |                                                          0: Phi=0                                                          |
-|  (/2,1001/)  | 2: Dirichlet |                                    1001: linear potential y-z via Phi = y*2340 + z*2340                                    |
+|    (/2,1/)   | 2: Dirichlet |                                                          1: linear function for Phi, see {ref}`sec:linear-potential`       |
+|  (/2,1001/)  | 2: Dirichlet |                                    1001: linear potential y-z via Phi = 2340y + 2340z                                    |
 |   (/2,101/)  | 2: Dirichlet |                                       101: linear in z-direction: z=-1: 0, z=1, 1000                                       |
 |   (/2,103/)  | 2: Dirichlet |                                                         103: dipole                                                        |
 |   (/2,104/)  | 2: Dirichlet |                              104: solution to Laplace's equation: Phi_xx + Phi_yy + Phi_zz = 0                             |
@@ -88,10 +89,12 @@ as detailed in the following table.
 |   (/10,0/)   |  10: Neumann |                                                  zero-gradient (dPhi/dn=0)                                                 |
 |   (/11,0/)   |  11: Neumann |                                                            q*n=1                                                           |
 
-For each boundary of type *5* (reference state boundary *RefState*), e.g., by setting the boundary in the *hopr.ini* file
+### RefState boundaries {-}
+
+For each boundary of type *5* (reference state boundary *RefState*), e.g., by setting the boundary in the *parameter.ini* file
 
     BoundaryName = BC_WALL ! BC name in the mesh.h5 file
-    BoundaryType = (/5,1/) ! (/ Type, curveIndex, State, alpha /)
+    BoundaryType = (/5,1/) ! (/ Type, State/)
 
 the corresponding *RefState* number must also be supplied in the parameter.ini file (here 1) and is selected from its position
 in the parameter file.
@@ -110,6 +113,26 @@ Similar to boundary type *5* is type *6*, which simply uses a cosine function th
 amplitude *A*
 
     Phi(t) = (A/2) * (COS(2*pi*f*t + psi) + 1)
+
+(sec:linear-potential)=
+### Linear potential function
+
+A linear function that ramps the electric potential from 0 V to a user-defined value can be applied to a boundary via
+
+    BoundaryName = BC_WALL ! BC name in the mesh.h5 file
+    BoundaryType = (/2,1/)
+
+Additionally, this specific boundary condition requires a starting position `LinPhiBasePoint` and
+a direction along which the potential varies `LinPhiNormal`. The distance along which the potential varies as well as the final
+value are defined by `LinPhiHeight` and `LinPhi`, respectively.
+Coordinates below and above this distance are simply set to 0 V and the defined value, respectively.
+The example below creates a linear ramp from 0 V to 1000 V starting at 1 mm in z-direction and ramps the value over 10 mm in the
+same direction.
+
+    LinPhiBasePoint = (/0. , 0. , 1e-3/)
+    LinPhiNormal    = (/0. , 0. , 1.0/)
+    LinPhiHeight    = 10e-3
+    LinPhi          = 1000.
 
 ### Zero potential enforcement
 

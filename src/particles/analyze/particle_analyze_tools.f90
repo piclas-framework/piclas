@@ -34,6 +34,10 @@ INTERFACE CalcNumPartsOfSpec
   MODULE PROCEDURE CalcNumPartsOfSpec
 END INTERFACE
 
+INTERFACE CalcMixtureTemp
+  MODULE PROCEDURE CalcMixtureTemp
+END INTERFACE
+
 PUBLIC :: CalcEkinPart,CalcEkinPart2
 PUBLIC :: CalcNumPartsOfSpec
 PUBLIC :: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
@@ -55,7 +59,8 @@ PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
 #endif /*(PP_TimeDiscMethod==42)*/
 PUBLIC :: CalcPowerDensity
 PUBLIC :: CalculatePartElemData
-PUBLIC :: CalcCoupledPowerPart
+PUBLIC :: CalcCoupledPowerPart, CalcEelec
+PUBLIC :: CalcNumberDensityBGGasDistri
 !===================================================================================================================================
 
 CONTAINS
@@ -68,7 +73,7 @@ PPURE REAL FUNCTION CalcEkinPart(iPart)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Globals_Vars  ,ONLY: c2, c2_inv
+USE MOD_Globals_Vars  ,ONLY: c2, c2_inv, RelativisticLimit
 USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species
 USE MOD_PARTICLE_Vars ,ONLY: usevMPF
 USE MOD_Particle_Vars ,ONLY: PartLorentzType
@@ -99,7 +104,7 @@ IF (PartLorentzType.EQ.5)THEN
   CalcEkinPart=(gamma1-1.0)*Species(PartSpecies(iPart))%MassIC*c2 * WeightingFactor
 ELSE
   partV2 = DOTPRODUCT(PartState(4:6,iPart))
-  IF (partV2.LT.1E12)THEN
+  IF (partV2.LT.RelativisticLimit)THEN ! |v| < 1000000 when speed of light is 299792458
     CalcEkinPart= 0.5 * Species(PartSpecies(iPart))%MassIC * partV2 * WeightingFactor
   ELSE
     gamma1=partV2*c2_inv
@@ -122,7 +127,7 @@ PPURE REAL FUNCTION CalcEkinPart2(velocity,Species_IN,WeightingFactor)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Globals_Vars  ,ONLY: c2,c2_inv
+USE MOD_Globals_Vars  ,ONLY: c2,c2_inv,RelativisticLimit
 USE MOD_Particle_Vars ,ONLY: Species
 USE MOD_Particle_Vars ,ONLY: PartLorentzType
 ! IMPLICIT VARIABLE HANDLING
@@ -146,7 +151,7 @@ IF (PartLorentzType.EQ.5)THEN
   gamma1=SQRT(1.0+partV2*c2_inv)
   CalcEkinPart2=(gamma1-1.0)*Species(Species_IN)%MassIC*c2 * WeightingFactor
 ELSE
-  IF (partV2.LT.1E12)THEN
+  IF (partV2.LT.RelativisticLimit)THEN ! |v| < 1000000 when speed of light is 299792458
     CalcEkinPart2= 0.5 * Species(Species_IN)%MassIC * partV2 * WeightingFactor
   ELSE
     gamma1=partV2*c2_inv
@@ -362,9 +367,10 @@ SUBROUTINE CalculatePartElemData()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronIonDensity
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronIonDensity,CalcPICTimeStepCyclotron
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaParameter,CalcPICCFLCondition,CalcMaxPartDisplacement,CalcElectronEnergy
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCyclotronFrequency
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -391,13 +397,19 @@ IF(CalcElectronEnergy) CALL CalculateElectronEnergyCell()
 ! plasma frequency
 IF(CalcPlasmaFrequency) CALL CalculatePlasmaFrequencyCell()
 
+! Cyclotron frequency
+IF(CalcCyclotronFrequency) CALL CalculateCyclotronFrequencyAndRadiusCell()
+
+! PIC time step for gyro motion (cyclotron frequency)
+IF(CalcPICTimeStepCyclotron) CALL CalculatePICTimeStepCyclotron()
+
 ! Debye length
 IF(CalcDebyeLength) CALL CalculateDebyeLengthCell()
 
 ! Plasma parameter: 4/3 * pi * n_e * lambda_D^3
 IF(CalcPlasmaParameter) CALL CalculatePlasmaParameter()
 
-! PIC time step
+! PIC time step (plasma frequency)
 IF(CalcPICTimeStep) CALL CalculatePICTimeStepCell()
 
 ! PointsPerDebyeLength: PPD = (p+1)*lambda_D/L_cell
@@ -870,7 +882,7 @@ PPURE SUBROUTINE CalcKineticEnergy(Ekin)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Globals_Vars          ,ONLY: c2, c2_inv
+USE MOD_Globals_Vars          ,ONLY: c2, c2_inv, RelativisticLimit
 USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
@@ -906,7 +918,7 @@ IF (nSpecAnalyze.GT.1) THEN
       ENDIF
 #endif /*USE_HDG*/
       partV2 = DOTPRODUCT(PartState(4:6,i))
-      IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
+      IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           ! %MacroParticleFactor is included in the case of vMPF (also in combination with variable time step)
@@ -917,7 +929,7 @@ IF (nSpecAnalyze.GT.1) THEN
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF != usevMPF
-      ELSE ! partV2 > 1E12
+      ELSE ! partV2 > RelativisticLimit
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
@@ -946,14 +958,14 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
       ENDIF
 #endif /*USE_HDG*/
       partV2 = DOTPRODUCT(PartState(4:6,i))
-      IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
+      IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF ! usevMPF
-      ELSE ! partV2 > 1E12
+      ELSE ! partV2 > RelativisticLimit
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
@@ -962,7 +974,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF ! useuvMPF
-      END IF ! par2
+      END IF ! partV2 .LT. RelativisticLimit
     END IF ! particle inside
   END DO ! particleveclength
 END IF
@@ -978,7 +990,7 @@ PPURE SUBROUTINE CalcKineticEnergyAndMaximum(Ekin,EkinMax)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Globals_Vars          ,ONLY: c2, c2_inv
+USE MOD_Globals_Vars          ,ONLY: c2, c2_inv, RelativisticLimit
 USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpecies
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze,LaserInteractionEkinMaxRadius,LaserInteractionEkinMaxZPosMin
@@ -1018,7 +1030,7 @@ IF (nSpecAnalyze.GT.1) THEN
       ENDIF
 #endif /*USE_HDG*/
       partV2 = DOTPRODUCT(PartState(4:6,i))
-      IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
+      IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           ! %MacroParticleFactor is included in the case of RadialWeighting (also in combination with variable time step)
@@ -1029,7 +1041,7 @@ IF (nSpecAnalyze.GT.1) THEN
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF != usevMPF
-      ELSE ! partV2 > 1E12
+      ELSE ! partV2 > RelativisticLimit
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
@@ -1061,14 +1073,14 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
       ENDIF
 #endif /*USE_HDG*/
       partV2 = DOTPRODUCT(PartState(4:6,i))
-      IF ( partV2 .LT. 1E12) THEN  ! |v| < 1000000
+      IF ( partV2 .LT. RelativisticLimit) THEN ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
         IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
         END IF ! usevMPF
-      ELSE ! partV2 > 1E12
+      ELSE ! partV2 > RelativisticLimit
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
@@ -1091,11 +1103,11 @@ END IF
 END SUBROUTINE CalcKineticEnergyAndMaximum
 
 
-PPURE SUBROUTINE CalcNumberDensity(NumSpec,NumDens)
 !===================================================================================================================================
-!> Computes the number density per species using the total mesh volume and if neccessary particle weights
+!> Computes the number density per species using the total mesh volume and if necessary particle weights
 !> Background gas density is saved as given in the input
 !===================================================================================================================================
+PPURE SUBROUTINE CalcNumberDensity(NumSpec,NumDens)
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: BGGas, RadialWeighting
@@ -1113,7 +1125,7 @@ REAL,INTENT(IN)                   :: NumSpec(nSpecAnalyze)
 REAL,INTENT(OUT)                  :: NumDens(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: iSpec
+INTEGER                           :: iSpec,bgSpec
 !===================================================================================================================================
 
 ! Only root does calculation
@@ -1128,7 +1140,13 @@ END IF
 IF(BGGas%NumberOfSpecies.GT.0) THEN
   DO iSpec = 1, nSpecies
     IF(BGGas%BackgroundSpecies(iSpec)) THEN
-      NumDens(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))
+      bgSpec = BGGas%MapSpecToBGSpec(iSpec)
+      IF(BGGas%UseDistribution) THEN
+        ! Use pre-calculate value
+        NumDens(iSpec) = BGGas%DistributionNumDens(bgSpec)
+      ELSE
+        NumDens(iSpec) = BGGas%NumberDensity(bgSpec)
+      END IF
     END IF
   END DO
 END IF
@@ -1136,6 +1154,65 @@ END IF
 IF(nSpecAnalyze.GT.1) NumDens(nSpecAnalyze) = SUM(NumDens(1:nSpecies))
 
 END SUBROUTINE CalcNumberDensity
+
+
+!===================================================================================================================================
+!> Computes the number density per species when using BGGas distribution
+!===================================================================================================================================
+SUBROUTINE CalcNumberDensityBGGasDistri()
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: BGGas
+USE MOD_Particle_Vars         ,ONLY: nSpecies
+USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume,ElemVolume_Shared
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+#if USE_MPI
+USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+#endif /*USE_MPI*/
+USE MOD_Mesh_Vars             ,ONLY: nElems,offSetElem
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: iSpec,bgSpec,iElem
+REAL                              :: DistriNumDens(1:BGGas%NumberOfSpecies)
+!===================================================================================================================================
+! Initialize
+DistriNumDens = 0.
+ALLOCATE(BGGas%DistributionNumDens(1:BGGas%NumberOfSpecies))
+BGGas%DistributionNumDens = 0.
+
+! Loop over all species and elements and add up the mass within each element
+DO iSpec = 1, nSpecies
+  IF(BGGas%BackgroundSpecies(iSpec)) THEN
+    bgSpec = BGGas%MapSpecToBGSpec(iSpec)
+    DistriNumDens(bgSpec) = 0.
+    DO iElem = 1, nElems
+      ! Calculate mass per element (divide by total mesh volume later on)
+      DistriNumDens(bgSpec) = DistriNumDens(bgSpec) &
+                            + BGGas%Distribution(bgSpec,7,iElem) * ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+    END DO ! iElem = 1, nElems
+  END IF
+END DO
+
+! Communicate
+#if USE_MPI
+IF(PartMPI%MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE , DistriNumDens, BGGas%NumberOfSpecies, MPI_DOUBLE_PRECISION, MPI_SUM, 0,PartMPI%COMM ,IERROR)
+ELSE
+  CALL MPI_REDUCE(DistriNumDens, 0.           , BGGas%NumberOfSpecies, MPI_DOUBLE_PRECISION, MPI_SUM, 0,PartMPI%COMM ,IERROR)
+END IF
+#endif /*USE_MPI*/
+BGGas%DistributionNumDens = DistriNumDens
+
+! Average over total mesh
+BGGas%DistributionNumDens = BGGas%DistributionNumDens / MeshVolume
+
+END SUBROUTINE CalcNumberDensityBGGasDistri
 
 
 SUBROUTINE CalcAdaptBCInfo()
@@ -1148,13 +1225,16 @@ SUBROUTINE CalcAdaptBCInfo()
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_TimeDisc_Vars           ,ONLY: dt, iter
-USE MOD_Particle_Analyze_Vars   ,ONLY: MassflowRate, PressureAdaptiveBC, nSpecAnalyze
+USE MOD_Particle_Analyze_Vars   ,ONLY: MassflowRate, PressureAdaptiveBC
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,usevMPF
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCAreaSurfaceFlux
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
+#if USE_MPI
+USE MOD_Particle_Analyze_Vars   ,ONLY: nSpecAnalyze
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1163,8 +1243,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iSpec, iSF, ElemID, SampleElemID, SurfSideID, iSide, iSample, jSample, currentBC, MaxSurfaceFluxBCs
+INTEGER             :: iSpec, iSF, ElemID, SampleElemID, SurfSideID, iSide, iSample, jSample, currentBC
 REAL                :: MacroParticleFactor
+#if USE_MPI
+INTEGER             :: MaxSurfaceFluxBCs
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 IF(iter.EQ.0) RETURN
@@ -1252,7 +1335,7 @@ IMPLICIT NONE
 REAL, INTENT(IN)                  :: NumSpec(nSpecAnalyze)    ! number of real particles (already GLOBAL number)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)                 :: Temp(nSpecAnalyze)
+REAL, INTENT(IN)                  :: Temp(nSpecAnalyze)
 REAL, INTENT(OUT)                 :: IntEn(nSpecAnalyze,3)
 REAL, INTENT(OUT)                 :: IntTemp(nSpecies,3)
 REAL, INTENT(OUT)                 :: TempTotal(nSpecAnalyze)
@@ -1444,14 +1527,15 @@ SUBROUTINE CalcTransTemp(NumSpec, Temp)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars          ,ONLY : BoltzmannConst
 USE MOD_Preproc
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,Kelvin2eV
 USE MOD_Particle_Vars         ,ONLY: nSpecies
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, PDM
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 USE MOD_DSMC_Vars             ,ONLY: DSMC, AmbipolElecVelo
+USE MOD_Particle_Vars         ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,BulkElectronTempSpecID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1520,6 +1604,18 @@ IF(PartMPI%MPIRoot)THEN
   END IF
 END IF
 
+! For SEE model that used the bulk electron temperature, use the global electron temperature
+IF(PartMPI%MPIRoot.AND.CalcBulkElectronTemp)THEN
+  ASSOCIATE( Te => BulkElectronTemp ,&
+             T  => Temp(BulkElectronTempSpecID)*Kelvin2eV)
+    ! Smooth the bulk electron temperature by adjusting the difference by 50%
+    Te = Te + 0.5 * (T - Te)
+  END ASSOCIATE
+END IF
+#if USE_MPI
+IF(CalcBulkElectronTemp) CALL MPI_BCAST(BulkElectronTemp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+#endif /*USE_MPI*/
+
 END SUBROUTINE CalcTransTemp
 
 
@@ -1550,7 +1646,7 @@ REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the electro
 CalcTelec = 0.
 
 SELECT CASE(DSMC%ElectronicModel)
-CASE(1,2)
+CASE(1,2,4)
   IF (MeanEelec.GT.0) THEN
     ! Lower limit: very small value or lowest temperature if ionized
     IF (SpecDSMC(iSpec)%ElectronicState(2,0).EQ.0.0) THEN
@@ -1589,6 +1685,48 @@ END SELECT
 RETURN
 
 END FUNCTION CalcTelec
+
+
+REAL FUNCTION CalcEelec(TElec, iSpec)
+!===================================================================================================================================
+!> Calculation of the electronic temperature (zero-point search)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)      :: TElec  !< Mean electronic energy
+INTEGER, INTENT(IN)   :: iSpec      !< Species index
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER               :: ii
+REAL                  :: TempRatio, SumOne, SumTwo        !< Sums of the electronic partition function
+!===================================================================================================================================
+
+IF (TElec.GT.0) THEN
+  SumOne = 0.0
+  SumTwo = 0.0
+  DO ii = 0, SpecDSMC(iSpec)%MaxElecQuant-1
+    TempRatio = SpecDSMC(iSpec)%ElectronicState(2,ii) / TElec
+    IF(CHECKEXP(TempRatio)) THEN
+      SumOne = SumOne + SpecDSMC(iSpec)%ElectronicState(1,ii) * EXP(-TempRatio)
+      SumTwo = SumTwo + SpecDSMC(iSpec)%ElectronicState(1,ii) * SpecDSMC(iSpec)%ElectronicState(2,ii) * EXP(-TempRatio)
+    END IF
+  END DO
+  CalcEelec = SumTwo / SumOne * BoltzmannConst
+ELSE
+  CalcEelec = 0. ! sup
+END IF
+
+RETURN
+
+END FUNCTION CalcEelec
 
 
 REAL FUNCTION CalcTVibPoly(MeanEVib, iSpec)
@@ -2196,7 +2334,6 @@ USE MOD_Timeaverage_Vars ,ONLY: DoPowerDensity,PowerDensity
 USE MOD_Particle_Vars    ,ONLY: nSpecies,PartSpecies,PDM
 USE MOD_PICDepo_Vars     ,ONLY: PartSource
 USE MOD_Part_RHS         ,ONLY: PartVeloToImp
-USE MOD_Mesh_Vars        ,ONLY: OffsetElem
 USE MOD_Preproc
 USE MOD_PICDepo          ,ONLY: Deposition
 USE MOD_Mesh_Tools       ,ONLY: GetCNElemID
@@ -2254,24 +2391,24 @@ DO iSpec=1,nSpecies
         DO i=0,PP_N
           ! 1:3 PowerDensity, 4 charge density
 #if !(USE_HDG)
-          PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,GetCNElemID(iElem+offSetElem))*U(1,i,j,k,iElem)
-          PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,GetCNElemID(iElem+offSetElem))*U(2,i,j,k,iElem)
-          PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,GetCNElemID(iElem+offSetElem))*U(3,i,j,k,iElem)
-          PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,GetCNElemID(iElem+offSetElem))
+          PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*U(1,i,j,k,iElem)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*U(2,i,j,k,iElem)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+          PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #else
 #if PP_nVar==1
-          PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,GetCNElemID(iElem+offSetElem))*E(1,i,j,k,iElem)
-          PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,GetCNElemID(iElem+offSetElem))*E(2,i,j,k,iElem)
-          PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,GetCNElemID(iElem+offSetElem))*E(3,i,j,k,iElem)
+          PowerDensity(1,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)*E(1,i,j,k,iElem)
+          PowerDensity(2,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)*E(2,i,j,k,iElem)
+          PowerDensity(3,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)*E(3,i,j,k,iElem)
 #else
           PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
 #endif
-          PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,GetCNElemID(iElem+offSetElem))
+          PowerDensity(4,i,j,k,iElem,iSpec2)=PartSource(4,i,j,k,iElem)
 #endif
           ! 5:7 current density
-          PowerDensity(5,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,GetCNElemID(iElem+offSetElem))
-          PowerDensity(6,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,GetCNElemID(iElem+offSetElem))
-          PowerDensity(7,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,GetCNElemID(iElem+offSetElem))
+          PowerDensity(5,i,j,k,iElem,iSpec2)=PartSource(1,i,j,k,iElem)
+          PowerDensity(6,i,j,k,iElem,iSpec2)=PartSource(2,i,j,k,iElem)
+          PowerDensity(7,i,j,k,iElem,iSpec2)=PartSource(3,i,j,k,iElem)
         END DO ! i=0,PP_N
       END DO ! j=0,PP_N
     END DO ! k=0,PP_N
@@ -2314,14 +2451,170 @@ END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculatePlasmaFrequencyCell
 
-SUBROUTINE CalculatePICTimeStepCell()
+
+SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell()
 !===================================================================================================================================
-! use the plasma frequency per cell to estimate the pic time step
+! Determine the (relativistic) electron cyclotron frequency in each cell, which can be calculate without electrons present in the
+! cell in the classical (non-relativistic) limit. If electrons are present, their velocity is used to calculate the Lorentz factor
+! gamma. From the cyclotron frequency and the electron velocity, the Larmor or gyroradius is calculated
+!
+! ------------------------------------------------
+! omega_c = e*B / m_e     (non-relativistic)
+!
+!   omega_c: cyclotron frequency
+!         e: elementary charge (of an electron, absolute value)
+!         B: magnitude of the magnetic flux density at the electron's position
+!       m_e: electron rest mass
+!
+! ------------------------------------------------
+! omega_c = e*B / (gamma*m_e) = e*B / (sqrt(1-v_e^2/c^2)*m_e)
+!
+!   omega_c: cyclotron frequency     (relativistic)
+!         e: elementary charge (of an electron, absolute value)
+!         B: magnitude of the magnetic flux density at the electron's position
+!     gamma: Lorentz factor
+!       m_e: electron rest mass
+!       v_e: magnitude of velocity
+!         c: speed of light
+!
+! ------------------------------------------------
+! r = v_e / omega_c
+!   omega_c: cyclotron frequency
+!       v_e: magnitude of velocity
+!
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars  ,ONLY:PlasmaFrequencyCell,PICTimeStepCell
+USE MOD_Globals                ,ONLY: PARTISELECTRON,VECNORM,DOTPRODUCT
+USE MOD_Globals_Vars           ,ONLY: c2_inv,RelativisticLimit
+USE MOD_Particle_Vars          ,ONLY: PartState
+USE MOD_Particle_Analyze_Vars  ,ONLY: CyclotronFrequencyMaxCell,CyclotronFrequencyMinCell,GyroradiusMinCell,GyroradiusMaxCell
+USE MOD_Globals_Vars           ,ONLY: ElementaryCharge,ElectronMass
+USE MOD_Particle_Vars          ,ONLY: PDM, PEM
+USE MOD_PICInterpolation_tools ,ONLY: GetExternalFieldAtParticle,GetInterpolatedFieldPartPos,GetEMField
+USE MOD_Interpolation_Vars     ,ONLY: xGP
+USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iElem,iGlobElem,iPart,i,j,k
+REAL    :: PartV,partV2,field(6),B,gamma1,omega_c,gyroradius
+LOGICAL :: SetFrequency,SetRadius
+!===================================================================================================================================
+
+! nullify
+CyclotronFrequencyMaxCell=0.
+GyroradiusMinCell=HUGE(1.)
+CyclotronFrequencyMinCell=HUGE(1.)
+GyroradiusMaxCell=0.
+
+ASSOCIATE( e   => ElementaryCharge,&
+           m_e => ElectronMass )
+  ! 1.) Loop all particles and check only if electrons
+  DO iPart=1,PDM%ParticleVecLength
+    IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
+    IF(PARTISELECTRON(iPart))THEN
+      SetFrequency = .FALSE. ! Initialize
+      SetRadius    = .FALSE. ! Initialize
+      ! Get magnitude of the electron's velocity and the magnetic field at its location
+      PartV  = VECNORM(PartState(4:6,iPart)) ! velocity magnitude
+      partV2 = PartV*PartV
+      iGlobElem  = PEM%GlobalElemID(iPart)
+      iElem  = PEM%LocalElemID(iPart)
+      IF (partV2.LT.RelativisticLimit)THEN ! |v| < 1000000 when speed of light is 299792458
+        field(1:6)   = GetExternalFieldAtParticle(PartState(1:3,iPart)) + GetInterpolatedFieldPartPos(iGlobElem,iPart)
+        B            = VECNORM(field(4:6))
+        omega_c      = e*B/m_e
+        SetFrequency = .TRUE.
+        IF(omega_c.GT.0.) SetRadius = .TRUE.
+      ELSE
+        gamma1=partV2*c2_inv
+        ! Sanity check: Lorentz factor must be below 1.0: gamma in [0,1)
+        IF(gamma1.GE.1.0)THEN
+          ! don't store this value as cyclotron frequency, keep the zero or an already correctly set value
+        ELSE
+          field(1:6)   = GetExternalFieldAtParticle(PartState(1:3,iPart)) + GetInterpolatedFieldPartPos(iGlobElem,iPart)
+          gamma1       = 1.0/SQRT(1.-gamma1)
+          B            = VECNORM(field(4:6))
+          omega_c      = e*B/(gamma1*m_e)
+          SetFrequency = .TRUE.
+          IF(omega_c.GT.0.) SetRadius = .TRUE.
+        END IF ! gamma1.GE.1.0
+      END IF ! partV2.LT.RelativisticLimit
+
+      ! Check if values were calculated for this particle
+      IF(SetFrequency)THEN
+        CyclotronFrequencyMaxCell(iElem) = MAX(CyclotronFrequencyMaxCell(iElem), omega_c)
+        CyclotronFrequencyMinCell(iElem) = MIN(CyclotronFrequencyMinCell(iElem), omega_c)
+        IF(SetRadius)THEN
+          gyroradius = PartV / omega_c
+          GyroradiusMaxCell(iElem) = MAX(GyroradiusMaxCell(iElem), gyroradius)
+          GyroradiusMinCell(iElem) = MIN(GyroradiusMinCell(iElem), gyroradius)
+        END IF ! SetRadius
+      END IF ! SetFrequency
+    END IF ! PARTISELECTRON(iPart)
+  END DO ! iPart=1,PDM%ParticleVecLength
+
+  ! 2.) Loop over all elements and compute the Cyclotron frequency for elements, which have not been done yet (get magnetic field
+  !     at all DOF and use the maximum)
+  DO iElem=1,PP_nElems
+
+    ! Max
+    IF(ABS(CyclotronFrequencyMaxCell(iElem)).LE.0.)THEN
+      DO k=0,PP_N
+        DO j=0,PP_N
+          DO i=0,PP_N
+            ASSOCIATE( x => Elem_xGP(1,i,j,k,iElem), y => Elem_xGP(2,i,j,k,iElem), z => Elem_xGP(3,i,j,k,iElem))
+              field(1:6) = GetExternalFieldAtParticle((/x,y,z/)) + GetEMField(iElem,(/xGP(i),xGP(j),xGP(k)/))
+              B = VECNORM(field(4:6))
+              CyclotronFrequencyMaxCell(iElem) = MAX(CyclotronFrequencyMaxCell(iElem), e*B/(m_e) )
+            END ASSOCIATE
+          END DO ! i
+        END DO ! j
+      END DO ! k
+    END IF ! ABS(CyclotronFrequencyMaxCell(iElem)).LE.0.
+
+    ! Min
+    IF(ABS(CyclotronFrequencyMinCell(iElem)).EQ.HUGE(1.))THEN
+      DO k=0,PP_N
+        DO j=0,PP_N
+          DO i=0,PP_N
+            ASSOCIATE( x => Elem_xGP(1,i,j,k,iElem), y => Elem_xGP(2,i,j,k,iElem), z => Elem_xGP(3,i,j,k,iElem))
+              field(1:6) = GetExternalFieldAtParticle((/x,y,z/)) + GetEMField(iElem,(/xGP(i),xGP(j),xGP(k)/))
+              B = VECNORM(field(4:6))
+              CyclotronFrequencyMinCell(iElem) = MIN(CyclotronFrequencyMinCell(iElem), e*B/(m_e) )
+            END ASSOCIATE
+          END DO ! i
+        END DO ! j
+      END DO ! k
+    END IF ! ABS(CyclotronFrequencyMinCell(iElem)).LE.0.
+
+    ! Sanity check
+    IF(GyroradiusMinCell(iElem).EQ.HUGE(1.)) GyroradiusMinCell(iElem)=0.
+  END DO ! iElem=1,PP_nElems
+END ASSOCIATE
+
+END SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell
+
+
+SUBROUTINE CalculatePICTimeStepCyclotron()
+!===================================================================================================================================
+! use the gyro frequency per cell to estimate the pic time step
+! Factor 0.05 = 1/20 from: Qin "Why is Boris algorithm so good?" (2013), PHYSICS OF PLASMAS 20, 084503 (2013)
+!
+! dt >= 0.05 / omega_c
+!   omega_c: electron cyclotron frequency
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Preproc
+USE MOD_Particle_Analyze_Vars ,ONLY: CyclotronFrequencyMaxCell,PICTimeStepCyclotronCell
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2334,11 +2627,42 @@ INTEGER              :: iElem
 !===================================================================================================================================
 
 ! nullify
-PICTimeStepCell=0
+PICTimeStepCyclotronCell=0.
 
 ! loop over all elements and compute the PIC-timestep with the plasma frequency
 DO iElem=1,PP_nElems
-  IF(PlasmaFrequencyCell(iElem).LE.0) CYCLE
+  IF(CyclotronFrequencyMaxCell(iElem).LE.0.) CYCLE
+  PICTimeStepCyclotronCell(iElem) = 0.05 / CyclotronFrequencyMaxCell(iElem)
+END DO ! iElem=1,PP_nElems
+
+END SUBROUTINE CalculatePICTimeStepCyclotron
+
+
+SUBROUTINE CalculatePICTimeStepCell()
+!===================================================================================================================================
+! use the plasma frequency per cell to estimate the pic time step
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Preproc
+USE MOD_Particle_Analyze_Vars ,ONLY: PlasmaFrequencyCell,PICTimeStepCell
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iElem
+!===================================================================================================================================
+
+! nullify
+PICTimeStepCell=0.
+
+! loop over all elements and compute the PIC-timestep with the plasma frequency
+DO iElem=1,PP_nElems
+  IF(PlasmaFrequencyCell(iElem).LE.0.) CYCLE
   PICTimeStepCell(iElem) = 0.2 / PlasmaFrequencyCell(iElem)
 END DO ! iElem=1,PP_nElems
 

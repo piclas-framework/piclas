@@ -37,7 +37,6 @@ TYPE(tTLU_Data)                           :: TLU_Data
 
 INTEGER                       :: DSMCSumOfFormedParticles   !number of formed particles per iteration in chemical reactions
                                                             ! for counting the nextfreeparticleposition
-REAL  , ALLOCATABLE           :: DSMC_RHS(:,:)              ! RHS of the DSMC Method/ deltaV (npartmax, direction)
 INTEGER                       :: CollisMode                 ! Mode of Collision:, ini_1
                                                             !    0: No Collisions (=free molecular flow with DSMC-Sampling-Routines)
                                                             !    1: Elastic Collision
@@ -168,6 +167,9 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
                                                             ! using read-in cross-sectional data
   LOGICAL                           :: UseElecXSec          ! Flag if the electronic relaxation probability should be treated,
                                                             ! using read-in cross-sectional data (currently only with BGG)
+  REAL,ALLOCATABLE                  :: CollFreqPreFactor(:) ! Prefactors for calculating the collision frequency in each time step
+  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:) ! Correction factor for electronical landau-teller relaxation
+  REAL                              :: MaxMeanXiElec(2)     ! 1: max mean XiElec 2: Temperature corresponding to max mean XiElec
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
@@ -261,17 +263,41 @@ END TYPE tDSMC
 
 TYPE(tDSMC)                     :: DSMC
 
+TYPE tRegion
+  CHARACTER(40)                 :: Type             ! Geometric type of the region, e.g. cylinder
+                                ! Region-Type: cylinder
+  REAL                          :: RadiusIC
+  REAL                          :: Radius2IC
+  REAL                          :: CylinderHeightIC
+  REAL                          :: BasePointIC(3)
+  REAL                          :: BaseVector1IC(3)
+  REAL                          :: BaseVector2IC(3)
+  REAL                          :: NormalVector(3)
+END TYPE tRegion
+
 TYPE tBGGas
   INTEGER                       :: NumberOfSpecies          ! Number of background gas species
   LOGICAL, ALLOCATABLE          :: BackgroundSpecies(:)     ! Flag, if a species is a background gas species, [1:nSpecies]
   INTEGER, ALLOCATABLE          :: MapSpecToBGSpec(:)       ! Input: [1:nSpecies], output is the corresponding background species
   INTEGER, ALLOCATABLE          :: MapBGSpecToSpec(:)       ! Input: [1:nBGSpecies], output is the corresponding species index
   REAL, ALLOCATABLE             :: SpeciesFraction(:)       ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
+  REAL, ALLOCATABLE             :: SpeciesFractionElem(:,:) ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
+                                                            ! per element
   REAL, ALLOCATABLE             :: NumberDensity(:)         ! Number densities of the background gas, [1:BGGas%NumberOfSpecies]
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
+  LOGICAL                       :: UseDistribution          ! Flag for the utilization of a background gas distribution as read-in
+                                                            ! from a previous DSMC/BGK simulation result
+  REAL, ALLOCATABLE             :: Distribution(:,:,:)      ! Element local background gas [1:BGGSpecies,1:10,1:nElems]
+  REAL, ALLOCATABLE             :: DistributionNumDens(:)   ! When CalcNumDens=T, pre-calculate the density once at the beginning
+  INTEGER, ALLOCATABLE          :: DistributionSpeciesIndex(:)  ! Index of species in the read-in DSMCState file to use
+                                                                ! as a background distribution [1:nSpecies]
   LOGICAL, ALLOCATABLE          :: TraceSpecies(:)          ! Flag, if species is a trace element, Input: [1:nSpecies]
   REAL                          :: MaxMPF                   ! Maximum weighting factor of the background gas species
+  INTEGER                       :: nRegions                 ! Number of different background gas regions (read-in)
+  LOGICAL                       :: UseRegions               ! Flag for the definition of different background gas regions (set after read-in)
+  INTEGER, ALLOCATABLE          :: RegionElemType(:)        ! 0: outside, positive integers: inside region number
+  TYPE(tRegion), ALLOCATABLE    :: Region(:)                ! Type for the geometry definition of the different regions [1:nRegions]
 END TYPE tBGGas
 
 TYPE(tBGGas)                    :: BGGas
@@ -413,7 +439,7 @@ TYPE tChemReactions
   REAL, ALLOCATABLE               :: CrossSection(:)        ! Cross-section of the given photo-ionization reaction
   TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase)
   ! XSec Chemistry
-  LOGICAL                         :: AnyXSecReaction          ! Defines if any QK reaction present
+  LOGICAL                         :: AnyXSecReaction        ! Defines if any XSec reaction is present
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
@@ -450,8 +476,15 @@ TYPE tAmbipolElecVelo !DSMC Species Param
 END TYPE
 
 TYPE (tAmbipolElecVelo), ALLOCATABLE    :: AmbipolElecVelo(:)
+INTEGER, ALLOCATABLE            :: AmbiPolarSFMapping(:,:)
 INTEGER, ALLOCATABLE            :: iPartIndx_NodeNewAmbi(:)
 INTEGER                         :: newAmbiParts
+
+INTEGER, ALLOCATABLE            :: iPartIndx_NodeNewElecRelax(:)
+INTEGER                         :: newElecRelaxParts
+INTEGER, ALLOCATABLE            :: iPartIndx_NodeElecRelaxChem(:)
+INTEGER                         :: nElecRelaxChemParts
+LOGICAL, ALLOCATABLE            :: ElecRelaxPart(:)
 
 TYPE tElectronicDistriPart !DSMC Species Param
   REAL, ALLOCATABLE               :: DistriFunc(:)            ! Vib quants of each DOF for each particle

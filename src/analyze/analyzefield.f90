@@ -1579,8 +1579,11 @@ REAL,INTENT(OUT)   :: BoundaryFieldOutput(1:PP_nVar)
 ! LOCAL VARIABLES
 #if USE_HDG
 INTEGER           :: BCType,BCState
+#else
+INTEGER           :: dummy
 #endif /*USE_HDG*/
 !===================================================================================================================================
+BoundaryFieldOutput=0.!Initialize
 #if USE_HDG
 #if (PP_nVar==1)
 BCType =BoundaryType(iBC,BC_TYPE)
@@ -1602,6 +1605,9 @@ CALL abort(__STAMP__,'CalculateBoundaryFieldOutput is not implemented for PP_nVa
 #endif /*PP_nVar==1*/
 #else
 CALL abort(__STAMP__,'CalculateBoundaryFieldOutput is not implemented for other equation systems yet (only HDG)')
+! Suppress warnings
+dummy=iBC
+dummy=INT(Time)
 #endif /*USE_HDG*/
 
 END SUBROUTINE CalculateBoundaryFieldOutput

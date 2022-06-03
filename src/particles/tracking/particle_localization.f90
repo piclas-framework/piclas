@@ -307,11 +307,11 @@ DO ilocSide = 1,6
     CASE(PLANAR_RECT)
       CALL ComputePlanarRectIntersection(  ishit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,flip,SideID)
     CASE(PLANAR_CURVED)
-      CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,flip,SideID)
+      CALL ComputePlanarCurvedIntersection( isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,flip,SideID)
     CASE(BILINEAR,PLANAR_NONRECT)
-        CALL ComputeBiLinearIntersection(  isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,     SideID,ElemCheck_Opt=.TRUE.)
+        CALL ComputeBiLinearIntersection(     isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,     SideID,ElemCheck_Opt=.TRUE.)
     CASE(CURVED)
-      CALL ComputeCurvedIntersection(      isHit,PartTrajectory,lengthPartTrajectory,Alpha,xi,eta,PartID,     SideID,ElemCheck_Opt=.TRUE.)
+      CALL ComputeCurvedIntersection(       isHit,PartTrajectory,lengthPartTrajectory,alpha,xi,eta,PartID,flip,SideID,ElemCheck_Opt=.TRUE.)
   END SELECT
 
 #ifdef CODE_ANALYZE

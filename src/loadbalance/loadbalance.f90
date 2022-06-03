@@ -70,7 +70,7 @@ CALL prms%CreateIntOption(    'WeightDistributionMethod', 'Method for distributi
                                                           ' 2: NOT WORKING\n'//&
                                                           ' 3: TODO DEFINE\n'//&
                                                           ' 4: TODO DEFINE\n'//&
-                                                          ' 5/6: iterative smoothing of loads towards last proc\n')
+                                                          ' 5/6: iterative smoothing of loads towards last proc\n',value='1')
 
 END SUBROUTINE DefineParametersLoadBalance
 
@@ -128,6 +128,7 @@ ELSE IF (LoadBalanceSample.EQ.0) THEN
   PerformPartWeightLB = .TRUE. ! loadbalance (elemtimes) is done with partmpiweight if loadbalancesampling is set to zero
   CALL PrintOption('LoadbalanceSample = 0 : PartWeightLoadBalance','INFO',LogOpt=PerformPartWeightLB)
 END IF
+WeightDistributionMethod = GETINT('WeightDistributionMethod')
 #else
 DoLoadBalance=.FALSE. ! deactivate loadbalance if no preproc flag is set
 DeviationThreshold=HUGE(1.0)

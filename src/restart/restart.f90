@@ -76,6 +76,9 @@ CALL prms%CreateLogicalOption('Particles-MacroscopicRestart', &
                               '.FALSE.')
 CALL prms%CreateStringOption( 'Particles-MacroscopicRestart-Filename', &
                               'File name of the DSMCState to be utilized as the input for the particle insertion.')
+CALL prms%CreateLogicalOption('FlushInitialState',&
+                              'Check whether (during restart) the statefile from which the restart is performed should be deleted.'&
+                            , '.FALSE.')
 END SUBROUTINE DefineParametersRestart
 
 
@@ -172,7 +175,11 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
     IF(PP_nVar.NE.nVar_Restart)THEN
       SWRITE(UNIT_StdOut,'(A,I5)')"     PP_nVar =", PP_nVar
       SWRITE(UNIT_StdOut,'(A,I5)')"nVar_Restart =", nVar_Restart
+#if USE_HDG
+      SWRITE(UNIT_StdOut,'(A)')" HDG: Restarting from a different equation system."
+#else
       CALL abort(__STAMP__,'PP_nVar!=nVar_Restart (Number of variables in restart file does no match the compiled equation system).')
+#endif /*USE_HDG*/
     END IF
   END IF
   ! Read in time from restart file
@@ -235,9 +242,6 @@ ELSE IF (InitialAutoRestartSample.EQ.0) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 
-! Set wall time to the beginning of the simulation or when a restart is performed to the current wall time
-RestartWallTime=PICLASTIME()
-
 IF(DoRestart .AND. (N_Restart .NE. PP_N))THEN
   BuildNewMesh       =.TRUE.
   WriteNewMesh       =.TRUE.
@@ -248,6 +252,11 @@ IF(InterpolateSolution)THEN
   CALL initRestartBasis(PP_N,N_Restart,xGP)
 END IF
 
+! Check whether (during restart) the statefile from which the restart is performed should be deleted
+FlushInitialState = GETLOGICAL('FlushInitialState')
+
+! Set wall time to the beginning of the simulation or when a restart is performed to the current wall time
+RestartWallTime=PICLASTIME()
 RestartInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT RESTART DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
@@ -314,8 +323,8 @@ USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
 USE MOD_Equation_Vars          ,ONLY: Phi
 #endif /*PP_POIS*/
 #ifdef PARTICLES
+USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5,ReadNodeSourceExtFromHDF5
 USE MOD_part_operations        ,ONLY: RemoveAllElectrons
-USE MOD_Restart_Tools          ,ONLY: ReadNodeSourceExtFromHDF5
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
 USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset, Species
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition,StoreLostParticleProperties
@@ -396,7 +405,7 @@ REAL                               :: det(6,2)
 INTEGER                            :: NbrOfMissingParticles, CounterPoly
 INTEGER, ALLOCATABLE               :: VibQuantData(:,:)
 REAL, ALLOCATABLE                  :: ElecDistriData(:,:), AD_Data(:,:)
-INTEGER                            :: MaxQuantNum, iPolyatMole, iSpec, iPart, iVar, MaxElecQuant, CounterElec, CounterAmbi
+INTEGER                            :: MaxQuantNum, iPolyatMole, iSpec, iPart, iVar, MaxElecQuant, CounterElec, CounterAmbi, SpecID
 #if USE_MPI
 INTEGER,ALLOCATABLE                :: IndexOfFoundParticles(:),CompleteIndexOfFoundParticles(:)
 INTEGER                            :: CompleteNbrOfLost,CompleteNbrOfFound,CompleteNbrOfDuplicate
@@ -409,11 +418,11 @@ REAL, ALLOCATABLE                  :: SendBuffAmbi(:), RecBuffAmbi(:), SendBuffE
 INTEGER                            :: LostPartsPoly(0:PartMPI%nProcs-1), DisplacePoly(0:PartMPI%nProcs-1)
 INTEGER                            :: LostPartsElec(0:PartMPI%nProcs-1), DisplaceElec(0:PartMPI%nProcs-1)
 INTEGER                            :: LostPartsAmbi(0:PartMPI%nProcs-1), DisplaceAmbi(0:PartMPI%nProcs-1)
+INTEGER                            :: iProc
 #endif /*USE_MPI*/
 REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
 LOGICAL                            :: implemented
 LOGICAL,ALLOCATABLE                :: readVarFromState(:)
-INTEGER                            :: iProc
 #endif
 INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
 #if USE_HDG
@@ -780,8 +789,8 @@ IF(DoRestart)THEN
           changedVars=.FALSE.
         END IF ! PartDataSize_HDF5.NE.PartDataSize
         IF (changedVars) THEN
-          SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart-file!!!'
-          IF (.NOT.implemented) CALL Abort(__STAMP__,"not implemented yet!")
+          SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart-file'
+          IF (.NOT.implemented) CALL Abort(__STAMP__,"change in VarNamesParticles not implemented yet")
           readVarFromState=.FALSE.
           DO iVar=1,PartDataSize_HDF5
             IF (TRIM(StrVarNames(iVar)).EQ.TRIM(StrVarNames_HDF5(iVar))) THEN
@@ -839,15 +848,25 @@ IF(DoRestart)THEN
 
         iPart=0
         DO iLoop = 1_IK,locnPart
-          IF(SpecReset(INT(PartData(7,offsetnPart+iLoop),4))) CYCLE
+          ! Sanity check: SpecID > 0
+          SpecID=INT(PartData(7,offsetnPart+iLoop),4)
+          IF(SpecID.LE.0)THEN
+            IPWRITE(UNIT_StdOut,'(I0,A,I0,A,I0,A,3(ES25.14E3),A,I0)') "Warning: Found particle in restart file with SpecID =", &
+                SpecID,"for iLoop=",iLoop,"with pos: ",PartData(1:3,offsetnPart+iLoop)," and offsetnPart:",offsetnPart
+            CALL abort(__STAMP__,'Found particle in restart file with species ID zero, which indicates a corrupted restart file.')
+            !IPWRITE(UNIT_StdOut,'(I0,A,I0,A,I0)') "Warning: Found particle in restart file with SpecID =", SpecID,", which will be deleted. iLoop=",iLoop
+            CYCLE
+          END IF ! SpecID
+          ! Check if species is to be removed during restart
+          IF(SpecReset(SpecID)) CYCLE
           iPart = iPart + 1
-          PartState(1,iPart)   = PartData(1,offsetnPart+iLoop)
-          PartState(2,iPart)   = PartData(2,offsetnPart+iLoop)
-          PartState(3,iPart)   = PartData(3,offsetnPart+iLoop)
-          PartState(4,iPart)   = PartData(4,offsetnPart+iLoop)
-          PartState(5,iPart)   = PartData(5,offsetnPart+iLoop)
-          PartState(6,iPart)   = PartData(6,offsetnPart+iLoop)
-          PartSpecies(iPart)= INT(PartData(7,offsetnPart+iLoop),4)
+          PartState(1,iPart) = PartData(1,offsetnPart+iLoop)
+          PartState(2,iPart) = PartData(2,offsetnPart+iLoop)
+          PartState(3,iPart) = PartData(3,offsetnPart+iLoop)
+          PartState(4,iPart) = PartData(4,offsetnPart+iLoop)
+          PartState(5,iPart) = PartData(5,offsetnPart+iLoop)
+          PartState(6,iPart) = PartData(6,offsetnPart+iLoop)
+          PartSpecies(iPart) = SpecID
           IF (useDSMC) THEN
             IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0)) THEN
               PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
@@ -873,8 +892,10 @@ IF(DoRestart)THEN
                 PartStateIntEn(1,iPart)=0.
                 PartStateIntEn(2,iPart)=0.
               ELSE
-                CALL Abort(__STAMP__,"resetting inner DOF for molecules is not implemented yet!"&
-                ,SpecDSMC(PartSpecies(iPart))%InterID , PartData(7,offsetnPart+iLoop))
+                IPWRITE(UNIT_StdOut,*) "SpecDSMC(PartSpecies(iPart))%InterID =", SpecDSMC(PartSpecies(iPart))%InterID
+                IPWRITE(UNIT_StdOut,*) "SpecID =", SpecID
+                IPWRITE(UNIT_StdOut,*) "iPart =", iPart
+                CALL Abort(__STAMP__,"resetting inner DOF for molecules is not implemented yet!")
               END IF ! readVarFromState(8).AND.readVarFromState(9)
             ELSE IF (usevMPF) THEN
               PartMPF(iPart)=PartData(8,offsetnPart+iLoop)
@@ -912,11 +933,16 @@ IF(DoRestart)THEN
 
           PDM%ParticleInside(iPart) = .TRUE.
         END DO ! iLoop = 1_IK,locnPart
+
         iPart = 0
         DO iElem=FirstElemInd,LastElemInd
           IF (PartInt(iElem,ELEM_LastPartInd).GT.PartInt(iElem,ELEM_FirstPartInd)) THEN
             DO iLoop = PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1_IK , PartInt(iElem,ELEM_LastPartInd)- offsetnPart
-              IF(SpecReset(INT(PartData(7,offsetnPart+iLoop),4))) CYCLE
+              ! Sanity check: SpecID > 0
+              SpecID=INT(PartData(7,offsetnPart+iLoop),4)
+              IF(SpecID.LE.0) CYCLE
+              ! Check if species is to be removed during restart
+              IF(SpecReset(SpecID)) CYCLE
               iPart = iPart +1
               PEM%GlobalElemID(iPart)  = iElem
               PEM%LastGlobalElemID(iPart)  = iElem
@@ -1094,6 +1120,7 @@ IF(DoRestart)THEN
       ! Combine number of lost particles of all processes and allocate variables
       ! Note: Particles that are lost on MyProc are also searched for here again
       CALL MPI_ALLGATHER(NbrOfLostParticles, 1, MPI_INTEGER, TotalNbrOfMissingParticles, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
+      NbrOfLostParticles=0
       IF (useDSMC) THEN
         IF (DSMC%NumPolyatomMolecs.GT.0) CALL MPI_ALLGATHER(CounterPoly, 1, MPI_INTEGER, LostPartsPoly, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
         IF (DSMC%ElectronicModel.EQ.2)   CALL MPI_ALLGATHER(CounterElec, 1, MPI_INTEGER, LostPartsElec, 1, MPI_INTEGER, PartMPI%COMM, IERROR)
@@ -1410,6 +1437,7 @@ IF(DoRestart)THEN
         WRITE(UNIT_stdOut,'(A,I0)') ' Particles initially lost during restart : ',NbrOfMissingParticles
         WRITE(UNIT_stdOut,'(A,I0)') ' Number of particles permanently lost    : ',NbrOfLostParticles
         WRITE(UNIT_stdOut,'(A,I0)') ' Number of particles relocated           : ',NbrOfMissingParticles-NbrOfLostParticles
+        NbrOfLostParticles = 0
       END IF ! NbrOfMissingParticles.GT.0
 #endif /*USE_MPI*/
 
@@ -1434,6 +1462,14 @@ IF(DoRestart)THEN
 #endif /*PARTICLES*/
 
 CALL CloseDataFile()
+
+#if defined(PARTICLES)
+! This routines opens the data file in single mode (i.e. only the root opens and closes the data file)  
+! ------------------------------------------------
+! Particle Emission Parameters
+! ------------------------------------------------
+CALL ReadEmissionVariablesFromHDF5()
+#endif /*defined(PARTICLES)*/
 
 #if defined(PARTICLES) && USE_HDG
   ! Create electrons from BR fluid properties

@@ -91,7 +91,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactVector
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
@@ -100,6 +100,7 @@ USE MOD_Particle_Vars           ,ONLY: nSpecies,VarTimeStep
 USE MOD_Particle_Vars           ,ONLY: Symmetry
 USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
 #if USE_MPI
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF,mySurfRank
@@ -133,7 +134,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                                :: iBC
 INTEGER                                :: iSide,firstSide,lastSide,iSurfSide,GlobalSideID
-INTEGER                                :: nSurfSidesProc,nSurfSidesTmp
+INTEGER                                :: nSurfSidesProc
 INTEGER                                :: offsetSurfTotalSidesProc
 INTEGER,ALLOCATABLE                    :: GlobalSide2SurfSideProc(:,:)
 !INTEGER,ALLOCATABLE                    :: SurfSide2GlobalSideProc(:,:)
@@ -152,8 +153,9 @@ REAL                                   :: xNod, zNod, yNod, Vector1(3), Vector2(
 INTEGER                                :: offsetSurfSidesProc
 INTEGER                                :: GlobalElemID,GlobalElemRank
 INTEGER                                :: sendbuf,recvbuf
+INTEGER                                :: NbGlobalElemID, NbElemRank, NbLeaderID, nSurfSidesTmp
 #endif /*USE_MPI*/
-INTEGER                                :: NbGlobalElemID, NbGlobalSideID, NbElemRank, NbLeaderID
+INTEGER                                :: NbGlobalSideID
 !===================================================================================================================================
 
 ! Get input parameters
@@ -684,11 +686,12 @@ USE MOD_IO_HDF5
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides, nOutputSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides
 USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName, PartBound
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 #if USE_MPI
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -887,6 +890,7 @@ USE MOD_DSMC_Vars                      ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
 USE MOD_Particle_Vars               ,ONLY: WriteMacroSurfaceValues
 USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC
+USE MOD_Particle_Mesh_Vars          ,ONLY: GEO
 #if USE_MPI
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared
@@ -903,7 +907,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 ! Return if nothing was allocated
-IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive)).AND..NOT.(nPorousBC.GT.0)) RETURN
+IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive)).AND..NOT.(nPorousBC.GT.0).AND..NOT.GEO%RotPeriodicBC) RETURN
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 #if USE_MPI

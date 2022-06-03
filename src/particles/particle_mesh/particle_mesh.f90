@@ -156,6 +156,7 @@ USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: InitPEM_LocalElemID,InitPEM_CNElemID,GetMeshMinMax,IdentifyElemAndSideType
 USE MOD_Particle_Mesh_Tools    ,ONLY: CalcParticleMeshMetrics,InitElemNodeIDs,InitParticleGeometry,CalcBezierControlPoints
+USE MOD_Particle_Mesh_Tools    ,ONLY: CalcXCL_NGeo
 USE MOD_Particle_Surfaces      ,ONLY: GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
@@ -187,6 +188,10 @@ USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBa
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICDepo_Shapefunction_Tools, ONLY:InitShapeFunctionDimensionalty
+#if USE_MPI && (PP_TimeDiscMethod==400)
+USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+USE MOD_Mesh_Vars              ,ONLY: nElems
+#endif /*USE_MPI && (PP_TimeDiscMethod==400)*/
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -211,9 +216,14 @@ INTEGER          :: ALLOCSTAT
 
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH ...'
-IF(ParticleMeshInitIsDone) CALL abort(&
-__STAMP__&
-, ' Particle-Mesh is already initialized.')
+IF(ParticleMeshInitIsDone) CALL abort(__STAMP__, ' Particle-Mesh is already initialized.')
+
+#if USE_MPI && (PP_TimeDiscMethod==400)
+! Exchange elements may receive particles during MPI communication and cannot be used for latency hiding
+ALLOCATE(IsExchangeElem(nElems))
+IsExchangeElem = .FALSE.
+CALL AddToElemData(ElementOut,'IsExchangeElem',LogArray=IsExchangeElem)
+#endif /*USE_MPI && (PP_TimeDiscMethod==400)*/
 
 ! Potentially curved elements. FIBGM needs to be built on BezierControlPoints rather than NodeCoords to avoid missing elements
 IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING) THEN
@@ -221,9 +231,9 @@ IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING) THEN
   BezierElevation = GETINT('BezierElevation')
   NGeoElevated    = NGeo + BezierElevation
 
-  CALL CalcParticleMeshMetrics()
-
-  CALL CalcBezierControlPoints()
+  CALL CalcParticleMeshMetrics() ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
+  CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared
+  CALL CalcBezierControlPoints() ! Required for BezierControlPoints3D and BezierControlPoints3DElevated
 END IF
 
 ! Mesh min/max must be built on BezierControlPoint for possibly curved elements
@@ -347,9 +357,9 @@ SELECT CASE(TrackingMethod)
     ! Interpolation needs coordinates in reference system
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
     IF (DoInterpolation.OR.DoDeposition) THEN
-      CALL CalcParticleMeshMetrics()
-
-      CALL BuildElemTypeAndBasisTria()
+      CALL CalcParticleMeshMetrics()   ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
+      CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
+      CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved, XiEtaZetaBasis and slenXiEtaZetaBasis. Needs XCL_NGeo_Shared
     END IF ! DoInterpolation.OR.DSMC%UseOctree
 
     IF (DoDeposition) CALL BuildEpsOneCell()
@@ -359,10 +369,6 @@ SELECT CASE(TrackingMethod)
     IF(TriaSurfaceFlux.OR.TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitParticleGeometry()
     ! ElemNodeID_Shared required
     IF(FindNeighbourElems) CALL InitElemNodeIDs()
-
-!    CALL CalcParticleMeshMetrics()
-
-!    CALL CalcBezierControlPoints()
 
 #if USE_MPI
     CALL Allocate_Shared((/3,3,nComputeNodeTotalSides/),SideSlabNormals_Shared_Win,SideSlabNormals_Shared)
@@ -799,6 +805,9 @@ SDEALLOCATE(GEO%DirPeriodicVectors)
 SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%TFIBGM)
+#if USE_MPI && (PP_TimeDiscMethod==400)
+SDEALLOCATE(IsExchangeElem)
+#endif /*USE_MPI && (PP_TimeDiscMethod==400)*/
 
 ADEALLOCATE(XiEtaZetaBasis)
 ADEALLOCATE(slenXiEtaZetaBasis)

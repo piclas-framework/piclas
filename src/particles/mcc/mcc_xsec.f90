@@ -590,7 +590,7 @@ END DO
 END FUNCTION InterpolateVibRelaxProb
 
 
-SUBROUTINE XSec_CalcCollisionProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
+SUBROUTINE XSec_CalcCollisionProb(iPair,iElem,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
 !===================================================================================================================================
 !> Calculate the collision probability if collision cross-section data is used. Can be utilized in combination with the regular
 !> DSMC collision calculation probability.
@@ -603,12 +603,12 @@ USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(IN)            :: iPair
-REAL,INTENT(IN)               :: SpecNum1, SpecNum2, CollCaseNum, MacroParticleFactor, Volume, dtCell
+INTEGER,INTENT(IN) :: iPair,iElem
+REAL,INTENT(IN)    :: SpecNum1, SpecNum2, CollCaseNum, MacroParticleFactor, Volume, dtCell
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: CollEnergy, SpecNumTarget, SpecNumSource, Weight1, Weight2, ReducedMass, ReducedMassUnweighted
-INTEGER                       :: targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase
+REAL               :: CollEnergy, SpecNumTarget, SpecNumSource, Weight1, Weight2, ReducedMass, ReducedMassUnweighted
+INTEGER            :: targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, bgSpec
 !===================================================================================================================================
 
 iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
@@ -642,9 +642,18 @@ IF(SpecXSec(iCase)%UseCollXSec) THEN
     ! Correct the collision probability in the case of the second species being a background species as the number of pairs
     ! is either determined based on the null collision probability or on the species fraction
     IF(XSec_NullCollision) THEN
-      Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / SpecXSec(iCase)%ProbNull
+      IF(BGGas%UseDistribution) THEN
+        Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / SpecXSec(iCase)%ProbNullElem(iElem)
+      ELSE
+        Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / SpecXSec(iCase)%ProbNull
+      END IF
     ELSE
-      Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
+      bgSpec = BGGas%MapSpecToBGSpec(targetSpec)
+      IF(BGGas%UseDistribution)THEN
+        Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / BGGas%SpeciesFractionElem(bgSpec,iElem)
+      ELSE
+        Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob / BGGas%SpeciesFraction(bgSpec)
+      END IF ! BGGas%UseDistribution
     END IF
   ELSE
     ! Using cross-sectional probabilities without background gas
@@ -661,7 +670,7 @@ END IF
 END SUBROUTINE XSec_CalcCollisionProb
 
 
-SUBROUTINE XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
+SUBROUTINE XSec_CalcVibRelaxProb(iPair,iElem,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
 !===================================================================================================================================
 !> Calculate the relaxation probability using cross-section data.
 !===================================================================================================================================
@@ -673,13 +682,13 @@ USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(IN)            :: iPair
+INTEGER,INTENT(IN)            :: iPair,iElem
 REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume, dtCell
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: CollEnergy, SpecNumTarget, SpecNumSource, Weight1, Weight2, ReducedMass, SumVibCrossSection
 REAL                          :: ReducedMassUnweighted
-INTEGER                       :: targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, iVib, nVib
+INTEGER                       :: targetSpec, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, iVib, nVib, bgSpec
 !===================================================================================================================================
 
 iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2
@@ -720,7 +729,12 @@ ELSE
   IF(BGGas%BackgroundSpecies(targetSpec)) THEN
     ! Correct the collision probability in the case of the second species being a background species as the number of pairs
     ! is determined based on the species fraction
-    SpecXSec(iCase)%VibProb = SpecXSec(iCase)%VibProb / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
+    bgSpec = BGGas%MapSpecToBGSpec(targetSpec)
+    IF(BGGas%UseDistribution)THEN
+      SpecXSec(iCase)%VibProb = SpecXSec(iCase)%VibProb / BGGas%SpeciesFractionElem(bgSpec,iElem)
+    ELSE
+      SpecXSec(iCase)%VibProb = SpecXSec(iCase)%VibProb / BGGas%SpeciesFraction(bgSpec)
+    END IF ! BGGas%UseDistribution
   ELSE
     SpecXSec(iCase)%VibProb = SpecXSec(iCase)%VibProb * SpecNumSource / CollInf%Coll_CaseNum(iCase)
   END IF
@@ -1001,6 +1015,8 @@ INTEGER                           :: storage, nSets, max_corder
 LOGICAL                           :: DataSetFound, GroupFound, ReactionFound
 INTEGER                           :: iReac, EductReac(1:3), ProductReac(1:4)
 REAL, ALLOCATABLE                 :: tempArray(:,:)
+CHARACTER(LEN=32)                 :: hilf
+REAL                              :: ERatio
 !===================================================================================================================================
 iReac = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
 EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
@@ -1089,11 +1105,17 @@ IF(SpecXSec(iCase)%ReactionPath(iPath)%XSecData(2,1).GT.0.0) THEN
   ! Store the read-in dataset
   SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1:dims(1),2:dims(2)+1) = tempArray(1:dims(1),1:dims(2))
   DEALLOCATE(tempArray)
-  IF(SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,1).GE.SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2)) THEN
+  ! Sanity check: Is the heat of formation larger than the first energy level of the cross-section data
+  ERatio=SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,1)/SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2)
+  IF(ERatio.GT.1.0) THEN
     SWRITE(*,*) '      (Negative) Heat of reaction [J]: ', -ChemReac%EForm(iReac),", [eV]: ",-ChemReac%EForm(iReac)*Joule2eV
     SWRITE(*,*) ' First energy level from database [J]: ', SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2),", [eV]: ",&
     SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2)*Joule2eV
-    CALL abort(__STAMP__,' Heat of reaction greater than the first read-in energy level for reaction number:', iReac)
+    WRITE(UNIT=hilf,FMT='(F8.2)') ERatio
+    SWRITE (*,'(A,I0)') 'Warning: Heat of reaction is factor '//TRIM(ADJUSTL(hilf))//&
+        ' greater than the first read-in energy level for reaction number: ',iReac
+    IF(ERatio.GT.10.0) CALL abort(__STAMP__,&
+        ' Heat of reaction is much greater than the first read-in energy level for reaction number:', iReac)
   END IF
 END IF
 
@@ -1117,8 +1139,8 @@ USE MOD_io_hdf5
 USE MOD_Globals
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
 USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac
-USE MOD_MCC_Vars                  ,ONLY: XSec_Database, PhotoReacToReac, SpecPhotonXSec
 USE MOD_HDF5_Input                ,ONLY: DatasetExists
+USE MOD_MCC_Vars                  ,ONLY: XSec_Database,SpecPhotonXSec,PhotoReacToReac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1330,12 +1352,13 @@ CALL H5CLOSE_F(err)
 END SUBROUTINE ReadReacPhotonSpectrum
 
 
-SUBROUTINE XSec_CalcReactionProb(iPair,iCase,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
+SUBROUTINE XSec_CalcReactionProb(iPair,iCase,iElem,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
 !===================================================================================================================================
-!> Calculate the collision probability if collision cross-section data is used. Can be utilized in combination with the regular
-!> DSMC collision calculation probability.
+!> Calculate the reaction probability if cross-section data is used. Utilized in combination with the regular DSMC collision
+!> calculation probability (non-MCC routines).
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
@@ -1344,13 +1367,13 @@ USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(IN)            :: iPair, iCase
+INTEGER,INTENT(IN)            :: iPair, iCase, iElem
 REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPath, ReacTest, EductReac(1:3), ProductReac(1:4), ReactInx(1:2), nPair, iProd
-INTEGER                       :: NumWeightProd, targetSpec
-REAL                          :: EZeroPoint_Prod, dtCell, Weight(1:4), ReducedMass, ReducedMassUnweighted, CollEnergy
+INTEGER                       :: NumWeightProd, targetSpec, bgSpec
+REAL                          :: EZeroPoint_Prod, dtCell, Weight(1:4), ReducedMass, ReducedMassUnweighted, CollEnergy, GammaFac
 REAL                          :: EZeroPoint_Educt, SpecNumTarget, SpecNumSource, CrossSection
 !===================================================================================================================================
 Weight = 0.; ReactInx = 0
@@ -1410,43 +1433,57 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     ELSE
       dtCell = dt
     END IF
-    Coll_pData(iPair)%Ec = 0.5 * ReducedMass * Coll_pData(iPair)%CRela2 &
-                + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
-                + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2)
+
+    IF(Coll_pData(iPair)%cRela2 .LT. RelativisticLimit) THEN
+      Coll_pData(iPair)%Ec = 0.5 * ReducedMass * Coll_pData(iPair)%cRela2
+    ELSE
+      ! Relativistic treatment under the assumption that the velocity of the background species is zero or negligible
+      GammaFac = Coll_pData(iPair)%cRela2*c2_inv
+      GammaFac = 1./SQRT(1.-GammaFac)
+      Coll_pData(iPair)%Ec = (GammaFac-1.) * ReducedMass * c2
+    END IF
+
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
+                                                + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2)
     IF (DSMC%ElectronicModel.GT.0) THEN
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(1))*Weight(1) &
                                                   + PartStateIntEn(3,ReactInx(2))*Weight(2)
     END IF
     ! Check first if sufficient energy is available for the products after the reaction
-    IF(((Coll_pData(iPair)%Ec-EZeroPoint_Prod).GE.(-ChemReac%EForm(ReacTest)*SUM(Weight)/NumWeightProd))) THEN
-      CollEnergy = (Coll_pData(iPair)%Ec-EZeroPoint_Educt) * 2./(Weight(1)+Weight(2))
-      CrossSection = InterpolateCrossSection_Chem(iCase,iPath,CollEnergy)
-      IF(SpecXSec(iCase)%UseCollXSec) THEN
-        ! Interpolate the reaction cross-section
-        ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = CrossSection
+    ASSOCIATE( ReactionProb => ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) )
+      IF(((Coll_pData(iPair)%Ec-EZeroPoint_Prod).GE.(-ChemReac%EForm(ReacTest)*SUM(Weight)/NumWeightProd))) THEN
+        CollEnergy = (Coll_pData(iPair)%Ec-EZeroPoint_Educt) * 2./(Weight(1)+Weight(2))
+        CrossSection = InterpolateCrossSection_Chem(iCase,iPath,CollEnergy)
+        IF(SpecXSec(iCase)%UseCollXSec) THEN
+          ! Interpolate the reaction cross-section
+          ReactionProb = CrossSection
+        ELSE
+          ! Select the background species as the target cloud
+          IF(BGGas%BackgroundSpecies(PartSpecies(Coll_pData(iPair)%iPart_p1))) THEN
+            targetSpec = PartSpecies(Coll_pData(iPair)%iPart_p1); SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
+          ELSE
+            targetSpec = PartSpecies(Coll_pData(iPair)%iPart_p2); SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
+          END IF
+          ! Calculate the reaction probability
+          ReactionProb = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * dtCell * SpecNumTarget &
+                                                                        * MacroParticleFactor / Volume * CrossSection))
+          IF(BGGas%BackgroundSpecies(targetSpec)) THEN
+            ! Correct the reaction probability in the case of the second species being a background species as the number of pairs
+            ! is based on the species fraction
+            bgSpec = BGGas%MapSpecToBGSpec(targetSpec)
+            IF(BGGas%UseDistribution)THEN
+              ReactionProb = ReactionProb / BGGas%SpeciesFractionElem(bgSpec,iElem)
+            ELSE
+              ReactionProb = ReactionProb / BGGas%SpeciesFraction(bgSpec)
+            END IF ! BGGas%UseDistribution
+          ELSE
+            ReactionProb = ReactionProb * SpecNumSource / CollInf%Coll_CaseNum(iCase)
+          END IF
+        END IF
       ELSE
-        ! Select the background species as the target cloud
-        IF(BGGas%BackgroundSpecies(PartSpecies(Coll_pData(iPair)%iPart_p1))) THEN
-          targetSpec = PartSpecies(Coll_pData(iPair)%iPart_p1); SpecNumTarget = SpecNum1; SpecNumSource = SpecNum2
-        ELSE
-          targetSpec = PartSpecies(Coll_pData(iPair)%iPart_p2); SpecNumTarget = SpecNum2; SpecNumSource = SpecNum1
-        END IF
-        ! Calculate the reaction probability
-        ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * dtCell * SpecNumTarget &
-                                                                      * MacroParticleFactor / Volume * CrossSection))
-        IF(BGGas%BackgroundSpecies(targetSpec)) THEN
-        ! Correct the reaction probability in the case of the second species being a background species as the number of pairs
-        ! is based on the species fraction
-          ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) &
-                                                              / BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(targetSpec))
-        ELSE
-          ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) &
-                                                              * SpecNumSource / CollInf%Coll_CaseNum(iCase)
-        END IF
+        ReactionProb = 0.
       END IF
-    ELSE
-      ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) = 0.
-    END IF
+    END ASSOCIATE
     ! Calculation of reaction rate coefficient
 #if (PP_TimeDiscMethod==42)
     IF (.NOT.DSMC%ReservoirRateStatistic) THEN

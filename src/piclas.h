@@ -159,6 +159,7 @@
 ! Entry position in FIBGMToProc
 #define FIBGM_FIRSTPROCIND 1
 #define FIBGM_NPROCS       2
+#define FIBGM_NLOCALPROCS  3
 
 ! Entry position in SideBCMetrics
 #define BCSIDE_SIDEID      1
@@ -304,4 +305,4 @@
 #define DT_BR_SWITCH  4
 
 ! Secondary electron emission
-#define SEE_MODELS_ID 5,6,7,8,9
+#define SEE_MODELS_ID 5,6,7,8,9,10,11

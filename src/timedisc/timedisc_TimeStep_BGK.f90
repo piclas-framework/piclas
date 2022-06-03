@@ -38,12 +38,13 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep, Symmetry
-USE MOD_DSMC_Vars              ,ONLY: DSMC_RHS, DSMC, CollisMode
+USE MOD_DSMC_Vars              ,ONLY: DSMC, CollisMode
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,MeasureTrackTime
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -133,57 +134,68 @@ END IF
 #if USE_MPI
 ! send number of particles
 CALL SendNbOfParticles()
-! finish communication of number of particles and send particles
-CALL MPIParticleSend()
-! finish communication
-CALL MPIParticleRecv()
-#endif /*USE_MPI*/
+#endif
 CALL ParticleInserting()
-
-
-
-
-#ifdef EXTRAE
-CALL extrae_eventandcounters(int(9000001), int8(51))
-#endif /*EXTRAE*/
 IF (CollisMode.NE.0) THEN
-  CALL UpdateNextFreePosition()
+  CALL UpdateNextFreePosition(.TRUE.)
 ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
           (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
           WriteMacroVolumeValues ) THEN
-  CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
+  CALL UpdateNextFreePosition(.TRUE.) !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
 ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
          PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
   CALL abort(&
 __STAMP__,&
 'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
 END IF
-#ifdef EXTRAE
-CALL extrae_eventandcounters(int(9000001), int8(0))
-#endif /*EXTRAE*/
 
-
-
-
-
-
-
-#ifdef EXTRAE
-CALL extrae_eventandcounters(int(9000001), int8(52))
-#endif /*EXTRAE*/
-  IF (CoupledBGKDSMC) THEN
-    CALL BGK_DSMC_main()
-  ELSE
-    CALL BGK_main()
+#if USE_MPI
+! finish communication of number of particles and send particles
+CALL MPIParticleSend(.TRUE.)
+#endif
+!IF (CoupledBGKDSMC) THEN
+!  CALL BGK_DSMC_main(1)
+!ELSE
+!  CALL BGK_main(1)
+!END IF
+DO iPart=1,PDM%ParticleVecLength
+  IF (PDM%ParticleInside(iPart)) THEN
+    CALL GetPositionInRefElem(PartState(1:3,iPart),LastPartPos(1:3,iPart),PEM%GlobalElemID(iPart))
   END IF
+END DO
 
-PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
+#if USE_MPI
+! finish communication
+CALL MPIParticleRecv(.TRUE.)
+#endif /*USE_MPI*/
 
-#ifdef EXTRAE
-CALL extrae_eventandcounters(int(9000001), int8(0))
-#endif /*EXTRAE*/
+
+!#ifdef EXTRAE
+!CALL extrae_eventandcounters(int(9000001), int8(51))
+!#endif /*EXTRAE*/
+
+!#ifdef EXTRAE
+!CALL extrae_eventandcounters(int(9000001), int8(0))
+!#endif /*EXTRAE*/
+
+IF (CoupledBGKDSMC) THEN
+  CALL BGK_DSMC_main()
+ELSE
+  CALL BGK_main()
+END IF
+
+!#ifdef EXTRAE
+!CALL extrae_eventandcounters(int(9000001), int8(52))
+!#endif /*EXTRAE*/
+
+
+
+!#ifdef EXTRAE
+!CALL extrae_eventandcounters(int(9000001), int8(0))
+!#endif /*EXTRAE*/
+
 END SUBROUTINE TimeStep_BGK
 
 
 END MODULE MOD_TimeStep
-#endif
+#endif /*(PP_TimeDiscMethod==400)*/

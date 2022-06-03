@@ -364,7 +364,7 @@ WRITE(UNIT_stdOut,*)'Program abort caused on Proc ',myRank,' in File : ',TRIM(So
 WRITE(UNIT_stdOut,*)'This file was compiled at ',TRIM(CompDate),'  ',TRIM(CompTime)
 WRITE(UNIT_stdOut,'(A10,A)',ADVANCE='NO')'Message: ',TRIM(ErrorMessage)
 IF(PRESENT(IntInfoOpt)) WRITE(UNIT_stdOut,'(I8)',ADVANCE='NO')IntInfo
-IF(PRESENT(RealInfoOpt)) WRITE(UNIT_stdOut,'(E16.8)')RealInfo
+IF(PRESENT(RealInfoOpt)) WRITE(UNIT_stdOut,'(ES25.14E3)')RealInfo
 WRITE(UNIT_stdOut,*)
 WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
 WRITE(UNIT_stdOut,*)
@@ -452,6 +452,7 @@ SWRITE(UNIT_stdOut,*) '_________________________________________________________
 
 CALL FLUSH(UNIT_stdOut)
 #if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 CALL MPI_FINALIZE(iError)
 #endif
 ERROR STOP 1
@@ -1323,6 +1324,36 @@ INTEGER             :: LocalElemID
 LocalElemID = GlobalElemID - offsetElem
 L = (LocalElemID.GE.1).AND.(LocalElemID.LE.PP_nElems)
 END FUNCTION ElementOnProc
+
+
+!===================================================================================================================================
+!> Check whether element ID is on the current node
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION ElementOnNode(GlobalElemID) RESULT(L)
+! MODULES
+USE MOD_Preproc
+#if USE_MPI
+USE MOD_MPI_Vars        ,ONLY: offsetElemMPI
+USE MOD_MPI_Shared_Vars ,ONLY: ComputeNodeRootRank,nComputeNodeProcessors
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN) :: GlobalElemID ! Global element index
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+!===================================================================================================================================
+#if USE_MPI
+L = (GlobalElemID.GE.offsetElemMPI(ComputeNodeRootRank)+1).AND.&
+    (GlobalElemID.LE.offsetElemMPI(ComputeNodeRootRank+nComputeNodeProcessors))
+#else
+L = .TRUE.
+#endif /*USE_MPI*/
+END FUNCTION ElementOnNode
 
 
 END MODULE MOD_Globals

@@ -42,8 +42,8 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel
-PUBLIC :: RelaxElectronicShellWall
+PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel, CalcProbCorrFactorElec
+PUBLIC :: RelaxElectronicShellWall, LT_ElectronicEnergyExchange, LT_ElectronicExc_ConstructPartList, LT_ElectronicEnergyExchangeChem
 !===================================================================================================================================
 CONTAINS
 
@@ -53,7 +53,8 @@ SUBROUTINE InitElectronShell(iSpec,iPart,iInit,init_or_sf)
 !===================================================================================================================================
 USE MOD_Globals         ,ONLY: abort
 USE MOD_Globals_Vars    ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars       ,ONLY: SpecDSMC, PartStateIntEn, ElectronicDistriPart, DSMC
+USE MOD_Particle_Vars   ,ONLY: PEM
+USE MOD_DSMC_Vars       ,ONLY: SpecDSMC, PartStateIntEn, ElectronicDistriPart, DSMC, BGGas
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -63,20 +64,28 @@ INTEGER, INTENT(IN)     :: iPart, iSpec, iInit, init_or_sf
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iQua
+INTEGER                 :: iQua, LocalElemID
 REAL                    :: iRan, ElectronicPartition, ElectronicPartitionTemp, iRan2, tmpExp
 REAL                    :: Telec                      ! electronic temperature
 !===================================================================================================================================
 SELECT CASE (init_or_sf)
-CASE(1) !iInit
+CASE(1) ! Initial
   TElec=SpecDSMC(iSpec)%Init(iInit)%TElec
-CASE(2) !SurfaceFlux
-  Telec=SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec
+CASE(2) ! SurfaceFlux
+  TElec=SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec
 CASE DEFAULT
   CALL abort(&
   __STAMP__&
   ,'neither iInit nor Surfaceflux defined as reference!')
 END SELECT
+
+! Background gas distribution
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  IF(BGGas%BackgroundSpecies(iSpec).AND.BGGas%UseDistribution) THEN
+    LocalElemID = PEM%LocalElemID(iPart)
+    TElec = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpec),DSMC_TELEC,LocalElemID)
+  END IF
+END IF
 
 ! Check if the temperature is zero
 IF(TElec.LE.0.)THEN
@@ -88,7 +97,7 @@ ElectronicPartition  = 0.
 ElectronicPartitionTemp = 0.
 ! calculate sum over all energy levels == partition function for temperature Telec
 SELECT CASE(DSMC%ElectronicModel)
-CASE(1)
+CASE(1,4)
   DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
     tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / Telec
     IF (CHECKEXP(tmpExp)) THEN
@@ -172,7 +181,7 @@ RelaxElectronicShellWall = 0.
 iSpec = PartSpecies(iPart)
 
 SELECT CASE(DSMC%ElectronicModel)
-CASE(1)
+CASE(1,4)
   ! calculate sum over all energy levels == partition function for temperature Telec
   DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
     TempRatio = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TWall
@@ -319,12 +328,12 @@ CASE(2)
   IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ETraRel = ETraRel / GetParticleWeight(iPart1)
   END IF    
-  IF (PRESENT(NewPart)) THEN
-    TransElec = 1./(BoltzmannConst*(FakXi+1.+ Xi_Elec/2.))*ETraRel
-  ELSE
+!  IF (PRESENT(NewPart)) THEN
+!    TransElec = 1./(BoltzmannConst*(FakXi+1.+ Xi_Elec/2.))*ETraRel
+!  ELSE
     TransElec = DSMC%InstantTransTemp(nSpecies + 1)
     IF (TransElec.LE.0.0) TransElec = 1./(BoltzmannConst*(FakXi+1.))*ETraRel
-  END IF
+!  END IF
   ElectronicPartition = 0.0
   DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
     tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TransElec
@@ -387,6 +396,685 @@ CASE DEFAULT
 END SELECT
 
 END SUBROUTINE ElectronicEnergyExchange
+
+
+SUBROUTINE LT_ElectronicEnergyExchange(iPartIndx_Node, nPart, NodeVolume)
+!===================================================================================================================================
+!> Subroutine for the cell-local Landau-Teller based electronic excitation relaxation using BGK approach:
+!> 1.) Moment calculation: Summing up the relative velocities and their squares
+!> 2.) Calculation of the relaxation frequency of the distribution function towards the target electronic temperature
+!> 3.) determination of the electronic relaxation frequency
+!> 4.) Determine the number of particles undergoing a relaxation
+!> 5.) Determine the new electronic state of molecules undergoing a relaxation
+!> 6.) Treatment of the electronic energy of molecules
+!> 7.) Determine the new PartState
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, VarTimeStep
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting, CollInf, ElecRelaxPart
+USE MOD_TimeDisc_Vars           ,ONLY: dt
+USE MOD_part_tools              ,ONLY: GetParticleWeight, CalcXiElec
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTelec
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                        :: NodeVolume
+INTEGER, INTENT(INOUT)                  :: nPart
+INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                  :: alpha, CellTemp, dens, NewEn, OldEn, TEqui, dtCell, NewEnElec(nSpecies), iRan, ElectronicPartitionTemp
+INTEGER, ALLOCATABLE  :: iPartIndx_NodeRelaxElec(:)
+INTEGER               :: iSpec, nSpec(nSpecies), jSpec, nElecRelax, iLoop, iPart, nElecRelaxSpec(nSpecies), iQua
+REAL                  :: vBulkAll(3), SpecTemp(nSpecies), TElecSpec(nSpecies), ElecExpSpec(nSpecies)
+REAL                  :: totalWeightSpec(nSpecies), totalWeight, partWeight, CellTemptmp
+REAL                  :: EElecSpec(nSpecies), Xi_ElecSpec(nSpecies), Xi_Elec_oldSpec(nSpecies), EElecMean(nSpecies)
+REAL                  :: collisionfreqSpec(nSpecies),elecrelaxfreqSpec(nSpecies), ElectronicPartition(nSpecies)
+LOGICAL               :: SkipEnergyCons(nSpecies)
+!===================================================================================================================================
+IF(nPart.LT.2) RETURN
+
+! 1.) Moment calculation: Summing up the relative velocities and their squares
+CALL CalcMoments_ElectronicExchange(nPart, iPartIndx_Node, nSpec, vBulkAll, totalWeight, totalWeightSpec, &
+                      OldEn, EElecSpec, CellTemp, SpecTemp, dtCell)
+NewEn = OldEn
+IF((CellTemp.LE.0).OR.(MAXVAL(nSpec(:)).EQ.1).OR.(totalWeight.LE.0.0)) RETURN
+
+IF(VarTimeStep%UseVariableTimeStep) THEN
+  dtCell = dt * dtCell / totalWeight
+ELSE
+  dtCell = dt
+END IF
+
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  ! totalWeight contains the weighted particle number
+  dens = totalWeight / NodeVolume
+ELSE
+  dens = totalWeight * Species(1)%MacroParticleFactor / NodeVolume
+END IF
+
+! Calculation of the electronic degrees of freedom for molecules
+Xi_ElecSpec=0.; Xi_Elec_oldSpec=0.; TElecSpec=0.
+DO iSpec = 1, nSpecies
+  IF (nSpec(iSpec).EQ.0) CYCLE
+  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    TElecSpec(iSpec)=CalcTelec( EElecSpec(iSpec)/totalWeightSpec(iSpec), iSpec)
+    Xi_ElecSpec(iSpec)=CalcXiElec(TElecSpec(iSpec),iSpec)
+    Xi_Elec_oldSpec(iSpec) = Xi_ElecSpec(iSpec)
+  END IF
+END DO
+
+! 3.) Determination of electronic relaxation frequency using the collision frequency
+collisionfreqSpec = 0.0
+DO iSpec = 1, nSpecies
+  DO jSpec = 1, nSpecies
+    IF (iSpec.EQ.jSpec) THEN
+      CellTemptmp = CellTemp !SpecTemp(iSpec)
+    ELSE
+      CellTemptmp = CellTemp
+    END IF
+    collisionfreqSpec(iSpec) = collisionfreqSpec(iSpec) + SpecDSMC(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(jSpec) &
+            * (dens / totalWeight) *CellTemptmp**(-CollInf%omega(iSpec,jSpec) +0.5)
+  END DO
+END DO
+elecrelaxfreqSpec(:) = collisionfreqSpec(:) * SpecDSMC(:)%ElecRelaxProb
+ElecExpSpec=0.
+DO iSpec = 1, nSpecies
+  IF (totalWeightSpec(iSpec).GT.0.0) THEN
+    EElecMean(iSpec) =  EElecSpec(iSpec)/totalWeightSpec(iSpec)
+  ELSE
+    EElecMean(iSpec) = 0.0
+  END IF
+END DO
+CALL CalcTEquiMultiElec(nPart, nSpec, CellTemp, TElecSpec, Xi_ElecSpec, Xi_Elec_oldSpec, ElecExpSpec,   &
+      TEqui, elecrelaxfreqSpec, dtCell, EElecMean(:))
+
+! 4.) Determine the number of particles undergoing a relaxation (including vibration and rotation)
+ALLOCATE(iPartIndx_NodeRelaxElec(nPart))
+iPartIndx_NodeRelaxElec = 0
+
+nElecRelaxSpec =0; nElecRelax=0
+DO iLoop = 1, nPart
+  iPart = iPartIndx_Node(iLoop)
+  iSpec = PartSpecies(iPart) 
+  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    IF (.NOT.ElecRelaxPart(iPart)) CYCLE
+    partWeight = GetParticleWeight(iPart)
+    CALL RANDOM_NUMBER(iRan)
+    IF ((1.-ElecExpSpec(iSpec)).GT.iRan) THEN
+      nElecRelax = nElecRelax + 1
+      nElecRelaxSpec(iSpec) = nElecRelaxSpec(iSpec) + 1
+      iPartIndx_NodeRelaxElec(nElecRelax) = iPart
+      OldEn = OldEn + PartStateIntEn(3,iPartIndx_NodeRelaxElec(nElecRelax))* partWeight
+    END IF
+  END IF
+END DO
+IF ((nElecRelax.EQ.0)) RETURN
+
+ElectronicPartition = 0.
+DO iSpec =1, nSpecies
+  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    ElectronicPartitionTemp = 0.
+    ! calculate sum over all energy levels == partition function for temperature Telec
+    DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
+      ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TEqui)
+      IF ( ElectronicPartitionTemp .GT. ElectronicPartition(iSpec) ) THEN
+        ElectronicPartition(iSpec) = ElectronicPartitionTemp
+      END IF
+    END DO
+  END IF
+END DO
+
+! 5.) Determine the new electronical state of molecules undergoing a relaxation
+NewEnElec = 0.0
+SkipEnergyCons = .FALSE.
+DO iLoop = 1, nElecRelax
+  iPart = iPartIndx_NodeRelaxElec(iLoop)
+  iSpec = PartSpecies(iPart)
+  partWeight = GetParticleWeight(iPart)   
+  CALL RANDOM_NUMBER(iRan)
+  iQua = INT( ( SpecDSMC(iSpec)%MaxElecQuant ) * iRan)
+  ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TEqui)
+  ! select level
+  CALL RANDOM_NUMBER(iRan)
+  DO WHILE ( iRan .GE. ElectronicPartitionTemp / ElectronicPartition(iSpec) )
+    CALL RANDOM_NUMBER(iRan)
+    iQua = INT( ( SpecDSMC(iSpec)%MaxElecQuant ) * iRan)
+    ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TEqui)
+    CALL RANDOM_NUMBER(iRan)
+  END DO
+  iQua = MAX(iQua,1)  
+  PartStateIntEn( 3,iPart) = BoltzmannConst*SpecDSMC(iSpec)%ElectronicState(2,iQua)
+  IF (TEqui.GT.SpecDSMC(iSpec)%MaxMeanXiElec(2)) THEN
+    SkipEnergyCons(iSpec)= .TRUE.
+    IF ((OldEn - (PartStateIntEn(3,iPart)*partWeight)).LT.0.0) THEN
+      DO WHILE ((OldEn - (PartStateIntEn(3,iPart)*partWeight)).LT.0.0) 
+        iQua = iQua - 1
+        PartStateIntEn(3,iPart) = BoltzmannConst*SpecDSMC(iSpec)%ElectronicState(2,iQua)
+        IF (iQua.EQ.0) EXIT
+      END DO
+    END IF
+    OldEn = OldEn - PartStateIntEn(3,iPart) * partWeight
+  ELSE
+    NewEnElec(iSpec) = NewEnElec(iSpec) + PartStateIntEn(3,iPart) * partWeight
+  END IF
+END DO
+! 6.) Vibrational energy of the molecules: Ensure energy conservation by scaling the new electronic states with the factor alpha
+CALL EnergyConsElec(nPart, nElecRelax, nElecRelaxSpec, iPartIndx_NodeRelaxElec, NewEnElec, OldEn, Xi_ElecSpec, SkipEnergyCons)
+
+! 8.) Determine the new particle state and ensure energy conservation by scaling the new velocities with the factor alpha.
+alpha = SQRT(OldEn/NewEn)
+DO iLoop = 1, nPart
+  iPart = iPartIndx_Node(iLoop) 
+  PartState(4:6,iPart) = vBulkAll(1:3) + alpha*(PartState(4:6,iPart)-vBulkAll(1:3))
+END DO
+
+END SUBROUTINE LT_ElectronicEnergyExchange
+
+
+SUBROUTINE LT_ElectronicEnergyExchangeChem(iPartIndx_Node, nPart)
+!===================================================================================================================================
+!> Subroutine for the electronic excitation of chemical reacting particles, same steps as LT_ElectronicEnergyExchange but only for 
+!> chemical reacting particles assuming an thermal equilibrium between translation and electronical excitation after the chemical
+!> reaction
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, PartStateIntEn
+USE MOD_part_tools            ,ONLY: GetParticleWeight, CalcXiElec
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(INOUT)                  :: nPart
+INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                  :: alpha, NewEn, OldEn, TEqui, NewEnElec(nSpecies), ElectronicPartitionTemp, iRan
+INTEGER, ALLOCATABLE  :: iPartIndx_NodeRelaxElec(:)
+INTEGER               :: iSpec, nSpec(nSpecies), nElecRelax, iLoop, iPart, nElecRelaxSpec(nSpecies), iQua
+REAL                  :: vBulkAll(3), totalWeightSpec(nSpecies), totalWeight, partWeight, Xi_ElecSpec(nSpecies)
+REAL                  :: MaxTemp, MinTemp, TempEn, Xi_ElecTotal, V_rel(3), TotalMass, vmag2, ElectronicPartition(nSpecies)
+LOGICAL               :: SkipEnergyCons(nSPecies)
+!===================================================================================================================================
+IF(nPart.LT.2) RETURN
+
+! Calculate necessary moments
+totalWeightSpec = 0.0; vBulkAll=0.0; TotalMass=0.0; nSpec=0
+DO iLoop = 1, nPart
+  iPart = iPartIndx_Node(iLoop)
+  partWeight = GetParticleWeight(iPart)
+  iSpec = PartSpecies(iPart)
+  totalWeightSpec(iSpec) = totalWeightSpec(iSpec) + partWeight
+  vBulkAll(1:3)  =  vBulkAll(1:3) + PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
+  TotalMass = TotalMass + Species(iSpec)%MassIC*partWeight
+  nSpec(iSpec) = nSpec(iSpec) + 1
+END DO
+totalWeight = SUM(totalWeightSpec)
+vBulkAll(1:3) = vBulkAll(1:3) / TotalMass
+
+OldEn=0.0
+DO iLoop = 1, nPart
+  iPart = iPartIndx_Node(iLoop)
+  partWeight = GetParticleWeight(iPart)
+  iSpec = PartSpecies(iPart)  
+  V_rel(1:3)=PartState(4:6,iPart)-vBulkAll(1:3)  
+  vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2 
+  OldEn = OldEn + 0.5*Species(iSpec)%MassIC * vmag2*partWeight
+END DO
+
+NewEn = OldEn
+DO iLoop = 1, nPart
+  iPart = iPartIndx_Node(iLoop)
+  iSpec = PartSpecies(iPart) 
+  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    partWeight = GetParticleWeight(iPart)
+    OldEn = OldEn + PartStateIntEn(3,iPart)* partWeight
+  END IF
+END DO
+
+! Calculation of equilibrium temperature by using DOF's with a bisection
+Xi_ElecSpec=0.
+MaxTemp=5.*DSMC%InstantTransTemp(nSpecies + 1)
+MinTemp=1E-6
+TempEn=0.0
+iloop = 0
+DO WHILE(.NOT.ALMOSTEQUAL(TempEn, OldEn))
+  iloop = iloop + 1
+  IF (iLoop.EQ.100) THEN
+    DO iSpec = 1, nSpecies
+      IF (nSpec(iSpec).EQ.0) THEN
+        Xi_ElecSpec(iSpec)= 0.0
+        CYCLE
+      END IF
+      IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+        Xi_ElecSpec(iSpec)=CalcXiElec(DSMC%InstantTransTemp(nSpecies + 1),iSpec)
+        TEqui = DSMC%InstantTransTemp(nSpecies + 1)
+      END IF
+    END DO
+    RETURN
+  END IF
+  Tequi= 0.5*(MaxTemp+MinTemp)
+  DO iSpec = 1, nSpecies
+    IF (nSpec(iSpec).EQ.0) THEN
+      Xi_ElecSpec(iSpec)= 0.0
+      CYCLE
+    END IF
+    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+      Xi_ElecSpec(iSpec)=CalcXiElec(Tequi,iSpec)
+    END IF
+  END DO
+  Xi_ElecTotal = 0.0
+  DO iSpec = 1, nSpecies
+    Xi_ElecTotal = Xi_ElecTotal + Xi_ElecSpec(iSpec)*totalWeightSpec(iSpec)
+  END DO
+  
+  TempEn = (3.*(nPart-1.)/nPart*totalWeight+Xi_ElecTotal)/2.*BoltzmannConst*TEqui
+  IF (TempEn.GT.OldEn) THEN
+   MaxTemp = TEqui
+  ELSE
+   MinTemp = TEqui
+  END IF          
+END DO
+
+ElectronicPartition = 0.
+DO iSpec =1, nSpecies
+  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    ElectronicPartitionTemp = 0.
+    ! calculate sum over all energy levels == partition function for temperature Telec
+    DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
+      ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TEqui)
+      IF ( ElectronicPartitionTemp .GT. ElectronicPartition(iSpec) ) THEN
+        ElectronicPartition(iSpec) = ElectronicPartitionTemp
+      END IF
+    END DO
+  END IF
+END DO
+
+ALLOCATE(iPartIndx_NodeRelaxElec(nPart))
+iPartIndx_NodeRelaxElec = 0
+! Determine the new electronic state of molecules undergoing a relaxation
+NewEnElec = 0.0
+nElecRelax = 0
+SkipEnergyCons = .FALSE.
+DO iLoop = 1, nPart
+  iPart = iPartIndx_Node(iLoop)
+  iSpec = PartSpecies(iPart)
+  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    nElecRelax  = nElecRelax + 1
+    nElecRelaxSpec(iSpec) = nElecRelaxSpec(iSpec) + 1
+    iPartIndx_NodeRelaxElec(nElecRelax) = iPart
+    partWeight = GetParticleWeight(iPart)   
+    CALL RANDOM_NUMBER(iRan)
+    iQua = INT( ( SpecDSMC(iSpec)%MaxElecQuant ) * iRan)
+    ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TEqui)
+    ! select level
+    CALL RANDOM_NUMBER(iRan)
+    DO WHILE ( iRan .GE. ElectronicPartitionTemp / ElectronicPartition(iSpec) )
+      CALL RANDOM_NUMBER(iRan)
+      iQua = INT( ( SpecDSMC(iSpec)%MaxElecQuant ) * iRan)
+      ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TEqui)
+      CALL RANDOM_NUMBER(iRan)
+    END DO
+    iQua = MAX(iQua,1) 
+    PartStateIntEn( 3,iPart) = BoltzmannConst*SpecDSMC(iSpec)%ElectronicState(2,iQua)
+    IF (TEqui.GT.SpecDSMC(iSpec)%MaxMeanXiElec(2)) THEN
+      SkipEnergyCons(iSpec)= .TRUE.
+      IF ((OldEn - (PartStateIntEn(3,iPart)*partWeight)).LT.0.0) THEN
+        DO WHILE ((OldEn - (PartStateIntEn(3,iPart)*partWeight)).LT.0.0) 
+          iQua = iQua - 1
+          PartStateIntEn(3,iPart) = BoltzmannConst*SpecDSMC(iSpec)%ElectronicState(2,iQua)
+          IF (iQua.EQ.0) EXIT
+        END DO
+      END IF
+      OldEn = OldEn - PartStateIntEn(3,iPart) * partWeight
+    ELSE
+      NewEnElec(iSpec) = NewEnElec(iSpec) + PartStateIntEn(3,iPart) * partWeight
+    END IF
+  END IF
+END DO
+
+! 7.) Electronical energy of the molecules: Ensure energy conservation by scaling the new electroncal states with the factor alpha
+CALL EnergyConsElec(nPart, nElecRelax, nElecRelaxSpec, iPartIndx_NodeRelaxElec, NewEnElec, OldEn, Xi_ElecSpec, SkipEnergyCons)
+! 8.) Determine the new particle state and ensure energy conservation by scaling the new velocities with the factor alpha.
+
+alpha = SQRT(OldEn/NewEn)
+DO iLoop = 1, nPart
+  iPart = iPartIndx_Node(iLoop) 
+  PartState(4:6,iPart) = vBulkAll(1:3) + alpha*(PartState(4:6,iPart)-vBulkAll(1:3))
+END DO
+
+END SUBROUTINE LT_ElectronicEnergyExchangeChem
+
+
+SUBROUTINE LT_ElectronicExc_ConstructPartList(iPartIndx_NodeTotal, iPartIndx_NodeTotalElecExc,  nPart, nPartRelax)
+!===================================================================================================================================
+!> Construct List of Particles that must be checked for electronic excitation. 
+!> Sort out the particles that have already been relaxed by a chemical reaction.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PARTICLE_Vars       ,ONLY: PDM
+USE MOD_DSMC_Vars           ,ONLY: newElecRelaxParts, iPartIndx_NodeNewElecRelax
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                  :: iPartIndx_NodeTotal(:),nPart
+INTEGER, INTENT(OUT),ALLOCATABLE    :: iPartIndx_NodeTotalElecExc(:)
+INTEGER, INTENT(OUT)                :: nPartRelax
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                     :: iPart, iLoop
+!===================================================================================================================================
+nPartRelax = 0
+! 1) Treating the particles that already existed within the cell (but may have changed their species)
+DO iLoop = 1, nPart
+  iPart = iPartIndx_NodeTotal(iLoop)
+  IF (PDM%ParticleInside(iPart)) THEN
+    nPartRelax = nPartRelax + 1
+  END IF
+END DO
+! 2) Treating particles that were newly created during the time step
+DO iLoop = 1, newElecRelaxParts
+  iPart = iPartIndx_NodeNewElecRelax(iLoop)
+  IF (PDM%ParticleInside(iPart)) THEN
+    nPartRelax = nPartRelax + 1
+  END IF
+END DO
+
+ALLOCATE(iPartIndx_NodeTotalElecExc(nPartRelax))
+nPartRelax = 0
+! 1) Treating the particles that already existed within the cell (but may have changed their species)
+DO iLoop = 1, nPart
+  iPart = iPartIndx_NodeTotal(iLoop)
+  IF (PDM%ParticleInside(iPart)) THEN
+    nPartRelax = nPartRelax + 1
+    iPartIndx_NodeTotalElecExc(nPartRelax) = iPart
+  END IF
+END DO
+! 2) Treating particles that were newly created during the time step
+DO iLoop = 1, newElecRelaxParts
+  iPart = iPartIndx_NodeNewElecRelax(iLoop)
+  IF (PDM%ParticleInside(iPart)) THEN
+    nPartRelax = nPartRelax + 1
+    iPartIndx_NodeTotalElecExc(nPartRelax) = iPart
+  END IF
+END DO
+
+END SUBROUTINE LT_ElectronicExc_ConstructPartList
+
+SUBROUTINE CalcMoments_ElectronicExchange(nPart, iPartIndx_Node, nSpec, vBulkAll, totalWeight, totalWeightSpec, &
+                      OldEn, EElecSpec, CellTemp, SpecTemp, dtCell)
+!===================================================================================================================================
+!> Moment calculation: Summing up the relative velocities and their squares
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, VarTimeStep
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: nPart, iPartIndx_Node(nPart)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER, INTENT(OUT)          :: nSpec(nSpecies)
+REAL, INTENT(OUT)             :: OldEn, EElecSpec(nSpecies)
+REAL, INTENT(OUT)             :: CellTemp, SpecTemp(nSpecies), totalWeightSpec(nSpecies)
+REAL, INTENT(OUT)             :: vBulkAll(3), totalWeight, dtCell
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iLoop, iPart, iSpec
+REAL                          :: V_rel(1:3), vmag2, partWeight, EnerTotal, totalWeightSpec2(nSpecies), vBulkSpec(3,nSpecies),u2
+REAL                          :: tempweight, tempweight2, tempmass, vBulkTemp(3), totalWeight2, u2Spec(nSpecies), TotalMass
+!===================================================================================================================================
+
+totalWeightSpec = 0.0; totalWeightSpec2=0.0; vBulkAll=0.0; TotalMass=0.0; vBulkSpec=0.0; nSpec=0; dtCell=0.0
+DO iLoop = 1, nPart
+  iPart = iPartIndx_Node(iLoop)
+  partWeight = GetParticleWeight(iPart)
+  iSpec = PartSpecies(iPart)
+  totalWeightSpec(iSpec) = totalWeightSpec(iSpec) + partWeight
+  totalWeightSpec2(iSpec) =   totalWeightSpec2(iSpec) + partWeight*partWeight
+  vBulkAll(1:3)  =  vBulkAll(1:3) + PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
+  TotalMass = TotalMass + Species(iSpec)%MassIC*partWeight
+  vBulkSpec(1:3,iSpec) = vBulkSpec(1:3,iSpec) + PartState(4:6,iPart)*partWeight
+  nSpec(iSpec) = nSpec(iSpec) + 1
+  IF(VarTimeStep%UseVariableTimeStep) THEN
+    dtCell = dtCell + VarTimeStep%ParticleTimeStep(iPart)*partWeight
+  END IF
+END DO
+totalWeight = SUM(totalWeightSpec)
+totalWeight2 = SUM(totalWeightSpec2)
+IF ((MAXVAL(nSpec(:)).EQ.1).OR.(totalWeight.LE.0.0)) RETURN
+vBulkAll(1:3) = vBulkAll(1:3) / TotalMass
+DO iSpec = 1, nSpecies
+  IF (nSpec(iSpec).GT.0) vBulkSpec(:,iSpec) = vBulkSpec(:,iSpec) /totalWeightSpec(iSpec)
+END DO
+
+u2Spec=0.0; OldEn=0.0; EElecSpec=0.0
+DO iLoop = 1, nPart
+  iPart = iPartIndx_Node(iLoop)
+  partWeight = GetParticleWeight(iPart)
+  iSpec = PartSpecies(iPart)  
+  V_rel(1:3)=PartState(4:6,iPart)-vBulkSpec(1:3,iSpec)
+  vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2  
+  u2Spec(iSpec) = u2Spec(iSpec) + vmag2*partWeight
+
+  V_rel(1:3)=PartState(4:6,iPart)-vBulkAll(1:3)  
+  vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2 
+  OldEn = OldEn + 0.5*Species(iSpec)%MassIC * vmag2*partWeight
+  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    EElecSpec(iSpec) = EElecSpec(iSpec) + PartStateIntEn(3,iPart) * partWeight
+  END IF
+END DO
+
+IF (nSpecies.GT.1) THEN
+  SpecTemp = 0.0
+  EnerTotal = 0.0 
+  tempweight = 0.0; tempweight2 = 0.0; tempmass = 0.0; vBulkTemp = 0.0
+  DO iSpec = 1, nSpecies
+    IF ((nSpec(iSpec).GE.2).AND.(.NOT.ALMOSTZERO(u2Spec(iSpec)))) THEN
+      SpecTemp(iSpec) = Species(iSpec)%MassIC * u2Spec(iSpec) &
+          /(3.0*BoltzmannConst*(totalWeightSpec(iSpec) - totalWeightSpec2(iSpec)/totalWeightSpec(iSpec)))
+      EnerTotal =  EnerTotal + 3./2.*BoltzmannConst*SpecTemp(iSpec) * totalWeightSpec(iSpec)
+      vmag2 = vBulkSpec(1,iSpec)**(2.) + vBulkSpec(2,iSpec)**(2.) + vBulkSpec(3,iSpec)**(2.)
+      EnerTotal = EnerTotal + totalWeightSpec(iSpec) * Species(iSpec)%MassIC / 2. * vmag2
+      tempweight = tempweight + totalWeightSpec(iSpec)
+      tempweight2 = tempweight2 + totalWeightSpec2(iSpec)
+      tempmass = tempmass +  totalWeightSpec(iSpec) * Species(iSpec)%MassIC 
+      vBulkTemp(1:3) = vBulkTemp(1:3) + vBulkSpec(1:3,iSpec)*totalWeightSpec(iSpec) * Species(iSpec)%MassIC 
+    END IF   
+  END DO
+
+  vBulkTemp(1:3) = vBulkTemp(1:3) / tempmass
+  vmag2 = vBulkTemp(1)*vBulkTemp(1) + vBulkTemp(2)*vBulkTemp(2) + vBulkTemp(3)*vBulkTemp(3)
+  EnerTotal = EnerTotal -  tempmass / 2. * vmag2
+  CellTemp = 2. * EnerTotal / (3.*tempweight*BoltzmannConst)
+ELSE
+  u2 = u2Spec(1) / (totalWeight - totalWeight2/totalWeight)
+  CellTemp = Species(1)%MassIC * u2 / (3.0*BoltzmannConst)
+END IF
+
+END SUBROUTINE CalcMoments_ElectronicExchange
+
+
+SUBROUTINE CalcTEquiMultiElec(nPart, nSpec, CellTemp, TElecSpec, Xi_ElecSpec, Xi_Elec_oldSpec, ElecExpSpec,   &
+      TEqui, elecrelaxfreqSpec, dtCell, meanEelecSpec)
+!===================================================================================================================================
+! Calculation of the equilibrium temperature for electronic excitation
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars,           ONLY: BoltzmannConst
+USE MOD_DSMC_Vars,              ONLY: SpecDSMC
+USE MOD_Particle_Vars,          ONLY: nSpecies
+USE MOD_part_tools,             ONLY: CalcXiElec
+USE MOD_Particle_Analyze_Tools, ONLY: CalcEelec
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: CellTemp, TElecSpec(nSpecies), Xi_Elec_oldSpec(nSpecies), meanEelecSpec(nSpecies)
+REAL, INTENT(IN)                :: elecrelaxfreqSpec(nSpecies), dtCell
+INTEGER, INTENT(IN)             :: nPart, nSpec(nSpecies)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)               :: Xi_ElecSpec(nSpecies), TEqui, ElecExpSpec(nSpecies)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL                            :: TEqui_Old, betaElec, ElecFracSpec(nSpecies), TEqui_Old2, EelecTtrans(nSpecies), EElecTequi
+REAL                            :: eps_prec=1.0E-1
+REAL                            :: correctFac,  maxexp, TEquiNumDof
+INTEGER                         :: iSpec
+!===================================================================================================================================
+maxexp = LOG(HUGE(maxexp))
+!  Xi_rel = 2.*(2. - CollInf%omega(1,1))
+!  correctFac = 1. + (2.*SpecDSMC(1)%CharaTVib / (CellTemp*(EXP(SpecDSMC(1)%CharaTVib / CellTemp)-1.)))**(2.) &
+!        * EXP(SpecDSMC(1)%CharaTVib /CellTemp) / (2.*Xi_rel)
+
+correctFac = 1.
+ElecFracSpec = 0.0
+DO iSpec=1, nSpecies
+  IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    ElecExpSpec(iSpec) = exp(-elecrelaxfreqSpec(iSpec)*dtCell/correctFac)
+    ElecFracSpec(iSpec) = nSpec(iSpec)*(1.-ElecExpSpec(iSpec))
+    EelecTtrans(iSpec) = CalcEelec(CellTemp, iSpec)
+  END IF
+END DO
+TEqui_Old = 0.0
+TEqui = 3.*(nPart-1.)*CellTemp
+TEquiNumDof = 3.*(nPart-1.)
+DO iSpec=1, nSpecies
+  IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    TEqui = TEqui + Xi_Elec_oldSpec(iSpec)*ElecFracSpec(iSpec)*TElecSpec(iSpec)
+    TEquiNumDof = TEquiNumDof + Xi_Elec_oldSpec(iSpec)*ElecFracSpec(iSpec)
+  END IF
+END DO
+TEqui = TEqui / TEquiNumDof
+DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
+  DO iSpec = 1, nSpecies
+    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+      Xi_ElecSpec(iSpec) = CalcXiElec(TEqui,iSpec)
+      EElecTequi= CalcEelec(TEqui, iSpec)
+      IF (ABS(meanEelecSpec(iSpec)-EElecTequi).LT.1E-3) THEN
+        ElecExpSpec(iSpec) = exp(-elecrelaxfreqSpec(iSpec)*dtCell/correctFac)
+      ELSE
+        betaElec = ((meanEelecSpec(iSpec)-EelecTtrans(iSpec))/(meanEelecSpec(iSpec)-EElecTequi))*elecrelaxfreqSpec(iSpec)*dtCell/correctFac
+        IF (-betaElec.GT.0.0) THEN
+          ElecExpSpec(iSpec) = 0.
+        ELSE IF (betaElec.GT.maxexp) THEN
+          ElecExpSpec(iSpec) = 0.
+        ELSE
+          ElecExpSpec(iSpec) = exp(-betaElec)
+        END IF
+      END IF
+      ElecFracSpec(iSpec) = nSpec(iSpec)*(1.-ElecExpSpec(iSpec))
+    END IF
+  END DO
+  TEqui_Old = TEqui
+  TEqui_Old2 = TEqui
+
+  TEqui = 3.*(nPart-1.)*CellTemp
+  TEquiNumDof = 3.*(nPart-1.)
+  DO iSpec=1, nSpecies
+    IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+      TEqui = TEqui + Xi_Elec_oldSpec(iSpec)*ElecFracSpec(iSpec)*TElecSpec(iSpec)
+      TEquiNumDof = TEquiNumDof + Xi_ElecSpec(iSpec)*ElecFracSpec(iSpec)
+    END IF
+  END DO
+  TEqui = TEqui / TEquiNumDof
+END DO
+
+END SUBROUTINE CalcTEquiMultiElec
+
+
+SUBROUTINE EnergyConsElec(nPart, nElecRelax, nElecRelaxSpec, iPartIndx_NodeRelaxElec, NewEnElec, OldEn, Xi_ElecSpec, SkipEnergyCons)
+!===================================================================================================================================
+!> Routine to ensure energy conservation electroncal degrees of freedom
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC
+USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: nPart, nElecRelax, iPartIndx_NodeRelaxElec(:), nElecRelaxSpec(nSpecies)
+LOGICAL, INTENT(IN)           :: SkipEnergyCons(nSpecies)
+REAL, INTENT(IN)              :: NewEnElec(nSpecies), Xi_ElecSpec(nSpecies)
+REAL, INTENT(INOUT)           :: OldEn
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iPart, iLoop, iSpec, iQuant, iQuaMax
+REAL                          :: alpha(nSpecies), partWeight, betaV, iRan, Xi_ElecTotal, Prob
+!===================================================================================================================================
+IF (ANY(NewEnElec.GT.0.0)) THEN
+  Xi_ElecTotal = 0.0
+  DO iSpec = 1, nSpecies
+    IF (SkipEnergyCons(iSpec)) CYCLE
+    Xi_ElecTotal = Xi_ElecTotal + Xi_ElecSpec(iSpec)*nElecRelaxSpec(iSpec)
+  END DO
+
+  DO iSpec = 1, nSpecies
+    IF (SkipEnergyCons(iSpec)) CYCLE
+    IF (NewEnElec(iSpec).GT.0.0) THEN
+      alpha(iSpec) = OldEn/NewEnElec(iSpec)*(Xi_ElecSpec(iSpec)*nElecRelaxSpec(iSpec)/(3.*(nPart-1.)+Xi_ElecTotal)) 
+    ELSE
+      alpha(iSpec) = 0.0
+    END IF
+  END DO
+  DO iLoop = 1, nElecRelax
+    iPart = iPartIndx_NodeRelaxElec(iLoop)
+    partWeight = GetParticleWeight(iPart)
+    iSpec = PartSpecies(iPart)
+    IF (SkipEnergyCons(iSpec)) CYCLE  
+    betaV = alpha(iSpec)*PartStateIntEn( 3,iPart)
+    DO iQuant = 1,  SpecDSMC(iSpec)%MaxElecQuant - 1
+      IF (betaV.LT.BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQuant)) THEN
+        iQuaMax = iQuant 
+        EXIT
+      END IF
+      IF(iQuant.EQ.SpecDSMC(iSpec)%MaxElecQuant - 1) iQuaMax = iQuant
+    END DO
+    Prob = (betaV-BoltzmannConst*SpecDSMC(iSpec)%ElectronicState(2,iQuaMax-1)) & 
+        / (BoltzmannConst*(SpecDSMC(iSpec)%ElectronicState(2,iQuaMax) - SpecDSMC(iSpec)%ElectronicState(2,iQuaMax-1)))
+    CALL RANDOM_NUMBER(iRan)
+    IF (iRan.GT.Prob) THEN
+      iQuant = iQuaMax -1
+      PartStateIntEn(3,iPart) = BoltzmannConst*SpecDSMC(iSpec)%ElectronicState(2,iQuaMax-1)
+    ELSE
+      iQuant = iQuaMax
+      PartStateIntEn(3,iPart) = BoltzmannConst*SpecDSMC(iSpec)%ElectronicState(2,iQuaMax)
+    END IF
+    IF ((OldEn - (PartStateIntEn(3,iPart)*partWeight)).LT.0.0) THEN
+      DO WHILE ((OldEn - (PartStateIntEn(3,iPart)*partWeight)).LT.0.0) 
+        iQuant = iQuant - 1
+        PartStateIntEn(3,iPart) = BoltzmannConst*SpecDSMC(iSpec)%ElectronicState(2,iQuant)
+        IF (iQuant.EQ.0) EXIT
+      END DO
+    END IF
+    OldEn = OldEn - PartStateIntEn(3,iPart)*partWeight
+  END DO
+END IF 
+
+END SUBROUTINE EnergyConsElec
 
 
 SUBROUTINE TVEEnergyExchange(CollisionEnergy,iPart1,FakXi)
@@ -503,6 +1191,7 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
   USE MOD_Globals
   USE MOD_DSMC_Vars,            ONLY: DSMC, SpecDSMC
   USE MOD_HDF5_Input,           ONLY: DatasetExists
+  USE MOD_part_tools              ,ONLY: CalcXiElec
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -522,7 +1211,8 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
   REAL,ALLOCATABLE                                      :: ElectronicState(:,:)
   INTEGER, ALLOCATABLE                                  :: SortElectronicState(:)
   INTEGER                                               :: iQua, nQuants, iQuaTemp
-  REAL                                                  :: tempEnergyDiff, tempEnergy
+  REAL                                                  :: tempEnergyDiff, tempEnergy, MaxTemp, MeanTemp, MeanMax, MinTemp
+  REAL                                                  :: XiMean, XiMeanMax
   LOGICAL                                               :: DataSetFound
 !===================================================================================================================================
   SWRITE(UNIT_StdOut,'(A)') 'Read electronic level entries '//TRIM(dsetname)//' from '//TRIM(DSMC%ElectronicModelDatabase)
@@ -601,6 +1291,29 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
   'ERROR in electronic energy levels: given ground state is not zero! Species: ', IntInfoOpt=iSpec)
   END IF
 
+  IF (DSMC%ElectronicModel.EQ.4) THEN
+    SpecDSMC(iSpec)%MaxMeanXiElec = 0.
+    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+      MaxTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant - 1)
+      MinTemp = 0.
+      MeanTemp = 0.5*(MaxTemp+MinTemp)
+      MeanMax = 0.5*(MaxTemp+MeanTemp)
+      DO WHILE(MaxTemp-MeanTemp.GT.0.1)
+        XiMean=CalcXiElec(MeanTemp, iSpec)
+        XiMeanMax=CalcXiElec(MeanMax, iSpec)
+        IF (XiMean.GT.XiMeanMax) THEN
+          MaxTemp = MeanTemp
+        ELSE
+          MinTemp = MeanTemp
+        END IF
+        MeanTemp = 0.5*(MaxTemp+MinTemp)
+        MeanMax = 0.5*(MaxTemp+MeanTemp)
+      END DO
+      SpecDSMC(iSpec)%MaxMeanXiElec(1) = XiMean
+      SpecDSMC(iSpec)%MaxMeanXiElec(2) = MeanTemp
+    END IF
+  END IF
+
 END SUBROUTINE ReadSpeciesLevel
 
 
@@ -641,6 +1354,67 @@ SUBROUTINE SortEnergies(ElectronicState, nQuants)
     END DO
   END DO
 END SUBROUTINE SortEnergies
+
+
+SUBROUTINE CalcProbCorrFactorElec()
+!===================================================================================================================================
+!> Calculates the correction factor for electronical relaxation to achieve a landau-teller relaxation.
+!===================================================================================================================================
+! use module
+  USE MOD_Globals_Vars,       ONLY: BoltzmannConst
+  USE MOD_DSMC_Vars,          ONLY: DSMC, SpecDSMC, CollInf
+  USE MOD_Particle_Vars,      ONLY: nSpecies
+  USE MOD_Particle_Analyze_Tools, ONLY: CalcEelec
+  USE MOD_part_tools              ,ONLY: CalcXiElec
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+  INTEGER                                               :: iLoop, iSpec, jSpec
+  REAL                                                  :: MinTemp, MaxTemp, TEqui, OldEn, NewEn, Xi_rel
+  LOGICAL                                               :: doConverge
+!===================================================================================================================================
+DO iSpec = 1, nSpecies
+  SpecDSMC(iSpec)%ElecRelaxCorrectFac = 0.
+  IF((SpecDSMC(iSpec)%InterID.EQ.4).OR.(SpecDSMC(iSpec)%FullyIonized)) CYCLE
+  DO jSpec = 1, nSpecies
+    doConverge = .TRUE.
+    Xi_rel = 2.*(2. - CollInf%omega(iSpec,jSpec))
+    !Find Equilibrium Temperature
+    MinTemp=MIN(DSMC%InstantTXiElec(1,iSpec),DSMC%InstantTransTemp(nSpecies+1))
+    MaxTemp=MAX(DSMC%InstantTXiElec(1,iSpec),DSMC%InstantTransTemp(nSpecies+1))
+    Tequi= 0.5*(MaxTemp+MinTemp)
+    iLoop = 1    
+    OldEn =DSMC%InstantTXiElec(1,iSpec)*DSMC%InstantTXiElec(2,iSpec)+Xi_rel*DSMC%InstantTransTemp(nSpecies+1)
+    NewEn=(CalcXiElec(TEqui, iSpec)+Xi_rel)*Tequi
+    DO WHILE(ABS(OldEn-NewEn).GT.1E-2)
+      IF (OldEn.LT.NewEn) THEN
+       MaxTemp = TEqui
+      ELSE
+       MinTemp = TEqui
+      END IF 
+      Tequi= 0.5*(MaxTemp+MinTemp)    
+      NewEn=(CalcXiElec(TEqui, iSpec)+Xi_rel)*Tequi
+      iLoop = iLoop + 1
+      IF (iLoop.EQ.100) THEN
+        doConverge = .FALSE.
+        EXIT
+      END IF
+    END DO
+    IF (doConverge) THEN
+      SpecDSMC(iSpec)%ElecRelaxCorrectFac(jSpec) = (CalcXiElec(DSMC%InstantTransTemp(nSpecies+1), iSpec)*DSMC%InstantTransTemp(nSpecies+1) &
+        -DSMC%InstantTXiElec(1,iSpec)*DSMC%InstantTXiElec(2,iSpec))/(Xi_rel*(DSMC%InstantTransTemp(nSpecies+1)-TEqui))
+      SpecDSMC(iSpec)%ElecRelaxCorrectFac(jSpec) = MAX(SpecDSMC(iSpec)%ElecRelaxCorrectFac(jSpec),1.)
+    ELSE
+      SpecDSMC(iSpec)%ElecRelaxCorrectFac(jSpec) = 1.
+    END IF
+  END DO
+END DO
+END SUBROUTINE CalcProbCorrFactorElec
 
 REAL FUNCTION DiffElecEnergy(En1, En2)
 !===================================================================================================================================

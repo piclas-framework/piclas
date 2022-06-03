@@ -82,8 +82,7 @@ The temperature is then calculated from
 $$ q_w = \varepsilon \sigma T_w^4,$$
 
 where $\varepsilon$ is the radiative emissivity of the wall (default = 1) and
-$\sigma = \SI{5.67E-8}{\watt\per\square\meter\per\kelvin\tothe{4}}$ is the Stefan-Boltzmann constant. The adaptive boundary is
-enabled by
+$\sigma = \pu{5.67E-8 Wm^{-2}K^{-4}}$ is the Stefan-Boltzmann constant. The adaptive boundary is enabled by
 
     Part-AdaptWallTemp = T
     Part-Boundary1-UseAdaptedWallTemp = T
@@ -131,16 +130,15 @@ previous section) on which the porous condition is.
 
     Surf-nPorousBC=1
     Surf-PorousBC1-BC=2
-    Surf-PorousBC1-Pressure=5.
-    Surf-PorousBC1-Temperature=300.
     Surf-PorousBC1-Type=pump
+    Surf-PorousBC1-Pressure=5.
     Surf-PorousBC1-PumpingSpeed=2e-9
     Surf-PorousBC1-DeltaPumpingSpeed-Kp=0.1
     Surf-PorousBC1-DeltaPumpingSpeed-Ki=0.0
 
-The removal probability is determined through the given pressure [Pa] and temperature [K] at the boundary. A pumping speed can be
-given as a first guess, however, the pumping speed $S$ [$m^3/s$] will be adapted if the proportional factor ($K_{\mathrm{p}}$,
-`DeltaPumpingSpeed-Kp`) is greater than zero
+Currently, two porous BC types are available, `pump` and `sensor`. For the former, the removal probability is determined through
+the given pressure [Pa] at the boundary. A pumping speed can be given as a first guess, however, the pumping speed $S$ [$m^3/s$]
+will be adapted if the proportional factor ($K_{\mathrm{p}}$, `DeltaPumpingSpeed-Kp`) is greater than zero
 
 $$ S^{n+1}(t) = S^{n}(t) + K_{\mathrm{p}} \Delta p(t) + K_{\mathrm{i}} \int_0^t \Delta p(t') dt',$$
 
@@ -181,8 +179,6 @@ Using the regions, multiple pumps can be defined on a single boundary. Additiona
 the respective type:
 
     Surf-PorousBC1-BC=3
-    Surf-PorousBC1-Pressure=5.
-    Surf-PorousBC1-Temperature=300.
     Surf-PorousBC1-Type=sensor
 
 Together with a region definition, a pump as well as a sensor can be defined on a single and/or multiple boundaries, allowing e.g.
@@ -196,12 +192,14 @@ appropriate particle boundary surface model `Part-BoundaryX-SurfaceModel`.
 The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the table below.
 
 |    Model    |                                                                                          Description                                                                                          |
-| :---------: |      :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------      |
-| 0 (default) |                                                                            Standard extended Maxwellian scattering                                                                            |
-|      5      |                                                                Secondary electron emission as given by Ref. {cite}`Levko2015`.                                                                |
+| :---------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 (default) | Standard extended Maxwellian scattering                                                                                                                                                       |
+|      5      | Secondary electron emission as given by Ref. {cite}`Levko2015`.                                                                                                                               |
 |      7      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. {cite}`Pflug2014` and given by Ref. {cite}`Depla2009` with a constant yield of 13 \%. |
-|      8      |                Secondary electron emission due to ion impact (SEE-E with $e^{-}$ on dielectric surfaces) as used in Ref. {cite}`Liu2010` and given by Ref. {cite}`Morozov2004`.               |
-|      9      |                  Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$) with a constant yield of 1 \%. Emitted electrons have an energy of 6.8 eV upon emission.                 |
+|      8      | Secondary electron emission due to ion impact (SEE-E with $e^{-}$ on dielectric surfaces) as used in Ref. {cite}`Liu2010` and given by Ref. {cite}`Morozov2004`.                              |
+|      9      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$) with a constant yield of 1 \%. Emitted electrons have an energy of 6.8 eV upon emission.                                  |
+|     10      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on copper) as used in Ref. {cite}`Theis2021` originating from {cite}`Phelps1999`                                           |
+|     11      | Secondary electron emission due to electron impact (SEE-E with $e^{-}$ on quartz (SiO$_{2}$)) as described in Ref. {cite}`Zeng2020` originating from {cite}`Dunaevsky2003`                    |
 
 For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
 
@@ -233,7 +231,24 @@ publication.
 The model by Morozov {cite}`Morozov2004` can be applied for dielectric surfaces and is activated via
 `Part-BoundaryX-SurfaceModel=8` and has an additional parameter for setting the reference electron temperature (see model for
 details) via `Part-SurfaceModel-SEE-Te`, which takes the electron temperature in Kelvin as input (default is 50 eV, which
-corresponds to 11604 K). The emission yield is determined from an energy-dependent function.
+corresponds to 11604 K).
+The emission yield is determined from an energy-dependent function.
+The model can be switched to an automatic determination of the bulk electron temperature via
+
+    Part-SurfaceModel-SEE-Te-automatic = T ! Activate automatic bulk temperature calculation
+    Part-SurfaceModel-SEE-Te-Spec      = 2 ! Species ID used for automatic temperature calculation (must correspond to electrons)
+
+where the species ID must be supplied, which corresponds to the electron species for which, during `Part-AnalyzeStep`, the global
+translational temperature is determined and subsequently used to adjust the energy dependence of the SEE model. The global (bulk)
+electron temperature is written to *PartAnalyze.csv* as *XXX-BulkElectronTemp-[K]*.
+
+An energy-dependent model of secondary electron emission due to $Ar^{+}$ ion impact on a copper cathode as used in
+Ref. {cite}`Theis2021` originating from {cite}`Phelps1999` is
+activated via `Part-BoundaryX-SurfaceModel=10`. For more details, see the original publications.
+
+An energy-dependent model (linear and power fit of measured SEE yields) of secondary electron emission due to $e^{-}$ impact on a
+quartz (SiO$_{2}$) surface as described in Ref. {cite}`Zeng2020` originating from {cite}`Dunaevsky2003` is
+activated via `Part-BoundaryX-SurfaceModel=11`. For more details, see the original publications.
 
 ## Deposition of Charges on Dielectric Surfaces
 

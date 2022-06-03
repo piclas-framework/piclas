@@ -66,7 +66,11 @@ USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Mesh_Vars          ,ONLY: sJ, Metrics_fTilde, Metrics_gTilde,Metrics_hTilde
 USE MOD_Mesh_Vars          ,ONLY: SurfElem
 USE MOD_Mesh_Vars          ,ONLY: VolToSideA,VolToSideIJKA,ElemToSide
+#ifdef VDM_ANALYTICAL
+USE MOD_Mathtools          ,ONLY: INVERSE_LU
+#else
 USE MOD_Basis              ,ONLY: getSPDInverse
+#endif
 #if defined(PARTICLES)
 USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
@@ -281,7 +285,16 @@ DO iElem=1,PP_nElems
       END DO !g1
     END DO !g2
   END DO !g3
-  InvDhat(:,:,iElem)=-getSPDInverse(nGP_vol,-Dhat)
+  
+! Invert Dhat
+#ifdef VDM_ANALYTICAL
+! Computes InvDhat via analytical expression (only works for Lagrange polynomials, hence the "analytical"
+! pre-processor flag) when Lapack fails
+! For Bezier (Bernstein basis) polynomial: use INVERSE_LU function
+InvDhat(:,:,iElem)=INVERSE_LU(Dhat)
+#else
+InvDhat(:,:,iElem)=-getSPDInverse(nGP_vol,-Dhat)
+#endif /*VDM_ANALYTICAL*/
   ! Compute for each side pair  Ehat Dhat^{-1} Ehat^T
   DO jLocSide=1,6
     !Stmp1 = TRANSPOSE( MATMUL( Ehat(:,:,jLocSide,iElem) , InvDhat(:,:,iElem) ) )

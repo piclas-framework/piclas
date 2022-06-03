@@ -46,14 +46,9 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Porous BC")
 
-CALL prms%CreateIntOption(      'Surf-nPorousBC'&
-                                , 'Number of porous boundary conditions', '0')
-CALL prms%CreateIntOption(      'Surf-PorousBC[$]-BC' &
-                                , 'PartBound to be a porous boundary', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Surf-PorousBC[$]-Pressure' &
-                                , 'Pressure [Pa] at the porous boundary', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Surf-PorousBC[$]-Temperature' &
-                                , 'Temperature [K] at the porous boundary', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Surf-nPorousBC','Number of porous boundary conditions', '0')
+CALL prms%CreateIntOption(      'Surf-PorousBC[$]-BC','PartBound to be a porous boundary', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Surf-PorousBC[$]-Pressure','Pressure [Pa] at the porous boundary', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Surf-PorousBC[$]-Type' &
                                 , 'Define the type of porous boundary, currently available are sensor and pump.' //&
                                   'Option sensor: Using the defined region/BC to measure the pressure difference between the '//&
@@ -131,15 +126,9 @@ REAL                  :: rmin, rmax
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION ...'
 
-IF(TrackingMethod.EQ.REFMAPPING) THEN
-  CALL abort(__STAMP__&
-      ,'ERROR: Porous boundary conditions are not implemented with RefMapping!')
-END IF
+IF(TrackingMethod.EQ.REFMAPPING) CALL abort(__STAMP__,'ERROR: Porous boundary conditions are not implemented with RefMapping!')
 
-IF((Symmetry%Order.LE.2).AND.(.NOT.Symmetry%Axisymmetric)) THEN
-  CALL abort(__STAMP__&
-      ,'ERROR: Porous boundary conditions are not implemented for 1D/2D simulations!')
-END IF
+IF((Symmetry%Order.LE.2).AND.(.NOT.Symmetry%Axisymmetric)) CALL abort(__STAMP__,'ERROR: Porous boundary conditions are not implemented for 1D/2D simulations!')
 
 ! 1) Allocate arrays
 ALLOCATE(PorousBC(1:nPorousBC))
@@ -163,12 +152,9 @@ DO iPBC = 1, nPorousBC
   WRITE(UNIT=hilf,FMT='(I0)') iPBC
   PorousBC(iPBC)%BC = GETINT('Surf-PorousBC'//TRIM(hilf)//'-BC')
   IF(PartBound%TargetBoundCond(PorousBC(iPBC)%BC).NE.PartBound%ReflectiveBC) THEN
-    CALL abort(__STAMP__&
-      ,'ERROR in init of porous BC: given boundary condition must be reflective!')
+    CALL abort(__STAMP__,'ERROR in init of porous BC: given boundary condition must be reflective!')
   END IF
   ! Read-in of the conditions at the porous boundary
-  PorousBC(iPBC)%Pressure  = GETREAL('Surf-PorousBC'//TRIM(hilf)//'-Pressure')
-  PorousBC(iPBC)%Temperature  = GETREAL('Surf-PorousBC'//TRIM(hilf)//'-Temperature')
   PorousBC(iPBC)%Type  = TRIM(GETSTR('Surf-PorousBC'//TRIM(hilf)//'-Type'))
   SELECT CASE(PorousBC(iPBC)%Type)
     CASE('sensor')
@@ -176,6 +162,8 @@ DO iPBC = 1, nPorousBC
       PorousBC(iPBC)%DeltaPumpingSpeedKp = 0.0
       PorousBC(iPBC)%DeltaPumpingSpeedKi = 0.0
     CASE('pump')
+      ! Define the desired pressure at the pump
+      PorousBC(iPBC)%Pressure  = GETREAL('Surf-PorousBC'//TRIM(hilf)//'-Pressure')
       ! Initial pumping speed at the porous boundary [m3/s]
       PorousBC(iPBC)%PumpingSpeed = GETREAL('Surf-PorousBC'//TRIM(hilf)//'-PumpingSpeed')
       ! Proportional and integral factors for the control of the pumping speed
@@ -187,8 +175,7 @@ DO iPBC = 1, nPorousBC
         PorousBC(iPBC)%DeltaPumpingSpeedKi = PorousBC(iPBC)%DeltaPumpingSpeedKi / 10.0**(ANINT(LOG10(PorousBC(iPBC)%Pressure)))
       END IF
     CASE DEFAULT
-      CALL abort(__STAMP__&
-      ,'ERROR in type definition of porous bc:', iPBC)
+      CALL abort(__STAMP__,'ERROR in type definition of porous bc:', iPBC)
   END SELECT
   PorousBC(iPBC)%Region = TRIM(GETSTR('Surf-PorousBC'//TRIM(hilf)//'-Region','none'))
   IF(PorousBC(iPBC)%Region.EQ.'none') THEN
@@ -207,8 +194,7 @@ DO iPBC = 1, nPorousBC
         PorousBC(iPBC)%dir(2)=1
         PorousBC(iPBC)%dir(3)=2
     ELSE
-      CALL abort(__STAMP__&
-        ,'ERROR in init: normalDir for PorousBC must be between 1 and 3!')
+      CALL abort(__STAMP__,'ERROR in init: normalDir for PorousBC must be between 1 and 3!')
     END IF
     SELECT CASE(PorousBC(iPBC)%Region)
       CASE('circular')
@@ -218,12 +204,10 @@ DO iPBC = 1, nPorousBC
         PorousBC(iPBC)%rmin = GETREAL('Surf-PorousBC'//TRIM(hilf)//'-rmin','0.')
         IF(Symmetry%Axisymmetric) THEN
           IF(PorousBC(iPBC)%dir(1).NE.1) THEN
-            CALL abort(__STAMP__&
-              ,'ERROR in Porous BC: For axisymmetric simulations, only regions perpendicular to the axis are allowed!', iPBC)
+            CALL abort(__STAMP__,'ERROR in Porous BC: For axisymmetric simulations, only regions perpendicular to the axis are allowed!', iPBC)
           END IF
           IF(PorousBC(iPBC)%origin(1)*PorousBC(iPBC)%origin(2).NE.0.0) THEN
-            CALL abort(__STAMP__&
-              ,'ERROR in Porous BC: For axisymmetric simulations, the origin has to be at (0,0)!', iPBC)
+            CALL abort(__STAMP__,'ERROR in Porous BC: For axisymmetric simulations, the origin has to be at (0,0)!', iPBC)
           END IF
         END IF
       CASE DEFAULT
@@ -526,48 +510,50 @@ DO iPorousSide = 1, nPorousSides
     dtVar = dt
   END IF
   ! Determine the removal probability based on the pumping speed (adaptive to a target pressure or fixed)
-  IF((PorousBC(iPBC)%DeltaPumpingSpeedKp.GT.0.).OR.(PorousBC(iPBC)%DeltaPumpingSpeedKi.GT.0.)) THEN
-    ! a) Determining the delta between current gas mixture pressure in adjacent cell and target pressure
-    DeltaPressure = SUM(AdaptBCMacroVal(6,SampleElemID,1:nSpecies))-PorousBC(iPBC)%Pressure
-    ! Integrating the pressure difference (only utilized later if DeltaPumpingSpeedKi was given)
-    IF(PorousBCProperties_Shared(2,iPorousSide).GT.0.0) THEN
-      AdaptBCMacroVal(7,SampleElemID,1) = AdaptBCMacroVal(7,SampleElemID,1) + DeltaPressure * dtVar
-    ELSE
-      AdaptBCMacroVal(7,SampleElemID,1) = 0.0
+  IF(TRIM(PorousBC(iPBC)%Type).EQ.'pump') THEN
+    IF((PorousBC(iPBC)%DeltaPumpingSpeedKp.GT.0.).OR.(PorousBC(iPBC)%DeltaPumpingSpeedKi.GT.0.)) THEN
+      ! a) Determining the delta between current gas mixture pressure in adjacent cell and target pressure
+      DeltaPressure = SUM(AdaptBCMacroVal(6,SampleElemID,1:nSpecies))-PorousBC(iPBC)%Pressure
+      ! Integrating the pressure difference (only utilized later if DeltaPumpingSpeedKi was given)
+      IF(PorousBCProperties_Shared(2,iPorousSide).GT.0.0) THEN
+        AdaptBCMacroVal(7,SampleElemID,1) = AdaptBCMacroVal(7,SampleElemID,1) + DeltaPressure * dtVar
+      ELSE
+        AdaptBCMacroVal(7,SampleElemID,1) = 0.0
+      END IF
+      ! b) Adapting the pumping capacity (m^3/s) according to pressure difference (control through proportional and integral part)
+      PumpingSpeedTemp = PorousBCProperties_Shared(2,iPorousSide) + PorousBC(iPBC)%DeltaPumpingSpeedKp * DeltaPressure &
+          + PorousBC(iPBC)%DeltaPumpingSpeedKi * AdaptBCMacroVal(7,SampleElemID,1)
+      ! c) Calculate the removal probability if any particles hit the pump
+      IF(SumPartPorousBC.GT.0) THEN
+        PorousBCProperties_Shared(1,iPorousSide) = PumpingSpeedTemp*SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies)) &
+                                                        * dtVar / (SumPartPorousBC*partWeight)
+      ELSE
+        PorousBCProperties_Shared(1,iPorousSide) = 0.0
+      END IF
+      ! d) Limit removal probability to values between 0 and 1
+      IF(PorousBCProperties_Shared(1,iPorousSide).GT.1.0) THEN
+        PorousBCProperties_Shared(1,iPorousSide) = 1.0
+        ! Setting pumping speed to maximum value (alpha=1)
+        PorousBCProperties_Shared(2,iPorousSide) = SumPartPorousBC*partWeight &
+                                                      / (SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies))*dtVar)
+      ELSE IF(PorousBCProperties_Shared(1,iPorousSide).LE.0.0) THEN
+        PorousBCProperties_Shared(1,iPorousSide) = 0.0
+        ! Avoiding negative pumping speeds
+        PorousBCProperties_Shared(2,iPorousSide) = 0.0
+      ELSE
+        ! Only adapting the pumping speed if alpha is between zero and one
+        PorousBCProperties_Shared(2,iPorousSide) = PumpingSpeedTemp
+      END IF
+    ELSE IF(PorousBCProperties_Shared(2,iPorousSide).GT.0.0) THEN
+      ! Constant given pumping speed
+      IF(SumPartPorousBC.GT.0) THEN
+        PorousBCProperties_Shared(1,iPorousSide) = PorousBCProperties_Shared(2,iPorousSide) &
+                        * SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies)) * dtVar / (SumPartPorousBC*partWeight)
+      ELSE
+        PorousBCProperties_Shared(1,iPorousSide) = 0.0
+      END IF
     END IF
-    ! b) Adapting the pumping capacity (m^3/s) according to pressure difference (control through proportional and integral part)
-    PumpingSpeedTemp = PorousBCProperties_Shared(2,iPorousSide) + PorousBC(iPBC)%DeltaPumpingSpeedKp * DeltaPressure &
-        + PorousBC(iPBC)%DeltaPumpingSpeedKi * AdaptBCMacroVal(7,SampleElemID,1)
-    ! c) Calculate the removal probability if any particles hit the pump
-    IF(SumPartPorousBC.GT.0) THEN
-      PorousBCProperties_Shared(1,iPorousSide) = PumpingSpeedTemp*SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies)) &
-                                                      * dtVar / (SumPartPorousBC*partWeight)
-    ELSE
-      PorousBCProperties_Shared(1,iPorousSide) = 0.0
-    END IF
-    ! d) Limit removal probability to values between 0 and 1
-    IF(PorousBCProperties_Shared(1,iPorousSide).GT.1.0) THEN
-      PorousBCProperties_Shared(1,iPorousSide) = 1.0
-      ! Setting pumping speed to maximum value (alpha=1)
-      PorousBCProperties_Shared(2,iPorousSide) = SumPartPorousBC*partWeight &
-                                                    / (SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies))*dtVar)
-    ELSE IF(PorousBCProperties_Shared(1,iPorousSide).LE.0.0) THEN
-      PorousBCProperties_Shared(1,iPorousSide) = 0.0
-      ! Avoiding negative pumping speeds
-      PorousBCProperties_Shared(2,iPorousSide) = 0.0
-    ELSE
-      ! Only adapting the pumping speed if alpha is between zero and one
-      PorousBCProperties_Shared(2,iPorousSide) = PumpingSpeedTemp
-    END IF
-  ELSE IF(PorousBCProperties_Shared(2,iPorousSide).GT.0.0) THEN
-    ! Constant given pumping speed
-    IF(SumPartPorousBC.GT.0) THEN
-      PorousBCProperties_Shared(1,iPorousSide) = PorousBCProperties_Shared(2,iPorousSide) &
-                      * SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies)) * dtVar / (SumPartPorousBC*partWeight)
-    ELSE
-      PorousBCProperties_Shared(1,iPorousSide) = 0.0
-    END IF
-  END IF
+  END IF      ! TRIM(PorousBC(iPBC)%Type).EQ.'pump'
   ! Storing the pumping speed for the restart state file
   AdaptBCMacroVal(5,SampleElemID,1) = PorousBCProperties_Shared(2,iPorousSide)
   ! e) Sampling of the pumping capacity (and other variables for PartAnalyze) for the output
@@ -588,8 +574,8 @@ DO iPorousSide = 1, nPorousSides
       PorousBCOutput(3,iPBC) = PorousBCOutput(3,iPBC) + PorousBCProperties_Shared(2,iPorousSide)
       ! Removal probability
       PorousBCOutput(4,iPBC) = PorousBCOutput(4,iPBC) + PorousBCProperties_Shared(1,iPorousSide)
-      ! Normalized pressure at the pump
-      PorousBCOutput(5,iPBC) = PorousBCOutput(5,iPBC) + SUM(AdaptBCMacroVal(6,SampleElemID,1:nSpecies)) / PorousBC(iPBC)%Pressure
+      ! Pressure at the pump
+      PorousBCOutput(5,iPBC) = PorousBCOutput(5,iPBC) + SUM(AdaptBCMacroVal(6,SampleElemID,1:nSpecies))
     END IF
   END IF
 END DO    ! iPorousSide = 1, nPorousSides

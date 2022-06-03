@@ -33,25 +33,26 @@ CONTAINS
 !===================================================================================================================================
 !> Routine for the particle emission at a surface
 !===================================================================================================================================
-SUBROUTINE SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobElemID)
+SUBROUTINE SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobElemID,POI_vec)
 ! MODULES
 USE MOD_Globals                   ,ONLY: OrthoNormVec
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
 USE MOD_part_operations           ,ONLY: CreateParticle
-USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues, LastPartPos
+USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModEnergyDistribution
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
-USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 USE MOD_Particle_Vars             ,ONLY: usevMPF,PartMPF
 USE MOD_part_tools                ,ONLY: CalcRadWeightMPF
+USE MOD_Particle_Mesh_Vars        ,ONLY: BoundsOfElem_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)    :: n_loc(1:3)       !< normal vector of the surface
+REAL,INTENT(IN)    :: POI_vec(1:3)     !< Point Of Intersection
 INTEGER,INTENT(IN) :: PartID, SideID   !< Particle index and side index
 INTEGER,INTENT(IN) :: GlobElemID       !< global element ID of the impacting particle (used for creating a new particle)
 INTEGER,INTENT(IN) :: ProductSpec(2)   !< 1: product species of incident particle (also used for simple reflection)
@@ -66,7 +67,9 @@ REAL,INTENT(IN)    :: TempErgy         !< temperature, energy or velocity used f
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: iNewPart, NewPartID, locBCID, SurfSideID
-REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), POI_vec(3), OldMPF
+REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), OldMPF, BoundsOfElemCenter(1:3),NewPos(1:3)
+REAL,PARAMETER     :: eps=1e-6
+REAL,PARAMETER     :: eps2=1.0-eps
 !===================================================================================================================================
 locBCID    = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
@@ -74,11 +77,15 @@ WallTemp   = PartBound%WallTemp(locBCID)
 WallVelo   = PartBound%WallVelo(1:3,locBCID)
 
 IF(PartBound%RotVelo(locBCID)) THEN
-  POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
   CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
 END IF
 
 CALL OrthoNormVec(n_loc,tang1,tang2)
+
+! Get Elem Center
+BoundsOfElemCenter(1:3) = (/SUM(BoundsOfElem_Shared(1:2,1,GlobElemID)), &
+                            SUM(BoundsOfElem_Shared(1:2,2,GlobElemID)), &
+                            SUM(BoundsOfElem_Shared(1:2,3,GlobElemID)) /) / 2.
 
 ! Create new particles
 DO iNewPart = 1, ProductSpecNbr
@@ -87,15 +94,16 @@ DO iNewPart = 1, ProductSpecNbr
   NewVelo(1:3) = VeloFromDistribution(SurfModEnergyDistribution(locBCID),TempErgy,iNewPart,ProductSpecNbr)
   ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
   NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
-  ! Create new particle and get a free particle index
+  ! Create new position by using POI and moving the particle by eps in the direction of the element center
+  NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*POI_vec(1:3)
   IF(usevMPF)THEN
     ! Get MPF of old particle
     OldMPF = PartMPF(PartID)
     ! New particle acquires the MPF of the impacting particle (not necessarily the MPF of the newly created particle species)
-    CALL CreateParticle(ProductSpec(2),LastPartPos(1:3,PartID),GlobElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=OldMPF)
+    CALL CreateParticle(ProductSpec(2),NewPos(1:3),GlobElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=OldMPF)
   ELSE
     ! New particle acquires the MPF of the new particle species
-    CALL CreateParticle(ProductSpec(2),LastPartPos(1:3,PartID),GlobElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
+    CALL CreateParticle(ProductSpec(2),NewPos(1:3),GlobElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
   END IF ! usevMPF
   ! Adding the energy that is transferred from the surface onto the internal energies of the particle
   CALL SurfaceModel_EnergyAccommodation(NewPartID,locBCID,WallTemp)

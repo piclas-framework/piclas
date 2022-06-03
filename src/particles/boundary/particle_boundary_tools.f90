@@ -221,7 +221,7 @@ SampWallImpactNumber(SpecID,SubP,SubQ,SurfSideID) = SampWallImpactNumber(SpecID,
 END SUBROUTINE SampleImpactProperties
 
 
-SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,iBC,mode,usevMPF_optIN)
+SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,iBC,mode,MPF_optIN)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Save particle position, velocity and species to PartDataBoundary container for writing to .h5 later
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -242,8 +242,8 @@ REAL,INTENT(IN)    :: PartTrajectory(1:3)
 REAL,INTENT(IN)    :: SurfaceNormal(1:3)
 INTEGER,INTENT(IN) :: iBC  ! Part-BoundaryX on which the impact occurs
 INTEGER,INTENT(IN) :: mode ! 1: particle impacts on BC (species is stored as positive value)
-                            ! 2: particles is emitted from the BC into the simulation domain (species is stored as negative value)
-LOGICAL,INTENT(IN),OPTIONAL :: usevMPF_optIN ! For setting MPF for cases when PartMPF(iPart) might not yet be set during emission
+                           ! 2: particles is emitted from the BC into the simulation domain (species is stored as negative value)
+REAL,INTENT(IN),OPTIONAL :: MPF_optIN ! Supply the MPF in special cases
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                 :: MPF
@@ -253,14 +253,8 @@ REAL, ALLOCATABLE    :: PartStateBoundary_tmp(:,:) ! (1:11,1:NParts) 1st index: 
 !                                                  !                 2nd index: 1 to number of boundary-crossed particles
 INTEGER              :: ALLOCSTAT
 !===================================================================================================================================
-IF(PRESENT(usevMPF_optIN))THEN
-  IF(usevMPF_optIN)THEN
-    CALL abort(&
-    __STAMP__&
-    ,'StoreBoundaryParticleProperties: usevMPF_optIN cannot be true!')
-  ELSE
-    MPF = Species(SpecID)%MacroParticleFactor
-  END IF ! usevMPF_optIN
+IF(PRESENT(MPF_optIN))THEN
+  MPF = MPF_optIN
 ELSE
   IF (usevMPF) THEN
     MPF = PartMPF(iPart)
@@ -300,14 +294,13 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
 
   PartStateBoundary(1:3,iMax) = PartPos
   PartStateBoundary(4:6,iMax) = PartState(4:6,iPart)
+  ! Mode 1: store normal species ID, mode 2: store negative species ID (special analysis of emitted particles in/from volume/surface)
   IF(mode.EQ.1)THEN
     PartStateBoundary(7  ,iMax) = REAL(SpecID)
   ELSEIF(mode.EQ.2)THEN
     PartStateBoundary(7  ,iMax) = -REAL(SpecID)
   ELSE
-    CALL abort(&
-    __STAMP__&
-    ,'StoreBoundaryParticleProperties: mode must be either 1 or 2! mode=',IntInfoOpt=mode)
+    CALL abort(__STAMP__,'StoreBoundaryParticleProperties: mode must be either 1 or 2! mode=',IntInfoOpt=mode)
   END IF ! mode.EQ.1
   PartStateBoundary(8  ,iMax) = MPF
   PartStateBoundary(9  ,iMax) = time
@@ -592,6 +585,7 @@ USE MOD_Globals
 USE MOD_Particle_Surfaces       ,ONLY: GetSideBoundingBox
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetSideBoundingBoxTria
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
+USE MOD_Particle_Vars           ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -614,67 +608,72 @@ IF (TrackingMethod.EQ.TRIATRACKING) THEN
 ELSE
   CALL GetSideBoundingBox(GlobalSideID,BoundingBox)
 END IF
-r0inside=.FALSE.
-Vector1(:)=0.
-Vector2(:)=0.
-Vector3(:)=0.
-xyzNod(1)=MINVAL(BoundingBox(1,:))
-xyzNod(2)=MINVAL(BoundingBox(2,:))
-xyzNod(3)=MINVAL(BoundingBox(3,:))
-VecBoundingBox(1) = MAXVAL(BoundingBox(1,:)) -MINVAL(BoundingBox(1,:))
-VecBoundingBox(2) = MAXVAL(BoundingBox(2,:)) -MINVAL(BoundingBox(2,:))
-VecBoundingBox(3) = MAXVAL(BoundingBox(3,:)) -MINVAL(BoundingBox(3,:))
-Vector1(dir(2)) = VecBoundingBox(dir(2))
-Vector2(dir(2)) = VecBoundingBox(dir(2))
-Vector2(dir(3)) = VecBoundingBox(dir(3))
-Vector3(dir(3)) = VecBoundingBox(dir(3))
-!-- determine rmax (and corners)
-DO iNode=1,4
-  SELECT CASE(iNode)
-  CASE(1)
-    corner = xyzNod
-  CASE(2)
-    corner = xyzNod + Vector1
-  CASE(3)
-    corner = xyzNod + Vector2
-  CASE(4)
-    corner = xyzNod + Vector3
-  END SELECT
-  corner(dir(2)) = corner(dir(2)) - origin(1)
-  corner(dir(3)) = corner(dir(3)) - origin(2)
-  radiusCorner(1,iNode)=SQRT(corner(dir(2))**2+corner(dir(3))**2)
-END DO !iNode
-rmax=MAXVAL(radiusCorner(1,1:4))
-!-- determine rmin
-DO iNode=1,4
-  SELECT CASE(iNode)
-  CASE(1)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
-    vec=(/Vector1(dir(2)),Vector1(dir(3))/)
-  CASE(2)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
-    vec=(/Vector3(dir(2)),Vector3(dir(3))/)
-  CASE(3)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
-    vec=(/-Vector1(dir(2)),-Vector1(dir(3))/)
-  CASE(4)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
-    vec=(/-Vector3(dir(2)),-Vector3(dir(3))/)
-  END SELECT
-  vec=point + MIN(MAX(-DOT_PRODUCT(point,vec)/DOT_PRODUCT(vec,vec),0.),1.)*vec
-  radiusCorner(2,iNode)=SQRT(DOT_PRODUCT(vec,vec)) !rmin
-END DO !iNode
-!-- determine if r0 is inside of bounding box
-IF ((origin(1) .GE. MINVAL(BoundingBox(dir(2),:))) .AND. &
-    (origin(1) .LE. MAXVAL(BoundingBox(dir(2),:))) .AND. &
-    (origin(2) .GE. MINVAL(BoundingBox(dir(3),:))) .AND. &
-    (origin(2) .LE. MAXVAL(BoundingBox(dir(3),:))) ) THEN
-    r0inside = .TRUE.
-END IF
-IF (r0inside) THEN
-  rmin = 0.
+IF(Symmetry%Axisymmetric) THEN
+  rmin = BoundingBox(2,1)
+  rmax = BoundingBox(2,3)
 ELSE
-  rmin=MINVAL(radiusCorner(2,1:4))
+  r0inside=.FALSE.
+  Vector1(:)=0.
+  Vector2(:)=0.
+  Vector3(:)=0.
+  xyzNod(1)=MINVAL(BoundingBox(1,:))
+  xyzNod(2)=MINVAL(BoundingBox(2,:))
+  xyzNod(3)=MINVAL(BoundingBox(3,:))
+  VecBoundingBox(1) = MAXVAL(BoundingBox(1,:)) -MINVAL(BoundingBox(1,:))
+  VecBoundingBox(2) = MAXVAL(BoundingBox(2,:)) -MINVAL(BoundingBox(2,:))
+  VecBoundingBox(3) = MAXVAL(BoundingBox(3,:)) -MINVAL(BoundingBox(3,:))
+  Vector1(dir(2)) = VecBoundingBox(dir(2))
+  Vector2(dir(2)) = VecBoundingBox(dir(2))
+  Vector2(dir(3)) = VecBoundingBox(dir(3))
+  Vector3(dir(3)) = VecBoundingBox(dir(3))
+  !-- determine rmax (and corners)
+  DO iNode=1,4
+    SELECT CASE(iNode)
+    CASE(1)
+      corner = xyzNod
+    CASE(2)
+      corner = xyzNod + Vector1
+    CASE(3)
+      corner = xyzNod + Vector2
+    CASE(4)
+      corner = xyzNod + Vector3
+    END SELECT
+    corner(dir(2)) = corner(dir(2)) - origin(1)
+    corner(dir(3)) = corner(dir(3)) - origin(2)
+    radiusCorner(1,iNode)=SQRT(corner(dir(2))**2+corner(dir(3))**2)
+  END DO !iNode
+  rmax=MAXVAL(radiusCorner(1,1:4))
+  !-- determine rmin
+  DO iNode=1,4
+    SELECT CASE(iNode)
+    CASE(1)
+      point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
+      vec=(/Vector1(dir(2)),Vector1(dir(3))/)
+    CASE(2)
+      point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
+      vec=(/Vector3(dir(2)),Vector3(dir(3))/)
+    CASE(3)
+      point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
+      vec=(/-Vector1(dir(2)),-Vector1(dir(3))/)
+    CASE(4)
+      point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
+      vec=(/-Vector3(dir(2)),-Vector3(dir(3))/)
+    END SELECT
+    vec=point + MIN(MAX(-DOT_PRODUCT(point,vec)/DOT_PRODUCT(vec,vec),0.),1.)*vec
+    radiusCorner(2,iNode)=SQRT(DOT_PRODUCT(vec,vec)) !rmin
+  END DO !iNode
+  !-- determine if r0 is inside of bounding box
+  IF ((origin(1) .GE. MINVAL(BoundingBox(dir(2),:))) .AND. &
+      (origin(1) .LE. MAXVAL(BoundingBox(dir(2),:))) .AND. &
+      (origin(2) .GE. MINVAL(BoundingBox(dir(3),:))) .AND. &
+      (origin(2) .LE. MAXVAL(BoundingBox(dir(3),:))) ) THEN
+      r0inside = .TRUE.
+  END IF
+  IF (r0inside) THEN
+    rmin = 0.
+  ELSE
+    rmin=MINVAL(radiusCorner(2,1:4))
+  END IF
 END IF
 
 END SUBROUTINE GetRadialDistance2D

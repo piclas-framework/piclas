@@ -64,7 +64,7 @@ def RenameFiles(differences, stdfile, stdfile_backup, stdfile_new, args):
         os.remove(stdfile_new) # remove new file (it is empty when no particles were lost)
 
     # Check if user has supplied the flag for backup file removal and the file actually exists
-    if args.clean and os.path.exists(stdfile_backup):
+    if not args.save and os.path.exists(stdfile_backup):
         os.remove(stdfile_backup) # remove backup file
 
 
@@ -104,11 +104,16 @@ def CleanSingleLines(stdfile,args):
                 # 3. [   3382.0000000000000        1694.4798966228368]
                 # Ignore this line and increase the counter by 1
                 changedLines+=1
-            elif args.iter and line_stripped.count(' ') > 16 and  'iter:' in line and 'time:' in line and len(line_split) > 3 and hasNumbers(line_stripped):
+            elif args.iter and line_stripped.count(' ') > 16 and 'iter:' in line and 'time:' in line and len(line_split) > 3 and hasNumbers(line_stripped):
                 # OPTIONAL 4. [iter:                  702 time:   3.2151600000000616E-008]
                 changedLines+=1
                 #print(line_split)
                 #exit(0)
+            elif line_stripped.count(' ') > 0 and any(substring in line for substring in (' Reason:',' Iterations:',' Norm:')) and hasNumbers(line_stripped):
+                #[ Reason:            4]
+                #[ Iterations:            1]
+                #[ Norm:   0.0000000000000000]
+                changedLines+=1
             else:
                 # Write the line to the new (clean) file
                 output_new.write(line)
@@ -407,8 +412,8 @@ start = timer()
 parser = argparse.ArgumentParser(description='DESCRIPTION:\nTool for cleaning std*.out files.\nSupply a single file or a group of files by using the wildcard "*", e.g. std* for a list of file names.', formatter_class=argparse.RawTextHelpFormatter)
 parser.add_argument('files', type=str, help='Files (std*.out) that are to be cleaned.', nargs='+')
 parser.add_argument('-d', '--debug', action='store_true', help='Print additional information regarding the files onto screen.')
-parser.add_argument('-c', '--clean', action='store_true', help='Clean-up afterwards by removing any *.bak backup files.')
-parser.add_argument('-i', '--iter', action='store_true', help='Removes lines matching "iter:   702 time:   3.2151600000000616E-008" (default=False).')
+parser.add_argument('-s', '--save', action='store_true', help='Save *.bak backup files to see what was actually removed from the std-x.out files.')
+parser.add_argument('-i', '--iter', action='store_false', help='Do not remove lines matching "iter:   702 time:   3.2151600000000616E-008" (default=False).')
 
 # Get command line arguments
 args = parser.parse_args()

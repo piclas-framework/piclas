@@ -54,8 +54,10 @@ CALL prms%CreateLogicalOption(  'CalcPointsPerDebyeLength', 'Compute the points 
 CALL prms%CreateLogicalOption(  'CalcPICCFLCondition'     , 'Compute a PIC CFL condition for each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcMaxPartDisplacement' , 'Compute the maximum displacement of the fastest particle relative to the cell lengths in X, Y and Z for each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcDebyeLength'         , 'Compute the Debye length in each cell','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcPICTimeStep'         , 'Compute the HDG time step in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPICTimeStep'         , 'Compute the HDG time step in each cell depending on the plasma frequency','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPICTimeStepCyclotron', 'Compute the HDG time step in each cell depending on the cyclotron frequency','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcElectronTemperature' , 'Compute the electron temperature in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcCyclotronFrequency'  , 'Compute the electron cylcotron frequency in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcElectronIonDensity'  , 'Compute the electron density in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcElectronEnergy'      , 'Compute the electron min/max/average energy in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPlasmaFrequency'     , 'Compute the electron frequency in each cell','.FALSE.')
@@ -93,8 +95,10 @@ CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'    , 'Percentage of curr
 CALL prms%CreateLogicalOption(  'IsRestart'                , 'Flag, if the current calculation is a restart. ', '.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , 'Calculate the amount of power that is coupled into charged particles during time integration' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'DisplayCoupledPower'      , 'Display coupled power in UNIT_stdOut' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcEMFieldOutput', 'Output the electro-mangetic fields on each DOF to .h5 calculated by PIC interpolation external fields and from field solver','.FALSE.')
 
 END SUBROUTINE DefineParametersParticleAnalyze
+
 
 SUBROUTINE InitParticleAnalyze()
 !===================================================================================================================================
@@ -104,7 +108,7 @@ SUBROUTINE InitParticleAnalyze()
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
-USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting, Collismode
+USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting, Collismode,BGGas
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems,offsetElem
 USE MOD_Particle_Analyze_Vars
@@ -116,6 +120,7 @@ USE MOD_PICDepo_Vars          ,ONLY: DoDeposition,SFAdaptiveDOF,r_sf,DepositionT
 USE MOD_PICDepo_Vars          ,ONLY: SFAdaptiveSmoothing
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_ReadInTools           ,ONLY: PrintOption
+USE MOD_Particle_Sampling_Vars,ONLY: UseAdaptive
 #if (PP_TimeDiscMethod == 42)
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_TimeDisc_Vars         ,ONLY: ManualTimeStep
@@ -134,6 +139,7 @@ USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElec
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp,BRAutomaticElectronRef
 #endif /*USE_HDG*/
+USE MOD_Particle_Analyze_Tools,ONLY: CalcNumberDensityBGGasDistri
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -403,7 +409,7 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
 END IF
 
 ! Plasma parameter
-CalcPlasmaParameter   = GETLOGICAL('CalcPlasmaParameter','.FALSE.')
+CalcPlasmaParameter   = GETLOGICAL('CalcPlasmaParameter')
 IF(CalcPlasmaParameter)THEN
   ALLOCATE( PlasmaParameterCell(1:PP_nElems) )
   PlasmaParameterCell=0.0
@@ -411,7 +417,7 @@ IF(CalcPlasmaParameter)THEN
 END IF
 
 ! Debye Length
-CalcDebyeLength       = GETLOGICAL('CalcDebyeLength','.FALSE.')
+CalcDebyeLength       = GETLOGICAL('CalcDebyeLength')
 IF(CalcPointsPerDebyeLength.OR.CalcPlasmaParameter) CalcDebyeLength=.TRUE.
 IF(CalcDebyeLength)THEN
   ALLOCATE( DebyeLengthCell(1:PP_nElems) )
@@ -420,7 +426,7 @@ IF(CalcDebyeLength)THEN
 END IF
 
 ! Ionization degree and quasi-neutrality
-CalcIonizationDegree = GETLOGICAL('CalcIonizationDegree','.FALSE.')
+CalcIonizationDegree = GETLOGICAL('CalcIonizationDegree')
 IF(CalcDebyeLength) CalcIonizationDegree=.TRUE.
 IF(CalcIonizationDegree)THEN
   ! degree of ionization
@@ -434,7 +440,7 @@ IF(CalcIonizationDegree)THEN
 END IF
 
 ! PIC Time Step Approximation
-CalcPICTimeStep = GETLOGICAL('CalcPICTimeStep','.FALSE.')
+CalcPICTimeStep = GETLOGICAL('CalcPICTimeStep')
 IF(CalcPICTimeStep)THEN
   ALLOCATE( PICTimeStepCell(1:PP_nElems) )
   PICTimeStepCell=0.0
@@ -442,7 +448,7 @@ IF(CalcPICTimeStep)THEN
 END IF
 
 ! Plasma Frequency
-CalcPlasmaFrequency = GETLOGICAL('CalcPlasmaFrequency','.FALSE.')
+CalcPlasmaFrequency = GETLOGICAL('CalcPlasmaFrequency')
 IF(CalcPICTimeStep) CalcPlasmaFrequency=.TRUE.
 IF(CalcPlasmaFrequency)THEN
   ALLOCATE( PlasmaFrequencyCell(1:PP_nElems) )
@@ -450,18 +456,44 @@ IF(CalcPlasmaFrequency)THEN
   CALL AddToElemData(ElementOut,'PlasmaFrequencyCell',RealArray=PlasmaFrequencyCell(1:PP_nElems))
 END IF
 
+! PIC time step approximation for gyro motion
+CalcPICTimeStepCyclotron       = GETLOGICAL('CalcPICTimeStepCyclotron')
+IF(CalcPICTimeStepCyclotron)THEN
+  ALLOCATE( PICTimeStepCyclotronCell(1:PP_nElems) )
+  PICTimeStepCyclotronCell=0.0
+  CALL AddToElemData(ElementOut,'PICTimeStepCyclotronCell',RealArray=PICTimeStepCyclotronCell(1:PP_nElems))
+END IF
+
+! Electron cyclotron frequency and gyroradius
+CalcCyclotronFrequency   = GETLOGICAL('CalcCyclotronFrequency')
+IF(CalcPICTimeStepCyclotron) CalcCyclotronFrequency=.TRUE.
+IF(CalcCyclotronFrequency)THEN
+  ALLOCATE( CyclotronFrequencyMaxCell(1:PP_nElems) )
+  CyclotronFrequencyMaxCell=0.0
+  CALL AddToElemData(ElementOut,'CyclotronFrequencyMaxCell',RealArray=CyclotronFrequencyMaxCell(1:PP_nElems))
+  ALLOCATE( CyclotronFrequencyMinCell(1:PP_nElems) )
+  CyclotronFrequencyMinCell=0.0
+  CALL AddToElemData(ElementOut,'CyclotronFrequencyMinCell',RealArray=CyclotronFrequencyMinCell(1:PP_nElems))
+  ALLOCATE( GyroradiusMinCell(1:PP_nElems) )
+  GyroradiusMinCell=0.0
+  CALL AddToElemData(ElementOut,'GyroradiusMinCell',RealArray=GyroradiusMinCell(1:PP_nElems))
+  ALLOCATE( GyroradiusMaxCell(1:PP_nElems) )
+  GyroradiusMaxCell=0.0
+  CALL AddToElemData(ElementOut,'GyroradiusMaxCell',RealArray=GyroradiusMaxCell(1:PP_nElems))
+END IF
+
 ! Electron Density
-CalcElectronIonDensity = GETLOGICAL('CalcElectronIonDensity','.FALSE.')
+CalcElectronIonDensity = GETLOGICAL('CalcElectronIonDensity')
 IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcIonizationDegree) CalcElectronIonDensity=.TRUE.
 IF(CalcElectronIonDensity) CALL AllocateElectronIonDensityCell()
 
 ! Electron Temperature
-CalcElectronTemperature = GETLOGICAL('CalcElectronTemperature','.FALSE.')
+CalcElectronTemperature = GETLOGICAL('CalcElectronTemperature')
 IF(CalcDebyeLength.OR.CalcPlasmaFrequency.OR.CalcPICCFLCondition) CalcElectronTemperature=.TRUE.
 IF(CalcElectronTemperature) CALL AllocateElectronTemperatureCell()
 
 ! Electron Temperature
-CalcElectronEnergy = GETLOGICAL('CalcElectronEnergy','.FALSE.')
+CalcElectronEnergy = GETLOGICAL('CalcElectronEnergy')
 IF(CalcElectronEnergy) CALL AllocateCalcElectronEnergy()
 
 !--------------------------------------------------------------------------------------------------------------------
@@ -488,14 +520,14 @@ DoPartAnalyze = .FALSE.
 DoVerifyCharge= .FALSE.
 CalcCharge = .FALSE.
 IF(DoDeposition) THEN
-  DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge','.FALSE.')
-  CalcCharge = GETLOGICAL('CalcCharge','.FALSE.')
+  DoVerifyCharge = GETLOGICAL('PIC-VerifyCharge')
+  CalcCharge = GETLOGICAL('CalcCharge')
   IF(CalcCharge) DoPartAnalyze = .TRUE.
 ELSE
   SWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
 END IF
 
-CalcEkin = GETLOGICAL('CalcKineticEnergy','.FALSE.')
+CalcEkin = GETLOGICAL('CalcKineticEnergy')
 ! Laser-plasma interaction analysis
 CalcLaserInteraction = GETLOGICAL('CalcLaserInteraction')
 IF(CalcLaserInteraction)THEN
@@ -509,6 +541,8 @@ END IF
 
 CalcEint(2) = GETLOGICAL('CalcInternalEnergy')
 CalcTemp(2) = GETLOGICAL('CalcTemp')
+! Initialize global electron temperature variable (SEE and/or neutralization BCs), requires CalcTemp(1) = .TRUE.
+CALL InitBulkElectronTemp()
 IF(CalcTemp(2).OR.CalcEint(2)) DoPartAnalyze = .TRUE.
 IF(CalcEkin) DoPartAnalyze = .TRUE.
 IF(nSpecies.GT.1) THEN
@@ -529,9 +563,8 @@ IF(CalcCoupledPower) THEN
   DisplayCoupledPower = GETLOGICAL('DisplayCoupledPower')
   DoPartAnalyze = .TRUE.
   PCouplAverage = 0.0
-#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
-  CALL abort(__STAMP__,&
-      'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
+#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
+  CALL abort(__STAMP__,'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
 #endif
   ! Allocate type array for all ranks
   ALLOCATE(PCouplSpec(1:nSpecies))
@@ -547,7 +580,7 @@ END IF
 
 !-- PartBalance
 ! compute number of entering and leaving particles and their energy
-CalcPartBalance = GETLOGICAL('CalcPartBalance','.FALSE.')
+CalcPartBalance = GETLOGICAL('CalcPartBalance')
 IF (CalcPartBalance) THEN
   DoPartAnalyze = .TRUE.
   ALLOCATE( nPartIn(1:nSpecAnalyze)     &
@@ -559,53 +592,50 @@ IF (CalcPartBalance) THEN
   PartEkinOut=0.
   PartEkinIn=0.
 END IF
-TrackParticlePosition = GETLOGICAL('Part-TrackPosition','.FALSE.')
+TrackParticlePosition = GETLOGICAL('Part-TrackPosition')
 IF(TrackParticlePosition)THEN
   IF(PDM%ParticleVecLength.GT.1)THEN
     CALL abort(__STAMP__,'Part-TrackPosition=T is currently not supported in combination with more than 1 particle!')
   END IF
-  printDiff=GETLOGICAL('printDiff','.FALSE.')
+  printDiff=GETLOGICAL('printDiff')
   IF(printDiff)THEN
     printDiffTime = GETREAL('printDiffTime','12.')
     printDiffVec  = GETREALARRAY('printDiffVec',6,'0.,0.,0.,0.,0.,0.')
   END IF
 END IF
-CalcSimNumSpec = GETLOGICAL('CalcNumSpec','.FALSE.')
-CalcNumDens    = GETLOGICAL('CalcNumDens','.FALSE.')
+CalcSimNumSpec = GETLOGICAL('CalcNumSpec')
+CalcNumDens    = GETLOGICAL('CalcNumDens')
 CalcAdaptiveBCInfo = GETLOGICAL('CalcAdaptiveBCInfo')
 IF(CalcAdaptiveBCInfo) THEN
-  ALLOCATE(MassflowRate(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
-  MassflowRate = 0.
-  ALLOCATE(PressureAdaptiveBC(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
-  PressureAdaptiveBC = 0.
+  IF(UseAdaptive) THEN
+    ALLOCATE(MassflowRate(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
+    MassflowRate = 0.
+    ALLOCATE(PressureAdaptiveBC(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
+    PressureAdaptiveBC = 0.
+  ELSE
+    CalcAdaptiveBCInfo = .FALSE.
+  END IF
 END IF
-CalcCollRates = GETLOGICAL('CalcCollRates','.FALSE.')
-CalcReacRates = GETLOGICAL('CalcReacRates','.FALSE.')
-CalcRelaxProb = GETLOGICAL('CalcRelaxProb','.FALSE.')
-IF(CalcRelaxProb.AND.(Collismode.LE.1)) THEN
-  CALL abort(&
-    __STAMP__&
-    ,'CollisMode has to be greater than 1 to calculate variable relaxation probabilities in PartAnalyze.csv')
-END IF
-
+CalcCollRates = GETLOGICAL('CalcCollRates')
+CalcReacRates = GETLOGICAL('CalcReacRates')
+CalcRelaxProb = GETLOGICAL('CalcRelaxProb')
+IF(CalcRelaxProb.AND.(Collismode.LE.1)) CALL abort(__STAMP__,&
+    'CollisMode has to be greater than 1 to calculate variable relaxation probabilities in PartAnalyze.csv')
+! Calculate the global density if for BGGas distribution at the beginning
+IF(BGGas%UseDistribution.AND.(CalcNumDens.OR.DSMC%CalcQualityFactors.OR.CalcReacRates)) CALL CalcNumberDensityBGGasDistri()
 
 IF(CalcReacRates) THEN
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
-  END IF
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) CALL abort(__STAMP__,&
+      'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
 END IF
 
 IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcAdaptiveBCInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
 
 !-- Compute transversal or thermal velocity of whole computational domain
-CalcVelos = GETLOGICAL('CalcVelos','.FALSE')
+CalcVelos = GETLOGICAL('CalcVelos')
 IF (CalcVelos) THEN
   IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'ERROR: CalcVelos is not supported with radial weighting or variable time step yet!')
+    CALL abort(__STAMP__,'ERROR: CalcVelos is not supported with radial weighting or variable time step yet!')
   END IF
   DoPartAnalyze=.TRUE.
   VeloDirs_hilf = GetIntArray('VelocityDirections',4,'1,1,1,1') ! x,y,z,abs -> 0/1 = T/F
@@ -628,7 +658,7 @@ IF (CalcVelos) THEN
 END IF
 
 !-- Shape function efficiency
-CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency','.FALSE.')
+CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency')
 IF (CalcShapeEfficiency) THEN
   DoPartAnalyze = .TRUE.
   CalcShapeEfficiencyMethod = GETSTR('CalcShapeEfficiencyMethod','AllParts')
@@ -645,9 +675,9 @@ END IF
 
 !-- check if total energy should be computed
 IF(DoPartAnalyze)THEN
-  CalcEtot = GETLOGICAL('CalcTotalEnergy','.FALSE.')
+  CalcEtot = GETLOGICAL('CalcTotalEnergy')
 END IF
-IsRestart = GETLOGICAL('IsRestart','.FALSE.')
+IsRestart = GETLOGICAL('IsRestart')
 
 #if USE_HDG
 !-- Check variable ref. electron temperature for BR electron model
@@ -656,12 +686,101 @@ CALL PrintOption('CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef','INFO',&
     LogOpt=CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef)
 #endif /*USE_HDG*/
 
+!-- check if magnetic field on each DG DOF of every element is to be written to .h5
+CalcEMFieldOutput = GETLOGICAL('CalcEMFieldOutput')
+
 ParticleAnalyzeInitIsDone=.TRUE.
 
 SWRITE(UNIT_stdOut,'(A)')' INIT PARTCILE ANALYZE DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitParticleAnalyze
+
+
+!===================================================================================================================================
+!> Check whether the global (bulk) electron temperature is required for 1.) SEE 2.) neutralization BC (e.g. landmark)
+!===================================================================================================================================
+SUBROUTINE InitBulkElectronTemp()
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
+USE MOD_Particle_Vars         ,ONLY: nSpecies,Species
+USE MOD_Particle_Vars         ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,BulkElectronTempSpecID
+USE MOD_HDF5_Input            ,ONLY: DatasetExists,ReadArray
+USE MOD_IO_HDF5               ,ONLY: OpenDataFile,CloseDataFile,File_ID
+USE MOD_Restart_Vars          ,ONLY: RestartFile,DoRestart
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcTemp,DoPartAnalyze
+USE MOD_ReadInTools           ,ONLY: PrintOption
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER        :: iSpec,iInit
+LOGICAL        :: BulkElectronTempExists
+CHARACTER(255) :: ContainerName
+REAL           :: TmpArray(1,1)
+!===================================================================================================================================
+! Loop all species and check for neutralization BCs
+DO iSpec = 1,nSpecies
+  ! Loop inits and check whether neutralization boundary condition required the bulk electron temperature
+  DO iInit = 1, Species(iSpec)%NumberOfInits
+    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution))
+    CASE('2D_Liu2010_neutralization','3D_Liu2010_neutralization','2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo')
+      CalcBulkElectronTemp = .TRUE.
+      ! Check if already set, otherwise, initialize with 5 eV for the BC (if SEE is also used, this will be already have been set)
+      IF(BulkElectronTemp.LE.0) BulkElectronTemp = 5.0
+    END SELECT
+  END DO ! iInit = 1, Species(iSpec)%NumberOfInits
+END DO ! iSpec = 1,nSpecies
+
+! Check if bulk electron temperature is required for either SEE model or neutralization boundary condition
+IF(CalcBulkElectronTemp)THEN
+  ! Activate CalcTemp
+  CalcTemp(1) = .TRUE. ! Force true
+  DoPartAnalyze = .TRUE.
+  CALL PrintOption('CalcBulkElectronTemp = T: Activating CalcTemp(1)','INFO',LogOpt=CalcTemp(1))
+
+  ! Loop over all species and find the index corresponding to the electron species: take the first electron species that is
+  ! encountered
+  DO iSpec = 1, nSpecies
+    IF (Species(iSpec)%ChargeIC.GE.0.0) CYCLE
+    IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1)THEN
+      BulkElectronTempSpecID = iSpec
+      EXIT
+    END IF
+  END DO
+  IF (BulkElectronTempSpecID.EQ.-1) CALL abort(__STAMP__&
+    ,'Electron species not found for bulk electron temperature calculation (CalcBulkElectronTemp set True automatically).')
+
+  ! Restart: Only root reads state file to prevent access with a large number of processors
+  IF(MPIRoot)THEN
+    IF(DoRestart)THEN
+      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+      ! Check old parameter name
+      ContainerName='SurfModSEEelectronTemp'
+      CALL DatasetExists(File_ID,TRIM(ContainerName),BulkElectronTempExists)
+      ! Check for new parameter name
+      IF(.NOT.(BulkElectronTempExists))THEN
+        ContainerName='BulkElectronTemp'
+        CALL DatasetExists(File_ID,'BulkElectronTemp',BulkElectronTempExists)
+      END IF ! .NOT.(BulkElectronTempExists)
+      IF(BulkElectronTempExists)THEN
+        CALL ReadArray(TRIM(ContainerName),2,(/1_IK,1_IK/),0_IK,2,RealArray=TmpArray(1,1))
+        BulkElectronTemp = TmpArray(1,1)
+        WRITE(UNIT_stdOut,'(1(A,ES10.2E3))') " Read BulkElectronTemp from restart file ["//TRIM(RestartFile)//"] Te[eV]:",&
+            BulkElectronTemp
+      END IF ! RegionElectronRefExists
+      CALL CloseDataFile()
+    END IF ! DoRestart
+  END IF ! MPIRoot
+#if USE_MPI
+  ! Broadcast from root to other processors
+  CALL MPI_BCAST(BulkElectronTemp,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
+#endif /*USE_MPI*/
+END IF ! CalcBulkElectronTemp
+
+END SUBROUTINE InitBulkElectronTemp
 
 
 SUBROUTINE AnalyzeParticles(Time)
@@ -710,6 +829,8 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,CalcRelaxRatesEl
 USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,BRAutomaticElectronRef,RegionElectronRef
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
 #endif /*USE_HDG*/
+USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
+USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -731,6 +852,7 @@ REAL                :: ETotal
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
+INTEGER             :: bgSpec
 #endif
 #if (PP_TimeDiscMethod==42)
 INTEGER             :: jSpec, iCase, iLevel
@@ -756,7 +878,7 @@ INTEGER             :: iRegions
       IF(CalcRelaxProb) THEN
         ALLOCATE(VibRelaxRate(CollInf%NumCase))
         VibRelaxRate = 0.0
-        IF(ANY(SpecXSec(:)%UseElecXSec)) THEN
+        IF(ANY(SpecDSMC(:)%UseElecXSec)) THEN
           ALLOCATE(ElecRelaxRate(CollInf%NumCase,MAXVAL(SpecXSec(:)%NumElecLevel)))
           ElecRelaxRate = 0.0
         END IF
@@ -1097,6 +1219,11 @@ INTEGER             :: iRegions
           END DO
         END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
 #endif /*USE_HDG*/
+        IF(CalcBulkElectronTemp)THEN
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-BulkElectronTemp-[K]'
+          OutputCounter = OutputCounter + 1
+        END IF ! CalcBulkElectronTemp
+        ! Finish the line with new line character
         WRITE(unit_index,'(A)') ''
       END IF
     END IF
@@ -1105,7 +1232,7 @@ INTEGER             :: iRegions
 !===================================================================================================================================
 ! Analyze Routines
 !===================================================================================================================================
-  ! computes the real and simulated number of particles
+  ! Computes the real and simulated number of particles
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec,.TRUE.,CalcSimNumSpec)
   IF(CalcNumDens) CALL CalcNumberDensity(NumSpec,NumDens)
   ! Determine the mass flux [kg/s] and pressure [Pa] per species and surface flux (includes MPI communication)
@@ -1134,10 +1261,12 @@ INTEGER             :: iRegions
 #endif /*USE_MPI*/
   END IF
   IF(CalcTemp(1)) CALL CalcTransTemp(NumSpec, Temp)
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
-  IF(CalcTemp(1).OR.CalcEint(1)) THEN
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
+  ! CalcTemp(1) is required for Temp
+  ! CalcEint(1) is required for Ekin
+  IF(CalcTemp(1).AND.CalcEint(1)) THEN
     CALL CalcMixtureTemp(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
-    ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
+    IF(PartMPI%MPIRoot) ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell reservoirs,
@@ -1152,7 +1281,12 @@ INTEGER             :: iRegions
       ! actually inserted at the chosen weighting factor, determined here and used later also for the ReacRates subroutine
       DO iSpec = 1, nSpecies
         IF(BGGas%BackgroundSpecies(iSpec)) THEN
-          NumSpecTmp(iSpec) = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(iSpec))*MeshVolume/Species(iSpec)%MacroParticleFactor
+          bgSpec = BGGas%MapSpecToBGSpec(iSpec)
+          IF(BGGas%UseDistribution) THEN
+            NumSpecTmp(iSpec) = BGGas%DistributionNumDens(bgSpec)*MeshVolume/Species(iSpec)%MacroParticleFactor
+          ELSE
+            NumSpecTmp(iSpec) = BGGas%NumberDensity(bgSpec)*MeshVolume/Species(iSpec)%MacroParticleFactor
+          END IF
           IF(nSpecAnalyze.GT.1) THEN
             NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze) + NumSpecTmp(iSpec)
           END IF
@@ -1459,6 +1593,10 @@ IF (PartMPI%MPIROOT) THEN
       END DO
     END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
 #endif /*USE_HDG*/
+    IF(CalcBulkElectronTemp)THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BulkElectronTemp*eV2Kelvin ! Temperature in Kelvin
+    END IF ! CalcBulkElectronTemp
+    ! Finish the line with new line character
     WRITE(unit_index,'(A)') ''
 #if USE_MPI
   END IF
@@ -1555,6 +1693,12 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
   ADEALLOCATE(ElemCharLengthY_Shared)
   ADEALLOCATE(ElemCharLengthZ_Shared)
 END IF
+
+SDEALLOCATE(CyclotronFrequencyMaxCell)
+SDEALLOCATE(CyclotronFrequencyMinCell)
+SDEALLOCATE(GyroradiusMaxCell)
+SDEALLOCATE(GyroradiusMinCell)
+SDEALLOCATE(PICTimeStepCyclotronCell)
 
 END SUBROUTINE FinalizeParticleAnalyze
 #endif /*PARTICLES*/

@@ -27,7 +27,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, CalcXiVib, CalcXiTotalEqui, DSMC_calc_P_rot, DSMC_calc_var_P_vib
-PUBLIC :: InitCalcVibRelaxProb, DSMC_calc_P_vib, SumVibRelaxProb, FinalizeCalcVibRelaxProb
+PUBLIC :: InitCalcVibRelaxProb, DSMC_calc_P_vib, SumVibRelaxProb, FinalizeCalcVibRelaxProb, DSMC_calc_P_elec
 !===================================================================================================================================
 
 CONTAINS
@@ -244,7 +244,7 @@ ASSOCIATE( ProductReac => ChemReac%Products(iReac,1:4) )
       ELSE
         IF(PRESENT(XiVibPart)) XiVibPart(iProd,:) = 0.0
       END IF
-      IF((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2)) THEN
+      IF((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.4)) THEN
         IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           XiElecPart(iProd) = CalcXiElec(MiddleTemp, iSpec)
           Xi_TotalTemp = Xi_TotalTemp + XiElecPart(iProd)
@@ -364,6 +364,35 @@ END IF
 END SUBROUTINE DSMC_calc_P_rot
 
 
+SUBROUTINE DSMC_calc_P_elec(iSpec1, iSpec2, ProbElec)
+!===================================================================================================================================
+! Calculation of probability for electronic relaxation. 
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, useRelaxProbCorrFactor, DSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)         :: iSpec1, iSpec2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)         :: ProbElec
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL              :: CorrFact
+!===================================================================================================================================
+IF(useRelaxProbCorrFactor.AND.(DSMC%ElectronicModel.EQ.1)) THEN
+  CorrFact = SpecDSMC(iSpec1)%ElecRelaxCorrectFac(iSpec2)
+ELSE
+  CorrFact = 1.
+END IF
+ProbElec = SpecDSMC(iSpec1)%ElecRelaxProb*CorrFact
+
+END SUBROUTINE DSMC_calc_P_elec
+
+
+
 SUBROUTINE DSMC_calc_P_vib(iPair, iSpec, jSpec, Xi_rel, iElem, ProbVib)
 !===================================================================================================================================
 ! Calculation of probability for vibrational relaxation. Different Models implemented:
@@ -419,7 +448,7 @@ IF((DSMC%VibRelaxProb.GE.0.0).AND.(DSMC%VibRelaxProb.LE.1.0)) THEN
     IF(SpecXSec(iCase)%UseVibXSec) THEN
       IF(SpecXSec(iCase)%SpeciesToRelax.EQ.iSpec) THEN
         IF(SpecXSec(iCase)%UseCollXSec) THEN
-          CALL XSec_CalcVibRelaxProb(iPair)
+          CALL XSec_CalcVibRelaxProb(iPair,iElem)
           ! Cross-section is stored in the VibProb variable
           ProbVib = SpecXSec(iCase)%VibProb / SpecXSec(iCase)%CrossSection
         ELSE
@@ -434,9 +463,7 @@ ELSE IF(DSMC%VibRelaxProb.EQ.2.0) THEN
   ! The average value of the cell is only taken from the vector
   ProbVib = VarVibRelaxProb%ProbVibAv(iElem, iSpec) * CorrFact
 ELSE
-  CALL Abort(&
-  __STAMP__&
-  ,'Error! Model for vibrational relaxation undefined:',RealInfoOpt=DSMC%VibRelaxProb)
+  CALL Abort(__STAMP__,'Error! Model for vibrational relaxation undefined:',RealInfoOpt=DSMC%VibRelaxProb)
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN
@@ -514,6 +541,7 @@ INTEGER                   :: cSpec1, cSpec2
 !===================================================================================================================================
 
   ! variable vibrational relaxation probability has to average of all collisions
+IF(Coll_pData(iPair)%cRela2.EQ.0) RETURN
 IF(DSMC%VibRelaxProb.EQ.2.0) THEN
   cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
   cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)

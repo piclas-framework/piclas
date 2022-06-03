@@ -32,6 +32,7 @@ This is a (possibly incomplete) list of the people who contributed to piclas.
 * Jonathan Neudorfer
 * Paul Nizenkov
 * Jonatan Núñez-de la Rosa
+* Philipp Offenhaeuser
 * Philip Ortwein
 * Marcel Pfeiffer
 * Wladimir Reschke
@@ -41,3 +42,4 @@ This is a (possibly incomplete) list of the people who contributed to piclas.
 * Marc Staudenmaier
 * Torsten Stindl
 * Andreas Stock
+* Raphael Tietz

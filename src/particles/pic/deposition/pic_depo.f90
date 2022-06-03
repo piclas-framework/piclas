@@ -50,7 +50,7 @@ CALL prms%CreateRealOption(   'PIC-RelaxFac'             , 'Relaxation factor of
 
 CALL prms%CreateRealOption(   'PIC-shapefunction-radius'             , 'Radius of shape function'   , '1.')
 CALL prms%CreateIntOption(    'PIC-shapefunction-alpha'              , 'Exponent of shape function' , '2')
-CALL prms%CreateIntOption(    'PIC-shapefunction-dimension'          , '1D                          , 2D or 3D shape function', '3')
+CALL prms%CreateIntOption(    'PIC-shapefunction-dimension'          , '1D, 2D or 3D shape function', '3')
 CALL prms%CreateIntOption(    'PIC-shapefunction-direction'          , &
     'Only required for PIC-shapefunction-dimension 1 or 2: Shape function direction for 1D (the direction in which the charge '//&
     'will be distributed) and 2D (the direction in which the charge will be constant)', '1')
@@ -88,13 +88,15 @@ USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU
 USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,Vdm_EQ_N
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
 USE MOD_PICDepo_Vars
 USE MOD_PICDepo_Tools          ,ONLY: CalcCellLocNodeVolumes,ReadTimeAverage
 USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 #if USE_MPI
+USE MOD_MPI_vars               ,ONLY: offsetElemMPI
+USE MOD_MPI_Shared_Vars        ,ONLY: ComputeNodeRootRank
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_LEADERS_SHARED
@@ -113,16 +115,16 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm
-INTEGER                   :: jElem, NonUniqueNodeID,iNode
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 CHARACTER(255)            :: TimeAverageFile
-INTEGER                   :: UniqueNodeID
 #if USE_MPI
+INTEGER                   :: UniqueNodeID
+INTEGER                   :: jElem, NonUniqueNodeID,iNode
 INTEGER                   :: SendNodeCount, GlobalElemNode, GlobalElemRank, iProc
 INTEGER                   :: TestElemID
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:)
-INTEGER                   :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1),firstNode,lastNode
+INTEGER                   :: firstNode,lastNode
 #endif
 !===================================================================================================================================
 
@@ -137,22 +139,8 @@ IF(.NOT.DoDeposition) THEN
 END IF
 
 !--- Allocate arrays for charge density collection and initialize
-#if USE_MPI
-CALL Allocate_Shared((/4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems/),PartSource_Shared_Win,PartSource_Shared)
-CALL MPI_WIN_LOCK_ALL(0,PartSource_Shared_Win,IERROR)
-PartSource(1:4,0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeTotalElems) => PartSource_Shared(1:4*(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems)
-ALLOCATE(PartSourceProc(   1:4,0:PP_N,0:PP_N,0:PP_N,1:nSendShapeElems))
-#else
 ALLOCATE(PartSource(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
-#endif
-#if USE_MPI
-IF(myComputeNodeRank.EQ.0) THEN
-#endif
-  PartSource=0.
-#if USE_MPI
-END IF
-CALL BARRIER_AND_SYNC(PartSource_Shared_Win,MPI_COMM_SHARED)
-#endif
+PartSource = 0.0
 PartSourceConstExists=.FALSE.
 
 !--- check if relaxation of current PartSource with RelaxFac into PartSourceOld
@@ -165,9 +153,7 @@ IF (RelaxDeposition) THEN
   ALLOCATE(PartSourceOld(1:4,1:2,0:PP_N,0:PP_N,0:PP_N,nElems),STAT=ALLOCSTAT)
 #endif
   IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-,'ERROR in pic_depo.f90: Cannot allocate PartSourceOld!')
+    CALL abort(__STAMP__,'ERROR in pic_depo.f90: Cannot allocate PartSourceOld!')
   END IF
   PartSourceOld=0.
   OutputSource = .TRUE.
@@ -178,9 +164,7 @@ END IF
 !--- check if charge density is computed from TimeAverageFile
 TimeAverageFile = GETSTR('PIC-TimeAverageFile','none')
 IF (TRIM(TimeAverageFile).NE.'none') THEN
-  CALL abort(&
-  __STAMP__&
-  ,'This feature is currently not working! PartSource must be correctly handled in shared memory context.')
+  CALL abort(__STAMP__,'This feature is currently not working! PartSource must be correctly handled in shared memory context.')
   CALL ReadTimeAverage(TimeAverageFile)
   IF (.NOT.RelaxDeposition) THEN
   !-- switch off deposition: use only the read PartSource
@@ -238,6 +222,9 @@ CASE('cell_volweight')
   DEALLOCATE(Vdm_tmp)
   DEALLOCATE(wGP_tmp, xGP_tmp)
 CASE('cell_volweight_mean')
+#if USE_MPI
+  ALLOCATE(RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1))
+#endif
   IF ((TRIM(InterpolationType).NE.'cell_volweight')) THEN
     ALLOCATE(CellVolWeightFac(0:PP_N))
     CellVolWeightFac(0:PP_N) = xGP(0:PP_N)
@@ -318,7 +305,7 @@ CASE('cell_volweight_mean')
                   , iProc                                                       &
                   , 666                                                         &
                   , MPI_COMM_LEADERS_SHARED                                     &
-                  , RecvRequest(iProc)                                          &
+                  , RecvRequestCN(iProc)                                          &
                   , IERROR)
       DO iNode = 1, nUniqueGlobalNodes
         IF (NodeDepoMapping(iProc,iNode)) NodeMapping(iProc)%nSendUniqueNodes = NodeMapping(iProc)%nSendUniqueNodes + 1
@@ -329,15 +316,15 @@ CASE('cell_volweight_mean')
                     , iProc                                                       &
                     , 666                                                         &
                     , MPI_COMM_LEADERS_SHARED                                     &
-                    , SendRequest(iProc)                                          &
+                    , SendRequestCN(iProc)                                          &
                     , IERROR)
     END DO
 
     DO iProc = 0,nLeaderGroupProcs-1
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
-      CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+      CALL MPI_WAIT(SendRequestCN(iProc),MPISTATUS,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-      CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+      CALL MPI_WAIT(RecvRequestCN(iProc),MPISTATUS,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END DO
 
@@ -354,7 +341,7 @@ CASE('cell_volweight_mean')
                       , iProc                                                       &
                       , 666                                                         &
                       , MPI_COMM_LEADERS_SHARED                                     &
-                      , RecvRequest(iProc)                                          &
+                      , RecvRequestCN(iProc)                                          &
                       , IERROR)
       END IF
       IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
@@ -378,7 +365,7 @@ CASE('cell_volweight_mean')
                       , iProc                                                       &
                       , 666                                                         &
                       , MPI_COMM_LEADERS_SHARED                                     &
-                      , SendRequest(iProc)                                          &
+                      , SendRequestCN(iProc)                                          &
                       , IERROR)
       END IF
     END DO
@@ -386,11 +373,11 @@ CASE('cell_volweight_mean')
     DO iProc = 0,nLeaderGroupProcs-1
       IF (iProc.EQ.myLeaderGroupRank) CYCLE
       IF (NodeMapping(iProc)%nSendUniqueNodes.GT.0) THEN
-        CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+        CALL MPI_WAIT(SendRequestCN(iProc),MPISTATUS,IERROR)
         IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
       END IF
       IF (NodeMapping(iProc)%nRecvUniqueNodes.GT.0) THEN
-        CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+        CALL MPI_WAIT(RecvRequestCN(iProc),MPISTATUS,IERROR)
         IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
       END IF
     END DO
@@ -412,7 +399,9 @@ CASE('cell_volweight_mean')
   END IF ! DoDielectricSurfaceCharge
 
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
-
+#if USE_MPI
+  ALLOCATE(RecvRequest(nShapeExchangeProcs),SendRequest(nShapeExchangeProcs))
+#endif
   ! --- Set shape function radius in each cell when using adaptive shape function
   IF(TRIM(DepositionType).EQ.'shape_function_adaptive') CALL InitShapeFunctionAdaptive()
 
@@ -426,8 +415,20 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   CALL InitPeriodicSFCaseMatrix()
 
   ! --- Set element flag for cycling already completed elements
+!  ALLOCATE(PartSourceLoc(1:4,0:PP_N,0:PP_N,0:PP_N,1:nElems))
 #if USE_MPI
   ALLOCATE(ChargeSFDone(1:nComputeNodeTotalElems))
+  ALLOCATE(nDepoDOFPerProc(0:nComputeNodeProcessors-1),nDepoOffsetProc(0:nComputeNodeProcessors-1))
+  nDepoDOFPerProc =0; nDepoOffsetProc = 0
+  DO iProc = 0, nComputeNodeProcessors-1
+    nDepoDOFPerProc(iProc) = (offsetElemMPI(iProc + 1 + ComputeNodeRootRank) - offsetElemMPI(iProc + ComputeNodeRootRank))*(PP_N+1)**3*4
+  END DO
+  DO iProc = 0, nComputeNodeProcessors-1
+    nDepoOffsetProc(iProc) = (offsetElemMPI(iProc + ComputeNodeRootRank) - offsetElemMPI(ComputeNodeRootRank))*(PP_N+1)**3*4
+  END DO
+  IF(myComputeNodeRank.EQ.0) THEN
+   ALLOCATE(PartSourceGlob(1:4,0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeTotalElems))
+  END IF
 #else
   ALLOCATE(ChargeSFDone(1:nElems))
 #endif /*USE_MPI*/
@@ -455,7 +456,7 @@ END SUBROUTINE InitializeDeposition
 SUBROUTINE InitShapeFunctionAdaptive()
 ! MODULES
 USE MOD_Preproc
-USE MOD_Globals                     ,ONLY: UNIT_stdOut,abort,IERROR
+USE MOD_Globals                     ,ONLY: UNIT_stdOut,abort
 USE MOD_PICDepo_Vars                ,ONLY: SFAdaptiveDOF,SFAdaptiveSmoothing,SFElemr2_Shared,dim_sf,dimFactorSF
 USE MOD_ReadInTools                 ,ONLY: GETREAL,GETLOGICAL
 USE MOD_Particle_Mesh_Vars          ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,BoundsOfElem_Shared
@@ -466,6 +467,7 @@ USE MOD_Mesh_Tools                  ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Vars          ,ONLY: NodeCoords_Shared
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: SFNorm
 #if USE_MPI
+USE MOD_Globals                     ,ONLY: IERROR
 USE MOD_PICDepo_Vars                ,ONLY: SFElemr2_Shared_Win
 USE MOD_Globals                     ,ONLY: MPIRoot
 USE MOD_MPI_Shared_Vars             ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank,MPI_COMM_SHARED
@@ -642,7 +644,10 @@ END SUBROUTINE InitShapeFunctionAdaptive
 !===================================================================================================================================
 SUBROUTINE InitPeriodicSFCaseMatrix()
 ! MODULES
-USE MOD_Globals            ,ONLY: MPIRoot,UNIT_StdOut
+USE MOD_Globals            ,ONLY: UNIT_StdOut
+#if USE_MPI
+USE MOD_Globals            ,ONLY: MPIRoot
+#endif /*USE_MPI*/
 USE MOD_Particle_Mesh_Vars ,ONLY: PeriodicSFCaseMatrix,NbrOfPeriodicSFCases
 USE MOD_PICDepo_Vars       ,ONLY: dim_sf,dim_periodic_vec1,dim_periodic_vec2,dim_sf_dir1,dim_sf_dir2
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
@@ -719,7 +724,7 @@ END IF
 END SUBROUTINE InitPeriodicSFCaseMatrix
 
 
-SUBROUTINE Deposition(doParticle_In)
+SUBROUTINE Deposition(doParticle_In, stage_opt)
 !============================================================================================================================
 ! This subroutine performs the deposition of the particle charge and current density to the grid
 ! following list of distribution methods are implemented
@@ -737,7 +742,6 @@ USE MOD_PIC_Analyze           ,ONLY: VerifyDepositedCharge
 USE MOD_TimeDisc_Vars         ,ONLY: iter
 #if USE_MPI
 USE MOD_MPI_Shared            ,ONLY: BARRIER_AND_SYNC
-USE MOD_MPI_Shared_Vars       ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
 #endif  /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -745,34 +749,36 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT variable declaration
 LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
+INTEGER,INTENT(IN),OPTIONAL      :: stage_opt ! TODO: definition of this variable
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT variable declaration
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Local variable declaration
+INTEGER         :: stage
 !-----------------------------------------------------------------------------------------------------------------------------------
 !============================================================================================================================
 ! Return, if no deposition is required
 IF(.NOT.DoDeposition) RETURN
-
-#if USE_MPI
-IF (myComputeNodeRank.EQ.0) THEN
-#endif  /*USE_MPI*/
-  PartSource = 0.0
-#if USE_MPI
+IF (PRESENT(stage_opt)) THEN
+  stage = stage_opt
+ELSE
+  stage = 0
 END IF
-CALL BARRIER_AND_SYNC(PartSource_Shared_Win, MPI_COMM_SHARED)
-#endif  /*USE_MPI*/
+
+IF((stage.EQ.0).OR.(stage.EQ.1)) PartSource = 0.0
 
 IF(PRESENT(doParticle_In)) THEN
-  CALL DepositionMethod(doParticle_In)
+  CALL DepositionMethod(doParticle_In, stage_opt=stage)
 ELSE
-  CALL DepositionMethod()
+  CALL DepositionMethod(stage_opt=stage)
 END IF
 
-IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
-  IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+IF((stage.EQ.0).OR.(stage.EQ.4)) THEN
+  IF(MOD(iter,PartAnalyzeStep).EQ.0) THEN
+    IF(DoVerifyCharge) CALL VerifyDepositedCharge()
+  END IF
 END IF
-RETURN
+
 END SUBROUTINE Deposition
 
 
@@ -852,19 +858,28 @@ SDEALLOCATE(tempcharge)
 SDEALLOCATE(CellVolWeightFac)
 SDEALLOCATE(CellVolWeight_Volumes)
 SDEALLOCATE(ChargeSFDone)
+!SDEALLOCATE(PartSourceLoc)
+SDEALLOCATE(PartSourceGlob)
 SDEALLOCATE(PeriodicSFCaseMatrix)
+SDEALLOCATE(PartSource)
 
 #if USE_MPI
 SDEALLOCATE(NodeSourceLoc)
-SDEALLOCATE(PartSourceProc)
 SDEALLOCATE(NodeMapping)
+SDEALLOCATE(nDepoDOFPerProc)
+SDEALLOCATE(nDepoOffsetProc)
+SDEALLOCATE(RecvRequest)
+SDEALLOCATE(RecvRequest)
+SDEALLOCATE(SendRequest)
+SDEALLOCATE(RecvRequestCN)
+SDEALLOCATE(SendRequestCN)
+SDEALLOCATE(SendElemShapeID)
+SDEALLOCATE(CNRankToSendRank)
 
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 IF(DoDeposition)THEN
-  CALL UNLOCK_AND_FREE(PartSource_Shared_Win)
-
   ! Deposition-dependent arrays
   SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean')
@@ -890,11 +905,7 @@ IF(DoDeposition)THEN
 END IF ! DoDeposition
 
 ! Then, free the pointers or arrays
-ADEALLOCATE(PartSource_Shared)
 #endif /*USE_MPI*/
-
-! Then, free the pointers or arrays
-ADEALLOCATE(PartSource)
 
 ! Deposition-dependent pointers/arrays
 SELECT CASE(TRIM(DepositionType))

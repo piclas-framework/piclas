@@ -71,7 +71,6 @@ CALL prms%CreateStringOption(  'MeshFile',            "(relative) path to meshfi
 CALL prms%CreateLogicalOption( 'useCurveds',          "Controls usage of high-order information in mesh. Turn off to discard "//&
                                                       "high-order data and treat curved meshes as linear meshes.", '.FALSE.')
 
-CALL prms%CreateLogicalOption( 'DoWriteStateToHDF5',  "Write state of calculation to hdf5-file.",'.TRUE.')
 CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this factor (shrink/enlarge).",&
                                                       '1.0')
 CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
@@ -124,6 +123,7 @@ USE MOD_Mappings               ,ONLY: InitMappings
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
 #if USE_LOADBALANCE
+USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #endif /*USE_LOADBALANCE*/
@@ -195,11 +195,10 @@ ELSE
 END IF
 validMesh = ISVALIDMESHFILE(MeshFile)
 IF(.NOT.validMesh) &
-    CALL CollectiveStop(__STAMP__,'ERROR - Mesh file not a valid HDF5 mesh.')
+    CALL CollectiveStop(__STAMP__,'ERROR - Mesh file ['//TRIM(MeshFile)//'] is not a valid HDF5 mesh.')
 
 
 useCurveds=GETLOGICAL('useCurveds')
-DoWriteStateToHDF5=GETLOGICAL('DoWriteStateToHDF5')
 #if USE_LOADBALANCE
 IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
   DoWriteStateToHDF5=.TRUE.
@@ -396,11 +395,6 @@ END IF ! meshMode.GT.1
 
 
 IF(CalcMeshInfo)THEN
-#if USE_MPI
-  ALLOCATE(myInvisibleRank(1:nElems))
-  myInvisibleRank=0
-#endif /*USE_MPI*/
-
   CALL AddToElemData(ElementOut,'myRank',IntScalar=myRank)
   !#ifdef PARTICLES
   ALLOCATE(ElemGlobalID(1:nElems))
@@ -1091,6 +1085,7 @@ MeshInitIsDone = .FALSE.
 SDEALLOCATE(ElemBaryNGeo)
 SDEALLOCATE(ElemGlobalID)
 SDEALLOCATE(myInvisibleRank)
+SDEALLOCATE(LostRotPeriodicSides)
 END SUBROUTINE FinalizeMesh
 
 END MODULE MOD_Mesh
