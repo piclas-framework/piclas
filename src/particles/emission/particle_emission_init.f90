@@ -303,7 +303,8 @@ DO iSpec = 1, nSpecies
           MIN(VECNORM(Species(iSpec)%Init(iInit)%BaseVector1IC),VECNORM(Species(iSpec)%Init(iInit)%BaseVector2IC))
     END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'gyrotron_circle'
     ! Additional read-in for specific cases
-    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sin_deviation') THEN
+    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sin_deviation') .OR.  &
+       (TRIM(Species(iSPec)%Init(iInit)%SpaceIC).EQ.'cos_distribution')) THEN
       Species(iSpec)%Init(iInit)%Amplitude              = GETREAL('Part-Species'//TRIM(hilf2)//'-Amplitude')
       Species(iSpec)%Init(iInit)%WaveNumber             = GETREAL('Part-Species'//TRIM(hilf2)//'-WaveNumber')
       Species(iSpec)%Init(iInit)%maxParticleNumberX     = GETINT('Part-Species'//TRIM(hilf2)//'-maxParticleNumber-x')

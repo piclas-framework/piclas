@@ -99,7 +99,7 @@ PUBLIC :: BessK,DEVI,SYNGE,QUASIREL
 PUBLIC :: SetCellLocalParticlePosition,InsideExcludeRegionCheck
 PUBLIC :: SetParticlePositionPoint, SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
 PUBLIC :: SetParticlePositionCircle, SetParticlePositionGyrotronCircle, SetParticlePositionCuboidCylinder
-PUBLIC :: SetParticlePositionSphere, SetParticlePositionSinDeviation, SetParticleTimeStep
+PUBLIC :: SetParticlePositionSphere, SetParticlePositionSinDeviation, SetParticlePositionCosDistribution, SetParticleTimeStep
 PUBLIC :: CalcNbrOfPhotons, CalcPhotonEnergy
 PUBLIC :: CalcIntensity_Gaussian
 PUBLIC :: CalcVelocity_FromWorkFuncSEE, DSMC_SetInternalEnr_LauxVFD
@@ -1489,6 +1489,72 @@ INTEGER                 :: i, iPart, j, k
     END DO
   END DO
 END SUBROUTINE SetParticlePositionSinDeviation
+
+
+SUBROUTINE SetParticlePositionCosDistribution(FractNbr,iInit,particle_positions)
+!===================================================================================================================================
+! Set particle position
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Globals_Vars           ,ONLY: Pi
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)     :: FractNbr, iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)       :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                    :: xlen, ylen, zlen, x_step, y_step, z_step, x_pos, y_pos, x_uniform
+REAL                    :: a, w
+INTEGER                 :: i, iPart, j, k
+!===================================================================================================================================
+  IF(Species(FractNbr)%Init(iInit)%ParticleNumber.NE. &
+      (Species(FractNbr)%Init(iInit)%maxParticleNumberX * Species(FractNbr)%Init(iInit)%maxParticleNumberY &
+      * Species(FractNbr)%Init(iInit)%maxParticleNumberZ)) THEN
+    SWRITE(*,*) 'for species ',FractNbr,' does not match number of particles in each direction!'
+    CALL abort(__STAMP__,'ERROR: Number of particles in init / emission region',iInit)
+  END IF
+  xlen = ABS(GEO%xmaxglob  - GEO%xminglob)
+  ylen = ABS(GEO%ymaxglob  - GEO%yminglob)
+  zlen = ABS(GEO%zmaxglob  - GEO%zminglob)
+  x_step = xlen/Species(FractNbr)%Init(iInit)%maxParticleNumberX
+  y_step = ylen/Species(FractNbr)%Init(iInit)%maxParticleNumberY
+  z_step = zlen/Species(FractNbr)%Init(iInit)%maxParticleNumberZ
+  a = Species(FractNbr)%Init(iInit)%Amplitude
+  w = Species(FractNbr)%Init(iInit)%WaveNumber
+  iPart = 1
+  DO i=1,Species(FractNbr)%Init(iInit)%maxParticleNumberX
+    ! calculate x position by calculating the inverse cumulative distribution function
+    ! with Newton's algorithm
+    ! propability density function
+    ! f(x) = 1 + a * cos(w * x)
+    ! Cumulative distribution function (not normalized)
+    ! F(x) = x + a / w * sin(w * x) = R(0->1)
+    x_uniform = (i * x_step - x_step*0.5)
+    x_pos = x_uniform
+    DO WHILE(ABS(x_pos + a / w * SIN(w * x_pos) - x_uniform).GT.1.E-12)
+      x_pos = x_pos - (x_pos + a / w * SIN(w * x_pos) - x_uniform) / (1 + a * cos(w * x_pos))
+    END DO
+    x_pos = GEO%xminglob + x_pos
+    DO j=1,Species(FractNbr)%Init(iInit)%maxParticleNumberY
+      y_pos =  GEO%yminglob + j * y_step - y_step * 0.5
+      DO k=1,Species(FractNbr)%Init(iInit)%maxParticleNumberZ
+        particle_positions(iPart*3-2) = x_pos
+        particle_positions(iPart*3-1) = y_pos
+        particle_positions(iPart*3  ) = GEO%zminglob &
+                                  + k * z_step - z_step * 0.5
+        iPart = iPart + 1
+      END DO
+    END DO
+  END DO
+END SUBROUTINE SetParticlePositionCosDistribution
 
 
 SUBROUTINE InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)

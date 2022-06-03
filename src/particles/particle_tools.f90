@@ -59,7 +59,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
-PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
+PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums, BuildTransGaussNums2
 PUBLIC :: CalcXiElec,ParticleOnProc,  CalcERot_particle, CalcEVib_particle, CalcEElec_particle, CalcVelocity_maxwell_particle
 !===================================================================================================================================
 
@@ -687,6 +687,49 @@ DO iLoop = 1, nPart
 END DO
 
 END SUBROUTINE BuildTransGaussNums
+
+SUBROUTINE BuildTransGaussNums2(nPart, iRanPart)
+!===================================================================================================================================
+!> Builds "not so random" Gauss numbers with a zero mean and a variance of one
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals_Vars            ,ONLY: PI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: nPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)             :: iRanPart(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: sample, val
+REAL                          :: tmp, tmp2
+INTEGER                       :: iLoop
+!===================================================================================================================================
+tmp = 0
+DO iLoop = 1, nPart
+  ! TODO, ideally sample over all global particles. Right now, sampling is done for each processor locally
+  sample = tmp + 1. / (2. * nPart) ! "Random sampling from uniform distribution"
+
+  ! Newton's algorithm to find inverse of error function
+  val = 0.
+  DO WHILE(ABS(0.5 * (1 + ERF(val / SQRT(2.))) - sample).GT.1.E-12)
+    val = val - (0.5 * (1 + ERF(val / SQRT(2.))) - sample) / (EXP(-val**2 / 2) / SQRT(2.*PI))
+  END DO
+  iRanPart(iLoop) = val
+
+  ! Scramble using bit-reversed counter (see Birdsall)
+  tmp2 = 1.
+  DO WHILE(tmp.GE.0.)
+    tmp2 = 0.5 * tmp2
+    tmp = tmp - tmp2
+  END DO
+  tmp = tmp + 2 * tmp2
+END DO
+
+END SUBROUTINE BuildTransGaussNums2
 
 
 PPURE REAL FUNCTION CalcXiElec(Telec, iSpec)
