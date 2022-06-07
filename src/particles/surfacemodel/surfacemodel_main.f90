@@ -320,7 +320,7 @@ CASE(20)
     MPF = Species(speciesID)%MacroParticleFactor
 
     ! Calculate the heat flux on the boundary from the adsorption energy 
-    PartBound%HeatTransferIter(locBCID) = PartBound%HeatTransferIter(locBCID) + AdsHeat * MPF
+   ! PartBound%HeatTransferIter(locBCID) = PartBound%HeatTransferIter(locBCID) + AdsHeat * MPF
 
     ! Update the number of adsorbed molecules
     IF(ANY(SurfChemReac%Products(iReac,:).NE.0)) THEN
@@ -341,7 +341,7 @@ CASE(20)
     MPF = Species(speciesID)%MacroParticleFactor
 
     ! Heat flux on the surface created by the reaction
-    PartBound%HeatTransferIter(locBCID) = PartBound%HeatTransferIter(locBCID) + ReacHeat * MPF * BetaCoeff
+    !PartBound%HeatTransferIter(locBCID) = PartBound%HeatTransferIter(locBCID) + ReacHeat * MPF * BetaCoeff
 
     ! Create the Eley-Rideal reaction product
 

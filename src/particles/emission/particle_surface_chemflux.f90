@@ -149,7 +149,7 @@ DO iReac = 1, SurfNumOfReac
                 END IF       
 
                 ! Calculate the desorption energy in dependence of the coverage [J]
-                DesHeat = (SurfChemReac%EReact(iReac) - Coverage*SurfChemReac%EScale(iReac)) /(6.022*10.0**(20))
+                !DesHeat = (SurfChemReac%EReact(iReac) - Coverage*SurfChemReac%EScale(iReac)) /(6.022*10.0**(20))
 
                 ! Define the variables
                 DissOrder = SurfChemReac%DissOrder(iReac)
@@ -193,7 +193,7 @@ DO iReac = 1, SurfNumOfReac
                   END IF
                 END IF
 
-                PartBound%HeatTransferIter(BoundID) = PartBound%HeatTransferIter(BoundID) - PartBound%DesCountIter(BoundID, iSpec) * DesHeat
+               ! PartBound%HeatTransferIter(BoundID) = PartBound%HeatTransferIter(BoundID) - PartBound%DesCountIter(BoundID, iSpec) * DesHeat
 
                 ! Current boundary condition
                 currentBC = BoundID
@@ -375,7 +375,7 @@ DO iReac = 1, SurfNumOfReac
                 END DO
               END IF
 
-              PartBound%HeatTransferIter(BoundID) = PartBound%HeatTransferIter(BoundID) + PartBound%LHCountIter(BoundID, iSpec) * ReacHeat * BetaCoeff
+             ! PartBound%HeatTransferIter(BoundID) = PartBound%HeatTransferIter(BoundID) + PartBound%LHCountIter(BoundID, iSpec) * ReacHeat * BetaCoeff
 
               ! Output
                PartBound%LHCount(BoundID, iSpec) = PartBound%LHCount(BoundID, iSpec) + INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID))
