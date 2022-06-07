@@ -50,50 +50,53 @@ TYPE(tPorousBC), ALLOCATABLE     :: PorousBC(:)                     ! Container 
 !=== Heterogenous Surface BC ========================================================================================================
 
 TYPE tBoundMap
-  INTEGER, ALLOCATABLE            :: Boundaries(:)
+  INTEGER, ALLOCATABLE                   :: Boundaries(:)
 END TYPE
 
 TYPE tSurfFluxMap
-  TYPE(typeSurfaceflux),ALLOCATABLE  :: Surfaceflux(:)                   
+  TYPE(typeSurfaceflux),ALLOCATABLE      :: Surfaceflux(:)                   
 END TYPE
 
-  LOGICAL                         :: DoChemSurface 
+  LOGICAL                                :: DoChemSurface 
 
 TYPE tSurfReactions
-  INTEGER                         :: NumOfReact             ! Number of possible reactions
-  CHARACTER(LEN=5),ALLOCATABLE    :: ReactType(:)           ! Type of Reaction (reaction num)
-                                                            !    A (adsorption)
-                                                            !    D (desorption)
-                                                            !    LH (Langmuir-Hinshlewood)
-                                                            !    ER (Eley-Rideal)
-  INTEGER, ALLOCATABLE            :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
-  INTEGER, ALLOCATABLE            :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
-  INTEGER, ALLOCATABLE            :: Inhibition(:)      ! Inhibition reaction
-  INTEGER, ALLOCATABLE            :: NumOfBounds(:)         
-  !REAL, ALLOCATABLE               :: ReactProb(:)
-  REAL, ALLOCATABLE               :: EForm(:)
+  INTEGER                                :: NumOfReact             ! Number of possible reactions
+  CHARACTER(LEN=5),ALLOCATABLE           :: ReactType(:)           ! Type of Reaction (reaction num)
+                                                                   !    A (adsorption)
+                                                                   !    D (desorption)
+                                                                   !    LH (Langmuir-Hinshlewood)
+                                                                   !    ER (Eley-Rideal)
+  INTEGER, ALLOCATABLE                   :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
+  INTEGER, ALLOCATABLE                   :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
+  INTEGER, ALLOCATABLE                   :: Inhibition(:)          ! Inhibition reaction
+  INTEGER, ALLOCATABLE                   :: NumOfBounds(:)         
+  REAL, ALLOCATABLE                      :: EReact(:)                ! Energy exchange with the surface
+  REAL, ALLOCATABLE                      :: EScale(:)              ! dependence of the energy values on the coverage
+  REAL, ALLOCATABLE                      :: HeatAccomodation(:)    ! beta coefficient, determining the heat flux on the surface
+  !REAL, ALLOCATABLE                     :: ReactProb(:)
+  REAL, ALLOCATABLE                      :: EForm(:)
   ! Parameters for the adsorption
-  REAL, ALLOCATABLE               :: S_initial(:)           ! Initial sticking coefficient
-  REAL, ALLOCATABLE               :: MaxCoverage(:)         ! Maximal surface coverage
-  REAL, ALLOCATABLE               :: DissOrder(:)           ! molecular or dissociative adsorption
-  REAL, ALLOCATABLE               :: EqConstant(:)          ! adsorption/dissociation
-  REAL, ALLOCATABLE               :: StickCoeff(:)         
+  REAL, ALLOCATABLE                      :: S_initial(:)           ! Initial sticking coefficient
+  REAL, ALLOCATABLE                      :: MaxCoverage(:)         ! Maximal surface coverage
+  REAL, ALLOCATABLE                      :: DissOrder(:)           ! molecular or dissociative adsorption
+  REAL, ALLOCATABLE                      :: EqConstant(:)          ! adsorption/dissociation
+  REAL, ALLOCATABLE                      :: StickCoeff(:)         
   ! Parameters for the desorption
-  REAL, ALLOCATABLE               :: E_initial(:)
-  REAL, ALLOCATABLE               :: W_interact(:)
-  REAL, ALLOCATABLE               :: C_a(:)
-  REAL, ALLOCATABLE               :: C_b(:)
+  REAL, ALLOCATABLE                      :: E_initial(:)
+  REAL, ALLOCATABLE                      :: W_interact(:)
+  REAL, ALLOCATABLE                      :: C_a(:)
+  REAL, ALLOCATABLE                      :: C_b(:)
   ! General Parameters
-  REAL, ALLOCATABLE               :: Rate(:)
-  REAL, ALLOCATABLE               :: Prob(:)
-  REAL, ALLOCATABLE               :: Prefactor(:)
-  REAL, ALLOCATABLE               :: ArrheniusEnergy(:)
-  LOGICAL, ALLOCATABLE            :: BoundisChemSurf(:)  
-  TYPE(tBoundMap), ALLOCATABLE    :: BoundMap(:)        
-  TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase) 
-  TYPE(tSurfFluxMap), ALLOCATABLE :: SFMap(:)
+  REAL, ALLOCATABLE                      :: Rate(:)
+  REAL, ALLOCATABLE                      :: Prob(:)
+  REAL, ALLOCATABLE                      :: Prefactor(:)
+  REAL, ALLOCATABLE                      :: ArrheniusEnergy(:)
+  LOGICAL, ALLOCATABLE                   :: BoundisChemSurf(:)  
+  TYPE(tBoundMap), ALLOCATABLE           :: BoundMap(:)        
+  TYPE(tCollCaseInfo), ALLOCATABLE       :: CollCaseInfo(:)        ! Information of collision cases (nCase) 
+  TYPE(tSurfFluxMap), ALLOCATABLE        :: SFMap(:)
 END TYPE
-TYPE(tSurfReactions)              :: SurfChemReac
+TYPE(tSurfReactions)                     :: SurfChemReac
 
 TYPE typeSurfaceflux
   INTEGER                                :: BC                              
@@ -130,34 +133,16 @@ TYPE tSurfFluxSubSideData
   REAL                                   :: Dmax                            
 END TYPE tSurfFluxSubSideData
 
-REAL,ALLOCATABLE                          :: ChemSampWall(:,:,:,:,:) 
-REAL,ALLOCATABLE                          :: ChemDesorpWall(:,:,:,:,:) 
-REAL,ALLOCPOINT                           :: ChemWallProp(:,:,:,:,:) 
+REAL,ALLOCATABLE                         :: ChemSampWall(:,:,:,:,:) 
+REAL,ALLOCATABLE                         :: ChemDesorpWall(:,:,:,:,:) 
+REAL,ALLOCPOINT                          :: ChemWallProp(:,:,:,:,:) 
 
 #if USE_MPI
-INTEGER                         :: ChemWallProp_Shared_Win
-REAL,ALLOCPOINT                 :: ChemWallProp_Shared(:,:,:,:,:)
-REAL,POINTER                    :: ChemSampWall_Shared(:,:,:,:,:) 
-INTEGER                                 :: ChemSampWall_Shared_Win
+INTEGER                                  :: ChemWallProp_Shared_Win
+REAL,ALLOCPOINT                          :: ChemWallProp_Shared(:,:,:,:,:)
+REAL,POINTER                             :: ChemSampWall_Shared(:,:,:,:,:) 
+INTEGER                                  :: ChemSampWall_Shared_Win
 #endif
-
-! TYPE tRecombinationModel
-! INTEGER                         :: NumOfReact             ! Number of possible reactions
-! !CHARACTER(LEN=5),ALLOCATABLE    :: ReactType(:)           ! Type of Reaction (reaction num)
-! !                                                            !    A (adsorption)
-! !                                                            !    D (desorption)
-! !                                                            !    LH (Langmuir-Hinshlewood)
-! !                                                            !    ER (Eley-Rideal)
-! INTEGER, ALLOCATABLE            :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
-! INTEGER, ALLOCATABLE            :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
-! INTEGER, ALLOCATABLE            :: NumOfBounds(:)         
-! REAL, ALLOCATABLE               :: RecombCoeff(:)
-! LOGICAL, ALLOCATABLE            :: BoundisCatSurf(:)  
-! TYPE(tBoundMap), ALLOCATABLE    :: BoundMap(:)        
-! TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase) 
-! !TYPE(tSurfFluxMap), ALLOCATABLE :: SFMap(:)             
-! END TYPE tRecombinationModel
-! TYPE(tRecombinationModel),ALLOCATABLE   :: RecombModel(:) 
 
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Vars

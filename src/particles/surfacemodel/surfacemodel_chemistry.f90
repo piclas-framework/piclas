@@ -42,9 +42,9 @@ IMPLICIT NONE
 !===================================================================================================================================
 CALL prms%SetSection("Surface Chemistry")
 CALL prms%CreateIntOption(      'Surface-NumOfReactions','Number of chemical Surface reactions')
-!CALL prms%CreateIntOption(      'Surface-NumOfRecombinations','Number of catalytic Surface recombinations')
 CALL prms%CreateStringOption(   'Surface-Reaction[$]-Type',  &
-                                'No default', numberedmulti=.TRUE.)
+                                'No default, options are A (adsorption), D (desorption), ER (Eley-Rideal), LH (Langmuir-Hinshelwood), LHD', &
+                                 numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'Surface-Reaction[$]-Reactants'  &
                                            ,'Reactants of Reaction[$]\n'//&
                                             '(SpecNumOfReactant1,\n'//&
@@ -52,24 +52,30 @@ CALL prms%CreateIntArrayOption( 'Surface-Reaction[$]-Reactants'  &
 CALL prms%CreateIntArrayOption( 'Surface-Reaction[$]-Products'  &
                                            ,'Products of Reaction[j] (Product1, Product2)', '0 , 0' &
                                            , numberedmulti=.TRUE.)
+ CALL prms%CreateRealOption(     'Surface-Reaction[$]-ReactHeat', &
+                                    'Heat flux to or from the surface due to the reaction', '0.' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Surface-Reaction[$]-HeatScaling', &
+                                    'Linear dependence of the heat flux on the coverage', '0.' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Surface-Reaction[$]-EnergyAccomodation', &
+                                    'Energy accomodation coefficient', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Surface-Reaction[$]-Inhibition','Inhibition/Coadsorption behaviour due to other reactions', &
                                 '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-StickingCoefficient', &
-                                    'TODO', '0.' , numberedmulti=.TRUE.)
+                                    'Ratio of adsorbed to impinging particles on a reactive surface', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-DissOrder',  &
-                                    'TODO', '0.' , numberedmulti=.TRUE.) 
+                                    'Associative = 1, dissociative = 2', '0.' , numberedmulti=.TRUE.) 
  CALL prms%CreateRealOption(     'Surface-Reaction[$]-EqConstant',  &
-                                    'TODO', '0.' , numberedmulti=.TRUE.)                                                                         
+                                    'Equilibrium constant between the adsorption and desorption (K), Langmuir: K=1', '0.' , numberedmulti=.TRUE.)                                                                         
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-LateralInteraction', &
-                                    'TODO', '0.' , numberedmulti=.TRUE.)
+                                    'Interaction between neighbouring particles (W), Edes = E0 + W*Coverage', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-Ca', &
-                                    'TODO', '0.' , numberedmulti=.TRUE.)
+                                    'Desorption prefactor: nu = 10^(Ca + Coverage*Cb)', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-Cb', &
-                                    'TODO', '0.' , numberedmulti=.TRUE.)
+                                    'Desorption prefactor: nu = 10^(Ca + Coverage*Cb)', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-Prefactor', &
-                                    'TODO', '0.' , numberedmulti=.TRUE.) 
+                                    'Arrhenius prefactor for the reaction/desorption', '0.' , numberedmulti=.TRUE.) 
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-Energy', &
-                                    'TODO', '0.' , numberedmulti=.TRUE.)                                
+                                    'Arrhenius energy for the reaction/desorption', '0.' , numberedmulti=.TRUE.)                                
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-FormationEnergy', &
                                     'TODO', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Surface-Reaction[$]-NumOfBoundaries', &
@@ -139,6 +145,12 @@ ALLOCATE(SurfChemReac%Inhibition(SurfChemReac%NumOfReact))
 SurfChemReac%Inhibition = 0
 ALLOCATE(SurfChemReac%EForm(SurfChemReac%NumOfReact))
 SurfChemReac%EForm = 0.0
+ALLOCATE(SurfChemReac%EReact(SurfChemReac%NumOfReact))
+SurfChemReac%EReact = 0.0
+ALLOCATE(SurfChemReac%EScale(SurfChemReac%NumOfReact))
+SurfChemReac%EScale = 0.0
+ALLOCATE(SurfChemReac%HeatAccomodation(SurfChemReac%NumOfReact))
+SurfChemReac%HeatAccomodation = 0.0
 ALLOCATE(SurfChemReac%BoundisChemSurf(nPartBound))
 ALLOCATE(SurfChemReac%NumOfBounds(SurfChemReac%NumOfReact))
 ALLOCATE(SurfChemReac%BoundMap(SurfChemReac%NumOfReact))
@@ -180,6 +192,9 @@ DO iReac = 1, ReadInNumOfReact
   SurfChemReac%Reactants(iReac,:)           = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Reactants',2,'0,0')
   SurfChemReac%Products(iReac,:)            = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Products',2,'0,0') 
   SurfChemReac%Inhibition(iReac)            = GETINT('Surface-Reaction'//TRIM(hilf)//'-Inhibition','0') 
+  SurfChemReac%EReact(iReac)                = GETREAL('Surface-Reaction'//TRIM(hilf)//'-ReactHeat','0.') 
+  SurfChemReac%EScale(iReac)                = GETREAL('Surface-Reaction'//TRIM(hilf)//'-HeatScaling','0.') 
+  SurfChemReac%HeatAccomodation(iReac)      = GETREAL('Surface-Reaction'//TRIM(hilf)//'-EnergyAccomodation','0.')
   SurfChemReac%NumOfBounds(iReac)           = GETINT('Surface-Reaction'//TRIM(hilf)//'-NumOfBoundaries','0')
   IF (SurfChemReac%NumOfBounds(iReac).EQ.0) THEN
       CALL abort(&
@@ -232,6 +247,7 @@ DO iReac = 1, ReadInNumOfReact
   SurfChemReac%EForm(iReac)  = GETREAL('Surface-Reaction'//TRIM(hilf)//'-FormationEnergy','0')
 END DO
 
+!ALLOCATE( ChemSampWall(1:nSpecies,2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 ALLOCATE( ChemSampWall(1:nSpecies,1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 ALLOCATE(ChemDesorpWall(1:nSpecies,1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 ChemDesorpWall = 0.0
@@ -255,6 +271,7 @@ ChemSampWall = 0.0
       SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
       iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
       DO iSpec = 1, nSpecies
+      ! Initial surface coverage
         ChemWallProp(iSpec,1,:,:,iSide) = PartBound%CoverageIni(iBC, iSpec)
       END DO
   END DO
@@ -269,6 +286,7 @@ ChemSampWall = 0.0
     SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
     iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
     DO iSpec = 1, nSpecies
+    ! Initial surface coverage
       ChemWallProp(iSpec,1,:,:,iSide) = PartBound%CoverageIni(iBC, iSpec)
     END DO
   END DO

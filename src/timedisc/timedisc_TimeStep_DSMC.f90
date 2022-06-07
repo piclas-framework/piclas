@@ -85,11 +85,15 @@ REAL                  :: tLBStart
 
   IF (DoChemSurface) THEN
     CALL ExchangeChemSurfData()
-    CALL ParticleSurfChemFlux()
 
+    IF (time.GT.0.0) THEN
+      CALL ParticleSurfChemFlux()
+    END IF
+
+    ! Output
     OPEN(10, file='ads.txt', position="APPEND")
     OPEN(20, file='des.txt', position="APPEND")
-    OPEN(30, file='des.txt', position="APPEND")
+    OPEN(30, file='rct.txt', position="APPEND")
 
       WRITE(10,*) PartBound%AdCount(1,2)
       WRITE(20,*) PartBound%DesCount(1,2)
@@ -99,7 +103,9 @@ REAL                  :: tLBStart
     CLOSE(20)
     CLOSE(30)
 
-    PartBound%AdCount(1, 2) = 0.0
+    PartBound%AdCount(1,2) = 0.0
+    PartBound%DesCount(1,2) = 0.0
+    PartBound%LHCount(1,1) = 0.0
 
   END IF
 

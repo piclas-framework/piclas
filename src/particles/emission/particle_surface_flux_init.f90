@@ -345,8 +345,6 @@ IF(DoRestart) THEN
   DO iReac=1,SurfNumReac
     DO iSF=1,SurfChemReac%NumOfBounds(iReac)
       VFR_total = SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VFR_total               !proc local total
-      !Species(iSpec)%Surfaceflux(iSF)%InsertedParticle = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity * RestartTime &
-      ! / Species(iSpec)%MacroParticleFactor * VFR_total,8)
     END DO
   END DO
 END IF

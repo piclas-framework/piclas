@@ -396,7 +396,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber,SampWallImpactNumber
 USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC, ChemWallProp, ChemSampWall, ChemSampWall_Shared, ChemWallProp_Shared_Win
-USE MOD_SurfaceModel_Vars       ,ONLY: ChemSampWall_Shared_Win
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemSampWall_Shared_Win, ChemDesorpWall
 USE MOD_Particle_Boundary_vars  ,ONLY: SurfSideArea_Shared, SurfSide2GlobalSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
@@ -407,13 +407,14 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: SurfMol
+REAL                            :: SurfMol(2,2)
+REAL                            :: Cov1, Cov2
+INTEGER                         :: iter
 INTEGER                         :: iProc,SideID, firstSide, lastSide, GlobalSideID, locBCID, iSide, iSpec
 INTEGER                         :: iPos,p,q
 INTEGER                         :: MessageSize,iSurfSide,SurfSideID
 INTEGER                         :: nValues
 INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
-INTEGER                         :: iter
 !INTEGER                         :: iPos,p,q,iProc,iReact
 !INTEGER                         :: recv_status_list(1:MPI_STATUS_SIZE,1:SurfCOMM%nMPINeighbors)
 !===================================================================================================================================
@@ -442,13 +443,19 @@ iter = 0
 DO iSide = firstSide, lastSide
   GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
   locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
-  !SurfMol = PartBound%MolPerUnitCell(locBCID)*SurfSideArea_Shared(1,1,iSide)/(PartBound%LatticeVec(locBCID)*PartBound%LatticeVec(locBCID))
+  
   DO iSpec =1, nSpecies
     IF((locBCID.EQ.1).AND.(iSpec.EQ.4)) THEN
-    iter = iter + 1
+      iter = iter + 1
     END IF
-    ChemWallProp(iSpec,1,:,:,iSide) = ChemWallProp(iSpec,1,:,:,iSide) + PartBound%LatticeVec(locBCID)*PartBound%LatticeVec(locBCID)*&
-    ChemSampWall_Shared(iSpec,1,:,:,iSide)/(SurfSideArea_Shared(:,:,iSide) * PartBound%MolPerUnitCell(locBCID))
+    IF (PartBound%LatticeVec(locBCID).GT.0.) THEN
+      ChemWallProp(iSpec,1,:,:,iSide) = ChemWallProp(iSpec,1,:,:,iSide) + ChemSampWall_Shared(iSpec,1,:,:,iSide) * PartBound%LatticeVec(locBCID)* &
+                                        PartBound%LatticeVec(locBCID)/(PartBound%MolPerUnitCell(locBCID)*SurfSideArea_Shared(:,:,iSide))
+    ELSE 
+      ChemWallProp(iSpec,1,:,:,iSide) = ChemWallProp(iSpec,1,:,:,iSide) + ChemSampWall_Shared(iSpec,1,:,:,iSide) / &
+                                        (10.**(19)*SurfSideArea_Shared(:,:,iSide))
+    END IF
+    !ChemWallProp(iSpec,2,:,:,iSide) = ChemWallProp(iSpec,2,:,:,iSide) + ChemSampWall_Shared(iSpec,2,:,:,iSide)/SurfMol
   END DO
   ChemSampWall_Shared(:,:,:,:,iSide) = 0.0
 END DO
@@ -456,13 +463,20 @@ ChemSampWall = 0.0
 CALL BARRIER_AND_SYNC(ChemSampWall_Shared_Win         ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win         ,MPI_COMM_SHARED)
 
-! IF (myComputeNodeRank.EQ.0) THEN
-!   !DO iSpec = 1,nSpecies
-!     iSpec = 4
-!     print*, 'coverage max', iSpec, MAXVAL(ChemWallProp(iSpec, 1, 1,1,:))
-!     print*, 'coverage mean', iSpec, SUM(ChemWallProp(iSpec, 1, 1,1,:))/iter
-!  ! END DO
-! END IF
+IF (myComputeNodeRank.EQ.0) THEN
+
+    Cov1 =  SUM(ChemWallProp(2, 1, 1,1,:))/iter
+    Cov2 =  SUM(ChemWallProp(4, 1, 1,1,:))/iter
+END IF
+
+    OPEN(40, file='cov1.txt', position="APPEND")
+    OPEN(50, file='cov2.txt', position="APPEND")
+
+      WRITE(40,*) Cov1
+      WRITE(50,*) Cov2
+
+    CLOSE(40)
+    CLOSE(50)
 
 ! prepare buffers for surf leader communication
 !IF (myComputeNodeRank.EQ.0) THEN

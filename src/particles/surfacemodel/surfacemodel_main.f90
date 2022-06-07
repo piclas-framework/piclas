@@ -109,6 +109,7 @@ REAL               :: nu, E_act, Rate, Prob
 REAL               :: NewPos(1:3)
 REAL               :: SurfMol
 REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), BoundsOfElemCenter(1:3), NewVelo(3)
+REAL               :: AdsHeat, ReacHeat, BetaCoeff
 REAL,PARAMETER     :: eps=1e-6
 REAL,PARAMETER     :: eps2=1.0-eps
 INTEGER            :: speciesID   
@@ -223,16 +224,12 @@ CASE(20)
           DO iValProd=1, SIZE(SurfChemReac%Products(iReac,:)) 
             IF(SurfChemReac%Products(iReac,iValProd).NE.0) THEN
               iProd = SurfChemReac%Products(iReac,iValProd)
-!              Coverage = PartBound%Coverage(locBCID, iProd)
-               Coverage = ChemWallProp(iProd,1,SubP,SubQ,SurfSideID)
+              Coverage = ChemWallProp(iProd,1,SubP,SubQ,SurfSideID)
             END IF
           END DO
         ELSE 
           Coverage = ChemWallProp(speciesID,1,SubP,SubQ,SurfSideID)
         END IF
-
-    !    WRITE(*,*) speciesID
-    !    WRITE(*,*) 'Coverage', Coverage
 
          ! Definition of the variables
         MaxCoverage = PartBound%MaxCoverage(locBCID,speciesID)
@@ -241,6 +238,9 @@ CASE(20)
         S_0 = SurfChemReac%S_initial(iReac)
         EqConstant = SurfChemReac%EqConstant(iReac)
         StickCoeff = SurfChemReac%StickCoeff(iReac)
+
+        ! Determine the heat of adsorption in dependence of the coverage [J]
+        AdsHeat = (SurfChemReac%EReact(iReac) - Coverage * SurfChemReac%EScale(iReac)) /(6.022 * 10.0**(20))
       
         ! Theta = free surface sites required for the adsorption
         ! Determination of possible coadsorption processes
@@ -254,8 +254,6 @@ CASE(20)
           Theta = 1.0 - Coverage/MaxCoverage
         END IF
 
-        !WRITE(*,*) 'Theta', Theta
-
         ! Check whether the maximum coverage value is reached:
         IF(Theta.GE.0.0 .AND. TotalCoverage.LT.1.0) THEN
           Theta = Theta**DissOrder
@@ -265,8 +263,6 @@ CASE(20)
         ELSE 
           StickCoeff = 0.0
         END IF
-
-   !     WRITE(*,*) 'StickCoeff', StickCoeff
 
       END IF
 
@@ -278,8 +274,10 @@ CASE(20)
           ! Definition of the variables
           WallTemp = PartBound%WallTemp(locBCID)
           nu = SurfChemReac%Prefactor(iReac)
-          E_act =  SurfChemReac%ArrheniusEnergy(iReac)        
+          E_act = SurfChemReac%ArrheniusEnergy(iReac)        
           Rate = SurfChemReac%Rate(iReac)
+          BetaCoeff = SurfChemReac%HeatAccomodation(iReac)
+          ReacHeat = SurfChemReac%EReact(iReac)/(6.022*10.0**(20)) 
   
           ! Check for the coverage values for the reactant adsorbed on the surface
           DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
@@ -321,29 +319,30 @@ CASE(20)
     CALL RemoveParticle(PartID)
     MPF = Species(speciesID)%MacroParticleFactor
 
+    ! Calculate the heat flux on the boundary from the adsorption energy 
+    PartBound%HeatTransferIter(locBCID) = PartBound%HeatTransferIter(locBCID) + AdsHeat * MPF
+
     ! Update the number of adsorbed molecules
     IF(ANY(SurfChemReac%Products(iReac,:).NE.0)) THEN
       DO iValProd=1, SIZE(SurfChemReac%Products(iReac,:)) 
         IF(SurfChemReac%Products(iReac,iValProd).NE.0) THEN
           iProd = SurfChemReac%Reactants(iReac,iValProd)
           ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) + DissOrder * MPF 
-!          PartBound%AdCount(locBCID, iProd) = PartBound%AdCount(locBCID, iProd) + DissOrder * MPF
-!          PartBound%Coverage(locBCID, iProd) = PartBound%Coverage(locBCID, iProd) + DissOrder * MPF / PartBound%nMol(locBCID)
         END IF
       END DO
     ELSE 
     ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID) + DissOrder * MPF 
-    
+    ! Output
     PartBound%AdCount(locBCID, speciesID) = PartBound%AdCount(locBCID, speciesID) + 1.
-!    PartBound%AdCount(locBCID, speciesID) = PartBound%AdCount(locBCID, speciesID) + DissOrder * MPF
-!    PartBound%Coverage(locBCID, speciesID) = PartBound%Coverage(locBCID, speciesID) + DissOrder * MPF / PartBound%nMol(locBCID)
     END IF
-
-!    PartBound%TotalCoverage(locBCID) = PartBound%TotalCoverage(locBCID) + DissOrder * MPF/PartBound%nMol(locBCID)
 
   CASE('ER')
     CALL RemoveParticle(PartID)
     MPF = Species(speciesID)%MacroParticleFactor
+
+    ! Heat flux on the surface created by the reaction
+    PartBound%HeatTransferIter(locBCID) = PartBound%HeatTransferIter(locBCID) + ReacHeat * MPF * BetaCoeff
+
     ! Create the Eley-Rideal reaction product
 
     TempErgy = SQRT(2*BoltzmannConst*WallTemp/Species(speciesID)%MassIC)
@@ -362,7 +361,6 @@ CASE(20)
     DO iValProd=1, SIZE(SurfChemReac%Products(iReac,:))
       IF(SurfChemReac%Products(iReac,iValProd).NE.0) THEN
         iProd = SurfChemReac%Products(iReac,iValProd)
-        ! PartBound%ERCount(locBCID, iProd) = PartBound%ERCount(locBCID, iProd) + 1.0 * MPF 
 
         NewVelo(1:3) = VeloFromDistribution('deltadistribution',TempErgy,1,1)
 
@@ -384,10 +382,7 @@ CASE(20)
     DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
       IF(SurfChemReac%Reactants(iReac,iValReac).NE.speciesID .AND. SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
         iReactant = SurfChemReac%Reactants(iReac,iValReac)
-        ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) - 1.0
-!        PartBound%AdCount(locBCID, iReactant) = PartBound%AdCount(locBCID, iReactant) - 1.0 
-!        PartBound%Coverage(locBCID, iReactant) = PartBound%Coverage(locBCID, iReactant) - 1.0/PartBound%nMol(locBCID)
-!        PartBound%TotalCoverage(locBCID) = PartBound%TotalCoverage(locBCID) - 1.0/PartBound%nMol(locBCID)
+        ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) - 1.0*MPF
       END IF
     END DO 
     

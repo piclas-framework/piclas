@@ -342,6 +342,7 @@ IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).
   CALL InitAdaptiveWallTemp()
 END IF
 
+! Initialize surface reactions
 CALL SurfaceModel_Chemistry_Init()
 
 ! Initialize particle surface flux to be performed per iteration
