@@ -255,9 +255,7 @@ DO iElem = firstElem, lastElem
   DO I = 1, 8
     IF(NodeVolume(NodeID(I)).LE.0.0)THEN
       IPWRITE(UNIT_StdOut,'(I0,A,I0,A,ES25.17E3)') " NodeVolume(NodeID(",I,")) =", NodeVolume(NodeID(I))
-      CALL abort(&
-          __STAMP__&
-          ,'NodeVolume(NodeID(I)) <= 0.0 for NodeID(I) = ',IntInfoOpt=NodeID(I))
+      CALL abort(__STAMP__,'NodeVolume(NodeID(I)) <= 0.0 for NodeID(I) = ',IntInfoOpt=NodeID(I))
     END IF ! NodeVolume(NodeID(1)).LE.0.0
   END DO
 END DO ! I = 1, nUniqueGlobalNodes

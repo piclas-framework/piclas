@@ -85,7 +85,7 @@ USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU
-USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,Vdm_EQ_N,offsetElem
+USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,Vdm_EQ_N
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
 USE MOD_PICDepo_Vars
@@ -94,6 +94,7 @@ USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 #if USE_MPI
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_MPI_vars               ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared_Vars        ,ONLY: ComputeNodeRootRank
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,NodeToElemInfo,NodeToElemMapping
@@ -113,13 +114,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
-INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm
+INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, iNode
 REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
 REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 CHARACTER(255)            :: TimeAverageFile
 #if USE_MPI
 INTEGER                   :: UniqueNodeID
-INTEGER                   :: jElem, NonUniqueNodeID,iNode
+INTEGER                   :: jElem, NonUniqueNodeID
 INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
 INTEGER                   :: TestElemID, GlobalElemRankOrig, iRank
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:), DoNodeMapping(:), SendNode(:), IsDepoNode(:)
@@ -273,13 +274,13 @@ CASE('cell_volweight_mean')
               SendNode(UniqueNodeID) = .TRUE.
             END IF
           END IF
-        END DO 
+        END DO
         IF (.NOT.DoHaloDepo.AND.bordersMyrank) DoNodeMapping(GlobalElemRankOrig) = .TRUE.
       END DO
     END IF
   END DO
 
-  nDepoNodes = 0  
+  nDepoNodes = 0
   ALLOCATE(IsDepoNode(1:nUniqueGlobalNodes))
   IsDepoNode = .FALSE.
   DO iElem =1, nElems
@@ -296,7 +297,7 @@ CASE('cell_volweight_mean')
     IF (.NOT.IsDepoNode(iNode).AND.SendNode(iNode)) THEN
       nDepoNodesTotal = nDepoNodesTotal + 1
     END IF
-  END DO  
+  END DO
 
   ALLOCATE(DepoNodetoGlobalNode(1:nDepoNodesTotal))
   nDepoNodesTotal = 0
@@ -311,8 +312,8 @@ CASE('cell_volweight_mean')
       nDepoNodesTotal = nDepoNodesTotal + 1
       DepoNodetoGlobalNode(nDepoNodesTotal) = iNode
     END IF
-  END DO  
-  
+  END DO
+
   ALLOCATE(GlobalRanktoNodeDepoRank(0:nProcessors_Global-1))
   GlobalRanktoNodeDepoRank = -1
   nNodeExchangeProcs = COUNT(DoNodeMapping)
@@ -341,14 +342,14 @@ CASE('cell_volweight_mean')
             IF (iRank.LT.1) CALL ABORT(__STAMP__,'Found not connected Rank!', IERROR)
             NodeDepoMapping(iRank, iNode) = .TRUE.
           END IF
-        END DO 
+        END DO
     END IF
   END DO
 
   ALLOCATE(RecvRequest (1:nNodeExchangeProcs), SendRequest(1:nNodeExchangeProcs))
   ALLOCATE(NodeMapping(1:nNodeExchangeProcs))
 
-  DO iProc = 1, nNodeExchangeProcs   
+  DO iProc = 1, nNodeExchangeProcs
     NodeMapping(iProc)%nRecvUniqueNodes = 0
     NodeMapping(iProc)%nSendUniqueNodes = 0
     CALL MPI_IRECV( NodeMapping(iProc)%nRecvUniqueNodes                       &
@@ -421,6 +422,13 @@ CASE('cell_volweight_mean')
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END DO
+#else
+  nDepoNodes      = nUniqueGlobalNodes
+  nDepoNodesTotal = nDepoNodes
+  ALLOCATE(DepoNodetoGlobalNode(1:nDepoNodesTotal))
+  DO iNode=1, nUniqueGlobalNodes
+    DepoNodetoGlobalNode(iNode) = iNode
   END DO
 #endif /*USE_MPI*/
 
