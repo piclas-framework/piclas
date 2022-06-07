@@ -434,115 +434,154 @@ doCalculateCurrentDensity=.TRUE.
 SourceDim=1
 #endif
 
-#if USE_MPI
-ASSOCIATE(NodeSourceExt => NodeSourceExtTmp )
-#endif
+! Nullify NodeSource
+DO iNode = 1, nDepoNodesTotal
+  globalNode = DepoNodetoGlobalNode(iNode)
+  NodeSource(SourceDim:4,globalNode) = 0.0
+END DO
 
-!  NodeSource=0.0
+! Loop all particles and deposit their charge contribution
+DO iPart=1,PDM%ParticleVecLength
+  IF(PRESENT(doParticle_In))THEN
+    IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
+  ELSE
+    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+  END IF
+  IF (isDepositParticle(iPart)) THEN
+    IF (usevMPF) THEN
+      Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
+    ELSE
+      Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
+    END IF
+    CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos(1:3),PEM%GlobalElemID(iPart),ForceMode=.TRUE., isSuccessful = SucRefPos)
+    TSource(:) = 0.0
+    IF(doCalculateCurrentDensity)THEN
+      TSource(1:3) = PartState(4:6,iPart)*Charge
+    END IF
+    TSource(4) = Charge
+
+    IF (SucRefPos) THEN
+      alpha1=0.5*(TempPartPos(1)+1.0)
+      alpha2=0.5*(TempPartPos(2)+1.0)
+      alpha3=0.5*(TempPartPos(3)+1.0)
+
+      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,PEM%CNElemID(iPart)))
+      NodeSource(SourceDim:4,NodeID(1)) = NodeSource(SourceDim:4,NodeID(1)) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
+      NodeSource(SourceDim:4,NodeID(2)) = NodeSource(SourceDim:4,NodeID(2)) + (TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
+      NodeSource(SourceDim:4,NodeID(3)) = NodeSource(SourceDim:4,NodeID(3)) + (TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
+      NodeSource(SourceDim:4,NodeID(4)) = NodeSource(SourceDim:4,NodeID(4)) + (TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*(1-alpha3))
+      NodeSource(SourceDim:4,NodeID(5)) = NodeSource(SourceDim:4,NodeID(5)) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*  (alpha3))
+      NodeSource(SourceDim:4,NodeID(6)) = NodeSource(SourceDim:4,NodeID(6)) + (TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
+      NodeSource(SourceDim:4,NodeID(7)) = NodeSource(SourceDim:4,NodeID(7)) + (TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
+      NodeSource(SourceDim:4,NodeID(8)) = NodeSource(SourceDim:4,NodeID(8)) + (TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
+    ELSE ! not SucRefPos
+      NodeID = ElemNodeID_Shared(:,PEM%CNElemID(iPart))
+      DO iNode = 1, 8
+        norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) -PartState(1:3,iPart))
+        IF(norm.GT.0.)THEN
+          PartDistDepo(iNode) = 1./norm
+        ELSE
+          PartDistDepo(:) = 0.
+          PartDistDepo(iNode) = 1.0
+          EXIT
+        END IF ! norm.GT.0.
+      END DO
+      DistSum = SUM(PartDistDepo(1:8))
+      DO iNode = 1, 8
+        NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(iNode))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(iNode)))  &
+          +  PartDistDepo(iNode)/DistSum*TSource(SourceDim:4)
+      END DO
+    END IF ! SucRefPos
+#if USE_LOADBALANCE
+  CALL LBElemSplitTime(PEM%LocalElemID(iPart),tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
+#endif /*USE_LOADBALANCE*/
+  END IF ! isDepositParticle(iPart)
+END DO ! iPart=1,PDM%ParticleVecLength
+
+#if USE_MPI
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
+! 1/2 Add the local non-synchronized surface charge contribution (does not consider the charge contribution from restart files) from
+! NodeSourceExtTmp. This contribution accumulates over time, but remains locally to each processor as it is communicated via the
+! normal NodeSource container. The synchronized part is added after communication.
+IF(DoDielectricSurfaceCharge)THEN
   DO iNode = 1, nDepoNodesTotal
     globalNode = DepoNodetoGlobalNode(iNode)
-    NodeSource(SourceDim:4,globalNode) = 0.0
+    NodeSource(4,globalNode) = NodeSource(4,globalNode) + NodeSourceExtTmp(globalNode)
   END DO
-  DO iPart=1,PDM%ParticleVecLength
-    IF(PRESENT(doParticle_In))THEN
-      IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
-    ELSE
-      IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
-    END IF
-    IF (isDepositParticle(iPart)) THEN
-      IF (usevMPF) THEN
-        Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
-      ELSE
-        Charge = Species(PartSpecies(iPart))%ChargeIC*Species(PartSpecies(iPart))%MacroParticleFactor
-      END IF
-      CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos(1:3),PEM%GlobalElemID(iPart),ForceMode=.TRUE., isSuccessful = SucRefPos)
-      TSource(:) = 0.0
-      IF(doCalculateCurrentDensity)THEN
-        TSource(1:3) = PartState(4:6,iPart)*Charge
-      END IF
-      TSource(4) = Charge
-
-      IF (SucRefPos) THEN
-        alpha1=0.5*(TempPartPos(1)+1.0)
-        alpha2=0.5*(TempPartPos(2)+1.0)
-        alpha3=0.5*(TempPartPos(3)+1.0)
-
-        NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,PEM%CNElemID(iPart)))
-        NodeSource(SourceDim:4,NodeID(1)) = NodeSource(SourceDim:4,NodeID(1)) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*(1-alpha3))
-        NodeSource(SourceDim:4,NodeID(2)) = NodeSource(SourceDim:4,NodeID(2)) + (TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*(1-alpha3))
-        NodeSource(SourceDim:4,NodeID(3)) = NodeSource(SourceDim:4,NodeID(3)) + (TSource(SourceDim:4)*  (alpha1)*  (alpha2)*(1-alpha3))
-        NodeSource(SourceDim:4,NodeID(4)) = NodeSource(SourceDim:4,NodeID(4)) + (TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*(1-alpha3))
-        NodeSource(SourceDim:4,NodeID(5)) = NodeSource(SourceDim:4,NodeID(5)) + (TSource(SourceDim:4)*(1-alpha1)*(1-alpha2)*  (alpha3))
-        NodeSource(SourceDim:4,NodeID(6)) = NodeSource(SourceDim:4,NodeID(6)) + (TSource(SourceDim:4)*  (alpha1)*(1-alpha2)*  (alpha3))
-        NodeSource(SourceDim:4,NodeID(7)) = NodeSource(SourceDim:4,NodeID(7)) + (TSource(SourceDim:4)*  (alpha1)*  (alpha2)*  (alpha3))
-        NodeSource(SourceDim:4,NodeID(8)) = NodeSource(SourceDim:4,NodeID(8)) + (TSource(SourceDim:4)*(1-alpha1)*  (alpha2)*  (alpha3))
-      ELSE
-        NodeID = ElemNodeID_Shared(:,PEM%CNElemID(iPart))
-        DO iNode = 1, 8
-          norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) -PartState(1:3,iPart))
-          IF(norm.GT.0.)THEN
-            PartDistDepo(iNode) = 1./norm
-          ELSE
-            PartDistDepo(:) = 0.
-            PartDistDepo(iNode) = 1.0
-            EXIT
-          END IF ! norm.GT.0.
-        END DO
-        DistSum = SUM(PartDistDepo(1:8))
-        DO iNode = 1, 8
-          NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(iNode))) = NodeSource(SourceDim:4,NodeInfo_Shared(NodeID(iNode)))  &
-            +  PartDistDepo(iNode)/DistSum*TSource(SourceDim:4)
-        END DO
-      END IF
+END IF ! DoDielectricSurfaceCharge
 #if USE_LOADBALANCE
-    CALL LBElemSplitTime(PEM%LocalElemID(iPart),tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
+CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 #endif /*USE_LOADBALANCE*/
-    END IF
+
+
+! 1) Send/Receive charge density
+DO iProc = 1, nNodeExchangeProcs
+  ! Open receive buffer
+  CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceCharge(:) &
+            , NodeMapping(iProc)%nRecvUniqueNodes            &
+            , MPI_DOUBLE_PRECISION                           &
+            , NodeDepoRanktoGlobalRank(iProc)                &
+            , 666                                            &
+            , MPI_COMM_WORLD                                 &
+            , RecvRequest(iProc)                             &
+            , IERROR)
+
+  ! Send message (non-blocking)
+  DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
+    NodeMapping(iProc)%SendNodeSourceCharge(iNode) = NodeSource(4,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
   END DO
+  CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceCharge(:) &
+                , NodeMapping(iProc)%nSendUniqueNodes        &
+                , MPI_DOUBLE_PRECISION                       &
+                , NodeDepoRanktoGlobalRank(iProc)            &
+                , 666                                        &
+                , MPI_COMM_WORLD                             &
+                , SendRequest(iProc)                         &
+                , IERROR)
+END DO
 
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-  ! 1/2 Add the local non-synchronized surface charge contribution (does not consider the charge contribution from restart files) from
-  ! NodeSourceExtTmp. This contribution accumulates over time, but remains locally to each processor as it is communicated via the
-  ! normal NodeSource container. The synchronized part is added after communication.
-  IF(DoDielectricSurfaceCharge)THEN
-    DO iNode = 1, nDepoNodesTotal
-      globalNode = DepoNodetoGlobalNode(iNode)
-      NodeSource(4,globalNode) = NodeSource(4,globalNode) + NodeSourceExt(globalNode) ! this is associated to NodeSourceExtTmp
-    END DO
-  END IF ! DoDielectricSurfaceCharge
-#if USE_LOADBALANCE
-  CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
-#endif /*USE_LOADBALANCE*/
+! Finish communication
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+DO iProc = 1, nNodeExchangeProcs
+  CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+END DO
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
-#if USE_MPI
-END ASSOCIATE
-
-  ! 1) Send/Receive charge density
+! 2) Send/Receive current density
+IF(doCalculateCurrentDensity)THEN
   DO iProc = 1, nNodeExchangeProcs
     ! Open receive buffer
-    CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceCharge(:) &
-              , NodeMapping(iProc)%nRecvUniqueNodes            &
-              , MPI_DOUBLE_PRECISION                           &
-              , NodeDepoRanktoGlobalRank(iProc)                &
-              , 666                                            &
-              , MPI_COMM_WORLD                                 &
-              , RecvRequest(iProc)                             &
-              , IERROR)
+    CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,:) &
+        , 3*NodeMapping(iProc)%nRecvUniqueNodes                     &
+        , MPI_DOUBLE_PRECISION                                      &
+        , NodeDepoRanktoGlobalRank(iProc)                           &
+        , 666                                                       &
+        , MPI_COMM_WORLD                                            &
+        , RecvRequest(iProc)                                        &
+        , IERROR)
 
     ! Send message (non-blocking)
     DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
-      NodeMapping(iProc)%SendNodeSourceCharge(iNode) = NodeSource(4,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
+      NodeMapping(iProc)%SendNodeSourceCurrent(1:3,iNode) = NodeSource(1:3,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
     END DO
-    CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceCharge(:) &
-                  , NodeMapping(iProc)%nSendUniqueNodes        &
-                  , MPI_DOUBLE_PRECISION                       &
-                  , NodeDepoRanktoGlobalRank(iProc)            &
-                  , 666                                        &
-                  , MPI_COMM_WORLD                             &
-                  , SendRequest(iProc)                         &
-                  , IERROR)
+    CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceCurrent(1:3,:) &
+        , 3*NodeMapping(iProc)%nSendUniqueNodes                     &
+        , MPI_DOUBLE_PRECISION                                      &
+        , NodeDepoRanktoGlobalRank(iProc)                           &
+        , 666                                                       &
+        , MPI_COMM_WORLD                                            &
+        , SendRequest(iProc)                                        &
+        , IERROR)
   END DO
 
   ! Finish communication
@@ -560,68 +599,24 @@ END ASSOCIATE
   MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-  ! 2) Send/Receive current density
-  IF(doCalculateCurrentDensity)THEN
-    DO iProc = 1, nNodeExchangeProcs
-      ! Open receive buffer
-      CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,:) &
-          , 3*NodeMapping(iProc)%nRecvUniqueNodes                     &
-          , MPI_DOUBLE_PRECISION                                      &
-          , NodeDepoRanktoGlobalRank(iProc)                           &
-          , 666                                                       &
-          , MPI_COMM_WORLD                                            &
-          , RecvRequest(iProc)                                        &
-          , IERROR)
-
-      ! Send message (non-blocking)
-      DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
-        NodeMapping(iProc)%SendNodeSourceCurrent(1:3,iNode) = NodeSource(1:3,NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
-      END DO
-      CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceCurrent(1:3,:) &
-          , 3*NodeMapping(iProc)%nSendUniqueNodes                     &
-          , MPI_DOUBLE_PRECISION                                      &
-          , NodeDepoRanktoGlobalRank(iProc)                           &
-          , 666                                                       &
-          , MPI_COMM_WORLD                                            &
-          , SendRequest(iProc)                                        &
-          , IERROR)
-    END DO
-
-    ! Finish communication
-#if defined(MEASURE_MPI_WAIT)
-    CALL SYSTEM_CLOCK(count=CounterStart)
-#endif /*defined(MEASURE_MPI_WAIT)*/
-    DO iProc = 1, nNodeExchangeProcs
-      CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
-      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-      CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
-      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    END DO
-#if defined(MEASURE_MPI_WAIT)
-    CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-    MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-  END IF ! doCalculateCurrentDensity
-
   ! 3) Extract messages
-  IF(doCalculateCurrentDensity)THEN! SourceDim=1
-    DO iProc = 1, nNodeExchangeProcs
-      DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
-        ASSOCIATE( NS => NodeSource(SourceDim:4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)))
-          NS = NS + (/NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,iNode), NodeMapping(iProc)%RecvNodeSourceCharge(iNode)/)
-        END ASSOCIATE
-      END DO
+  DO iProc = 1, nNodeExchangeProcs
+    DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
+      ASSOCIATE( NS => NodeSource(SourceDim:4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)))
+        NS = NS + (/NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,iNode), NodeMapping(iProc)%RecvNodeSourceCharge(iNode)/)
+      END ASSOCIATE
     END DO
-  ELSE
-    DO iProc = 1, nNodeExchangeProcs
-      DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
-        ASSOCIATE( NS => NodeSource(4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)))
-          NS = NS + NodeMapping(iProc)%RecvNodeSourceCharge(iNode)
-        END ASSOCIATE
-      END DO
+  END DO
+ELSE
+  DO iProc = 1, nNodeExchangeProcs
+    DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
+      ASSOCIATE( NS => NodeSource(4,NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)))
+        NS = NS + NodeMapping(iProc)%RecvNodeSourceCharge(iNode)
+      END ASSOCIATE
     END DO
-  END IF ! doCalculateCurrentDensity
-#endif
+  END DO
+END IF ! doCalculateCurrentDensity
+#endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
