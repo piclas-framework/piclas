@@ -967,7 +967,7 @@ SUBROUTINE ConvertSurfaceData(InputStateFile)
 USE MOD_Globals
 USE MOD_Globals_Vars    ,ONLY: ProjectName
 USE MOD_IO_HDF5         ,ONLY: HSize
-USE MOD_HDF5_Input      ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray
+USE MOD_HDF5_Input      ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,GetDataSize,File_ID,ReadArray,DatasetExists
 USE MOD_piclas2vtk_Vars ,ONLY: SurfConnect
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -978,12 +978,13 @@ CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)              :: FileString
+CHARACTER(LEN=255)              :: FileString, File_Type
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
 INTEGER                         :: nDims, nVarSurf, nSurfSample, nSurfaceSidesReadin
 REAL                            :: OutputTime
 REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:), SurfData(:,:), Coords(:,:)
 INTEGER                         :: iSide
+LOGICAL                         :: FileTypeExists
 !===================================================================================================================================
 
 ! Read in solution
@@ -991,6 +992,12 @@ CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,c
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntScalar=nSurfSample)
+! check file version
+CALL DatasetExists(File_ID,'File_Type',FileTypeExists,attrib=.TRUE.)
+IF (FileTypeExists) THEN
+  CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
+END IF
+
 IF(nSurfSample.NE.1) THEN
   CALL abort(&
       __STAMP__&
@@ -1030,6 +1037,12 @@ IF((nVarSurf.GT.0).AND.(SurfConnect%nSurfaceBCSides.GT.0))THEN
 END IF
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
+IF (FileTypeExists) THEN 
+  SELECT CASE(TRIM(File_Type))
+    CASE('DSMCSurfChemState')
+      FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfChem',OutputTime))//'.vtu'
+  END SELECT
+END IF
 CALL WriteDataToVTK_PICLas(4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceNode,SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode),&
     SurfConnect%nSurfaceBCSides,SurfData,SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceBCSides))
 
