@@ -680,11 +680,10 @@ IF(UseBRElectronFluid) THEN
     CALL AllocateElectronTemperatureCell()
     CALL CalculateElectronTemperatureCell()
   END IF
-  IF(MPIRoot)THEN ! only root writes the container
   CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElectronTemperatureCell')
-END IF
-! Automatically obtain the reference parameters (from a fully kinetic simulation), store them in .h5 state
-IF(BRAutomaticElectronRef)THEN
+
+  ! Automatically obtain the reference parameters (from a fully kinetic simulation), store them in .h5 state
+  IF(BRAutomaticElectronRef)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteArrayToHDF5( DataSetName = 'RegionElectronRef' , rank = 2 , &
                            nValGlobal  = (/1_IK , 3_IK/)     , &

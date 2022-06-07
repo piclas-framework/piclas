@@ -2091,7 +2091,7 @@ globnPart(3) = INT(globnPart8    , KIND = IK)
 #else
 offsetnPart=0_IK
 globnPart(1:3)=INT(locnPart,KIND=IK)
-#endif
+#endif /*USE_MPI*/
 
 ! Get extrema over the complete simulation only during WriteParticleToHDF5 
 IF(GetMinMaxNbrOfParticles)THEN
