@@ -101,7 +101,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies,PartPosRef
+USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies,PartPosRef,LastPartPos
 USE MOD_Particle_Tracking_vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -164,7 +164,8 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
       END DO
     ELSE ! position in reference space [-1,1] has to be computed
       DO iLoop = 1, nPart
-        CALL GetPositionInRefElem(PartState(1:3,iPart),TreeNode%MappedPartStates(1:3,iLoop),iElem+offSetElem)
+        ! Attention: LastPartPos is the reference position here
+        TreeNode%MappedPartStates(1:3,iLoop) = LastPartPos(1:3,iPart)
         iPart = PEM%pNext(iPart)
       END DO
     END IF ! TrackingMethod.EQ.REFMAPPING
@@ -367,7 +368,7 @@ USE MOD_DSMC_CollisionProb      ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: SelectionProc, useRelaxProbCorrFactor, iPartIndx_NodeNewElecRelax, newElecRelaxParts
-USE MOD_DSMC_Vars               ,ONLY: iPartIndx_NodeElecRelaxChem,nElecRelaxChemParts 
+USE MOD_DSMC_Vars               ,ONLY: iPartIndx_NodeElecRelaxChem,nElecRelaxChemParts
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, Symmetry, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath, CalcInstantElecTempXi
@@ -696,7 +697,7 @@ SUBROUTINE DSMC_pairing_quadtree(iElem)
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies
+USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies, LastPartPos
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
@@ -746,7 +747,8 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     TreeNode%PNum_Node = nPart
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
     DO iLoop = 1, nPart
-      CALL GeoCoordToMap2D(PartState(1:2,iPart), TreeNode%MappedPartStates(1:2,iLoop), iElem)
+      ! Attention: LastPartPos is the reference position here
+      TreeNode%MappedPartStates(1:2,iLoop) = LastPartPos(1:2,iPart)
       iPart = PEM%pNext(iPart)
     END DO
     TreeNode%NodeDepth = 1
@@ -756,7 +758,7 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
   ELSE
     CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
   END IF
-ELSE 
+ELSE
   CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
 END IF
 
@@ -1037,7 +1039,7 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
   ELSE
     CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
   END IF
-ELSE 
+ELSE
   CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
 END IF
 
@@ -1951,7 +1953,7 @@ INTEGER FUNCTION DOTANTCUBEID(centerPoint,coord)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 REAL,INTENT(IN) :: centerPoint(1:3)
 REAL,INTENT(IN) :: coord(1)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1975,7 +1977,7 @@ FUNCTION DOTANTCUBEMIDPOINT(CubeID,octantDepth,octantCenter)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 INTEGER,INTENT(IN) :: CubeID
 INTEGER,INTENT(IN) :: octantDepth
 REAL,INTENT(IN)    :: octantCenter(1:3)
