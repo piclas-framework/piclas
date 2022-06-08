@@ -55,7 +55,10 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
 INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 #endif
 
-INTEGER(KIND=IK)   :: nGlobalNbrOfParticles
+#if defined(PARTICLES)
+INTEGER(KIND=IK)   :: nGlobalNbrOfParticles(6) !< 1-3: min,max,total number of simulation particles over all processors
+!                                              !< 4-6: peak values over the complete simulation
+#endif /*defined(PARTICLES)*/
 
 INTERFACE ReOpenLogFile
   MODULE PROCEDURE ReOpenLogFile
@@ -162,6 +165,10 @@ END INTERFACE
 
 INTERFACE SPECIESISELECTRON
   MODULE PROCEDURE SPECIESISELECTRON
+END INTERFACE
+
+INTERFACE DisplayNumberOfParticles
+  MODULE PROCEDURE DisplayNumberOfParticles
 END INTERFACE
 #endif /*defined(PARTICLES)*/
 
@@ -1111,6 +1118,12 @@ REAL :: SimulationTime,mins,secs,hours,days
 ! Return with all procs except root if not called during abort
 IF(.NOT.MPIRoot.AND.(Message.NE.'ABORTED')) RETURN
 
+! Output particle info
+#if defined(PARTICLES)
+IF(Message.NE.'RUNNING') CALL DisplayNumberOfParticles(2)
+#endif /*defined(PARTICLES)*/
+
+! Calculate simulation time
 SimulationTime = Time-StartTime
 
 ! Get secs, mins, hours and days
@@ -1123,7 +1136,8 @@ SimulationTime = SimulationTime / 24.
 !days = MOD(SimulationTime,365.) ! Use this if years are also to be displayed
 days = SimulationTime
 
-! Output
+! Output message with all procs, as root might not be the calling process during abort
+IF(MPIRoot.AND.(Message.NE.'ABORTED')) WRITE(UNIT_stdOut,'(132("="))')
 WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [',Time-StartTime,' sec ]'
 WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
 END SUBROUTINE DisplaySimulationTime
@@ -1354,6 +1368,39 @@ L = (GlobalElemID.GE.offsetElemMPI(ComputeNodeRootRank)+1).AND.&
 L = .TRUE.
 #endif /*USE_MPI*/
 END FUNCTION ElementOnNode
+
+
+#if defined(PARTICLES)
+!===================================================================================================================================
+!> Write min, max, average and total number of simulations particles to stdout stream
+!===================================================================================================================================
+SUBROUTINE DisplayNumberOfParticles(Mode)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: Mode ! 1: during the simulation
+!                          ! 2: at the end of the simulation
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+
+!===================================================================================================================================
+SELECT CASE(Mode)
+CASE(1)
+  SWRITE(UNIT_StdOut,'(4(A,ES16.7))') "#Particles : ", REAL(nGlobalNbrOfParticles(3)),&
+      "    Average particles per proc : ",REAL(nGlobalNbrOfParticles(3))/REAL(nProcessors),&
+      "    Min : ",REAL(nGlobalNbrOfParticles(1)),&
+      "    Max : ",REAL(nGlobalNbrOfParticles(2))
+CASE(2)
+  SWRITE(UNIT_StdOut,'(4(A,ES16.7))') "#Particles : ", REAL(nGlobalNbrOfParticles(6)),&
+      " (peak)         Average (peak) : ",REAL(nGlobalNbrOfParticles(6))/REAL(nProcessors),&
+      "    Min : ",REAL(nGlobalNbrOfParticles(4)),&
+      "    Max : ",REAL(nGlobalNbrOfParticles(5))
+CASE DEFAULT
+  CALL abort(__STAMP__,'DisplayNumberOfParticles() called with unknown Mode=',IntInfoOpt=Mode)
+END SELECT
+END SUBROUTINE DisplayNumberOfParticles
+#endif /*defined(PARTICLES)*/
 
 
 END MODULE MOD_Globals
