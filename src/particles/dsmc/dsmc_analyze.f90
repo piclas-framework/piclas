@@ -43,7 +43,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars               ,ONLY: StefanBoltzmannConst
 USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal,DSMC,MacroSurfaceSpecVal
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile
-USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
+USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5,WriteSurfSampleChemToHDF5
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOnNode
 USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
@@ -278,6 +278,7 @@ END IF
 #endif /*USE_MPI*/
 
 CALL WriteSurfSampleToHDF5(TRIM(MeshFile),ActualTime)
+CALL WriteSurfSampleChemToHDF5(TRIM(MeshFile),ActualTime)
 
 DEALLOCATE(MacroSurfaceVal,MacroSurfaceSpecVal)
 

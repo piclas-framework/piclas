@@ -325,7 +325,7 @@ DO iReac = 1, SurfNumOfReac
           END DO
 
            ! Determine the reaction energy [J]
-            BetaCoeff = SurfChemReac%HeatAccomodation(iReac)
+            !BetaCoeff = SurfChemReac%HeatAccomodation(iReac)
             ReacHeat = (SurfChemReac%EReact(iReac) - Coverage*SurfChemReac%EScale(iReac)) /(6.022*10.0**(20))
 
           ! Calculate the number of molecules on the surface
