@@ -78,7 +78,7 @@ INTEGER                     :: PartsEmitted, Node1, Node2, globElemId
 REAL                        :: Particle_pos(3), RandVal1,  xyzNod(3), RVec(2), minPos(2), xi(2), Vector1(3), Vector2(3)
 REAL                        :: ndist(3), midpoint(3)
 REAL,ALLOCATABLE            :: particle_positions(:)
-REAL                        :: ReacHeat, DesHeat
+REAL                        :: ReacHeat, DesHeat, BetaCoeff
 REAL                        :: nu, E_act, Coverage, Prob, Rate, DissOrder, AdCount
 REAL                        :: MPF
 REAL                        :: area
@@ -149,7 +149,7 @@ DO iReac = 1, SurfNumOfReac
                 END IF       
 
                 ! Calculate the desorption energy in dependence of the coverage [J]
-                !DesHeat = (SurfChemReac%EReact(iReac) - Coverage*SurfChemReac%EScale(iReac)) /(6.022*10.0**(20))
+                DesHeat = (SurfChemReac%EReact(iReac) - Coverage*SurfChemReac%EScale(iReac)) /(6.022*10.0**(20))
 
                 ! Define the variables
                 DissOrder = SurfChemReac%DissOrder(iReac)
@@ -193,7 +193,8 @@ DO iReac = 1, SurfNumOfReac
                   END IF
                 END IF
 
-               ! PartBound%HeatTransferIter(BoundID) = PartBound%HeatTransferIter(BoundID) - PartBound%DesCountIter(BoundID, iSpec) * DesHeat
+                ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) = ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) - INT(ChemDesorpWall(iSpec,2, SubP, SubQ, SurfSideID)) * DesHeat
+                PartBound%HeatIter(BoundID) = PartBound%HeatIter(BoundID) - INT(ChemDesorpWall(iSpec,2, SubP, SubQ, SurfSideID)) * DesHeat
 
                 ! Current boundary condition
                 currentBC = BoundID
@@ -375,7 +376,8 @@ DO iReac = 1, SurfNumOfReac
                 END DO
               END IF
 
-             ! PartBound%HeatTransferIter(BoundID) = PartBound%HeatTransferIter(BoundID) + PartBound%LHCountIter(BoundID, iSpec) * ReacHeat * BetaCoeff
+              ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) = ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) + INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)) * ReacHeat * BetaCoeff
+              PartBound%HeatIter(BoundID) = PartBound%HeatIter(BoundID) - INT(ChemDesorpWall(iSpec,2, SubP, SubQ, SurfSideID)) * DesHeat
 
               ! Output
                PartBound%LHCount(BoundID, iSpec) = PartBound%LHCount(BoundID, iSpec) + INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID))
@@ -403,7 +405,6 @@ DO iReac = 1, SurfNumOfReac
               
                       PartInsSubSide = INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID))
                       ! Output
-                      PartBound%DesCount(BoundID, iSpec) = PartBound%DesCount(BoundID, iSpec) + PartInsSubSide
                       ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID) = ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID) - INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID))
                       NbrOfParticle = NbrOfParticle + PartInsSubSide
                       ALLOCATE(particle_positions(1:PartInsSubSide*3))
