@@ -645,18 +645,17 @@ IF (ANY(PartBound%UseAdaptedWallTemp)) CALL WriteAdaptiveWallTempToHDF5(FileName
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
 ! For restart purposes, store the electron bulk temperature in .h5 state
-IF(CalcBulkElectronTemp)THEN
-  IF(MPIRoot)THEN ! only root writes the container
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    TmpArray(1,1) = BulkElectronTemp
-    CALL WriteArrayToHDF5( DataSetName = 'BulkElectronTemp' , rank = 2 , &
-                           nValGlobal  = (/1_IK , 1_IK/)     , &
-                           nVal        = (/1_IK , 1_IK/)     , &
-                           offset      = (/0_IK , 0_IK/)     , &
-                           collective  = .FALSE., RealArray = TmpArray(1,1))
-    CALL CloseDataFile()
-  END IF ! MPIRoot
-END IF ! CalcBulkElectronTemp
+! Only root writes the container
+IF(CalcBulkElectronTemp.AND.MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  TmpArray(1,1) = BulkElectronTemp
+  CALL WriteArrayToHDF5( DataSetName = 'BulkElectronTemp' , rank = 2 , &
+                         nValGlobal  = (/1_IK , 1_IK/)     , &
+                         nVal        = (/1_IK , 1_IK/)     , &
+                         offset      = (/0_IK , 0_IK/)     , &
+                         collective  = .FALSE., RealArray = TmpArray(1,1))
+  CALL CloseDataFile()
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
 #endif /*PARTICLES*/
 
 #if USE_LOADBALANCE
@@ -683,7 +682,8 @@ IF(UseBRElectronFluid) THEN
   CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElectronTemperatureCell')
 
   ! Automatically obtain the reference parameters (from a fully kinetic simulation), store them in .h5 state
-  IF(BRAutomaticElectronRef)THEN
+  ! Only root writes the container
+  IF(BRAutomaticElectronRef.AND.MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteArrayToHDF5( DataSetName = 'RegionElectronRef' , rank = 2 , &
                            nValGlobal  = (/1_IK , 3_IK/)     , &
