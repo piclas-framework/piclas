@@ -290,6 +290,7 @@ CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTE
 DO iProc=1, myrank
   OffsetPETScSide = OffsetPETScSide + OffsetPETScSideMPI(iProc)
 END DO
+nPETScUniqueSidesGlobal = SUM(OffsetPETScSideMPI)
 #endif
 
 ALLOCATE(PETScGlobal(nSides))
@@ -399,9 +400,9 @@ IF(ZeroPotentialSideID.GT.0) THEN
 END IF
 
 CALL MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr);PetscCall(ierr)
-CALL MatSetSizes(Smat_petsc,nPETScUniqueSides*nGP_Face,nPETScUniqueSides*nGP_Face,PETSC_DECIDE,PETSC_DECIDE,ierr);PetscCall(ierr)
-CALL MatSetType(Smat_petsc,MATSBAIJ,ierr);PetscCall(ierr) ! Symmetric sparse (mpi) matrix
 CALL MatSetBlockSize(Smat_petsc,nGP_face,ierr);PetscCall(ierr)
+CALL MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,nPETScUniqueSidesGlobal*nGP_Face,ierr);PetscCall(ierr)
+CALL MatSetType(Smat_petsc,MATSBAIJ,ierr);PetscCall(ierr) ! Symmetric sparse (mpi) matrix
 ! 1 Big mortar side is affected by 6 + 4*4 = 22 other sides...
 CALL MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
 CALL MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,21,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
@@ -444,11 +445,17 @@ RHS_vol=0.
 #if USE_PETSC
 ! allocate RHS & lambda vectors
 CALL VecCreate(PETSC_COMM_WORLD,lambda_petsc,ierr);PetscCall(ierr)
-CALL VecSetType(lambda_petsc,VECSTANDARD,ierr);PetscCall(ierr)
-CALL VecSetSizes(lambda_petsc,nPETScUniqueSides*nGP_Face,PETSC_DECIDE,ierr);PetscCall(ierr)
 CALL VecSetBlockSize(lambda_petsc,nGP_face,ierr);PetscCall(ierr)
+CALL VecSetSizes(lambda_petsc,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,ierr);PetscCall(ierr)
+CALL VecSetType(lambda_petsc,VECSTANDARD,ierr);PetscCall(ierr)
 CALL VecSetUp(lambda_petsc,ierr);PetscCall(ierr)
 CALL VecDuplicate(lambda_petsc,RHS_petsc,ierr)
+
+! Create scatter context to access local values from global petsc vector
+CALL VecCreateSeq(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,lambda_local_petsc,ierr);PetscCall(ierr)
+CALL ISCreateStride(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,0,1,idx_local_petsc,ierr);PetscCall(ierr)
+CALL ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(:)),PETSC_COPY_VALUES,idx_global_petsc,ierr);PetscCall(ierr)
+CALL VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr);PetscCall(ierr)
 #endif
 
 HDGInitIsDone = .TRUE.
@@ -934,19 +941,21 @@ DO iVar=1, PP_nVar
   CALL KSPGetConvergedReason(ksp,reason,ierr);PetscCall(ierr)
   CALL KSPGetResidualNorm(ksp,petscnorm,ierr);PetscCall(ierr)
   IF(reason.LT.0)THEN
-    SWRITE(*,*) 'Attention: GMRES not converged!' 
+    SWRITE(*,*) 'Attention: PETSc not converged! Reason: ', reason 
   END IF
   IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, petscnorm)
 
   ! Fill element local lambda for post processing
-  CALL VecGetArrayReadF90(lambda_petsc,lambda_pointer,ierr);PetscCall(ierr)
+  CALL VecScatterBegin(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr);PetscCall(ierr)
+  CALL VecScatterEnd(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr);PetscCall(ierr)
+  CALL VecGetArrayReadF90(lambda_local_petsc,lambda_pointer,ierr);PetscCall(ierr)
   DO PETScLocalID=1,nPETScUniqueSides
     SideID=PETScLocalToSideID(PETScLocalID)
     PETScID_start=1+(PETScLocalID-1)*nGP_face
     PETScID_stop=PETScLocalID*nGP_face
     lambda(1,:,SideID) = lambda_pointer(PETScID_start:PETScID_stop)
-  END DO
-  CALL VecRestoreArrayReadF90(lambda_petsc,lambda_pointer,ierr);PetscCall(ierr)
+  END DO 
+  CALL VecRestoreArrayReadF90(lambda_local_petsc,lambda_pointer,ierr);PetscCall(ierr)
   ! PETSc Calculate lambda at small mortars from big mortars
   CALL BigToSmallMortar_HDG(1,lambda)
 #if USE_MPI
