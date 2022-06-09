@@ -34,17 +34,21 @@ INTEGER             :: nGP_vol                !< =(PP_N+1)**3
 INTEGER             :: nGP_face               !< =(PP_N+1)**2
 
 #if USE_PETSC
-Mat :: Smat_petsc
-Vec :: RHS_petsc
-!Vec :: RHS_petsc_dirichlet
-Vec :: lambda_petsc
-KSP :: ksp
+Mat                 :: Smat_petsc
+Vec                 :: RHS_petsc
+Vec                 :: lambda_petsc
+KSP                 :: ksp
+Vec                 :: lambda_local_petsc
+VecScatter          :: scatter_petsc
+IS                  :: idx_local_petsc
+IS                  :: idx_global_petsc
 INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the local SideID to global PETScSideID 
 INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)  !< PETScLocalToSideID(PETScLocalSideID) maps the local PETSc side to SideID
 REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
 REAL,ALLOCATABLE    :: Smat_zeroPotential(:,:,:) !< side to side matrix for zero potential Side, (ngpface,ngpface,6Sides)
 INTEGER             :: nPETScSides            !< nSides - nDirichletSides - nZeroPotentialSides
 INTEGER             :: nPETScUniqueSides      !< nPETScSides - nMPISides_YOUR
+INTEGER             :: nPETScUniqueSidesGlobal
 #endif
 LOGICAL             :: useHDG=.FALSE.
 LOGICAL             :: ExactLambda =.FALSE.   !< Flag to initialize exact function for lambda
