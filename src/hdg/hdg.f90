@@ -724,8 +724,9 @@ PetscScalar, POINTER :: lambda_pointer(:)
 KSPConvergedReason   :: reason
 PetscInt             :: iterations
 PetscReal            :: petscnorm
-INTEGER :: ElemID,iBCSide,locBCSideID, PETScLocalID
-INTEGER :: PETScID_start, PETScID_stop
+INTEGER              :: ElemID,iBCSide,locBCSideID, PETScLocalID
+INTEGER              :: PETScID_start, PETScID_stop
+REAL                 :: timeStartPiclas,timeEndPiclas
 #endif
 !===================================================================================================================================
 #if USE_LOADBALANCE
@@ -913,6 +914,7 @@ DO iVar=1, PP_nVar
 #if USE_PETSC
   ! Fill right hand side
   !CALL VecZeroEntries(RHS_petsc,ierr);PetscCall(ierr)
+  TimeStartPiclas=PICLASTIME()
   DO PETScLocalID=1,nPETScUniqueSides
     SideID=PETScLocalToSideID(PETScLocalID)
     !VecSetValuesBlockedLocal somehow not working...
@@ -923,17 +925,14 @@ DO iVar=1, PP_nVar
   
   ! Calculate lambda
   CALL KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr);PetscCall(ierr)
+  TimeEndPiclas=PICLASTIME()
   CALL KSPGetIterationNumber(ksp,iterations,ierr);PetscCall(ierr)
   CALL KSPGetConvergedReason(ksp,reason,ierr);PetscCall(ierr)
   CALL KSPGetResidualNorm(ksp,petscnorm,ierr);PetscCall(ierr)
   IF(reason.LT.0)THEN
     SWRITE(*,*) 'Attention: GMRES not converged!' 
   END IF
-  IF(HDGDisplayConvergence)THEN
-    SWRITE(*,*)'Reason: ', reason
-    SWRITE(*,*)'Iterations: ',iterations
-    SWRITE(*,*)'Norm:', petscnorm
-  END IF
+  IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, petscnorm)
 
   ! Fill element local lambda for post processing
   CALL VecGetArrayReadF90(lambda_petsc,lambda_pointer,ierr);PetscCall(ierr)
