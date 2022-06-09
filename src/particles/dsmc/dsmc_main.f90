@@ -134,8 +134,7 @@ PDM%ParticleVecLength = PDM%ParticleVecLength + DSMCSumOfFormedParticles
 PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + DSMCSumOfFormedParticles
 
 IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
-  CALL Abort(&
-    __STAMP__&
+  CALL Abort(__STAMP__&
     ,'ERROR in DSMC: ParticleVecLength greater than MaxParticleNumber! Increase the MaxParticleNumber to at least: ' &
     , IntInfoOpt=PDM%ParticleVecLength)
 END IF
