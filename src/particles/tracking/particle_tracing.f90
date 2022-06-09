@@ -915,12 +915,12 @@ ELSE
       NbCNSideID = GetCNSideID(NbSideID)
       ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
       ! no way to recover it during runtime
-      IF (NbSideID.LT.1) CALL ABORT(__STAMP__,'Small mortar side not defined!',SideID + iMortar)
+      IF (NbSideID.LT.1) CALL ABORT(__STAMP__,'Small mortar side not defined! SideID + iMortar=',SideID + iMortar)
 
-      NbElemID = SideInfo_Shared(SIDE_ELEMID,nbSideID)
+      NbElemID = SideInfo_Shared(SIDE_ELEMID,NbSideID)
       ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
       ! no way to recover it during runtime
-      IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined!',ElemID)
+      IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined! ElemID=',ElemID)
 
       ! BezierControlPoints are now built in cell local system. We are checking mortar sides, so everything is reversed
       ! locFlip = MERGE(0,MOD(SideInfo_Shared(SIDE_FLIP,nbSideID),10),SideInfo_Shared(SIDE_ID,nbSideID).GT.0)
@@ -952,10 +952,10 @@ ELSE
             dolocSide(iLocalSide) = .FALSE.
             EXIT
           END IF
-        END DO
+        END DO ! iLocalSide = 1,6
         RETURN
-      END IF
-    END DO
+      END IF ! isHit
+    END DO ! iMortar = 1,nMortarElems
 
     ! passed none of the mortar elements. Keep particle inside current element and warn
     IPWRITE(UNIT_stdOut,*) 'Boundary issue with inner mortar element', ElemID
@@ -963,9 +963,7 @@ ELSE
   ! regular side
   ELSE
     ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
-    IF (ElemID.LT.1) &
-      CALL abort(__STAMP__,'ERROR in SelectInterSectionType. No Neighbour Elem found!')
-!      CALL abort(__STAMP__,'ERROR in SelectInterSectionType. No Neighbour Elem found --> increase haloregion')
+    IF (ElemID.LT.1) CALL abort(__STAMP__,'ERROR in SelectInterSectionType. No Neighbour Elem found!')
 
     TrackInfo%CurrElem = ElemID
 
@@ -976,9 +974,9 @@ ELSE
         dolocSide(iLocalSide) = .FALSE.
         EXIT
       END IF
-    END DO
+    END DO ! iLocalSide = 1,6
 
-  END IF
+  END IF ! NbElemID.LT.0
 END IF
 
 END SUBROUTINE SelectInterSectionType

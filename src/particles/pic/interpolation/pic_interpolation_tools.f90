@@ -114,7 +114,9 @@ PPURE FUNCTION GetAnalyticFieldAtParticle(PartPos)
 ! Calculate the electro-(magnetic) field at the particle's position form an analytic solution
 !===================================================================================================================================
 ! MODULES
-USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType
+USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpolationSubType
+USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase,AnalyticInterpolationGamma,AnalyticInterpolationE
+USE MOD_Globals_Vars          ,ONLY: c
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -123,18 +125,38 @@ REAL,INTENT(IN)    :: PartPos(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL :: GetAnalyticFieldAtParticle(1:6)
+REAL :: v_perp ! Perpendicular velocity
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 GetAnalyticFieldAtParticle(1:6) = 0.
 SELECT CASE(AnalyticInterpolationType)
 CASE(0) ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
-  GetAnalyticFieldAtParticle(6) = 1.0
+
+  ! 0: non-relativistic, 1: relativistic
+  SELECT CASE(AnalyticInterpolationSubType)
+  CASE(0) ! 0: non-relativistic
+    GetAnalyticFieldAtParticle(6) = 1.0
+  CASE(1) ! 1: relativistic
+    ASSOCIATE( gamma1 => AnalyticInterpolationGamma ,& ! Lorentz factor
+               m      => 1.0                        ,& ! [kg] particle mass
+               q      => 1.0                        ,& ! [C] particle charge
+               phi    => AnalyticInterpolationPhase )  ! [rad] phase shift
+      !-- get Lorentz factor gamma1(n)
+      v_perp = c*SQRT(1.0 - 1/(gamma1**2))
+      !-- Set const. magnetic field [T]
+      GetAnalyticFieldAtParticle(6) = gamma1*v_perp
+    END ASSOCIATE
+  END SELECT
+
 CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
+
   ASSOCIATE( B_0 => 1.0, l => 1.0  )
     GetAnalyticFieldAtParticle(6) = B_0 * EXP(PartPos(1) / l)
   END ASSOCIATE
+
 CASE(2)
+
   ! const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
   !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
   ! Example from Paper by H. Qin: Why is Boris algorithm so good? (2013)
@@ -146,6 +168,21 @@ CASE(2)
     ! Bz
     GetAnalyticFieldAtParticle(6) = SQRT(x**2+y**2)
   END ASSOCIATE
+
+CASE(3) ! 3: const. electric field: E = E_x = (/ 1 V/m , 0 , 0 /) = const.
+
+  SELECT CASE(AnalyticInterpolationSubType)
+  CASE(0,1) ! 0: non-relativistic, 1: relativistic
+    GetAnalyticFieldAtParticle(1) = AnalyticInterpolationE
+  END SELECT
+
+CASE(4) ! 4: const. electric field: E = E_x = (/ x V/m , 0 , 0 /) = const.
+
+  SELECT CASE(AnalyticInterpolationSubType)
+  CASE(0,1) ! 0: non-relativistic, 1: relativistic
+    GetAnalyticFieldAtParticle(1) = AnalyticInterpolationE
+  END SELECT
+
 END SELECT
 END FUNCTION GetAnalyticFieldAtParticle
 #endif /*CODE_ANALYZE*/
@@ -260,8 +297,8 @@ CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,U(1:6,:,:,:,ElemID),6,GetE
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),3,GetEMField(1:3),ElemID)
 #elif USE_HDG
 #if PP_nVar==1
-#if (PP_TimeDiscMethod==508)
-! Boris: consider B-Field, e.g., from SuperB
+#if (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508)
+! Boris or HC: consider B-Field, e.g., from SuperB
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),6,GetEMField(1:6),ElemID)
 #else
 ! Consider only electric fields
@@ -336,8 +373,8 @@ HelperU(1:6,:,:,:) = U(1:6,:,:,:,ElemID)
 HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
 #elif USE_HDG
 #if PP_nVar==1
-#if (PP_TimeDiscMethod==508)
-! Boris: consider B-Field, e.g., from SuperB
+#if (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508)
+! Boris or HC: consider B-Field, e.g., from SuperB
 HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
 #else
 ! Consider only electric fields

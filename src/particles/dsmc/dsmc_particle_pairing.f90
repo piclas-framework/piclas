@@ -375,7 +375,8 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic,SumVibRelaxProb
 USE MOD_DSMC_Symmetry           ,ONLY: DSMC_2D_TreatIdenticalParticles
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
-USE MOD_DSMC_ElectronicModel    ,ONLY: LT_ElectronicEnergyExchange, LT_ElectronicExc_ConstructPartList, LT_ElectronicEnergyExchangeChem
+USE MOD_DSMC_ElectronicModel    ,ONLY: LT_ElectronicEnergyExchange, LT_ElectronicExc_ConstructPartList
+USE MOD_DSMC_ElectronicModel    ,ONLY: CalcProbCorrFactorElec, LT_ElectronicEnergyExchangeChem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -456,8 +457,9 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC
   ! 3. Case: Temperature required for the mean free path with the VHS model
   ! 4. Case: Needed to calculate the correction factor
   CALL CalcInstantTransTemp(iPartIndx_NodeTotal,TotalPartNum)
-  IF (DSMC%ElectronicModel.EQ.2) CALL CalcInstantElecTempXi(iPartIndx_NodeTotal,TotalPartNum)
+  IF ((DSMC%ElectronicModel.EQ.2).OR.useRelaxProbCorrFactor) CALL CalcInstantElecTempXi(iPartIndx_NodeTotal,TotalPartNum)
   IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
+  IF (useRelaxProbCorrFactor.AND.(DSMC%ElectronicModel.EQ.1)) CALL CalcProbCorrFactorElec()
 END IF
 
 IF (CollInf%ProhibitDoubleColl.AND.(nPair.EQ.1)) THEN

@@ -11,6 +11,9 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
+#if USE_PETSC
+#include "petsc/finclude/petsc.h"
+#endif
 
 MODULE MOD_Restart
 !===================================================================================================================================
@@ -356,6 +359,10 @@ USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE
 USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
+#if USE_PETSC
+USE PETSc
+USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
+#endif
 #endif /*USE_HDG*/
 #if defined(PARTICLES) || (USE_HDG)
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists,nDims,HSize
@@ -434,6 +441,10 @@ INTEGER                            :: iMortar,MortarSideID,nMortars
 #else
 INTEGER(KIND=IK)                   :: PMLnVarTmp
 #endif /*USE_HDG*/
+#if USE_PETSC
+INTEGER                            :: PETScLocalID
+PetscErrorCode                     :: ierr
+#endif
 !===================================================================================================================================
 IF(DoRestart)THEN
 #if USE_MPI
@@ -576,6 +587,14 @@ IF(DoRestart)THEN
         CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
         CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif /*USE_MPI*/
+#if USE_PETSC
+        DO PETScLocalID=1,nPETScUniqueSides
+          SideID=PETScLocalToSideID(PETScLocalID)
+          CALL VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr);PetscCall(ierr)
+        END DO
+        CALL VecAssemblyBegin(lambda_petsc,ierr);PetscCall(ierr)
+        CALL VecAssemblyEnd(lambda_petsc,ierr);PetscCall(ierr)
+#endif
 
         CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
       ELSE

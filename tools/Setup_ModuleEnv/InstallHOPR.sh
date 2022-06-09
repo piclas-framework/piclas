@@ -17,6 +17,12 @@ if [[ "$EUID" -ne 0 ]]; then
   exit 1
 fi
 
+# Check git
+if [[ ! -x "$(command -v git)" ]]; then
+  echo "Please install git"
+  exit 1
+fi
+
 # --------------------------------------------------------------------------------------------------
 # Colors
 # --------------------------------------------------------------------------------------------------
@@ -239,8 +245,6 @@ if [ ! -e "${MODULEFILE}" ]; then
     git clone ${HOPRDOWNLOAD}
     cd ${CLONEDIR}
   fi
-  echo `pwd`
-
 
   # Check if extraction failed
   ERRORCODE=$?
@@ -255,24 +259,28 @@ if [ ! -e "${MODULEFILE}" ]; then
     cd ${HOPRBUILDDIR}
   fi
 
-  # CMAKE COMPILE FLAGS DEPEND ON THE CHOSEN HOPR VERSION!
-  #if [ "$PARAVIEWVERSION" == "5.2.0" ] || [ "$PARAVIEWVERSION" == "5.3.0" ] || [ "$PARAVIEWVERSION" == "5.4.0" ]; then
-    cmake -DCMAKE_BUILD_TYPE=Release \
-          -DLIBS_USE_MPI=ON \
-          -DLIBS_BUILD_HDF5=OFF \
-          ${CLONEDIR}
-  #else
-    #echo -e "$RED""ERROR: Set the correct cmake compile flags for the HOPR version [$HOPRVERSION] in InstallHOPR.sh$NC"
-    #exit
-  #fi
+  # CMAKE COMPILE FLAGS
+  cmake -DCMAKE_BUILD_TYPE=Release \
+        -DLIBS_USE_MPI=ON \
+        -DLIBS_BUILD_HDF5=OFF \
+        ${CLONEDIR}
 
-  # Compile source files with NBROFCORES threads
-  make -j${NBROFCORES} 2>&1 | tee make.out
+  if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    echo " "
+    echo -e "$RED""Failed command: [cmake -DCMAKE_BUILD_TYPE=Release \
+                       -DLIBS_USE_MPI=ON \
+                       -DLIBS_BUILD_HDF5=OFF \
+                       ${CLONEDIR}]$NC"
+    exit
+  else
+    # Compile source files with NBROFCORES threads
+    make -j${NBROFCORES} 2>&1 | tee make.out
+  fi
 
   # Check if compilation failed
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
-    echo -e "$RED""Failed: [make -j${NBROFCORES} 2>&1 | tee make.out]$NC"
+    echo -e "$RED""Failed command: [make -j${NBROFCORES} 2>&1 | tee make.out]$NC"
     exit
   else
     make install 2>&1 | tee install.out

@@ -313,7 +313,7 @@ USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_Globals_Vars            ,ONLY: c2_inv
 #if defined(LSERK)
 USE MOD_Particle_Vars           ,ONLY: Pt_temp,PDM
-#elif (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+#elif (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
 #if defined(IMPA) || defined(ROS)
@@ -502,7 +502,7 @@ USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+#if defined(LSERK) || (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
 USE MOD_SurfaceModel_Tools      ,ONLY: CalcPostWallCollVelo, SurfaceModel_EnergyAccommodation
