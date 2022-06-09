@@ -902,7 +902,6 @@ REAL, ALLOCATABLE                   :: MacroSurfaceSpecChemVal(:,:,:,:,:)
 !===================================================================================================================================
 
 #if USE_MPI
-CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win,MPI_COMM_SHARED)
 ! Return if not a sampling leader
 IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
 CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)

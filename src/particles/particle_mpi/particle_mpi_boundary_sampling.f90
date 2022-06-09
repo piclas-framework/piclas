@@ -464,11 +464,13 @@ CALL BARRIER_AND_SYNC(ChemSampWall_Shared_Win         ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win         ,MPI_COMM_SHARED)
 
 IF (myComputeNodeRank.EQ.0) THEN
-
-    Cov1 =  SUM(ChemWallProp(2, 1, 1,1,:))/iter
-    Cov2 =  SUM(ChemWallProp(4, 1, 1,1,:))/iter
-END IF
-
+    
+    IF (iter.GT.0) THEN
+      Cov1 =  SUM(ChemWallProp(2, 1, 1,1,:))/iter
+      Cov2 =  SUM(ChemWallProp(4, 1, 1,1,:))/iter
+    ELSE
+      Cov1 = 0.; Cov2 = 0.
+    END IF
     OPEN(40, file='cov1.txt', position="APPEND")
     OPEN(50, file='cov2.txt', position="APPEND")
 
@@ -477,6 +479,8 @@ END IF
 
     CLOSE(40)
     CLOSE(50)
+END IF
+
 
 ! prepare buffers for surf leader communication
 !IF (myComputeNodeRank.EQ.0) THEN
