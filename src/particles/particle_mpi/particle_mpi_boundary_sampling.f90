@@ -422,7 +422,7 @@ INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:n
 IF (.NOT.SurfOnNode) RETURN
 
 ! collect the information from the proc-local shadow arrays in the compute-node shared array
-MessageSize = nSpecies*1*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
+MessageSize = nSpecies*2*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
 IF (myComputeNodeRank.EQ.0) THEN
   CALL MPI_REDUCE(ChemSampWall,ChemSampWall_Shared,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
 ELSE
@@ -455,28 +455,13 @@ DO iSide = firstSide, lastSide
       ChemWallProp(iSpec,1,:,:,iSide) = ChemWallProp(iSpec,1,:,:,iSide) + ChemSampWall_Shared(iSpec,1,:,:,iSide) / &
                                         (10.**(19)*SurfSideArea_Shared(:,:,iSide))
     END IF
-    !ChemWallProp(iSpec,2,:,:,iSide) = ChemWallProp(iSpec,2,:,:,iSide) + ChemSampWall_Shared(iSpec,2,:,:,iSide)/SurfMol
+    ChemWallProp(iSpec,2,:,:,iSide) = ChemWallProp(iSpec,2,:,:,iSide) + ChemSampWall_Shared(iSpec,2,:,:,iSide)
   END DO
   ChemSampWall_Shared(:,:,:,:,iSide) = 0.0
 END DO
 ChemSampWall = 0.0
 CALL BARRIER_AND_SYNC(ChemSampWall_Shared_Win         ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win         ,MPI_COMM_SHARED)
-
-IF (myComputeNodeRank.EQ.0) THEN
-
-    Cov1 =  SUM(ChemWallProp(2, 1, 1,1,:))/iter
-    Cov2 =  SUM(ChemWallProp(4, 1, 1,1,:))/iter
-END IF
-
-    OPEN(40, file='cov1.txt', position="APPEND")
-    OPEN(50, file='cov2.txt', position="APPEND")
-
-      WRITE(40,*) Cov1
-      WRITE(50,*) Cov2
-
-    CLOSE(40)
-    CLOSE(50)
 
 ! prepare buffers for surf leader communication
 !IF (myComputeNodeRank.EQ.0) THEN

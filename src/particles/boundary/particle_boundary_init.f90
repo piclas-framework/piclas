@@ -316,9 +316,6 @@ ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
 PartBound%SurfaceModel = 0
 ALLOCATE(PartBound%CoverageIni(nPartBound, nSpecies))
 ALLOCATE(PartBound%MaxCoverage(nPartBound, nSpecies))
-ALLOCATE(PartBound%AdCount(nPartBound, nSpecies))
-ALLOCATE(PartBound%DesCount(nPartBound, nSpecies))
-ALLOCATE(PartBound%LHCount(nPartBound, nSpecies))
 ALLOCATE(PartBound%TotalCoverage(nPartBound))
 ALLOCATE(PartBound%LatticeVec(nPartBound))
 ALLOCATE(PartBound%MolPerUnitCell(nPartBound))
@@ -425,10 +422,6 @@ DO iPartBound=1,nPartBound
       PartBound%CoverageIni(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-Coverage', '0.')
       PartBound%MaxCoverage(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-MaxCoverage', '1.')
       PartBound%TotalCoverage(iPartBound) = PartBound%TotalCoverage(iPartBound) + PartBound%CoverageIni(iPartBound, iSpec)
-      ! Output
-      PartBound%AdCount(iPartBound, iSpec) = 0.
-      PartBound%DesCount(iPartBound, iSpec) = 0.
-      PartBound%LHCount(iPartBound, iSpec) = 0.
     END DO
     IF (PartBound%TotalCoverage(iPartBound).GT.1.) THEN
       CALL abort(&

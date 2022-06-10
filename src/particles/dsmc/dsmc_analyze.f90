@@ -45,7 +45,7 @@ USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal,DSMC,MacroSurfaceSpecV
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile
 USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5,WriteSurfSampleChemToHDF5
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOnNode
-USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC, SurfChemReac
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide, PartBound
 USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfOutputSides, BoundaryWallTemp
@@ -64,6 +64,7 @@ USE MOD_Particle_Boundary_vars     ,ONLY: SampWallImpactVector_Shared,SampWallIm
 USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea_Shared
 USE MOD_Particle_MPI_Boundary_Sampling,ONLY: ExchangeSurfData
 USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp_Shared_Win
+USE MOD_SurfaceModel_Vars          ,ONLY: ChemWallProp_Shared_Win
 #else
 USE MOD_Particle_Boundary_Vars     ,ONLY: SampWallPumpCapacity
 USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState,SampWallImpactNumber,SampWallImpactEnergy
@@ -116,7 +117,7 @@ IF(.NOT.SurfOnNode) RETURN
 
 #if USE_MPI
 CALL ExchangeSurfData()
-
+IF(SurfChemReac%NumOfReact.GT.0) CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win,MPI_COMM_SHARED)
 ! Only surface sampling leaders take part in the remainder of this routine
 IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) THEN
   IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
@@ -278,7 +279,7 @@ END IF
 #endif /*USE_MPI*/
 
 CALL WriteSurfSampleToHDF5(TRIM(MeshFile),ActualTime)
-CALL WriteSurfSampleChemToHDF5(TRIM(MeshFile),ActualTime)
+IF(SurfChemReac%NumOfReact.GT.0) CALL WriteSurfSampleChemToHDF5(TRIM(MeshFile),ActualTime)
 
 DEALLOCATE(MacroSurfaceVal,MacroSurfaceSpecVal)
 

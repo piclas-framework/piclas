@@ -250,9 +250,6 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: MolPerUnitCell(:)             ! Molecules per unit cell
   REAL    , ALLOCATABLE                  :: CoverageIni(:,:)               ! Initial boundary coverage
   REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)
-  REAL, ALLOCATABLE                      :: AdCount(:,:)                  ! number of adsorped molecules for the individual species
-  REAL, ALLOCATABLE                      :: DesCount(:,:)                 ! number of desorped molecules for the individual species
-  REAL, ALLOCATABLE                      :: LHCount(:,:)                  ! number of molecules created by the Langmuir-Hinshlewood reaction
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
   LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)         

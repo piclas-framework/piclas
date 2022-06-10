@@ -788,6 +788,9 @@ DO iBC=1,countDataBC
     DO iSF=1,SurfChemReac%NumOfBounds(iReac)
       IF (TmpMapToBC(iBC).EQ.SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%BC) THEN !only surfacefluxes with iBC
         ALLOCATE(SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%SurfFluxSubSideData(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC)))
+        IF(RadialWeighting%DoRadialWeighting) THEN
+          ALLOCATE(SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
+        END IF
       END IF
     END DO
   END DO

@@ -247,20 +247,19 @@ DO iReac = 1, ReadInNumOfReact
   SurfChemReac%EForm(iReac)  = GETREAL('Surface-Reaction'//TRIM(hilf)//'-FormationEnergy','0')
 END DO
 
-!ALLOCATE( ChemSampWall(1:nSpecies,2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
-ALLOCATE( ChemSampWall(1:nSpecies,1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
-ALLOCATE(ChemDesorpWall(1:nSpecies,1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+ALLOCATE( ChemSampWall(1:nSpecies,2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+ALLOCATE(ChemDesorpWall(1:nSpecies,2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 ChemDesorpWall = 0.0
 ChemSampWall = 0.0
 #if USE_MPI
-  CALL Allocate_Shared((/nSpecies,1,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),ChemSampWall_Shared_Win,ChemSampWall_Shared)
+  CALL Allocate_Shared((/nSpecies,2,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),ChemSampWall_Shared_Win,ChemSampWall_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ChemSampWall_Shared_Win,IERROR)
   IF (myComputeNodeRank.EQ.0) THEN
     ChemSampWall_Shared = 0.
   END IF
   CALL BARRIER_AND_SYNC(ChemSampWall_Shared_Win,MPI_COMM_SHARED)
 
-  CALL Allocate_Shared((/nSpecies,1,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),ChemWallProp_Shared_Win,ChemWallProp_Shared)
+  CALL Allocate_Shared((/nSpecies,2,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),ChemWallProp_Shared_Win,ChemWallProp_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ChemWallProp_Shared_Win,IERROR)
   ChemWallProp => ChemWallProp_Shared
   IF (myComputeNodeRank.EQ.0) THEN
@@ -279,7 +278,7 @@ ChemSampWall = 0.0
   END IF
   CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win,MPI_COMM_SHARED)
 #else
-  ALLOCATE(ChemWallProp(1:nSpecies,1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+  ALLOCATE(ChemWallProp(1:nSpecies,2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
   ChemWallProp = 0.0
   DO iSide = 1, nComputeNodeSurfTotalSides
     ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required

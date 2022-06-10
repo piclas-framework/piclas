@@ -78,10 +78,10 @@ INTEGER                     :: PartsEmitted, Node1, Node2, globElemId
 REAL                        :: Particle_pos(3), RandVal1,  xyzNod(3), RVec(2), minPos(2), xi(2), Vector1(3), Vector2(3)
 REAL                        :: ndist(3), midpoint(3)
 REAL,ALLOCATABLE            :: particle_positions(:)
-REAL                        :: ReacHeat, DesHeat, BetaCoeff
+REAL                        :: ReacHeat, DesHeat
 REAL                        :: nu, E_act, Coverage, Prob, Rate, DissOrder, AdCount
 REAL                        :: MPF
-REAL                        :: area
+REAL                        :: BetaCoeff
 REAL                        :: Vectors(3,3)
 REAL                        :: WallTemp
 REAL                        :: RanNum
@@ -122,7 +122,6 @@ DO iReac = 1, SurfNumOfReac
                 ! Calculate the number of molecules on the surface
                 IF(PartBound%LatticeVec(BoundID).GT.0.) THEN
                   ! Surface molecules in dependence of the occupancy of the unit cell
-                  area = SurfSideArea_Shared(SubP, SubQ,SurfSideID)
                   SurfMol = PartBound%MolPerUnitCell(BoundID) * SurfSideArea_Shared(SubP, SubQ,SurfSideID) &
                                               /(PartBound%LatticeVec(BoundID)*PartBound%LatticeVec(BoundID))
                 ELSE
@@ -194,7 +193,6 @@ DO iReac = 1, SurfNumOfReac
                 END IF
 
                 ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) = ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) - INT(ChemDesorpWall(iSpec,2, SubP, SubQ, SurfSideID)) * DesHeat
-                PartBound%HeatIter(BoundID) = PartBound%HeatIter(BoundID) - INT(ChemDesorpWall(iSpec,2, SubP, SubQ, SurfSideID)) * DesHeat
 
                 ! Current boundary condition
                 currentBC = BoundID
@@ -219,8 +217,7 @@ DO iReac = 1, SurfNumOfReac
                         ndist(1:3) = BCdata_auxSF(currentBC)%TriaSwapGeo(iSample,jSample,iSide)%ndist(1:3)
               
                       PartInsSubSide = INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID))
-                      ! Output
-                      PartBound%DesCount(BoundID, iSpec) = PartBound%DesCount(BoundID, iSpec) + PartInsSubSide
+
                       ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID) = ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID) - INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID))
                       NbrOfParticle = NbrOfParticle + PartInsSubSide
                       ALLOCATE(particle_positions(1:PartInsSubSide*3))
@@ -250,6 +247,9 @@ DO iReac = 1, SurfNumOfReac
                           PEM%GlobalElemID(ParticleIndexNbr) = globElemId
                           PEM%LastGlobalElemID(ParticleIndexNbr) = globElemId !needed when ParticlePush is not executed, e.g. "delay"
                           iPartTotal = iPartTotal + 1
+                          IF (RadialWeighting%DoRadialWeighting) THEN
+                            PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
+                          END IF
                         ELSE
                           CALL abort(&
                 __STAMP__&
@@ -325,7 +325,7 @@ DO iReac = 1, SurfNumOfReac
           END DO
 
            ! Determine the reaction energy [J]
-            !BetaCoeff = SurfChemReac%HeatAccomodation(iReac)
+            BetaCoeff = SurfChemReac%HeatAccomodation(iReac)
             ReacHeat = (SurfChemReac%EReact(iReac) - Coverage*SurfChemReac%EScale(iReac)) /(6.022*10.0**(20))
 
           ! Calculate the number of molecules on the surface
@@ -377,10 +377,6 @@ DO iReac = 1, SurfNumOfReac
               END IF
 
               ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) = ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) + INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)) * ReacHeat * BetaCoeff
-              PartBound%HeatIter(BoundID) = PartBound%HeatIter(BoundID) - INT(ChemDesorpWall(iSpec,2, SubP, SubQ, SurfSideID)) * DesHeat
-
-              ! Output
-               PartBound%LHCount(BoundID, iSpec) = PartBound%LHCount(BoundID, iSpec) + INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID))
 
               ! Current boundary condition
                 currentBC = BoundID
@@ -434,6 +430,9 @@ DO iReac = 1, SurfNumOfReac
                           PEM%GlobalElemID(ParticleIndexNbr) = globElemId
                           PEM%LastGlobalElemID(ParticleIndexNbr) = globElemId !needed when ParticlePush is not executed, e.g. "delay"
                           iPartTotal = iPartTotal + 1
+                          IF (RadialWeighting%DoRadialWeighting) THEN
+                            PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
+                          END IF
                         ELSE
                           CALL abort(&
                 __STAMP__&

@@ -90,23 +90,6 @@ REAL                  :: tLBStart
       CALL ParticleSurfChemFlux()
     END IF
 
-    ! Output
-    OPEN(10, file='ads.txt', position="APPEND")
-    OPEN(20, file='des.txt', position="APPEND")
-    OPEN(30, file='rct.txt', position="APPEND")
-
-      WRITE(10,*) PartBound%AdCount(1,2)
-      WRITE(20,*) PartBound%DesCount(1,2)
-      WRITE(30,*) PartBound%LHCount(1,1)
-
-    CLOSE(10)
-    CLOSE(20)
-    CLOSE(30)
-
-    PartBound%AdCount(1,2) = 0.0
-    PartBound%DesCount(1,2) = 0.0
-    PartBound%LHCount(1,1) = 0.0
-
   END IF
 
 #if USE_LOADBALANCE
