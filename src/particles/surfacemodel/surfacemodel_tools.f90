@@ -341,7 +341,7 @@ SUBROUTINE CalcRotWallVelo(locBCID,POI,WallVelo)
 ! The magnitude of the velocity depends on radius and rotation frequency.
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
-USE MOD_Globals                 ,ONLY: CROSSNORM,VECNORM
+USE MOD_Globals                 ,ONLY: CROSSNORM,VECNORM,CROSS
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Globals_Vars            ,ONLY: PI
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -354,6 +354,8 @@ REAL,INTENT(INOUT)    :: WallVelo(3)
 ! LOCAL VARIABLES
 REAL                  :: vec_r(1:3),vec_a(1:3), vec_t(1:3), vec_OrgPOI(1:3),vec_axi_norm(1:3)
 REAL                  :: radius, circ_speed
+REAL                  :: omegaTemp
+REAL                  :: omega(1:3)
 !===================================================================================================================================
 
 ASSOCIATE ( vec_org  => PartBound%RotOrg(1:3,locBCID) ,&
@@ -366,7 +368,16 @@ ASSOCIATE ( vec_org  => PartBound%RotOrg(1:3,locBCID) ,&
   radius = SQRT( vec_r(1)*vec_r(1) + vec_r(2)*vec_r(2) + vec_r(3)*vec_r(3) )
   circ_speed = 2.0 * PI * radius * RotFreq
   vec_t = CROSSNORM(vec_axi_norm,vec_r)
-  WallVelo(1:3) = circ_speed * vec_t(1:3)
+!  WallVelo(1:3) = circ_speed * vec_t(1:3)
+  omegaTemp = 2.0 * PI * RotFreq
+  IF(vec_axi(1).EQ.1) THEN
+      omega = (/omegaTemp,0.,0./)
+  ELSEIF(vec_axi(2).EQ.1) THEN
+      omega = (/0.,omegaTemp,0./)
+  ELSEIF(vec_axi(3).EQ.1) THEN
+      omega = (/0.,0.,omegaTemp/) 
+  END IF
+  WallVelo(1:3) = CROSS(omega(1:3),POI(1:3))
 END ASSOCIATE
 
 END SUBROUTINE CalcRotWallVelo
