@@ -35,8 +35,9 @@ SUBROUTINE TimeStep_DSMC()
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
-USE MOD_Globals                  ,ONLY: abort
-USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, UseRotRefFrame
+USE MOD_Globals                  ,ONLY: abort, CROSS
+USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
+USE MOD_Particle_Vars            ,ONLY: UseRotRefFrame, RotRefFrameOmega
 USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, VarTimeStep, Species, PartSpecies
 USE MOD_Particle_Vars            ,ONLY: UseSplitAndMerge
 USE MOD_DSMC_Vars                ,ONLY: DSMC, CollisMode, AmbipolElecVelo
@@ -63,7 +64,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo, Pt_local(1:6)
+REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo, Pt_local(1:6), RotRefVelo(1:3)
 INTEGER                    :: iPart
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
@@ -104,11 +105,12 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
     IF(UseRotRefFrame) THEN
       IF(PDM%InRotRefFrame(iPart)) THEN
+        RotRefVelo(1:3) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
         CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:6))
-!        PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
-        PartState(1:3,iPart) = PartState(1:3,iPart) + (PartState(4:6,iPart)+dtVar*0.5*Pt_local(1:3)) * dtVar
-!        PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_local(1:3) * dtVar
-        PartState(4:6,iPart) = PartState(4:6,iPart) + (Pt_local(1:3)+dtVar*0.5*Pt_local(4:6)) * dtVar
+        PartState(1:3,iPart) = PartState(1:3,iPart) + RotRefVelo(1:3) * dtVar
+!        PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * dtVar
+!        PartState(1:3,iPart) = PartState(1:3,iPart) + (PartState(4:6,iPart)+dtVar*0.5*Pt_local(1:3)) * dtVar
+!        PartState(4:6,iPart) = PartState(4:6,iPart) + (Pt_local(1:3)+dtVar*0.5*Pt_local(4:6)) * dtVar
       ELSE
         PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
       END IF

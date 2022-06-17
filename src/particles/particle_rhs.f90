@@ -171,7 +171,7 @@ SUBROUTINE CalcPartRHS()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars         ,ONLY: PDM,Pt,UseRotRefFrame
+USE MOD_Particle_Vars         ,ONLY: PDM,Pt
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle
 USE MOD_Part_Tools            ,ONLY: isPushParticle
 !----------------------------------------------------------------------------------------------------------------------------------

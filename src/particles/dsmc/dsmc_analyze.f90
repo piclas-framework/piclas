@@ -644,7 +644,7 @@ SUBROUTINE DSMC_data_sampling()
 USE MOD_Globals
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, PartStateIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution, AmbipolElecVelo
 USE MOD_Part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species, UseRotRefFrame, RotRefFrameOmega
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species!, UseRotRefFrame, RotRefFrameOmega
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -668,11 +668,11 @@ CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
-    IF(UseRotRefFrame) THEN
-      IF (PDM%InRotRefFrame(iPart)) THEN
-        PartState(4:6,iPart) = PartState(4:6,iPart) + CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-      END IF
-    END IF
+!    IF(UseRotRefFrame) THEN
+!      IF (PDM%InRotRefFrame(iPart)) THEN
+!        PartState(4:6,iPart) = PartState(4:6,iPart) + CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+!      END IF
+!    END IF
     iSpec = PartSpecies(iPart)
     iElem = PEM%LocalElemID(iPart)
     partWeight = GetParticleWeight(iPart)
@@ -704,11 +704,11 @@ DO iPart=1,PDM%ParticleVecLength
       END IF
     END IF
     DSMC_Solution(11,iElem, iSpec) = DSMC_Solution(11,iElem, iSpec) + 1.0 !simpartnum
-    IF(UseRotRefFrame) THEN
-      IF (PDM%InRotRefFrame(iPart)) THEN
-        PartState(4:6,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-      END IF
-    END IF
+!    IF(UseRotRefFrame) THEN
+!      IF (PDM%InRotRefFrame(iPart)) THEN
+!        PartState(4:6,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+!      END IF
+!    END IF
   END IF
 END DO
 #if USE_LOADBALANCE

@@ -805,7 +805,7 @@ USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor,FP_MaxRotRelaxFactor,FP
 USE MOD_FPFlow_Vars             ,ONLY: FP_PrandtlNumber,FPInitDone
 USE MOD_Particle_Analyze_Vars
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
-USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,UseRotRefFrame,PartState,RotRefFrameOmega
+USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM!,UseRotRefFrame,PartState,RotRefFrameOmega
 USE MOD_PIC_Analyze             ,ONLY: CalcDepositedCharge
 USE MOD_Restart_Vars            ,ONLY: RestartTime,DoRestart
 USE MOD_TimeDisc_Vars           ,ONLY: iter, dt, IterDisplayStep
@@ -1233,13 +1233,13 @@ INTEGER             :: iRegions
 ! Analyze Routines
 !===================================================================================================================================
 ! Transform particle velocity in case of using rotating frame of references
-  IF(UseRotRefFrame) THEN
-    DO iPart = 1, PDM%ParticleVecLength
-      IF(PDM%InRotRefFrame(iPart)) THEN
-        PartState(4:6,iPart) = PartState(4:6,iPart) + CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-      END IF
-    END DO
-  END IF
+!  IF(UseRotRefFrame) THEN
+!    DO iPart = 1, PDM%ParticleVecLength
+!      IF(PDM%InRotRefFrame(iPart)) THEN
+!        PartState(4:6,iPart) = PartState(4:6,iPart) + CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+!      END IF
+!    END DO
+!  END IF
   ! Computes the real and simulated number of particles
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec,.TRUE.,CalcSimNumSpec)
   IF(CalcNumDens) CALL CalcNumberDensity(NumSpec,NumDens)
@@ -1320,13 +1320,13 @@ INTEGER             :: iRegions
   ! get velocities
   IF(CalcVelos) CALL CalcVelocities(PartVtrans, PartVtherm,NumSpec,SimNumSpec)
 ! Transform particle velocity in case of using rotating frame of references
-  IF(UseRotRefFrame) THEN
-    DO iPart = 1, PDM%ParticleVecLength
-      IF(PDM%InRotRefFrame(iPart)) THEN
-        PartState(4:6,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-      END IF
-    END DO
-  END IF
+!  IF(UseRotRefFrame) THEN
+!    DO iPart = 1, PDM%ParticleVecLength
+!      IF(PDM%InRotRefFrame(iPart)) THEN
+!        PartState(4:6,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+!      END IF
+!    END DO
+!  END IF
 !===================================================================================================================================
 ! MPI Communication for values which are not YET communicated
 ! All routines ABOVE contain the required MPI-Communication

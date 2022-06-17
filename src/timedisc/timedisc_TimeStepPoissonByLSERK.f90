@@ -48,7 +48,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: RKdtFracTotal,RKdtFrac
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM, &
-                                      doParticleMerge,DoSurfaceFlux,DoForceFreeSurfaceFlux,DoFieldIonization, UseRotRefFrame
+                                      doParticleMerge,DoSurfaceFlux,DoForceFreeSurfaceFlux,DoFieldIonization
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS, CalcPartRHS_RefFrame
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
@@ -143,7 +143,6 @@ IF (time.GE.DelayTime) THEN
 #endif /*USE_LOADBALANCE*/
   IF(DoFieldIonization) CALL FieldIonization()
   IF(DoInterpolation) CALL CalcPartRHS()
-  IF(UseRotRefFrame) CALL CalcPartRHS_RefFrame()
   IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
@@ -160,7 +159,7 @@ IF (time.GE.DelayTime) THEN
         Pt_temp(1:3,iPart) = PartState(4:6,iPart)
         PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * b_dt(1)
         ! Don't push the velocity component of neutral particles!
-        IF(isPushParticle(iPart).OR.PDM%InRotRefFrame(iPart))THEN
+        IF(isPushParticle(iPart))THEN
           Pt_temp(4:6,iPart) = Pt(1:3,iPart)
           PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart)*b_dt(1)
         END IF
@@ -173,7 +172,7 @@ IF (time.GE.DelayTime) THEN
         END IF
         Pa_rebuilt(:,:)=0.
         ! Don't push the velocity component of neutral particles!
-        IF(isPushParticle(iPart).OR.PDM%InRotRefFrame(iPart))THEN
+        IF(isPushParticle(iPart))THEN
           DO iStage_loc=1,iStage
             Pa_rebuilt(1:3,iStage_loc)=Pa_rebuilt_coeff(iStage_loc)*Pt(1:3,iPart)
           END DO
@@ -197,7 +196,7 @@ IF (time.GE.DelayTime) THEN
         Pt_temp(1:3,iPart) = Pv_rebuilt(1:3,iStage)
         PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)*RandVal
         ! Don't push the velocity component of neutral particles!
-        IF(isPushParticle(iPart).OR.PDM%InRotRefFrame(iPart))THEN
+        IF(isPushParticle(iPart))THEN
           Pt_temp(4:6,iPart) = Pa_rebuilt(1:3,iStage)
           PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(4:6,iPart)*b_dt(iStage)*RandVal
         END IF
@@ -277,7 +276,6 @@ DO iStage=2,nRKStages
     CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
     IF(DoInterpolation) CALL CalcPartRHS()
-    IF(UseRotRefFrame) CALL CalcPartRHS_RefFrame()
     ! particle step
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
@@ -287,7 +285,7 @@ DO iStage=2,nRKStages
           Pt_temp(1:3,iPart) = PartState(4:6,iPart) - RK_a(iStage) * Pt_temp(1:3,iPart)
           PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)
           ! Don't push the velocity component of neutral particles!
-          IF(isPushParticle(iPart).OR.PDM%InRotRefFrame(iPart))THEN
+          IF(isPushParticle(iPart))THEN
             Pt_temp(4:6,iPart) = Pt(1:3,iPart) - RK_a(iStage) * Pt_temp(4:6,iPart)
             PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(4:6,iPart)*b_dt(iStage)
           END IF
@@ -302,7 +300,7 @@ DO iStage=2,nRKStages
           IF (DoForceFreeSurfaceFlux) Pt(1:3,iPart)=0.
           Pa_rebuilt(:,:)=0.
           ! Don't push the velocity component of neutral particles!
-          IF(isPushParticle(iPart).OR.PDM%InRotRefFrame(iPart))THEN
+          IF(isPushParticle(iPart))THEN
             DO iStage_loc=1,iStage
               Pa_rebuilt(1:3,iStage_loc)=Pa_rebuilt_coeff(iStage_loc)*Pt(1:3,iPart)
             END DO
@@ -326,7 +324,7 @@ DO iStage=2,nRKStages
           Pt_temp(1:3,iPart) = Pv_rebuilt(1:3,iStage)
           PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)*RandVal
           ! Don't push the velocity component of neutral particles!
-          IF(isPushParticle(iPart).OR.PDM%InRotRefFrame(iPart))THEN
+          IF(isPushParticle(iPart))THEN
             Pt_temp(4:6,iPart) = Pa_rebuilt(1:3,iStage)
             PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(4:6,iPart)*b_dt(iStage)*RandVal
           END IF

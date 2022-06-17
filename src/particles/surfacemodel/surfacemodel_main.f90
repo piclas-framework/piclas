@@ -638,23 +638,23 @@ END IF
 
 
 
-IF(UseRotRefFrame) THEN
-  IF(InRotRefFramePOI) THEN
-    IF(PartBound%RotVelo(locBCID)) THEN
-      ! Nichts
-    ELSE
-      NewVelo(1:3) = NewVelo(1:3) - CROSS(RotRefFrameOmega(1:3),POI_vec)
-    END IF
-  ELSE
-    IF(PartBound%RotVelo(locBCID)) THEN
-      NewVelo(1:3) = NewVelo(1:3) + WallVelo(1:3)
-    ELSE
-      ! Nichts
-    END IF
-  END IF
-ELSE
+!IF(UseRotRefFrame) THEN
+!  IF(InRotRefFramePOI) THEN
+!    IF(PartBound%RotVelo(locBCID)) THEN
+!      ! Nichts
+!    ELSE
+!      NewVelo(1:3) = NewVelo(1:3) - CROSS(RotRefFrameOmega(1:3),POI_vec)
+!    END IF
+!  ELSE
+!    IF(PartBound%RotVelo(locBCID)) THEN
+!      NewVelo(1:3) = NewVelo(1:3) + WallVelo(1:3)
+!    ELSE
+!      ! Nichts
+!    END IF
+!  END IF
+!ELSE
   NewVelo(1:3) = NewVelo(1:3) + WallVelo(1:3)
-END IF
+!END IF
 
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(SpecID)%ChargeIC.GT.0.0) THEN

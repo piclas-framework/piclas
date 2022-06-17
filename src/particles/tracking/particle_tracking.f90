@@ -73,17 +73,17 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 IF(UseRotRefFrame) THEN
   DO iPart = 1,PDM%ParticleVecLength
     IF(PDM%ParticleInside(iPart)) THEN
-      InRotRefFrame_OLD = PDM%InRotRefFrame(iPart)
+!      InRotRefFrame_OLD = PDM%InRotRefFrame(iPart)
       IF(InRotRefFrameCheck(iPart)) THEN
         PDM%InRotRefFrame(iPart) = .TRUE.
-        IF(InRotRefFrame_OLD.NEQV.PDM%InRotRefFrame(iPart))THEN
-          PartState(4:6,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-        END IF
+!        IF(InRotRefFrame_OLD.NEQV.PDM%InRotRefFrame(iPart))THEN
+!          PartState(4:6,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+!        END IF
       ELSE
         PDM%InRotRefFrame(iPart) = .FALSE.
-        IF(InRotRefFrame_OLD.NEQV.PDM%InRotRefFrame(iPart))THEN
-          PartState(4:6,iPart) = PartState(4:6,iPart) + CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-        END IF
+!        IF(InRotRefFrame_OLD.NEQV.PDM%InRotRefFrame(iPart))THEN
+!          PartState(4:6,iPart) = PartState(4:6,iPart) + CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+!        END IF
       END IF
     END IF
   END DO
