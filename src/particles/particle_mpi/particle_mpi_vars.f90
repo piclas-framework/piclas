@@ -28,6 +28,7 @@ SAVE
 ! GLOBAL VARIABLES
 INTEGER                                   :: nExchangeProcessors            ! number of MPI processes for particles exchange
 INTEGER,ALLOCATABLE                       :: ExchangeProcToGlobalProc(:,:)  ! mapping from exchange proc ID to global proc ID
+LOGICAL                                   :: DoParticleLatencyHiding        ! Activate particle exchange proc latency hiding
 INTEGER,ALLOCATABLE                       :: GlobalProcToExchangeProc(:,:)  ! mapping from global proc ID to exchange proc ID
 LOGICAL                                   :: ParticleMPIInitIsDone=.FALSE.
 LOGICAL                                   :: CheckExchangeProcs             ! On default, check if proc communication is symmetric
