@@ -37,6 +37,7 @@ SUBROUTINE TimeStep_DSMC_Debug()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
+USE MOD_Globals                ,ONLY: abort
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 #ifdef PARTICLES
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
@@ -62,6 +63,7 @@ IMPLICIT NONE
 INTEGER               :: iPart
 REAL                  :: timeStart, timeEnd, RandVal, dtFrac
 !===================================================================================================================================
+IF(DSMC%UseOctree) CALL abort(__STAMP__,'Particles-DSMC-UseOctree = T not allowed for RESERVOIR simulation')
 
 IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
 

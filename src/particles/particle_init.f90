@@ -234,9 +234,7 @@ SELECT CASE(TrackingMethod)
 CASE(REFMAPPING,TRACING,TRIATRACKING)
 CASE DEFAULT
   SWRITE(UNIT_stdOut,'(A)')' TrackingMethod not implemented! Select refmapping (1), tracing (2) or triatracking (3).'
-  CALL abort(&
-  __STAMP__&
-  ,'TrackingMethod not implemented! TrackingMethod=',IntInfoOpt=TrackingMethod)
+  CALL abort(__STAMP__,'TrackingMethod not implemented! TrackingMethod=',IntInfoOpt=TrackingMethod)
 END SELECT
 IF (Symmetry%Order.LE.2) THEN
   TrackingMethod = TRIATRACKING
