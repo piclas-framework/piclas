@@ -563,20 +563,20 @@ SpecID = PartSpecies(PartID)
 
 POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 
-IF(UseRotRefFrame) THEN
-  IF(nRefFrameRegions.GT.0) THEN
-    InRotRefFramePOI = .FALSE.
-    DO iRegion = 1, nRefFrameRegions
-      IF((POI_vec(RotRefFrameAxis).GT.RotRefFramRegion(1,iRegion)).AND. &
-         (POI_vec(RotRefFrameAxis).LT.RotRefFramRegion(2,iRegion))) THEN
-        InRotRefFramePOI = .TRUE.
-        EXIT
-      END IF
-    END DO
-  ELSE
-    InRotRefFramePOI = .TRUE.
-  END IF
-END IF
+!IF(UseRotRefFrame) THEN
+!  IF(nRefFrameRegions.GT.0) THEN
+!    InRotRefFramePOI = .FALSE.
+!    DO iRegion = 1, nRefFrameRegions
+!      IF((POI_vec(RotRefFrameAxis).GT.RotRefFramRegion(1,iRegion)).AND. &
+!         (POI_vec(RotRefFrameAxis).LT.RotRefFramRegion(2,iRegion))) THEN
+!        InRotRefFramePOI = .TRUE.
+!        EXIT
+!      END IF
+!    END DO
+!  ELSE
+!    InRotRefFramePOI = .TRUE.
+!  END IF
+!END IF
 
 IF(PartBound%RotVelo(locBCID)) THEN
   CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
