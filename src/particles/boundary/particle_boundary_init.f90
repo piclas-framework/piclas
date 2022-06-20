@@ -315,10 +315,15 @@ PartBound%TempGradVec = 0.
 ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
 PartBound%SurfaceModel = 0
 ALLOCATE(PartBound%CoverageIni(nPartBound, nSpecies))
+PartBound%CoverageIni = 0.
 ALLOCATE(PartBound%MaxCoverage(nPartBound, nSpecies))
+PartBound%MaxCoverage = 0.
 ALLOCATE(PartBound%TotalCoverage(nPartBound))
+PartBound%TotalCoverage = 0.
 ALLOCATE(PartBound%LatticeVec(nPartBound))
+PartBound%LatticeVec = 0.
 ALLOCATE(PartBound%MolPerUnitCell(nPartBound))
+PartBound%MolPerUnitCell = 0.
 ALLOCATE(PartBound%Reactive(         1:nPartBound))
 PartBound%Reactive = .FALSE.
 ALLOCATE(PartBound%Voltage(1:nPartBound))
@@ -1140,6 +1145,11 @@ SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)
 SDEALLOCATE(PartBound%MapToPartBC)
 SDEALLOCATE(PartBound%SurfaceModel)
+SDEALLOCATE(PartBound%CoverageIni)
+SDEALLOCATE(PartBound%MaxCoverage)
+SDEALLOCATE(PartBound%TotalCoverage)
+SDEALLOCATE(PartBound%LatticeVec)
+SDEALLOCATE(PartBound%MolPerUnitCell)
 SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)

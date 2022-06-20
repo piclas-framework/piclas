@@ -41,15 +41,13 @@ USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass, SetParticleMPF
-USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, CalcAdaptiveBCInfo, nPartIn, PartEkinIn
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn, PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
+USE MOD_Timedisc_Vars           ,ONLY: dt
 USE MOD_Particle_Surfaces_Vars
 USE MOD_Particle_Boundary_Vars 
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_SurfaceModel
 USE MOD_SurfaceModel_Chemistry
 USE MOD_SurfaceModel_Vars      ,ONLY: ChemWallProp_Shared_Win,SurfChemReac, ChemWallProp, ChemDesorpWall
@@ -60,7 +58,6 @@ USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
 #endif /*IMPA*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
@@ -75,18 +72,15 @@ IMPLICIT NONE
 INTEGER                     :: iSpec , PositionNbr, iSF, iSide, currentBC, SideID, NbrOfParticle, ParticleIndexNbr
 INTEGER                     :: BCSideID, ElemID, iLocSide, iSample, jSample, PartInsSubSide, iPart, iPartTotal
 INTEGER                     :: PartsEmitted, Node1, Node2, globElemId
-REAL                        :: Particle_pos(3), RandVal1,  xyzNod(3), RVec(2), minPos(2), xi(2), Vector1(3), Vector2(3)
+REAL                        :: Particle_pos(3), xyzNod(3), Vector1(3), Vector2(3)
 REAL                        :: ndist(3), midpoint(3)
 REAL,ALLOCATABLE            :: particle_positions(:)
 REAL                        :: ReacHeat, DesHeat
-REAL                        :: nu, E_act, Coverage, Prob, Rate, DissOrder, AdCount
-REAL                        :: MPF
+REAL                        :: nu, E_act, Coverage, Rate, DissOrder, AdCount
 REAL                        :: BetaCoeff
-REAL                        :: Vectors(3,3)
 REAL                        :: WallTemp
-REAL                        :: RanNum
 REAL                        :: SurfMol
-INTEGER                     :: iSurfSite, SurfNumOfReac, iReac   
+INTEGER                     :: SurfNumOfReac, iReac   
 INTEGER                     :: BoundID
 INTEGER                     :: iVal, iReactant, iValReac, SurfSideID
 INTEGER                     :: SubP, SubQ
@@ -96,10 +90,13 @@ REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================  
 SurfNumOfReac = SurfChemReac%NumOfReact
+SubP = 1
+SubQ = 1
 DO iReac = 1, SurfNumOfReac
 
   SELECT CASE (TRIM(SurfChemReac%ReactType(iReac)))
-    ! Desorption
+
+   ! Desorption
     CASE('D')
       DO iVal=1, SIZE(SurfChemReac%Products(iReac,:))
         IF (SurfChemReac%Products(iReac,iVal).NE.0) THEN
@@ -116,8 +113,6 @@ DO iReac = 1, SurfNumOfReac
                 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
                 ! SubP = TrackInfo%p
                 ! SubQ = TrackInfo%q
-                SubP = 1
-                SubQ = 1
 
                 ! Calculate the number of molecules on the surface
                 IF(PartBound%LatticeVec(BoundID).GT.0.) THEN
@@ -179,7 +174,7 @@ DO iReac = 1, SurfNumOfReac
                END IF
 
                 ! Update the adsorbtion and desorption count
-                IF(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID).GT.1.)THEN
+                IF(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID).GE.1.)THEN
                   IF(ANY(SurfChemReac%Reactants(iReac,:).NE.0)) THEN
                     DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:)) 
                       IF(SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
@@ -201,7 +196,7 @@ DO iReac = 1, SurfNumOfReac
                 iPartTotal = 0
 
                 ! Loop over the side numbers
-                IF (INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)).GT.1) THEN
+                IF (INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)).GE.1) THEN
 
                   ! Random distribution of the particles on the surface
                     ! Define the necessary variables
@@ -297,6 +292,7 @@ DO iReac = 1, SurfNumOfReac
         END IF
       END DO !iSpec
 
+    ! LH-reaction
     CASE('LH')
       ! Choose the reactive boundaries
       DO iSF=1,SurfChemReac%NumOfBounds(iReac)
@@ -308,6 +304,9 @@ DO iReac = 1, SurfNumOfReac
           globElemId = ElemID + offSetElem
           SideID=GetGlobalNonUniqueSideID(globElemId,iLocSide)
           SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+          ! SubP = TrackInfo%p
+          ! SubQ = TrackInfo%q
+
           IF (SurfSideID.LT.1) THEN
             CALL abort(&
           __STAMP__&
@@ -367,7 +366,7 @@ DO iReac = 1, SurfNumOfReac
               END DO
 
               ! Update the surface coverage values
-              IF(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID).GT.1.) THEN
+              IF(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID).GE.1.) THEN
                 DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:)) 
                   IF(SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
                     iReactant = SurfChemReac%Reactants(iReac,iValReac)
@@ -385,7 +384,7 @@ DO iReac = 1, SurfNumOfReac
                 iPartTotal = 0
 
                 ! Loop over the side numbers
-                IF (INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)).GT.1) THEN
+                IF (INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)).GE.1) THEN
                   ! Random distribution of the particles on the surface
                     ! Define the necessary variables
                     xyzNod(1:3) = BCdata_auxSF(currentBC)%TriaSideGeo(iSide)%xyzNod(1:3)
@@ -587,7 +586,7 @@ INTEGER,INTENT(IN)               :: iSpec,iReac,iSF,iSample,jSample,iSide,BCSide
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: i,PositionNbr,envelope,currentBC,SampleElemID
+INTEGER                          :: i,PositionNbr,envelope,currentBC
 REAL                             :: Vec3D(3), vec_nIn(1:3), vec_t1(1:3), vec_t2(1:3)
 REAL                             :: a,zstar,RandVal1,RandVal2(2),RandVal3(3),u,RandN,RandN_save,Velo1,Velo2,Velosq,T,beta,z
 LOGICAL                          :: RandN_in_Mem
@@ -595,7 +594,6 @@ REAL                             :: projFak                          ! VeloVecIC
 REAL                             :: Velo_t1                          ! Velo comp. of first orth. vector in tria
 REAL                             :: Velo_t2                          ! Velo comp. of second orth. vector in tria
 REAL                             :: VeloIC
-REAL                             :: VeloVec(1:3)
 !===================================================================================================================================
 IF(PartIns.LT.1) RETURN
 

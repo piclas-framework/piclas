@@ -49,7 +49,6 @@ USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Particle_Tracking        ,ONLY: PerformTracking
 USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC, DoChemSurface
-USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles

@@ -395,8 +395,8 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle ,SampWallImpactAngle_
 USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber,SampWallImpactNumber_Shared,SampWallImpactNumber_Shared_Win
 USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_Particle_Vars           ,ONLY: nSpecies
-USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC, ChemWallProp, ChemSampWall, ChemSampWall_Shared, ChemWallProp_Shared_Win
-USE MOD_SurfaceModel_Vars       ,ONLY: ChemSampWall_Shared_Win, ChemDesorpWall
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp, ChemSampWall, ChemSampWall_Shared, ChemWallProp_Shared_Win
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemSampWall_Shared_Win
 USE MOD_Particle_Boundary_vars  ,ONLY: SurfSideArea_Shared, SurfSide2GlobalSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
@@ -407,9 +407,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: SurfMol(2,2)
-REAL                            :: Cov1, Cov2
-INTEGER                         :: iter
 INTEGER                         :: iProc,SideID, firstSide, lastSide, GlobalSideID, locBCID, iSide, iSpec
 INTEGER                         :: iPos,p,q
 INTEGER                         :: MessageSize,iSurfSide,SurfSideID
@@ -438,16 +435,11 @@ firstSide = 1
 lastSide  = nSurfTotalSides
 #endif /*USE_MPI*/
 
-iter = 0
-
 DO iSide = firstSide, lastSide
   GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
   locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
   
   DO iSpec =1, nSpecies
-    IF((locBCID.EQ.1).AND.(iSpec.EQ.4)) THEN
-      iter = iter + 1
-    END IF
     IF (PartBound%LatticeVec(locBCID).GT.0.) THEN
       ChemWallProp(iSpec,1,:,:,iSide) = ChemWallProp(iSpec,1,:,:,iSide) + ChemSampWall_Shared(iSpec,1,:,:,iSide) * PartBound%LatticeVec(locBCID)* &
                                         PartBound%LatticeVec(locBCID)/(PartBound%MolPerUnitCell(locBCID)*SurfSideArea_Shared(:,:,iSide))

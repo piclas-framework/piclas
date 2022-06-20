@@ -232,6 +232,9 @@ SELECT CASE (init_or_sf)
   CASE(3) ! reactive surface
     TVib=PartBound%WallTemp(SurfChemReac%SFMap(iReac)%Surfaceflux(iInit)%BC)
     TRot=PartBound%WallTemp(SurfChemReac%SFMap(iReac)%Surfaceflux(iInit)%BC)
+  CASE(4) ! reactive surface
+    TVib=PartBound%WallTemp(iInit)
+    TRot=PartBound%WallTemp(iInit)  
   CASE DEFAULT
     CALL abort(&
     __STAMP__&

@@ -441,6 +441,9 @@ IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THE
   CASE(3) !reactive surface
     TVib=PartBound%WallTemp(SurfChemReac%SFMap(iReac)%Surfaceflux(iInit)%BC)
     TRot=PartBound%WallTemp(SurfChemReac%SFMap(iReac)%Surfaceflux(iInit)%BC)
+  CASE(4) !reactive surface
+    TVib=PartBound%WallTemp(iInit)
+    TRot=PartBound%WallTemp(iInit)
   CASE DEFAULT
     CALL abort(&
     __STAMP__&

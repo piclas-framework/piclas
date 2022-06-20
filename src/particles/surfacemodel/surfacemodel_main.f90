@@ -68,7 +68,7 @@ USE MOD_DSMC_PolyAtomicModel      ,ONLY: DSMC_SetInternalEnr_Poly
 USE MOD_part_emission_tools       ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
 USE MOD_part_operations           ,ONLY: RemoveParticle, CreateParticle
-USE MOD_part_tools                ,ONLY: CalcRadWeightMPF, VeloFromDistribution
+USE MOD_part_tools                ,ONLY: CalcRadWeightMPF, VeloFromDistribution, GetParticleWeight
 USE MOD_TimeDisc_Vars             ,ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -110,6 +110,7 @@ REAL               :: NewPos(1:3)
 REAL               :: SurfMol
 REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), BoundsOfElemCenter(1:3), NewVelo(3)
 REAL               :: AdsHeat, ReacHeat, BetaCoeff
+REAL               :: partWeight
 REAL,PARAMETER     :: eps=1e-6
 REAL,PARAMETER     :: eps2=1.0-eps
 INTEGER            :: speciesID   
@@ -318,28 +319,35 @@ CASE(20)
   CASE('A')
     CALL RemoveParticle(PartID)
     MPF = Species(speciesID)%MacroParticleFactor
+    partWeight = GetParticleWeight(PartID)
+    IF(.NOT.(usevMPF.OR.RadialWeighting%DoRadialWeighting)) THEN
+      partWeight = partWeight * Species(speciesID)%MacroParticleFactor
+    END IF
 
     ! Calculate the heat flux on the boundary from the adsorption energy 
-    ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID)+ AdsHeat * MPF
-
+    ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID)+ AdsHeat * partWeight
     ! Update the number of adsorbed molecules
     IF(ANY(SurfChemReac%Products(iReac,:).NE.0)) THEN
       DO iValProd=1, SIZE(SurfChemReac%Products(iReac,:)) 
         IF(SurfChemReac%Products(iReac,iValProd).NE.0) THEN
           iProd = SurfChemReac%Reactants(iReac,iValProd)
-          ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) + DissOrder * MPF 
+          ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) + DissOrder * partWeight 
         END IF
       END DO
     ELSE 
-    ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID) + DissOrder * MPF 
+    ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID) + DissOrder * partWeight 
     END IF
 
   CASE('ER')
     CALL RemoveParticle(PartID)
     MPF = Species(speciesID)%MacroParticleFactor
+    partWeight = GetParticleWeight(PartID)
+    IF(.NOT.(usevMPF.OR.RadialWeighting%DoRadialWeighting)) THEN
+      partWeight = partWeight * Species(speciesID)%MacroParticleFactor
+    END IF
 
     ! Heat flux on the surface created by the reaction
-    ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) + ReacHeat * MPF * BetaCoeff
+    ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) + ReacHeat * partWeight * BetaCoeff
 
     ! Create the Eley-Rideal reaction product
 
@@ -366,7 +374,7 @@ CASE(20)
         NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_loc(1:3)*NewVelo(3) + WallVelo(1:3)
         NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*PartPosImpact(1:3)
 
-        CALL CreateParticle(iProd,NewPos(1:3),GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=MPF)
+        CALL CreateParticle(iProd,NewPos(1:3),GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=partWeight)
         
         IF (SpecDSMC(iProd)%PolyatomicMol) THEN
           CALL DSMC_SetInternalEnr_Poly(iProd,locBCID,NewPartID,4,iReac)
@@ -380,7 +388,7 @@ CASE(20)
     DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
       IF(SurfChemReac%Reactants(iReac,iValReac).NE.speciesID .AND. SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
         iReactant = SurfChemReac%Reactants(iReac,iValReac)
-        ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) - 1.0*MPF
+        ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) - 1.0*partWeight
       END IF
     END DO 
     

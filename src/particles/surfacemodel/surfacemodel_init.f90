@@ -161,7 +161,12 @@ SUBROUTINE FinalizeSurfaceModel()
 !> Deallocate surface model vars
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_SurfaceModel_Vars
+#if USE_MPI
+USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -173,6 +178,47 @@ IMPLICIT NONE
 !===================================================================================================================================
 SDEALLOCATE(SurfModResultSpec)
 SDEALLOCATE(SurfModEnergyDistribution)
+!SDEALLOCATE(StoichCoeff)
+SDEALLOCATE(SurfChemReac%ReactType)
+SDEALLOCATE(SurfChemReac%Reactants)
+SDEALLOCATE(SurfChemReac%Products)
+SDEALLOCATE(SurfChemReac%Inhibition)
+SDEALLOCATE(SurfChemReac%EForm)
+SDEALLOCATE(SurfChemReac%EReact)
+SDEALLOCATE(SurfChemReac%EScale)
+SDEALLOCATE(SurfChemReac%HeatAccomodation)
+SDEALLOCATE(SurfChemReac%BoundisChemSurf)
+SDEALLOCATE(SurfChemReac%NumOfBounds)
+SDEALLOCATE(SurfChemReac%BoundMap)
+SDEALLOCATE(SurfChemReac%S_initial)
+SDEALLOCATE(SurfChemReac%EqConstant)
+SDEALLOCATE(SurfChemReac%DissOrder)
+SDEALLOCATE(SurfChemReac%StickCoeff)
+SDEALLOCATE(SurfChemReac%E_initial)
+SDEALLOCATE(SurfChemReac%W_interact)
+SDEALLOCATE(SurfChemReac%C_a)
+SDEALLOCATE(SurfChemReac%C_b)
+SDEALLOCATE(SurfChemReac%Rate)
+SDEALLOCATE(SurfChemReac%Prob)
+SDEALLOCATE(SurfChemReac%ArrheniusEnergy)
+SDEALLOCATE(SurfChemReac%Prefactor) 
+
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+  CALL UNLOCK_AND_FREE(ChemWallProp_Shared_Win)
+  CALL UNLOCK_AND_FREE(ChemSampWall_Shared_Win)
+  ADEALLOCATE(ChemSampWall_Shared)
+  ADEALLOCATE(ChemWallProp_Shared)
+  SDEALLOCATE(ChemDesorpWall)
+  SDEALLOCATE(ChemSampWall)
+#else
+  SDEALLOCATE(ChemDesorpWall)
+  SDEALLOCATE(ChemSampWall)
+  SDEALLOCATE(ChemWallProp)
+#endif
+
+SDEALLOCATE(SurfChemReac%SFMap)
+
 END SUBROUTINE FinalizeSurfaceModel
 
 END MODULE MOD_SurfaceModel_Init

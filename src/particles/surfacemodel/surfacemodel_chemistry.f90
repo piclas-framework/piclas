@@ -93,7 +93,6 @@ SUBROUTINE SurfaceModel_Chemistry_Init()
 ! MODULES 
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
@@ -114,14 +113,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iSpec, iPart
+INTEGER               :: iReac, iReac2, iSpec
 INTEGER               :: ReadInNumOfReact
-INTEGER               :: firstSide, lastSide
-INTEGER               :: iSF, iSide, SideID, iBC, SurfSideID
-INTEGER               :: BCSideID, ElemID, iLocSide
-INTEGER               :: globElemId
-INTEGER               :: GlobalSideID
-INTEGER               :: SurfNumOfReac
+INTEGER               :: iSide, SideID, iBC
 REAL, ALLOCATABLE     :: StoichCoeff(:,:)
 !===================================================================================================================================
 
