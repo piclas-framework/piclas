@@ -66,7 +66,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo, Pt_local(1:6), RotRefVelo(1:3), dtSubCycle
 INTEGER                    :: iPart, iSubCycle
-REAL                       :: Debug
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -86,20 +85,6 @@ END IF
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-
-Debug = 0.0
-!---------------------------------
-DO iPart=1,PDM%ParticleVecLength
-  IF (PDM%ParticleInside(iPart)) THEN
-        Debug = Debug + PartState(4,iPart) * PartState(4,iPart) &
-                      + PartState(5,iPart) * PartState(5,iPart) &
-                      + PartState(6,iPart) * PartState(6,iPart)
-  END IF
-END DO
-!print*,'Debug0',Debug
-Debug = 0.0
-!---------------------------------
-
 
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
@@ -121,13 +106,6 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
     IF(UseRotRefFrame) THEN
       IF(PDM%InRotRefFrame(iPart)) THEN
-
-
-        Debug = Debug + PartState(4,iPart) * PartState(4,iPart) &
-                      + PartState(5,iPart) * PartState(5,iPart) &
-                      + PartState(6,iPart) * PartState(6,iPart)
-
-
         RotRefVelo(1:3) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
         dtSubCycle = 1. * dtVar
         DO iSubCycle=1, 1
@@ -135,26 +113,6 @@ DO iPart=1,PDM%ParticleVecLength
           PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtSubCycle*0.5*Pt_local(1:3)) * dtSubCycle
           RotRefVelo(1:3) = RotRefVelo(1:3) + (Pt_local(1:3)+dtSubCycle*0.5*Pt_local(4:6)) * dtSubCycle
         END DO
-
-
-
-
-
-  
-!        PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * 0.5 * dtVar
-
-!        RotRefVelo(1:3) = RotRefVelo(1:3) + (Pt_local(1:3)+dtVar*0.5*Pt_local(4:6)) * dtVar
-!        CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:6))
-
-!        PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * 0.5 * dtVar
-
-
-!        PartState(1:3,iPart) = PartState(1:3,iPart) + RotRefVelo(1:3) * dtVar
-!        PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * dtVar
-
-
-!        PartState(1:3,iPart) = PartState(1:3,iPart) + (PartState(4:6,iPart)+dtVar*0.5*Pt_local(1:3)) * dtVar
-!        PartState(4:6,iPart) = PartState(4:6,iPart) + (Pt_local(1:3)+dtVar*0.5*Pt_local(4:6)) * dtVar
       ELSE
         PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
       END IF
@@ -189,9 +147,6 @@ DO iPart=1,PDM%ParticleVecLength
   END IF
 END DO
 
-!print*,'Debug1',Debug
-Debug = 0.0
-
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -214,33 +169,7 @@ IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
 
 
 
-!---------------------------------
-DO iPart=1,PDM%ParticleVecLength
-  IF (PDM%ParticleInside(iPart)) THEN
-        Debug = Debug + PartState(4,iPart) * PartState(4,iPart) &
-                      + PartState(5,iPart) * PartState(5,iPart) &
-                      + PartState(6,iPart) * PartState(6,iPart)
-  END IF
-END DO
-!print*,'Debug2',Debug
-Debug = 0.0
-!---------------------------------
-
 CALL PerformTracking()
-
-!---------------------------------
-DO iPart=1,PDM%ParticleVecLength
-  IF (PDM%ParticleInside(iPart)) THEN
-        Debug = Debug + PartState(4,iPart) * PartState(4,iPart) &
-                      + PartState(5,iPart) * PartState(5,iPart) &
-                      + PartState(6,iPart) * PartState(6,iPart)
-  END IF
-END DO
-!print*,'Debug3',Debug
-Debug = 0.0
-!---------------------------------
-
-
 
 
 IF (nPorousBC.GT.0) THEN
@@ -286,34 +215,7 @@ ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleN
   ,'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
 END IF
 
-
-!---------------------------------
-DO iPart=1,PDM%ParticleVecLength
-  IF (PDM%ParticleInside(iPart)) THEN
-        Debug = Debug + PartState(4,iPart) * PartState(4,iPart) &
-                      + PartState(5,iPart) * PartState(5,iPart) &
-                      + PartState(6,iPart) * PartState(6,iPart)
-  END IF
-END DO
-!print*,'Debug4',Debug
-Debug = 0.0
-!---------------------------------
-
 CALL DSMC_main()
-
-!---------------------------------
-DO iPart=1,PDM%ParticleVecLength
-  IF (PDM%ParticleInside(iPart)) THEN
-        Debug = Debug + PartState(4,iPart) * PartState(4,iPart) &
-                      + PartState(5,iPart) * PartState(5,iPart) &
-                      + PartState(6,iPart) * PartState(6,iPart)
-  END IF
-END DO
-!print*,'Debug5',Debug
-Debug = 0.0
-!---------------------------------
-!read*
-
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
