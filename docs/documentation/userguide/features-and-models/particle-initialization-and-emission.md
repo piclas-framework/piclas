@@ -396,15 +396,17 @@ simulation is then determined by
 $$\dot{m} = \frac{QM}{1000RT},$$
 
 where $R=8.314$ J mol$^{-1}$K$^{-1}$ is the gas constant, $M$ the molar mass in [g mol$^{-1}$] and $T$ is the gas temperature [K].
+It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 
-To verify the resulting mass flow rate of an adaptive surface flux, the following option can be enabled
+### Verification
 
-    CalcAdaptiveBCInfo = T
+To verify the resulting current [A], mass flow rate [kg s$^{-1}$] or the pressure at an adaptive surface flux [Pa], the following option can be enabled
 
-This will output a species-specific mass flow rate [kg s$^{-1}$] and the average pressure in the adjacent cells [Pa] for each
-surface flux condition in the `PartAnalyze.csv`, which gives the current values for the time step. For the former, positive values
-correspond to a net mass flux into the domain and negative values vice versa. It should be noted that while multiple adaptive
-boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
+    CalcSurfFluxInfo = T
+
+This will output a species-specific rate and/or the average pressure in the adjacent cells (in case of an adaptive/subsonic BC)
+for each surface flux condition in the `PartAnalyze.csv`. It gives the current values for the time step. For the former, positive values
+correspond to a net flux into the domain and negative values vice versa.
 
 ### Missing descriptions
 
