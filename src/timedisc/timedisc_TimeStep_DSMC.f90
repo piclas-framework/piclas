@@ -64,8 +64,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo, Pt_local(1:6), RotRefVelo(1:3)
-INTEGER                    :: iPart
+REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo, Pt_local(1:6), RotRefVelo(1:3), dtSubCycle
+INTEGER                    :: iPart, iSubCycle
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -106,9 +106,30 @@ DO iPart=1,PDM%ParticleVecLength
     IF(UseRotRefFrame) THEN
       IF(PDM%InRotRefFrame(iPart)) THEN
         RotRefVelo(1:3) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-        CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:6))
-        PartState(1:3,iPart) = PartState(1:3,iPart) + RotRefVelo(1:3) * dtVar
+        dtSubCycle = 1. * dtVar
+        DO iSubCycle=1, 1
+          CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:6),RotRefVelo(1:3))
+          PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtSubCycle*0.5*Pt_local(1:3)) * dtSubCycle
+          RotRefVelo(1:3) = RotRefVelo(1:3) + (Pt_local(1:3)+dtSubCycle*0.5*Pt_local(4:6)) * dtSubCycle
+        END DO
+
+
+
+
+
+  
+!        PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * 0.5 * dtVar
+
+!        RotRefVelo(1:3) = RotRefVelo(1:3) + (Pt_local(1:3)+dtVar*0.5*Pt_local(4:6)) * dtVar
+!        CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:6))
+
+!        PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * 0.5 * dtVar
+
+
+!        PartState(1:3,iPart) = PartState(1:3,iPart) + RotRefVelo(1:3) * dtVar
 !        PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * dtVar
+
+
 !        PartState(1:3,iPart) = PartState(1:3,iPart) + (PartState(4:6,iPart)+dtVar*0.5*Pt_local(1:3)) * dtVar
 !        PartState(4:6,iPart) = PartState(4:6,iPart) + (Pt_local(1:3)+dtVar*0.5*Pt_local(4:6)) * dtVar
       ELSE
