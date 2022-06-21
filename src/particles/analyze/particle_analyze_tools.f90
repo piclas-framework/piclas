@@ -1227,7 +1227,7 @@ END SUBROUTINE CalcNumberDensityBGGasDistri
 
 SUBROUTINE CalcSurfaceFluxInfo()
 !===================================================================================================================================
-!> Output for adaptive surface flux BCs: calculate the mass flow rate and the pressure in adjacent cells per species & surface flux
+!> Output for surface flux BCs: calculate the mass flow rate, current or the pressure in adjacent cells per species & surface flux
 !> 1) Calculate processor-local values
 !> 2) MPI communication
 !> 3) Determine final output values
