@@ -41,7 +41,7 @@ USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass, SetParticleMPF
-USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, CalcAdaptiveBCInfo, nPartIn, PartEkinIn
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, CalcSurfFluxInfo, nPartIn, PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
@@ -93,7 +93,7 @@ DO iSpec=1,nSpecies
     NbrOfParticle = 0 ! calculated within (sub)side-Loops!
     iPartTotal=0
     ! Reset the mass flow rate counter for the next time step
-    IF(CalcAdaptiveBCInfo) Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
+    IF(CalcSurfFluxInfo) Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
     ! Adaptive BC, Type = 4 (Const. massflow): Sum-up the global number of particles exiting through the BC and calculate the new
     ! weights
     IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
@@ -241,7 +241,7 @@ __STAMP__&
             IF (RadialWeighting%DoRadialWeighting) THEN
               PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
             END IF
-            IF(CalcAdaptiveBCInfo) THEN
+            IF(CalcSurfFluxInfo) THEN
               Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow &
                                                                 + GetParticleWeight(ParticleIndexNbr)
             END IF
