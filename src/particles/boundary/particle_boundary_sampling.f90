@@ -680,7 +680,7 @@ SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: ProjectName
-USE MOD_DSMC_Vars               ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode, DSMC
+USE MOD_DSMC_Vars               ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode
 USE MOD_HDF5_Output             ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
 USE MOD_IO_HDF5
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
@@ -690,7 +690,6 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides
 USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName, PartBound
 USE MOD_Particle_Vars           ,ONLY: nSpecies
-USE MOD_Timedisc_Vars           ,ONLY: time
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
@@ -874,11 +873,8 @@ USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win, ChemWallProp
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides, nComputeNodeSurfSides
 USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
-USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues,MacroValSampTime
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName, PartBound
 USE MOD_Particle_Vars           ,ONLY: nSpecies
-USE MOD_Timedisc_Vars           ,ONLY: time, TEnd
-USE MOD_Particle_VarTimeStep
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides, SurfSideArea_Shared, SurfSideArea
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
@@ -901,8 +897,7 @@ CHARACTER(LEN=255)                  :: SpecID, PBCID
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, iPBC, iSurfSide, nVar2D_Heat
 INTEGER                             :: p,q,OutputCounter
-REAL                                :: tstart
-REAL                                :: TimeSample
+REAL                                :: tstart,tend
 REAL, ALLOCATABLE                   :: MacroSurfaceSpecChemVal(:,:,:,:,:)
 REAL, ALLOCATABLE                   :: MacroSurfaceHeatVal(:,:,:,:)
 !===================================================================================================================================
@@ -982,15 +977,6 @@ MacroSurfaceSpecChemVal = 0.
 
 ALLOCATE(MacroSurfaceHeatVal(1:nVar2D_Heat , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfOutputSides))
 MacroSurfaceHeatVal = 0.
-
-! IF (WriteMacroSurfaceValues) THEN
-!   ! Elapsed time since last sampling (variable dt's possible!)
-!   TimeSample = Time - MacroValSampTime
-!   MacroValSampTime = Time
-! ELSE
-!   ! Sampling at the end of the simulation: calculated from the user given input
-!   TimeSample = (Time-(1-DSMC%TimeFracSamp)*TEnd)
-! END IF
 
 OutputCounter = 0
 DO iSurfSide = 1,nComputeNodeSurfSides
