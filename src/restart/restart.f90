@@ -134,8 +134,8 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT RESTART...'
 ! Set counter for particle that go missing during restart (if they are not located within their host element during restart)
 TotalNbrOfMissingParticlesSum = 0
 #if USE_HDG
-  ! Initialize variables (only once, never during load balance restart) for switching between BR electron fluid model and fully        
-  ! kinetic model in HDG simulations                                                                                          
+  ! Initialize variables (only once, never during load balance restart) for switching between BR electron fluid model and fully
+  ! kinetic model in HDG simulations
   CALL InitSwitchBRElectronModel()
 #endif /*USE_HDG*/
 #endif /*PARTICLES*/
@@ -1464,7 +1464,7 @@ IF(DoRestart)THEN
 CALL CloseDataFile()
 
 #if defined(PARTICLES)
-! This routines opens the data file in single mode (i.e. only the root opens and closes the data file)  
+! This routines opens the data file in single mode (i.e. only the root opens and closes the data file)
 ! ------------------------------------------------
 ! Particle Emission Parameters
 ! ------------------------------------------------

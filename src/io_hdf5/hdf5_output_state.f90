@@ -107,7 +107,6 @@ USE MOD_HDF5_Output_Particles  ,ONLY: AddBRElectronFluidToPartSource
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
-USE MOD_HDF5_Input             ,ONLY: ReadArray
 #if (PP_nVar==8)
 USE MOD_HDF5_Output_Fields     ,ONLY: WritePMLDataToHDF5
 #endif
@@ -889,7 +888,6 @@ SUBROUTINE WriteElemDataToSeparateContainer(FileName,ElemList,ElemDataName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: nElems
-USE MOD_HDF5_Input       ,ONLY: ReadArray
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime,ElemTime_tmp,NullifyElemTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart

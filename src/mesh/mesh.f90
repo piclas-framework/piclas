@@ -108,30 +108,30 @@ SUBROUTINE InitMesh(meshMode,MeshFile_IN)
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_PreProc
-USE MOD_Mesh_Vars
-USE MOD_HDF5_Input
-USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
-USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
-USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
-USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
-USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics
 USE MOD_Analyze_Vars           ,ONLY: CalcMeshInfo
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+USE MOD_HDF5_Input
+USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
+USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Mappings               ,ONLY: InitMappings
+USE MOD_Mesh_Vars
+USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
+USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics
+USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
+USE MOD_ReadInTools            ,ONLY: PrintOption
+USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
 #if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
 #if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,PerformLoadBalance
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
-USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #endif /*USE_LOADBALANCE*/
-USE MOD_ReadInTools            ,ONLY: PrintOption
 #ifdef PARTICLES
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Particle_Mesh_Vars     ,ONLY: meshScale
 USE MOD_Particle_Vars          ,ONLY: usevMPF
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 #endif
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -204,12 +204,14 @@ IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
   DoWriteStateToHDF5=.TRUE.
   CALL PrintOption('Loadbalancing or InitialAutoRestart enabled: DoWriteStateToHDF5','INFO',LogOpt=DoWriteStateToHDF5)
 END IF
+IF (.NOT.PerformLoadBalance) THEN
+  CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL ReadAttribute(File_ID,'Ngeo',1,IntScalar=NGeo)
+  SWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
+  CALL CloseDataFile()
+END IF
 #endif /*USE_LOADBALANCE*/
-CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-CALL ReadAttribute(File_ID,'Ngeo',1,IntScalar=NGeo)
-SWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
 
-CALL CloseDataFile()
 IF(useCurveds)THEN
   IF(PP_N.LT.NGeo)THEN
     SWRITE(UNIT_stdOut,'(A)') 'WARNING: N<NGeo, for curved hexa normals are only approximated,&
@@ -1001,11 +1003,9 @@ SUBROUTINE FinalizeMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
-!#ifdef CODE_ANALYZE
-!#ifndef PARTICLES
-!USE MOD_Particle_Surfaces_Vars, ONLY: SideBoundingBoxVolume
-!#endif
-!#endif
+#if defined(PARTICLES) && USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -1028,9 +1028,6 @@ SDEALLOCATE(Vdm_EQ_N)
 SDEALLOCATE(Vdm_N_EQ)
 SDEALLOCATE(Vdm_GL_N)
 SDEALLOCATE(Vdm_N_GL)
-! BCS
-SDEALLOCATE(BoundaryName)
-SDEALLOCATE(BoundaryType)
 ! mapping from elems to sides and vice-versa
 SDEALLOCATE(ElemToSide)
 SDEALLOCATE(AnalyzeSide)
@@ -1086,6 +1083,14 @@ SDEALLOCATE(ElemBaryNGeo)
 SDEALLOCATE(ElemGlobalID)
 SDEALLOCATE(myInvisibleRank)
 SDEALLOCATE(LostRotPeriodicSides)
+
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (PerformLoadBalance) RETURN
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+! BCS
+SDEALLOCATE(BoundaryName)
+SDEALLOCATE(BoundaryType)
+
 END SUBROUTINE FinalizeMesh
 
 END MODULE MOD_Mesh
