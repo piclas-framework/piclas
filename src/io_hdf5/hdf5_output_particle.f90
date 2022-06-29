@@ -18,7 +18,7 @@ MODULE MOD_HDF5_Output_Particles
 ! Add comments please!
 !===================================================================================================================================
 ! MODULES
-USE MOD_io_HDF5
+USE MOD_IO_HDF5
 USE MOD_HDF5_output
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -334,6 +334,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Vars          ,ONLY: PDM, PEM, PartState, PartSpecies, PartMPF, usevMPF, nSpecies, VarTimeStep, Species
+USE MOD_Particle_Vars          ,ONLY: PartInt,PartData
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
@@ -362,7 +363,6 @@ LOGICAL                        :: reSwitch
 INTEGER                        :: pcount
 LOGICAL                        :: withDSMC=.FALSE.
 INTEGER                        :: iElem_glob, iElem_loc
-REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
 REAL, ALLOCATABLE              :: ElecDistriData(:,:), AD_Data(:,:)
 INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
@@ -371,7 +371,6 @@ INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec, MaxElecQuant
 ! Integers of KIND=IK
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart
-INTEGER(KIND=IK),ALLOCATABLE   :: PartInt(:,:)
 INTEGER                        :: ALLOCSTAT
 !=============================================
 ! Required default values for KIND=IK
@@ -871,18 +870,21 @@ SUBROUTINE WriteBoundaryParticleToHDF5(MeshFileName,OutputTime,PreviousTime)
 ! macro particle factor, time of impact, impact obliqueness angle)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary
+USE MOD_PreProc
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2053,7 +2055,7 @@ globnPart8=locnPart8
 GlobalNbrOfParticlesUpdated = .TRUE.
 LOGWRITE(*,*) TRIM(CallingRoutine)//'offsetnPart,locnPart,globnPart8',offsetnPart,locnPart,globnPart8
 
-! Sanity check: Add up all particles with integer KIND=8 and compare 
+! Sanity check: Add up all particles with integer KIND=8 and compare
 IF(MPIRoot)THEN
   ! Check if offsetnPart is kind=8 is the number of particles is larger than integer KIND=4
   IF(globnPart8.GT.INT(HUGE(offsetnPart),8)) THEN
@@ -2086,7 +2088,7 @@ offsetnPart=0_IK
 globnPart(1:3)=INT(locnPart,KIND=IK)
 #endif /*USE_MPI*/
 
-! Get extrema over the complete simulation only during WriteParticleToHDF5 
+! Get extrema over the complete simulation only during WriteParticleToHDF5
 IF(GetMinMaxNbrOfParticles)THEN
   globnPart(4) = MIN(globnPart(1),globnPart(4))
   globnPart(5) = MAX(globnPart(2),globnPart(5))

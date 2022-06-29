@@ -90,5 +90,4 @@ INTEGER(KIND=8),ALLOCATABLE         :: nSurfacefluxPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nPartsPerBCElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nSurfacePartsPerElem(:)
 
-
 END MODULE MOD_LoadBalance_Vars

@@ -23,6 +23,12 @@ PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
+#ifdef INTKIND8
+INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
+#else
+INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
+#endif
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE tSymmetry
   INTEGER             :: Order                                               ! 1-3 D
@@ -69,6 +75,9 @@ REAL    , ALLOCATABLE :: Pt(:,:)                                             ! D
                                                                              ! is the velocity. Thus we can take
                                                                              ! PartState(4:6,:) as Pt(1:3)
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
+REAL,ALLOCATABLE      :: PartData(:,:)                                       ! PartState ordered along SFC, particle number per
+                                                                             ! element given in PartInt
+INTEGER(KIND=IK),ALLOCATABLE :: PartInt(:,:)                                 ! Particle number per element
 LOGICAL               :: DoForceFreeSurfaceFlux                              ! switch if the stage reconstruction uses a force
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 LOGICAL               :: velocityOutputAtTime
