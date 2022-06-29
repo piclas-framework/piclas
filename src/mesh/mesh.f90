@@ -205,10 +205,12 @@ IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
   CALL PrintOption('Loadbalancing or InitialAutoRestart enabled: DoWriteStateToHDF5','INFO',LogOpt=DoWriteStateToHDF5)
 END IF
 IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
   CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL ReadAttribute(File_ID,'Ngeo',1,IntScalar=NGeo)
   SWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
   CALL CloseDataFile()
+#if USE_LOADBALANCE
 END IF
 #endif /*USE_LOADBALANCE*/
 

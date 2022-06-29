@@ -21,6 +21,11 @@ PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
+#ifdef INTKIND8
+INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
+#else
+INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL             :: DoLoadBalance              !> Use dynamic load balancing
 INTEGER             :: LoadBalanceSampleBackup    !> Loadbalance sample saved until initial autorestart ist finished
@@ -59,6 +64,21 @@ TYPE tData
   TYPE(tData), POINTER :: nextData => null()
 END TYPE tData
 TYPE(tData), POINTER :: firstData => null() !linked-list of old offsetElemMPI for WeightDistributionMethod 5 and 6
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! element load balancing
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                             :: nElemsOld
+INTEGER                             :: offsetElemOld
+INTEGER(KIND=IK),ALLOCATABLE        :: MPInElemSend(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetElemSend(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPInElemRecv(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetElemRecv(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPInPartSend(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetPartSend(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPInPartRecv(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetPartRecv(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: ElemInfoRank(:)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! particle load balancing

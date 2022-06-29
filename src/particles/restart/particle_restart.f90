@@ -51,7 +51,7 @@ USE MOD_HDF5_Output            ,ONLY: FlushHDF5
 USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5,ReadNodeSourceExtFromHDF5
 USE MOD_part_operations        ,ONLY: RemoveAllElectrons
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
-USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PEM, PDM, nSpecies, usevMPF, PartMPF,PartPosRef, SpecReset, Species
+USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartState,PartSpecies,PEM,PDM,nSpecies,usevMPF,PartMPF,PartPosRef,SpecReset,Species
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition,StoreLostParticleProperties
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartStateIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC,RadialWeighting
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
@@ -74,6 +74,14 @@ USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
+#if defined(PARTICLES) && USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
+USE MOD_LoadBalance_Vars       ,ONLY: MPInPartSend,MPInPartRecv,MPIoffsetPartSend,MPIoffsetPartRecv
+USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld,ElemInfoRank
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -86,13 +94,13 @@ INTEGER                            :: iElem
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
 INTEGER                            :: FirstElemInd,LastelemInd,i,j,k
-INTEGER(KIND=IK),ALLOCATABLE       :: PartInt(:,:),PartIntTmp(:,:)
+INTEGER(KIND=IK),ALLOCATABLE       :: PartIntTmp(:,:)
+REAL,ALLOCATABLE                   :: PartDataTmp(:,:)
 INTEGER,PARAMETER                  :: PartIntSize=2                  ! number of entries in each line of PartInt
 INTEGER                            :: PartDataSize,PartDataSize_HDF5 ! number of entries in each line of PartData
 INTEGER(KIND=IK)                   :: locnPart,offsetnPart,iLoop
 INTEGER,PARAMETER                  :: ELEM_FirstPartInd=1
 INTEGER,PARAMETER                  :: ELEM_LastPartInd=2
-REAL,ALLOCATABLE                   :: PartData(:,:)
 REAL                               :: xi(3)
 LOGICAL                            :: InElementCheck,PartIntExists,PartDataExists,VibQuantDataExists,changedVars,DGSourceExists
 LOGICAL                            :: ElecDistriDataExists, AD_DataExists
@@ -121,6 +129,10 @@ LOGICAL,ALLOCATABLE                :: readVarFromState(:)
 INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
 LOGICAL                            :: FileVersionExists
 REAL                               :: FileVersionHDF5
+#if USE_LOADBALANCE
+INTEGER                            :: PartRank
+INTEGER                            :: offsetPartSend,offsetPartRecv
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 ! Temp. vars for integer KIND=8 possibility
@@ -242,87 +254,163 @@ IF(.NOT.DoMacroscopicRestart) THEN
     END DO
   END IF
 
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Reading Particles from Restartfile...'
-  !read local ElemInfo from HDF5
-  FirstElemInd=offsetElem+1
-  LastElemInd=offsetElem+PP_nElems
+  FirstElemInd = offsetElem+1
+  LastElemInd  = offsetElem+PP_nElems
   ! read local ParticleInfo from HDF5
-  CALL DatasetExists(File_ID,'PartInt',PartIntExists)
-  IF(PartIntExists)THEN
-    ALLOCATE(PartInt(PartIntSize,FirstElemInd:LastElemInd))
 
-    !check file version
-    CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
-    IF(FileVersionExists)THEN
-      CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
-    ELSE
-      CALL abort(__STAMP__,'Error in ParticleRestart(): Attribute "File_Version" does not exist!')
-    ENDIF
-
-    ! Associate construct for integer KIND=8 possibility
+#if defined(PARTICLES) && USE_LOADBALANCE
+  IF (PerformLoadBalance) THEN
+    SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Restarting particles during loadbalance...'
+    ! PartInt and PartData are still allocated from last WriteState
+    ALLOCATE(PartIntTmp(PartIntSize,FirstElemInd:LastElemInd))
     ASSOCIATE (&
-          PP_nElems   => INT(PP_nElems,IK)   ,&
-          PartIntSize => INT(PartIntSize,IK) ,&
-          offsetElem  => INT(offsetElem,IK)   )
-      ! Depending on the file version, PartInt may have switched dimensions
-      IF(FileVersionHDF5.LT.2.8)THEN
-        ALLOCATE(PartIntTmp(FirstElemInd:LastElemInd,PartIntSize))
-        CALL ReadArray('PartInt',2,(/PP_nElems,PartIntSize/),offsetElem,1,IntegerArray=PartIntTmp)
-        ! Switch dimensions
-        DO iElem = FirstElemInd, LastElemInd
-          PartInt(:,iElem) = PartIntTmp(iElem,:)
-        END DO ! iElem = FirstElemInd, LastElemInd
-        DEALLOCATE(PartIntTmp)
-      ELSE
-        CALL ReadArray('PartInt',2,(/PartIntSize,PP_nElems/),offsetElem,2,IntegerArray=PartInt)
-      END IF ! FileVersionHDF5.LT.2.7
+            counts_send  => INT(2*MPInElemSend     ,IK) ,&
+            disp_send    => INT(2*MPIoffsetElemSend,IK) ,&
+            counts_recv  => INT(2*MPInElemRecv     ,IK) ,&
+            disp_recv    => INT(2*MPIoffsetElemRecv,IK))
+      ! Communicate PartInt over MPI
+      CALL MPI_ALLTOALLV(PartInt,counts_send,disp_send,MPI_INTEGER_INT_KIND,PartIntTmp,counts_recv,disp_recv,MPI_INTEGER_INT_KIND,MPI_COMM_WORLD,iError)
     END ASSOCIATE
-    ! read local Particle Data from HDF5
+
+    ! Calculate the PartInt deltas
+    MPInPartSend      = 0
+    MPIoffsetPartSend = 0
+    ! Calculate the particles to send
+    ! Loop with the old element over the new particle distribution
+    DO iElem = 1,nElemsOld
+      PartRank               = ElemInfo_Shared(ELEM_RANK,offsetElemOld+iElem)+1
+      MPInPartSend(PartRank) = MPInPartSend(PartRank) + PartInt(2,offsetElemOld+iElem) - PartInt(1,offsetElemOld+iElem)
+    END DO
+
+    offsetPartSend = 0
+    DO iProc = 2,nProcessors
+      MPIoffsetPartSend(iProc) = SUM(MPInPartSend(1:iProc-1))
+    END DO
+
+    ! Calculate the elements to send
+    MPInPartRecv      = 0
+    MPIoffsetPartRecv = 0
+    ! Loop with the new element over the old particle distribution
+    DO iElem = 1,nElems
+      PartRank               = ElemInfoRank(offsetElem+iElem)+1
+      MPInPartRecv(PartRank) = MPInPartRecv(PartRank) + PartIntTmp(2,offsetElem+iElem) - PartIntTmp(1,offsetElem+iElem)
+    END DO
+
+    offsetPartRecv = 0
+    DO iProc = 2,nProcessors
+      MPIoffsetPartRecv(iProc) = SUM(MPInPartRecv(1:iProc-1))
+    END DO
+
+    DEALLOCATE(PartInt)
+    ALLOCATE(PartInt(PartIntSize,FirstElemInd:LastElemInd))
+    PartInt = PartIntTmp
+    DEALLOCATE(PartIntTmp)
+    PartIntExists = .TRUE.
+
     locnPart    = PartInt(ELEM_LastPartInd,LastElemInd)-PartInt(ELEM_FirstPartInd,FirstElemInd)
     offsetnPart = PartInt(ELEM_FirstPartInd,FirstElemInd)
-    CALL DatasetExists(File_ID,'PartData',PartDataExists)
-    IF(PartDataExists)THEN
-      ! Read in parameters from the State file
-      CALL GetDataSize(File_ID,'VarNamesParticles',nDims,HSize,attrib=.TRUE.)
-      PartDataSize_HDF5 = INT(HSize(1),4)
-      DEALLOCATE(HSize)
-      ALLOCATE(StrVarNames_HDF5(PartDataSize_HDF5))
-      CALL ReadAttribute(File_ID,'VarNamesParticles',PartDataSize_HDF5,StrArray=StrVarNames_HDF5)
-      IF (PartDataSize_HDF5.NE.PartDataSize) THEN
-        changedVars=.TRUE.
-      ELSE IF (.NOT.ALL(StrVarNames_HDF5.EQ.StrVarNames)) THEN
-        changedVars=.TRUE.
+    ALLOCATE(PartDataTmp(PartDataSize,offsetnPart+1_IK:offsetnPart+locnPart))
+    ASSOCIATE (&
+            counts_send  => INT(PartDataSize*MPInPartSend     ,IK) ,&
+            disp_send    => INT(PartDataSize*MPIoffsetPartSend,IK) ,&
+            counts_recv  => INT(PartDataSize*MPInPartRecv     ,IK) ,&
+            disp_recv    => INT(PartDataSize*MPIoffsetPartRecv,IK))
+      ! Communicate PartInt over MPI
+      CALL MPI_ALLTOALLV(PartData,counts_send,disp_send,MPI_DOUBLE_PRECISION,PartDataTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
+    END ASSOCIATE
+
+    DEALLOCATE(PartData)
+    ALLOCATE(PartData(PartDataSize,offsetnPart+1_IK:offsetnPart+locnPart))
+    PartData = PartDataTmp
+    DEALLOCATE(PartDataTmp)
+    PartDataExists = .TRUE.
+  ! read local ElemInfo from HDF5
+  ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+    SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Reading Particles from Restartfile...'
+    CALL DatasetExists(File_ID,'PartInt',PartIntExists)
+    IF(PartIntExists)THEN
+      ALLOCATE(PartInt(PartIntSize,FirstElemInd:LastElemInd))
+
+      !check file version
+      CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
+      IF(FileVersionExists)THEN
+        CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
       ELSE
-        changedVars=.FALSE.
-      END IF ! PartDataSize_HDF5.NE.PartDataSize
-      IF (changedVars) THEN
-        SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart-file'
-        IF (.NOT.implemented) CALL Abort(__STAMP__,"change in VarNamesParticles not implemented yet")
-        readVarFromState=.FALSE.
-        DO iVar=1,PartDataSize_HDF5
-          IF (TRIM(StrVarNames(iVar)).EQ.TRIM(StrVarNames_HDF5(iVar))) THEN
-            readVarFromState(iVar)=.TRUE.
-          ELSE
-            CALL Abort(__STAMP__,"not associated VarNamesParticles in HDF5!")
-          END IF
-        END DO ! iVar=1,PartDataSize_HDF5
-        DO iVar=1,PartDataSize
-          IF (.NOT.readVarFromState(iVar)) THEN
-            IF (TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational') THEN
-              SWRITE(*,*) 'WARNING: The following VarNamesParticles will be set to zero: '//TRIM(StrVarNames(iVar))
-            ELSE IF(TRIM(StrVarNames(iVar)).EQ.'MPF') THEN
-              SWRITE(*,*) 'WARNING: The particle weighting factor will be initialized with the given global weighting factor!'
+        CALL abort(__STAMP__,'Error in ParticleRestart(): Attribute "File_Version" does not exist!')
+      ENDIF
+
+      ! Associate construct for integer KIND=8 possibility
+      ASSOCIATE (&
+            PP_nElems   => INT(PP_nElems,IK)   ,&
+            PartIntSize => INT(PartIntSize,IK) ,&
+            offsetElem  => INT(offsetElem,IK)   )
+        ! Depending on the file version, PartInt may have switched dimensions
+        IF(FileVersionHDF5.LT.2.8)THEN
+          ALLOCATE(PartIntTmp(FirstElemInd:LastElemInd,PartIntSize))
+          CALL ReadArray('PartInt',2,(/PP_nElems,PartIntSize/),offsetElem,1,IntegerArray=PartIntTmp)
+          ! Switch dimensions
+          DO iElem = FirstElemInd, LastElemInd
+            PartInt(:,iElem) = PartIntTmp(iElem,:)
+          END DO ! iElem = FirstElemInd, LastElemInd
+          DEALLOCATE(PartIntTmp)
+        ELSE
+          CALL ReadArray('PartInt',2,(/PartIntSize,PP_nElems/),offsetElem,2,IntegerArray=PartInt)
+        END IF ! FileVersionHDF5.LT.2.7
+      END ASSOCIATE
+
+      ! read local Particle Data from HDF5
+      locnPart    = PartInt(ELEM_LastPartInd,LastElemInd)-PartInt(ELEM_FirstPartInd,FirstElemInd)
+      offsetnPart = PartInt(ELEM_FirstPartInd,FirstElemInd)
+      CALL DatasetExists(File_ID,'PartData',PartDataExists)
+      IF(PartDataExists)THEN
+        ! Read in parameters from the State file
+        CALL GetDataSize(File_ID,'VarNamesParticles',nDims,HSize,attrib=.TRUE.)
+        PartDataSize_HDF5 = INT(HSize(1),4)
+        DEALLOCATE(HSize)
+        ALLOCATE(StrVarNames_HDF5(PartDataSize_HDF5))
+        CALL ReadAttribute(File_ID,'VarNamesParticles',PartDataSize_HDF5,StrArray=StrVarNames_HDF5)
+        IF (PartDataSize_HDF5.NE.PartDataSize) THEN
+          changedVars=.TRUE.
+        ELSE IF (.NOT.ALL(StrVarNames_HDF5.EQ.StrVarNames)) THEN
+          changedVars=.TRUE.
+        ELSE
+          changedVars=.FALSE.
+        END IF ! PartDataSize_HDF5.NE.PartDataSize
+        IF (changedVars) THEN
+          SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart-file'
+          IF (.NOT.implemented) CALL Abort(__STAMP__,"change in VarNamesParticles not implemented yet")
+          readVarFromState=.FALSE.
+          DO iVar=1,PartDataSize_HDF5
+            IF (TRIM(StrVarNames(iVar)).EQ.TRIM(StrVarNames_HDF5(iVar))) THEN
+              readVarFromState(iVar)=.TRUE.
             ELSE
-              CALL Abort(__STAMP__,"not associated VarNamesParticles to be reset!")
-            END IF ! TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational'
-          END IF ! .NOT.readVarFromState(iVar)
-        END DO ! iVar=1,PartDataSize
-      END IF ! changedVars
-      ALLOCATE(PartData(PartDataSize_HDF5,offsetnPart+1_IK:offsetnPart+locnPart))
+              CALL Abort(__STAMP__,"not associated VarNamesParticles in HDF5!")
+            END IF
+          END DO ! iVar=1,PartDataSize_HDF5
+          DO iVar=1,PartDataSize
+            IF (.NOT.readVarFromState(iVar)) THEN
+              IF (TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational') THEN
+                SWRITE(*,*) 'WARNING: The following VarNamesParticles will be set to zero: '//TRIM(StrVarNames(iVar))
+              ELSE IF(TRIM(StrVarNames(iVar)).EQ.'MPF') THEN
+                SWRITE(*,*) 'WARNING: The particle weighting factor will be initialized with the given global weighting factor!'
+              ELSE
+                CALL Abort(__STAMP__,"not associated VarNamesParticles to be reset!")
+              END IF ! TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational'
+            END IF ! .NOT.readVarFromState(iVar)
+          END DO ! iVar=1,PartDataSize
+        END IF ! changedVars
 
+        ALLOCATE(PartData(PartDataSize_HDF5,offsetnPart+1_IK:offsetnPart+locnPart))
+        CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,2,RealArray=PartData)
+      END IF ! PartDataExists
+    END IF ! PartIntExits
+#if defined(PARTICLES) && USE_LOADBALANCE
+  END IF ! PerformLoadBalance
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 
-      CALL ReadArray('PartData',2,(/INT(PartDataSize_HDF5,IK),locnPart/),offsetnPart,2,RealArray=PartData)
-
+  IF(PartIntExists)THEN
+    IF(PartDataExists)THEN
       ! Read DSMC-specific arrays
       IF(useDSMC)THEN
         ! Polyatomic

@@ -348,6 +348,9 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -511,9 +514,7 @@ DO iElem_loc=1,PP_nElems
     END DO
     iPart = PartInt(2,iElem_glob)
   ELSE
-    CALL abort(&
-    __STAMP__&
-    , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
+    CALL abort(__STAMP__, " Particle HDF5-Output method not supported! PEM%pNumber not associated")
   END IF
   PartInt(2,iElem_glob)=iPart
 END DO
@@ -641,11 +642,9 @@ ASSOCIATE (&
                           collective  = .FALSE.        , RealArray=VarTimeStep%ElemFac)
   END IF
   CALL CloseDataFile()
+  DEALLOCATE(StrVarNames)
 #endif /*USE_MPI*/
 END ASSOCIATE
-
-DEALLOCATE(StrVarNames)
-DEALLOCATE(PartData)
 
 IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   ALLOCATE(VibQuantData(MaxQuantNum,offsetnPart+1_IK:offsetnPart+locnPart))
@@ -839,7 +838,15 @@ IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
 #endif /*USE_MPI*/
 END IF
 
-DEALLOCATE(PartInt)
+! For LoadBalance, keep arrays allocated to restart from
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  DEALLOCATE(PartData)
+  DEALLOCATE(PartInt)
+#if defined(PARTICLES) && USE_LOADBALANCE
+END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 ! reswitch
 IF(reSwitch) gatheredWrite=.TRUE.
 

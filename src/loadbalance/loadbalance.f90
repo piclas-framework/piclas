@@ -85,6 +85,10 @@ USE MOD_Preproc
 USE MOD_LoadBalance_Vars
 USE MOD_ReadInTools      ,ONLY: GETLOGICAL, GETREAL, GETINT
 USE MOD_ReadInTools      ,ONLY: PrintOption
+#if defined(PARTICLES)
+USE MOD_Mesh_Vars        ,ONLY: nGlobalElems
+USE MOD_LoadBalance_Vars ,ONLY: MPInElemSend,MPIoffsetElemSend,MPInElemRecv,MPIoffsetElemRecv
+#endif /*defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -144,6 +148,12 @@ ALLOCATE(tCurrent(1:LB_NTIMES))
 ! Allocation length (1:number of loadbalance times)
 ! look into piclas.h for more info about time names
 tCurrent=0.
+
+#if defined(PARTICLES)
+ALLOCATE(MPInElemSend(nProcessors),MPIoffsetElemSend(nProcessors),MPInElemRecv(nProcessors),MPIoffsetElemRecv(nProcessors))
+ALLOCATE(MPInPartSend(nProcessors),MPIoffsetPartSend(nProcessors),MPInPartRecv(nProcessors),MPIoffsetPartRecv(nProcessors))
+ALLOCATE(ElemInfoRank(nGlobalElems))
+#endif /*defined(PARTICLES)*/
 #endif /*USE_LOADBALANCE*/
 
 InitLoadBalanceIsDone=.TRUE.
@@ -344,20 +354,24 @@ SUBROUTINE LoadBalance()
 !===================================================================================================================================
 ! USED MODULES
 USE MOD_Globals
-USE MOD_Globals_vars     ,ONLY: InitializationWallTime
+USE MOD_Globals_vars      ,ONLY: InitializationWallTime
 USE MOD_Preproc
-USE MOD_Restart          ,ONLY: Restart
-USE MOD_Piclas_Init      ,ONLY: InitPiclas,FinalizePiclas
-USE MOD_LoadBalance_Vars ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
+USE MOD_LoadBalance_Vars  ,ONLY: CurrentImbalance,MaxWeight,MinWeight
+USE MOD_LoadBalance_Vars  ,ONLY: Currentimbalance,PerformLoadBalance,LoadBalanceMaxSteps
+USE MOD_LoadBalance_Vars  ,ONLY: ElemTimeField
+USE MOD_LoadBalance_Vars  ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
+USE MOD_Mesh_Vars         ,ONLY: nElems,offsetElem
+USE MOD_Piclas_Init       ,ONLY: InitPiclas,FinalizePiclas
+USE MOD_Restart           ,ONLY: Restart
+USE MOD_StringTools       ,ONLY: set_formatting,clear_formatting
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars     ,ONLY: DepositionType
-USE MOD_Particle_MPI     ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
+USE MOD_LoadBalance_Vars  ,ONLY: ElemTimePart
+USE MOD_LoadBalance_Vars  ,ONLY: MPInElemSend,MPIoffsetElemSend,MPInElemRecv,MPIoffsetElemRecv,ElemInfoRank
+USE MOD_LoadBalance_Vars  ,ONLY: nElemsOld,offsetElemOld
+USE MOD_Particle_Mesh_Vars,ONLY: ElemInfo_Shared
+USE MOD_Particle_MPI      ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_PICDepo_Vars      ,ONLY: DepositionType
 #endif /*PARTICLES*/
-USE MOD_LoadBalance_Vars ,ONLY: CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars ,ONLY: Currentimbalance, PerformLoadBalance,LoadBalanceMaxSteps
-USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
-USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -368,6 +382,10 @@ USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL :: LB_Time,LB_StartTime
+INTEGER :: iProc,iElem,ElemRank
+#ifdef PARTICLES
+INTEGER :: offsetElemSend,offsetElemRecv
+#endif /*PARTICLES*/
 !===================================================================================================================================
 ! only do load-balance if necessary
 IF(.NOT.PerformLoadBalance) THEN
@@ -396,8 +414,45 @@ LB_StartTime=PICLASTIME()
 
 ! Finalize all arrays
 CALL FinalizePiclas(IsLoadBalance=.TRUE.)
+
+#if defined(PARTICLES)
+nElemsOld     = nElems
+offsetElemOld = offsetElem
+ElemInfoRank  = ElemInfo_Shared(ELEM_RANK,:)
+#endif /*PARTICLES*/
+
 ! reallocate
 CALL InitPiclas(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
+
+#if defined(PARTICLES)
+! Calculate the elements to send
+MPInElemSend      = 0
+MPIoffsetElemSend = 0
+! Loop with the old element over the new elem distribution
+DO iElem = 1,nElemsOld
+  ElemRank               = ElemInfo_Shared(ELEM_RANK,offsetElemOld+iElem)+1
+  MPInElemSend(ElemRank) = MPInElemSend(ElemRank) + 1
+END DO
+
+offsetElemSend = 0
+DO iProc = 2,nProcessors
+  MPIoffsetElemSend(iProc) = SUM(MPInElemSend(1:iProc-1))
+END DO
+
+! Calculate the elements to send
+MPInElemRecv      = 0
+MPIoffsetElemRecv = 0
+! Loop with the new element over the old elem distribution
+DO iElem = 1,nElems
+  ElemRank               = ElemInfoRank(offsetElem+iElem)+1
+  MPInElemRecv(ElemRank) = MPInElemRecv(ElemRank) + 1
+END DO
+
+offsetElemRecv = 0
+DO iProc = 2,nProcessors
+  MPIoffsetElemRecv(iProc) = SUM(MPInElemRecv(1:iProc-1))
+END DO
+#endif /*PARTICLES*/
 
 ! restart
 CALL Restart()
