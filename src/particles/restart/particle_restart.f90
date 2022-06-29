@@ -86,7 +86,7 @@ INTEGER                            :: iElem
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
 INTEGER                            :: FirstElemInd,LastelemInd,i,j,k
-INTEGER(KIND=IK),ALLOCATABLE       :: PartInt(:,:)
+INTEGER(KIND=IK),ALLOCATABLE       :: PartInt(:,:),PartIntTmp(:,:)
 INTEGER,PARAMETER                  :: PartIntSize=2                  ! number of entries in each line of PartInt
 INTEGER                            :: PartDataSize,PartDataSize_HDF5 ! number of entries in each line of PartData
 INTEGER(KIND=IK)                   :: locnPart,offsetnPart,iLoop
@@ -119,6 +119,8 @@ REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
 LOGICAL                            :: implemented
 LOGICAL,ALLOCATABLE                :: readVarFromState(:)
 INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
+LOGICAL                            :: FileVersionExists
+REAL                               :: FileVersionHDF5
 !===================================================================================================================================
 
 ! Temp. vars for integer KIND=8 possibility
@@ -247,18 +249,37 @@ IF(.NOT.DoMacroscopicRestart) THEN
   ! read local ParticleInfo from HDF5
   CALL DatasetExists(File_ID,'PartInt',PartIntExists)
   IF(PartIntExists)THEN
-    ALLOCATE(PartInt(FirstElemInd:LastElemInd,PartIntSize))
+    ALLOCATE(PartInt(PartIntSize,FirstElemInd:LastElemInd))
+
+    !check file version
+    CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
+    IF(FileVersionExists)THEN
+      CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
+    ELSE
+      CALL abort(__STAMP__,'Error in ParticleRestart(): Attribute "File_Version" does not exist!')
+    ENDIF
 
     ! Associate construct for integer KIND=8 possibility
     ASSOCIATE (&
           PP_nElems   => INT(PP_nElems,IK)   ,&
           PartIntSize => INT(PartIntSize,IK) ,&
           offsetElem  => INT(offsetElem,IK)   )
-      CALL ReadArray('PartInt',2,(/PP_nElems,PartIntSize/),offsetElem,1,IntegerArray=PartInt)
+      ! Depending on the file version, PartInt may have switched dimensions
+      IF(FileVersionHDF5.LT.2.8)THEN
+        ALLOCATE(PartIntTmp(FirstElemInd:LastElemInd,PartIntSize))
+        CALL ReadArray('PartInt',2,(/PP_nElems,PartIntSize/),offsetElem,1,IntegerArray=PartIntTmp)
+        ! Switch dimensions
+        DO iElem = FirstElemInd, LastElemInd
+          PartInt(:,iElem) = PartIntTmp(iElem,:)
+        END DO ! iElem = FirstElemInd, LastElemInd
+        DEALLOCATE(PartIntTmp)
+      ELSE
+        CALL ReadArray('PartInt',2,(/PartIntSize,PP_nElems/),offsetElem,2,IntegerArray=PartInt)
+      END IF ! FileVersionHDF5.LT.2.7
     END ASSOCIATE
     ! read local Particle Data from HDF5
-    locnPart=PartInt(LastElemInd,ELEM_LastPartInd)-PartInt(FirstElemInd,ELEM_FirstPartInd)
-    offsetnPart=PartInt(FirstElemInd,ELEM_FirstPartInd)
+    locnPart    = PartInt(ELEM_LastPartInd,LastElemInd)-PartInt(ELEM_FirstPartInd,FirstElemInd)
+    offsetnPart = PartInt(ELEM_FirstPartInd,FirstElemInd)
     CALL DatasetExists(File_ID,'PartData',PartDataExists)
     IF(PartDataExists)THEN
       ! Read in parameters from the State file
@@ -422,8 +443,8 @@ IF(.NOT.DoMacroscopicRestart) THEN
 
       iPart = 0
       DO iElem=FirstElemInd,LastElemInd
-        IF (PartInt(iElem,ELEM_LastPartInd).GT.PartInt(iElem,ELEM_FirstPartInd)) THEN
-          DO iLoop = PartInt(iElem,ELEM_FirstPartInd)-offsetnPart+1_IK , PartInt(iElem,ELEM_LastPartInd)- offsetnPart
+        IF (PartInt(ELEM_LastPartInd,iElem).GT.PartInt(ELEM_FirstPartInd,iElem)) THEN
+          DO iLoop = PartInt(ELEM_FirstPartInd,iElem)-offsetnPart+1_IK , PartInt(ELEM_LastPartInd,iElem)- offsetnPart
             ! Sanity check: SpecID > 0
             SpecID=INT(PartData(7,offsetnPart+iLoop),4)
             IF(SpecID.LE.0) CYCLE
@@ -433,7 +454,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
             PEM%GlobalElemID(iPart)  = iElem
             PEM%LastGlobalElemID(iPart)  = iElem
           END DO ! iLoop
-        END IF ! PartInt(iElem,ELEM_LastPartInd).GT.PartInt(iElem,ELEM_FirstPartInd)
+        END IF ! PartInt(ELEM_LastPartInd,iElem).GT.PartInt(ELEM_FirstPartInd,iElem)
       END DO ! iElem=FirstElemInd,LastElemInd
       DEALLOCATE(PartData)
       IF (useDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN

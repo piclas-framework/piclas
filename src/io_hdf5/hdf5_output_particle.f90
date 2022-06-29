@@ -430,7 +430,7 @@ END DO
 ! Communicate the total number and offset of particles
 CALL GetOffsetAndGlobalNumberOfParts('WriteParticleToHDF5',offsetnPart,nGlobalNbrOfParticles,locnPart,.TRUE.)
 
-ALLOCATE(PartInt(offsetElem+1:offsetElem+PP_nElems,PartIntSize))
+ALLOCATE(PartInt(PartIntSize,offsetElem+1:offsetElem+PP_nElems))
 ALLOCATE(PartData(INT(PartDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(&
     __STAMP__&
@@ -450,12 +450,12 @@ CALL UpdateNextFreePosition()
 iPart=offsetnPart
 DO iElem_loc=1,PP_nElems
   iElem_glob = iElem_loc + offsetElem
-  PartInt(iElem_glob,1)=iPart
+  PartInt(1,iElem_glob)=iPart
   IF (ALLOCATED(PEM%pNumber)) THEN
     nPartsPerElem(iElem_loc) = INT(PEM%pNumber(iElem_loc),IK)
-    PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + INT(PEM%pNumber(iElem_loc),IK)
+    PartInt(2,iElem_glob) = PartInt(1,iElem_glob) + INT(PEM%pNumber(iElem_loc),IK)
     pcount = PEM%pStart(iElem_loc)
-    DO iPart=PartInt(iElem_glob,1)+1_IK,PartInt(iElem_glob,2)
+    DO iPart=PartInt(1,iElem_glob)+1_IK,PartInt(2,iElem_glob)
       PartData(1,iPart)=PartState(1,pcount)
       PartData(2,iPart)=PartState(2,pcount)
       PartData(3,iPart)=PartState(3,pcount)
@@ -509,13 +509,13 @@ DO iElem_loc=1,PP_nElems
       END IF
       pcount = PEM%pNext(pcount)
     END DO
-    iPart = PartInt(iElem_glob,2)
+    iPart = PartInt(2,iElem_glob)
   ELSE
     CALL abort(&
     __STAMP__&
     , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
   END IF
-  PartInt(iElem_glob,2)=iPart
+  PartInt(2,iElem_glob)=iPart
 END DO
 
 nVar=2
@@ -546,19 +546,13 @@ ASSOCIATE (&
       offsetElem            => INT(offsetElem,IK)            ,&
       PartDataSize          => INT(PartDataSize,IK)          )
 
-  CALL GatheredWriteArray(FileName                         , create = .FALSE.            , &
-                          DataSetName     = 'PartInt'      , rank   = 2                  , &
-                          nValGlobal      = (/nGlobalElems , nVar/)                      , &
-                          nVal            = (/PP_nElems    , nVar/)                      , &
-                          offset          = (/offsetElem   , 0_IK/)                      , &
-                          collective      = .TRUE.         , IntegerArray = PartInt)
+  CALL GatheredWriteArray(FileName                    , create = .FALSE.            , &
+                          DataSetName     = 'PartInt' , rank   = 2                  , &
+                          nValGlobal      = (/nVar    , nGlobalElems/)              , &
+                          nVal            = (/nVar    , PP_nElems   /)              , &
+                          offset          = (/0_IK    , offsetElem  /)              , &
+                          collective      = .TRUE.    , IntegerArray = PartInt)
 
-  !  CALL WriteArrayToHDF5(DataSetName='PartInt', rank=2,&
-  !                        nValGlobal=(/nGlobalElems, nVar/),&
-  !                        nVal=      (/PP_nElems, nVar   /),&
-  !                        offset=    (/offsetElem, 0_IK  /),&
-  !                        collective=.TRUE., existing=.FALSE., IntegerArray=PartInt)
-  !
   DEALLOCATE(StrVarNames)
   !CALL CloseDataFile()
 
@@ -660,12 +654,12 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   iPart=offsetnPart
   DO iElem_loc=1,PP_nElems
     iElem_glob = iElem_loc + offsetElem
-    PartInt(iElem_glob,1)=iPart
+    PartInt(1,iElem_glob)=iPart
     IF (ALLOCATED(PEM%pNumber)) THEN
       nPartsPerElem(iElem_loc) = INT(PEM%pNumber(iElem_loc),IK)
-      PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + INT(PEM%pNumber(iElem_loc),IK)
+      PartInt(2,iElem_glob) = PartInt(1,iElem_glob) + INT(PEM%pNumber(iElem_loc),IK)
       pcount = PEM%pStart(iElem_loc)
-      DO iPart=PartInt(iElem_glob,1)+1_IK,PartInt(iElem_glob,2)
+      DO iPart=PartInt(1,iElem_glob)+1_IK,PartInt(2,iElem_glob)
         IF (SpecDSMC(PartSpecies(pcount))%PolyatomicMol) THEN
           iPolyatMole = SpecDSMC(PartSpecies(pcount))%SpecToPolyArray
           VibQuantData(1:PolyatomMolDSMC(iPolyatMole)%VibDOF,iPart) = &
@@ -675,13 +669,13 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
         END IF
         pcount = PEM%pNext(pcount)
       END DO
-      iPart = PartInt(iElem_glob,2)
+      iPart = PartInt(2,iElem_glob)
     ELSE
       CALL abort(&
       __STAMP__&
       , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
     END IF
-    PartInt(iElem_glob,2)=iPart
+    PartInt(2,iElem_glob)=iPart
   END DO
 
   ! Associate construct for integer KIND=8 possibility
@@ -726,12 +720,12 @@ IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
   iPart=offsetnPart
   DO iElem_loc=1,PP_nElems
     iElem_glob = iElem_loc + offsetElem
-    PartInt(iElem_glob,1)=iPart
+    PartInt(1,iElem_glob)=iPart
     IF (ALLOCATED(PEM%pNumber)) THEN
       nPartsPerElem(iElem_loc) = INT(PEM%pNumber(iElem_loc),IK)
-      PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + INT(PEM%pNumber(iElem_loc),IK)
+      PartInt(2,iElem_glob) = PartInt(1,iElem_glob) + INT(PEM%pNumber(iElem_loc),IK)
       pcount = PEM%pStart(iElem_loc)
-      DO iPart=PartInt(iElem_glob,1)+1_IK,PartInt(iElem_glob,2)
+      DO iPart=PartInt(1,iElem_glob)+1_IK,PartInt(2,iElem_glob)
         IF (.NOT.((SpecDSMC(PartSpecies(pcount))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(pcount))%FullyIonized)) THEN
           ElecDistriData(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant,iPart) = &
             ElectronicDistriPart(pcount)%DistriFunc(1:SpecDSMC(PartSpecies(pcount))%MaxElecQuant)
@@ -740,13 +734,13 @@ IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
         END IF
         pcount = PEM%pNext(pcount)
       END DO
-      iPart = PartInt(iElem_glob,2)
+      iPart = PartInt(2,iElem_glob)
     ELSE
       CALL abort(&
       __STAMP__&
       , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
     END IF
-    PartInt(iElem_glob,2)=iPart
+    PartInt(2,iElem_glob)=iPart
   END DO
 
   ! Associate construct for integer KIND=8 possibility
@@ -791,12 +785,12 @@ IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
   iPart=offsetnPart
   DO iElem_loc=1,PP_nElems
     iElem_glob = iElem_loc + offsetElem
-    PartInt(iElem_glob,1)=iPart
+    PartInt(1,iElem_glob)=iPart
     IF (ALLOCATED(PEM%pNumber)) THEN
       nPartsPerElem(iElem_loc) = INT(PEM%pNumber(iElem_loc),IK)
-      PartInt(iElem_glob,2) = PartInt(iElem_glob,1) + INT(PEM%pNumber(iElem_loc),IK)
+      PartInt(2,iElem_glob) = PartInt(1,iElem_glob) + INT(PEM%pNumber(iElem_loc),IK)
       pcount = PEM%pStart(iElem_loc)
-      DO iPart=PartInt(iElem_glob,1)+1_IK,PartInt(iElem_glob,2)
+      DO iPart=PartInt(1,iElem_glob)+1_IK,PartInt(2,iElem_glob)
         IF (Species(PartSpecies(pcount))%ChargeIC.GT.0.0) THEN
           AD_Data(1:3,iPart) = AmbipolElecVelo(pcount)%ElecVelo(1:3)
         ELSE
@@ -804,13 +798,13 @@ IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
         END IF
         pcount = PEM%pNext(pcount)
       END DO
-      iPart = PartInt(iElem_glob,2)
+      iPart = PartInt(2,iElem_glob)
     ELSE
       CALL abort(&
       __STAMP__&
       , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
     END IF
-    PartInt(iElem_glob,2)=iPart
+    PartInt(2,iElem_glob)=iPart
   END DO
 
     IF(nGlobalNbrOfParticles(3).EQ.0_IK)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
