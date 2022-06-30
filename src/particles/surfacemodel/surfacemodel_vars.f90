@@ -53,6 +53,10 @@ TYPE tBoundMap
   INTEGER, ALLOCATABLE                   :: Boundaries(:)
 END TYPE
 
+TYPE tPureSurf
+  LOGICAL, ALLOCATABLE                   :: PureSurfReac(:)
+END TYPE
+
 TYPE tSurfFluxMap
   TYPE(typeSurfaceflux),ALLOCATABLE      :: Surfaceflux(:)                   
 END TYPE
@@ -92,7 +96,8 @@ TYPE tSurfReactions
   REAL, ALLOCATABLE                      :: Prefactor(:)
   REAL, ALLOCATABLE                      :: ArrheniusEnergy(:)
   LOGICAL, ALLOCATABLE                   :: BoundisChemSurf(:)  
-  TYPE(tBoundMap), ALLOCATABLE           :: BoundMap(:)        
+  TYPE(tBoundMap), ALLOCATABLE           :: BoundMap(:)   
+  TYPE(tPureSurf), ALLOCATABLE           :: PSMap(:)               ! MAp for reactions occurring only on the surface     
   TYPE(tCollCaseInfo), ALLOCATABLE       :: CollCaseInfo(:)        ! Information of collision cases (nCase) 
   TYPE(tSurfFluxMap), ALLOCATABLE        :: SFMap(:)
 END TYPE

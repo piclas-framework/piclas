@@ -113,7 +113,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iSpec
+INTEGER               :: iReac, iReac2, iSpec, iBound, iVal
 INTEGER               :: ReadInNumOfReact
 INTEGER               :: iSide, SideID, iBC
 REAL, ALLOCATABLE     :: StoichCoeff(:,:)
@@ -148,6 +148,13 @@ SurfChemReac%HeatAccomodation = 0.0
 ALLOCATE(SurfChemReac%BoundisChemSurf(nPartBound))
 ALLOCATE(SurfChemReac%NumOfBounds(SurfChemReac%NumOfReact))
 ALLOCATE(SurfChemReac%BoundMap(SurfChemReac%NumOfReact))
+ALLOCATE(SurfChemReac%PSMap(nPartBound))
+
+! Surface map
+DO iBound=1, nPartBound
+  ALLOCATE(SurfChemReac%PSMap(iBound)%PureSurfReac(ReadInNumOfReact))
+  SurfChemReac%PSMap(iBound)%PureSurfReac = .FALSE.
+END DO
 
 ! Adsorption parameter
 ALLOCATE(SurfChemReac%S_initial(SurfChemReac%NumOfReact))
@@ -205,6 +212,12 @@ DO iReac = 1, ReadInNumOfReact
     SurfChemReac%BoundisChemSurf(SurfChemReac%BoundMap(iReac)%Boundaries(iReac2)) = .TRUE.                                   
   END DO
 
+  ! Select pure surface reactions
+  DO iVal = 1, SurfChemReac%NumOfBounds(iReac)   
+    iBound = SurfChemReac%BoundMap(iReac)%Boundaries(iVal)         
+    SurfChemReac%PSMap(iBound)%PureSurfReac(iReac) = .TRUE.               
+  END DO
+
   SELECT CASE (TRIM(SurfChemReac%ReactType(iReac)))
   CASE('A')
     SurfChemReac%S_initial(iReac) = GETREAL('Surface-Reaction'//TRIM(hilf)//'-StickingCoefficient','1.')
@@ -246,6 +259,7 @@ DO iReac = 1, ReadInNumOfReact
   END SELECT
   SurfChemReac%EForm(iReac)  = GETREAL('Surface-Reaction'//TRIM(hilf)//'-FormationEnergy','0')
 END DO
+
 
 ALLOCATE( ChemSampWall(1:nSpecies,2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 ALLOCATE(ChemDesorpWall(1:nSpecies,2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))

@@ -897,7 +897,7 @@ CHARACTER(LEN=255)                  :: SpecID, PBCID
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, iPBC, iSurfSide, nVar2D_Heat
 INTEGER                             :: p,q,OutputCounter
-REAL                                :: tstart,tend
+REAL                                :: tstart,tend, tout
 REAL, ALLOCATABLE                   :: MacroSurfaceSpecChemVal(:,:,:,:,:)
 REAL, ALLOCATABLE                   :: MacroSurfaceHeatVal(:,:,:,:)
 !===================================================================================================================================
@@ -996,7 +996,8 @@ DO iSurfSide = 1,nComputeNodeSurfSides
     DO p = 1,nSurfSample
       ! --- Total output (force per area, heat flux, simulation particle impact per iteration)
       ! --- Species-specific output
-      MacroSurfaceHeatVal(1,p,q,OutputCounter) = SUM(ChemWallProp(:,2,p, q, iSurfSide))/ (SurfSideArea(p,q,iSurfSide))
+      tout = OutputTime
+      MacroSurfaceHeatVal(1,p,q,OutputCounter) = SUM(ChemWallProp(:,2,p, q, iSurfSide))/ (SurfSideArea(p,q,iSurfSide)*tout)
       DO iSpec=1,nSpecies
         ! Species-specific counter of simulation particle impacts per iteration
         MacroSurfaceSpecChemVal(1,p,q,OutputCounter,iSpec) = ChemWallProp(iSpec,1,p, q, iSurfSide)
