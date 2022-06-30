@@ -433,11 +433,14 @@ END DO
 ! Communicate the total number and offset of particles
 CALL GetOffsetAndGlobalNumberOfParts('WriteParticleToHDF5',offsetnPart,nGlobalNbrOfParticles,locnPart,.TRUE.)
 
-ALLOCATE(PartInt(PartIntSize,offsetElem+1:offsetElem+PP_nElems))
+#if USE_LOADBALANCE
+! Arrays might still be allocated from previous loadbalance step
+SDEALLOCATE(PartInt)
+SDEALLOCATE(PartData)
+#endif /*USE_LOADBALANCE*/
+ALLOCATE(PartInt(     PartIntSize,      offsetElem+1   :offsetElem+PP_nElems))
 ALLOCATE(PartData(INT(PartDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
-    ,'ERROR in hdf5_output.f90: Cannot allocate PartData array for writing particle data to .h5!')
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in hdf5_output.f90: Cannot allocate PartData array for writing particle data to .h5!')
 !!! Kleiner Hack von JN (Teil 1/2):
 
 IF (.NOT.(useDSMC.OR.usevMPF)) THEN
@@ -883,9 +886,6 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
