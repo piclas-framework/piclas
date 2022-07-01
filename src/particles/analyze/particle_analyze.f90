@@ -85,7 +85,7 @@ CALL prms%CreateRealOption(     'printDiffTime'           , 'Time for starting t
 CALL prms%CreateRealArrayOption('printDiffVec'            , 'Vector (x,v) that is used to calcualte the L2 norm when using Part-TrackPosition=T','0. , 0. , 0. , 0. , 0. , 0.')
 CALL prms%CreateLogicalOption(  'CalcNumSpec'             , 'Calculate the number of simulation particles per species for the complete domain','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcNumDens'             , 'Calculate the number density [1/m3] per species for the complete domain','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcAdaptiveBCInfo'      , 'Calculate the massflow rate [kg/s] per species and surface flux','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcSurfFluxInfo'        , 'Calculate the massflow rate [kg/s], current [A], or pressure [Pa] per species and surface flux','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCollRates'           , 'Calculate the collision rates per collision pair','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcReacRates'           , 'Calculate the reaction rate per reaction','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcShapeEfficiency'     , 'Use efficiency methods for shape functions.', '.FALSE.')
@@ -605,16 +605,16 @@ IF(TrackParticlePosition)THEN
 END IF
 CalcSimNumSpec = GETLOGICAL('CalcNumSpec')
 CalcNumDens    = GETLOGICAL('CalcNumDens')
-CalcAdaptiveBCInfo = GETLOGICAL('CalcAdaptiveBCInfo')
-IF(CalcAdaptiveBCInfo) THEN
+CalcSurfFluxInfo = GETLOGICAL('CalcSurfFluxInfo')
+IF(CalcSurfFluxInfo) THEN
+  ALLOCATE(FlowRateSurfFlux(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
+  FlowRateSurfFlux = 0.
   IF(UseAdaptive) THEN
-    ALLOCATE(MassflowRate(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
-    MassflowRate = 0.
     ALLOCATE(PressureAdaptiveBC(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
     PressureAdaptiveBC = 0.
-  ELSE
-    CalcAdaptiveBCInfo = .FALSE.
   END IF
+ELSE
+  CalcSurfFluxInfo = .FALSE.
 END IF
 CalcCollRates = GETLOGICAL('CalcCollRates')
 CalcReacRates = GETLOGICAL('CalcReacRates')
@@ -629,7 +629,7 @@ IF(CalcReacRates) THEN
       'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
 END IF
 
-IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcAdaptiveBCInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
+IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcSurfFluxInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
 
 !-- Compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos')
@@ -824,8 +824,9 @@ USE MOD_Particle_Vars           ,ONLY: Species,nSpecies
 USE MOD_PIC_Analyze             ,ONLY: CalcDepositedCharge
 USE MOD_Restart_Vars            ,ONLY: RestartTime,DoRestart
 USE MOD_TimeDisc_Vars           ,ONLY: iter, dt, IterDisplayStep
+USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptive
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumPartsOfSpec,CalcShapeEfficiencyR,CalcKineticEnergy,CalcKineticEnergyAndMaximum
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumberDensity,CalcAdaptBCInfo,CalcTransTemp,CalcVelocities
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumberDensity,CalcSurfaceFluxInfo,CalcTransTemp,CalcVelocities
 USE MOD_Particle_Analyze_Output ,ONLY: DisplayCoupledPowerPart
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 USE MOD_DSMC_Vars               ,ONLY: CollisMode
@@ -934,15 +935,21 @@ INTEGER             :: iRegions
             OutputCounter = OutputCounter + 1
           END DO
         END IF
-        IF(CalcAdaptiveBCInfo) THEN
+        IF(CalcSurfFluxInfo) THEN
           DO iSpec = 1, nSpecies
             DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Massflow-Spec-',iSpec,'-SF-',iSF
+              IF(Species(iSpec)%Surfaceflux(iSF)%UseEmissionCurrent) THEN
+                WRITE(unit_index,'(I3.3,A14,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Current-Spec-',iSpec,'-SF-',iSF
+              ELSE
+                WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Massflow-Spec-',iSpec,'-SF-',iSF
+              END IF
               OutputCounter = OutputCounter + 1
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Pressure-Spec-',iSpec,'-SF-',iSF
-              OutputCounter = OutputCounter + 1
+              IF(UseAdaptive) THEN
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Pressure-Spec-',iSpec,'-SF-',iSF
+                OutputCounter = OutputCounter + 1
+              END IF
             END DO
           END DO
         END IF
@@ -1250,8 +1257,8 @@ INTEGER             :: iRegions
   ! Computes the real and simulated number of particles
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec,.TRUE.,CalcSimNumSpec)
   IF(CalcNumDens) CALL CalcNumberDensity(NumSpec,NumDens)
-  ! Determine the mass flux [kg/s] and pressure [Pa] per species and surface flux (includes MPI communication)
-  IF(CalcAdaptiveBCInfo) CALL CalcAdaptBCInfo()
+  ! Determine the mass flux [kg/s], current [A] and/or pressure [Pa] per species and surface flux (includes MPI communication)
+  IF(CalcSurfFluxInfo) CALL CalcSurfaceFluxInfo()
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
   IF(CalcEkin.OR.CalcEint(1))THEN
@@ -1429,11 +1436,11 @@ IF (PartMPI%MPIROOT) THEN
         WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(NumDens(iSpec))
       END DO
     END IF
-    IF(CalcAdaptiveBCInfo) THEN
+    IF(CalcSurfFluxInfo) THEN
       DO iSpec = 1, nSpecies
         DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
-          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MassflowRate(iSpec,iSF)
-          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PressureAdaptiveBC(iSpec,iSF)
+          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', FlowRateSurfFlux(iSpec,iSF)
+          IF(UseAdaptive) WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PressureAdaptiveBC(iSpec,iSF)
         END DO
       END DO
     END IF
@@ -1693,7 +1700,7 @@ SDEALLOCATE(nPartIn)
 SDEALLOCATE(nPartOut)
 SDEALLOCATE(PartEkinIn)
 SDEALLOCATE(PartEkinOut)
-SDEALLOCATE(MassflowRate)
+SDEALLOCATE(FlowRateSurfFlux)
 SDEALLOCATE(PressureAdaptiveBC)
 
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN

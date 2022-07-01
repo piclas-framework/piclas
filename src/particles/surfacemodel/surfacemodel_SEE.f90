@@ -40,10 +40,12 @@ USE MOD_Globals                   ,ONLY: abort,VECNORM,PARTISELECTRON
 USE MOD_Globals_Vars              ,ONLY: c,Joule2eV
 USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF,nSpecies
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,ElectronMass
-USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec,BulkElectronTempSEE
+USE MOD_SurfaceModel_Vars         ,ONLY: BulkElectronTempSEE
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec,SurfModEmissionYield,SurfModEmissionEnergy,SurfModEnergyDistribution
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcElectronSEE,SEE
-USE MOD_Particle_Vars             ,ONLY: usevMPF
+USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart2
+USE MOD_PARTICLE_Vars             ,ONLY: usevMPF
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -190,13 +192,32 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
   IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
     RETURN ! nothing to do
   ELSEIF(Species(PartSpecies(PartID_IN))%ChargeIC.GT.0.0)THEN ! Positive bombarding ion
+    ! SEE-I bombarding e- are removed, Ar+ on different materials is considered for secondary e- emission (the default probability
+    ! is 0.13 probability, see  D. Depla, Magnetron sputter deposition: Linking discharge voltage with target properties, 2009)
+
+    ! If yield is greater than 1, store the leading integer here
+    IF(SurfModEmissionYield(locBCID).GE.1.0) ProductSpecNbr = INT(SurfModEmissionYield(locBCID))
     CALL RANDOM_NUMBER(iRan)
-    IF(iRan.LT.0.13)THEN ! SEE-I: gamma=0.13 for the Ar^+ ions bombarding different metals, see
-                         ! D. Depla, Magnetron sputter deposition: Linking discharge voltage with target properties, 2009
+    IF(iRan.LT.MOD(SurfModEmissionYield(locBCID), 1.0) ) ProductSpecNbr = ProductSpecNbr + 1 ! Create one additional new particle
+
+    IF(ProductSpecNbr.GT.0)THEN
       ProductSpec(2) = SurfModResultSpec(locBCID,PartSpecies(PartID_IN))  ! Species of the injected electron
-      ProductSpecNbr = 1 ! Create one new particle
-      TempErgy       = VECNORM(PartState(4:6,PartID_IN)) ! |TempErgy| = |v_old|
-    END IF
+      ! Set TempErgy (velocity in m/s or energy in eV might be required here)
+      IF(SurfModEmissionEnergy(locBCID).GE.0.)THEN
+        ! Electron energy in [eV] or [m/2] is required here depending on the chosen distribution function
+        IF(SurfModEnergyDistribution(locBCID).EQ.'uniform-energy')THEN
+          ! TempErgy is in [eV], which will be set to a uniform-energy distribution function
+          TempErgy = SurfModEmissionEnergy(locBCID)
+        ELSE
+          ! TempErgy is in [m/s]
+          TempErgy = SQRT(2.0*SurfModEmissionEnergy(locBCID)*ElementaryCharge/Species(ProductSpec(2))%MassIC)
+        END IF ! SurfModEnergyDistribution(locBCID).EQ.
+      ELSE
+        ! Get velocity of new electron (from impacting ion energy)
+        TempErgy = CalcEkinPart2(PartState(4:6,PartID_IN),PartSpecies(PartID_IN),1.0) ! [J]
+        TempErgy = SQRT(2.0 * Tempergy / ElectronMass) ! [m/s]
+      END IF ! SurfModEmissionEnergy
+    END IF ! ProductSpecNbr.GT.0
   ELSE ! Neutral bombarding particle
     RETURN ! nothing to do
   END IF

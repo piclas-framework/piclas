@@ -42,12 +42,12 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("SurfaceModel")
 
-CALL prms%CreateIntOption( 'Part-Species[$]-PartBound[$]-ResultSpec','Resulting recombination species (one of nSpecies)',&
-                           '-1', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-SurfaceModel-SEE-Te','Bulk electron temperature for SEE model by Morozov2004 in Kelvin (default'//&
-                           ' corresponds to 50 eV)','5.80226250308285e5')
-CALL prms%CreateLogicalOption( 'Part-SurfaceModel-SEE-Te-automatic','Automatically set the bulk electron temperature by using '//&
-                               'the global electron temperature for SEE model by Morozov2004', '.FALSE.')
+CALL prms%CreateIntOption(     'Part-Species[$]-PartBound[$]-ResultSpec'    , 'Resulting recombination species (one of nSpecies)' , '-1' , numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(  'Part-Boundary[$]-SurfModEnergyDistribution' , 'Energy distribution function for surface emission model (only changable for SurfaceModel=7)' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(    'Part-Boundary[$]-SurfModEmissionEnergy'     , 'Energy of emitted particle for surface emission model (only available for SurfaceModel=7)' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(    'Part-Boundary[$]-SurfModEmissionYield'      , 'Emission yield factor for surface emission model (only changable for SurfaceModel=7)' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(    'Part-SurfaceModel-SEE-Te'                   , 'Bulk electron temperature for SEE model by Morozov2004 in Kelvin (default corresponds to 50 eV)' , '5.80226250308285e5')
+CALL prms%CreateLogicalOption( 'Part-SurfaceModel-SEE-Te-automatic'         , 'Automatically set the bulk electron temperature by using the global electron temperature for SEE model by Morozov2004' , '.FALSE.')
 
 END SUBROUTINE DefineParametersSurfModel
 
@@ -60,9 +60,10 @@ SUBROUTINE InitSurfaceModel()
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: Kelvin2eV
 USE MOD_Particle_Vars          ,ONLY: nSpecies,Species,usevMPF
-USE MOD_ReadInTools            ,ONLY: GETINT,GETREAL,GETLOGICAL
+USE MOD_ReadInTools            ,ONLY: GETINT,GETREAL,GETLOGICAL,GETSTR
 USE MOD_Particle_Boundary_Vars ,ONLY: nPartBound,PartBound
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfModResultSpec,SurfModEnergyDistribution,BulkElectronTempSEE,SurfModSEEelectronTempAutoamtic
+USE MOD_SurfaceModel_Vars      ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutoamtic
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModResultSpec,SurfModEnergyDistribution,SurfModEmissionEnergy,SurfModEmissionYield
 USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -73,7 +74,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(32)        :: hilf, hilf2
+CHARACTER(32)        :: hilf, hilf2, hilf3
 INTEGER              :: iSpec, iPartBound
 LOGICAL              :: SurfModelElectronTemp
 INTEGER, ALLOCATABLE :: SumOfResultSpec(:)
@@ -89,6 +90,10 @@ ALLOCATE(SurfModResultSpec(1:nPartBound,1:nSpecies))
 SurfModResultSpec = 0
 ALLOCATE(SurfModEnergyDistribution(1:nPartBound))
 SurfModEnergyDistribution = ''
+ALLOCATE(SurfModEmissionEnergy(1:nPartBound))
+SurfModEmissionEnergy = -2.0
+ALLOCATE(SurfModEmissionYield(1:nPartBound))
+SurfModEmissionYield = 0.
 ALLOCATE(SumOfResultSpec(nPartBound))
 SumOfResultSpec = 0
 
@@ -100,7 +105,7 @@ DO iSpec = 1,nSpecies
   DO iPartBound=1,nPartBound
     IF(.NOT.PartBound%Reactive(iPartBound)) CYCLE
     WRITE(UNIT=hilf2,FMT='(I0)') iPartBound
-    hilf2=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
+    hilf3=TRIM(hilf)//'-PartBound'//TRIM(hilf2)
     SELECT CASE(PartBound%SurfaceModel(iPartBound))
     CASE(SEE_MODELS_ID)
       ! 5: SEE by Levko2015
@@ -110,8 +115,8 @@ DO iSpec = 1,nSpecies
       ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV
       !10: SEE-I (bombarding electrons are removed, Ar+ on copper is considered for SEE)
 !-----------------------------------------------------------------------------------------------------------------------------------
-      SurfModResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-ResultSpec')
-      SumOfResultSpec(iPartBound) = SumOfResultSpec(iPartBound) + SurfModResultSpec(iPartBound,iSpec)
+      SurfModResultSpec(iPartBound,iSpec) = GETINT('Part-Species'//TRIM(hilf3)//'-ResultSpec')
+      SumOfResultSpec(iPartBound)         = SumOfResultSpec(iPartBound) + SurfModResultSpec(iPartBound,iSpec)
       IF(SumOfResultSpec(iPartBound).EQ.-nSpecies) CALL abort(__STAMP__,&
           'SEE surface model: All resulting species are -1. Define at least one species that can be created by an SEE event.')
       ! Check that the impacting and SEE particles have the same MPF if vMPF is turned off
@@ -131,10 +136,20 @@ DO iSpec = 1,nSpecies
       END IF ! .NOT.usevMPF
       ! Set specific distributions functions
       IF(PartBound%SurfaceModel(iPartBound).EQ.8)THEN
-        SurfModEnergyDistribution  = 'Morozov2004'
+        SurfModEnergyDistribution(iPartBound)  = 'Morozov2004'
         SurfModelElectronTemp = .TRUE.
+      ELSEIF(PartBound%SurfaceModel(iPartBound).EQ.7)THEN
+        ! Skip already initialized boundaries
+        IF(SurfModEmissionEnergy(iPartBound).LT.-1.)THEN
+          ! Note that the define vars help needs to be changed as soon as these parameters are available for other surface models
+          SurfModEnergyDistribution(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf2)//'-SurfModEnergyDistribution','deltadistribution'))
+          SurfModEmissionEnergy(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf2)//'-SurfModEmissionEnergy','-1.0')
+          IF((SurfModEmissionEnergy(iPartBound).LE.0.).AND.(SurfModEnergyDistribution(iPartBound).EQ.'uniform-energy')) CALL abort(&
+              __STAMP__,'SEE model with uniform-energy distribution requires Part-BoundaryX-SurfModEmissionEnergy > 0.')
+          SurfModEmissionYield(iPartBound)      = GETREAL('Part-Boundary'//TRIM(hilf2)//'-SurfModEmissionYield' ,'0.13')
+        END IF ! SurfModEmissionEnergy(iPartBound).LE.0.
       ELSE
-        SurfModEnergyDistribution  = 'deltadistribution'
+        SurfModEnergyDistribution(iPartBound)  = 'deltadistribution'
       END IF ! PartBound%SurfaceModel(iPartBound).EQ.8
     END SELECT
   END DO ! iPartBound=1,nPartBound
@@ -174,6 +189,8 @@ IMPLICIT NONE
 !===================================================================================================================================
 SDEALLOCATE(SurfModResultSpec)
 SDEALLOCATE(SurfModEnergyDistribution)
+SDEALLOCATE(SurfModEmissionEnergy)
+SDEALLOCATE(SurfModEmissionYield)
 END SUBROUTINE FinalizeSurfaceModel
 
 END MODULE MOD_SurfaceModel_Init
