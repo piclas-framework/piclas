@@ -195,7 +195,7 @@ The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the t
 | :---------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0 (default) | Standard extended Maxwellian scattering                                                                                                                                                       |
 |      5      | Secondary electron emission as given by Ref. {cite}`Levko2015`.                                                                                                                               |
-|      7      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. {cite}`Pflug2014` and given by Ref. {cite}`Depla2009` with a constant yield of 13 \%. |
+|      7      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. {cite}`Pflug2014` and given by Ref. {cite}`Depla2009` with a default yield of 13 \%.  |
 |      8      | Secondary electron emission due to ion impact (SEE-E with $e^{-}$ on dielectric surfaces) as used in Ref. {cite}`Liu2010` and given by Ref. {cite}`Morozov2004`.                              |
 |      9      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$) with a constant yield of 1 \%. Emitted electrons have an energy of 6.8 eV upon emission.                                  |
 |     10      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on copper) as used in Ref. {cite}`Theis2021` originating from {cite}`Phelps1999`                                           |
@@ -220,13 +220,34 @@ the surface material. All models require the specification of the electron speci
 
 where electrons of species `C` are emitted from boundary `B` on the impact of species `A`.
 
+#### Model 5
+
 The model by Levko {cite}`Levko2015` can be applied for copper electrodes for electron and ion bombardment and is activated via
 `Part-BoundaryX-SurfaceModel=5`. For ions, a fixed emission yield of 0.02 is used and for electrons an energy-dependent function is
 employed.
 
-The model by Depla {cite}`Depla2009` can be used for various metal surfaces and features a constant emission yield of 13 \% and is
+#### Model 7
+
+The model by Depla {cite}`Depla2009` can be used for various metal surfaces and features a default emission yield of 13 \% and is
 activated via `Part-BoundaryX-SurfaceModel=7` and is intended for the impact of $Ar^{+}$ ions. For more details, see the original
 publication.
+
+The emission yield and energy can be varied for this model by setting
+
+    SurfModEmissionYield  = 1.45 ! ratio of emitted electron flux vs. impacting ion flux [-]
+    SurfModEmissionEnergy = 6.8  ! [eV]
+
+respectively.
+The emission yield represents the ratio of emitted electrons vs. impacting ions and the emission energy is given in electronvolts.
+If the energy is not set, the emitted electron will have the same velocity as the impacting ion.
+
+Additionally, a uniform energy distribution function for the emitted electrons can be set via
+
+    SurfModEnergyDistribution = uniform-energy
+
+which will scale the energy of the emitted electron to fit a uniform distribution function.
+
+#### Model 8
 
 The model by Morozov {cite}`Morozov2004` can be applied for dielectric surfaces and is activated via
 `Part-BoundaryX-SurfaceModel=8` and has an additional parameter for setting the reference electron temperature (see model for
@@ -242,9 +263,13 @@ where the species ID must be supplied, which corresponds to the electron species
 translational temperature is determined and subsequently used to adjust the energy dependence of the SEE model. The global (bulk)
 electron temperature is written to *PartAnalyze.csv* as *XXX-BulkElectronTemp-[K]*.
 
+#### Model 10
+
 An energy-dependent model of secondary electron emission due to $Ar^{+}$ ion impact on a copper cathode as used in
 Ref. {cite}`Theis2021` originating from {cite}`Phelps1999` is
 activated via `Part-BoundaryX-SurfaceModel=10`. For more details, see the original publications.
+
+#### Model 11
 
 An energy-dependent model (linear and power fit of measured SEE yields) of secondary electron emission due to $e^{-}$ impact on a
 quartz (SiO$_{2}$) surface as described in Ref. {cite}`Zeng2020` originating from {cite}`Dunaevsky2003` is

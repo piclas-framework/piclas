@@ -72,6 +72,8 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
+USE MOD_vMPF                   ,ONLY: SplitAndMerge
+USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -315,6 +317,7 @@ IF (useDSMC) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
+    IF(UseSplitAndMerge) CALL SplitAndMerge()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/
