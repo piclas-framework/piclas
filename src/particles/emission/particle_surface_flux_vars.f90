@@ -76,7 +76,9 @@ TYPE typeSurfaceflux
                                                                              ! through Monte Carlo integration (initially)
   REAL                                   :: SampledMassflow                  ! Actual mass flow rate through a surface flux boundary
   REAL, ALLOCATABLE                      :: nVFRSub(:,:)                     ! normal volume flow rate through subsubside
-
+  LOGICAL                                :: ThermionicEmission               ! Thermionic emission
+  REAL                                   :: WorkFunctionTE                   ! Material-specific work function [Input: eV]
+  REAL                                   :: RichardsonConstant               ! Material-specific constant [Input: A/(cm^2*K^2)]
 END TYPE
 
 LOGICAL                                 :: UseCircularInflow              ! Flag is set if the circular inflow feature is used:
