@@ -416,7 +416,7 @@ Run the command
 
 to generate the corresponding *vtk*-files, which can then be loaded into the visualisation tool.
 
-The electric potential field can be viewed, e.g., by opening `plasma_wave_State_000.000000040.vtu` and plotting the field
+The electric potential field can be viewed, e.g., by opening `plasma_wave_Solution_000.000000040.vtu` and plotting the field
 `Phi` along the x-axis, which should look like the following
 
 
