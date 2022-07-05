@@ -113,6 +113,13 @@ ELSE
   AbortExchangeProcs=.FALSE.
 END IF ! .NOT.CheckExchangeProcs
 
+! Get flag for particle latency hiding based on splitting elements in two groups. This first group has particle communication with
+! other processors and the second does not.
+DoParticleLatencyHiding = GETLOGICAL('DoParticleLatencyHiding')
+#if !(PP_TimeDiscMethod==400)
+IF(DoParticleLatencyHiding) CALL abort(__STAMP__,'DoParticleLatencyHiding=T not imeplemented for this time disc!')
+#endif /*!(PP_TimeDiscMethod==400)*/
+
 #if USE_MPI
 CALL MPI_COMM_DUP (MPI_COMM_WORLD,PartMPI%COMM,iError)
 CALL MPI_COMM_RANK(PartMPI%COMM,PartMPI%myRank,iError)
@@ -878,11 +885,8 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: doParticleMerge, vMPF_SpecNumElem, LastPartPos
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
-#if (PP_TimeDiscMethod==400)
-USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
-USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc
-#endif /*(PP_TimeDiscMethod==400)*/
+USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc,DoParticleLatencyHiding
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if defined(LSERK)
 USE MOD_Particle_Vars          ,ONLY: Pt_temp
@@ -1259,12 +1263,12 @@ DO iProc=0,nExchangeProcessors-1
       IF (ElemID.LT.1) THEN
         CALL abort(__STAMP__,'Particle received in not in proc! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
       END IF
-#if (PP_TimeDiscMethod==400)
-      IF(.NOT.IsExchangeElem(ElemID)) THEN
-        IPWRITE(*,*) 'Part Pos + Velo:',PartID,ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc), PartState(1:6,PartID)
-        CALL abort(__STAMP__,'Particle received in non exchange elem! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
-      END IF
-#endif /*(PP_TimeDiscMethod==400)*/
+      IF(DoParticleLatencyHiding)THEN
+        IF(.NOT.IsExchangeElem(ElemID)) THEN
+          IPWRITE(*,*) 'Part Pos + Velo:',PartID,ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc), PartState(1:6,PartID)
+          CALL abort(__STAMP__,'Particle received in non exchange elem! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
+        END IF
+      END IF ! DoParticleLatencyHiding
       IF (useDSMC) THEN
         CALL GetPositionInRefElem(PartState(1:3,PartID),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID))
       END IF

@@ -25,7 +25,7 @@ SAVE
 LOGICAL                       :: ParticleAnalyzeInitIsDone = .FALSE.
 LOGICAL                       :: CalcSimNumSpec                      !< Calculate the number of simulated particles per species
 LOGICAL                       :: CalcNumDens                         !< Calculate the number density per species within the domain
-LOGICAL                       :: CalcAdaptiveBCInfo                    !< Calculate the mass flow through the adaptive inlet boundary
+LOGICAL                       :: CalcSurfFluxInfo                    !< Calculate the current/mass flow through or pressure (adaptive/subsonic BC) at the surface flux boundaries
 LOGICAL                       :: CalcCollRates                       !< Calculate the collision rates per collision pair
 LOGICAL                       :: CalcReacRates                       !< Calculate the reaction rate per reaction
 LOGICAL                       :: CalcRelaxProb                       !< Calculate relaxation probabilities
@@ -147,7 +147,7 @@ LOGICAL                       :: printDiff                           !< TODO
 REAL                          :: printDiffTime                       !< TODO
 REAL                          :: printDiffVec(6)                     !< TODO
 REAL                          :: ChemEnergySum                       !< TODO
-REAL,ALLOCATABLE              :: MassflowRate(:,:)
+REAL,ALLOCATABLE              :: FlowRateSurfFlux(:,:)               !< Particle balance per surface flux BC, utilized to calculate mass flog or current
 REAL,ALLOCATABLE              :: PressureAdaptiveBC(:,:)
 LOGICAL                       :: CalcEMFieldOutput                   !< Output the electro-magnetic fields on each DOF to .h5 calculated by PIC interpolation external fields and from field solver
 !===================================================================================================================================

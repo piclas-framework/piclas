@@ -387,7 +387,6 @@ SDEALLOCATE(RP_Data)
 ! Before program termination: Finalize load balance
 ! Measure simulation duration
 Time=PICLASTIME()
-SWRITE(UNIT_stdOut,'(132("="))')
 CALL FinalizeLoadBalance(IsLoadBalance)
 IF(.NOT.IsLoadBalance)THEN
   CALL DisplaySimulationTime(Time, StartTime, 'FINISHED')
