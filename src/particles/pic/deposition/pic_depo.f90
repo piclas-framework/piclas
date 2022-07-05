@@ -912,6 +912,12 @@ USE MOD_PICDepo_Vars
 USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif
+#if USE_LOADBALANCE
+USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PartSourceLB
+USE MOD_Mesh_Vars          ,ONLY: nElems
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -994,6 +1000,14 @@ SELECT CASE(TRIM(DepositionType))
   CASE('shape_function_adaptive')
     ADEALLOCATE(SFElemr2_Shared)
 END SELECT
+
+#if USE_LOADBALANCE
+IF (PerformLoadBalance) THEN
+  ALLOCATE(PartSourceLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
+  PartSourceLB = PartSource
+END IF
+#endif /*USE_LOADBALANCE*/
+SDEALLOCATE(PartSource)
 
 END SUBROUTINE FinalizeDeposition
 

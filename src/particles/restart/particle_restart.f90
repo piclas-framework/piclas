@@ -70,7 +70,6 @@ USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
 ! HDG
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid,BRConvertElectronsToFluid,BRConvertFluidToElectrons
-USE MOD_Mesh_Vars              ,ONLY: nSides
 USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
 #endif /*USE_HDG*/
 ! MPI

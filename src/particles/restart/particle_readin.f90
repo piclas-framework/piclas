@@ -64,9 +64,10 @@ USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
 ! LoadBalance
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld,ElemInfoRank
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 USE MOD_LoadBalance_Vars       ,ONLY: MPInPartSend,MPInPartRecv,MPIoffsetPartSend,MPIoffsetPartRecv
-USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld,ElemInfoRank
+USE MOD_LoadBalance_Vars       ,ONLY: PartSourceLB
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 #endif /*USE_LOADBALANCE*/
@@ -108,6 +109,9 @@ INTEGER                            :: offsetPartSend,offsetPartRecv
 ! Temporary arrays
 INTEGER(KIND=IK),ALLOCATABLE       :: PartIntTmp(:,:)
 REAL,ALLOCATABLE                   :: PartDataTmp(:,:)
+INTEGER,ALLOCATABLE                :: VibQuantDataTmp(:,:)
+REAL,ALLOCATABLE                   :: ElecDistriDataTmp(:,:)
+REAL,ALLOCATABLE                   :: AD_DataTmp(:,:)
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
@@ -117,6 +121,34 @@ LastElemInd  = offsetElem+PP_nElems
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Restarting particles during loadbalance...'
+
+  ! ------------------------------------------------
+  ! PartSource
+  ! ------------------------------------------------
+  IF (DoDeposition .AND. RelaxDeposition) THEN
+    ALLOCATE(PartSource_HDF5(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
+    ASSOCIATE (&
+            counts_send  => INT(4*(PP_N+1)**3*MPInElemSend     ,IK) ,&
+            disp_send    => INT(4*(PP_N+1)**3*MPIoffsetElemSend,IK) ,&
+            counts_recv  => INT(4*(PP_N+1)**3*MPInElemRecv     ,IK) ,&
+            disp_recv    => INT(4*(PP_N+1)**3*MPIoffsetElemRecv,IK))
+      ! Communicate PartSource over MPI
+      CALL MPI_ALLTOALLV(PartSourceLB,counts_send,disp_send,MPI_INTEGER_INT_KIND,PartSource_HDF5,counts_recv,disp_recv,MPI_INTEGER_INT_KIND,MPI_COMM_WORLD,iError)
+    END ASSOCIATE
+    DEALLOCATE(PartSourceLB)
+
+    DO iElem =1,PP_nElems
+      DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+#if ((USE_HDG) && (PP_nVar==1))
+        PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+        PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+#else
+        PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+        PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+#endif
+      END DO; END DO; END DO
+    END DO
+  END IF ! (DoDeposition .AND. RelaxDeposition)
 
   ! Reconstruct the PartDataSize
   IF (PartDataSize.EQ.0) THEN
@@ -140,6 +172,28 @@ IF (PerformLoadBalance) THEN
       PartDataSize=7
     END IF ! UseDSMC
   END IF ! PartDataSize.EQ.0
+
+  IF (useDSMC) THEN
+    IF (DSMC%NumPolyatomMolecs.GT.0) THEN
+      MaxQuantNum = 0
+      DO iSpec = 1,nSpecies
+        IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
+          iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+          IF (PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.MaxQuantNum) MaxQuantNum = PolyatomMolDSMC(iPolyatMole)%VibDOF
+        END IF ! SpecDSMC(iSpec)%PolyatomicMol
+      END DO ! iSpec = 1, nSpecies
+    END IF ! DSMC%NumPolyatomMolecs.GT.0
+
+    IF (DSMC%ElectronicModel.EQ.2) THEN
+      MaxElecQuant = 0
+      DO iSpec = 1,nSpecies
+        IF (.NOT.((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized)) THEN
+          IF (SpecDSMC(iSpec)%MaxElecQuant.GT.MaxElecQuant) MaxElecQuant = SpecDSMC(iSpec)%MaxElecQuant
+        END IF
+      END DO
+    END IF ! DSMC%ElectronicModel.EQ.2
+  END IF ! useDSMC
+
 
   ! PartInt and PartData are still allocated from last WriteState
   ALLOCATE(PartIntTmp(PartIntSize,FirstElemInd:LastElemInd))
@@ -204,6 +258,65 @@ IF (PerformLoadBalance) THEN
   PartData = PartDataTmp
   DEALLOCATE(PartDataTmp)
   PartDataExists = .TRUE.
+
+  ! ------------------------------------------------
+  ! DSMC-specific arrays
+  ! ------------------------------------------------
+  IF(useDSMC)THEN
+    ! Polyatomic
+    IF (DSMC%NumPolyatomMolecs.GT.0) THEN
+      ALLOCATE(VibQuantDataTmp(MaxQuantNum,offsetnPart+1_IK:offsetnPart+locnPart))
+      ASSOCIATE (&
+              counts_send  => INT(MaxQuantNum*MPInPartSend     ,IK) ,&
+              disp_send    => INT(MaxQuantNum*MPIoffsetPartSend,IK) ,&
+              counts_recv  => INT(MaxQuantNum*MPInPartRecv     ,IK) ,&
+              disp_recv    => INT(MaxQuantNum*MPIoffsetPartRecv,IK))
+        ! Communicate PartInt over MPI
+        CALL MPI_ALLTOALLV(VibQuantData,counts_send,disp_send,MPI_DOUBLE_PRECISION,VibQuantDataTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
+      END ASSOCIATE
+
+      DEALLOCATE(VibQuantData)
+      ALLOCATE(VibQuantData(MaxQuantNum,offsetnPart+1_IK:offsetnPart+locnPart))
+      VibQuantData = VibQuantDataTmp
+      DEALLOCATE(VibQuantDataTmp)
+    END IF
+
+    ! Electronic
+    IF (DSMC%ElectronicModel.EQ.2) THEN
+      ALLOCATE(ElecDistriDataTmp(MaxElecQuant,offsetnPart+1_IK:offsetnPart+locnPart))
+      ASSOCIATE (&
+              counts_send  => INT(MaxElecQuant*MPInPartSend     ,IK) ,&
+              disp_send    => INT(MaxElecQuant*MPIoffsetPartSend,IK) ,&
+              counts_recv  => INT(MaxElecQuant*MPInPartRecv     ,IK) ,&
+              disp_recv    => INT(MaxElecQuant*MPIoffsetPartRecv,IK))
+        ! Communicate PartInt over MPI
+        CALL MPI_ALLTOALLV(ElecDistriData,counts_send,disp_send,MPI_DOUBLE_PRECISION,ElecDistriDataTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
+      END ASSOCIATE
+
+      DEALLOCATE(ElecDistriData)
+      ALLOCATE(ElecDistriData(MaxElecQuant,offsetnPart+1_IK:offsetnPart+locnPart))
+      ElecDistriData = ElecDistriDataTmp
+      DEALLOCATE(ElecDistriDataTmp)
+    END IF
+
+    ! Ambipolar Diffusion
+    IF (DSMC%DoAmbipolarDiff) THEN
+      ALLOCATE(AD_DataTmp(3,offsetnPart+1_IK:offsetnPart+locnPart))
+      ASSOCIATE (&
+              counts_send  => INT(3*MPInPartSend     ,IK) ,&
+              disp_send    => INT(3*MPIoffsetPartSend,IK) ,&
+              counts_recv  => INT(3*MPInPartRecv     ,IK) ,&
+              disp_recv    => INT(3*MPIoffsetPartRecv,IK))
+        ! Communicate PartInt over MPI
+        CALL MPI_ALLTOALLV(AD_Data,counts_send,disp_send,MPI_DOUBLE_PRECISION,AD_DataTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
+      END ASSOCIATE
+
+      DEALLOCATE(AD_Data)
+      ALLOCATE(AD_Data(3,offsetnPart+1_IK:offsetnPart+locnPart))
+      AD_Data = AD_DataTmp
+      DEALLOCATE(AD_DataTmp)
+    END IF
+  END IF ! useDSMC
 
 ! NOT. PerformLoadBalance
 ELSE

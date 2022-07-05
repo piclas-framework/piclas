@@ -350,6 +350,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: VibQuantData,ElecDistriData,AD_Data
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -366,8 +367,6 @@ LOGICAL                        :: reSwitch
 INTEGER                        :: pcount
 LOGICAL                        :: withDSMC=.FALSE.
 INTEGER                        :: iElem_glob, iElem_loc
-INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
-REAL, ALLOCATABLE              :: ElecDistriData(:,:), AD_Data(:,:)
 INTEGER,PARAMETER              :: PartIntSize=2        !number of entries in each line of PartInt
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
 INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec, MaxElecQuant
@@ -375,7 +374,13 @@ INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec, MaxElecQuant
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart
 INTEGER                        :: ALLOCSTAT
-!=============================================
+#if !USE_LOADBALANCE
+INTEGER, ALLOCATABLE           :: VibQuantData(:,:)
+REAL, ALLOCATABLE              :: ElecDistriData(:,:)
+REAL, ALLOCATABLE              :: AD_Data(:,:)
+#endif /*!USE_LOADBALANCE*/
+!===================================================================================================================================
+
 ! Required default values for KIND=IK
 MaxQuantNum=-1
 ! Write properties -----------------------------------------------------------------------------------------------------------------
@@ -650,6 +655,9 @@ ASSOCIATE (&
 END ASSOCIATE
 
 IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
+#if USE_LOADBALANCE
+  SDEALLOCATE(VibQuantData)
+#endif /*USE_LOADBALANCE*/
   ALLOCATE(VibQuantData(MaxQuantNum,offsetnPart+1_IK:offsetnPart+locnPart))
   VibQuantData = 0
   !+1 is real number of necessary vib quants for the particle
@@ -701,7 +709,6 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
                               offset       = (/0_IK          , offsetnPart /)           , &
                               collective   = UseCollectiveIO , offSetDim = 2            , &
                               communicator = PartMPI%COMM    , IntegerArray_i4 = VibQuantData)
-    DEALLOCATE(VibQuantData)
 #else
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteArrayToHDF5(DataSetName = 'VibQuantData' , rank = 2                 , &
@@ -709,13 +716,23 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
                           nVal        = (/ MaxQuantNum , locnPart     /)          , &
                           offset      = (/ 0_IK        , offsetnPart  /)          , &
                           collective  = .FALSE.        , IntegerArray_i4 = VibQuantData)
-    DEALLOCATE(VibQuantData)
     CALL CloseDataFile()
 #endif /*USE_MPI*/
   END ASSOCIATE
+
+#if USE_LOADBALANCE
+  IF (PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+    DEALLOCATE(VibQuantData)
+#if USE_LOADBALANCE
+  END IF ! PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 END IF
 
 IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
+#if USE_LOADBALANCE
+  SDEALLOCATE(ElecDistriData)
+#endif /*USE_LOADBALANCE*/
   ALLOCATE(ElecDistriData(MaxElecQuant,offsetnPart+1_IK:offsetnPart+locnPart))
   ElecDistriData = 0
   !+1 is real number of necessary vib quants for the particle
@@ -766,7 +783,6 @@ IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
                               offset       = (/0_IK           , offsetnPart /)           , &
                               collective   = UseCollectiveIO  , offSetDim = 2            , &
                               communicator = PartMPI%COMM     , RealArray = ElecDistriData)
-    DEALLOCATE(ElecDistriData)
 #else
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteArrayToHDF5(DataSetName = 'ElecDistriData' , rank = 2                    , &
@@ -774,13 +790,23 @@ IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
                           nVal        = (/ MaxElecQuant  , locnPart     /)             , &
                           offset      = (/ 0_IK          , offsetnPart  /)             , &
                           collective  = .FALSE.          , RealArray = ElecDistriData)
-    DEALLOCATE(ElecDistriData)
     CALL CloseDataFile()
 #endif /*USE_MPI*/
   END ASSOCIATE
+
+#if USE_LOADBALANCE
+  IF (PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+    DEALLOCATE(ElecDistriData)
+#if USE_LOADBALANCE
+  END IF ! PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 END IF
 
 IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
+#if USE_LOADBALANCE
+  SDEALLOCATE(AD_Data)
+#endif /*USE_LOADBALANCE*/
   ALLOCATE(AD_Data(3,offsetnPart+1_IK:offsetnPart+locnPart))
   AD_Data = 0.0
   !+1 is real number of necessary vib quants for the particle
@@ -809,36 +835,42 @@ IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
     PartInt(2,iElem_glob)=iPart
   END DO
 
-    IF(nGlobalNbrOfParticles(3).EQ.0_IK)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
-      IF(MPIRoot)THEN ! only root writes the container
-        CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-        CALL WriteArrayToHDF5(DataSetName = 'ADVeloData' , rank = 2                 , &
-                              nValGlobal  = (/3_IK       , nGlobalNbrOfParticles(3) /) , &
-                              nVal        = (/3_IK       , locnPart   /)            , &
-                              offset      = (/0_IK       , offsetnPart/)            , &
-                              collective  = .FALSE.      , RealArray = AD_Data)
-        CALL CloseDataFile()
-      END IF !MPIRoot
-    END IF !nGlobalNbrOfParticles(3).EQ.0_IK
+  IF(nGlobalNbrOfParticles(3).EQ.0_IK)THEN ! zero particles present: write empty dummy container to .h5 file, required for (auto-)restart
+    IF(MPIRoot)THEN ! only root writes the container
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+      CALL WriteArrayToHDF5(DataSetName = 'ADVeloData' , rank = 2                 , &
+                            nValGlobal  = (/3_IK       , nGlobalNbrOfParticles(3) /) , &
+                            nVal        = (/3_IK       , locnPart   /)            , &
+                            offset      = (/0_IK       , offsetnPart/)            , &
+                            collective  = .FALSE.      , RealArray = AD_Data)
+      CALL CloseDataFile()
+    END IF !MPIRoot
+  END IF !nGlobalNbrOfParticles(3).EQ.0_IK
 #if USE_MPI
-    CALL DistributedWriteArray(FileName                                                 , &
-                              DataSetName  = 'ADVeloData'    , rank = 2                 , &
-                              nValGlobal   = (/3_IK          , nGlobalNbrOfParticles(3) /) , &
-                              nVal         = (/3_IK          , locnPart    /)           , &
-                              offset       = (/0_IK          , offsetnPart /)           , &
-                              collective   = UseCollectiveIO , offSetDim = 2            , &
-                              communicator = PartMPI%COMM    , RealArray = AD_Data)
-    DEALLOCATE(AD_Data)
+  CALL DistributedWriteArray(FileName                                                 , &
+                            DataSetName  = 'ADVeloData'    , rank = 2                 , &
+                            nValGlobal   = (/3_IK          , nGlobalNbrOfParticles(3) /) , &
+                            nVal         = (/3_IK          , locnPart    /)           , &
+                            offset       = (/0_IK          , offsetnPart /)           , &
+                            collective   = UseCollectiveIO , offSetDim = 2            , &
+                            communicator = PartMPI%COMM    , RealArray = AD_Data)
 #else
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteArrayToHDF5(DataSetName = 'ADVeloData' , rank = 2                   , &
-                          nValGlobal  = (/ 3_IK      , nGlobalNbrOfParticles(3)   /) , &
-                          nVal        = (/ 3_IK      , locnPart     /)            , &
-                          offset      = (/ 0_IK      , offsetnPart  /)            , &
-                          collective  = .FALSE.      , RealArray = AD_Data)
-    DEALLOCATE(AD_Data)
-    CALL CloseDataFile()
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL WriteArrayToHDF5(DataSetName = 'ADVeloData' , rank = 2                   , &
+                        nValGlobal  = (/ 3_IK      , nGlobalNbrOfParticles(3)   /) , &
+                        nVal        = (/ 3_IK      , locnPart     /)            , &
+                        offset      = (/ 0_IK      , offsetnPart  /)            , &
+                        collective  = .FALSE.      , RealArray = AD_Data)
+  CALL CloseDataFile()
 #endif /*USE_MPI*/
+
+#if USE_LOADBALANCE
+  IF (PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+    DEALLOCATE(AD_Data)
+#if USE_LOADBALANCE
+  END IF ! PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 END IF
 
 ! For LoadBalance, keep arrays allocated to restart from
@@ -1819,6 +1851,14 @@ IF (withDSMC) THEN
                           collective=.FALSE.              , RealArray=AD_Data)
     DEALLOCATE(AD_Data)
   END IF
+
+! #if USE_LOADBALANCE
+! IF (.NOT.PerformLoadBalance) THEN
+!   SDEALLOCATE(VibQuantData)
+!   SDEALLOCATE(ElecDistriData)
+!   SDEALLOCATE(AD_Data)
+! END IF ! .NOT.PerformLoadBalance
+! #endif /*USE_LOADBALANCE*/
 END IF
 END ASSOCIATE
 
