@@ -526,7 +526,7 @@ IF(FILEEXISTS(outfile)) WriteHeader = .FALSE.
 
 IF(WriteHeader)THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
-  tmpStr=""
+  tmpStr=' '
   DO i=1,nTotalVars
     WRITE(tmpStr(i),'(A)')delimiter//'"'//TRIM(StrVarNames(i))//'"'
   END DO
@@ -648,7 +648,7 @@ outfileProc_loc=TRIM(outfileProc_loc)//TRIM(hilf)
 
 ! Write the file header
 OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfileProc_loc),STATUS="UNKNOWN")
-tmpStr=""
+tmpStr=' '
 DO i=1,nTotalVars
   WRITE(tmpStr(i),'(A)')delimiter//'"'//TRIM(StrVarNames(i))//'"'
 END DO
