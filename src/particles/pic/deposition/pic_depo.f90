@@ -125,6 +125,10 @@ INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
 INTEGER                   :: TestElemID, GlobalElemRankOrig, iRank
 LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:), DoNodeMapping(:), SendNode(:), IsDepoNode(:)
 LOGICAL                   :: bordersMyrank
+! Non-symmetric particle exchange
+INTEGER                   :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
+INTEGER                   :: nSendUniqueNodesNonSymDepo(0:nProcessors_Global-1) , nRecvUniqueNodesNonSymDepo(0:nProcessors_Global-1)
+INTEGER                   :: GlobalRankToNodeSendDepoRank(0:nProcessors_Global-1)
 #endif
 !===================================================================================================================================
 
@@ -314,21 +318,20 @@ CASE('cell_volweight_mean')
     END IF
   END DO
 
-  ALLOCATE(GlobalRanktoNodeDepoRank(0:nProcessors_Global-1))
-  GlobalRanktoNodeDepoRank = -1
-  nNodeExchangeProcs = COUNT(DoNodeMapping)
-  ALLOCATE(NodeDepoRanktoGlobalRank(1:nNodeExchangeProcs))
-  NodeDepoRanktoGlobalRank = 0
-  nNodeExchangeProcs = 0
+  GlobalRankToNodeSendDepoRank = -1
+  nNodeSendExchangeProcs = COUNT(DoNodeMapping)
+  ALLOCATE(NodeSendDepoRankToGlobalRank(1:nNodeSendExchangeProcs))
+  NodeSendDepoRankToGlobalRank = 0
+  nNodeSendExchangeProcs = 0
   DO iRank= 0, nProcessors_Global-1
     IF (iRank.EQ.myRank) CYCLE
     IF (DoNodeMapping(iRank)) THEN
-      nNodeExchangeProcs = nNodeExchangeProcs + 1
-      GlobalRanktoNodeDepoRank(iRank) = nNodeExchangeProcs
-      NodeDepoRanktoGlobalRank(nNodeExchangeProcs) = iRank
+      nNodeSendExchangeProcs = nNodeSendExchangeProcs + 1
+      GlobalRankToNodeSendDepoRank(iRank) = nNodeSendExchangeProcs
+      NodeSendDepoRankToGlobalRank(nNodeSendExchangeProcs) = iRank
     END IF
   END DO
-  ALLOCATE(NodeDepoMapping(1:nNodeExchangeProcs, 1:nUniqueGlobalNodes))
+  ALLOCATE(NodeDepoMapping(1:nNodeSendExchangeProcs, 1:nUniqueGlobalNodes))
   NodeDepoMapping = .FALSE.
 
   DO iNode = 1, nUniqueGlobalNodes
@@ -338,7 +341,7 @@ CASE('cell_volweight_mean')
           GlobalElemRank = ElemInfo_Shared(ELEM_RANK,TestElemID)
           ! check if element for this side is on the current compute-node. Alternative version to the check above
           IF (GlobalElemRank.NE.myRank) THEN
-            iRank = GlobalRanktoNodeDepoRank(GlobalElemRank)
+            iRank = GlobalRankToNodeSendDepoRank(GlobalElemRank)
             IF (iRank.LT.1) CALL ABORT(__STAMP__,'Found not connected Rank!', IERROR)
             NodeDepoMapping(iRank, iNode) = .TRUE.
           END IF
@@ -346,80 +349,122 @@ CASE('cell_volweight_mean')
     END IF
   END DO
 
-  ALLOCATE(RecvRequest (1:nNodeExchangeProcs), SendRequest(1:nNodeExchangeProcs))
-  ALLOCATE(NodeMapping(1:nNodeExchangeProcs))
-
-  DO iProc = 1, nNodeExchangeProcs
-    NodeMapping(iProc)%nRecvUniqueNodes = 0
-    NodeMapping(iProc)%nSendUniqueNodes = 0
-    CALL MPI_IRECV( NodeMapping(iProc)%nRecvUniqueNodes                       &
-                , 1                                                           &
-                , MPI_INTEGER                                                 &
-                , NodeDepoRanktoGlobalRank(iProc)                             &
-                , 666                                                         &
-                , MPI_COMM_WORLD                                              &
-                , RecvRequest(iProc)                                          &
-                , IERROR)
+  ! Get number of send nodes for each proc: Size of each message for each proc for deposition
+  nSendUniqueNodesNonSymDepo         = 0
+  nRecvUniqueNodesNonSymDepo(myrank) = 0
+  ALLOCATE(NodeMappingSend(1:nNodeSendExchangeProcs))
+  DO iProc = 1, nNodeSendExchangeProcs
+    NodeMappingSend(iProc)%nSendUniqueNodes = 0
     DO iNode = 1, nUniqueGlobalNodes
-      IF (NodeDepoMapping(iProc,iNode)) NodeMapping(iProc)%nSendUniqueNodes = NodeMapping(iProc)%nSendUniqueNodes + 1
+      IF (NodeDepoMapping(iProc,iNode)) NodeMappingSend(iProc)%nSendUniqueNodes = NodeMappingSend(iProc)%nSendUniqueNodes + 1
     END DO
-    CALL MPI_ISEND( NodeMapping(iProc)%nSendUniqueNodes                         &
-                  , 1                                                           &
-                  , MPI_INTEGER                                                 &
-                  , NodeDepoRanktoGlobalRank(iProc)                             &
-                  , 666                                                         &
-                  , MPI_COMM_WORLD                                             &
-                  , SendRequest(iProc)                                        &
+    ! local to global array
+    nSendUniqueNodesNonSymDepo(NodeSendDepoRankToGlobalRank(iProc)) = NodeMappingSend(iProc)%nSendUniqueNodes
+  END DO
+
+  ! Open receive buffer for non-symmetric exchange identification
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
+    CALL MPI_IRECV( nRecvUniqueNodesNonSymDepo(iProc)  &
+                  , 1                            &
+                  , MPI_INTEGER                  &
+                  , iProc                        &
+                  , 1999                         &
+                  , MPI_COMM_WORLD               &
+                  , RecvRequestNonSymDepo(iProc)           &
                   , IERROR)
   END DO
 
-  DO iProc = 1, nNodeExchangeProcs
-    CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
-    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
-    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  ! Send each proc the number of nodes that can be reached by deposition
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
+    CALL MPI_ISEND( nSendUniqueNodesNonSymDepo(iProc) &
+                  , 1                                 &
+                  , MPI_INTEGER                       &
+                  , iProc                             &
+                  , 1999                              &
+                  , MPI_COMM_WORLD                    &
+                  , SendRequestNonSymDepo(iProc)      &
+                  , IERROR)
   END DO
 
- DO iProc = 1, nNodeExchangeProcs
-    ALLOCATE(NodeMapping(iProc)%RecvNodeUniqueGlobalID(1:NodeMapping(iProc)%nRecvUniqueNodes))
-    ALLOCATE(NodeMapping(iProc)%RecvNodeSourceCharge(1:NodeMapping(iProc)%nRecvUniqueNodes))
-    ALLOCATE(NodeMapping(iProc)%RecvNodeSourceCurrent(1:3,1:NodeMapping(iProc)%nRecvUniqueNodes))
-    IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMapping(iProc)%RecvNodeSourceExt(1:NodeMapping(iProc)%nRecvUniqueNodes))
-    CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeUniqueGlobalID                   &
-                  , NodeMapping(iProc)%nRecvUniqueNodes                         &
+  ! Finish communication
+  DO iProc = 0,nProcessors_Global-1
+    IF (iProc.EQ.myRank) CYCLE
+    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END DO
+
+  nNodeRecvExchangeProcs = COUNT(nRecvUniqueNodesNonSymDepo.GT.0)
+  ALLOCATE(NodeMappingRecv(1:nNodeRecvExchangeProcs))
+  ALLOCATE(NodeRecvDepoRankToGlobalRank(1:nNodeRecvExchangeProcs))
+  NodeRecvDepoRankToGlobalRank = 0
+  nNodeRecvExchangeProcs = 0
+  DO iRank= 0, nProcessors_Global-1
+    IF (iRank.EQ.myRank) CYCLE
+    IF (nRecvUniqueNodesNonSymDepo(iRank).GT.0) THEN
+      nNodeRecvExchangeProcs = nNodeRecvExchangeProcs + 1
+      ! Store global rank of iRecvRank
+      NodeRecvDepoRankToGlobalRank(nNodeRecvExchangeProcs) = iRank
+      ! Store number of nodes of iRecvRank
+      NodeMappingRecv(nNodeRecvExchangeProcs)%nRecvUniqueNodes = nRecvUniqueNodesNonSymDepo(iRank)
+    END IF
+  END DO
+
+  ! Open receive buffer
+  ALLOCATE(RecvRequest(1:nNodeRecvExchangeProcs))
+  DO iProc = 1, nNodeRecvExchangeProcs
+    ALLOCATE(NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID(1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
+    ALLOCATE(NodeMappingRecv(iProc)%RecvNodeSourceCharge(1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
+    ALLOCATE(NodeMappingRecv(iProc)%RecvNodeSourceCurrent(1:3,1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
+    IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMappingRecv(iProc)%RecvNodeSourceExt(1:NodeMappingRecv(iProc)%nRecvUniqueNodes))
+    CALL MPI_IRECV( NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID                   &
+                  , NodeMappingRecv(iProc)%nRecvUniqueNodes                         &
                   , MPI_INTEGER                                                 &
-                  , NodeDepoRanktoGlobalRank(iProc)                             &
+                  , NodeRecvDepoRankToGlobalRank(iProc)                         &
                   , 666                                                         &
-                  , MPI_COMM_WORLD                                     &
+                  , MPI_COMM_WORLD                                              &
                   , RecvRequest(iProc)                                          &
                   , IERROR)
+  END DO
 
-    ALLOCATE(NodeMapping(iProc)%SendNodeUniqueGlobalID(1:NodeMapping(iProc)%nSendUniqueNodes))
-    NodeMapping(iProc)%SendNodeUniqueGlobalID=-1
-    ALLOCATE(NodeMapping(iProc)%SendNodeSourceCharge(1:NodeMapping(iProc)%nSendUniqueNodes))
-    NodeMapping(iProc)%SendNodeSourceCharge=0.
-    ALLOCATE(NodeMapping(iProc)%SendNodeSourceCurrent(1:3,1:NodeMapping(iProc)%nSendUniqueNodes))
-    NodeMapping(iProc)%SendNodeSourceCurrent=0.
-    IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMapping(iProc)%SendNodeSourceExt(1:NodeMapping(iProc)%nSendUniqueNodes))
+  ! Open send buffer
+  ALLOCATE(SendRequest(1:nNodeSendExchangeProcs))
+  DO iProc = 1, nNodeSendExchangeProcs
+    ALLOCATE(NodeMappingSend(iProc)%SendNodeUniqueGlobalID(1:NodeMappingSend(iProc)%nSendUniqueNodes))
+    NodeMappingSend(iProc)%SendNodeUniqueGlobalID=-1
+    ALLOCATE(NodeMappingSend(iProc)%SendNodeSourceCharge(1:NodeMappingSend(iProc)%nSendUniqueNodes))
+    NodeMappingSend(iProc)%SendNodeSourceCharge=0.
+    ALLOCATE(NodeMappingSend(iProc)%SendNodeSourceCurrent(1:3,1:NodeMappingSend(iProc)%nSendUniqueNodes))
+    NodeMappingSend(iProc)%SendNodeSourceCurrent=0.
+    IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMappingSend(iProc)%SendNodeSourceExt(1:NodeMappingSend(iProc)%nSendUniqueNodes))
     SendNodeCount = 0
     DO iNode = 1, nUniqueGlobalNodes
       IF (NodeDepoMapping(iProc,iNode)) THEN
         SendNodeCount = SendNodeCount + 1
-        NodeMapping(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = iNode
+        NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = iNode
       END IF
     END DO
-    CALL MPI_ISEND( NodeMapping(iProc)%SendNodeUniqueGlobalID                   &
-                  , NodeMapping(iProc)%nSendUniqueNodes                         &
+    CALL MPI_ISEND( NodeMappingSend(iProc)%SendNodeUniqueGlobalID                   &
+                  , NodeMappingSend(iProc)%nSendUniqueNodes                         &
                   , MPI_INTEGER                                                 &
-                  , NodeDepoRanktoGlobalRank(iProc)                                                       &
+                  , NodeSendDepoRankToGlobalRank(iProc)                         &
                   , 666                                                         &
-                  , MPI_COMM_WORLD                                     &
+                  , MPI_COMM_WORLD                                              &
                   , SendRequest(iProc)                                          &
                   , IERROR)
   END DO
-  DO iProc = 1, nNodeExchangeProcs
+
+  ! Finish send
+  DO iProc = 1, nNodeSendExchangeProcs
     CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END DO
+
+  ! Finish receive
+  DO iProc = 1, nNodeRecvExchangeProcs
     CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
@@ -901,8 +946,8 @@ SDEALLOCATE(ChargeSFDone)
 SDEALLOCATE(PartSourceGlob)
 SDEALLOCATE(PeriodicSFCaseMatrix)
 SDEALLOCATE(PartSource)
-SDEALLOCATE(GlobalRanktoNodeDepoRank)
-SDEALLOCATE(NodeDepoRanktoGlobalRank)
+SDEALLOCATE(NodeSendDepoRankToGlobalRank)
+SDEALLOCATE(NodeRecvDepoRankToGlobalRank)
 SDEALLOCATE(DepoNodetoGlobalNode)
 
 SDEALLOCATE(NodeSource)
@@ -911,7 +956,8 @@ SDEALLOCATE(NodeSourceExt)
 #if USE_MPI
 SDEALLOCATE(NodeSourceExtTmp)
 SDEALLOCATE(FlagShapeElem)
-SDEALLOCATE(NodeMapping)
+SDEALLOCATE(NodeMappingSend)
+SDEALLOCATE(NodeMappingRecv)
 SDEALLOCATE(nDepoDOFPerProc)
 SDEALLOCATE(nDepoOffsetProc)
 SDEALLOCATE(RecvRequest)

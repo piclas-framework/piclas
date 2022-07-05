@@ -93,9 +93,11 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 #if USE_MPI
-USE MOD_PICDepo_Vars       ,ONLY: NodeMapping,NodeSourceExtTmp
+USE MOD_PICDepo_Vars       ,ONLY: NodeMappingRecv,NodeMappingSend,NodeSourceExtTmp
 USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
-USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,nNodeExchangeProcs,NodeDepoRanktoGlobalRank,DepoNodetoGlobalNode
+USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,nNodeSendExchangeProcs,NodeSendDepoRankToGlobalRank,DepoNodetoGlobalNode
+USE MOD_PICDepo_Vars       ,ONLY: nNodeRecvExchangeProcs
+USE MOD_PICDepo_Vars       ,ONLY: NodeRecvDepoRankToGlobalRank
 #endif  /*USE_MPI*/
 USE MOD_TimeDisc_Vars      ,ONLY: iter
 #if defined(MEASURE_MPI_WAIT)
@@ -119,7 +121,7 @@ INTEGER                        :: NodeID(1:8)
 #if USE_MPI
 INTEGER                        :: iProc
 !INTEGER                        :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
-INTEGER                        :: RecvRequest(1:nNodeExchangeProcs),SendRequest(1:nNodeExchangeProcs)
+INTEGER                        :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
 !INTEGER                        :: MessageSize
 #endif /*USE_MPI*/
 INTEGER                        :: globalNode, iNode
@@ -139,26 +141,29 @@ IF(iter.NE.0)THEN
 
 ! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
 #if USE_MPI
-  ! 1) Send/Receive charge density
-  DO iProc = 1, nNodeExchangeProcs
+  ! 1) Receive charge density
+  DO iProc = 1, nNodeRecvExchangeProcs
     ! Open receive buffer
-    CALL MPI_IRECV( NodeMapping(iProc)%RecvNodeSourceExt(:) &
-              , NodeMapping(iProc)%nRecvUniqueNodes            &
+    CALL MPI_IRECV( NodeMappingRecv(iProc)%RecvNodeSourceExt(:) &
+              , NodeMappingRecv(iProc)%nRecvUniqueNodes            &
               , MPI_DOUBLE_PRECISION                           &
-              , NodeDepoRanktoGlobalRank(iProc)                &
+              , NodeRecvDepoRankToGlobalRank(iProc)                &
               , 666                                            &
               , MPI_COMM_WORLD                                 &
               , RecvRequest(iProc)                             &
               , IERROR)
+  END DO
 
+
+  DO iProc = 1, nNodeSendExchangeProcs
     ! Send message (non-blocking)
-    DO iNode = 1, NodeMapping(iProc)%nSendUniqueNodes
-      NodeMapping(iProc)%SendNodeSourceExt(iNode) = NodeSourceExtTmp(NodeMapping(iProc)%SendNodeUniqueGlobalID(iNode))
+    DO iNode = 1, NodeMappingSend(iProc)%nSendUniqueNodes
+      NodeMappingSend(iProc)%SendNodeSourceExt(iNode) = NodeSourceExtTmp(NodeMappingSend(iProc)%SendNodeUniqueGlobalID(iNode))
     END DO
-    CALL MPI_ISEND( NodeMapping(iProc)%SendNodeSourceExt(:) &
-                  , NodeMapping(iProc)%nSendUniqueNodes        &
+    CALL MPI_ISEND( NodeMappingSend(iProc)%SendNodeSourceExt(:) &
+                  , NodeMappingSend(iProc)%nSendUniqueNodes        &
                   , MPI_DOUBLE_PRECISION                       &
-                  , NodeDepoRanktoGlobalRank(iProc)            &
+                  , NodeSendDepoRankToGlobalRank(iProc)            &
                   , 666                                        &
                   , MPI_COMM_WORLD                             &
                   , SendRequest(iProc)                         &
@@ -168,9 +173,11 @@ IF(iter.NE.0)THEN
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
-  DO iProc = 1, nNodeExchangeProcs
+  DO iProc = 1, nNodeSendExchangeProcs
     CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+  END DO
+  DO iProc = 1, nNodeRecvExchangeProcs
     CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
@@ -180,10 +187,10 @@ IF(iter.NE.0)THEN
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
   ! 3) Extract messages
-  DO iProc = 1, nNodeExchangeProcs
-    DO iNode = 1, NodeMapping(iProc)%nRecvUniqueNodes
-      ASSOCIATE( NS => NodeSourceExtTmp(NodeMapping(iProc)%RecvNodeUniqueGlobalID(iNode)))
-        NS = NS + NodeMapping(iProc)%RecvNodeSourceExt(iNode)
+  DO iProc = 1, nNodeRecvExchangeProcs
+    DO iNode = 1, NodeMappingRecv(iProc)%nRecvUniqueNodes
+      ASSOCIATE( NS => NodeSourceExtTmp(NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID(iNode)))
+        NS = NS + NodeMappingRecv(iProc)%RecvNodeSourceExt(iNode)
       END ASSOCIATE
     END DO
   END DO

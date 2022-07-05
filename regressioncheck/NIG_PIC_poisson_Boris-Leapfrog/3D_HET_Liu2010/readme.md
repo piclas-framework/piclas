@@ -38,3 +38,6 @@
   elements
 
     Part-Species2-Init2-SpaceIC = 3D_Liu2010_neutralization_Szabo
+
+- For 10 processors an asymmetric CVWM deposition occurs when some processors deposit charge on the dielectric interface, the nodes
+  of which are not connected directly to their own mesh cells

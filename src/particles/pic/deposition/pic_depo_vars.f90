@@ -115,12 +115,13 @@ REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
 REAL,ALLOCPOINT                 :: SFElemr2_Shared(:,:) ! index 1: radius, index 2: radius squared
 
 REAL,ALLOCATABLE                :: NodeSource(:,:)
-INTEGER,ALLOCATABLE             :: GlobalRanktoNodeDepoRank(:)
-INTEGER,ALLOCATABLE             :: NodeDepoRanktoGlobalRank(:)
+INTEGER,ALLOCATABLE             :: NodeSendDepoRankToGlobalRank(:)
+INTEGER,ALLOCATABLE             :: NodeRecvDepoRankToGlobalRank(:)
 INTEGER,ALLOCATABLE             :: DepoNodetoGlobalNode(:)
 INTEGER                         :: nDepoNodes
 INTEGER                         :: nDepoNodesTotal
-INTEGER                         :: nNodeExchangeProcs
+INTEGER                         :: nNodeSendExchangeProcs
+INTEGER                         :: nNodeRecvExchangeProcs
 ! Additional source for cell_volweight_mean (external or surface charge) that accumulates over time in elements adjacent to
 ! dielectric interfaces.
 REAL,ALLOCATABLE                :: NodeSourceExt(:) ! It contains the global, synchronized surface charge contribution that is
@@ -133,19 +134,25 @@ REAL,ALLOCATABLE                :: NodeSourceExtTmp(:) ! It contains the local n
 
 INTEGER                         :: SFElemr2_Shared_Win
 
-TYPE tNodeMapping
-  INTEGER,ALLOCATABLE           :: RecvNodeUniqueGlobalID(:)
+! Send direction of nodes (can be different from number of receive nodes for each processor)
+TYPE tNodeMappingSend
   INTEGER,ALLOCATABLE           :: SendNodeUniqueGlobalID(:)
-  REAL,ALLOCATABLE              :: RecvNodeSourceCharge(:)
   REAL,ALLOCATABLE              :: SendNodeSourceCharge(:)
-  REAL,ALLOCATABLE              :: RecvNodeSourceCurrent(:,:)
   REAL,ALLOCATABLE              :: SendNodeSourceCurrent(:,:)
-  REAL,ALLOCATABLE              :: RecvNodeSourceExt(:)
   REAL,ALLOCATABLE              :: SendNodeSourceExt(:)
   INTEGER                       :: nSendUniqueNodes
+END TYPE
+TYPE (tNodeMappingSend),ALLOCATABLE      :: NodeMappingSend(:)
+
+! Receive direction of nodes (can be different from number of send nodes for each processor)
+TYPE tNodeMappingRecv
+  INTEGER,ALLOCATABLE           :: RecvNodeUniqueGlobalID(:)
+  REAL,ALLOCATABLE              :: RecvNodeSourceCharge(:)
+  REAL,ALLOCATABLE              :: RecvNodeSourceCurrent(:,:)
+  REAL,ALLOCATABLE              :: RecvNodeSourceExt(:)
   INTEGER                       :: nRecvUniqueNodes
 END TYPE
-TYPE (tNodeMapping),ALLOCATABLE      :: NodeMapping(:)
+TYPE (tNodeMappingRecv),ALLOCATABLE      :: NodeMappingRecv(:)
 #endif
 
 #if USE_MPI
