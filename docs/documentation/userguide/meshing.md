@@ -21,7 +21,7 @@ Note that the path to the **HOPR** executable is omitted in the command (visit {
 ## Mesh generation with HOPR
 
 Using **HOPR**, simple, structured meshes can be directly created using an
-[in-built mesh generator.](https://www.hopr-project.org/index.php/Inbuilt_Mesh_Generators).
+[in-built mesh generator](https://www.hopr-project.org/index.php/Inbuilt_Mesh_Generators).
 A number of strategies to create curved boundaries are also included in HOPR.
 
 ## Mesh conversion with HOPR
@@ -102,14 +102,14 @@ parameter file. During the export as CGNS the following options are required:
 * Check "Only write out boundary faces"
 * Check "Write out boundary faces grouped by panels"
 
-Read-in and convert with HOPR and the following options:
+Read-in and convert with HOPR using the following options:
 
     Mode = 3
     BugFix_ANSA_CGNS = TRUE
     SplitToHex = TRUE
 
-Should problems occur try to set SpaceQuandt to a higher value, e.g. 100. During the pre-processing step every tetrahedron will be
-converted to 4 hexahedra, resulting in increased number of elements.
+Should problems occur, try to set SpaceQuandt to a higher value, e.g. 100. During the pre-processing step, every tetrahedron will be
+converted to 4 hexahedra resulting in increased number of elements.
 
 ### Mesh generation with MeshGems/SALOME
 
