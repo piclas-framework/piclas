@@ -78,7 +78,8 @@ INTEGER(KIND=IK),ALLOCATABLE        :: MPInPartSend(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetPartSend(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPInPartRecv(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetPartRecv(:)
-INTEGER(KIND=IK),ALLOCATABLE        :: ElemInfoRank(:)
+INTEGER(KIND=IK),POINTER            :: ElemInfoRank_Shared(:) => NULL()
+INTEGER                             :: ElemInfoRank_Shared_Win
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! field arrays during load balancing

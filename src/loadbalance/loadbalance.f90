@@ -86,7 +86,6 @@ USE MOD_LoadBalance_Vars
 USE MOD_ReadInTools      ,ONLY: GETLOGICAL, GETREAL, GETINT
 USE MOD_ReadInTools      ,ONLY: PrintOption
 #if defined(PARTICLES)
-USE MOD_Mesh_Vars        ,ONLY: nGlobalElems
 USE MOD_LoadBalance_Vars ,ONLY: MPInElemSend,MPIoffsetElemSend,MPInElemRecv,MPIoffsetElemRecv
 #endif /*defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
@@ -152,7 +151,6 @@ tCurrent=0.
 #if defined(PARTICLES)
 ALLOCATE(MPInElemSend(nProcessors),MPIoffsetElemSend(nProcessors),MPInElemRecv(nProcessors),MPIoffsetElemRecv(nProcessors))
 ALLOCATE(MPInPartSend(nProcessors),MPIoffsetPartSend(nProcessors),MPInPartRecv(nProcessors),MPIoffsetPartRecv(nProcessors))
-ALLOCATE(ElemInfoRank(nGlobalElems))
 #endif /*defined(PARTICLES)*/
 #endif /*USE_LOADBALANCE*/
 
@@ -366,8 +364,13 @@ USE MOD_Restart           ,ONLY: Restart
 USE MOD_StringTools       ,ONLY: set_formatting,clear_formatting
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars  ,ONLY: ElemTimePart
-USE MOD_LoadBalance_Vars  ,ONLY: MPInElemSend,MPIoffsetElemSend,MPInElemRecv,MPIoffsetElemRecv,ElemInfoRank
+USE MOD_LoadBalance_Vars  ,ONLY: MPInElemSend,MPIoffsetElemSend,MPInElemRecv,MPIoffsetElemRecv
+USE MOD_LoadBalance_Vars  ,ONLY: ElemInfoRank_Shared,ElemInfoRank_Shared_Win
 USE MOD_LoadBalance_Vars  ,ONLY: nElemsOld,offsetElemOld
+USE MOD_Mesh_Vars         ,ONLY: nGlobalElems
+USE MOD_MPI_Shared        ,ONLY: Allocate_Shared
+USE MOD_MPI_Shared        ,ONLY: BARRIER_AND_SYNC
+USE MOD_MPI_Shared_Vars   ,ONLY: myComputeNodeRank
 USE MOD_Particle_Mesh_Vars,ONLY: ElemInfo_Shared
 USE MOD_Particle_MPI      ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_PICDepo_Vars      ,ONLY: DepositionType
@@ -416,9 +419,16 @@ LB_StartTime=PICLASTIME()
 CALL FinalizePiclas(IsLoadBalance=.TRUE.)
 
 #if defined(PARTICLES)
+IF (.NOT.ASSOCIATED(ElemInfoRank_Shared)) THEN
+  CALL Allocate_Shared((/nGlobalElems/),ElemInfoRank_Shared_Win,ElemInfoRank_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ElemInfoRank_Shared_Win,IERROR)
+END IF
+
 nElemsOld     = nElems
 offsetElemOld = offsetElem
-ElemInfoRank  = ElemInfo_Shared(ELEM_RANK,:)
+IF (myComputeNodeRank.EQ.0) &
+  ElemInfoRank_Shared  = ElemInfo_Shared(ELEM_RANK,:)
+CALL BARRIER_AND_SYNC(ElemInfoRank_Shared_Win,IERROR)
 #endif /*PARTICLES*/
 
 ! reallocate
@@ -444,7 +454,7 @@ MPInElemRecv      = 0
 MPIoffsetElemRecv = 0
 ! Loop with the new element over the old elem distribution
 DO iElem = 1,nElems
-  ElemRank               = ElemInfoRank(offsetElem+iElem)+1
+  ElemRank               = ElemInfoRank_Shared(offsetElem+iElem)+1
   MPInElemRecv(ElemRank) = MPInElemRecv(ElemRank) + 1
 END DO
 

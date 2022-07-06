@@ -64,7 +64,7 @@ USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
 ! LoadBalance
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
-USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld,ElemInfoRank
+USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld,ElemInfoRank_Shared
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 USE MOD_LoadBalance_Vars       ,ONLY: MPInPartSend,MPInPartRecv,MPIoffsetPartSend,MPIoffsetPartRecv
 USE MOD_LoadBalance_Vars       ,ONLY: PartSourceLB
@@ -228,7 +228,7 @@ IF (PerformLoadBalance) THEN
   MPIoffsetPartRecv = 0
   ! Loop with the new element over the old particle distribution
   DO iElem = 1,nElems
-    PartRank               = ElemInfoRank(offsetElem+iElem)+1
+    PartRank               = ElemInfoRank_Shared(offsetElem+iElem)+1
     MPInPartRecv(PartRank) = MPInPartRecv(PartRank) + PartIntTmp(2,offsetElem+iElem) - PartIntTmp(1,offsetElem+iElem)
   END DO
 

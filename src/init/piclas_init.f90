@@ -407,7 +407,12 @@ SUBROUTINE FinalizeLoadBalance(IsLoadBalance)
 ! Deallocate arrays
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_LoadBalance_Vars
+#if USE_LOADBALANCE
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars   ,ONLY: MPI_COMM_SHARED
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -434,6 +439,16 @@ SDEALLOCATE(ElemTime)
 
 IF(.NOT.IsLoadBalance) THEN
 #if USE_LOADBALANCE
+  IF (ASSOCIATED(ElemInfoRank_Shared)) THEN
+    ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+    CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+    CALL UNLOCK_AND_FREE(ElemInfoRank_Shared_Win)
+    CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+    ! Then, free the pointers or arrays
+    NULLIFY(ElemInfoRank_Shared)
+  END IF
+
   SDEALLOCATE(tCurrent)
   InitLoadBalanceIsDone = .FALSE.
 #endif /*USE_LOADBALANCE*/
