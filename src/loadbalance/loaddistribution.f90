@@ -1295,7 +1295,7 @@ IF(WriteHeader)THEN
   !                                                ! assume continued simulation and old load balance data is still needed
 
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
-  tmpStr = ''
+  tmpStr = ' '
 
   DO I = 1,nOutputVar
     WRITE(tmpStr(I),'(A)') delimiter//'"'//TRIM(StrVarNames(I))//'"'

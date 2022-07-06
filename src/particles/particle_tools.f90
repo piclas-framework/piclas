@@ -391,6 +391,18 @@ CASE('deltadistribution')
   ! Set magnitude
   VeloFromDistribution = Tempergy*VeloFromDistribution ! Tempergy here is [m/s]
 
+CASE('uniform-energy')
+
+  ! Get random vector
+  VeloFromDistribution = DiceUnitVector()
+  ! Mirror z-component of velocity (particles are emitted from surface!)
+  VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
+  ! Set uniform energy distribution. Note that Tempergy here is [eV], which is converted from eV to J
+  CALL RANDOM_NUMBER(RandVal) ! random value between 0 and 1.
+  VeloABS = SQRT(2.0 * RandVal * Tempergy * eV2Joule / ElectronMass)
+  ! Set magnitude
+  VeloFromDistribution = VeloABS*VeloFromDistribution
+
 CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardment on dielectric surfaces
 
   IF(ProductSpecNbr.EQ.1)THEN ! 1 SEE
