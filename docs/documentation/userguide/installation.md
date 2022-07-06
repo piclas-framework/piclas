@@ -35,6 +35,7 @@ name: tab:installation_prereqs_ubuntu
 | mpi-default-dev  |         x          |        x         |
 |    zlib1g-dev    |         x          |        x         |
 | exuberant-ctags  |         o          |        o         |
+|      ninja       |         o          |        o         |
 |   libmpfr-dev    |                    | x (GCC >= 9.3.0) |
 |    libmpc-dev    |                    | x (GCC >= 9.3.0) |
 ```
@@ -176,7 +177,7 @@ For convenience, you can add these lines to your `.bashrc`.
 
 An available installation of HDF5 can be utilized with PICLas. This requires properly setup environment variables and the compilation of HDF5 during the PICLas compilation has to be turned off (`LIBS_BUILD_HDF5 = OFF`, as per default). If this option is enabled, HDF5 will be downloaded and compiled. However, this means that every time a clean compilation of PICLas is performed, HDF5 will be recompiled. It is preferred to either install HDF5 on your system locally or utilize the packages provided on your cluster.
 
-You can install a specific version of HDF5 from scratch, using the same compiler and MPI configuration that will be used for the code installation. If you already have HDF5 installed, make sure the environment variables are set correctly as shown at the end of this section. First, download HDF5 from [HDFGroup (external website)](https://portal.hdfgroup.org/display/support/Downloads) or download it directly 
+You can install a specific version of HDF5 from scratch, using the same compiler and MPI configuration that will be used for the code installation. If you already have HDF5 installed, make sure the environment variables are set correctly as shown at the end of this section. First, download HDF5 from [HDFGroup (external website)](https://portal.hdfgroup.org/display/support/Downloads) or download it directly
 
     wget "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.1/src/hdf5-1.12.1.tar.gz"
 
@@ -234,15 +235,28 @@ To compile the code, open a terminal, change into the **PICLas** directory and c
     mkdir build && cd build
     ccmake ..
 
-Here you will be presented with the graphical user interface, where you can navigate with the arrow keys. Before you can generate a Makefile, you will have to configure with `c`, until the generate option `g` appears at the bottom of the terminal. Alternatively, you can configure the code directly by supplying the compiler flags
+Here you will be presented with the graphical user interface, where you can navigate with the arrow keys.
+Before you can generate a Makefile, you will have to configure with `c`, until the generate option `g` appears at the bottom of the terminal. Alternatively, you can configure the code directly by supplying the compiler flags
 
     cmake -DPICLAS_TIMEDISCMETHOD=DSMC ..
 
-For a list of all compiler options visit Section {ref}`sec:compiler-options`. After a successful generation of the Makefile, compile the code in parallel (e.g. with 4 cores) using
+For a list of all compiler options visit Section {ref}`sec:compiler-options`.
+PICLas supports Unix Makefiles (default) and [Ninja](https://ninja-build.org/) as generators.
+To select ninja either export the environment variable `export CMAKE_GENERATOR=Ninja` or add the cmake option
+
+    cmake -GNinja
+
+After a successful generation of the Makefile (or ninja build files), compile the code in parallel (e.g. with 4 cores) using
 
     make -j4 2>&1 | tee piclas_make.out
 
-Finally, the executables **PICLas** and **piclas2vtk** are contained in your **PICLas** directory in `build/bin/`. If you encounter any difficulties, you can submit an issue on GitHub attaching the `piclas_make.out` file, where the console output is stored.
+or the corresponding Ninja command
+
+    ninja -j4 2>&1 | tee piclas_make.out
+
+To use all available cores for parallel compilation use either `make -j` or `ninja -j0`.
+Finally, the executables **piclas** and **piclas2vtk** are contained in your **PICLas** directory in `build/bin/`.
+If you encounter any difficulties, you can submit an issue on GitHub attaching the `piclas_make.out` file, where the console output is stored.
 
 (sec:directory-paths)=
 ### Directory paths
