@@ -76,6 +76,9 @@ USE MOD_ReadInTools  ,ONLY: PrintOption
 #if USE_MPI
 USE MOD_Globals      ,ONLY: MPIRoot
 #endif /*USE_MPI*/
+#if defined(PARTICLES)
+USE MOD_Globals      ,ONLY: nGlobalNbrOfParticles
+#endif /*defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -120,6 +123,10 @@ IF(.NOT.ALMOSTEQUALRELATIVE(c_test,c,10E-8))THEN
   CALL abort(__STAMP__,' Speed of light coefficients does not match!')
 END IF
 
+#if defined(PARTICLES)
+nGlobalNbrOfParticles=0
+nGlobalNbrOfParticles(4)=HUGE(nGlobalNbrOfParticles(4))
+#endif /*defined(PARTICLES)*/
 
 ! Open file for logging
 IF(Logging)THEN

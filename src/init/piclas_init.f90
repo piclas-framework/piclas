@@ -323,10 +323,10 @@ CALL FinalizeDG()
 !CALL FinalizeCSR()
 CALL FinalizeLinearSolver()
 #endif /*IMEX*/
+CALL FinalizeDielectric()
 #if !(USE_HDG)
 CALL FinalizePML()
 #else
-CALL FinalizeDielectric()
 CALL FinalizeHDG()
 #endif /*USE_HDG*/
 CALL FinalizeEquation()
@@ -387,7 +387,6 @@ SDEALLOCATE(RP_Data)
 ! Before program termination: Finalize load balance
 ! Measure simulation duration
 Time=PICLASTIME()
-SWRITE(UNIT_stdOut,'(132("="))')
 CALL FinalizeLoadBalance(IsLoadBalance)
 IF(.NOT.IsLoadBalance)THEN
   CALL DisplaySimulationTime(Time, StartTime, 'FINISHED')

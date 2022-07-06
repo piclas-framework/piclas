@@ -223,6 +223,9 @@ IF(PRESENT(DisplayInfo))THEN
 END IF
 
 ! set logical vector for each element with default .FALSE.
+IF(ALLOCATED(isElem))THEN
+  CALL abort(__STAMP__,'Attempting to allocate already allocated LOGICAL,ALLOCATABLE,INTENT(INOUT) variable in FindElementInRegion')
+END IF ! ALLOCATED(isElem)
 ALLOCATE(isElem(1:PP_nElems))
 isElem=.FALSE.
 
