@@ -527,6 +527,7 @@ LOGICAL                                :: WriteHeader
 INTEGER                                :: ioUnit,i
 CHARACTER(LEN=150)                     :: formatStr
 CHARACTER(LEN=22),PARAMETER            :: outfile    ='MPIW8Time.csv'
+CHARACTER(LEN=22),PARAMETER            :: outfilePerc='MPIW8TimePercent.csv'
 CHARACTER(LEN=22),PARAMETER            :: outfileProc='MPIW8TimeProc'
 CHARACTER(LEN=30)                      :: outfileProc_loc
 CHARACTER(LEN=10)                      :: hilf
@@ -550,8 +551,7 @@ CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER
     'SendParticles'       , & ! (3)
     'RecvParticles'       , & ! (4)
     'EmissionParticles'   , & ! (5)
-    'PIC-depo-Reduce'     , & ! (6)
-    'PIC-depo-Wait'         & ! (7)
+    'PIC-depo-Wait'         & ! (6)
 #endif /*defined(PARTICLES)*/
     /)
 ! CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNamesProc(nTotalVars)=(/ CHARACTER(LEN=255) :: &
@@ -566,6 +566,7 @@ CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER
 CHARACTER(LEN=255)         :: tmpStr(nTotalVars)
 CHARACTER(LEN=1000)        :: tmpStr2
 CHARACTER(LEN=1),PARAMETER :: delimiter=","
+REAL                       :: TotalSimTime
 !===================================================================================================================================
 MPIW8Time(               1:1)                              = MPIW8TimeBaS
 MPIW8Time(               2:MPIW8SIZEFIELD+1)               = MPIW8TimeField
@@ -588,6 +589,9 @@ END IF
 ! --------------------------------------------------
 IF(.NOT.MPIRoot)RETURN
 
+! --------------------------------------------------
+! Output file 1 of 3: MPIW8Time.csv
+! --------------------------------------------------
 ! Either create new file or add info to existing file
 WriteHeader = .TRUE.
 IF(FILEEXISTS(outfile)) WriteHeader = .FALSE.
@@ -634,8 +638,7 @@ IF(FILEEXISTS(outfile))THEN
       delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+3),&
       delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+4),&
       delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+5),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+7) &
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6) &
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
@@ -644,6 +647,68 @@ ELSE
   WRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write MPI_WAIT wall time info!"
 END IF
 
+! --------------------------------------------------
+! Output file 2 of 3: MPIW8Time.csv
+! --------------------------------------------------
+! Either create new file or add info to existing file
+WriteHeader = .TRUE.
+IF(FILEEXISTS(outfilePerc)) WriteHeader = .FALSE.
+
+IF(WriteHeader)THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfilePerc),STATUS="UNKNOWN")
+  tmpStr=""
+  DO i=1,nTotalVars
+    WRITE(tmpStr(i),'(A)')delimiter//'"'//TRIM(StrVarNames(i))//'"'
+  END DO
+  WRITE(formatStr,'(A1)')'('
+  DO i=1,nTotalVars
+    IF(i.EQ.nTotalVars)THEN ! skip writing "," and the end of the line
+      WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i))
+    ELSE
+      WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i)),','
+    END IF
+  END DO
+
+  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
+  WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+  tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+
+  CLOSE(ioUnit)
+END IF ! WriteHeader
+
+IF(FILEEXISTS(outfilePerc))THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfilePerc),POSITION="APPEND",STATUS="OLD")
+  WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
+  TotalSimTime = MPIW8TimeSim*REAL(nProcessors)
+  WRITE(tmpStr2,formatStr)&
+      " ",REAL(nProcessors)       ,&
+      delimiter,100.              ,& ! MPIW8TimeSim*nProcessors / TotalSimTime
+      delimiter,MPIW8TimeGlobal(1)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(2)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(3)/TotalSimTime &
+#if USE_HDG
+     ,delimiter,MPIW8TimeGlobal(4)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(5)/TotalSimTime &
+#endif /*USE_HDG*/
+#if defined(PARTICLES)
+     ,delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+1)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+2)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+3)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+4)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+5)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6)/TotalSimTime &
+#endif /*defined(PARTICLES)*/
+  ; ! this is required for terminating the "&" when particles=off
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
+  CLOSE(ioUnit)
+ELSE
+  WRITE(UNIT_StdOut,'(A)')TRIM(outfilePerc)//" does not exist. Cannot write MPI_WAIT wall time info!"
+END IF
+
+! --------------------------------------------------
+! Output file 3 of 3: MPIW8TimeProc-XXX.csv
+! --------------------------------------------------
 ! Cannot append to proc file, iterate name  -000.csv, -001.csv, -002.csv
 WRITE(UNIT=hilf,FMT='(A1,I3.3,A4)') '-',0,'.csv'
 outfileProc_loc=TRIM(outfileProc)//'-'//TRIM(ADJUSTL(INTTOSTR(nProcessors)))
@@ -692,8 +757,7 @@ DO i = 0,nProcessors-1
       delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+3),&
       delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+4),&
       delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+5),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+6),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+7) &
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+6) &
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
