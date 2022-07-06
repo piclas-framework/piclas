@@ -329,7 +329,7 @@ CASE(2)
     ETraRel = ETraRel / GetParticleWeight(iPart1)
   END IF    
 !  IF (PRESENT(NewPart)) THEN
-!    TransElec = 1./(BoltzmannConst*(FakXi+1.+ Xi_Elec/2.))*ETraRel
+!    TransElec = 1./(BoltzmannConst*(FakXi+1.+ Xi_elec/2.))*ETraRel
 !  ELSE
     TransElec = DSMC%InstantTransTemp(nSpecies + 1)
     IF (TransElec.LE.0.0) TransElec = 1./(BoltzmannConst*(FakXi+1.))*ETraRel

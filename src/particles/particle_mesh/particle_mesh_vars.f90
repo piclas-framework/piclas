@@ -94,7 +94,7 @@ INTEGER,ALLOCPOINT,DIMENSION(:)          :: FIBGMProcs
 ! Shared arrays containing information for complete mesh
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: ElemInfo_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: SideInfo_Shared
-INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeInfo_Shared !> Contains the 8 corner nodes of an element (global "unique node IDs")
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: NodeCoords_Shared
 
 ! Shared arrays for halo debug information
@@ -137,10 +137,10 @@ REAL,ALLOCPOINT    :: ElemRadius2NGeo_Shared(:)
 REAL,ALLOCPOINT    :: XiEtaZetaBasis_Shared(:,:,:)
 REAL,ALLOCPOINT    :: slenXiEtaZetaBasis_Shared(:,:)
 
-LOGICAL,ALLOCPOINT :: ElemCurved_Shared(:)                 !> Flag if an element is curved
+LOGICAL,ALLOCPOINT :: ElemCurved_Shared(:)         !> Flag if an element is curved
 LOGICAL,ALLOCPOINT :: ConcaveElemSide_Shared(:,:)
-INTEGER,ALLOCPOINT :: ElemNodeID_Shared(:,:)               !> Contains the 8 corner nodes of an element, important for NGeo > 1
-INTEGER,ALLOCPOINT :: ElemSideNodeID_Shared(:,:,:)         !> Contains the 4 corner nodes of the local sides in an element
+INTEGER,ALLOCPOINT :: ElemNodeID_Shared(:,:)       !> Contains the 8 corner nodes of an element (global "non-unique node IDs"), important for NGeo > 1
+INTEGER,ALLOCPOINT :: ElemSideNodeID_Shared(:,:,:) !> Contains the 4 corner nodes of the local sides in an element
 REAL,ALLOCPOINT    :: ElemMidPoint_Shared(:,:)
 
 REAL,ALLOCPOINT    :: SideSlabNormals_Shared(:,:,:)

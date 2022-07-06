@@ -14,7 +14,7 @@ The first set of options describe general CMake behaviour:
     * Profile: Performance profiling using gprof.
     * Debug: Debug compiler for detailed error messages during code development.
     * Sanitize: Sanitizer compiler for even more detailed error messages during code development.
-    * Nitro: Fast compiler option `-Ofast` for even more speed but due to the cost of accuracy.
+    * Nitro: Fast compiler option `-Ofast` for even more speed but at the cost of accuracy.
 
 * ``CMAKE_HOSTNAME``: This will display the host name of the machine you are compiling on.
 
@@ -26,7 +26,7 @@ For some external libraries and programs that **PICLas** uses, the following opt
 * ``CTAGS_PATH``: This variable specifies the Ctags install directory, an optional program used to jump between tags in the source file.
 
 * ``LIBS_BUILD_HDF5``: This will be set to ON if no pre-built HDF5 installation was found on your machine. In this case a HDF5 version
-will be build and used instead. For a detailed description of the installation of HDF5, please refer to Section {ref}`sec:hdf5-installation`.
+will be built and used instead. For a detailed description of the installation of HDF5, please refer to Section {ref}`sec:hdf5-installation`.
 
 * ``HDF5_DIR``: If you want to use a pre-built HDF5 library that has been built using the CMake system, this directory should contain
 the CMake configuration file for HDF5 (optional).
@@ -126,7 +126,7 @@ The concept of the parameter file is described as followed:
 ~~~~~~~
     vector = (/1,2Pi,3Pi/)
 ~~~~~~~
-* The order of defined variables is with one exception irrelevant, except for the special case when redefining boundaries.
+* The order of defined variables is irrelevant, except for the special case when redefining boundaries.
 However, it is preferable to group similar variables together.
 
 The options and underlying models are discussed in Chapter {ref}`userguide/features-and-models/index:Features & Models`, while the available 
