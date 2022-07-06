@@ -76,7 +76,8 @@ TYPE typeSurfaceflux
                                                                              ! through Monte Carlo integration (initially)
   REAL                                   :: SampledMassflow                  ! Actual mass flow rate through a surface flux boundary
   REAL, ALLOCATABLE                      :: nVFRSub(:,:)                     ! normal volume flow rate through subsubside
-  LOGICAL                                :: ThermionicEmission               ! Thermionic emission
+  LOGICAL                                :: ThermionicEmission               ! Flag for thermionic emission
+  LOGICAL                                :: SchottkyEffectTE                 ! Flag for Schottky effect in thermionic emission
   REAL                                   :: WorkFunctionTE                   ! Material-specific work function [Input: eV]
   REAL                                   :: RichardsonConstant               ! Material-specific constant [Input: A/(cm^2*K^2)]
 END TYPE

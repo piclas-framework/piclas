@@ -778,7 +778,7 @@ IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
     IF (MOD(iter,INT(HDGSkip,8)).NE.0) RETURN
   END IF
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-  IF (iStage.GT.1) THEN
+  IF (stage.GT.1) THEN
     RETURN
   END IF
 #endif

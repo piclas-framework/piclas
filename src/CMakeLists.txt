@@ -425,6 +425,7 @@ FILE(GLOB_RECURSE dgF90 ./src/dg/*.f90
 FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/dg/dg.f90
                          ./src/dg/dg_vars.f90
+                         ./src/interpolation/prolongtoface.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/equation.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/equation_vars.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/timeavg.f90
@@ -470,6 +471,8 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90
                          ./src/particles/particle_mesh/particle_mesh_vars.f90
                          ./src/particles/particle_vars.f90
+                         ./src/particles/emission/particle_emission_vars.f90
+                         ./src/particles/emission/particle_surface_flux_vars.f90
                          ./src/posti/superB/superB_vars.f90
                          ./src/particles/boundary/particle_boundary_vars.f90)
 

@@ -109,6 +109,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Adaptive-Massflo
 ! === Thermionic emission
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-ThermionicEmission', &
                                 'Flag for the definition of a thermionic emission', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-ThermionicEmission-SchottkyEffect', &
+                                'Flag for the consideration of the Schottky effect: reduction of the work function (lowering the '//&
+                                'escape barrier) due to an electric field (requires PIC HDG simulation)', '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-ThermionicEmission-WorkFunction', &
                                 'Material specific work function W for the thermionic emission [eV]', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-ThermionicEmission-RichardsonConstant', &
@@ -1225,6 +1228,14 @@ END IF
 WRITE(UNIT=help,FMT='(I0)') iSpec
 WRITE(UNIT=help2,FMT='(I0)') iSF
 help2=TRIM(help)//'-Surfaceflux'//TRIM(help2)
+
+! Consider influence of electric field on the material work function (Schottky effect)
+SF%SchottkyEffectTE = GETLOGICAL('Part-Species'//TRIM(help2)//'-ThermionicEmission-SchottkyEffect')
+#if !(USE_HDG)
+IF(SF%SchottkyEffectTE) THEN
+  CALL abort(__STAMP__,'ERROR in Surface Flux: Thermionic emission with Schottky effect requires an electric field!')
+END IF
+#endif
 ! Material-specific work function read-in in eV and converted to K
 SF%WorkFunctionTE = GETREAL('Part-Species'//TRIM(help2)//'-ThermionicEmission-WorkFunction') * eV2Joule
 ! Material-specific constant read-in in A/(cm^2 K^2) and converted to m^2
