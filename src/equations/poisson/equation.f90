@@ -571,7 +571,6 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: Elem_xGP
 #ifdef PARTICLES
-USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_PICDepo_Vars       ,ONLY: PartSource,DoDeposition
 USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
 USE MOD_Globals_Vars       ,ONLY: eps0
