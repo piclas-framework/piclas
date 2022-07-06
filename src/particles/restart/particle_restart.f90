@@ -222,7 +222,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
         PDM%ParticleInside(iPart) = .TRUE.
       END DO ! iLoop = 1_IK,locnPart
 
-      iPart        = 0
+      iPart = 0
 
       DO iElem=FirstElemInd,LastElemInd
         IF (PartInt(ELEM_LastPartInd,iElem).GT.PartInt(ELEM_FirstPartInd,iElem)) THEN
@@ -262,6 +262,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
       SWRITE(UNIT_stdOut,*)'PartData does not exists in restart file'
     END IF ! PartDataExists
     DEALLOCATE(PartInt)
+    SDEALLOCATE(readVarFromState)
 
     PDM%ParticleVecLength = PDM%ParticleVecLength + iPart
     CALL UpdateNextFreePosition()

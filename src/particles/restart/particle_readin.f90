@@ -98,16 +98,17 @@ LOGICAL                            :: FileVersionExists
 REAL                               :: FileVersionHDF5
 INTEGER                            :: PartDataSize_HDF5              ! number of entries in each line of PartData
 REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
-! MPI
-#if USE_MPI
-INTEGER                            :: iProc
-#endif /*USE_MPI*/
-! LoadBalance
-#if USE_LOADBALANCE
-INTEGER                            :: PartRank
-INTEGER                            :: offsetPartSend,offsetPartRecv
 ! Temporary arrays
 INTEGER(KIND=IK),ALLOCATABLE       :: PartIntTmp(:,:)
+#if USE_LOADBALANCE
+! LoadBalance
+INTEGER                            :: PartRank
+INTEGER                            :: offsetPartSend,offsetPartRecv
+#if USE_MPI
+! MPI
+INTEGER                            :: iProc
+#endif /*USE_MPI*/
+! Temporary arrays
 REAL,ALLOCATABLE                   :: PartDataTmp(:,:)
 INTEGER,ALLOCATABLE                :: VibQuantDataTmp(:,:)
 REAL,ALLOCATABLE                   :: ElecDistriDataTmp(:,:)
@@ -172,6 +173,8 @@ IF (PerformLoadBalance) THEN
       PartDataSize=7
     END IF ! UseDSMC
   END IF ! PartDataSize.EQ.0
+  ALLOCATE(readVarFromState(PartDataSize))
+  readVarFromState=.TRUE.
 
   IF (useDSMC) THEN
     IF (DSMC%NumPolyatomMolecs.GT.0) THEN
@@ -193,7 +196,6 @@ IF (PerformLoadBalance) THEN
       END DO
     END IF ! DSMC%ElectronicModel.EQ.2
   END IF ! useDSMC
-
 
   ! PartInt and PartData are still allocated from last WriteState
   ALLOCATE(PartIntTmp(PartIntSize,FirstElemInd:LastElemInd))

@@ -913,7 +913,7 @@ USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif
 #if USE_LOADBALANCE
-USE MOD_PreProc            ,ONLY: PP_N
+USE MOD_PreProc
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 USE MOD_LoadBalance_Vars   ,ONLY: PartSourceLB
 USE MOD_Mesh_Vars          ,ONLY: nElems
@@ -1002,7 +1002,8 @@ SELECT CASE(TRIM(DepositionType))
 END SELECT
 
 #if USE_LOADBALANCE
-IF (PerformLoadBalance) THEN
+IF (PerformLoadBalance .AND. DoDeposition) THEN
+  SDEALLOCATE(PartSourceLB)
   ALLOCATE(PartSourceLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
   PartSourceLB = PartSource
 END IF

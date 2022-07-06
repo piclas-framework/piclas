@@ -721,11 +721,11 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   END ASSOCIATE
 
 #if USE_LOADBALANCE
-  IF (PerformLoadBalance) THEN
+  IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
     DEALLOCATE(VibQuantData)
 #if USE_LOADBALANCE
-  END IF ! PerformLoadBalance
+  END IF ! .NOT.PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 END IF
 
@@ -795,11 +795,11 @@ IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
   END ASSOCIATE
 
 #if USE_LOADBALANCE
-  IF (PerformLoadBalance) THEN
+  IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
     DEALLOCATE(ElecDistriData)
 #if USE_LOADBALANCE
-  END IF ! PerformLoadBalance
+  END IF ! .NOT.PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 END IF
 
@@ -865,11 +865,11 @@ IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
-  IF (PerformLoadBalance) THEN
+  IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
     DEALLOCATE(AD_Data)
 #if USE_LOADBALANCE
-  END IF ! PerformLoadBalance
+  END IF ! .NOT.PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 END IF
 
