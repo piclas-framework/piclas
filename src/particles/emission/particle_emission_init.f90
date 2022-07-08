@@ -14,7 +14,7 @@
 
 MODULE MOD_Particle_Emission_Init
 !===================================================================================================================================
-!> 
+!>
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -85,9 +85,6 @@ CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-maxParticleNumber-y'  &
 CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-maxParticleNumber-z'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Maximum Number of all Particles in z direction', '0', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-DistributionSpeciesIndex'  &
-                                , 'Background gas with a distribution: Input the species index to use from the read-in '//&
-                                  'distribution of the DSMCState file', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-Alpha' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'WaveNumber for sin-deviation initiation.', numberedmulti=.TRUE.)
@@ -105,6 +102,11 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ParticleNumber' &
 CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-NumberOfExcludeRegions'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Number of different regions to be excluded', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-BGG-Distribution-SpeciesIndex'  &
+                                , 'Background gas with a distribution: Input the species index to use from the read-in '//&
+                                  'distribution of the DSMCState file', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-Init[$]-BGG-Region'  &
+                                , 'Number of the region in which the given conditions shall be applied to', numberedmulti=.TRUE.)
 
 CALL prms%SetSection("Particle Species Init RegionExculdes")
 ! some inits or exluded in some regions
@@ -150,9 +152,9 @@ CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-NeutralizationSource'  
 ! ====================================== photoionization =================================================================
 CALL prms%CreateLogicalOption('Part-Species[$]-Init[$]-FirstQuadrantOnly','Only insert particles in the first quadrant that is'//&
                               ' spanned by the vectors x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R]',  '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-Species[$]-Init[$]-PulseDuration','Pulse duration tau for a Gaussian-tpye pulse with I~exp(-(t/tau)^2) [s]', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WaistRadius','Beam waist radius (in focal spot) w_b for Gaussian-tpye pulse with I~exp(-(r/w_b)^2) [m]',numberedmulti=.TRUE.)
-CALL prms%CreateRealOption('Part-Species[$]-Init[$]-IntensityAmplitude','Beam intensity maximum I0 Gaussian-tpye pulse with I=I0*exp(-(t/tau)^2)exp(-(r/w_b)^2) [W/m^2]','-1.0',numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-PulseDuration','Pulse duration tau for a Gaussian-type pulse with I~exp(-(t/tau)^2) [s]', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WaistRadius','Beam waist radius (in focal spot) w_b for Gaussian-type pulse with I~exp(-(r/w_b)^2) [m]',numberedmulti=.TRUE.)
+CALL prms%CreateRealOption('Part-Species[$]-Init[$]-IntensityAmplitude','Beam intensity maximum I0 Gaussian-type pulse with I=I0*exp(-(t/tau)^2)exp(-(r/w_b)^2) [W/m^2]','-1.0',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WaveLength','Beam wavelength [m]',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-YieldSEE','Secondary photoelectron yield [-]. Number of emitted electrons per incident photon',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-RepetitionRate','Pulse repetition rate (pulses per second) [Hz]',numberedmulti=.TRUE.)
@@ -165,7 +167,7 @@ CALL prms%CreateRealOption('Part-Species[$]-Init[$]-WorkFunctionSEE','Photoelect
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-EffectiveIntensityFactor', 'Scaling factor that increases I0 [-]','1.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption('Part-Species[$]-Init[$]-TraceSpecies','Flag background species as trace element.'//&
                               ' Different weighting factor can be used',  '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption( 'Part-Species[$]-Init[$]-PartBCIndex','Assocaited particle boundary ID','-1',numberedmulti=.TRUE.)
+CALL prms%CreateIntOption( 'Part-Species[$]-Init[$]-PartBCIndex','Associated particle boundary ID','-1',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-MacroParticleFactor', 'Emission-specific particle weighting factor: number of simulation particles per real particle',numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersParticleEmission
 
@@ -206,9 +208,14 @@ ALLOCATE(BGGas%TraceSpecies(nSpecies))
 BGGas%TraceSpecies = .FALSE.
 
 BGGas%UseDistribution = GETLOGICAL('Particles-BGGas-UseDistribution')
-IF(BGGas%UseDistribution) THEN
+BGGas%nRegions = GETINT('Particles-BGGas-nRegions')
+IF(BGGas%UseDistribution.AND.(BGGas%nRegions.GT.0)) THEN
+  CALL abort(__STAMP__,'ERORR: Background gas can either be used with a distribution OR regions!')
+ELSEIF (BGGas%UseDistribution) THEN
   IF(usevMPF) CALL abort(__STAMP__,'vMPF not implemented for Particles-BGGas-UseDistribution=T')
   ALLOCATE(BGGas%DistributionSpeciesIndex(nSpecies))
+ELSEIF (BGGas%nRegions.GT.0) THEN
+  BGGas%UseRegions = .TRUE.
 ELSE
   ALLOCATE(BGGas%NumberDensity(nSpecies))
   BGGas%NumberDensity = 0.
@@ -375,8 +382,7 @@ DO iSpec = 1, nSpecies
     !--- integer check for ParticleEmissionType 2
     IF((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &
          (ABS(Species(iSpec)%Init(iInit)%ParticleNumber-INT(Species(iSpec)%Init(iInit)%ParticleNumber,8)).GT.0.0)) THEN
-      CALL abort(__STAMP__, &
-        ' If ParticleEmissionType = 2 (parts per iteration), ParticleNumber has to be an integer number')
+      CALL abort(__STAMP__,' If ParticleEmissionType = 2 (parts per iteration), ParticleNumber has to be an integer number')
     END IF
     !--- ExcludeRegions
     IF (Species(iSpec)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
@@ -384,18 +390,27 @@ DO iSpec = 1, nSpecies
     END IF
     !--- Background gas
     IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'background') THEN
-      IF(.NOT.BGGas%BackgroundSpecies(iSpec)) THEN
+      IF(BGGas%BackgroundSpecies(iSpec)) THEN
+        ! Only regions allows multiple background inits (additionally, avoid counting the same species multiple times)
+        IF(.NOT.BGGas%UseRegions) CALL abort(__STAMP__, 'ERROR: Only one background definition per species is allowed!')
+      ELSE
+        ! Count each species only once
         BGGas%NumberOfSpecies = BGGas%NumberOfSpecies + 1
-        BGGas%BackgroundSpecies(iSpec) = .TRUE.
-        IF(.NOT.BGGas%UseDistribution) BGGas%NumberDensity(iSpec) = Species(iSpec)%Init(iInit)%PartDensity
-        BGGas%TraceSpecies(iSpec)      = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-TraceSpecies')
-        Species(iSpec)%Init(iInit)%ParticleEmissionType = -1
-        ! Read-in the species index for background gas distribution
-        IF(BGGas%UseDistribution) &
-          BGGas%DistributionSpeciesIndex(iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-DistributionSpeciesIndex')
-        ELSE
-          CALL abort(__STAMP__, 'Only one background definition per species is allowed!')
+      END IF
+      BGGas%BackgroundSpecies(iSpec) = .TRUE.
+      BGGas%TraceSpecies(iSpec)      = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-TraceSpecies')
+      Species(iSpec)%Init(iInit)%ParticleEmissionType = -1
+      ! Read-in the species index for background gas distribution
+      IF(BGGas%UseDistribution) THEN
+        BGGas%DistributionSpeciesIndex(iSpec) = GETINT('Part-Species'//TRIM(hilf2)//'-BGG-Distribution-SpeciesIndex')
+      ELSE IF(BGGas%UseRegions) THEN
+        Species(iSpec)%Init(iInit)%BGGRegion = GETINT('Part-Species'//TRIM(hilf2)//'-BGG-Region')
+        IF(Species(iSpec)%Init(iInit)%BGGRegion.GT.BGGas%nRegions) THEN
+          CALL abort(__STAMP__, 'ERROR: Given background gas region number is greater than the defined number of regions!')
         END IF
+      ELSE
+        BGGas%NumberDensity(iSpec) = Species(iSpec)%Init(iInit)%PartDensity
+      END IF
     END IF
     !--- InflowRise
     IF(Species(iSpec)%Init(iInit)%InflowRiseTime.GT.0.)THEN
@@ -451,7 +466,7 @@ IMPLICIT NONE
 INTEGER               :: iSpec, NbrOfParticle,iInit,iPart,PositionNbr
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)') ' Initial particle inserting... '
+SWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING...'
 
 CALL UpdateNextFreePosition()
 
@@ -510,7 +525,7 @@ IF(DoDielectric)THEN
   END IF
 END IF
 
-SWRITE(UNIT_stdOut,'(A)') ' ...DONE '
+SWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING DONE!'
 
 END SUBROUTINE InitialParticleInserting
 

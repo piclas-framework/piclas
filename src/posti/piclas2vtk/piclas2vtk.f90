@@ -25,28 +25,6 @@
 !> piclas2vtk --NVisu=INTEGER State1.h5 State2.h5 State3.h5 ...
 !> All other options are set to their standard values.
 !==================================================================================================================================
-MODULE MOD_piclas2vtk_Vars
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-
-REAL,ALLOCATABLE            :: NodeCoords_Connect(:,:)
-INTEGER,ALLOCATABLE         :: ElemUniqueNodeID(:,:)
-INTEGER                     :: nUniqueNodes
-!----------------------------------------------------------------------------------------------------------------------------------
-! Mapping of nodes and surface sides, required for connectivity of elements
-!----------------------------------------------------------------------------------------------------------------------------------
-TYPE tSurfaceConnect
-  INTEGER                         :: nSurfaceNode                 !< Number of Nodes on Surface (reflective)
-  INTEGER                         :: nSurfaceBCSides              !< Number of Sides on Surface (reflective)
-  REAL, ALLOCATABLE               :: NodeCoords(:,:)
-  INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)         !< Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceBCSides)
-END TYPE
-
-TYPE (tSurfaceConnect)               :: SurfConnect
-
-END MODULE MOD_piclas2vtk_Vars
-
 PROGRAM piclas2vtk
 ! MODULES
 USE MOD_piclas2vtk_Vars
@@ -372,7 +350,7 @@ END PROGRAM piclas2vtk
 !===================================================================================================================================
 !> Subroutine to write 3D point data to VTK format
 !===================================================================================================================================
-SUBROUTINE WriteDataToVTK_PICLas(data_size,FileString,nVar,VarNameVisu,nNodes,Coords,nElems,Value,ConnectInfo)
+SUBROUTINE WriteDataToVTK_PICLas(data_size,FileString,nVar,VarNameVisu,nNodes,Coords,nElems,Array,ConnectInfo)
 ! MODULES
 USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
@@ -380,9 +358,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)            :: nVar,nElems,nNodes,data_size           !> Number of nodal output variables
-REAL,INTENT(IN)               :: Coords(1:3,nNodes), Value(nVar,nElems)
-CHARACTER(LEN=*),INTENT(IN)   :: FileString, VarNameVisu(nVar)          !> Output file name
-INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nElems)          !> Statevector
+REAL,INTENT(IN)               :: Coords(1:3,nNodes)                     !> Coordinates x, y and z
+REAL,INTENT(IN)               :: Array(nVar,nElems)                     !> Array with nVar properties for each coordinate
+CHARACTER(LEN=*),INTENT(IN)   :: FileString                             !> Output file name
+CHARACTER(LEN=*),INTENT(IN)   :: VarNameVisu(nVar)                      !> Variable names
+INTEGER,INTENT(IN)            :: ConnectInfo(data_size,nElems)          !> Node connection information
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -399,11 +379,15 @@ INTEGER,ALLOCATABLE           :: VarNameCombine(:), VarNameCombineLen(:)
 nVTKPoints=nNodes
 nVTKCells=nElems
 
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE 3D DATA TO VTX XML BINARY (VTU) FILE "
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '['//TRIM(FileString)//'] ...'
+! Check if no output is present and print info that no file will be created
 IF(nElems.LT.1)THEN
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   NOT CREATING OUTPUT FILE "
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '['//TRIM(FileString)//'] because the dataset is empty...'
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"RETURN"
   RETURN
+ELSE
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')"   WRITE 3D DATA TO VTX XML BINARY (VTU) FILE "
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '['//TRIM(FileString)//'] ...'
 END IF
 
 ! Prepare output of vector variables as a vector variable suitable for VisIt and Paraview
@@ -509,9 +493,9 @@ Buffer='_';WRITE(ivtk) TRIM(Buffer)
 nBytes = nVTKCells*INT(SIZEOF(FLOAT),4)
 DO iVal=1,nVar
   IF (VarNameCombine(iVal).EQ.0) THEN
-    WRITE(ivtk) nBytes,REAL(Value(iVal,1:nVTKCells),4)
+    WRITE(ivtk) nBytes,REAL(Array(iVal,1:nVTKCells),4)
   ELSEIF(VarNameCombine(iVal).EQ.1) THEN
-    WRITE(ivtk) nBytes*VarNameCombineLen(iVal),REAL(Value(iVal:iVal+VarNameCombineLen(iVal)-1,1:nVTKCells),4)
+    WRITE(ivtk) nBytes*VarNameCombineLen(iVal),REAL(Array(iVal:iVal+VarNameCombineLen(iVal)-1,1:nVTKCells),4)
   ENDIF
 END DO
 ! Points
@@ -883,10 +867,10 @@ CALL CloseDataFile()
 END SUBROUTINE ConvertPartData
 
 
-SUBROUTINE ConvertElemData(InputStateFile,ArrayName,VarName)
 !===================================================================================================================================
 !> Convert element/volume data (single value per cell, e.g. DSMC/BGK results) to a VTK format
 !===================================================================================================================================
+SUBROUTINE ConvertElemData(InputStateFile,ArrayName,VarName)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars    ,ONLY: ProjectName

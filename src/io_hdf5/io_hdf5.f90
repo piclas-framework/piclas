@@ -31,6 +31,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 LOGICAL                  :: gatheredWrite       !< flag whether every process should output data or data should first be gathered
+LOGICAL                  :: UseCollectiveIO     !< flag whether DistributedWriteArray() should use H5FD_MPIO_COLLECTIVE_F instead of H5FD_MPIO_INDEPENDENT_F
 INTEGER(HID_T)           :: File_ID             !< file which is currently opened
 INTEGER(HID_T)           :: Plist_File_ID       !< property list of file which is currently opened
 INTEGER(HSIZE_T),POINTER :: HSize(:)            !< HDF5 array size (temporary variable)
@@ -102,6 +103,10 @@ IMPLICIT NONE
 CALL prms%SetSection("IO_HDF5")
 CALL prms%CreateLogicalOption('gatheredWrite', "Set true to activate gathered HDF5 IO for parallel computations. "//&
                                                "Only local group masters will write data after gathering from local slaves.",&
+                                               '.FALSE.')
+CALL prms%CreateLogicalOption('UseCollectiveIO', "Set true to activate collective HDF5 IO during distributed write when possibly "//&
+                                                 "only a subset of all processors carries the data, e.g., the 'PartData' container when not all processors have particles. "//&
+                                                 "This activates the usage of H5FD_MPIO_COLLECTIVE_F instead of H5FD_MPIO_INDEPENDENT_F.",&
                                                '.FALSE.')
 END SUBROUTINE DefineParametersIO
 
@@ -204,12 +209,10 @@ CALL H5OPEN_F(iError)
 ! Setup file access property list with parallel I/O access (MPI) or with default property list.
 IF(create)THEN
   CALL H5PCREATE_F(H5P_FILE_CREATE_F, Plist_File_ID, iError)
-  IF(iError.NE.0) CALL abort(__STAMP__,&
-    'ERROR: Could not create file '//TRIM(FileString))
+  IF(iError.NE.0) CALL abort(__STAMP__,'ERROR: Could not create file '//TRIM(FileString))
 ELSE
   CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_File_ID, iError)
-  IF(iError.NE.0) CALL abort(__STAMP__,&
-    'ERROR: Could not open file '//TRIM(FileString))
+  IF(iError.NE.0) CALL abort(__STAMP__,'ERROR: Could not open file '//TRIM(FileString))
 END IF
 
 #if USE_MPI
@@ -218,8 +221,7 @@ IF(.NOT.single)THEN
     'ERROR: communicatorOpt must be supplied in OpenDataFile when single=.FALSE.')
   CALL H5PSET_FAPL_MPIO_F(Plist_File_ID, communicatorOpt, MPIInfo, iError)
 END IF
-  IF(iError.NE.0) CALL abort(__STAMP__,&
-    'ERROR: H5PSET_FAPL_MPIO_F failed in OpenDataFile')
+  IF(iError.NE.0) CALL abort(__STAMP__,'ERROR: H5PSET_FAPL_MPIO_F failed in OpenDataFile')
 #endif /*USE_MPI*/
 
 ! Open the file collectively.
@@ -240,8 +242,7 @@ ELSE !read-only ! and write (added later)
     CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDWR_F,  File_ID, iError, access_prp = Plist_File_ID)
   END IF
 END IF
-IF(iError.NE.0) CALL abort(__STAMP__,&
-  'ERROR: Could not open or create file '//TRIM(FileString))
+IF(iError.NE.0) CALL abort(__STAMP__,'ERROR: Could not open or create file '//TRIM(FileString))
 
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE OpenDataFile

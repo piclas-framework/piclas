@@ -72,7 +72,7 @@ USE MOD_part_RHS               ,ONLY: PartVeloToImp
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Part_RHS               ,ONLY: PartRHS
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
@@ -248,13 +248,6 @@ END IF
 IF(DelayTime.GT.0.)THEN
   IF((iter.EQ.0).AND.(time.LT.DelayTime))THEN
     ! perform normal deposition
-    CALL Deposition()
-#if USE_MPI
-    ! here: finish deposition with delta kernal
-    !       maps source terms in physical space
-    ! ALWAYS require
-    PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
     CALL Deposition()
   END IF
 END IF
@@ -668,7 +661,6 @@ IF (time.GE.DelayTime) THEN
   CALL MPIParticleSend()
   ! finish communication
   CALL MPIParticleRecv()
-  PartMPIExchange%nMPIParticles=0
 #endif
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PARTCOMM,tLBStart)
@@ -688,7 +680,6 @@ END IF
 IF (useDSMC) THEN
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
-  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 END IF
 
 !----------------------------------------------------------------------------------------------------------------------------------

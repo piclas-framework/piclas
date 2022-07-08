@@ -28,9 +28,11 @@ SAVE
 ! GLOBAL VARIABLES
 INTEGER                                   :: nExchangeProcessors            ! number of MPI processes for particles exchange
 INTEGER,ALLOCATABLE                       :: ExchangeProcToGlobalProc(:,:)  ! mapping from exchange proc ID to global proc ID
+LOGICAL                                   :: DoParticleLatencyHiding        ! Activate particle exchange proc latency hiding
 INTEGER,ALLOCATABLE                       :: GlobalProcToExchangeProc(:,:)  ! mapping from global proc ID to exchange proc ID
 LOGICAL                                   :: ParticleMPIInitIsDone=.FALSE.
 LOGICAL                                   :: CheckExchangeProcs             ! On default, check if proc communication is symmetric
+LOGICAL                                   :: AbortExchangeProcs             ! Terminate run if proc communication is non-symmetric
 
 TYPE tPartMPIGROUP
   INTEGER                                 :: COMM                           ! MPI communicator for PIC GTS region
@@ -71,6 +73,7 @@ TYPE (tPartMPIVAR)                        :: PartMPI
 
 REAL                                      :: SafetyFactor                   ! Factor to scale the halo region with MPI
 REAL                                      :: halo_eps_velo                  ! halo_eps_velo
+REAL                                      :: halo_eps_woshape               ! halo_eps_woshape
 REAL                                      :: halo_eps                       ! length of halo-region
 REAL                                      :: halo_eps2                      ! length of halo-region^2
 REAL                                      :: MPI_halo_eps                   ! If running on one node, halo_eps is meaningless.

@@ -42,3 +42,4 @@ This is a (possibly incomplete) list of the people who contributed to piclas.
 * Marc Staudenmaier
 * Torsten Stindl
 * Andreas Stock
+* Raphael Tietz

@@ -59,5 +59,11 @@ CHARACTER(LEN=255),DIMENSION(4),PARAMETER :: StrVarNames(4)=(/ CHARACTER(LEN=255
                                                                                      'ElectricFieldZ'/)
 INTEGER           :: nRefState     !< number of refstates defined in parameter file
 REAL,ALLOCATABLE  :: RefState(:,:) !< refstates in primitive variables (as read from ini file)
+
+! Special BC with linear potential ramp (constant in time)
+REAL              :: LinPhiBasePoint(3)
+REAL              :: LinPhiNormal(3)
+REAL              :: LinPhiHeight
+REAL              :: LinPhi
 !===================================================================================================================================
 END MODULE MOD_Equation_Vars

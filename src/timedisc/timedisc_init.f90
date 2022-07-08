@@ -233,6 +233,8 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LSERK4-5, Poisson'
 #elif (PP_TimeDiscMethod==506)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: LSERK4-14, Poisson'
+#elif (PP_TimeDiscMethod==507)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Higuera-Cary, Poisson'
 #elif (PP_TimeDiscMethod==508)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Boris-Leapfrog, Poisson'
 #elif (PP_TimeDiscMethod==509)
@@ -394,7 +396,7 @@ END IF
 #if USE_LOADBALANCE
 ! Activate normal load balancing (NOT initial restart load balancing)
 ! 1.) Catch all iterations within sampling interval (make sure to get the first iteration in interval): LESSEQUALTOLERANCE(a,b,tol)
-! 2.)             Load balancing is activated: DoLoadBalance=T 
+! 2.)             Load balancing is activated: DoLoadBalance=T
 IF( LESSEQUALTOLERANCE(dt_Min(DT_ANALYZE), LoadBalanceSample*dt, 1e-5) &
     .AND. DoLoadBalance) PerformLBSample=.TRUE. ! Activate load balancing in this time step
 #endif /*USE_LOADBALANCE*/

@@ -101,7 +101,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies,PartPosRef
+USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies,PartPosRef,LastPartPos
 USE MOD_Particle_Tracking_vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -164,7 +164,8 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
       END DO
     ELSE ! position in reference space [-1,1] has to be computed
       DO iLoop = 1, nPart
-        CALL GetPositionInRefElem(PartState(1:3,iPart),TreeNode%MappedPartStates(1:3,iLoop),iElem+offSetElem)
+        ! Attention: LastPartPos is the reference position here
+        TreeNode%MappedPartStates(1:3,iLoop) = LastPartPos(1:3,iPart)
         iPart = PEM%pNext(iPart)
       END DO
     END IF ! TrackingMethod.EQ.REFMAPPING
@@ -366,7 +367,8 @@ USE MOD_Globals
 USE MOD_DSMC_CollisionProb      ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
-USE MOD_DSMC_Vars               ,ONLY: SelectionProc, useRelaxProbCorrFactor
+USE MOD_DSMC_Vars               ,ONLY: SelectionProc, useRelaxProbCorrFactor, iPartIndx_NodeNewElecRelax, newElecRelaxParts
+USE MOD_DSMC_Vars               ,ONLY: iPartIndx_NodeElecRelaxChem,nElecRelaxChemParts
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, Symmetry, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath, CalcInstantElecTempXi
@@ -374,23 +376,27 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic,SumVibRelaxProb
 USE MOD_DSMC_Symmetry           ,ONLY: DSMC_2D_TreatIdenticalParticles
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
+USE MOD_DSMC_ElectronicModel    ,ONLY: LT_ElectronicEnergyExchange, LT_ElectronicExc_ConstructPartList
+USE MOD_DSMC_ElectronicModel    ,ONLY: CalcProbCorrFactorElec, LT_ElectronicEnergyExchangeChem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL, INTENT(IN)              :: NodeVolume
-INTEGER, INTENT(IN)           :: PartNum, iElem
+INTEGER, INTENT(IN)           :: iElem
+INTEGER, INTENT(INOUT)        :: PartNum
 INTEGER, INTENT(INOUT), TARGET:: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: nPair, iPair, iPart, nPart, TotalPartNum
+INTEGER                       :: nPair, iPair, iPart, nPart, TotalPartNum, nPartElecRelac
 INTEGER                       :: cSpec1, cSpec2, iCase
 REAL                          :: iRan
 INTEGER, ALLOCATABLE, TARGET  :: iPartIndx_NodeTotalAmbi(:)
 INTEGER, POINTER              :: iPartIndx_NodeTotal(:)
 INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalAmbiDel(:)
+INTEGER, ALLOCATABLE          :: iPartIndx_NodeTotalElecExc(:), iPartIndx_NodeTotalElecRelax(:)
 !===================================================================================================================================
 
 ! 0). Ambipolar Diffusion
@@ -406,6 +412,16 @@ ELSE
   TotalPartNum = PartNum
   iPartIndx_NodeTotal => iPartIndx_Node
 END IF
+
+IF (DSMC%ElectronicModel.EQ.4) THEN
+  ALLOCATE(iPartIndx_NodeTotalElecRelax(TotalPartNum))
+  iPartIndx_NodeTotalElecRelax = iPartIndx_NodeTotal
+  IF (CollisMode.EQ.3) THEN
+    newElecRelaxParts = 0; nElecRelaxChemParts = 0
+    ALLOCATE(iPartIndx_NodeNewElecRelax(2*PartNum), iPartIndx_NodeElecRelaxChem(2*PartNum))
+  END IF
+END IF
+
 ! 1). Reset collision and pair specific variables
 nPair = INT(TotalPartNum/2)
 CollInf%Coll_SpecPartNum = 0
@@ -435,15 +451,16 @@ IF (CollisMode.EQ.3) THEN
 END IF
 
 IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors &
-.OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1)).OR.(DSMC%ElectronicModel.EQ.2)) THEN
+.OR.(useRelaxProbCorrFactor.AND.(CollisMode.GT.1)).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.4)) THEN
   ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
   !           relaxation probability (CalcGammaVib)
   ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
   ! 3. Case: Temperature required for the mean free path with the VHS model
   ! 4. Case: Needed to calculate the correction factor
   CALL CalcInstantTransTemp(iPartIndx_NodeTotal,TotalPartNum)
-  IF (DSMC%ElectronicModel.EQ.2) CALL CalcInstantElecTempXi(iPartIndx_NodeTotal,TotalPartNum)
+  IF ((DSMC%ElectronicModel.EQ.2).OR.useRelaxProbCorrFactor) CALL CalcInstantElecTempXi(iPartIndx_NodeTotal,TotalPartNum)
   IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
+  IF (useRelaxProbCorrFactor.AND.(DSMC%ElectronicModel.EQ.1)) CALL CalcProbCorrFactorElec()
 END IF
 
 IF (CollInf%ProhibitDoubleColl.AND.(nPair.EQ.1)) THEN
@@ -532,6 +549,18 @@ IF(DSMC%CalcQualityFactors) THEN
 END IF
 
 DEALLOCATE(Coll_pData)
+
+IF (DSMC%ElectronicModel.EQ.4) THEN
+  IF (CollisMode.EQ.3) THEN
+    CALL LT_ElectronicEnergyExchangeChem(iPartIndx_NodeElecRelaxChem, nElecRelaxChemParts)
+    CALL LT_ElectronicExc_ConstructPartList(iPartIndx_NodeTotalElecRelax, iPartIndx_NodeTotalElecExc,  TotalPartNum, nPartElecRelac)
+    CALL LT_ElectronicEnergyExchange(iPartIndx_NodeTotalElecExc, nPartElecRelac, NodeVolume)
+    DEALLOCATE(iPartIndx_NodeTotalElecExc, iPartIndx_NodeNewElecRelax, iPartIndx_NodeElecRelaxChem)
+  ELSE
+    CALL LT_ElectronicEnergyExchange(iPartIndx_NodeTotalElecRelax, TotalPartNum, NodeVolume)
+  END IF
+END IF
+
 IF (DSMC%DoAmbipolarDiff) THEN
   CALL AD_DeleteParticles(iPartIndx_NodeTotalAmbiDel,TotalPartNum)
 END IF
@@ -668,7 +697,7 @@ SUBROUTINE DSMC_pairing_quadtree(iElem)
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies
+USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies, LastPartPos
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
@@ -718,7 +747,8 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     TreeNode%PNum_Node = nPart
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
     DO iLoop = 1, nPart
-      CALL GeoCoordToMap2D(PartState(1:2,iPart), TreeNode%MappedPartStates(1:2,iLoop), iElem)
+      ! Attention: LastPartPos is the reference position here
+      TreeNode%MappedPartStates(1:2,iLoop) = LastPartPos(1:2,iPart)
       iPart = PEM%pNext(iPart)
     END DO
     TreeNode%NodeDepth = 1
@@ -728,7 +758,7 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
   ELSE
     CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
   END IF
-ELSE 
+ELSE
   CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
 END IF
 
@@ -1009,7 +1039,7 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
   ELSE
     CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
   END IF
-ELSE 
+ELSE
   CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
 END IF
 
@@ -1923,7 +1953,7 @@ INTEGER FUNCTION DOTANTCUBEID(centerPoint,coord)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 REAL,INTENT(IN) :: centerPoint(1:3)
 REAL,INTENT(IN) :: coord(1)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1947,7 +1977,7 @@ FUNCTION DOTANTCUBEMIDPOINT(CubeID,octantDepth,octantCenter)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT VARIABLES 
+! INPUT VARIABLES
 INTEGER,INTENT(IN) :: CubeID
 INTEGER,INTENT(IN) :: octantDepth
 REAL,INTENT(IN)    :: octantCenter(1:3)

@@ -60,7 +60,7 @@ CONTAINS
 !==================================================================================================================================
 SUBROUTINE DefineParametersMPI()
 ! MODULES
-USE MOD_ReadInTools,              ONLY: prms
+USE MOD_ReadInTools       ,ONLY: prms
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
@@ -73,6 +73,8 @@ CALL prms%CreateIntOption('GroupSize', "Define size of MPI subgroups, used to e.
                                        '0')
 #if defined(PARTICLES)
 CALL prms%CreateLogicalOption('CheckExchangeProcs' , 'Check if proc communication of particle info is non-symmetric', '.TRUE.')
+CALL prms%CreateLogicalOption('AbortExchangeProcs' , 'Abort if proc communication of particle info is non-symmetric (requires CheckExchangeProcs=T)', '.TRUE.')
+CALL prms%CreateLogicalOption('DoParticleLatencyHiding' , 'Determine the elements that require particle communication and use them for latency hiding', '.FALSE.')
 #endif /*PARTICLES*/
 END SUBROUTINE DefineParametersMPI
 
@@ -142,8 +144,9 @@ SUBROUTINE InitMPIvars()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-USE MOD_Interpolation_Vars,ONLY:InterpolationInitIsDone
-USE MOD_Readintools,       ONLY:GETINT
+USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
+USE MOD_Readintools        ,ONLY: GETINT
+USE MOD_MPI_Shared_Vars    ,ONLY: nProcessors_Global
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -154,11 +157,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER :: color,groupsize
 !===================================================================================================================================
-IF(.NOT.InterpolationInitIsDone)THEN
-  CALL Abort(&
-      __STAMP__&
-      ,'InitMPITypes called before InitInterpolation')
-END IF
+IF(.NOT.InterpolationInitIsDone) CALL Abort(__STAMP__,'InitMPITypes called before InitInterpolation')
 ALLOCATE(SendRequest_U(nNbProcs)     )
 ALLOCATE(SendRequest_U2(nNbProcs)     )
 ALLOCATE(SendRequest_GEO(nNbProcs)     )
@@ -197,12 +196,25 @@ DataSizeSide  =(PP_N+1)*(PP_N+1)
 GroupSize=GETINT('GroupSize','0')
 IF(GroupSize.LT.1)THEN ! group procs by node
   ! Split the node communicator (shared memory) from the global communicator on physical processor or node level
-#if USE_CORE_SPLIT
+#if (CORE_SPLIT==1)
   CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,myRank,0,MPI_COMM_NODE,iError)
-#else
+#elif (CORE_SPLIT==0)
   ! Note that using SharedMemoryMethod=OMPI_COMM_TYPE_CORE somehow does not work in every case (intel/amd processors)
   ! Also note that OMPI_COMM_TYPE_CORE is undefined when not using OpenMPI
   CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,SharedMemoryMethod,0,MPI_INFO_NULL,MPI_COMM_NODE,IERROR)
+#else
+  ! Check if more nodes than procs are required or
+  ! if the resulting split would create unequal procs per node
+  IF((CORE_SPLIT.GE.nProcessors_Global).OR.(MOD(nProcessors_Global,CORE_SPLIT).GT.0))THEN
+    SWRITE (*,'(A,I0,A,I0,A,F0.2,A)') ' WARNING: Either more nodes than cores selected (nodes: ',CORE_SPLIT,', cores: ',&
+        nProcessors_Global,') OR unequal number of cores per node (=',REAL(nProcessors_Global)/REAL(CORE_SPLIT),&
+        '). Setting 1 core per node for MPI_COMM_NODE!'
+    color = myRank
+  ELSE
+    ! Group procs so that every CORE_SPLIT procs are in the same group
+    color = INT(REAL(myrank*CORE_SPLIT)/REAL(nProcessors_Global))+1
+  END IF ! (CORE_SPLIT.GE.nProcessors_Global).OR.(MOD().GT.0)
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,0,MPI_COMM_NODE,iError)
 #endif
 ELSE ! use groupsize
   color=myRank/GroupSize
@@ -211,6 +223,14 @@ END IF
 CALL MPI_COMM_RANK(MPI_COMM_NODE,myLocalRank,iError)
 CALL MPI_COMM_SIZE(MPI_COMM_NODE,nLocalProcs,iError)
 MPILocalRoot=(myLocalRank.EQ.0)
+
+IF (nProcessors_Global.EQ.nLocalProcs) THEN
+  SWRITE(UNIT_stdOUt,'(A,I0,A,I0,A)') ' | Starting gathered I/O communication with ',nLocalProcs,' procs in ',1,' group'
+ELSE
+  SWRITE(UNIT_stdOUt,'(A,I0,A,I0,A,I0,A)') ' | Starting gathered I/O communication with ',nLocalProcs,' procs each in ',&
+                                                        nProcessors_Global/nLocalProcs,' groups for a total number of ',&
+                                                        nProcessors_Global,' procs'
+END IF
 
 ! now split global communicator into small group leaders and the others
 MPI_COMM_LEADERS=MPI_COMM_NULL
@@ -435,6 +455,7 @@ LOGICAL                                :: WriteHeader
 INTEGER                                :: ioUnit,i
 CHARACTER(LEN=150)                     :: formatStr
 CHARACTER(LEN=22),PARAMETER            :: outfile    ='MPIW8Time.csv'
+CHARACTER(LEN=22),PARAMETER            :: outfilePerc='MPIW8TimePercent.csv'
 CHARACTER(LEN=22),PARAMETER            :: outfileProc='MPIW8TimeProc'
 CHARACTER(LEN=30)                      :: outfileProc_loc
 CHARACTER(LEN=10)                      :: hilf
@@ -444,22 +465,21 @@ CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER
     'WallTimeSim'       , &
     'Barrier-and-Sync'    &
 #if USE_HDG
-   ,'HDG-SendLambda'    , &
-    'HDG-ReceiveLambda' , &
-    'HDG-Broadcast'     , &
-    'HDG-Allreduce'       &
+   ,'HDG-SendLambda'    , & ! (1)
+    'HDG-ReceiveLambda' , & ! (2)
+    'HDG-Broadcast'     , & ! (3)
+    'HDG-Allreduce'       & ! (4)
 #else
-   ,'DGSEM-Send'    , &
-    'DGSEM-Receive'   &
+   ,'DGSEM-Send'    , &     ! (1)
+    'DGSEM-Receive'   &     ! (2)
 #endif /*USE_HDG*/
 #if defined(PARTICLES)
-   ,'SendNbrOfParticles'  , &
-    'RecvNbrOfParticles'  , &
-    'SendParticles'       , &
-    'RecvParticles'       , &
-    'EmissionParticles'   , &
-    'PIC-depo-Reduce'     , &
-    'PIC-depo-Wait'         &
+   ,'SendNbrOfParticles'  , & ! (1)
+    'RecvNbrOfParticles'  , & ! (2)
+    'SendParticles'       , & ! (3)
+    'RecvParticles'       , & ! (4)
+    'EmissionParticles'   , & ! (5)
+    'PIC-depo-Wait'         & ! (6)
 #endif /*defined(PARTICLES)*/
     /)
 ! CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNamesProc(nTotalVars)=(/ CHARACTER(LEN=255) :: &
@@ -474,6 +494,7 @@ CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER
 CHARACTER(LEN=255)         :: tmpStr(nTotalVars)
 CHARACTER(LEN=1000)        :: tmpStr2
 CHARACTER(LEN=1),PARAMETER :: delimiter=","
+REAL                       :: TotalSimTime
 !===================================================================================================================================
 MPIW8Time(               1:1)                              = MPIW8TimeBaS
 MPIW8Time(               2:MPIW8SIZEFIELD+1)               = MPIW8TimeField
@@ -496,6 +517,9 @@ END IF
 ! --------------------------------------------------
 IF(.NOT.MPIRoot)RETURN
 
+! --------------------------------------------------
+! Output file 1 of 3: MPIW8Time.csv
+! --------------------------------------------------
 ! Either create new file or add info to existing file
 WriteHeader = .TRUE.
 IF(FILEEXISTS(outfile)) WriteHeader = .FALSE.
@@ -542,8 +566,7 @@ IF(FILEEXISTS(outfile))THEN
       delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+3),&
       delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+4),&
       delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+5),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+7) &
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6) &
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
@@ -552,6 +575,68 @@ ELSE
   WRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write MPI_WAIT wall time info!"
 END IF
 
+! --------------------------------------------------
+! Output file 2 of 3: MPIW8Time.csv
+! --------------------------------------------------
+! Either create new file or add info to existing file
+WriteHeader = .TRUE.
+IF(FILEEXISTS(outfilePerc)) WriteHeader = .FALSE.
+
+IF(WriteHeader)THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfilePerc),STATUS="UNKNOWN")
+  tmpStr=""
+  DO i=1,nTotalVars
+    WRITE(tmpStr(i),'(A)')delimiter//'"'//TRIM(StrVarNames(i))//'"'
+  END DO
+  WRITE(formatStr,'(A1)')'('
+  DO i=1,nTotalVars
+    IF(i.EQ.nTotalVars)THEN ! skip writing "," and the end of the line
+      WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i))
+    ELSE
+      WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i)),','
+    END IF
+  END DO
+
+  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
+  WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
+  tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
+
+  CLOSE(ioUnit)
+END IF ! WriteHeader
+
+IF(FILEEXISTS(outfilePerc))THEN
+  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfilePerc),POSITION="APPEND",STATUS="OLD")
+  WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
+  TotalSimTime = MPIW8TimeSim*REAL(nProcessors)
+  WRITE(tmpStr2,formatStr)&
+      " ",REAL(nProcessors)       ,&
+      delimiter,100.              ,& ! MPIW8TimeSim*nProcessors / TotalSimTime
+      delimiter,MPIW8TimeGlobal(1)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(2)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(3)/TotalSimTime &
+#if USE_HDG
+     ,delimiter,MPIW8TimeGlobal(4)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(5)/TotalSimTime &
+#endif /*USE_HDG*/
+#if defined(PARTICLES)
+     ,delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+1)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+2)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+3)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+4)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+5)/TotalSimTime,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6)/TotalSimTime &
+#endif /*defined(PARTICLES)*/
+  ; ! this is required for terminating the "&" when particles=off
+  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
+  CLOSE(ioUnit)
+ELSE
+  WRITE(UNIT_StdOut,'(A)')TRIM(outfilePerc)//" does not exist. Cannot write MPI_WAIT wall time info!"
+END IF
+
+! --------------------------------------------------
+! Output file 3 of 3: MPIW8TimeProc-XXX.csv
+! --------------------------------------------------
 ! Cannot append to proc file, iterate name  -000.csv, -001.csv, -002.csv
 WRITE(UNIT=hilf,FMT='(A1,I3.3,A4)') '-',0,'.csv'
 outfileProc_loc=TRIM(outfileProc)//'-'//TRIM(ADJUSTL(INTTOSTR(nProcessors)))
@@ -600,8 +685,7 @@ DO i = 0,nProcessors-1
       delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+3),&
       delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+4),&
       delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+5),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+6),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+7) &
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+6) &
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line

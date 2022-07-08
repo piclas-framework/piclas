@@ -69,9 +69,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL,ALLOCATABLE            :: UserBCFound(:)
+LOGICAL                        :: NameCheck,LengthCheck
 CHARACTER(LEN=255),ALLOCATABLE :: BCNames(:)
 INTEGER, ALLOCATABLE           :: BCMapping(:),BCType(:,:)
-INTEGER                        :: iBC,iUserBC
+INTEGER                        :: iBC,iUserBC,OriginalBC,NewBC
 INTEGER                        :: Offset=0 ! Every process reads all BCs
 !===================================================================================================================================
 ! read in boundary conditions from ini file, will overwrite BCs from meshfile!
@@ -102,20 +103,25 @@ END ASSOCIATE
 ! User may have redefined boundaries in the ini file. So we have to create mappings for the boundaries.
 BCMapping=0
 UserBCFound=.FALSE.
-IF(nUserBCs .GT. 0)THEN
+IF(nUserBCs.GT.0)THEN
   DO iBC=1,nBCs
     DO iUserBC=1,nUserBCs
-      IF(INDEX(TRIM(BCNames(iBC)),TRIM(BoundaryName(iUserBC))).NE.0)THEN
+      ! Check if BoundaryName(iUserBC) is a substring of BCNames(iBC)
+      NameCheck = INDEX(TRIM(BCNames(iBC)),TRIM(BoundaryName(iUserBC))).NE.0
+      ! Check if both strings have equal length
+      LengthCheck = LEN(TRIM(BCNames(iBC))).EQ.LEN(TRIM(BoundaryName(iUserBC)))
+      ! Check if both strings are equal (length has to be checked because index checks for substrings!)
+      IF(NameCheck.AND.LengthCheck)THEN
         BCMapping(iBC)=iUserBC
         UserBCFound(iUserBC)=.TRUE.
-      END IF
+      END IF ! NameCheck.AND.LengthCheck
     END DO
   END DO
 END IF
+
+! Check if all BCs were found
 DO iUserBC=1,nUserBCs
-  IF(.NOT.UserBCFound(iUserBC)) CALL Abort(&
-__STAMP__&
-,'Boundary condition specified in parameter file has not been found: '//TRIM(BoundaryName(iUserBC)))
+  IF(.NOT.UserBCFound(iUserBC)) CALL Abort(__STAMP__,'Boundary condition in parameter file not found: '//TRIM(BoundaryName(iUserBC)))
 END DO
 DEALLOCATE(UserBCFound)
 
@@ -136,27 +142,25 @@ END ASSOCIATE
 ChangedPeriodicBC=.FALSE. ! set true if BCs are changed from periodic to non-periodic
 #endif /*USE_HDG*/
 IF(nUserBCs .GT. 0)THEN
+  SWRITE(Unit_StdOut,'(A)')' REMAPPING BOUNDARY CONDITIONS...'
   DO iBC=1,nBCs
-    IF(BCMapping(iBC) .NE. 0)THEN
+    IF(BCMapping(iBC).NE.0)THEN
+      ! Compare new and original BC type (from mesh file)
+      OriginalBC = BoundaryType(BCMapping(iBC),1)
+      NewBC      = BCType(1,iBC)
       ! non-periodic to periodic
-      IF((BoundaryType(BCMapping(iBC),1).EQ.1).AND.(BCType(1,iBC).NE.1)) CALL abort(&
-          __STAMP__&
-          ,'Remapping non-periodic to periodic BCs is not possible!')
+      IF((OriginalBC.EQ.1).AND.(NewBC.NE.1)) CALL abort(__STAMP__,'Remapping non-periodic to periodic BCs is not possible!')
 #if USE_HDG
       ! periodic to non-periodic
-      IF((BCType(1,iBC).EQ.1).AND.(BoundaryType(BCMapping(iBC),1).NE.1))THEN
+      IF((NewBC.EQ.1).AND.(OriginalBC.NE.1))THEN
         ChangedPeriodicBC=.TRUE.
-        ! Currently, remapping periodic to non-periodic BCs is not allowed. In the future, implement nGlobalUniqueSides
-        ! determination.
-        CALL abort(&
-        __STAMP__&
-        ,'Remapping periodic to non-periodic BCs is currently not possible for HDG because this changes nGlobalUniqueSides!')
+        ! Currently, remapping periodic to non-periodic BCs is not allowed. TODO: implement nGlobalUniqueSides determination.
+        CALL abort(__STAMP__,'Remapping periodic to non-periodic BCs is currently not possible for HDG (changes nGlobalUniqueSides)')
       END IF
 #endif /*USE_HDG*/
       ! Output
-      SWRITE(Unit_StdOut,'(A,A)')    ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC))
-      SWRITE(Unit_StdOut,'(A,I8,I8)')' |                            was | ',BCType(1,iBC),BCType(3,iBC)
-      SWRITE(Unit_StdOut,'(A,I8,I8)')' |                      is set to | ',BoundaryType(BCMapping(iBC),1:2)
+      SWRITE(Unit_StdOut,'(A,A50,A,I4,I4,A,I4,I4)') ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC)), &
+                                      ' was ', NewBC,BCType(3,iBC), ' is set to ',BoundaryType(BCMapping(iBC),1:2)
       BCType(1,iBC) = BoundaryType(BCMapping(iBC),BC_TYPE)
       BCType(3,iBC) = BoundaryType(BCMapping(iBC),BC_STATE)
     END IF

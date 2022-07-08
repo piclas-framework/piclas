@@ -648,12 +648,12 @@ ELSE
       IF (VECNORM(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
         .GT. (BC_halo_eps + ElemRadiusNGeo(iElem) + ElemRadiusNGeo(BCCNElemID))) CYCLE
 
-!      ! loop over all local sides of the element
-       IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
-         .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
-            nBCSidesElem = nBCSidesElem + 1
-            nBCSidesProc = nBCSidesProc + 1
-       END IF
+      ! loop over all local sides of the element
+      IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
+        .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
+           nBCSidesElem = nBCSidesElem + 1
+           nBCSidesProc = nBCSidesProc + 1
+      END IF
     END DO ! iBCSide
 
     ! Write local mapping from Elem to BC sides. The number is already correct, the offset must be corrected later
@@ -773,13 +773,13 @@ ELSE
       IF (VECNORM(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
         .GT. (BC_halo_eps + ElemRadiusNGeo(iElem) + ElemRadiusNGeo(BCCNElemID))) CYCLE
 
-!      ! loop over all local sides of the element
-       IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
-         .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
-           nBCSidesProc = nBCSidesProc + 1
-           SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)
-           SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(ElemID)
-       END IF
+      ! loop over all local sides of the element
+      IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
+        .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
+          nBCSidesProc = nBCSidesProc + 1
+          SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)
+          SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(ElemID)
+      END IF
     END DO ! iBCSide
   END DO ! iElem
 END IF ! fullMesh
@@ -1396,10 +1396,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL,PARAMETER                 :: xi(1:2) = 0
 INTEGER                        :: p,q
 INTEGER                        :: iSide,firstSide,lastSide,BCSideID
 INTEGER                        :: nUniqueBCSidesProc,offsetUniqueBCSidesProc
-REAL                           :: origin(1:3),xi(1:2),radius,radiusMax,vec(1:3)
+REAL                           :: origin(1:3),radius,radiusMax,vec(1:3)
 #if USE_MPI
 INTEGER                        :: sendbuf,recvbuf
 #endif /*USE_MPI*/
@@ -1486,7 +1487,6 @@ DO iSide = firstSide,lastSide
 
   ! calculate origin, radius for all BC sides
   !> build side origin
-  xi     = 0.
   ! TODO: BezierControlPoints are allocated with global side ID, so this SHOULD work. Breaks if we reduce the halo region
   CALL DeCasteljauInterpolation(NGeo,xi,iSide,origin)
   BCSideMetrics(1:3,BCSideID) = origin(1:3)
@@ -1496,7 +1496,7 @@ DO iSide = firstSide,lastSide
   DO q = 0,NGeo
     DO p = 0,NGeo
       vec(1:3) = BezierControlPoints3D(:,p,q,iSide) - origin
-      radius   = DOT_PRODUCT(Vec,Vec)
+      radius   = DOTPRODUCT(Vec)
       radiusMax= MAX(radiusMax,radius)
     END DO
   END DO

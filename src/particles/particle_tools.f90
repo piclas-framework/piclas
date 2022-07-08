@@ -60,33 +60,37 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
-PUBLIC :: CalcXiElec,ParticleOnProc
+PUBLIC :: CalcXiElec,ParticleOnProc,  CalcERot_particle, CalcEVib_particle, CalcEElec_particle, CalcVelocity_maxwell_particle
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE UpdateNextFreePosition()
+SUBROUTINE UpdateNextFreePosition(WithOutMPIParts)
 !===================================================================================================================================
 ! Updates next free position
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars        ,ONLY: PDM,PEM, PartSpecies, doParticleMerge, vMPF_SpecNumElem
-USE MOD_Particle_Vars        ,ONLY: PartState, VarTimeStep, usevMPF
-USE MOD_DSMC_Vars            ,ONLY: useDSMC, CollInf
+USE MOD_DSMC_Vars            ,ONLY: useDSMC,CollInf
+USE MOD_Particle_Vars        ,ONLY: PDM,PEM,PartSpecies,doParticleMerge,vMPF_SpecNumElem
+USE MOD_Particle_Vars        ,ONLY: PartState,VarTimeStep,usevMPF
 USE MOD_Particle_VarTimeStep ,ONLY: CalcVarTimeStep
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers   ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
+USE MOD_LoadBalance_Timers   ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_Particle_MPI_Vars    ,ONLY: PartTargetProc
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL, OPTIONAL         :: WithOutMPIParts
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: counter1,i,n
+INTEGER            :: counter,i,n
 INTEGER            :: ElemID
 #if USE_LOADBALANCE
 REAL               :: tLBStart
@@ -97,12 +101,15 @@ CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 IF(PDM%maxParticleNumber.EQ.0) RETURN
-counter1 = 1
+
 IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
   PEM%pNumber(:) = 0
 END IF
 
-n = PDM%ParticleVecLength !PDM%maxParticleNumber
+PDM%ParticleVecLengthOld = PDM%ParticleVecLength
+n                        = PDM%ParticleVecLength
+counter                  = 0
+PDM%ParticleVecLength    = 0
 
 ! Check size of PDM%ParticleInside array vs. PDM%ParticleVecLength. During particle splitting, the max particle number might be
 ! exceeded, which may lead to an out-of-bounds here
@@ -114,63 +121,103 @@ IF(usevMPF)THEN
   END IF ! n.GT.SIZE(PDM%ParticleInside)
 END IF ! usevMPF
 
-! Nullify
-PDM%ParticleVecLength = 0
-PDM%insideParticleNumber = 0
 IF (doParticleMerge) vMPF_SpecNumElem = 0
 
 IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
-  DO i=1,n
+  DO i = 1,n
     IF (.NOT.PDM%ParticleInside(i)) THEN
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
-      PDM%nextFreePosition(counter1) = i
-      counter1 = counter1 + 1
+      counter = counter + 1
+      PDM%nextFreePosition(counter) = i
+#if USE_MPI
+    ELSE IF (PRESENT(WithOutMPIParts)) THEN
+      ! Particle is to be sent to another proc
+      IF (PartTargetProc(i).NE.-1) THEN
+        IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
+        counter = counter + 1
+        PDM%nextFreePosition(counter) = i
+      ! Particle will stay on the current proc
+      ELSE
+        ElemID = PEM%LocalElemID(i)
+        ! Start of linked list for particles in elem
+        IF (PEM%pNumber(ElemID).EQ.0) THEN
+          PEM%pStart(ElemID)          = i
+        ! Next particle of same elem (linked list)
+        ELSE
+          PEM%pNext(PEM%pEnd(ElemID)) = i
+        END IF
+        PEM%pEnd(   ElemID)   = i
+        PEM%pNumber(ElemID)   = PEM%pNumber(ElemID) + 1
+        PDM%ParticleVecLength = i
+
+        IF (VarTimeStep%UseVariableTimeStep) &
+          VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),ElemID)
+
+        IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
+      END IF
+#endif
     ELSE
       ! Sanity check corrupted particle list (some or all entries of a particle become zero, including the species ID)
       IF(PartSpecies(i).LE.0) CALL abort(__STAMP__,'Species ID is zero for ipart=',IntInfoOpt=i)
       ElemID = PEM%LocalElemID(i)
+      ! Start of linked list for particles in elem
       IF (PEM%pNumber(ElemID).EQ.0) THEN
-        PEM%pStart(ElemID) = i                     ! Start of Linked List for Particles in Elem
+        PEM%pStart(ElemID)          = i
+      ! Next particle of same elem (linked list)
       ELSE
-        PEM%pNext(PEM%pEnd(ElemID)) = i            ! Next Particle of same Elem (Linked List)
+        PEM%pNext(PEM%pEnd(ElemID)) = i
       END IF
-      PEM%pEnd(ElemID) = i
-      PEM%pNumber(ElemID) = &                      ! Number of Particles in Element
-          PEM%pNumber(ElemID) + 1
-      IF (VarTimeStep%UseVariableTimeStep) THEN
-        VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),ElemID)
-      END IF
+      PEM%pEnd(   ElemID)   = i
+      PEM%pNumber(ElemID)   = PEM%pNumber(ElemID) + 1
       PDM%ParticleVecLength = i
+
+      IF (VarTimeStep%UseVariableTimeStep) &
+        VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),ElemID)
+
       IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
     END IF
   END DO
-ELSE ! no DSMC
-  DO i=1,n
+! no DSMC
+ELSE
+  DO i = 1,n
     IF (.NOT.PDM%ParticleInside(i)) THEN
-      PDM%nextFreePosition(counter1) = i
-      counter1 = counter1 + 1
+      counter = counter + 1
+      PDM%nextFreePosition(counter) = i
+#if USE_MPI
+    ELSE IF (PRESENT(WithOutMPIParts)) THEN
+      ! Particle is to be sent to another proc
+      IF (PartTargetProc(i).NE.-1) THEN
+        IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
+        counter = counter + 1
+        PDM%nextFreePosition(counter) = i
+      ! Particle will stay on the current proc
+      ELSE
+        PDM%ParticleVecLength = i
+      END IF
+#endif
     ELSE
       PDM%ParticleVecLength = i
     END IF
   END DO
 ENDIF
-PDM%insideParticleNumber = PDM%ParticleVecLength - counter1+1
 PDM%CurrentNextFreePosition = 0
 
 ! Positions after ParticleVecLength in freePosition
 DO i = n+1,PDM%maxParticleNumber
   IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
-  PDM%nextFreePosition(counter1) = i
-  counter1 = counter1 + 1
+  counter = counter + 1
+  PDM%nextFreePosition(counter) = i
 END DO
-PDM%nextFreePosition(counter1:PDM%MaxParticleNumber)=0 ! exists if MaxParticleNumber is reached!!!
-IF (counter1.GT.PDM%MaxParticleNumber) PDM%nextFreePosition(PDM%MaxParticleNumber)=0
+
+! Set nextFreePosition for occupied slots to zero
+PDM%nextFreePosition(counter+1:PDM%maxParticleNumber) = 0
+! If maxParticleNumber are inside, counter is greater than maxParticleNumber
+IF (counter+1.GT.PDM%MaxParticleNumber) PDM%nextFreePosition(PDM%MaxParticleNumber) = 0
 
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_UNFP,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  RETURN
 END SUBROUTINE UpdateNextFreePosition
 
 
@@ -187,7 +234,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: time
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)          :: iPart
 INTEGER,INTENT(IN)          :: ElemID ! Global element index
 LOGICAL,INTENT(IN),OPTIONAL :: UsePartState_opt
@@ -218,7 +265,7 @@ ASSOCIATE( iMax => PartStateLostVecLength )
   ! Increase maximum number of boundary-impact particles
   iMax = iMax + 1
 
-  ! Check if array maximum is reached. 
+  ! Check if array maximum is reached.
   ! If this happens, re-allocate the arrays and increase their size (every time this barrier is reached, double the size)
   IF(iMax.GT.dims(2))THEN
 
@@ -288,20 +335,20 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                     :: DiceUnitVector(3)
-  REAL                     :: rRan, cos_scatAngle, sin_scatAngle, rotAngle
+REAL                     :: DiceUnitVector(3)
+REAL                     :: rRan, cos_scatAngle, sin_scatAngle, rotAngle
 !===================================================================================================================================
-  CALL RANDOM_NUMBER(rRan)
+CALL RANDOM_NUMBER(rRan)
 
-  cos_scatAngle     = 2.*rRan-1.
-  sin_scatAngle     = SQRT(1. - cos_scatAngle ** 2.)
-  DiceUnitVector(1) = cos_scatAngle
+cos_scatAngle     = 2.*rRan-1.
+sin_scatAngle     = SQRT(1. - cos_scatAngle ** 2.)
+DiceUnitVector(1) = cos_scatAngle
 
-  CALL RANDOM_NUMBER(rRan)
-  rotAngle          = 2. * Pi * rRan
+CALL RANDOM_NUMBER(rRan)
+rotAngle          = 2. * Pi * rRan
 
-  DiceUnitVector(2) = sin_scatAngle * COS(rotAngle)
-  DiceUnitVector(3) = sin_scatAngle * SIN(rotAngle)
+DiceUnitVector(2) = sin_scatAngle * COS(rotAngle)
+DiceUnitVector(3) = sin_scatAngle * SIN(rotAngle)
 
 END FUNCTION DiceUnitVector
 
@@ -343,6 +390,18 @@ CASE('deltadistribution')
   VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
   ! Set magnitude
   VeloFromDistribution = Tempergy*VeloFromDistribution ! Tempergy here is [m/s]
+
+CASE('uniform-energy')
+
+  ! Get random vector
+  VeloFromDistribution = DiceUnitVector()
+  ! Mirror z-component of velocity (particles are emitted from surface!)
+  VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
+  ! Set uniform energy distribution. Note that Tempergy here is [eV], which is converted from eV to J
+  CALL RANDOM_NUMBER(RandVal) ! random value between 0 and 1.
+  VeloABS = SQRT(2.0 * RandVal * Tempergy * eV2Joule / ElectronMass)
+  ! Set magnitude
+  VeloFromDistribution = VeloABS*VeloFromDistribution
 
 CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardment on dielectric surfaces
 
@@ -635,7 +694,7 @@ DO iLoop = 1, nPart
       iRanPart(I,iLoop) = iRanPart(I,iLoop)/varianceiRan(I)
     ELSE
       iRanPart(I,iLoop) = 0.
-    END IF ! varianceiRan(I).GT.0  
+    END IF ! varianceiRan(I).GT.0
   END DO ! I = 1, 3
 END DO
 
@@ -662,6 +721,11 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 INTEGER                         :: iQua
 REAL                            :: TempRatio, SumOne, SumTwo
 !===================================================================================================================================
+
+IF (Telec.LE.0.0) THEN
+  CalcXiElec = 0.0
+  RETURN
+END IF
 
 SumOne = 0.0
 SumTwo = 0.0
@@ -705,6 +769,224 @@ INTEGER, INTENT(IN) :: PartID ! Particle index
 !===================================================================================================================================
 L = (PEM%LocalElemID(PartID).GE.1).AND.(PEM%LocalElemID(PartID).LE.PP_nElems)
 END FUNCTION ParticleOnProc
+
+
+FUNCTION CalcVelocity_maxwell_particle(iSpec,Temp)
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars,           ONLY : BoltzmannConst
+USE MOD_Particle_Vars,          ONLY : Species
+USE Ziggurat,                   ONLY : rnor
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iSpec
+REAL, INTENT(IN)                :: Temp(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                            :: CalcVelocity_maxwell_particle(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+CalcVelocity_maxwell_particle(1:3) = 0.0
+
+IF(Temp(1).GT.0.0) CalcVelocity_maxwell_particle(1) = rnor()*SQRT(BoltzmannConst*Temp(1)/Species(iSpec)%MassIC)
+IF(Temp(2).GT.0.0) CalcVelocity_maxwell_particle(2) = rnor()*SQRT(BoltzmannConst*Temp(2)/Species(iSpec)%MassIC)
+IF(Temp(3).GT.0.0) CalcVelocity_maxwell_particle(3) = rnor()*SQRT(BoltzmannConst*Temp(3)/Species(iSpec)%MassIC)
+
+END FUNCTION CalcVelocity_maxwell_particle
+
+
+REAL FUNCTION CalcEVib_particle(iSpec,TempVib,iPart)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, PolyatomMolDSMC, VibQuantsPar, DSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iSpec
+REAL, INTENT(IN)              :: TempVib
+INTEGER, INTENT(IN),OPTIONAL  :: iPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                      :: iRan
+INTEGER                   :: iQuant, iDOF, iPolyatMole
+LOGICAL                   :: SetVibQuant
+!===================================================================================================================================
+
+IF(PRESENT(iPart)) THEN
+  SetVibQuant = .TRUE.
+ELSE
+  SetVibQuant = .FALSE.
+END IF
+
+IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+  ! set vibrational energy
+  iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+  IF(SetVibQuant) THEN
+    IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
+    ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+  END IF
+  CalcEVib_particle = 0.0
+  DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+    CALL RANDOM_NUMBER(iRan)
+    iQuant = INT(-LOG(iRan)*TempVib/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+    DO WHILE (iQuant.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT(-LOG(iRan)*TempVib/PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
+    END DO
+    CalcEVib_particle = CalcEVib_particle &
+                                + (iQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
+    IF(SetVibQuant) VibQuantsPar(iPart)%Quants(iDOF)=iQuant
+  END DO
+ELSE
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT(-LOG(iRan)*TempVib/SpecDSMC(iSpec)%CharaTVib)
+  DO WHILE (iQuant.GE.SpecDSMC(iSpec)%MaxVibQuant)
+    CALL RANDOM_NUMBER(iRan)
+    iQuant = INT(-LOG(iRan)*TempVib/SpecDSMC(iSpec)%CharaTVib)
+  END DO
+  CalcEVib_particle = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
+END IF
+
+RETURN
+
+END FUNCTION CalcEVib_particle
+
+
+REAL FUNCTION CalcERot_particle(iSpec,TempRot)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)       :: iSpec
+REAL, INTENT(IN)          :: TempRot
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                      :: PartStateTempVar, NormProb, iRan2
+!===================================================================================================================================
+
+CalcERot_particle = 0.
+
+IF (SpecDSMC(iSpec)%Xi_Rot.EQ.2) THEN
+  CALL RANDOM_NUMBER(iRan2)
+  CalcERot_particle = -BoltzmannConst*TempRot*LOG(iRan2)
+ELSE IF (SpecDSMC(iSpec)%Xi_Rot.EQ.3) THEN
+  CALL RANDOM_NUMBER(iRan2)
+  PartStateTempVar = iRan2*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+  NormProb = SQRT(PartStateTempVar)*EXP(-PartStateTempVar)/(SQRT(0.5)*EXP(-0.5))
+  CALL RANDOM_NUMBER(iRan2)
+  DO WHILE (iRan2.GE.NormProb)
+    CALL RANDOM_NUMBER(iRan2)
+    PartStateTempVar = iRan2*10 !the distribution function has only non-negligible  values betwenn 0 and 10
+    NormProb = SQRT(PartStateTempVar)*EXP(-PartStateTempVar)/(SQRT(0.5)*EXP(-0.5))
+    CALL RANDOM_NUMBER(iRan2)
+  END DO
+  CalcERot_particle = PartStateTempVar*BoltzmannConst*TempRot
+END IF
+
+RETURN
+
+END FUNCTION CalcERot_particle
+
+
+REAL FUNCTION CalcEElec_particle(iSpec,TempElec,iPart)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, DSMC, ElectronicDistriPart
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iSpec
+REAL, INTENT(IN)              :: TempElec
+INTEGER, INTENT(IN),OPTIONAL  :: iPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: iQua
+REAL                      :: iRan, ElectronicPartition, ElectronicPartitionTemp, tmpExp
+!===================================================================================================================================
+ElectronicPartition  = 0.
+CalcEElec_particle = 0.
+
+IF(.NOT.PRESENT(iPart).AND.DSMC%ElectronicModel.EQ.2) THEN
+  CALL abort(__STAMP__,'ERROR: Calculation of electronic energy using ElectronicModel = 2 requires the input of particle index!')
+END IF
+
+SELECT CASE(DSMC%ElectronicModel)
+CASE(1,4)
+  ElectronicPartitionTemp = 0.
+  IF(TempElec.GT.0.0) THEN
+    ! calculate sum over all energy levels == partition function for temperature Telec
+    DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
+      ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TempElec)
+      IF ( ElectronicPartitionTemp .GT. ElectronicPartition ) THEN
+        ElectronicPartition = ElectronicPartitionTemp
+      END IF
+    END DO
+    ElectronicPartitionTemp = 0.
+    ! select level
+    CALL RANDOM_NUMBER(iRan)
+    DO WHILE ( iRan .GE. ElectronicPartitionTemp / ElectronicPartition )
+      CALL RANDOM_NUMBER(iRan)
+      iQua = int( ( SpecDSMC(iSpec)%MaxElecQuant ) * iRan)
+      ElectronicPartitionTemp = SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-SpecDSMC(iSpec)%ElectronicState(2,iQua)/TempElec)
+      CALL RANDOM_NUMBER(iRan)
+    END DO
+  ELSE
+    iQua = 0
+  END IF
+  CalcEElec_particle = BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
+CASE(2)
+  IF(ALLOCATED(ElectronicDistriPart(iPart)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(iPart)%DistriFunc)
+  ALLOCATE(ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(iSpec)%MaxElecQuant))
+  CalcEElec_particle = 0.0
+  DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
+    tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TempElec
+    IF (CHECKEXP(tmpExp)) &
+      ElectronicPartition = ElectronicPartition + SpecDSMC(iSpec)%ElectronicState(1,iQua) * EXP(-tmpExp)
+  END DO
+  DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
+    tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TempElec
+    IF (CHECKEXP(tmpExp)) THEN
+      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = SpecDSMC(iSpec)%ElectronicState(1,iQua)*EXP(-tmpExp)/ElectronicPartition
+    ELSE
+      ElectronicDistriPart(iPart)%DistriFunc(iQua+1) = 0.0
+    END IF
+    CalcEElec_particle = CalcEElec_particle + &
+        ElectronicDistriPart(iPart)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
+  END DO
+CASE(3)
+  ! Initialize in ground state
+  CalcEElec_particle = 0.
+CASE DEFAULT
+  CALL abort(__STAMP__,'ERROR: Unknown electronic relaxation model: ',IntInfoOpt=DSMC%ElectronicModel)
+END SELECT
+
+RETURN
+
+END FUNCTION CalcEElec_particle
 
 
 END MODULE MOD_part_tools

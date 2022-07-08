@@ -33,7 +33,7 @@
 #endif
 ! Particle solver
 #ifdef PARTICLES
-#define MPIW8SIZEPART 7
+#define MPIW8SIZEPART 6
 #else
 #define MPIW8SIZEPART 0
 #endif
@@ -159,6 +159,7 @@
 ! Entry position in FIBGMToProc
 #define FIBGM_FIRSTPROCIND 1
 #define FIBGM_NPROCS       2
+#define FIBGM_NLOCALPROCS  3
 
 ! Entry position in SideBCMetrics
 #define BCSIDE_SIDEID      1

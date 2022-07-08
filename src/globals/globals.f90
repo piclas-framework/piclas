@@ -55,7 +55,10 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
 INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 #endif
 
-INTEGER(KIND=IK)   :: nGlobalNbrOfParticles
+#if defined(PARTICLES)
+INTEGER(KIND=IK)   :: nGlobalNbrOfParticles(6) !< 1-3: min,max,total number of simulation particles over all processors
+!                                              !< 4-6: peak values over the complete simulation
+#endif /*defined(PARTICLES)*/
 
 INTERFACE ReOpenLogFile
   MODULE PROCEDURE ReOpenLogFile
@@ -162,6 +165,10 @@ END INTERFACE
 
 INTERFACE SPECIESISELECTRON
   MODULE PROCEDURE SPECIESISELECTRON
+END INTERFACE
+
+INTERFACE DisplayNumberOfParticles
+  MODULE PROCEDURE DisplayNumberOfParticles
 END INTERFACE
 #endif /*defined(PARTICLES)*/
 
@@ -364,7 +371,7 @@ WRITE(UNIT_stdOut,*)'Program abort caused on Proc ',myRank,' in File : ',TRIM(So
 WRITE(UNIT_stdOut,*)'This file was compiled at ',TRIM(CompDate),'  ',TRIM(CompTime)
 WRITE(UNIT_stdOut,'(A10,A)',ADVANCE='NO')'Message: ',TRIM(ErrorMessage)
 IF(PRESENT(IntInfoOpt)) WRITE(UNIT_stdOut,'(I8)',ADVANCE='NO')IntInfo
-IF(PRESENT(RealInfoOpt)) WRITE(UNIT_stdOut,'(E16.8)')RealInfo
+IF(PRESENT(RealInfoOpt)) WRITE(UNIT_stdOut,'(ES25.14E3)')RealInfo
 WRITE(UNIT_stdOut,*)
 WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
 WRITE(UNIT_stdOut,*)
@@ -452,6 +459,7 @@ SWRITE(UNIT_stdOut,*) '_________________________________________________________
 
 CALL FLUSH(UNIT_stdOut)
 #if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 CALL MPI_FINALIZE(iError)
 #endif
 ERROR STOP 1
@@ -1110,6 +1118,12 @@ REAL :: SimulationTime,mins,secs,hours,days
 ! Return with all procs except root if not called during abort
 IF(.NOT.MPIRoot.AND.(Message.NE.'ABORTED')) RETURN
 
+! Output particle info
+#if defined(PARTICLES)
+IF(Message.NE.'RUNNING') CALL DisplayNumberOfParticles(2)
+#endif /*defined(PARTICLES)*/
+
+! Calculate simulation time
 SimulationTime = Time-StartTime
 
 ! Get secs, mins, hours and days
@@ -1122,7 +1136,8 @@ SimulationTime = SimulationTime / 24.
 !days = MOD(SimulationTime,365.) ! Use this if years are also to be displayed
 days = SimulationTime
 
-! Output
+! Output message with all procs, as root might not be the calling process during abort
+IF(MPIRoot.AND.(Message.NE.'ABORTED')) WRITE(UNIT_stdOut,'(132("="))')
 WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [',Time-StartTime,' sec ]'
 WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
 END SUBROUTINE DisplaySimulationTime
@@ -1323,6 +1338,69 @@ INTEGER             :: LocalElemID
 LocalElemID = GlobalElemID - offsetElem
 L = (LocalElemID.GE.1).AND.(LocalElemID.LE.PP_nElems)
 END FUNCTION ElementOnProc
+
+
+!===================================================================================================================================
+!> Check whether element ID is on the current node
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION ElementOnNode(GlobalElemID) RESULT(L)
+! MODULES
+USE MOD_Preproc
+#if USE_MPI
+USE MOD_MPI_Vars        ,ONLY: offsetElemMPI
+USE MOD_MPI_Shared_Vars ,ONLY: ComputeNodeRootRank,nComputeNodeProcessors
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN) :: GlobalElemID ! Global element index
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+!===================================================================================================================================
+#if USE_MPI
+L = (GlobalElemID.GE.offsetElemMPI(ComputeNodeRootRank)+1).AND.&
+    (GlobalElemID.LE.offsetElemMPI(ComputeNodeRootRank+nComputeNodeProcessors))
+#else
+L = .TRUE.
+#endif /*USE_MPI*/
+END FUNCTION ElementOnNode
+
+
+#if defined(PARTICLES)
+!===================================================================================================================================
+!> Write min, max, average and total number of simulations particles to stdout stream
+!===================================================================================================================================
+SUBROUTINE DisplayNumberOfParticles(Mode)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: Mode ! 1: during the simulation
+!                          ! 2: at the end of the simulation
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+
+!===================================================================================================================================
+SELECT CASE(Mode)
+CASE(1)
+  SWRITE(UNIT_StdOut,'(4(A,ES16.7))') "#Particles : ", REAL(nGlobalNbrOfParticles(3)),&
+      "    Average particles per proc : ",REAL(nGlobalNbrOfParticles(3))/REAL(nProcessors),&
+      "    Min : ",REAL(nGlobalNbrOfParticles(1)),&
+      "    Max : ",REAL(nGlobalNbrOfParticles(2))
+CASE(2)
+  SWRITE(UNIT_StdOut,'(4(A,ES16.7))') "#Particles : ", REAL(nGlobalNbrOfParticles(6)),&
+      " (peak)         Average (peak) : ",REAL(nGlobalNbrOfParticles(6))/REAL(nProcessors),&
+      "    Min : ",REAL(nGlobalNbrOfParticles(4)),&
+      "    Max : ",REAL(nGlobalNbrOfParticles(5))
+CASE DEFAULT
+  CALL abort(__STAMP__,'DisplayNumberOfParticles() called with unknown Mode=',IntInfoOpt=Mode)
+END SELECT
+END SUBROUTINE DisplayNumberOfParticles
+#endif /*defined(PARTICLES)*/
 
 
 END MODULE MOD_Globals

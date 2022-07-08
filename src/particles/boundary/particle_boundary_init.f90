@@ -220,6 +220,7 @@ CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp','Perform wall temperature a
 
 END SUBROUTINE DefineParametersParticleBoundary
 
+
 SUBROUTINE InitializeVariablesPartBoundary()
 !===================================================================================================================================
 !>
@@ -239,6 +240,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -329,8 +331,9 @@ IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
 END IF
 ! Dielectric Surfaces
 ALLOCATE(PartBound%Dielectric(1:nPartBound))
-PartBound%Dielectric=.FALSE.
-DoDielectricSurfaceCharge=.FALSE.
+PartBound%Dielectric      = .FALSE.
+DoDielectricSurfaceCharge = .FALSE.
+DoHaloDepo                = .FALSE. ! dielectric surfaces or implicit particle deposition
 ! Surface particle output to .h5
 ALLOCATE(PartBound%BoundaryParticleOutputHDF5(1:nPartBound))
 PartBound%BoundaryParticleOutputHDF5=.FALSE.
@@ -416,7 +419,10 @@ DO iPartBound=1,nPartBound
             ' for every species (except background gas species) or\n   '//&
             'b) surface model that is reactive (Part-BoundaryX-SurfaceModel)!')
       ELSE
-        DoDielectricSurfaceCharge=.TRUE.
+        DoDielectricSurfaceCharge = .TRUE.
+        DoHaloDepo                = .TRUE.
+        IF(TRIM(DepositionType).NE.'cell_volweight_mean') CALL CollectiveStop(__STAMP__,&
+            'PartBound%Dielectric=T requires cell_volweight_mean (12) as deposition method')
       END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies
     END IF ! PartBound%Dielectric(iPartBound)
   CASE('periodic')
@@ -540,6 +546,7 @@ USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,nElems
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
 USE MOD_HDF5_Output_State       ,ONLY: WriteStateToHDF5
 USE MOD_HDF5_Output_ElemData    ,ONLY: WriteLostRotPeriodicSidesToHDF5
+USE MOD_Globals_Vars            ,ONLY: ProjectName
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -561,6 +568,8 @@ INTEGER              :: notMapped
 INTEGER              :: notMappedTotal
 #endif /*USE_MPI*/
 !===================================================================================================================================
+
+SWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY...'
 
 ALLOCATE(Rot2Glob_temp(nComputeNodeSurfTotalSides))
 ALLOCATE(SurfSide2RotPeriodicSide(nComputeNodeSurfTotalSides))
@@ -703,7 +712,7 @@ IF(notMappedTotal.GT.0)THEN
   SWRITE(Unit_StdOut,'(A,I0,A)') ' | Warning: Found ',notMappedTotal,' rot periodic sides that did not find a corresponding side.'
   SWRITE(Unit_StdOut,'(A)')" | The halo region (halo flag 2) merely reaches a rot periodic BC side but not any further."
   SWRITE(Unit_StdOut,'(A)')" | See ElemData container 'LostRotPeriodicSides' for more information on where sides were unmatched."
-  SWRITE(Unit_StdOut,'(A)')" | This information is written to LostRotPeriodicSides_000.00000000000000000.h5 (CalcMeshInfo=T)"
+  SWRITE(Unit_StdOut,'(A)')" | This information is written to "//TRIM(ProjectName)//"_LostRotPeriodicSides.h5 (only when CalcMeshInfo=T)"
   IF(CalcMeshInfo)THEN
     ALLOCATE(LostRotPeriodicSides(1:nElems))
     LostRotPeriodicSides=notMapped
@@ -713,6 +722,8 @@ IF(notMappedTotal.GT.0)THEN
   !IF(MPIroot) CALL abort(__STAMP__,'At least one rot periodic side did not find a corresponding side.')
 END IF ! notMappedTotal.GT.0
 #endif /*USE_MPI*/
+
+SWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY DONE!'
 
 END SUBROUTINE InitParticleBoundaryRotPeriodic
 

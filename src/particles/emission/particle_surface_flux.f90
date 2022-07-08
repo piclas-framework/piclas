@@ -36,18 +36,19 @@ SUBROUTINE ParticleSurfaceflux()
 USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
-USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, RadialWeighting, DSMC
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Part_Tools              ,ONLY: GetParticleWeight
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass, SetParticleMPF
-USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, CalcAdaptiveBCInfo, nPartIn, PartEkinIn
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, CalcSurfFluxInfo, nPartIn, PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata_auxSF
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
+USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetSFElectronVelo
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 #endif /*IMPA*/
@@ -69,8 +70,8 @@ IMPLICIT NONE
 ! Local variable declaration
 INTEGER                     :: iSpec , PositionNbr, iSF, iSide, currentBC, SideID, NbrOfParticle, ExtraParts, ParticleIndexNbr
 INTEGER                     :: BCSideID, ElemID, iLocSide, iSample, jSample, PartInsSubSide, iPart, iPartTotal
-INTEGER                     :: nReject, allowedRejections, PartsEmitted, Node1, Node2, globElemId
-INTEGER                     :: PartInsSideSubSub(1:RadialWeighting%nSubSides)
+INTEGER                     :: allowedRejections, PartsEmitted, Node1, Node2, globElemId
+INTEGER                     :: PartInsSideRadWeight(1:RadialWeighting%nSubSides)
 REAL                        :: Particle_pos(3), RandVal1,  xyzNod(3), RVec(2), minPos(2), xi(2), Vector1(3), Vector2(3)
 REAL                        :: ndist(3), midpoint(3)
 LOGICAL                     :: AcceptPos
@@ -81,13 +82,18 @@ REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 DO iSpec=1,nSpecies
+  IF(useDSMC) THEN
+    IF (DSMC%DoAmbipolarDiff) THEN
+      IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
+    END IF
+  END IF
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
     PartsEmitted = 0
     currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
     NbrOfParticle = 0 ! calculated within (sub)side-Loops!
     iPartTotal=0
     ! Reset the mass flow rate counter for the next time step
-    IF(CalcAdaptiveBCInfo) Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
+    IF(CalcSurfFluxInfo) Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
     ! Adaptive BC, Type = 4 (Const. massflow): Sum-up the global number of particles exiting through the BC and calculate the new
     ! weights
     IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
@@ -154,7 +160,7 @@ __STAMP__&
             CALL CalcPartInsAdaptive(iSpec, iSF, BCSideID, iSide, iSample, jSample, PartInsSubSide)
           END IF ! Adaptive SurfaceFlux
         ELSE
-          CALL CalcPartInsRadWeight(iSpec, iSF, iSample, jSample, iSide, minPos, RVec, PartInsSubSide, PartInsSideSubSub)
+          CALL CalcPartInsRadWeight(iSpec, iSF, iSample, jSample, iSide, minPos, RVec, PartInsSubSide, PartInsSideRadWeight)
         END IF ! noAdaptive.AND.(.NOT.Symmetry2DAxisymmetric)
         !-- proceed with calculated to be inserted particles
         IF (PartInsSubSide.LT.0) THEN
@@ -171,12 +177,11 @@ __STAMP__&
         END IF !VeloIsNormal
         !-- put particles in subside (rejections are used if contraint reduces actual inserted number)
         iPart=1
-        nReject=0
         allowedRejections=0
 
         !-- Set Positions
         IF(Symmetry%Axisymmetric) THEN
-          CALL CalcPartPosRadWeight(minPos, RVec, PartInsSubSide, PartInsSideSubSub, particle_positions)
+          CALL CalcPartPosRadWeight(iSpec, iSF, iSide, minPos, RVec, PartInsSubSide, PartInsSideRadWeight, particle_positions, allowedRejections)
         ELSE
           DO WHILE (iPart+allowedRejections .LE. PartInsSubSide)
             IF (TriaSurfaceFlux) THEN
@@ -200,7 +205,6 @@ __STAMP__&
               END IF !VeloIsNormal
               iPart=iPart+1
             ELSE
-              nReject=nReject+1
               IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN !check rmax-rejection
                 allowedRejections=allowedRejections+1
               END IF
@@ -237,7 +241,7 @@ __STAMP__&
             IF (RadialWeighting%DoRadialWeighting) THEN
               PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
             END IF
-            IF(CalcAdaptiveBCInfo) THEN
+            IF(CalcSurfFluxInfo) THEN
               Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow &
                                                                 + GetParticleWeight(ParticleIndexNbr)
             END IF
@@ -245,17 +249,27 @@ __STAMP__&
             CALL AnalyzePartPos(ParticleIndexNbr)
 #endif /*CODE_ANALYZE*/
           ELSE
-            CALL abort(&
-__STAMP__&
-,'ERROR in ParticleSurfaceflux: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+            CALL abort(__STAMP__,'ERROR in ParticleSurfaceflux: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
           END IF
         END DO
-        DEALLOCATE(particle_positions)
-        IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) DEALLOCATE(particle_xis)
 !----- 2a.: set velocities if special for each subside
         CALL SetSurfacefluxVelocities(iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,ElemID,NbrOfParticle,PartInsSubSide)
 
         PartsEmitted = PartsEmitted + PartInsSubSide
+
+        IF (useDSMC) THEN
+          IF (DSMC%DoAmbipolarDiff) CALL AD_SetSFElectronVelo(iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,ElemID,NbrOfParticle,PartInsSubSide,particle_xis)
+          DO iPart = 1, NbrOfParticle
+            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+            IF (PositionNbr .EQ. 0) THEN
+              CALL abort(__STAMP__,&
+                'ERROR in InitialParticleInserting: No free particle index - maximum nbr of particles reached?')
+            END IF
+          END DO
+        END IF
+
+        IF (Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal .AND. .NOT.TriaSurfaceFlux) DEALLOCATE(particle_xis)
+        DEALLOCATE(particle_positions)
 #if USE_LOADBALANCE
         !used for calculating LoadBalance of tCurrent(LB_SURFFLUX) ==> "2b.: set remaining properties"
         nSurfacefluxPerElem(ElemID)=nSurfacefluxPerElem(ElemID)+PartInsSubSide
@@ -270,7 +284,7 @@ __STAMP__&
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
       IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) AdaptBCPartNumOut(iSpec,iSF) = 0
     END IF
-    IF (NbrOfParticle.NE.iPartTotal) CALL abort(__STAMP__, 'Error 2 in ParticleSurfaceflux!')
+    IF (NbrOfParticle.NE.iPartTotal) CALL abort(__STAMP__, 'Error ParticleSurfaceflux: Mismatch between the determined and inserted number of particles!')
 !----- 2b.: set remaining properties
     CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
     IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(iSpec,-1,NbrOfParticle)
@@ -566,8 +580,7 @@ SELECT CASE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide))
 CASE(0) !- RejectType=0 : complete side is inside valid bounds
   InSideCircularInflow=.TRUE.
 CASE(1) !- RejectType=1 : complete side is outside of valid bounds
-CALL abort(__STAMP__,'side outside of valid bounds was considered although nVFR=0...?!')
-              !AcceptPos=.FALSE.
+  CALL abort(__STAMP__,'side outside of valid bounds was considered although nVFR=0...?!')
 CASE(2) !- RejectType=2 : side is partly inside valid bounds
   point(1)=Particle_pos(Species(iSpec)%Surfaceflux(iSF)%dir(2))-origin(1)
   point(2)=Particle_pos(Species(iSpec)%Surfaceflux(iSF)%dir(3))-origin(2)
@@ -705,28 +718,32 @@ END FUNCTION CalcPartPosTriaSurface
 !===================================================================================================================================
 !> Calculate random normalized vector in 3D (unit space)
 !===================================================================================================================================
-SUBROUTINE CalcPartPosRadWeight(minPos, RVec, PartInsSubSide, PartInsSideSubSub, particle_positions)
+SUBROUTINE CalcPartPosRadWeight(iSpec,iSF,iSide,minPos,RVec,PartInsSubSide,PartInsSideRadWeight,particle_positions,allowedRejections)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
+USE MOD_Particle_Vars           ,ONLY: Species
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)         :: PartInsSubSide, PartInsSideSubSub(:)
+INTEGER, INTENT(IN)         :: iSpec, iSF, iSide
+INTEGER, INTENT(IN)         :: PartInsSubSide, PartInsSideRadWeight(:)
 REAL, INTENT(IN)            :: minPos(2), RVec(2)
-REAL, INTENT(OUT)           :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+INTEGER, INTENT(OUT)        :: allowedRejections
+REAL, INTENT(OUT)           :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                        :: RandVal1, PminTemp, PmaxTemp, Particle_pos(2)
-INTEGER                     :: iSub, iPart, iPartSub
+INTEGER                     :: iSub, iPart, iPartSub, allowedRejectionsSub
 !===================================================================================================================================
 iPart=1
+allowedRejections = 0
 IF (RadialWeighting%DoRadialWeighting.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))))) THEN
   IF(RadialWeighting%CellLocalWeighting) THEN
-    DO WHILE (iPart .LE. PartInsSubSide)
+    DO WHILE (iPart+allowedRejections.LE.PartInsSubSide)
       CALL RANDOM_NUMBER(RandVal1)
       Particle_pos(2) = minPos(2) + RandVal1 * RVec(2)
       ! x-position depending on the y-location
@@ -734,12 +751,19 @@ IF (RadialWeighting%DoRadialWeighting.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)
       particle_positions(iPart*3-2) = Particle_pos(1)
       particle_positions(iPart*3-1) = Particle_pos(2)
       particle_positions(iPart*3  ) = 0.
+      IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+        IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, (/Particle_pos(1),Particle_pos(2),0.0/))) THEN
+          allowedRejections = allowedRejections + 1
+          CYCLE
+        END IF
+      END IF ! CircularInflow
       iPart = iPart + 1
     END DO
   ELSE
     DO iSub = 1, RadialWeighting%nSubSides
       iPartSub = 1
-      DO WHILE (iPartSub.LE.PartInsSideSubSub(iSub))
+      allowedRejectionsSub = 0
+      DO WHILE (iPartSub+allowedRejectionsSub.LE.PartInsSideRadWeight(iSub))
         CALL RANDOM_NUMBER(RandVal1)
         PminTemp = minPos(2) + RVec(2)/RadialWeighting%nSubSides*(iSub-1.)
         PmaxTemp = minPos(2) + RVec(2)/RadialWeighting%nSubSides*iSub
@@ -749,13 +773,20 @@ IF (RadialWeighting%DoRadialWeighting.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)
         particle_positions(iPart*3-2) = Particle_pos(1)
         particle_positions(iPart*3-1) = Particle_pos(2)
         particle_positions(iPart*3  ) = 0.
+        IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+          IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, (/Particle_pos(1),Particle_pos(2),0.0/))) THEN
+            allowedRejectionsSub = allowedRejectionsSub + 1
+            CYCLE
+          END IF
+        END IF ! CircularInflow
         iPart = iPart + 1
         iPartSub = iPartSub + 1
       END DO
+      allowedRejections = allowedRejections + allowedRejectionsSub
     END DO
   END IF
 ELSE
-  DO WHILE (iPart .LE. PartInsSubSide)
+  DO WHILE (iPart+allowedRejections.LE.PartInsSubSide)
     CALL RANDOM_NUMBER(RandVal1)
     IF (ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
       ! y_min = y_max, faces parallel to x-direction, constant distribution
@@ -768,6 +799,12 @@ ELSE
     particle_positions(iPart*3-2) = Particle_pos(1)
     particle_positions(iPart*3-1) = Particle_pos(2)
     particle_positions(iPart*3  ) = 0.
+    IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+      IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, (/Particle_pos(1),Particle_pos(2),0.0/))) THEN
+        allowedRejections = allowedRejections + 1
+        CYCLE
+      END IF
+    END IF ! CircularInflow
     iPart = iPart + 1
   END DO
 END IF
@@ -778,7 +815,7 @@ END SUBROUTINE CalcPartPosRadWeight
 !===================================================================================================================================
 !> Calculate random normalized vector in 3D (unit space)
 !===================================================================================================================================
-SUBROUTINE CalcPartInsRadWeight(iSpec, iSF, iSample, jSample, iSide, minPos, RVec, PartInsSubSide, PartInsSideSubSub)
+SUBROUTINE CalcPartInsRadWeight(iSpec, iSF, iSample, jSample, iSide, minPos, RVec, PartInsSubSide, PartInsSideRadWeight)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
@@ -790,7 +827,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)         :: iSpec, iSF, iSample, jSample, iSide
 REAL, INTENT(IN)            :: minPos(2), RVec(2)
-INTEGER, INTENT(OUT)        :: PartInsSubSide, PartInsSideSubSub(:)
+INTEGER, INTENT(OUT)        :: PartInsSubSide, PartInsSideRadWeight(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -806,9 +843,9 @@ IF(.NOT.RadialWeighting%CellLocalWeighting) THEN
     PartInsSubSide = 0
     DO iSub = 1, RadialWeighting%nSubSides
       CALL RANDOM_NUMBER(RandVal1)
-      PartInsSideSubSub(iSub) = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
+      PartInsSideRadWeight(iSub) = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
               * dt*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub)+ RandVal1)
-      PartInsSubSide = PartInsSubSide + PartInsSideSubSub(iSub)
+      PartInsSubSide = PartInsSubSide + PartInsSideRadWeight(iSub)
     END DO
   END IF
 END IF

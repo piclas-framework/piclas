@@ -195,7 +195,7 @@ ELSE
 END IF
 validMesh = ISVALIDMESHFILE(MeshFile)
 IF(.NOT.validMesh) &
-    CALL CollectiveStop(__STAMP__,'ERROR - Mesh file not a valid HDF5 mesh.')
+    CALL CollectiveStop(__STAMP__,'ERROR - Mesh file ['//TRIM(MeshFile)//'] is not a valid HDF5 mesh.')
 
 
 useCurveds=GETLOGICAL('useCurveds')
@@ -395,11 +395,6 @@ END IF ! meshMode.GT.1
 
 
 IF(CalcMeshInfo)THEN
-#if USE_MPI
-  ALLOCATE(myInvisibleRank(1:nElems))
-  myInvisibleRank=0
-#endif /*USE_MPI*/
-
   CALL AddToElemData(ElementOut,'myRank',IntScalar=myRank)
   !#ifdef PARTICLES
   ALLOCATE(ElemGlobalID(1:nElems))

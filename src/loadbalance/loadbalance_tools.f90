@@ -208,7 +208,7 @@ ELSE
 END IF
 EndT=PICLASTIME()
 DomainDecompositionWallTime=EndT-StartT
-SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DOMAIN DECOMPOSITION ... DONE  [',DomainDecompositionWallTime,'s]'
+SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DOMAIN DECOMPOSITION DONE! [',DomainDecompositionWallTime,'s]'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE DomainDecomposition
 
@@ -226,9 +226,10 @@ USE MOD_LoadBalance_Vars ,ONLY: ElemGlobalTime
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime_tmp
 USE MOD_MPI_Vars         ,ONLY: offsetElemMPI
+USE MOD_Restart_Vars     ,ONLY: FlushInitialState
 #endif /*USE_LOADBALANCE*/
 USE MOD_Mesh_Vars        ,ONLY: offsetElem,nElems,nGlobalElems
-USE MOD_Restart_Vars     ,ONLY: RestartFile,FlushInitialState
+USE MOD_Restart_Vars     ,ONLY: RestartFile
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES

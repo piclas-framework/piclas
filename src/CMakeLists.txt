@@ -23,6 +23,7 @@ SET(PICLAS_TIMEDISCMETHOD "RK4" CACHE STRING "Time integration method")
 SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           Leapfrog
                                                           Boris-Leapfrog
+                                                          Higuera-Cary
                                                           RK3
                                                           RK4
                                                           RK14
@@ -43,18 +44,34 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
 # =========================================================================
 # Shared memory region splitting
 # =========================================================================
-# Get environment variable
+# Get environment variable, e.g. PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE
 SET(PICLAS_SPLIT_TYPE "$ENV{PICLAS_SPLIT_TYPE}")
 IF("${PICLAS_SPLIT_TYPE}" STREQUAL "")
   SET(PICLAS_SPLIT_TYPE "MPI_COMM_TYPE_SHARED")
 ELSE()
-  IF("${PICLAS_SPLIT_TYPE}" STREQUAL "${PICLAS_SHARED_MEMORY}")
-    MESSAGE(STATUS "Using user-defined environment variable PICLAS_SPLIT_TYPE=${PICLAS_SPLIT_TYPE} for shared memory communicator splitting of variale PICLAS_SHARED_MEMORY")
-    ENDIF()
+  #IF("${PICLAS_SPLIT_TYPE}" STREQUAL "${PICLAS_SHARED_MEMORY}")
+  MESSAGE(STATUS "Using user-defined environment variable [PICLAS_SPLIT_TYPE = ${PICLAS_SPLIT_TYPE}] for shared memory communicator splitting. Setting [PICLAS_SHARED_MEMORY = ${PICLAS_SPLIT_TYPE}]")
+  #ENDIF()
 ENDIF()
 SET(PICLAS_SHARED_MEMORY "${PICLAS_SPLIT_TYPE}" CACHE STRING "Split type for creating new communicators based on colors and keys (requires MPI 3 or higher). Options with the prefix OMPI_ are specific to Open MPI.")
 SET_PROPERTY(CACHE PICLAS_SHARED_MEMORY PROPERTY STRINGS MPI_COMM_TYPE_SHARED
-                                                         OMPI_COMM_TYPE_CORE)
+                                                         OMPI_COMM_TYPE_CORE
+                                                         PICLAS_COMM_TYPE_NODE)
+
+ADD_DEFINITIONS(-DSharedMemoryMethod=${PICLAS_SHARED_MEMORY})
+IF(PICLAS_SHARED_MEMORY STREQUAL "MPI_COMM_TYPE_SHARED")
+  UNSET(PICLAS_SHARED_MEMORY_CORES CACHE)
+  ADD_DEFINITIONS(-DCORE_SPLIT=0)
+  MESSAGE(STATUS "Shared memory split type for subcommunicators set to node-level")
+ELSEIF(PICLAS_SHARED_MEMORY STREQUAL "PICLAS_COMM_TYPE_NODE")
+  SET(PICLAS_SHARED_MEMORY_CORES "2" CACHE STRING "Number of cores per node when setting PICLAS_SHARED_MEMORY=PICLAS_COMM_TYPE_NODE. All cores must be on the same physical node!")
+  ADD_DEFINITIONS(-DCORE_SPLIT=${PICLAS_SHARED_MEMORY_CORES})
+  MESSAGE(STATUS "Shared memory split type for subcommunicators set to sub-node-level with user-specific value [PICLAS_SHARED_MEMORY_CORES = ${PICLAS_SHARED_MEMORY_CORES}] cores per node")
+ELSEIF(PICLAS_SHARED_MEMORY STREQUAL "OMPI_COMM_TYPE_CORE")
+  UNSET(PICLAS_SHARED_MEMORY_CORES CACHE)
+  ADD_DEFINITIONS(-DCORE_SPLIT=1)
+  MESSAGE(STATUS "Shared memory split type for subcommunicators set to core-level")
+ENDIF()
 
 # =========================================================================
 # MISC
@@ -175,6 +192,13 @@ IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
   ELSE()
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
   ENDIF()
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Higuera-Cary")
+  IF(PICLAS_HDG)
+      FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoissonByHigueraCary.f90)
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=507)
+  ELSE()
+      ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
+  ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Boris-Leapfrog")
   IF(PICLAS_HDG)
       FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoissonByBorisLeapfrog.f90)
@@ -273,6 +297,8 @@ IF(PICLAS_HDG)
   ADD_DEFINITIONS(-DUSE_HDG=1)
   IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
       MESSAGE(STATUS "use HDG with Euler-Explicit")
+    ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Higuera-Cary")
+      MESSAGE(STATUS "use HDG with Higuera-Cary")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Boris-Leapfrog")
       MESSAGE(STATUS "use HDG with Boris-Leapfrog")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Leapfrog")
@@ -305,18 +331,6 @@ IF(PICLAS_HDG)
 ELSE()
   ADD_DEFINITIONS(-DUSE_HDG=0)
 ENDIF(PICLAS_HDG)
-
-# =========================================================================
-# Shared memory split type
-# =========================================================================
-ADD_DEFINITIONS(-DSharedMemoryMethod=${PICLAS_SHARED_MEMORY})
-IF(PICLAS_SHARED_MEMORY STREQUAL "MPI_COMM_TYPE_SHARED")
-  ADD_DEFINITIONS(-DUSE_CORE_SPLIT=0)
-  MESSAGE(STATUS "Shared memory split type for subcommunicators set to node-level")
-ELSEIF(PICLAS_SHARED_MEMORY STREQUAL "OMPI_COMM_TYPE_CORE")
-  ADD_DEFINITIONS(-DUSE_CORE_SPLIT=1)
-  MESSAGE(STATUS "Shared memory split type for subcommunicators set to core-level")
-ENDIF()
 
 # ========================================================================
 # LOADBALANCE
@@ -472,6 +486,7 @@ IF(PICLAS_HDG)
   ENDIF(PICLAS_IMPLICIT)
 ELSE()
   LIST(FILTER particlesF90 EXCLUDE REGEX ".*particle_br_electron_fluid.f90$")
+  LIST(FILTER particlesF90 EXCLUDE REGEX ".*superb.f90$")
   LIST(APPEND piclasF90 ${dgF90})
   IF(PICLAS_IMPLICIT)
     LIST(APPEND piclasF90 ${implicitF90})
