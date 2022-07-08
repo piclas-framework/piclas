@@ -34,10 +34,11 @@ SUBROUTINE TimeStepPoissonByBorisLeapfrog()
 ! Boris-Leapfrog (508) -push with HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM
+USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM, PARTISELECTRON
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time,dt_Min
+USE MOD_TimeDisc_Vars          ,ONLY: electronIterationNum,skipNonElectrons, useElectronTimeStep, ManualTimeStep, ManualTimeStepElectrons
 USE MOD_Globals_Vars           ,ONLY: c2_inv
 !#if (PP_TimeDiscMethod==509)
 !USE MOD_TimeDisc_Vars          ,ONLY: dt_old
@@ -79,8 +80,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                    :: iPart
-REAL                       :: RandVal, dtFrac, gamma, gamma_minus
+INTEGER                    :: iPart, iterElec
+REAL                       :: RandVal, dtFrac, gamma, gamma_minus, dtVar
 #if USE_LOADBALANCE
 REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
@@ -89,17 +90,22 @@ REAL                       :: c_1
 REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec, v_minus_old, v_n1
 #endif /*PARTICLES*/
 !===================================================================================================================================
+skipNonElectrons = .TRUE.
+DO iterElec = 1, electronIterationNum
+IF(iterElec.EQ.electronIterationNum) skipNonElectrons = .FALSE.
 #ifdef PARTICLES
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition()
+IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
+  IF(iterElec.EQ.1) CALL Deposition()
+END IF
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
-CALL HDG(time,U,iter)
+IF(iterElec.EQ.1) CALL HDG(time,U,iter)
 
 #ifdef PARTICLES
 #ifdef EXTRAE
@@ -130,24 +136,33 @@ IF (time.GE.DelayTime) THEN
   IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
+      IF(useElectronTimeStep) THEN
+        ! Skip particles which are not electrons
+        IF(.NOT.PARTISELECTRON(iPart).AND.skipNonElectrons) CYCLE
+        IF(PARTISELECTRON(iPart)) THEN
+          dtVar = ManualTimeStepElectrons
+        ELSE
+          dtVar = dt
+        END IF
+      END IF
       ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoSurfaceFlux for compiler-optimization if .FALSE.
         CALL RANDOM_NUMBER(RandVal)
-        dtFrac = dt * RandVal
+        dtFrac = dtVar * RandVal
         PDM%IsNewPart(iPart)=.FALSE. !no IsNewPart-treatment for surffluxparts
         PDM%dtFracPush(iPart) = .FALSE.
       ELSE
-        dtFrac = dt
+        dtFrac = dtVar
         IF (PDM%IsNewPart(iPart)) THEN
           ! Don't push the velocity component of neutral particles!
           IF(isPushParticle(iPart).AND.DoInterpolation)THEN
-              !-- Shift particle velocity back in time by half a time step dt/2.
+              !-- Shift particle velocity back in time by half a time step dtVar/2.
               !-- get Pt(1:3,iPart) = a(x(n))
               CALL CalcPartRHSSingleParticle(iPart)
 
               !-- v(n) => v(n-0.5) by a(n):
-              PartState(4:6,iPart) = PartState(4:6,iPart) - Pt(1:3,iPart) * dt*0.5
+              PartState(4:6,iPart) = PartState(4:6,iPart) - Pt(1:3,iPart) * dtVar*0.5
           END IF
           PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
         END IF
@@ -244,6 +259,7 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*USE_LOADBALANCE*/
   END IF !velocityOutputAtTime
 END IF
+END DO
 
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))

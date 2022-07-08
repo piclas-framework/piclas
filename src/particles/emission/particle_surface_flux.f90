@@ -47,7 +47,7 @@ USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata_auxSF
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
+USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt, useElectronTimeStep, skipNonElectrons, ManualTimeStep, ManualTimeStepElectrons
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetSFElectronVelo
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
@@ -87,13 +87,15 @@ DO iSpec=1,nSpecies
       IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
     END IF
   END IF
+  IF(useElectronTimeStep) THEN
+    ! Skip particles which are not electrons
+    IF(.NOT.SPECIESISELECTRON(iSpec).AND.skipNonElectrons) CYCLE
+  END IF
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
     PartsEmitted = 0
     currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
     NbrOfParticle = 0 ! calculated within (sub)side-Loops!
     iPartTotal=0
-    ! Reset the mass flow rate counter for the next time step
-    IF(CalcSurfFluxInfo) Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
     ! Adaptive BC, Type = 4 (Const. massflow): Sum-up the global number of particles exiting through the BC and calculate the new
     ! weights
     IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
@@ -1433,7 +1435,7 @@ USE MOD_Globals
 USE MOD_PreProc
 ! VARIABLES
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi, ElementaryCharge, eps0
-USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
+USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac, ManualTimeStepElectrons
 USE MOD_Particle_Vars           ,ONLY: Species
 USE MOD_Equation_Vars           ,ONLY: E
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
@@ -1448,9 +1450,15 @@ INTEGER, INTENT(OUT)        :: PartInsSubSide
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                        :: EFieldFace(1:3,0:PP_N,0:PP_N), EFaceMag, CurrentDensity, WallTemp, WorkFunction, RandVal1
+REAL                        :: EFieldFace(1:3,0:PP_N,0:PP_N), EFaceMag, CurrentDensity, WallTemp, WorkFunction, RandVal1, dtVar
 !===================================================================================================================================
 ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
+
+IF(SPECIESISELECTRON(iSpec)) THEN
+  dtVar = ManualTimeStepElectrons
+ELSE
+  dtVar = dt
+END IF
 
 ! 1) Determine the electric field at the surface
 CALL ProlongToFace_Elementlocal(nVar=3,locSideID=iLocSide,Uvol=E(:,:,:,:,ElemID),Uface=EFieldFace)
@@ -1468,7 +1476,7 @@ CurrentDensity = CurrentDensity / ABS(Species(iSpec)%ChargeIC)
 
 ! 4) Determine the number of particles per side
 CALL RANDOM_NUMBER(RandVal1)
-PartInsSubSide = INT(CurrentDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac &
+PartInsSubSide = INT(CurrentDensity / Species(iSpec)%MacroParticleFactor * dtVar*RKdtFrac &
                      * SF%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR + RandVal1)
 
 END ASSOCIATE
