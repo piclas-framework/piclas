@@ -132,7 +132,7 @@ DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
     bgSpec = bgSpec + 1
     IF(bgSpec.GT.BGGas%NumberOfSpecies) CALL Abort(__STAMP__,'More background species detected than previously defined!')
-    IF(.NOT.BGGas%UseDistribution.AND..NOT.BGGas%UseRegions) BGGas%NumberDensity(bgSpec) = SpeciesDensTmp(iSpec)
+    IF((.NOT.BGGas%UseDistribution).AND.(.NOT.BGGas%UseRegions)) BGGas%NumberDensity(bgSpec) = SpeciesDensTmp(iSpec)
     BGGas%MapSpecToBGSpec(iSpec)  = bgSpec
     BGGas%MapBGSpecToSpec(bgSpec) = iSpec
     BGGas%MaxMPF = MAX(BGGas%MaxMPF,Species(iSpec)%MacroParticleFactor)
@@ -460,14 +460,13 @@ DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
     CNElemID = GetCNElemID(iElem+offSetElem)
     bggSpec   = BGGas%MapSpecToBGSpec(iSpec)
-    IF(usevMPF) THEN
-      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(bggSpec)*ElemVolume_Shared(CNElemID)
-    ELSEIF(BGGas%UseDistribution)THEN
-      CollInf%Coll_SpecPartNum(iSpec) = BGGas%Distribution(bggSpec,7,iElem)&
-                                        * ElemVolume_Shared(CNElemID) / Species(iSpec)%MacroParticleFactor
+    IF(BGGas%UseDistribution)THEN
+      CollInf%Coll_SpecPartNum(iSpec) = BGGas%Distribution(bggSpec,7,iElem)*ElemVolume_Shared(CNElemID)
     ELSE
-      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(bggSpec)*ElemVolume_Shared(CNElemID)/Species(iSpec)%MacroParticleFactor
-    END IF
+      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(bggSpec)       *ElemVolume_Shared(CNElemID)
+    END IF ! BGGas%UseDistribution
+    ! MPF is multiplied again in ReactionDecision()
+    IF(.NOT.usevMPF) CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) / Species(iSpec)%MacroParticleFactor
   END IF
 END DO
 
