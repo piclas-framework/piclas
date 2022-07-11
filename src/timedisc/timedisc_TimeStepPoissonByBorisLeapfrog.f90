@@ -34,16 +34,17 @@ SUBROUTINE TimeStepPoissonByBorisLeapfrog()
 ! Boris-Leapfrog (508) -push with HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM, PARTISELECTRON
+USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM, PARTISELECTRON, MPIroot
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time,dt_Min
-USE MOD_TimeDisc_Vars          ,ONLY: electronIterationNum,skipNonElectrons, useElectronTimeStep, ManualTimeStep, ManualTimeStepElectrons
+USE MOD_TimeDisc_Vars          ,ONLY: electronIterationNum,skipNonElectrons, useElectronTimeStep, ManualTimeStep, ManualTimeStepElectrons, skipElectrons, electronSkipIter
 USE MOD_Globals_Vars           ,ONLY: c2_inv
 !#if (PP_TimeDiscMethod==509)
 !USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 !#endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_HDG                    ,ONLY: HDG
+USE MOD_HDG_Vars               ,ONLY: HDGSkip
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
@@ -80,7 +81,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                    :: iPart, iterElec
+INTEGER                    :: iPart, iterElec,electronIterationNumVar
 REAL                       :: RandVal, dtFrac, gamma, gamma_minus, dtVar
 #if USE_LOADBALANCE
 REAL                       :: tLBStart ! load balance
@@ -91,21 +92,34 @@ REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec, v_minus_old, v_n1
 #endif /*PARTICLES*/
 !===================================================================================================================================
 skipNonElectrons = .TRUE.
-DO iterElec = 1, electronIterationNum
-IF(iterElec.EQ.electronIterationNum) skipNonElectrons = .FALSE.
+skipElectrons = .FALSE.
+electronIterationNumVar = electronIterationNum
+
+! Check whether the electrons should be skipped in this iteration
+IF (iter.GT.0 .AND. electronSkipIter.NE.0) THEN
+  IF (MOD(iter,INT(electronSkipIter,8)).NE.0) THEN
+    electronIterationNumVar = 1
+    skipElectrons = .TRUE.
+  END IF
+END IF
+
+DO iterElec = 1, electronIterationNumVar
+IF(iterElec.EQ.electronIterationNumVar) THEN
+  skipNonElectrons = .FALSE.
+END IF
 #ifdef PARTICLES
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-  IF(iterElec.EQ.1) CALL Deposition()
+  IF(iterElec.EQ.electronIterationNumVar) CALL Deposition()
 END IF
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
-IF(iterElec.EQ.1) CALL HDG(time,U,iter)
+IF(iterElec.EQ.electronIterationNumVar) CALL HDG(time,U,iter)
 
 #ifdef PARTICLES
 #ifdef EXTRAE
@@ -136,13 +150,16 @@ IF (time.GE.DelayTime) THEN
   IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
+      dtVar = dt
       IF(useElectronTimeStep) THEN
-        ! Skip particles which are not electrons
-        IF(.NOT.PARTISELECTRON(iPart).AND.skipNonElectrons) CYCLE
+        IF(electronSkipIter.GT.0) THEN
+          ! Skip particles which are not electrons
+          IF(.NOT.PARTISELECTRON(iPart).AND.skipNonElectrons) CYCLE
+          ! Skip electrons
+          IF(PARTISELECTRON(iPart).AND.skipElectrons) CYCLE
+        END IF
         IF(PARTISELECTRON(iPart)) THEN
           dtVar = ManualTimeStepElectrons
-        ELSE
-          dtVar = dt
         END IF
       END IF
       ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
@@ -259,7 +276,7 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*USE_LOADBALANCE*/
   END IF !velocityOutputAtTime
 END IF
-END DO
+END DO    ! Subcycling
 
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))

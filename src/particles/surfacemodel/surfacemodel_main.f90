@@ -562,12 +562,10 @@ IF(PartBound%RotVelo(locBCID)) THEN
   CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
 END IF
 
-IF(useElectronTimeStep) THEN
-  IF(PARTISELECTRON(PartID)) THEN
-    dtVar = ManualTimeStepElectrons
-  ELSE
-    dtVar = dt
-  END IF
+IF(useElectronTimeStep.AND.PARTISELECTRON(PartID)) THEN
+  dtVar = ManualTimeStepElectrons
+ELSE
+  dtVar = dt
 END IF
 
 ! 2.) Get the tangential vectors

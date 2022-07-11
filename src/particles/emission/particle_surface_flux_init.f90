@@ -134,6 +134,7 @@ USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
+USE MOD_TimeDisc_Vars          ,ONLY: useElectronTimeStep, electronIterationNum
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 USE MOD_DSMC_Vars              ,ONLY: AmbiPolarSFMapping, DSMC, useDSMC
 #if USE_MPI
@@ -157,7 +158,7 @@ INTEGER               :: iCopy1, iCopy2, iCopy3, MaxSurfacefluxBCs,nDataBC
 REAL                  :: tmp_SubSideDmax(SurfFluxSideSize(1),SurfFluxSideSize(2))
 REAL                  :: tmp_SubSideAreas(SurfFluxSideSize(1),SurfFluxSideSize(2))
 REAL                  :: tmp_BezierControlPoints2D(2,0:NGeo,0:NGeo,SurfFluxSideSize(1),SurfFluxSideSize(2))
-REAL                  :: VFR_total
+REAL                  :: VFR_total, RestartTimeVar
 TYPE(tBCdata_auxSFRadWeight),ALLOCATABLE          :: BCdata_auxSFTemp(:)
 #if USE_MPI
 REAL                  :: totalAreaSF_global
@@ -298,7 +299,8 @@ IF(DoRestart) THEN
       ELSE
         VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total               !proc local total
       END IF
-      Species(iSpec)%Surfaceflux(iSF)%InsertedParticle = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity * RestartTime &
+      IF(useElectronTimeStep.AND.SPECIESISELECTRON(iSpec)) RestartTimeVar = RestartTime / electronIterationNum
+      Species(iSpec)%Surfaceflux(iSF)%InsertedParticle = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity * RestartTimeVar &
         / Species(iSpec)%MacroParticleFactor * VFR_total,8)
     END DO
   END DO
@@ -480,6 +482,7 @@ DO iSpec=1,nSpecies
     Species(iSpec)%Surfaceflux(iSF)%PartDensity           = GETREAL('Part-Species'//TRIM(hilf2)//'-PartDensity')
     Species(iSpec)%Surfaceflux(iSF)%EmissionCurrent       = GETREAL('Part-Species'//TRIM(hilf2)//'-EmissionCurrent')
     Species(iSpec)%Surfaceflux(iSF)%Massflow              = GETREAL('Part-Species'//TRIM(hilf2)//'-Massflow')
+    Species(iSpec)%Surfaceflux(iSF)%SampledMassflow       = 0.
     IF(Species(iSpec)%Surfaceflux(iSF)%PartDensity.GT.0.) THEN
       IF(Species(iSpec)%Surfaceflux(iSF)%EmissionCurrent.GT.0..OR.Species(iSpec)%Surfaceflux(iSF)%Massflow.GT.0.) THEN
         CALL abort(__STAMP__,'ERROR in Surface Flux: PartDensity and EmissionCurrent/Massflow cannot be both above 0!')
