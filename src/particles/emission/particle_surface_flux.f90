@@ -337,7 +337,7 @@ SUBROUTINE CalcPartInsSubSidesStandardCase(iSpec, iSF, PartInsSubSides)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_TimeDisc_Vars           ,ONLY: dt, RKdtFrac, RKdtFracTotal, Time, useElectronTimeStep, ManualTimeStepElectrons, electronIterationNum
+USE MOD_TimeDisc_Vars           ,ONLY: dt, RKdtFrac, RKdtFracTotal, Time, useElectronTimeStep, ManualTimeStepElectrons, ManualTimeStep
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, BCdata_auxSF
 USE MOD_Part_Emission_Tools     ,ONLY: IntegerDivide, SamplePoissonDistri
 #if USE_MPI
@@ -361,7 +361,7 @@ INTEGER, ALLOCATABLE   :: PartInsProc(:)
 
 IF(useElectronTimeStep.AND.SPECIESISELECTRON(iSpec)) THEN
   dtVar = ManualTimeStepElectrons
-  TimeVar = Time / electronIterationNum
+  TimeVar = Time / NINT(ManualTimeStep / ManualTimeStepElectrons)
 ELSE
   TimeVar = Time
   dtVar = dt

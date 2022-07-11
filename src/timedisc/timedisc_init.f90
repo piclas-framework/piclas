@@ -151,7 +151,7 @@ IF (ManualTimeStepElectrons.GT.0.0) THEN
   electronSkipIter = GETINT('ElectronSkipIteration')
   electronSubcycling = GETLOGICAL('ElectronSubcycling')
   IF(electronSubcycling) THEN
-    electronIterationNum = INT(ManualTimeStep / ManualTimeStepElectrons)
+    electronIterationNum = NINT(ManualTimeStep / ManualTimeStepElectrons)
   ELSE
     electronIterationNum = 1
   END IF

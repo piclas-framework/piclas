@@ -134,7 +134,7 @@ USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
-USE MOD_TimeDisc_Vars          ,ONLY: useElectronTimeStep, electronIterationNum
+USE MOD_TimeDisc_Vars          ,ONLY: useElectronTimeStep, ManualTimeStep, ManualTimeStepElectrons
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 USE MOD_DSMC_Vars              ,ONLY: AmbiPolarSFMapping, DSMC, useDSMC
 #if USE_MPI
@@ -300,7 +300,7 @@ IF(DoRestart) THEN
         VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total               !proc local total
       END IF
       IF(useElectronTimeStep.AND.SPECIESISELECTRON(iSpec)) THEN
-        RestartTimeVar = RestartTime / electronIterationNum
+        RestartTimeVar = RestartTime / NINT(ManualTimeStep / ManualTimeStepElectrons)
       ELSE
         RestartTimeVar = RestartTime
       END IF
