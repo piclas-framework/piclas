@@ -242,9 +242,10 @@ Before you can generate a Makefile, you will have to configure with `c`, until t
 
 For a list of all compiler options visit Section {ref}`sec:compiler-options`.
 PICLas supports Unix Makefiles (default) and [Ninja](https://ninja-build.org/) as generators.
-To select ninja either export the environment variable `export CMAKE_GENERATOR=Ninja` or add the cmake option
+To select ninja either export the environment variable `export CMAKE_GENERATOR=Ninja` or add the cmake option `-GNinja`, e.g.
 
-    cmake -GNinja
+    cmake -GNinja ..
+    ccmake -GNinja ..
 
 After a successful generation of the Makefile (or ninja build files), compile the code in parallel (e.g. with 4 cores) using
 
