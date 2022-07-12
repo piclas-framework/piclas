@@ -50,9 +50,9 @@ CALL prms%CreateIntOption(      'Particles-BGGas-nRegions'                    ,'
 CALL prms%CreateStringOption(   'Particles-BGGas-Region[$]-Type'              ,'Keyword for particle space condition of species [$] in case of multiple inits' , 'cylinder', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-RadiusIC'          ,'Outer radius'                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-Radius2IC'         ,'Inner radius (e.g. for a ring)' , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BasePointIC'       ,'Base point', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector1IC'     ,'First base vector', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector2IC'     ,'Second base vector', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BasePointIC'       , 'Base point'         , numberedmulti=.TRUE., no=3)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector1IC'     , 'First base vector'  , numberedmulti=.TRUE., no=3)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector2IC'     , 'Second base vector' , numberedmulti=.TRUE., no=3)
 CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-CylinderHeightIC'  ,'Third measure of cylinder', numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersBGG
 
