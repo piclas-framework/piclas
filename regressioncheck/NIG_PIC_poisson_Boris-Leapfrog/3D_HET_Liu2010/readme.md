@@ -30,7 +30,7 @@
 
     DielectricTestCase     = HollowCircle ! Dielectric region is outside of outer radius and inside of inner radius
 
-- Neutralization emission BC via keeping the exiting charge at the right BC zero over time (averged)
+- Neutralization emission BC via keeping the exiting charge at the right BC zero over time (averaged)
 
     Part-Species2-Init2-SpaceIC = 3D_Liu2010_neutralization
 
@@ -41,3 +41,7 @@
 
 - For 10 processors an asymmetric CVWM deposition occurs when some processors deposit charge on the dielectric interface, the nodes
   of which are not connected directly to their own mesh cells
+
+- post-piclas-vMPF-restart
+  - runs piclas and restarts from 3D_HET_Liu2010_State_000.00000000100000000.h5 (simulation without vMPF) with vMPF=T to test the restart functionality
+  - uses Part-Species-vMPFMergeThreshold = 200 to merge electrons and ions to approx. 50 percent of their initial number (700k to  350k particles)
