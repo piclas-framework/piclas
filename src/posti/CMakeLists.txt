@@ -6,7 +6,6 @@ CMAKE_DEPENDENT_OPTION(POSTI_BUILD_VISU       "Build the visu tool for visualizi
 CMAKE_DEPENDENT_OPTION(POSTI_BUILD_SUPERB     "Build the superB tool for creating external magnetic field configurations"              ON "PICLAS_BUILD_POSTI" OFF)
 CMAKE_DEPENDENT_OPTION(POSTI_BUILD_PICLAS2VTK "Build the piclas to VTK converter"                                                      ON "PICLAS_BUILD_POSTI" OFF)
 
-
 # Add CMakeLists
 IF(POSTI_BUILD_VISU)
   INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/src/posti/visu/CMakeLists.txt)
