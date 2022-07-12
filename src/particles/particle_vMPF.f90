@@ -172,7 +172,7 @@ E_rot = 0.0; E_rot_new = 0.0; DOF_rot = 0.0
 iSpec = PartSpecies(iPartIndx_Node(1))  ! in iPartIndx_Node all particles are from same species
 
 #ifdef CODE_ANALYZE
-Energy_old = 0.0; Energy_new = 0.0; Momentum_old = 0.0; Momentum_new = 0.0
+Energy_old = CellEelec_vMPF(iSpec, iElem); Momentum_old = 0.0; Momentum_new = 0.0
 #endif /* CODE_ANALYZE */
 
 ! 1.) calc bulkvelocity (for momentum conservation)
@@ -442,6 +442,9 @@ END IF
 ! Sanity check: catch problem when bulk of particles consists solely of clones (all have the same velocity vector)
 alpha = 0.! Initialize
 IF((E_trans.GT.0.).AND.(E_trans_new.GT.0.)) alpha = MERGE(SQRT(E_trans/E_trans_new), 0., ISFINITE(SQRT(E_trans/E_trans_new)))
+#ifdef CODE_ANALYZE
+Energy_new = CellEelec_vMPF(iSpec, iElem)
+#endif /* CODE_ANALYZE */
 
 DO iLoop = 1, nPartNew
   PartState(4:6,iPartIndx_Node(iLoop)) = vBulk(1:3) + alpha*(PartState(4:6,iPartIndx_Node(iLoop))-vBulk_new(1:3))
@@ -477,9 +480,7 @@ END DO
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",RelEneTol
     IPWRITE(UNIT_StdOut,*)                     " Old/new particle number: ",nPart, nPartNew
     IPWRITE(UNIT_StdOut,*)                     " Species                : ",iSpec
-    CALL abort(&
-        __STAMP__&
-        ,'CODE_ANALYZE: part merge is not energy conserving!')
+    CALL abort(__STAMP__,'CODE_ANALYZE: part merge is not energy conserving!')
   END IF
   ! Check for momentum difference
   IF(Symmetry%Order.EQ.3) THEN
@@ -503,9 +504,7 @@ END DO
         END IF
       END ASSOCIATE
       IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",RelMomTol
-      CALL abort(&
-          __STAMP__&
-          ,'CODE_ANALYZE: part merge is not momentum conserving!')
+      CALL abort(__STAMP__,'CODE_ANALYZE: part merge is not momentum conserving!')
     END IF
   END DO
 #endif /* CODE_ANALYZE */
