@@ -212,7 +212,6 @@ BGGas%nRegions = GETINT('Particles-BGGas-nRegions')
 IF(BGGas%UseDistribution.AND.(BGGas%nRegions.GT.0)) THEN
   CALL abort(__STAMP__,'ERORR: Background gas can either be used with a distribution OR regions!')
 ELSEIF (BGGas%UseDistribution) THEN
-  IF(usevMPF) CALL abort(__STAMP__,'vMPF not implemented for Particles-BGGas-UseDistribution=T')
   ALLOCATE(BGGas%DistributionSpeciesIndex(nSpecies))
 ELSEIF (BGGas%nRegions.GT.0) THEN
   BGGas%UseRegions = .TRUE.

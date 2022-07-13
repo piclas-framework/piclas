@@ -427,18 +427,14 @@ IF ((SpecDSMC(iSpecies)%InterID.EQ.2).OR.(SpecDSMC(iSpecies)%InterID.EQ.20)) THE
                   / (BoltzmannConst * AdaptBCMacroVal(4,AdaptBCMapElemToSample(ElemID),iSpecies))
           TRot = TVib
         CASE DEFAULT
-          CALL abort(&
-          __STAMP__&
-          ,'Wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
+          CALL abort(__STAMP__,'Wrong adaptive type for Surfaceflux in int_energy -> lauxVDF!')
       END SELECT
     ELSE
       TVib=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TVib
       TRot=SpecDSMC(iSpecies)%Surfaceflux(iInit)%TRot
     END IF
   CASE DEFAULT
-    CALL abort(&
-    __STAMP__&
-    ,'neither iInit nor Surfaceflux defined as reference!')
+    CALL abort(__STAMP__,'neither iInit nor Surfaceflux defined as reference!')
   END SELECT
   ! Background gas distribution
   IF(BGGas%NumberOfSpecies.GT.0) THEN

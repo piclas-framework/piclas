@@ -424,7 +424,7 @@ END IF
 
 ! 1). Reset collision and pair specific variables
 nPair = INT(TotalPartNum/2)
-CollInf%Coll_SpecPartNum = 0
+CollInf%Coll_SpecPartNum = 0.
 CollInf%Coll_CaseNum = 0
 ALLOCATE(Coll_pData(nPair))
 Coll_pData%Ec=0
