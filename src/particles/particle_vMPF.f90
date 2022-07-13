@@ -172,7 +172,10 @@ E_rot = 0.0; E_rot_new = 0.0; DOF_rot = 0.0
 iSpec = PartSpecies(iPartIndx_Node(1))  ! in iPartIndx_Node all particles are from same species
 
 #ifdef CODE_ANALYZE
-Energy_old = CellEelec_vMPF(iSpec, iElem); Momentum_old = 0.0; Momentum_new = 0.0
+! Consider the remainder of the vibrational and electronic energy from the previous time step, which was not distributed due to
+! quantized energy levels
+Energy_old = CellEvib_vMPF(iSpec, iElem) + CellEelec_vMPF(iSpec, iElem)
+Momentum_old = 0.0; Momentum_new = 0.0
 #endif /* CODE_ANALYZE */
 
 ! 1.) calc bulk velocity (for momentum conservation)
@@ -395,7 +398,7 @@ IF(CollisMode.GT.1) THEN
       DO iLoop = 1, nPartNew
         iPart = iPartIndx_Node(iLoop)
         partWeight = GetParticleWeight(iPart)
-        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN      
+        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
           PartStateIntEn(1,iPart) = 0.0
           iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
           DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
@@ -447,7 +450,7 @@ END IF
 alpha = 0.! Initialize
 IF((E_trans.GT.0.).AND.(E_trans_new.GT.0.)) alpha = MERGE(SQRT(E_trans/E_trans_new), 0., ISFINITE(SQRT(E_trans/E_trans_new)))
 #ifdef CODE_ANALYZE
-Energy_new = CellEelec_vMPF(iSpec, iElem)
+Energy_new = CellEvib_vMPF(iSpec, iElem) + CellEelec_vMPF(iSpec, iElem)
 #endif /* CODE_ANALYZE */
 
 DO iLoop = 1, nPartNew
