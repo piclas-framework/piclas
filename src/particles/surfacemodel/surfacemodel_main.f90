@@ -562,12 +562,6 @@ IF(PartBound%RotVelo(locBCID)) THEN
   CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
 END IF
 
-IF(useElectronTimeStep.AND.PARTISELECTRON(PartID)) THEN
-  dtVar = ManualTimeStepElectrons
-ELSE
-  dtVar = dt
-END IF
-
 ! 2.) Get the tangential vectors
 IF(Symmetry%Axisymmetric) THEN
   ! Storing the old and the new particle position (which is outside the domain), at this point the position is only in the xy-plane
@@ -650,6 +644,12 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
   ELSE
     adaptTimeStep = 1.
   END IF ! VarTimeStep%UseVariableTimeStep
+  ! Electron time step
+  IF(useElectronTimeStep.AND.PARTISELECTRON(PartID)) THEN
+    dtVar = ManualTimeStepElectrons
+  ELSE
+    dtVar = dt
+  END IF
   ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
   !TildPos       =PartState(1:3,PartID)-dt*RKdtFrac*PartState(4:6,PartID)
   TildTrajectory=dtVar*RKdtFrac*PartState(4:6,PartID)*adaptTimeStep

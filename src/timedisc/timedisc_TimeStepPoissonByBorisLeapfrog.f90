@@ -265,7 +265,7 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
         !-- v(n+0.5) => v(n+1) by a(n+1):
-        velocityAtTime(1:3,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt*0.5
+        velocityAtTime(1:3,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dtVar*0.5
       END IF
     END DO
 #ifdef EXTRAE

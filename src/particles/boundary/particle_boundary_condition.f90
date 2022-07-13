@@ -380,7 +380,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-USE MOD_TImeDisc_Vars          ,ONLY: dt,RKdtFrac
+USE MOD_TImeDisc_Vars          ,ONLY: dt,RKdtFrac,ManualTimeStepElectrons,useElectronTimeStep
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_Boundary_Vars ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
@@ -402,7 +402,7 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: SideID2, ElemID2, iNeigh, RotSideID
-REAL                                 :: adaptTimeStep
+REAL                                 :: adaptTimeStep, dtVar
 LOGICAL                              :: FoundInElem
 REAL                                 :: LastPartPos_old(1:3),Velo_old(1:3), Velo_oldAmbi(1:3)
 !===================================================================================================================================
@@ -421,6 +421,12 @@ IF (VarTimeStep%UseVariableTimeStep) THEN
   adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
 ELSE
   adaptTimeStep = 1.0
+END IF
+
+IF(useElectronTimeStep.AND.PARTISELECTRON(PartID)) THEN
+  dtVar = ManualTimeStepElectrons
+ELSE
+  dtVar = dt
 END IF
 
 ! set last particle position on face (POI)
@@ -469,7 +475,7 @@ ASSOCIATE( rot_alpha => REAL(PartBound%RotPeriodicDir(PartBound%MapToPartBC(Side
   END SELECT
 END ASSOCIATE
 ! (2) update particle positon after periodic BC
-PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory) * dt*RKdtFrac &
+PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory) * dtVar*RKdtFrac &
                         * PartState(4:6,PartID) * adaptTimeStep
 ! compute moved particle || rest of movement
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)

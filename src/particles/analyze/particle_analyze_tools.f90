@@ -1271,6 +1271,8 @@ IF(PartAnalyzeStep.GT.1) THEN
   ELSE
     iterNum = MIN(PartAnalyzeStep,iter)
   END IF
+ELSE
+  iterNum = 1
 END IF
 
 IF(UseAdaptive) PressureAdaptiveBC = 0.

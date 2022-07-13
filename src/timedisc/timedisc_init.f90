@@ -38,7 +38,7 @@ CALL prms%SetSection("TimeDisc")
 CALL prms%CreateRealOption('ManualTimeStep'  , 'Manual timestep [sec].'                                                , '-1.0')
 CALL prms%CreateRealOption('ManualTimeStep-Electrons'  , 'Manual timestep [sec] for electrons.'                        , '-1.0')
 CALL prms%CreateIntOption( 'ElectronSkipIteration' , 'Only treat electron every Nth iteration'                       , '0')
-CALL prms%CreateLogicalOption('ElectronSubcycling' , 'Enable subcycling of electrons','.FALSE.')
+CALL prms%CreateIntOption( 'ElectronSubcyclingIteration' , 'Enable subcycling of electrons for N iterations','1')
 CALL prms%CreateRealOption('TEnd'            , "End time of the simulation (mandatory).")
 CALL prms%CreateRealOption('CFLScale'        , "Scaling factor for the theoretical CFL number; typical range 0.1..1.0" , '1.0')
 CALL prms%CreateIntOption( 'maxIter'         , "Stop simulation when specified number of timesteps has been performed.", '-1')
@@ -149,12 +149,7 @@ ManualTimeStepElectrons = GETREAL('ManualTimeStep-Electrons')
 IF (ManualTimeStepElectrons.GT.0.0) THEN
   useElectronTimeStep =.TRUE.
   electronSkipIter = GETINT('ElectronSkipIteration')
-  electronSubcycling = GETLOGICAL('ElectronSubcycling')
-  IF(electronSubcycling) THEN
-    electronIterationNum = NINT(ManualTimeStep / ManualTimeStepElectrons)
-  ELSE
-    electronIterationNum = 1
-  END IF
+  electronIterationNum = GETINT('ElectronSubcyclingIteration')
   ! ManualTimeStepElectrons = ManualTimeStep / REAL(electronIterationNum)
 ELSE
   useElectronTimeStep = .FALSE.
