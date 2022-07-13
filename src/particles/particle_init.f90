@@ -86,7 +86,7 @@ CALL prms%CreateLogicalOption(  'Part-DoInitialIonization'    , 'When restarting
 CALL prms%CreateIntOption(      'InitialIonizationSpecies', 'Supply the number of species that are considered for automatic '//&
                                                             'ionization')
 CALL prms%CreateIntArrayOption( 'InitialIonizationSpeciesID', 'Supply a vector with the species IDs that are used for the '//&
-                                                              'initial ionization.')
+                                                              'initial ionization.',no=0)
 CALL prms%CreateRealOption(     'InitialIonizationChargeAverage' , 'Average charge for each atom/molecule in the cell '//&
                                                                    '(corresponds to the ionization degree)')
 

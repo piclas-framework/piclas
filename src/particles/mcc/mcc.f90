@@ -332,16 +332,16 @@ DO iSpec = 1, nSpecies
               IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
                 ALLOCATE(VibQuantsParSplit(PolyatomMolDSMC(SpecDSMC(iSpec)%SpecToPolyArray)%VibDOF))
                 VibQuantsParSplit(:) = VibQuantsPar(PartIndex)%Quants(:)
-              END IF
+              END IF ! SpecDSMC(iSpec)%PolyatomicMol
               IF(DSMC%ElectronicModel.GT.0) PartStateIntSplit(3) = PartStateIntEn(3,PartIndex)
-            END IF
+            END IF ! CollisMode.GT.1
             IF(VarTimeStep%UseVariableTimeStep) PartTimeStepSplit = VarTimeStep%ParticleTimeStep(PartIndex)
             ! Set the new MPF based on the actual number of split particles
             PartMPFSplit          = PartMPF(PartIndex) / REAL(SplitPartNum+1)
             PartMPF(PartIndex)    = PartMPFSplit
-          END IF
-        END IF
-      END IF
+          END IF ! SplitPartNum.GT.0
+        END IF ! SplitInProgress
+      END IF ! usevMPF.AND.BGGas%TraceSpecies(jSpec)
 
       ! ==============================================================================================================================
       ! Determine collision probability

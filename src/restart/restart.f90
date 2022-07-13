@@ -810,6 +810,7 @@ IF(DoRestart)THEN
         IF (changedVars) THEN
           SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart-file'
           IF (.NOT.implemented) CALL Abort(__STAMP__,"change in VarNamesParticles not implemented yet")
+          ! Check which variables were found in the .h5 file and flag the ones that were not found
           readVarFromState=.FALSE.
           DO iVar=1,PartDataSize_HDF5
             IF (TRIM(StrVarNames(iVar)).EQ.TRIM(StrVarNames_HDF5(iVar))) THEN
@@ -887,15 +888,25 @@ IF(DoRestart)THEN
           PartState(6,iPart) = PartData(6,offsetnPart+iLoop)
           PartSpecies(iPart) = SpecID
           IF (useDSMC) THEN
-            IF ((CollisMode.GT.1).AND.(usevMPF) .AND. (DSMC%ElectronicModel.GT.0)) THEN
+            IF ((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel.GT.0)) THEN
               PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
               PartStateIntEn(2,iPart)=PartData(9,offsetnPart+iLoop)
               PartStateIntEn(3,iPart)=PartData(10,offsetnPart+iLoop)
-              PartMPF(iPart)=PartData(11,offsetnPart+iLoop)
-            ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
+              ! Check if MPF was read from .h5 (or restarting with vMPF from non-vMPF restart file)
+              IF(readVarFromState(11))THEN
+                PartMPF(iPart)=PartData(11,offsetnPart+iLoop)
+              ELSE
+                PartMPF(iPart)=Species(SpecID)%MacroParticleFactor
+              END IF ! readVarFromState(11)
+            ELSE IF ((CollisMode.GT.1).AND.(usevMPF)) THEN
               PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
               PartStateIntEn(2,iPart)=PartData(9,offsetnPart+iLoop)
-              PartMPF(iPart)=PartData(10,offsetnPart+iLoop)
+              ! Check if MPF was read from .h5 (or restarting with vMPF from non-vMPF restart file)
+              IF(readVarFromState(10))THEN
+                PartMPF(iPart)=PartData(10,offsetnPart+iLoop)
+              ELSE
+                PartMPF(iPart)=Species(SpecID)%MacroParticleFactor
+              END IF ! readVarFromState(10)
             ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel.GT.0)) THEN
               PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
               PartStateIntEn(2,iPart)=PartData(9,offsetnPart+iLoop)

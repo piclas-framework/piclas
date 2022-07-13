@@ -105,7 +105,7 @@ CALL prms%CreateLogicalOption( 'CalcPoyntingVecIntegral',"Calculate Poynting vec
 !-- BoundaryFieldOutput
 CALL prms%CreateLogicalOption(  'CalcBoundaryFieldOutput', 'Output the field boundary over time' , '.FALSE.')
 CALL prms%CreateIntOption(      'BFO-NFieldBoundaries'   , 'Number of boundaries used for CalcBoundaryFieldOutput')
-CALL prms%CreateIntArrayOption( 'BFO-FieldBoundaries'    , 'Vector (length BFO-NFieldBoundaries) with the numbers of each Field-Boundary')
+CALL prms%CreateIntArrayOption( 'BFO-FieldBoundaries'    , 'Vector (length BFO-NFieldBoundaries) with the numbers of each Field-Boundary', no=0)
 
 !-- Poynting Vector
 CALL prms%CreateIntOption( 'PoyntingVecInt-Planes', 'Total number of Poynting vector integral planes for measuring the '//&
