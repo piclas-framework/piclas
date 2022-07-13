@@ -809,7 +809,7 @@ USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
 USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nBCSides,nSides
 USE MOD_Mesh_Vars        ,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
 USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
-USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
+USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo,BoundaryName
 #if defined(PARTICLES) || USE_HDG
 USE MOD_Mesh_Vars        ,ONLY: GlobalUniqueSideID
 #endif /*defined(PARTICLES) || USE_HDG*/
@@ -846,6 +846,7 @@ INTEGER             :: dummy(0:4)
 INTEGER           :: BCType,nMortars
 INTEGER           :: HDGSides
 #endif /*USE_HDG && USE_LOADBALANCE*/
+CHARACTER(3)      :: hilf
 !===================================================================================================================================
 ! Element to Side mapping
 nSides_flip=0
@@ -1040,7 +1041,8 @@ IF(meshMode.GT.1)THEN
           CASE(10,11) !Neumann
             HDGSides = HDGSides + 1
           CASE DEFAULT ! unknown BCType
-            CALL abort(__STAMP__,'Unknown BCType for HDG Load Balancing. BCType=',IntInfoOpt=BCType)
+            WRITE(UNIT=hilf,FMT='(I0)') BCType
+            CALL abort(__STAMP__,'Unknown BCType='//TRIM(hilf)//' for '//TRIM(BoundaryName(BC(SideID)))//' (HDG Load Balancing)')
           END SELECT ! BCType
         ELSE
           ! Check for Mortars

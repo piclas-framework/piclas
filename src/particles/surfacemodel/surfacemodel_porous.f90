@@ -76,7 +76,7 @@ CALL prms%CreateIntOption(      'Surf-PorousBC[$]-normalDir' &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Surf-PorousBC[$]-origin' &
                                 , 'Coordinates of the middle point of the region, Example: normalDir=1: (/y,z/), ' //&
-                                  'normalDir=2: (/z,x/), normalDir=3: (/x,y/)', numberedmulti=.TRUE.)
+                                  'normalDir=2: (/z,x/), normalDir=3: (/x,y/)', numberedmulti=.TRUE., no=2)
 CALL prms%CreateRealOption(     'Surf-PorousBC[$]-rmax' &
                                 , 'Maximum radius [m] of the circular region', '1e21', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surf-PorousBC[$]-rmin' &

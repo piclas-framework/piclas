@@ -50,9 +50,9 @@ CALL prms%CreateIntOption(      'Particles-BGGas-nRegions'                    ,'
 CALL prms%CreateStringOption(   'Particles-BGGas-Region[$]-Type'              ,'Keyword for particle space condition of species [$] in case of multiple inits' , 'cylinder', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-RadiusIC'          ,'Outer radius'                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-Radius2IC'         ,'Inner radius (e.g. for a ring)' , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BasePointIC'       ,'Base point', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector1IC'     ,'First base vector', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector2IC'     ,'Second base vector', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BasePointIC'       , 'Base point'         , numberedmulti=.TRUE., no=3)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector1IC'     , 'First base vector'  , numberedmulti=.TRUE., no=3)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector2IC'     , 'Second base vector' , numberedmulti=.TRUE., no=3)
 CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-CylinderHeightIC'  ,'Third measure of cylinder', numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersBGG
 
@@ -132,7 +132,7 @@ DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
     bgSpec = bgSpec + 1
     IF(bgSpec.GT.BGGas%NumberOfSpecies) CALL Abort(__STAMP__,'More background species detected than previously defined!')
-    IF(.NOT.BGGas%UseDistribution.AND..NOT.BGGas%UseRegions) BGGas%NumberDensity(bgSpec) = SpeciesDensTmp(iSpec)
+    IF((.NOT.BGGas%UseDistribution).AND.(.NOT.BGGas%UseRegions)) BGGas%NumberDensity(bgSpec) = SpeciesDensTmp(iSpec)
     BGGas%MapSpecToBGSpec(iSpec)  = bgSpec
     BGGas%MapBGSpecToSpec(bgSpec) = iSpec
     BGGas%MaxMPF = MAX(BGGas%MaxMPF,Species(iSpec)%MacroParticleFactor)
@@ -460,14 +460,13 @@ DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
     CNElemID = GetCNElemID(iElem+offSetElem)
     bggSpec   = BGGas%MapSpecToBGSpec(iSpec)
-    IF(usevMPF) THEN
-      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(bggSpec)*ElemVolume_Shared(CNElemID)
-    ELSEIF(BGGas%UseDistribution)THEN
-      CollInf%Coll_SpecPartNum(iSpec) = BGGas%Distribution(bggSpec,7,iElem)&
-                                        * ElemVolume_Shared(CNElemID) / Species(iSpec)%MacroParticleFactor
+    IF(BGGas%UseDistribution)THEN
+      CollInf%Coll_SpecPartNum(iSpec) = BGGas%Distribution(bggSpec,7,iElem)*ElemVolume_Shared(CNElemID)
     ELSE
-      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(bggSpec)*ElemVolume_Shared(CNElemID)/Species(iSpec)%MacroParticleFactor
-    END IF
+      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(bggSpec)       *ElemVolume_Shared(CNElemID)
+    END IF ! BGGas%UseDistribution
+    ! MPF is multiplied again in ReactionDecision()
+    IF(.NOT.usevMPF) CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) / Species(iSpec)%MacroParticleFactor
   END IF
 END DO
 
