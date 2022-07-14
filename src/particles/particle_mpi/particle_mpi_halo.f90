@@ -115,10 +115,14 @@ INTEGER                        :: nExchangeProcessorsGlobal, nSendShapeElems, CN
 REAL                           :: RotBoundsOfElemCenter(1:3)
 LOGICAL                        :: SideIsRotPeriodic
 INTEGER                        :: BCindex
+REAL                           :: StartT,EndT
 !=================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' IDENTIFYING Particle Exchange Processors  ...'
+IF(MPIRoot)THEN
+  WRITE(UNIT_StdOut,'(132("-"))')
+  WRITE(UNIT_stdOut,'(A)') ' IDENTIFYING Particle Exchange Processors ...'
+  StartT=MPI_WTIME()
+END IF ! MPIRoot
 
 ! Allocate arrays
 ALLOCATE(GlobalProcToExchangeProc(EXCHANGE_PROC_SIZE,0:nProcessors_Global-1))
@@ -1477,8 +1481,11 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   ADEALLOCATE(ShapeElemProcSend_Shared)
 END IF
 
-SWRITE(UNIT_stdOut,'(A)') ' IDENTIFYING Particle Exchange Processors DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+IF(MPIRoot)THEN
+  EndT=MPI_WTIME()
+  WRITE(UNIT_stdOut,'(A,F0.3,A)') ' IDENTIFYING Particle Exchange Processors DONE  [',EndT-StartT,'s]'
+  WRITE(UNIT_StdOut,'(132("-"))')
+END IF ! MPIRoot
 
 END SUBROUTINE IdentifyPartExchangeProcs
 
