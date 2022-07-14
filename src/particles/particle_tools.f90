@@ -271,18 +271,14 @@ ASSOCIATE( iMax => PartStateLostVecLength )
 
     ! --- PartStateLost ---
     ALLOCATE(PartStateLost_tmp(1:PartLostDataSize,1:dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-          __STAMP__&
-          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost_tmp temporary array!')
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost_tmp array!')
     ! Save old data
     PartStateLost_tmp(1:PartLostDataSize,1:dims(2)) = PartStateLost(1:PartLostDataSize,1:dims(2))
 
     ! Re-allocate PartStateLost to twice the size
     DEALLOCATE(PartStateLost)
     ALLOCATE(PartStateLost(1:PartLostDataSize,1:2*dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-          __STAMP__&
-          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost array!')
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost array!')
     PartStateLost(1:PartLostDataSize,        1:  dims(2)) = PartStateLost_tmp(1:PartLostDataSize,1:dims(2))
     PartStateLost(1:PartLostDataSize,dims(2)+1:2*dims(2)) = 0.
 
