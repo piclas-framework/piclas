@@ -406,7 +406,7 @@ ASSOCIATE (&
     IF(iLocSide.NE.-1)THEN ! MINE side
       DO q=0,PP_N
         DO p=0,PP_N
-          pq=CGNS_SideToVol2(PP_N,p,q,iLocSide)
+          pq=CGNS_SideToVol2(INT(PP_N),p,q,iLocSide)
           r  = q    *(PP_N+1)+p    +1
           rr = pq(2)*(PP_N+1)+pq(1)+1
           SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
@@ -420,7 +420,7 @@ ASSOCIATE (&
     IF(iLocSide_NB.NE.-1)THEN ! YOUR side
       DO q=0,PP_N
         DO p=0,PP_N
-          pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_NB)
+          pq = CGNS_SideToVol2(INT(PP_N),p,q,iLocSide_NB)
           r  = q    *(PP_N+1)+p    +1
           rr = pq(2)*(PP_N+1)+pq(1)+1
           SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
@@ -442,7 +442,7 @@ ASSOCIATE (&
             IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
               DO q=0,PP_N
                 DO p=0,PP_N
-                  pq=CGNS_SideToVol2(PP_N,p,q,iLocSide)
+                  pq=CGNS_SideToVol2(INT(PP_N),p,q,iLocSide)
                   r  = q    *(PP_N+1)+p    +1
                   rr = pq(2)*(PP_N+1)+pq(1)+1
                   SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
@@ -487,7 +487,8 @@ ASSOCIATE (&
   ASSOCIATE( nOutputSides => INT(SortedEnd-SortedStart+1,IK) ,&
         SortedOffset => INT(SortedOffset,IK)            ,&
         SortedStart  => INT(SortedStart,IK)             ,&
-        SortedEnd    => INT(SortedEnd,IK)                )
+        SortedEnd    => INT(SortedEnd,IK)               ,&
+        nGP_face     => INT(nGP_face,IK)                )
     CALL GatheredWriteArray(FileName,create=.FALSE.,&
         DataSetName = 'DG_SolutionLambda', rank=3,&
         nValGlobal  = (/PP_nVarTmp , nGP_face , nGlobalUniqueSides/) , &
