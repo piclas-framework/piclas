@@ -186,20 +186,19 @@ DO iDir = 1, iDirMax
 END DO ! iDir = 1, iDirMax
 
 ! Sanity check
-IF(VariableExternalFieldDim.EQ.2)THEN
-  IF(MINVAL(DeltaExternalField(1:2)).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for variable external field.')
-  ! z-dir: VariableExternalFieldN(1)
-  ! r-dir: VariableExternalFieldN(2)
-  IF(NbrOfColumns.NE.VariableExternalFieldN(1)*VariableExternalFieldN(2)) CALL abort(__STAMP__,'Wrong number of points in 2D')
-  SWRITE (UNIT_stdOut,'(A,2(I0,A))') " Read external field with ",VariableExternalFieldN(3)," x ",VariableExternalFieldN(1),&
-      " data points"
-ELSE
-  IF(MINVAL(DeltaExternalField).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for variable external field.')
-  IF(NbrOfColumns.NE.VariableExternalFieldN(1)*VariableExternalFieldN(2)*VariableExternalFieldN(3)) CALL abort(__STAMP__,&
-      'Wrong number of points in 3D')
-  SWRITE (UNIT_stdOut,'(A,3(I0,A))') " Read external field with ",VariableExternalFieldN(1)," x ",VariableExternalFieldN(2)," x ",&
-      VariableExternalFieldN(3)," data points"
-END IF ! VariableExternalFieldDim.EQ.2
+ASSOCIATE( x => VariableExternalFieldN(1:3) )
+  IF(VariableExternalFieldDim.EQ.2)THEN
+    IF(MINVAL(DeltaExternalField(1:2)).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for variable external field.')
+    ! z-dir: x(1)
+    ! r-dir: x(2)
+    IF(NbrOfColumns.NE.x(1)*x(2)) CALL abort(__STAMP__,'Wrong number of points in 2D')
+    SWRITE (UNIT_stdOut,'(A,2(I0,A))') " Read external field with ",x(1)," x ",x(2)," data points"
+  ELSE
+    IF(MINVAL(DeltaExternalField).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for variable external field.')
+    IF(NbrOfColumns.NE.x(1)*x(2)*x(3)) CALL abort(__STAMP__,'Wrong number of points in 3D')
+    SWRITE (UNIT_stdOut,'(A,3(I0,A))') " Read external field with ",x(1)," x ",x(2)," x ",x(3)," data points"
+  END IF ! VariableExternalFieldDim.EQ.2
+END ASSOCIATE
 
 !WRITE (*,*) " =", VariableExternalFieldMin
 !WRITE (*,*) " =", VariableExternalFieldMax

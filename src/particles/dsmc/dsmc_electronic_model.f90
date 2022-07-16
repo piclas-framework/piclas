@@ -74,9 +74,7 @@ CASE(1) ! Initial
 CASE(2) ! SurfaceFlux
   TElec=SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec
 CASE DEFAULT
-  CALL abort(&
-  __STAMP__&
-  ,'neither iInit nor Surfaceflux defined as reference!')
+  CALL abort(__STAMP__,'neither iInit nor Surfaceflux defined as reference!')
 END SELECT
 
 ! Background gas distribution

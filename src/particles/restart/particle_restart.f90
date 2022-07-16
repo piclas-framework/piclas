@@ -157,11 +157,21 @@ IF(.NOT.DoMacroscopicRestart) THEN
             PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
             PartStateIntEn(2,iPart)=PartData(9,offsetnPart+iLoop)
             PartStateIntEn(3,iPart)=PartData(10,offsetnPart+iLoop)
-            PartMPF(iPart)=PartData(11,offsetnPart+iLoop)
+            ! Check if MPF was read from .h5 (or restarting with vMPF from non-vMPF restart file)
+            IF(readVarFromState(11))THEN
+              PartMPF(iPart)=PartData(11,offsetnPart+iLoop)
+            ELSE
+              PartMPF(iPart)=Species(SpecID)%MacroParticleFactor
+            END IF ! readVarFromState(11)
           ELSE IF ((CollisMode.GT.1).AND. (usevMPF)) THEN
             PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
             PartStateIntEn(2,iPart)=PartData(9,offsetnPart+iLoop)
-            PartMPF(iPart)=PartData(10,offsetnPart+iLoop)
+            ! Check if MPF was read from .h5 (or restarting with vMPF from non-vMPF restart file)
+            IF(readVarFromState(10))THEN
+              PartMPF(iPart)=PartData(10,offsetnPart+iLoop)
+            ELSE
+              PartMPF(iPart)=Species(SpecID)%MacroParticleFactor
+            END IF ! readVarFromState(10)
           ELSE IF ((CollisMode.GT.1).AND. (DSMC%ElectronicModel.GT.0)) THEN
             PartStateIntEn(1,iPart)=PartData(8,offsetnPart+iLoop)
             PartStateIntEn(2,iPart)=PartData(9,offsetnPart+iLoop)

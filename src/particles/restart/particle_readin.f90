@@ -515,6 +515,7 @@ ELSE
       IF (changedVars) THEN
         SWRITE(*,*) 'WARNING: VarNamesParticles have changed from restart-file'
         IF (.NOT.implemented) CALL Abort(__STAMP__,"change in VarNamesParticles not implemented yet")
+        ! Check which variables were found in the .h5 file and flag the ones that were not found
         readVarFromState=.FALSE.
         DO iVar=1,PartDataSize_HDF5
           IF (TRIM(StrVarNames(iVar)).EQ.TRIM(StrVarNames_HDF5(iVar))) THEN

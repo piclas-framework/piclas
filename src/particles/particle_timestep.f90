@@ -72,11 +72,11 @@ CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor', &
 CALL prms%CreateRealArrayOption('Part-VariableTimeStep-Direction', &
                                 'Direction of the vector along which a linear increase is applied to the time step. '//&
                                 'Currently only scaling along the x-axis (positive or negative direction) is allowed, '//&
-                                'e.g. (/-1.0,0.0,0.0/)')
+                                'e.g. (/-1.0,0.0,0.0/)', no=3)
 CALL prms%CreateRealArrayOption('Part-VariableTimeStep-StartPoint', &
-                                'Starting point of the vector, to use the domain border: -99999.')
+                                'Starting point of the vector, to use the domain border: -99999.',no=3)
 CALL prms%CreateRealArrayOption('Part-VariableTimeStep-EndPoint'  , &
-                                'End point of the vector, to use the domain border: -99999.')
+                                'End point of the vector, to use the domain border: -99999.', no=3)
 ! 2D/Axi: Radial and axial scaling towards
 CALL prms%CreateLogicalOption('Part-VariableTimeStep-Use2DFunction', &
                               'Only 2D/Axi simulations: Enables the scaling of the time step in the x-direction towards and '//&
