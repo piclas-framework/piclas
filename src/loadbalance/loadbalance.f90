@@ -368,8 +368,7 @@ USE MOD_LoadBalance_Vars  ,ONLY: MPInElemSend,MPIoffsetElemSend,MPInElemRecv,MPI
 USE MOD_LoadBalance_Vars  ,ONLY: ElemInfoRank_Shared,ElemInfoRank_Shared_Win
 USE MOD_LoadBalance_Vars  ,ONLY: nElemsOld,offsetElemOld
 USE MOD_Mesh_Vars         ,ONLY: nGlobalElems
-USE MOD_MPI_Shared        ,ONLY: Allocate_Shared
-USE MOD_MPI_Shared        ,ONLY: BARRIER_AND_SYNC
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars   ,ONLY: myComputeNodeRank
 USE MOD_Particle_Mesh_Vars,ONLY: ElemInfo_Shared
 USE MOD_Particle_MPI      ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
