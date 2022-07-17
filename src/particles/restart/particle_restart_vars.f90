@@ -24,11 +24,8 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                            :: PartIntExists
 LOGICAL                            :: PartDataExists
-INTEGER                            :: PartDataSize=0                    ! number of entries in each line of PartData
 
 LOGICAL,ALLOCATABLE                :: readVarFromState(:)
 
-INTEGER, ALLOCATABLE               :: VibQuantData(:,:)
-REAL, ALLOCATABLE                  :: ElecDistriData(:,:),AD_Data(:,:)
 !===================================================================================================================================
 END MODULE MOD_Particle_Restart_Vars

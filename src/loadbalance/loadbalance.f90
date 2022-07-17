@@ -369,7 +369,7 @@ USE MOD_LoadBalance_Vars  ,ONLY: ElemInfoRank_Shared,ElemInfoRank_Shared_Win
 USE MOD_LoadBalance_Vars  ,ONLY: nElemsOld,offsetElemOld
 USE MOD_Mesh_Vars         ,ONLY: nGlobalElems
 USE MOD_MPI_Shared
-USE MOD_MPI_Shared_Vars   ,ONLY: myComputeNodeRank
+USE MOD_MPI_Shared_Vars   ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars,ONLY: ElemInfo_Shared
 USE MOD_Particle_MPI      ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_PICDepo_Vars      ,ONLY: DepositionType
@@ -425,9 +425,8 @@ END IF
 
 nElemsOld     = nElems
 offsetElemOld = offsetElem
-IF (myComputeNodeRank.EQ.0) &
-  ElemInfoRank_Shared  = ElemInfo_Shared(ELEM_RANK,:)
-CALL BARRIER_AND_SYNC(ElemInfoRank_Shared_Win,IERROR)
+IF (myComputeNodeRank.EQ.0) ElemInfoRank_Shared = ElemInfo_Shared(ELEM_RANK,:)
+CALL BARRIER_AND_SYNC(ElemInfoRank_Shared_Win,MPI_COMM_SHARED)
 #endif /*PARTICLES*/
 
 ! reallocate

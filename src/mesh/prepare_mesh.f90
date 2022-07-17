@@ -809,7 +809,7 @@ USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
 USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nBCSides,nSides
 USE MOD_Mesh_Vars        ,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
 USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
-USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo,BoundaryName
+USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
 #if defined(PARTICLES) || USE_HDG
 USE MOD_Mesh_Vars        ,ONLY: GlobalUniqueSideID
 #endif /*defined(PARTICLES) || USE_HDG*/
@@ -818,7 +818,7 @@ USE MOD_MPI_vars
 #endif
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemHDGSides,TotalHDGSides
-USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide
+USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide,BoundaryName
 #endif /*USE_HDG && USE_LOADBALANCE*/
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -845,8 +845,8 @@ INTEGER             :: dummy(0:4)
 #if USE_HDG && USE_LOADBALANCE
 INTEGER           :: BCType,nMortars
 INTEGER           :: HDGSides
-#endif /*USE_HDG && USE_LOADBALANCE*/
 CHARACTER(3)      :: hilf
+#endif /*USE_HDG && USE_LOADBALANCE*/
 !===================================================================================================================================
 ! Element to Side mapping
 nSides_flip=0

@@ -164,7 +164,7 @@ USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
 #ifdef PARTICLES
 USE MOD_HDF5_Input       ,ONLY: File_ID,ReadArray,DatasetExists,OpenDataFile,CloseDataFile,ReadAttribute
 USE MOD_LoadBalance_Vars ,ONLY: PartDistri,ParticleMPIWeight
-USE MOD_Particle_Vars    ,ONLY: VarTimeStep
+USE MOD_Particle_Vars    ,ONLY: VarTimeStep,PartIntSize
 USE MOD_Restart_Vars     ,ONLY: RestartFile
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
@@ -174,7 +174,6 @@ IMPLICIT NONE
 LOGICAL,INTENT(IN)             :: ElemTimeExists
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER,PARAMETER              :: PartIntSize       = 2 ! number of entries in each line of PartInt
 INTEGER                        :: WeightDistributionMethod_loc
 INTEGER                        :: nProcs
 INTEGER,ALLOCATABLE            :: PartsInElem(:)

@@ -75,9 +75,18 @@ REAL    , ALLOCATABLE :: Pt(:,:)                                             ! D
                                                                              ! is the velocity. Thus we can take
                                                                              ! PartState(4:6,:) as Pt(1:3)
                                                                              ! (1:NParts,1:6) with 2nd index: x,y,z,vx,vy,vz
+INTEGER               :: PartDataSize                                        ! Number of entries in each line of PartData
+INTEGER,PARAMETER     :: PartIntSize=2                                       ! Number of entries in each line of PartInt
 REAL,ALLOCATABLE      :: PartData(:,:)                                       ! PartState ordered along SFC, particle number per
                                                                              ! element given in PartInt
+INTEGER,ALLOCATABLE   :: VibQuantData(:,:)                                   ! Vibrational quantization
+INTEGER               :: MaxQuantNum
+REAL,ALLOCATABLE      :: ElecDistriData(:,:)                                 ! Electronic excitation distribution
+INTEGER               :: MaxElecQuant
+REAL,ALLOCATABLE      :: AD_Data(:,:)                                        ! Ambipolar diffusion
+
 INTEGER(KIND=IK),ALLOCATABLE :: PartInt(:,:)                                 ! Particle number per element
+INTEGER(KIND=IK)             :: locnPart,offsetnPart                         ! Number and offset of particles on processors
 LOGICAL               :: DoForceFreeSurfaceFlux                              ! switch if the stage reconstruction uses a force
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 LOGICAL               :: velocityOutputAtTime

@@ -544,7 +544,6 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Analyze_Vars            ,ONLY: CalcMeshInfo
 USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,nElems
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
-USE MOD_HDF5_Output_State       ,ONLY: WriteStateToHDF5
 USE MOD_HDF5_Output_ElemData    ,ONLY: WriteLostRotPeriodicSidesToHDF5
 USE MOD_Globals_Vars            ,ONLY: ProjectName
 #endif /*USE_MPI*/

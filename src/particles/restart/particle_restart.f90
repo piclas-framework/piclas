@@ -75,7 +75,9 @@ USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
 ! MPI
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
+USE MOD_Particle_Vars          ,ONLY: PartDataSize
 #endif /*USE_MPI*/
+USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

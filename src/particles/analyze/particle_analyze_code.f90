@@ -280,7 +280,6 @@ ASSOCIATE( iPart => 1 )
              !WRITE (*,*) "x,v,gamma_0,c =", PartStateAnalytic(1),PartStateAnalytic(4),gamma_0,c
       END ASSOCIATE
     END SELECT
-    !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
   END SELECT
 END ASSOCIATE
@@ -410,7 +409,6 @@ ELSE
       !WRITE (*,*) "PartStateAnalytic =", PartStateAnalytic
       !WRITE (*,*) "PartStateLoc      =", PartStateLoc
       !WRITE (*,*) "L_2_Error_Part    =", L_2_Error_Part
-      !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
       L_2_Error_Part_time = t
     ELSE
       L_2_Error_Part(1:AnalyticPartDim) = -1.0

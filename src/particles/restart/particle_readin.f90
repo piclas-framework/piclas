@@ -71,6 +71,8 @@ USE MOD_LoadBalance_Vars       ,ONLY: PartSourceLB
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 #endif /*USE_LOADBALANCE*/
+USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
+USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -82,7 +84,6 @@ IMPLICIT NONE
 ! Parameters
 INTEGER,PARAMETER                  :: ELEM_FirstPartInd = 1
 INTEGER,PARAMETER                  :: ELEM_LastPartInd  = 2
-INTEGER,PARAMETER                  :: PartIntSize       = 2           ! number of entries in each line of PartInt
 ! Counters
 INTEGER(KIND=IK)                   :: locnPart,offsetnPart
 INTEGER                            :: iElem
@@ -151,28 +152,9 @@ IF (PerformLoadBalance) THEN
     END DO
   END IF ! (DoDeposition .AND. RelaxDeposition)
 
-  ! Reconstruct the PartDataSize
-  IF (PartDataSize.EQ.0) THEN
-    IF(useDSMC)THEN
-      IF((CollisMode.GT.1).AND.(usevMPF).AND.(DSMC%ElectronicModel.GT.0))THEN
-        PartDataSize=11
-      ELSE IF ( (CollisMode .GT. 1) .AND. (usevMPF) ) THEN
-        PartDataSize=10
-      ELSE IF ( (CollisMode .GT. 1) .AND. (DSMC%ElectronicModel.GT.0) ) THEN
-        PartDataSize=10
-      ELSE IF (CollisMode.GT.1) THEN
-        PartDataSize=9 !int ener + 2
-      ELSE IF (usevMPF) THEN
-        PartDataSize=8 !+ 1 vmpf
-      ELSE
-        PartDataSize=7 !+ 0
-      END IF
-    ELSE IF (usevMPF) THEN
-      PartDataSize=8 !vmpf +1
-    ELSE
-      PartDataSize=7
-    END IF ! UseDSMC
-  END IF ! PartDataSize.EQ.0
+  ! Check the PartDataSize
+  IF (PartDataSize.EQ.0) CALL Abort(__STAMP__,'PartDataSize.EQ.0 but should have been set before loadbalance!')
+
   ALLOCATE(readVarFromState(PartDataSize))
   readVarFromState=.TRUE.
 
@@ -274,7 +256,7 @@ IF (PerformLoadBalance) THEN
               counts_recv  => INT(MaxQuantNum*MPInPartRecv     ,IK) ,&
               disp_recv    => INT(MaxQuantNum*MPIoffsetPartRecv,IK))
         ! Communicate PartInt over MPI
-        CALL MPI_ALLTOALLV(VibQuantData,counts_send,disp_send,MPI_DOUBLE_PRECISION,VibQuantDataTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
+        CALL MPI_ALLTOALLV(VibQuantData,counts_send,disp_send,MPI_INTEGER_INT_KIND,VibQuantDataTmp,counts_recv,disp_recv,MPI_INTEGER_INT_KIND,MPI_COMM_WORLD,iError)
       END ASSOCIATE
 
       DEALLOCATE(VibQuantData)

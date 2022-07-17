@@ -33,7 +33,7 @@ SUBROUTINE TimeDisc()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime
+USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime,ProjectName
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze
 #if USE_LOADBALANCE
@@ -86,6 +86,7 @@ USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteElectroMagneticPICFieldToHDF5
 USE MOD_HDF5_Output_State      ,ONLY: WriteIMDStateToHDF5
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEMFieldOutput
+USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
 #endif /*PARTICLES*/
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
@@ -210,7 +211,13 @@ CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 #ifdef PARTICLES
 IF(DoImportIMDFile) CALL WriteIMDStateToHDF5() ! Write IMD particles to state file (and TTM if it exists)
 #endif /*PARTICLES*/
-IF((.NOT.DoRestart).OR.FlushInitialState) CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze) ! Write initial state to file
+IF((.NOT.DoRestart).OR.FlushInitialState.OR.(.NOT.FILEEXISTS(TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',time))//'.h5'))) THEN
+#if defined(PARTICLES)
+  CALL FillParticleData() ! Fill the SFC-ordered particle arrays
+#endif /*defined(PARTICLES)*/
+
+  CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze) ! Write initial state to file
+END IF
 
 ! if measurement of particle tracking time (used for analyze, load balancing uses own time measurement for tracking)
 #ifdef PARTICLES
@@ -402,6 +409,9 @@ DO !iter_t=0,MaxIter
       CALL PerformAnalyze(time, FirstOrLastIter=finalIter, OutPutHDF5=.TRUE.) ! analyze routines are not called here in last iter
       ! write information out to std-out of console
       CALL WriteInfoStdOut()
+#if defined(PARTICLES)
+      CALL FillParticleData() ! Fill the SFC-ordered particle arrays
+#endif /*defined(PARTICLES)*/
       ! Write state to file
       CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)

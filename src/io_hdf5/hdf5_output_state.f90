@@ -804,6 +804,7 @@ USE MOD_Restart_Vars  ,ONLY: DoRestart
 USE MOD_MPI           ,ONLY: FinalizeMPI
 #endif /*USE_MPI*/
 USE MOD_ReadInTools   ,ONLY: PrintOption
+USE MOD_HDF5_Output_Particles,ONLY: FillParticleData
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -848,6 +849,7 @@ IF(.NOT.DoRestart)THEN
     SWRITE(UNIT_StdOut,'(A,ES25.14E3,A,F15.3,A)')     '   Calculated time t :',t,' (',t*1e12,' ps)'
 
     tFuture=t
+    CALL FillParticleData()
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
     SWRITE(UNIT_StdOut,'(A)')'   Particles: StateFile (IMD MD data) created. Terminating successfully!'
 #if USE_MPI
