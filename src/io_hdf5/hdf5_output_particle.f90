@@ -93,17 +93,10 @@ USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
-#if USE_MPI
-USE MOD_PICDepo_Vars       ,ONLY: NodeMappingRecv,NodeMappingSend,NodeSourceExtTmp
-USE MOD_MPI_Shared         ,ONLY: BARRIER_AND_SYNC
-USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,nNodeSendExchangeProcs,NodeSendDepoRankToGlobalRank,DepoNodetoGlobalNode
-USE MOD_PICDepo_Vars       ,ONLY: nNodeRecvExchangeProcs
-USE MOD_PICDepo_Vars       ,ONLY: NodeRecvDepoRankToGlobalRank
-#endif  /*USE_MPI*/
 USE MOD_TimeDisc_Vars      ,ONLY: iter
-#if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart
-#endif /*defined(MEASURE_MPI_WAIT)*/
+#if USE_MPI
+USE MOD_PICDepo            ,ONLY: ExchangeNodeSourceExtTmp
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -119,17 +112,6 @@ CHARACTER(LEN=255)             :: FileName,DataSetName
 INTEGER                        :: iElem,i,iMax
 REAL                           :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1)
 INTEGER                        :: NodeID(1:8)
-#if USE_MPI
-INTEGER                        :: iProc
-!INTEGER                        :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
-INTEGER                        :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
-!INTEGER                        :: MessageSize
-#endif /*USE_MPI*/
-INTEGER                        :: globalNode, iNode
-#if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)                :: CounterStart,CounterEnd
-REAL(KIND=8)                   :: Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 ! create global Eps field for parallel output of Eps distribution
 ALLOCATE(NodeSourceExtGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
@@ -142,69 +124,8 @@ IF(iter.NE.0)THEN
 
 ! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
 #if USE_MPI
-  ! 1) Receive charge density
-  DO iProc = 1, nNodeRecvExchangeProcs
-    ! Open receive buffer
-    CALL MPI_IRECV( NodeMappingRecv(iProc)%RecvNodeSourceExt(:) &
-              , NodeMappingRecv(iProc)%nRecvUniqueNodes            &
-              , MPI_DOUBLE_PRECISION                           &
-              , NodeRecvDepoRankToGlobalRank(iProc)                &
-              , 666                                            &
-              , MPI_COMM_WORLD                                 &
-              , RecvRequest(iProc)                             &
-              , IERROR)
-  END DO
-
-
-  DO iProc = 1, nNodeSendExchangeProcs
-    ! Send message (non-blocking)
-    DO iNode = 1, NodeMappingSend(iProc)%nSendUniqueNodes
-      NodeMappingSend(iProc)%SendNodeSourceExt(iNode) = NodeSourceExtTmp(NodeMappingSend(iProc)%SendNodeUniqueGlobalID(iNode))
-    END DO
-    CALL MPI_ISEND( NodeMappingSend(iProc)%SendNodeSourceExt(:) &
-                  , NodeMappingSend(iProc)%nSendUniqueNodes        &
-                  , MPI_DOUBLE_PRECISION                       &
-                  , NodeSendDepoRankToGlobalRank(iProc)            &
-                  , 666                                        &
-                  , MPI_COMM_WORLD                             &
-                  , SendRequest(iProc)                         &
-                  , IERROR)
-  END DO
-  ! Finish communication
-#if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterStart)
-#endif /*defined(MEASURE_MPI_WAIT)*/
-  DO iProc = 1, nNodeSendExchangeProcs
-    CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
-    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-  END DO
-  DO iProc = 1, nNodeRecvExchangeProcs
-    CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
-    IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-  END DO
-#if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-
-  ! 3) Extract messages
-  DO iProc = 1, nNodeRecvExchangeProcs
-    DO iNode = 1, NodeMappingRecv(iProc)%nRecvUniqueNodes
-      ASSOCIATE( NS => NodeSourceExtTmp(NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID(iNode)))
-        NS = NS + NodeMappingRecv(iProc)%RecvNodeSourceExt(iNode)
-      END ASSOCIATE
-    END DO
-  END DO
-
-  ! Add NodeSourceExtTmp values of the last boundary interaction
-  DO iNode = 1, nDepoNodesTotal
-    globalNode = DepoNodetoGlobalNode(iNode)
-    NodeSourceExt(globalNode) = NodeSourceExt(globalNode) + NodeSourceExtTmp(globalNode)
-  END DO
-  ! Reset local surface charge
-  NodeSourceExtTmp = 0.
+  CALL ExchangeNodeSourceExtTmp()
 #endif /*USE_MPI*/
-
 
 end if ! iter.NE.0
 
@@ -338,15 +259,9 @@ USE MOD_Particle_Vars          ,ONLY: usevMPF, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartDataSize,locnPart,offsetnPart,PartIntSize
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,DSMC
-#if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
-USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
-#endif /*(PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)*/
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
-#ifdef CODE_ANALYZE
-USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
-#endif /*CODE_ANALYZE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -1916,7 +1831,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER,PARAMETER              :: PartIntSize=2
 INTEGER                        :: pcount
-INTEGER                        :: iPart
+INTEGER(KIND=IK)               :: iPart
 LOGICAL                        :: withDSMC=.FALSE.
 INTEGER                        :: iPolyatMole, iSpec
 INTEGER                        :: ALLOCSTAT

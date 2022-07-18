@@ -67,9 +67,13 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld,ElemInfoRank_Shared
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 USE MOD_LoadBalance_Vars       ,ONLY: MPInPartSend,MPInPartRecv,MPIoffsetPartSend,MPIoffsetPartRecv
-USE MOD_LoadBalance_Vars       ,ONLY: PartSourceLB
+USE MOD_LoadBalance_Vars       ,ONLY: PartSourceLB,NodeSourceExtEquiLB
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
+USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize
@@ -103,8 +107,11 @@ REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
 INTEGER(KIND=IK),ALLOCATABLE       :: PartIntTmp(:,:)
 #if USE_LOADBALANCE
 ! LoadBalance
-INTEGER                            :: PartRank
+INTEGER(KIND=IK)                   :: PartRank
 INTEGER                            :: offsetPartSend,offsetPartRecv
+INTEGER,PARAMETER                  :: N_variables=1
+REAL,ALLOCATABLE                   :: NodeSourceExtEquiLBTmp(:,:,:,:,:)
+INTEGER                            :: NodeID(1:8)
 #if USE_MPI
 ! MPI
 INTEGER                            :: iProc
@@ -135,7 +142,7 @@ IF (PerformLoadBalance) THEN
             counts_recv  => INT(4*(PP_N+1)**3*MPInElemRecv     ,IK) ,&
             disp_recv    => INT(4*(PP_N+1)**3*MPIoffsetElemRecv,IK))
       ! Communicate PartSource over MPI
-      CALL MPI_ALLTOALLV(PartSourceLB,counts_send,disp_send,MPI_INTEGER_INT_KIND,PartSource_HDF5,counts_recv,disp_recv,MPI_INTEGER_INT_KIND,MPI_COMM_WORLD,iError)
+      CALL MPI_ALLTOALLV(PartSourceLB,counts_send,disp_send,MPI_DOUBLE_PRECISION,PartSource_HDF5,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
     END ASSOCIATE
     DEALLOCATE(PartSourceLB)
 
@@ -151,6 +158,36 @@ IF (PerformLoadBalance) THEN
       END DO; END DO; END DO
     END DO
   END IF ! (DoDeposition .AND. RelaxDeposition)
+
+  ! ------------------------------------------------
+  ! NodeSourceExt (external/additional charge source terms)
+  ! ------------------------------------------------
+  IF(DoDeposition.AND.DoDielectricSurfaceCharge)THEN
+    ALLOCATE(NodeSourceExtEquiLBTmp(1:N_variables,0:1,0:1,0:1,nElems))
+    ASSOCIATE (&
+            counts_send  => INT((PP_N+1)*MPInElemSend     ,IK) ,&
+            disp_send    => INT((PP_N+1)*MPIoffsetElemSend,IK) ,&
+            counts_recv  => INT((PP_N+1)*MPInElemRecv     ,IK) ,&
+            disp_recv    => INT((PP_N+1)*MPIoffsetElemRecv,IK))
+      ! Communicate PartSource over MPI
+      CALL MPI_ALLTOALLV(NodeSourceExtEquiLB,counts_send,disp_send,MPI_DOUBLE_PRECISION,NodeSourceExtEquiLBTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
+    END ASSOCIATE
+    DEALLOCATE(NodeSourceExtEquiLB)
+    ! Loop over all elements and store absolute charge values in equidistantly distributed nodes of PP_N=1
+    DO iElem=1,PP_nElems
+      ! Copy values to equidistant distribution
+      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+      NodeSourceExt(NodeID(1)) = NodeSourceExtEquiLBTmp(1,0,0,0,iElem)
+      NodeSourceExt(NodeID(2)) = NodeSourceExtEquiLBTmp(1,1,0,0,iElem)
+      NodeSourceExt(NodeID(3)) = NodeSourceExtEquiLBTmp(1,1,1,0,iElem)
+      NodeSourceExt(NodeID(4)) = NodeSourceExtEquiLBTmp(1,0,1,0,iElem)
+      NodeSourceExt(NodeID(5)) = NodeSourceExtEquiLBTmp(1,0,0,1,iElem)
+      NodeSourceExt(NodeID(6)) = NodeSourceExtEquiLBTmp(1,1,0,1,iElem)
+      NodeSourceExt(NodeID(7)) = NodeSourceExtEquiLBTmp(1,1,1,1,iElem)
+      NodeSourceExt(NodeID(8)) = NodeSourceExtEquiLBTmp(1,0,1,1,iElem)
+    END DO!iElem
+    DEALLOCATE(NodeSourceExtEquiLBTmp)
+  END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
 
   ! Check the PartDataSize
   IF (PartDataSize.EQ.0) CALL Abort(__STAMP__,'PartDataSize.EQ.0 but should have been set before loadbalance!')

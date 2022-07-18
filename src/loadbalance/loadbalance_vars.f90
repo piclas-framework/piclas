@@ -85,6 +85,7 @@ INTEGER                             :: ElemInfoRank_Shared_Win
 ! field arrays during load balancing
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL,ALLOCATABLE                    :: PartSourceLB(:,:,:,:,:)
+REAL,ALLOCATABLE                    :: NodeSourceExtEquiLB(:,:,:,:,:)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! particle load balancing

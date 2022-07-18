@@ -28,6 +28,9 @@ INTERFACE FinalizeDeposition
 END INTERFACE
 
 PUBLIC:: Deposition, InitializeDeposition, FinalizeDeposition, DefineParametersPICDeposition
+#if USE_MPI
+PUBLIC :: ExchangeNodeSourceExtTmp
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 CONTAINS
@@ -899,6 +902,108 @@ END SELECT
 END FUNCTION SFMeasureDistance
 
 
+#if USE_MPI
+!===================================================================================================================================
+!> Exchange the node source container between MPI processes (either during load balance or hdf5 output) and nullify the local charge
+!> container NodeSourceExtTmp. Updates the node charge container NodeSourceExt at MPI interfaces.
+!===================================================================================================================================
+SUBROUTINE ExchangeNodeSourceExtTmp()
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt
+#if USE_MPI
+USE MOD_PICDepo_Vars       ,ONLY: NodeMappingRecv,NodeMappingSend,NodeSourceExtTmp
+USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,nNodeSendExchangeProcs,NodeSendDepoRankToGlobalRank,DepoNodetoGlobalNode
+USE MOD_PICDepo_Vars       ,ONLY: nNodeRecvExchangeProcs
+USE MOD_PICDepo_Vars       ,ONLY: NodeRecvDepoRankToGlobalRank
+#endif  /*USE_MPI*/
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart
+#endif /*defined(MEASURE_MPI_WAIT)*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+#if USE_MPI
+INTEGER                        :: iProc
+!INTEGER                        :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
+INTEGER                        :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
+!INTEGER                        :: MessageSize
+#endif /*USE_MPI*/
+INTEGER                        :: globalNode, iNode
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)                :: CounterStart,CounterEnd
+REAL(KIND=8)                   :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+!===================================================================================================================================
+! 1) Receive charge density
+DO iProc = 1, nNodeRecvExchangeProcs
+  ! Open receive buffer
+  CALL MPI_IRECV( NodeMappingRecv(iProc)%RecvNodeSourceExt(:) &
+      , NodeMappingRecv(iProc)%nRecvUniqueNodes            &
+      , MPI_DOUBLE_PRECISION                           &
+      , NodeRecvDepoRankToGlobalRank(iProc)                &
+      , 666                                            &
+      , MPI_COMM_WORLD                                 &
+      , RecvRequest(iProc)                             &
+      , IERROR)
+END DO
+
+
+DO iProc = 1, nNodeSendExchangeProcs
+  ! Send message (non-blocking)
+  DO iNode = 1, NodeMappingSend(iProc)%nSendUniqueNodes
+    NodeMappingSend(iProc)%SendNodeSourceExt(iNode) = NodeSourceExtTmp(NodeMappingSend(iProc)%SendNodeUniqueGlobalID(iNode))
+  END DO
+  CALL MPI_ISEND( NodeMappingSend(iProc)%SendNodeSourceExt(:) &
+      , NodeMappingSend(iProc)%nSendUniqueNodes        &
+      , MPI_DOUBLE_PRECISION                       &
+      , NodeSendDepoRankToGlobalRank(iProc)            &
+      , 666                                        &
+      , MPI_COMM_WORLD                             &
+      , SendRequest(iProc)                         &
+      , IERROR)
+END DO
+! Finish communication
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+DO iProc = 1, nNodeSendExchangeProcs
+  CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+END DO
+DO iProc = 1, nNodeRecvExchangeProcs
+  CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+  IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+END DO
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
+! 3) Extract messages
+DO iProc = 1, nNodeRecvExchangeProcs
+  DO iNode = 1, NodeMappingRecv(iProc)%nRecvUniqueNodes
+    ASSOCIATE( NS => NodeSourceExtTmp(NodeMappingRecv(iProc)%RecvNodeUniqueGlobalID(iNode)))
+      NS = NS + NodeMappingRecv(iProc)%RecvNodeSourceExt(iNode)
+    END ASSOCIATE
+  END DO
+END DO
+
+! Add NodeSourceExtTmp values of the last boundary interaction
+DO iNode = 1, nDepoNodesTotal
+  globalNode = DepoNodetoGlobalNode(iNode)
+  NodeSourceExt(globalNode) = NodeSourceExt(globalNode) + NodeSourceExtTmp(globalNode)
+END DO
+! Reset local surface charge
+NodeSourceExtTmp = 0.
+END SUBROUTINE ExchangeNodeSourceExtTmp
+#endif /*USE_MPI*/
+
+
 SUBROUTINE FinalizeDeposition()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! finalize pic deposition
@@ -915,8 +1020,12 @@ USE MOD_MPI_Shared
 #if USE_LOADBALANCE
 USE MOD_PreProc
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
-USE MOD_LoadBalance_Vars   ,ONLY: PartSourceLB
+USE MOD_LoadBalance_Vars   ,ONLY: PartSourceLB,NodeSourceExtEquiLB
 USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
 #endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -925,6 +1034,11 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_LOADBALANCE
+INTEGER,PARAMETER :: N_variables=1
+INTEGER           :: iElem
+INTEGER           :: NodeID(1:8)
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 SDEALLOCATE(PartSourceConst)
 SDEALLOCATE(PartSourceOld)
@@ -951,23 +1065,11 @@ SDEALLOCATE(ChargeSFDone)
 !SDEALLOCATE(PartSourceLoc)
 SDEALLOCATE(PartSourceGlob)
 SDEALLOCATE(PeriodicSFCaseMatrix)
-SDEALLOCATE(NodeSendDepoRankToGlobalRank)
-SDEALLOCATE(NodeRecvDepoRankToGlobalRank)
-SDEALLOCATE(DepoNodetoGlobalNode)
-
-SDEALLOCATE(NodeSource)
-SDEALLOCATE(NodeSourceExt)
 
 #if USE_MPI
-SDEALLOCATE(NodeSourceExtTmp)
 SDEALLOCATE(FlagShapeElem)
-SDEALLOCATE(NodeMappingSend)
-SDEALLOCATE(NodeMappingRecv)
 SDEALLOCATE(nDepoDOFPerProc)
 SDEALLOCATE(nDepoOffsetProc)
-SDEALLOCATE(RecvRequest)
-SDEALLOCATE(RecvRequest)
-SDEALLOCATE(SendRequest)
 SDEALLOCATE(RecvRequestCN)
 SDEALLOCATE(SendRequestCN)
 SDEALLOCATE(SendElemShapeID)
@@ -1005,9 +1107,43 @@ IF (PerformLoadBalance .AND. DoDeposition) THEN
   SDEALLOCATE(PartSourceLB)
   ALLOCATE(PartSourceLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
   PartSourceLB = PartSource
+  IF(DoDielectricSurfaceCharge)THEN
+    CALL ExchangeNodeSourceExtTmp()
+    SDEALLOCATE(NodeSourceExtEquiLB)
+    !ALLOCATE(NodeSourceExtEquiLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
+    ALLOCATE(NodeSourceExtEquiLB(1:N_variables,0:1,0:1,0:1,nElems))
+    ! Loop over all elements and store absolute charge values in equidistantly distributed nodes of PP_N=1
+    DO iElem=1,PP_nElems
+      ! Copy values to equidistant distribution
+      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+      NodeSourceExtEquiLB(1,0,0,0,iElem) = NodeSourceExt(NodeID(1))
+      NodeSourceExtEquiLB(1,1,0,0,iElem) = NodeSourceExt(NodeID(2))
+      NodeSourceExtEquiLB(1,1,1,0,iElem) = NodeSourceExt(NodeID(3))
+      NodeSourceExtEquiLB(1,0,1,0,iElem) = NodeSourceExt(NodeID(4))
+      NodeSourceExtEquiLB(1,0,0,1,iElem) = NodeSourceExt(NodeID(5))
+      NodeSourceExtEquiLB(1,1,0,1,iElem) = NodeSourceExt(NodeID(6))
+      NodeSourceExtEquiLB(1,1,1,1,iElem) = NodeSourceExt(NodeID(7))
+      NodeSourceExtEquiLB(1,0,1,1,iElem) = NodeSourceExt(NodeID(8))
+    END DO!iElem
+    ADEALLOCATE(ElemNodeID_Shared)
+  END IF ! DoDielectricSurfaceCharge
 END IF
 #endif /*USE_LOADBALANCE*/
+
 SDEALLOCATE(PartSource)
+SDEALLOCATE(DepoNodetoGlobalNode)
+SDEALLOCATE(NodeSource)
+SDEALLOCATE(NodeSourceExt)
+
+#if USE_MPI
+SDEALLOCATE(NodeSendDepoRankToGlobalRank)
+SDEALLOCATE(NodeRecvDepoRankToGlobalRank)
+SDEALLOCATE(RecvRequest)
+SDEALLOCATE(SendRequest)
+SDEALLOCATE(NodeSourceExtTmp)
+SDEALLOCATE(NodeMappingSend)
+SDEALLOCATE(NodeMappingRecv)
+#endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeDeposition
 

@@ -60,7 +60,7 @@ USE MOD_Eval_XYZ               ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 ! Particles
-USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5,ReadNodeSourceExtFromHDF5
+USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5
 USE MOD_Part_Operations        ,ONLY: RemoveAllElectrons
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,StoreLostParticleProperties
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
