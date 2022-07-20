@@ -364,7 +364,6 @@ USE MOD_Restart           ,ONLY: Restart
 USE MOD_StringTools       ,ONLY: set_formatting,clear_formatting
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars  ,ONLY: ElemTimePart
-USE MOD_LoadBalance_Vars  ,ONLY: MPInElemSend,MPIoffsetElemSend,MPInElemRecv,MPIoffsetElemRecv
 USE MOD_LoadBalance_Vars  ,ONLY: ElemInfoRank_Shared,ElemInfoRank_Shared_Win
 USE MOD_LoadBalance_Vars  ,ONLY: nElemsOld,offsetElemOld
 USE MOD_Mesh_Vars         ,ONLY: nGlobalElems
@@ -384,10 +383,6 @@ USE MOD_PICDepo_Vars      ,ONLY: DepositionType
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL :: LB_Time,LB_StartTime
-INTEGER :: iProc,iElem,ElemRank
-#ifdef PARTICLES
-INTEGER :: offsetElemSend,offsetElemRecv
-#endif /*PARTICLES*/
 !===================================================================================================================================
 ! only do load-balance if necessary
 IF(.NOT.PerformLoadBalance) THEN
@@ -431,36 +426,6 @@ CALL BARRIER_AND_SYNC(ElemInfoRank_Shared_Win,MPI_COMM_SHARED)
 
 ! reallocate
 CALL InitPiclas(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
-
-#if defined(PARTICLES)
-! Calculate the elements to send
-MPInElemSend      = 0
-MPIoffsetElemSend = 0
-! Loop with the old element over the new elem distribution
-DO iElem = 1,nElemsOld
-  ElemRank               = ElemInfo_Shared(ELEM_RANK,offsetElemOld+iElem)+1
-  MPInElemSend(ElemRank) = MPInElemSend(ElemRank) + 1
-END DO
-
-offsetElemSend = 0
-DO iProc = 2,nProcessors
-  MPIoffsetElemSend(iProc) = SUM(MPInElemSend(1:iProc-1))
-END DO
-
-! Calculate the elements to send
-MPInElemRecv      = 0
-MPIoffsetElemRecv = 0
-! Loop with the new element over the old elem distribution
-DO iElem = 1,nElems
-  ElemRank               = ElemInfoRank_Shared(offsetElem+iElem)+1
-  MPInElemRecv(ElemRank) = MPInElemRecv(ElemRank) + 1
-END DO
-
-offsetElemRecv = 0
-DO iProc = 2,nProcessors
-  MPIoffsetElemRecv(iProc) = SUM(MPInElemRecv(1:iProc-1))
-END DO
-#endif /*PARTICLES*/
 
 ! restart
 CALL Restart()

@@ -57,8 +57,6 @@ USE MOD_Restart_Vars           ,ONLY: RestartFile,InterpolateSolution,RestartNul
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
 ! HDG
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid,BRConvertElectronsToFluid,BRConvertFluidToElectrons
-USE MOD_Mesh_Vars              ,ONLY: nSides
 USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
 #endif /*USE_HDG*/
 ! LoadBalance
@@ -165,10 +163,10 @@ IF (PerformLoadBalance) THEN
   IF(DoDeposition.AND.DoDielectricSurfaceCharge)THEN
     ALLOCATE(NodeSourceExtEquiLBTmp(1:N_variables,0:1,0:1,0:1,nElems))
     ASSOCIATE (&
-            counts_send  => INT((PP_N+1)*MPInElemSend     ,IK) ,&
-            disp_send    => INT((PP_N+1)*MPIoffsetElemSend,IK) ,&
-            counts_recv  => INT((PP_N+1)*MPInElemRecv     ,IK) ,&
-            disp_recv    => INT((PP_N+1)*MPIoffsetElemRecv,IK))
+            counts_send  => INT((PP_N+1)**3*MPInElemSend     ,IK) ,&
+            disp_send    => INT((PP_N+1)**3*MPIoffsetElemSend,IK) ,&
+            counts_recv  => INT((PP_N+1)**3*MPInElemRecv     ,IK) ,&
+            disp_recv    => INT((PP_N+1)**3*MPIoffsetElemRecv,IK))
       ! Communicate PartSource over MPI
       CALL MPI_ALLTOALLV(NodeSourceExtEquiLB,counts_send,disp_send,MPI_DOUBLE_PRECISION,NodeSourceExtEquiLBTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
     END ASSOCIATE

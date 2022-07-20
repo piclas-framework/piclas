@@ -38,6 +38,7 @@ END INTERFACE
 
 #if USE_MPI
 PUBLIC::ApplyWeightDistributionMethod
+PUBLIC::WeightDistribution_Equal
 #endif /*USE_MPI*/
 PUBLIC::WriteElemTimeStatistics
 !===================================================================================================================================
@@ -167,6 +168,9 @@ USE MOD_LoadBalance_Vars ,ONLY: PartDistri,ParticleMPIWeight
 USE MOD_Particle_Vars    ,ONLY: VarTimeStep,PartIntSize
 USE MOD_Restart_Vars     ,ONLY: RestartFile
 #endif /*PARTICLES*/
+USE MOD_LoadBalance_Vars ,ONLY: nElemsOld,offsetElemMPIOld
+USE MOD_Particle_Vars    ,ONLY: PartInt
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -180,13 +184,15 @@ INTEGER,ALLOCATABLE            :: PartsInElem(:)
 #ifdef PARTICLES
 INTEGER,PARAMETER              :: ELEM_FirstPartInd = 1
 INTEGER,PARAMETER              :: ELEM_LastPartInd  = 2
-INTEGER(KIND=IK),ALLOCATABLE   :: PartInt(:,:),PartIntTmp(:,:)
+INTEGER(KIND=IK),ALLOCATABLE   :: PartIntTmp(:,:)
 INTEGER(KIND=IK)               :: locnPart
 INTEGER                        :: iElem,iProc
 LOGICAL                        :: PartIntExists
 REAL                           :: timeWeight(1:nGlobalElems)
 LOGICAL                        :: FileVersionExists
 REAL                           :: FileVersionHDF5
+INTEGER(KIND=IK),ALLOCATABLE   :: PartIntGlob(:,:)
+INTEGER                        :: ElemPerProc(0:nProcessors-1)
 #endif /*PARTICLES*/
 !===================================================================================================================================
 ALLOCATE(PartsInElem(1:nGlobalElems))
@@ -196,39 +202,54 @@ nProcs      = nProcessors
 ! Readin of PartInt: Read in only by MPIRoot in single mode because the root performs the distribution of elements (domain decomposition)
 ! due to the load distribution scheme
 #ifdef PARTICLES
-IF (MPIRoot) THEN
-  ! Load balancing for particles: read in particle data
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
-  CALL DatasetExists(File_ID,'PartInt',PartIntExists)
-  IF (PartIntExists) THEN
+IF (MPIRoot) ALLOCATE(PartIntGlob(PartIntSize,1:nGlobalElems))
 
-    !check file version
-    CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
-    IF(FileVersionExists)THEN
-      CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
-    ELSE
-      CALL abort(__STAMP__,'Error in ApplyWeightDistributionMethod(): Attribute "File_Version" does not exist!')
-    ENDIF
+! Redistribute/read PartInt array
+IF (PerformLoadBalance) THEN
+  DO iProc = 0,nProcessors-1
+    ElemPerProc(iProc) = offsetElemMPIOld(iProc+1) - offsetElemMPIOld(iProc)
+  END DO
+  CALL MPI_GATHERV(PartInt,nElemsOld,MPI_DOUBLE_PRECISION,PartIntGlob,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+  PartIntExists = .TRUE.
+ELSE
+  ! Readin of PartInt: Read in only by MPIRoot in single mode because the root performs the distribution of elements (domain decomposition)
+  ! due to the load distribution scheme
+  IF (MPIRoot) THEN
 
-    ALLOCATE(PartInt(PartIntSize,1:nGlobalElems))
+    ! Load balancing for particles: read in particle data
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+    CALL DatasetExists(File_ID,'PartInt',PartIntExists)
+    IF (PartIntExists) THEN
 
-    ! Depending on the file version, PartInt may have switched dimensions
-    IF(FileVersionHDF5.LT.2.8)THEN
-      ALLOCATE(PartIntTmp(1:nGlobalElems,PartIntSize))
-      ! Check integer KIND=8 possibility
-      CALL ReadArray('PartInt',2,(/INT(nGlobalElems,IK),INT(PartIntSize,IK)/),0_IK,1,IntegerArray=PartIntTmp)
-      ! Switch dimensions
-      DO iElem = 1, nGlobalElems
-        PartInt(:,iElem) = PartIntTmp(iElem,:)
-      END DO ! iElem = FirstElemInd, LastElemInd
-      DEALLOCATE(PartIntTmp)
-    ELSE
-      ! Check integer KIND=8 possibility
-      CALL ReadArray('PartInt',2,(/INT(PartIntSize,IK),INT(nGlobalElems,IK)/),0_IK,2,IntegerArray=PartInt)
-    END IF ! FileVersionHDF5.LT.2.7
-  END IF
-  CALL CloseDataFile()
+      !check file version
+      CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
+      IF(FileVersionExists)THEN
+        CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
+      ELSE
+        CALL abort(__STAMP__,'Error in ApplyWeightDistributionMethod(): Attribute "File_Version" does not exist!')
+      ENDIF
 
+      ! Depending on the file version, PartInt may have switched dimensions
+      IF(FileVersionHDF5.LT.2.8)THEN
+        ALLOCATE(PartIntTmp(1:nGlobalElems,PartIntSize))
+        ! Check integer KIND=8 possibility
+        CALL ReadArray('PartInt',2,(/INT(nGlobalElems,IK),INT(PartIntSize,IK)/),0_IK,1,IntegerArray=PartIntTmp)
+        ! Switch dimensions
+        DO iElem = 1, nGlobalElems
+          PartIntGlob(:,iElem) = PartIntTmp(iElem,:)
+        END DO ! iElem = FirstElemInd, LastElemInd
+        DEALLOCATE(PartIntTmp)
+      ELSE
+        ! Check integer KIND=8 possibility
+        CALL ReadArray('PartInt',2,(/INT(PartIntSize,IK),INT(nGlobalElems,IK)/),0_IK,2,IntegerArray=PartIntGlob)
+      END IF ! FileVersionHDF5.LT.2.7
+    END IF
+    CALL CloseDataFile()
+
+  END IF ! MPIRoot
+END IF ! PerformLoadBalance
+
+IF(MPIRoot)THEN
   ! Account for variable time stepping
   timeWeight = 1.0
   IF(VarTimeStep%UseDistribution) THEN
@@ -241,17 +262,19 @@ IF (MPIRoot) THEN
 
   IF (PartIntExists) THEN
     DO iElem = 1,nGlobalElems
-      locnPart           = PartInt(ELEM_LastPartInd,iElem)-PartInt(ELEM_FirstPartInd,iElem)
+      locnPart           = PartIntGlob(ELEM_LastPartInd,iElem)-PartIntGlob(ELEM_FirstPartInd,iElem)
       PartsInElem(iElem) = INT(locnPart,4) ! switch to KIND=4
 
       ! Calculate ElemTime according to number of particles in elem if we have no historical information
       IF(.NOT.ElemTimeExists) ElemGlobalTime(iElem) = locnPart*ParticleMPIWeight*timeWeight(iElem) + 1.0
     END DO
-  END IF
+  END IF ! PartIntExists
+
+  DEALLOCATE(PartIntGlob)
 END IF ! MPIRoot
 #endif /*PARTICLES*/
 
-! Distribute PartsInElem to all procs
+! Distribute PartsInElem to all procs (Every proc needs to get the information to arrive at the same timedisc)
 CALL MPI_BCAST(PartsInElem,nGlobalElems,MPI_INTEGER,0,MPI_COMM_WORLD,iError)
 
 ! Every proc needs to get the information to arrive at the same timedisc
@@ -266,9 +289,11 @@ IF (.NOT.ElemTimeExists .AND. ALL(PartsInElem(:).EQ.0)) THEN
   END IF
   WeightDistributionMethod_loc = -1
 ELSE
+  ! ElemTime always exists during load balance, attempt to respect the user choice
   WeightDistributionMethod_loc = WeightDistributionMethod
-END IF
+END IF ! .NOT.ElemTimeExists .AND. ALL(PartsInElem(:).EQ.0)
 
+! Some methods require all procs, check within the specific routines, if non-MPIRoots immediately return
 SELECT CASE(WeightDistributionMethod_loc)
 
   ! Same as in no-restart: the elements are equally distributed

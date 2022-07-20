@@ -123,11 +123,7 @@ IMPLICIT NONE
 
 #if USE_MPI
 #if USE_LOADBALANCE
-IF (PerformLoadBalance) THEN
-  ! Only update the mapping of element to rank
-  ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = myRank
-  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-ELSE
+IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
   ! allocate shared array for ElemInfo
   CALL Allocate_Shared((/ELEMINFOSIZE,nGlobalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
@@ -549,11 +545,13 @@ IF (PerformLoadBalance) THEN
     recvcountSide(nLeaderGroupProcs-1) = nNonUniqueGlobalSides - displsSide(nLeaderGroupProcs-1)
 
     ! Gather mesh information in a non-blocking way
-    ALLOCATE(MPI_COMM_LEADERS_REQUEST(1:2))
-    CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared,ELEMINFOSIZE    *recvcountElem  &
-        ,ELEMINFOSIZE*displsElem     ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(1),IERROR)
-    CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,(SIDEINFOSIZE+1)*recvcountSide  &
-        ,(SIDEINFOSIZE+1)*displsSide ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(2),IERROR)
+    ALLOCATE(MPI_COMM_LEADERS_REQUEST(1))
+    ! ElemInfo_Shared only needs ELEM_RANK updated, performed in loadbalance_tools.f90
+    ! CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared,ELEMINFOSIZE       *recvcountElem  &
+    !     ,ELEMINFOSIZE*displsElem     ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(1),IERROR)
+    CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,(SIDEINFOSIZE+1)   *recvcountSide  &
+        ,(SIDEINFOSIZE+1)*displsSide ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(1),IERROR)
+
   END IF
 
   ! Broadcast compute node node offset on node
@@ -609,9 +607,7 @@ IF (myComputeNodeRank.EQ.0) THEN
     recvcountNode(iProc-1) = displsNode(iProc)-displsNode(iProc-1)
   END DO
   recvcountNode(nLeaderGroupProcs-1) = nNonUniqueGlobalNodes - displsNode(nLeaderGroupProcs-1)
-END IF
 
-IF (myComputeNodeRank.EQ.0) THEN
   ! Gather mesh information in a non-blocking way
   ALLOCATE(MPI_COMM_LEADERS_REQUEST(1:4))
   CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared,ELEMINFOSIZE    *recvcountElem  &
@@ -675,7 +671,7 @@ nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo_Shared(ELE
 IF (PerformLoadBalance) THEN
   ! Finish non-blocking mesh communication
   IF (myComputeNodeRank.EQ.0) THEN
-    CALL MPI_WAITALL(2,MPI_COMM_LEADERS_REQUEST,MPI_STATUSES_IGNORE,IERROR)
+    CALL MPI_WAITALL(1,MPI_COMM_LEADERS_REQUEST,MPI_STATUSES_IGNORE,IERROR)
     DEALLOCATE(MPI_COMM_LEADERS_REQUEST)
   END IF
 

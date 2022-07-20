@@ -1,0 +1,344 @@
+!=================================================================================================================================
+! Copyright (c) 2010-2021  Prof. Claus-Dieter Munz
+! This file is part of FLEXI, a high-order accurate framework for numerically solving PDEs with discontinuous Galerkin methods.
+! For more information see https://www.flexi-project.org and https://nrg.iag.uni-stuttgart.de/
+!
+! FLEXI is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License
+! as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+!
+! FLEXI is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with FLEXI. If not, see <http://www.gnu.org/licenses/>.
+!=================================================================================================================================
+#include "piclas.h"
+
+!===================================================================================================================================
+!> Module contains the routines for load balancing
+!===================================================================================================================================
+MODULE MOD_Restart_Field
+!----------------------------------------------------------------------------------------------------------------------------------
+! MODULES
+IMPLICIT NONE
+PRIVATE
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+!#if USE_LOADBALANCE
+INTERFACE FieldRestart
+  MODULE PROCEDURE FieldRestart
+END INTERFACE
+
+PUBLIC :: FieldRestart
+!#endif /*USE_LOADBALANCE*/
+!===================================================================================================================================
+
+CONTAINS
+
+!#if USE_LOADBALANCE
+SUBROUTINE FieldRestart()
+!===================================================================================================================================
+! routine perfoming the field restart
+!===================================================================================================================================
+! USED MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_DG_Vars                ,ONLY: U
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_IO_HDF5
+USE MOD_Mesh_Vars              ,ONLY: OffsetElem
+USE MOD_Restart_Vars           ,ONLY: N_Restart,RestartFile,InterpolateSolution,RestartNullifySolution
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
+USE MOD_HDF5_Input             ,ONLY: DatasetExists
+USE MOD_HDF5_Output            ,ONLY: FlushHDF5
+#ifdef PP_POIS
+USE MOD_Equation_Vars          ,ONLY: Phi
+#endif /*PP_POIS*/
+#if defined(PARTICLES)
+USE MOD_Particle_Restart       ,ONLY: ParticleRestart
+#endif /*defined(PARTICLES)*/
+#if USE_HDG
+USE MOD_Restart_Tools          ,ONLY: RecomputeLambda
+USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
+USE MOD_HDG                    ,ONLY: RestartHDG
+USE MOD_Mesh_Vars              ,ONLY: nSides,GlobalUniqueSideID,MortarType,SideToElem
+USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
+USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
+USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide,MortarInfo
+USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE
+#if USE_MPI
+USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
+USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+#endif /*USE_MPI*/
+#else /*USE_HDG*/
+USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
+USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
+#endif /*USE_HDG*/
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+#if !(USE_HDG)
+REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
+INTEGER                            :: iPML
+#endif
+#if USE_HDG
+LOGICAL                            :: DG_SolutionLambdaExists
+LOGICAL                            :: DG_SolutionUExists
+#endif /*USE_HDG*/
+#if !(USE_HDG)
+INTEGER                            :: iElem
+#endif /*!(USE_HDG)*/
+INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
+#if USE_HDG
+INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID
+REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
+INTEGER                            :: p,q,r,rr,pq(1:2)
+INTEGER                            :: iLocSide,iLocSide_NB,iLocSide_master
+INTEGER                            :: iMortar,MortarSideID,nMortars
+#else
+INTEGER(KIND=IK)                   :: PMLnVarTmp
+#endif /*USE_HDG*/
+!===================================================================================================================================
+
+! ===========================================================================
+! Distribute or read the field solution
+! ===========================================================================
+
+#if USE_LOADBALANCE
+IF(PerformLoadBalance)THEN
+#if USE_HDG
+  lambda=0.
+#else
+  ! Only required for time discs where U is allocated
+  IF(ALLOCATED(U))THEN
+    ALLOCATE(UTmp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
+    ASSOCIATE (&
+            counts_send  => (PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)*MPInElemSend     ) ,&
+            disp_send    => (PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)*MPIoffsetElemSend) ,&
+            counts_recv  => (PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)*MPInElemRecv     ) ,&
+            disp_recv    => (PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)*MPIoffsetElemRecv))
+      ! Communicate PartInt over MPI
+      CALL MPI_ALLTOALLV(U,counts_send,disp_send,MPI_DOUBLE_PRECISION,UTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
+    END ASSOCIATE
+
+    DEALLOCATE(U)
+    ALLOCATE(U(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
+    U = UTmp
+    DEALLOCATE(UTmp)
+  END IF ! ALLOCATED(U)
+#endif /*USE_HDG*/
+
+ELSE ! normal restart
+#endif /*USE_LOADBALANCE*/
+
+  ! Temp. vars for integer KIND=8 possibility
+  PP_NTmp       = INT(PP_N,IK)
+  OffsetElemTmp = INT(OffsetElem,IK)
+  PP_nVarTmp    = INT(PP_nVar,IK)
+  PP_nElemsTmp  = INT(PP_nElems,IK)
+  N_RestartTmp  = INT(N_Restart,IK)
+#if !(USE_HDG)
+  PMLnVarTmp    = INT(PMLnVar,IK)
+#endif /*not USE_HDG*/
+  ! ===========================================================================
+  ! Read the field solution
+  ! ===========================================================================
+  IF(RestartNullifySolution)THEN ! Open the restart file and neglect the DG solution (only read particles if present)
+    SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile),' (but without reading the DG solution)'
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  ELSE ! Use the solution in the restart file
+    SWRITE(UNIT_stdOut,*)'Restarting from File: ',TRIM(RestartFile)
+    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+    ! Read in time from restart file
+    !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
+    ! Read in state
+    IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
+#ifdef PP_POIS
+#if (PP_nVar==8)
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+      CALL ReadArray('DG_SolutionPhi',5,(/4_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
+#else
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+      CALL ReadArray('DG_SolutionPhi',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
+#endif
+#elif USE_HDG
+      CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
+      IF(DG_SolutionUExists)THEN
+        CALL ReadArray('DG_SolutionU',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+      ELSE
+        CALL ReadArray('DG_Solution' ,5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+      END IF
+
+      ! Read HDG lambda solution (sorted in ascending global unique side ID ordering)
+      CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
+
+      IF(DG_SolutionLambdaExists)THEN
+        MinGlobalSideID = HUGE(1)
+        MaxGlobalSideID = -1
+        DO iSide = 1, nSides
+          MaxGlobalSideID = MERGE(ABS(GlobalUniqueSideID(iSide)) , MaxGlobalSideID , ABS(GlobalUniqueSideID(iSide)).GT.MaxGlobalSideID)
+          MinGlobalSideID = MERGE(ABS(GlobalUniqueSideID(iSide)) , MinGlobalSideID , ABS(GlobalUniqueSideID(iSide)).LT.MinGlobalSideID)
+        END DO
+
+        ASSOCIATE( &
+              ExtendedOffsetSide => INT(MinGlobalSideID-1,IK)                 ,&
+              ExtendednSides     => INT(MaxGlobalSideID-MinGlobalSideID+1,IK) ,&
+              nGP_face           => INT(nGP_face,IK)                           )
+          !ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,MinGlobalSideID:MaxGlobalSideID))
+          ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,1:ExtendednSides))
+          ExtendedLambda = HUGE(1.)
+          lambda = HUGE(1.)
+          CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda)
+
+          DO iSide = 1, nSides
+            IF(iSide.LE.lastMPISide_MINE)THEN
+              iLocSide        = SideToElem(S2E_LOC_SIDE_ID    , iSide)
+              iLocSide_master = SideToElem(S2E_LOC_SIDE_ID    , iSide)
+              iLocSide_NB     = SideToElem(S2E_NB_LOC_SIDE_ID , iSide)
+
+              ! Check real small mortar side (when the same proc has both the big an one or more small side connected elements)
+              IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.NE.-1) iLocSide_master = iLocSide_NB
+
+              ! is small virtual mortar side is encountered and no NB iLocSid_mastere is given
+              IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
+                ! check all my big mortar sides and find the one to which the small virtual is connected
+                Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+                  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+                  DO iMortar=1,nMortars
+                    SideID= MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
+                    IF(iSide.EQ.SideID)THEN
+                      iLocSide_master = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
+                      IF(iLocSide_master.EQ.-1)THEN
+                        CALL abort(__STAMP__,'This big mortar side must be master')
+                      END IF !iLocSide.NE.-1
+                      EXIT Check1
+                    END IF ! iSide.EQ.SideID
+                  END DO !iMortar
+                END DO Check1 !MortarSideID
+              END IF ! MortarType(1,iSide).EQ.0
+
+              DO q=0,PP_N
+                DO p=0,PP_N
+                  pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_master)
+                  r  = q    *(PP_N+1)+p    +1
+                  rr = pq(2)*(PP_N+1)+pq(1)+1
+                  lambda(:,r:r,iSide) = ExtendedLambda(:,rr:rr,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
+                END DO
+              END DO !p,q
+            END IF ! iSide.LE.lastMPISide_MINE
+          END DO
+          DEALLOCATE(ExtendedLambda)
+        END ASSOCIATE
+
+#if USE_MPI
+        ! Exchange lambda MINE -> YOUR direction (as only the master sides have read the solution until now)
+        CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+        CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+        CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+#endif /*USE_MPI*/
+
+        CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+      ELSE
+        lambda=0.
+      END IF
+
+#else
+      CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+      IF(DoPML)THEN
+        ALLOCATE(U_local(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+        CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),&
+            OffsetElemTmp,5,RealArray=U_local)
+        DO iPML=1,nPMLElems
+          U2(:,:,:,:,iPML) = U_local(:,:,:,:,PMLToElem(iPML))
+        END DO ! iPML
+        DEALLOCATE(U_local)
+      END IF ! DoPML
+#endif
+      !CALL ReadState(RestartFile,PP_nVar,PP_N,PP_nElems,U)
+    ELSE! We need to interpolate the solution to the new computational grid
+      SWRITE(UNIT_stdOut,*)'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
+#ifdef PP_POIS
+#if (PP_nVar==8)
+      ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+          OffsetElemTmp,5,RealArray=U_local)
+      DO iElem=1,PP_nElems
+        CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
+      END DO
+      DEALLOCATE(U_local)
+
+      ALLOCATE(U_local(4,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+      CALL ReadArray('DG_SolutionPhi',5,(/4_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+          OffsetElemTmp,5,RealArray=U_local)
+      DO iElem=1,PP_nElems
+        CALL ChangeBasis3D(4,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
+      END DO
+      DEALLOCATE(U_local)
+#else
+      ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+          OffsetElemTmp,5,RealArray=U_local)
+      DO iElem=1,PP_nElems
+        CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
+      END DO
+      CALL ReadArray('DG_SolutionPhi',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+          OffsetElemTmp,5,RealArray=U_local)
+      DO iElem=1,PP_nElems
+        CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
+      END DO
+      DEALLOCATE(U_local)
+#endif
+#elif USE_HDG
+      lambda=0.
+      !CALL abort(&
+          !__STAMP__&
+          !,' Restart with changed polynomial degree not implemented for HDG!')
+      !    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+      !    CALL ReadArray('DG_SolutionLambda',5,(/PP_nVar,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),OffsetElem,5,RealArray=U_local)
+      !    DO iElem=1,PP_nElems
+      !      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
+      !    END DO
+      !    DEALLOCATE(U_local)
+      !CALL RestartHDG(U)
+#else
+      ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+      CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+          OffsetElemTmp,5,RealArray=U_local)
+      DO iElem=1,PP_nElems
+        CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
+      END DO
+      DEALLOCATE(U_local)
+      IF(DoPML)THEN
+        ALLOCATE(U_local(PMLnVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+        ALLOCATE(U_local2(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+        CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),&
+            OffsetElemTmp,5,RealArray=U_local)
+        DO iElem=1,PP_nElems
+          CALL ChangeBasis3D(PMLnVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U_local2(:,:,:,:,iElem))
+        END DO
+        DO iPML=1,nPMLElems
+          U2(:,:,:,:,iPML) = U_local2(:,:,:,:,PMLToElem(iPML))
+        END DO ! iPML
+        DEALLOCATE(U_local,U_local2)
+      END IF ! DoPML
+#endif
+      SWRITE(UNIT_stdOut,*)' DONE!'
+    END IF ! IF(.NOT. InterpolateSolution)
+  END IF ! IF(.NOT. RestartNullifySolution)
+  CALL CloseDataFile()
+
+#if USE_LOADBALANCE
+END IF ! PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+
+END SUBROUTINE FieldRestart
+!#endif /*USE_LOADBALANCE*/
+
+END MODULE MOD_Restart_Field

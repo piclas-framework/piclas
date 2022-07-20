@@ -76,8 +76,8 @@ INTERFACE AddToElemData
   MODULE PROCEDURE AddToElemData
 END INTERFACE
 
-INTERFACE ClearElemData
-  MODULE PROCEDURE ClearElemData
+INTERFACE FinalizeElemData
+  MODULE PROCEDURE FinalizeElemData
 END INTERFACE
 
 INTERFACE GetDatasetNamesInGroup
@@ -352,7 +352,7 @@ END SUBROUTINE AddToElemData
 !> Deallocate all pointers to element-wise arrays or scalars which will be gathered and written out.
 !> The linked list of the pointer is deallocated for each entry
 !==================================================================================================================================
-SUBROUTINE ClearElemData(ElementOut)
+SUBROUTINE FinalizeElemData(ElementOut)
 ! MODULES
 USE MOD_Globals
 IMPLICIT NONE
@@ -362,32 +362,30 @@ TYPE(tElementOut),POINTER,INTENT(INOUT)    :: ElementOut           !< Pointer li
                                                                    !< is written to the state file
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-TYPE(tElementOut),POINTER          :: e,e2
+TYPE(tElementOut),POINTER          :: current,next
 !==================================================================================================================================
-IF(.NOT.ASSOCIATED(ElementOut))THEN
-  RETURN
-ENDIF
+IF(.NOT.ASSOCIATED(ElementOut))RETURN
 
-e=>ElementOut
-DO WHILE(ASSOCIATED(e))
-  e%VarName = ''
-  IF(ASSOCIATED(e%RealArray))    NULLIFY(e%RealArray    ) !=> NULL()
-  IF(ASSOCIATED(e%RealScalar))   NULLIFY(e%RealScalar   ) !=> NULL()
-  IF(ASSOCIATED(e%IntArray))     NULLIFY(e%IntArray     ) !=> NULL()
-  IF(ASSOCIATED(e%IntScalar))    NULLIFY(e%IntScalar    ) !=> NULL()
-  IF(ASSOCIATED(e%LongIntArray)) NULLIFY(e%LongIntArray ) !=> NULL()
-  IF(ASSOCIATED(e%LogArray))     NULLIFY(e%LogArray     ) !=> NULL()
-  IF(ASSOCIATED(e%eval))         NULLIFY(e%eval         ) !=> NULL()
-  e2=>e%next
-  ! deallocate stuff
-  DEALLOCATE(e)
-  e=> e2
-END DO
-
+current => ElementOut
 !ElementOut   => NULL() !< linked list of output pointers
 NULLIFY(ElementOut)
 
-END SUBROUTINE ClearElemData
+DO WHILE(ASSOCIATED(current))
+  current%VarName = ''
+  IF(ASSOCIATED(current%RealArray))    NULLIFY(current%RealArray    ) !=> NULL()
+  IF(ASSOCIATED(current%RealScalar))   NULLIFY(current%RealScalar   ) !=> NULL()
+  IF(ASSOCIATED(current%IntArray))     NULLIFY(current%IntArray     ) !=> NULL()
+  IF(ASSOCIATED(current%IntScalar))    NULLIFY(current%IntScalar    ) !=> NULL()
+  IF(ASSOCIATED(current%LongIntArray)) NULLIFY(current%LongIntArray ) !=> NULL()
+  IF(ASSOCIATED(current%LogArray))     NULLIFY(current%LogArray     ) !=> NULL()
+  IF(ASSOCIATED(current%eval))         NULLIFY(current%eval         ) !=> NULL()
+  next => current%next
+  DEALLOCATE(current)
+  NULLIFY(current)
+  current => next
+END DO
+
+END SUBROUTINE FinalizeElemData
 
 !==================================================================================================================================
 !> Takes a group and reads the names of the datasets

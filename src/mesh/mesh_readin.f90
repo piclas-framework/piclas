@@ -225,10 +225,12 @@ USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem,nTracksPerElem,nPartsPerBCElem,nSurfacefluxPerElem
 ! Restart without HDF5
-USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance
 USE MOD_Particle_Mesh_Vars   ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 #endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,offsetElemMPIOld
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -269,8 +271,7 @@ IF(MESHInitIsDone) RETURN
 IF (.NOT.PerformLoadBalance) THEN
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
   IF(MPIRoot) THEN
-    IF(.NOT.FILEEXISTS(FileString))  CALL Abort(__STAMP__&
-      ,'readMesh from data file "'//TRIM(FileString)//'" does not exist')
+    IF(.NOT.FILEEXISTS(FileString))  CALL Abort(__STAMP__,'readMesh from data file "'//TRIM(FileString)//'" does not exist')
   END IF
   SWRITE(UNIT_stdOut,'(132("-"))')
   SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO")' READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
@@ -301,6 +302,20 @@ IF (.NOT.PerformLoadBalance) THEN
 #if defined(PARTICLES) && USE_LOADBALANCE
 END IF
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+
+#if USE_LOADBALANCE
+IF (PerformLoadBalance) THEN
+  SDEALLOCATE(offsetElemMPIOld)
+  ALLOCATE(   offsetElemMPIOld(0:nProcessors))
+  offsetElemMPIOld = offsetElemMPI
+END IF
+#endif /*USE_LOADBALANCE*/
+
+#if USE_MPI
+SDEALLOCATE(offsetElemMPI)
+ALLOCATE(   offsetElemMPI(0:nProcessors))
+offsetElemMPI = 0
+#endif /*USE_MPI*/
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              DOMAIN DECOMPOSITION

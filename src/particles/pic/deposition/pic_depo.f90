@@ -1109,7 +1109,7 @@ IF (PerformLoadBalance .AND. DoDeposition) THEN
   PartSourceLB = PartSource
   IF(DoDielectricSurfaceCharge)THEN
     CALL ExchangeNodeSourceExtTmp()
-    SDEALLOCATE(NodeSourceExtEquiLB)
+    !SDEALLOCATE(NodeSourceExtEquiLB)
     !ALLOCATE(NodeSourceExtEquiLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
     ALLOCATE(NodeSourceExtEquiLB(1:N_variables,0:1,0:1,0:1,nElems))
     ! Loop over all elements and store absolute charge values in equidistantly distributed nodes of PP_N=1

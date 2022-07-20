@@ -526,6 +526,8 @@ USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+#else
+USE MOD_LoadBalance_Vars       ,ONLY: ElemTime
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -839,6 +841,11 @@ SDEALLOCATE(ElemToGlobalElemID)
 ADEALLOCATE(ConcaveElemSide_Shared)
 ADEALLOCATE(ElemSideNodeID_Shared)
 ADEALLOCATE(ElemMidPoint_Shared)
+
+! Load Balance
+!#if !USE_LOADBALANCE
+!SDEALLOCATE(ElemTime)
+!#endif /* !USE_LOADBALANCE */
 
 ParticleMeshInitIsDone=.FALSE.
 

@@ -302,7 +302,7 @@ USE MOD_Particle_MPI               ,ONLY: FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
-USE MOD_IO_HDF5                    ,ONLY: ClearElemData,ElementOut
+USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut
 USE MOD_TimeDiscInit               ,ONLY: FinalizeTimeDisc
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -314,7 +314,7 @@ LOGICAL,INTENT(IN)      :: IsLoadBalance
 ! LOCAL VARIABLES
 REAL                    :: Time
 !===================================================================================================================================
-CALL ClearElemData(ElementOut)
+CALL FinalizeElemData(ElementOut)
 !Finalize
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()
@@ -435,7 +435,7 @@ SDEALLOCATE(PartDistri)
 SDEALLOCATE(ElemGlobalTime)
 SDEALLOCATE(ElemHDGSides)
 SDEALLOCATE(ElemTime_tmp)
-SDEALLOCATE(ElemTime)
+!SDEALLOCATE(ElemTime)
 
 IF(.NOT.IsLoadBalance) THEN
 #if USE_LOADBALANCE
@@ -451,6 +451,8 @@ IF(.NOT.IsLoadBalance) THEN
 
   SDEALLOCATE(tCurrent)
   InitLoadBalanceIsDone = .FALSE.
+
+  SDEALLOCATE(offsetElemMPIOld)
 #endif /*USE_LOADBALANCE*/
 END IF
 

@@ -387,6 +387,9 @@ SUBROUTINE FinalizeMPI()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_MPI_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance 
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -396,7 +399,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-SDEALLOCATE(offsetElemMPI)
 SDEALLOCATE(nMPISides_Proc)
 SDEALLOCATE(nMPISides_MINE_Proc)
 SDEALLOCATE(nMPISides_YOUR_Proc)
@@ -428,6 +430,14 @@ SDEALLOCATE(OffsetMPISides_rec)
 ! Free the communicators
 IF(MPI_COMM_NODE   .NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_NODE   ,IERROR)
 IF(MPI_COMM_LEADERS.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_LEADERS,IERROR)
+
+#if USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+  SDEALLOCATE(offsetElemMPI)
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE FinalizeMPI
 #endif /*USE_MPI*/

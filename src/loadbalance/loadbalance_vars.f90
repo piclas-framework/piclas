@@ -70,6 +70,7 @@ TYPE(tData), POINTER :: firstData => null() !linked-list of old offsetElemMPI fo
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                             :: nElemsOld
 INTEGER                             :: offsetElemOld
+INTEGER,ALLOCATABLE                 :: offsetElemMPIOld(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPInElemSend(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetElemSend(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPInElemRecv(:)
