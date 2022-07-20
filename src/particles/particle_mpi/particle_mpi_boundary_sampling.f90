@@ -460,8 +460,6 @@ CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win         ,MPI_COMM_SHARED)
 !  nValues = SurfSampSize*nSurfSample**2
 !  ! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle and number: Add 9*nSpecies
 !  ! to the buffer length
-!  IF(CalcSurfaceImpact) nValues=nValues+9*nSpecies
-!  IF(nPorousBC.GT.0) nValues = nValues + 1
 
 !  ! open receive buffer
 !  DO iProc = 0,nSurfLeaders-1

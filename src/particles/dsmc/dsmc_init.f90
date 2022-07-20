@@ -34,9 +34,8 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: InitDSMC, FinalizeDSMC
+PUBLIC :: DefineParametersDSMC, InitDSMC, FinalizeDSMC
 !===================================================================================================================================
-PUBLIC::DefineParametersDSMC
 CONTAINS
 
 !==================================================================================================================================
@@ -297,9 +296,9 @@ USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symme
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
-USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
-USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_PolyAtomicModel ,ONLY: DSMC_SetInternalEnr
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -803,11 +802,7 @@ ELSE !CollisMode.GT.0
       IF (PDM%ParticleInside(iPart)) THEN
         IF (Species(PartSpecies(iPart))%NumberOfInits.GT.0) THEN
           iInit = PDM%PartInit(iPart)
-          IF (SpecDSMC(PartSpecies(iPart))%PolyatomicMol) THEN
-            CALL DSMC_SetInternalEnr_Poly(PartSpecies(iPart),iInit,iPart,1)
-          ELSE
-            CALL DSMC_SetInternalEnr_LauxVFD(PartSpecies(iPart),iInit,iPart,1)
-          END IF
+          CALL DSMC_SetInternalEnr(PartSpecies(iPart),iInit,iPart,1)
         END IF
       END IF
     END DO

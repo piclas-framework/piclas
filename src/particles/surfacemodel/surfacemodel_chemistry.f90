@@ -14,7 +14,7 @@
 
 MODULE MOD_SurfaceModel_Chemistry
 !===================================================================================================================================
-! Initialization of chemical module
+!>
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -32,7 +32,7 @@ PUBLIC :: DefineParametersSurfaceChemistry, SurfaceModel_Chemistry_Init
 CONTAINS
 
 !==================================================================================================================================
-!> Define parameters for DSMC (Direct Simulation Monte Carlo)
+!> 
 !==================================================================================================================================
 SUBROUTINE DefineParametersSurfaceChemistry()
 ! MODULES

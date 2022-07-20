@@ -121,7 +121,6 @@ USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
-USE MOD_SurfaceModel_Chemistry
 USE MOD_SurfaceModel_Vars
 !USE MOD_Particle_SurfChemFlux_Init
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
@@ -417,7 +416,6 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars              ,ONLY: NGeo
-USE MOD_SurfaceModel_Chemistry
 USE MOD_SurfaceModel_Vars
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -613,7 +611,6 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, SurfMeshSubSideData, Bez
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, offsetElem, SideToElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas, CalcNormAndTangTriangle
-USE MOD_SurfaceModel_Chemistry
 USE MOD_SurfaceModel_Vars
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -696,7 +693,6 @@ USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, Species, DoSurfaceFlux,
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
-USE MOD_SurfaceModel_Chemistry
 USE MOD_SurfaceModel_Vars
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI

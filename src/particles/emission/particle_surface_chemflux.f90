@@ -48,8 +48,6 @@ USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Timedisc_Vars           ,ONLY: dt
 USE MOD_Particle_Surfaces_Vars
 USE MOD_Particle_Boundary_Vars 
-USE MOD_SurfaceModel
-USE MOD_SurfaceModel_Chemistry
 USE MOD_SurfaceModel_Vars      ,ONLY: ChemWallProp_Shared_Win,SurfChemReac, ChemWallProp, ChemDesorpWall
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
@@ -440,8 +438,7 @@ SUBROUTINE SetInnerEnergies(iSpec, iSF, NbrOfParticle,iReac)
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
 USE MOD_Particle_Vars           ,ONLY: PDM
-USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_part_emission_tools     ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_PolyAtomicModel ,ONLY: DSMC_SetInternalEnr
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -459,11 +456,7 @@ DO WHILE (iPart .le. NbrOfParticle)
   PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
 
   IF (PositionNbr .ne. 0) THEN
-    IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
-      CALL DSMC_SetInternalEnr_Poly(iSpec,iSF,PositionNbr,3,iReac)
-    ELSE
-      CALL DSMC_SetInternalEnr_LauxVFD(iSpec, iSF, PositionNbr,3,iReac)
-    END IF
+    CALL DSMC_SetInternalEnr(iSpec, iSF, PositionNbr,3,iReac)
   END IF
   iPart = iPart + 1
 END DO

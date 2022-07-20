@@ -25,7 +25,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: SurfaceModel, MaxwellScattering, PerfectReflection, DiffuseReflection, SpeciesSwap
+PUBLIC :: SurfaceModelling, MaxwellScattering, PerfectReflection, DiffuseReflection, SpeciesSwap
 !===================================================================================================================================
 
 CONTAINS
@@ -41,13 +41,14 @@ CONTAINS
 !> 4.) PIC ONLY: Deposit charges on dielectric surface (when activated), if these were removed/changed in SpeciesSwap or SurfaceModel
 !> 5.) Count and sample the properties AFTER the surface interaction
 !===================================================================================================================================
-SUBROUTINE SurfaceModel(PartID,SideID,GlobalElemID,n_Loc)
+SUBROUTINE SurfaceModelling(PartID,SideID,GlobalElemID,n_Loc)
 ! MODULES
 USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
 #if USE_MPI
 USE MOD_Globals                   ,ONLY: myrank
 #endif /*USE_MPI*/
-USE MOD_Globals_Vars              ,ONLY : PI, BoltzmannConst
+USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
+USE MOD_TimeDisc_Vars             ,ONLY: dt
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample,SurfSideArea_Shared
@@ -61,15 +62,11 @@ USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeCount, 
 USE MOD_SurfaceModel_Tools        ,ONLY: SurfaceModel_ParticleEmission, GetWallTemperature, SurfaceModel_EnergyAccommodation
 USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
 USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
-USE MOD_SurfaceModel_Chemistry
-USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
-USE MOD_DSMC_PolyAtomicModel      ,ONLY: DSMC_SetInternalEnr_Poly
-USE MOD_part_emission_tools       ,ONLY: DSMC_SetInternalEnr_LauxVFD
+USE MOD_DSMC_PolyAtomicModel ,ONLY: DSMC_SetInternalEnr
 USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
 USE MOD_part_operations           ,ONLY: RemoveParticle, CreateParticle
 USE MOD_part_tools                ,ONLY: CalcRadWeightMPF, VeloFromDistribution, GetParticleWeight
-USE MOD_TimeDisc_Vars             ,ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -376,11 +373,7 @@ CASE(20)
 
         CALL CreateParticle(iProd,NewPos(1:3),GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=partWeight)
         
-        IF (SpecDSMC(iProd)%PolyatomicMol) THEN
-          CALL DSMC_SetInternalEnr_Poly(iProd,locBCID,NewPartID,4,iReac)
-        ELSE
-          CALL DSMC_SetInternalEnr_LauxVFD(iProd,locBCID,NewPartID,4,iReac)
-        END IF
+        CALL DSMC_SetInternalEnr(iProd,locBCID,NewPartID,4,iReac)
       END IF
     END DO
 
@@ -490,7 +483,7 @@ IF(DoSample) THEN
   CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
 END IF
 
-END SUBROUTINE SurfaceModel
+END SUBROUTINE SurfaceModelling
 
 
 SUBROUTINE MaxwellScattering(PartID,SideID,n_loc,SpecularReflectionOnly_opt)
