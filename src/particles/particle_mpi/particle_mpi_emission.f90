@@ -52,6 +52,9 @@ USE MOD_CalcTimeStep       ,ONLY: CalcTimeStep
 #endif /*USE_HDG*/
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -472,8 +475,7 @@ DO iSpec=1,nSpecies
             (Species(iSpec)%Init(iInit)%maxParticleNumberX * Species(iSpec)%Init(iInit)%maxParticleNumberY &
             * Species(iSpec)%Init(iInit)%maxParticleNumberZ)) THEN
          SWRITE(*,*) 'for species ',iSpec,' does not match number of particles in each direction!'
-         CALL ABORT(__STAMP__&
-         ,'ERROR: Number of particles in init / emission region',iInit)
+         CALL ABORT(__STAMP__,'ERROR: Number of particles in init / emission region',iInit)
        END IF
        xlen = abs(GEO%xmaxglob  - GEO%xminglob)
        ylen = abs(GEO%ymaxglob  - GEO%yminglob)
@@ -493,8 +495,7 @@ DO iSpec=1,nSpecies
        RegionOnProc=.TRUE.
     CASE DEFAULT
       IPWRITE(*,*) 'ERROR: Species ', iSpec, 'of', iInit, 'is using an unknown SpaceIC!'
-      CALL ABORT(__STAMP__&
-      ,'ERROR: Given SpaceIC is not implemented: '//TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+      CALL ABORT(__STAMP__,'ERROR: Given SpaceIC is not implemented: '//TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
     END SELECT
 
     ! Sanity check if at least one proc will be on the new emission communicator
@@ -527,7 +528,10 @@ DO iSpec=1,nSpecies
 
       ! inform about size of emission communicator
       IF (PartMPI%InitGroup(nInitRegions)%MyRank.EQ.0) THEN
-              WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0,A)') ' Emission-Region,Emission-Communicator:',nInitRegions,' on ',&
+#if USE_LOADBALANCE
+        IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+            WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0,A)') ' Emission-Region,Emission-Communicator: ',nInitRegions,' on ',&
       PartMPI%InitGroup(nInitRegions)%nProcs,' procs ('//TRIM(Species(iSpec)%Init(iInit)%SpaceIC)//', iSpec=',iSpec,')'
       END IF
     END IF

@@ -55,6 +55,9 @@ USE MOD_Dielectric_Vars ,ONLY: DielectricMu,isDielectricElem,ElemToDielectric
 USE MOD_Mesh_Vars       ,ONLY: MeshFile,nGlobalElems,offsetElem
 USE MOD_Globals_Vars    ,ONLY: ProjectName
 USE MOD_io_HDF5
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -72,6 +75,9 @@ REAL                :: StartT,EndT
 REAL                :: OutputTime!,FutureTime
 INTEGER             :: iElem
 !===================================================================================================================================
+#if USE_LOADBALANCE
+IF(PerformLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
 ! create global Eps field for parallel output of Eps distribution
 ALLOCATE(DielectricGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ALLOCATE(StrVarNames(1:N_variables))
@@ -138,9 +144,12 @@ SUBROUTINE WriteBRAverageElemToHDF5(isBRAverageElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars    ,ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars ,ONLY: ProjectName
+USE MOD_Mesh_Vars        ,ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Globals_Vars     ,ONLY: ProjectName
 USE MOD_io_HDF5
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -160,6 +169,9 @@ REAL               :: StartT,EndT
 REAL               :: OutputTime
 INTEGER            :: iElem
 !===================================================================================================================================
+#if USE_LOADBALANCE
+IF(PerformLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
 ! create global zeta field for parallel output of zeta distribution
 StrVarNames(1)='BRAverageElem'
 BRAverageElem=0.
@@ -219,10 +231,13 @@ SUBROUTINE WritePMLzetaGlobalToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_PML_Vars     ,ONLY: PMLzetaGlobal,PMLzeta0,PMLzeta,isPMLElem,ElemToPML
-USE MOD_Mesh_Vars    ,ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars ,ONLY: ProjectName
+USE MOD_PML_Vars         ,ONLY: PMLzetaGlobal,PMLzeta0,PMLzeta,isPMLElem,ElemToPML
+USE MOD_Mesh_Vars        ,ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Globals_Vars     ,ONLY: ProjectName
 USE MOD_io_HDF5
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -240,6 +255,9 @@ REAL                :: StartT,EndT
 REAL                :: OutputTime!,FutureTime
 INTEGER             :: iElem
 !===================================================================================================================================
+#if USE_LOADBALANCE
+IF(PerformLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
 ! create global zeta field for parallel output of zeta distribution
 ALLOCATE(PMLzetaGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
 ALLOCATE(StrVarNames(1:N_variables))
@@ -317,6 +335,9 @@ USE MOD_HDF5_Output        ,ONLY: WriteArrayToHDF5
 USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Interpolation_Vars ,ONLY: BGField, NodeType, NBG, BGDataSize, BGType
 USE MOD_SuperB_Vars        ,ONLY: UseTimeDepCoil,nTimePoints,BGFieldTDep,BGFieldFrequency,BGFieldCurrent
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -333,6 +354,9 @@ INTEGER                        :: nVal
 REAL                           :: StartT,EndT
 #endif /*USE_MPI*/
 !===================================================================================================================================
+#if USE_LOADBALANCE
+IF(PerformLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 IF(PRESENT(OutputTime))THEN
   FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_BGField',OutputTime))//'.h5'
@@ -446,6 +470,9 @@ USE MOD_HDF5_output        ,ONLY: WriteArrayToHDF5, copy_userblock
 USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Interpolation_Vars ,ONLY: BGFieldAnalytic, NodeType, BGDataSize
 USE MOD_Restart_Vars       ,ONLY: RestartTime
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -462,6 +489,9 @@ REAL,ALLOCATABLE               :: outputArray(:,:,:,:,:)
 REAL                           :: StartT,EndT
 #endif /*USE_MPI*/
 !===================================================================================================================================
+#if USE_LOADBALANCE
+IF(PerformLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE BG-FIELD Analytic solution TO HDF5 FILE...'
 #if USE_MPI
   StartT=MPI_WTIME()

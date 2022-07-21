@@ -108,6 +108,9 @@ USE MOD_MPI_Shared_Vars        ,ONLY: nLeaderGroupProcs, nProcessors_Global
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -135,7 +138,7 @@ INTEGER                   :: GlobalRankToNodeSendDepoRank(0:nProcessors_Global-1
 #endif
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE DEPOSITION...'
 
 IF(.NOT.DoDeposition) THEN
   ! fill deposition type with empty string
@@ -533,7 +536,7 @@ END IF
 
 ALLOCATE(PartSourceTmp(    1:4,0:PP_N,0:PP_N,0:PP_N))
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE DEPOSITION DONE!'
 
 END SUBROUTINE InitializeDeposition
 
@@ -740,6 +743,9 @@ USE MOD_Particle_Mesh_Vars ,ONLY: PeriodicSFCaseMatrix,NbrOfPeriodicSFCases
 USE MOD_PICDepo_Vars       ,ONLY: dim_sf,dim_periodic_vec1,dim_periodic_vec2,dim_sf_dir1,dim_sf_dir2
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_ReadInTools        ,ONLY: PrintOption
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -802,9 +808,9 @@ ELSE
       dim_periodic_vec2 = dim_sf_dir2
     END IF ! GEO%nPeriodicVectors.EQ.1
     CALL PrintOption('Dimension of 1st periodic vector for 2D shape function','INFO',IntOpt=dim_periodic_vec1)
-    SWRITE(UNIT_StdOut,*) "1st PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec1)
+    LBWRITE(UNIT_StdOut,*) "1st PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec1)
     CALL PrintOption('Dimension of 2nd periodic vector for 2D shape function','INFO',IntOpt=dim_periodic_vec2)
-    SWRITE(UNIT_StdOut,*) "2nd PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec2)
+    LBWRITE(UNIT_StdOut,*) "2nd PeriodicVector =", GEO%PeriodicVectors(1:3,dim_periodic_vec2)
   END IF ! dim_sf.EQ.2
 
 END IF

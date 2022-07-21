@@ -413,6 +413,9 @@ DO !iter_t=0,MaxIter
       CALL FillParticleData() ! Fill the SFC-ordered particle arrays
 #endif /*defined(PARTICLES)*/
       ! Write state to file
+#if USE_LOADBALANCE
+      IF(.NOT.DoInitialAutoRestart)&
+#endif /*USE_LOADBALANCE*/
       CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
       ! Write recordpoints data to hdf5
@@ -450,7 +453,7 @@ DO !iter_t=0,MaxIter
     ! Switch off Initial Auto Restart (initial load balance) after the restart was performed
     IF (DoInitialAutoRestart) THEN
       ! Remove the extra state file written for load balance (only when load balance restart was performed)
-      IF(PerformLoadBalance) CALL RemoveHDF5(RestartFile)
+      !IF(PerformLoadBalance) CALL RemoveHDF5(RestartFile)
       ! Get original settings from backup variables
       DoInitialAutoRestart = .FALSE.
       ForceInitialLoadBalance = .FALSE.

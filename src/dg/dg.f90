@@ -74,9 +74,9 @@ USE MOD_PML_Vars           ,ONLY: PMLnVar ! Additional fluxes for the CFS-PML au
 #ifdef OPTIMIZED
 USE MOD_Riemann            ,ONLY: GetRiemannMatrix
 #endif /*OPTIMIZED*/
-#if USE_LOADBALANCE && !(USE_HDG)
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -88,8 +88,8 @@ IMPLICIT NONE
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitIsDone).OR.DGInitIsDone) CALL abort(__STAMP__,&
     'InitDG not ready to be called or already called.')
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT DG...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT DG...'
 
 CALL initDGbasis(PP_N,xGP,wGP,wBary)
 #if USE_LOADBALANCE && !(USE_HDG)
@@ -149,8 +149,8 @@ Flux_Slave=0.
 #endif /*USE_HDG*/
 
 DGInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT DG DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT DG DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitDG
 
 

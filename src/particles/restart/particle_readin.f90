@@ -127,7 +127,7 @@ LastElemInd  = offsetElem+PP_nElems
 
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Restarting particles during loadbalance...'
+  !SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Restarting particles during loadbalance...'
 
   ! ------------------------------------------------
   ! PartSource

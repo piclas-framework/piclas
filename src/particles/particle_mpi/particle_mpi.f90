@@ -89,6 +89,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars
 USE MOD_ReadInTools       ,ONLY: GETLOGICAL
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -101,8 +104,8 @@ IMPLICIT NONE
 !#endif /*USE_MPI*/
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI ... '
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI ... '
 IF(ParticleMPIInitIsDone) CALL ABORT(__STAMP__,' Particle MPI already initialized!')
 
 ! Get flag for ignoring the check and/or abort if the number of global exchange procs is non-symmetric
@@ -136,8 +139,8 @@ PartMPI%MPIRoot = .TRUE.
 #endif  /*USE_MPI*/
 
 ParticleMPIInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitParticleMPI
 

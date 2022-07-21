@@ -97,19 +97,15 @@ USE MOD_LoadBalance_Vars ,ONLY: MPInElemSend,MPIoffsetElemSend,MPInElemRecv,MPIo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
 
 #ifdef PARTICLES
 ! Read particle MPI weight in order to determine the ElemTime when no time measurement is performed
 ! Must be read in init (only once) and before the first load balance is determined because if no ElemTimes are used they are
 ! calculated with ParticleMPIWeight
 ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
-IF (ParticleMPIWeight.LT.0.0) THEN
-  CALL abort(&
-      __STAMP__&
-      ,' ERROR: Particle weight cannot be negative!')
-END IF
+IF (ParticleMPIWeight.LT.0.0) CALL abort(__STAMP__,' ERROR: Particle weight cannot be negative!')
 #endif /*PARTICLES*/
 
 #if USE_LOADBALANCE
@@ -155,8 +151,8 @@ ALLOCATE(MPInPartSend(nProcessors),MPIoffsetPartSend(nProcessors),MPInPartRecv(n
 #endif /*USE_LOADBALANCE*/
 
 InitLoadBalanceIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT LOAD BALANCE DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT LOAD BALANCE DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitLoadBalance
 
 
@@ -399,13 +395,14 @@ END IF
 CALL extrae_eventandcounters(int(9000001), int8(2))
 #endif /*EXTRAE*/
 
-SWRITE(UNIT_StdOut,'(1X)')
-SWRITE(UNIT_StdOut,'(1X)')
+!SWRITE(UNIT_StdOut,'(1X)')
+!SWRITE(UNIT_StdOut,'(1X)')
 SWRITE(UNIT_StdOut,'(132("="))')
 nLoadBalanceSteps=nLoadBalanceSteps+1
 CALL set_formatting("green")
-SWRITE(UNIT_stdOut,'(A,I0,A,I0,A)') ' PERFORMING LOAD BALANCE ',nLoadBalanceSteps,' of ',LoadBalanceMaxSteps,' ...'
+SWRITE(UNIT_stdOut,'(A,I0,A,I0,A)',ADVANCE='NO') ' PERFORMING LOAD BALANCE ',nLoadBalanceSteps,' of ',LoadBalanceMaxSteps,' ...'
 CALL clear_formatting()
+SWRITE(UNIT_StdOut,'(1X)')
 ! Measure init duration
 LB_StartTime=PICLASTIME()
 
@@ -465,8 +462,9 @@ END IF
 ! Measure init duration
 LB_Time=PICLASTIME()
 InitializationWallTime=LB_Time-LB_StartTime
+SWRITE(UNIT_StdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
-SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
+!SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("="))')
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))

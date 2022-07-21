@@ -158,8 +158,8 @@ REAL                :: meshScale
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(__STAMP__,'InitMesh not ready to be called or already called.')
 END IF
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT MESH...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT MESH...'
 
 ! Output of myrank, ElemID and tracking info
 CalcMeshInfo = GETLOGICAL('CalcMeshInfo')
@@ -173,9 +173,9 @@ IF(DoSwapMesh)THEN
     FileName='./swapmesh'
     INQUIRE(File=FileName,EXIST=ExistFile)
     IF(.NOT.ExistFile) THEN
-      SWRITE(UNIT_stdOut,'(A)') ' ERROR: no swapmesh binary found'
-      SWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ',TRIM(FileName)
-      SWRITE(UNIT_stdOut,'(A,L1)') ' ExistFile:            ',ExistFile
+      LBWRITE(UNIT_stdOut,'(A)') ' ERROR: no swapmesh binary found'
+      LBWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ',TRIM(FileName)
+      LBWRITE(UNIT_stdOut,'(A,L1)') ' ExistFile:            ',ExistFile
       DoSwapMesh=.FALSE.
     ELSE
       SwapMeshExePath=FileName
@@ -208,7 +208,7 @@ IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
   CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL ReadAttribute(File_ID,'Ngeo',1,IntScalar=NGeo)
-  SWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
+  LBWRITE(UNIT_stdOut,'(A67,I2.0)') ' |                           NGeo |                                ', NGeo
   CALL CloseDataFile()
 #if USE_LOADBALANCE
 END IF
@@ -216,12 +216,12 @@ END IF
 
 IF(useCurveds)THEN
   IF(PP_N.LT.NGeo)THEN
-    SWRITE(UNIT_stdOut,'(A)') 'WARNING: N<NGeo, for curved hexa normals are only approximated,&
+    LBWRITE(UNIT_stdOut,'(A)') 'WARNING: N<NGeo, for curved hexa normals are only approximated,&
                              & can cause problems on periodic boundaries! Set N>NGeo'
   END IF
 ELSE
   IF(NGeo.GT.1) THEN
-    SWRITE(*,*) ' WARNING: Using linear elements although NGeo>1!'
+    LBWRITE(*,*) ' WARNING: Using linear elements although NGeo>1!'
   END IF
 END IF
 
@@ -257,12 +257,12 @@ CALL BuildCoords(NodeCoords,PP_N,Elem_xGP)
 
 ! Return if no connectivity and metrics are required (e.g. for visualization mode)
 IF (meshMode.GT.0) THEN
-  SWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
+  LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."
   CALL setLocalSideIDs()
 
 #if USE_MPI
   ! for MPI, we need to exchange flips, so that MINE MPISides have flip>0, YOUR MpiSides flip=0
-  SWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
+  LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING exchangeFlip..."
   CALL exchangeFlip()
 #endif
 
@@ -299,7 +299,7 @@ IF (meshMode.GT.0) THEN
   MortarType=-1
   MortarInfo=-1
 
-  SWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
+  LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 #if USE_HDG && USE_LOADBALANCE
   ! Call with meshMode to check whether, e.g., HDG load balance info need to be determined or not
   CALL fillMeshInfo(meshMode)
@@ -353,7 +353,7 @@ IF (meshMode.GT.1) THEN
 ! assign normal and tangential vectors and surfElems on faces
 
   crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
-  SWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
+  LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
   CALL InitMeshBasis(NGeo,PP_N,xGP)
 
   ! get XCL_NGeo
@@ -373,7 +373,7 @@ IF (meshMode.GT.1) THEN
 
 #ifndef PARTICLES
   ! dealloacte pointers
-  SWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
+  LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING deleteMeshPointer..."
   CALL deleteMeshPointer()
 #endif
 
@@ -410,8 +410,8 @@ IF(CalcMeshInfo)THEN
 END IF
 
 MeshInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitMesh
 
 
@@ -479,10 +479,13 @@ SUBROUTINE SwapMesh()
 !============================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,  ONLY:ProjectName
+USE MOD_Globals_Vars     ,ONLY: ProjectName
 USE MOD_Preproc
-USE MOD_Mesh_Vars,     ONLY:SwapMeshExePath,SwapMeshLevel,MeshFile
-USE MOD_Restart_Vars,  ONLY:RestartFile
+USE MOD_Mesh_Vars        ,ONLY: SwapMeshExePath,SwapMeshLevel,MeshFile
+USE MOD_Restart_Vars     ,ONLY: RestartFile
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -508,16 +511,11 @@ CHARACTER(len=255)  :: cwd                         ! current working directory
 INTEGER             :: cwdLen                      ! string length of cwd
 !============================================================================================================================
 ParameterFile='parameter_swapmesh.ini'
-print*,"myrank     = ",myrank
-print*,"RestartFile= ",TRIM(RestartFile)
-print*,"ProjectName= ",TRIM(ProjectName)
 IF(SwapMeshLevel.GT.0)THEN
   LocalName=TRIM(ProjectName(1:LEN(TRIM(ProjectName))-3))
 ELSE
   LocalName=TRIM(ProjectName)
 END IF
-print*,"LocalName= ",TRIM(LocalName)
-print*,"MeshFile   = ",TRIM(MeshFile)
 
 ! current mesh folder
 WRITE(UNIT=hilf,FMT='(I3)') SwapMeshLevel
@@ -536,9 +534,7 @@ IF(TRIM(cwd(cwdLen-LEN(TRIM(OldFolderName))+1:cwdLen)).NE.TRIM(OldFolderName))TH
   SWRITE(UNIT_stdOut,'(A)')   ' ERROR: something is wrong with the directory or SwapMeshLevel'
   SWRITE(UNIT_stdOut,'(A,A)') ' cwd:           ',TRIM(cwd)
   SWRITE(UNIT_stdOut,'(A,I3,A,A)') ' SwapMeshLevel: ',SwapMeshLevel,' -> ',OldFolderName
-  CALL abort(&
-  __STAMP__&
-  ,'Abort. Check SwapMeshLevel.',999,999.)
+  CALL abort(__STAMP__,'Abort. Check SwapMeshLevel.',999,999.)
 END IF
 
 ! check if next level mesh folder exists
@@ -550,16 +546,16 @@ ELSE
 ENDIF
 INQUIRE(File='../'//TRIM(NewFolderName),EXIST=objExist)
 IF(.NOT.objExist)THEN ! no swapmesh folder found
-  SWRITE(UNIT_stdOut,'(A)')   ' ERROR: no swapmesh folder found. Cannot perform swapmesh'
-  SWRITE(UNIT_stdOut,'(A,A)') ' objName:             ',TRIM(NewFolderName)
-  SWRITE(UNIT_stdOut,'(A,L1)') ' objExist:            ',objExist
+  LBWRITE(UNIT_stdOut,'(A)')   ' ERROR: no swapmesh folder found. Cannot perform swapmesh'
+  LBWRITE(UNIT_stdOut,'(A,A)') ' objName:             ',TRIM(NewFolderName)
+  LBWRITE(UNIT_stdOut,'(A,L1)') ' objExist:            ',objExist
 ELSE
   FileName='../'//TRIM(NewFolderName)//'/'//ParameterFile
   INQUIRE(File=FileName,EXIST=objExist)
   IF(.NOT.objExist) THEN
-    SWRITE(UNIT_stdOut,'(A)')   ' ERROR: no '//ParameterFile//' found. Cannot perform swapmesh'
-    SWRITE(UNIT_stdOut,'(A,A)') ' objName:             ',TRIM(FileName)
-    SWRITE(UNIT_stdOut,'(A,L1)') ' objExist:            ',objExist
+    LBWRITE(UNIT_stdOut,'(A)')   ' ERROR: no '//ParameterFile//' found. Cannot perform swapmesh'
+    LBWRITE(UNIT_stdOut,'(A,A)') ' objName:             ',TRIM(FileName)
+    LBWRITE(UNIT_stdOut,'(A,L1)') ' objExist:            ',objExist
   ELSE
     !NewFolderName=FileName
 
@@ -815,6 +811,9 @@ USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,MPI_COMM_LEA
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
 #endif /*PARTICLES*/
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -833,8 +832,8 @@ REAL                            :: CNVolume                       ! Total CN vol
 #endif /*PARTICLES*/
 #endif /*USE_MPI*/
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
 
 #if USE_MPI && defined(PARTICLES)
 ! J_N is only built for local DG elements. Therefore, array is only filled for elements on the same compute node
@@ -902,9 +901,9 @@ CALL MPI_ALLREDUCE(LocalVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COM
 MeshVolume = LocalVolume
 #endif /*USE_MPI*/
 
-SWRITE(UNIT_StdOut,'(A,E18.8)') ' |              Total MESH Volume |                ', MeshVolume
-SWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT GEOMETRY INFORMATION DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(A,E18.8)') ' |              Total MESH Volume |                ', MeshVolume
+LBWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT GEOMETRY INFORMATION DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes
 
 

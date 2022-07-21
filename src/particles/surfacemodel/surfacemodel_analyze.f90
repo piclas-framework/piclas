@@ -81,6 +81,9 @@ USE MOD_Particle_Vars             ,ONLY: nSpecies
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, PorousBC
 USE MOD_SurfaceModel_Analyze_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -92,8 +95,8 @@ IF(SurfModelAnalyzeInitIsDone)THEN
   CALL abort(__STAMP__,'InitParticleAnalyse already called.')
   RETURN
 END IF
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE MODEL ANALYZE...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE MODEL ANALYZE...'
 
 SurfaceAnalyzeStep = GETINT('Surface-AnalyzeStep')
 IF(SurfaceAnalyzeStep.EQ.0) SurfaceAnalyzeStep = HUGE(1)
@@ -135,8 +138,8 @@ IF(CalcElectronSEE) CALL InitCalcElectronSEE()
 
 SurfModelAnalyzeInitIsDone=.TRUE.
 
-SWRITE(UNIT_stdOut,'(A)')' INIT SURFACE MODEL ANALYZE DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT SURFACE MODEL ANALYZE DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitSurfModelAnalyze
 
