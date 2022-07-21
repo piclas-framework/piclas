@@ -35,8 +35,9 @@ SUBROUTINE TimeStep_BGK()
 ! MODULES
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
-USE MOD_Globals                ,ONLY: abort
+USE MOD_Globals                ,ONLY: abort, CROSS
 USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, RotRefFrameOmega
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep, Symmetry
 USE MOD_DSMC_Vars              ,ONLY: DSMC, CollisMode
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
@@ -45,6 +46,7 @@ USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_part_RHS               ,ONLY: CalcPartRHSRotRefFrame
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -60,7 +62,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
-REAL                  :: RandVal, dtVar, NewYPart, NewYVelo
+REAL                  :: RandVal, dtVar, NewYPart, NewYVelo, Pt_local(1:6), RotRefVelo(1:3)
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))
@@ -87,7 +89,18 @@ DO iPart=1,PDM%ParticleVecLength
     LastPartPos(1:3,iPart)=PartState(1:3,iPart)
     PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
   END IF
-  PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
+  IF(UseRotRefFrame) THEN
+    IF(PDM%InRotRefFrame(iPart)) THEN
+      RotRefVelo(1:3) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+      CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:6),RotRefVelo(1:3))
+      PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * dtVar
+      RotRefVelo(1:3) = RotRefVelo(1:3) + (Pt_local(1:3)+dtVar*0.5*Pt_local(4:6)) * dtVar
+    ELSE
+      PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
+    END IF
+  ELSE
+    PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
+  END IF
   ! Axisymmetric treatment of particles: rotation of the position and velocity vector
   IF(Symmetry%Axisymmetric) THEN
     IF (PartState(2,iPart).LT.0.0) THEN
