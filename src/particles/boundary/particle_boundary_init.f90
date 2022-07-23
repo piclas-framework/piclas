@@ -566,10 +566,14 @@ INTEGER,PARAMETER    :: NbrOfRotConnections=1000
 INTEGER              :: notMapped
 #if USE_MPI
 INTEGER              :: notMappedTotal
+REAL                 :: StartT,EndT
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
 SWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY...'
+#if USE_MPI
+IF(MPIRoot) StartT=MPI_WTIME()
+#endif /*USE_MPI*/
 
 ALLOCATE(Rot2Glob_temp(nComputeNodeSurfTotalSides))
 ALLOCATE(SurfSide2RotPeriodicSide(nComputeNodeSurfTotalSides))
@@ -723,7 +727,15 @@ IF(notMappedTotal.GT.0)THEN
 END IF ! notMappedTotal.GT.0
 #endif /*USE_MPI*/
 
-SWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY DONE!'
+#if USE_MPI
+IF(MPIRoot)THEN
+  EndT=MPI_WTIME()
+  WRITE(UNIT_stdOut,'(A,F0.3,A)') ' INIT ROTATIONAL PERIODIC BOUNDARY DONE! [',EndT-StartT,'s]'
+  WRITE(UNIT_StdOut,'(132("-"))')
+END IF ! MPIRoot
+#else
+WRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY DONE!'
+#endif /*USE_MPI*/
 
 END SUBROUTINE InitParticleBoundaryRotPeriodic
 

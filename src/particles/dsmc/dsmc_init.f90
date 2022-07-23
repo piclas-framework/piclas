@@ -705,7 +705,7 @@ ELSE !CollisMode.GT.0
         ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
         ! Skip the read-in of temperatures if a background gas distribution is used but not if background gas regions are used
         IF(BGGas%NumberOfSpecies.GT.0) THEN
-          IF(BGGas%BackgroundSpecies(iSpec).AND.BGGas%UseDistribution.AND..NOT.BGGas%UseRegions) THEN
+          IF(BGGas%BackgroundSpecies(iSpec).AND.BGGas%UseDistribution.AND.(.NOT.BGGas%UseRegions)) THEN
             SpecDSMC(iSpec)%Init(1)%TVib  = 0.
             SpecDSMC(iSpec)%Init(1)%TRot  = 0.
             SpecDSMC(iSpec)%Init(1)%Telec = 0.
@@ -1205,7 +1205,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER               :: iSpec, jSpec, iPart, iElem, dim, n
-  REAL                  :: VibProb, Ti, Tj, CRela2, Velo1(3), Velo2(3)
+  REAL                  :: VibProb, Ti, Tj, CRela2, Velo1(3), Velo2(3), MPF
   INTEGER               :: nPart, iLoop, nLoop
   INTEGER, ALLOCATABLE  :: iPartIndx(:), nPerSpec(:)
   LOGICAL               :: VibProbInitDone, VibProbDataExists
@@ -1272,8 +1272,8 @@ IMPLICIT NONE
       END DO
       CollInf%Coll_SpecPartNum = 0
       DO iPart = 1, nPart
-        CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx(iPart))) = &
-                  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx(iPart))) + GetParticleWeight(iPartIndx(iPart))
+        MPF = GetParticleWeight(iPartIndx(iPart))
+        CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx(iPart))) = CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx(iPart))) + MPF
         nPerSpec(PartSpecies(iPartIndx(iPart))) = nPerSpec(PartSpecies(iPartIndx(iPart))) + 1
       END DO
       CALL CalcInstantTransTemp(iPartIndx,nPart)
@@ -1385,6 +1385,7 @@ SDEALLOCATE(MacroDSMC)
 SDEALLOCATE(QKChemistry)
 
 SDEALLOCATE(ChemReac%ReactModel)
+SDEALLOCATE(ChemReac%BackwardReacForwardIndx)
 SDEALLOCATE(ChemReac%BackwardReac)
 SDEALLOCATE(ChemReac%QKRColl)
 SDEALLOCATE(ChemReac%QKTCollCorrFac)

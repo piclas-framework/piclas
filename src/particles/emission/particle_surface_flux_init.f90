@@ -83,7 +83,7 @@ CALL prms%CreateIntOption(      'Part-Species[$]-Surfaceflux[$]-axialDir', &
                                 numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Species[$]-Surfaceflux[$]-origin', &
                                 'Origin of circular inflow on the surface, where the coordinates depend on the axialDir:\n' //&
-                                'x (=1): (y,z); y (=2): (z,x); z (=3): (x,y)', numberedmulti=.TRUE.)
+                                'x (=1): (y,z); y (=2): (z,x); z (=3): (x,y)', numberedmulti=.TRUE., no=2)
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-rmax', &
                                 'Maximum radius of the circular inflow to define a circle (rmin undefined) or a ring (rmin ' //&
                                 'defined)', '1e21', numberedmulti=.TRUE.)
