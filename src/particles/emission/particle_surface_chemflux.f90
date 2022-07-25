@@ -129,7 +129,7 @@ DO iSF = 1, nPartBound
 
       ! Loop over the reaction types
       DO iReac = 1, SurfNumOfReac
-      SELECT CASE (TRIM(SurfChemReac%ReactType(iReac)))
+        SELECT CASE (TRIM(SurfChemReac%ReactType(iReac)))
 
         ! LH-reaction with immediate desorption
         CASE('LHD')
@@ -311,7 +311,7 @@ DO iSF = 1, nPartBound
           END DO !iSpec
 
         CASE DEFAULT 
-      END SELECT 
+        END SELECT 
 
        ! Current boundary condition
         currentBC = BoundID
