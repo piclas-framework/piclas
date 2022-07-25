@@ -596,7 +596,7 @@ REAL,ALLOCATABLE               :: PartData(:,:)
 INTEGER                        :: PartDataSize       !number of entries in each line of PartData
 CHARACTER(LEN=255)             :: FileName,PreviousFileName
 REAL                           :: PreviousTime_loc
-INTEGER                        :: ALLOCSTAT
+INTEGER                        :: ALLOCSTAT,SpecID
 !===================================================================================================================================
 ! Do not write to file on restart or fresh computation
 IF(iter.EQ.0) RETURN
@@ -649,9 +649,8 @@ locnPart = INT(PartStateBoundaryVecLength,IK)
 CALL GetOffsetAndGlobalNumberOfParts('WriteBoundaryParticleToHDF5',offsetnPart,globnPart,locnPart,.FALSE.)
 
 ALLOCATE(PartData(INT(PartDataSize,IK),offsetnPart+1_IK:offsetnPart+locnPart), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(&
-    __STAMP__&
-    ,'ERROR in hdf5_output.f90: Cannot allocate PartData array for writing boundary particle data to .h5!')
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
+    ,'Error in WriteBoundaryParticleToHDF5: Cannot allocate PartData array for writing boundary particle data to .h5!')
 
 pcount=1
 DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
@@ -668,7 +667,9 @@ DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
 
   ! Kinetic energy [J->eV] (do not consider the MPF here! Call CalcEkinPart2 with MPF=1.0)
   ! Take ABS() from SpecID as is might be negative (for storing particles that are emitted from a surface)
-  PartData(8,iPart)=CalcEkinPart2(PartStateBoundary(4:6,pcount),INT(ABS(PartStateBoundary(7,pcount))),1.0) / ElementaryCharge
+  SpecID = INT(ABS(PartStateBoundary(7,pcount)))
+  IF(SpecID.EQ.0) CALL abort(__STAMP__,'Error in WriteBoundaryParticleToHDF5: SpecID = PartStateBoundary(7,pcount) = 0')
+  PartData(8,iPart)=CalcEkinPart2(PartStateBoundary(4:6,pcount),SpecID,1.0) / ElementaryCharge
 
   ! MPF: Macro particle factor
   PartData(9,iPart)=PartStateBoundary(8,pcount)
