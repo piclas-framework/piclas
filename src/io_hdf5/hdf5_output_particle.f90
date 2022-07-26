@@ -1815,7 +1815,7 @@ USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data,MaxQua
 USE MOD_Particle_Vars          ,ONLY: PDM, PartState, PartSpecies, PartMPF, usevMPF, nSpecies, Species
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
-USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem,offsetnPartOld
+USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
@@ -1897,7 +1897,6 @@ END DO
 CALL GetOffsetAndGlobalNumberOfParts('WriteParticleToHDF5',offsetnPart,nGlobalNbrOfParticles,locnPart,.TRUE.)
 
 #if USE_LOADBALANCE
-offsetnPartOld = offsetnPart
 ! Arrays might still be allocated from previous loadbalance step
 SDEALLOCATE(PartInt)
 SDEALLOCATE(PartData)

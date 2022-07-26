@@ -65,7 +65,6 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld,ElemInfoRank_Shared
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 USE MOD_LoadBalance_Vars       ,ONLY: MPInPartSend,MPInPartRecv,MPIoffsetPartSend,MPIoffsetPartRecv
-USE MOD_LoadBalance_Vars       ,ONLY: offsetnPartOld
 USE MOD_LoadBalance_Vars       ,ONLY: PartSourceLB,NodeSourceExtEquiLB
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
@@ -122,7 +121,6 @@ REAL,ALLOCATABLE                   :: ElecDistriDataTmp(:,:)
 REAL,ALLOCATABLE                   :: AD_DataTmp(:,:)
 ! Custom data type
 INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
-INTEGER,DIMENSION(1:nProcessors)   :: MPI_STRUCT_PART_RECV,MPI_STRUCT_PART_SEND,RecvRequest,SendRequest
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
@@ -293,47 +291,14 @@ IF (PerformLoadBalance) THEN
           counts_recv  => INT(MPInPartRecv     ) ,&
           disp_recv    => INT(MPIoffsetPartRecv))
 
-    DO iProc = 1,nProcessors
-      IF (counts_recv(iProc).GT.0) THEN
-        ! Create MPI_STRUCT with the correct size
-        MPI_LENGTH       = PartDataSize
-        MPI_DISPLACEMENT = 0
-        MPI_TYPE         = MPI_DOUBLE_PRECISION
-        CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT_PART_RECV(iProc),iError)
-        CALL MPI_TYPE_COMMIT(MPI_STRUCT_PART_RECV(iProc),iError)
+    MPI_LENGTH       = PartDataSize
+    MPI_DISPLACEMENT = 0
+    MPI_TYPE         = MPI_DOUBLE_PRECISION
+    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-        ! Recv array is positioned at PartData(offsetnPart+1_IK,offsetnPart+nPart)
-        ASSOCIATE (&
-                  start_recv => offsetnPart+MPIoffsetPartRecv(iProc)+1_IK ,&
-                    end_recv => offsetnPart+MPIoffsetPartRecv(iProc)+MPInPartRecv(iProc))
-          ! Open recv buffer
-          CALL MPI_IRECV(PartDataTmp(:,start_recv:end_recv),counts_recv(iProc),MPI_STRUCT_PART_RECV(iProc),iProc-1,MPI_INFO_NULL,MPI_COMM_WORLD,RecvRequest(iProc),iError)
-        END ASSOCIATE
-      END IF ! counts_recv.GT.0
-
-      IF (counts_send(iProc).GT.0) THEN
-        ! Create MPI_STRUCT with the correct size
-        MPI_LENGTH       = PartDataSize
-        MPI_DISPLACEMENT = 0
-        MPI_TYPE         = MPI_DOUBLE_PRECISION
-        CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT_PART_SEND(iProc),iError)
-        CALL MPI_TYPE_COMMIT(MPI_STRUCT_PART_SEND(iProc),iError)
-
-        ! Send array is positioned at PartData(offsetnPartOld+1_IK,offsetnPartOld+nPartOld)
-        ASSOCIATE (&
-                  start_send => offsetnPartOld+MPIoffsetPartSend(iProc)+1_IK ,&
-                    end_send => offsetnPartOld+MPIoffsetPartSend(iProc)+MPInPartSend(iProc))
-          ! Open send buffer
-          CALL MPI_ISEND(PartData(:,start_send:end_send),counts_send(iProc),MPI_STRUCT_PART_SEND(iProc),iProc-1,MPI_INFO_NULL,MPI_COMM_WORLD,SendRequest(iProc),iError)
-        END ASSOCIATE
-      END IF ! counts_recv.GT.0
-    END DO ! iProc
-
-    ! Finish communication
-    DO iProc = 1,nProcessors
-      IF (counts_recv(iProc).GT.0) CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,iError)
-      IF (counts_send(iProc).GT.0) CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,iError)
-    END DO ! iProc
+    ! Communicate PartData over MPI
+    CALL MPI_ALLTOALLV(PartData,counts_send,disp_send,MPI_STRUCT,PartDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
   END ASSOCIATE
 
   DEALLOCATE(PartData)
@@ -355,48 +320,14 @@ IF (PerformLoadBalance) THEN
               counts_recv  => INT(MPInPartRecv     ) ,&
               disp_recv    => INT(MPIoffsetPartRecv))
 
+        MPI_LENGTH       = MaxQuantNum
+        MPI_DISPLACEMENT = 0
+        MPI_TYPE         = MPI_DOUBLE_PRECISION
+        CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+        CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+
         ! Communicate VibQuantData over MPI
-        DO iProc = 1,nProcessors
-          IF (counts_recv(iProc).GT.0) THEN
-            ! Create MPI_STRUCT with the correct size
-            MPI_LENGTH       = MaxQuantNum
-            MPI_DISPLACEMENT = 0
-            MPI_TYPE         = MPI_DOUBLE_PRECISION
-            CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT_PART_RECV(iProc),iError)
-            CALL MPI_TYPE_COMMIT(MPI_STRUCT_PART_RECV(iProc),iError)
-
-            ! Recv array is positioned at PartData(offsetnPart+1_IK,offsetnPart+nPart)
-            ASSOCIATE (&
-                      start_recv => offsetnPart+MPIoffsetPartRecv(iProc)+1_IK ,&
-                        end_recv => offsetnPart+MPIoffsetPartRecv(iProc)+MPInPartRecv(iProc))
-              ! Open recv buffer
-              CALL MPI_IRECV(VibQuantDataTmp(:,start_recv:end_recv),counts_recv(iProc),MPI_STRUCT_PART_RECV(iProc),iProc-1,MPI_INFO_NULL,MPI_COMM_WORLD,RecvRequest(iProc),iError)
-            END ASSOCIATE
-          END IF ! counts_recv.GT.0
-
-          IF (counts_send(iProc).GT.0) THEN
-            ! Create MPI_STRUCT with the correct size
-            MPI_LENGTH       = MaxQuantNum
-            MPI_DISPLACEMENT = 0
-            MPI_TYPE         = MPI_DOUBLE_PRECISION
-            CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT_PART_SEND(iProc),iError)
-            CALL MPI_TYPE_COMMIT(MPI_STRUCT_PART_SEND(iProc),iError)
-
-            ! Send array is positioned at PartData(offsetnPartOld+1_IK,offsetnPartOld+nPartOld)
-            ASSOCIATE (&
-                      start_send => offsetnPartOld+MPIoffsetPartSend(iProc)+1_IK ,&
-                        end_send => offsetnPartOld+MPIoffsetPartSend(iProc)+MPInPartSend(iProc))
-              ! Open send buffer
-              CALL MPI_ISEND(VibQuantData(:,start_send:end_send),counts_send(iProc),MPI_STRUCT_PART_SEND(iProc),iProc-1,MPI_INFO_NULL,MPI_COMM_WORLD,SendRequest(iProc),iError)
-            END ASSOCIATE
-          END IF ! counts_recv.GT.0
-        END DO ! iProc
-
-        ! Finish communication
-        DO iProc = 1,nProcessors
-          IF (counts_recv(iProc).GT.0) CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,iError)
-          IF (counts_send(iProc).GT.0) CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,iError)
-        END DO ! iProc
+        CALL MPI_ALLTOALLV(VibQuantData,counts_send,disp_send,MPI_STRUCT,VibQuantDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
       END ASSOCIATE
 
       DEALLOCATE(VibQuantData)
@@ -414,48 +345,15 @@ IF (PerformLoadBalance) THEN
               counts_recv  => INT(MaxElecQuant*MPInPartRecv     ) ,&
               disp_recv    => INT(MaxElecQuant*MPIoffsetPartRecv))
 
+        ! Create MPI_STRUCT with the correct size
+        MPI_LENGTH       = MaxElecQuant
+        MPI_DISPLACEMENT = 0
+        MPI_TYPE         = MPI_DOUBLE_PRECISION
+        CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+        CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+
         ! Communicate ElecDistriData over MPI
-        DO iProc = 1,nProcessors
-          IF (counts_recv(iProc).GT.0) THEN
-            ! Create MPI_STRUCT with the correct size
-            MPI_LENGTH       = MaxElecQuant
-            MPI_DISPLACEMENT = 0
-            MPI_TYPE         = MPI_DOUBLE_PRECISION
-            CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT_PART_RECV(iProc),iError)
-            CALL MPI_TYPE_COMMIT(MPI_STRUCT_PART_RECV(iProc),iError)
-
-            ! Recv array is positioned at PartData(offsetnPart+1_IK,offsetnPart+nPart)
-            ASSOCIATE (&
-                      start_recv => offsetnPart+MPIoffsetPartRecv(iProc)+1_IK ,&
-                        end_recv => offsetnPart+MPIoffsetPartRecv(iProc)+MPInPartRecv(iProc))
-              ! Open recv buffer
-              CALL MPI_IRECV(ElecDistriData(:,start_recv:end_recv),counts_recv(iProc),MPI_STRUCT_PART_RECV(iProc),iProc-1,MPI_INFO_NULL,MPI_COMM_WORLD,RecvRequest(iProc),iError)
-            END ASSOCIATE
-          END IF ! counts_recv.GT.0
-
-          IF (counts_send(iProc).GT.0) THEN
-            ! Create MPI_STRUCT with the correct size
-            MPI_LENGTH       = MaxElecQuant
-            MPI_DISPLACEMENT = 0
-            MPI_TYPE         = MPI_DOUBLE_PRECISION
-            CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT_PART_SEND(iProc),iError)
-            CALL MPI_TYPE_COMMIT(MPI_STRUCT_PART_SEND(iProc),iError)
-
-            ! Send array is positioned at PartData(offsetnPartOld+1_IK,offsetnPartOld+nPartOld)
-            ASSOCIATE (&
-                      start_send => offsetnPartOld+MPIoffsetPartSend(iProc)+1_IK ,&
-                        end_send => offsetnPartOld+MPIoffsetPartSend(iProc)+MPInPartSend(iProc))
-              ! Open send buffer
-              CALL MPI_ISEND(ElecDistriData(:,start_send:end_send),counts_send(iProc),MPI_STRUCT_PART_SEND(iProc),iProc-1,MPI_INFO_NULL,MPI_COMM_WORLD,SendRequest(iProc),iError)
-            END ASSOCIATE
-          END IF ! counts_recv.GT.0
-        END DO ! iProc
-
-        ! Finish communication
-        DO iProc = 1,nProcessors
-          IF (counts_recv(iProc).GT.0) CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,iError)
-          IF (counts_send(iProc).GT.0) CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,iError)
-        END DO ! iProc
+        CALL MPI_ALLTOALLV(ElecDistriData,counts_send,disp_send,MPI_STRUCT,ElecDistriDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
       END ASSOCIATE
 
       DEALLOCATE(ElecDistriData)
@@ -473,48 +371,15 @@ IF (PerformLoadBalance) THEN
               counts_recv  => INT(MPInPartRecv     ) ,&
               disp_recv    => INT(MPIoffsetPartRecv))
 
+        ! Create MPI_STRUCT with the correct size
+        MPI_LENGTH       = 3
+        MPI_DISPLACEMENT = 0
+        MPI_TYPE         = MPI_DOUBLE_PRECISION
+        CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+        CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+
         ! Communicate AD_Data over MPI
-        DO iProc = 1,nProcessors
-          IF (counts_recv(iProc).GT.0) THEN
-            ! Create MPI_STRUCT with the correct size
-            MPI_LENGTH       = 3
-            MPI_DISPLACEMENT = 0
-            MPI_TYPE         = MPI_DOUBLE_PRECISION
-            CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT_PART_RECV(iProc),iError)
-            CALL MPI_TYPE_COMMIT(MPI_STRUCT_PART_RECV(iProc),iError)
-
-            ! Recv array is positioned at PartData(offsetnPart+1_IK,offsetnPart+nPart)
-            ASSOCIATE (&
-                      start_recv => offsetnPart+MPIoffsetPartRecv(iProc)+1_IK ,&
-                        end_recv => offsetnPart+MPIoffsetPartRecv(iProc)+MPInPartRecv(iProc))
-              ! Open recv buffer
-              CALL MPI_IRECV(AD_Data(:,start_recv:end_recv),counts_recv(iProc),MPI_STRUCT_PART_RECV(iProc),iProc-1,MPI_INFO_NULL,MPI_COMM_WORLD,RecvRequest(iProc),iError)
-            END ASSOCIATE
-          END IF ! counts_recv.GT.0
-
-          IF (counts_send(iProc).GT.0) THEN
-            ! Create MPI_STRUCT with the correct size
-            MPI_LENGTH       = 3
-            MPI_DISPLACEMENT = 0
-            MPI_TYPE         = MPI_DOUBLE_PRECISION
-            CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT_PART_SEND(iProc),iError)
-            CALL MPI_TYPE_COMMIT(MPI_STRUCT_PART_SEND(iProc),iError)
-
-            ! Send array is positioned at PartData(offsetnPartOld+1_IK,offsetnPartOld+nPartOld)
-            ASSOCIATE (&
-                      start_send => offsetnPartOld+MPIoffsetPartSend(iProc)+1_IK ,&
-                        end_send => offsetnPartOld+MPIoffsetPartSend(iProc)+MPInPartSend(iProc))
-              ! Open send buffer
-              CALL MPI_ISEND(AD_Data(:,start_send:end_send),counts_send(iProc),MPI_STRUCT_PART_SEND(iProc),iProc-1,MPI_INFO_NULL,MPI_COMM_WORLD,SendRequest(iProc),iError)
-            END ASSOCIATE
-          END IF ! counts_recv.GT.0
-        END DO ! iProc
-
-        ! Finish communication
-        DO iProc = 1,nProcessors
-          IF (counts_recv(iProc).GT.0) CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,iError)
-          IF (counts_send(iProc).GT.0) CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,iError)
-        END DO ! iProc
+        CALL MPI_ALLTOALLV(AD_Data,counts_send,disp_send,MPI_STRUCT,AD_DataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
       END ASSOCIATE
 
       DEALLOCATE(AD_Data)

@@ -91,7 +91,6 @@ REAL,ALLOCATABLE                    :: NodeSourceExtEquiLB(:,:,:,:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! particle load balancing
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER(KIND=IK)                    :: offsetnPartOld
 REAL                                :: ParticleMPIWeight
 REAL                                :: DeviationThreshold          ! threshold for load-balancing
 LOGICAL                             :: writePartitionInfo          ! write partitioninfo file
