@@ -403,11 +403,11 @@ ASSOCIATE (&
     !master element
     !iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
     IF(iLocSide.NE.-1)THEN ! MINE side
-      DO q=0,PP_N
-        DO p=0,PP_N
+      DO q=0,INT(PP_N)
+        DO p=0,INT(PP_N)
           pq=CGNS_SideToVol2(INT(PP_N),p,q,iLocSide)
-          r  = q    *(PP_N+1)+p    +1
-          rr = pq(2)*(PP_N+1)+pq(1)+1
+          r  = q    *(INT(PP_N)+1)+p    +1
+          rr = pq(2)*(INT(PP_N)+1)+pq(1)+1
           SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
         END DO
       END DO !p,q
@@ -417,11 +417,11 @@ ASSOCIATE (&
     ! neighbour element (e.g. small mortar sides when one proc has both the large and one or more small side connected elements)
     iLocSide_NB = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
     IF(iLocSide_NB.NE.-1)THEN ! YOUR side
-      DO q=0,PP_N
-        DO p=0,PP_N
+      DO q=0,INT(PP_N)
+        DO p=0,INT(PP_N)
           pq = CGNS_SideToVol2(INT(PP_N),p,q,iLocSide_NB)
-          r  = q    *(PP_N+1)+p    +1
-          rr = pq(2)*(PP_N+1)+pq(1)+1
+          r  = q    *(INT(PP_N)+1)+p    +1
+          rr = pq(2)*(INT(PP_N)+1)+pq(1)+1
           SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
         END DO
       END DO !p,q
@@ -439,11 +439,11 @@ ASSOCIATE (&
           IF(iSide.EQ.SideID)THEN
             iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
             IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
-              DO q=0,PP_N
-                DO p=0,PP_N
+              DO q=0,INT(PP_N)
+                DO p=0,INT(PP_N)
                   pq=CGNS_SideToVol2(INT(PP_N),p,q,iLocSide)
-                  r  = q    *(PP_N+1)+p    +1
-                  rr = pq(2)*(PP_N+1)+pq(1)+1
+                  r  = q    *(INT(PP_N)+1)+p    +1
+                  rr = pq(2)*(INT(PP_N)+1)+pq(1)+1
                   SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
                 END DO
               END DO !p,q
@@ -509,8 +509,8 @@ ASSOCIATE (&
 #ifdef PARTICLES
   ! Adjust electric field for Landmark testcase
   IF(useAlgebraicExternalField.AND.AlgebraicExternalField.EQ.1)THEN
-    DO iElem=1,PP_nElems
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    DO iElem=1,INT(PP_nElems)
+      DO k=0,INT(PP_N); DO j=0,INT(PP_N); DO i=0,INT(PP_N)
         ASSOCIATE( Ue => AverageElectricPotential ,&
               xe => 2.4e-2                        ,&
               x  => Elem_xGP(1,i,j,k,iElem))
