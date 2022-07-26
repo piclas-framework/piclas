@@ -82,28 +82,27 @@ USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSen
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if !(USE_HDG)
-REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
-REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
-REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
-INTEGER                            :: iPML
-#endif
+INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
 #if USE_HDG
 LOGICAL                            :: DG_SolutionLambdaExists
 LOGICAL                            :: DG_SolutionUExists
-#endif /*USE_HDG*/
-#if !(USE_HDG)
-INTEGER                            :: iElem
-#endif /*!(USE_HDG)*/
-INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
-#if USE_HDG
 INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID
 REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
 INTEGER                            :: p,q,r,rr,pq(1:2)
 INTEGER                            :: iLocSide,iLocSide_NB,iLocSide_master
 INTEGER                            :: iMortar,MortarSideID,nMortars
-#else
+#else /*USE_HDG*/
+INTEGER                            :: iElem
+REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
+INTEGER                            :: iPML
 INTEGER(KIND=IK)                   :: PMLnVarTmp
+#if USE_LOADBALANCE
+! Custom data type
+INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
+INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
+#endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -120,12 +119,18 @@ IF(PerformLoadBalance)THEN
   IF(ALLOCATED(U))THEN
     ALLOCATE(UTmp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
     ASSOCIATE (&
-            counts_send  => (PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)*MPInElemSend     ) ,&
-            disp_send    => (PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)*MPIoffsetElemSend) ,&
-            counts_recv  => (PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)*MPInElemRecv     ) ,&
-            disp_recv    => (PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)*MPIoffsetElemRecv))
+            counts_send  => (INT(MPInElemSend     )) ,&
+            disp_send    => (INT(MPIoffsetElemSend)) ,&
+            counts_recv  => (INT(MPInElemRecv     )) ,&
+            disp_recv    => (INT(MPIoffsetElemRecv)))
       ! Communicate PartInt over MPI
-      CALL MPI_ALLTOALLV(U,counts_send,disp_send,MPI_DOUBLE_PRECISION,UTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
+      MPI_LENGTH       = PP_nVar*(PP_N+1)*(PP_N+1)*(PP_N+1)
+      MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+      MPI_TYPE         = MPI_DOUBLE_PRECISION
+      CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+      CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+
+      CALL MPI_ALLTOALLV(U,counts_send,disp_send,MPI_STRUCT,UTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
     END ASSOCIATE
 
     DEALLOCATE(U)

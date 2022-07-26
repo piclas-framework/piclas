@@ -307,10 +307,10 @@ IF (PerformLoadBalance) THEN
     ALLOCATE(ElemTimeTmp(1:nElems))
 
     ASSOCIATE (&
-            counts_send  => INT(MPInElemSend     ,IK) ,&
-            disp_send    => INT(MPIoffsetElemSend,IK) ,&
-            counts_recv  => INT(MPInElemRecv     ,IK) ,&
-            disp_recv    => INT(MPIoffsetElemRecv,IK))
+            counts_send  => INT(MPInElemSend     ) ,&
+            disp_send    => INT(MPIoffsetElemSend) ,&
+            counts_recv  => INT(MPInElemRecv     ) ,&
+            disp_recv    => INT(MPIoffsetElemRecv))
       ! Communicate PartInt over MPI
       CALL MPI_ALLTOALLV(ElemTime,counts_send,disp_send,MPI_DOUBLE_PRECISION,ElemTimeTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
     END ASSOCIATE

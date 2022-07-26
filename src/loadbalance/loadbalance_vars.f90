@@ -79,7 +79,7 @@ INTEGER(KIND=IK),ALLOCATABLE        :: MPInPartSend(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetPartSend(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPInPartRecv(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetPartRecv(:)
-INTEGER(KIND=IK),POINTER            :: ElemInfoRank_Shared(:) => NULL()
+INTEGER,POINTER                     :: ElemInfoRank_Shared(:) => NULL()
 INTEGER                             :: ElemInfoRank_Shared_Win
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -91,6 +91,7 @@ REAL,ALLOCATABLE                    :: NodeSourceExtEquiLB(:,:,:,:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! particle load balancing
 !-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER(KIND=IK)                    :: offsetnPartOld
 REAL                                :: ParticleMPIWeight
 REAL                                :: DeviationThreshold          ! threshold for load-balancing
 LOGICAL                             :: writePartitionInfo          ! write partitioninfo file
