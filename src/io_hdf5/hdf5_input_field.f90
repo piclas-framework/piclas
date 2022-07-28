@@ -202,7 +202,6 @@ END ASSOCIATE
 
 !WRITE (*,*) " =", VariableExternalFieldMin
 !WRITE (*,*) " =", VariableExternalFieldMax
-!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 ! Close the file.
 CALL H5FCLOSE_F(file_id_loc, err)
 ! Close FORTRAN interface.
