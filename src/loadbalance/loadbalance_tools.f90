@@ -226,9 +226,10 @@ USE MOD_LoadBalance_Vars ,ONLY: ElemGlobalTime
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime_tmp
 USE MOD_MPI_Vars         ,ONLY: offsetElemMPI
+USE MOD_Restart_Vars     ,ONLY: FlushInitialState
 #endif /*USE_LOADBALANCE*/
 USE MOD_Mesh_Vars        ,ONLY: offsetElem,nElems,nGlobalElems
-USE MOD_Restart_Vars     ,ONLY: RestartFile,FlushInitialState
+USE MOD_Restart_Vars     ,ONLY: RestartFile
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES

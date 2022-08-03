@@ -66,6 +66,8 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
+USE MOD_vMPF                   ,ONLY: SplitAndMerge
+USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
@@ -394,6 +396,7 @@ IF (useDSMC) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
+    IF(UseSplitAndMerge) CALL SplitAndMerge()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/

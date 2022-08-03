@@ -276,18 +276,14 @@ ASSOCIATE( iMax => PartStateLostVecLength )
 
     ! --- PartStateLost ---
     ALLOCATE(PartStateLost_tmp(1:PartLostDataSize,1:dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-          __STAMP__&
-          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost_tmp temporary array!')
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost_tmp array!')
     ! Save old data
     PartStateLost_tmp(1:PartLostDataSize,1:dims(2)) = PartStateLost(1:PartLostDataSize,1:dims(2))
 
     ! Re-allocate PartStateLost to twice the size
     DEALLOCATE(PartStateLost)
     ALLOCATE(PartStateLost(1:PartLostDataSize,1:2*dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-          __STAMP__&
-          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost array!')
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost array!')
     PartStateLost(1:PartLostDataSize,        1:  dims(2)) = PartStateLost_tmp(1:PartLostDataSize,1:dims(2))
     PartStateLost(1:PartLostDataSize,dims(2)+1:2*dims(2)) = 0.
 
@@ -395,6 +391,18 @@ CASE('deltadistribution')
   VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
   ! Set magnitude
   VeloFromDistribution = Tempergy*VeloFromDistribution ! Tempergy here is [m/s]
+
+CASE('uniform-energy')
+
+  ! Get random vector
+  VeloFromDistribution = DiceUnitVector()
+  ! Mirror z-component of velocity (particles are emitted from surface!)
+  VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
+  ! Set uniform energy distribution. Note that Tempergy here is [eV], which is converted from eV to J
+  CALL RANDOM_NUMBER(RandVal) ! random value between 0 and 1.
+  VeloABS = SQRT(2.0 * RandVal * Tempergy * eV2Joule / ElectronMass)
+  ! Set magnitude
+  VeloFromDistribution = VeloABS*VeloFromDistribution
 
 CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardment on dielectric surfaces
 

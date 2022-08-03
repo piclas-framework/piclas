@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_BGK
+#if (PP_TimeDiscMethod==400)
 !===================================================================================================================================
 !> Main module for the the Bhatnagar-Gross-Krook method
 !===================================================================================================================================
@@ -62,7 +63,7 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: IsExchangeElem
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN),OPTIONAL :: stage_opt 
+INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -189,7 +190,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER               :: iElem, nPart, iLoop, iPart, CNElemID, stage
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
-INTEGER,INTENT(IN),OPTIONAL :: stage_opt 
+INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !===================================================================================================================================
 IF (PRESENT(stage_opt)) THEN
   stage = stage_opt
@@ -266,4 +267,5 @@ END IF
 
 END SUBROUTINE BGK_main
 
+#endif /*(PP_TimeDiscMethod==400)*/
 END MODULE MOD_BGK

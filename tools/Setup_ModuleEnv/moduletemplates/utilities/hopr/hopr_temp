@@ -1,0 +1,30 @@
+#%Module1.0#####################################################################
+##
+## modules hopr/hoprversion
+##
+## modulefiles/utilities/hopr/hoprversion
+##
+proc ModulesHelp { } {
+        global version modroot
+
+        puts stderr "hopr-hoprversion - sets the Environment for HOPR-hoprversion"
+}
+
+module-whatis   "Sets the environment for using hopr-hoprversion"
+
+conflict hopr
+
+prereq cmake/CMAKEVERSIONFLAG
+prereq gcc/GCCVERSIONFLAG
+prereq openmpi/MPIVERSIONFLAG/gcc/GCCVERSIONFLAG
+prereq hdf5/HDF5VERSIONFLAG/gcc/GCCVERSIONFLAG/openmpi/MPIVERSIONFLAG
+
+# for Tcl script use only
+set     topdir          HOPRTOPDIR
+set     version         hoprversion
+set     sys             linux64
+
+prepend-path    PATH            $topdir/bin
+prepend-path    LD_LIBRARY_PATH $topdir/lib
+prepend-path    HOPR_PATH       $topdir/bin/hopr
+#set-alias       paraviewmpi "paraview --mpi$

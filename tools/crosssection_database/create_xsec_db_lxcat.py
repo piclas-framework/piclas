@@ -3,13 +3,16 @@ import h5py
 import lxcat_data_parser as ldp
 
 # Input database
-database_input = "Database_Phelps.txt"
+# database_input = "Database_Phelps.txt"
+database_input = "Database_BiagiV71.txt"
 # Output database
-database_output = "LXCat_Database_Phelps_Electron_Scattering_EFFECTIVE.h5"
+# database_output = "LXCat_Database_Phelps_Electron_Scattering_EFFECTIVE.h5"
+database_output = "XSec_Database_Xe_Plasma.h5"
 # Species list to be included in the output database
-species_list = ["CO2","N2","He"]
+species_list = ["Xe"]
 # Reference of the utilized database
-reference = "Phelps database, www.lxcat.net, retrieved on February 18, 2020. LXCat is an open-access website with databases contributed by members of the scientific community."
+# reference = "Phelps database, www.lxcat.net, retrieved on February 18, 2020. LXCat is an open-access website with databases contributed by members of the scientific community."
+reference = "Biagi-v7.1 database, www.lxcat.net, retrieved on April 04, 2022. LXCat is an open-access website with databases contributed by members of the scientific community."
 
 # Output of the HDF5 database
 hdf = h5py.File(database_output, 'w')

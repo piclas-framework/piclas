@@ -128,16 +128,12 @@ DO iSpec=1, nSpecies
   END DO
 END DO
 IF ((nSpecies.GT.1).AND.(ANY(SpecDSMC(:)%PolyatomicMol))) THEN
-  CALL abort(&
-__STAMP__&
-,' ERROR Multispec not implemented with polyatomic molecules!')
+  CALL abort(__STAMP__,' ERROR Multispec not implemented with polyatomic molecules!')
 END IF
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
-      CALL abort(&
-__STAMP__&
-,' ERROR Multispec only with ESBGK model!')
+      CALL abort(__STAMP__,' ERROR Multispec only with ESBGK model!')
 END IF
 BGKMixtureModel = GETINT('Particles-BGK-MixtureModel')
 ! ESBGK options
@@ -155,9 +151,7 @@ IF(DoBGKCellAdaptation) THEN
   BGKMinPartPerCell = GETINT('Particles-BGK-MinPartsPerCell')
   IF(.NOT.DSMC%UseOctree) THEN
     DSMC%UseOctree = .TRUE.
-    IF(NGeo.GT.PP_N) CALL abort(&
-__STAMP__&
-,' Set PP_N to NGeo, otherwise the volume is not computed correctly.')
+    IF(NGeo.GT.PP_N) CALL abort(__STAMP__,' Set PP_N to NGeo, otherwise the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
 END IF
@@ -165,13 +159,11 @@ BGKSplittingDens = GETREAL('Particles-BGK-SplittingDens')
 ! Moving Average
 BGKMovingAverage = GETLOGICAL('Particles-BGK-MovingAverage')
 IF(BGKMovingAverage) THEN
-  CALL abort(__STAMP__,&
-    ' ERROR BGK Init: Moving average is currently not implemented!')
+  CALL abort(__STAMP__,' ERROR BGK Init: Moving average is currently not implemented!')
   BGKMovingAverageLength = GETINT('Particles-BGK-MovingAverageLength')
   CALL BGK_init_MovingAverage()
   IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-    CALL abort(__STAMP__,&
-      ' ERROR BGK Init: Moving average is neither implemented with radial weighting nor variable time step!')
+    CALL abort(__STAMP__,' ERROR BGK Init: Moving average is neither implemented with radial weighting nor variable time step!')
   END IF
 END IF
 IF(MoleculePresent) THEN

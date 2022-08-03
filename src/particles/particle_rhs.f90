@@ -596,11 +596,9 @@ ASSOCIATE (&
     IPWRITE(*,*) ' Particle is faster than the speed of light (v_x^2 + v_y^2 + v_z^2 > c^2)'
     IPWRITE(*,*) ' Species-ID',PartSpecies(PartID)
     IPWRITE(*,*) ' x=',PartState(1,PartID),' y=',PartState(2,PartID),' z=',PartState(3,PartID)
-    CALL abort(&
-        __STAMP__&
-        ,'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)
+    CALL abort(__STAMP__,'Particle is faster than the speed of light. Particle-Nr., velosq/c2:',PartID,velosq*c2_inv)
   END IF
-  ASSOCIATE ( gammas => SQRT(1.0-velosq*c2_inv) ) ! Inverse of Lorentz factor
+  ASSOCIATE ( gammas => SQRT(1.0 - velosq*c2_inv) ) ! Inverse of Lorentz factor
 
     F(1) = E1 + v2 * B3 - v3 * B2
     F(2) = E2 + v3 * B1 - v1 * B3

@@ -15,7 +15,22 @@ before_script:
       echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor-level!";
       export PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE;
     else
-      echo "Splitting shared memory domains on node-level! Set variable DO_CORE_SPLIT=T to force core-level shared memory splitting for all regression tests.";
+      if [ -n "${DO_NODE_SPLIT}" ]; then
+        echo " PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE. Splitting shared memory domains on sub-node-level with 2 cores per node!";
+        export PICLAS_SPLIT_TYPE=PICLAS_COMM_TYPE_NODE;
+      else
+        echo "Splitting shared memory domains on node-level! Set variable DO_CORE_SPLIT=T to force core-level OR DO_NODE_SPLIT=T to force sub-node-level shared memory splitting for all regression tests.";
+      fi
+    fi
+  - if [ -n "${DO_NINJA}" ]; then
+      echo " Setting CMAKE_GENERATOR=Ninja to use ninja generator";
+      export CMAKE_GENERATOR=Ninja;
+      export GENERATOR=ninja;
+      export NCORES=0;
+    else
+      echo " Using default generator [Unix Makefiles] and [make] for compiling.";
+      export GENERATOR=make;
+      export NCORES=;
     fi
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
@@ -172,17 +187,8 @@ build:
   script:
     - mkdir -p build ; cd build
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; make -j all
-    - if [ -n "${DO_NIGHTLY}" ] || [ -n "${DO_WEEKLY}" ]; then
-        git clone https://github.com/flexi-framework/hopr.git hopr;
-        cd hopr ; mkdir -p build ; cd build;
-        echo `pwd`;
-        cmake .. -DHOPR_BUILD_HDF5=OFF;
-        make -j all &> output.txt;
-        tail -n 20 output.txt;
-        rm output.txt;
-        ls bin/hopr;
-      fi
+    #- cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j all
+    - cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; ninja -j0 all
 
 build_maxwell:
   tags:
@@ -202,7 +208,7 @@ build_maxwell:
   script:
     - mkdir -p build_maxwell ; cd build_maxwell
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; make -j all
+    - cmake .. -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all
 
 build_poisson:
   tags:
@@ -224,11 +230,27 @@ build_poisson:
   script:
     - mkdir -p build_poisson_release ; cd build_poisson_release
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; make -j all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_debug ; cd build_poisson_debug
     - git clone git@gitlab.com:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; make -j all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+
+build_hopr:
+  tags:
+    - withmodules-concurrent
+  stage: build
+  script:
+    - git clone https://github.com/hopr-framework/hopr.git hopr;
+    - cd hopr ; mkdir -p build ; cd build;
+    - echo `pwd`;
+    - cmake .. -DHOPR_BUILD_HDF5=OFF;
+    - $GENERATOR -j $NCORES all &> output.txt;
+    - tail -n 20 output.txt;
+    - rm output.txt;
+    - ls bin/hopr;
+  rules:
+    - if: '$DO_WEEKLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
@@ -245,12 +267,17 @@ maxwell:
   script:
     - cd build_maxwell ; python ./reggie/reggie.py ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas
 
-poisson:
+poisson_release:
   <<: *defaults_poisson
   stage: reggie_checkin
   script:
     - cd build_poisson_release ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
-    - cd ../build_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
+
+poisson_debug:
+  <<: *defaults_poisson
+  stage: reggie_checkin
+  script:
+    - cd build_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)

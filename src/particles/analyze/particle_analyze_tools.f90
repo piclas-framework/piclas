@@ -46,7 +46,7 @@ PUBLIC :: CalcShapeEfficiencyR
 PUBLIC :: CalcKineticEnergy
 PUBLIC :: CalcKineticEnergyAndMaximum
 PUBLIC :: CalcNumberDensity
-PUBLIC :: CalcAdaptBCInfo
+PUBLIC :: CalcSurfaceFluxInfo
 PUBLIC :: CalcTransTemp
 PUBLIC :: CalcMixtureTemp
 PUBLIC :: CalcTelec,CalcTVibPoly
@@ -191,6 +191,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                   :: NumSpec(nSpecAnalyze)
+INTEGER(KIND=IK)                   :: SimNumSpecMin,SimNumSpecMax
 INTEGER(KIND=IK),INTENT(OUT)       :: SimNumSpec(nSpecAnalyze)
 LOGICAL,INTENT(IN)                 :: CalcNumSpec_IN,CalcSimNumSpec_IN ! Flags for performing MPI reduce
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -235,11 +236,15 @@ END IF
 
 #if USE_MPI
 IF (PartMPI%MPIRoot) THEN
-  IF(CalcNumSpec_IN)    CALL MPI_REDUCE(MPI_IN_PLACE,NumSpec    ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  IF(CalcSimNumSpec_IN) CALL MPI_REDUCE(MPI_IN_PLACE,SimNumSpec ,nSpecAnalyze,MPI_INTEGER_INT_KIND,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF(CalcNumSpec_IN)    CALL MPI_REDUCE(MPI_IN_PLACE    , NumSpec       , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+  IF(CalcSimNumSpec_IN) CALL MPI_REDUCE(SUM(SimNumSpec) , SimNumSpecMin , 1            , MPI_INTEGER_INT_KIND , MPI_MIN , 0 , PartMPI%COMM , IERROR)
+  IF(CalcSimNumSpec_IN) CALL MPI_REDUCE(SUM(SimNumSpec) , SimNumSpecMax , 1            , MPI_INTEGER_INT_KIND , MPI_MAX , 0 , PartMPI%COMM , IERROR)
+  IF(CalcSimNumSpec_IN) CALL MPI_REDUCE(MPI_IN_PLACE    , SimNumSpec    , nSpecAnalyze , MPI_INTEGER_INT_KIND , MPI_SUM , 0 , PartMPI%COMM , IERROR)
 ELSE
-  IF(CalcNumSpec_IN)    CALL MPI_REDUCE(NumSpec     ,NumSpec    ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  IF(CalcSimNumSpec_IN) CALL MPI_REDUCE(SimNumSpec  ,SimNumSpec ,nSpecAnalyze,MPI_INTEGER_INT_KIND,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF(CalcNumSpec_IN)    CALL MPI_REDUCE(NumSpec         , 0 , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+  IF(CalcSimNumSpec_IN) CALL MPI_REDUCE(SUM(SimNumSpec) , 0 , 1            , MPI_INTEGER_INT_KIND , MPI_MIN , 0 , PartMPI%COMM , IERROR)
+  IF(CalcSimNumSpec_IN) CALL MPI_REDUCE(SUM(SimNumSpec) , 0 , 1            , MPI_INTEGER_INT_KIND , MPI_MAX , 0 , PartMPI%COMM , IERROR)
+  IF(CalcSimNumSpec_IN) CALL MPI_REDUCE(SimNumSpec      , 0 , nSpecAnalyze , MPI_INTEGER_INT_KIND , MPI_SUM , 0 , PartMPI%COMM , IERROR)
 END IF
 #endif /*USE_MPI*/
 
@@ -249,7 +254,12 @@ IF(CalcSimNumSpec_IN)THEN
 #if USE_MPI
   IF(PartMPI%MPIRoot)THEN
 #endif /*USE_MPI*/
-    nGlobalNbrOfParticles = INT(SimNumSpec(nSpecAnalyze),KIND=IK)
+    nGlobalNbrOfParticles(1) = INT(SimNumSpecMin,KIND=IK)
+    nGlobalNbrOfParticles(2) = INT(SimNumSpecMax,KIND=IK)
+    nGlobalNbrOfParticles(3) = INT(SimNumSpec(nSpecAnalyze),KIND=IK)
+    nGlobalNbrOfParticles(4) = MIN(nGlobalNbrOfParticles(1),nGlobalNbrOfParticles(4))
+    nGlobalNbrOfParticles(5) = MAX(nGlobalNbrOfParticles(2),nGlobalNbrOfParticles(5))
+    nGlobalNbrOfParticles(6) = MAX(nGlobalNbrOfParticles(3),nGlobalNbrOfParticles(6))
 #if USE_MPI
   END IF ! PartMPI%MPIRoot
 #endif /*USE_MPI*/
@@ -1215,9 +1225,9 @@ BGGas%DistributionNumDens = BGGas%DistributionNumDens / MeshVolume
 END SUBROUTINE CalcNumberDensityBGGasDistri
 
 
-SUBROUTINE CalcAdaptBCInfo()
+SUBROUTINE CalcSurfaceFluxInfo()
 !===================================================================================================================================
-!> Output for adaptive surface flux BCs: calculate the mass flow rate and the pressure in adjacent cells per species & surface flux
+!> Output for surface flux BCs: calculate the mass flow rate, current or the pressure in adjacent cells per species & surface flux
 !> 1) Calculate processor-local values
 !> 2) MPI communication
 !> 3) Determine final output values
@@ -1225,11 +1235,11 @@ SUBROUTINE CalcAdaptBCInfo()
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_TimeDisc_Vars           ,ONLY: dt, iter
-USE MOD_Particle_Analyze_Vars   ,ONLY: MassflowRate, PressureAdaptiveBC
+USE MOD_Particle_Analyze_Vars   ,ONLY: FlowRateSurfFlux, PressureAdaptiveBC
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,usevMPF
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
-USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCAreaSurfaceFlux
+USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptive, AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCAreaSurfaceFlux
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
 #if USE_MPI
@@ -1252,8 +1262,8 @@ INTEGER             :: MaxSurfaceFluxBCs
 
 IF(iter.EQ.0) RETURN
 
+IF(UseAdaptive) PressureAdaptiveBC = 0.
 ! 1) Calculate the processor-local mass flow rate and sum-up the area weighted pressure
-PressureAdaptiveBC = 0.
 DO iSpec = 1, nSpecies
   ! If usevMPF or DoRadialWeighting then the MacroParticleFactor is already included in the GetParticleWeight
   IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
@@ -1263,24 +1273,30 @@ DO iSpec = 1, nSpecies
   END IF
   DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
     ! SampledMassFlow contains the weighted particle number balance (in - out)
-    MassflowRate(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow*Species(iSpec)%MassIC*MacroParticleFactor/dt
-    ! Calculate the average pressure
-    currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
-    ! Skip processors without a surface flux
-    IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) CYCLE
-    ! Loop over sides on the surface flux
-    DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
-      SurfSideID = BCdata_auxSF(currentBC)%SideList(iSide)
-      ElemID = SideToElem(S2E_ELEM_ID,SurfSideID)
-      SampleElemID = AdaptBCMapElemToSample(ElemID)
-      IF(SampleElemID.GT.0) THEN
-        ! Sum up the area weighted pressure in each adjacent element
-        DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-          PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) &
-            + AdaptBCMacroVal(6,SampleElemID,iSpec) * SurfMeshSubSideData(iSample,jSample,SurfSideID)%area
-        END DO; END DO
-      END IF
-    END DO
+    IF(Species(iSpec)%Surfaceflux(iSF)%UseEmissionCurrent) THEN
+      FlowRateSurfFlux(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow*ABS(Species(iSpec)%ChargeIC)*MacroParticleFactor/dt
+    ELSE
+      FlowRateSurfFlux(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow*Species(iSpec)%MassIC*MacroParticleFactor/dt
+    END IF
+    IF(UseAdaptive) THEN
+      ! Calculate the average pressure
+      currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
+      ! Skip processors without a surface flux
+      IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) CYCLE
+      ! Loop over sides on the surface flux
+      DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+        SurfSideID = BCdata_auxSF(currentBC)%SideList(iSide)
+        ElemID = SideToElem(S2E_ELEM_ID,SurfSideID)
+        SampleElemID = AdaptBCMapElemToSample(ElemID)
+        IF(SampleElemID.GT.0) THEN
+          ! Sum up the area weighted pressure in each adjacent element
+          DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+            PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) &
+              + AdaptBCMacroVal(6,SampleElemID,iSpec) * SurfMeshSubSideData(iSample,jSample,SurfSideID)%area
+          END DO; END DO
+        END IF
+      END DO
+    END IF
   END DO
 END DO
 
@@ -1288,31 +1304,36 @@ END DO
 #if USE_MPI
 MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
 IF (PartMPI%MPIRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,MassflowRate(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
+  CALL MPI_REDUCE(MPI_IN_PLACE,FlowRateSurfFlux(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
                   MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(MPI_IN_PLACE,PressureAdaptiveBC(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
-                  MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF(UseAdaptive) THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,PressureAdaptiveBC(1:nSpecAnalyze,1:MaxSurfaceFluxBCs),nSpecAnalyze*MaxSurfaceFluxBCs,&
+                    MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  END IF
 ELSE ! no Root
-  CALL MPI_REDUCE(MassflowRate,MassflowRate,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-  CALL MPI_REDUCE(PressureAdaptiveBC,PressureAdaptiveBC,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  CALL MPI_REDUCE(FlowRateSurfFlux,FlowRateSurfFlux,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+  IF(UseAdaptive) CALL MPI_REDUCE(PressureAdaptiveBC,PressureAdaptiveBC,nSpecAnalyze*MaxSurfaceFluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
 END IF
 #endif /*USE_MPI*/
 
 ! 3) Determine the average pressure
+
 IF (PartMPI%MPIRoot) THEN
-  DO iSpec = 1, nSpecies
-    DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
-      IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-        ! Use the area sum of the elements included in the sampling, instead of the ideal circular area
-        PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) / AdaptBCAreaSurfaceFlux(iSpec,iSF)
-      ELSE
-        PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) / Species(iSpec)%Surfaceflux(iSF)%totalAreaSF
-      END IF
+  IF(UseAdaptive) THEN
+    DO iSpec = 1, nSpecies
+      DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+        IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+          ! Use the area sum of the elements included in the sampling, instead of the ideal circular area
+          PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) / AdaptBCAreaSurfaceFlux(iSpec,iSF)
+        ELSE
+          PressureAdaptiveBC(iSpec,iSF) = PressureAdaptiveBC(iSpec,iSF) / Species(iSpec)%Surfaceflux(iSF)%totalAreaSF
+        END IF
+      END DO
     END DO
-  END DO
+  END IF
 END IF
 
-END SUBROUTINE CalcAdaptBCInfo
+END SUBROUTINE CalcSurfaceFluxInfo
 
 
 SUBROUTINE CalcMixtureTemp(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec)
