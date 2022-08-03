@@ -55,7 +55,7 @@ PPURE FUNCTION GetExternalFieldAtParticle(pos)
 !   3. External E and B field from user-supplied vector (const.)
 !===================================================================================================================================
 ! MODULES
-USE MOD_PICInterpolation_Vars ,ONLY: externalField,useVariableExternalField,useAlgebraicExternalField,VariableExternalField2D
+USE MOD_PICInterpolation_Vars ,ONLY: externalField,useVariableExternalField,useAlgebraicExternalField,VariableExternalFieldDim
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
@@ -81,13 +81,18 @@ ELSE ! use variable or fixed external field
   IF(useVariableExternalField)THEN
     ! 1. External E field from user-supplied vector (const.) and
     GetExternalFieldAtParticle(1:6) = externalField(1:6)
-    IF(VariableExternalField2D)THEN
-      ! B field from .h5 file (only Bz and Br) that is interpolated to the particle z- and r-coordinate
-      GetExternalFieldAtParticle(4:6) = InterpolateVariableExternalField2D(pos(1:3))
-    ELSE
-      ! B field from CSV file (only Bz) that is interpolated to the particle z-coordinate
+    ! Select spatial dimension for interpolation
+    SELECT CASE(VariableExternalFieldDim)
+    CASE(1)
+      ! B field from CSV file (only Bz) that is interpolated to the particle z-coordinate (linear)
       GetExternalFieldAtParticle(6) = InterpolateVariableExternalField1D(pos(3))
-    END IF ! VariableExternalField2D
+    CASE(2)
+      ! B field from .h5 file (only Bz and Br) that is interpolated to the particle z- and r-coordinate (bilinear)
+      GetExternalFieldAtParticle(4:6) = InterpolateVariableExternalField2D(pos(1:3))
+    CASE(3)
+      ! B field from .h5 file (Bx, By and Bz) that is interpolated to the particle x-, y- and z-coordinate (trilinear)
+      GetExternalFieldAtParticle(4:6) = InterpolateVariableExternalField3D(pos(1:3))
+    END SELECT
   ELSEIF(useAlgebraicExternalField)THEN
     ! 2. External E and B field from algebraic expression that is interpolated to the particle position
     GetExternalFieldAtParticle(1:6) = InterpolateAlgebraicExternalField(pos)
@@ -109,7 +114,9 @@ PPURE FUNCTION GetAnalyticFieldAtParticle(PartPos)
 ! Calculate the electro-(magnetic) field at the particle's position form an analytic solution
 !===================================================================================================================================
 ! MODULES
-USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType
+USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationType,AnalyticInterpolationSubType
+USE MOD_PICInterpolation_Vars ,ONLY: AnalyticInterpolationPhase,AnalyticInterpolationGamma,AnalyticInterpolationE
+USE MOD_Globals_Vars          ,ONLY: c
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -118,18 +125,38 @@ REAL,INTENT(IN)    :: PartPos(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL :: GetAnalyticFieldAtParticle(1:6)
+REAL :: v_perp ! Perpendicular velocity
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 GetAnalyticFieldAtParticle(1:6) = 0.
 SELECT CASE(AnalyticInterpolationType)
 CASE(0) ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
-  GetAnalyticFieldAtParticle(6) = 1.0
+
+  ! 0: non-relativistic, 1: relativistic
+  SELECT CASE(AnalyticInterpolationSubType)
+  CASE(0) ! 0: non-relativistic
+    GetAnalyticFieldAtParticle(6) = 1.0
+  CASE(1) ! 1: relativistic
+    ASSOCIATE( gamma1 => AnalyticInterpolationGamma ,& ! Lorentz factor
+               m      => 1.0                        ,& ! [kg] particle mass
+               q      => 1.0                        ,& ! [C] particle charge
+               phi    => AnalyticInterpolationPhase )  ! [rad] phase shift
+      !-- get Lorentz factor gamma1(n)
+      v_perp = c*SQRT(1.0 - 1/(gamma1**2))
+      !-- Set const. magnetic field [T]
+      GetAnalyticFieldAtParticle(6) = gamma1*v_perp
+    END ASSOCIATE
+  END SELECT
+
 CASE(1) ! magnetostatic field: B = B_z = B_0 * EXP(x/l)
+
   ASSOCIATE( B_0 => 1.0, l => 1.0  )
     GetAnalyticFieldAtParticle(6) = B_0 * EXP(PartPos(1) / l)
   END ASSOCIATE
+
 CASE(2)
+
   ! const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
   !                                  E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
   ! Example from Paper by H. Qin: Why is Boris algorithm so good? (2013)
@@ -141,6 +168,21 @@ CASE(2)
     ! Bz
     GetAnalyticFieldAtParticle(6) = SQRT(x**2+y**2)
   END ASSOCIATE
+
+CASE(3) ! 3: const. electric field: E = E_x = (/ 1 V/m , 0 , 0 /) = const.
+
+  SELECT CASE(AnalyticInterpolationSubType)
+  CASE(0,1) ! 0: non-relativistic, 1: relativistic
+    GetAnalyticFieldAtParticle(1) = AnalyticInterpolationE
+  END SELECT
+
+CASE(4) ! 4: const. electric field: E = E_x = (/ x V/m , 0 , 0 /) = const.
+
+  SELECT CASE(AnalyticInterpolationSubType)
+  CASE(0,1) ! 0: non-relativistic, 1: relativistic
+    GetAnalyticFieldAtParticle(1) = AnalyticInterpolationE
+  END SELECT
+
 END SELECT
 END FUNCTION GetAnalyticFieldAtParticle
 #endif /*CODE_ANALYZE*/
@@ -255,8 +297,8 @@ CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,U(1:6,:,:,:,ElemID),6,GetE
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),3,GetEMField(1:3),ElemID)
 #elif USE_HDG
 #if PP_nVar==1
-#if (PP_TimeDiscMethod==508)
-! Boris: consider B-Field, e.g., from SuperB
+#if (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508)
+! Boris or HC: consider B-Field, e.g., from SuperB
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),6,GetEMField(1:6),ElemID)
 #else
 ! Consider only electric fields
@@ -331,8 +373,8 @@ HelperU(1:6,:,:,:) = U(1:6,:,:,:,ElemID)
 HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
 #elif USE_HDG
 #if PP_nVar==1
-#if (PP_TimeDiscMethod==508)
-! Boris: consider B-Field, e.g., from SuperB
+#if (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508)
+! Boris or HC: consider B-Field, e.g., from SuperB
 HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
 #else
 ! Consider only electric fields
@@ -426,12 +468,19 @@ END FUNCTION InterpolateVariableExternalField1D
 
 PPURE FUNCTION InterpolateVariableExternalField2D(Pos)
 !===================================================================================================================================
-!> Interpolates the variable external field to the r- and z-position
+!> Interpolates the variable external field to the r- and z-position via bilinear interpolation
+!>
+!>   1.2 --------- 2.2
+!>    |             |
+!>  r |             |
+!>    |             |
+!>   1.1 --------- 2.1
+!>           z
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PICInterpolation_Vars ,ONLY: DeltaExternalField,VariableExternalField
-USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField2DColumns
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldN
 USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldMin,VariableExternalFieldMax
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -443,7 +492,7 @@ REAL,INTENT(IN)          :: Pos(1:3)                                 !< particle
 REAL                     :: InterpolateVariableExternalField2D(1:3)  !< Bz (magnetic field in z-direction)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                  :: iPos,jPos                                     !< index in array (equidistant subdivision assumed)
+INTEGER                  :: iPos,jPos                                !< index in array (equidistant subdivision assumed)
 REAL                     :: r,delta,f(1:2),mat(2,2),dx(1:2),dy(1:2),vec(1:2)
 INTEGER                  :: idx1,idx2,idx3,idx4,i
 !===================================================================================================================================
@@ -467,13 +516,13 @@ ASSOCIATE(&
     InterpolateVariableExternalField2D = 0.
   ELSE
     ! 1.1
-    idx1 = (iPos-1)*VariableExternalField2DColumns + jPos
+    idx1 = (iPos-1)*VariableExternalFieldN(1) + jPos
     ! 2.1
-    idx2 = (iPos-1)*VariableExternalField2DColumns + jPos + 1
+    idx2 = (iPos-1)*VariableExternalFieldN(1) + jPos + 1
     ! 1.2
-    idx3 = iPos*VariableExternalField2DColumns + jPos
+    idx3 = iPos*VariableExternalFieldN(1) + jPos
     ! 2.2
-    idx4 = iPos*VariableExternalField2DColumns + jPos + 1
+    idx4 = iPos*VariableExternalFieldN(1) + jPos + 1
 
     ! Interpolate
     delta = DeltaExternalField(1)*DeltaExternalField(2)
@@ -505,6 +554,115 @@ ASSOCIATE(&
 END ASSOCIATE
 
 END FUNCTION InterpolateVariableExternalField2D
+
+
+PPURE FUNCTION InterpolateVariableExternalField3D(Pos)
+!===================================================================================================================================
+!> Interpolates the variable external field to the x-, y- and z-position via trilinear interpolation
+!>
+!>        1.2.2 ---------- 2.2.2
+!>         /|               /|
+!>        / |              / |
+!>       /  |             /  |
+!>      /   |            /   |
+!>   1.2.1 ---------- 2.2.1  |
+!>     |    |           |    |
+!>   y |  1.1.2 --------|- 2.1.2
+!>     |   /            |   /
+!>     |  /             |  /
+!>     | /              | / z
+!>     |/               |/
+!>   1.1.1 ---------- 2.1.1
+!>            x
+!>
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PICInterpolation_Vars ,ONLY: DeltaExternalField,VariableExternalField
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldN
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldMin,VariableExternalFieldMax
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)          :: Pos(1:3)                                 !< particle z-position
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                     :: InterpolateVariableExternalField3D(1:3)  !< Magnetic field B
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                  :: iPos,jPos,kPos                           !< index in array (equidistant subdivision assumed)
+REAL,dimension(3)        :: c0,c1,c00,c01,c10,c11
+INTEGER                  :: idx1,idx2,idx3,idx4,idx5,idx6,idx7,idx8,Nxy
+REAL                     :: xd,yd,zd
+!===================================================================================================================================
+ASSOCIATE(&
+      x  => Pos(1) ,&
+      y  => Pos(2) ,&
+      z  => Pos(3) ,&
+      Nx => VariableExternalFieldN(1)  ,&
+      Ny => VariableExternalFieldN(2)  ,&
+      Nz => VariableExternalFieldN(3)   &
+      )
+  iPos = INT((x-VariableExternalField(1,1))/DeltaExternalField(1)) ! 0 to Nx-1
+  jPos = INT((y-VariableExternalField(2,1))/DeltaExternalField(2)) ! 0 to Ny-1
+  kPos = INT((z-VariableExternalField(3,1))/DeltaExternalField(3)) ! 0 to Nz-1
+  Nxy  = Nx*Ny
+
+  ! Magnetic field outside of interpolation domain results in B=0
+  IF(x.GT.VariableExternalFieldMax(1))THEN
+    InterpolateVariableExternalField3D = 0.
+  ELSEIF(x.LT.VariableExternalFieldMin(1))THEN
+    InterpolateVariableExternalField3D = 0.
+  ELSEIF(y.GT.VariableExternalFieldMax(2))THEN
+    InterpolateVariableExternalField3D = 0.
+  ELSEIF(y.LT.VariableExternalFieldMin(2))THEN
+    InterpolateVariableExternalField3D = 0.
+  ELSEIF(z.GT.VariableExternalFieldMax(3))THEN
+    InterpolateVariableExternalField3D = 0.
+  ELSEIF(z.LT.VariableExternalFieldMin(3))THEN
+    InterpolateVariableExternalField3D = 0.
+  ELSE
+    ! Get corner node indices
+    ! 1.1.1
+    idx1 = iPos + jPos*Ny + kPos*Nxy + 1
+    ! 2.1.1
+    idx2 = idx1 + 1
+    ! 1.2.1
+    idx3 = idx1 + Ny ! iPos + (jPos+1)*Ny + kPos*Nxy +1
+    ! 2.2.1
+    idx4 = idx3 + 1
+
+    ! 1.1.2
+    idx5 = idx1 + Nxy
+    ! 2.1.2
+    idx6 = idx2 + Nxy
+    ! 1.2.2
+    idx7 = idx3 + Nxy
+    ! 2.2.2
+    idx8 = idx4 + Nxy
+
+    ! Deltas
+    xd = (x-VariableExternalField(1,idx1))/DeltaExternalField(1)
+    yd = (y-VariableExternalField(2,idx1))/DeltaExternalField(2)
+    zd = (z-VariableExternalField(3,idx1))/DeltaExternalField(3)
+
+    ! Interpolate in x
+    c00(1:3) = VariableExternalField(4:6,idx1)*(1.0-xd) + VariableExternalField(4:6,idx2)*xd
+    c01(1:3) = VariableExternalField(4:6,idx3)*(1.0-xd) + VariableExternalField(4:6,idx4)*xd
+    c10(1:3) = VariableExternalField(4:6,idx5)*(1.0-xd) + VariableExternalField(4:6,idx6)*xd
+    c11(1:3) = VariableExternalField(4:6,idx7)*(1.0-xd) + VariableExternalField(4:6,idx8)*xd
+
+    ! Interpolate in y: Note that c01 and c10 are switched
+    c0(1:3) = c00(1:3)*(1.0-yd) + c01(1:3)*yd
+    c1(1:3) = c10(1:3)*(1.0-yd) + c11(1:3)*yd
+
+    ! Interpolate in z
+    InterpolateVariableExternalField3D(1:3) = c0(1:3)*(1.0-zd) + c1(1:3)*zd
+  END IF ! r.GT.VariableExternalFieldMax(1)
+END ASSOCIATE
+
+END FUNCTION InterpolateVariableExternalField3D
 
 
 PPURE FUNCTION InterpolateAlgebraicExternalField(Pos)

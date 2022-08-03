@@ -87,7 +87,7 @@ CALL prms%CreateStringOption(  'BoundaryName',        "Names of boundary conditi
                                                       "For each BoundaryName a BoundaryType needs to be specified.",&
                                                       multiple=.TRUE.)
 CALL prms%CreateIntArrayOption('BoundaryType',        "Type of boundary conditions to be set. Format: (BC_TYPE,BC_STATE)",&
-                                                      multiple=.TRUE.)
+                                                      multiple=.TRUE., no=2)
 CALL prms%CreateLogicalOption( 'writePartitionInfo',  "Write information about MPI partitions into a file.",'.FALSE.')
 
 END SUBROUTINE DefineParametersMesh
@@ -195,7 +195,7 @@ ELSE
 END IF
 validMesh = ISVALIDMESHFILE(MeshFile)
 IF(.NOT.validMesh) &
-    CALL CollectiveStop(__STAMP__,'ERROR - Mesh file not a valid HDF5 mesh.')
+    CALL CollectiveStop(__STAMP__,'ERROR - Mesh file ['//TRIM(MeshFile)//'] is not a valid HDF5 mesh.')
 
 
 useCurveds=GETLOGICAL('useCurveds')

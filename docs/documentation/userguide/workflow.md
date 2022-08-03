@@ -14,7 +14,7 @@ The first set of options describe general CMake behaviour:
     * Profile: Performance profiling using gprof.
     * Debug: Debug compiler for detailed error messages during code development.
     * Sanitize: Sanitizer compiler for even more detailed error messages during code development.
-    * Nitro: Fast compiler option `-Ofast` for even more speed but due to the cost of accuracy.
+    * Nitro: Fast compiler option `-Ofast` for even more speed but at the cost of accuracy.
 
 * ``CMAKE_HOSTNAME``: This will display the host name of the machine you are compiling on.
 
@@ -26,7 +26,7 @@ For some external libraries and programs that **PICLas** uses, the following opt
 * ``CTAGS_PATH``: This variable specifies the Ctags install directory, an optional program used to jump between tags in the source file.
 
 * ``LIBS_BUILD_HDF5``: This will be set to ON if no pre-built HDF5 installation was found on your machine. In this case a HDF5 version
-will be build and used instead. For a detailed description of the installation of HDF5, please refer to Section {ref}`sec:hdf5-installation`.
+will be built and used instead. For a detailed description of the installation of HDF5, please refer to Section {ref}`sec:hdf5-installation`.
 
 * ``HDF5_DIR``: If you want to use a pre-built HDF5 library that has been built using the CMake system, this directory should contain
 the CMake configuration file for HDF5 (optional).
@@ -40,17 +40,26 @@ the CMake configuration file for HDF5 (optional).
   output files into the VTK format
   * ``POSTI_USE_PARAVIEW``: Enables the compilation of the ParaView plugin, which enables the direct read-in of output files within ParaView
 
+* ``PICLAS_SHARED_MEMORY``: Split type for creating new communicators based on colors and keys (requires MPI 3 or higher).
+  Options with the prefix OMPI_ are specific to Open MPI.
+  * ``MPI_COMM_TYPE_SHARED``: creates one shared memory domain per physical node (default)
+  * ``OMPI_COMM_TYPE_CORE``:  creates one shared memory domain per MPI thread
+  * ``PICLAS_COMM_TYPE_NODE``: creates one shared memory domain per X numbers of MPI threads defined by ``PICLAS_SHARED_MEMORY_CORES``
+    * ``PICLAS_SHARED_MEMORY_CORES``: Number of MPI threads per virtual node (default is 2). Assumes that all MPI threads run on the
+      same physical node.
+
 (sec:solver-settings)=
 ## Solver settings
 
 Before setting up a simulation, the code must be compiled with the desired parameters. The most important compiler options to be set are:
 
-* ``PICLAS_TIMEDISCMETHOD``: Module selection
-    * Leapfrog: 
-    * Boris-Leapfrog: 
-    * RK3: 
-    * RK4: Time integration method Runge-Kutta 4th order in time
-    * RK14: 
+* ``PICLAS_TIMEDISCMETHOD``: Time integration method
+    * Leapfrog: 2nd order when only electric fields are relevant (poisson solver)
+    * Boris-Leapfrog: 2nd order for electric and magnetic fields (poisson solver)
+    * Higuera-Cary: 2nd order for electric and magnetic fields (poisson solver)
+    * RK3: Runge-Kutta 3rd order in time
+    * RK4: Runge-Kutta 4th order in time
+    * RK14: Low storage Runge-Kutta 4, 14 stages version - Niegemann et al 2012
     * DSMC: Direct Simulation Monte Carlo, Section {ref}`sec:DSMC`
     * RESERVOIR: Simplified DSMC module for single cell reservoir simulations
     * FP-Flow: Fokker-Planck-based collision operator, Section {ref}`sec:FP-Flow`
@@ -61,8 +70,8 @@ Before setting up a simulation, the code must be compiled with the desired param
 * ``PICLAS_POLYNOMIAL_DEGREE``: Defines the polynomial degree of the solution. The order of convergence follows as $N+1$. Each grid
 cell contains $(N+1)^3$ collocation points to represent the solution.
 * ``PICLAS_NODETYPE``: The nodal collocation points used during the simulation
-    * GAUSS:
-    * GAUSS-LOBATTO:
+    * GAUSS: Legendre-Gauss distributed nodes
+    * GAUSS-LOBATTO: Legendre-Gauss-Lobatto distributed nodes
 * ``PICLAS_INTKIND8``: Enables simulations with particle numbers above 2 147 483 647
 * ``PICLAS_READIN_CONSTANTS``: Enables user-defined natural constants for the speed of light *c0*, permittivity *eps* and
     permeability *mu* of vacuum,
@@ -117,7 +126,7 @@ The concept of the parameter file is described as followed:
 ~~~~~~~
     vector = (/1,2Pi,3Pi/)
 ~~~~~~~
-* The order of defined variables is with one exception irrelevant, except for the special case when redefining boundaries.
+* The order of defined variables is irrelevant, except for the special case when redefining boundaries.
 However, it is preferable to group similar variables together.
 
 The options and underlying models are discussed in Chapter {ref}`userguide/features-and-models/index:Features & Models`, while the available 

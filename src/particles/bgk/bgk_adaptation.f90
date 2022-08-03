@@ -39,6 +39,9 @@ SUBROUTINE BGK_octree_adapt(iElem)
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: PEM, PartPosRef,Species,WriteMacroVolumeValues, usevMPF, LastPartPos
+#if PP_TimeDiscMethod==300
+USE MOD_Particle_Vars           ,ONLY: PartState
+#endif /*PP_TimeDiscMethod==300*/
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens
@@ -117,8 +120,12 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
     END DO
   ELSE ! position in reference space [-1,1] has to be computed
     DO iLoop = 1, nPart
-!      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(1:3,iLoop),GlobalElemID)
+#if PP_TimeDiscMethod==300
+      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(1:3,iLoop),GlobalElemID)
+#else
+      ! Attention: LastPartPos is the reference position here
       TreeNode%MappedPartStates(1:3,iLoop)=LastPartPos(1:3,TreeNode%iPartIndx_Node(iLoop))
+#endif /*PP_TimeDiscMethod==300*/
     END DO
   END IF ! TrackingMethod.EQ.REFMAPPING
   TreeNode%NodeDepth = 1
@@ -515,7 +522,7 @@ SUBROUTINE BGK_quadtree_adapt(iElem)
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_DSMC_ParticlePairing    ,ONLY: GeoCoordToMap2D
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, Species,WriteMacroVolumeValues, usevMPF
+USE MOD_Particle_Vars           ,ONLY: PEM, Species,WriteMacroVolumeValues, usevMPF
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens!,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength
 USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
@@ -527,6 +534,11 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+#if PP_TimeDiscMethod==300
+USE MOD_Particle_Vars           ,ONLY: PartState
+#else
+USE MOD_Particle_Vars           ,ONLY: LastPartPos
+#endif /*PP_TimeDiscMethod==300*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -586,7 +598,12 @@ IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
   TreeNode%PNum_Node = nPart
   iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
   DO iLoop = 1, nPart
+#if PP_TimeDiscMethod==300
     CALL GeoCoordToMap2D(PartState(1:2,iPart), TreeNode%MappedPartStates(1:2,iLoop), iElem)
+#else
+    ! Attention: LastPartPos is the reference position here
+    TreeNode%MappedPartStates(1:2,iLoop)=LastPartPos(1:2,iPart)
+#endif /*PP_TimeDiscMethod==300*/
     iPart = PEM%pNext(iPart)
   END DO
   TreeNode%NodeDepth = 1

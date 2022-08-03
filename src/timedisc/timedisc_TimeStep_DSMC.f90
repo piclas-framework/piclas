@@ -59,6 +59,8 @@ USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIP
 USE MOD_LoadBalance_Timers       ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
+USE MOD_DSMC_ParticlePairing     ,ONLY: GeoCoordToMap2D
+USE MOD_Eval_xyz                 ,ONLY: GetPositionInRefElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -131,7 +133,7 @@ DO iPart=1,PDM%ParticleVecLength
         IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
           NewYVelo = (AmbipolElecVelo(iPart)%ElecVelo(2)*(PartState(2,iPart))+AmbipolElecVelo(iPart)%ElecVelo(3)*PartState(3,iPart))/NewYPart
           AmbipolElecVelo(iPart)%ElecVelo(3)= (-AmbipolElecVelo(iPart)%ElecVelo(2)*PartState(3,iPart) &
-            + AmbipolElecVelo(iPart)%ElecVelo(3)*(PartState(2,iPart)))/NewYPart         
+            + AmbipolElecVelo(iPart)%ElecVelo(3)*(PartState(2,iPart)))/NewYPart
           AmbipolElecVelo(iPart)%ElecVelo(2) = NewYVelo
         END IF
       END IF
@@ -206,10 +208,27 @@ ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
   CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
 ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
          PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
-  CALL abort(&
-  __STAMP__&
-  ,'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
+  ! gaps in PartState are not filled until next UNFP and array might overflow more easily!
+  CALL abort(__STAMP__,'maximum nbr of particles reached!')
 END IF
+IF(DSMC%UseOctree)THEN
+  ! Case Symmetry%Order=1 is performed in DSMC main
+  IF(Symmetry%Order.EQ.2)THEN
+    DO iPart=1,PDM%ParticleVecLength
+      IF (PDM%ParticleInside(iPart)) THEN
+        ! Store reference position in LastPartPos array to reduce memory demand
+        CALL GeoCoordToMap2D(PartState(1:2,iPart), LastPartPos(1:2,iPart), PEM%LocalElemID(iPart))
+      END IF
+    END DO
+  ELSEIF(Symmetry%Order.EQ.3) THEN
+    DO iPart=1,PDM%ParticleVecLength
+      IF (PDM%ParticleInside(iPart)) THEN
+        ! Store reference position in LastPartPos array to reduce memory demand
+        CALL GetPositionInRefElem(PartState(1:3,iPart),LastPartPos(1:3,iPart),PEM%GlobalElemID(iPart))
+      END IF
+    END DO
+  END IF ! Symmetry%Order.EQ.2
+END IF ! DSMC%UseOctree
 
 IF(UseRotRefFrame) THEN
   DO iPart = 1,PDM%ParticleVecLength

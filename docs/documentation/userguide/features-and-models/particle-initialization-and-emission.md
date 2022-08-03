@@ -294,6 +294,21 @@ given below
     Part-Species1-Surfaceflux1-TempVib=300.
     Part-Species1-Surfaceflux1-TempElec=300.
 
+### Emission Current & Mass Flow
+
+Instead of the particle number density `PartDensity`, an emission current $I$ [A] (e.g. to model a thermionic emission) or a mass
+flow $\dot{m}$ [kg/s] (e.g. to model outgassing) can be given:
+
+    Part-Species1-Surfaceflux1-EmissionCurrent=2
+    ! or
+    Part-Species1-Surfaceflux1-Massflow=1e-11
+
+In this case, the number of simulation particles to be inserted each time step $\Delta t$ is determined directly from the rate. The
+emission current only allows charged species and determines the number of particles according to the charge.
+The velocity magnitude can be zero (per default) or a defined value (through `VeloIC` and `VeloVecIC`). The respective boundary can
+be `open` or `reflective`. An example can be found in the regression test `regressioncheck/CHE_DSMC/SurfFlux_Tria_CurrentMassflow`
+For subsonic boundary conditions, where the velocity at the boundary is unknown, refer to Section {ref}`sec:particle-emission-adaptive`.
+
 ### Circular Inflow
 
 The emission of particles from a surface flux can be limited to the area within a circle or a ring. The respective boundary has to
@@ -321,10 +336,10 @@ The absolute coordinates are defined as follows for the respective normal direct
 |      y (=2)      |    (z,x)    |
 |      z (=3)      |    (x,y)    |
 
-Multiple circular inflows can be defined on a single boundary through multiple surface fluxes, e.g. to enable the simulation of
-multiple inlets on a chamber wall.
+Multiple circular inflows can be defined on a single boundary through multiple surface fluxes, e.g. to enable the simulation of multiple inlets on a chamber wall. Circular inflows are also supported with axisymmetric simulations, under the assumptions that the chosen surface is in the yz-plane (and thus has a normal direction in x) and the minimal and maximum radii are in the positive y-direction.
 
-### Adaptive Boundaries
+(sec:particle-emission-adaptive)=
+### Adaptive/Subsonic Boundaries
 
 Different adaptive boundaries can be defined as a part of a surface flux to model subsonic in- and outflows, where the emission is
 adapted based on the prevalent conditions at the boundary. The modelling is based on the publications by {cite}`Farbar2014` and {cite}`Lei2017`.
@@ -381,15 +396,17 @@ simulation is then determined by
 $$\dot{m} = \frac{QM}{1000RT},$$
 
 where $R=8.314$ J mol$^{-1}$K$^{-1}$ is the gas constant, $M$ the molar mass in [g mol$^{-1}$] and $T$ is the gas temperature [K].
+It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 
-To verify the resulting mass flow rate of an adaptive surface flux, the following option can be enabled
+### Verification
 
-    CalcAdaptiveBCInfo = T
+To verify the resulting current [A], mass flow rate [kg s$^{-1}$] or the pressure at an adaptive surface flux [Pa], the following option can be enabled
 
-This will output a species-specific mass flow rate [kg s$^{-1}$] and the average pressure in the adjacent cells [Pa] for each
-surface flux condition in the `PartAnalyze.csv`, which gives the current values for the time step. For the former, positive values
-correspond to a net mass flux into the domain and negative values vice versa. It should be noted that while multiple adaptive
-boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
+    CalcSurfFluxInfo = T
+
+This will output a species-specific rate and/or the average pressure in the adjacent cells (in case of an adaptive/subsonic BC)
+for each surface flux condition in the `PartAnalyze.csv`. It gives the current values for the time step. For the former, positive values
+correspond to a net flux into the domain and negative values vice versa.
 
 ### Missing descriptions
 

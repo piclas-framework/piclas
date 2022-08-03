@@ -197,6 +197,8 @@ TYPE tInit                                                                   ! P
   INTEGER                            :: sumOfMatchedParticles    ! Sum of matched particles on all procs
   INTEGER                            :: sumOfRequestedParticles  ! Sum of requested particles on all procs
   INTEGER                            :: mySumOfMatchedParticles  ! Sum of matched particles on current proc
+!=== Background gas regions
+  INTEGER                            :: BGGRegion         ! Region number to be used for the species init
 END TYPE tInit
 
 TYPE tSurfFluxSubSideData
@@ -217,6 +219,10 @@ TYPE typeSurfaceflux
   REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
   REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3)
+  REAL                                   :: EmissionCurrent                  ! Current [A] (if defined replaces PartDensity)
+  REAL                                   :: Massflow                         ! Mass flow [kg/s] (if defined replaces PartDensity)
+  LOGICAL                                :: UseEmissionCurrent               ! Flag whether the emission current is used
+  LOGICAL                                :: UseMassflow                      ! Flag whether the mass flow definition is used
   LOGICAL                                :: VeloIsNormal                     ! VeloIC is in Surf-Normal instead of VeloVecIC
   LOGICAL                                :: ReduceNoise                      ! reduce stat. noise by global calc. of PartIns
   LOGICAL                                :: AcceptReject                     ! perform ARM for skewness of RefMap-positioning
@@ -227,8 +233,6 @@ TYPE typeSurfaceflux
   REAL                                   :: totalAreaSF                      ! Total area of the respective surface flux
   INTEGER(KIND=8)                        :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                        :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
-  INTEGER(KIND=8)                        :: tmpInsertedParticle              ! tmp Number of all already inserted Particles
-  INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus       ! tmp accumulated "negative" number of inserted Particles
   TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)      ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)
   LOGICAL                                :: CircularInflow                   ! Circular region, which can be used to define small
                                                                              ! geometry features on large boundaries
@@ -341,6 +345,7 @@ INTEGER                                  :: MacroValSamplIterNum              ! 
 
 INTEGER, ALLOCATABLE                     :: vMPFMergeThreshold(:)             ! Max particle number per cell and (iSpec)
 INTEGER, ALLOCATABLE                     :: vMPFSplitThreshold(:)             ! Min particle number per cell and (iSpec)
+REAL                                     :: vMPFSplitLimit                    ! Do not split particles below this MPF threshold
 LOGICAL                                  :: UseSplitAndMerge                  ! Flag for particle merge
 REAL, ALLOCATABLE                        :: CellEelec_vMPF(:,:)
 REAL, ALLOCATABLE                        :: CellEvib_vMPF(:,:)

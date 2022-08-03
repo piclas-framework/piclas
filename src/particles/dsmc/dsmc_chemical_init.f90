@@ -49,7 +49,7 @@ CALL prms%CreateIntOption(      'DSMC-Reaction[$]-NumberOfNonReactives', &
                                           '0', numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-NonReactiveSpecies'  &
                                            ,'Array with the non-reactive collision partners for dissociation' &
-                                           ,numberedmulti=.TRUE.)
+                                           ,numberedmulti=.TRUE., no=0)
 CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactionModel'  &
                                            ,'Used reaction model\n'//&
                                             'TCE: Total Collision Energy\n'//&
@@ -61,9 +61,9 @@ CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Reactants'  &
                                            ,'Reactants of Reaction[$]\n'//&
                                             '(SpecNumOfReactant1,\n'//&
                                             'SpecNumOfReactant2,\n'//&
-                                            'SpecNumOfReactant3)', numberedmulti=.TRUE.)
+                                            'SpecNumOfReactant3)', numberedmulti=.TRUE.,no=3)
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Products'  &
-                                        ,'Products of Reaction[j] (Product1, Product2, Product3, Product 4)',numberedmulti=.TRUE.)
+                                        ,'Products of Reaction[j] (Product1, Product2, Product3, Product 4)',numberedmulti=.TRUE., no=4)
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-Arrhenius-Prefactor', &
                                     'Prefactor A of the extended Arrhenius equation, k = A * T^b * EXP(-E_a/T), '//&
                                     'Units: 1/s, m3/s, m6/s (depending on the type of the reaction)', '0.' , numberedmulti=.TRUE.)
@@ -99,7 +99,7 @@ CALL prms%CreateStringOption(     'DSMC-Reaction[$]-TLU_FileName'  &
 CALL prms%CreateIntOption(      'Particles-Chemistry-NumDeleteProducts','Number of species, which should be deleted if they are '//&
                                 'a product of chemical reactions', '0')
 CALL prms%CreateIntArrayOption( 'Particles-Chemistry-DeleteProductsList','List of the species indices to be deleted if they are '//&
-                                'a product of chemical reactions')
+                                'a product of chemical reactions', no=0)
 
 CALL prms%CreateRealOption(     'DSMC-Reaction[$]-CrossSection', &
                                 'Photon-ionization cross-section for the reaction type phIon', numberedmulti=.TRUE.)
@@ -743,7 +743,8 @@ DO iReacForward = 1, ChemReac%NumOfReactWOBackward
       'Other reaction types than I and D are not implemented with the automatic backward rate determination, Reaction:', iReac)
     END IF
   ELSE
-    IF(TRIM(ChemReac%ReactType(iReacForward)).EQ.'D') THEN
+    IF((TRIM(ChemReac%ReactType(iReacForward)).EQ.'I').OR.&
+        (TRIM(ChemReac%ReactType(iReacForward)).EQ.'D'  )) THEN
       ! Analogous to the I case
       ChemReac%ReactType(iReac) = 'R'
       ChemReac%ReactModel(iReac) = 'TCE'

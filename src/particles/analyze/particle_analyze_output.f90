@@ -46,7 +46,6 @@ USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime
 USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
 USE MOD_Globals_Vars          ,ONLY: c2_inv
-#endif
 #if USE_MPI
 USE MOD_Globals               ,ONLY: MPIRoot
 #endif /*USE_MPI*/
@@ -60,11 +59,7 @@ INTEGER(KIND=8),INTENT(IN)       :: iter
 CHARACTER(LEN=20),PARAMETER              :: outfile='ParticlePosition.csv'
 INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=150)                       :: formatStr
-#if defined(LSERK) || defined(IMPA) || defined(ROS)
 INTEGER,PARAMETER                        :: nOutputVar=10
-#else
-INTEGER,PARAMETER                        :: nOutputVar=9
-#endif
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     '001-time',     &
     'PartNum',  &
@@ -74,9 +69,7 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'PartVelX', &
     'PartVelY', &
     'PartVelZ', &
-#if defined(LSERK) || defined(IMPA) || defined(ROS)
     'gamma',    &
-#endif
     'Element'/)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
 CHARACTER(LEN=1000)                      :: tmpStr2
@@ -84,6 +77,7 @@ CHARACTER(LEN=1),PARAMETER               :: delimiter=","
 LOGICAL                                  :: FileExist,CreateFile
 REAL                                     :: diffPos,diffVelo
 INTEGER                                  :: iPartState
+REAL                                     :: gamma1
 !===================================================================================================================================
 ! only the root shall write this file
 !IF(.NOT.MPIRoot)RETURN
@@ -129,19 +123,27 @@ IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
   WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
   DO i=1,PDM%ParticleVecLength
+
+    ! Calculate Lorentz factor
+    gamma1 = DOTPRODUCT(PartState(4:6,i))*c2_inv
+    ! Sanity check: Lorentz factor must be below 1.0
+    IF(gamma1.GE.1.0)THEN
+      gamma1=-1.0
+    ELSE
+      gamma1=1.0/SQRT(1.-gamma1)
+    END IF
+
     IF (PDM%ParticleInside(i)) THEN
       WRITE(tmpStr2,formatStr)&
-          " ",time, &                                                                     ! time
-          delimiter,REAL(i), &                                                            ! PartNum
-          delimiter,PartState(1,i), &                                                     ! PartPosX
-          delimiter,PartState(2,i), &                                                     ! PartPosY
-          delimiter,PartState(3,i), &                                                     ! PartPosZ
-          delimiter,PartState(4,i), &                                                     ! PartVelX
-          delimiter,PartState(5,i), &                                                     ! PartVelY
-          delimiter,PartState(6,i), &                                                     ! PartVelZ
-#if defined(LSERK) || defined(IMPA) || defined(ROS)
-          delimiter,1./SQRT(1-(DOTPRODUCT(PartState(4:6,i))*c2_inv)), & ! gamma
-#endif
+          " ",time, &                 ! time
+          delimiter,REAL(i), &        ! PartNum
+          delimiter,PartState(1,i), & ! PartPosX
+          delimiter,PartState(2,i), & ! PartPosY
+          delimiter,PartState(3,i), & ! PartPosZ
+          delimiter,PartState(4,i), & ! PartVelX
+          delimiter,PartState(5,i), & ! PartVelY
+          delimiter,PartState(6,i), & ! PartVelZ
+          delimiter,        gamma1, & ! gamma
           delimiter,REAL(PEM%GlobalElemID(i))                                                  ! Element
       WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
     END IF

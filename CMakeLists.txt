@@ -21,23 +21,25 @@ ENDIF()
 # =========================================================================
 # Setup git hooks
 SET(PRECOMMIT_FILE ".githooks/pre-commit")
-# Check if the symlink exists, and create otherwise
+# Check if the pre-commit hooks exits
 IF (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
+  # Create otherwise
+  EXECUTE_PROCESS(COMMAND mkdir -p ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks)
   EXECUTE_PROCESS(COMMAND ln -s ${CMAKE_CURRENT_SOURCE_DIR}/${PRECOMMIT_FILE} ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
-# Check if the symlink already points to the correct location
 ELSE()
-  EXECUTE_PROCESS(COMMAND readlink ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit COMMAND rev COMMAND cut -d "/" -f1,2 COMMAND rev OUTPUT_VARIABLE PRECOMMIT_LINK OUTPUT_STRIP_TRAILING_WHITESPACE)
-  IF (NOT ${PRECOMMIT_LINK} MATCHES ${PRECOMMIT_FILE})
-    MESSAGE (WARNING "Custom pre-commit hook detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
+  # Check if the hook is the correct symlink and warn otherwise
+  EXECUTE_PROCESS(COMMAND readlink ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit OUTPUT_VARIABLE PRECOMMIT_LINK OUTPUT_STRIP_TRAILING_WHITESPACE)
+  IF (NOT ${PRECOMMIT_LINK} MATCHES "${CMAKE_CURRENT_SOURCE_DIR}/${PRECOMMIT_FILE}")
+    MESSAGE (WARNING "Custom git pre-commit hook detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
   ENDIF()
 ENDIF()
 
 # Check if the hook actually gets loaded
 EXECUTE_PROCESS(COMMAND git config --get core.hooksPath OUTPUT_VARIABLE HOOKSPATH OUTPUT_STRIP_TRAILING_WHITESPACE)
-IF (DEFINED HOOKSPATH  AND NOT "${HOOKSPATH}" STREQUAL "")
+IF (DEFINED HOOKSPATH  AND NOT "${HOOKSPATH}" STREQUAL "" AND NOT "${HOOKSPATH}" STREQUAL ".git/hooks")
   # STRING(ASCII 27 ESCAPE)
   # MESSAGE (STATUS "${ESCAPE}[34mCustom hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.${ESCAPE}[0m")
-  MESSAGE (WARNING "Custom hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
+  MESSAGE (WARNING "Custom git hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
 ENDIF()
 
 # =========================================================================
@@ -55,6 +57,34 @@ INCLUDE(CMakeDependentOption)
 # Performance mode
 # =========================================================================
 OPTION(PICLAS_PERFORMANCE "Enable performance optimizations (e.g. PGO for GNU)" OFF)
+
+# =========================================================================
+# Check gold support
+# =========================================================================
+EXECUTE_PROCESS(COMMAND ld.gold --version COMMAND grep "^GNU gold" COMMAND sed "s/^.* //g" OUTPUT_VARIABLE GNU_GOLD_VERSION)
+IF (DEFINED GNU_GOLD_VERSION  AND NOT "${GNU_GOLD_VERSION}" STREQUAL "")
+  STRING(STRIP "${GNU_GOLD_VERSION}" GNU_GOLD_VERSION)
+  MESSAGE(STATUS "Setting linker to [gold] (v${GNU_GOLD_VERSION})")
+  # Shift responsibility of driving the final stages of compilation from collect2 to gold via the linker plugin
+  # More information at: https://gcc.gnu.org/wiki/LinkTimeOptimization
+  IF(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
+    ADD_LINK_OPTIONS("-fuse-ld=gold")
+    # Make it abundantly clear we want to use gold
+    FIND_PROGRAM(CMAKE_GOLD_LINKER NAMES ${_CMAKE_TOOLCHAIN_PREFIX}ld.gold${_CMAKE_TOOLCHAIN_SUFFIX} HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
+    SET (CMAKE_LINKER "${CMAKE_GOLD_LINKER}" CACHE FILEPATH "" FORCE)
+    MARK_AS_ADVANCED(FORCE CMAKE_GOLD_LINKER)
+  ELSE()
+    SET (CMAKE_EXE_LINKER_FLAGS    "${CMAKE_EXE_LINKER_FLAGS}    -fuse-ld=gold")
+    SET (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fuse-ld=gold")
+    # This currently breaks ar (binutils archiver)
+    # SET (CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} -fuse-ld=gold")
+    SET (CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -fuse-ld=gold")
+    # Make it abundantly clear we want to use gold
+    FIND_PROGRAM(CMAKE_GOLD_LINKER NAMES ${_CMAKE_TOOLCHAIN_PREFIX}ld.gold${_CMAKE_TOOLCHAIN_SUFFIX} HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
+    SET (CMAKE_LINKER "${CMAKE_GOLD_LINKER}" CACHE FILEPATH "" FORCE)
+    MARK_AS_ADVANCED(FORCE CMAKE_GOLD_LINKER)
+  ENDIF()
+ENDIF()
 
 # =========================================================================
 # code development
@@ -94,23 +124,11 @@ SET(IPO_CMAKE_MINIMUM "3.9.0")
 IF(NOT(${CMAKE_VERSION} VERSION_LESS ${IPO_CMAKE_MINIMUM}))
   CMAKE_POLICY(SET CMP0069 NEW)
   INCLUDE(CheckIPOSupported)
-  check_ipo_supported(RESULT HASIPO OUTPUT error)
+  CHECK_IPO_SUPPORTED(RESULT HASIPO OUTPUT error)
   CMAKE_DEPENDENT_OPTION(PICLAS_IPO "Activate Interprocedural optimization (IPO)" ON "HASIPO" OFF)
 ELSE()
   MESSAGE(STATUS "Interprocedural optimization (IPO) not supported with this cmake version ${CMAKE_VERSION}, requires at least ${IPO_CMAKE_MINIMUM}")
   SET(PICLAS_IPO FALSE)
-ENDIF()
-
-# =========================================================================
-# Check gold support
-# =========================================================================
-EXECUTE_PROCESS(COMMAND ld.gold --version COMMAND grep "^GNU gold" COMMAND sed "s/^.* //g" OUTPUT_VARIABLE GNU_GOLD_VERSION)
-IF (DEFINED GNU_GOLD_VERSION  AND NOT "${GNU_GOLD_VERSION}" STREQUAL "")
-  STRING(STRIP "${GNU_GOLD_VERSION}" GNU_GOLD_VERSION)
-  MESSAGE(STATUS "Setting linker to gold v${GNU_GOLD_VERSION}")
-  # Shift responsibility of driving the final stages of compilation from collect2 to gold via the linker plugin
-  # More information at: https://gcc.gnu.org/wiki/LinkTimeOptimization
-  SET (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=gold")
 ENDIF()
 
 # =========================================================================
@@ -155,6 +173,10 @@ ELSE()
       FIND_PROGRAM(CMAKE_GCC_AR     NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-ar${_CMAKE_TOOLCHAIN_SUFFIX} HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
       FIND_PROGRAM(CMAKE_GCC_NM     NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-nm                           HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
       FIND_PROGRAM(CMAKE_GCC_RANLIB NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-ranlib                       HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
+      MARK_AS_ADVANCED(FORCE CMAKE_GCC_AR)
+      MARK_AS_ADVANCED(FORCE CMAKE_GCC_NM)
+      MARK_AS_ADVANCED(FORCE CMAKE_GCC_RANLIB)
+      # Do not use the standard CMake LTO option for GNU (-flto -fno-fat-lto-objects), as it does not allow speed-up during linking
       IF(CMAKE_GCC_AR AND CMAKE_GCC_NM AND CMAKE_GCC_RANLIB)
         # Static libraries require either fat LTO objects (increases compilation time) or the use of linker plugins (per default enabled); the jobserver option reduces linking time
         # More information at: https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#Optimize-Options
@@ -186,9 +208,11 @@ ENDIF()
 # =========================================================================
 # Location of binary and filenames
 # =========================================================================
-
 # append relative filename-macro for __FILENAME__ in Stamp of abort function (see piclas.h)
-SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__FILENAME__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
+# subst replacement is GNU make specific
+IF("${CMAKE_GENERATOR}" MATCHES "Unix Makefiles")
+  SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__FILENAME__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
+ENDIF()
 
 # add basedir for location of corresponding userblock-file
 ADD_DEFINITIONS("-DBASEDIR='\"${CMAKE_CURRENT_BINARY_DIR}/\"'")
@@ -206,7 +230,6 @@ ADD_CUSTOM_TARGET(preproc_defines COMMAND echo ${comp_defs_str})
 # =========================================================================
 # USERBLOCK + Preproc_flags
 # =========================================================================
-
 # A function to get all user defined variables with a specified prefix
 function (getListOfVarsStartingWith _prefix _varResult)
     GET_CMAKE_PROPERTY(_vars CACHE_VARIABLES)
@@ -268,7 +291,8 @@ MESSAGE(STATUS "Running: generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY} 
 #ADD_CUSTOM_COMMAND(TARGET libpiclasstatic PRE_BUILD COMMAND
   #sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CACHEFILE_DIR} "${CMAKE_CACHE_MAJOR_VERSION}.${CMAKE_CACHE_MINOR_VERSION}.${CMAKE_CACHE_PATCH_VERSION}" "${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals_vars.f90")
 ADD_CUSTOM_COMMAND(TARGET libpiclasstatic PRE_BUILD COMMAND
-  sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_VERSION} "${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals_vars.f90")
+  sh ${CMAKE_CURRENT_SOURCE_DIR}/tools/userblock/generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_VERSION} "${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals_vars.f90"
+  BYPRODUCTS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o)
 
 # =========================================================================
 # generate .piclas in $HOME

@@ -213,7 +213,7 @@ Variable particle weighting is currently supported with PIC and/or with a backgr
 
     Part-vMPF                           = T
 
-The split and merge algorithm is called at the end of every time step. In order to manipulate the number of particles per species per cell, merge and split thresholds can be defined as is shown in the folliwing. 
+The split and merge algorithm is called at the end of every time step. In order to manipulate the number of particles per species per cell, merge and split thresholds can be defined as is shown in the following. 
 
     Part-Species2-vMPFMergeThreshold    = 100
 
@@ -226,4 +226,13 @@ Internal degrees of freedom are conserved analogously. In the case of quantized 
 
     Part-Species2-vMPFSplitThreshold    = 10
 
-The split routine clones particles until the desired number of particles is reached. The algorithm randomly choses a particle, clones it and assigns the half weighting factor to both particles. If the resulting weighting factor would drop below unity, the split is stopped and the desired number of particles will not be reached. The basic functionality of both routines is verified during the nightly regression testing in `piclas/regressioncheck/NIG_code_analyze/vMPF_SplitAndMerge_Reservoir`.
+The split routine clones particles until the desired number of particles is reached.
+The algorithm randomly chooses a particle, clones it and assigns the half weighting factor to both particles.
+If the resulting weighting factor would drop below a specific limit that is defined by
+
+    Part-vMPFSplitLimit = 1.0 ! default value is 1
+
+the split is stopped and the desired number of particles will not be reached.
+The basic functionality of both routines is verified during the nightly regression testing in `piclas/regressioncheck/NIG_code_analyze/vMPF_SplitAndMerge_Reservoir`.
+
+
