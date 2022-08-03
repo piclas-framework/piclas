@@ -44,7 +44,6 @@ USE MOD_Globals               ,ONLY: abort
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PEM
 USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime
 USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
-#if defined(LSERK) || defined(IMPA) || defined(ROS)
 USE MOD_Globals_Vars          ,ONLY: c2_inv
 #if USE_MPI
 USE MOD_Globals               ,ONLY: MPIRoot
