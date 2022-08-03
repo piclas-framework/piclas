@@ -49,6 +49,7 @@ CALL prms%SetSection("LoadBalance")
 
 #if USE_LOADBALANCE
 CALL prms%CreateLogicalOption('DoLoadBalance'           , 'Set flag for doing dynamic LoadBalance.', '.FALSE.')
+CALL prms%CreateLogicalOption('UseH5IOLoadBalance'      , 'Use hdf5 IO for dynamic load balancing instead of MPI_ALLGATHERV', '.FALSE.')
 CALL prms%CreateIntOption(    'LoadBalanceSample'       , 'Define number of iterations (before Analyze_dt)'//&
                                                           ' that are used for calculation of elemtime information', value='1')
 CALL prms%CreateIntOption(    'LoadBalanceMaxSteps'     , 'Define number of maximum load balacing steps that are allowed.', value='1')
@@ -88,6 +89,7 @@ USE MOD_ReadInTools      ,ONLY: PrintOption
 #if defined(PARTICLES)
 USE MOD_LoadBalance_Vars ,ONLY: MPInElemSend,MPIoffsetElemSend,MPInElemRecv,MPIoffsetElemRecv
 #endif /*defined(PARTICLES)*/
+USE MOD_LoadBalance_Vars ,ONLY: MPInSideSend,MPIoffsetSideSend,MPInSideRecv,MPIoffsetSideRecv
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -112,14 +114,16 @@ IF (ParticleMPIWeight.LT.0.0) THEN
 END IF
 #endif /*PARTICLES*/
 
+UseH5IOLoadBalance=.FALSE. ! Default
 #if USE_LOADBALANCE
 IF(nProcessors.EQ.1)THEN
   DoLoadBalance=.FALSE. ! deactivate loadbalance for single computations
   CALL PrintOption('No LoadBalance (nProcessors=1): DoLoadBalance','INFO',LogOpt=DoLoadBalance)
   DeviationThreshold=HUGE(1.0)
 ELSE
-  DoLoadBalance       = GETLOGICAL('DoLoadBalance','F')
-  DeviationThreshold  = GETREAL('Load-DeviationThreshold','0.10')
+  DoLoadBalance       = GETLOGICAL('DoLoadBalance')
+  DeviationThreshold  = GETREAL('Load-DeviationThreshold')
+  UseH5IOLoadBalance  = GETLOGICAL('UseH5IOLoadBalance')
 END IF
 LoadBalanceSample   = GETINT('LoadBalanceSample')
 LoadBalanceMaxSteps = GETINT('LoadBalanceMaxSteps')
@@ -149,9 +153,12 @@ ALLOCATE(tCurrent(1:LB_NTIMES))
 tCurrent=0.
 
 #if defined(PARTICLES)
-ALLOCATE(MPInElemSend(nProcessors),MPIoffsetElemSend(nProcessors),MPInElemRecv(nProcessors),MPIoffsetElemRecv(nProcessors))
-ALLOCATE(MPInPartSend(nProcessors),MPIoffsetPartSend(nProcessors),MPInPartRecv(nProcessors),MPIoffsetPartRecv(nProcessors))
+IF(.NOT.UseH5IOLoadBalance)THEN
+  ALLOCATE(MPInElemSend(nProcessors),MPIoffsetElemSend(nProcessors),MPInElemRecv(nProcessors),MPIoffsetElemRecv(nProcessors))
+  ALLOCATE(MPInPartSend(nProcessors),MPIoffsetPartSend(nProcessors),MPInPartRecv(nProcessors),MPIoffsetPartRecv(nProcessors))
+END IF ! .NOT.UseH5IOLoadBalance
 #endif /*defined(PARTICLES)*/
+ALLOCATE(MPInSideSend(nProcessors),MPIoffsetSideSend(nProcessors),MPInSideRecv(nProcessors),MPIoffsetSideRecv(nProcessors))
 #endif /*USE_LOADBALANCE*/
 
 InitLoadBalanceIsDone=.TRUE.

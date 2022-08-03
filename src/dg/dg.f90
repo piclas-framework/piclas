@@ -611,7 +611,7 @@ SUBROUTINE FinalizeDG()
 ! MODULES
 USE MOD_DG_Vars
 #if USE_LOADBALANCE && !(USE_HDG)
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -642,11 +642,11 @@ SDEALLOCATE(Flux_loc)
 
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE && !(USE_HDG)
-IF(.NOT.PerformLoadBalance)THEN
+IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
   SDEALLOCATE(U)
 #if USE_LOADBALANCE && !(USE_HDG)
-END IF ! PerformLoadBalance
+END IF
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
 
 DGInitIsDone = .FALSE.

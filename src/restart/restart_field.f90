@@ -43,7 +43,7 @@ SUBROUTINE FieldRestart()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars                ,ONLY: U
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 USE MOD_Restart_Vars           ,ONLY: N_Restart,RestartFile,InterpolateSolution,RestartNullifySolution
@@ -70,6 +70,14 @@ USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE
 USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide
+USE MOD_HDG_Vars               ,ONLY: lambdaLB
+USE MOD_LoadBalance_Vars       ,ONLY: MPInSideSend,MPInSideRecv,MPIoffsetSideSend,MPIoffsetSideRecv
+USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
+#endif /*USE_LOADBALANCE*/
+!USE MOD_HDG                    ,ONLY: HDG
 #else /*USE_HDG*/
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
@@ -91,6 +99,11 @@ REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
 INTEGER                            :: p,q,r,rr,pq(1:2)
 INTEGER                            :: iLocSide,iLocSide_NB,iLocSide_master
 INTEGER                            :: iMortar,MortarSideID,nMortars
+#if USE_LOADBALANCE
+REAL,ALLOCATABLE                   :: lambdaLBTmp(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
+INTEGER                            :: NonUniqueGlobalSideID
+!INTEGER           :: checkRank
+#endif /*USE_LOADBALANCE*/
 #else /*USE_HDG*/
 INTEGER                            :: iElem
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
@@ -98,12 +111,12 @@ REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
 INTEGER(KIND=IK)                   :: PMLnVarTmp
+#endif /*USE_HDG*/
 #if USE_LOADBALANCE
 ! Custom data type
 INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
-#endif /*USE_HDG*/
 !===================================================================================================================================
 
 ! ===========================================================================
@@ -111,9 +124,99 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 ! ===========================================================================
 
 #if USE_LOADBALANCE
-IF(PerformLoadBalance)THEN
+IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 #if USE_HDG
+  ! ------------------------------------------------
+  ! lambda
+  ! ------------------------------------------------
+
+#if defined(PARTICLES)
+  !checkRank=MIN(3,nProcessors-1)
+  ! Store lambda solution on global non-unique array for MPI communication
+  ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
+             lastSide  => ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem    + nElems) )
+         !IPWRITE(UNIT_StdOut,*) "firstSide:lastSide,Nbr,nSides =", firstSide,lastSide,lastSide-firstSide+1,nSides
+    ALLOCATE(lambdaLBTmp(PP_nVar,nGP_face,firstSide:lastSide))
+  END ASSOCIATE
+       !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+       !IPWRITE(UNIT_StdOut,*) "MPInSideSend,MPIoffsetSideSend,MPInSideRecv,MPIoffsetSideRecv =", MPInSideSend,MPIoffsetSideSend,MPInSideRecv,MPIoffsetSideRecv
+       !CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+
+  ASSOCIATE (&
+          counts_send  => (INT(MPInSideSend     )) ,&
+          disp_send    => (INT(MPIoffsetSideSend)) ,&
+          counts_recv  => (INT(MPInSideRecv     )) ,&
+          disp_recv    => (INT(MPIoffsetSideRecv)))
+    ! Communicate PartInt over MPI
+    MPI_LENGTH       = PP_nVar*nGP_face
+    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+    MPI_TYPE         = MPI_DOUBLE_PRECISION
+    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+    CALL MPI_ALLTOALLV(lambdaLB,counts_send,disp_send,MPI_STRUCT,lambdaLBTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+  END ASSOCIATE
+  DEALLOCATE(lambdaLB)
+
+  ! Loop over all sides and map the solution via the non-unique global side ID to the SideID (1 to nSides)
+  DO iSide = 1, nSides
+    IF(iSide.LE.lastMPISide_MINE)THEN
+      NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
+      iLocSide        = SideToElem(S2E_LOC_SIDE_ID    , iSide)
+      iLocSide_master = SideToElem(S2E_LOC_SIDE_ID    , iSide)
+      iLocSide_NB     = SideToElem(S2E_NB_LOC_SIDE_ID , iSide)
+
+      ! Small virtual mortar master side (blue) is encountered with MortarType(1,iSide) = 0
+      ! Blue (small mortar master) side writes as yellow (big mortar master) for consistency (you spin me right round baby right round)
+      IF(MortarType(1,iSide).EQ.0)THEN
+        ! check all my big mortar sides and find the one to which the small virtual is connected
+        ! check all yellow (big mortar) sides
+        Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+          nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+          ! loop over all blue sides (small mortar master)
+          DO iMortar=1,nMortars
+            SideID = MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
+            ! check if for "21,22,23" and find the "3"
+            ! iSide=21,22,23 is blue
+            ! SideID=3 is yellow
+            IF(iSide.EQ.SideID)THEN
+              iLocSide_master = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
+              IF(iLocSide_master.EQ.-1)THEN
+                CALL abort(__STAMP__,'This big mortar side must be master')
+              END IF !iLocSide.NE.-1
+              EXIT Check1
+            END IF ! iSide.EQ.SideID
+          END DO !iMortar
+        END DO Check1 !MortarSideID
+      END IF ! MortarType(1,iSide).EQ.0
+
+      ! Rotate data into correct orientation
+      DO q=0,PP_N
+        DO p=0,PP_N
+          pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_master)
+          r  = q    *(PP_N+1)+p    +1
+          rr = pq(2)*(PP_N+1)+pq(1)+1
+          lambda(:,r:r,iSide) = lambdaLBTmp(:,rr:rr,NonUniqueGlobalSideID)
+        END DO
+      END DO !p,q
+    END IF ! iSide.LE.lastMPISide_MINE
+  END DO
+
+  DEALLOCATE(lambdaLBTmp)
+
+#if USE_MPI
+  ! Exchange lambda MINE -> YOUR direction (as only the master sides have read the solution until now)
+  CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+  CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+#endif /*USE_MPI*/
+
+  CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+
+#else
+  ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
   lambda=0.
+#endif /*defined(PARTICLES)*/
+
 #else
   ! Only required for time discs where U is allocated
   IF(ALLOCATED(U))THEN
@@ -129,7 +232,6 @@ IF(PerformLoadBalance)THEN
       MPI_TYPE         = MPI_DOUBLE_PRECISION
       CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
       CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
-
       CALL MPI_ALLTOALLV(U,counts_send,disp_send,MPI_STRUCT,UTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
     END ASSOCIATE
 
@@ -200,7 +302,21 @@ ELSE ! normal restart
           ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,1:ExtendednSides))
           ExtendedLambda = HUGE(1.)
           lambda = HUGE(1.)
-          CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda)
+          ! WARGNING: Data read in overlapping mode, therefore ReadNonOverlap_opt=F
+          CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda&
+#if USE_MPI
+              ,ReadNonOverlap_opt=.FALSE.&
+#endif /*USE_MPI*/
+              )
+          !  IPWRITE(UNIT_StdOut,*) "nSides,lastMPISide_MINE,MinGlobalSideID,MaxGlobalSideID,ExtendedOffsetSide =",&
+          !                          nSides,lastMPISide_MINE,MinGlobalSideID,MaxGlobalSideID,ExtendedOffsetSide
+          !  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+          !  IF(myrank.eq.2)THEN
+          !    DO p = 1, ExtendednSides
+          !      IPWRITE(UNIT_StdOut,*) "ExtendedLambda(1,1,:) =", p,ExtendedLambda(:,:,p),SUM(ExtendedLambda(:,:,p))
+          !    END DO ! p = 1, ExtendednSides
+          !  END IF ! myrank.eq.2
+          !  IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
           DO iSide = 1, nSides
             IF(iSide.LE.lastMPISide_MINE)THEN
@@ -209,15 +325,26 @@ ELSE ! normal restart
               iLocSide_NB     = SideToElem(S2E_NB_LOC_SIDE_ID , iSide)
 
               ! Check real small mortar side (when the same proc has both the big an one or more small side connected elements)
-              IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.NE.-1) iLocSide_master = iLocSide_NB
+              ! blue side with orange also on same proc
+              !IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.NE.-1) iLocSide_master = iLocSide_NB
+              ! blue side found orange side
 
-              ! is small virtual mortar side is encountered and no NB iLocSid_mastere is given
-              IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
+              ! is small virtual mortar side is encountered and no NB iLocSide_master is given
+              ! blue but no orange side on same proc
+              ! find iLocSide of yellow (big mortar) and assign to blue
+              ! you spin me right round baby right round
+              !IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
+              IF(MortarType(1,iSide).EQ.0)THEN!.AND.iLocSide_NB.EQ.-1)THEN
                 ! check all my big mortar sides and find the one to which the small virtual is connected
+                ! check all yellow (big mortar) sides
                 Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
                   nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+                  ! loop over all blue sides (small mortar master)
                   DO iMortar=1,nMortars
-                    SideID= MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
+                    SideID = MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
+                    ! check if for "21,22,23" and find the "3"
+                    ! iSide=21,22,23 is blue
+                    ! SideID=3 is yellow
                     IF(iSide.EQ.SideID)THEN
                       iLocSide_master = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
                       IF(iLocSide_master.EQ.-1)THEN
@@ -237,6 +364,7 @@ ELSE ! normal restart
                   lambda(:,r:r,iSide) = ExtendedLambda(:,rr:rr,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
                 END DO
               END DO !p,q
+              !IPWRITE(UNIT_StdOut,*) "iSide,SUM(lambda(:,r:r,iSide)) =", iSide,SUM(lambda(:,r:r,iSide))
             END IF ! iSide.LE.lastMPISide_MINE
           END DO
           DEALLOCATE(ExtendedLambda)
@@ -250,6 +378,7 @@ ELSE ! normal restart
 #endif /*USE_MPI*/
 
         CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+
       ELSE
         lambda=0.
       END IF

@@ -1874,12 +1874,24 @@ END SUBROUTINE RestartHDG
 !===================================================================================================================================
 SUBROUTINE FinalizeHDG()
 ! MODULES
+USE MOD_globals
 USE MOD_HDG_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_HDG_Vars           ,ONLY: lambda, nGP_face
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
+USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,nSides,SideToNonUniqueGlobalSide
+USE MOD_Mesh_Tools         ,ONLY: LambdaSideToMaster,GetMasteriLocSides
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_LOADBALANCE
+INTEGER             :: NonUniqueGlobalSideID
+INTEGER             :: iSide
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 HDGInitIsDone = .FALSE.
 SDEALLOCATE(NonlinVolumeFac)
@@ -1899,13 +1911,40 @@ SDEALLOCATE(JwGP_vol)
 SDEALLOCATE(Ehat)
 SDEALLOCATE(Smat)
 SDEALLOCATE(Tau)
-SDEALLOCATE(lambda)
 SDEALLOCATE(RHS_vol)
 SDEALLOCATE(Precond)
 SDEALLOCATE(InvPrecondDiag)
 SDEALLOCATE(MaskedSide)
 SDEALLOCATE(SmallMortarInfo)
 SDEALLOCATE(IntMatMortar)
+
+#if USE_LOADBALANCE
+IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
+  ! Store lambda solution on global non-unique array for MPI communication
+  ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
+             lastSide  => ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem    + nElems) )
+    ALLOCATE(lambdaLB(PP_nVar,nGP_face,firstSide:lastSide))
+    lambdaLB=0.
+  END ASSOCIATE
+  IF(nProcessors.GT.1) CALL GetMasteriLocSides()
+  DO iSide = 1, nSides
+    NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
+
+    CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID))
+    ! Check if the same global unique side is encountered twice and store both global non-unique side IDs in the array
+    ! SideToNonUniqueGlobalSide(1:2,iSide)
+    IF(SideToNonUniqueGlobalSide(2,iSide).NE.-1)THEN
+      NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(2,iSide)
+      CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID))
+    END IF ! SideToNonUniqueGlobalSide(1,iSide).NE.-1
+
+  END DO ! iSide = 1, nSides
+  IF(nProcessors.GT.1) DEALLOCATE(iLocSides)
+
+END IF ! PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+
+SDEALLOCATE(lambda)
 END SUBROUTINE FinalizeHDG
 
 

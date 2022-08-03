@@ -72,7 +72,7 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
+USE MOD_HDG_Vars               ,ONLY: nGP_face, iLocSides
 #if PP_nVar==1
 USE MOD_Equation_Vars          ,ONLY: E,Et
 #elif PP_nVar==3
@@ -82,14 +82,13 @@ USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 USE MOD_Mesh_Vars              ,ONLY: nSides
 USE MOD_Utils                  ,ONLY: QuickSortTwoArrays
-USE MOD_Mesh_Vars              ,ONLY: MortarType,SideToElem,MortarInfo
-USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE,lastInnerSide
+USE MOD_Mesh_Vars              ,ONLY: lastInnerSide
 USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
 USE MOD_Utils                  ,ONLY: Qsort1DoubleInt1PInt
+USE MOD_Mesh_Tools             ,ONLY: LambdaSideToMaster
 #if USE_MPI
-USE MOD_MPI_Vars               ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc,RecRequest_U,SendRequest_U
-USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI_Vars               ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc
+USE MOD_Mesh_Tools             ,ONLY: GetMasteriLocSides
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID
 USE MOD_Analyze_Vars           ,ONLY: CalcElectricTimeDerivative
@@ -154,13 +153,12 @@ INTEGER(KIND=IK)               :: PP_nVarTmp
 LOGICAL                        :: usePreviousTime_loc
 #if USE_HDG
 INTEGER                        :: iSide
-INTEGER                        :: SideID,iGlobSide,iLocSide,iLocSide_NB,iMortar,nMortars,MortarSideID
+INTEGER                        :: iGlobSide
 INTEGER,ALLOCATABLE            :: SortedUniqueSides(:),GlobalUniqueSideID_tmp(:)
 LOGICAL,ALLOCATABLE            :: OutputSide(:)
 REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
-INTEGER                        :: SortedOffset,SortedStart,SortedEnd,p,q,r,rr,pq(1:2)
+INTEGER                        :: SortedOffset,SortedStart,SortedEnd
 INTEGER                        :: SideID_start, SideID_end,iNbProc,SendID
-REAL,ALLOCATABLE               :: iLocSides(:,:,:)          ! iLocSides, ((PP_N+1)^2,nSides)
 #ifdef PARTICLES
 INTEGER                        :: i,j,k,iElem
 #endif /*PARTICLES*/
@@ -332,40 +330,8 @@ ASSOCIATE (&
       END DO !iProc=1,nNBProcs
     END DO ! SendID = 1, 2
 
-  ! Exchange iLocSides from master to slaves: Send MINE, receive YOUR direction
-    ALLOCATE(iLocSides(PP_nVar,nGP_face,nSides))
-    iLocSides = -100.
-    DO iSide = 1, nSides
-      iLocSides(:,:,iSide) = REAL(SideToElem(S2E_LOC_SIDE_ID,iSide))
-
-      iLocSide_NB = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
-
-      ! Check real small mortar side (when the same proc has both the big an one or more small side connected elements)
-      IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.NE.-1) iLocSides(:,:,iSide) = REAL(iLocSide_NB)
-
-      ! is small virtual mortar side is encountered and no NB iLocSide is given
-      IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
-        ! check all my big mortar sides and find the one to which the small virtual is connected
-        Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
-          nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-          DO iMortar=1,nMortars
-            SideID= MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
-            IF(iSide.EQ.SideID)THEN
-              iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
-              IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
-                iLocSides(:,:,iSide) = REAL(iLocSide)
-              ELSE
-                CALL abort(__STAMP__,'This big mortar side must be master')
-              END IF !iLocSide.NE.-1
-              EXIT Check1
-            END IF ! iSide.EQ.SideID
-          END DO !iMortar
-        END DO Check1 !MortarSideID
-      END IF ! MortarType(1,iSide).EQ.0
-    END DO
-    CALL StartReceiveMPIData(1,iLocSides,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-    CALL StartSendMPIData(   1,iLocSides,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-    CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+    CALL GetMasteriLocSides()
+    
   END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 
@@ -385,76 +351,21 @@ ASSOCIATE (&
   ! Fill array with lambda values in global unique side sorted order
   ALLOCATE(SortedLambda(PP_nVar,nGP_face,nSides))
   SortedLambda = HUGE(1.)
+  ! This loop goes over all nSides and is labelled iGlobSide because all unique global sides that each processors outputs must be
+  ! transformed into master side orientation for read-in during restart later on
   DO iGlobSide = 1, nSides
     ! Set side ID in processor local list
     iSide = SortedUniqueSides(iGlobSide)
 
     ! Skip sides that are not processed by the current proc
     IF(nProcessors.GT.1)THEN
+      ! Check if a side belongs to me (all BC and inner sides automatically included); at MPI interfaces the smaller rank wins and
+      ! must output the data, because for these sides it is ambiguous
       IF(.NOT.OutputSide(iSide)) CYCLE
     END IF ! nProcessors.GT.1
 
-    IF(iSide.GT.lastMPISide_MINE)THEN
-      iLocSide = NINT(iLocSides(1,1,iSide))
-    ELSE
-      iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
-    END IF ! iSide.GT.lastMPISide_MINE
+    CALL LambdaSideToMaster(iSide,SortedLambda(:,:,iGlobSide))
 
-    !master element
-    !iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
-    IF(iLocSide.NE.-1)THEN ! MINE side
-      DO q=0,INT(PP_N)
-        DO p=0,INT(PP_N)
-          pq=CGNS_SideToVol2(INT(PP_N),p,q,iLocSide)
-          r  = q    *(INT(PP_N)+1)+p    +1
-          rr = pq(2)*(INT(PP_N)+1)+pq(1)+1
-          SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
-        END DO
-      END DO !p,q
-      CYCLE
-    END IF !iLocSide.NE.-1
-
-    ! neighbour element (e.g. small mortar sides when one proc has both the large and one or more small side connected elements)
-    iLocSide_NB = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
-    IF(iLocSide_NB.NE.-1)THEN ! YOUR side
-      DO q=0,INT(PP_N)
-        DO p=0,INT(PP_N)
-          pq = CGNS_SideToVol2(INT(PP_N),p,q,iLocSide_NB)
-          r  = q    *(INT(PP_N)+1)+p    +1
-          rr = pq(2)*(INT(PP_N)+1)+pq(1)+1
-          SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
-        END DO
-      END DO !p,q
-      CYCLE
-    END IF !iLocSide_NB.NE.-1
-
-    ! is small virtual mortar side is encountered and no NB iLocSide is given
-    IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
-      ! check all my big mortar sides and find the one to which the small virtual is connected
-      Check2: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
-        nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-        !locSide=MortarType(2,MortarSideID)
-        DO iMortar=1,nMortars
-          SideID= MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
-          IF(iSide.EQ.SideID)THEN
-            iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
-            IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
-              DO q=0,INT(PP_N)
-                DO p=0,INT(PP_N)
-                  pq=CGNS_SideToVol2(INT(PP_N),p,q,iLocSide)
-                  r  = q    *(INT(PP_N)+1)+p    +1
-                  rr = pq(2)*(INT(PP_N)+1)+pq(1)+1
-                  SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
-                END DO
-              END DO !p,q
-            ELSE
-              CALL abort(__STAMP__,'This big mortar side must be master')
-            END IF !iLocSide.NE.-1
-            EXIT Check2
-          END IF ! iSide.EQ.SideID
-        END DO !iMortar
-      END DO Check2 !MortarSideID
-    END IF ! MortarType(1,iSide).EQ.0
   END DO ! iGlobSide = 1, nSides
 
   ! Deallocate temporary arrays
@@ -856,16 +767,12 @@ IF(.NOT.DoRestart)THEN
     CALL FinalizeMPI()
     CALL MPI_FINALIZE(iERROR)
     IF(iERROR.NE.0)THEN
-      CALL abort(&
-      __STAMP__&
-      , ' MPI_FINALIZE(iERROR) returned non-zero integer value',iERROR)
+      CALL abort(__STAMP__, ' MPI_FINALIZE(iERROR) returned non-zero integer value',iERROR)
     END IF
 #endif /*USE_MPI*/
     STOP 0 ! terminate successfully
   ELSE
-    CALL abort(&
-    __STAMP__&
-    , ' IMDLengthScale.LE.0.0 which is not allowed')
+    CALL abort(__STAMP__, ' IMDLengthScale.LE.0.0 which is not allowed')
   END IF
 END IF
 END SUBROUTINE WriteIMDStateToHDF5

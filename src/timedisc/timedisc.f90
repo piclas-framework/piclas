@@ -71,7 +71,7 @@ USE MOD_Equation               ,ONLY: EvalGradient
 #if USE_MPI
 #if USE_LOADBALANCE
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
-USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime,DoLoadBalanceBackup,LoadBalanceSampleBackup
+USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime,DoLoadBalanceBackup,LoadBalanceSampleBackup,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance,LoadBalanceMaxSteps,nLoadBalanceSteps
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTimeField
@@ -400,8 +400,11 @@ DO !iter_t=0,MaxIter
     IF(MOD(time,SkipAnalyzeWindow).GT.SkipAnalyzeSwitchTime) nSkipAnalyze = nSkipAnalyzeSwitch
 
     !--- Perform analysis and write state file .h5
+    ! MOD(iAnalyze,nSkipAnalyze).EQ.0: Use nSkipAnalyze to skip analyze steps
+    ! finalIter=T: last iteration of the simulation is reached, hence, always perform analysis and output to hdf5
 #if USE_LOADBALANCE
-    IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. PerformLoadBalance .OR. finalIter)THEN
+    ! PerformLoadBalance.AND.UseH5IOLoadBalance: Load balance step will be performed and load balance restart via hdf5 IO active
+    IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. (PerformLoadBalance.AND.UseH5IOLoadBalance) .OR. finalIter)THEN
 #else
     IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. finalIter)THEN
 #endif /*USE_LOADBALANCE*/
@@ -449,8 +452,8 @@ DO !iter_t=0,MaxIter
 
     ! Switch off Initial Auto Restart (initial load balance) after the restart was performed
     IF (DoInitialAutoRestart) THEN
-      ! Remove the extra state file written for load balance (only when load balance restart was performed)
-      IF(PerformLoadBalance) CALL RemoveHDF5(RestartFile)
+      ! Remove the extra state file written for load balance (only when load balance restart via hdf5 IO was performed)
+      IF(PerformLoadBalance.AND.UseH5IOLoadBalance) CALL RemoveHDF5(RestartFile)
       ! Get original settings from backup variables
       DoInitialAutoRestart = .FALSE.
       ForceInitialLoadBalance = .FALSE.

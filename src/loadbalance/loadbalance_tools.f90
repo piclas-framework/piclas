@@ -64,11 +64,12 @@ USE MOD_LoadBalance_Vars     ,ONLY: ElemTimePart
 USE MOD_LoadBalance_Vars     ,ONLY: NewImbalance,MaxWeight,MinWeight,ElemGlobalTime,LoadDistri,TargetWeight
 USE MOD_IO_HDF5
 USE MOD_LoadBalance_Vars  ,ONLY: MPInElemSend,MPIoffsetElemSend,MPInElemRecv,MPIoffsetElemRecv
+USE MOD_LoadBalance_Vars  ,ONLY: MPInSideSend,MPIoffsetSideSend,MPInSideRecv,MPIoffsetSideRecv
 USE MOD_LoadBalance_Vars  ,ONLY: nElemsOld,offsetElemOld
 USE MOD_LoadBalance_Vars  ,ONLY: ElemInfoRank_Shared,ElemInfoRank_Shared_Win
 USE MOD_MPI_Shared_Vars   ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars,ONLY: ElemInfo_Shared
-USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_Particle_Mesh_Vars,ONLY: ElemInfo_Shared_Win
 USE MOD_LoadDistribution  ,ONLY: WeightDistribution_Equal
 USE MOD_MPI_Shared        ,ONLY: BARRIER_AND_SYNC
@@ -124,7 +125,7 @@ IF (DoRestart.OR.PerformLoadBalance) THEN
   ALLOCATE(ElemGlobalTime(1:nGlobalElems)) ! Allocate ElemGlobalTime for all MPI ranks
   ElemGlobalTime = 0.
 
-  IF (PerformLoadBalance) THEN
+  IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     CALL ReadElemTime(single=.TRUE.)
   ELSEIF (MPIRoot) THEN
     ! 1) Only MPIRoot does readin of ElemTime during restart
@@ -162,7 +163,7 @@ offsetElem=offsetElemMPI(myRank)
 LOGWRITE(*,'(4(A,I8))')'offsetElem = ',offsetElem,' ,nElems = ', nElems, &
              ' , firstGlobalElemID= ',offsetElem+1,', lastGlobalElemID= ',offsetElem+nElems
 
-IF(PerformLoadBalance)THEN
+IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   ! Only update the mapping of element to rank
   IF (myComputeNodeRank.EQ.0) THEN
     ! Shared array is allocated on compute-node level, compute-node root must update the mapping
@@ -173,34 +174,49 @@ IF(PerformLoadBalance)THEN
   END IF ! myComputeNodeRank.EQ.0
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
+  ! ------------------------------------------------
+  ! Element- and Side-based LB
+  ! ------------------------------------------------
   ! Calculate the elements to send
   MPInElemSend      = 0
   MPIoffsetElemSend = 0
+  MPInSideSend      = 0
+  MPIoffsetSideSend = 0
   ! Loop with the old element over the new elem distribution
   DO iElem = 1,nElemsOld
     ElemRank               = ElemInfo_Shared(ELEM_RANK,offsetElemOld+iElem)+1
     MPInElemSend(ElemRank) = MPInElemSend(ElemRank) + 1
+    MPInSideSend(ElemRank) = MPInSideSend(ElemRank) + &
+        ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElemOld+iElem) - &
+        ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElemOld+iElem)
   END DO
 
   offsetElemSend = 0
   DO iProc = 2,nProcessors
     MPIoffsetElemSend(iProc) = SUM(MPInElemSend(1:iProc-1))
+    MPIoffsetSideSend(iProc) = SUM(MPInSideSend(1:iProc-1))
   END DO
 
   ! Calculate the elements to send
   MPInElemRecv      = 0
   MPIoffsetElemRecv = 0
+  MPInSideRecv      = 0
+  MPIoffsetSideRecv = 0
   ! Loop with the new element over the old elem distribution
   DO iElem = 1,nElems
     ElemRank               = ElemInfoRank_Shared(offsetElem+iElem)+1
     MPInElemRecv(ElemRank) = MPInElemRecv(ElemRank) + 1
+    MPInSideRecv(ElemRank) = MPInSideRecv(ElemRank) + &
+        ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem+iElem) - &
+        ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+iElem)
   END DO
 
   offsetElemRecv = 0
   DO iProc = 2,nProcessors
     MPIoffsetElemRecv(iProc) = SUM(MPInElemRecv(1:iProc-1))
+    MPIoffsetSideRecv(iProc) = SUM(MPInSideRecv(1:iProc-1))
   END DO
-END IF ! PerformLoadBalance
+END IF ! PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)
 
 ! Sanity check: local nElems and offset
 IF(nElems.LE.0) CALL abort(__STAMP__,' Process did not receive any elements/load! ')
@@ -278,7 +294,7 @@ USE MOD_IO_HDF5
 USE MOD_HDF5_Input             ,ONLY: ReadArray,DatasetExists
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTime,ElemGlobalTime
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTime_tmp
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 USE MOD_LoadBalance_Vars       ,ONLY: offsetElemMPIOld
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems,nGlobalElems
@@ -297,7 +313,7 @@ REAL,ALLOCATABLE    :: ElemTimeTmp(:)
 INTEGER             :: ElemPerProc(0:nProcessors-1)
 !===================================================================================================================================
 
-IF (PerformLoadBalance) THEN
+IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   IF (single) THEN
     DO iProc = 0,nProcessors-1
       ElemPerProc(iProc) = offsetElemMPIOld(iProc+1) - offsetElemMPIOld(iProc)

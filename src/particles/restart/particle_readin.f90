@@ -61,7 +61,7 @@ USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
 #endif /*USE_HDG*/
 ! LoadBalance
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld,ElemInfoRank_Shared
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 USE MOD_LoadBalance_Vars       ,ONLY: MPInPartSend,MPInPartRecv,MPIoffsetPartSend,MPIoffsetPartRecv
@@ -129,7 +129,7 @@ FirstElemInd = offsetElem+1
 LastElemInd  = offsetElem+PP_nElems
 
 #if USE_LOADBALANCE
-IF (PerformLoadBalance) THEN
+IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Restarting particles during loadbalance...'
 
   ! ------------------------------------------------
@@ -202,12 +202,16 @@ IF (PerformLoadBalance) THEN
     DEALLOCATE(NodeSourceExtEquiLBTmp)
   END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
 
+  ! ------------------------------------------------
+  ! Check and set sizes
+  ! ------------------------------------------------
   ! Check the PartDataSize
   IF (PartDataSize.EQ.0) CALL Abort(__STAMP__,'PartDataSize.EQ.0 but should have been set before loadbalance!')
 
   ALLOCATE(readVarFromState(PartDataSize))
   readVarFromState=.TRUE.
 
+  ! Set polyatomic and electronic shell variables
   IF (useDSMC) THEN
     IF (DSMC%NumPolyatomMolecs.GT.0) THEN
       MaxQuantNum = 0
@@ -228,6 +232,10 @@ IF (PerformLoadBalance) THEN
       END DO
     END IF ! DSMC%ElectronicModel.EQ.2
   END IF ! useDSMC
+
+  ! ------------------------------------------------
+  ! PartInt and PartData
+  ! ------------------------------------------------
 
   ! PartInt and PartData are still allocated from last WriteState
   ALLOCATE(PartIntTmp(PartIntSize,FirstElemInd:LastElemInd))
