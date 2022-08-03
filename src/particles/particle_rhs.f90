@@ -24,10 +24,6 @@ INTERFACE CalcPartRHS
   MODULE PROCEDURE CalcPartRHS
 END INTERFACE
 
-INTERFACE CalcPartRHS_RefFrame
-  MODULE PROCEDURE CalcPartRHS_RefFrame
-END INTERFACE
-
 INTERFACE CalcPartRHSSingleParticle
   MODULE PROCEDURE CalcPartRHSSingleParticle
 END INTERFACE
@@ -50,7 +46,6 @@ PUBLIC :: PartVeloToImp
 PUBLIC :: PartRHS
 PUBLIC :: CalcPartRHSSingleParticle
 PUBLIC :: CalcPartRHSRotRefFrame
-PUBLIC :: CalcPartRHS_RefFrame
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
@@ -193,32 +188,6 @@ DO iPart = 1,PDM%ParticleVecLength
   ! Pt(:,iPart)=0.
 END DO
 END SUBROUTINE CalcPartRHS
-
-
-SUBROUTINE CalcPartRHS_RefFrame()
-!===================================================================================================================================
-! Computes the acceleration from the Lorentz force with respect to the species data and velocity
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Vars         ,ONLY: PDM,Pt
-!----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLE
-INTEGER                          :: iPart
-LOGICAL                          :: InRotRefFrame_OLD
-!===================================================================================================================================
-! Loop all particles and call particle right-hand-side calculation
-DO iPart = 1,PDM%ParticleVecLength
-  IF(PDM%ParticleInside(iPart)) THEN
-    IF(PDM%InRotRefFrame(iPart))THEN
-      !CALL CalcPartRHSRotRefFrame(iPart,Pt(1:3,iPart))
-    END IF ! PDM%ParticleInside(iPart)
-  END IF
-END DO
-END SUBROUTINE CalcPartRHS_RefFrame
 
 
 SUBROUTINE CalcPartRHSSingleParticle(iPart)
@@ -752,9 +721,8 @@ SUBROUTINE CalcPartRHSRotRefFrame(PartID,Pt_temp,RotRefVelo)
 !> 
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals       ,ONLY: CROSS,DOTPRODUCT
-USE MOD_Particle_Vars ,ONLY: PartState, Pt, RotRefFrameOmega
-USE MOD_TimeDisc_Vars             ,ONLY: iter
+USE MOD_Globals       ,ONLY: CROSS
+USE MOD_Particle_Vars ,ONLY: PartState, RotRefFrameOmega
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -763,20 +731,13 @@ INTEGER,INTENT(IN)       :: PartID
 REAL,INTENT(IN)          :: RotRefVelo(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)         :: Pt_temp(1:6)
+REAL,INTENT(OUT)         :: Pt_temp(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
 Pt_temp(1:3) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))) &
                   - 2.*CROSS(RotRefFrameOmega(1:3),RotRefVelo(1:3))
-Pt_temp(4:6) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),RotRefVelo(1:3))) &
-                  - 2.*CROSS(RotRefFrameOmega(1:3),Pt_temp(1:3))
-
-!Pt_temp(1:3) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))) &
-!                  - 2.*CROSS(RotRefFrameOmega(1:3),PartState(4:6,PartID))
-!Pt_temp(4:6) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PartState(4:6,PartID))) &
-!                  - 2.*CROSS(RotRefFrameOmega(1:3),Pt_temp(1:3))
 
 END SUBROUTINE CalcPartRHSRotRefFrame
 

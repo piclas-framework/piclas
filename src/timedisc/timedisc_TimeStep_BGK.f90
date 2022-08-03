@@ -62,7 +62,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
-REAL                  :: RandVal, dtVar, NewYPart, NewYVelo, Pt_local(1:6), RotRefVelo(1:3)
+REAL                  :: RandVal, dtVar, NewYPart, NewYVelo, Pt_local(1:3), RotRefVelo(1:3)
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))
@@ -92,9 +92,8 @@ DO iPart=1,PDM%ParticleVecLength
   IF(UseRotRefFrame) THEN
     IF(PDM%InRotRefFrame(iPart)) THEN
       RotRefVelo(1:3) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-      CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:6),RotRefVelo(1:3))
+      CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:3),RotRefVelo(1:3))
       PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * dtVar
-      RotRefVelo(1:3) = RotRefVelo(1:3) + (Pt_local(1:3)+dtVar*0.5*Pt_local(4:6)) * dtVar
     ELSE
       PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
     END IF

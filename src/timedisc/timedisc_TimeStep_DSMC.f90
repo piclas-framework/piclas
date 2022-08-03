@@ -51,6 +51,7 @@ USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
 USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame
+USE MOD_Part_Tools               ,ONLY: InRotRefFrameCheck
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -64,8 +65,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo, Pt_local(1:6), RotRefVelo(1:3), dtSubCycle
-INTEGER                    :: iPart, iSubCycle
+REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo, Pt_local(1:3), RotRefVelo(1:3)
+INTEGER                    :: iPart
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -107,12 +108,8 @@ DO iPart=1,PDM%ParticleVecLength
     IF(UseRotRefFrame) THEN
       IF(PDM%InRotRefFrame(iPart)) THEN
         RotRefVelo(1:3) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-        dtSubCycle = 1. * dtVar
-        DO iSubCycle=1, 1
-          CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:6),RotRefVelo(1:3))
-          PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtSubCycle*0.5*Pt_local(1:3)) * dtSubCycle
-          RotRefVelo(1:3) = RotRefVelo(1:3) + (Pt_local(1:3)+dtSubCycle*0.5*Pt_local(4:6)) * dtSubCycle
-        END DO
+        CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:3),RotRefVelo(1:3))
+        PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * dtVar
       ELSE
         PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
       END IF
@@ -193,7 +190,6 @@ CALL MPIParticleRecv()
 CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
-
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -213,6 +209,18 @@ ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleN
   CALL abort(&
   __STAMP__&
   ,'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
+END IF
+
+IF(UseRotRefFrame) THEN
+  DO iPart = 1,PDM%ParticleVecLength
+    IF(PDM%ParticleInside(iPart)) THEN
+      IF(InRotRefFrameCheck(iPart)) THEN
+        PDM%InRotRefFrame(iPart) = .TRUE.
+      ELSE
+        PDM%InRotRefFrame(iPart) = .FALSE.
+      END IF
+    END IF
+  END DO
 END IF
 
 CALL DSMC_main()

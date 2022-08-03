@@ -40,7 +40,6 @@ USE MOD_Particle_Tracing         ,ONLY: ParticleTracing
 USE MOD_Particle_RefTracking     ,ONLY: ParticleRefTracking
 USE MOD_Particle_TriaTracking    ,ONLY: ParticleTriaTracking
 USE MOD_Part_Tools               ,ONLY: InRotRefFrameCheck
-USE MOD_Particle_Vars            ,ONLY: PDM,UseRotRefFrame,PartState, RotRefFrameOmega
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -70,24 +69,6 @@ END SELECT
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
-IF(UseRotRefFrame) THEN
-  DO iPart = 1,PDM%ParticleVecLength
-    IF(PDM%ParticleInside(iPart)) THEN
-!      InRotRefFrame_OLD = PDM%InRotRefFrame(iPart)
-      IF(InRotRefFrameCheck(iPart)) THEN
-        PDM%InRotRefFrame(iPart) = .TRUE.
-!        IF(InRotRefFrame_OLD.NEQV.PDM%InRotRefFrame(iPart))THEN
-!          PartState(4:6,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-!        END IF
-      ELSE
-        PDM%InRotRefFrame(iPart) = .FALSE.
-!        IF(InRotRefFrame_OLD.NEQV.PDM%InRotRefFrame(iPart))THEN
-!          PartState(4:6,iPart) = PartState(4:6,iPart) + CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-!        END IF
-      END IF
-    END IF
-  END DO
-END IF
 
 END SUBROUTINE PerformTracking
 
