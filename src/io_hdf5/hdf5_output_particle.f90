@@ -168,9 +168,11 @@ DO i = 1, iMax
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesNodeSourceExtGlobal',N_variables,StrArray=StrVarNames)
-    CALL CloseDataFile()
+    IF(MPIRoot)THEN
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+      CALL WriteAttributeToHDF5(File_ID,'VarNamesNodeSourceExtGlobal',N_variables,StrArray=StrVarNames)
+      CALL CloseDataFile()
+    END IF ! MPIRoot
     DataSetName='DG_Solution'
   END IF ! i.EQ.2
 
@@ -263,7 +265,7 @@ USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,DSMC
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data,MaxQuantNum,MaxElecQuant
 ! IMPLICIT VARIABLE HANDLING
@@ -447,11 +449,11 @@ IF (withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)) THEN
   END ASSOCIATE
 
 #if USE_LOADBALANCE
-  IF (.NOT.PerformLoadBalance) THEN
+  IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE*/
     DEALLOCATE(VibQuantData)
 #if USE_LOADBALANCE
-  END IF ! .NOT.PerformLoadBalance
+  END IF
 #endif /*USE_LOADBALANCE*/
 END IF ! withDSMC.AND.(DSMC%NumPolyatomMolecs.GT.0)
 
@@ -492,11 +494,11 @@ IF (withDSMC.AND.(DSMC%ElectronicModel.EQ.2))  THEN
   END ASSOCIATE
 
 #if USE_LOADBALANCE
-  IF (.NOT.PerformLoadBalance) THEN
+  IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE*/
     DEALLOCATE(ElecDistriData)
 #if USE_LOADBALANCE
-  END IF ! .NOT.PerformLoadBalance
+  END IF
 #endif /*USE_LOADBALANCE*/
 END IF
 
@@ -534,17 +536,17 @@ IF (withDSMC.AND.DSMC%DoAmbipolarDiff) THEN
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
-  IF (.NOT.PerformLoadBalance) THEN
+  IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE*/
     DEALLOCATE(AD_Data)
 #if USE_LOADBALANCE
-  END IF ! .NOT.PerformLoadBalance
+  END IF
 #endif /*USE_LOADBALANCE*/
 END IF
 
 ! For LoadBalance, keep arrays allocated to restart from
 #if defined(PARTICLES) && USE_LOADBALANCE
-IF (.NOT.PerformLoadBalance) THEN
+IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
   DEALLOCATE(PartData)
   DEALLOCATE(PartInt)
@@ -1510,13 +1512,6 @@ IF (withDSMC) THEN
     DEALLOCATE(AD_Data)
   END IF
 
-! #if USE_LOADBALANCE
-! IF (.NOT.PerformLoadBalance) THEN
-!   SDEALLOCATE(VibQuantData)
-!   SDEALLOCATE(ElecDistriData)
-!   SDEALLOCATE(AD_Data)
-! END IF ! .NOT.PerformLoadBalance
-! #endif /*USE_LOADBALANCE*/
 END IF
 END ASSOCIATE
 

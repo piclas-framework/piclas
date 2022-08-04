@@ -28,6 +28,7 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL             :: DoLoadBalance              !> Use dynamic load balancing
+LOGICAL             :: UseH5IOLoadBalance         !> Use hdf5 IO for dynamic load balancing instead of MPI_ALLGATHERV
 INTEGER             :: LoadBalanceSampleBackup    !> Loadbalance sample saved until initial autorestart ist finished
 LOGICAL             :: DoLoadBalanceBackup        !> Loadbalance flag saved until initial autorestart ist finished
 LOGICAL             :: PerformLoadBalance=.FALSE. !> Flag if load balance is performed in current time step iteration
@@ -79,8 +80,16 @@ INTEGER(KIND=IK),ALLOCATABLE        :: MPInPartSend(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetPartSend(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPInPartRecv(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetPartRecv(:)
-INTEGER(KIND=IK),POINTER            :: ElemInfoRank_Shared(:) => NULL()
+INTEGER,POINTER                     :: ElemInfoRank_Shared(:) => NULL()
 INTEGER                             :: ElemInfoRank_Shared_Win
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! side load balancing
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER(KIND=IK),ALLOCATABLE        :: MPInSideSend(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetSideSend(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPInSideRecv(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetSideRecv(:)
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! field arrays during load balancing

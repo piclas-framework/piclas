@@ -1397,6 +1397,7 @@ SDEALLOCATE(MacroDSMC)
 SDEALLOCATE(QKChemistry)
 
 SDEALLOCATE(ChemReac%ReactModel)
+SDEALLOCATE(ChemReac%BackwardReacForwardIndx)
 SDEALLOCATE(ChemReac%BackwardReac)
 SDEALLOCATE(ChemReac%QKRColl)
 SDEALLOCATE(ChemReac%QKTCollCorrFac)

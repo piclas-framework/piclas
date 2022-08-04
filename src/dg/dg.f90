@@ -76,6 +76,9 @@ USE MOD_Riemann            ,ONLY: GetRiemannMatrix
 #endif /*OPTIMIZED*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#if !(USE_HDG)
+USE MOD_LoadBalance_Vars   ,ONLY: UseH5IOLoadBalance
+#endif /*!(USE_HDG)*/
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -93,7 +96,7 @@ LBWRITE(UNIT_stdOut,'(A)') ' INIT DG...'
 
 CALL initDGbasis(PP_N,xGP,wGP,wBary)
 #if USE_LOADBALANCE && !(USE_HDG)
-IF (.NOT.PerformLoadBalance) THEN
+IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
   ! the local DG solution in physical and reference space
   ALLOCATE( U(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
@@ -611,7 +614,7 @@ SUBROUTINE FinalizeDG()
 ! MODULES
 USE MOD_DG_Vars
 #if USE_LOADBALANCE && !(USE_HDG)
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -642,11 +645,11 @@ SDEALLOCATE(Flux_loc)
 
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE && !(USE_HDG)
-IF(.NOT.PerformLoadBalance)THEN
+IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
   SDEALLOCATE(U)
 #if USE_LOADBALANCE && !(USE_HDG)
-END IF ! PerformLoadBalance
+END IF
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
 
 DGInitIsDone = .FALSE.

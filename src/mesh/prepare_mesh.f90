@@ -424,7 +424,8 @@ DO iNbProc=1,nNbProcs
   END DO ! iElem
   DEALLOCATE(SideIDMap)
 END DO !nbProc(i)
-! Iterate over all processors and for each processor over all elements and within each element
+#endif /*USE_MPI*/
+! Iterate (over all processors and for each processor) over all elements and within each element
 ! over all sides (6 for hexas in 3D, 4 for quads in 2D) and for each big Mortar side over all small virtual sides
 ! and revert the negative SideIDs.
 DO iElem=FirstElemInd,LastElemInd
@@ -441,6 +442,7 @@ DO iElem=FirstElemInd,LastElemInd
     END DO ! iMortar
   END DO ! iLocSide
 END DO ! iElem
+#if USE_MPI
 ! Optimize Mortars: Search for big Mortars which only have small virtual MPI_MINE sides. Since the MPI_MINE-sides evaluate
 ! the flux, the flux of the big Mortar side (computed from the 2/4 fluxes of the small virtual sides) can be computed BEFORE
 ! the communication of the fluxes. Therefore those big Mortars can be moved from MPIMortars to the InnerMortars.

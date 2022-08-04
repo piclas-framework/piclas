@@ -1299,7 +1299,7 @@ PDM%ParticleVecLength         = PDM%ParticleVecLength + PartMPIExchange%nMPIPart
 PDM%CurrentNextFreePosition   = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
 PartMPIExchange%nMPIParticles = 0
 IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL ABORT(__STAMP__&
-    ,' ParticleVecLegnth>MaxParticleNumber due to MPI-communication!')
+    ,' ParticleVecLegnth>MaxParticleNumber due to MPI-communication! Increase Part-maxParticleNumber or use more processors.')
 
 IF(RadialWeighting%PerformCloning) THEN
   ! Checking whether received particles have to be cloned or deleted

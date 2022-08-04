@@ -61,7 +61,7 @@ USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
 #endif /*USE_HDG*/
 ! LoadBalance
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld,ElemInfoRank_Shared
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 USE MOD_LoadBalance_Vars       ,ONLY: MPInPartSend,MPInPartRecv,MPIoffsetPartSend,MPIoffsetPartRecv
@@ -119,6 +119,9 @@ REAL,ALLOCATABLE                   :: PartDataTmp(:,:)
 INTEGER,ALLOCATABLE                :: VibQuantDataTmp(:,:)
 REAL,ALLOCATABLE                   :: ElecDistriDataTmp(:,:)
 REAL,ALLOCATABLE                   :: AD_DataTmp(:,:)
+! Custom data type
+INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
+INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
@@ -126,8 +129,8 @@ FirstElemInd = offsetElem+1
 LastElemInd  = offsetElem+PP_nElems
 
 #if USE_LOADBALANCE
-IF (PerformLoadBalance) THEN
-  !SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Restarting particles during loadbalance...'
+IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Restarting particles during loadbalance...'
 
   ! ------------------------------------------------
   ! PartSource
@@ -135,12 +138,18 @@ IF (PerformLoadBalance) THEN
   IF (DoDeposition .AND. RelaxDeposition) THEN
     ALLOCATE(PartSource_HDF5(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
     ASSOCIATE (&
-            counts_send  => INT(4*(PP_N+1)**3*MPInElemSend     ,IK) ,&
-            disp_send    => INT(4*(PP_N+1)**3*MPIoffsetElemSend,IK) ,&
-            counts_recv  => INT(4*(PP_N+1)**3*MPInElemRecv     ,IK) ,&
-            disp_recv    => INT(4*(PP_N+1)**3*MPIoffsetElemRecv,IK))
+            counts_send  => INT(MPInElemSend     ) ,&
+            disp_send    => INT(MPIoffsetElemSend) ,&
+            counts_recv  => INT(MPInElemRecv     ) ,&
+            disp_recv    => INT(MPIoffsetElemRecv))
       ! Communicate PartSource over MPI
-      CALL MPI_ALLTOALLV(PartSourceLB,counts_send,disp_send,MPI_DOUBLE_PRECISION,PartSource_HDF5,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
+      MPI_LENGTH       = 4*(PP_N+1)**3
+      MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+      MPI_TYPE         = MPI_DOUBLE_PRECISION
+      CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+      CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+
+      CALL MPI_ALLTOALLV(PartSourceLB,counts_send,disp_send,MPI_STRUCT,PartSource_HDF5,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
     END ASSOCIATE
     DEALLOCATE(PartSourceLB)
 
@@ -163,12 +172,18 @@ IF (PerformLoadBalance) THEN
   IF(DoDeposition.AND.DoDielectricSurfaceCharge)THEN
     ALLOCATE(NodeSourceExtEquiLBTmp(1:N_variables,0:1,0:1,0:1,nElems))
     ASSOCIATE (&
-            counts_send  => INT((PP_N+1)**3*MPInElemSend     ,IK) ,&
-            disp_send    => INT((PP_N+1)**3*MPIoffsetElemSend,IK) ,&
-            counts_recv  => INT((PP_N+1)**3*MPInElemRecv     ,IK) ,&
-            disp_recv    => INT((PP_N+1)**3*MPIoffsetElemRecv,IK))
+            counts_send  => INT(MPInElemSend     ) ,&
+            disp_send    => INT(MPIoffsetElemSend) ,&
+            counts_recv  => INT(MPInElemRecv     ) ,&
+            disp_recv    => INT(MPIoffsetElemRecv))
       ! Communicate PartSource over MPI
-      CALL MPI_ALLTOALLV(NodeSourceExtEquiLB,counts_send,disp_send,MPI_DOUBLE_PRECISION,NodeSourceExtEquiLBTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
+      MPI_LENGTH       = (PP_N+1)**3
+      MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+      MPI_TYPE         = MPI_DOUBLE_PRECISION
+      CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+      CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+
+      CALL MPI_ALLTOALLV(NodeSourceExtEquiLB,counts_send,disp_send,MPI_STRUCT,NodeSourceExtEquiLBTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
     END ASSOCIATE
     DEALLOCATE(NodeSourceExtEquiLB)
     ! Loop over all elements and store absolute charge values in equidistantly distributed nodes of PP_N=1
@@ -187,12 +202,16 @@ IF (PerformLoadBalance) THEN
     DEALLOCATE(NodeSourceExtEquiLBTmp)
   END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
 
+  ! ------------------------------------------------
+  ! Check and set sizes
+  ! ------------------------------------------------
   ! Check the PartDataSize
   IF (PartDataSize.EQ.0) CALL Abort(__STAMP__,'PartDataSize.EQ.0 but should have been set before loadbalance!')
 
   ALLOCATE(readVarFromState(PartDataSize))
   readVarFromState=.TRUE.
 
+  ! Set polyatomic and electronic shell variables
   IF (useDSMC) THEN
     IF (DSMC%NumPolyatomMolecs.GT.0) THEN
       MaxQuantNum = 0
@@ -214,15 +233,25 @@ IF (PerformLoadBalance) THEN
     END IF ! DSMC%ElectronicModel.EQ.2
   END IF ! useDSMC
 
+  ! ------------------------------------------------
+  ! PartInt and PartData
+  ! ------------------------------------------------
+
   ! PartInt and PartData are still allocated from last WriteState
   ALLOCATE(PartIntTmp(PartIntSize,FirstElemInd:LastElemInd))
   ASSOCIATE (&
-          counts_send  => INT(2*MPInElemSend     ,IK) ,&
-          disp_send    => INT(2*MPIoffsetElemSend,IK) ,&
-          counts_recv  => INT(2*MPInElemRecv     ,IK) ,&
-          disp_recv    => INT(2*MPIoffsetElemRecv,IK))
+          counts_send  => INT(MPInElemSend     ) ,&
+          disp_send    => INT(MPIoffsetElemSend) ,&
+          counts_recv  => INT(MPInElemRecv     ) ,&
+          disp_recv    => INT(MPIoffsetElemRecv))
+    MPI_LENGTH       = 2
+    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+    MPI_TYPE         = MPI_INTEGER_INT_KIND
+    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+
     ! Communicate PartInt over MPI
-    CALL MPI_ALLTOALLV(PartInt,counts_send,disp_send,MPI_INTEGER_INT_KIND,PartIntTmp,counts_recv,disp_recv,MPI_INTEGER_INT_KIND,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(PartInt,counts_send,disp_send,MPI_STRUCT,PartIntTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
   END ASSOCIATE
 
   ! Calculate the PartInt deltas
@@ -263,13 +292,21 @@ IF (PerformLoadBalance) THEN
   locnPart    = PartInt(ELEM_LastPartInd,LastElemInd)-PartInt(ELEM_FirstPartInd,FirstElemInd)
   offsetnPart = PartInt(ELEM_FirstPartInd,FirstElemInd)
   ALLOCATE(PartDataTmp(PartDataSize,offsetnPart+1_IK:offsetnPart+locnPart))
+
   ASSOCIATE (&
-          counts_send  => INT(PartDataSize*MPInPartSend     ,IK) ,&
-          disp_send    => INT(PartDataSize*MPIoffsetPartSend,IK) ,&
-          counts_recv  => INT(PartDataSize*MPInPartRecv     ,IK) ,&
-          disp_recv    => INT(PartDataSize*MPIoffsetPartRecv,IK))
-    ! Communicate PartInt over MPI
-    CALL MPI_ALLTOALLV(PartData,counts_send,disp_send,MPI_DOUBLE_PRECISION,PartDataTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
+          counts_send  => INT(MPInPartSend     ) ,&
+          disp_send    => INT(MPIoffsetPartSend) ,&
+          counts_recv  => INT(MPInPartRecv     ) ,&
+          disp_recv    => INT(MPIoffsetPartRecv))
+
+    MPI_LENGTH       = PartDataSize
+    MPI_DISPLACEMENT = 0
+    MPI_TYPE         = MPI_DOUBLE_PRECISION
+    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+
+    ! Communicate PartData over MPI
+    CALL MPI_ALLTOALLV(PartData,counts_send,disp_send,MPI_STRUCT,PartDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
   END ASSOCIATE
 
   DEALLOCATE(PartData)
@@ -286,12 +323,19 @@ IF (PerformLoadBalance) THEN
     IF (DSMC%NumPolyatomMolecs.GT.0) THEN
       ALLOCATE(VibQuantDataTmp(MaxQuantNum,offsetnPart+1_IK:offsetnPart+locnPart))
       ASSOCIATE (&
-              counts_send  => INT(MaxQuantNum*MPInPartSend     ,IK) ,&
-              disp_send    => INT(MaxQuantNum*MPIoffsetPartSend,IK) ,&
-              counts_recv  => INT(MaxQuantNum*MPInPartRecv     ,IK) ,&
-              disp_recv    => INT(MaxQuantNum*MPIoffsetPartRecv,IK))
-        ! Communicate PartInt over MPI
-        CALL MPI_ALLTOALLV(VibQuantData,counts_send,disp_send,MPI_INTEGER_INT_KIND,VibQuantDataTmp,counts_recv,disp_recv,MPI_INTEGER_INT_KIND,MPI_COMM_WORLD,iError)
+              counts_send  => INT(MPInPartSend     ) ,&
+              disp_send    => INT(MPIoffsetPartSend) ,&
+              counts_recv  => INT(MPInPartRecv     ) ,&
+              disp_recv    => INT(MPIoffsetPartRecv))
+
+        MPI_LENGTH       = MaxQuantNum
+        MPI_DISPLACEMENT = 0
+        MPI_TYPE         = MPI_INTEGER_INT_KIND
+        CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+        CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+
+        ! Communicate VibQuantData over MPI
+        CALL MPI_ALLTOALLV(VibQuantData,counts_send,disp_send,MPI_STRUCT,VibQuantDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
       END ASSOCIATE
 
       DEALLOCATE(VibQuantData)
@@ -304,12 +348,20 @@ IF (PerformLoadBalance) THEN
     IF (DSMC%ElectronicModel.EQ.2) THEN
       ALLOCATE(ElecDistriDataTmp(MaxElecQuant,offsetnPart+1_IK:offsetnPart+locnPart))
       ASSOCIATE (&
-              counts_send  => INT(MaxElecQuant*MPInPartSend     ,IK) ,&
-              disp_send    => INT(MaxElecQuant*MPIoffsetPartSend,IK) ,&
-              counts_recv  => INT(MaxElecQuant*MPInPartRecv     ,IK) ,&
-              disp_recv    => INT(MaxElecQuant*MPIoffsetPartRecv,IK))
-        ! Communicate PartInt over MPI
-        CALL MPI_ALLTOALLV(ElecDistriData,counts_send,disp_send,MPI_DOUBLE_PRECISION,ElecDistriDataTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
+              counts_send  => INT(MaxElecQuant*MPInPartSend     ) ,&
+              disp_send    => INT(MaxElecQuant*MPIoffsetPartSend) ,&
+              counts_recv  => INT(MaxElecQuant*MPInPartRecv     ) ,&
+              disp_recv    => INT(MaxElecQuant*MPIoffsetPartRecv))
+
+        ! Create MPI_STRUCT with the correct size
+        MPI_LENGTH       = MaxElecQuant
+        MPI_DISPLACEMENT = 0
+        MPI_TYPE         = MPI_DOUBLE_PRECISION
+        CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+        CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+
+        ! Communicate ElecDistriData over MPI
+        CALL MPI_ALLTOALLV(ElecDistriData,counts_send,disp_send,MPI_STRUCT,ElecDistriDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
       END ASSOCIATE
 
       DEALLOCATE(ElecDistriData)
@@ -322,12 +374,20 @@ IF (PerformLoadBalance) THEN
     IF (DSMC%DoAmbipolarDiff) THEN
       ALLOCATE(AD_DataTmp(3,offsetnPart+1_IK:offsetnPart+locnPart))
       ASSOCIATE (&
-              counts_send  => INT(3*MPInPartSend     ,IK) ,&
-              disp_send    => INT(3*MPIoffsetPartSend,IK) ,&
-              counts_recv  => INT(3*MPInPartRecv     ,IK) ,&
-              disp_recv    => INT(3*MPIoffsetPartRecv,IK))
-        ! Communicate PartInt over MPI
-        CALL MPI_ALLTOALLV(AD_Data,counts_send,disp_send,MPI_DOUBLE_PRECISION,AD_DataTmp,counts_recv,disp_recv,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iError)
+              counts_send  => INT(MPInPartSend     ) ,&
+              disp_send    => INT(MPIoffsetPartSend) ,&
+              counts_recv  => INT(MPInPartRecv     ) ,&
+              disp_recv    => INT(MPIoffsetPartRecv))
+
+        ! Create MPI_STRUCT with the correct size
+        MPI_LENGTH       = 3
+        MPI_DISPLACEMENT = 0
+        MPI_TYPE         = MPI_DOUBLE_PRECISION
+        CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+        CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+
+        ! Communicate AD_Data over MPI
+        CALL MPI_ALLTOALLV(AD_Data,counts_send,disp_send,MPI_STRUCT,AD_DataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
       END ASSOCIATE
 
       DEALLOCATE(AD_Data)
@@ -343,8 +403,8 @@ ELSE
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Reading particles from Restartfile...'
 
   ! FIXME: Deallocate PartInt/PartData until loadbalance is always handled with MPI
-  ! SDEALLOCATE(PartInt)
-  ! SDEALLOCATE(PartData)
+   SDEALLOCATE(PartInt)
+   SDEALLOCATE(PartData)
 
   ! ------------------------------------------------
   ! PartSource

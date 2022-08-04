@@ -134,8 +134,13 @@ IMPLICIT NONE
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT IOHDF5 ...'
-gatheredWrite=.FALSE.
-IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE.')
+
+gatheredWrite   = .FALSE.
+UseCollectiveIO = .FALSE.
+IF(nLeaderProcs.LT.nProcessors)THEN
+  gatheredWrite   = GETLOGICAL('gatheredWrite')
+  UseCollectiveIO = GETLOGICAL('UseCollectiveIO')
+END IF
 
 CALL InitMPIInfo()
 SWRITE(UNIT_stdOut,'(A)')' INIT DONE!'

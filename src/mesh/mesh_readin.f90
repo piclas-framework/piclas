@@ -232,7 +232,7 @@ USE MOD_Particle_Mesh_Vars   ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_S
 #endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,offsetElemMPIOld
+USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance,offsetElemMPIOld
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -307,7 +307,7 @@ END IF
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 
 #if USE_LOADBALANCE
-IF (PerformLoadBalance) THEN
+IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   SDEALLOCATE(offsetElemMPIOld)
   ALLOCATE(   offsetElemMPIOld(0:nProcessors))
   offsetElemMPIOld = offsetElemMPI
@@ -679,7 +679,6 @@ CALL CloseDataFile()
 CALL StartCommunicateMeshReadin()
 #endif
 
-DEALLOCATE(ElemInfo,SideInfo)
 ! Readin of mesh is now finished
 
 !----------------------------------------------------------------------------------------------------------------------------

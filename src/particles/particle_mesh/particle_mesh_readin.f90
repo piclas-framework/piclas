@@ -111,7 +111,7 @@ USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -133,6 +133,9 @@ IF (.NOT.PerformLoadBalance) THEN
   ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = myRank
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 #if USE_LOADBALANCE
+ELSEIF(UseH5IOLoadBalance)THEN
+  ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = myRank
+  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 END IF
 #endif /*USE_LOADBALANCE*/
 #endif  /*USE_MPI*/

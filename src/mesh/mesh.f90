@@ -124,7 +124,7 @@ USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALAR
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #endif /*USE_LOADBALANCE*/
@@ -133,6 +133,9 @@ USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Particle_Mesh_Vars     ,ONLY: meshScale
 USE MOD_Particle_Vars          ,ONLY: usevMPF
 #endif
+#if USE_HDG && USE_LOADBALANCE
+USE MOD_Mesh_Tools             ,ONLY: BuildSideToNonUniqueGlobalSide
+#endif /*USE_HDG && USE_LOADBALANCE*/
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -204,7 +207,7 @@ IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
   DoWriteStateToHDF5=.TRUE.
   CALL PrintOption('Loadbalancing or InitialAutoRestart enabled: DoWriteStateToHDF5','INFO',LogOpt=DoWriteStateToHDF5)
 END IF
-IF (.NOT.PerformLoadBalance) THEN
+IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE*/
   CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL ReadAttribute(File_ID,'Ngeo',1,IntScalar=NGeo)
@@ -311,7 +314,7 @@ IF (meshMode.GT.0) THEN
   CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
                          SideToVolA,SideToVol2A,CGNS_SideToVol2A,FS2M)
 
-END IF
+END IF ! meshMode.GT.0
 
 IF (meshMode.GT.1) THEN
 
@@ -397,7 +400,6 @@ IF (meshMode.GT.1) THEN
   END IF ! meshMode.NE.3
 END IF ! meshMode.GT.1
 
-
 IF(CalcMeshInfo)THEN
   CALL AddToElemData(ElementOut,'myRank',IntScalar=myRank)
   !#ifdef PARTICLES
@@ -408,6 +410,11 @@ IF(CalcMeshInfo)THEN
   CALL AddToElemData(ElementOut,'ElemID',LongIntArray=ElemGlobalID)
   !#endif /*PARTICLES*/
 END IF
+
+#if USE_HDG && USE_LOADBALANCE
+IF (meshMode.GT.0) CALL BuildSideToNonUniqueGlobalSide() ! requires ElemInfo
+#endif /*USE_HDG && USE_LOADBALANCE*/
+DEALLOCATE(ElemInfo,SideInfo)
 
 MeshInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -420,10 +427,10 @@ SUBROUTINE InitMeshBasis(NGeo_in,N_in,xGP)
 ! Read Parameter from inputfile
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars,               ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm_CLNGeo_GaussN,Vdm_NGeo_CLNGeo,DCL_NGeo,DCL_N&
-                                       ,wBaryCL_NGeo,XiCL_NGeo,DeltaXi_NGeo
-USE MOD_Basis,                   ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
-USE MOD_Basis,                   ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
+USE MOD_Mesh_Vars ,ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm_CLNGeo_GaussN,Vdm_NGeo_CLNGeo,DCL_NGeo,DCL_N
+USE MOD_Mesh_Vars ,ONLY: wBaryCL_NGeo,XiCL_NGeo,DeltaXi_NGeo
+USE MOD_Basis     ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
+USE MOD_Basis     ,ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1084,6 +1091,7 @@ SDEALLOCATE(ElemBaryNGeo)
 SDEALLOCATE(ElemGlobalID)
 SDEALLOCATE(myInvisibleRank)
 SDEALLOCATE(LostRotPeriodicSides)
+SDEALLOCATE(SideToNonUniqueGlobalSide)
 
 #if defined(PARTICLES) && USE_LOADBALANCE
 IF (PerformLoadBalance) RETURN
