@@ -48,7 +48,7 @@ USE MOD_Restart_Vars         ,ONLY: DoRestart
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems
 USE MOD_LoadBalance_Vars     ,ONLY: ElemTimeField
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars     ,ONLY: ElemTime
+USE MOD_LoadBalance_Vars     ,ONLY: ElemTime,PerformLoadBalance
 #if USE_HDG
 USE MOD_LoadBalance_Vars     ,ONLY: ElemHDGSides,TotalHDGSides
 USE MOD_Analyze_Vars         ,ONLY: CalcMeshInfo
@@ -88,8 +88,8 @@ REAL             :: StartT,EndT
 INTEGER          :: offsetElemSend,offsetElemRecv
 INTEGER          :: iProc,iElem,ElemRank,nElemsProc
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("."))')
-SWRITE(UNIT_stdOut,'(A)')' DOMAIN DECOMPOSITION ...'
+LBWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(UNIT_stdOut,'(A)')' DOMAIN DECOMPOSITION ...'
 
 GETTIME(StartT)
 
@@ -266,21 +266,21 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
   IF(TargetWeight.LE.0.0) CALL abort(&
       __STAMP__, &
       ' LoadBalance: TargetWeight = ',RealInfoOpt=TargetWeight)
-  SWRITE(UNIT_stdOut,'(A)') ' Calculated new (theoretical) imbalance with offsetElemMPI information'
-  SWRITE(UNIT_stdOut,'(A,ES10.3,A,ES10.3,A,ES10.3,A,ES10.3)')&
+  LBWRITE(UNIT_stdOut,'(A)') ' Calculated new (theoretical) imbalance with offsetElemMPI information'
+  SWRITE(UNIT_stdOut,'(A,ES10.3,A,ES10.3,A,ES10.3,A,ES10.3,A)')&
       ' MinWeight: ', MinWeight, '    MaxWeight: ', MaxWeight, '    TargetWeight: ', TargetWeight,'    NewImbalance: ',&
-        NewImbalance
+        NewImbalance,' (theoretical)'
   DEALLOCATE(WeightSum_proc)
 ELSE
-  SWRITE(UNIT_stdOut,'(A)') ' No ElemTime found in restart file'
+  LBWRITE(UNIT_stdOut,'(A)') ' No ElemTime found in restart file'
   NewImbalance = -1.
   MaxWeight = -1.
   MinWeight = -1.
 END IF
 EndT=PICLASTIME()
 DomainDecompositionWallTime=EndT-StartT
-SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DOMAIN DECOMPOSITION DONE! [',DomainDecompositionWallTime,'s]'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A,F0.3,A)')' DOMAIN DECOMPOSITION DONE! [',DomainDecompositionWallTime,'s]'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE DomainDecomposition
 
 

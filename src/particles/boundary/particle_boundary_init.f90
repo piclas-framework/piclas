@@ -241,6 +241,9 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -490,7 +493,7 @@ DO iPBC=1,nPartBound
   DO iBC = 1, nBCs
     IF (BoundaryType(iBC,BC_TYPE).EQ.0) THEN
       PartBound%MapToPartBC(iBC) = -1 !there are no internal BCs in the mesh, they are just in the name list!
-      SWRITE(*,*)"... PartBound",iPBC,"is internal bound, no mapping needed"
+      LBWRITE(*,*)"... PartBound",iPBC,"is internal bound, no mapping needed"
     ELSEIF(BoundaryType(iBC,BC_TYPE).EQ.100)THEN
       IF(TrackingMethod.EQ.REFMAPPING)THEN
         SWRITE(UNIT_STDOUT,'(A)') ' Analyze sides are not implemented for RefMapping=T, because '//  &
@@ -500,7 +503,7 @@ DO iPBC=1,nPartBound
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
-      SWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
+      LBWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
     END IF
   END DO
 END DO
@@ -548,6 +551,9 @@ USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
 USE MOD_HDF5_Output_ElemData    ,ONLY: WriteLostRotPeriodicSidesToHDF5
 USE MOD_Globals_Vars            ,ONLY: ProjectName
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -570,7 +576,7 @@ REAL                 :: StartT,EndT
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY...'
 #if USE_MPI
 IF(MPIRoot) StartT=MPI_WTIME()
 #endif /*USE_MPI*/
@@ -730,8 +736,8 @@ END IF ! notMappedTotal.GT.0
 #if USE_MPI
 IF(MPIRoot)THEN
   EndT=MPI_WTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)') ' INIT ROTATIONAL PERIODIC BOUNDARY DONE! [',EndT-StartT,'s]'
-  WRITE(UNIT_StdOut,'(132("-"))')
+  LBWRITE(UNIT_stdOut,'(A,F0.3,A)') ' INIT ROTATIONAL PERIODIC BOUNDARY DONE! [',EndT-StartT,'s]'
+  LBWRITE(UNIT_StdOut,'(132("-"))')
 END IF ! MPIRoot
 #else
 WRITE(UNIT_stdOut,'(A)') ' INIT ROTATIONAL PERIODIC BOUNDARY DONE!'
@@ -882,9 +888,7 @@ IF (nAuxBCs.GT.0) THEN
       END IF
     CASE DEFAULT
       SWRITE(*,*) ' AuxBC Condition does not exists: ', TRIM(tmpString)
-      CALL abort(&
-        __STAMP__&
-        ,'AuxBC Condition does not exist')
+      CALL abort(__STAMP__,'AuxBC Condition does not exist')
     END SELECT
   END DO
   !- read and count types
@@ -910,9 +914,7 @@ IF (nAuxBCs.GT.0) THEN
       AuxBCMap(iAuxBC) = nAuxBCparabols
     CASE DEFAULT
       SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
-      CALL abort(&
-        __STAMP__&
-        ,'AuxBC does not exist')
+      CALL abort(__STAMP__,'AuxBC does not exist')
     END SELECT
   END DO
   !- allocate type-specifics
@@ -1041,9 +1043,7 @@ IF (nAuxBCs.GT.0) THEN
       AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(4,3)=-0.5*AuxBC_parabol(AuxBCMap(iAuxBC))%zfac
     CASE DEFAULT
       SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
-      CALL abort(&
-        __STAMP__&
-        ,'AuxBC does not exist for AuxBC',iAuxBC)
+      CALL abort(__STAMP__,'AuxBC does not exist for AuxBC',iAuxBC)
     END SELECT
   END DO
   CALL MarkAuxBCElems()

@@ -403,8 +403,8 @@ ELSE
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Reading particles from Restartfile...'
 
   ! FIXME: Deallocate PartInt/PartData until loadbalance is always handled with MPI
-  ! SDEALLOCATE(PartInt)
-  ! SDEALLOCATE(PartData)
+   SDEALLOCATE(PartInt)
+   SDEALLOCATE(PartData)
 
   ! ------------------------------------------------
   ! PartSource

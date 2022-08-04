@@ -437,7 +437,7 @@ INTEGER,PARAMETER       :: AddVar=3
 INTEGER,PARAMETER       :: AddVar=0
 #endif /*USE_HDG*/
 !===================================================================================================================================
-IF(myRPrank.EQ.0) WRITE(UNIT_stdOut,'(a)')' WRITE RECORDPOINT DATA TO HDF5 FILE...'
+SWRITE(UNIT_stdOut,'(a)')' WRITE RECORDPOINT DATA TO HDF5 FILE...'
 #if USE_MPI
 startT=MPI_WTIME()
 #endif

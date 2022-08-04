@@ -468,7 +468,7 @@ SUBROUTINE StartCommunicateMeshReadin()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars              ,ONLY: StartT
+USE MOD_Globals_Vars       ,ONLY: StartT
 USE MOD_Mesh_Vars
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
@@ -476,7 +476,7 @@ USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -519,7 +519,7 @@ nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo_Shared(ELE
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
   IF (myComputeNodeRank.EQ.0) THEN
-    SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO") ' Updating mesh on shared memory...'
+    LBWRITE(UNIT_stdOut,'(A)',ADVANCE="NO") ' Updating mesh on shared memory...'
 
     ! Arrays for the compute node to hold the elem offsets
     ALLOCATE(displsElem(   0:nLeaderGroupProcs-1),&
@@ -565,7 +565,7 @@ IF (PerformLoadBalance) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 
-SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO") ' Communicating mesh on shared memory...'
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE="NO") ' Communicating mesh on shared memory...'
 
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
@@ -775,8 +775,8 @@ SDEALLOCATE(SideInfo_Shared_tmp)
 
 EndT=PICLASTIME()
 CommMeshReadinWallTime=EndT-StartT
-SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DONE  [',CommMeshReadinWallTime,'s]'
-SWRITE(UNIT_stdOut,'(132("."))')
+LBWRITE(UNIT_stdOut,'(A,F0.3,A)')' DONE  [',CommMeshReadinWallTime,'s]'
+LBWRITE(UNIT_stdOut,'(132("."))')
 
 END SUBROUTINE FinishCommunicateMeshReadin
 

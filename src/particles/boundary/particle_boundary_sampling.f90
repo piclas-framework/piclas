@@ -124,6 +124,9 @@ USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -159,7 +162,7 @@ INTEGER                                :: NbGlobalSideID
 !===================================================================================================================================
 
 ! Get input parameters
-SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
 
 WRITE(UNIT=hilf,FMT='(I0)') NGeo
 nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
@@ -661,9 +664,9 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 IF (mySurfRank.EQ.0) THEN
 #endif
-  WRITE(UNIT_StdOut,'(A,I8)')       ' | Number of sampling sides:           '    , nSurfTotalSides
-  WRITE(UNIT_StdOut,'(A,ES10.4E2)') ' | Surface-Area:                         ', Area
-  WRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING DONE'
+  LBWRITE(UNIT_StdOut,'(A,I8)')       ' | Number of sampling sides:           '    , nSurfTotalSides
+  LBWRITE(UNIT_StdOut,'(A,ES10.4E2)') ' | Surface-Area:                         ', Area
+  LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING DONE'
 #if USE_MPI
 END IF
 #endif

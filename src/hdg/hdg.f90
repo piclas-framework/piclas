@@ -129,6 +129,9 @@ USE MOD_MPI_Vars
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
 #endif /*USE_PETSC*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -150,11 +153,11 @@ INTEGER           :: locSide,nMortarMasterSides,nMortars
 #endif
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
-   SWRITE(*,*) "InitHDG already called."
+   LBWRITE(*,*) "InitHDG already called."
    RETURN
 END IF
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
 
 HDGDisplayConvergence = GETLOGICAL('HDGDisplayConvergence')
 
@@ -459,8 +462,8 @@ CALL VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local
 #endif
 
 HDGInitIsDone = .TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT HDG DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT HDG DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitHDG
 
 
@@ -478,6 +481,9 @@ USE MOD_HDG_Vars    ,ONLY: ZeroPotentialSideID,HDGZeroPotentialDir
 USE MOD_Mesh        ,ONLY: GetMeshMinMaxBoundaries
 USE MOD_Mesh_Vars   ,ONLY: nBCs,BoundaryType,nSides,BC,xyzMinMax,NGeo,Face_xGP
 USE MOD_ReadInTools ,ONLY: PrintOption,GETINT
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -562,14 +568,14 @@ IF(ZeroPotentialSideID.EQ.-1)THEN
 #else
   nZeroPotentialSidesGlobal = nZeroPotentialSides
 #endif /*USE_MPI*/
-  SWRITE(UNIT_StdOut,'(A,I0)') " Found (global) number of zero potential sides: ", nZeroPotentialSidesMax
+  LBWRITE(UNIT_StdOut,'(A,I0)') " Found (global) number of zero potential sides: ", nZeroPotentialSidesMax
 
   ! Sanity checks for root
   IF(MPIroot)THEN
     ! 1) multiples sides found
     IF(nZeroPotentialSidesMax.GT.1)THEN
-      WRITE(UNIT_StdOut,'(A)') " WARNING: Found more than 1 zero potential side on a proc and currently, only one can be considered."
-      WRITE(UNIT_StdOut,'(A,I0,A)') " WARNING: nZeroPotentialSidesGlobal: ", nZeroPotentialSidesMax, " (may lead to problems)"
+      LBWRITE(UNIT_StdOut,'(A)') " WARNING: Found more than 1 zero potential side on a proc and currently, only one can be considered."
+      LBWRITE(UNIT_StdOut,'(A,I0,A)') " WARNING: nZeroPotentialSidesGlobal: ", nZeroPotentialSidesMax, " (may lead to problems)"
     END IF
 
     ! 2) no sides found

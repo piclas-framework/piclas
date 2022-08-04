@@ -55,11 +55,14 @@ SUBROUTINE ReadBCs()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars   ,ONLY: BoundaryName,BoundaryType,nBCs,nUserBCs
+USE MOD_Mesh_Vars        ,ONLY: BoundaryName,BoundaryType,nBCs,nUserBCs
 #if USE_HDG
-USE MOD_Mesh_Vars   ,ONLY: ChangedPeriodicBC
+USE MOD_Mesh_Vars        ,ONLY: ChangedPeriodicBC
 #endif /*USE_HDG*/
-USE MOD_ReadInTools ,ONLY: GETINTARRAY,CountOption,GETSTR
+USE MOD_ReadInTools      ,ONLY: GETINTARRAY,CountOption,GETSTR
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -142,7 +145,7 @@ END ASSOCIATE
 ChangedPeriodicBC=.FALSE. ! set true if BCs are changed from periodic to non-periodic
 #endif /*USE_HDG*/
 IF(nUserBCs .GT. 0)THEN
-  SWRITE(Unit_StdOut,'(A)')' REMAPPING BOUNDARY CONDITIONS...'
+  LBWRITE(Unit_StdOut,'(A)')' REMAPPING BOUNDARY CONDITIONS...'
   DO iBC=1,nBCs
     IF(BCMapping(iBC).NE.0)THEN
       ! Compare new and original BC type (from mesh file)
@@ -159,7 +162,7 @@ IF(nUserBCs .GT. 0)THEN
       END IF
 #endif /*USE_HDG*/
       ! Output
-      SWRITE(Unit_StdOut,'(A,A50,A,I4,I4,A,I4,I4)') ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC)), &
+      LBWRITE(Unit_StdOut,'(A,A50,A,I4,I4,A,I4,I4)') ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC)), &
                                       ' was ', NewBC,BCType(3,iBC), ' is set to ',BoundaryType(BCMapping(iBC),1:2)
       BCType(1,iBC) = BoundaryType(BCMapping(iBC),BC_TYPE)
       BCType(3,iBC) = BoundaryType(BCMapping(iBC),BC_STATE)
@@ -174,12 +177,12 @@ BoundaryName = BCNames
 BoundaryType(:,BC_TYPE)  = BCType(1,:)
 BoundaryType(:,BC_STATE) = BCType(3,:)
 BoundaryType(:,BC_ALPHA) = BCType(4,:)
-SWRITE(UNIT_StdOut,'(132("."))')
-SWRITE(Unit_StdOut,'(A,A15,A20,A10,A10,A10)')' BOUNDARY CONDITIONS','|','Name','Type','State','Alpha'
+LBWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(Unit_StdOut,'(A,A15,A20,A10,A10,A10)')' BOUNDARY CONDITIONS','|','Name','Type','State','Alpha'
 DO iBC=1,nBCs
-  SWRITE(*,'(A,A33,A20,I10,I10,I10)')' |','|',TRIM(BoundaryName(iBC)),BoundaryType(iBC,:)
+  LBWRITE(*,'(A,A33,A20,I10,I10,I10)')' |','|',TRIM(BoundaryName(iBC)),BoundaryType(iBC,:)
 END DO
-SWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(UNIT_StdOut,'(132("."))')
 DEALLOCATE(BCNames,BCType,BCMapping)
 END SUBROUTINE ReadBCs
 
@@ -804,26 +807,32 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,ReduceData,11,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD
 nGlobalMortarSides=ReduceData(9)
 
 IF(MPIRoot)THEN
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nElems | ',ReduceData(1) !nElems
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, unique | ',ReduceData(3) !nNodes
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, total  | ',ReduceData(11) !nNodes
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides         | ',ReduceData(2)-ReduceData(7)/2
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,    BC  | ',ReduceData(6) !nBCSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,   MPI  | ',ReduceData(7)/2 !nMPISides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides, Inner  | ',ReduceData(4) !nInnerSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar  | ',nGlobalMortarSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Total | ',ReduceData(5)-ReduceData(10)/2
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Inner | ',ReduceData(5)-ReduceData(10)
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,  MPI | ',ReduceData(10)/2 !nPeriodicSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nAnalyzeSides | ',ReduceData(8) !nAnalyzeSides
-  WRITE(UNIT_stdOut,'(A,A34,L1)')' |','useCurveds | ',useCurveds
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','Ngeo | ',Ngeo
-  WRITE(UNIT_stdOut,'(132("."))')
+#if USE_LOADBALANCE
+  IF(.NOT.PerformLoadBalance)THEN
+#endif /*USE_LOADBALANCE*/
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nElems | ',ReduceData(1) !nElems
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, unique | ',ReduceData(3) !nNodes
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, total  | ',ReduceData(11) !nNodes
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides         | ',ReduceData(2)-ReduceData(7)/2
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,    BC  | ',ReduceData(6) !nBCSides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,   MPI  | ',ReduceData(7)/2 !nMPISides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides, Inner  | ',ReduceData(4) !nInnerSides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar  | ',nGlobalMortarSides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Total | ',ReduceData(5)-ReduceData(10)/2
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Inner | ',ReduceData(5)-ReduceData(10)
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,  MPI | ',ReduceData(10)/2 !nPeriodicSides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nAnalyzeSides | ',ReduceData(8) !nAnalyzeSides
+    WRITE(UNIT_stdOut,'(A,A34,L1)')' |','useCurveds | ',useCurveds
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','Ngeo | ',Ngeo
+    WRITE(UNIT_stdOut,'(132("."))')
+#if USE_LOADBALANCE
+  END IF ! .NOT.PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 END IF
 
 LOGWRITE_BARRIER
 
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE ReadMesh
 
 

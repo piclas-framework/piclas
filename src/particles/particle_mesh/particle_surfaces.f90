@@ -109,11 +109,14 @@ SUBROUTINE InitParticleSurfaces()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,               ONLY:EpsMach
+USE MOD_Globals_Vars           ,ONLY: EpsMach
 USE MOD_Particle_Surfaces_Vars
 USE MOD_Preproc
-USE MOD_Mesh_Vars,                  ONLY:NGeo
-USE MOD_ReadInTools,                ONLY:GETREAL,GETINT
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -128,8 +131,8 @@ CHARACTER(LEN=2)                :: dummy
 !===================================================================================================================================
 
 IF(ParticleSurfaceInitIsDone) RETURN
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES...'
 
 BezierNewtonAngle     = GETREAL('BezierNewtonAngle','1.570796326')! 1°=0.01754 (in rad)
 BezierClipTolerance   = GETREAL('BezierClipTolerance','1e-8')
@@ -175,8 +178,8 @@ ALLOCATE( locAlpha(1:BezierClipMaxIntersec) &
 
 ParticleSurfaceInitIsDone = .TRUE.
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE SURFACES DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitParticleSurfaces
 
@@ -907,9 +910,12 @@ SUBROUTINE GetBezierSampledAreas(SideID,BezierSampleN,BezierSurfFluxProjection_o
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Surfaces_Vars, ONLY:epsilontol,BezierControlPoints3D
-USE MOD_Basis,                  ONLY:LegendreGaussNodesAndWeights
-USE MOD_Mesh_Vars,              ONLY:NGeo
+USE MOD_Particle_Surfaces_Vars ,ONLY: epsilontol,BezierControlPoints3D
+USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights
+USE MOD_Mesh_Vars              ,ONLY: NGeo
+#if CODE_ANALYZE && USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*CODE_ANALYZE && USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1082,14 +1088,11 @@ __STAMP__&
   IF(BezierSurfFluxProjection)THEN
     ! add facing sides and substract non-facing sides
     SurfMeshSubSideAreas(iSample,jSample) = SIGN(area,-DOT_PRODUCT(ProjectionVector,SurfMeshSubSideVec_nOut(:,iSample,jSample)))
-    !!!IPWRITE(*,*)'sign-area', SurfMeshSubSideAreas(iSample,jSample)
   ELSE
     SurfMeshSubSideAreas(iSample,jSample) = area
   END IF
   areaTotal=areaTotal+SurfMeshSubSideAreas(iSample,jSample)
   areaTotalAbs=areaTotalAbs+area
-  !!!IPWRITE(*,*)"areaTotal",areaTotal
-  !!!IPWRITE(*,*)"areaTotalAbs",areaTotalAbs
 END DO; END DO !jSample=1,BezierSampleN;iSample=1,BezierSampleN: loop through Sub-Elements
 
 DEALLOCATE(Xi_NGeo,wGP_NGeo)
@@ -1108,10 +1111,16 @@ IF (PRESENT(BezierControlPoints2D_opt)) THEN
 END IF
 
 #ifdef CODE_ANALYZE
-IPWRITE(*,*)" ===== SINGLE AREA ====="
-IPWRITE(*,*)"SideID:",SideID,"areaTotal   =",areaTotal
-IPWRITE(*,*)"SideID:",SideID,"areaTotalAbs=",areaTotalAbs
-IPWRITE(*,*)" ============================"
+#if USE_LOADBALANCE
+IF(.NOT.PerformLoadBalance)THEN
+#endif /*USE_LOADBALANCE*/
+  IPWRITE(*,*)" ===== SINGLE AREA ====="
+  IPWRITE(*,*)"SideID:",SideID,"areaTotal   =",areaTotal
+  IPWRITE(*,*)"SideID:",SideID,"areaTotalAbs=",areaTotalAbs
+  IPWRITE(*,*)" ============================"
+#if USE_LOADBALANCE
+END IF ! PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 #endif /*CODE_ANALYZE*/
 
 END SUBROUTINE GetBezierSampledAreas
@@ -1226,9 +1235,7 @@ IF(PRESENT(BezierControlPoints3d_in))THEN
 ELSE IF(PRESENT(BezierControlPoints2d_in))THEN
   BezierControlPoints3D(1:2,:,:)=BezierControlPoints2d_in(:,:,:)
 ELSE
-  CALL abort(&
-__STAMP__&
-,' OutputBezierControlPoints(): Something went wrong.!')
+  CALL abort(__STAMP__,' OutputBezierControlPoints(): Something went wrong.!')
 END IF
 
 DO K=1,3

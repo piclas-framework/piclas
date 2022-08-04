@@ -157,6 +157,9 @@ USE MOD_Mesh_Vars          ,ONLY: xyzMinMax,nSides,nBCSides
 USE MOD_Mesh               ,ONLY: GetMeshMinMaxBoundaries
 USE MOD_Utils              ,ONLY: RootsOfBesselFunctions
 USE MOD_ReadInTools        ,ONLY: PrintOption
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -177,17 +180,17 @@ REAL                             :: BeamEnergy_loc,BeamFluency_loc,BeamArea_loc
 IF(EquationInitIsDone)THEN
 #ifdef PARTICLES
   IF(InterpolationInitIsDone)THEN
-    SWRITE(*,*) "InitMaxwell not ready to be called or already called."
+    LBWRITE(*,*) "InitMaxwell not ready to be called or already called."
     RETURN
   END IF
 #else
-  SWRITE(*,*) "InitMaxwell not ready to be called or already called."
+  LBWRITE(*,*) "InitMaxwell not ready to be called or already called."
   RETURN
 #endif /*PARTICLES*/
 END IF
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...'
 
 ! Read correction velocity
 c_corr             = GETREAL('c_corr','1.')
@@ -265,13 +268,13 @@ DO iRefState=1,nTmp
     END IF
     IF(TERadius.LT.0.0)THEN ! not set
       TERadius=GETREAL('TERadius','0.0')
-      SWRITE(UNIT_StdOut,*) ' TERadius not determined automatically. Set waveguide radius to ', TERadius
+      LBWRITE(UNIT_StdOut,*) ' TERadius not determined automatically. Set waveguide radius to ', TERadius
     END IF
 
     ! display cut-off freequncy for this mode
-    SWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,ES25.14E3,A)')&
+    LBWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,ES25.14E3,A)')&
            '  Cut-off frequency in circular waveguide for TE_[',1,',',0,'] is ',1.8412*c/(2*PI*TERadius),' Hz (lowest mode)'
-    SWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,ES25.14E3,A)')&
+    LBWRITE(UNIT_stdOut,'(A,I5,A1,I5,A,ES25.14E3,A)')&
            '  Cut-off frequency in circular waveguide for TE_[',TEMode(1),',',TEMode(2),'] is ',(TEModeRoot/TERadius)*c/(2*PI),&
            ' Hz (chosen mode)'
   CASE(12,121,14,15,16)
@@ -347,7 +350,7 @@ DO iRefState=1,nTmp
         Beam_w0 = GETREAL ('Beam_w0','1.')
       ELSE
         Beam_w0 = omega_0
-        SWRITE(UNIT_StdOut,'(A)')'Setting Beam_w0=omega_0 (value read from old variable definition)'
+        LBWRITE(UNIT_StdOut,'(A)')'Setting Beam_w0=omega_0 (value read from old variable definition)'
       END IF
       Beam_w0_2inv = 2.0/(Beam_w0**2)
       sBeam_w0_2   = 1.0/(Beam_w0**2)
@@ -466,8 +469,8 @@ ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape)
                 * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
 
 EquationInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT MAXWELL DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT MAXWELL DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 
