@@ -147,6 +147,9 @@ USE MOD_MPI_Vars
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 USE MOD_Readintools        ,ONLY: GETINT
 USE MOD_MPI_Shared_Vars    ,ONLY: nProcessors_Global
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -206,7 +209,7 @@ IF(GroupSize.LT.1)THEN ! group procs by node
   ! Check if more nodes than procs are required or
   ! if the resulting split would create unequal procs per node
   IF((CORE_SPLIT.GE.nProcessors_Global).OR.(MOD(nProcessors_Global,CORE_SPLIT).GT.0))THEN
-    SWRITE (*,'(A,I0,A,I0,A,F0.2,A)') ' WARNING: Either more nodes than cores selected (nodes: ',CORE_SPLIT,', cores: ',&
+    LBWRITE (*,'(A,I0,A,I0,A,F0.2,A)') ' WARNING: Either more nodes than cores selected (nodes: ',CORE_SPLIT,', cores: ',&
         nProcessors_Global,') OR unequal number of cores per node (=',REAL(nProcessors_Global)/REAL(CORE_SPLIT),&
         '). Setting 1 core per node for MPI_COMM_NODE!'
     color = myRank
@@ -225,9 +228,9 @@ CALL MPI_COMM_SIZE(MPI_COMM_NODE,nLocalProcs,iError)
 MPILocalRoot=(myLocalRank.EQ.0)
 
 IF (nProcessors_Global.EQ.nLocalProcs) THEN
-  SWRITE(UNIT_stdOUt,'(A,I0,A,I0,A)') ' | Starting gathered I/O communication with ',nLocalProcs,' procs in ',1,' group'
+  LBWRITE(UNIT_stdOUt,'(A,I0,A,I0,A)') ' | Starting gathered I/O communication with ',nLocalProcs,' procs in ',1,' group'
 ELSE
-  SWRITE(UNIT_stdOUt,'(A,I0,A,I0,A,I0,A)') ' | Starting gathered I/O communication with ',nLocalProcs,' procs each in ',&
+  LBWRITE(UNIT_stdOUt,'(A,I0,A,I0,A,I0,A)') ' | Starting gathered I/O communication with ',nLocalProcs,' procs each in ',&
                                                         nProcessors_Global/nLocalProcs,' groups for a total number of ',&
                                                         nProcessors_Global,' procs'
 END IF

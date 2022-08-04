@@ -114,6 +114,9 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars         ,ONLY: PDM
 USE MOD_PICInterpolation_Vars
 USE MOD_ReadInTools           ,ONLY: PrintOption
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -128,7 +131,7 @@ REAL                      :: scaleExternalField
 CHARACTER(LEN=20)         :: tempStr
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
 
 IF(.NOT.DoInterpolation) THEN
   ! Fill interpolation type with empty string
@@ -175,19 +178,13 @@ IF(AlgebraicExternalFieldDelta.LT.0) CALL abort(__STAMP__,'AlgebraicExternalFiel
 
 !--- Allocate arrays for interpolation of fields to particles
 ALLOCATE(FieldAtParticle(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-  __STAMP__ &
-  ,'ERROR in pic_interpolation.f90: Cannot allocate FieldAtParticle array!',ALLOCSTAT)
-END IF
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__ ,'ERROR in pic_interpolation.f90: Cannot allocate FieldAtParticle array!',ALLOCSTAT)
 
 SELECT CASE(TRIM(InterpolationType))
 CASE('particle_position')
   ! PASS
 CASE DEFAULT
-  CALL abort(&
-  __STAMP__ &
-  ,'Unknown InterpolationType ['//TRIM(ADJUSTL(InterpolationType))//'] in pic_interpolation.f90')
+  CALL abort(__STAMP__ ,'Unknown InterpolationType ['//TRIM(ADJUSTL(InterpolationType))//'] in pic_interpolation.f90')
 END SELECT
 
 #ifdef CODE_ANALYZE
@@ -233,7 +230,7 @@ IF(DoInterpolationAnalytic)THEN
 END IF
 #endif /*CODE_ANALYZE*/
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
 END SUBROUTINE InitializeParticleInterpolation
 
 
@@ -370,6 +367,9 @@ USE MOD_Globals
 USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,FileNameVariableExternalField
 USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldDim,VariableExternalFieldAxisSym
 USE MOD_HDF5_Input_Field      ,ONLY: ReadVariableExternalFieldFromHDF5
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -381,7 +381,7 @@ USE MOD_HDF5_Input_Field      ,ONLY: ReadVariableExternalFieldFromHDF5
 INTEGER,PARAMETER     :: lenmin=4
 INTEGER               :: lenstr
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
+LBWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
 
 ! Defaults
 VariableExternalFieldDim     = 1 ! default is 1D
@@ -405,7 +405,7 @@ END IF
 
 IF(.NOT.ALLOCATED(VariableExternalField)) CALL abort(__STAMP__,"Failed to load data from: "//TRIM(FileNameVariableExternalField))
 
-SWRITE(UNIT_stdOut,'(A)')' ...VARIABLE EXTERNAL FIELD INITIALIZATION DONE'
+LBWRITE(UNIT_stdOut,'(A)')' ...VARIABLE EXTERNAL FIELD INITIALIZATION DONE'
 END SUBROUTINE ReadVariableExternalField
 
 
@@ -419,7 +419,10 @@ SUBROUTINE ReadVariableExternalFieldFromCSV()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PICInterpolation_Vars, ONLY:VariableExternalField,DeltaExternalField,nIntPoints,FileNameVariableExternalField
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,DeltaExternalField,nIntPoints,FileNameVariableExternalField
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -464,15 +467,15 @@ CLOSE (ioUnit)
 
 IF(ncounts.GT.1) THEN
   DeltaExternalField(1) = VariableExternalField(1,2)  - VariableExternalField(1,1)
-  SWRITE(UNIT_stdOut,'(A,1X,ES25.14E3)') ' Delta external field: ',DeltaExternalField(1)
+  LBWRITE(UNIT_stdOut,'(A,1X,ES25.14E3)') ' Delta external field: ',DeltaExternalField(1)
   IF(DeltaExternalField(1).LE.0) THEN
-    SWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
+    LBWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
   END IF
 ELSE
   CALL abort(__STAMP__," ERROR: not enough data points in variable external field file!")
 END IF
 
-SWRITE(UNIT_stdOut,'(A,I4.0,A)')' Found ', ncounts,' data points.'
+LBWRITE(UNIT_stdOut,'(A,I4.0,A)')' Found ', ncounts,' data points.'
 END SUBROUTINE ReadVariableExternalFieldFromCSV
 
 

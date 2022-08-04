@@ -76,6 +76,9 @@ USE MOD_TimeDisc_Vars           ,ONLY: nRKStages,RK_c
 #endif
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: IsExchangeElem
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -119,8 +122,8 @@ REAL                           :: StartT,EndT
 !=================================================================================================================================
 
 IF(MPIRoot)THEN
-  WRITE(UNIT_StdOut,'(132("-"))')
-  WRITE(UNIT_stdOut,'(A)') ' IDENTIFYING Particle Exchange Processors ...'
+  LBWRITE(UNIT_StdOut,'(132("-"))')
+  LBWRITE(UNIT_stdOut,'(A)') ' IDENTIFYING Particle Exchange Processors ...'
   StartT=MPI_WTIME()
 END IF ! MPIRoot
 
@@ -411,16 +414,16 @@ IF (halo_eps.LE.0.) THEN
 
   ! compare halo_eps against global diagonal and reduce if necessary
   IF (.NOT.ALMOSTZERO(MPI_halo_eps).AND.(MPI_halo_diag.GE.MPI_halo_eps)) THEN
-    SWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to ',MPI_halo_eps
+    LBWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to ',MPI_halo_eps
   ELSEIF (.NOT.ALMOSTZERO(MPI_halo_eps).AND.(MPI_halo_diag.LT.MPI_halo_eps)) THEN
     fullMesh = .TRUE.
     MPI_halo_eps = MPI_halo_diag
-    SWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to global diag with ',MPI_halo_eps
+    LBWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to global diag with ',MPI_halo_eps
   ! halo_eps still at zero. Set it to global diagonal
   ELSE
     fullMesh = .TRUE.
     MPI_halo_eps = MPI_halo_diag
-    SWRITE(UNIT_stdOUt,'(A,F11.3)') ' | No halo_eps given and could not be reconstructed. Using global diag with ',MPI_halo_eps
+    LBWRITE(UNIT_stdOUt,'(A,F11.3)') ' | No halo_eps given and could not be reconstructed. Using global diag with ',MPI_halo_eps
   END IF
 ELSE
   vec(1)   = GEO%xmaxglob-GEO%xminglob
@@ -1068,7 +1071,7 @@ END DO
 
 ! -- Average number of exchange processors
 CALL MPI_REDUCE(nExchangeProcessors,nExchangeProcessorsGlobal,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
-SWRITE(UNIT_stdOut,'(A,I0,A)') ' | Started particle exchange communication with average ', &
+LBWRITE(UNIT_stdOut,'(A,I0,A)') ' | Started particle exchange communication with average ', &
                                  nExchangeProcessorsGlobal/nProcessors_Global            , &
                                  ' partners per proc'
 
@@ -1483,8 +1486,8 @@ END IF
 
 IF(MPIRoot)THEN
   EndT=MPI_WTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)') ' IDENTIFYING Particle Exchange Processors DONE  [',EndT-StartT,'s]'
-  WRITE(UNIT_StdOut,'(132("-"))')
+  LBWRITE(UNIT_stdOut,'(A,F0.3,A)') ' IDENTIFYING Particle Exchange Processors DONE  [',EndT-StartT,'s]'
+  LBWRITE(UNIT_StdOut,'(132("-"))')
 END IF ! MPIRoot
 
 END SUBROUTINE IdentifyPartExchangeProcs

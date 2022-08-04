@@ -89,6 +89,9 @@ USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,Coun
 #if ! (USE_HDG)
 USE MOD_Equation_Vars     ,ONLY: c_corr
 #endif /*if not USE_HDG*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -98,14 +101,14 @@ USE MOD_Equation_Vars     ,ONLY: c_corr
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT Dielectric...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT Dielectric...'
 !===================================================================================================================================
 ! Readin
 !===================================================================================================================================
 DoDielectric                     = GETLOGICAL('DoDielectric','.FALSE.')
 IF(.NOT.DoDielectric) THEN
-  SWRITE(UNIT_stdOut,'(A)') ' Dielectric region deactivated. '
+  LBWRITE(UNIT_stdOut,'(A)') ' Dielectric region deactivated. '
   nDielectricElems=0
   RETURN
 END IF
@@ -205,8 +208,8 @@ CALL SetDielectricVolumeProfile()
 CALL WriteDielectricGlobalToHDF5()
 
 DielectricInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT Dielectric DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT Dielectric DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitDielectric
 
 

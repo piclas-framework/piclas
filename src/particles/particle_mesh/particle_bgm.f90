@@ -125,6 +125,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared_Win,BoundsOfElem_
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems,FIBGM_nTotalElems_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic,MeshHasRotPeriodic
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -214,7 +217,7 @@ GEO%FIBGMjmaxglob = BGMjmaxglob
 GEO%FIBGMkminglob = BGMkminglob
 GEO%FIBGMkmaxglob = BGMkmaxglob
 
-SWRITE(UNIT_stdOut,'(A,I18,A,I18,A,I18)') ' | Total FIBGM Cells(x,y,z): '                                     &
+LBWRITE(UNIT_stdOut,'(A,I18,A,I18,A,I18)') ' | Total FIBGM Cells(x,y,z): '                                     &
                                           , BGMimaxglob - BGMiminglob                                    ,', '&
                                           , BGMjmaxglob - BGMjminglob                                    ,', '&
                                           , BGMkmaxglob - BGMkminglob
@@ -422,7 +425,7 @@ ELSE
                    + (GEO%zmaxglob-GEO%zminglob)**2 )
   IF(halo_eps.GT.globalDiag)THEN
     CALL PrintOption('unlimited halo distance','CALCUL.',RealOpt=halo_eps)
-    SWRITE(UNIT_stdOut,'(A38)') ' |   limitation of halo distance  |    '
+    LBWRITE(UNIT_stdOut,'(A38)') ' |   limitation of halo distance  |    '
     halo_eps=globalDiag
   END IF
 
@@ -443,7 +446,7 @@ DO iElem = firstElem, lastElem
 END DO
 ! >> Communicate global maximum
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxCellRadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
-SWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', for building halo BGM ...'
+LBWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', for building halo BGM ...'
 #if USE_MPI
 StartT=MPI_WTIME()
 #else
@@ -1086,8 +1089,8 @@ IF ((SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)  ,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:
 
 ! Debug output
 IF (myRank.EQ.0) THEN
-  SWRITE(Unit_StdOut,'(A)') ' DETERMINED compute-node (CN) halo region ...'
-  SWRITE(Unit_StdOut,'(A)') ' | CN Rank | Local Elements | Halo Elements (non-peri) | Halo Elements (peri) |'
+  LBWRITE(Unit_StdOut,'(A)') ' DETERMINED compute-node (CN) halo region ...'
+  LBWRITE(Unit_StdOut,'(A)') ' | CN Rank | Local Elements | Halo Elements (non-peri) | Halo Elements (peri) |'
   CALL FLUSH(UNIT_stdOut)
   ALLOCATE(NumberOfElements(3*nLeaderGroupProcs))
 END IF
@@ -1105,22 +1108,28 @@ IF (myComputeNodeRank.EQ.0) THEN
   END ASSOCIATE
 END IF
 
-IF (myRank.EQ.0) THEN
-  DO iProc = 0,nLeaderGroupProcs-1
-    WRITE(Unit_StdOut,'(A,I7,A,I15,A,I25,A,I21,A)')  &
-                                      ' |>',iProc, &
-                                      ' |'  ,NumberOfElements(iProc*3+1), &
-                                      ' |'  ,NumberOfElements(iProc*3+2), &
-                                      ' |'  ,NumberOfElements(iProc*3+3), ' |'
-  END DO
+IF (MPIRoot) THEN
+#if USE_LOADBALANCE
+  IF(.NOT.PerformLoadBalance)THEN
+#endif /*USE_LOADBALANCE*/
+    DO iProc = 0,nLeaderGroupProcs-1
+      WRITE(Unit_StdOut,'(A,I7,A,I15,A,I25,A,I21,A)')  &
+                                        ' |>',iProc, &
+                                        ' |'  ,NumberOfElements(iProc*3+1), &
+                                        ' |'  ,NumberOfElements(iProc*3+2), &
+                                        ' |'  ,NumberOfElements(iProc*3+3), ' |'
+    END DO
+#if USE_LOADBALANCE
+  END IF ! .NOT.PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 END IF
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*CODE_ANALYZE*/
 
 EndT = PICLASTIME()
-SWRITE(UNIT_stdOut,'(A,E15.7,A,F0.3,A)') ' | Found max. cell radius as',maxCellRadius,', for building halo BGM ... DONE! ['&
+LBWRITE(UNIT_stdOut,'(A,E15.7,A,F0.3,A)') ' | Found max. cell radius as',maxCellRadius,', for building halo BGM ... DONE! ['&
 ,EndT-StartT,'s]'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 ! ONLY IF HALO_EPS .LT. GLOBAL_DIAG
 ! ONLY IF EMISSION .EQ. 1 .OR. 2
@@ -1148,12 +1157,8 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 !===================================================================================================================================
 #endif /*USE_MPI*/
 
-SWRITE(UNIT_stdOut,'(A)')' BUILDING FIBGM ELEMENT MAPPING ...'
-#if USE_MPI
-StartT=MPI_WTIME()
-#else
-CALL CPU_TIME(StartT)
-#endif /*USE_MPI*/
+LBWRITE(UNIT_stdOut,'(A)')' BUILDING FIBGM ELEMENT MAPPING ...'
+GETTIME(StartT)
 
 #if USE_MPI
 firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
@@ -1331,8 +1336,8 @@ CALL BARRIER_AND_SYNC(FIBGMToProc_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 EndT = PICLASTIME()
-SWRITE(UNIT_stdOut,'(A,F0.3,A)')' BUILDING FIBGM ELEMENT MAPPING DONE! [',EndT-StartT,'s]'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A,F0.3,A)')' BUILDING FIBGM ELEMENT MAPPING DONE! [',EndT-StartT,'s]'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 #if USE_MPI
 ASSOCIATE(FIBGM_nElems => FIBGM_nTotalElems)
@@ -1488,6 +1493,9 @@ USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,myLeaderGroupRank,nLeade
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloID
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloInfo_Array,ElemHaloInfo_Shared,ElemHaloInfo_Shared_Win,ElemInfo_Shared
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1499,7 +1507,7 @@ INTEGER                        :: iRank,iElem
 CHARACTER(LEN=255)             :: tmpStr
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES') " ADDING halo debug information to State file..."
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE='YES') " ADDING halo debug information to State file..."
 
 ! Allocate array in shared memory for each compute-node rank
 CALL Allocate_Shared((/nGlobalElems*nLeaderGroupProcs/),ElemHaloInfo_Shared_Win,ElemHaloInfo_Array)

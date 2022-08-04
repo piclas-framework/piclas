@@ -140,6 +140,9 @@ USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -213,7 +216,7 @@ IF(ChemReac%NumDeleteProducts.GT.0) THEN
 END IF
 
 ChemEnergySum = 0.
-SWRITE(*,*) '| Number of considered reaction paths (including dissociation and recombination): ', ChemReac%NumOfReact
+LBWRITE(*,*) '| Number of considered reaction paths (including dissociation and recombination): ', ChemReac%NumOfReact
 !----------------------------------------------------------------------------------------------------------------------------------
 ALLOCATE(ChemReac%NumReac(ChemReac%NumOfReact))
 ChemReac%NumReac = 0

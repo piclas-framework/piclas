@@ -213,8 +213,8 @@ INTEGER          :: ALLOCSTAT
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH ...'
 IF(ParticleMeshInitIsDone) CALL abort(__STAMP__, ' Particle-Mesh is already initialized.')
 
 #if USE_MPI
@@ -318,7 +318,7 @@ END IF
 WRITE(tmpStr,'(I2.2)') RefMappingGuessProposal
 RefMappingGuess = GETINT('RefMappingGuess',tmpStr)
 IF((RefMappingGuess.LT.1).AND.(UseCurveds)) THEN ! Linear intial guess on curved meshes might cause problems.
-  SWRITE(UNIT_stdOut,'(A)')' WARNING: read-in [RefMappingGuess=1] when using [UseCurveds=T] may create problems!'
+  LBWRITE(UNIT_stdOut,'(A)')' WARNING: read-in [RefMappingGuess=1] when using [UseCurveds=T] may create problems!'
 END IF
 RefMappingEps   = GETREAL('RefMappingEps','1e-4')
 
@@ -336,7 +336,7 @@ IF((TrackingMethod.EQ.TRIATRACKING).AND.(.NOT.TriaSurfaceFlux)) THEN
   CALL ABORT(__STAMP__,'TriaSurfaceFlux must be for TriaTracking!')
 END IF
 IF (Symmetry%Order.LE.2) THEN
-  SWRITE(UNIT_stdOut,'(A)') "Surface Flux set to triangle approximation due to Symmetry2D."
+  LBWRITE(UNIT_stdOut,'(A)') "Surface Flux set to triangle approximation due to Symmetry2D."
   TriaSurfaceFlux = .TRUE.
 END IF
 
@@ -494,12 +494,12 @@ END IF
 
 ParticleMeshInitIsDone=.TRUE.
 
-SWRITE(UNIT_stdOut,'(A)') " NOW CALLING deleteMeshPointer..."
+LBWRITE(UNIT_stdOut,'(A)') " NOW CALLING deleteMeshPointer..."
 CALL deleteMeshPointer()
 DEALLOCATE(NodeCoords)
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitParticleMesh
 

@@ -73,9 +73,12 @@ SUBROUTINE InitPartSolver()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_ReadInTools,          ONLY:GETINT,GETREAL,GETLOGICAL
-USE MOD_Particle_Vars,        ONLY:PDM
+USE MOD_ReadInTools       ,ONLY: GETINT,GETREAL,GETLOGICAL
+USE MOD_Particle_Vars     ,ONLY: PDM
 USE MOD_LinearSolver_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -88,7 +91,7 @@ INTEGER                     :: allocstat
 REAL                        :: scaleps
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE SOLVER...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE SOLVER...'
 
 #if defined(IMPA)
 Eps2PartNewton     =GETREAL('EpsPartNewton','0.001')
@@ -130,9 +133,9 @@ __STAMP__&
 #ifdef IMPA
 DoFullNewton = GETLOGICAL('DoFullNewton','.FALSE.')
 IF(DoFullNewton)THEN
-  SWRITE(UNIT_stdOut,'(A)') ' Using a full Newton for Particle and Field instead of Piccardi-Iteration.'
+  LBWRITE(UNIT_stdOut,'(A)') ' Using a full Newton for Particle and Field instead of Piccardi-Iteration.'
   nPartNewtonIter=1
-  SWRITE(UNIT_stdOut,'(A,I0)') ' Setting nPartNewtonIter to: ', nPartNewtonIter
+  LBWRITE(UNIT_stdOut,'(A,I0)') ' Setting nPartNewtonIter to: ', nPartNewtonIter
 END IF
 
 PartImplicitMethod =GETINT('Part-ImplicitMethod','0')

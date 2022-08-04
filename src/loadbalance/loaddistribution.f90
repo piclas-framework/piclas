@@ -433,7 +433,7 @@ END SUBROUTINE WeightDistribution_ElemTime
 SUBROUTINE WeightDistribution_ElemTimeLeast(nProcs,nGlobalElems,ElemGlobalTime,offsetElemMPI)
 ! MODULES
 USE MOD_Globals
-USE MOD_LoadBalance_Vars ,ONLY: LoadDistri,WeightSum
+USE MOD_LoadBalance_Vars ,ONLY: LoadDistri,WeightSum,PerformLoadBalance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -465,11 +465,11 @@ LastProcDiff      = 0.
 iDistriIter       = 0
 CurWeight         = 0.
 
-WRITE(UNIT_stdOut,'(A)') ' Performing iterative search for new load distribution...'
+LBWRITE(UNIT_stdOut,'(A)') ' Performing iterative search for new load distribution...'
 
 DO WHILE(.NOT.FoundDistribution)
   iDistriIter     = iDistriIter+1
-  WRITE(UNIT_stdOut,'(A,I4,A,ES15.7)') ' | Iteration ',iDistriIter,' with TargetWeight ',TargetWeight_loc
+  LBWRITE(UNIT_stdOut,'(A,I4,A,ES15.7)') ' | Iteration ',iDistriIter,' with TargetWeight ',TargetWeight_loc
 
   TargetWeight_loc = TargetWeight_loc+LastProcDiff/REAL(nProcs)
   curiElem         = 1
@@ -552,7 +552,7 @@ DO WHILE(.NOT.FoundDistribution)
 
 END DO ! .NOT.FoundDistribution
 
-WRITE(UNIT_stdOut,'(A,A17,ES11.4,A,ES11.4,A)') ' Accepted distribution','    TargetWeight: ',TargetWeight_loc,'    (last proc: ',LastProcDiff,')'
+LBWRITE(UNIT_stdOut,'(A,A17,ES11.4,A,ES11.4,A)') ' Accepted distribution','    TargetWeight: ',TargetWeight_loc,'    (last proc: ',LastProcDiff,')'
 
 END SUBROUTINE WeightDistribution_ElemTimeLeast
 

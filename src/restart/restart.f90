@@ -319,6 +319,9 @@ USE MOD_Restart_Tools          ,ONLY: RecomputeLambda
 USE MOD_HDG                    ,ONLY: RestartHDG
 #endif /*USE_HDG*/
 USE MOD_Restart_Field          ,ONLY: FieldRestart
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -333,11 +336,7 @@ INTEGER(KIND=8)                    :: iter
 #endif /*USE_HDG*/
 !===================================================================================================================================
 IF(DoRestart)THEN
-#if USE_MPI
-  StartT=MPI_WTIME()
-#else
-  CALL CPU_TIME(StartT)
-#endif
+  GETTIME(StartT)
 
   ! Restart field arrays
   CALL FieldRestart()
@@ -364,8 +363,8 @@ IF(DoRestart)THEN
 #else
   CALL CPU_TIME(EndT)
 #endif
-  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Restart took  [',EndT-StartT,'s] for readin.'
-  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!'
+  LBWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Restart took  [',EndT-StartT,'s] for readin.'
+  LBWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' Restart DONE!'
 ELSE ! no restart
   ! Delete all files since we are doing a fresh start
   CALL FlushHDF5()

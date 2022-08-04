@@ -129,6 +129,9 @@ USE MOD_StringTools       ,ONLY: STRICMP
 USE MOD_IO_hdf5
 USE MOD_HDF5_Input
 USE MOD_ReadInTools       ,ONLY: PrintOption
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -155,11 +158,11 @@ REAL,ALLOCATABLE               :: ElemData_loc(:,:),tmp(:)
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesElemData_loc(:) ! Element data variable names
 !===================================================================================================================================
 IF(TTMInitIsDone)THEN
-  SWRITE(UNIT_stdOut,'(A)') "InitTTM already called."
+  LBWRITE(UNIT_stdOut,'(A)') "InitTTM already called."
   RETURN
 END IF
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT TTM (IMD Two-Temperature Model) ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT TTM (IMD Two-Temperature Model) ...'
 
 DoImportTTMFile = GETLOGICAL('DoImportTTMFile','.FALSE.')
 TTMLogFile      = TRIM(GETSTR('TTMLogFile','no file specified'))
@@ -191,7 +194,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         ElemIndexFD=0
         ALLOCATE( ElemIsDone(FD_nElems) )
         ElemIsDone=.FALSE.
-        SWRITE(UNIT_stdOut,'(A,A)') " Reading TTM data from file (TTMFile): ",TRIM(TTMFile)
+        LBWRITE(UNIT_stdOut,'(A,A)') " Reading TTM data from file (TTMFile): ",TRIM(TTMFile)
 #if USE_MPI
         IF(.NOT.PartMPI%MPIROOT)THEN
           CALL abort(&
@@ -237,11 +240,9 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
               SWRITE(UNIT_stdOut,'(A1,ES25.14E3)',ADVANCE='NO') " ",tmp_array(j)
             END DO
             SWRITE(UNIT_stdOut,'(A1)') ']'
-            CALL abort(&
-                __STAMP__&
-                ,'Error reading specified File (ttm data): '//TRIM(TTMFile))
+            CALL abort(__STAMP__,'Error reading specified File (ttm data): '//TRIM(TTMFile))
           ELSE IF(io_error<0)THEN
-            SWRITE(UNIT_stdOut,'(A,I10,A)') " End of file reached: ",iLineTTM+1," -> EXIT"
+            LBWRITE(UNIT_stdOut,'(A,I10,A)') " End of file reached: ",iLineTTM+1," -> EXIT"
             EXIT
           ELSE ! io_error = 0
           END IF
@@ -261,7 +262,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
             ElemBaryFD(2,iLineTTM)=(REAL(iy)-0.5)*fd_hy
             ElemBaryFD(3,iLineTTM)=(REAL(iz)-0.5)*fd_hz
           ELSE
-            SWRITE(UNIT_stdOut,'(A,I10)') " A problem reading the TTM file occured in line: ",iLineTTM+1
+            LBWRITE(UNIT_stdOut,'(A,I10)') " A problem reading the TTM file occured in line: ",iLineTTM+1
             DoImportTTMFile=.FALSE.
             EXIT
           END IF
@@ -270,20 +271,19 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
           SWRITE(UNIT_stdOut,'(A)')     ' Error: FD_nElems.NE.ix*iy*iz'
           SWRITE(UNIT_stdOut,'(A,I10)') ' FD_nElems = ',FD_nElems
           SWRITE(UNIT_stdOut,'(A,I10)') ' ix*iy*iz  = ',ix*iy*iz
-          CALL abort(&
-              __STAMP__&
+          CALL abort(__STAMP__&
               ,'Number of FD elements FD_nElems does not comply with the number of FD elements read from *.ttm file ['&
               //TRIM(TTMFile)//']')
         END IF
         CLOSE(ioUnit)
-        SWRITE(UNIT_stdOut,'(A,I10,A)') " Read ",iLineTTM," lines from file (+1 header line)"
+        LBWRITE(UNIT_stdOut,'(A,I10,A)') " Read ",iLineTTM," lines from file (+1 header line)"
         CALL PrintOption('TTM FD grid x'      , 'OUTPUT' , IntOpt=ix)
         CALL PrintOption('TTM FD grid y'      , 'OUTPUT' , IntOpt=iy)
         CALL PrintOption('TTM FD grid z'      , 'OUTPUT' , IntOpt=iz)
         CALL PrintOption('TTM FD grid points' , 'OUTPUT' , IntOpt=iLineTTM)
 
         IF(FD_nElems.EQ.PP_nElems)THEN ! same number of nodes in FD grid points and DG bary centres -> assume they coincide
-          SWRITE(UNIT_stdOut,'(A)') ' Searching for all FD cells within the DG mesh in order to map the values ...'
+          LBWRITE(UNIT_stdOut,'(A)') ' Searching for all FD cells within the DG mesh in order to map the values ...'
           ! the local DG solution in physical and reference space
 
           ALLOCATE( TTM_Cell_1(1:PP_nElems) )
@@ -422,11 +422,11 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
               END IF
             END DO
           END DO
-          SWRITE(UNIT_stdOut,'(A)') ' Done.'
+          LBWRITE(UNIT_stdOut,'(A)') ' Done.'
           IF(ANY(ElemIsDone).EQV..FALSE.)THEN
-            SWRITE(UNIT_stdOut,'(A)') " NOT all IMD TTM FD cells have been located within the DG grid!"
+            LBWRITE(UNIT_stdOut,'(A)') " NOT all IMD TTM FD cells have been located within the DG grid!"
           ELSE
-            SWRITE(UNIT_stdOut,'(A)') " All IMD TTM FD cells have been located within the DG grid!"
+            LBWRITE(UNIT_stdOut,'(A)') " All IMD TTM FD cells have been located within the DG grid!"
           END IF
           SDEALLOCATE(TTM_FD)
           SDEALLOCATE(ElemBaryFD)
@@ -435,8 +435,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         ELSE ! use swap-mesh or interpolate the FD grid to the DG solution
           SWRITE(UNIT_stdOut,'(A,I10)') "FD_nElems=",FD_nElems
           SWRITE(UNIT_stdOut,'(A,I10)') "PP_nElems=",PP_nElems
-          CALL abort(&
-              __STAMP__&
+          CALL abort(__STAMP__&
               ,'Error interpolating ttm data (FD grid) to DG solution. FD_nElems.NE.PP_nElems. Different elements not implemented')
         END IF
       END IF
@@ -444,7 +443,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
       DoImportTTMFile=.FALSE.
     END IF
   ELSE
-    SWRITE(UNIT_stdOut,'(A)')' INIT TTM: data will be read from restart file!'
+    LBWRITE(UNIT_stdOut,'(A)')' INIT TTM: data will be read from restart file!'
     IF(MPIRoot)THEN
       nRestartVars=0
       CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
@@ -568,7 +567,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
         DEALLOCATE(VarNamesElemData_loc)
         DEALLOCATE(tmp)
       END IF
-      SWRITE(UNIT_stdOut,'(A,I5,A,I5,A)')' Found ',nRestartVars,' of ',18,' TTM elem data arrays in restart file.'
+      LBWRITE(UNIT_stdOut,'(A,I5,A,I5,A)')' Found ',nRestartVars,' of ',18,' TTM elem data arrays in restart file.'
     ELSE
       CALL abort(&
           __STAMP__&
@@ -578,7 +577,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
   END IF ! DoRestart.EQV..FALSE.
 
   ! get min/max plasma frequency
-  SWRITE(UNIT_StdOut,'(A)')' TTM - Plasma Frequency'
+  LBWRITE(UNIT_StdOut,'(A)')' TTM - Plasma Frequency'
   omega_pe_min(1:2)=HUGE(1.)
   omega_pe_max(1:2)=0.0
   DO iElem=1,PP_nElems
@@ -597,7 +596,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
   CALL PrintOption('TTM warm elec: omega_pe_max','OUTPUT',RealOpt=omega_pe_max(2))
 
   ! get min/max PIC timestep (0.2 / plasma frequency)
-  SWRITE(UNIT_StdOut,'(A)')' TTM - PIC Time Step approximation'
+  LBWRITE(UNIT_StdOut,'(A)')' TTM - PIC Time Step approximation'
   dt_PIC_min(1:2)=HUGE(1.)
   dt_PIC_max(1:2)=0.0
   DO iElem=1,PP_nElems
@@ -616,7 +615,7 @@ IF(DoImportTTMFile.EQV..TRUE.)THEN
   CALL PrintOption('TTM warm elec: dt_PIC_max','OUTPUT',RealOpt=dt_PIC_max(2))
 
   ! get min/max debye length
-  SWRITE(UNIT_StdOut,'(A)')' TTM - Debye length'
+  LBWRITE(UNIT_StdOut,'(A)')' TTM - Debye length'
   lambda_D_min=HUGE(1.)
   lambda_D_max=0.0
   DO iElem=1,PP_nElems
@@ -635,8 +634,8 @@ END IF !DoImportTTMFile.EQV..TRUE.
 
 
 TTMInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT TTM DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT TTM DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitTTM
 

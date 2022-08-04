@@ -78,6 +78,9 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_Particle_Vars          ,ONLY: PartDataSize
 #endif /*USE_MPI*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -278,7 +281,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
 
     PDM%ParticleVecLength = PDM%ParticleVecLength + iPart
     CALL UpdateNextFreePosition()
-    SWRITE(UNIT_stdOut,*)' DONE!'
+    LBWRITE(UNIT_stdOut,*)' DONE!'
 
     ! if ParticleVecLength GT maxParticleNumber: Stop
     IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
@@ -825,6 +828,9 @@ USE MOD_Mesh_Vars         ,ONLY: offsetElem, nElems
 USE MOD_DSMC_Vars         ,ONLY: useDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
 USE MOD_DSMC_Vars         ,ONLY: RadialWeighting, ClonedParticles
 USE MOD_Particle_Vars     ,ONLY: nSpecies, usevMPF, Species
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -844,7 +850,7 @@ LOGICAL                   :: CloneExists
 
 CALL DatasetExists(File_ID,'CloneData',CloneExists)
 IF(.NOT.CloneExists) THEN
-  SWRITE(*,*) 'No clone data found! Restart without cloning.'
+  LBWRITE(*,*) 'No clone data found! Restart without cloning.'
   IF(RadialWeighting%CloneMode.EQ.1) THEN
     RadialWeighting%CloneDelayDiff = 1
   ELSEIF (RadialWeighting%CloneMode.EQ.2) THEN
@@ -865,7 +871,7 @@ IF(ClonePartNum.GT.0) THEN
             CloneDataSize => INT(CloneDataSize,IK) )
     CALL ReadArray('CloneData',2,(/CloneDataSize,ClonePartNum/),0_IK,2,RealArray=CloneData)
   END ASSOCIATE
-  SWRITE(*,*) 'Read-in of cloned particles complete. Total clone number: ', ClonePartNum
+  LBWRITE(*,*) 'Read-in of cloned particles complete. Total clone number: ', ClonePartNum
   ! Determing the old clone delay
   maxDelay = INT(MAXVAL(CloneData(9,:)))
   IF(RadialWeighting%CloneMode.EQ.1) THEN
@@ -875,13 +881,13 @@ IF(ClonePartNum.GT.0) THEN
     compareDelay = maxDelay
   END IF
   IF(compareDelay.GT.RadialWeighting%CloneInputDelay) THEN
-    SWRITE(*,*) 'Old clone delay is greater than the new delay. Old delay:', compareDelay
+    LBWRITE(*,*) 'Old clone delay is greater than the new delay. Old delay:', compareDelay
     RadialWeighting%CloneDelayDiff = RadialWeighting%CloneInputDelay + 1
   ELSEIF(compareDelay.EQ.RadialWeighting%CloneInputDelay) THEN
-    SWRITE(*,*) 'The clone delay has not been changed.'
+    LBWRITE(*,*) 'The clone delay has not been changed.'
     RadialWeighting%CloneDelayDiff = RadialWeighting%CloneInputDelay + 1
   ELSE
-    SWRITE(*,*) 'New clone delay is greater than the old delay. Old delay:', compareDelay
+    LBWRITE(*,*) 'New clone delay is greater than the old delay. Old delay:', compareDelay
     RadialWeighting%CloneDelayDiff = compareDelay + 1
   END IF
   IF(RadialWeighting%CloneMode.EQ.1) THEN
@@ -990,7 +996,7 @@ IF(ClonePartNum.GT.0) THEN
     END IF
   END DO
 ELSE
-  SWRITE(*,*) 'Read-in of cloned particles complete. No clones detected.'
+  LBWRITE(*,*) 'Read-in of cloned particles complete. No clones detected.'
 END IF
 
 END SUBROUTINE RestartClones
