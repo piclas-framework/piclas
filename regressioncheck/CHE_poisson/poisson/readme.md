@@ -18,3 +18,7 @@
 - Output of min/amax/average electron energy (eV) in each cell
 
         CalcElectronEnergy = T
+
+- Test both load balances schemes. Load balance via hdf5 I/O and via direct MPI communication without I/O
+
+        UseH5IOLoadBalance = T,F

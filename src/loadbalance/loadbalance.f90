@@ -49,6 +49,7 @@ CALL prms%SetSection("LoadBalance")
 
 #if USE_LOADBALANCE
 CALL prms%CreateLogicalOption('DoLoadBalance'           , 'Set flag for doing dynamic LoadBalance.', '.FALSE.')
+CALL prms%CreateLogicalOption('UseH5IOLoadBalance'      , 'Use hdf5 IO for dynamic load balancing instead of MPI_ALLGATHERV', '.FALSE.')
 CALL prms%CreateIntOption(    'LoadBalanceSample'       , 'Define number of iterations (before Analyze_dt)'//&
                                                           ' that are used for calculation of elemtime information', value='1')
 CALL prms%CreateIntOption(    'LoadBalanceMaxSteps'     , 'Define number of maximum load balacing steps that are allowed.', value='1')
@@ -85,6 +86,10 @@ USE MOD_Preproc
 USE MOD_LoadBalance_Vars
 USE MOD_ReadInTools      ,ONLY: GETLOGICAL, GETREAL, GETINT
 USE MOD_ReadInTools      ,ONLY: PrintOption
+#if defined(PARTICLES)
+USE MOD_LoadBalance_Vars ,ONLY: MPInElemSend,MPIoffsetElemSend,MPInElemRecv,MPIoffsetElemRecv
+#endif /*defined(PARTICLES)*/
+USE MOD_LoadBalance_Vars ,ONLY: MPInSideSend,MPIoffsetSideSend,MPInSideRecv,MPIoffsetSideRecv
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -109,14 +114,16 @@ IF (ParticleMPIWeight.LT.0.0) THEN
 END IF
 #endif /*PARTICLES*/
 
+UseH5IOLoadBalance=.FALSE. ! Default
 #if USE_LOADBALANCE
 IF(nProcessors.EQ.1)THEN
   DoLoadBalance=.FALSE. ! deactivate loadbalance for single computations
   CALL PrintOption('No LoadBalance (nProcessors=1): DoLoadBalance','INFO',LogOpt=DoLoadBalance)
   DeviationThreshold=HUGE(1.0)
 ELSE
-  DoLoadBalance       = GETLOGICAL('DoLoadBalance','F')
-  DeviationThreshold  = GETREAL('Load-DeviationThreshold','0.10')
+  DoLoadBalance       = GETLOGICAL('DoLoadBalance')
+  DeviationThreshold  = GETREAL('Load-DeviationThreshold')
+  UseH5IOLoadBalance  = GETLOGICAL('UseH5IOLoadBalance')
 END IF
 LoadBalanceSample   = GETINT('LoadBalanceSample')
 LoadBalanceMaxSteps = GETINT('LoadBalanceMaxSteps')
@@ -144,6 +151,14 @@ ALLOCATE(tCurrent(1:LB_NTIMES))
 ! Allocation length (1:number of loadbalance times)
 ! look into piclas.h for more info about time names
 tCurrent=0.
+
+#if defined(PARTICLES)
+IF(.NOT.UseH5IOLoadBalance)THEN
+  ALLOCATE(MPInElemSend(nProcessors),MPIoffsetElemSend(nProcessors),MPInElemRecv(nProcessors),MPIoffsetElemRecv(nProcessors))
+  ALLOCATE(MPInPartSend(nProcessors),MPIoffsetPartSend(nProcessors),MPInPartRecv(nProcessors),MPIoffsetPartRecv(nProcessors))
+END IF ! .NOT.UseH5IOLoadBalance
+#endif /*defined(PARTICLES)*/
+ALLOCATE(MPInSideSend(nProcessors),MPIoffsetSideSend(nProcessors),MPInSideRecv(nProcessors),MPIoffsetSideRecv(nProcessors))
 #endif /*USE_LOADBALANCE*/
 
 InitLoadBalanceIsDone=.TRUE.
@@ -344,20 +359,27 @@ SUBROUTINE LoadBalance()
 !===================================================================================================================================
 ! USED MODULES
 USE MOD_Globals
-USE MOD_Globals_vars     ,ONLY: InitializationWallTime
+USE MOD_Globals_vars      ,ONLY: InitializationWallTime
 USE MOD_Preproc
-USE MOD_Restart          ,ONLY: Restart
-USE MOD_Piclas_Init      ,ONLY: InitPiclas,FinalizePiclas
-USE MOD_LoadBalance_Vars ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
+USE MOD_LoadBalance_Vars  ,ONLY: CurrentImbalance,MaxWeight,MinWeight
+USE MOD_LoadBalance_Vars  ,ONLY: Currentimbalance,PerformLoadBalance,LoadBalanceMaxSteps
+USE MOD_LoadBalance_Vars  ,ONLY: ElemTimeField
+USE MOD_LoadBalance_Vars  ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
+USE MOD_Mesh_Vars         ,ONLY: nElems,offsetElem
+USE MOD_Piclas_Init       ,ONLY: InitPiclas,FinalizePiclas
+USE MOD_Restart           ,ONLY: Restart
+USE MOD_StringTools       ,ONLY: set_formatting,clear_formatting
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars     ,ONLY: DepositionType
-USE MOD_Particle_MPI     ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
+USE MOD_LoadBalance_Vars  ,ONLY: ElemTimePart
+USE MOD_LoadBalance_Vars  ,ONLY: ElemInfoRank_Shared,ElemInfoRank_Shared_Win
+USE MOD_LoadBalance_Vars  ,ONLY: nElemsOld,offsetElemOld
+USE MOD_Mesh_Vars         ,ONLY: nGlobalElems
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars   ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars,ONLY: ElemInfo_Shared
+USE MOD_Particle_MPI      ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_PICDepo_Vars      ,ONLY: DepositionType
 #endif /*PARTICLES*/
-USE MOD_LoadBalance_Vars ,ONLY: CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars ,ONLY: Currentimbalance, PerformLoadBalance,LoadBalanceMaxSteps
-USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
-USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -396,6 +418,19 @@ LB_StartTime=PICLASTIME()
 
 ! Finalize all arrays
 CALL FinalizePiclas(IsLoadBalance=.TRUE.)
+
+#if defined(PARTICLES)
+IF (.NOT.ASSOCIATED(ElemInfoRank_Shared)) THEN
+  CALL Allocate_Shared((/nGlobalElems/),ElemInfoRank_Shared_Win,ElemInfoRank_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ElemInfoRank_Shared_Win,IERROR)
+END IF
+
+nElemsOld     = nElems
+offsetElemOld = offsetElem
+IF (myComputeNodeRank.EQ.0) ElemInfoRank_Shared = ElemInfo_Shared(ELEM_RANK,:)
+CALL BARRIER_AND_SYNC(ElemInfoRank_Shared_Win,MPI_COMM_SHARED)
+#endif /*PARTICLES*/
+
 ! reallocate
 CALL InitPiclas(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
 
