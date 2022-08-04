@@ -168,9 +168,11 @@ DO i = 1, iMax
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesNodeSourceExtGlobal',N_variables,StrArray=StrVarNames)
-    CALL CloseDataFile()
+    IF(MPIRoot)THEN
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
+      CALL WriteAttributeToHDF5(File_ID,'VarNamesNodeSourceExtGlobal',N_variables,StrArray=StrVarNames)
+      CALL CloseDataFile()
+    END IF ! MPIRoot
     DataSetName='DG_Solution'
   END IF ! i.EQ.2
 
