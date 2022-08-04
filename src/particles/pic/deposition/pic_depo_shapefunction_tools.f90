@@ -624,6 +624,11 @@ IF (nUsedElems.GT.0) THEN
   END DO
 END IF
 
+IF(ASSOCIATED(first)) THEN
+  SDEALLOCATE(first%PartSourceLoc)
+  DEALLOCATE(first)
+END IF
+
 END SUBROUTINE depoChargeOnDOFsSFChargeCon
 
 
@@ -765,6 +770,11 @@ IF (nUsedElems.GT.0) THEN
     DEALLOCATE(element)
     element => first
   END DO
+END IF
+
+IF(ASSOCIATED(first)) THEN
+  SDEALLOCATE(first%PartSourceLoc)
+  DEALLOCATE(first)
 END IF
 
 END SUBROUTINE depoChargeOnDOFsSFAdaptive
