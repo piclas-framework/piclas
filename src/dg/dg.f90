@@ -75,7 +75,7 @@ USE MOD_PML_Vars           ,ONLY: PMLnVar ! Additional fluxes for the CFS-PML au
 USE MOD_Riemann            ,ONLY: GetRiemannMatrix
 #endif /*OPTIMIZED*/
 #if USE_LOADBALANCE && !(USE_HDG)
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -93,7 +93,7 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT DG...'
 
 CALL initDGbasis(PP_N,xGP,wGP,wBary)
 #if USE_LOADBALANCE && !(USE_HDG)
-IF (.NOT.PerformLoadBalance) THEN
+IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
   ! the local DG solution in physical and reference space
   ALLOCATE( U(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))

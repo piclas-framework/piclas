@@ -124,7 +124,7 @@ USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALAR
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #endif /*USE_LOADBALANCE*/
@@ -207,7 +207,7 @@ IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
   DoWriteStateToHDF5=.TRUE.
   CALL PrintOption('Loadbalancing or InitialAutoRestart enabled: DoWriteStateToHDF5','INFO',LogOpt=DoWriteStateToHDF5)
 END IF
-IF (.NOT.PerformLoadBalance) THEN
+IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE*/
   CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
   CALL ReadAttribute(File_ID,'Ngeo',1,IntScalar=NGeo)
@@ -1095,7 +1095,7 @@ SDEALLOCATE(LostRotPeriodicSides)
 SDEALLOCATE(SideToNonUniqueGlobalSide)
 
 #if defined(PARTICLES) && USE_LOADBALANCE
-IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) RETURN
+IF (PerformLoadBalance) RETURN
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 ! BCS
 SDEALLOCATE(BoundaryName)

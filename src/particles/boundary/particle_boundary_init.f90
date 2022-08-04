@@ -1096,7 +1096,7 @@ USE MOD_MPI_Shared_vars  ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -1156,7 +1156,7 @@ SDEALLOCATE(PartBound%UseAdaptedWallTemp)
 
 ! Do not deallocate during load balance (either communicate to new processor or simply keep on current processor)
 #if USE_LOADBALANCE
-IF(.NOT.PerformLoadBalance)THEN
+IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
 #endif /*USE_LOADBALANCE*/
   SDEALLOCATE(PartStateBoundary)
 #if USE_LOADBALANCE

@@ -170,7 +170,7 @@ USE MOD_Restart_Vars     ,ONLY: RestartFile
 #endif /*PARTICLES*/
 USE MOD_LoadBalance_Vars ,ONLY: nElemsOld,offsetElemMPIOld
 USE MOD_Particle_Vars    ,ONLY: PartInt
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -205,7 +205,7 @@ nProcs      = nProcessors
 IF (MPIRoot) ALLOCATE(PartIntGlob(PartIntSize,1:nGlobalElems))
 
 ! Redistribute/read PartInt array
-IF (PerformLoadBalance) THEN
+IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   DO iProc = 0,nProcessors-1
     ElemPerProc(iProc) = offsetElemMPIOld(iProc+1) - offsetElemMPIOld(iProc)
   END DO

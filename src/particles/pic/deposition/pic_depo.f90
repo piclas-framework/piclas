@@ -1019,7 +1019,7 @@ USE MOD_MPI_Shared
 #endif
 #if USE_LOADBALANCE
 USE MOD_PreProc
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars   ,ONLY: PartSourceLB,NodeSourceExtEquiLB
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
@@ -1103,7 +1103,7 @@ SELECT CASE(TRIM(DepositionType))
 END SELECT
 
 #if USE_LOADBALANCE
-IF (PerformLoadBalance .AND. DoDeposition) THEN
+IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition) THEN
   SDEALLOCATE(PartSourceLB)
   ALLOCATE(PartSourceLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
   PartSourceLB = PartSource
