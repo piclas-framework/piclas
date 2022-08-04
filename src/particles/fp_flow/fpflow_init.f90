@@ -75,6 +75,9 @@ USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_PARTICLE_Vars         ,ONLY: nSpecies, Species
 USE MOD_FPFlow_Vars
 USE MOD_BGK_Vars              ,ONLY: DoBGKCellAdaptation, BGKMinPartPerCell
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -85,7 +88,7 @@ USE MOD_BGK_Vars              ,ONLY: DoBGKCellAdaptation, BGKMinPartPerCell
 ! LOCAL VARIABLES
   INTEGER               :: iSpec, iSpec2
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)') ' INIT FP Solver...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT FP Solver...'
 
 ALLOCATE(SpecFP(nSpecies))
 
@@ -123,7 +126,7 @@ CoupledFPDSMC = GETLOGICAL('Particles-CoupledFPDSMC')
 IF(CoupledFPDSMC) FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens')
 
 FPInitDone = .TRUE.
-SWRITE(UNIT_stdOut,'(A)') ' INIT FP-FLOW DONE!'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT FP-FLOW DONE!'
 
 END SUBROUTINE InitFPFlow
 

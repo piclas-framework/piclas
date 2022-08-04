@@ -182,6 +182,9 @@ USE MOD_Equation_Vars         ,ONLY: Et
 USE MOD_PICInterpolation_Vars ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -198,8 +201,8 @@ IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
       ,'InitAnalyse not ready to be called or already called.')
   RETURN
 END IF
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
 
 ! Get logical for calculating the error norms L2 and LInf
 DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms')
@@ -287,8 +290,8 @@ AnalyzeCount = 0
 AnalyzeTime  = 0.0
 
 AnalyzeInitIsDone = .TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 ! Points Per Wavelength
 CalcPointsPerWavelength = GETLOGICAL('CalcPointsPerWavelength')

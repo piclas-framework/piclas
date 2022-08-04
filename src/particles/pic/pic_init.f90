@@ -60,6 +60,9 @@ USE MOD_PICDepo                   ,ONLY: InitializeDeposition
 USE MOD_PIC_Vars                  ,ONLY: PICInitIsDone
 USE MOD_PICInterpolation_Vars     ,ONLY: useBGField
 USE MOD_InitializeBackgroundField ,ONLY: InitializeBackgroundField
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -70,19 +73,19 @@ USE MOD_InitializeBackgroundField ,ONLY: InitializeBackgroundField
 ! LOCAL VARIABLES
 !===================================================================================================================================
 IF(PICInitIsDone)THEN
-   SWRITE(*,*) "InitPIC already called."
+   LBWRITE(*,*) "InitPIC already called."
    RETURN
 END IF
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT PIC ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PIC ...'
 
 CALL InitializeParticleInterpolation()
 CALL InitializeDeposition()
 IF(useBGField) CALL InitializeBackgroundField()
 
 PICInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT PIC DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PIC DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitPIC
 
 END MODULE MOD_PICInit

@@ -134,6 +134,9 @@ USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Vars          ,ONLY: CountCircInflowType
 #endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -324,7 +327,7 @@ END DO    ! iSpec=1,nSpecies
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSurfaceFlux,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) !set T if at least 1 proc have SFs
 #endif  /*USE_MPI*/
 IF (.NOT.DoSurfaceFlux) THEN !-- no SFs defined
-  SWRITE(*,*) 'WARNING: No Sides for SurfacefluxBCs found! DoSurfaceFlux is now disabled!'
+  LBWRITE(*,*) 'WARNING: No Sides for SurfacefluxBCs found! DoSurfaceFlux is now disabled!'
 END IF
 DoForceFreeSurfaceFlux = GETLOGICAL('DoForceFreeSurfaceFlux','.FALSE.')
 
@@ -371,6 +374,9 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars              ,ONLY: NGeo
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -502,13 +508,13 @@ DO iSpec=1,nSpecies
     ! === ReduceNoise & AcceptReject
     Species(iSpec)%Surfaceflux(iSF)%ReduceNoise           = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-ReduceNoise')
     IF (DoPoissonRounding .AND. Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN
-      SWRITE(*,*)'WARNING: Poisson sampling not possible for noise reduction of surfacefluxes:'
-      SWRITE(*,*)'switching now to Random rounding...'
+      LBWRITE(*,*)'WARNING: Poisson sampling not possible for noise reduction of surfacefluxes:'
+      LBWRITE(*,*)'switching now to Random rounding...'
       DoPoissonRounding   = .FALSE.
     END IF
     IF (DoTimeDepInflow .AND. Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN
-      SWRITE(*,*)'WARNING: Time-dependent inflow is not possible for noise reduction of surfacefluxes:'
-      SWRITE(*,*)'switching now to Random rounding...'
+      LBWRITE(*,*)'WARNING: Time-dependent inflow is not possible for noise reduction of surfacefluxes:'
+      LBWRITE(*,*)'switching now to Random rounding...'
       DoTimeDepInflow   = .FALSE.
     END IF
     IF (TriaSurfaceFlux) THEN
@@ -517,9 +523,9 @@ DO iSpec=1,nSpecies
       Species(iSpec)%Surfaceflux(iSF)%AcceptReject          = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-AcceptReject','.TRUE.')
     END IF
     IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject .AND. BezierSampleN.GT.1) THEN
-      SWRITE(*,*)'WARNING: BezierSampleN > 0 may not be necessary as ARM is used for SurfaceFlux!'
+      LBWRITE(*,*)'WARNING: BezierSampleN > 0 may not be necessary as ARM is used for SurfaceFlux!'
     ELSE IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%AcceptReject .AND. BezierSampleN.LE.NGeo .AND. .NOT.TriaSurfaceFlux) THEN
-      SWRITE(*,*)'WARNING: The choosen small BezierSampleN (def.: NGeo) might result in inhom. SurfFluxes without ARM!'
+      LBWRITE(*,*)'WARNING: The choosen small BezierSampleN (def.: NGeo) might result in inhom. SurfFluxes without ARM!'
     END IF
     IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
       WRITE( hilf3, '(I0.2)') NGeo*NGeo*NGeo !1 for linear elements, this is an arbitray estimation for higher N!
@@ -584,6 +590,9 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, SurfMeshSubSideData, Bez
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, offsetElem, SideToElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas, CalcNormAndTangTriangle
+#if CODE_ANALYZE && USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*CODE_ANALYZE && USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -637,10 +646,16 @@ __STAMP__&
   END DO; END DO
 END DO
 #ifdef CODE_ANALYZE
-IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
-IPWRITE(*,*)"totalArea       = ",totalArea
-IPWRITE(*,*)"totalArea/(pi) = ",totalArea/(ACOS(-1.))
-IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
+#if USE_LOADBALANCE
+IF(.NOT.PerformLoadBalance)THEN
+#endif /*USE_LOADBALANCE*/
+  IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
+  IPWRITE(*,*)"totalArea       = ",totalArea
+  IPWRITE(*,*)"totalArea/(pi) = ",totalArea/(ACOS(-1.))
+  IPWRITE(*,*)" ===== TOTAL AREA (all BCsides) ====="
+#if USE_LOADBALANCE
+END IF ! PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 #endif /*CODE_ANALYZE*/
 END SUBROUTINE BCSurfMeshSideAreasandNormals
 

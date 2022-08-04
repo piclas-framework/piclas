@@ -63,6 +63,9 @@ USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared, SideInfo_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeInnerBCs
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -228,7 +231,12 @@ CALL MPI_COMM_GROUP(MPI_COMM_LEADERS_SURF  ,surfGroup   ,IERROR)
 
 ! Finally translate global rank to local rank
 CALL MPI_GROUP_TRANSLATE_RANKS(leadersGroup,nLeaderGroupProcs,MPIRankSharedLeader,surfGroup,MPIRankSurfLeader,IERROR)
-IF (mySurfRank.EQ.0) WRITE(UNIT_stdOUt,'(A,I0,A)') ' Starting surface communication between ', nSurfLeaders, ' compute nodes...'
+IF (mySurfRank.EQ.0) THEN
+#if USE_LOADBALANCE
+  IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+  WRITE(UNIT_stdOUt,'(A,I0,A)') ' Starting surface communication between ', nSurfLeaders, ' compute nodes...'
+END IF
 
 !--- Open receive buffer (mapping from message surface ID to global side ID)
 ALLOCATE(SurfMapping(0:nSurfLeaders-1))

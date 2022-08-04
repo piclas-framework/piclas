@@ -156,6 +156,9 @@ USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_Mesh_Vars               ,ONLY: XCL_NGeo
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -171,8 +174,8 @@ REAL                           :: Xi(3,6),Lag(1:3,0:NGeo)
 INTEGER                        :: firstElem, lastElem
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
 
 ! elements
 #if USE_MPI
@@ -279,6 +282,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemsJ_Shared_Win,ElemEpsOneCell_Shared_Wi
 #else
 USE MOD_Particle_Mesh_Vars     ,ONLY: nComputeNodeElems
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -305,8 +311,8 @@ INTEGER                        :: ElemLocID
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_StdOut,'(A)') ' Building EpsOneCell for all elements ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(A)') ' Building EpsOneCell for all elements ...'
 
 ! build sJ for all elements not on local proc
 #if USE_MPI
@@ -450,6 +456,9 @@ USE MOD_TimeDisc_Vars          ,ONLY: nRKStages,RK_c
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: nComputeNodeElems
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -481,8 +490,8 @@ INTEGER                        :: iStage
 #endif
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_StdOut,'(A)') ' Identifying BC sides and calculating side metrics ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(A)') ' Identifying BC sides and calculating side metrics ...'
 
 ! elements
 #if USE_MPI
@@ -545,16 +554,16 @@ IF (halo_eps.EQ.0) THEN
 
   ! compare halo_eps against global diagonal and reduce if necessary
   IF (.NOT.ALMOSTZERO(BC_halo_eps).AND.(BC_halo_diag.GE.BC_halo_eps)) THEN
-    SWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to ',BC_halo_eps
+    LBWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to ',BC_halo_eps
   ELSEIF (.NOT.ALMOSTZERO(BC_halo_eps).AND.(BC_halo_diag.LT.BC_halo_eps)) THEN
     fullMesh = .TRUE.
     BC_halo_eps = BC_halo_diag
-    SWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to global diag with ',BC_halo_eps
+    LBWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to global diag with ',BC_halo_eps
   ! halo_eps still at zero. Set it to global diagonal
   ELSE
     fullMesh = .TRUE.
     BC_halo_eps = BC_halo_diag
-    SWRITE(UNIT_stdOUt,'(A,F11.3)') ' | No halo_eps given and could not be reconstructed. Using global diag with ',BC_halo_eps
+    LBWRITE(UNIT_stdOUt,'(A,F11.3)') ' | No halo_eps given and could not be reconstructed. Using global diag with ',BC_halo_eps
   END IF
 ELSE
   vec(1)   = GEO%xmaxglob-GEO%xminglob
@@ -1535,6 +1544,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: BaseVectorsScale_Shared,BaseVectorsScale_S
 USE MOD_Particle_Mesh_Vars     ,ONLY: BaseVectors0_Shared,BaseVectors1_Shared,BaseVectors2_Shared,BaseVectors3_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: BaseVectors0_Shared_Win,BaseVectors1_Shared_Win,BaseVectors2_Shared_Win,BaseVectors3_Shared_Win
 #endif /* USE_MPI */
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1546,8 +1558,8 @@ INTEGER                        :: iSide,firstSide,lastSide
 REAL                           :: crossVec(3)
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' GET LINEAR SIDE BASEVECTORS...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' GET LINEAR SIDE BASEVECTORS...'
 #if USE_MPI
 CALL Allocate_Shared((/3,nNonUniqueGlobalSides/),BaseVectors0_Shared_Win,BaseVectors0_Shared)
 CALL MPI_WIN_LOCK_ALL(0,BaseVectors0_Shared_Win,IERROR)
@@ -1614,8 +1626,8 @@ CALL BARRIER_AND_SYNC(BaseVectors3_Shared_Win    ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(BaseVectorsScale_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI */
 
-SWRITE(UNIT_stdOut,'(A)')' GET LINEAR SIDE BASEVECTORS DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' GET LINEAR SIDE BASEVECTORS DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE BuildLinearSideBaseVectors
 
 
