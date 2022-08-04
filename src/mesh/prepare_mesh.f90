@@ -424,7 +424,8 @@ DO iNbProc=1,nNbProcs
   END DO ! iElem
   DEALLOCATE(SideIDMap)
 END DO !nbProc(i)
-! Iterate over all processors and for each processor over all elements and within each element
+#endif /*USE_MPI*/
+! Iterate (over all processors and for each processor) over all elements and within each element
 ! over all sides (6 for hexas in 3D, 4 for quads in 2D) and for each big Mortar side over all small virtual sides
 ! and revert the negative SideIDs.
 DO iElem=FirstElemInd,LastElemInd
@@ -441,6 +442,7 @@ DO iElem=FirstElemInd,LastElemInd
     END DO ! iMortar
   END DO ! iLocSide
 END DO ! iElem
+#if USE_MPI
 ! Optimize Mortars: Search for big Mortars which only have small virtual MPI_MINE sides. Since the MPI_MINE-sides evaluate
 ! the flux, the flux of the big Mortar side (computed from the 2/4 fluxes of the small virtual sides) can be computed BEFORE
 ! the communication of the fluxes. Therefore those big Mortars can be moved from MPIMortars to the InnerMortars.
@@ -809,7 +811,7 @@ USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
 USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nBCSides,nSides
 USE MOD_Mesh_Vars        ,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
 USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
-USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo,BoundaryName
+USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
 #if defined(PARTICLES) || USE_HDG
 USE MOD_Mesh_Vars        ,ONLY: GlobalUniqueSideID
 #endif /*defined(PARTICLES) || USE_HDG*/
@@ -818,7 +820,7 @@ USE MOD_MPI_vars
 #endif
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemHDGSides,TotalHDGSides
-USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide
+USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide,BoundaryName
 #endif /*USE_HDG && USE_LOADBALANCE*/
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -845,8 +847,8 @@ INTEGER             :: dummy(0:4)
 #if USE_HDG && USE_LOADBALANCE
 INTEGER           :: BCType,nMortars
 INTEGER           :: HDGSides
-#endif /*USE_HDG && USE_LOADBALANCE*/
 CHARACTER(3)      :: hilf
+#endif /*USE_HDG && USE_LOADBALANCE*/
 !===================================================================================================================================
 ! Element to Side mapping
 nSides_flip=0

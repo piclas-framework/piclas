@@ -21,8 +21,14 @@ PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
+#ifdef INTKIND8
+INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
+#else
+INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
+#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL             :: DoLoadBalance              !> Use dynamic load balancing
+LOGICAL             :: UseH5IOLoadBalance         !> Use hdf5 IO for dynamic load balancing instead of MPI_ALLGATHERV
 INTEGER             :: LoadBalanceSampleBackup    !> Loadbalance sample saved until initial autorestart ist finished
 LOGICAL             :: DoLoadBalanceBackup        !> Loadbalance flag saved until initial autorestart ist finished
 LOGICAL             :: PerformLoadBalance=.FALSE. !> Flag if load balance is performed in current time step iteration
@@ -61,6 +67,37 @@ END TYPE tData
 TYPE(tData), POINTER :: firstData => null() !linked-list of old offsetElemMPI for WeightDistributionMethod 5 and 6
 
 !-----------------------------------------------------------------------------------------------------------------------------------
+! element load balancing
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                             :: nElemsOld
+INTEGER                             :: offsetElemOld
+INTEGER,ALLOCATABLE                 :: offsetElemMPIOld(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPInElemSend(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetElemSend(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPInElemRecv(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetElemRecv(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPInPartSend(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetPartSend(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPInPartRecv(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetPartRecv(:)
+INTEGER,POINTER                     :: ElemInfoRank_Shared(:) => NULL()
+INTEGER                             :: ElemInfoRank_Shared_Win
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! side load balancing
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER(KIND=IK),ALLOCATABLE        :: MPInSideSend(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetSideSend(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPInSideRecv(:)
+INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetSideRecv(:)
+
+!-----------------------------------------------------------------------------------------------------------------------------------
+! field arrays during load balancing
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL,ALLOCATABLE                    :: PartSourceLB(:,:,:,:,:)
+REAL,ALLOCATABLE                    :: NodeSourceExtEquiLB(:,:,:,:,:)
+
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! particle load balancing
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                                :: ParticleMPIWeight
@@ -89,6 +126,5 @@ INTEGER(KIND=8),ALLOCATABLE         :: nTracksPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nSurfacefluxPerElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nPartsPerBCElem(:)
 INTEGER(KIND=8),ALLOCATABLE         :: nSurfacePartsPerElem(:)
-
 
 END MODULE MOD_LoadBalance_Vars
