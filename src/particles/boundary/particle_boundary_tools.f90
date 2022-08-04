@@ -275,8 +275,7 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
 
     ! --- PartStateBoundary ---
     ALLOCATE(PartStateBoundary_tmp(1:nVarPartStateBoundary,1:dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-          __STAMP__&
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
           ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary_tmp temporary array!')
     ! Save old data
     PartStateBoundary_tmp(1:nVarPartStateBoundary,1:dims(2)) = PartStateBoundary(1:nVarPartStateBoundary,1:dims(2))
@@ -284,8 +283,7 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
     ! Re-allocate PartStateBoundary to twice the size
     DEALLOCATE(PartStateBoundary)
     ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:2*dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-          __STAMP__&
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
           ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary array!')
     PartStateBoundary(1:nVarPartStateBoundary,        1:  dims(2)) = PartStateBoundary_tmp(1:nVarPartStateBoundary,1:dims(2))
     PartStateBoundary(1:nVarPartStateBoundary,dims(2)+1:2*dims(2)) = 0.
@@ -302,6 +300,7 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
   ELSE
     CALL abort(__STAMP__,'StoreBoundaryParticleProperties: mode must be either 1 or 2! mode=',IntInfoOpt=mode)
   END IF ! mode.EQ.1
+  IF(PartStateBoundary(7,iMax).EQ.0) CALL abort(__STAMP__,'Error in StoreBoundaryParticleProperties. SpecID is zero')
   PartStateBoundary(8  ,iMax) = MPF
   PartStateBoundary(9  ,iMax) = time
   PartStateBoundary(10 ,iMax) = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))))

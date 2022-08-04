@@ -224,8 +224,13 @@ USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem,nTracksPerElem,nPartsPerBCElem,nSurfacefluxPerElem
+! Restart without HDF5
+USE MOD_Particle_Mesh_Vars   ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 #endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance,offsetElemMPIOld
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -261,38 +266,56 @@ REAL, ALLOCATABLE              :: GlobVarTimeStep(:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
-IF(MPIRoot)THEN
-  IF(.NOT.FILEEXISTS(FileString))  CALL abort(&
-__STAMP__ &
-,'readMesh from data file "'//TRIM(FileString)//'" does not exist')
-END IF
 
-SWRITE(UNIT_stdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO")' READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  IF(MPIRoot) THEN
+    IF(.NOT.FILEEXISTS(FileString))  CALL Abort(__STAMP__,'readMesh from data file "'//TRIM(FileString)//'" does not exist')
+  END IF
+  SWRITE(UNIT_stdOut,'(132("-"))')
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO")' READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
 #if USE_MPI
-StartT=MPI_WTIME()
+  StartT=MPI_WTIME()
 #else
-CALL CPU_TIME(StartT)
+  CALL CPU_TIME(StartT)
 #endif
 
-! Get ElemInfo from Mesh file
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
-CALL ReadAttribute(File_ID,'nUniqueSides',1,IntScalar=nGlobalUniqueSidesFromMesh)
-CALL ReadAttribute(File_ID,'nSides',1,IntScalar=nNonUniqueGlobalSides)
-CALL ReadAttribute(File_ID,'nNodes',1,IntScalar=nNonUniqueGlobalNodes)
-CALL CloseDataFile()
-! INTEGER KIND=4 check for number of elements
-CHECKSAFEINT(HSize(2),4)
-nGlobalElems=INT(HSize(2),4) !global number of elements
-! INTEGER KIND=4 check for number of nodes
-CHECKSAFEINT(8_8*INT(nGlobalElems,8),4)
-DEALLOCATE(HSize)
-IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
-    ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
-EndT=PICLASTIME()
-ReadMeshWallTime=EndT-StartT
-SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DONE  [',ReadMeshWallTime,'s]'
+  ! Get ElemInfo from Mesh file
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
+  CALL ReadAttribute(File_ID,'nUniqueSides',1,IntScalar=nGlobalUniqueSidesFromMesh)
+  CALL ReadAttribute(File_ID,'nSides',1,IntScalar=nNonUniqueGlobalSides)
+  CALL ReadAttribute(File_ID,'nNodes',1,IntScalar=nNonUniqueGlobalNodes)
+  CALL CloseDataFile()
+  ! INTEGER KIND=4 check for number of elements
+  CHECKSAFEINT(HSize(2),4)
+  nGlobalElems=INT(HSize(2),4) !global number of elements
+  ! INTEGER KIND=4 check for number of nodes
+  CHECKSAFEINT(8_8*INT(nGlobalElems,8),4)
+  DEALLOCATE(HSize)
+  IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
+      ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
+  EndT=PICLASTIME()
+  ReadMeshWallTime=EndT-StartT
+  SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DONE  [',ReadMeshWallTime,'s]'
+#if defined(PARTICLES) && USE_LOADBALANCE
+END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+
+#if USE_LOADBALANCE
+IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+  SDEALLOCATE(offsetElemMPIOld)
+  ALLOCATE(   offsetElemMPIOld(0:nProcessors))
+  offsetElemMPIOld = offsetElemMPI
+END IF
+#endif /*USE_LOADBALANCE*/
+
+#if USE_MPI
+SDEALLOCATE(offsetElemMPI)
+ALLOCATE(   offsetElemMPI(0:nProcessors))
+offsetElemMPI = 0
+#endif /*USE_MPI*/
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              DOMAIN DECOMPOSITION
@@ -356,8 +379,14 @@ IF(VarTimeStep%UseDistribution) THEN
 END IF
 #endif
 
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-CALL ReadBCs()
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL ReadBCs()
+#if defined(PARTICLES) && USE_LOADBALANCE
+END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------
 !                              ELEMENTS
 !----------------------------------------------------------------------------------------------------------------------------
@@ -373,7 +402,15 @@ ASSOCIATE (&
       ElemInfoSize => INT(ELEMINFOSIZE_H5,IK) ,&
       nElems       => INT(nElems,IK)       ,&
       offsetElem   => INT(offsetElem,IK)  )
-  CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray_i4=ElemInfo(1:ElemInfoSize,:))
+#if defined(PARTICLES) && USE_LOADBALANCE
+  IF (PerformLoadBalance) THEN
+    ElemInfo(1:ElemInfoSize,:) = ElemInfo_Shared(1:ElemInfoSize,offsetElem+1:offsetElem+nElems)
+  ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+    CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray_i4=ElemInfo(1:ElemInfoSize,:))
+#if defined(PARTICLES) && USE_LOADBALANCE
+  END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 END ASSOCIATE
 
 DO iElem=FirstElemInd,LastElemInd
@@ -422,7 +459,16 @@ ASSOCIATE (&
       SideInfoSize   => INT(SIDEINFOSIZE_H5,IK)   ,&
       nSideIDs       => INT(nSideIDs,IK)       ,&
       offsetSideID   => INT(offsetSideID,IK)  )
-  CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo(1:SideInfoSize,:))
+#if defined(PARTICLES) && USE_LOADBALANCE
+  IF (PerformLoadBalance) THEN
+    SideInfo(1:SideInfoSize,:) = SideInfo_Shared(1:SideInfoSize,offsetSideID+1:offsetSideID+nSideIDs)
+  ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+    CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo(1:SideInfoSize,:))
+    CALL CloseDataFile()
+#if defined(PARTICLES) && USE_LOADBALANCE
+  END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 END ASSOCIATE
 
 #ifdef PARTICLES
@@ -580,26 +626,47 @@ CALL ReadMeshNodes()
 #endif
 
 ! get physical coordinates
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) &
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
 IF(useCurveds)THEN
   ALLOCATE(NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems))
-  CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoords)
+#if defined(PARTICLES) && USE_LOADBALANCE
+  IF (PerformLoadBalance) THEN
+    NodeCoords = RESHAPE(NodeCoords_Shared(1:3,(NGeo+1)**3*offsetElem+1:(NGeo+1)**3*(offsetElem+nElems)),(/3,NGeo+1,NGeo+1,NGeo+1,nElems/))
+  ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+    CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoords)
+#if defined(PARTICLES) && USE_LOADBALANCE
+  END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 ELSE
   ALLOCATE(NodeCoords(   3,0:1,   0:1,   0:1,   nElems))
-  ALLOCATE(NodeCoordsTmp(3,0:NGeo,0:NGeo,0:NGeo,nElems))
-  ! read all nodes
-  CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoordsTmp)
-  ! throw away all nodes except the 8 corner nodes of each hexa
-  NodeCoords(:,0,0,0,:)=NodeCoordsTmp(:,0,   0,   0,   :)
-  NodeCoords(:,1,0,0,:)=NodeCoordsTmp(:,NGeo,0,   0,   :)
-  NodeCoords(:,0,1,0,:)=NodeCoordsTmp(:,0,   NGeo,0,   :)
-  NodeCoords(:,1,1,0,:)=NodeCoordsTmp(:,NGeo,NGeo,0,   :)
-  NodeCoords(:,0,0,1,:)=NodeCoordsTmp(:,0,   0,   NGeo,:)
-  NodeCoords(:,1,0,1,:)=NodeCoordsTmp(:,NGeo,0,   NGeo,:)
-  NodeCoords(:,0,1,1,:)=NodeCoordsTmp(:,0,   NGeo,NGeo,:)
-  NodeCoords(:,1,1,1,:)=NodeCoordsTmp(:,NGeo,NGeo,NGeo,:)
-  DEALLOCATE(NodeCoordsTmp)
-  NGeo=1 ! linear mesh; set polynomial degree of geometry to 1
+#if defined(PARTICLES) && USE_LOADBALANCE
+  IF (PerformLoadBalance) THEN
+    NGeo       = 1 ! linear mesh; set polynomial degree of geometry to 1
+    NodeCoords = RESHAPE(NodeCoords_Shared(1:3,8*offsetElem+1:8*(offsetElem+nElems)),(/3,NGeo+1,NGeo+1,NGeo+1,nElems/))
+  ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+    ALLOCATE(NodeCoordsTmp(3,0:NGeo,0:NGeo,0:NGeo,nElems))
+    ! read all nodes
+    CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoordsTmp)
+    ! throw away all nodes except the 8 corner nodes of each hexa
+    NodeCoords(:,0,0,0,:)=NodeCoordsTmp(:,0,   0,   0,   :)
+    NodeCoords(:,1,0,0,:)=NodeCoordsTmp(:,NGeo,0,   0,   :)
+    NodeCoords(:,0,1,0,:)=NodeCoordsTmp(:,0,   NGeo,0,   :)
+    NodeCoords(:,1,1,0,:)=NodeCoordsTmp(:,NGeo,NGeo,0,   :)
+    NodeCoords(:,0,0,1,:)=NodeCoordsTmp(:,0,   0,   NGeo,:)
+    NodeCoords(:,1,0,1,:)=NodeCoordsTmp(:,NGeo,0,   NGeo,:)
+    NodeCoords(:,0,1,1,:)=NodeCoordsTmp(:,0,   NGeo,NGeo,:)
+    NodeCoords(:,1,1,1,:)=NodeCoordsTmp(:,NGeo,NGeo,NGeo,:)
+    DEALLOCATE(NodeCoordsTmp)
+    NGeo=1 ! linear mesh; set polynomial degree of geometry to 1
+#if defined(PARTICLES) && USE_LOADBALANCE
+  END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 ENDIF
 
 CALL CloseDataFile()
@@ -609,7 +676,6 @@ CALL CloseDataFile()
 CALL StartCommunicateMeshReadin()
 #endif
 
-DEALLOCATE(ElemInfo,SideInfo)
 ! Readin of mesh is now finished
 
 !----------------------------------------------------------------------------------------------------------------------------

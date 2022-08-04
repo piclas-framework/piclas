@@ -459,6 +459,9 @@ SUBROUTINE FinalizeMPI()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_MPI_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -468,7 +471,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-SDEALLOCATE(offsetElemMPI)
 SDEALLOCATE(nMPISides_Proc)
 SDEALLOCATE(nMPISides_MINE_Proc)
 SDEALLOCATE(nMPISides_YOUR_Proc)
@@ -500,6 +502,14 @@ SDEALLOCATE(OffsetMPISides_rec)
 ! Free the communicators
 IF(MPI_COMM_NODE   .NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_NODE   ,IERROR)
 IF(MPI_COMM_LEADERS.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_LEADERS,IERROR)
+
+#if USE_LOADBALANCE
+IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
+#endif /*USE_LOADBALANCE*/
+  SDEALLOCATE(offsetElemMPI)
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE FinalizeMPI
 #endif /*USE_MPI*/
@@ -598,7 +608,7 @@ IF(FILEEXISTS(outfile)) WriteHeader = .FALSE.
 
 IF(WriteHeader)THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
-  tmpStr=""
+  tmpStr=' '
   DO i=1,nTotalVars
     WRITE(tmpStr(i),'(A)')delimiter//'"'//TRIM(StrVarNames(i))//'"'
   END DO
@@ -720,7 +730,7 @@ outfileProc_loc=TRIM(outfileProc_loc)//TRIM(hilf)
 
 ! Write the file header
 OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfileProc_loc),STATUS="UNKNOWN")
-tmpStr=""
+tmpStr=' '
 DO i=1,nTotalVars
   WRITE(tmpStr(i),'(A)')delimiter//'"'//TRIM(StrVarNames(i))//'"'
 END DO

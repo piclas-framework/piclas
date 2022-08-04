@@ -475,11 +475,12 @@ END IF
 
 ! Surface particle output to .h5
 IF(DoBoundaryParticleOutputHDF5)THEN
-  ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
-  END IF
-  PartStateBoundary=0.
+  ! This array is not de-allocated during load balance as it is only written to .h5 during WriteStateToHDF5()
+  IF(.NOT.ALLOCATED(PartStateBoundary))THEN
+    ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate PartStateBoundary array!')
+    PartStateBoundary=0.
+  END IF ! .NOT.ALLOCATED(PartStateBoundary)
 END IF
 
 ! Set mapping from field boundary to particle boundary index
@@ -544,7 +545,6 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Analyze_Vars            ,ONLY: CalcMeshInfo
 USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,nElems
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
-USE MOD_HDF5_Output_State       ,ONLY: WriteStateToHDF5
 USE MOD_HDF5_Output_ElemData    ,ONLY: WriteLostRotPeriodicSidesToHDF5
 USE MOD_Globals_Vars            ,ONLY: ProjectName
 #endif /*USE_MPI*/
@@ -1092,9 +1092,12 @@ SUBROUTINE FinalizeParticleBoundary()
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars
 #if USE_MPI
-USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared_vars  ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1133,7 +1136,6 @@ SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
 SDEALLOCATE(PartBound%RadiativeEmissivity)
-SDEALLOCATE(PartStateBoundary)
 ! Rotational periodic boundary condition
 SDEALLOCATE(RotPeriodicSide2GlobalSide)
 SDEALLOCATE(NumRotPeriodicNeigh)
@@ -1151,6 +1153,16 @@ IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
 #endif
 END IF
 SDEALLOCATE(PartBound%UseAdaptedWallTemp)
+
+! Do not deallocate during load balance (either communicate to new processor or simply keep on current processor)
+#if USE_LOADBALANCE
+IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
+#endif /*USE_LOADBALANCE*/
+  SDEALLOCATE(PartStateBoundary)
+#if USE_LOADBALANCE
+END IF ! PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+
 END SUBROUTINE FinalizeParticleBoundary
 
 END MODULE MOD_Particle_Boundary_Init

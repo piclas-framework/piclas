@@ -64,16 +64,19 @@ SUBROUTINE InitDG()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars
-USE MOD_Restart_Vars,       ONLY: DoRestart,RestartInitIsDone
-USE MOD_Interpolation_Vars, ONLY: xGP,wGP,wBary,InterpolationInitIsDone
-USE MOD_Mesh_Vars,          ONLY: nSides
-USE MOD_Mesh_Vars,          ONLY: MeshInitIsDone
-#if !(USE_HDG)
-USE MOD_PML_Vars,           ONLY: PMLnVar ! additional fluxes for the CFS-PML auxiliary variables
+USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
+USE MOD_Interpolation_Vars ,ONLY: xGP,wGP,wBary,InterpolationInitIsDone
+USE MOD_Mesh_Vars          ,ONLY: nSides
+USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
+#if ! (USE_HDG)
+USE MOD_PML_Vars           ,ONLY: PMLnVar ! Additional fluxes for the CFS-PML auxiliary variables
 #endif /*USE_HDG*/
 #ifdef OPTIMIZED
-USE MOD_Riemann,            ONLY: GetRiemannMatrix
+USE MOD_Riemann            ,ONLY: GetRiemannMatrix
 #endif /*OPTIMIZED*/
+#if USE_LOADBALANCE && !(USE_HDG)
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE && !(USE_HDG)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -83,21 +86,26 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitIsDone).OR.DGInitIsDone)THEN
-   CALL abort(&
-       __STAMP__&
-       ,'InitDG not ready to be called or already called.',999,999.)
-END IF
+IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitIsDone).OR.DGInitIsDone) CALL abort(__STAMP__,&
+    'InitDG not ready to be called or already called.')
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT DG...'
 
 CALL initDGbasis(PP_N,xGP,wGP,wBary)
-! the local DG solution in physical and reference space
-ALLOCATE( U(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+#if USE_LOADBALANCE && !(USE_HDG)
+IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
+#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+  ! the local DG solution in physical and reference space
+  ALLOCATE( U(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+  U=0.
+#if !(USE_HDG)
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
 ! the time derivative computed with the DG scheme
 ALLOCATE(Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-U=0.
 Ut=0.
+#endif /*USE_HDG*/
 
 #if IMPA || ROS
 ALLOCATE( Un(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
@@ -602,6 +610,9 @@ SUBROUTINE FinalizeDG()
 !===================================================================================================================================
 ! MODULES
 USE MOD_DG_Vars
+#if USE_LOADBALANCE && !(USE_HDG)
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE && !(USE_HDG)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -618,7 +629,6 @@ SDEALLOCATE(D_Hat_T)
 SDEALLOCATE(L_HatMinus)
 SDEALLOCATE(L_HatPlus)
 SDEALLOCATE(Ut)
-SDEALLOCATE(U)
 #if IMPA || ROS
 SDEALLOCATE(Un)
 #endif
@@ -629,6 +639,15 @@ SDEALLOCATE(FLUX_Slave)
 SDEALLOCATE(U_Master_loc)
 SDEALLOCATE(U_Slave_loc)
 SDEALLOCATE(Flux_loc)
+
+! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors
+#if USE_LOADBALANCE && !(USE_HDG)
+IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
+#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+  SDEALLOCATE(U)
+#if USE_LOADBALANCE && !(USE_HDG)
+END IF
+#endif /*USE_LOADBALANCE && !(USE_HDG)*/
 
 DGInitIsDone = .FALSE.
 END SUBROUTINE FinalizeDG
