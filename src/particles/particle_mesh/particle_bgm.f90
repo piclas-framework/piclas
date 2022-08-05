@@ -538,6 +538,10 @@ ELSE
   ElemInfo_Shared(ELEM_HALOFLAG,firstElem:lastElem) = 0
   ! Loop global elems
   DO iElem = firstElem, lastElem
+    IF(ElementOnNode(iElem)) THEN
+      ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 1 ! compute-node element
+      CYCLE
+    END IF
     BGMCellXmin = ElemToBGM_Shared(1,iElem)
     BGMCellXmax = ElemToBGM_Shared(2,iElem)
     BGMCellYmin = ElemToBGM_Shared(3,iElem)
@@ -557,11 +561,7 @@ ELSE
           IF(kBGM.LT.BGMkmin) CYCLE
           IF(kBGM.GT.BGMkmax) CYCLE
           !GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
-          IF(ElementOnNode(iElem)) THEN
-            ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 1 ! compute-node element
-          ELSE
-            ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2 ! halo element
-          END IF
+          IF(.NOT.ElementOnNode(iElem)) ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2 ! halo element
         END DO ! kBGM
       END DO ! jBGM
     END DO ! iBGM
@@ -736,6 +736,9 @@ ELSE
   ! Check if the processor should check at least one halo processor
   IF (lastProcHalo.GT.0) THEN
     DO iProc = 1,nProcessors
+      ! Ignore my own elements
+      IF(iProc-1.EQ.myRank) CYCLE
+
       ! Ignore compute-nodes with no halo elements
       IF (.NOT.MPIProcHalo(iProc)) CYCLE
 
@@ -800,7 +803,7 @@ END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 #else
 !ElemInfo_Shared(ELEM_HALOFLAG,:) = 1
-#endif  /*USE_MPI*/
+#endif /*USE_MPI*/
 
 !--- compute number of elements in each background cell
 DO iElem = offsetElem+1, offsetElem+nElems

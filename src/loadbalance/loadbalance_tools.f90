@@ -163,7 +163,7 @@ offsetElem=offsetElemMPI(myRank)
 LOGWRITE(*,'(4(A,I8))')'offsetElem = ',offsetElem,' ,nElems = ', nElems, &
              ' , firstGlobalElemID= ',offsetElem+1,', lastGlobalElemID= ',offsetElem+nElems
 
-IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
+IF(PerformLoadBalance)THEN
   ! Only update the mapping of element to rank
   IF (myComputeNodeRank.EQ.0) THEN
     ! Shared array is allocated on compute-node level, compute-node root must update the mapping
@@ -174,48 +174,50 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   END IF ! myComputeNodeRank.EQ.0
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
-  ! ------------------------------------------------
-  ! Element- and Side-based LB
-  ! ------------------------------------------------
-  ! Calculate the elements to send
-  MPInElemSend      = 0
-  MPIoffsetElemSend = 0
-  MPInSideSend      = 0
-  MPIoffsetSideSend = 0
-  ! Loop with the old element over the new elem distribution
-  DO iElem = 1,nElemsOld
-    ElemRank               = ElemInfo_Shared(ELEM_RANK,offsetElemOld+iElem)+1
-    MPInElemSend(ElemRank) = MPInElemSend(ElemRank) + 1
-    MPInSideSend(ElemRank) = MPInSideSend(ElemRank) + &
-        ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElemOld+iElem) - &
-        ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElemOld+iElem)
-  END DO
+  IF(.NOT.UseH5IOLoadBalance)THEN
+    ! ------------------------------------------------
+    ! Element- and Side-based LB
+    ! ------------------------------------------------
+    ! Calculate the elements to send
+    MPInElemSend      = 0
+    MPIoffsetElemSend = 0
+    MPInSideSend      = 0
+    MPIoffsetSideSend = 0
+    ! Loop with the old element over the new elem distribution
+    DO iElem = 1,nElemsOld
+      ElemRank               = ElemInfo_Shared(ELEM_RANK,offsetElemOld+iElem)+1
+      MPInElemSend(ElemRank) = MPInElemSend(ElemRank) + 1
+      MPInSideSend(ElemRank) = MPInSideSend(ElemRank) + &
+          ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElemOld+iElem) - &
+          ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElemOld+iElem)
+    END DO
 
-  offsetElemSend = 0
-  DO iProc = 2,nProcessors
-    MPIoffsetElemSend(iProc) = SUM(MPInElemSend(1:iProc-1))
-    MPIoffsetSideSend(iProc) = SUM(MPInSideSend(1:iProc-1))
-  END DO
+    offsetElemSend = 0
+    DO iProc = 2,nProcessors
+      MPIoffsetElemSend(iProc) = SUM(MPInElemSend(1:iProc-1))
+      MPIoffsetSideSend(iProc) = SUM(MPInSideSend(1:iProc-1))
+    END DO
 
-  ! Calculate the elements to send
-  MPInElemRecv      = 0
-  MPIoffsetElemRecv = 0
-  MPInSideRecv      = 0
-  MPIoffsetSideRecv = 0
-  ! Loop with the new element over the old elem distribution
-  DO iElem = 1,nElems
-    ElemRank               = ElemInfoRank_Shared(offsetElem+iElem)+1
-    MPInElemRecv(ElemRank) = MPInElemRecv(ElemRank) + 1
-    MPInSideRecv(ElemRank) = MPInSideRecv(ElemRank) + &
-        ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem+iElem) - &
-        ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+iElem)
-  END DO
+    ! Calculate the elements to send
+    MPInElemRecv      = 0
+    MPIoffsetElemRecv = 0
+    MPInSideRecv      = 0
+    MPIoffsetSideRecv = 0
+    ! Loop with the new element over the old elem distribution
+    DO iElem = 1,nElems
+      ElemRank               = ElemInfoRank_Shared(offsetElem+iElem)+1
+      MPInElemRecv(ElemRank) = MPInElemRecv(ElemRank) + 1
+      MPInSideRecv(ElemRank) = MPInSideRecv(ElemRank) + &
+          ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem+iElem) - &
+          ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+iElem)
+    END DO
 
-  offsetElemRecv = 0
-  DO iProc = 2,nProcessors
-    MPIoffsetElemRecv(iProc) = SUM(MPInElemRecv(1:iProc-1))
-    MPIoffsetSideRecv(iProc) = SUM(MPInSideRecv(1:iProc-1))
-  END DO
+    offsetElemRecv = 0
+    DO iProc = 2,nProcessors
+      MPIoffsetElemRecv(iProc) = SUM(MPInElemRecv(1:iProc-1))
+      MPIoffsetSideRecv(iProc) = SUM(MPInSideRecv(1:iProc-1))
+    END DO
+  END IF ! .NOT.UseH5IOLoadBalance
 END IF ! PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)
 
 ! Sanity check: local nElems and offset
@@ -297,6 +299,8 @@ USE MOD_LoadBalance_Vars       ,ONLY: ElemTime_tmp
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 USE MOD_LoadBalance_Vars       ,ONLY: offsetElemMPIOld
+USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
+USE MOD_Restart_Vars           ,ONLY: FlushInitialState
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems,nGlobalElems
 USE MOD_Restart_Vars           ,ONLY: RestartFile
 ! IMPLICIT VARIABLE HANDLING
@@ -311,6 +315,8 @@ INTEGER             :: iProc
 REAL                :: StartT,EndT
 REAL,ALLOCATABLE    :: ElemTimeTmp(:)
 INTEGER             :: ElemPerProc(0:nProcessors-1)
+INTEGER,ALLOCATABLE :: ElemProc(:)
+CHARACTER(LEN=32)   :: hilf
 !===================================================================================================================================
 
 IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
@@ -337,8 +343,13 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     DEALLOCATE(ElemTimeTmp)
   END IF
 ELSE
+  IF(single)THEN
+    hilf='(only MPI root)'
+  ELSE
+    hilf='with all processors'
+  END IF ! single
   IF(MPIRoot)THEN
-    WRITE(UNIT_stdOut,'(A,A,A)',ADVANCE='NO') ' | Reading ElemTime from restart file: ',TRIM(RestartFile),' ...'
+    WRITE(UNIT_stdOut,'(A,A,A)',ADVANCE='NO') ' | Reading ElemTime '//TRIM(hilf)//' from restart file: ',TRIM(RestartFile),' ...'
     GETTIME(StartT)
   END IF
 
@@ -350,12 +361,52 @@ ELSE
       CALL ReadArray('ElemTime',2,(/1_IK,INT(nGlobalElems,IK)/),0_IK,2,RealArray=ElemGlobalTime)
     CALL CloseDataFile()
   ELSE
-    SDEALLOCATE(ElemTime_tmp)
-    ALLOCATE(ElemTime_tmp(1:nElems))
-    ElemTime_tmp  = 0.
-    CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-    CALL ReadArray('ElemTime',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK),2,RealArray=ElemTime_tmp)
-    CALL CloseDataFile()
+    IF(UseH5IOLoadBalance)THEN
+      ! Sanity check: some processors will return ElemTimeExists=F even though it is actually present on the disk
+      ! When this happens, the root process and its processors that are on the same node always return ElemTimeExists=T
+      ! This points to a corrupt state file (accompanied by SpecID=0 particles within the file)
+      ! If the load balance step is performed without h5 I/O in the future, this check can be removed
+      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+      CALL DatasetExists(File_ID,'ElemTime',ElemTimeExists)
+      IF(.NOT.ElemTimeExists) CALL abort(__STAMP__,'ElemTime does not exit for some processors in .h5 which indicates a corrupt state file')
+      CALL CloseDataFile()
+
+      ! Check if the original ElemTime needs to be communicated to all procs for output to a state file
+      IF(FlushInitialState)THEN
+        ! Check is allocated and re-allocate
+        SDEALLOCATE(ElemTime_tmp)
+        ALLOCATE(ElemTime_tmp(1:nElems))
+        ElemTime_tmp=0.
+
+        ! Because on some file systems the data of the new state file which was read here might not be completed yet before it accessed
+        ! here, it is instead synchronized via mpi scatterv from the root process to all other processes.
+        ! This is because HDF5 only guarantees that the data is in the kernel buffer, but not on the disk itself.
+        IF(MPIRoot)THEN
+          ALLOCATE(ElemProc(0:nProcessors-1))
+          DO iProc=0,nProcessors-1
+            ElemProc(iProc)=offSetElemMPI(iProc+1)-offSetElemMPI(iProc)
+          END DO ! iPRoc
+          ! Is this necessary for the root process?
+          ElemTime_tmp(1:nElems) = ElemGlobalTime(1:nElems)
+        END IF ! MPIRoot
+
+        ! Send from root to all other processes
+        CALL MPI_SCATTERV(ElemGlobalTime, ElemProc, offsetElemMPI, MPI_DOUBLE_PRECISION, ElemTime_tmp, nElems, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, IERROR)
+        
+        ! Deallocate temporary array
+        IF(MPIRoot) DEALLOCATE(ElemProc)
+      END IF ! FlushInitialState
+     ELSE
+
+      ! Normal restart
+      SDEALLOCATE(ElemTime_tmp)
+      ALLOCATE(ElemTime_tmp(1:nElems))
+      ElemTime_tmp  = 0.
+      CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+      CALL ReadArray('ElemTime',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK),2,RealArray=ElemTime_tmp)
+      CALL CloseDataFile()
+
+     END IF ! UseH5IOLoadBalance
   END IF ! single
 
   IF(MPIRoot)THEN
