@@ -12,8 +12,8 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-#if defined(PARTICLES) && USE_HDG
 MODULE MOD_Part_BR_Elecron_Fluid
+#if defined(PARTICLES) && USE_HDG
 !===================================================================================================================================
 !> Module for particle insertion via electron density conversion from fluid model to kinetic particles
 !===================================================================================================================================
@@ -423,7 +423,7 @@ END SUBROUTINE UpdateVariableRefElectronTemp
 
 
 !===================================================================================================================================
-!> When automatically calculating the reference potential, as well as electron density and temperature, also update the 
+!> When automatically calculating the reference potential, as well as electron density and temperature, also update the
 !> temperature- and density-dependent matrices for the non-linear HDG solver
 !===================================================================================================================================
 SUBROUTINE UpdateBRAutomaticElectronRef()
@@ -1233,5 +1233,5 @@ SWRITE(UNIT_stdOut,'(A)') ' ... AVERAGE BR ELECTRON REFERENCE PARAMETERS INITIAL
 END SUBROUTINE InitBRAutomaticElectronRefElements
 
 
-END MODULE MOD_Part_BR_Elecron_Fluid
 #endif /*defined(PARTICLES) && USE_HDG*/
+END MODULE MOD_Part_BR_Elecron_Fluid

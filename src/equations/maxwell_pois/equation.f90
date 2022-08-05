@@ -121,6 +121,9 @@ USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix
 USE MOD_Interpolation_Vars ,ONLY: xGP
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 USE MOD_Equation_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -133,11 +136,11 @@ USE MOD_Equation_Vars
 #endif
 !===================================================================================================================================
 IF(InterpolationInitIsDone.AND.EquationInitIsDone)THEN
-   SWRITE(*,*) "InitMaxwell Poisson not ready to be called or already called."
+   LBWRITE(*,*) "InitMaxwell Poisson not ready to be called or already called."
    RETURN
 END IF
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL POISSON...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL POISSON...'
 
 ! Read correction velocity
 c_corr             = GETREAL('c_corr','1.')
@@ -215,8 +218,8 @@ D=0.
 CALL PolynomialDerivativeMatrix(N,xGP,D)
 
 EquationInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT MAXWELL POISSON DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT MAXWELL POISSON DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 

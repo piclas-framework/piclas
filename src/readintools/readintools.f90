@@ -2175,6 +2175,9 @@ END SUBROUTINE FinalizeParameters
 SUBROUTINE PrintOption(NameOpt,InfoOpt,IntOpt,IntArrayOpt,RealOpt,LogOpt,LogArrayOpt,StrOpt)
 ! MODULES
 USE MOD_Globals               ,ONLY: abort,mpiroot
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -2195,6 +2198,16 @@ CHARACTER(LEN=50)    :: tmp
 INTEGER              :: i,Counter,length
 !==================================================================================================================================
 IF(.NOT.MPIRoot)RETURN
+
+! Return if running loadbalance and printing static information
+#if USE_LOADBALANCE
+IF (PerformLoadBalance) THEN
+  SELECT CASE(TRIM(InfoOpt))
+    CASE("INFO","PARAM","CALCUL.","OUTPUT")
+      RETURN
+  END SELECT
+END IF
+#endif /*USE_LOADBALANCE*/
 
 ! set length of name
 WRITE(fmtName,*) prms%maxNameLen

@@ -131,11 +131,11 @@ CHARACTER(255)     :: ContainerName
 REAL               :: TmpArray2(3),CoupledPowerPotentialHDF5(3)
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
-   SWRITE(*,*) "InitPoisson not ready to be called or already called."
+   LBWRITE(*,*) "InitPoisson not ready to be called or already called."
    RETURN
 END IF
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT POISSON...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT POISSON...'
 
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
@@ -288,8 +288,8 @@ E=0.
 
 
 EquationInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT POISSON DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT POISSON DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 

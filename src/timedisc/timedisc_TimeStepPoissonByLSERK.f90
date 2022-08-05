@@ -61,7 +61,6 @@ USE MOD_Particle_Analyze_Tools ,ONLY: CalcCoupledPowerPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle

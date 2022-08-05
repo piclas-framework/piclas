@@ -68,7 +68,7 @@ REAL                  :: FPCoeffMatr(9,9), FPSolVec(9,1)
 REAL                  ::  u0ij(6), u2ij(6), u0ijk(10), u2, u4i(3), OldEn, NewEn, u2i(3), u4, vBulk(3), u0ijMat(3,3),u0i(3)
 REAL                  :: dens, vmag2, relaxtime, Lambda, alpha, CellTemp
 REAL                  :: V_rel(3), FP_FakA, FP_FakB, FP_FakC, Prandtl, InnerDOF, SMat(3,3), tempVelo(3), KronDelta
-INTEGER               :: iLoop, fillMa1, fillMa2, fillMa3, iLoop2, iPolyatMole, iDOF, IPIV(9)
+INTEGER               :: iLoop, fillMa1, fillMa2, fillMa3, iLoop2, iPolyatMole, iDOF, IPIV(9), nXiVibDOF
 REAL,ALLOCATABLE      :: Ni(:,:), iRanPart(:,:)
 REAL                  :: dynamicvis, relaxfreq
 REAL                  :: MaxColQua, ERot, EVib, Xi_vib, collisionfreq, vibrelaxfreq, rotrelaxfreq
@@ -183,7 +183,8 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   IF(FPDoVibRelaxation) THEN
     IF(SpecDSMC(1)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(1)%SpecToPolyArray
-      ALLOCATE(Xi_vib_DOF(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+      nXiVibDOF   = PolyatomMolDSMC(iPolyatMole)%VibDOF
+      ALLOCATE(Xi_vib_DOF(nXiVibDOF))
       Xi_vib_DOF(:) = 0.
       TVib = CalcTVibPoly(Evib/totalWeight, 1)
       IF (TVib.GT.0.0) THEN
@@ -254,7 +255,7 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   rotrelaxfreq = collisionfreq * DSMC%RotRelaxProb
   vibrelaxfreq = collisionfreq * DSMC%VibRelaxProb
   IF(SpecDSMC(1)%PolyatomicMol) THEN
-    CALL CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_vib_DOF, Xi_Vib_old, RotExp, VibExp, TEqui, rotrelaxfreq, vibrelaxfreq, &
+    CALL CalcTEquiPoly(nPart, CellTemp, TRot, TVib, nXiVibDOF, Xi_vib_DOF, Xi_Vib_old, RotExp, VibExp, TEqui, rotrelaxfreq, vibrelaxfreq, &
                         dtCell, DoVibRelaxIn=FPDoVibRelaxation)
       Xi_vib = SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
   ELSE

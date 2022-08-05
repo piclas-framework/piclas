@@ -33,7 +33,7 @@ SUBROUTINE TimeDisc()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime
+USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime,ProjectName
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze
 #if USE_LOADBALANCE
@@ -71,7 +71,7 @@ USE MOD_Equation               ,ONLY: EvalGradient
 #if USE_MPI
 #if USE_LOADBALANCE
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
-USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime,DoLoadBalanceBackup,LoadBalanceSampleBackup
+USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,ElemTime,DoLoadBalanceBackup,LoadBalanceSampleBackup,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample,PerformLBSample,PerformLoadBalance,LoadBalanceMaxSteps,nLoadBalanceSteps
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTimeField
@@ -86,6 +86,7 @@ USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteElectroMagneticPICFieldToHDF5
 USE MOD_HDF5_Output_State      ,ONLY: WriteIMDStateToHDF5
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEMFieldOutput
+USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
 #endif /*PARTICLES*/
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
@@ -210,7 +211,13 @@ CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 #ifdef PARTICLES
 IF(DoImportIMDFile) CALL WriteIMDStateToHDF5() ! Write IMD particles to state file (and TTM if it exists)
 #endif /*PARTICLES*/
-IF((.NOT.DoRestart).OR.FlushInitialState) CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze) ! Write initial state to file
+IF((.NOT.DoRestart).OR.FlushInitialState.OR.(.NOT.FILEEXISTS(TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',time))//'.h5'))) THEN
+#if defined(PARTICLES)
+  CALL FillParticleData() ! Fill the SFC-ordered particle arrays
+#endif /*defined(PARTICLES)*/
+
+  CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze) ! Write initial state to file
+END IF
 
 ! if measurement of particle tracking time (used for analyze, load balancing uses own time measurement for tracking)
 #ifdef PARTICLES
@@ -393,8 +400,11 @@ DO !iter_t=0,MaxIter
     IF(MOD(time,SkipAnalyzeWindow).GT.SkipAnalyzeSwitchTime) nSkipAnalyze = nSkipAnalyzeSwitch
 
     !--- Perform analysis and write state file .h5
+    ! MOD(iAnalyze,nSkipAnalyze).EQ.0: Use nSkipAnalyze to skip analyze steps
+    ! finalIter=T: last iteration of the simulation is reached, hence, always perform analysis and output to hdf5
 #if USE_LOADBALANCE
-    IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. PerformLoadBalance .OR. finalIter)THEN
+    ! PerformLoadBalance.AND.UseH5IOLoadBalance: Load balance step will be performed and load balance restart via hdf5 IO active
+    IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. (PerformLoadBalance.AND.UseH5IOLoadBalance) .OR. finalIter)THEN
 #else
     IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. finalIter)THEN
 #endif /*USE_LOADBALANCE*/
@@ -402,7 +412,13 @@ DO !iter_t=0,MaxIter
       CALL PerformAnalyze(time, FirstOrLastIter=finalIter, OutPutHDF5=.TRUE.) ! analyze routines are not called here in last iter
       ! write information out to std-out of console
       CALL WriteInfoStdOut()
+#if defined(PARTICLES)
+      CALL FillParticleData() ! Fill the SFC-ordered particle arrays
+#endif /*defined(PARTICLES)*/
       ! Write state to file
+#if USE_LOADBALANCE
+      IF(.NOT.DoInitialAutoRestart)&
+#endif /*USE_LOADBALANCE*/
       CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
       ! Write recordpoints data to hdf5
@@ -439,8 +455,8 @@ DO !iter_t=0,MaxIter
 
     ! Switch off Initial Auto Restart (initial load balance) after the restart was performed
     IF (DoInitialAutoRestart) THEN
-      ! Remove the extra state file written for load balance (only when load balance restart was performed)
-      IF(PerformLoadBalance) CALL RemoveHDF5(RestartFile)
+      ! Remove the extra state file written for load balance (only when load balance restart via hdf5 IO was performed)
+      IF(PerformLoadBalance.AND.UseH5IOLoadBalance) CALL RemoveHDF5(RestartFile)
       ! Get original settings from backup variables
       DoInitialAutoRestart = .FALSE.
       ForceInitialLoadBalance = .FALSE.

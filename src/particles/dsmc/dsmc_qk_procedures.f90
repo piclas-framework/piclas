@@ -295,7 +295,7 @@ FUNCTION gammainc( arg )
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                        :: n
-  REAL(KIND=real_kind)           :: gamser, gln, ap, del, summ, an, ser, tmp, x,y, b,c,d,h
+  REAL(KIND=real_kind)           :: gamser, gln, ap, del, summ, an, ser, tmp, x,y, b,c,d,h, exparg
   REAL(KIND=real_kind)           :: gammainc
   ! parameters
   REAL(KIND=real_kind),PARAMETER,DIMENSION(6) :: &
@@ -357,7 +357,12 @@ FUNCTION gammainc( arg )
       del=d*c
       h=h*del
     END DO
-    gammainc=exp(-arg(2)+arg(1)*log(arg(2))-gln) * h
+    exparg = -arg(2)+arg(1)*log(arg(2))-gln
+    IF(CHECKEXP(exparg))THEN
+      gammainc = exp(exparg) * h
+    ELSE
+      gammainc = 0.
+    END IF ! CHECKEXP(exparg)
   END IF
 END FUNCTION gammainc
 
