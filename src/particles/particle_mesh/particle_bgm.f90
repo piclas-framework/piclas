@@ -1429,6 +1429,11 @@ USE MOD_Globals
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_MPI_Shared_Vars    ,ONLY: GlobalElem2CNTotalElem
+USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
+#endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1454,7 +1459,6 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 ! Then, free the pointers or arrays
 SDEALLOCATE(CNTotalElem2GlobalElem)
-SDEALLOCATE(GlobalElem2CNTotalElem)
 SDEALLOCATE(CNTotalSide2GlobalSide)
 SDEALLOCATE(GlobalSide2CNTotalSide)
 #endif /*USE_MPI*/
@@ -1477,6 +1481,13 @@ ADEALLOCATE(FIBGMProcs_Shared)
 #if USE_MPI
 CALL FinalizeHaloInfo()
 #endif /*USE_MPI*/
+
+#if USE_LOADBALANCE
+! This will be deallocated in FinalizeDeposition() when using load balance
+IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition) )THEN
+  SDEALLOCATE(GlobalElem2CNTotalElem)
+END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
+#endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE FinalizeBGM
 
