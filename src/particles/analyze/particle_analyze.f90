@@ -713,6 +713,9 @@ USE MOD_Restart_Vars          ,ONLY: RestartFile,DoRestart
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcTemp,DoPartAnalyze
 USE MOD_ReadInTools           ,ONLY: PrintOption
 USE MOD_SurfaceModel_Vars     ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutoamtic
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -783,7 +786,7 @@ IF(CalcBulkElectronTemp)THEN
       IF(BulkElectronTempExists)THEN
         CALL ReadArray(TRIM(ContainerName),2,(/1_IK,1_IK/),0_IK,2,RealArray=TmpArray(1,1))
         BulkElectronTemp = TmpArray(1,1)
-        WRITE(UNIT_stdOut,'(1(A,ES10.2E3))') " Read BulkElectronTemp from restart file ["//TRIM(RestartFile)//"] Te[eV]:",&
+        LBWRITE(UNIT_stdOut,'(1(A,ES10.2E3))') " Read BulkElectronTemp from restart file ["//TRIM(RestartFile)//"] Te[eV]:",&
             BulkElectronTemp
       END IF ! RegionElectronRefExists
       CALL CloseDataFile()

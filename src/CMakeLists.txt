@@ -512,15 +512,15 @@ IF(SELFBUILTEXTERNALS)
 ENDIF()
 
 ADD_LIBRARY(userblocklib STATIC ./src/output/read_userblock.c)
-SET_TARGET_PROPERTIES(userblocklib PROPERTIES LINKER_LANGUAGE C
+SET_TARGET_PROPERTIES(userblocklib PROPERTIES LANGUAGE C LINKER_LANGUAGE C
                                               COMPILE_FLAGS "-fPIC")
 
 ADD_LIBRARY(stacksizelib STATIC ./src/globals/stacksize.c)
-SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LINKER_LANGUAGE C
+SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LANGUAGE C LINKER_LANGUAGE C
                                               COMPILE_FLAGS "-fPIC")
 
 ADD_LIBRARY(memusagelib STATIC ./src/globals/processmemusage.cxx)
-SET_TARGET_PROPERTIES(memusagelib PROPERTIES LINKER_LANGUAGE CXX
+SET_TARGET_PROPERTIES(memusagelib PROPERTIES LANGUAGE CXX LINKER_LANGUAGE CXX
                                              COMPILE_FLAGS "-fPIC")
 
 # we link the statically built libs
