@@ -424,7 +424,8 @@ DO iNbProc=1,nNbProcs
   END DO ! iElem
   DEALLOCATE(SideIDMap)
 END DO !nbProc(i)
-! Iterate over all processors and for each processor over all elements and within each element
+#endif /*USE_MPI*/
+! Iterate (over all processors and for each processor) over all elements and within each element
 ! over all sides (6 for hexas in 3D, 4 for quads in 2D) and for each big Mortar side over all small virtual sides
 ! and revert the negative SideIDs.
 DO iElem=FirstElemInd,LastElemInd
@@ -441,6 +442,7 @@ DO iElem=FirstElemInd,LastElemInd
     END DO ! iMortar
   END DO ! iLocSide
 END DO ! iElem
+#if USE_MPI
 ! Optimize Mortars: Search for big Mortars which only have small virtual MPI_MINE sides. Since the MPI_MINE-sides evaluate
 ! the flux, the flux of the big Mortar side (computed from the 2/4 fluxes of the small virtual sides) can be computed BEFORE
 ! the communication of the fluxes. Therefore those big Mortars can be moved from MPIMortars to the InnerMortars.
@@ -809,7 +811,7 @@ USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
 USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nBCSides,nSides
 USE MOD_Mesh_Vars        ,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
 USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
-USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo,BoundaryName
+USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
 #if defined(PARTICLES) || USE_HDG
 USE MOD_Mesh_Vars        ,ONLY: GlobalUniqueSideID
 #endif /*defined(PARTICLES) || USE_HDG*/
@@ -818,8 +820,11 @@ USE MOD_MPI_vars
 #endif
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemHDGSides,TotalHDGSides
-USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide
+USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide,BoundaryName
 #endif /*USE_HDG && USE_LOADBALANCE*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 ! INPUT VARIABLES
 #if USE_HDG && USE_LOADBALANCE
@@ -845,8 +850,8 @@ INTEGER             :: dummy(0:4)
 #if USE_HDG && USE_LOADBALANCE
 INTEGER           :: BCType,nMortars
 INTEGER           :: HDGSides
-#endif /*USE_HDG && USE_LOADBALANCE*/
 CHARACTER(3)      :: hilf
+#endif /*USE_HDG && USE_LOADBALANCE*/
 !===================================================================================================================================
 ! Element to Side mapping
 nSides_flip=0
@@ -934,17 +939,17 @@ ELSE
   CALL MPI_REDUCE(nSides_MortarType,nSides_MortarType,3,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
 END IF
 #endif /*USE_MPI*/
-SWRITE(UNIT_StdOut,'(132("."))')
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=0     | ',nSides_flip(0)
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=1     | ',nSides_flip(1)
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=2     | ',nSides_flip(2)
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=3     | ',nSides_flip(3)
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=4     | ',nSides_flip(4)
-SWRITE(UNIT_StdOut,'(132("."))')
-SWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=1 | ',nSides_MortarType(1)
-SWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=2 | ',nSides_MortarType(2)
-SWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=3 | ',nSides_MortarType(3)
-SWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=0     | ',nSides_flip(0)
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=1     | ',nSides_flip(1)
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=2     | ',nSides_flip(2)
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=3     | ',nSides_flip(3)
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=4     | ',nSides_flip(4)
+LBWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=1 | ',nSides_MortarType(1)
+LBWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=2 | ',nSides_MortarType(2)
+LBWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=3 | ',nSides_MortarType(3)
+LBWRITE(UNIT_StdOut,'(132("."))')
 
 LOGWRITE(*,*)'============================= START SIDE CHECKER ==================='
 DO iElem=1,nElems

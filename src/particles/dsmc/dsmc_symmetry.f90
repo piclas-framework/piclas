@@ -787,9 +787,12 @@ SUBROUTINE Init_Symmetry()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: Symmetry
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_ReadInTools             ,ONLY: GETLOGICAL,GETINT
+USE MOD_Particle_Vars    ,ONLY: Symmetry
+USE MOD_DSMC_Vars        ,ONLY: RadialWeighting
+USE MOD_ReadInTools      ,ONLY: GETLOGICAL,GETINT
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -805,8 +808,8 @@ Symmetry%Order = GETINT('Particles-Symmetry-Order')
 Symmetry2D = GETLOGICAL('Particles-Symmetry2D')
 IF(Symmetry2D.AND.(Symmetry%Order.EQ.3)) THEN
   Symmetry%Order = 2
-  SWRITE(*,*) 'WARNING: Particles-Symmetry-Order is set to 2 because of Particles-Symmetry2D=.TRUE. .'
-  SWRITE(*,*) 'Set Particles-Symmetry-Order=2 and remove Particles-Symmetry2D to avoid this warning'
+  LBWRITE(*,*) 'WARNING: Particles-Symmetry-Order is set to 2 because of Particles-Symmetry2D=.TRUE. .'
+  LBWRITE(*,*) 'Set Particles-Symmetry-Order=2 and remove Particles-Symmetry2D to avoid this warning'
 ELSE IF(Symmetry2D) THEN
   CALL ABORT(__STAMP__&
     ,'ERROR: 2D Simulations either with Particles-Symmetry-Order=2 or (but not recommended) with Symmetry2D=.TRUE.')

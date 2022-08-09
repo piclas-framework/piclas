@@ -66,7 +66,8 @@ INTEGER :: newParticleID
 PDM%ParticleVecLength = PDM%ParticleVecLength + 1 ! Increase particle vector length
 newParticleID = PDM%ParticleVecLength
 IF(newParticleID.GT.PDM%MaxParticleNumber)THEN
-  CALL abort(__STAMP__,'CreateParticle: newParticleID.GT.PDM%MaxParticleNumber. newParticleID=',IntInfoOpt=newParticleID)
+  CALL abort(__STAMP__,'CreateParticle: newParticleID.GT.PDM%MaxParticleNumber. '//&
+                       'Increase Part-maxParticleNumber or use more processors. newParticleID=',IntInfoOpt=newParticleID)
 END IF
 
 PartSpecies(newParticleID)     = SpecID

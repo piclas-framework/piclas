@@ -98,6 +98,9 @@ USE MOD_HDF5_output       ,ONLY: GatheredWriteArray,WriteAttributeToHDF5,WriteHD
 USE MOD_HDF5_Output_Fields,ONLY: WritePMLzetaGlobalToHDF5
 USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
 USE MOD_IO_HDF5           ,ONLY: AddToElemData,ElementOut
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -107,14 +110,14 @@ USE MOD_IO_HDF5           ,ONLY: AddToElemData,ElementOut
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT PML...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PML...'
 !===================================================================================================================================
 ! Readin
 !===================================================================================================================================
 DoPML                  = GETLOGICAL('DoPML','.FALSE.')
 IF(.NOT.DoPML) THEN
-  SWRITE(UNIT_stdOut,'(A)') ' PML region deactivated. '
+  LBWRITE(UNIT_stdOut,'(A)') ' PML region deactivated. '
   PMLnVar=0
   nPMLElems=0
   RETURN
@@ -148,13 +151,11 @@ IF(ANY((/PMLTimeRamptStart,PMLTimeRamptEnd/).LT.0.0))THEN
   DoPMLTimeRamp        = .FALSE.
 ELSE
   IF(ALMOSTEQUALRELATIVE(PMLTimeRamptStart,PMLTimeRamptEnd,1E-3))THEN
-    SWRITE(UNIT_stdOut,'(A)') ' WARNING: PML time ramp uses the same times for tStart and tEnd. Relative difference is < 1E-3'
+    LBWRITE(UNIT_stdOut,'(A)') ' WARNING: PML time ramp uses the same times for tStart and tEnd. Relative difference is < 1E-3'
     PMLsDeltaT         = 1e12 ! set no a very high value
   ELSE
     IF(PMLTimeRamptStart.GT.PMLTimeRamptEnd)THEN
-      CALL abort(&
-      __STAMP__,&
-      ' PMLTimeRamptStart must be smaller than PMLTimeRamptEnd.')
+      CALL abort(__STAMP__,' PMLTimeRamptStart must be smaller than PMLTimeRamptEnd.')
     END IF
     PMLsDeltaT         = 1/(PMLTimeRamptEnd-PMLTimeRamptStart)
     PMLTimeRampCoeff   = -PMLTimeRamptStart * PMLsDeltaT
@@ -212,8 +213,8 @@ CALL SetPMLdampingProfile()
 CALL WritePMLzetaGlobalToHDF5()
 
 PMLInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT PML DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PML DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitPML
 
 

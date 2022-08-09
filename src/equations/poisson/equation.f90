@@ -97,6 +97,9 @@ USE MOD_ReadInTools        ,ONLY: GETREALARRAY,GETREAL,GETINT,CountOption
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 USE MOD_Mesh_Vars          ,ONLY: BoundaryName,BoundaryType,nBCs
 USE MOD_Mesh_Vars          ,ONLY: nSides
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -113,11 +116,11 @@ CHARACTER(LEN=255) :: BCName
 INTEGER            :: nRefStateMax
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
-   SWRITE(*,*) "InitPoisson not ready to be called or already called."
+   LBWRITE(*,*) "InitPoisson not ready to be called or already called."
    RETURN
 END IF
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT POISSON...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT POISSON...'
 
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
@@ -134,9 +137,7 @@ DO i=1,nBCs
     SWRITE(*,'(A,I0)') " Type: ",BCType
     SWRITE(*,'(A,I0)') "State: ",BCState
     SWRITE(*,'(A)')    " Name: "//TRIM(BCName)
-    CALL abort(&
-        __STAMP__&
-        ,'BCState is <= 0 for BCType=5 is not allowed! Set a positive integer for the n-th RefState')
+    CALL abort(__STAMP__,'BCState is <= 0 for BCType=5 is not allowed! Set a positive integer for the n-th RefState')
   ELSEIF(BCType.EQ.5.AND.BCState.GT.0)THEN
     nRefStateMax = MAX(nRefStateMax,BCState)
   ELSEIF(BCType.EQ.2)THEN
@@ -213,8 +214,8 @@ E=0.
 
 
 EquationInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT POISSON DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT POISSON DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 

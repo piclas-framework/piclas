@@ -252,6 +252,38 @@ build_hopr:
   rules:
     - if: '$DO_WEEKLY'
 
+build_no_git:
+  tags:
+    - withmodules-concurrent
+  stage: build
+  script:
+    - echo " Installing branch $CI_COMMIT_REF_NAME without git"
+    - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@gitlab.com:piclas/piclas.git piclas-no-git
+    - rm -rf piclas-no-git/.git* ; cd piclas-no-git ; ls -la
+    - mkdir build_ ; cd build_ ;
+    - cmake .. -DLIBS_BUILD_HDF5=OFF
+    - $GENERATOR -j $NCORES all
+  rules:
+    - if: '$DO_WEEKLY'
+
+build_no_git_libs:
+  tags:
+    - withmodules-concurrent
+  stage: build
+  script:
+    - echo " Installing branch $CI_COMMIT_REF_NAME without git but with external libs"
+    - git clone --depth=1 --branch=$CI_COMMIT_REF_NAME git@gitlab.com:piclas/piclas.git piclas-no-git-but-libs
+    - rm -rf piclas-no-git-but-libs/.git* ; cd piclas-no-git-but-libs ; ls -la
+    - mkdir build_ ; cd build_
+    - cmake .. -DLIBS_BUILD_HDF5=ON -DLIBS_BUILD_MATH_LIB=ON -DLIBS_BUILD_MATH_LIB_VENDOR=OpenBLAS
+    - echo " Compiling with -DLIBS_BUILD_HDF5=ON -DLIBS_BUILD_MATH_LIB=ON -DLIBS_BUILD_MATH_LIB_VENDOR=OpenBLAS ..."
+    - $GENERATOR -j $NCORES all &> output.txt
+    - tail -n 20 output.txt
+    - rm output.txt
+    - ls bin/piclas
+  rules:
+    - if: '$DO_WEEKLY'
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
