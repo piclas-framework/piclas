@@ -1,3 +1,4 @@
+(sec:particle-boundary-conditions)=
 # Boundary Conditions - Particle Solver
 
 Within the parameter file it is possible to define different particle boundary conditions. The number of boundaries is defined by

@@ -837,6 +837,10 @@ USE MOD_TimeDisc_Vars         ,ONLY: iter
 #if USE_MPI
 USE MOD_MPI_Shared            ,ONLY: BARRIER_AND_SYNC
 #endif  /*USE_MPI*/
+#if USE_HDG
+USE MOD_HDG_Vars              ,ONLY: HDGSkip, HDGSkipInit, HDGSkip_t0
+USE MOD_TimeDisc_Vars         ,ONLY: time
+#endif  /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -858,6 +862,22 @@ IF (PRESENT(stage_opt)) THEN
 ELSE
   stage = 0
 END IF
+
+#if USE_HDG
+! HDGSkip Check whether the deposition should be skipped in this iteration
+IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
+  IF (time.LT.HDGSkip_t0) THEN
+    IF (MOD(iter,INT(HDGSkipInit,8)).NE.0) RETURN
+  ELSE
+    IF (MOD(iter,INT(HDGSkip,8)).NE.0) RETURN
+  END IF
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+  IF (stage.GT.1) THEN
+    RETURN
+  END IF
+#endif
+END IF
+#endif /*USE_HDG*/
 
 IF((stage.EQ.0).OR.(stage.EQ.1)) PartSource = 0.0
 
