@@ -412,6 +412,7 @@ USE MOD_DSMC_AmbipolarDiffusion,ONLY: InitializeVariablesAmbipolarDiff
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep,useManualTimeStep
 #if defined(PARTICLES) && USE_HDG
 USE MOD_Part_BR_Elecron_Fluid  ,ONLY: InitializeVariablesElectronFluidRegions
+USE MOD_Equation_Vars          ,ONLY: CalcPCouplElectricPotential
 #endif /*defined(PARTICLES) && USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -464,6 +465,9 @@ DoDeposition    = GETLOGICAL('PIC-DoDeposition')
 !-- Get PIC interpolation (could be skipped above, but DSMC octree requires some interpolation variables, which are allocated before
 ! init DSMC determines whether DSMC%UseOctree is true or false)
 DoInterpolation = GETLOGICAL('PIC-DoInterpolation')
+#if defined(PARTICLES) && USE_HDG
+IF(CalcPCouplElectricPotential.AND.(.NOT.DoInterpolation)) CALL abort(__STAMP__,'BoundaryType = (/2,2/) requires DoInterpolation=T')
+#endif /*defined(PARTICLES) && USE_HDG*/
 #ifdef CODE_ANALYZE
 ! Check if an analytic function is to be used for interpolation
 DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')

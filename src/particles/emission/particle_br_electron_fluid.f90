@@ -257,7 +257,8 @@ IF(BRNbrOfRegions.GT.0)THEN
         CALL DatasetExists(File_ID,'RegionElectronRef',RegionElectronRefExists)
         IF(RegionElectronRefExists)THEN
           CALL ReadArray('RegionElectronRef',2,(/1_IK,3_IK/),0_IK,2,RealArray=RegionElectronRefHDF5)
-          WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read RegionElectronRef from restart file ["//TRIM(RestartFile)//"] rho0[C/m^3]: ",RegionElectronRefHDF5(1),", phi0[V]: ",RegionElectronRefHDF5(2),", Te[eV]: ",RegionElectronRefHDF5(3)
+          WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read RegionElectronRef from restart file ["//TRIM(RestartFile)//"] rho0[C/m^3]: ",&
+              RegionElectronRefHDF5(1),", phi0[V]: ",RegionElectronRefHDF5(2),", Te[eV]: ",RegionElectronRefHDF5(3)
         END IF ! RegionElectronRefExists
         CALL CloseDataFile()
       END IF ! MPIRoot
