@@ -66,8 +66,9 @@ as detailed in the following table.
 |   (/1,-1/)   |  1: periodic |                               -1: negative (opposite) direction of the 1st periodicity vector                              |
 |              |              |                                                                                                                            |
 |    (/2,0/)   | 2: Dirichlet |                                                          0: Phi=0                                                          |
-|    (/2,1/)   | 2: Dirichlet |                                                          1: linear function for Phi, see {ref}`sec:linear-potential`       |
-|  (/2,1001/)  | 2: Dirichlet |                                    1001: linear potential y-z via Phi = 2340y + 2340z                                    |
+|    (/2,1/)   | 2: Dirichlet |                                 1: linear function for Phi, see {ref}`sec:linear-potential`                                |
+|    (/2,2/)   | 2: Dirichlet |               2: Automatic adjustment for Phi to meet const. input power, see {ref}`sec:fixed-coupled-power`               |
+|  (/2,1001/)  | 2: Dirichlet |                                     1001: linear potential y-z via Phi = 2340y + 2340z                                     |
 |   (/2,101/)  | 2: Dirichlet |                                       101: linear in z-direction: z=-1: 0, z=1, 1000                                       |
 |   (/2,103/)  | 2: Dirichlet |                                                         103: dipole                                                        |
 |   (/2,104/)  | 2: Dirichlet |                              104: solution to Laplace's equation: Phi_xx + Phi_yy + Phi_zz = 0                             |
@@ -133,6 +134,25 @@ same direction.
     LinPhiNormal    = (/0. , 0. , 1.0/)
     LinPhiHeight    = 10e-3
     LinPhi          = 1000.
+
+(sec:fixed-coupled-power)=
+### Fixed coupled power (const. input power)
+
+An automatic adjustment of the electric potential to ensure that a fixed power input to the system is achieved requires the
+following parameters
+
+    BoundaryName = BC_WALL ! BC name in the mesh.h5 file
+    BoundaryType = (/2,2/) ! all BCs with this type will be adjusted to the same electric potential that is adjusted over time
+
+Additionally, a starting value for the potential and lower and upper boundaries are required as well as the target input power,
+which is set via
+
+    CoupledPowerPotential = (/10. , 1000. , 2000./) ! lower, starting and maximum values for the electric potential
+    CoupledPowerTarget    = 1e-10 ! target power of 1e-10 Watt
+
+The values in `CoupledPowerPotential` correspond to the lower boundary, the starting value and the upper boundary, respectively.
+When a simulation is restarted from a state file, the last known value of the BC will be used instead of the starting value, which
+is only applied when starting a fresh simulation from scratch.
 
 ### Zero potential enforcement
 
