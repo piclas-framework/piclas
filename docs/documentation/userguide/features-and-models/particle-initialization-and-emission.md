@@ -309,6 +309,26 @@ The velocity magnitude can be zero (per default) or a defined value (through `Ve
 be `open` or `reflective`. An example can be found in the regression test `regressioncheck/CHE_DSMC/SurfFlux_Tria_CurrentMassflow`
 For subsonic boundary conditions, where the velocity at the boundary is unknown, refer to Section {ref}`sec:particle-emission-adaptive`.
 
+### Thermionic Emission (including Schottky effect)
+
+The Richardson-Dushman equation including the Schottky effect is implemented and can be enabled to model thermionic emission
+
+$$j = A^* T_{\mathrm{w}} ^2 \exp\left(-\frac{W^*}{k_{\mathrm{B}} T_{\mathrm{w}}}\right), $$
+
+where the work function $W^*$ is defined by
+
+$$W^* = W - \Delta W \qquad \Delta W = \sqrt{\frac{q_{\mathrm{e}}^3 |\mathbf{E}|}{4\pi\epsilon_0}}.$$
+
+The magnitude of the electric field strength $|\mathbf{E}|$ is calculated with the average value of the interpolation points at the boundary. The material-specific properties such as the work function $W$ [eV] and the (modified) Richardson constant $A^*$ [A/cm²/K²] have to be provided as input. In addition to the surface flux parameters, a wall temperature $T_{\mathrm{w}}$ for the respective boundary has to be defined (as shown in Section {ref}`sec:particle-boundary-conditions`)
+
+    Part-Boundary1-WallTemp = 2000.
+    Part-Species1-Surfaceflux1-ThermionicEmission                    = TRUE
+    Part-Species1-Surfaceflux1-ThermionicEmission-SchottkyEffect     = TRUE
+    Part-Species1-Surfaceflux1-ThermionicEmission-WorkFunction       = 3
+    Part-Species1-Surfaceflux1-ThermionicEmission-RichardsonConstant = 120
+
+The provided temperature for the surface flux of the species determines the energy of emitted particles. While the thermionic emission can be enabled for PIC as well as DSMC simulations, the addition of the Schottky effect requires a field solver. An overview of the limitations of this modelling regarding the applied field strength, wall temperature and/or material is given by Ref. {cite}`Coulombe1997` and Ref. {cite}`Wu2022`. An example can be found in the regression test `regressioncheck/CHE_poisson/SurfFlux_ThermionicEmission_Schottky`.
+
 ### Circular Inflow
 
 The emission of particles from a surface flux can be limited to the area within a circle or a ring. The respective boundary has to
@@ -342,7 +362,7 @@ Multiple circular inflows can be defined on a single boundary through multiple s
 ### Adaptive/Subsonic Boundaries
 
 Different adaptive boundaries can be defined as a part of a surface flux to model subsonic in- and outflows, where the emission is
-adapted based on the prevalent conditions at the boundary. The modelling is based on the publications by {cite}`Farbar2014` and {cite}`Lei2017`.
+adapted based on the prevalent conditions at the boundary. The modelling is based on the publications by Ref. {cite}`Farbar2014` and Ref. {cite}`Lei2017`.
 
     Part-Species1-Surfaceflux1-Adaptive=TRUE
     Part-Species1-Surfaceflux1-Adaptive-Type=1

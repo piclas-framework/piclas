@@ -148,7 +148,13 @@ __STAMP__&
         IF (.NOT.RadialWeighting%DoRadialWeighting) THEN
           IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
             IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
-              PartInsSubSide=PartInsSubSides(iSample,jSample,iSide)
+              IF(Species(iSpec)%Surfaceflux(iSF)%ThermionicEmission.AND.Species(iSpec)%Surfaceflux(iSF)%SchottkyEffectTE) THEN
+#if (USE_HDG)
+                CALL CalcPartInsThermionicEmissionSchottky(iSpec,iSF,iSample,jSample,iSide,iLocSide,ElemID,PartInsSubSide)
+#endif
+              ELSE
+                PartInsSubSide=PartInsSubSides(iSample,jSample,iSide)
+              END IF
             ELSE IF(DoPoissonRounding .AND. .NOT.DoTimeDepInflow)THEN
               CALL CalcPartInsPoissonDistr(iSpec, iSF, iSample, jSample, iSide, PartInsSubSide)
             ELSE !DoTimeDepInflow
@@ -716,7 +722,7 @@ END FUNCTION CalcPartPosTriaSurface
 
 
 !===================================================================================================================================
-!> Calculate random normalized vector in 3D (unit space)
+!> 
 !===================================================================================================================================
 SUBROUTINE CalcPartPosRadWeight(iSpec,iSF,iSide,minPos,RVec,PartInsSubSide,PartInsSideRadWeight,particle_positions,allowedRejections)
 ! MODULES
@@ -813,7 +819,7 @@ END SUBROUTINE CalcPartPosRadWeight
 
 
 !===================================================================================================================================
-!> Calculate random normalized vector in 3D (unit space)
+!> 
 !===================================================================================================================================
 SUBROUTINE CalcPartInsRadWeight(iSpec, iSF, iSample, jSample, iSide, minPos, RVec, PartInsSubSide, PartInsSideRadWeight)
 ! MODULES
@@ -854,7 +860,7 @@ END SUBROUTINE CalcPartInsRadWeight
 
 
 !===================================================================================================================================
-!> Calculate random normalized vector in 3D (unit space)
+!> 
 !===================================================================================================================================
 SUBROUTINE CalcPartInsPoissonDistr(iSpec, iSF, iSample, jSample, iSide, PartInsSubSide)
 ! MODULES
@@ -888,7 +894,7 @@ END SUBROUTINE CalcPartInsPoissonDistr
 
 
 !===================================================================================================================================
-!> Calculate random normalized vector in 3D (unit space)
+!> 
 !===================================================================================================================================
 SUBROUTINE CalcPartInsAdaptive(iSpec, iSF, BCSideID, iSide, iSample, jSample, PartInsSubSide)
 ! MODULES
@@ -1415,5 +1421,59 @@ CASE DEFAULT
 END SELECT
 
 END SUBROUTINE SetSurfacefluxVelocities
+
+#if (USE_HDG)
+!===================================================================================================================================
+!> Thermionic emission: Calculation of the work function reduction due to an electric field (Schottky effect)
+!===================================================================================================================================
+SUBROUTINE CalcPartInsThermionicEmissionSchottky(iSpec,iSF,iSample,jSample,iSide,iLocSide,ElemID,PartInsSubSide)
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+USE MOD_Globals
+USE MOD_PreProc
+! VARIABLES
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi, ElementaryCharge, eps0
+USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
+USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Equation_Vars           ,ONLY: E
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+! ROUTINES
+USE MOD_ProlongToFace           ,ONLY: ProlongToFace_Elementlocal
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)         :: iSpec,iSF,iSample,jSample,iSide,iLocSide,ElemID
+INTEGER, INTENT(OUT)        :: PartInsSubSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                        :: EFieldFace(1:3,0:PP_N,0:PP_N), EFaceMag, CurrentDensity, WallTemp, WorkFunction, RandVal1
+!===================================================================================================================================
+ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
+
+! 1) Determine the electric field at the surface
+CALL ProlongToFace_Elementlocal(nVar=3,locSideID=iLocSide,Uvol=E(:,:,:,:,ElemID),Uface=EFieldFace)
+
+! 2) Average the e-field vector and calculate magnitude
+EFaceMag = (PP_N+1)**2
+EFaceMag = VECNORM((/SUM(EFieldFace(1,:,:))/EFaceMag, SUM(EFieldFace(2,:,:))/EFaceMag, SUM(EFieldFace(3,:,:))/EFaceMag/))
+
+! 3) Calculate the work function with the Schottky effect and the new current density [A/m2]
+WallTemp = PartBound%WallTemp(SF%BC)
+WorkFunction = SF%WorkFunctionTE- SQRT((EFaceMag*ElementaryCharge**3)/(4*Pi*eps0))
+
+CurrentDensity = SF%RichardsonConstant * WallTemp**2 * EXP(-WorkFunction / (BoltzmannConst * WallTemp))
+CurrentDensity = CurrentDensity / ABS(Species(iSpec)%ChargeIC)
+
+! 4) Determine the number of particles per side
+CALL RANDOM_NUMBER(RandVal1)
+PartInsSubSide = INT(CurrentDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac &
+                     * SF%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR + RandVal1)
+
+END ASSOCIATE
+
+END SUBROUTINE CalcPartInsThermionicEmissionSchottky
+#endif /*(USE_HDG)*/
 
 END MODULE MOD_Particle_SurfFlux
