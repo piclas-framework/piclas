@@ -95,7 +95,7 @@ LOGICAL, OPTIONAL         :: WithOutMPIParts
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: counter,i,n
+INTEGER            :: counter,i
 INTEGER            :: ElemID
 #if USE_LOADBALANCE
 REAL               :: tLBStart
@@ -112,24 +112,24 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
 END IF
 
 PDM%ParticleVecLengthOld = PDM%ParticleVecLength
-n                        = PDM%ParticleVecLength
 counter                  = 0
 PDM%ParticleVecLength    = 0
 
 ! Check size of PDM%ParticleInside array vs. PDM%ParticleVecLength. During particle splitting, the max particle number might be
 ! exceeded, which may lead to an out-of-bounds here
 IF(usevMPF)THEN
-  IF(n.GT.SIZE(PDM%ParticleInside))THEN
-    IPWRITE(UNIT_StdOut,*) "PDM%ParticleVecLength    :", PDM%ParticleVecLength
+  IF(PDM%ParticleVecLengthOld.GT.SIZE(PDM%ParticleInside))THEN
+    IPWRITE(UNIT_StdOut,*) "PDM%ParticleVecLength    :", PDM%ParticleVecLengthOld
     IPWRITE(UNIT_StdOut,*) "SIZE(PDM%ParticleInside) :", SIZE(PDM%ParticleInside)
-    CALL abort(__STAMP__,'PDM%ParticleVecLength exceeds allocated arrays. Possible vMPF overflow.')
-  END IF ! n.GT.SIZE(PDM%ParticleInside)
+    CALL abort(__STAMP__,'PDM%ParticleVecLength exceeds allocated arrays. Possible vMPF overflow during particle split or '//&
+                         'restart file with too many particles. Increase Part-maxParticleNumber or use more processors')
+  END IF ! PDM%ParticleVecLengthOld.GT.SIZE(PDM%ParticleInside)
 END IF ! usevMPF
 
 IF (doParticleMerge) vMPF_SpecNumElem = 0
 
 IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
-  DO i = 1,n
+  DO i = 1,PDM%ParticleVecLengthOld
     IF (.NOT.PDM%ParticleInside(i)) THEN
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
       counter = counter + 1
@@ -184,7 +184,7 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
   END DO
 ! no DSMC
 ELSE
-  DO i = 1,n
+  DO i = 1,PDM%ParticleVecLengthOld
     IF (.NOT.PDM%ParticleInside(i)) THEN
       counter = counter + 1
       PDM%nextFreePosition(counter) = i
@@ -208,7 +208,7 @@ ENDIF
 PDM%CurrentNextFreePosition = 0
 
 ! Positions after ParticleVecLength in freePosition
-DO i = n+1,PDM%maxParticleNumber
+DO i = PDM%ParticleVecLengthOld+1,PDM%maxParticleNumber
   IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
   counter = counter + 1
   PDM%nextFreePosition(counter) = i

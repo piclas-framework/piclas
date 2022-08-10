@@ -75,12 +75,20 @@
 
 #if USE_MPI
 #  define SWRITE IF(MPIRoot) WRITE
+#if USE_LOADBALANCE
+#  define LBWRITE IF(MPIRoot.AND.(.NOT.PerformLoadBalance)) WRITE
+#else /*USE_LOADBALANCE*/
+#  define LBWRITE IF(MPIRoot) WRITE
+#endif /*USE_LOADBALANCE*/
 #  define IPWRITE(a,b) WRITE(a,b)myRank,
 #  define LWRITE IF(myComputeNodeRank.EQ.0) WRITE
+#  define GETTIME(a) a=MPI_WTIME()
 #else
 #  define SWRITE WRITE
+#  define LBWRITE WRITE
 #  define IPWRITE(a,b) WRITE(a,b)0,
 #  define LWRITE WRITE
+#  define GETTIME(a) CALL CPU_TIME(a)
 #endif
 #define ERRWRITE(a,b) WRITE(UNIT_errOut,b)
 #define LOGWRITE(a,b)  IF(Logging) WRITE(UNIT_logOut,b)

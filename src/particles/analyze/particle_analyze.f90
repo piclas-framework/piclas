@@ -140,6 +140,9 @@ USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElec
 USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp,BRAutomaticElectronRef
 #endif /*USE_HDG*/
 USE MOD_Particle_Analyze_Tools,ONLY: CalcNumberDensityBGGasDistri
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -160,8 +163,8 @@ CALL abort(__STAMP__,&
 'InitParticleAnalyse already called.',999,999.)
   RETURN
 END IF
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
 
 ! Average number of points per shape function: max. number allowed is (PP_N+1)^3
 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
@@ -524,7 +527,7 @@ IF(DoDeposition) THEN
   CalcCharge = GETLOGICAL('CalcCharge')
   IF(CalcCharge) DoPartAnalyze = .TRUE.
 ELSE
-  SWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
+  LBWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
 END IF
 
 CalcEkin = GETLOGICAL('CalcKineticEnergy')
@@ -641,7 +644,7 @@ IF (CalcVelos) THEN
   VeloDirs_hilf = GetIntArray('VelocityDirections',4,'1,1,1,1') ! x,y,z,abs -> 0/1 = T/F
   VeloDirs(:) = .FALSE.
   IF(.NOT.CalcSimNumSpec)THEN
-    SWRITE(UNIT_stdOut,'(A)') ' Velocity computation requires NumSpec and SimNumSpec. Setting CalcSimNumSpec=.TRUE.'
+    LBWRITE(UNIT_stdOut,'(A)') ' Velocity computation requires NumSpec and SimNumSpec. Setting CalcSimNumSpec=.TRUE.'
     CalcSimNumSpec = .TRUE.
   END IF
   DO dir = 1,4
@@ -651,9 +654,7 @@ IF (CalcVelos) THEN
   END DO
   IF ((.NOT. VeloDirs(1)) .AND. (.NOT. VeloDirs(2)) .AND. &
       (.NOT. VeloDirs(3)) .AND. (.NOT. VeloDirs(4))) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'No VelocityDirections set in CalcVelos!')
+    CALL abort(__STAMP__,'No VelocityDirections set in CalcVelos!')
   END IF
 END IF
 
@@ -691,8 +692,8 @@ CalcEMFieldOutput = GETLOGICAL('CalcEMFieldOutput')
 
 ParticleAnalyzeInitIsDone=.TRUE.
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTCILE ANALYZE DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTCILE ANALYZE DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitParticleAnalyze
 
@@ -711,6 +712,9 @@ USE MOD_IO_HDF5               ,ONLY: OpenDataFile,CloseDataFile,File_ID
 USE MOD_Restart_Vars          ,ONLY: RestartFile,DoRestart
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcTemp,DoPartAnalyze
 USE MOD_ReadInTools           ,ONLY: PrintOption
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -768,7 +772,7 @@ IF(CalcBulkElectronTemp)THEN
       IF(BulkElectronTempExists)THEN
         CALL ReadArray(TRIM(ContainerName),2,(/1_IK,1_IK/),0_IK,2,RealArray=TmpArray(1,1))
         BulkElectronTemp = TmpArray(1,1)
-        WRITE(UNIT_stdOut,'(1(A,ES10.2E3))') " Read BulkElectronTemp from restart file ["//TRIM(RestartFile)//"] Te[eV]:",&
+        LBWRITE(UNIT_stdOut,'(1(A,ES10.2E3))') " Read BulkElectronTemp from restart file ["//TRIM(RestartFile)//"] Te[eV]:",&
             BulkElectronTemp
       END IF ! RegionElectronRefExists
       CALL CloseDataFile()

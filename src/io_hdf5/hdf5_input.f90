@@ -357,7 +357,7 @@ INTEGER(HSIZE_T), DIMENSION(7)          :: Dims,DimsMax
 SWRITE(UNIT_stdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A,A)')' GET SIZE OF DATA IN HDF5 FILE... '
 
-! Dimensional shift (optional) if arrays with rank > 5 are processed (e.g. DG_Solution from state files with an additional 
+! Dimensional shift (optional) if arrays with rank > 5 are processed (e.g. DG_Solution from state files with an additional
 ! dimension that corresponds to time)
 nDimsOffset_loc = MERGE(nDimsOffset_opt, 0, PRESENT(nDimsOffset_opt))
 
@@ -486,7 +486,11 @@ END SUBROUTINE GetArrayAndName
 !==================================================================================================================================
 !> Subroutine to read arrays of rank "Rank" with dimensions "Dimsf(1:Rank)".
 !==================================================================================================================================
-SUBROUTINE ReadArray(ArrayName,Rank,nVal,Offset_in,offset_dim,RealArray,IntegerArray,StrArray,IntegerArray_i4)
+SUBROUTINE ReadArray(ArrayName,Rank,nVal,Offset_in,offset_dim,RealArray,IntegerArray,StrArray,IntegerArray_i4&
+#if USE_MPI
+  ,ReadNonOverlap_opt&
+#endif /*USE_MPI*/
+        )
 ! MODULES
 USE MOD_Globals
 USE,INTRINSIC :: ISO_C_BINDING
@@ -507,6 +511,17 @@ INTEGER,&
 !                                                                            !< read of KIND=4
 CHARACTER(LEN=255),&
     DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: StrArray        !< only if string shall be read
+#if USE_MPI
+LOGICAL,OPTIONAL,INTENT(IN)                               :: ReadNonOverlap_opt !< T: Set H5FD_MPIO_COLLECTIVE_F for collective I/O
+!                                                                               !< F: Read individually
+!                                                                               !< IMPORTANT: ReadNonOverlap_opt = T will break
+!                                                                               !< when the data that is read has overlapping
+!                                                                               !< elements, e.g.,
+!                                                                               !<  proc 0 reads elements from index 1:10
+!                                                                               !<  proc 1 reads elements from index 5:15
+!                                                                               !<  ...
+!                                                                               !< and will produce garbage without giving an error
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: DSet_ID,Type_ID,MemSpace,FileSpace,PList_ID
@@ -514,6 +529,7 @@ INTEGER(HSIZE_T)               :: Offset(Rank),Dimsf(Rank)
 TYPE(C_PTR)                    :: buf
 #if USE_MPI
 INTEGER(HID_T)                 :: driver
+LOGICAL                        :: ReadNonOverlap
 #endif /*USE_MPI*/
 !==================================================================================================================================
 LOGWRITE(*,'(A,I1.1,A,A,A)')'    READ ',Rank,'D ARRAY "',TRIM(ArrayName),'"'
@@ -535,7 +551,12 @@ CALL H5PCREATE_F(H5P_DATASET_XFER_F, PList_ID, iError)
 ! Set property list to collective dataset read
 !CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE_F, iError) ! old
 CALL H5PGET_DRIVER_F(Plist_File_ID, driver, iError) ! remove error "collective access for MPI-based drivers only"
-IF(driver.EQ.H5FD_MPIO_F) CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE_F, iError)
+IF(PRESENT(ReadNonOverlap_opt))THEN
+  ReadNonOverlap=ReadNonOverlap_opt
+ELSE
+  ReadNonOverlap=.TRUE.
+END IF ! PRESENT(ReadNonOverlap_opt)
+IF((ReadNonOverlap).AND.(driver.EQ.H5FD_MPIO_F)) CALL H5PSET_DXPL_MPIO_F(PList_ID, H5FD_MPIO_COLLECTIVE_F, iError)
 #endif /*USE_MPI*/
 CALL H5DGET_TYPE_F(DSet_ID, Type_ID, iError)
 

@@ -110,6 +110,9 @@ USE MOD_MPI_Shared_Vars             ,ONLY: MPI_COMM_SHARED, myComputeNodeRank
 USE MOD_Particle_Boundary_Vars      ,ONLY: MapSurfSideToPorousSide_Shared_Win
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCInfo_Shared_Win,PorousBCProperties_Shared_Win,PorousBCSampWall_Shared_Win
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars            ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -124,7 +127,7 @@ CHARACTER(32)         :: hilf, hilf2
 REAL                  :: rmin, rmax
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION ...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION ...'
 
 IF(TrackingMethod.EQ.REFMAPPING) CALL abort(__STAMP__,'ERROR: Porous boundary conditions are not implemented with RefMapping!')
 
@@ -324,7 +327,7 @@ IF (myComputeNodeRank.EQ.0) CALL InitPorousCommunication()
 
 SDEALLOCATE(MapSurfSideToPorousBC_Temp)
 
-SWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION DONE!'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION DONE!'
 
 END SUBROUTINE InitPorousBoundaryCondition
 

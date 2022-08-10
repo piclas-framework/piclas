@@ -369,7 +369,8 @@ REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3),MPF
 !===================================================================================================================================
 
 IF(NbrOfParticle.LT.1) RETURN
-IF(NbrOfParticle.GT.PDM%maxParticleNumber) CALL abort(__STAMP__,'NbrOfParticle > PDM%maxParticleNumber!')
+IF(NbrOfParticle.GT.PDM%maxParticleNumber) CALL abort(__STAMP__,'NbrOfParticle > PDM%maxParticleNumber! '//&
+                                                                'Increase Part-maxParticleNumber or use more processors.')
 
 velocityDistribution=Species(FractNbr)%Init(iInit)%velocityDistribution
 VeloIC=Species(FractNbr)%Init(iInit)%VeloIC

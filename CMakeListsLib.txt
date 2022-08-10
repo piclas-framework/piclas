@@ -14,13 +14,16 @@ MARK_AS_ADVANCED(FORCE LIBS_EXTERNAL_LIB_DIR)
 # =========================================================================
 # Check where the code originates
 # =========================================================================
-EXECUTE_PROCESS(COMMAND git ls-remote --get-url OUTPUT_VARIABLE GIT_ORIGIN)
+IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
+  EXECUTE_PROCESS(COMMAND git ls-remote --get-url OUTPUT_VARIABLE GIT_ORIGIN)
 
-# Strip lead and trailing white space
-string(STRIP ${GIT_ORIGIN} GIT_ORIGIN)
+  # Strip lead and trailing white space
+  string(STRIP ${GIT_ORIGIN} GIT_ORIGIN)
 
-# Origin pointing to gitlab?
-MESSAGE(STATUS "Checking git origin: " ${GIT_ORIGIN})
+  # Origin pointing to gitlab?
+  MESSAGE(STATUS "Checking git origin: " ${GIT_ORIGIN})
+ENDIF()
+
 IF("${GIT_ORIGIN}" MATCHES "gitlab.com")
   # Checked out using SSH
   IF("${GIT_ORIGIN}" MATCHES "^git@")
@@ -141,7 +144,9 @@ IF(NOT LIBS_BUILD_HDF5)
   # Build HDF5 in PICLas
 ELSE()
   # Origin pointing to Github
-  IF("${GIT_ORIGIN}" MATCHES ".github.com")
+  IF("${GIT_ORIGIN}" MATCHES "")
+    SET (HDF5DOWNLOAD "https://github.com/HDFGroup/hdf5.git")
+  ELSEIF("${GIT_ORIGIN}" MATCHES ".github.com")
     SET (HDF5DOWNLOAD "https://github.com/HDFGroup/hdf5.git")
   ELSE()
     IF("${GIT_ORIGIN}" MATCHES "https://gitlab-ci-token")
@@ -307,7 +312,9 @@ ELSE()
   # Build LAPACK
   IF (LIBS_BUILD_MATH_LIB_VENDOR MATCHES "LAPACK")
     # Origin pointing to Github
-    IF("${GIT_ORIGIN}" MATCHES ".github.com")
+    IF("${GIT_ORIGIN}" MATCHES "")
+      SET (MATHLIB_DOWNLOAD "https://github.com/Reference-LAPACK/lapack.git")
+    ELSEIF("${GIT_ORIGIN}" MATCHES ".github.com")
       SET (MATHLIB_DOWNLOAD "https://github.com/Reference-LAPACK/lapack.git")
     ELSE()
       IF("${GIT_ORIGIN}" MATCHES "https://gitlab-ci-token")
@@ -323,7 +330,9 @@ ELSE()
     MARK_AS_ADVANCED(FORCE MATH_LIB_TAG)
   # Build OpenBLAS
   ELSEIF (LIBS_BUILD_MATH_LIB_VENDOR MATCHES "OpenBLAS")
-    IF("${GIT_ORIGIN}" MATCHES ".github.com")
+    IF("${GIT_ORIGIN}" MATCHES "")
+      SET (MATHLIB_DOWNLOAD "https://github.com/xianyi/OpenBLAS.git")
+    ELSEIF("${GIT_ORIGIN}" MATCHES ".github.com")
       SET (MATHLIB_DOWNLOAD "https://github.com/xianyi/OpenBLAS.git")
     ELSE()
       IF("${GIT_ORIGIN}" MATCHES "https://gitlab-ci-token")
