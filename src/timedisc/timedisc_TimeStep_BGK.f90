@@ -47,6 +47,7 @@ USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_part_RHS               ,ONLY: CalcPartRHSRotRefFrame
+USE MOD_Part_Tools             ,ONLY: InRotRefFrameCheck
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
@@ -184,6 +185,18 @@ IF(DoBGKCellAdaptation)THEN
     END DO
   END IF ! Symmetry%Order.EQ.2
 END IF ! DoBGKCellAdaptation
+
+IF(UseRotRefFrame) THEN
+  DO iPart = 1,PDM%ParticleVecLength
+    IF(PDM%ParticleInside(iPart)) THEN
+      IF(InRotRefFrameCheck(iPart)) THEN
+        PDM%InRotRefFrame(iPart) = .TRUE.
+      ELSE
+        PDM%InRotRefFrame(iPart) = .FALSE.
+      END IF
+    END IF
+  END DO
+END IF
 
 #if USE_MPI
 IF(DoParticleLatencyHiding)THEN
