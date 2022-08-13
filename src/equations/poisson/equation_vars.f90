@@ -65,5 +65,12 @@ REAL              :: LinPhiBasePoint(3)
 REAL              :: LinPhiNormal(3)
 REAL              :: LinPhiHeight
 REAL              :: LinPhi
+
+#if defined(PARTICLES)
+! Special BC with floating potential that is defined by the absorbed power of the charged particles
+REAL              :: CoupledPowerPotential(3)   ! (/min, start, max/) electric potential at all BoundaryType = (/2,2/)
+REAL              :: CoupledPowerTarget         ! Target input power at all BoundaryType = (/2,2/)
+LOGICAL           :: CalcPCouplElectricPotential! Switch calculation on/off
+#endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 END MODULE MOD_Equation_Vars

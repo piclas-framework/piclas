@@ -398,7 +398,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeig
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_part_operations        ,ONLY: RemoveParticle
 USE MOD_part_tools             ,ONLY: StoreLostParticleProperties
-USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles, TrackInfo, CountNbrOfLostParts
+USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles, TrackInfo, CountNbrOfLostParts,DisplayLostParticles
 USE MOD_DSMC_Vars              ,ONLY: DSMC, AmbipolElecVelo
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -413,7 +413,7 @@ INTEGER,INTENT(IN)                :: PartID, SideID
 INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: SideID2, ElemID2, iNeigh, RotSideID
+INTEGER                              :: iNeigh, RotSideID, GlobalElemID
 REAL                                 :: adaptTimeStep
 LOGICAL                              :: FoundInElem
 REAL                                 :: LastPartPos_old(1:3),Velo_old(1:3), Velo_oldAmbi(1:3)
@@ -480,7 +480,7 @@ ASSOCIATE( rot_alpha => REAL(PartBound%RotPeriodicDir(PartBound%MapToPartBC(Side
       END IF
   END SELECT
 END ASSOCIATE
-! (2) update particle positon after periodic BC
+! (2) update particle position after periodic BC
 PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory) * dt*RKdtFrac &
                         * PartState(4:6,PartID) * adaptTimeStep
 ! compute moved particle || rest of movement
@@ -496,26 +496,31 @@ IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
     IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicBC: '
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
-    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPo-pp:       ',LastPartPos(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPosition-pp: ',LastPartPos(1:3,PartID)
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
 ! (3) move particle from old element to new element
-RotSideID = SurfSide2RotPeriodicSide((GlobalSide2SurfSide(SURF_SIDEID,SideID)))
+RotSideID = SurfSide2RotPeriodicSide(GlobalSide2SurfSide(SURF_SIDEID,SideID))
 DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
-  SideID2 = RotPeriodicSideMapping(RotSideID,iNeigh)
-  IF(SideID2.EQ.-1) THEN
-    CALL abort(__STAMP__,' ERROR: Halo-rot-periodic side has no corresponding side.')
-  END IF
-  ElemID2 = SideInfo_Shared(SIDE_ELEMID,SideID2)
-  ! find rotational periodic SideID2 through localization in all potentional rotational periodic sides
-  CALL ParticleInsideQuad3D(LastPartPos(1:3,PartID),ElemID2,FoundInElem)
+  ! find rotational periodic elem through localization in all potential rotational periodic sides
+  GlobalElemID = RotPeriodicSideMapping(RotSideID,iNeigh)
+  IF(GlobalElemID.EQ.-1) CALL abort(__STAMP__,' ERROR: Halo-rot-periodic side has no corresponding element.')
+  CALL ParticleInsideQuad3D(LastPartPos(1:3,PartID),GlobalElemID,FoundInElem)
   IF(FoundInElem) THEN
-    ElemID = ElemID2
+    ElemID = GlobalElemID
     EXIT
   END IF
 END DO
 IF(.NOT.FoundInElem) THEN
+  ! Particle appears to have not crossed any of the checked sides. Deleted!
+  IF(DisplayLostParticles)THEN
+    IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',PartID,'lost. Element:', ElemID,'(species:',PartSpecies(PartID),')'
+    IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,PartID)
+    IPWRITE(*,*) 'Pos:     ', PartState(1:3,PartID)
+    IPWRITE(*,*) 'Velo:    ', PartState(4:6,PartID)
+    IPWRITE(*,*) 'Particle deleted!'
+  END IF ! DisplayLostParticles
   IF(CountNbrOfLostParts)THEN
     CALL StoreLostParticleProperties(PartID,ElemID)
     NbrOfLostParticles=NbrOfLostParticles+1

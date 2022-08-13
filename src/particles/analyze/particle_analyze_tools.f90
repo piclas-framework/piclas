@@ -61,6 +61,9 @@ PUBLIC :: CalcPowerDensity
 PUBLIC :: CalculatePartElemData
 PUBLIC :: CalcCoupledPowerPart, CalcEelec
 PUBLIC :: CalcNumberDensityBGGasDistri
+#if USE_HDG
+PUBLIC :: CalculatePCouplElectricPotential
+#endif /*USE_HDG*/
 !===================================================================================================================================
 
 CONTAINS
@@ -3020,6 +3023,32 @@ END SELECT
 
 END SUBROUTINE CalcCoupledPowerPart
 
+
+#if USE_HDG
+!===================================================================================================================================
+!> Determine the electric potential for Dirichlet BCs in combination with a specific power input through these BCs
+!===================================================================================================================================
+SUBROUTINE CalculatePCouplElectricPotential()
+! MODULES
+USE MOD_Globals
+USE MOD_Equation_Vars         ,ONLY: CoupledPowerPotential,CoupledPowerTarget
+USE MOD_Particle_Analyze_Vars ,ONLY: PCoupl
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL           :: PowerRatio
+!===================================================================================================================================
+! Adjust electric potential depending on the instantaneous coupled power
+PowerRatio = PCoupl / CoupledPowerTarget
+CoupledPowerPotential(2) = CoupledPowerPotential(2) / PowerRatio
+! Keep boundaries
+IF(CoupledPowerPotential(2).GT.CoupledPowerPotential(3)) CoupledPowerPotential(2) = CoupledPowerPotential(3)
+IF(CoupledPowerPotential(2).LT.CoupledPowerPotential(1)) CoupledPowerPotential(2) = CoupledPowerPotential(1)
+
+END SUBROUTINE CalculatePCouplElectricPotential
+#endif /*USE_HDG*/
 
 #endif /*PARTICLES*/
 END MODULE MOD_Particle_Analyze_Tools

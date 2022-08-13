@@ -1472,7 +1472,8 @@ DO WHILE (associated(current))
       ! no proposal, no default and also not set in parameter file => abort
       IF ((.NOT.opt%hasDefault).AND.(.NOT.opt%isSet)) THEN
         CALL ABORT(__STAMP__, &
-            "Required option '"//TRIM(name)//"' not set in parameter file and has no default value.")
+            "\n\n Required option '"//TRIM(name)//"' not set in parameter file and has no default value.\n"//&
+            " Try 'piclas --help "//TRIM(name)//"' for more information on this variable\n")
         RETURN
       END IF
     END IF

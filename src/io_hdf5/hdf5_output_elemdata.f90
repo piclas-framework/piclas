@@ -28,10 +28,10 @@ PRIVATE
 
 #if USE_MPI
 PUBLIC :: WriteMyInvisibleRankToHDF5
+#endif /*USE_MPI*/
 #if defined(PARTICLES)
 PUBLIC :: WriteLostRotPeriodicSidesToHDF5
 #endif /*defined(PARTICLES)*/
-#endif /*USE_MPI*/
 
 PUBLIC :: WriteAdditionalElemData
 !===================================================================================================================================
@@ -191,6 +191,7 @@ END IF
 WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 #endif
 END SUBROUTINE WriteMyInvisibleRankToHDF5
+#endif /*USE_MPI*/
 
 
 #if defined(PARTICLES)
@@ -247,7 +248,6 @@ WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
 #endif
 END SUBROUTINE WriteLostRotPeriodicSidesToHDF5
 #endif /*defined(PARTICLES)*/
-#endif /*USE_MPI*/
 
 
 END MODULE MOD_HDF5_Output_ElemData

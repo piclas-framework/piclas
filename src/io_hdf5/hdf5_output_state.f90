@@ -101,6 +101,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronIonDensity,CalcElectronTempera
 USE MOD_Particle_Analyze_Tools ,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 USE MOD_HDF5_Output_Particles  ,ONLY: AddBRElectronFluidToPartSource
+USE MOD_Equation_Vars          ,ONLY: CoupledPowerPotential,CalcPCouplElectricPotential
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
@@ -127,7 +128,7 @@ CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
 #endif /*defined(PARTICLES)*/
 #ifdef PARTICLES
-REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
+REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1),TmpArray2(3,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
@@ -561,12 +562,24 @@ IF(CalcBulkElectronTemp.AND.MPIRoot)THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   TmpArray(1,1) = BulkElectronTemp
   CALL WriteArrayToHDF5( DataSetName = 'BulkElectronTemp' , rank = 2 , &
-                         nValGlobal  = (/1_IK , 1_IK/)     , &
-                         nVal        = (/1_IK , 1_IK/)     , &
-                         offset      = (/0_IK , 0_IK/)     , &
+                         nValGlobal  = (/1_IK , 1_IK/)               , &
+                         nVal        = (/1_IK , 1_IK/)               , &
+                         offset      = (/0_IK , 0_IK/)               , &
                          collective  = .FALSE., RealArray = TmpArray(1,1))
   CALL CloseDataFile()
 END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#if USE_HDG
+IF(CalcPCouplElectricPotential.AND.MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  TmpArray2(1:3,1) = CoupledPowerPotential(1:3)
+  CALL WriteArrayToHDF5( DataSetName = 'CoupledPowerPotential' , rank = 2 , &
+                         nValGlobal  = (/1_IK , 3_IK/)                    , &
+                         nVal        = (/1_IK , 3_IK/)                    , &
+                         offset      = (/0_IK , 0_IK/)                    , &
+                         collective  = .FALSE., RealArray = TmpArray2(1:3,1))
+  CALL CloseDataFile()
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 #if USE_LOADBALANCE
