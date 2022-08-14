@@ -212,7 +212,6 @@ BGGas%nRegions = GETINT('Particles-BGGas-nRegions')
 IF(BGGas%UseDistribution.AND.(BGGas%nRegions.GT.0)) THEN
   CALL abort(__STAMP__,'ERORR: Background gas can either be used with a distribution OR regions!')
 ELSEIF (BGGas%UseDistribution) THEN
-  IF(usevMPF) CALL abort(__STAMP__,'vMPF not implemented for Particles-BGGas-UseDistribution=T')
   ALLOCATE(BGGas%DistributionSpeciesIndex(nSpecies))
 ELSEIF (BGGas%nRegions.GT.0) THEN
   BGGas%UseRegions = .TRUE.
@@ -222,7 +221,7 @@ ELSE
 END IF
 
 DO iSpec = 1, nSpecies
-  SWRITE (UNIT_stdOut,'(66(". "))')
+  LBWRITE (UNIT_stdOut,'(66(". "))')
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%NumberOfInits         = GETINT('Part-Species'//TRIM(hilf)//'-nInits')
 #if USE_MPI
@@ -346,8 +345,8 @@ DO iSpec = 1, nSpecies
     !--- Check if initial ParticleInserting is really used
     IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) THEN
       IF ( (Species(iSpec)%Init(iInit)%ParticleNumber.EQ.0) .AND. (Species(iSpec)%Init(iInit)%PartDensity.EQ.0.)) THEN
-        SWRITE(*,*) "WARNING: Initial ParticleInserting disabled as neither ParticleNumber"
-        SWRITE(*,*) "nor PartDensity detected for Species, Init ", iSpec, iInit
+        LBWRITE(*,*) "WARNING: Initial ParticleInserting disabled as neither ParticleNumber"
+        LBWRITE(*,*) "nor PartDensity detected for Species, Init ", iSpec, iInit
         Species(iSpec)%Init(iInit)%ParticleEmissionType = -1
       END IF
     END IF
@@ -420,7 +419,7 @@ DO iSpec = 1, nSpecies
   END DO ! iInit
 END DO ! iSpec
 IF(nSpecies.GT.0)THEN
-  SWRITE (UNIT_stdOut,'(66(". "))')
+  LBWRITE (UNIT_stdOut,'(66(". "))')
 END IF ! nSpecies.GT.0
 
 !-- reading BG Gas stuff
@@ -455,6 +454,9 @@ USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetInitElectronVelo
 USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, VarTimeStep
 USE MOD_Restart_Vars            ,ONLY: DoRestart
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -466,7 +468,7 @@ IMPLICIT NONE
 INTEGER               :: iSpec, NbrOfParticle,iInit,iPart,PositionNbr
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING...'
+LBWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING...'
 
 CALL UpdateNextFreePosition()
 
@@ -482,11 +484,11 @@ DO iSpec = 1,nSpecies
       IF(Species(iSpec)%Init(iInit)%ParticleNumber.GT.HUGE(1)) CALL abort(__STAMP__,&
         ' Integer of initial particle number larger than max integer size: ',HUGE(1))
       NbrOfParticle = INT(Species(iSpec)%Init(iInit)%ParticleNumber,4)
-      SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',iSpec,' ... '
+      LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',iSpec,' ... '
       CALL SetParticlePosition(iSpec,iInit,NbrOfParticle)
-      SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',iSpec,' ... '
+      LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',iSpec,' ... '
       CALL SetParticleVelocity(iSpec,iInit,NbrOfParticle)
-      SWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',iSpec,' ... '
+      LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',iSpec,' ... '
       CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
       IF (usevMPF) CALL SetParticleMPF(iSpec,iInit,NbrOfParticle)
       IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
@@ -525,7 +527,7 @@ IF(DoDielectric)THEN
   END IF
 END IF
 
-SWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING DONE!'
+LBWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING DONE!'
 
 END SUBROUTINE InitialParticleInserting
 
@@ -618,6 +620,9 @@ USE MOD_Globals_Vars    ,ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Particle_Vars   ,ONLY: Species
 USE MOD_DSMC_Vars       ,ONLY: BGGas
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -677,7 +682,7 @@ Species(iSpec)%Init(iInit)%RepetitionRate = -1.0
 IF(Species(iSpec)%Init(iInit)%Power.GT.0.0)THEN
   Species(iSpec)%Init(iInit)%RepetitionRate = GETREAL('Part-Species'//TRIM(hilf2)//'-RepetitionRate')
   Species(iSpec)%Init(iInit)%Period = 1./Species(iSpec)%Init(iInit)%RepetitionRate
-  SWRITE(*,*) 'Photoionization in cylindrical/rectangular/honeycomb volume: Selecting mode [RepetitionRate and Power]'
+  LBWRITE(*,*) 'Photoionization in cylindrical/rectangular/honeycomb volume: Selecting mode [RepetitionRate and Power]'
 
   Species(iSpec)%Init(iInit)%Energy = Species(iSpec)%Init(iInit)%Power / Species(iSpec)%Init(iInit)%RepetitionRate
   CALL PrintOption('Single pulse energy: Part-Species'//TRIM(hilf2)//'-Energy [J]','CALCUL.',&
@@ -708,7 +713,7 @@ ELSEIF(Species(iSpec)%Init(iInit)%Energy.GT.0.0)THEN
   ELSE
     Species(iSpec)%Init(iInit)%Period = 2.0 * Species(iSpec)%Init(iInit)%tShift
   END IF ! Species(iSpec)%Init(iInit)%NbrOfPulses
-  SWRITE(*,*) 'Photoionization in cylindrical/rectangular/honeycomb volume: Selecting mode [Energy]'
+  LBWRITE(*,*) 'Photoionization in cylindrical/rectangular/honeycomb volume: Selecting mode [Energy]'
 
   ASSOCIATE( E0   => Species(iSpec)%Init(iInit)%Energy             ,&
              wb   => Species(iSpec)%Init(iInit)%WaistRadius        ,&
@@ -735,7 +740,7 @@ ELSEIF(Species(iSpec)%Init(iInit)%IntensityAmplitude.GT.0.0)THEN
   ELSE
     Species(iSpec)%Init(iInit)%Period = 2.0 * Species(iSpec)%Init(iInit)%tShift
   END IF ! Species(iSpec)%Init(iInit)%NbrOfPulses
-  SWRITE(*,*) 'Photoionization in cylindrical/rectangular/honeycomb volume: Selecting mode [IntensityAmplitude]'
+  LBWRITE(*,*) 'Photoionization in cylindrical/rectangular/honeycomb volume: Selecting mode [IntensityAmplitude]'
 
   ! Calculate energy: E = I0*w_b**2*tau*PI**(3.0/2.0)
   ASSOCIATE( I0   => Species(iSpec)%Init(iInit)%IntensityAmplitude ,&
@@ -912,8 +917,7 @@ END DO
 IF (insertParticles.GT.PDM%maxParticleNumber) THEN
   IPWRITE(UNIT_stdOut,*)' Maximum particle number : ',PDM%maxParticleNumber
   IPWRITE(UNIT_stdOut,*)' To be inserted particles: ',INT(insertParticles,4)
-  CALL abort(__STAMP__,&
-    'Number of to be inserted particles per init-proc exceeds max. particle number! ')
+  CALL abort(__STAMP__,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
 END IF
 
 END SUBROUTINE DetermineInitialParticleNumber

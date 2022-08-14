@@ -47,8 +47,10 @@ USE MOD_Globals                  ,ONLY: abort
 USE MOD_Mesh_Tools               ,ONLY: GetCNSideID
 USE MOD_Part_Operations          ,ONLY: RemoveParticle
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars            ,ONLY: PartSpecies
-USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod, TrackInfo
+USE MOD_Particle_Vars            ,ONLY: PartSpecies,PDM,PEM
+USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod, TrackInfo, CountNbrOfLostParts, NbrOfLostParticles
+USE MOD_Part_Tools               ,ONLY: StoreLostParticleProperties
+USE MOD_Dielectric_vars          ,ONLY: DoDielectric,isDielectricElem
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
@@ -70,7 +72,7 @@ INTEGER,INTENT(IN)                   :: iPart,SideID,flip
 INTEGER,INTENT(IN),OPTIONAL          :: TriNum
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER,INTENT(INOUT)                :: ElemID
+INTEGER,INTENT(INOUT)                :: ElemID ! Global element index
 LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -139,32 +141,42 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
   ! Select the corresponding boundary condition and calculate particle treatment
   SELECT CASE(PartBound%TargetBoundCond(iBC))
   !-----------------------------------------------------------------------------------------------------------------------------------
-  CASE(1) !PartBound%OpenBC)
+  CASE(1) ! PartBound%OpenBC
   !----------------------------------------------------------------------------------------------------------------------------------
     CALL RemoveParticle(iPart,BCID=iBC)
   !-----------------------------------------------------------------------------------------------------------------------------------
-  CASE(2) !PartBound%ReflectiveBC)
+  CASE(2) ! PartBound%ReflectiveBC
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! Decide which interaction (specular/diffuse reflection, species swap, SEE)
     CALL SurfaceModel(iPart,SideID,ElemID,n_loc)
   !-----------------------------------------------------------------------------------------------------------------------------------
-  CASE(3) !PartBound%PeriodicBC)
+  CASE(3) ! PartBound%PeriodicBC
   !-----------------------------------------------------------------------------------------------------------------------------------
     CALL PeriodicBC(iPart,SideID,ElemID)
   !-----------------------------------------------------------------------------------------------------------------------------------
-  CASE(4) !PartBound%SimpleAnodeBC)
+  CASE(4) ! PartBound%SimpleAnodeBC
   !-----------------------------------------------------------------------------------------------------------------------------------
     CALL abort(__STAMP__,' ERROR: PartBound not associated!. (PartBound%SimpleAnodeBC)')
   !-----------------------------------------------------------------------------------------------------------------------------------
-  CASE(5) !PartBound%SimpleCathodeBC)
+  CASE(5) ! PartBound%SimpleCathodeBC
   !-----------------------------------------------------------------------------------------------------------------------------------
     CALL abort(__STAMP__,' ERROR: PartBound not associated!. (PartBound%SimpleCathodeBC)')
   !-----------------------------------------------------------------------------------------------------------------------------------
-  CASE(6) !PartBound%rot_periodic)
+  CASE(6) ! PartBound%rot_periodic
   !-----------------------------------------------------------------------------------------------------------------------------------
     CALL RotPeriodicBC(iPart,SideID,ElemID)
+    ! Sanity check: During rotational periodic movement, particles may enter a dielectric. Unfortunately, they must be deleted
+    IF(DoDielectric)THEN
+      IF(PDM%ParticleInside(iPart).AND.(isDielectricElem(PEM%LocalElemID(iPart))))THEN
+        IF(CountNbrOfLostParts)THEN
+          CALL StoreLostParticleProperties(iPart,ElemID)
+          NbrOfLostParticles=NbrOfLostParticles+1
+        END IF ! CountNbrOfLostParts
+        CALL RemoveParticle(iPart,BCID=iBC)
+      END IF ! PDM%ParticleInside(iPart).AND.(isDielectricElem(PEM%LocalElemID(iPart)))
+    END IF ! DoDdielectric
   !-----------------------------------------------------------------------------------------------------------------------------------
-  CASE(10,11) !PartBound%SymmetryBC
+  CASE(10,11) ! PartBound%SymmetryBC
   !-----------------------------------------------------------------------------------------------------------------------------------
     CALL PerfectReflection(iPart,SideID,n_loc,opt_Symmetry=.TRUE.)
   CASE DEFAULT
@@ -386,7 +398,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeig
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_part_operations        ,ONLY: RemoveParticle
 USE MOD_part_tools             ,ONLY: StoreLostParticleProperties
-USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles, TrackInfo
+USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles, TrackInfo, CountNbrOfLostParts,DisplayLostParticles
 USE MOD_DSMC_Vars              ,ONLY: DSMC, AmbipolElecVelo
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -401,7 +413,7 @@ INTEGER,INTENT(IN)                :: PartID, SideID
 INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: SideID2, ElemID2, iNeigh, RotSideID
+INTEGER                              :: iNeigh, RotSideID, GlobalElemID
 REAL                                 :: adaptTimeStep, dtVar
 LOGICAL                              :: FoundInElem
 REAL                                 :: LastPartPos_old(1:3),Velo_old(1:3), Velo_oldAmbi(1:3)
@@ -474,7 +486,7 @@ ASSOCIATE( rot_alpha => REAL(PartBound%RotPeriodicDir(PartBound%MapToPartBC(Side
       END IF
   END SELECT
 END ASSOCIATE
-! (2) update particle positon after periodic BC
+! (2) update particle position after periodic BC
 PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory) * dtVar*RKdtFrac &
                         * PartState(4:6,PartID) * adaptTimeStep
 ! compute moved particle || rest of movement
@@ -490,28 +502,35 @@ IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
     IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicBC: '
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
-    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPo-pp:       ',LastPartPos(1:3,PartID)
+    IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPosition-pp: ',LastPartPos(1:3,PartID)
   END IF
 END IF
 #endif /*CODE_ANALYZE*/
 ! (3) move particle from old element to new element
-RotSideID = SurfSide2RotPeriodicSide((GlobalSide2SurfSide(SURF_SIDEID,SideID)))
+RotSideID = SurfSide2RotPeriodicSide(GlobalSide2SurfSide(SURF_SIDEID,SideID))
 DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
-  SideID2 = RotPeriodicSideMapping(RotSideID,iNeigh)
-  IF(SideID2.EQ.-1) THEN
-    CALL abort(__STAMP__,' ERROR: Halo-rot-periodic side has no corresponding side.')
-  END IF
-  ElemID2 = SideInfo_Shared(SIDE_ELEMID,SideID2)
-  ! find rotational periodic SideID2 through localization in all potentional rotational periodic sides
-  CALL ParticleInsideQuad3D(LastPartPos(1:3,PartID),ElemID2,FoundInElem)
+  ! find rotational periodic elem through localization in all potential rotational periodic sides
+  GlobalElemID = RotPeriodicSideMapping(RotSideID,iNeigh)
+  IF(GlobalElemID.EQ.-1) CALL abort(__STAMP__,' ERROR: Halo-rot-periodic side has no corresponding element.')
+  CALL ParticleInsideQuad3D(LastPartPos(1:3,PartID),GlobalElemID,FoundInElem)
   IF(FoundInElem) THEN
-    ElemID = ElemID2
+    ElemID = GlobalElemID
     EXIT
   END IF
 END DO
 IF(.NOT.FoundInElem) THEN
-  CALL StoreLostParticleProperties(PartID,ElemID)
-  NbrOfLostParticles=NbrOfLostParticles+1
+  ! Particle appears to have not crossed any of the checked sides. Deleted!
+  IF(DisplayLostParticles)THEN
+    IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',PartID,'lost. Element:', ElemID,'(species:',PartSpecies(PartID),')'
+    IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,PartID)
+    IPWRITE(*,*) 'Pos:     ', PartState(1:3,PartID)
+    IPWRITE(*,*) 'Velo:    ', PartState(4:6,PartID)
+    IPWRITE(*,*) 'Particle deleted!'
+  END IF ! DisplayLostParticles
+  IF(CountNbrOfLostParts)THEN
+    CALL StoreLostParticleProperties(PartID,ElemID)
+    NbrOfLostParticles=NbrOfLostParticles+1
+  END IF ! CountNbrOfLostParts
   CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
 END IF
 

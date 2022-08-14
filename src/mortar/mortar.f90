@@ -56,9 +56,12 @@ SUBROUTINE InitMortar()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Interpolation_Vars,ONLY: InterpolationInitIsDone,NodeType
-USE MOD_Interpolation     ,ONLY: GetNodesAndWeights
+USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone,NodeType
+USE MOD_Interpolation      ,ONLY: GetNodesAndWeights
 USE MOD_Mortar_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_NodeType==1)
@@ -86,12 +89,8 @@ test2=1.5
 CALL GetNodesAndWeights(PP_N,'GAUSS',xi_Gauss,w_Gauss) !Gauss nodes and integration weights
 error=ABS(0.25*SUM((MATMUL(TRANSPOSE(M_1_0),test1)+MATMUL(TRANSPOSE(M_2_0),test2))*w_Gauss)-1.)
 
-IF(error.GT. 100.*PP_RealTolerance) THEN
-  CALL abort(__STAMP__,&
-    'problems in building Mortar',999,error)
-ELSE
-  SWRITE(UNIT_StdOut,'(A)')' Mortar operators built successfully.'
-END IF
+IF(error.GT. 100.*PP_RealTolerance) CALL abort(__STAMP__,'problems in building Mortar',999,error)
+LBWRITE(UNIT_StdOut,'(A)')' Mortar operators built successfully.'
 #endif
 
 MortarInitIsDone=.TRUE.

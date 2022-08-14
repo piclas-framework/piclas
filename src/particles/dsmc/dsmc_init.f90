@@ -299,6 +299,9 @@ USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_RegionsSetInternalTemp
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -313,8 +316,8 @@ INTEGER               :: iColl, jColl, pColl, nCollision ! for collision paramet
 REAL                  :: A1, A2, delta_ij     ! species constant for cross section (p. 24 Laux)
 LOGICAL               :: PostCollPointerSet
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
 
 ! Initialize variables
 ReactionProbGTUnityCounter = 0
@@ -705,7 +708,7 @@ ELSE !CollisMode.GT.0
         ALLOCATE(SpecDSMC(iSpec)%Init(0:Species(iSpec)%NumberOfInits))
         ! Skip the read-in of temperatures if a background gas distribution is used but not if background gas regions are used
         IF(BGGas%NumberOfSpecies.GT.0) THEN
-          IF(BGGas%BackgroundSpecies(iSpec).AND.BGGas%UseDistribution.AND..NOT.BGGas%UseRegions) THEN
+          IF(BGGas%BackgroundSpecies(iSpec).AND.BGGas%UseDistribution.AND.(.NOT.BGGas%UseRegions)) THEN
             SpecDSMC(iSpec)%Init(1)%TVib  = 0.
             SpecDSMC(iSpec)%Init(1)%TRot  = 0.
             SpecDSMC(iSpec)%Init(1)%Telec = 0.
@@ -1040,8 +1043,8 @@ IF (DSMC%ElectronicModel.EQ.4) THEN
   END DO
 END IF
 
-SWRITE(UNIT_stdOut,'(A)')' INIT DSMC DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT DSMC DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitDSMC
 
@@ -1074,13 +1077,16 @@ SUBROUTINE CalcHeatOfFormation()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_ReadInTools
-USE MOD_Globals       ,ONLY: abort,UNIT_stdOut
+USE MOD_Globals          ,ONLY: abort,UNIT_stdOut
 #if USE_MPI
-USE MOD_Globals       ,ONLY: mpiroot
+USE MOD_Globals          ,ONLY: mpiroot
 #endif
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst,Joule2eV
-USE MOD_PARTICLE_Vars ,ONLY: nSpecies
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
+USE MOD_Globals_Vars     ,ONLY: BoltzmannConst,Joule2eV
+USE MOD_PARTICLE_Vars    ,ONLY: nSpecies
+USE MOD_DSMC_Vars        ,ONLY: SpecDSMC
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -1115,7 +1121,7 @@ DO iSpec = 1, nSpecies
           END IF
         END DO
         IF(AutoDetect)THEN
-          SWRITE(UNIT_stdOut,'(A)')' Automatically determined HeatOfFormation:'
+          LBWRITE(UNIT_stdOut,'(A)')' Automatically determined HeatOfFormation:'
           AutoDetect=.FALSE.
         END IF
         ! Add the heat of formation of the ground state
@@ -1140,13 +1146,16 @@ SUBROUTINE SetNextIonizationSpecies()
 ! NextIonizationSpecies => SpeciesID of the next higher ionization level
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals       ,ONLY: UNIT_stdOut
+USE MOD_Globals          ,ONLY: UNIT_stdOut
 #if USE_MPI
-USE MOD_Globals       ,ONLY: mpiroot
+USE MOD_Globals          ,ONLY: mpiroot
 #endif
-USE MOD_PARTICLE_Vars ,ONLY: nSpecies
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
-USE MOD_ReadInTools   ,ONLY: PrintOption
+USE MOD_PARTICLE_Vars    ,ONLY: nSpecies
+USE MOD_DSMC_Vars        ,ONLY: SpecDSMC
+USE MOD_ReadInTools      ,ONLY: PrintOption
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -1169,7 +1178,7 @@ DO iSpec = 1, nSpecies
   END IF
 END DO
 IF(AutoDetect)THEN
-  SWRITE(UNIT_stdOut,'(A)')' Automatically determined NextIonizationSpecies:'
+  LBWRITE(UNIT_stdOut,'(A)')' Automatically determined NextIonizationSpecies:'
   DO iSpec = 1, nSpecies
     WRITE(UNIT=hilf2,FMT='(I0)') iSpec
     CALL PrintOption('iSpec='//TRIM(hilf2)//': NextIonizationSpecies','CALCUL.',IntOpt=SpecDSMC(iSpec)%NextIonizationSpecies)
@@ -1199,13 +1208,16 @@ USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
 #if USE_MPI
 USE MOD_Globals                ,ONLY: MPIRoot
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER               :: iSpec, jSpec, iPart, iElem, dim, n
-  REAL                  :: VibProb, Ti, Tj, CRela2, Velo1(3), Velo2(3)
+  REAL                  :: VibProb, Ti, Tj, CRela2, Velo1(3), Velo2(3), MPF
   INTEGER               :: nPart, iLoop, nLoop
   INTEGER, ALLOCATABLE  :: iPartIndx(:), nPerSpec(:)
   LOGICAL               :: VibProbInitDone, VibProbDataExists
@@ -1223,7 +1235,7 @@ IMPLICIT NONE
     IF(VibProbDataExists)THEN
       VibProbInitDone = .TRUE.
       ! Associate construct for integer KIND=8 possibility
-      SWRITE(*,*) 'Set variable vibrational relaxation probability from restart file'
+      LBWRITE(*,*) 'Set variable vibrational relaxation probability from restart file'
       ASSOCIATE (&
             nSpecies   => INT(nSpecies,IK) ,&
             offsetElem => INT(offsetElem,IK),&
@@ -1236,7 +1248,7 @@ IMPLICIT NONE
       VibProbInitDone = .TRUE.
       CALL ReadAttribute(File_ID,'VibProbConstInfo',1,RealScalar=VibProb)
       ! Set vibrational relaxation probability to former value
-      SWRITE(*,*) 'Set uniform vibrational relaxation probability from restart file'
+      LBWRITE(*,*) 'Set uniform vibrational relaxation probability from restart file'
       DO iElem = 1, nElems
         DO iSpec = 1, nSpecies
           VarVibRelaxProb%ProbVibAv(iElem,iSpec) = VibProb
@@ -1245,7 +1257,7 @@ IMPLICIT NONE
     END IF ! If 'VibProbConstInfo' exists
     IF(.NOT.VibProbInitDone) THEN
       ! Set vibrational relaxation probability to default value
-      SWRITE(*,*) 'No vibrational relaxation probability data in restart file\n', &
+      LBWRITE(*,*) 'No vibrational relaxation probability data in restart file\n', &
                   'Set uniform vibrational relaxation probability of', 0.004
       DO iElem = 1, nElems
         DO iSpec = 1, nSpecies
@@ -1257,7 +1269,7 @@ IMPLICIT NONE
   ELSE ! If not DoRestart
     ALLOCATE(Coll_pData(1))
     ALLOCATE(nPerSpec(nSpecies))
-    SWRITE(*,*) 'Set vibrational relaxation probability based on temperature in the cell'
+    LBWRITE(*,*) 'Set vibrational relaxation probability based on temperature in the cell'
     DO iElem = 1, nElems
       nPerSpec = 0
       nPart = PEM%pNumber(iElem)
@@ -1272,8 +1284,8 @@ IMPLICIT NONE
       END DO
       CollInf%Coll_SpecPartNum = 0
       DO iPart = 1, nPart
-        CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx(iPart))) = &
-                  CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx(iPart))) + GetParticleWeight(iPartIndx(iPart))
+        MPF = GetParticleWeight(iPartIndx(iPart))
+        CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx(iPart))) = CollInf%Coll_SpecPartNum(PartSpecies(iPartIndx(iPart))) + MPF
         nPerSpec(PartSpecies(iPartIndx(iPart))) = nPerSpec(PartSpecies(iPartIndx(iPart))) + 1
       END DO
       CALL CalcInstantTransTemp(iPartIndx,nPart)
@@ -1385,6 +1397,7 @@ SDEALLOCATE(MacroDSMC)
 SDEALLOCATE(QKChemistry)
 
 SDEALLOCATE(ChemReac%ReactModel)
+SDEALLOCATE(ChemReac%BackwardReacForwardIndx)
 SDEALLOCATE(ChemReac%BackwardReac)
 SDEALLOCATE(ChemReac%QKRColl)
 SDEALLOCATE(ChemReac%QKTCollCorrFac)

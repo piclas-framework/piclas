@@ -433,7 +433,7 @@ LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered mul
 CLASS(IntOption),ALLOCATABLE,TARGET :: intopt
 !==================================================================================================================================
 ALLOCATE(intopt)
-CALL this%CreateOption(intopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+CALL this%CreateOption(intopt, name, "[INT] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateIntOption
 
 !==================================================================================================================================
@@ -452,7 +452,7 @@ LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered mul
 CLASS(IntFromStringOption),ALLOCATABLE,TARGET :: intfromstropt
 !==================================================================================================================================
 ALLOCATE(intfromstropt)
-CALL this%CreateOption(intfromstropt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+CALL this%CreateOption(intfromstropt, name, "[INT/STR] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateIntFromStringOption
 
 !==================================================================================================================================
@@ -471,7 +471,7 @@ LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered mul
 CLASS(LogicalOption),ALLOCATABLE,TARGET :: logicalopt
 !==================================================================================================================================
 ALLOCATE(logicalopt)
-CALL this%CreateOption(logicalopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+CALL this%CreateOption(logicalopt, name, "[LOG] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateLogicalOption
 
 !==================================================================================================================================
@@ -490,7 +490,7 @@ LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered mul
 CLASS(RealOption),ALLOCATABLE,TARGET :: realopt
 !==================================================================================================================================
 ALLOCATE(realopt)
-CALL this%CreateOption(realopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+CALL this%CreateOption(realopt, name, "[REAL] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateRealOption
 
 !==================================================================================================================================
@@ -509,13 +509,13 @@ LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered mul
 CLASS(StringOption),ALLOCATABLE,TARGET :: stringopt
 !==================================================================================================================================
 ALLOCATE(stringopt)
-CALL this%CreateOption(stringopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+CALL this%CreateOption(stringopt, name, "[STR] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateStringOption
 
 !==================================================================================================================================
 !> Create a new integer array option. Only calls the general prms\%createoption routine.
 !==================================================================================================================================
-SUBROUTINE CreateIntArrayOption(this, name, description, value, multiple, numberedmulti)
+SUBROUTINE CreateIntArrayOption(this, name, description, value, multiple, numberedmulti, no)
 ! INPUT/OUTPUT VARIABLES
 CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
 CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
@@ -523,18 +523,31 @@ CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
 LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
 LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+INTEGER,INTENT(IN),OPTIONAL          :: no             !< size of array
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(IntArrayOption),ALLOCATABLE,TARGET :: intopt
+INTEGER                              :: commas,ArrDim
+CHARACTER(2)                         :: hilf
 !==================================================================================================================================
 ALLOCATE(intopt)
-CALL this%CreateOption(intopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+IF(PRESENT(value))THEN
+  ! Count number of "," in value
+  commas = COUNT(TRANSFER(value, 'a', LEN(value)) == ",")
+  ArrDim = commas+1
+ELSEIF(PRESENT(no))THEN
+  ArrDim = no
+ELSE
+  CALL CollectiveStop(__STAMP__,'CreateRealArrayOption: Supply either default value or size of array for '//TRIM(name))
+END IF ! PRESENT(value)
+WRITE(UNIT=hilf,FMT='(I0)') ArrDim
+CALL this%CreateOption(intopt, name, "[INTARR-"//TRIM(hilf)//"] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateIntArrayOption
 
 !==================================================================================================================================
 !> Create a new logical array option. Only calls the general prms\%createoption routine.
 !==================================================================================================================================
-SUBROUTINE CreateLogicalArrayOption(this, name, description, value, multiple, numberedmulti)
+SUBROUTINE CreateLogicalArrayOption(this, name, description, value, multiple, numberedmulti, no)
 ! INPUT/OUTPUT VARIABLES
 CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
 CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
@@ -542,18 +555,31 @@ CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
 LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
 LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+INTEGER,INTENT(IN),OPTIONAL          :: no             !< size of array
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(LogicalArrayOption),ALLOCATABLE,TARGET :: logicalopt
+INTEGER                              :: commas,ArrDim
+CHARACTER(2)                         :: hilf
 !==================================================================================================================================
 ALLOCATE(logicalopt)
-CALL this%CreateOption(logicalopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+IF(PRESENT(value))THEN
+  ! Count number of "," in value
+  commas = COUNT(TRANSFER(value, 'a', LEN(value)) == ",")
+  ArrDim = commas+1
+ELSEIF(PRESENT(no))THEN
+  ArrDim = no
+ELSE
+  CALL CollectiveStop(__STAMP__,'CreateRealArrayOption: Supply either default value or size of array for '//TRIM(name))
+END IF ! PRESENT(value)
+WRITE(UNIT=hilf,FMT='(I0)') ArrDim
+CALL this%CreateOption(logicalopt, name, "[LOGARR-"//TRIM(hilf)//"] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateLogicalArrayOption
 
 !==================================================================================================================================
 !> Create a new real array option. Only calls the general prms\%createoption routine.
 !==================================================================================================================================
-SUBROUTINE CreateRealArrayOption(this, name, description, value, multiple, numberedmulti)
+SUBROUTINE CreateRealArrayOption(this, name, description, value, multiple, numberedmulti, no)
 ! INPUT/OUTPUT VARIABLES
 CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
 CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
@@ -561,12 +587,25 @@ CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
 LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
 LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+INTEGER,INTENT(IN),OPTIONAL          :: no             !< size of array
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(RealArrayOption),ALLOCATABLE,TARGET :: realopt
+INTEGER                                   :: commas,ArrDim
+CHARACTER(2)                              :: hilf
 !==================================================================================================================================
 ALLOCATE(realopt)
-CALL this%CreateOption(realopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+IF(PRESENT(value))THEN
+  ! Count number of "," in value
+  commas = COUNT(TRANSFER(value, 'a', LEN(value)) == ",")
+  ArrDim = commas+1
+ELSEIF(PRESENT(no))THEN
+  ArrDim = no
+ELSE
+  CALL CollectiveStop(__STAMP__,'CreateRealArrayOption: Supply either default value or size of array for '//TRIM(name))
+END IF ! PRESENT(value)
+WRITE(UNIT=hilf,FMT='(I0)') ArrDim
+CALL this%CreateOption(realopt, name, "[REALARR-"//TRIM(hilf)//"] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateRealArrayOption
 
 !==================================================================================================================================
@@ -585,7 +624,7 @@ END SUBROUTINE CreateRealArrayOption
 !CLASS(StringArrayOption),ALLOCATABLE,TARGET :: stringopt
 !!==================================================================================================================================
 !ALLOCATE(stringopt)
-!CALL this%CreateOption(stringopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+!CALL this%CreateOption(stringopt, name, "[INT] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 !END SUBROUTINE CreateStringArrayOption
 
 !==================================================================================================================================
@@ -1101,7 +1140,7 @@ DO WHILE (associated(current))
       SELECT TYPE(currentOpt)
       CLASS IS (IntFromStringOption)
         SWRITE(UNIT_StdOut,'(A)') 'Possible options for this parameter are:'
-        WRITE(fmtIntFromStringLength,*) currentOpt%maxLength   ! The biggest lenght of a named option
+        WRITE(fmtIntFromStringLength,*) currentOpt%maxLength   ! The biggest length of a named option
         WRITE(fmtStringIntFromString,*) "(A"//TRIM(fmtIntFromStringLength)//",A,I0,A)"
         DO i=1,SIZE(currentOpt%strList)
           ! Output is in the format STRING (INTEGER)
@@ -2135,6 +2174,9 @@ END SUBROUTINE FinalizeParameters
 SUBROUTINE PrintOption(NameOpt,InfoOpt,IntOpt,IntArrayOpt,RealOpt,LogOpt,LogArrayOpt,StrOpt)
 ! MODULES
 USE MOD_Globals               ,ONLY: abort,mpiroot
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -2155,6 +2197,16 @@ CHARACTER(LEN=50)    :: tmp
 INTEGER              :: i,Counter,length
 !==================================================================================================================================
 IF(.NOT.MPIRoot)RETURN
+
+! Return if running loadbalance and printing static information
+#if USE_LOADBALANCE
+IF (PerformLoadBalance) THEN
+  SELECT CASE(TRIM(InfoOpt))
+    CASE("INFO","PARAM","CALCUL.","OUTPUT")
+      RETURN
+  END SELECT
+END IF
+#endif /*USE_LOADBALANCE*/
 
 ! set length of name
 WRITE(fmtName,*) prms%maxNameLen

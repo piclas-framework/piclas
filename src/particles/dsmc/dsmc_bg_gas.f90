@@ -50,9 +50,9 @@ CALL prms%CreateIntOption(      'Particles-BGGas-nRegions'                    ,'
 CALL prms%CreateStringOption(   'Particles-BGGas-Region[$]-Type'              ,'Keyword for particle space condition of species [$] in case of multiple inits' , 'cylinder', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-RadiusIC'          ,'Outer radius'                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-Radius2IC'         ,'Inner radius (e.g. for a ring)' , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BasePointIC'       ,'Base point', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector1IC'     ,'First base vector', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector2IC'     ,'Second base vector', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BasePointIC'       , 'Base point'         , numberedmulti=.TRUE., no=3)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector1IC'     , 'First base vector'  , numberedmulti=.TRUE., no=3)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector2IC'     , 'Second base vector' , numberedmulti=.TRUE., no=3)
 CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-CylinderHeightIC'  ,'Third measure of cylinder', numberedmulti=.TRUE.)
 END SUBROUTINE DefineParametersBGG
 
@@ -132,7 +132,7 @@ DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
     bgSpec = bgSpec + 1
     IF(bgSpec.GT.BGGas%NumberOfSpecies) CALL Abort(__STAMP__,'More background species detected than previously defined!')
-    IF(.NOT.BGGas%UseDistribution.AND..NOT.BGGas%UseRegions) BGGas%NumberDensity(bgSpec) = SpeciesDensTmp(iSpec)
+    IF((.NOT.BGGas%UseDistribution).AND.(.NOT.BGGas%UseRegions)) BGGas%NumberDensity(bgSpec) = SpeciesDensTmp(iSpec)
     BGGas%MapSpecToBGSpec(iSpec)  = bgSpec
     BGGas%MapBGSpecToSpec(bgSpec) = iSpec
     BGGas%MaxMPF = MAX(BGGas%MaxMPF,Species(iSpec)%MacroParticleFactor)
@@ -460,14 +460,13 @@ DO iSpec = 1, nSpecies
   IF(BGGas%BackgroundSpecies(iSpec)) THEN
     CNElemID = GetCNElemID(iElem+offSetElem)
     bggSpec   = BGGas%MapSpecToBGSpec(iSpec)
-    IF(usevMPF) THEN
-      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(bggSpec)*ElemVolume_Shared(CNElemID)
-    ELSEIF(BGGas%UseDistribution)THEN
-      CollInf%Coll_SpecPartNum(iSpec) = BGGas%Distribution(bggSpec,7,iElem)&
-                                        * ElemVolume_Shared(CNElemID) / Species(iSpec)%MacroParticleFactor
+    IF(BGGas%UseDistribution)THEN
+      CollInf%Coll_SpecPartNum(iSpec) = BGGas%Distribution(bggSpec,7,iElem)*ElemVolume_Shared(CNElemID)
     ELSE
-      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(bggSpec)*ElemVolume_Shared(CNElemID)/Species(iSpec)%MacroParticleFactor
-    END IF
+      CollInf%Coll_SpecPartNum(iSpec) = BGGas%NumberDensity(bggSpec)       *ElemVolume_Shared(CNElemID)
+    END IF ! BGGas%UseDistribution
+    ! MPF is multiplied again in ReactionDecision()
+    IF(.NOT.usevMPF) CollInf%Coll_SpecPartNum(iSpec) = CollInf%Coll_SpecPartNum(iSpec) / Species(iSpec)%MacroParticleFactor
   END IF
 END DO
 
@@ -839,11 +838,14 @@ SUBROUTINE BGGas_ReadInDistribution()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_io_hdf5
-USE MOD_HDF5_Input    ,ONLY: OpenDataFile,CloseDataFile,ReadArray,GetDataSize,ReadAttribute
-USE MOD_HDF5_Input    ,ONLY: nDims,HSize,File_ID
-USE MOD_Restart_Vars  ,ONLY: MacroRestartFileName
-USE MOD_Mesh_Vars     ,ONLY: offsetElem, nElems,nGlobalElems
-USE MOD_DSMC_Vars     ,ONLY: BGGas
+USE MOD_HDF5_Input       ,ONLY: OpenDataFile,CloseDataFile,ReadArray,GetDataSize,ReadAttribute
+USE MOD_HDF5_Input       ,ONLY: nDims,HSize,File_ID
+USE MOD_Restart_Vars     ,ONLY: MacroRestartFileName
+USE MOD_Mesh_Vars        ,ONLY: offsetElem, nElems,nGlobalElems
+USE MOD_DSMC_Vars        ,ONLY: BGGas
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -856,7 +858,7 @@ INTEGER                           :: nVarHDF5, nElems_HDF5, iVar, iSpec, iElem, 
 REAL, ALLOCATABLE                 :: ElemDataHDF5(:,:)
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,*) 'BGGas distribution - Using macroscopic values from file: ',TRIM(MacroRestartFileName)
+LBWRITE(UNIT_stdOut,*) 'BGGas distribution - Using macroscopic values from file: ',TRIM(MacroRestartFileName)
 
 CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
@@ -888,7 +890,7 @@ DO iSpec = 1, nSpecReadin
       DO iElem = 1, nElems
         BGGas%Distribution(iBGGSpec,1:10,iElem) = ElemDataHDF5(iVar:iVar-1+10,iElem)
       END DO
-      SWRITE(UNIT_stdOut,*) 'BGGas distribution: Mapped read-in values of species ', iSpec, ' to current species ', &
+      LBWRITE(UNIT_stdOut,*) 'BGGas distribution: Mapped read-in values of species ', iSpec, ' to current species ', &
           BGGas%MapBGSpecToSpec(iBGGSpec)
     END IF
   END DO
@@ -1025,11 +1027,14 @@ SUBROUTINE BGGas_InitRegions()
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
-USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
-USE MOD_Mesh_Vars             ,ONLY: nElems, offSetElem
-USE MOD_DSMC_Vars             ,ONLY: BGGas
-USE MOD_Particle_Vars         ,ONLY: Species,nSpecies
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemMidPoint_Shared
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars          ,ONLY: nElems, offSetElem
+USE MOD_DSMC_Vars          ,ONLY: BGGas
+USE MOD_Particle_Vars      ,ONLY: Species,nSpecies
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemMidPoint_Shared
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1042,7 +1047,7 @@ CHARACTER(32)                 :: hilf2
 INTEGER                       :: iElem, iSpec, bgSpec, iInit, iReg, CNElemID
 REAL                          :: lineVector(3), nodeVec(3), nodeRadius, nodeHeight
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)') ' INIT BACKGROUND GAS REGIONS ...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT BACKGROUND GAS REGIONS ...'
 
 ALLOCATE(BGGas%Region(BGGas%nRegions))
 ALLOCATE(BGGas%RegionElemType(nElems))
@@ -1132,7 +1137,7 @@ END DO                  ! iElem = 1, nElems
 ! 5) Utilizing the same routines after the initialization as the read-in distribution
 BGGas%UseDistribution = .TRUE.
 
-SWRITE(UNIT_stdOut,'(A)') ' BACKGROUND GAS REGIONS DONE!'
+LBWRITE(UNIT_stdOut,'(A)') ' BACKGROUND GAS REGIONS DONE!'
 
 END SUBROUTINE BGGas_InitRegions
 

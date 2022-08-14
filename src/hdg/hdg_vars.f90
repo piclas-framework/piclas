@@ -34,6 +34,8 @@ REAL,ALLOCATABLE    :: Ehat(:,:,:,:)          !< Ehat matrix (nGP_Face,nGP_vol,6
 REAL,ALLOCATABLE    :: wGP_vol(:)             !< 3D quadrature weights
 REAL,ALLOCATABLE    :: JwGP_vol(:,:)          !< 3D quadrature weights*Jacobian for all elements
 REAL,ALLOCATABLE    :: lambda(:,:,:)          !< lambda, ((PP_N+1)^2,nSides)
+REAL,ALLOCATABLE    :: lambdaLB(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
+REAL,ALLOCATABLE    :: iLocSides(:,:,:)       !< iLocSides, ((PP_N+1)^2,nSides) - used for I/O and ALLGATHERV of lambda
 REAL,ALLOCATABLE    :: RHS_vol(:,:,:)         !< Source RHS
 REAL,ALLOCATABLE    :: Tau(:)                 !< Stabilization parameter, per element
 REAL,ALLOCATABLE    :: Smat(:,:,:,:,:)        !< side to side matrix, (ngpface, ngpface, 6sides, 6sides, nElems)

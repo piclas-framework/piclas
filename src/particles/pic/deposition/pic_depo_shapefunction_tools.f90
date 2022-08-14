@@ -624,6 +624,11 @@ IF (nUsedElems.GT.0) THEN
   END DO
 END IF
 
+IF(ASSOCIATED(first)) THEN
+  SDEALLOCATE(first%PartSourceLoc)
+  DEALLOCATE(first)
+END IF
+
 END SUBROUTINE depoChargeOnDOFsSFChargeCon
 
 
@@ -767,6 +772,11 @@ IF (nUsedElems.GT.0) THEN
   END DO
 END IF
 
+IF(ASSOCIATED(first)) THEN
+  SDEALLOCATE(first%PartSourceLoc)
+  DEALLOCATE(first)
+END IF
+
 END SUBROUTINE depoChargeOnDOFsSFAdaptive
 
 
@@ -799,7 +809,10 @@ REAL, INTENT(IN)    :: Source(dim1:4)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: localElem, CNElemID, ExRankID
+INTEGER           :: localElem, CNElemID
+#if USE_MPI
+INTEGER           :: ExRankID
+#endif /*USE_MPI*/
 !===================================================================================================================================
 localElem = globElemID-offSetElem
 CNElemID = GetCNElemID(globElemID)

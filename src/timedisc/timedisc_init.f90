@@ -296,7 +296,6 @@ USE MOD_HDG_Vars              ,ONLY: BRTimeStepMultiplier,UseBRElectronFluid,BRT
 USE MOD_Part_BR_Elecron_Fluid ,ONLY: GetNextBRSwitchTime
 #endif /*defined(PARTICLES) && USE_HDG*/
 #if USE_LOADBALANCE
-USE MOD_TimeDisc_Vars         ,ONLY: dt,dt_Min
 USE MOD_LoadBalance_Vars      ,ONLY: DoLoadBalanceBackup,LoadBalanceSampleBackup,DoLoadBalance
 USE MOD_LoadBalance_Vars      ,ONLY: LoadBalanceSample,PerformLBSample
 USE MOD_Restart_Vars          ,ONLY: DoInitialAutoRestart,InitialAutoRestartSample

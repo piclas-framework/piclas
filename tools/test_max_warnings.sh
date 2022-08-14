@@ -17,7 +17,11 @@ cd build_test_max_warnings
 ccmake tee -DCMAKE_BUILD_TYPE=DEBUG -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON $CMAKELISTDIR
 
 # 3. Run make
-make -j 2>&1 | tee compile_output.txt
+if [[ -f "build.ninja" ]]; then
+  ninja -j0 2>&1 | tee compile_output.txt
+else
+  make -j 2>&1 | tee compile_output.txt
+fi
 
 # 4. Extract the number of warning
 WARNINGS=$(grep "Warning:" compile_output.txt | wc -l)

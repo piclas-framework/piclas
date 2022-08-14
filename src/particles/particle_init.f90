@@ -86,7 +86,7 @@ CALL prms%CreateLogicalOption(  'Part-DoInitialIonization'    , 'When restarting
 CALL prms%CreateIntOption(      'InitialIonizationSpecies', 'Supply the number of species that are considered for automatic '//&
                                                             'ionization')
 CALL prms%CreateIntArrayOption( 'InitialIonizationSpeciesID', 'Supply a vector with the species IDs that are used for the '//&
-                                                              'initial ionization.')
+                                                              'initial ionization.',no=0)
 CALL prms%CreateRealOption(     'InitialIonizationChargeAverage' , 'Average charge for each atom/molecule in the cell '//&
                                                                    '(corresponds to the ionization degree)')
 
@@ -214,8 +214,11 @@ SUBROUTINE InitParticleGlobals()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Particle_Tracking_Vars,     ONLY: TrackingMethod
-USE MOD_Particle_Vars              ,ONLY: Symmetry
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Particle_Vars          ,ONLY: Symmetry
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -226,7 +229,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS...'
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS...'
 
 ! Find tracking method immediately, a lot of the later variables depend on it
 TrackingMethod = GETINTFROMSTR('TrackingMethod')
@@ -238,10 +241,10 @@ CASE DEFAULT
 END SELECT
 IF (Symmetry%Order.LE.2) THEN
   TrackingMethod = TRIATRACKING
-  SWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
+  LBWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
 END IF
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
 
 END SUBROUTINE InitParticleGlobals
 
@@ -287,6 +290,9 @@ USE MOD_BGK_Init                   ,ONLY: InitBGK
 USE MOD_Particle_Vars              ,ONLY: Symmetry
 #endif
 USE MOD_Particle_Vars              ,ONLY: BulkElectronTemp
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars           ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -297,11 +303,11 @@ USE MOD_Particle_Vars              ,ONLY: BulkElectronTemp
 ! LOCAL VARIABLES
 !===================================================================================================================================
 IF(ParticlesInitIsDone)THEN
-   SWRITE(*,*) "InitParticles already called."
+   LBWRITE(*,*) "InitParticles already called."
    RETURN
 END IF
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLES ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLES ...'
 
 ! Initialize bulk temperature (might be set in surface model OR later in part analyze routine)
 BulkElectronTemp = 0.
@@ -335,7 +341,7 @@ END IF
 ! (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
 IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.GEO%RotPeriodicBC) THEN
   CALL InitParticleBoundarySampling()
-  CALL InitParticleBoundaryRotPeriodic()
+  IF(GEO%RotPeriodicBC) CALL InitParticleBoundaryRotPeriodic()
   CALL InitAdaptiveWallTemp()
 END IF
 
@@ -370,8 +376,8 @@ CALL InitParticleCommSize()
 #endif
 
 ParticlesInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLES DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLES DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitParticles
 
 
@@ -449,7 +455,7 @@ CALL InitializeVariablesAuxBC()
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
 DoDeposition    = .FALSE.
 !DoInterpolation = .FALSE.
-CALL PrintOption('No PIC-related Time discretization, turning deposition off. DoDeposition','*CHANGE',LogOpt=DoDeposition)
+CALL PrintOption('No PIC-related Time discretization, turning deposition off. DoDeposition','INFO',LogOpt=DoDeposition)
 !CALL PrintOption('No PIC-related Time discretization, turning interpolation off. DoInterpolation','*CHANGE',LogOpt=DoDeposition)
 #else
 DoDeposition    = GETLOGICAL('PIC-DoDeposition')
@@ -713,6 +719,9 @@ SUBROUTINE InitializeVariablesRandomNumbers()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -742,9 +751,9 @@ ELSE IF(nRandomSeeds.EQ.0) THEN
 ELSE IF(nRandomSeeds.GT.0) THEN
   ! read in numbers from ini
   IF(nRandomSeeds.GT.SeedSize) THEN
-    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
+    LBWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
   ELSE IF(nRandomSeeds.LT.SeedSize) THEN
-    SWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
+    LBWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
   END IF
   DO iSeed=1,MIN(SeedSize,nRandomSeeds)
     WRITE(UNIT=hilf,FMT='(I0)') iSeed
@@ -753,7 +762,7 @@ ELSE IF(nRandomSeeds.GT.0) THEN
   IF (ALL(Seeds(:).EQ.0)) CALL ABORT(__STAMP__,'Not all seeds can be set to zero ')
   CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 ELSE
-  SWRITE (*,*) 'Error: nRandomSeeds not defined.'//&
+  LBWRITE (*,*) 'Error: nRandomSeeds not defined.'//&
   'Choose nRandomSeeds'//&
   '=-1    pseudo random'//&
   '= 0    hard-coded deterministic numbers'//&
@@ -773,6 +782,9 @@ USE MOD_Particle_Vars
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd
 USE MOD_Particle_Boundary_Vars ,ONLY: AdaptWallTemp
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -790,8 +802,7 @@ IF(WriteMacroValues)THEN
   WriteMacroVolumeValues = GETLOGICAL('Part-WriteMacroVolumeValues','.TRUE.')
   WriteMacroSurfaceValues = GETLOGICAL('Part-WriteMacroSurfaceValues','.TRUE.')
   IF(.NOT.(WriteMacroVolumeValues.AND.WriteMacroSurfaceValues))THEN
-     CALL abort(&
-__STAMP__&
+     CALL abort(__STAMP__&
     ,'ERROR in particle_init.f90: Part-WriteMacroValues=T => WriteMacroVolumeValues and WriteMacroSurfaceValues must be T!')
   END IF
 ELSE
@@ -808,8 +819,7 @@ IF(WriteMacroSurfaceValues.AND.(.NOT.DSMC%CalcSurfaceVal)) DSMC%CalcSurfaceVal =
 DSMC%TimeFracSamp = GETREAL('Part-TimeFracForSampling')
 IF(DSMC%TimeFracSamp.GT.0.0) THEN
   IF(WriteMacroVolumeValues.OR.WriteMacroSurfaceValues)THEN
-    CALL abort(__STAMP__, &
-      'ERROR Init Macrosampling: WriteMacroValues and Time fraction sampling enabled at the same time')
+    CALL abort(__STAMP__,'ERROR Init Macrosampling: WriteMacroValues and Time fraction sampling enabled at the same time')
   END IF
   DSMC%NumOutput = GETINT('Particles-NumberForDSMCOutputs')
   IF(DSMC%NumOutput.NE.0) THEN
@@ -820,7 +830,7 @@ IF(DSMC%TimeFracSamp.GT.0.0) THEN
   END IF
 ELSE
   IF(DSMC%NumOutput.NE.0) THEN
-    SWRITE(UNIT_STDOUT,*)'WARNING: NumberForDSMCOutputs was set to 0 because TimeFracForSampling is 0.0'
+    LBWRITE(UNIT_STDOUT,*)'WARNING: NumberForDSMCOutputs was set to 0 because TimeFracForSampling is 0.0'
   END IF
   DSMC%NumOutput = 0
 END IF
@@ -1149,6 +1159,9 @@ USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
 USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Vars           ,ONLY: useDSMC
 USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars    ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1179,8 +1192,8 @@ END DO ! I = 1, InitialIonizationSpecies
 ! ---------------------------------------------------------------------------------------------------------------------------------
 ! 1.) reconstruct ions and determine charge
 ! ---------------------------------------------------------------------------------------------------------------------------------
-SWRITE(UNIT_stdOut,*)'InitialIonization():'
-SWRITE(UNIT_stdOut,*)'  1.) Reconstructing ions and determining the charge of each particle'
+LBWRITE(UNIT_stdOut,*)'InitialIonization():'
+LBWRITE(UNIT_stdOut,*)'  1.) Reconstructing ions and determining the charge of each particle'
 
 ! Initialize the element charge with zero
 ElemCharge(1:PP_nElems)=0
@@ -1223,7 +1236,7 @@ END DO
 ! ---------------------------------------------------------------------------------------------------------------------------------
 ! 2.) reconstruct electrons
 ! ---------------------------------------------------------------------------------------------------------------------------------
-SWRITE(UNIT_stdOut,*)'  2.) Reconstructing electrons'
+LBWRITE(UNIT_stdOut,*)'  2.) Reconstructing electrons'
 
 ! Initialize the species index for the electron species with -1
 ElecSpecIndx = -1
@@ -1241,14 +1254,14 @@ IF (ElecSpecIndx.EQ.-1) CALL abort(__STAMP__&
   ,'Electron species not found. Cannot create electrons without the defined species!')
 
 WRITE(UNIT=hilf,FMT='(I0)') iSpec
-SWRITE(UNIT_stdOut,'(A)')'  Using iSpec='//TRIM(hilf)//' as electron species index.'
+LBWRITE(UNIT_stdOut,'(A)')'  Using iSpec='//TRIM(hilf)//' as electron species index.'
 ! Get temperature from init (or default value defined in local parameters)
 IF(Species(ElecSpecIndx)%NumberOfInits.GT.0)THEN
   WRITE(UNIT=hilf,FMT=WRITEFORMAT) Species(ElecSpecIndx)%Init(1)%MWTemperatureIC
 ELSE
   WRITE(UNIT=hilf,FMT=WRITEFORMAT) CellElectronTemperature
 END IF ! Species(iSpec)%NumberOfInits.GT.0
-SWRITE(UNIT_stdOut,'(A)')'  Using T='//TRIM(hilf)//' K for the initial electron temperatture (maxwell_lpn) in each cell.'
+LBWRITE(UNIT_stdOut,'(A)')'  Using T='//TRIM(hilf)//' K for the initial electron temperatture (maxwell_lpn) in each cell.'
 ! Loop over all elements and the sum of charges in each element (for each charge assigned in an element, an electron is created)
 DO iElem=1,PP_nElems
   DO iPart=1,ElemCharge(iElem) ! 1 electron for each charge of each element

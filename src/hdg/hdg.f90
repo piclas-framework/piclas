@@ -115,6 +115,9 @@ USE MOD_HDG_Vars              ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectro
 USE MOD_Part_BR_Elecron_Fluid ,ONLY: UpdateNonlinVolumeFac
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 #endif /*defined(PARTICLES)*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -127,11 +130,11 @@ INTEGER           :: BCType,BCState
 REAL              :: D(0:PP_N,0:PP_N)
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
-   SWRITE(*,*) "InitHDG already called."
+   LBWRITE(*,*) "InitHDG already called."
    RETURN
 END IF
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
 
 HDGDisplayConvergence = GETLOGICAL('HDGDisplayConvergence')
 
@@ -331,8 +334,8 @@ ALLOCATE(RHS_vol(PP_nVar, nGP_vol,PP_nElems))
 RHS_vol=0.
 
 HDGInitIsDone = .TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT HDG DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT HDG DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitHDG
 
 
@@ -350,6 +353,9 @@ USE MOD_HDG_Vars    ,ONLY: ZeroPotentialSideID,HDGZeroPotentialDir
 USE MOD_Mesh        ,ONLY: GetMeshMinMaxBoundaries
 USE MOD_Mesh_Vars   ,ONLY: nBCs,BoundaryType,nSides,BC,xyzMinMax,NGeo,Face_xGP
 USE MOD_ReadInTools ,ONLY: PrintOption,GETINT
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -434,14 +440,14 @@ IF(ZeroPotentialSideID.EQ.-1)THEN
 #else
   nZeroPotentialSidesGlobal = nZeroPotentialSides
 #endif /*USE_MPI*/
-  SWRITE(UNIT_StdOut,'(A,I0)') " Found (global) number of zero potential sides: ", nZeroPotentialSidesMax
+  LBWRITE(UNIT_StdOut,'(A,I0)') " Found (global) number of zero potential sides: ", nZeroPotentialSidesMax
 
   ! Sanity checks for root
   IF(MPIroot)THEN
     ! 1) multiples sides found
     IF(nZeroPotentialSidesMax.GT.1)THEN
-      WRITE(UNIT_StdOut,'(A)') " WARNING: Found more than 1 zero potential side on a proc and currently, only one can be considered."
-      WRITE(UNIT_StdOut,'(A,I0,A)') " WARNING: nZeroPotentialSidesGlobal: ", nZeroPotentialSidesMax, " (may lead to problems)"
+      LBWRITE(UNIT_StdOut,'(A)') " WARNING: Found more than 1 zero potential side on a proc and currently, only one can be considered."
+      LBWRITE(UNIT_StdOut,'(A,I0,A)') " WARNING: nZeroPotentialSidesGlobal: ", nZeroPotentialSidesMax, " (may lead to problems)"
     END IF
 
     ! 2) no sides found
@@ -1874,12 +1880,24 @@ END SUBROUTINE RestartHDG
 !===================================================================================================================================
 SUBROUTINE FinalizeHDG()
 ! MODULES
+USE MOD_globals
 USE MOD_HDG_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_HDG_Vars           ,ONLY: lambda, nGP_face
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
+USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,nSides,SideToNonUniqueGlobalSide
+USE MOD_Mesh_Tools         ,ONLY: LambdaSideToMaster,GetMasteriLocSides
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_LOADBALANCE
+INTEGER             :: NonUniqueGlobalSideID
+INTEGER             :: iSide
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 HDGInitIsDone = .FALSE.
 SDEALLOCATE(NonlinVolumeFac)
@@ -1899,13 +1917,40 @@ SDEALLOCATE(JwGP_vol)
 SDEALLOCATE(Ehat)
 SDEALLOCATE(Smat)
 SDEALLOCATE(Tau)
-SDEALLOCATE(lambda)
 SDEALLOCATE(RHS_vol)
 SDEALLOCATE(Precond)
 SDEALLOCATE(InvPrecondDiag)
 SDEALLOCATE(MaskedSide)
 SDEALLOCATE(SmallMortarInfo)
 SDEALLOCATE(IntMatMortar)
+
+#if USE_LOADBALANCE
+IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
+  ! Store lambda solution on global non-unique array for MPI communication
+  ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
+             lastSide  => ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem    + nElems) )
+    ALLOCATE(lambdaLB(PP_nVar,nGP_face,firstSide:lastSide))
+    lambdaLB=0.
+  END ASSOCIATE
+  IF(nProcessors.GT.1) CALL GetMasteriLocSides()
+  DO iSide = 1, nSides
+    NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
+
+    CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID))
+    ! Check if the same global unique side is encountered twice and store both global non-unique side IDs in the array
+    ! SideToNonUniqueGlobalSide(1:2,iSide)
+    IF(SideToNonUniqueGlobalSide(2,iSide).NE.-1)THEN
+      NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(2,iSide)
+      CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID))
+    END IF ! SideToNonUniqueGlobalSide(1,iSide).NE.-1
+
+  END DO ! iSide = 1, nSides
+  IF(nProcessors.GT.1) DEALLOCATE(iLocSides)
+
+END IF ! PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+
+SDEALLOCATE(lambda)
 END SUBROUTINE FinalizeHDG
 
 

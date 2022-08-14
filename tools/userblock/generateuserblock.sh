@@ -10,7 +10,7 @@
 #               of the simulation code, which was used to generate those results.
 #               A patch to the remote Git branch of the current code is generated
 #               or to the master, if the branch does not exist on the remote.
-# 
+#
 #************************************************************************************
 
 # $1: CMAKE_RUNTIME_OUTPUT_DIRECTORY
@@ -25,40 +25,52 @@ if [ ! -d "$2" ]; then
   exit 1;
 fi
 
+# Check if inside git repo
+INSIDEGITREPO="$(git rev-parse --is-inside-work-tree 2>/dev/null)"
+
+# Defaults
+BRANCHNAME='not a git repo'
+PARENTNAME='not a git repo'
+PARENTCOMMIT='not a git repo'
+GITCOMMIT='not a git repo'
+GITURL='not a git repo'
+
 # get branch name (only info)
-BRANCHNAME=$(git rev-parse --abbrev-ref HEAD)
-PARENTNAME=$BRANCHNAME
-PARENTCOMMIT=$(git show-ref | grep "origin/$BRANCHNAME$" | cut -b -40)
+if [ $INSIDEGITREPO ]; then
+  BRANCHNAME=$(git rev-parse --abbrev-ref HEAD)
+  PARENTNAME=$BRANCHNAME
+  PARENTCOMMIT=$(git show-ref | grep "origin/$BRANCHNAME$" | cut -b -40)
 
-if [ -z "$PARENTCOMMIT" ]; then
-  LOCBRANCHNAME=$BRANCHNAME
-  # recursively search for parent branch
-  FOUND=0
-  while [ $FOUND -eq 0 ]; do
-    # get commit on server, where branch started
-    COLUMN=$((    $(git show-branch | grep '^[^\[]*\*'  | head -1 | cut -d* -f1 | wc -c) - 1 )) 
-    START_ROW=$(( $(git show-branch | grep -n "^[\-]*$" | cut -d: -f1) + 1 )) 
-    PARENTNAME=$(   git show-branch | tail -n +$START_ROW | grep -v "^[^\[]*\[$LOCBRANCHNAME" | grep "^.\{$COLUMN\}[^ ]" | head -n1 | sed 's/.*\[\(.*\)\].*/\1/' | sed 's/[\^~].*//')
-    if [ -z "$PARENTNAME" ]; then
-      break
-    fi
-  
-    PARENTCOMMIT=$(git show-ref | grep "origin/$PARENTNAME$" | cut -b -40)
-    if [ -z "$PARENTCOMMIT" ]; then
-      LOCBRANCHNAME=$PARENTNAME 
-    else
-      FOUND=1
-      break
-    fi
-  done
+  if [ -z "$PARENTCOMMIT" ]; then
+    LOCBRANCHNAME=$BRANCHNAME
+    # recursively search for parent branch
+    FOUND=0
+    while [ $FOUND -eq 0 ]; do
+      # get commit on server, where branch started
+      COLUMN=$((    $(git show-branch | grep '^[^\[]*\*'  | head -1 | cut -d* -f1 | wc -c) - 1 ))
+      START_ROW=$(( $(git show-branch | grep -n "^[\-]*$" | cut -d: -f1) + 1 ))
+      PARENTNAME=$(   git show-branch | tail -n +$START_ROW | grep -v "^[^\[]*\[$LOCBRANCHNAME" | grep "^.\{$COLUMN\}[^ ]" | head -n1 | sed 's/.*\[\(.*\)\].*/\1/' | sed 's/[\^~].*//')
+      if [ -z "$PARENTNAME" ]; then
+        break
+      fi
 
-  if [ $FOUND -eq 0 ]; then
-    PARENTNAME='master'
-    PARENTCOMMIT=$(git rev-parse origin/master)
-    echo "WARNING: Could not find parent commit, creating userblock diff to master."
+      PARENTCOMMIT=$(git show-ref | grep "origin/$PARENTNAME$" | cut -b -40)
+      if [ -z "$PARENTCOMMIT" ]; then
+        LOCBRANCHNAME=$PARENTNAME
+      else
+        FOUND=1
+        break
+      fi
+    done
+
+    if [ $FOUND -eq 0 ]; then
+      PARENTNAME='master'
+      PARENTCOMMIT=$(git rev-parse origin/master)
+      echo "WARNING: Could not find parent commit, creating userblock diff to master."
+    fi
+    # check if the branch exists in the local
+    PARENTEXISTS=$(git branch --list ${PARENTCOMMIT})
   fi
-  # check if the branch exists in the local
-  PARENTEXISTS=$(git branch --list ${PARENTCOMMIT})
 fi
 
 cd "$1"
@@ -66,15 +78,15 @@ echo "{[( CMAKE )]}"               >  userblock.txt
 cat configuration.cmake            >> userblock.txt
 echo "{[( GIT BRANCH )]}"          >> userblock.txt
 echo "$BRANCHNAME"                 >> userblock.txt
-GITCOMMIT=$(git rev-parse HEAD)
+[ $INSIDEGITREPO ] && GITCOMMIT=$(git rev-parse HEAD)
 echo "$GITCOMMIT"                  >> userblock.txt
 
 # Reference is the start commit, which is either identical to
 # the branch, if it exists on the remote or points to the first
 # real parent in branch history available on remote.
 echo "{[( GIT REFERENCE )]}"       >> userblock.txt
-echo "$PARENTNAME"                 >> userblock.txt
-echo $PARENTCOMMIT                 >> userblock.txt
+echo ${PARENTNAME}                 >> userblock.txt
+echo ${PARENTCOMMIT}               >> userblock.txt
 
 #echo "{[( GIT FORMAT-PATCH )]}"    >> userblock.txt
 ## create format patch containing log info for commit changes
@@ -83,15 +95,20 @@ echo $PARENTCOMMIT                 >> userblock.txt
 
 # Also store binary changes in diff
 echo "{[( GIT DIFF )]}"            >> userblock.txt
-# committed changes
-if [ -n ${PARENTEXISTS} ]; then
-  git diff -p $PARENTCOMMIT..HEAD | head -n 1000   >> userblock.txt
+if [ $INSIDEGITREPO ]; then
+  # committed changes
+  if [ -n ${PARENTEXISTS} ]; then
+    git diff -p $PARENTCOMMIT..HEAD | head -n 1000   >> userblock.txt
+  fi
+  # uncommited changes
+  git diff -p | head -n 1000                         >> userblock.txt
+else
+  echo "not a git repo"                              >> userblock.txt
 fi
-# uncommited changes
-git diff -p | head -n 1000                       >> userblock.txt
 
 echo "{[( GIT URL )]}"             >> userblock.txt
-git config --get remote.origin.url >> userblock.txt
+[ $INSIDEGITREPO ] && GITURL=$(git config --get remote.origin.url)
+echo ${GITURL}                     >> userblock.txt
 
 # change directory to cmake cache dir
 if [ -d "$2/CMakeFiles" ]; then

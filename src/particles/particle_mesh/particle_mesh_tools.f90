@@ -576,6 +576,9 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeSide,nComputeNodeSides
 USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeNode,nComputeNodeNodes
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -671,12 +674,12 @@ GEO%zminglob = GEO%zmin
 GEO%zmaxglob = GEO%zmax
 #endif /*USE_MPI*/
 
-SWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') ' | Total MESH   Dim (x,y,z): '                                     &
+LBWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') ' | Total MESH   Dim (x,y,z): '                                     &
                                                 , MAXVAL(NodeCoords_Shared(1,:))-MINVAL(NodeCoords_Shared(1,:)),', '&
                                                 , MAXVAL(NodeCoords_Shared(2,:))-MINVAL(NodeCoords_Shared(2,:)),', '&
                                                 , MAXVAL(NodeCoords_Shared(3,:))-MINVAL(NodeCoords_Shared(3,:))
 IF (TrackingMethod.EQ.REFMAPPING .OR. TrackingMethod.EQ. TRACING) THEN
-  SWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') ' | Total BEZIER Dim (x,y,z): '                                   &
+  LBWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') ' | Total BEZIER Dim (x,y,z): '                                   &
                                                   , GEO%xmaxglob-GEO%xminglob,', '                                  &
                                                   , GEO%ymaxglob-GEO%yminglob,', '                                  &
                                                   , GEO%zmaxglob-GEO%zminglob
@@ -718,6 +721,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: SideNormVec_Shared,SideNormVec_Shared_Win
 #else
 USE MOD_Particle_Mesh_Vars     ,ONLY: nComputeNodeElems
 #endif /* USE_MPI */
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -748,8 +754,8 @@ INTEGER                                  :: nLinearElemsTot,nCurvedElemsTot
 !#endif /* USE_MPI */
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
 
 ! elements
 #if USE_MPI
@@ -1061,13 +1067,13 @@ nLinearElemsTot          = nLinearElems
 nCurvedElemsTot          = nCurvedElems
 #endif /* USE_MPI */
 
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-rectangular     faces: ', nPlanarRectangulartot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-non-rectangular faces: ', nPlanarNonRectangulartot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of bi-linear              faces: ', nBilineartot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-curved          faces: ', nPlanarCurvedtot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 faces: ', nCurvedtot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of (bi-)linear            elems: ', nLinearElemsTot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 elems: ', nCurvedElemsTot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-rectangular     faces: ', nPlanarRectangulartot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-non-rectangular faces: ', nPlanarNonRectangulartot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of bi-linear              faces: ', nBilineartot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-curved          faces: ', nPlanarCurvedtot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 faces: ', nCurvedtot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of (bi-)linear            elems: ', nLinearElemsTot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 elems: ', nCurvedElemsTot
 
 END SUBROUTINE IdentifyElemAndSideType
 
@@ -1121,14 +1127,16 @@ SUBROUTINE WeirdElementCheck()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ConcaveElemSide_Shared,ElemSideNodeID_Shared
-USE MOD_Particle_Mesh_Vars        ,ONLY: WeirdElems
-USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared,ConcaveElemSide_Shared,ElemSideNodeID_Shared,WeirdElems
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
 #if USE_MPI
-USE MOD_MPI_Shared_Vars           ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
 #else
-USE MOD_Mesh_Vars                 ,ONLY: nElems
+USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1143,8 +1151,8 @@ REAL              :: vec(1:3), Node(1:3,1:4),det(1:3)
 LOGICAL           :: WEIRD, TRICHECK, TRIABSCHECK
 INTEGER           :: firstElem,lastElem
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' CHECKING FOR WEIRD ELEMENTS...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' CHECKING FOR WEIRD ELEMENTS...'
 
 #if USE_MPI
 firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
@@ -1259,11 +1267,11 @@ IF(WeirdElems.GT.0) THEN
   CALL abort(__STAMP__,'Weird elements found: it means that part of the element is turned inside-out')
 END IF
 
-SWRITE(UNIT_stdOut,'(A)')' CHECKING FOR WEIRD ELEMENTS DONE!'
+LBWRITE(UNIT_stdOut,'(A)')' CHECKING FOR WEIRD ELEMENTS DONE!'
 
 DEALLOCATE(WeirdElemNbrs)
 
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE WeirdElementCheck
 
 
@@ -1489,7 +1497,7 @@ INTEGER                        :: ALLOCSTAT
 IF (PerformLoadBalance) RETURN
 #endif
 
-SWRITE(UNIT_stdOut,'(A)') ' CALCULATING BezierControlPoints ...'
+LBWRITE(UNIT_stdOut,'(A)') ' CALCULATING BezierControlPoints ...'
 
 ! Build BezierControlPoints3D (compute-node local+halo)
 #if USE_MPI
@@ -1609,6 +1617,9 @@ USE MOD_MPI_Shared_Vars
 USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1626,8 +1637,8 @@ REAL               :: A(3,3),detcon
 INTEGER            :: CornerNodeIDswitch(8)
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
 
 ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
 CornerNodeIDswitch(1)=1
@@ -1758,8 +1769,8 @@ CALL BARRIER_AND_SYNC(ElemMidPoint_Shared_Win   ,MPI_COMM_SHARED)
 meshCheckWeirdElements = GETLOGICAL('meshCheckWeirdElements','.TRUE.')
 IF(meshCheckWeirdElements) CALL WeirdElementCheck()
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitParticleGeometry
 
 
@@ -1851,6 +1862,9 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Vars          ,ONLY: PartMeshHasPeriodicBCs
 USE MOD_Mesh_Vars              ,ONLY: nElems
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1981,9 +1995,9 @@ SDEALLOCATE(PeriodicFound)
 #if USE_MPI
 IF (myRank.EQ.0) THEN
 #endif /*USE_MPI*/
-  WRITE(UNIT_stdOut,'(A,I0,A)') ' Found ',GEO%nPeriodicVectors,' periodic vectors for particle tracking'
+  LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Found ',GEO%nPeriodicVectors,' periodic vectors for particle tracking'
   DO iVec = 1,GEO%nPeriodicVectors
-    WRITE(UNIT_stdOut,'(A,I1,A,F12.8,2(", ",F12.8))') ' | Periodic vector ',iVec,': ', GEO%PeriodicVectors(:,iVec)
+    LBWRITE(UNIT_stdOut,'(A,I1,A,F12.8,2(", ",F12.8))') ' | Periodic vector ',iVec,': ', GEO%PeriodicVectors(:,iVec)
   END DO
 
   ! Sanity check

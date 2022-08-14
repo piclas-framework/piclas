@@ -724,10 +724,10 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL               :: Charge
-INTEGER            :: stage, locElem
+INTEGER            :: stage
 INTEGER            :: iPart
 #if USE_MPI
-INTEGER            :: iElem,iProc
+INTEGER            :: iElem,iProc,locElem
 #endif
 #if defined(MEASURE_MPI_WAIT)
 INTEGER(KIND=8)    :: CounterStart,CounterEnd

@@ -304,7 +304,7 @@ IF(FILEEXISTS(Filename))THEN
   CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 
   MeshFile255=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
-  CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=(/MeshFile255/))
+  CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=(/MeshFile255/),Overwrite=.TRUE.)
   CALL CloseDataFile()
 END IF ! FILEEXISTS(Filename)
 
@@ -601,7 +601,8 @@ END SUBROUTINE WriteArrayToHDF5
 
 SUBROUTINE WriteAttributeToHDF5(Loc_ID_in,AttribName,nVal,DataSetname,&
                                 RealScalar,IntegerScalar,StrScalar,LogicalScalar, &
-                                RealArray,IntegerArray,StrArray)
+                                RealArray,IntegerArray,StrArray, &
+                                Overwrite)
 !===================================================================================================================================
 ! Subroutine to write Attributes to HDF5 format of a given Loc_ID, which can be the File_ID,datasetID,groupID. This must be opened
 ! outside of the routine. If you directly want to write an attribute to a dataset, just provide the name of the dataset
@@ -609,6 +610,7 @@ SUBROUTINE WriteAttributeToHDF5(Loc_ID_in,AttribName,nVal,DataSetname,&
 ! MODULES
 USE MOD_Globals
 USE,INTRINSIC :: ISO_C_BINDING
+USE MOD_HDF5_Input            ,ONLY: DatasetExists
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -624,16 +626,21 @@ REAL              ,INTENT(IN),OPTIONAL,TARGET :: RealArray(nVal)
 INTEGER           ,INTENT(IN),OPTIONAL,TARGET :: IntegerArray(nVal)
 CHARACTER(LEN=255),INTENT(IN),OPTIONAL,TARGET :: StrArray(nVal)
 LOGICAL           ,INTENT(IN),OPTIONAL        :: LogicalScalar
+LOGICAL           ,INTENT(IN),OPTIONAL        :: Overwrite
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: Rank
-INTEGER(HID_T)                 :: DataSpace,Attr_ID,Loc_ID,Type_ID
+INTEGER(HID_T)                 :: Loc_ID    ! Object identifier
+INTEGER(HID_T)                 :: Type_ID   ! Attribute datatype identifier
+INTEGER(HID_T)                 :: DataSpace ! Attribute dataspace identifier
+INTEGER(HID_T)                 :: Attr_ID   ! Attribute identifier
 INTEGER(HSIZE_T), DIMENSION(1) :: Dimsf
 INTEGER(SIZE_T)                :: AttrLen
 INTEGER,TARGET                 :: logtoint
 TYPE(C_PTR)                    :: buf
+LOGICAL                        :: AttribExists,Overwrite_loc
 !===================================================================================================================================
 LOGWRITE(*,*)' WRITE ATTRIBUTE "',TRIM(AttribName),'" TO HDF5 FILE...'
 IF(PRESENT(DataSetName))THEN
@@ -668,7 +675,22 @@ IF(PRESENT(StrScalar).OR.PRESENT(StrArray))THEN
   CALL H5TSET_SIZE_F(Type_ID, AttrLen, iError)
 ENDIF
 
+! Check if attribute already exists
+CALL DatasetExists(File_ID,TRIM(AttribName),AttribExists,attrib=.TRUE.)
+IF(AttribExists)THEN
+  IF(PRESENT(Overwrite))THEN
+    Overwrite_loc = Overwrite
+  ELSE
+    Overwrite_loc = .FALSE.
+  END IF
+  IF(.NOT.Overwrite_loc) CALL abort(__STAMP__,'Attribute '//TRIM(AttribName)//' alreay exists in HDF5 File')
+  ! Delete the old attribute only if it is re-writen below(otherwise the original info is lost)
+  CALL H5ADELETE_F(Loc_ID, TRIM(AttribName), iError)
+END IF ! AttribExists
+
+! Create attribute
 CALL H5ACREATE_F(Loc_ID, TRIM(AttribName), Type_ID, DataSpace, Attr_ID, iError)
+
 ! Write the attribute data.
 IF(PRESENT(RealArray))     buf=C_LOC(RealArray)
 IF(PRESENT(RealScalar))    buf=C_LOC(RealScalar)

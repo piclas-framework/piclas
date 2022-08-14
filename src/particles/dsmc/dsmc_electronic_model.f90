@@ -74,9 +74,7 @@ CASE(1) ! Initial
 CASE(2) ! SurfaceFlux
   TElec=SpecDSMC(iSpec)%Surfaceflux(iInit)%Telec
 CASE DEFAULT
-  CALL abort(&
-  __STAMP__&
-  ,'neither iInit nor Surfaceflux defined as reference!')
+  CALL abort(__STAMP__,'neither iInit nor Surfaceflux defined as reference!')
 END SELECT
 
 ! Background gas distribution
@@ -1187,132 +1185,136 @@ SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
 ! Subroutine to read the electronic levels from DSMCSpeciesElectronicState.h5
 !===================================================================================================================================
 ! use module
-  USE MOD_io_hdf5
-  USE MOD_Globals
-  USE MOD_DSMC_Vars,            ONLY: DSMC, SpecDSMC
-  USE MOD_HDF5_Input,           ONLY: DatasetExists
-  USE MOD_part_tools              ,ONLY: CalcXiElec
+USE MOD_io_hdf5
+USE MOD_Globals
+USE MOD_DSMC_Vars        ,ONLY: DSMC, SpecDSMC
+USE MOD_HDF5_Input       ,ONLY: DatasetExists
+USE MOD_part_tools       ,ONLY: CalcXiElec
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER,INTENT(IN)                                    :: iSpec
-  CHARACTER(LEN=64),INTENT(IN)                          :: dsetname
+INTEGER,INTENT(IN)                                    :: iSpec
+CHARACTER(LEN=64),INTENT(IN)                          :: dsetname
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                                               :: err
-  ! HDF5 specifier taken from extractParticles
-  INTEGER(HSIZE_T), DIMENSION(2)                        :: dims,sizeMax
-  INTEGER(HID_T)                                        :: file_id_dsmc                       ! File identifier
-  INTEGER(HID_T)                                        :: dset_id_dsmc                       ! Dataset identifier
-  INTEGER(HID_T)                                        :: filespace                          ! filespace identifier
-  REAL,ALLOCATABLE                                      :: ElectronicState(:,:)
-  INTEGER, ALLOCATABLE                                  :: SortElectronicState(:)
-  INTEGER                                               :: iQua, nQuants, iQuaTemp
-  REAL                                                  :: tempEnergyDiff, tempEnergy, MaxTemp, MeanTemp, MeanMax, MinTemp
-  REAL                                                  :: XiMean, XiMeanMax
-  LOGICAL                                               :: DataSetFound
+INTEGER                                               :: err
+! HDF5 specifier taken from extractParticles
+INTEGER(HSIZE_T), DIMENSION(2)                        :: dims,sizeMax
+INTEGER(HID_T)                                        :: file_id_dsmc                       ! File identifier
+INTEGER(HID_T)                                        :: dset_id_dsmc                       ! Dataset identifier
+INTEGER(HID_T)                                        :: filespace                          ! filespace identifier
+REAL,ALLOCATABLE                                      :: ElectronicState(:,:)
+INTEGER, ALLOCATABLE                                  :: SortElectronicState(:)
+INTEGER                                               :: iQua, nQuants, iQuaTemp
+REAL                                                  :: tempEnergyDiff, tempEnergy, MaxTemp, MeanTemp, MeanMax, MinTemp
+REAL                                                  :: XiMean, XiMeanMax
+LOGICAL                                               :: DataSetFound
 !===================================================================================================================================
-  SWRITE(UNIT_StdOut,'(A)') 'Read electronic level entries '//TRIM(dsetname)//' from '//TRIM(DSMC%ElectronicModelDatabase)
-  ! Initialize FORTRAN interface.
-  CALL H5OPEN_F(err)
-  ! Open the file.
-  CALL H5FOPEN_F (TRIM(DSMC%ElectronicModelDatabase), H5F_ACC_RDONLY_F, file_id_dsmc, err)
-  CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
-  IF(.NOT.DataSetFound)THEN
-    CALL abort(&
-    __STAMP__&
-    ,'DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(DSMC%ElectronicModelDatabase)//']')
-  END IF
-  ! Open the  dataset.
-  CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
-  ! Get the file space of the dataset.
-  CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
-  ! get size
-  CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
-  ! Allocate electronic_state
-  ALLOCATE (ElectronicState( 1:dims(1), 0:dims(2)-1 ) )
-  ! read data
-  CALL H5dread_f(dset_id_dsmc, H5T_NATIVE_DOUBLE, ElectronicState, dims, err)
-  CALL SortEnergies(ElectronicState, INT(dims(2)))
-  IF (ALMOSTEQUAL(DSMC%EpsElecBin, 0.0).OR.(dims(2).EQ.2)) THEN
-    ALLOCATE ( SpecDSMC(iSpec)%ElectronicState( 1:dims(1), 0:dims(2)-1 ) )
-    SpecDSMC(iSpec)%ElectronicState = ElectronicState
-    SpecDSMC(iSpec)%MaxElecQuant  = SIZE( SpecDSMC(iSpec)%ElectronicState,2)
-  ELSE
-    ALLOCATE (SortElectronicState(0:dims(2)-1 ))
-    SortElectronicState(0) = 0
-    nQuants = 1
-    tempEnergy =  ElectronicState(2,1)
-    SortElectronicState(1) = nQuants
-    DO iQua = 2, INT(dims(2),4)-2
-      tempEnergyDiff = DiffElecEnergy(tempEnergy, ElectronicState(2,iQua))
-      IF (tempEnergyDiff.LE.DSMC%EpsElecBin) THEN
-        SortElectronicState(iQua) = nQuants
+LBWRITE(UNIT_StdOut,'(A)') 'Read electronic level entries '//TRIM(dsetname)//' from '//TRIM(DSMC%ElectronicModelDatabase)
+! Initialize FORTRAN interface.
+CALL H5OPEN_F(err)
+! Open the file.
+CALL H5FOPEN_F (TRIM(DSMC%ElectronicModelDatabase), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
+IF(.NOT.DataSetFound)THEN
+  CALL abort(&
+  __STAMP__&
+  ,'DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(DSMC%ElectronicModelDatabase)//']')
+END IF
+! Open the  dataset.
+CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
+! Get the file space of the dataset.
+CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
+! get size
+CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+! Allocate electronic_state
+ALLOCATE (ElectronicState( 1:dims(1), 0:dims(2)-1 ) )
+! read data
+CALL H5dread_f(dset_id_dsmc, H5T_NATIVE_DOUBLE, ElectronicState, dims, err)
+CALL SortEnergies(ElectronicState, INT(dims(2)))
+IF (ALMOSTEQUAL(DSMC%EpsElecBin, 0.0).OR.(dims(2).EQ.2)) THEN
+  ALLOCATE ( SpecDSMC(iSpec)%ElectronicState( 1:dims(1), 0:dims(2)-1 ) )
+  SpecDSMC(iSpec)%ElectronicState = ElectronicState
+  SpecDSMC(iSpec)%MaxElecQuant  = SIZE( SpecDSMC(iSpec)%ElectronicState,2)
+ELSE
+  ALLOCATE (SortElectronicState(0:dims(2)-1 ))
+  SortElectronicState(0) = 0
+  nQuants = 1
+  tempEnergy =  ElectronicState(2,1)
+  SortElectronicState(1) = nQuants
+  DO iQua = 2, INT(dims(2),4)-2
+    tempEnergyDiff = DiffElecEnergy(tempEnergy, ElectronicState(2,iQua))
+    IF (tempEnergyDiff.LE.DSMC%EpsElecBin) THEN
+      SortElectronicState(iQua) = nQuants
+    ELSE
+      nQuants = nQuants + 1
+      SortElectronicState(iQua) = nQuants
+      tempEnergy =  ElectronicState(2,iQua)
+    END IF
+  END DO
+  nQuants = nQuants + 1
+  SortElectronicState(dims(2)-1) = nQuants
+
+  ALLOCATE ( SpecDSMC(iSpec)%ElectronicState( 1:dims(1), 0:nQuants) )
+  SpecDSMC(iSpec)%ElectronicState = 0.0
+  DO iQua = 1, INT(dims(2),4)-2
+    iQuaTemp = SortElectronicState(iQua)
+    SpecDSMC(iSpec)%ElectronicState( 1, iQuaTemp) = SpecDSMC(iSpec)%ElectronicState( 1, iQuaTemp) &
+        + ElectronicState(1, iQua)
+    SpecDSMC(iSpec)%ElectronicState( 2, iQuaTemp) = SpecDSMC(iSpec)%ElectronicState( 2, iQuaTemp) &
+        + ElectronicState(1, iQua)*ElectronicState(2, iQua)
+  END DO
+  DO iQua = 1, nQuants -1
+    SpecDSMC(iSpec)%ElectronicState( 2, iQua) = SpecDSMC(iSpec)%ElectronicState( 2, iQua) &
+            / SpecDSMC(iSpec)%ElectronicState( 1, iQua)
+  END DO
+  SpecDSMC(iSpec)%ElectronicState( 1:2, 0) = ElectronicState(1:2,0)
+  SpecDSMC(iSpec)%ElectronicState( 1:2, nQuants) = ElectronicState(1:2,dims(2)-1)
+  SpecDSMC(iSpec)%MaxElecQuant  = SIZE( SpecDSMC(iSpec)%ElectronicState,2)
+  LBWRITE(UNIT_StdOut,'(A,I5,A,I5,A,A,A)') 'Merged ',dims(2),' Electronic States to ',nQuants, ' for ',TRIM(dsetname),&
+      ' (+1 for the ground state)'
+END IF
+! Close the file.
+CALL H5FCLOSE_F(file_id_dsmc, err)
+! Close FORTRAN interface.
+CALL H5CLOSE_F(err)
+
+! Check if the ground state is defined at 0K
+IF(SpecDSMC(iSpec)%ElectronicState(2,0).NE.0.0) THEN
+  CALL Abort(&
+  __STAMP__,&
+'ERROR in electronic energy levels: given ground state is not zero! Species: ', IntInfoOpt=iSpec)
+END IF
+
+IF (DSMC%ElectronicModel.EQ.4) THEN
+  SpecDSMC(iSpec)%MaxMeanXiElec = 0.
+  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    MaxTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant - 1)
+    MinTemp = 0.
+    MeanTemp = 0.5*(MaxTemp+MinTemp)
+    MeanMax = 0.5*(MaxTemp+MeanTemp)
+    DO WHILE(MaxTemp-MeanTemp.GT.0.1)
+      XiMean=CalcXiElec(MeanTemp, iSpec)
+      XiMeanMax=CalcXiElec(MeanMax, iSpec)
+      IF (XiMean.GT.XiMeanMax) THEN
+        MaxTemp = MeanTemp
       ELSE
-        nQuants = nQuants + 1
-        SortElectronicState(iQua) = nQuants
-        tempEnergy =  ElectronicState(2,iQua)
+        MinTemp = MeanTemp
       END IF
-    END DO
-    nQuants = nQuants + 1
-    SortElectronicState(dims(2)-1) = nQuants
-
-    ALLOCATE ( SpecDSMC(iSpec)%ElectronicState( 1:dims(1), 0:nQuants) )
-    SpecDSMC(iSpec)%ElectronicState = 0.0
-    DO iQua = 1, INT(dims(2),4)-2
-      iQuaTemp = SortElectronicState(iQua)
-      SpecDSMC(iSpec)%ElectronicState( 1, iQuaTemp) = SpecDSMC(iSpec)%ElectronicState( 1, iQuaTemp) &
-          + ElectronicState(1, iQua)
-      SpecDSMC(iSpec)%ElectronicState( 2, iQuaTemp) = SpecDSMC(iSpec)%ElectronicState( 2, iQuaTemp) &
-          + ElectronicState(1, iQua)*ElectronicState(2, iQua)
-    END DO
-    DO iQua = 1, nQuants -1
-      SpecDSMC(iSpec)%ElectronicState( 2, iQua) = SpecDSMC(iSpec)%ElectronicState( 2, iQua) &
-              / SpecDSMC(iSpec)%ElectronicState( 1, iQua)
-    END DO
-    SpecDSMC(iSpec)%ElectronicState( 1:2, 0) = ElectronicState(1:2,0)
-    SpecDSMC(iSpec)%ElectronicState( 1:2, nQuants) = ElectronicState(1:2,dims(2)-1)
-    SpecDSMC(iSpec)%MaxElecQuant  = SIZE( SpecDSMC(iSpec)%ElectronicState,2)
-    SWRITE(UNIT_StdOut,'(A,I5,A,I5,A,A,A)') 'Merged ',dims(2),' Electronic States to ',nQuants, ' for ',TRIM(dsetname),&
-        ' (+1 for the ground state)'
-  END IF
-  ! Close the file.
-  CALL H5FCLOSE_F(file_id_dsmc, err)
-  ! Close FORTRAN interface.
-  CALL H5CLOSE_F(err)
-
-  ! Check if the ground state is defined at 0K
-  IF(SpecDSMC(iSpec)%ElectronicState(2,0).NE.0.0) THEN
-    CALL Abort(&
-    __STAMP__,&
-  'ERROR in electronic energy levels: given ground state is not zero! Species: ', IntInfoOpt=iSpec)
-  END IF
-
-  IF (DSMC%ElectronicModel.EQ.4) THEN
-    SpecDSMC(iSpec)%MaxMeanXiElec = 0.
-    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-      MaxTemp = SpecDSMC(iSpec)%ElectronicState(2,SpecDSMC(iSpec)%MaxElecQuant - 1)
-      MinTemp = 0.
       MeanTemp = 0.5*(MaxTemp+MinTemp)
       MeanMax = 0.5*(MaxTemp+MeanTemp)
-      DO WHILE(MaxTemp-MeanTemp.GT.0.1)
-        XiMean=CalcXiElec(MeanTemp, iSpec)
-        XiMeanMax=CalcXiElec(MeanMax, iSpec)
-        IF (XiMean.GT.XiMeanMax) THEN
-          MaxTemp = MeanTemp
-        ELSE
-          MinTemp = MeanTemp
-        END IF
-        MeanTemp = 0.5*(MaxTemp+MinTemp)
-        MeanMax = 0.5*(MaxTemp+MeanTemp)
-      END DO
-      SpecDSMC(iSpec)%MaxMeanXiElec(1) = XiMean
-      SpecDSMC(iSpec)%MaxMeanXiElec(2) = MeanTemp
-    END IF
+    END DO
+    SpecDSMC(iSpec)%MaxMeanXiElec(1) = XiMean
+    SpecDSMC(iSpec)%MaxMeanXiElec(2) = MeanTemp
   END IF
+END IF
 
 END SUBROUTINE ReadSpeciesLevel
 
