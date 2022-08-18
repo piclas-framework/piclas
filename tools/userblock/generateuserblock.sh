@@ -151,6 +151,10 @@ cd "$1" # go back to the runtime output directory
 # Compress the userblock
 tar cJf userblock.tar.xz userblock.txt
 
+# Find the native binary format
+elf_format=$(objdump -i | head -2 | tail -1)
+elf_arch=$(  objdump -i | head -4 | tail -1 | xargs)
+
 # Build the module
-objcopy -I binary -O elf64-x86-64 -B i386 --redefine-sym _binary_userblock_tar_xz_start=userblock_start --redefine-sym _binary_userblock_tar_xz_end=userblock_end --redefine-sym _binary_userblock_tar_xz_size=userblock_size userblock.tar.xz userblock.o
+objcopy -I binary -O $elf_format -B $elf_arch --add-section ".note.GNU-stack"=/dev/null --redefine-sym _binary_userblock_tar_xz_start=userblock_start --redefine-sym _binary_userblock_tar_xz_end=userblock_end --redefine-sym _binary_userblock_tar_xz_size=userblock_size userblock.tar.xz userblock.o
 rm userblock.tar.xz
