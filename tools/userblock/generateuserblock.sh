@@ -114,12 +114,12 @@ echo ${GITURL}                     >> userblock.txt
 if [ -d "$2/CMakeFiles" ]; then
   cd "$2/CMakeFiles"
   # copy compile flags of the piclas(lib) to userblock
-  echo "{[( libpiclasstatic.dir/flags.make )]}" >> $1/userblock.txt
-  cat libpiclasstatic.dir/flags.make            >> $1/userblock.txt
-  echo "{[( libpiclasshared.dir/flags.make )]}" >> $1/userblock.txt
-  cat libpiclasshared.dir/flags.make            >> $1/userblock.txt
-  echo "{[( piclas.dir/flags.make )]}"          >> $1/userblock.txt
-  cat piclas.dir/flags.make                     >> $1/userblock.txt
+  [ -f "libpiclasstatic.dir/flags.make" ] echo "{[( libpiclasstatic.dir/flags.make )]}" >> $1/userblock.txt
+  [ -f "libpiclasstatic.dir/flags.make" ] cat libpiclasstatic.dir/flags.make            >> $1/userblock.txt
+  [ -f "libpiclasshared.dir/flags.make" ] echo "{[( libpiclasshared.dir/flags.make )]}" >> $1/userblock.txt
+  [ -f "libpiclasshared.dir/flags.make" ] cat libpiclasshared.dir/flags.make            >> $1/userblock.txt
+  [ -f "piclas.dir/flags.make"          ] echo "{[( piclas.dir/flags.make )]}"          >> $1/userblock.txt
+  [ -f "piclas.dir/flags.make"          ] cat piclas.dir/flags.make                     >> $1/userblock.txt
 fi
 
 # change directory to actual cmake version
