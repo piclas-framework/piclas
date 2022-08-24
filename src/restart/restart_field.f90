@@ -45,7 +45,6 @@ USE MOD_PreProc
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_IO_HDF5
-USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 USE MOD_Restart_Vars           ,ONLY: N_Restart,RestartFile,InterpolateSolution,RestartNullifySolution
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
@@ -71,19 +70,23 @@ USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide
-USE MOD_HDG_Vars               ,ONLY: lambdaLB
+#if defined(PARTICLES)
+! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
+USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide,nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInSideSend,MPInSideRecv,MPIoffsetSideSend,MPIoffsetSideRecv
-USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
+USE MOD_HDG_Vars               ,ONLY: lambdaLB
+#endif /*defined(PARTICLES)*/
 #endif /*USE_LOADBALANCE*/
 !USE MOD_HDG                    ,ONLY: HDG
 #else /*USE_HDG*/
+! Non-HDG stuff
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 #endif /*USE_HDG*/
+USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -100,8 +103,11 @@ INTEGER                            :: p,q,r,rr,pq(1:2)
 INTEGER                            :: iLocSide,iLocSide_NB,iLocSide_master
 INTEGER                            :: iMortar,MortarSideID,nMortars
 #if USE_LOADBALANCE
+#if defined(PARTICLES)
+! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 REAL,ALLOCATABLE                   :: lambdaLBTmp(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
 INTEGER                            :: NonUniqueGlobalSideID
+#endif /*defined(PARTICLES)*/
 !INTEGER           :: checkRank
 #endif /*USE_LOADBALANCE*/
 #else /*USE_HDG*/
@@ -113,9 +119,12 @@ INTEGER                            :: iPML
 INTEGER(KIND=IK)                   :: PMLnVarTmp
 #endif /*USE_HDG*/
 #if USE_LOADBALANCE
+#if defined(PARTICLES) || !(USE_HDG)
+! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 ! Custom data type
 INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
+#endif /*defined(PARTICLES) || !(USE_HDG)*/
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
@@ -217,7 +226,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   lambda=0.
 #endif /*defined(PARTICLES)*/
 
-#else
+#else /*USE_HDG*/
   ! Only required for time discs where U is allocated
   IF(ALLOCATED(U))THEN
     ALLOCATE(UTmp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))

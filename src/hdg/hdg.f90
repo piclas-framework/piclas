@@ -463,7 +463,11 @@ END SUBROUTINE InitZeroPotential
 !===================================================================================================================================
 !> HDG solver for linear or non-linear systems
 !===================================================================================================================================
+#if defined(PARTICLES)
 SUBROUTINE HDG(t,U_out,iter,ForceCGSolverIteration_opt)
+#else
+SUBROUTINE HDG(t,U_out,iter)
+#endif /*defined(PARTICLES)*/
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -482,7 +486,9 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)     :: t !time
 INTEGER(KIND=8),INTENT(IN)  :: iter
+#if defined(PARTICLES)
 LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in first step (only required for BR electron fluid)
+#endif /*defined(PARTICLES)*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
@@ -814,6 +820,7 @@ END SUBROUTINE HDGLinear
 !===================================================================================================================================
 !> HDG non-linear solver via Newton's method
 !===================================================================================================================================
+#if defined(PARTICLES)
 SUBROUTINE HDGNewton(time,U_out,td_iter,ForceCGSolverIteration_opt)
 ! MODULES
 USE MOD_Globals
@@ -845,7 +852,9 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)     :: time !time
 INTEGER(KIND=8),INTENT(IN)  :: td_iter
+#if defined(PARTICLES)
 LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in first step (only BR electron fluid)
+#endif /*defined(PARTICLES)*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
@@ -1224,6 +1233,7 @@ REAL(KIND=8)      :: Rate
   MPIW8TimeField(3) = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 END SUBROUTINE CheckNonLinRes
+#endif /*defined(PARTICLES)*/
 
 
 !===================================================================================================================================

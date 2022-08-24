@@ -104,9 +104,9 @@ USE MOD_ReadInTools        ,ONLY: GETREALARRAY,GETREAL,GETINT,CountOption
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 USE MOD_Mesh_Vars          ,ONLY: BoundaryName,BoundaryType,nBCs
 USE MOD_Mesh_Vars          ,ONLY: nSides
-#if defined(PARTICLES) && USE_LOADBALANCE
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
-#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+#endif /*USE_LOADBALANCE*/
 #if defined(PARTICLES)
 USE MOD_IO_HDF5            ,ONLY: OpenDataFile,CloseDataFile,File_ID
 USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartFile
@@ -126,9 +126,12 @@ INTEGER            :: iState                     ! i-th RefState
 INTEGER            :: i,BCType,BCState
 CHARACTER(LEN=255) :: BCName
 INTEGER            :: nRefStateMax
-LOGICAL            :: LinPhiAlreadySet,PCouplAlreadySet,CoupledPowerPotentialExists
+LOGICAL            :: LinPhiAlreadySet,PCouplAlreadySet
+#if defined(PARTICLES)
 CHARACTER(255)     :: ContainerName
+LOGICAL            :: CoupledPowerPotentialExists
 REAL               :: TmpArray2(3),CoupledPowerPotentialHDF5(3)
+#endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    LBWRITE(*,*) "InitPoisson not ready to be called or already called."
@@ -662,8 +665,8 @@ INTEGER, INTENT(IN)             :: i, j, k,iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative variables
-LOGICAL,INTENT(OUT),OPTIONAL  :: warning_linear
-REAL,INTENT(OUT),OPTIONAL     :: warning_linear_phi
+LOGICAL,INTENT(OUT),OPTIONAL    :: warning_linear
+REAL,INTENT(OUT),OPTIONAL       :: warning_linear_phi
 REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
