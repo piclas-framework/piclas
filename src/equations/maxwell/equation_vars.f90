@@ -63,13 +63,22 @@ REAL              :: Beam_w0,Beam_w0_2inv,sBeam_w0_2        !> spot size and inv
 REAL              :: omega_0                                !> old variable name for Beam_w0 (remove in 2019)
 REAL              :: tActive                                !> active time for laser pulse
 REAL              :: TEScale                                !> scaling of input TE-wave strength
-INTEGER           :: TERotation                             !> left or right rotating TE wave
 REAL              :: TEFrequency                            !> frequency of TE wave
 REAL              :: TERadius=-1.                           !> Radius of Input TE wave, if wave is inserted over a plane
 INTEGER           :: TEMode(1:2)                            !> input of TE_n,m mode
 REAL              :: TEModeRoot                             !> root for the TEMode_n,m (root of derivative of Bessel function)
-LOGICAL           :: TEPulse                                !> Flag for pulsed or continuous wave
-LOGICAL           :: TEPolarization                         !> linear or circular polarized
+REAL              :: TEDelay                                !> Delay time for the TE wave (for CW and Pulse)
+LOGICAL           :: TEPulse                                !> Flag for pulsed (Gaussian pulse) or continuous wave (CW)
+REAL              :: TEPulseSigma                           !> standard deviation of the Gaussian pulse
+REAL              :: TEPulseSeriesFrequence                 !> if TEPulseSeriesFrequence>0 and TEPulse=T -> a series of gaussian pulses with frequence TEPulseSeriesFrequence
+INTEGER           :: TEPulseNumber                          !> number of generated pulses in a pulse-series
+REAL              :: TEDirection                            !> +1 for propagation in +z direction, -1 for propagation in -z direction
+CHARACTER(40)     :: TEPulseShape                           !> shape of the pulse: 'gaussian', 'rectangular', 'rectangularGaussianEdges'
+!LOGICAL           :: TEPolarization                         !> linear or circular polarized (T=linear, F=circular)
+CHARACTER(1)      :: TEPolarization                         !> polarization of the TE-mode: 'x' = linear in x-direction,
+                                                            !                               'y' = linear in y direction
+                                                            !                               'l' = left-handed circular
+                                                            !                               'r' = right-handed circular
 LOGICAL           :: DoExactFlux                            !> Flag to switch emission to flux superposition at certain positions
 REAL              :: ExactFluxPosition                      !> x,y, or z-position of interface
 LOGICAL,ALLOCATABLE::isExactFluxInterFace(:)                !> Flag for each side on which an exact flux is added
