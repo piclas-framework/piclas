@@ -567,12 +567,13 @@ CASE(2) ! Coaxial Waveguide
   !zlen=2.5
   r=17.5e-3
   r2=(x(1)*x(1)+x(2)*x(2))/r
-  omega=2.*Pi*Frequency/50e-3!/zlen ! shift beruecksichtigen
+  omega=2.*Pi*Frequency!/zlen ! shift beruecksichtigen
   resu   =0.
-  resu(1)=( x(1))*sin(omega*(x(3)-c*t))/r2
-  resu(2)=( x(2))*sin(omega*(x(3)-c*t))/r2
-  resu(4)=(-x(2))*sin(omega*(x(3)-c*t))/(r2*c)
-  resu(5)=( x(1))*sin(omega*(x(3)-c*t))/(r2*c)
+  kz=(c_inv)**2
+  resu(1)=( x(1))*sin(omega*(kz*x(3)-c*t))/r2
+  resu(2)=( x(2))*sin(omega*(kz*x(3)-c*t))/r2
+  resu(4)=(-x(2))*sin(omega*(kz*x(3)-c*t))/(r2*c)
+  resu(5)=( x(1))*sin(omega*(kz*x(3)-c*t))/(r2*c)
 
   Resu_t=0.
   resu_t(1)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/r2
