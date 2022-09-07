@@ -358,6 +358,20 @@ ELSE()
 ENDIF()
 
 # =========================================================================
+# Unit test at end of compilation
+# =========================================================================
+IF (CMAKE_BUILD_TYPE MATCHES "Sanitize")
+  MESSAGE(STATUS "Unit tests automatically disabled with CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}")
+  OPTION(PICLAS_UNITTESTS "Enable unit tests after build" OFF)
+ELSE()
+  OPTION(PICLAS_UNITTESTS "Enable unit tests after build" ON)
+ENDIF()
+MARK_AS_ADVANCED(FORCE PICLAS_UNITTESTS)
+IF(PICLAS_UNITTESTS)
+  INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/unitTests/CMakeLists.txt)
+ENDIF()
+
+# =========================================================================
 # PICLas sources & targets
 # =========================================================================
 FUNCTION(add_exec target)
