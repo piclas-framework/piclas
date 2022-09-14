@@ -581,7 +581,17 @@ IF(PartBound%RotVelo(locBCID)) THEN
   CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
 END IF
 
-OldVelo = PartState(4:6,PartID)
+IF(UseRotRefFrame) THEN ! In case of RotRefFrame OldVelo must be reconstructed 
+  IF (VarTimeStep%UseVariableTimeStep) THEN
+    adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
+  ELSE
+    adaptTimeStep = 1.
+  END IF
+  OldVelo = (PartState(1:3,PartID) - LastPartPos(1:3,PartID))/(dt*RKdtFrac*adaptTimeStep)
+ELSE
+  OldVelo = PartState(4:6,PartID)
+END IF
+
 ! 2.) Get the tangential vectors
 IF(Symmetry%Axisymmetric) THEN
   ! Storing the old and the new particle position (which is outside the domain), at this point the position is only in the xy-plane
@@ -634,9 +644,6 @@ IF(Symmetry%Axisymmetric) THEN
 ELSE
   NewVelo(1:3) = VeloC(1)*tang1(1:3)-tang2(1:3)*VeloC(2)-VeloC(3)*n_loc(1:3)
 END IF
-
-
-
 !IF(UseRotRefFrame) THEN
 !  IF(InRotRefFramePOI) THEN
 !    IF(PartBound%RotVelo(locBCID)) THEN
