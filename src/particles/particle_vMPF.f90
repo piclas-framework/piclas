@@ -158,11 +158,13 @@ REAL                  :: E_rot, E_rot_new
 REAL                  :: Energy_Sum, E_elec_upper, E_elec_lower, betaV
 REAL, ALLOCATABLE     :: DOF_vib_poly(:), EnergyTemp_vibPoly(:,:)
 #ifdef CODE_ANALYZE
-REAL,PARAMETER        :: RelMomTol=5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
-REAL,PARAMETER        :: RelEneTol=1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
-REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3)
+REAL,PARAMETER        :: RelMomTol    = 5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
+REAL,PARAMETER        :: RelEneTol    = 1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
+REAL,PARAMETER        :: RelWeightTol = 1e-13 ! Relative tolerance applied to conservation of mass before/after reaction
+REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3),totalWeightNew
 INTEGER               :: iMomDim, iMom
 #endif /* CODE_ANALYZE */
+REAL                  :: lostWeight
 !===================================================================================================================================
 vBulk = 0.0; vBulk_new = 0.0;  totalWeight = 0.0; totalWeight2 = 0.0
 E_trans = 0.0; E_trans_new = 0.0
@@ -176,6 +178,7 @@ iSpec = PartSpecies(iPartIndx_Node(1))  ! in iPartIndx_Node all particles are fr
 ! quantized energy levels
 Energy_old = CellEvib_vMPF(iSpec, iElem) + CellEelec_vMPF(iSpec, iElem)
 Momentum_old = 0.0; Momentum_new = 0.0
+totalWeightNew = 0.
 #endif /* CODE_ANALYZE */
 
 ! 1.) calc bulk velocity (for momentum conservation)
@@ -268,12 +271,15 @@ IF(CollisMode.GT.1) THEN
 END IF
 
 ! 3.) delete particles randomly (until nPartNew is reached)
+lostWeight = 0.
 iPartIndx_NodeTMP = iPartIndx_Node
 nTemp = nPart
 nDelete = nPart - nPartNew
 DO iLoop = 1, nDelete
   CALL RANDOM_NUMBER(iRan)
   iPart = INT(iRan*nTemp) + 1
+  partWeight = GetParticleWeight(iPartIndx_Node(iPart))
+  lostWeight = lostWeight + partWeight
   PDM%ParticleInside(iPartIndx_Node(iPart)) = .FALSE.
   iPartIndx_Node(iPart) = iPartIndx_Node(nTemp)
   nTemp = nTemp - 1
@@ -282,7 +288,7 @@ END DO
 ! 4.) calc bulk velocity after deleting and set new MPF
 DO iLoop = 1, nPartNew
   iPart = iPartIndx_Node(iLoop)
-  PartMPF(iPart) = totalWeight / REAL(nPartNew) ! Set new particle weight
+  PartMPF(iPart) = PartMPF(iPart) + lostWeight / REAL(nPartNew) ! Set new particle weight by distributing the lost weights of the deleted particles
   partWeight = GetParticleWeight(iPart)
   vBulk_new(1:3) = vBulk_new(1:3) + PartState(4:6,iPart) * partWeight
 END DO
@@ -468,10 +474,29 @@ DO iLoop = 1, nPartNew
   END IF
   ! Momentum conservation
   Momentum_new(1:3) = Momentum_new(1:3) + Species(iSpec)%MassIC * PartState(4:6,iPart) * partWeight
+  totalWeightNew = totalWeightNew + partWeight
 #endif /* CODE_ANALYZE */
 END DO
 
 #ifdef CODE_ANALYZE
+  ! Check weights
+  IF (.NOT.ALMOSTEQUALRELATIVE(totalWeight,totalWeightNew,RelWeightTol)) THEN
+    WRITE(UNIT_StdOut,*) '\n'
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " totalWeight            : ",totalWeight
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " totalWeightNew         : ",totalWeightNew
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. weight difference : ",totalWeightNew-totalWeight
+    ASSOCIATE( weight => MAX(ABS(totalWeight),ABS(totalWeightNew)) )
+      IF(weight.GT.0.0)THEN
+        IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. weight difference : ",(totalWeightNew-totalWeight)/weight
+      END IF
+    END ASSOCIATE
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",RelWeightTol
+    IPWRITE(UNIT_StdOut,*)                     " Old/new particle number: ",nPart, nPartNew
+    IPWRITE(UNIT_StdOut,*)                     " Species                : ",iSpec
+    IPWRITE(UNIT_StdOut,*)                     " iElem                  : ",iElem
+    CALL abort(__STAMP__,'CODE_ANALYZE: part merge is not mass conserving!')
+  END IF
+
   ! Check for energy difference
   IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,RelEneTol)) THEN
     WRITE(UNIT_StdOut,*) '\n'
