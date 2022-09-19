@@ -144,14 +144,18 @@ IF(NOT LIBS_BUILD_HDF5)
   # Build HDF5 in PICLas
 ELSE()
   # Origin pointing to Github
-  IF("${GIT_ORIGIN}" MATCHES "")
+  IF("${GIT_ORIGIN}" STREQUAL "")
+    # Use https://github.com/HDFGroup/hdf5.git when using piclas without git
     SET (HDF5DOWNLOAD "https://github.com/HDFGroup/hdf5.git")
   ELSEIF("${GIT_ORIGIN}" MATCHES ".github.com")
+    # Use https://github.com/HDFGroup/hdf5.git when using piclas from github.com
     SET (HDF5DOWNLOAD "https://github.com/HDFGroup/hdf5.git")
   ELSE()
     IF("${GIT_ORIGIN}" MATCHES "https://gitlab-ci-token")
+      # Use https://gitlab.com/piclas/hdf5.git when gitlab runner needs to download libs
       STRING(REGEX REPLACE "/piclas.git" "/hdf5.git" HDF5DOWNLOAD ${GIT_ORIGIN})
     ELSE()
+      # Use https://gitlab.com/piclas/hdf5.git when using piclas from gitlab.com
       SET (HDF5DOWNLOAD ${LIBS_DLPATH}hdf5.git )
     ENDIF()
   ENDIF()
@@ -312,14 +316,18 @@ ELSE()
   # Build LAPACK
   IF (LIBS_BUILD_MATH_LIB_VENDOR MATCHES "LAPACK")
     # Origin pointing to Github
-    IF("${GIT_ORIGIN}" MATCHES "")
+    IF("${GIT_ORIGIN}" STREQUAL "")
+      # Use https://github.com/Reference-LAPACK/lapack.git when using piclas without git
       SET (MATHLIB_DOWNLOAD "https://github.com/Reference-LAPACK/lapack.git")
     ELSEIF("${GIT_ORIGIN}" MATCHES ".github.com")
+      # Use https://github.com/Reference-LAPACK/lapack.git when using piclas from github.com
       SET (MATHLIB_DOWNLOAD "https://github.com/Reference-LAPACK/lapack.git")
     ELSE()
       IF("${GIT_ORIGIN}" MATCHES "https://gitlab-ci-token")
+        # Use https://gitlab.com/piclas/lapack.git when gitlab runner needs to download libs
         STRING(REGEX REPLACE "/piclas.git" "/lapack.git" MATHLIB_DOWNLOAD ${GIT_ORIGIN})
       ELSE()
+        # Use https://gitlab.com/piclas/lapack.git when using piclas from gitlab.com
         SET (MATHLIB_DOWNLOAD ${LIBS_DLPATH}lapack.git )
       ENDIF()
     ENDIF()
@@ -330,14 +338,18 @@ ELSE()
     MARK_AS_ADVANCED(FORCE MATH_LIB_TAG)
   # Build OpenBLAS
   ELSEIF (LIBS_BUILD_MATH_LIB_VENDOR MATCHES "OpenBLAS")
-    IF("${GIT_ORIGIN}" MATCHES "")
+    IF("${GIT_ORIGIN}" STREQUAL "")
+      # Use https://github.com/xianyi/OpenBLAS when using piclas without git
       SET (MATHLIB_DOWNLOAD "https://github.com/xianyi/OpenBLAS.git")
     ELSEIF("${GIT_ORIGIN}" MATCHES ".github.com")
+      # Use https://github.com/xianyi/OpenBLAS when using piclas from github.com
       SET (MATHLIB_DOWNLOAD "https://github.com/xianyi/OpenBLAS.git")
     ELSE()
       IF("${GIT_ORIGIN}" MATCHES "https://gitlab-ci-token")
+        # Use https://gitlab.com/piclas/OpenBLAS.git when gitlab runner needs to download libs
         STRING(REGEX REPLACE "/piclas.git" "/OpenBLAS.git" MATHLIB_DOWNLOAD ${GIT_ORIGIN})
       ELSE()
+        # Use https://gitlab.com/piclas/OpenBLAS.git when using piclas from gitlab.com
         SET (MATHLIB_DOWNLOAD ${LIBS_DLPATH}OpenBLAS.git )
       ENDIF()
     ENDIF()
