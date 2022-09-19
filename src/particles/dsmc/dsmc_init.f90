@@ -180,8 +180,6 @@ CALL prms%CreateRealOption(     'Part-Collision[$]-alphaVSS'  &
 
 CALL prms%SetSection("DSMC Species")
 
-CALL prms%CreateStringOption(  'Part-Species[$]-SpeciesName'  &
-                                         ,'Species name of Species[$]', 'none', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(     'Part-Species[$]-InteractionID' , 'ID for identification of particles \n'//&
                                                                  '  1: Atom\n'//&
                                                                  '  2: Molecule\n'//&
@@ -414,10 +412,8 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
   ! Flags for collision parameters
   CollInf%averagedCollisionParameters     = GETLOGICAL('Particles-DSMC-averagedCollisionParameters')
   CollInf%crossSectionConstantMode        = GETINT('Particles-DSMC-crossSectionConstantMode','0')
-  ALLOCATE(SpecDSMC(nSpecies))
   DO iSpec = 1, nSpecies
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
-    SpecDSMC(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
     SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
     ! averagedCollisionParameters set true: species-specific collision parameters get read in
     IF(CollInf%averagedCollisionParameters) THEN

@@ -80,6 +80,8 @@ CALL prms%SetSection("Particle")
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  , 'Manual timestep [sec]. This variable is deprecated. '//&
                                                               'Use ManualTimestep instead.', '-1.0')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
+CALL prms%CreateStringOption(   'Part-Species[$]-SpeciesName' ,'Species name of Species[$]', 'none', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Particles-Species-Database', 'File name for the species database', 'none')
 ! Ionization
 CALL prms%CreateLogicalOption(  'Part-DoInitialIonization'    , 'When restarting from a state, ionize the species to a '//&
                                                                 'specific degree', '.FALSE.')
@@ -443,6 +445,7 @@ nSpecies = GETINT('Part-nSpecies','1')
 IF(nSpecies.LE.0) CALL abort(__STAMP__,'ERROR: nSpecies .LE. 0:', nSpecies)
 ALLOCATE(Species(1:nSpecies))
 
+CALL InitializeSpeciesParameter()
 CALL InitializeVariablesSpeciesInits()
 ! Which Lorentz boost method should be used?
 CALL InitPartRHS()
@@ -1488,6 +1491,85 @@ END IF
 CALL RANDOM_SEED(PUT=Seeds)
 
 END SUBROUTINE InitRandomSeed
+
+
+SUBROUTINE InitializeSpeciesParameter()
+!===================================================================================================================================
+! Initialize the species parameter
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars
+USE MOD_ReadInTools
+USE MOD_Particle_Vars
+USE MOD_io_hdf5
+USE MOD_HDF5_input,         ONLY:ReadAttribute
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC
+#if USE_MPI
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iSpec,err
+CHARACTER(32)         :: hilf, hilf2
+CHARACTER(LEN=64)     :: dsetname
+INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
+INTEGER(HID_T)        :: dset_id_specdb                       ! Dataset identifier
+!===================================================================================================================================
+
+! Read-in of the species database
+SpeciesDatabase = GETSTR('Particles-Species-Database')
+
+ALLOCATE(SpecDSMC(nSpecies))
+
+DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
+  SpecDSMC(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
+END DO ! iSpec
+
+IF(SpeciesDatabase.EQ.'none') THEN
+  DO iSpec = 1, nSpecies
+    LBWRITE (UNIT_stdOut,'(66(". "))')
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
+    Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
+  END DO ! iSpec
+ELSE
+  ! Initialize FORTRAN interface.
+  CALL H5OPEN_F(err)
+
+  ! Check if file exists
+  IF(.NOT.FILEEXISTS(SpeciesDatabase)) THEN
+    CALL abort(__STAMP__,'ERROR: Database ['//TRIM(SpeciesDatabase)//'] does not exist.')
+  END IF
+
+  CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+
+  DO iSpec = 1, nSpecies
+    LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
+    dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+    CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
+    LBWRITE (UNIT_stdOut,*) 'ChargeIC: ', Species(iSpec)%ChargeIC
+    CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
+    LBWRITE (UNIT_stdOut,*) 'MassIC: ', Species(iSpec)%MassIC
+  END DO
+  ! Close the file.
+  CALL H5FCLOSE_F(file_id_specdb, err)
+  ! Close FORTRAN interface.
+  CALL H5CLOSE_F(err)
+END IF
+
+IF(nSpecies.GT.0)THEN
+  LBWRITE (UNIT_stdOut,'(66(". "))')
+END IF ! nSpecies.GT.0
+
+END SUBROUTINE InitializeSpeciesParameter
 
 
 END MODULE MOD_ParticleInit

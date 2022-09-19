@@ -582,7 +582,7 @@ END SUBROUTINE ReadArray
 !==================================================================================================================================
 !> Subroutine to read attributes from HDF5 file.
 !==================================================================================================================================
-SUBROUTINE ReadAttribute(Loc_ID_in,AttribName,nVal,DatasetName,RealScalar,IntScalar,&
+SUBROUTINE ReadAttribute(File_ID_in,AttribName,nVal,DatasetName,RealScalar,IntScalar,&
                                  StrScalar,LogicalScalar,RealArray,IntArray,StrArray)
 ! MODULES
 USE MOD_Globals
@@ -590,7 +590,7 @@ USE,INTRINSIC :: ISO_C_BINDING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(HID_T)    ,INTENT(IN)                  :: Loc_ID_in         !< HDF5 file id of opened file
+INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in         !< HDF5 file id of opened file
 INTEGER           ,INTENT(IN)                  :: nVal              !< number of attributes in case an array is expected
 CHARACTER(LEN=*)  ,INTENT(IN)                  :: AttribName        !< name of attribute to be read
 CHARACTER(LEN=*)  ,INTENT(IN) ,OPTIONAL        :: DatasetName       !< dataset name in case attribute is located in a dataset
@@ -612,10 +612,11 @@ TYPE(C_PTR)                    :: buf
 
 LOGWRITE(*,*)' READ ATTRIBUTE "',TRIM(AttribName),'" FROM HDF5 FILE...'
 Dimsf(1)=nVal
-Loc_ID=Loc_ID_in
 IF(PRESENT(DatasetName))THEN
   ! Open dataset
-  IF(TRIM(DataSetName).NE.'') CALL H5DOPEN_F(File_ID, TRIM(DatasetName),Loc_ID, iError)
+  IF(TRIM(DataSetName).NE.'') CALL H5DOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
+ELSE
+  Loc_ID = File_ID_in
 END IF
 
 ! Create the attribute for group Loc_ID.
@@ -660,10 +661,8 @@ IF(PRESENT(StrScalar).OR.PRESENT(StrArray)) CALL H5TCLOSE_F(Type_ID, iError)
 
 ! Close the attribute.
 CALL H5ACLOSE_F(Attr_ID, iError)
-IF(Loc_ID.NE.Loc_ID_in)THEN
-  ! Close the dataset and property list.
-  CALL H5DCLOSE_F(Loc_ID, iError)
-END IF
+! Close the dataset and property list.
+CALL H5DCLOSE_F(Loc_ID, iError)
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE ReadAttribute
 

@@ -141,6 +141,7 @@ TYPE tSpecies                                                                ! P
 END TYPE
 
 INTEGER                                  :: nSpecies                         ! number of species
+CHARACTER(LEN=256)                       :: SpeciesDatabase                  ! Name of the species database
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
 LOGICAL                                  :: PartMeshHasPeriodicBCs
