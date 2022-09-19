@@ -240,11 +240,13 @@ IF(nTmp.GT.0) DoExactFlux = GETLOGICAL('DoExactFlux','.FALSE.')
 IF(DoExactFlux) CALL InitExactFlux()
 DO iRefState=1,nTmp
   SELECT CASE(RefStates(iRefState))
+  CASE(2,22)
+    TEFrequency        = GETREAL('TEFrequency','35e9')
   CASE(4,40,41)
     xDipole(1:3)       = GETREALARRAY('xDipole',3,'0.,0.,0.') ! dipole base point
     DipoleOmega        = GETREAL('omega','6.28318E08')        ! f=100 MHz default
     tPulse             = GETREAL('tPulse','30e-9')            ! half length of pulse
-  CASE(5)
+  CASE(5,6)
     TEFrequency        = GETREAL('TEFrequency','35e9')
     TEScale            = GETREAL('TEScale','1.')
     TEPolarization     = TRIM(GETSTR('TEPolarization','x'))
@@ -562,19 +564,20 @@ CASE(1) ! Constant
   Resu_t=0.
   Resu_tt=0.
 CASE(2) ! Coaxial Waveguide
-  Frequency=2.45e9
-  Amplitude=1.
-  !zlen=2.5
-  r=17.5e-3
-  r2=(x(1)*x(1)+x(2)*x(2))/r
-  omega=2.*Pi*Frequency!/zlen ! shift beruecksichtigen
-  resu   =0.
-  kz=(c_inv)**2
+  resu      = 0.
+  Frequency = TEFrequency
+  Amplitude = 1.
+  !zlen     = 2.5
+  r         = 17.5e-3
+  r2        = (x(1)*x(1)+x(2)*x(2))/r
+  omega     = 2.*Pi*Frequency!/zlen ! shift beruecksichtigen
+  kz        = (c_inv)**2
   resu(1)=( x(1))*sin(omega*(kz*x(3)-c*t))/r2
   resu(2)=( x(2))*sin(omega*(kz*x(3)-c*t))/r2
   resu(4)=(-x(2))*sin(omega*(kz*x(3)-c*t))/(r2*c)
   resu(5)=( x(1))*sin(omega*(kz*x(3)-c*t))/(r2*c)
 
+#if PP_TimeDiscMethod==1
   Resu_t=0.
   resu_t(1)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/r2
   resu_t(2)=-omega*c*( x(2))*cos(omega*(x(3)-c*t))/r2
@@ -585,9 +588,37 @@ CASE(2) ! Coaxial Waveguide
   resu_tt(2)=-(omega*c)**2*( x(2))*sin(omega*(x(3)-c*t))/r2
   resu_tt(4)=-(omega*c)**2*(-x(2))*sin(omega*(x(3)-c*t))/(r2*c)
   resu_tt(5)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/(r2*c)
+#endif /*PP_TimeDiscMethod==1*/
+
+CASE(22) ! Coaxial Waveguide
+  resu      = 0.
+  Frequency = TEFrequency
+  Amplitude = 1.
+  !zlen     = 2.5
+  r         = 17.5e-3
+  r2        = (x(1)*x(1)+x(2)*x(2))/r
+  omega     = 2.*Pi*Frequency!/zlen ! shift beruecksichtigen
+  kz        = (c_inv)**2
+  resu(1)=( x(1))*sin(omega*t)/r2
+  resu(2)=( x(2))*sin(omega*t)/r2
+  resu(4)=(-x(2))*sin(omega*t)/(r2*c)
+  resu(5)=( x(1))*sin(omega*t)/(r2*c)
+
+#if PP_TimeDiscMethod==1
+  Resu_t=0.
+  resu_t(1)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/r2
+  resu_t(2)=-omega*c*( x(2))*cos(omega*(x(3)-c*t))/r2
+  resu_t(4)=-omega*c*(-x(2))*cos(omega*(x(3)-c*t))/(r2*c)
+  resu_t(5)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/(r2*c)
+  Resu_tt=0.
+  resu_tt(1)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/r2
+  resu_tt(2)=-(omega*c)**2*( x(2))*sin(omega*(x(3)-c*t))/r2
+  resu_tt(4)=-(omega*c)**2*(-x(2))*sin(omega*(x(3)-c*t))/(r2*c)
+  resu_tt(5)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/(r2*c)
+#endif /*PP_TimeDiscMethod==1*/
 CASE(3) ! Resonator
   !special initial values
-  !geometric perameters
+  !geometric parameters
   a=1.5; b=1.0; d=3.0
   !time parameters
   l=5.; m=4.; nn=3.; B0=1.
@@ -681,9 +712,7 @@ CASE(5) ! Initialization of TE waves in a circular waveguide: Original formulati
     SWRITE(UNIT_stdOut,'(A,ES25.14E3)')'(omegaG*c_inv)**2 = ',(omegaG*c_inv)**2
     SWRITE(UNIT_stdOut,'(A,ES25.14E3)')'SqrtN**2          = ',SqrtN**2
     SWRITE(UNIT_stdOut,'(A)')'  Maybe frequency too small?'
-    CALL abort(&
-        __STAMP__&
-        ,'kz=SQRT((omegaG*c_inv)**2-SqrtN**2), but the argument in negative!')
+    CALL abort(__STAMP__,'kz=SQRT((omegaG*c_inv)**2-SqrtN**2), but the argument in negative!')
   END IF
   kz=SQRT(kz)
   ! precompute coefficients
@@ -1093,7 +1122,7 @@ SELECT CASE (IniExactFunc)
 CASE(0) ! Particles
   ! empty, nothing to do
 CASE(1) ! Constant          - no sources
-CASE(2) ! Coaxial Waveguide - no sources
+CASE(2,22) ! Coaxial Waveguide - no sources
 CASE(3) ! Resonator         - no sources
 CASE(4) ! Dipole
   DO iElem=1,PP_nElems
