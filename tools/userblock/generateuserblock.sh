@@ -114,12 +114,12 @@ echo ${GITURL}                     >> userblock.txt
 if [ -d "$2/CMakeFiles" ]; then
   cd "$2/CMakeFiles"
   # copy compile flags of the piclas(lib) to userblock
-  echo "{[( libpiclasstatic.dir/flags.make )]}" >> $1/userblock.txt
-  cat libpiclasstatic.dir/flags.make            >> $1/userblock.txt
-  echo "{[( libpiclasshared.dir/flags.make )]}" >> $1/userblock.txt
-  cat libpiclasshared.dir/flags.make            >> $1/userblock.txt
-  echo "{[( piclas.dir/flags.make )]}"          >> $1/userblock.txt
-  cat piclas.dir/flags.make                     >> $1/userblock.txt
+  [ -f "libpiclasstatic.dir/flags.make" ] echo "{[( libpiclasstatic.dir/flags.make )]}" >> $1/userblock.txt
+  [ -f "libpiclasstatic.dir/flags.make" ] cat libpiclasstatic.dir/flags.make            >> $1/userblock.txt
+  [ -f "libpiclasshared.dir/flags.make" ] echo "{[( libpiclasshared.dir/flags.make )]}" >> $1/userblock.txt
+  [ -f "libpiclasshared.dir/flags.make" ] cat libpiclasshared.dir/flags.make            >> $1/userblock.txt
+  [ -f "piclas.dir/flags.make"          ] echo "{[( piclas.dir/flags.make )]}"          >> $1/userblock.txt
+  [ -f "piclas.dir/flags.make"          ] cat piclas.dir/flags.make                     >> $1/userblock.txt
 fi
 
 # change directory to actual cmake version
@@ -151,6 +151,10 @@ cd "$1" # go back to the runtime output directory
 # Compress the userblock
 tar cJf userblock.tar.xz userblock.txt
 
+# Find the native binary format
+elf_format=$(objdump -i | head -2 | tail -1)
+elf_arch=$(  objdump -i | head -4 | tail -1 | xargs)
+
 # Build the module
-objcopy -I binary -O elf64-x86-64 -B i386 --redefine-sym _binary_userblock_tar_xz_start=userblock_start --redefine-sym _binary_userblock_tar_xz_end=userblock_end --redefine-sym _binary_userblock_tar_xz_size=userblock_size userblock.tar.xz userblock.o
+objcopy -I binary -O $elf_format -B $elf_arch --add-section ".note.GNU-stack"=/dev/null --redefine-sym _binary_userblock_tar_xz_start=userblock_start --redefine-sym _binary_userblock_tar_xz_end=userblock_end --redefine-sym _binary_userblock_tar_xz_size=userblock_size userblock.tar.xz userblock.o
 rm userblock.tar.xz
