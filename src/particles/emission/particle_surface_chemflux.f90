@@ -610,7 +610,7 @@ SUBROUTINE SetInnerEnergies(iSpec, BoundID, NbrOfParticle,iReac)
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
 USE MOD_Particle_Vars           ,ONLY: PDM
-USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
+USE MOD_DSMC_PolyAtomicModel ,ONLY: DSMC_SetInternalEnr
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -63,7 +63,7 @@ USE MOD_SurfaceModel_Tools        ,ONLY: SurfaceModel_ParticleEmission, GetWallT
 USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
 USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
-USE MOD_DSMC_PolyAtomicModel      ,ONLY: DSMC_SetInternalEnr
+USE MOD_DSMC_PolyAtomicModel ,ONLY: DSMC_SetInternalEnr
 USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
 USE MOD_part_operations           ,ONLY: RemoveParticle, CreateParticle
 USE MOD_part_tools                ,ONLY: CalcRadWeightMPF, VeloFromDistribution, GetParticleWeight

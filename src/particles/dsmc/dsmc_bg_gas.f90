@@ -264,7 +264,7 @@ USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState,PartSpecies,PartPosRe
 USE MOD_DSMC_Vars               ,ONLY: CollisMode, BGGas
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
+USE MOD_DSMC_PolyAtomicModel ,ONLY: DSMC_SetInternalEnr
 USE MOD_Macro_Restart           ,ONLY: CalcVelocity_maxwell_particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE

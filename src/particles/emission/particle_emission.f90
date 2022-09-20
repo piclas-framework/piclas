@@ -44,7 +44,7 @@ USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, SpecDSMC
-USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr
+USE MOD_DSMC_PolyAtomicModel ,ONLY: DSMC_SetInternalEnr
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri,SetParticleTimeStep,CalcNbrOfPhotons
