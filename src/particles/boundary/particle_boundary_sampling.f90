@@ -680,18 +680,19 @@ SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: ProjectName
-USE MOD_DSMC_Vars               ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode
+USE MOD_DSMC_Vars               ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal, CollisMode, DSMC
 USE MOD_HDF5_Output             ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
 USE MOD_IO_HDF5
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides
-USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
+USE MOD_SurfaceModel_Vars       ,ONLY: SurfChemReac, ChemWallProp_Shared_Win, ChemWallProp
+USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides, nComputeNodeSurfSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName, PartBound
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 #if USE_MPI
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfTotalSides, SurfSideArea_Shared, SurfSideArea
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -709,8 +710,9 @@ CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255)                  :: NodeTypeTemp
 CHARACTER(LEN=255)                  :: SpecID, PBCID
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, iPBC
-REAL                                :: tstart,tend
+INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, iPBC, iSurfSide
+INTEGER                             :: p, q, OutputCounter
+REAL                                :: tstart, tend, tout
 !===================================================================================================================================
 
 #if USE_MPI
@@ -796,6 +798,20 @@ IF (mySurfRank.EQ.0) THEN
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_HeatFlux')
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_SimPartPerIter')
 
+  ! Add the heat flux due to catalytic reactions on the surface
+  IF(SurfChemReac%NumOfReact.GT.0) THEN
+    OutputCounter = 0
+    DO iSurfSide = 1,nComputeNodeSurfSides
+      OutputCounter = OutputCounter + 1
+      DO q = 1,nSurfSample
+        DO p = 1,nSurfSample
+          tout = OutputTime
+          MacroSurfaceVal(4,p,q,OutputCounter) = MacroSurfaceVal(4,p,q,OutputCounter) + SUM(ChemWallProp(:,2,p, q, iSurfSide))/ (SurfSideArea(p,q,iSurfSide)*tout)
+        END DO ! q=1,nSurfSample
+      END DO ! p=1,nSurfSample
+    END DO ! iSurfSide=1,nComputeNodeSurfSides
+  END IF
+
   IF(nPorousBC.GT.0) THEN
     DO iPBC = 1, nPorousBC
       WRITE(PBCID,'(I2.2)') iPBC
@@ -869,7 +885,7 @@ USE MOD_DSMC_Vars               ,ONLY: CollisMode, DSMC
 USE MOD_HDF5_Output             ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
 USE MOD_IO_HDF5
 USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
-USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win, ChemWallProp
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win, ChemWallProp, SurfChemReac, ChemCountReacWall
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides, nComputeNodeSurfSides
 USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
@@ -893,14 +909,17 @@ REAL,INTENT(IN)                      :: OutputTime
 CHARACTER(LEN=255)                  :: FileName,FileString,Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255)                  :: NodeTypeTemp
-CHARACTER(LEN=255)                  :: SpecID, PBCID
+CHARACTER(LEN=255)                  :: SpecID, PBCID, ReacID
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, iPBC, iSurfSide, nVar2D_Heat
+INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, nVar2D_Heat, nVar2D_Count
+INTEGER                             :: iSpec, iPBC, iSurfSide, nReac, iReac
 INTEGER                             :: p,q,OutputCounter
 REAL                                :: tstart,tend, tout
 REAL, ALLOCATABLE                   :: MacroSurfaceSpecChemVal(:,:,:,:,:)
 REAL, ALLOCATABLE                   :: MacroSurfaceHeatVal(:,:,:,:)
+REAL, ALLOCATABLE                   :: MacroSurfaceReacCount(:,:,:,:,:)
 !===================================================================================================================================
+nReac = SurfChemReac%NumOfReact
 
 #if USE_MPI
 ! Return if not a sampling leader
@@ -923,9 +942,9 @@ FileString = TRIM(FileName)//'.h5'
 nVar2D      = 0
 nVar2D_Spec = 1
 nVar2D_Heat = 1
+nVar2D_Count = 1
 
-
-nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies + nVar2D_Heat
+nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies + nVar2D_Heat + nVar2D_Count*nReac
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 #if USE_MPI
@@ -959,6 +978,11 @@ IF (mySurfRank.EQ.0) THEN
 
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Heat_Flux')
 
+  DO iReac = 1, nReac
+    WRITE(ReacID,'(I3.3)') iReac
+    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Reaction'//TRIM(ReacID)//'_Count')
+  END DO ! iReac
+
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
   CALL CloseDataFile()
   DEALLOCATE(Str2DVarNames)
@@ -977,6 +1001,9 @@ MacroSurfaceSpecChemVal = 0.
 
 ALLOCATE(MacroSurfaceHeatVal(1:nVar2D_Heat , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfOutputSides))
 MacroSurfaceHeatVal = 0.
+
+ALLOCATE(MacroSurfaceReacCount(1:nVar2D_Count , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfOutputSides , nReac))
+MacroSurfaceReacCount = 0.
 
 OutputCounter = 0
 DO iSurfSide = 1,nComputeNodeSurfSides
@@ -1002,6 +1029,10 @@ DO iSurfSide = 1,nComputeNodeSurfSides
         ! Species-specific counter of simulation particle impacts per iteration
         MacroSurfaceSpecChemVal(1,p,q,OutputCounter,iSpec) = ChemWallProp(iSpec,1,p, q, iSurfSide)
       END DO ! iSpec=1,nSpecies
+      DO iReac=1,nReac
+        ! Species-specific counter of simulation particle impacts per iteration
+        MacroSurfaceReacCount(1,p,q,OutputCounter,iReac) = ChemCountReacWall(iReac,1,p, q, iSurfSide)
+      END DO ! iReac
     END DO ! q=1,nSurfSample
   END DO ! p=1,nSurfSample
 END DO ! iSurfSide=1,nComputeNodeSurfSides
@@ -1016,6 +1047,7 @@ ASSOCIATE (&
       offsetSurfSide       => INT(offsetComputeNodeSurfOutputSide,IK) , &
       nVar2D_Spec          => INT(nVar2D_Spec,IK)                     , &
       nVar2D_Heat          => INT(nVar2D_Heat,IK)                     , &
+      nVar2D_Count         => INT(nVar2D_Count,IK)                    , &
       nVar2D               => INT(nVar2D,IK))
 
   DO iSpec = 1,nSpecies
@@ -1027,7 +1059,7 @@ ASSOCIATE (&
                             RealArray  = MacroSurfaceSpecChemVal(1:nVar2D_Spec,1:nSurfSample,1:nSurfSample,1:nLocalSides,iSpec))
   nVarCount = nVarCount + INT(nVar2D_Spec)
   END DO
-  
+
 !  CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                                              , &
 !                        nValGlobal =(/nVar2D_Total     , nSurfSample, nSurfSample , nGlobalSides/)           , &
 !                        nVal       =(/nVar2D           , nSurfSample, nSurfSample , nLocalSides/)            , &
@@ -1041,6 +1073,18 @@ ASSOCIATE (&
                         offset     =(/INT(nVarCount,IK), 0_IK       , 0_IK        , offsetSurfSide/)         , &
                         collective =.FALSE.                                                                  , &
                         RealArray  = MacroSurfaceHeatVal(1:nVar2D_Heat,1:nSurfSample,1:nSurfSample,1:nLocalSides))
+
+  nVarCount = nVarCount + INT(nVar2D_Heat)
+
+  DO iReac = 1,nReac
+    CALL WriteArrayToHDF5(DataSetName=H5_Name             , rank=4                                           , &
+                            nValGlobal =(/nVar2D_Total      , nSurfSample , nSurfSample , nGlobalSides   /)  , &
+                            nVal       =(/nVar2D_Count      , nSurfSample , nSurfSample , nLocalSides/)      , &
+                            offset     =(/INT(nVarCount,IK) , 0_IK        , 0_IK        , offsetSurfSide/)   , &
+                            collective =.FALSE.                                                              , &
+                            RealArray  = MacroSurfaceReacCount(1:nVar2D_Count,1:nSurfSample,1:nSurfSample,1:nLocalSides,iReac))
+  nVarCount = nVarCount + INT(nVar2D_Count)
+  END DO
 
 END ASSOCIATE
 

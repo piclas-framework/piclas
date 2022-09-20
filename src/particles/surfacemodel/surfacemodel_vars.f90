@@ -57,10 +57,6 @@ TYPE tPureSurf
   LOGICAL, ALLOCATABLE                   :: PureSurfReac(:)
 END TYPE
 
-TYPE tSurfFluxMap
-  TYPE(typeSurfaceflux),ALLOCATABLE      :: Surfaceflux(:)                   
-END TYPE
-
   LOGICAL                                :: DoChemSurface 
 
 TYPE tSurfReactions
@@ -73,8 +69,9 @@ TYPE tSurfReactions
   INTEGER, ALLOCATABLE                   :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
   INTEGER, ALLOCATABLE                   :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
   INTEGER, ALLOCATABLE                   :: Inhibition(:)          ! Inhibition reaction
+  INTEGER, ALLOCATABLE                   :: Promotion(:)           ! Promoting reaction
   INTEGER, ALLOCATABLE                   :: NumOfBounds(:)         
-  REAL, ALLOCATABLE                      :: EReact(:)                ! Energy exchange with the surface
+  REAL, ALLOCATABLE                      :: EReact(:)              ! Energy exchange with the surface
   REAL, ALLOCATABLE                      :: EScale(:)              ! dependence of the energy values on the coverage
   REAL, ALLOCATABLE                      :: HeatAccomodation(:)    ! beta coefficient, determining the heat flux on the surface
   !REAL, ALLOCATABLE                     :: ReactProb(:)
@@ -96,14 +93,17 @@ TYPE tSurfReactions
   REAL, ALLOCATABLE                      :: Prefactor(:)
   REAL, ALLOCATABLE                      :: ArrheniusEnergy(:)
   LOGICAL, ALLOCATABLE                   :: BoundisChemSurf(:)  
+  LOGICAL                                :: Diffusion              ! Activates instantaneous diffussion over the whole boundary
+  LOGICAL                                :: TotDiffusion           ! Activates instantaneous diffussion over all boundaries
+  INTEGER                                :: CatBoundNum
   TYPE(tBoundMap), ALLOCATABLE           :: BoundMap(:)   
-  TYPE(tPureSurf), ALLOCATABLE           :: PSMap(:)               ! MAp for reactions occurring only on the surface     
+  TYPE(tPureSurf), ALLOCATABLE           :: PSMap(:)               ! Map for reactions occurring only on the surface   
   TYPE(tCollCaseInfo), ALLOCATABLE       :: CollCaseInfo(:)        ! Information of collision cases (nCase) 
-  TYPE(tSurfFluxMap), ALLOCATABLE        :: SFMap(:)
+  TYPE(tSurfaceflux), ALLOCATABLE        :: SurfaceFlux(:)         ! Surface flux data
 END TYPE
 TYPE(tSurfReactions)                     :: SurfChemReac
 
-TYPE typeSurfaceflux
+TYPE tSurfaceflux
   INTEGER                                :: BC                              
   CHARACTER(30)                          :: velocityDistribution           
   REAL                                   :: VeloIC             
@@ -130,16 +130,17 @@ TYPE typeSurfaceflux
 END TYPE
 
 TYPE tSurfFluxSubSideData
-  REAL                                   :: projFak                         
-  REAL                                   :: a_nIn                           
+  REAL                                   :: projFak                                                    
   REAL                                   :: Velo_t1                       
-  REAL                                   :: Velo_t2                         
-  REAL                                   :: nVFR                            
-  REAL                                   :: Dmax                            
+  REAL                                   :: Velo_t2 
+  REAL                                   :: Dmax                        
+  REAL,ALLOCATABLE                       :: nVFR(:)                              
+  REAL,ALLOCATABLE                       :: a_nIn(:)                        
 END TYPE tSurfFluxSubSideData
 
 REAL,ALLOCATABLE                         :: ChemSampWall(:,:,:,:,:) 
 REAL,ALLOCATABLE                         :: ChemDesorpWall(:,:,:,:,:) 
+REAL,ALLOCATABLE                         :: ChemCountReacWall(:,:,:,:,:)
 REAL,ALLOCPOINT                          :: ChemWallProp(:,:,:,:,:) 
 
 #if USE_MPI

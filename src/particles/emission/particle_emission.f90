@@ -44,8 +44,7 @@ USE MOD_Particle_Vars
 USE MOD_PIC_Vars
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, SpecDSMC
-USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
-USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri,SetParticleTimeStep,CalcNbrOfPhotons
@@ -312,11 +311,7 @@ DO i=1,nSpecies
       DO WHILE (iPart.LE.NbrOfParticle)
         PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
         IF (PositionNbr.NE.0) THEN
-          IF (SpecDSMC(i)%PolyatomicMol) THEN
-            CALL DSMC_SetInternalEnr_Poly(i,iInit,PositionNbr,1)
-          ELSE
-            CALL DSMC_SetInternalEnr_LauxVFD(i,iInit,PositionNbr,1)
-          END IF
+          CALL DSMC_SetInternalEnr(i,iInit,PositionNbr,1)
         END IF
         iPart = iPart + 1
       END DO

@@ -211,14 +211,16 @@ SDEALLOCATE(SurfChemReac%Prefactor)
   ADEALLOCATE(ChemSampWall_Shared)
   ADEALLOCATE(ChemWallProp_Shared)
   SDEALLOCATE(ChemDesorpWall)
+  SDEALLOCATE(ChemCountReacWall)
   SDEALLOCATE(ChemSampWall)
 #else
   SDEALLOCATE(ChemDesorpWall)
+  SDEALLOCATE(ChemCountReacWall)
   SDEALLOCATE(ChemSampWall)
   SDEALLOCATE(ChemWallProp)
 #endif
 
-SDEALLOCATE(SurfChemReac%SFMap)
+SDEALLOCATE(SurfChemReac%Surfaceflux)
 
 END SUBROUTINE FinalizeSurfaceModel
 

@@ -14,7 +14,7 @@
 
 MODULE MOD_DSMC_Relaxation
 !===================================================================================================================================
-! Module including collisions, relaxation and reaction decision
+! Module with routines for relaxation
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -27,10 +27,47 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, CalcXiVib, CalcXiTotalEqui, DSMC_calc_P_rot, DSMC_calc_var_P_vib
-PUBLIC :: InitCalcVibRelaxProb, DSMC_calc_P_vib, SumVibRelaxProb, FinalizeCalcVibRelaxProb
+PUBLIC :: InitCalcVibRelaxProb, DSMC_calc_P_vib, SumVibRelaxProb, FinalizeCalcVibRelaxProb, DSMC_SetInternalEnr_Diatomic
 !===================================================================================================================================
 
 CONTAINS
+
+SUBROUTINE DSMC_SetInternalEnr_Diatomic(iSpec, iPart, TRot, TVib)
+!===================================================================================================================================
+!> Energy distribution according to dissertation of Laux (diatomic)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iSpec, iPart
+REAL, INTENT(IN)                :: TRot, TVib
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: iRan
+INTEGER                         :: iQuant
+!===================================================================================================================================
+! Nullify energy for atomic species
+PartStateIntEn(1:2,iPart) = 0
+! Set vibrational energy
+CALL RANDOM_NUMBER(iRan)
+iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpec)%CharaTVib)
+DO WHILE (iQuant.GE.SpecDSMC(iSpec)%MaxVibQuant)
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpec)%CharaTVib)
+END DO
+PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
+! Set rotational energy
+CALL RANDOM_NUMBER(iRan)
+PartStateIntEn( 2,iPart) = -BoltzmannConst*TRot*LOG(iRan)
+
+END SUBROUTINE DSMC_SetInternalEnr_Diatomic
+
 
 SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
 !===================================================================================================================================

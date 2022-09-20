@@ -87,6 +87,7 @@ REAL                  :: tLBStart
 
     IF (time.GT.0.0) THEN
       CALL ParticleSurfChemFlux()
+      CALL ParticleSurfDiffusion()
     END IF
 
   END IF

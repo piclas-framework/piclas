@@ -121,7 +121,6 @@ USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
-USE MOD_SurfaceModel_Chemistry
 USE MOD_SurfaceModel_Vars
 !USE MOD_Particle_SurfChemFlux_Init
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
@@ -141,7 +140,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! Local variable declaration
-INTEGER               :: iReac, SurfNumReac
+INTEGER               :: iReac, SurfNumReac, CatBoundNum
 INTEGER               :: iSpec,iSF,SideID,BCSideID,iSide,ElemID,iLocSide,iSample,jSample,currentBC
 INTEGER               :: iCopy1, iCopy2, iCopy3, MaxSurfacefluxBCs,nDataBC
 REAL                  :: tmp_SubSideDmax(SurfFluxSideSize(1),SurfFluxSideSize(2))
@@ -168,7 +167,7 @@ DoSurfaceFlux=.FALSE.
 CALL ReadInAndPrepareSurfaceFlux(MaxSurfacefluxBCs, nDataBC)
 
 ! Call to the reactive surfaces
-IF (SurfChemReac%NumOfReact.GT.0) CALL ReadInAndPrepareSurfChemFlux(nDataBC)
+IF (SurfChemReac%CatBoundNum.GT.0) CALL ReadInAndPrepareSurfChemFlux(nDataBC)
 
 #if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoPoissonRounding,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
@@ -264,74 +263,72 @@ DO iSpec=1,nSpecies
   END DO !iSF
 END DO !iSpec
 
-SurfNumReac = SurfChemReac%NumOfReact
+CatBoundNum = SurfChemReac%CatBoundNum
 !initialize Surfaceflux-specific data
-DO iReac=1,SurfNumReac
-  DO iSF=1,SurfChemReac%NumOfBounds(iReac)
-    currentBC = SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%BC
-    IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
-      
-      ! Loop over sides on the surface flux
-      DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
-        BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
-        ElemID = SideToElem(S2E_ELEM_ID,BCSideID)
-        iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
-        SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
-        IF (SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%AcceptReject) THEN
-          CALL GetBezierSampledAreas(SideID=SideID,BezierSampleN=BezierSampleN &
-            ,BezierSurfFluxProjection_opt=.NOT.SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VeloIsNormal  &
-            ,SurfMeshSubSideAreas=tmp_SubSideAreas,DmaxSampleN_opt=SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%ARM_DmaxSampleN &
-            ,Dmax_opt=tmp_SubSideDmax,BezierControlPoints2D_opt=tmp_BezierControlPoints2D)
-        ELSE IF (.NOT.TriaSurfaceFlux) THEN
-          CALL GetBezierSampledAreas(SideID=SideID,BezierSampleN=BezierSampleN &
-            ,BezierSurfFluxProjection_opt=.NOT.SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VeloIsNormal,SurfMeshSubSideAreas=tmp_SubSideAreas)
-        ELSE ! TriaSurfaceFlux
-          DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-            tmp_SubSideAreas(iSample,jSample)=SurfMeshSubSideData(iSample,jSample,BCSideID)%area
-          END DO; END DO
-        END IF
-        ! Initialize surface flux
-        CALL InitSurfChemFlux(iReac, iSF, iSide, tmp_SubSideAreas, BCdata_auxSFTemp)
-        ! Initialize acceptance-rejection on SF
-        IF (SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%AcceptReject) THEN
-          DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-            SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax = tmp_SubSideDmax(iSample,jSample)
-          !  IF (.NOT.SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VeloIsNormal) THEN
-         !     ALLOCATE(SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
-           !                                                               ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo))
-            !  DO iCopy1=0,NGeo; DO iCopy2=0,NGeo; DO iCopy3=1,2
-             !   SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
-              !                                                     ,iSide)%BezierControlPoints2D(iCopy3,iCopy2,iCopy1) &
-               !   = tmp_BezierControlPoints2D(iCopy3,iCopy2,iCopy1,iSample,jSample)
-             ! END DO; END DO; END DO
-            !END IF !.NOT.VeloIsNormal
-          END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
-        END IF
-        !Init adaptive SF
-      END DO ! iSide
-    ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
-      CALL abort(__STAMP__&
-        ,'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
-    END IF
-    !--- Finalize adaptive SF
+DO iSF=1,CatBoundNum
+  currentBC = SurfChemReac%Surfaceflux(iSF)%BC
+  IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
+    
+    ! Loop over sides on the surface flux
+    DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+      BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
+      ElemID = SideToElem(S2E_ELEM_ID,BCSideID)
+      iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+      SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
+      IF (SurfChemReac%Surfaceflux(iSF)%AcceptReject) THEN
+        CALL GetBezierSampledAreas(SideID=SideID,BezierSampleN=BezierSampleN &
+          ,BezierSurfFluxProjection_opt=.NOT.SurfChemReac%Surfaceflux(iSF)%VeloIsNormal  &
+          ,SurfMeshSubSideAreas=tmp_SubSideAreas,DmaxSampleN_opt=SurfChemReac%Surfaceflux(iSF)%ARM_DmaxSampleN &
+          ,Dmax_opt=tmp_SubSideDmax,BezierControlPoints2D_opt=tmp_BezierControlPoints2D)
+      ELSE IF (.NOT.TriaSurfaceFlux) THEN
+        CALL GetBezierSampledAreas(SideID=SideID,BezierSampleN=BezierSampleN &
+          ,BezierSurfFluxProjection_opt=.NOT.SurfChemReac%Surfaceflux(iSF)%VeloIsNormal,SurfMeshSubSideAreas=tmp_SubSideAreas)
+      ELSE ! TriaSurfaceFlux
+        DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+          tmp_SubSideAreas(iSample,jSample)=SurfMeshSubSideData(iSample,jSample,BCSideID)%area
+        END DO; END DO
+      END IF
+      ! Initialize surface flux
+      CALL InitSurfChemFlux(iSF, iSide, tmp_SubSideAreas, BCdata_auxSFTemp)
+      ! Initialize acceptance-rejection on SF
+      IF (SurfChemReac%Surfaceflux(iSF)%AcceptReject) THEN
+        DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+          SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax = tmp_SubSideDmax(iSample,jSample)
+        !  IF (.NOT.SurfChemReac%Surfaceflux(iSF)%VeloIsNormal) THEN
+        !     ALLOCATE(SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
+          !                                                  ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo))
+          !  DO iCopy1=0,NGeo; DO iCopy2=0,NGeo; DO iCopy3=1,2
+            !   SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
+            !                                         ,iSide)%BezierControlPoints2D(iCopy3,iCopy2,iCopy1) &
+              !   = tmp_BezierControlPoints2D(iCopy3,iCopy2,iCopy1,iSample,jSample)
+            ! END DO; END DO; END DO
+          !END IF !.NOT.VeloIsNormal
+        END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
+      END IF
+      !Init adaptive SF
+    END DO ! iSide
+  ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
+    CALL abort(__STAMP__&
+      ,'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
+  END IF
+  !--- Finalize adaptive SF
 #if USE_MPI
-    IF(SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%Adaptive) THEN
-      totalAreaSF_global = 0.0
-      CALL MPI_ALLREDUCE(SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%totalAreaSF,totalAreaSF_global,1, &
-                          MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
-      SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%totalAreaSF = totalAreaSF_global
-    END IF
+  IF(SurfChemReac%Surfaceflux(iSF)%Adaptive) THEN
+    totalAreaSF_global = 0.0
+    CALL MPI_ALLREDUCE(SurfChemReac%Surfaceflux(iSF)%totalAreaSF,totalAreaSF_global,1, &
+                        MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
+    SurfChemReac%Surfaceflux(iSF)%totalAreaSF = totalAreaSF_global
+  END IF
 #endif
 
 #ifdef CODE_ANALYZE
-    IF (BCdata_auxSF(currentBC)%SideNumber.GT.0 .AND. SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%CircularInflow) THEN
-      IPWRITE(*,'(I4,A,2(1X,I0),A,3(1X,I0))') ' For Surfaceflux/Spec',iSF,iSpec,' are nType0,1,2: ' &
-                                            , CountCircInflowType(1,iSF,iSpec),CountCircInflowType(2, iSF,iSpec) &
-                                            , CountCircInflowType(3, iSF,iSpec)
-    END IF
+  IF (BCdata_auxSF(currentBC)%SideNumber.GT.0 .AND. SurfChemReac%Surfaceflux(iSF)%CircularInflow) THEN
+    IPWRITE(*,'(I4,A,2(1X,I0),A,3(1X,I0))') ' For Surfaceflux/Spec',iSF,iSpec,' are nType0,1,2: ' &
+                                          , CountCircInflowType(1,iSF,iSpec),CountCircInflowType(2, iSF,iSpec) &
+                                          , CountCircInflowType(3, iSF,iSpec)
+  END IF
 #endif /*CODE_ANALYZE*/
-  END DO !iSF
-END DO !iSpec
+END DO !iSF
 
 
 #ifdef CODE_ANALYZE
@@ -342,10 +339,8 @@ SDEALLOCATE(BCdata_auxSFTemp)
 
 ! Setting variables required after a restart
 IF(DoRestart) THEN
-  DO iReac=1,SurfNumReac
-    DO iSF=1,SurfChemReac%NumOfBounds(iReac)
-      VFR_total = SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VFR_total               !proc local total
-    END DO
+  DO iSF=1,SurfChemReac%CatBoundNum
+    VFR_total = SurfChemReac%Surfaceflux(iSF)%VFR_total               !proc local total
   END DO
 END IF
 
@@ -417,7 +412,6 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars              ,ONLY: NGeo
-USE MOD_SurfaceModel_Chemistry
 USE MOD_SurfaceModel_Vars
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -613,7 +607,6 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, SurfMeshSubSideData, Bez
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, offsetElem, SideToElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas, CalcNormAndTangTriangle
-USE MOD_SurfaceModel_Chemistry
 USE MOD_SurfaceModel_Vars
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -696,7 +689,6 @@ USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, Species, DoSurfaceFlux,
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
-USE MOD_SurfaceModel_Chemistry
 USE MOD_SurfaceModel_Vars
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
@@ -711,7 +703,7 @@ TYPE(tBCdata_auxSFRadWeight), ALLOCATABLE, INTENT(INOUT)        :: BCdata_auxSFT
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iReac, SurfNumReac
+INTEGER               :: iReac, CatBoundNum
 INTEGER               :: TmpMapToBC(1:nDataBC), TmpSideStart(1:nDataBC), TmpSideNumber(1:nDataBC), TmpSideEnd(1:nDataBC)
 ! PartBC, Start of Linked List for Sides in SurfacefluxBC, Number of Particles in Sides in SurfacefluxBC, End of Linked List for Sides in SurfacefluxBC
 INTEGER               :: TmpSideNext(1:nBCSides) !Next: Sides of diff. BCs ar not overlapping!
@@ -783,16 +775,14 @@ DO iBC=1,countDataBC
     END DO
   END DO
 
-  SurfNumReac = SurfChemReac%NumOfReact
-  DO iReac=1,SurfNumReac
-    DO iSF=1,SurfChemReac%NumOfBounds(iReac)
-      IF (TmpMapToBC(iBC).EQ.SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%BC) THEN !only surfacefluxes with iBC
-        ALLOCATE(SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%SurfFluxSubSideData(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC)))
-        IF(RadialWeighting%DoRadialWeighting) THEN
-          ALLOCATE(SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
-        END IF
+  CatBoundNum = SurfChemReac%CatBoundNum
+  DO iSF=1,CatBoundNum
+    IF (TmpMapToBC(iBC).EQ.SurfChemReac%Surfaceflux(iSF)%BC) THEN !only surfacefluxes with iBC
+      ALLOCATE(SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC)))
+      IF(RadialWeighting%DoRadialWeighting) THEN
+        ALLOCATE(SurfChemReac%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
       END IF
-    END DO
+    END IF
   END DO
 
   BCSideID=TmpSideStart(iBC)
@@ -1211,7 +1201,7 @@ END DO
 
 END SUBROUTINE CalcConstMassflowWeightForZeroMassFlow
 
-SUBROUTINE InitSurfChemFlux(iReac, iSF, iSide, tmp_SubSideAreas, BCdata_auxSFTemp)
+SUBROUTINE InitSurfChemFlux(iSF, iSide, tmp_SubSideAreas, BCdata_auxSFTemp)
   !===================================================================================================================================
   !> Initialize surface flux variables in SurfFluxSubSideData type
   !===================================================================================================================================
@@ -1226,80 +1216,76 @@ SUBROUTINE InitSurfChemFlux(iReac, iSF, iSide, tmp_SubSideAreas, BCdata_auxSFTem
    IMPLICIT NONE
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! INPUT VARIABLES
-  INTEGER, INTENT(IN)   :: iReac, iSF, iSide
+  INTEGER, INTENT(IN)   :: iSF, iSide
   REAL, INTENT(IN)      :: tmp_SubSideAreas(SurfFluxSideSize(1),SurfFluxSideSize(2))
   TYPE(tBCdata_auxSFRadWeight), ALLOCATABLE, INTENT(IN)        :: BCdata_auxSFTemp(:)
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! OUTPUT VARIABLES
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! LOCAL VARIABLES
-  INTEGER               ::iSpec
+  INTEGER               :: iSpec, iReac, SurfNumReac
   INTEGER               :: jSample, iSample, iSub, currentBC, BCSideID
   REAL                  :: vec_nIn(3), nVFR, vec_t1(3), vec_t2(3), projFak, v_thermal, a, vSF
   !===================================================================================================================================
-  currentBC = SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%BC
+  currentBC = SurfChemReac%Surfaceflux(iSF)%BC
   BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
   DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
     vec_t1 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1
     vec_t2 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2
-    IF (.NOT.SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VeloIsNormal) THEN
-      projFak = DOT_PRODUCT(vec_nIn,SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VeloVecIC) !VeloVecIC projected to inwards normal
+    IF (.NOT.SurfChemReac%Surfaceflux(iSF)%VeloIsNormal) THEN
+      projFak = DOT_PRODUCT(vec_nIn,SurfChemReac%Surfaceflux(iSF)%VeloVecIC) !VeloVecIC projected to inwards normal
     ELSE
       projFak = 1.
     END IF
 
+    ALLOCATE(SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR(nSpecies))
+    ALLOCATE(SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn(nSpecies))
+
     DO iSpec=1,nSpecies  
-      IF(ANY(SurfChemReac%Products(iReac,:).EQ.iSpec)) THEN
-        v_thermal = SQRT(2.*BoltzmannConst*SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) !thermal speed
-      ELSE 
-        v_thermal = 0.
-      END IF
-    END DO
-  
-    a = 0 !dummy for projected speed ratio in constant v-distri
-    !-- compute total volume flow rate through surface
-    SELECT CASE(TRIM(SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%velocityDistribution))
-    CASE('constant')
-      vSF = SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VeloIC * projFak !Velo proj. to inwards normal
-      nVFR = MAX(tmp_SubSideAreas(iSample,jSample) * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
-    CASE('maxwell','maxwell_lpn')
-      IF(v_thermal.NE.0.) THEN
-      a = SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
-    ELSE 
-      a = 0.
-    END IF
-      vSF = v_thermal / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity through normal sub-face
-      nVFR = tmp_SubSideAreas(iSample,jSample) * vSF !VFR projected to inwards normal of sub-side
-      IF(RadialWeighting%DoRadialWeighting) THEN
-        nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
-        DO iSub = 1, RadialWeighting%nSubSides
-          IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
-            SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) &
-                                                               * vSF / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
-          END IF
-        END DO
-      END IF
-    CASE DEFAULT
-      CALL abort(__STAMP__,&
-        'ERROR in SurfaceFlux: Wrong velocity distribution!')
-    END SELECT
+      v_thermal = SQRT(2.*BoltzmannConst*SurfChemReac%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) !thermal speed
+      a = 0 !dummy for projected speed ratio in constant v-distri
+      !-- compute total volume flow rate through surface
+      SELECT CASE(TRIM(SurfChemReac%Surfaceflux(iSF)%velocityDistribution))
+      CASE('constant')
+        vSF = SurfChemReac%Surfaceflux(iSF)%VeloIC * projFak !Velo proj. to inwards normal
+        nVFR = MAX(tmp_SubSideAreas(iSample,jSample) * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
+      CASE('maxwell','maxwell_lpn')
+        a = SurfChemReac%Surfaceflux(iSF)%VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
+        vSF = v_thermal / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity through normal sub-face
+        nVFR = tmp_SubSideAreas(iSample,jSample) * vSF !VFR projected to inwards normal of sub-side
+
+        IF(RadialWeighting%DoRadialWeighting) THEN
+          nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
+          DO iSub = 1, RadialWeighting%nSubSides
+            IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
+              SurfChemReac%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) &
+                                                                * vSF / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
+            END IF
+          END DO
+        END IF! DoRadialWeighting
+      CASE DEFAULT
+        CALL abort(__STAMP__,&
+          'ERROR in SurfaceFlux: Wrong velocity distribution!')
+      END SELECT
+
+      SurfChemReac%Surfaceflux(iSF)%VFR_total = SurfChemReac%Surfaceflux(iSF)%VFR_total + nVFR
+      !-- store SF-specific SubSide data in SurfFluxSubSideData (incl. projected velos)
+      SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR(iSpec) = nVFR
+      SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn(iSpec) = a
+    END DO !iSpec
     
-    SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VFR_total = SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VFR_total + nVFR
-    !-- store SF-specific SubSide data in SurfFluxSubSideData (incl. projected velos)
-    SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR = nVFR
-    SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak = projFak
-    SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn = a
-    IF (.NOT.SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VeloIsNormal) THEN
-      SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 &
-        = SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VeloIC &
-        * DOT_PRODUCT(vec_t1,SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VeloVecIC) !v in t1-dir
-      SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 &
-        = SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VeloIC &
-        * DOT_PRODUCT(vec_t2,SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VeloVecIC) !v in t2-dir
+    SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak = projFak
+    IF (.NOT.SurfChemReac%Surfaceflux(iSF)%VeloIsNormal) THEN
+      SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 &
+        = SurfChemReac%Surfaceflux(iSF)%VeloIC &
+        * DOT_PRODUCT(vec_t1,SurfChemReac%Surfaceflux(iSF)%VeloVecIC) !v in t1-dir
+      SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 &
+        = SurfChemReac%Surfaceflux(iSF)%VeloIC &
+        * DOT_PRODUCT(vec_t2,SurfChemReac%Surfaceflux(iSF)%VeloVecIC) !v in t2-dir
     ELSE
-      SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 = 0. !v in t1-dir
-      SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 = 0. !v in t2-dir
+      SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 = 0. !v in t1-dir
+      SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 = 0. !v in t2-dir
     END IF! .NOT.VeloIsNormal
   END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
   
@@ -1332,49 +1318,46 @@ SUBROUTINE InitSurfChemFlux(iReac, iSF, iSide, tmp_SubSideAreas, BCdata_auxSFTem
     ! OUTPUT VARIABLES
     !-----------------------------------------------------------------------------------------------------------------------------------
     ! LOCAL VARIABLES
-    INTEGER               :: iSF
-    INTEGER               :: iReac, SurfNumReac
+    INTEGER               :: iSF, iBound
+    INTEGER               :: iReac, CatBoundNum
     !===================================================================================================================================
-    SurfNumReac = SurfChemReac%NumOfReact
-    ALLOCATE(SurfChemReac%SFMap(SurfChemReac%NumOfReact))
-    DO iReac=1,SurfNumReac
-      IF (SurfChemReac%NumOfBounds(iReac).EQ.0) THEN
-        CYCLE
-      ELSE
-        ALLOCATE(SurfChemReac%SFMap(iReac)%Surfaceflux(1:SurfChemReac%NumOfBounds(iReac)))
-        ! Initialize Surfaceflux to BC mapping
-        SurfChemReac%SFMap(iReac)%Surfaceflux(:)%BC=-1
-        DO iSF=1,SurfChemReac%NumOfBounds(iReac)
-          SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%BC = SurfChemReac%BoundMap(iReac)%Boundaries(iSF)
-        END DO
-      END IF
-    
-      DO iSF=1,SurfChemReac%NumOfBounds(iReac)
-        IF (TriaSurfaceFlux) THEN
-          SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%AcceptReject=.FALSE.
-        END IF
+    CatBoundNum = SurfChemReac%CatBoundNum
+    ALLOCATE(SurfChemReac%SurfaceFlux(1:CatBoundNum))
+    ! Initialize Surfaceflux to BC mapping
+    SurfChemReac%Surfaceflux(:)%BC=-1
 
-        SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%InsertedParticle = 0
-        SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VFR_total = 0
-        SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VFR_total_allProcsTotal = 0
-    
-        ! get surfaceflux data
-        IF (SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%BC.LT.1 .OR. SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%BC.GT.nPartBound) THEN
-          CALL abort(&
+    iSF = 1
+    DO iBound=1,nPartBound
+      IF (SurfChemReac%BoundisChemSurf(iBound)) THEN 
+        SurfChemReac%Surfaceflux(iSF)%BC = iBound
+        iSF = iSF + 1
+      END IF
+    END DO
+
+    DO iSF = 1, CatBoundNum
+      IF (TriaSurfaceFlux) THEN
+        SurfChemReac%Surfaceflux(iSF)%AcceptReject=.FALSE.
+      END IF
+
+      SurfChemReac%Surfaceflux(iSF)%InsertedParticle = 0
+      SurfChemReac%Surfaceflux(iSF)%VFR_total = 0
+      SurfChemReac%Surfaceflux(iSF)%VFR_total_allProcsTotal = 0
+
+      ! get surfaceflux data
+      IF (SurfChemReac%Surfaceflux(iSF)%BC.LT.1 .OR. SurfChemReac%Surfaceflux(iSF)%BC.GT.nPartBound) THEN
+        CALL abort(&
     __STAMP__&
     , 'SurfacefluxBCs must be between 1 and nPartBound!')
-        ELSE IF (BCdata_auxSF(SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%BC)%SideNumber.EQ. -1) THEN !not set yet
-          BCdata_auxSF(SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%BC)%SideNumber=0
-          nDataBC=nDataBC+1
-        END IF
+      ELSE IF (BCdata_auxSF(SurfChemReac%Surfaceflux(iSF)%BC)%SideNumber.EQ. -1) THEN !not set yet
+        BCdata_auxSF(SurfChemReac%Surfaceflux(iSF)%BC)%SideNumber=0
+        nDataBC=nDataBC+1
+      END IF
     
-        SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%velocityDistribution = 'maxwell_lpn'
-        SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VeloIC = 0.
-        SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%VeloIsNormal = .FALSE.
-        SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%MWTemperatureIC = PartBound%WallTemp(SurfChemReac%SFMap(iReac)%Surfaceflux(iSF)%BC)
-      
-      END DO !iSF
-    END DO ! iReac
+      SurfChemReac%Surfaceflux(iSF)%velocityDistribution = 'maxwell_lpn'
+      SurfChemReac%Surfaceflux(iSF)%VeloIC = 0.
+      SurfChemReac%Surfaceflux(iSF)%VeloIsNormal = .FALSE.
+      SurfChemReac%Surfaceflux(iSF)%MWTemperatureIC = PartBound%WallTemp(SurfChemReac%Surfaceflux(iSF)%BC)
+    END DO !iSF
     
     END SUBROUTINE ReadInAndPrepareSurfChemFlux
 
