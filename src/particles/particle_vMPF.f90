@@ -159,7 +159,7 @@ REAL, ALLOCATABLE     :: DOF_vib_poly(:), EnergyTemp_vibPoly(:,:)
 #ifdef CODE_ANALYZE
 REAL,PARAMETER        :: RelMomTol    = 5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
 REAL,PARAMETER        :: RelEneTol    = 1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
-REAL,PARAMETER        :: RelWeightTol = 1e-13 ! Relative tolerance applied to conservation of mass before/after reaction
+REAL,PARAMETER        :: RelWeightTol = 5e-12 ! Relative tolerance applied to conservation of mass before/after reaction
 REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3),totalWeightNew
 INTEGER               :: iMomDim, iMom
 #endif /* CODE_ANALYZE */
