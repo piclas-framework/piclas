@@ -130,9 +130,6 @@ USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC,
 USE MOD_Particle_Analyze_Tools,ONLY: CalcTelec, CalcTVibPoly
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Globals               ,ONLY: LOG_RAN
-USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Mesh_Vars               ,ONLY: offSetElem
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
 USE MOD_Particle_Vars         ,ONLY: Symmetry
@@ -149,7 +146,7 @@ INTEGER, INTENT(IN)           :: nPart, nPartNew, iElem
 ! LOCAL VARIABLES
 REAL                  :: iRan
 INTEGER               :: iPartIndx_Node(nPart), iLoop, nDelete, nTemp, iPart, iSpec, iQua, iPolyatMole, iDOF, iQuaCount
-REAL                  :: partWeight, totalWeight2, totalWeight, alpha, factor
+REAL                  :: partWeight, totalWeight2, totalWeight, alpha
 REAL                  :: V_rel(3), vmag2, vBulk(3)
 REAL                  :: vBulk_new(3)
 REAL                  :: T_elec, T_vib, T_rot, DOF_elec, DOF_vib, DOF_rot
@@ -292,11 +289,8 @@ END DO
 ! 4.) calc bulk velocity after deleting and set new MPF
 DO iLoop = 1, nPartNew
   iPart = iPartIndx_Node(iLoop)
-  ! Set new particle weight by distributing the lost weights of the deleted particles
-  ! PartMPF(iPart) = PartMPF(iPart) + lostWeight / REAL(nPartNew)
-  ! Set new particle weight by distributing the lost weights of the deleted particles weighted with their distribution to the total weight
-  factor = PartMPF(iPart) / (totalWeight - lostWeight)
-  PartMPF(iPart) = PartMPF(iPart) + lostWeight * factor
+  ! Set new particle weight by distributing the total weight onto the remaining particles, proportional to their current weight
+  PartMPF(iPart) = totalWeight * PartMPF(iPart) / (totalWeight - lostWeight)
   partWeight = GetParticleWeight(iPart)
   vBulk_new(1:3) = vBulk_new(1:3) + PartState(4:6,iPart) * partWeight
 END DO
