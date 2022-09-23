@@ -423,7 +423,7 @@ ELSE
     ElemInfo_Shared(ELEM_LASTNODEIND ,iElem) = 8* iElem
     DO iNode = 1,8
       NodeCoords_Shared(:,8*(iElem-1) + iNode) = NodeCoords_indx(:,FirstNodeInd+CNS(iNode))
-      NodeInfo_Shared  (  8*(iElem-1) + iNode) = NodeInfoTmp(2,NodeInfo(FirstNodeInd+CNS(iNode)))
+      NodeInfo_Shared  (  8*(iElem-1) + iNode) = NodeInfoTmp(2,NodeInfo(FirstNodeInd+offsetNodeID+CNS(iNode)))
     END DO
   END DO
 
