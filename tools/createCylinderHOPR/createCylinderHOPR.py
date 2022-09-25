@@ -629,8 +629,7 @@ nElems       =(/ir1,i01,iz/)                   ! number of elements in each dire
 """)
 if NbrOfZones > 4:
     f.write(r'BCIndex      =(/1  , %s  , 5  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
-    f.write(r"""
-!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+    f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/f1,1.,1./)                     ! stretching
 
@@ -650,8 +649,7 @@ nElems       =(/ir1,i01,iz/)                   ! number of elements in each dire
 """)
 if NbrOfZones > 4:
     f.write(r'BCIndex      =(/1  , %s  , 4  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
-    f.write(r"""
-!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
+    f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/f1,1.,1./)                     ! stretching
 

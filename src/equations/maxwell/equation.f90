@@ -86,8 +86,7 @@ CALL prms%CreateRealOption(     'omega'            , 'TODO-DEFINE-PARAMETER\n'//
 CALL prms%CreateRealOption(     'tPulse'           , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Half length of pulse' , '30e-9')
 
-CALL prms%CreateRealOption(     'TEFrequency'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Frequency of TE wave' , '35e9')
+CALL prms%CreateRealOption(     'TEFrequency'      , 'Frequency of TE wave')
 CALL prms%CreateRealOption(     'TEScale'          , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Scaling of input TE-wave strength' , '1.')
 CALL prms%CreateStringOption(  'TEPolarization'   ,  'Polarization of the TE-mode: x = linear in x-direction\n'//&
@@ -98,9 +97,7 @@ CALL prms%CreateLogicalOption(  'TEPulse'          , 'TODO-DEFINE-PARAMETER\n'//
                                                      'Flag for pulsed or continuous wave' , '.FALSE.')
 CALL prms%CreateIntArrayOption( 'TEMode'           , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Input of TE_n,m mode', '1 , 1')
-CALL prms%CreateRealOption(     'TERadius'         , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Radius of Input TE wave, if wave is '//&
-                                                     ' inserted over a plane' , '0.0')
+CALL prms%CreateRealOption(     'TERadius'         , 'Radius of Input TE wave, if wave is inserted over a plane into a waveguide')
 CALL prms%CreateRealOption(     'TEDelay'          , 'TODO-DEFINE-PARAMETER' , '0.5e-9')
 CALL prms%CreateRealOption(     'TEPulseSigma'     , 'standard deviation of the Gaussian pulse' , '0.1e-9')
 CALL prms%CreateRealOption(     'TEPulseSeriesFrequence', 'if TEPulseSeriesFrequence>0 and TEPulse=T\n'//&
@@ -241,7 +238,8 @@ IF(DoExactFlux) CALL InitExactFlux()
 DO iRefState=1,nTmp
   SELECT CASE(RefStates(iRefState))
   CASE(2,22)
-    TEFrequency        = GETREAL('TEFrequency','35e9')
+    TEFrequency        = GETREAL('TEFrequency')
+    TERadius           = GETREAL('TERadius')
   CASE(4,40,41)
     xDipole(1:3)       = GETREALARRAY('xDipole',3,'0.,0.,0.') ! dipole base point
     DipoleOmega        = GETREAL('omega','6.28318E08')        ! f=100 MHz default
@@ -261,7 +259,7 @@ DO iRefState=1,nTmp
 
     !check the TE-Input-Parameters
     IF (TRIM(TEPolarization).NE.'x'.AND.TRIM(TEPolarization).NE.'y'.AND.TRIM(TEPolarization).NE.'r'.AND.TRIM(TEPolarization).NE.'l') THEN
-    SWRITE(UNIT_stdOut,*) 'Wrong value for TEPolarization=', TEPolarization
+      SWRITE(UNIT_stdOut,*) 'Wrong value for TEPolarization=', TEPolarization
       CALL abort(__STAMP__,'Wrong value for TEPolarization')
     END IF
     IF ( (2*PI*TEFrequency*c_inv).LT.(TEModeRoot/TERadius)) THEN
@@ -533,7 +531,7 @@ REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative vari
 ! LOCAL VARIABLES
 REAL                            :: Resu_t(PP_nVar),Resu_tt(PP_nVar) ! state in conservative variables
 REAL                            :: Frequency,Amplitude,Omega
-REAL                            :: Cent(3),r,r2,zlen
+REAL                            :: Cent(3),r,r2!,zlen
 REAL                            :: a, b, d, l, m, nn, B0            ! aux. Variables for Resonator-Example
 REAL                            :: gammaW,Psi,GradPsiX,GradPsiY     !     -"-
 REAL                            :: xrel(3), theta, Etheta          ! aux. Variables for Dipole
@@ -568,7 +566,7 @@ CASE(2) ! Coaxial Waveguide
   Frequency = TEFrequency
   Amplitude = 1.
   !zlen     = 2.5
-  r         = 17.5e-3
+  r         = TERadius
   r2        = (x(1)*x(1)+x(2)*x(2))/r
   omega     = 2.*Pi*Frequency!/zlen ! shift beruecksichtigen
   kz        = (c_inv)**2
@@ -595,7 +593,7 @@ CASE(22) ! Coaxial Waveguide
   Frequency = TEFrequency
   Amplitude = 1.
   !zlen     = 2.5
-  r         = 17.5e-3
+  r         = TERadius
   r2        = (x(1)*x(1)+x(2)*x(2))/r
   omega     = 2.*Pi*Frequency!/zlen ! shift beruecksichtigen
   kz        = (c_inv)**2
@@ -796,7 +794,7 @@ CASE(5) ! Initialization of TE waves in a circular waveguide: Original formulati
   END IF
 
 CASE(6) ! Circular waveguide TEM[n,m]
-  CALL ExactFunc_TE_Circular_Waveguide(t,tDeriv,x,resu)
+  CALL ExactFunc_TE_Circular_Waveguide(t,x,resu)
 
 CASE(7) ! Manufactured Solution
   resu(:)=0
@@ -1590,7 +1588,7 @@ RETURN
 END FUNCTION RECTANGULAR_PULSE_WITH_GAUSSIAN_EDGE
 
 
-PPURE SUBROUTINE ExactFunc_TE_Circular_Waveguide(t,tDeriv,x,resu)
+PPURE SUBROUTINE ExactFunc_TE_Circular_Waveguide(t,x,resu)
 !===================================================================================================================================
 ! TE waves in a circular waveguide
 ! Book: Waveguide Handbook - Marcuvitz p. 69 ff.
@@ -1601,19 +1599,16 @@ PPURE SUBROUTINE ExactFunc_TE_Circular_Waveguide(t,tDeriv,x,resu)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,            ONLY:c,c2,eps0,PI,c_inv,mu0
-USE MOD_Equation_Vars,           ONLY:WaveVector, &                ! physical constants
-                                      TEScale,TEPulse,TEFrequency,TEPolarization,&     ! TE mode as input
-                                      TERadius,TEModeRoot,TEDelay,TEPulseSigma,TEPulseSeriesFrequence,&
-                                      TEPulseNumber,TEDirection,TEMode,TEPulseShape, & ! additional variables
-                                      ExactFluxPosition
-USE MOD_TimeDisc_Vars,           ONLY: dt
+USE MOD_Globals_Vars  ,ONLY: c,c2,eps0,PI,c_inv,mu0
+USE MOD_Equation_Vars ,ONLY: TEScale,TEPulse,TEFrequency,TEPolarization
+USE MOD_Equation_Vars ,ONLY: TERadius,TEModeRoot,TEDelay,TEPulseSigma,TEPulseSeriesFrequence
+USE MOD_Equation_Vars ,ONLY: TEPulseNumber,TEDirection,TEMode,TEPulseShape
+USE MOD_Equation_Vars ,ONLY: ExactFluxPosition
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)                 :: t
-INTEGER,INTENT(IN)              :: tDeriv           ! determines the time derivative of the function
 REAL,INTENT(IN)                 :: x(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES

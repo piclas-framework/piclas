@@ -64,7 +64,7 @@ REAL              :: omega_0                                !> old variable name
 REAL              :: tActive                                !> active time for laser pulse
 REAL              :: TEScale                                !> scaling of input TE-wave strength
 REAL              :: TEFrequency                            !> frequency of TE wave
-REAL              :: TERadius=-1.                           !> Radius of Input TE wave, if wave is inserted over a plane
+REAL              :: TERadius                               !> Radius of Input TE wave, if wave is inserted over a plane
 INTEGER           :: TEMode(1:2)                            !> input of TE_n,m mode
 REAL              :: TEModeRoot                             !> root for the TEMode_n,m (root of derivative of Bessel function)
 REAL              :: TEDelay                                !> Delay time for the TE wave (for CW and Pulse)
