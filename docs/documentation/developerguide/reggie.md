@@ -183,11 +183,11 @@ Latest tests on
     ```
     sudo gitlab-runner restart
     ```
-5. create ssh keys for normal user and set up password free access to gitlab (iag) and gitlab.com (reggie)
+5. create ssh keys for normal user and set up password free access to gitlab (https://piclas.boltzplatz.eu) and gitlab.com (reggie)
     ```
     ssh-keygen -t ecdsa -b 521
     ```
-    Add key to `Enabled deploy keys`. If multiple codes are on gitlab.com, add the key to one 
+    Add key to `Enabled deploy keys`. If multiple codes are on gitlab, add the key to one 
     repository and select the key on the other repositories via `Privately accessible deploy keys`.
 
     Clone a code from each platform to create known hosts then
@@ -296,7 +296,7 @@ check_interval = 0
       script:
         - if [ -z "${DO_DEPLOY}" ]; then exit ; fi
         - rm -rf piclas_github || true ;
-        - git clone -b master --single-branch git@gitlab.com:piclas/piclas.git piclas_github ;
+        - git clone -b master --single-branch git@piclas.boltzplatz.eu:piclas/piclas.git piclas_github ;
         - cd piclas_github ;
         - git remote add piclas-framework git@github.com:piclas-framework/piclas.git ;
         - git push --force --follow-tags piclas-framework master ;
