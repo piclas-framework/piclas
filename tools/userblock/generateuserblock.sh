@@ -37,9 +37,10 @@ GITURL='not a git repo'
 
 # get branch name (only info)
 if [ $INSIDEGITREPO ]; then
+  GITCOMMIT=$(git rev-parse HEAD)
+  PARENTCOMMIT=$(git rev-parse ${GITCOMMIT}^)
   BRANCHNAME=$(git rev-parse --abbrev-ref HEAD)
   PARENTNAME=$BRANCHNAME
-  PARENTCOMMIT=$(git show-ref | grep "origin/$BRANCHNAME$" | cut -b -40)
 
   if [ -z "$PARENTCOMMIT" ]; then
     LOCBRANCHNAME=$BRANCHNAME
@@ -65,7 +66,7 @@ if [ $INSIDEGITREPO ]; then
 
     if [ $FOUND -eq 0 ]; then
       PARENTNAME='master'
-      PARENTCOMMIT=$(git rev-parse origin/master)
+      PARENTCOMMIT=$(git rev-parse "origin/$PARENTNAME")
       echo "WARNING: Could not find parent commit, creating userblock diff to master."
     fi
     # check if the branch exists in the local
@@ -78,7 +79,6 @@ echo "{[( CMAKE )]}"               >  userblock.txt
 cat configuration.cmake            >> userblock.txt
 echo "{[( GIT BRANCH )]}"          >> userblock.txt
 echo "$BRANCHNAME"                 >> userblock.txt
-[ $INSIDEGITREPO ] && GITCOMMIT=$(git rev-parse HEAD)
 echo "$GITCOMMIT"                  >> userblock.txt
 
 # Reference is the start commit, which is either identical to
@@ -114,12 +114,12 @@ echo ${GITURL}                     >> userblock.txt
 if [ -d "$2/CMakeFiles" ]; then
   cd "$2/CMakeFiles"
   # copy compile flags of the piclas(lib) to userblock
-  [ -f "libpiclasstatic.dir/flags.make" ] echo "{[( libpiclasstatic.dir/flags.make )]}" >> $1/userblock.txt
-  [ -f "libpiclasstatic.dir/flags.make" ] cat libpiclasstatic.dir/flags.make            >> $1/userblock.txt
-  [ -f "libpiclasshared.dir/flags.make" ] echo "{[( libpiclasshared.dir/flags.make )]}" >> $1/userblock.txt
-  [ -f "libpiclasshared.dir/flags.make" ] cat libpiclasshared.dir/flags.make            >> $1/userblock.txt
-  [ -f "piclas.dir/flags.make"          ] echo "{[( piclas.dir/flags.make )]}"          >> $1/userblock.txt
-  [ -f "piclas.dir/flags.make"          ] cat piclas.dir/flags.make                     >> $1/userblock.txt
+  [ -f "libpiclasstatic.dir/flags.make" ] && echo "{[( libpiclasstatic.dir/flags.make )]}" >> $1/userblock.txt
+  [ -f "libpiclasstatic.dir/flags.make" ] && cat libpiclasstatic.dir/flags.make            >> $1/userblock.txt
+  [ -f "libpiclasshared.dir/flags.make" ] && echo "{[( libpiclasshared.dir/flags.make )]}" >> $1/userblock.txt
+  [ -f "libpiclasshared.dir/flags.make" ] && cat libpiclasshared.dir/flags.make            >> $1/userblock.txt
+  [ -f "piclas.dir/flags.make"          ] && echo "{[( piclas.dir/flags.make )]}"          >> $1/userblock.txt
+  [ -f "piclas.dir/flags.make"          ] && cat piclas.dir/flags.make                     >> $1/userblock.txt
 fi
 
 # change directory to actual cmake version
