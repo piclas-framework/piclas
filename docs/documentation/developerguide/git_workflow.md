@@ -1,6 +1,6 @@
 # GitLab Workflow
 
-Code development is performed on the [GitLab platform](https://gitlab.com/piclas/piclas), with the protected `master` and
+Code development is performed on the [GitLab platform](https://piclas.boltzplatz.eu/piclas/piclas), with the protected `master` and
 `master.dev` branches. The actual development is performed on feature branches, which can be merged to `master.dev` following a
 merge request and the completion of a merge request checklist. After a successful pass of the nightly and weekly regression test,
 the `master.dev` can be merged into the `master`. A merge of the `master.dev` to the `master` should be associated with a release
@@ -77,7 +77,7 @@ merged into the **master** branch.
 
 ### Release Tag
 
-A new release tag can be created through the web interface ([Repository -> Tags](https://gitlab.com/piclas/piclas/tags) -> New tag)
+A new release tag can be created through the web interface ([Repository -> Tags](https://piclas.boltzplatz.eu/piclas/piclas/tags) -> New tag)
 and as the `Tag name`, the new version number is used, e.g., 
 
     v1.X.X
@@ -173,7 +173,7 @@ CRG!).
 ### GitHub
 
 Finally, the release tag can be deployed to GitHub. This can be achieved by running the `Deploy` script in the
-[CI/CD -> Schedules](https://gitlab.com/piclas/piclas/pipeline_schedules) web interface. At the moment, the respective tag and the
+[CI/CD -> Schedules](https://piclas.boltzplatz.eu/piclas/piclas/pipeline_schedules) web interface. At the moment, the respective tag and the
 release have to be created manually on GitHub through the web interface with **piclas-framework** account. The releases are
 accessed through [Releases](https://github.com/piclas-framework/piclas/releases) and a new release (including the tag) can be
 created with `Draft a new release`. The tag version should be set as before (`v1.X.X`) and the release title accordingly
