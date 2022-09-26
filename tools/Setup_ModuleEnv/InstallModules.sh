@@ -51,7 +51,8 @@ calcTrue() { awk 'BEGIN{printf "%d\n" , ('"$*"'?1:0)}';}
 # For current releases, see: https://sourceforge.net/projects/modules/files/Modules/
 #MODULEVERSION='4.6.1'
 #MODULEVERSION='5.0.0'
-MODULEVERSION='5.0.1'
+#MODULEVERSION='5.0.1'
+MODULEVERSION='5.1.1'
 
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
@@ -74,6 +75,8 @@ elif [ "$MODULEVERSION" == "5.0.0" ]; then
   MODULEDLINK='https://downloads.sourceforge.net/project/modules/Modules/modules-5.0.0/modules-5.0.0.tar.gz?ts=gAAAAABhXF_Jxr8Tp_QSaLtNFIwqXte_JnuzMdO606UAbI0okB5uzbQFQ0B5NmlIQ-bgM2uJr_EAVFEtCm9GR0NuyWLthCNrrQ%3D%3D&r=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fmodules%2Ffiles%2FModules%2Fmodules-5.0.0%2Fmodules-5.0.0.tar.gz%2Fdownload'
 elif [ "$MODULEVERSION" == "5.0.1" ]; then
   MODULEDLINK='https://downloads.sourceforge.net/project/modules/Modules/modules-5.0.1/modules-5.0.1.tar.gz?ts=gAAAAABhcU8vH1TG6SQext57ioXX7Ja-U8fAP4QzR_dzW9vk8_M4sH1kCEgrNjgUH1OYjtNI2bWUJLtIw3O0V3ClRMUhmqAoqw%3D%3D&r=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fmodules%2Ffiles%2FModules%2Fmodules-5.0.1%2Fmodules-5.0.1.tar.gz%2Fdownload'
+elif [ "$MODULEVERSION" == "5.1.1" ]; then
+  MODULEDLINK='https://downloads.sourceforge.net/project/modules/Modules/modules-5.1.1/modules-5.1.1.tar.gz?ts=gAAAAABjLEKdzzvZbBrq1P1xVq0ZkSBd-sPTY61Zu6mneKWZNP111L-_WOIE-yEnfw_IVxvae25tU7tvcG4xoGEZIjp6Va7N6g%3D%3D&r=https%3A%2F%2Fsourceforge.net%2Fprojects%2Fmodules%2Ffiles%2Flatest%2Fdownload'
 fi
 
 if [[ -z ${MODULEDLINK} ]]; then
