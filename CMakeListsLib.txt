@@ -35,17 +35,6 @@ IF("${GIT_ORIGIN}" MATCHES "piclas.boltzplatz.eu")
   ELSE()
     SET(LIBS_DLPATH "https://piclas.boltzplatz.eu/piclas/")
   ENDIF()
-ELSEIF("${GIT_ORIGIN}" MATCHES "boltzplatz.eu")
-  # Checked out using SSH
-  IF("${GIT_ORIGIN}" MATCHES "^git@")
-    SET(LIBS_DLPATH "git@piclas.boltzplatz.eu:piclas/")
-  # Checked out using HTTPS
-  # IF("${GIT_ORIGIN}" MATCHES "^https@")
-  ELSEIF("${GIT_ORIGIN}" MATCHES "^ssh:")
-    SET(LIBS_DLPATH "git@piclas.boltzplatz.eu:piclas/")
-  ELSE()
-    SET(LIBS_DLPATH "https://piclas.boltzplatz.eu/piclas/")
-  ENDIF()
 ELSE()
   # Select each lib separately
   SET(LIBS_DLPATH "")
