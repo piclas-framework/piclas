@@ -24,16 +24,16 @@ IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   MESSAGE(STATUS "Checking git origin: " ${GIT_ORIGIN})
 ENDIF()
 
-IF("${GIT_ORIGIN}" MATCHES "gitlab.com")
+IF("${GIT_ORIGIN}" MATCHES "piclas.boltzplatz.eu")
   # Checked out using SSH
   IF("${GIT_ORIGIN}" MATCHES "^git@")
-    SET(LIBS_DLPATH "git@gitlab.com:piclas/")
+    SET(LIBS_DLPATH "git@piclas.boltzplatz.eu:piclas/")
   # Checked out using HTTPS
   # IF("${GIT_ORIGIN}" MATCHES "^https@")
   ELSEIF("${GIT_ORIGIN}" MATCHES "^ssh:")
-    SET(LIBS_DLPATH "git@gitlab.com:piclas/")
+    SET(LIBS_DLPATH "git@piclas.boltzplatz.eu:piclas/")
   ELSE()
-    SET(LIBS_DLPATH "https://gitlab.com/piclas/")
+    SET(LIBS_DLPATH "https://piclas.boltzplatz.eu/piclas/")
   ENDIF()
 ELSE()
   # Select each lib separately
@@ -152,10 +152,10 @@ ELSE()
     SET (HDF5DOWNLOAD "https://github.com/HDFGroup/hdf5.git")
   ELSE()
     IF("${GIT_ORIGIN}" MATCHES "https://gitlab-ci-token")
-      # Use https://gitlab.com/piclas/hdf5.git when gitlab runner needs to download libs
+      # Use https://piclas.boltzplatz.eu/piclas/hdf5.git when gitlab runner needs to download libs
       STRING(REGEX REPLACE "/piclas.git" "/hdf5.git" HDF5DOWNLOAD ${GIT_ORIGIN})
     ELSE()
-      # Use https://gitlab.com/piclas/hdf5.git when using piclas from gitlab.com
+      # Use https://piclas.boltzplatz.eu/piclas/hdf5.git when using piclas from piclas.boltzplatz.eu
       SET (HDF5DOWNLOAD ${LIBS_DLPATH}hdf5.git )
     ENDIF()
   ENDIF()
@@ -324,10 +324,10 @@ ELSE()
       SET (MATHLIB_DOWNLOAD "https://github.com/Reference-LAPACK/lapack.git")
     ELSE()
       IF("${GIT_ORIGIN}" MATCHES "https://gitlab-ci-token")
-        # Use https://gitlab.com/piclas/lapack.git when gitlab runner needs to download libs
+        # Use https://piclas.boltzplatz.eu/piclas/lapack.git when gitlab runner needs to download libs
         STRING(REGEX REPLACE "/piclas.git" "/lapack.git" MATHLIB_DOWNLOAD ${GIT_ORIGIN})
       ELSE()
-        # Use https://gitlab.com/piclas/lapack.git when using piclas from gitlab.com
+        # Use https://piclas.boltzplatz.eu/piclas/lapack.git when using piclas from piclas.boltzplatz.eu
         SET (MATHLIB_DOWNLOAD ${LIBS_DLPATH}lapack.git )
       ENDIF()
     ENDIF()
@@ -346,10 +346,10 @@ ELSE()
       SET (MATHLIB_DOWNLOAD "https://github.com/xianyi/OpenBLAS.git")
     ELSE()
       IF("${GIT_ORIGIN}" MATCHES "https://gitlab-ci-token")
-        # Use https://gitlab.com/piclas/OpenBLAS.git when gitlab runner needs to download libs
+        # Use https://piclas.boltzplatz.eu/piclas/OpenBLAS.git when gitlab runner needs to download libs
         STRING(REGEX REPLACE "/piclas.git" "/OpenBLAS.git" MATHLIB_DOWNLOAD ${GIT_ORIGIN})
       ELSE()
-        # Use https://gitlab.com/piclas/OpenBLAS.git when using piclas from gitlab.com
+        # Use https://piclas.boltzplatz.eu/piclas/OpenBLAS.git when using piclas from piclas.boltzplatz.eu
         SET (MATHLIB_DOWNLOAD ${LIBS_DLPATH}OpenBLAS.git )
       ENDIF()
     ENDIF()
