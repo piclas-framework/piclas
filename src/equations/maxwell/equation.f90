@@ -562,6 +562,7 @@ CASE(1) ! Constant
   Resu_t=0.
   Resu_tt=0.
 CASE(2) ! Coaxial Waveguide
+  z = x(3)
   resu      = 0.
   Frequency = TEFrequency
   Amplitude = 1.
@@ -569,51 +570,37 @@ CASE(2) ! Coaxial Waveguide
   r         = TERadius
   r2        = (x(1)*x(1)+x(2)*x(2))/r
   omega     = 2.*Pi*Frequency!/zlen ! shift beruecksichtigen
-  kz        = (c_inv)**2
-  resu(1)=( x(1))*sin(omega*(kz*x(3)-c*t))/r2
-  resu(2)=( x(2))*sin(omega*(kz*x(3)-c*t))/r2
-  resu(4)=(-x(2))*sin(omega*(kz*x(3)-c*t))/(r2*c)
-  resu(5)=( x(1))*sin(omega*(kz*x(3)-c*t))/(r2*c)
+  kz        = (c_inv)
+  resu(1)=( x(1))*sin(omega*(kz*z-c*t))/r2
+  resu(2)=( x(2))*sin(omega*(kz*z-c*t))/r2
+  resu(4)=(-x(2))*sin(omega*(kz*z-c*t))/(r2*c)
+  resu(5)=( x(1))*sin(omega*(kz*z-c*t))/(r2*c)
 
 #if PP_TimeDiscMethod==1
   Resu_t=0.
-  resu_t(1)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/r2
-  resu_t(2)=-omega*c*( x(2))*cos(omega*(x(3)-c*t))/r2
-  resu_t(4)=-omega*c*(-x(2))*cos(omega*(x(3)-c*t))/(r2*c)
-  resu_t(5)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/(r2*c)
+  resu_t(1)=-omega*c*( x(1))*cos(omega*(z-c*t))/r2
+  resu_t(2)=-omega*c*( x(2))*cos(omega*(z-c*t))/r2
+  resu_t(4)=-omega*c*(-x(2))*cos(omega*(z-c*t))/(r2*c)
+  resu_t(5)=-omega*c*( x(1))*cos(omega*(z-c*t))/(r2*c)
   Resu_tt=0.
-  resu_tt(1)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/r2
-  resu_tt(2)=-(omega*c)**2*( x(2))*sin(omega*(x(3)-c*t))/r2
-  resu_tt(4)=-(omega*c)**2*(-x(2))*sin(omega*(x(3)-c*t))/(r2*c)
-  resu_tt(5)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/(r2*c)
+  resu_tt(1)=-(omega*c)**2*( x(1))*sin(omega*(z-c*t))/r2
+  resu_tt(2)=-(omega*c)**2*( x(2))*sin(omega*(z-c*t))/r2
+  resu_tt(4)=-(omega*c)**2*(-x(2))*sin(omega*(z-c*t))/(r2*c)
+  resu_tt(5)=-(omega*c)**2*( x(1))*sin(omega*(z-c*t))/(r2*c)
 #endif /*PP_TimeDiscMethod==1*/
 
 CASE(22) ! Coaxial Waveguide
   resu      = 0.
   Frequency = TEFrequency
   Amplitude = 1.
-  !zlen     = 2.5
   r         = TERadius
   r2        = (x(1)*x(1)+x(2)*x(2))/r
-  omega     = 2.*Pi*Frequency!/zlen ! shift beruecksichtigen
-  kz        = (c_inv)**2
-  resu(1)=( x(1))*sin(omega*t)/r2
-  resu(2)=( x(2))*sin(omega*t)/r2
-  resu(4)=(-x(2))*sin(omega*t)/(r2*c)
-  resu(5)=( x(1))*sin(omega*t)/(r2*c)
+  omega     = 2.*Pi*Frequency
+  resu(1)=( x(1))*sin(-omega*t)/r2
+  resu(2)=( x(2))*sin(-omega*t)/r2
+  resu(4)=(-x(2))*sin(-omega*t)/(r2*c)
+  resu(5)=( x(1))*sin(-omega*t)/(r2*c)
 
-#if PP_TimeDiscMethod==1
-  Resu_t=0.
-  resu_t(1)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/r2
-  resu_t(2)=-omega*c*( x(2))*cos(omega*(x(3)-c*t))/r2
-  resu_t(4)=-omega*c*(-x(2))*cos(omega*(x(3)-c*t))/(r2*c)
-  resu_t(5)=-omega*c*( x(1))*cos(omega*(x(3)-c*t))/(r2*c)
-  Resu_tt=0.
-  resu_tt(1)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/r2
-  resu_tt(2)=-(omega*c)**2*( x(2))*sin(omega*(x(3)-c*t))/r2
-  resu_tt(4)=-(omega*c)**2*(-x(2))*sin(omega*(x(3)-c*t))/(r2*c)
-  resu_tt(5)=-(omega*c)**2*( x(1))*sin(omega*(x(3)-c*t))/(r2*c)
-#endif /*PP_TimeDiscMethod==1*/
 CASE(3) ! Resonator
   !special initial values
   !geometric parameters
@@ -691,7 +678,7 @@ CASE(5) ! Initialization of TE waves in a circular waveguide: Original formulati
   ! p. 500ff
   ! polarization:
   ! false - linear polarization
-  ! true  - cirular polarization
+  ! true  - circular polarization
   r=SQRT(x(1)**2+x(2)**2)
   ! if a DOF is located in the origin, prevent division by zero ..
   phi = ATAN2(X(2),X(1))
