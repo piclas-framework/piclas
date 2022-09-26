@@ -26,7 +26,6 @@ if [ ! -d "$2" ]; then
 fi
 
 # Check if inside git repo
-echo "git rev-parse --is-inside-work-tree 2>/dev/null"
 INSIDEGITREPO="$(git rev-parse --is-inside-work-tree 2>/dev/null)"
 
 # Defaults
@@ -38,10 +37,10 @@ GITURL='not a git repo'
 
 # get branch name (only info)
 if [ $INSIDEGITREPO ]; then
-  echo "git rev-parse --abbrev-ref HEAD"
+  GITCOMMIT=$(git rev-parse HEAD)
+  PARENTCOMMIT=$(git rev-parse ${GITCOMMIT}^)
   BRANCHNAME=$(git rev-parse --abbrev-ref HEAD)
   PARENTNAME=$BRANCHNAME
-  PARENTCOMMIT=$(git show-ref | grep "origin/$BRANCHNAME$" | cut -b -40)
 
   if [ -z "$PARENTCOMMIT" ]; then
     LOCBRANCHNAME=$BRANCHNAME
@@ -57,20 +56,16 @@ if [ $INSIDEGITREPO ]; then
       fi
 
       PARENTCOMMIT=$(git show-ref | grep "origin/$PARENTNAME$" | cut -b -40)
-      echo "PARENTCOMMIT=$PARENTCOMMIT"
       if [ -z "$PARENTCOMMIT" ]; then
         LOCBRANCHNAME=$PARENTNAME
       else
         FOUND=1
         break
       fi
-      echo "LOCBRANCHNAME=$LOCBRANCHNAME"
-      echo "FOUND=$FOUND"
     done
 
     if [ $FOUND -eq 0 ]; then
       PARENTNAME='master'
-      echo "git rev-parse origin/$PARENTNAME"
       PARENTCOMMIT=$(git rev-parse "origin/$PARENTNAME")
       echo "WARNING: Could not find parent commit, creating userblock diff to master."
     fi
@@ -84,7 +79,6 @@ echo "{[( CMAKE )]}"               >  userblock.txt
 cat configuration.cmake            >> userblock.txt
 echo "{[( GIT BRANCH )]}"          >> userblock.txt
 echo "$BRANCHNAME"                 >> userblock.txt
-[ $INSIDEGITREPO ] && GITCOMMIT=$(git rev-parse HEAD)
 echo "$GITCOMMIT"                  >> userblock.txt
 
 # Reference is the start commit, which is either identical to
