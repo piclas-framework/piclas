@@ -414,7 +414,8 @@ END IF
 #if USE_HDG && USE_LOADBALANCE
 IF (meshMode.GT.0) CALL BuildSideToNonUniqueGlobalSide() ! requires ElemInfo
 #endif /*USE_HDG && USE_LOADBALANCE*/
-DEALLOCATE(ElemInfo,SideInfo)
+!DEALLOCATE(ElemInfo,SideInfo)
+DEALLOCATE(SideInfo)
 
 MeshInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -1024,6 +1025,7 @@ IMPLICIT NONE
 !local variables
 !============================================================================================================================
 ! Deallocate global variables, needs to go somewhere else later
+SDEALLOCATE(ElemInfo)
 ! geometry information and VDMS
 SDEALLOCATE(Xi_NGeo)
 SDEALLOCATE(DCL_N)

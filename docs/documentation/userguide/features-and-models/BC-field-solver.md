@@ -24,7 +24,8 @@ include, periodic, Dirichlet, Silver-Mueller, perfectly conducting, symmetry and
 |    (/1,1/)   |  1: periodic |                                    1: positive direction of the 1st periodicity vector                                    |
 |   (/1,-1/)   |  1: periodic |                              -1: negative (opposite) direction of the 1st periodicity vector                              |
 |              |              |                                                                                                                           |
-|    (/2,2/)   | 2: Dirichlet |                                                    2: Coaxial waveguide                                                   |
+|    (/2,2/)   | 2: Dirichlet |                                        2: Coaxial waveguide IC (initial condition)                                        |
+|   (/2,22/)   | 2: Dirichlet |                                22: Coaxial waveguide BC (boundary condition or exact flux)                                |
 |    (/2,3/)   | 2: Dirichlet |                                                        3: Resonator                                                       |
 |    (/2,4/)   | 2: Dirichlet |                 4: Electromagnetic dipole (implemented via RHS source terms and shape function deposition)                |
 |   (/2,40/)   | 2: Dirichlet |   40: Electromagnetic dipole without initial condition (implemented via RHS source terms and shape function deposition)   |
@@ -46,7 +47,7 @@ include, periodic, Dirichlet, Silver-Mueller, perfectly conducting, symmetry and
 |    (/6,0/)   |     6: SM    |      1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117 with fix     |
 |              |              | of div. correction field for low B-fields that only set the correction fields when B is significantly large compared to E |
 |              |              |                                                                                                                           |
-|    (/4,0/)   |     4: PEC   |                           Perfectly conducting surface (Munz, Omnes, Schneider 2000, pp. 97-98)                           |
+|    (/4,0/)   |    4: PEC    |                           Perfectly conducting surface (Munz, Omnes, Schneider 2000, pp. 97-98)                           |
 |              |              |                                                                                                                           |
 |   (/10,0/)   |    10: Sym   |                                       Symmetry BC (perfect MAGNETIC conductor, PMC)                                       |
 |              |              |                                                                                                                           |
