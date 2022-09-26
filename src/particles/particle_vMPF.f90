@@ -70,8 +70,9 @@ DO iElem = 1, nElems
       iPart = PEM%pNext(iPart)
       CYCLE
     END IF
-    nPart(PartSpecies(iPart)) = nPart(PartSpecies(iPart)) + 1
-    iPartIndx_Node_Temp(PartSpecies(iPart),nPart(PartSpecies(iPart))) = iPart
+    iSpec = PartSpecies(iPart)
+    nPart(iSpec) = nPart(iSpec) + 1
+    iPartIndx_Node_Temp(iSpec,nPart(iSpec)) = iPart
     iPart = PEM%pNext(iPart)
   END DO
 
@@ -81,9 +82,7 @@ DO iElem = 1, nElems
 
     ! 2.) build partindx list for species
     ALLOCATE(iPartIndx_Node(nPart(iSpec)))
-    DO iLoop = 1, nPart(iSpec)
-      iPartIndx_Node(iLoop) = iPartIndx_Node_Temp(iSpec,iLoop)
-    END DO
+    iPartIndx_Node(1:nPart(iSpec)) = iPartIndx_Node_Temp(iSpec,1:nPart(iSpec))
 
     ! 3.) Call split or merge routine
     IF(nPart(iSpec).GT.vMPFMergeThreshold(iSpec).AND.(vMPFMergeThreshold(iSpec).NE.0)) THEN   ! Merge
@@ -122,7 +121,7 @@ END SUBROUTINE SplitAndMerge
 !> 6.3) E_rot
 !> 6.4) E_trans
 !===================================================================================================================================
-SUBROUTINE MergeParticles(iPartIndx_Node, nPart, nPartNew, iElem)
+SUBROUTINE MergeParticles(iPartIndx_Node_in, nPart, nPartNew, iElem)
 ! MODULES
 USE MOD_Globals               ,ONLY: ISFINITE
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, Species, CellEelec_vMPF, CellEvib_vMPF
@@ -139,14 +138,14 @@ USE MOD_Particle_Vars         ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPartIndx_Node_in(nPart)
 INTEGER, INTENT(IN)           :: nPart, nPartNew, iElem
-INTEGER, INTENT(INOUT)        :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: iRan
-INTEGER               :: iLoop, nDelete, nTemp, iPart, iPartIndx_NodeTMP(nPart),iSpec, iQua, iPolyatMole, iDOF, iQuaCount
+INTEGER               :: iPartIndx_Node(nPart), iLoop, nDelete, nTemp, iPart, iSpec, iQua, iPolyatMole, iDOF, iQuaCount
 REAL                  :: partWeight, totalWeight2, totalWeight, alpha
 REAL                  :: V_rel(3), vmag2, vBulk(3)
 REAL                  :: vBulk_new(3)
@@ -160,7 +159,7 @@ REAL, ALLOCATABLE     :: DOF_vib_poly(:), EnergyTemp_vibPoly(:,:)
 #ifdef CODE_ANALYZE
 REAL,PARAMETER        :: RelMomTol    = 5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
 REAL,PARAMETER        :: RelEneTol    = 1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
-REAL,PARAMETER        :: RelWeightTol = 1e-13 ! Relative tolerance applied to conservation of mass before/after reaction
+REAL,PARAMETER        :: RelWeightTol = 5e-12 ! Relative tolerance applied to conservation of mass before/after reaction
 REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3),totalWeightNew
 INTEGER               :: iMomDim, iMom
 #endif /* CODE_ANALYZE */
@@ -171,6 +170,9 @@ E_trans = 0.0; E_trans_new = 0.0
 E_elec = 0.0; E_elec_new = 0.0; DOF_elec = 0.0
 E_vib = 0.0; E_vib_new = 0.0; DOF_vib = 0.0
 E_rot = 0.0; E_rot_new = 0.0; DOF_rot = 0.0
+
+iPartIndx_Node = iPartIndx_Node_in
+
 iSpec = PartSpecies(iPartIndx_Node(1))  ! in iPartIndx_Node all particles are from same species
 
 #ifdef CODE_ANALYZE
@@ -272,7 +274,6 @@ END IF
 
 ! 3.) delete particles randomly (until nPartNew is reached)
 lostWeight = 0.
-iPartIndx_NodeTMP = iPartIndx_Node
 nTemp = nPart
 nDelete = nPart - nPartNew
 DO iLoop = 1, nDelete
@@ -288,7 +289,8 @@ END DO
 ! 4.) calc bulk velocity after deleting and set new MPF
 DO iLoop = 1, nPartNew
   iPart = iPartIndx_Node(iLoop)
-  PartMPF(iPart) = PartMPF(iPart) + lostWeight / REAL(nPartNew) ! Set new particle weight by distributing the lost weights of the deleted particles
+  ! Set new particle weight by distributing the total weight onto the remaining particles, proportional to their current weight
+  PartMPF(iPart) = totalWeight * PartMPF(iPart) / (totalWeight - lostWeight)
   partWeight = GetParticleWeight(iPart)
   vBulk_new(1:3) = vBulk_new(1:3) + PartState(4:6,iPart) * partWeight
 END DO
