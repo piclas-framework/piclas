@@ -177,22 +177,22 @@ ALLOCATE(RecRequest_Flux(nNbProcs)  )
 ALLOCATE(RecRequest_gradUx(nNbProcs))
 ALLOCATE(RecRequest_gradUy(nNbProcs))
 ALLOCATE(RecRequest_gradUz(nNbProcs))
-SendRequest_U(nNbProcs)      = MPI_REQUEST_NULL
-SendRequest_U2(nNbProcs)      = MPI_REQUEST_NULL
+SendRequest_U      = MPI_REQUEST_NULL
+SendRequest_U2      = MPI_REQUEST_NULL
 !SendRequest_UMinus           = MPI_REQUEST_NULL
-SendRequest_Flux(nNbProcs)   = MPI_REQUEST_NULL
-SendRequest_gradUx(nNbProcs) = MPI_REQUEST_NULL
-SendRequest_gradUy(nNbProcs) = MPI_REQUEST_NULL
-SendRequest_gradUz(nNbProcs) = MPI_REQUEST_NULL
-RecRequest_U(nNbProcs)       = MPI_REQUEST_NULL
-RecRequest_U2(nNbProcs)       = MPI_REQUEST_NULL
+SendRequest_Flux   = MPI_REQUEST_NULL
+SendRequest_gradUx = MPI_REQUEST_NULL
+SendRequest_gradUy = MPI_REQUEST_NULL
+SendRequest_gradUz = MPI_REQUEST_NULL
+RecRequest_U       = MPI_REQUEST_NULL
+RecRequest_U2       = MPI_REQUEST_NULL
 !RecRequest_UMinus            = MPI_REQUEST_NULL
-RecRequest_Flux(nNbProcs)    = MPI_REQUEST_NULL
-RecRequest_gradUx(nNbProcs)  = MPI_REQUEST_NULL
-RecRequest_gradUy(nNbProcs)  = MPI_REQUEST_NULL
-RecRequest_gradUz(nNbProcs)  = MPI_REQUEST_NULL
-SendRequest_Geo(nNbProcs)    = MPI_REQUEST_NULL
-RecRequest_Geo(nNbProcs)     = MPI_REQUEST_NULL
+RecRequest_Flux    = MPI_REQUEST_NULL
+RecRequest_gradUx  = MPI_REQUEST_NULL
+RecRequest_gradUy  = MPI_REQUEST_NULL
+RecRequest_gradUz  = MPI_REQUEST_NULL
+SendRequest_Geo    = MPI_REQUEST_NULL
+RecRequest_Geo     = MPI_REQUEST_NULL
 DataSizeSide  =(PP_N+1)*(PP_N+1)
 
 ! split communicator into smaller groups (e.g. for local nodes)

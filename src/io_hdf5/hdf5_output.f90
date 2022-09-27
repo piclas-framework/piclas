@@ -175,7 +175,7 @@ END IF
 END SUBROUTINE WriteTimeAverage
 
 
-SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime,FileNameIn)
+SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime,FileNameIn,WriteUserblockIn)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
@@ -207,6 +207,7 @@ CHARACTER(LEN=255)                   :: StrVarNames(nVar)
 CHARACTER(LEN=*),INTENT(IN)          :: MeshFileName
 REAL,INTENT(IN)                      :: OutputTime
 REAL,INTENT(IN),OPTIONAL             :: FutureTime
+LOGICAL,INTENT(IN),OPTIONAL          :: WriteUserblockIn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -217,6 +218,7 @@ CHARACTER(LEN=255)                           :: FileName,MeshFile255
 #ifdef PARTICLES
 CHARACTER(LEN=255), DIMENSION(1:3),PARAMETER :: TrackingString = (/'refmapping  ', 'tracing     ', 'triatracking'/)
 #endif /*PARTICLES*/
+LOGICAL                                      :: WriteUserblock
 !===================================================================================================================================
 ! Create file
 IF(PRESENT(FileNameIn))THEN
@@ -231,6 +233,7 @@ CALL WriteHDF5Header(TRIM(TypeString),File_ID)
 
 ! Preallocate the data space for the dataset.
 Dimsf=(/nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/)
+WRITE (*,*) "Dimsf =", Dimsf
 CALL H5SCREATE_SIMPLE_F(5, Dimsf, FileSpace, iError)
 ! Create the dataset with default properties.
 HDF5DataType=H5T_NATIVE_DOUBLE
@@ -240,6 +243,7 @@ CALL H5DCLOSE_F(Dset_id, iError)
 CALL H5SCLOSE_F(FileSpace, iError)
 
 ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
+WRITE (*,*) "PP_N,OutputTime,TRIM(MeshFileName) =", PP_N,OutputTime,TRIM(MeshFileName)
 CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=PP_N)
 CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
 CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
@@ -266,7 +270,12 @@ END IF ! UseBRElectronFluid
 CALL CloseDataFile()
 
 ! Add userblock to hdf5-file
-CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
+IF(PRESENT(WriteUserblockIn))THEN
+  WriteUserblock = WriteUserblockIn
+ELSE
+  WriteUserblock = .TRUE.
+END IF ! PRESENT(WriteUserblockIn)
+IF(WriteUserblock) CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
 
 END SUBROUTINE GenerateFileSkeleton
 
@@ -434,6 +443,7 @@ SUBROUTINE WriteHDF5Header(FileType_in,File_ID)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars ,ONLY: ProgramName,FileVersion,ProjectName,PiclasVersionStr
+USE MOD_Globals_Vars ,ONLY: MajorVersion,MinorVersion,PatchVersion
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -460,6 +470,7 @@ CALL WriteAttributeToHDF5(File_ID,'File_Type'   ,1,StrScalar=(/tmp255/))
 tmp255=TRIM(ProjectName)
 CALL WriteAttributeToHDF5(File_ID,'Project_Name',1,StrScalar=(/tmp255/))
 CALL WriteAttributeToHDF5(File_ID,'File_Version',1,RealScalar=FileVersion)
+WRITE(UNIT=PiclasVersionStr,FMT='(I0,A1,I0,A1,I0)') MajorVersion,".",MinorVersion,".",PatchVersion
 tmp255=TRIM(PiclasVersionStr)
 CALL WriteAttributeToHDF5(File_ID,'Piclas_Version',1,StrScalar=(/tmp255/))
 END SUBROUTINE WriteHDF5Header
