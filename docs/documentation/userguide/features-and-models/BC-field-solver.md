@@ -163,7 +163,7 @@ The dielectric module is activated by setting
 
     DoDielectric = T
 
-and specifying values for the permittivity and permeability constants
+and specifying values for the permittivity $\varepsilon_{R}$ and permeability $\mu_{R}$ constants
 
     DielectricEpsR = X
     DielectricMuR = X
@@ -217,4 +217,16 @@ setting
 
 which is set true by default, hence, removing the particles.
 
+### Dielectric Zones
+Regions or zones (corresponding to zones as defined by hopr) can also be used to define dielectrics.
+In this case, the number of zones must be supplied
 
+    DielectricNbrOfZones = 8
+
+and a vector of the same size for the corresponding zone IDs, $\varepsilon_{R}$ and $\mu_{R}$ for each zone, respectively
+
+    DielectricZoneID     = (/9   , 10  , 11  , 12  , 13  , 14  , 15  , 16/)
+    DielectricZoneEpsR   = (/2.0 , 2.0 , 2.0 , 2.0 , 2.0 , 2.0 , 2.0 , 2.0/)
+    DielectricZoneMuR    = (/1.0 , 1.0 , 1.0 , 1.0 , 1.0 , 1.0 , 1.0 , 1.0/)
+
+Note that this method cannot be used in combination with any other way of defining dielectrics.
