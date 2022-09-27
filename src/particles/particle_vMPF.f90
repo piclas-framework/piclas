@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2018 - 2019 Marcel Pfeiffer and Asim Mirza
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -70,8 +70,9 @@ DO iElem = 1, nElems
       iPart = PEM%pNext(iPart)
       CYCLE
     END IF
-    nPart(PartSpecies(iPart)) = nPart(PartSpecies(iPart)) + 1
-    iPartIndx_Node_Temp(PartSpecies(iPart),nPart(PartSpecies(iPart))) = iPart
+    iSpec = PartSpecies(iPart)
+    nPart(iSpec) = nPart(iSpec) + 1
+    iPartIndx_Node_Temp(iSpec,nPart(iSpec)) = iPart
     iPart = PEM%pNext(iPart)
   END DO
 
@@ -81,9 +82,7 @@ DO iElem = 1, nElems
 
     ! 2.) build partindx list for species
     ALLOCATE(iPartIndx_Node(nPart(iSpec)))
-    DO iLoop = 1, nPart(iSpec)
-      iPartIndx_Node(iLoop) = iPartIndx_Node_Temp(iSpec,iLoop)
-    END DO
+    iPartIndx_Node(1:nPart(iSpec)) = iPartIndx_Node_Temp(iSpec,1:nPart(iSpec))
 
     ! 3.) Call split or merge routine
     IF(nPart(iSpec).GT.vMPFMergeThreshold(iSpec).AND.(vMPFMergeThreshold(iSpec).NE.0)) THEN   ! Merge
@@ -122,7 +121,7 @@ END SUBROUTINE SplitAndMerge
 !> 6.3) E_rot
 !> 6.4) E_trans
 !===================================================================================================================================
-SUBROUTINE MergeParticles(iPartIndx_Node, nPart, nPartNew, iElem)
+SUBROUTINE MergeParticles(iPartIndx_Node_in, nPart, nPartNew, iElem)
 ! MODULES
 USE MOD_Globals               ,ONLY: ISFINITE
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, Species, CellEelec_vMPF, CellEvib_vMPF
@@ -139,14 +138,14 @@ USE MOD_Particle_Vars         ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPartIndx_Node_in(nPart)
 INTEGER, INTENT(IN)           :: nPart, nPartNew, iElem
-INTEGER, INTENT(INOUT)        :: iPartIndx_Node(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: iRan
-INTEGER               :: iLoop, nDelete, nTemp, iPart, iPartIndx_NodeTMP(nPart),iSpec, iQua, iPolyatMole, iDOF, iQuaCount
+INTEGER               :: iPartIndx_Node(nPart), iLoop, nDelete, nTemp, iPart, iSpec, iQua, iPolyatMole, iDOF, iQuaCount
 REAL                  :: partWeight, totalWeight2, totalWeight, alpha
 REAL                  :: V_rel(3), vmag2, vBulk(3)
 REAL                  :: vBulk_new(3)
@@ -158,17 +157,22 @@ REAL                  :: E_rot, E_rot_new
 REAL                  :: Energy_Sum, E_elec_upper, E_elec_lower, betaV
 REAL, ALLOCATABLE     :: DOF_vib_poly(:), EnergyTemp_vibPoly(:,:)
 #ifdef CODE_ANALYZE
-REAL,PARAMETER        :: RelMomTol=5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
-REAL,PARAMETER        :: RelEneTol=1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
-REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3)
+REAL,PARAMETER        :: RelMomTol    = 5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
+REAL,PARAMETER        :: RelEneTol    = 1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
+REAL,PARAMETER        :: RelWeightTol = 5e-12 ! Relative tolerance applied to conservation of mass before/after reaction
+REAL                  :: Energy_old, Momentum_old(3),Energy_new, Momentum_new(3),totalWeightNew
 INTEGER               :: iMomDim, iMom
 #endif /* CODE_ANALYZE */
+REAL                  :: lostWeight
 !===================================================================================================================================
 vBulk = 0.0; vBulk_new = 0.0;  totalWeight = 0.0; totalWeight2 = 0.0
 E_trans = 0.0; E_trans_new = 0.0
 E_elec = 0.0; E_elec_new = 0.0; DOF_elec = 0.0
 E_vib = 0.0; E_vib_new = 0.0; DOF_vib = 0.0
 E_rot = 0.0; E_rot_new = 0.0; DOF_rot = 0.0
+
+iPartIndx_Node = iPartIndx_Node_in
+
 iSpec = PartSpecies(iPartIndx_Node(1))  ! in iPartIndx_Node all particles are from same species
 
 #ifdef CODE_ANALYZE
@@ -176,6 +180,7 @@ iSpec = PartSpecies(iPartIndx_Node(1))  ! in iPartIndx_Node all particles are fr
 ! quantized energy levels
 Energy_old = CellEvib_vMPF(iSpec, iElem) + CellEelec_vMPF(iSpec, iElem)
 Momentum_old = 0.0; Momentum_new = 0.0
+totalWeightNew = 0.
 #endif /* CODE_ANALYZE */
 
 ! 1.) calc bulk velocity (for momentum conservation)
@@ -268,12 +273,14 @@ IF(CollisMode.GT.1) THEN
 END IF
 
 ! 3.) delete particles randomly (until nPartNew is reached)
-iPartIndx_NodeTMP = iPartIndx_Node
+lostWeight = 0.
 nTemp = nPart
 nDelete = nPart - nPartNew
 DO iLoop = 1, nDelete
   CALL RANDOM_NUMBER(iRan)
   iPart = INT(iRan*nTemp) + 1
+  partWeight = GetParticleWeight(iPartIndx_Node(iPart))
+  lostWeight = lostWeight + partWeight
   PDM%ParticleInside(iPartIndx_Node(iPart)) = .FALSE.
   iPartIndx_Node(iPart) = iPartIndx_Node(nTemp)
   nTemp = nTemp - 1
@@ -282,7 +289,8 @@ END DO
 ! 4.) calc bulk velocity after deleting and set new MPF
 DO iLoop = 1, nPartNew
   iPart = iPartIndx_Node(iLoop)
-  PartMPF(iPart) = totalWeight / REAL(nPartNew) ! Set new particle weight
+  ! Set new particle weight by distributing the total weight onto the remaining particles, proportional to their current weight
+  PartMPF(iPart) = totalWeight * PartMPF(iPart) / (totalWeight - lostWeight)
   partWeight = GetParticleWeight(iPart)
   vBulk_new(1:3) = vBulk_new(1:3) + PartState(4:6,iPart) * partWeight
 END DO
@@ -468,10 +476,29 @@ DO iLoop = 1, nPartNew
   END IF
   ! Momentum conservation
   Momentum_new(1:3) = Momentum_new(1:3) + Species(iSpec)%MassIC * PartState(4:6,iPart) * partWeight
+  totalWeightNew = totalWeightNew + partWeight
 #endif /* CODE_ANALYZE */
 END DO
 
 #ifdef CODE_ANALYZE
+  ! Check weights
+  IF (.NOT.ALMOSTEQUALRELATIVE(totalWeight,totalWeightNew,RelWeightTol)) THEN
+    WRITE(UNIT_StdOut,*) '\n'
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " totalWeight            : ",totalWeight
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " totalWeightNew         : ",totalWeightNew
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. weight difference : ",totalWeightNew-totalWeight
+    ASSOCIATE( weight => MAX(ABS(totalWeight),ABS(totalWeightNew)) )
+      IF(weight.GT.0.0)THEN
+        IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')" rel. weight difference : ",(totalWeightNew-totalWeight)/weight
+      END IF
+    END ASSOCIATE
+    IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",RelWeightTol
+    IPWRITE(UNIT_StdOut,*)                     " Old/new particle number: ",nPart, nPartNew
+    IPWRITE(UNIT_StdOut,*)                     " Species                : ",iSpec
+    IPWRITE(UNIT_StdOut,*)                     " iElem                  : ",iElem
+    CALL abort(__STAMP__,'CODE_ANALYZE: part merge is not mass conserving!')
+  END IF
+
   ! Check for energy difference
   IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,RelEneTol)) THEN
     WRITE(UNIT_StdOut,*) '\n'

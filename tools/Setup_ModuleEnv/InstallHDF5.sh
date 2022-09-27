@@ -91,7 +91,8 @@ fi
 #HDF5VERSION=1.10.4
 #HDF5VERSION=1.10.6
 #HDF5VERSION=1.12.0 # CAUTION NIG_PIC_maxwell_RK4/TWT_recordpoints fails for: 1) gcc/11.2.0   2) cmake/3.21.3   3) openmpi/4.1.1/gcc/11.2.0   4) hdf5/1.12.0/gcc/11.2.0/openmpi/4.1.1
-HDF5VERSION=1.12.1
+#HDF5VERSION=1.12.1
+HDF5VERSION=1.12.2
 
 COMPILERPREFIX=compilers/ # required for modules 5.0.0
 MPIPREFIX=MPI/ # required for modules 5.0.0
@@ -103,6 +104,7 @@ TARFILE=${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz
 
 # Change to sources directors
 cd ${SOURCESDIR}
+pwd
 
 echo -e "Download HF5 version ${GREEN}${HDF5VERSION}${NC}."
 read -p "Press [Enter] to continue or [Crtl+c] to abort!"
@@ -120,7 +122,7 @@ if [ ! -f ${TARFILE} ]; then
 fi
 
 # Extract tar.gz file
-tar -xzf ${TARFILE} hdf5-${HDF5VERSION}
+tar -xzf ${TARFILE}
 
 # Check if extraction failed
 if [ ${PIPESTATUS[0]} -ne 0 ]; then

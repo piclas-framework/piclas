@@ -84,17 +84,18 @@ from the command line. For convenience, you can add this line to your `.bashrc`.
 ## Required Libraries
 The following list contains the **recommended library combinations** for the Intel and GNU compiler in combination with HDF5, OpenMPI, CMake etc.
 
-| PICLas Version | Compiler  |  HDF5  |      MPI      | CMake  |
+| PICLas Version |  Compiler |  HDF5  |      MPI      |  CMake |
 | :------------: | :-------: | :----: | :-----------: | :----: |
-|     2.3.0      | gcc11.2.0 | 1.12.1 | openmpi-4.1.1 | 3.21.3 |
-|     2.0.0      | intel19.1 |  1.10  |   impi2019    |  3.17  |
+|      2.8.0     | gcc12.2.0 | 1.12.2 | openmpi-4.1.4 | 3.24.2 |
+|      2.3.0     | gcc11.2.0 | 1.12.1 | openmpi-4.1.1 | 3.21.3 |
+|      2.0.0     | intel19.1 |  1.10  |    impi2019   |  3.17  |
 
 and the **minimum requirements**
 
-| PICLas Version | Compiler  |  HDF5  |      MPI      | CMake |
+| PICLas Version |  Compiler |  HDF5  |      MPI      | CMake |
 | :------------: | :-------: | :----: | :-----------: | :---: |
-|     2.3.0      | gnu9.2.0  | 1.10.6 | openmpi-3.1.6 | 3.17  |
-|     2.0.0      | intel18.1 |  1.10  |   impi2018    | 3.17  |
+|      2.3.0     |  gnu9.2.0 | 1.10.6 | openmpi-3.1.6 |  3.17 |
+|      2.0.0     | intel18.1 |  1.10  |    impi2018   |  3.17 |
 
 A full list of all previously tested combinations is found in Chapter {ref}`userguide/appendix:Appendix`. Alternative combinations might work as well, however, have not been tested.
 
