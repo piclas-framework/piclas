@@ -233,7 +233,6 @@ CALL WriteHDF5Header(TRIM(TypeString),File_ID)
 
 ! Preallocate the data space for the dataset.
 Dimsf=(/nVar,PP_N+1,PP_N+1,PP_N+1,nGlobalElems/)
-WRITE (*,*) "Dimsf =", Dimsf
 CALL H5SCREATE_SIMPLE_F(5, Dimsf, FileSpace, iError)
 ! Create the dataset with default properties.
 HDF5DataType=H5T_NATIVE_DOUBLE
@@ -243,7 +242,6 @@ CALL H5DCLOSE_F(Dset_id, iError)
 CALL H5SCLOSE_F(FileSpace, iError)
 
 ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
-WRITE (*,*) "PP_N,OutputTime,TRIM(MeshFileName) =", PP_N,OutputTime,TRIM(MeshFileName)
 CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=PP_N)
 CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
 CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))

@@ -656,7 +656,7 @@ ELSE
                               nValGlobal=(/1,N_State+1,N_State+1,N_StateZ_out+1,nElems_State/),&
                               nVal=      (/1,N_State+1,N_State+1,N_StateZ_out+1,nElems_State/),&
                               offset=    (/0,      0,     0,     0,     offsetElem/),&
-                              collective=.TRUE.,RealArray=PhiGlobal_out(i,:,:,:,:))
+                              collective=.TRUE.,RealArray=PhiGlobal_out(j,:,:,:,:))
 
       ! ----------------
       ! 2.) imaginary part
@@ -673,7 +673,7 @@ ELSE
                             nValGlobal=(/1,N_State+1,N_State+1,N_StateZ_out+1,nElems_State/),&
                             nVal=      (/1,N_State+1,N_State+1,N_StateZ_out+1,nElems_State/),&
                             offset=    (/0,      0,     0,     0,     offsetElem/),&
-                            collective=.TRUE.,RealArray=PhiGlobal_out(i,:,:,:,:))
+                            collective=.TRUE.,RealArray=PhiGlobal_out(j,:,:,:,:))
     END DO
   END DO ! i = 1, nModes
 END IF ! PlotSingleMode

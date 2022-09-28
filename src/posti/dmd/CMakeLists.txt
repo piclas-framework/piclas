@@ -18,8 +18,8 @@ ADD_LIBRARY(${TOOL_NAME}lib STATIC $<TARGET_OBJECTS:${TOOL_NAME}libF90>)
 ADD_DEPENDENCIES(${TOOL_NAME}libF90 libpiclasshared)
 
   # Standalone Posti executable
-add_exec(             posti_${TOOL_NAME} ${TOOL_DIR}/dmd.f90)
-TARGET_LINK_LIBRARIES(posti_${TOOL_NAME} ${TOOL_NAME}lib libpiclasshared)
-ADD_DEPENDENCIES(     posti_${TOOL_NAME} ${TOOL_NAME}lib libpiclasshared)
-SET_TARGET_PROPERTIES(posti_${TOOL_NAME} PROPERTIES LINKER_LANGUAGE Fortran)
+add_exec(             ${TOOL_NAME} ${TOOL_DIR}/dmd.f90)
+TARGET_LINK_LIBRARIES(${TOOL_NAME} ${TOOL_NAME}lib libpiclasshared)
+ADD_DEPENDENCIES(     ${TOOL_NAME} ${TOOL_NAME}lib libpiclasshared)
+SET_TARGET_PROPERTIES(${TOOL_NAME} PROPERTIES LINKER_LANGUAGE Fortran)
 
