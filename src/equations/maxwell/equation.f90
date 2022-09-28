@@ -723,7 +723,8 @@ CASE(5) ! Initialization of TE waves in a circular waveguide: Original formulati
     r_inv=1./r
     Bess_mG_R_R_inv=Bess_mG_R*r_inv
   END IF
-  IF(TRIM(TEPolarization).EQ.'y')THEN ! no polarization, e.g. linear polarization along the y-axis
+  ! Check polarization
+  IF((TRIM(TEPolarization).EQ.'x').OR.(TRIM(TEPolarization).EQ.'y'))THEN ! linear polarization along the x/y-axis
     ! electric field
     Er   =  omegaG*REAL(mG)* Bess_mG_R_R_inv*sin1*SINTZ
     Ephi =  omegaG*SqrtN*dBess_mG_R*cos1*SINTZ
