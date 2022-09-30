@@ -234,11 +234,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
       CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
       CALL MPI_ALLTOALLV(U,counts_send,disp_send,MPI_STRUCT,UTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
     END ASSOCIATE
-
-    DEALLOCATE(U)
-    ALLOCATE(U(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
-    U = UTmp
-    DEALLOCATE(UTmp)
+    CALL MOVE_ALLOC(UTmp,U)
   END IF ! ALLOCATED(U)
 #endif /*USE_HDG*/
 
