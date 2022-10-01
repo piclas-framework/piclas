@@ -344,8 +344,8 @@ END IF
 SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean','shape_function_adaptive')
     FindNeighbourElems = .TRUE.
-  CASE DEFAULT
-    FindNeighbourElems = .FALSE.
+  ! CASE DEFAULT
+  !   FindNeighbourElems = .FALSE.
 END SELECT
 
 SELECT CASE(TrackingMethod)

@@ -515,7 +515,7 @@ END DO
 IF(.NOT.FoundInElem) THEN
   ! Particle appears to have not crossed any of the checked sides. Deleted!
   IF(DisplayLostParticles)THEN
-    IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',PartID,'lost. Element:', ElemID,'(species:',PartSpecies(PartID),')'
+    IPWRITE(*,*) 'Error in RotPeriodicBC! Particle Number',PartID,'lost. Element:', ElemID,'(species:',PartSpecies(PartID),')'
     IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,PartID)
     IPWRITE(*,*) 'Pos:     ', PartState(1:3,PartID)
     IPWRITE(*,*) 'Velo:    ', PartState(4:6,PartID)
