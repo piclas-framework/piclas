@@ -87,8 +87,7 @@ CALL prms%CreateRealOption(     'tPulse'           , 'TODO-DEFINE-PARAMETER\n'//
                                                      'Half length of pulse' , '30e-9')
 
 CALL prms%CreateRealOption(     'TEFrequency'      , 'Frequency of TE wave')
-CALL prms%CreateRealOption(     'TEScale'          , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Scaling of input TE-wave strength' , '1.')
+CALL prms%CreateRealOption(     'TEScale'          , 'Scaling of input TE-wave strength' , '1.')
 CALL prms%CreateStringOption(  'TEPolarization'   ,  'Polarization of the TE-mode: x = linear in x-direction\n'//&
                                                      '                             y = linear in y direction\n'//&
                                                      '                             l = left-handed circular\n'//&
@@ -240,13 +239,14 @@ DO iRefState=1,nTmp
   CASE(2,22)
     TEFrequency        = GETREAL('TEFrequency')
     TERadius           = GETREAL('TERadius')
+    TEScale            = GETREAL('TEScale')
   CASE(4,40,41)
     xDipole(1:3)       = GETREALARRAY('xDipole',3,'0.,0.,0.') ! dipole base point
     DipoleOmega        = GETREAL('omega','6.28318E08')        ! f=100 MHz default
     tPulse             = GETREAL('tPulse','30e-9')            ! half length of pulse
   CASE(5,6)
     TEFrequency        = GETREAL('TEFrequency','35e9')
-    TEScale            = GETREAL('TEScale','1.')
+    TEScale            = GETREAL('TEScale')
     TEPolarization     = TRIM(GETSTR('TEPolarization','x'))
     TEDelay            = GETREAL('TEDelay','0.5e-9')
     TEPulse            = GETLOGICAL('TEPulse','.FALSE.')
@@ -565,7 +565,7 @@ CASE(2) ! Coaxial Waveguide
   z = x(3)
   resu      = 0.
   Frequency = TEFrequency
-  Amplitude = 1.
+  Amplitude = TEScale
   !zlen     = 2.5
   r         = TERadius
   r2        = (x(1)*x(1)+x(2)*x(2))/r
@@ -575,6 +575,7 @@ CASE(2) ! Coaxial Waveguide
   resu(2)=( x(2))*sin(omega*(kz*z-c*t))/r2
   resu(4)=(-x(2))*sin(omega*(kz*z-c*t))/(r2*c)
   resu(5)=( x(1))*sin(omega*(kz*z-c*t))/(r2*c)
+  resu = Amplitude * resu
 
 #if PP_TimeDiscMethod==1
   Resu_t=0.
@@ -587,12 +588,14 @@ CASE(2) ! Coaxial Waveguide
   resu_tt(2)=-(omega*c)**2*( x(2))*sin(omega*(z-c*t))/r2
   resu_tt(4)=-(omega*c)**2*(-x(2))*sin(omega*(z-c*t))/(r2*c)
   resu_tt(5)=-(omega*c)**2*( x(1))*sin(omega*(z-c*t))/(r2*c)
+  resu_t = Amplitude * resu_t
+  resu_tt = Amplitude * resu_tt
 #endif /*PP_TimeDiscMethod==1*/
 
 CASE(22) ! Coaxial Waveguide
   resu      = 0.
   Frequency = TEFrequency
-  Amplitude = 1.
+  Amplitude = TEScale
   r         = TERadius
   r2        = (x(1)*x(1)+x(2)*x(2))/r
   omega     = 2.*Pi*Frequency
@@ -600,6 +603,7 @@ CASE(22) ! Coaxial Waveguide
   resu(2)=( x(2))*sin(-omega*t)/r2
   resu(4)=(-x(2))*sin(-omega*t)/(r2*c)
   resu(5)=( x(1))*sin(-omega*t)/(r2*c)
+  resu = Amplitude * resu
 
 CASE(3) ! Resonator
   !special initial values
@@ -900,10 +904,8 @@ CASE(16) ! 3 of 3: Gauss-shape with perfect focus (w(z)=w_0): initial & boundary
                 END IF
               END ASSOCIATE
             ELSE
-              CALL abort(&
-                  __STAMP__&
-                  ,'ExactFunction=16 (laser pulse IC+BC) together with ExactFlux can only '//&
-                  'be used with ExactFluxDir=BeamMainDir (in BeamMainDir-direction).')
+              CALL abort(__STAMP__,'ExactFunction=16 (laser pulse IC+BC) together with ExactFlux can only '//&
+                                   'be used with ExactFluxDir=BeamMainDir (in BeamMainDir-direction).')
             END IF
           ELSE ! Default: no ExactFlux is used
             resu(1:3)=E_0*spatialWindow*E_0_vec*timeFac
@@ -1006,9 +1008,7 @@ CASE(2)
   Resu=Resu + 0.75*dt*Resu_t+5./16.*dt*dt*Resu_tt
 CASE DEFAULT
   ! Stop, works only for 3 Stage O3 LS RK
-  CALL abort(&
-      __STAMP__&
-      ,'Exactfuntion works only for 3 Stage O3 LS RK!',999,999.)
+  CALL abort(__STAMP__,'Exactfuntion works only for 3 Stage O3 LS RK!',999,999.)
 END SELECT
 #endif
 END SUBROUTINE ExactFunc
@@ -1185,9 +1185,7 @@ ELSE ! old/original formulation
 END IF
 CASE(50,51) ! TE_34,19 Mode - no sources
 CASE DEFAULT
-  CALL abort(&
-      __STAMP__&
-      ,'Exactfunction not specified! IniExactFunc = ',IntInfoOpt=IniExactFunc)
+  CALL abort(__STAMP__,'Exactfunction not specified! IniExactFunc = ',IntInfoOpt=IniExactFunc)
 END SELECT ! ExactFunction
 
 #if defined(LSERK) ||  defined(ROS) || defined(IMPA)
