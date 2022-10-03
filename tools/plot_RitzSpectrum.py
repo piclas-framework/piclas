@@ -79,7 +79,7 @@ for i in range(len(lambdaDMD[1])):
         amplogPositiv.append(amplog[i])
 
 plt.scatter([i/(2*np.pi) for i in lambdaDMDimag], lambdaDMDreal, s=[40.*(i+.4) for i in amplogPositiv] , c=[40.*(i+.4) for i in amplogPositiv], marker='o')
-labels = ['Mode%d\n f=%.2f'%(i+1,lambdaDMDimag[i]/(2*np.pi)) for i in range(len(lambdaDMDreal))]
+labels = ['Mode%d\n f=%.2e'%(i+1,lambdaDMDimag[i]/(2*np.pi)) for i in range(len(lambdaDMDreal))]
 plt.axhline(y=0.0, color='k', linestyle='--')
 # j=0
 for label, x, y in zip(labels, [i/(2*np.pi) for i in lambdaDMDimag], lambdaDMDreal):
@@ -90,7 +90,8 @@ for label, x, y in zip(labels, [i/(2*np.pi) for i in lambdaDMDimag], lambdaDMDre
         xy=(x, y), xytext=(0, -20),
         textcoords='offset points', ha='center', va='top',
         bbox      =dict(boxstyle  ='round,pad=0.5', fc='yellow', alpha=0.1),
-        arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0'))
+        arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0'),
+        fontsize=6)
 
 plt.xlabel('$\omega_i/2\pi$',fontsize=18)
 plt.ylabel('$\omega_r$',fontsize=18)

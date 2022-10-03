@@ -56,12 +56,12 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                           :: Time                              ! Used to track computation time
 CHARACTER(LEN=255)             :: NodeTypeVisuOut, InputStateFile, MeshFile, File_Type, DGSolutionDataset
-INTEGER                        :: NVisu, iArgs, iArgsStart, TimeStampLength, iExt
+INTEGER                        :: NVisu, iArgs, iArgsStart, TimeStampLength, iExt, iField
 LOGICAL                        :: CmdLineMode, NVisuDefault         ! In command line mode only NVisu is specified directly,
                                                                     ! otherwise a parameter file is needed
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
-LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists, VisuParticles, PartDataExists
+LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists, VisuParticles, PartDataExists, DMDDataExists
 LOGICAL                        :: BGFieldExists
 LOGICAL                        :: VisuAdaptiveInfo, AdaptiveInfoExists
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
@@ -247,6 +247,7 @@ DO iArgs = iArgsStart,nArgs
   CALL DatasetExists(File_ID , 'SurfaceData'  , SurfaceDataExists)
   CALL DatasetExists(File_ID , 'PartData'     , PartDataExists)
   CALL DatasetExists(File_ID , 'BGField'      , BGFieldExists) ! deprecated , but allow for backward compatibility
+  CALL DatasetExists(File_ID , 'Mode_001_ElectricFieldX_Img'     , DMDDataExists)
   IF(BGFieldExists)THEN
     DGSolutionExists  = .TRUE.
     DGSolutionDataset = 'BGField'
@@ -307,7 +308,12 @@ DO iArgs = iArgsStart,nArgs
   END IF
   ! === DG_Solution (incl. BField etc.) ============================================================================================
   IF(DGSolutionExists) THEN
-    CALL ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,File_Type,DGSolutionDataset)
+    IF(DMDDataExists)THEN
+      DGSolutionDataset = 'Mode_001_ElectricFieldX_Img'
+      CALL ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,File_Type,DGSolutionDataset)
+    ELSE
+      CALL ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,File_Type,DGSolutionDataset)
+    END IF ! DMDDataExists
   END IF
   ! === ElemData ===================================================================================================================
   IF(ElemDataExists) THEN
@@ -568,7 +574,7 @@ INTEGER,INTENT(IN)            :: NVisu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iElem, iDG, nVar_State, N_State, nElems_State, nVar_Solution, nDims, iField, nFields, Suffix
-INTEGER                         :: nDimsOffset, nVar_Source,nVar_TD
+INTEGER                         :: nDimsOffset, nVar_Source,nVar_TD, iMode
 CHARACTER(LEN=255)              :: MeshFile, NodeType_State, FileString_DG, StrVarNamesTemp(4),StrVarNamesTemp3(3),StrVarNamesTemp4
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:), StrVarNamesTemp2(:)
 REAL                            :: OutputTime
@@ -583,6 +589,7 @@ REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             !< Vandermo
 REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  !< Vandermonde from state to visualization nodes
 LOGICAL                         :: DGSourceExists,DGTimeDerivativeExists,TimeExists,DGSourceExtExists
 CHARACTER(LEN=16)               :: hilf
+CHARACTER(LEN=255)              :: DMDFields(1:16), Dataset
 !===================================================================================================================================
 ! 1.) Open given file to get the number of elements, the order and the name of the mesh file
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
@@ -630,6 +637,8 @@ CALL ReadAttribute(File_ID,'VarNames',nVar_Solution,StrArray=StrVarNamesTemp2)
 
 ! Allocate the variable names array used for the output and copy the names from the DG_Solution and DG_Source (if it exists)
 SDEALLOCATE(StrVarNames)
+! Check if DMD modes are converted
+IF(TRIM(DGSolutionDataset(1:MIN(LEN(TRIM(DGSolutionDataset)),5))).EQ.'Mode_') nVar_State = 16
 ALLOCATE(StrVarNames(nVar_State))
 StrVarNames(1:nVar_Solution) = StrVarNamesTemp2
 IF(DGSourceExists)         StrVarNames(nVar_Solution+1:nVar_Source) = StrVarNamesTemp(1:4)
@@ -665,30 +674,63 @@ ASSOCIATE (&
       N_State       => INT(N_State       , IK)      , &
       nElems        => INT(nElems        , IK)      , &
       nFields       => INT(nFields       , IK)      )
-  IF(nFields.EQ.1)THEN
-    SDEALLOCATE(U)
-    ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
-    ! Default: DGSolutionDataset = 'DG_Solution'
-    ! Read 1:nVar_Solution
-    CALL ReadArray(TRIM(DGSolutionDataset),5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
-                    RealArray=U(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems))
+  ! Check if AMD data is to be converted
+  IF(TRIM(DGSolutionDataset(1:MIN(LEN(TRIM(DGSolutionDataset)),5))).EQ.'Mode_') THEN
+      DMDFields=(/'ElectricFieldX_Img ',&
+                  'ElectricFieldX_Real',&
+                  'ElectricFieldY_Img ',&
+                  'ElectricFieldY_Real',&
+                  'ElectricFieldZ_Img ',&
+                  'ElectricFieldZ_Real',&
+                  'MagneticFieldX_Img ',&
+                  'MagneticFieldX_Real',&
+                  'MagneticFieldY_Img ',&
+                  'MagneticFieldY_Real',&
+                  'MagneticFieldZ_Img ',&
+                  'MagneticFieldZ_Real',&
+                  'Phi_Img            ',&
+                  'Phi_Real           ',&
+                  'Psi_Img            ',&
+                  'Psi_Real           '/)
 
-    ! Read nVar_Solution+1:nVar_Source
-    IF(DGSourceExists) CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
-                                       RealArray=U(nVar_Solution+1:nVar_Source,0:N_State,0:N_State,0:N_State,1:nElems))
-    ! Read nVar_Source+1:nVar_TD
-    IF(DGTimeDerivativeExists) CALL ReadArray('DG_TimeDerivative',5,(/3_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
-                            offsetElem,5,RealArray=U(nVar_Source+1:nVar_TD,0:N_State,0:N_State,0:N_State,1:nElems))
-    ! Read nVar_TD+1:nVar_State
-    IF(DGSourceExtExists) CALL ReadArray('DG_SourceExt',5,(/1_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
-                            offsetElem,5,RealArray=U(nVar_TD+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
-  ELSE ! more than one field
-    SDEALLOCATE(U2)
-    ALLOCATE(U2(nVar_State,0:N_State,0:N_State,0:N_State,nElems,nFields))
-    ! Default: DGSolutionDataset = 'DG_Solution'
-    CALL ReadArray(TRIM(DGSolutionDataset),6,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems,nFields/),offsetElem,5, &
-                    RealArray=U2(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems,1:nFields))
-  END IF ! nFields.GT.1
+      iMode = 2
+      WRITE(UNIT=hilf,FMT='(I3.3)') iMode
+      SDEALLOCATE(U)
+      ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
+      DO iField = 1, 16
+        Dataset='Mode_'//TRIM(hilf)//'_'//DMDFields(iField)
+        StrVarNames(iField) = TRIM(Dataset)
+        WRITE (*,*) "Converting ... ", TRIM(Dataset)
+        CALL ReadArray(TRIM(Dataset),5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+            RealArray=U(iField:iField,0:N_State,0:N_State,0:N_State,1:nElems))
+      END DO ! iField = 1, 16
+
+  ELSE
+    IF(nFields.EQ.1)THEN
+      SDEALLOCATE(U)
+      ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
+      ! Default: DGSolutionDataset = 'DG_Solution'
+      ! Read 1:nVar_Solution
+      CALL ReadArray(TRIM(DGSolutionDataset),5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+          RealArray=U(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems))
+
+      ! Read nVar_Solution+1:nVar_Source
+      IF(DGSourceExists) CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+          RealArray=U(nVar_Solution+1:nVar_Source,0:N_State,0:N_State,0:N_State,1:nElems))
+      ! Read nVar_Source+1:nVar_TD
+      IF(DGTimeDerivativeExists) CALL ReadArray('DG_TimeDerivative',5,(/3_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
+          offsetElem,5,RealArray=U(nVar_Source+1:nVar_TD,0:N_State,0:N_State,0:N_State,1:nElems))
+      ! Read nVar_TD+1:nVar_State
+      IF(DGSourceExtExists) CALL ReadArray('DG_SourceExt',5,(/1_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
+          offsetElem,5,RealArray=U(nVar_TD+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
+    ELSE ! more than one field
+      SDEALLOCATE(U2)
+      ALLOCATE(U2(nVar_State,0:N_State,0:N_State,0:N_State,nElems,nFields))
+      ! Default: DGSolutionDataset = 'DG_Solution'
+      CALL ReadArray(TRIM(DGSolutionDataset),6,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems,nFields/),offsetElem,5, &
+          RealArray=U2(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems,1:nFields))
+    END IF ! nFields.GT.1
+  END IF ! TRIM(DGSolutionDataset(1:MIN(LEN(TRIM(DGSolutionDataset)),5))).EQ.'Mode_'
 END ASSOCIATE
 
 CALL CloseDataFile()
