@@ -105,8 +105,6 @@ CALL InitMPIvars()
 #endif
 
 #if USE_MPI
-WRITE (*,*) "nVar_State,N_State,nElems_State =", nVar_State,N_State,nElems_State
-!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 nTotalNew=REAL(nVar_State*(N_State+1)**3*nElems_State)
 !limit=(2**31-1)/8.
 limit=(2**28-1)/8. ! max. 32 bit integer / 8

@@ -129,7 +129,6 @@ ELSE
   ALLOCATE(DMDData_tmp2(nElems_State*(N_State+1)**2,nVarCalc))
   ALLOCATE(DMDData_tmp3(nElems_State*(N_State+1)**2,nVarVisuTotal))
 END IF
-WRITE (*,*) "SHAPE(DMDData) =", SHAPE(DMDData)
 
 DO iVarOut=1,nVarDep ! iterate over all out variables
   !WRITE (*,*) "iVarOut,mapCalc(iVarOut) =", iVarOut,mapCalc(iVarOut)
