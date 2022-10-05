@@ -45,6 +45,9 @@ SUBROUTINE ReadExternalFieldFromHDF5( DataSet, ExternalField, DeltaExternalField
 ! use module
 !USE MOD_IO_HDF5
 USE MOD_Globals
+#if USE_MPI
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_MPI*/
 !USE MOD_HDF5_Input            ,ONLY: DatasetExists,ReadAttribute
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -71,8 +74,8 @@ INTEGER                         :: NbrOfRows,NbrOfColumns,iDir,j
 INTEGER(HSIZE_T), DIMENSION(2)  :: dims,sizeMax
 INTEGER(HID_T)                  :: file_id_loc                       ! File identifier
 INTEGER(HID_T)                  :: dset_id_loc                       ! Dataset identifier
-INTEGER(HID_T)                  :: filespace                          ! filespace identifier
-LOGICAL                         :: DatasetFound,AttribtueFound
+INTEGER(HID_T)                  :: filespace                         ! filespace identifier
+LOGICAL                         :: DatasetFound,AttribtueFound,NaNDetected
 REAL                            :: delta,deltaOld
 INTEGER                         :: iDirMax
 !===================================================================================================================================
@@ -100,7 +103,6 @@ IF(DatasetFound) THEN
   ! Flip columns and rows between .h5 data and Fortran data
   NbrOfColumns = INT(dims(2)) ! this is the total number of points
   NbrOfRows    = INT(dims(1)) ! this is the number of properties x,y,z,Bx,By,Bz
-  WRITE (*,*) "NbrOfColumns,NbrOfRows =", NbrOfColumns,NbrOfRows
   ! Read-in the data
   ALLOCATE(ExternalField(1:NbrOfRows,1:NbrOfColumns))
   ExternalField=0.
@@ -162,7 +164,16 @@ ELSE
 END IF ! ExternalFieldDim.EQ.2
 
 ! Loop x, y and z-coordinate and check deltas between points
+NaNDetected=.FALSE.
 DO iDir = 1, iDirMax
+  ! Check for NaNs and nullify all properties except the coordinates of a data point
+  DO j = 1, NbrOfColumns
+    IF(ANY(ISNAN(ExternalField(ExternalFieldDim+1:NbrOfRows,j))))THEN
+      NaNDetected=.TRUE.
+      ExternalField(ExternalFieldDim+1:NbrOfRows,j) = 0.
+    END IF ! ANY(ISNAN(ExternalField(ExternalFieldDim+1:NbrOfRows,j)))
+  END DO
+
   ! Get global min/max
   ExternalFieldMin(iDir) = MINVAL(ExternalField(iDir,:))
   ExternalFieldMax(iDir) = MAXVAL(ExternalField(iDir,:))
@@ -200,6 +211,10 @@ DO iDir = 1, iDirMax
   END DO ! j = 1, NbrOfColumns
 END DO ! iDir = 1, iDirMax
 
+IF(NaNDetected) THEN
+  LBWRITE(UNIT_stdOut,'(A)') " Detected NaNs in "//TRIM(DataSet)//" dataset ("//TRIM(FileNameExternalField)//") replaced by 0.0"
+END IF
+
 ! Sanity check
 ASSOCIATE( x => ExternalFieldN(1:3) )
   IF(ExternalFieldDim.EQ.2)THEN
@@ -207,11 +222,11 @@ ASSOCIATE( x => ExternalFieldN(1:3) )
     ! z-dir: x(1)
     ! r-dir: x(2)
     IF(NbrOfColumns.NE.x(1)*x(2)) CALL abort(__STAMP__,'Wrong number of points in 2D')
-    SWRITE (UNIT_stdOut,'(A,2(I0,A))') " Read external field with ",x(1)," x ",x(2)," data points"
+    LBWRITE (UNIT_stdOut,'(A,2(I0,A))') " Read external field with ",x(1)," x ",x(2)," data points"
   ELSE
     IF(MINVAL(DeltaExternalField).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for external field.')
     IF(NbrOfColumns.NE.x(1)*x(2)*x(3)) CALL abort(__STAMP__,'Wrong number of points in 3D')
-    SWRITE (UNIT_stdOut,'(A,3(I0,A))') " Read external field with ",x(1)," x ",x(2)," x ",x(3)," data points"
+    LBWRITE (UNIT_stdOut,'(A,3(I0,A))') " Read external field with ",x(1)," x ",x(2)," x ",x(3)," data points"
   END IF ! ExternalFieldDim.EQ.2
 END ASSOCIATE
 
