@@ -474,7 +474,8 @@ IF(GEO%RotPeriodicBC) THEN
   IF(ALMOSTZERO(GEO%RotPeriodicAngle)) THEN
     CALL abort(__STAMP__,'Angle for for rotational periodicity must not be zero!')
   END IF
-  GEO%RotPeriodicAngle = GEO%RotPeriodicAngle / 180. * PI
+  ! Rotate the particle slightly inside the domain
+  GEO%RotPeriodicAngle = GEO%RotPeriodicAngle / 180. * PI * 0.99999
 END IF
 
 ! Surface particle output to .h5
