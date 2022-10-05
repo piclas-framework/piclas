@@ -301,6 +301,8 @@
 
 #define SAMPWALL_NVARS            11
 
+#define MACROSURF_NVARS           6
+
 ! Tracking method
 #define REFMAPPING    1
 #define TRACING       2

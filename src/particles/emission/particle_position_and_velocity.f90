@@ -466,10 +466,7 @@ IF(UseRotRefFrame) THEN
   DO i = 1,NbrOfParticle
     PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
     IF (PositionNbr.GT.0) THEN
-      IF(InRotRefFrameCheck(PositionNbr)) THEN
-        PDM%InRotRefFrame(PositionNbr) = .TRUE.
-!        PartState(4:6,PositionNbr) = PartState(4:6,PositionNbr) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PositionNbr))
-      END IF
+      PDM%InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
     END IF
   END DO
 END IF

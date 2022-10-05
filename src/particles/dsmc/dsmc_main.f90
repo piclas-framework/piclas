@@ -49,7 +49,6 @@ USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf, DSMCSumOfFormedParticles, BG
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Relaxation       ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry
-!USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartState
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree, DSMC_pairing_dotree
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 #if USE_LOADBALANCE
@@ -66,20 +65,11 @@ LOGICAL,OPTIONAL  :: DoElement(nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem, nPart, iPart
+INTEGER           :: iElem, nPart
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-
-! Rotational frame of reference: Transform particle velocity to inertial frame of reference for the DSMC operator
-!IF(UseRotRefFrame) THEN
-!  DO iPart = 1,PDM%ParticleVecLength
-!    IF (PDM%ParticleInside(iPart).AND.PDM%InRotRefFrame(iPart)) THEN
-!      PartState(4:6,iPart) = PartState(4:6,iPart) + CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-!    END IF
-!  END DO
-!END IF
 
 ! Reset the number of particles created during the DSMC loop
 DSMCSumOfFormedParticles = 0
@@ -150,14 +140,6 @@ IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN
 END IF
 ! Delete background gas particles
 IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL BGGas_DeleteParticles
-
-!IF(UseRotRefFrame) THEN
-!  DO iPart = 1,PDM%ParticleVecLength
-!    IF (PDM%ParticleInside(iPart).AND.PDM%InRotRefFrame(iPart)) THEN
-!      PartState(4:6,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-!    END IF
-!  END DO
-!END IF
 
 ! Sampling of macroscopic values
 ! (here for a continuous average; average over N iterations is performed in src/analyze/analyze.f90)

@@ -497,17 +497,15 @@ USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec, VECNORM, DOTPRODUCT
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature, CalcRotWallVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry,UseRotRefFrame,RotRefFrameOmega
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry,UseRotRefFrame
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_part_tools              ,ONLY: InRotRefFrameCheck
-!#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
-!#endif
+#endif
 USE MOD_SurfaceModel_Tools      ,ONLY: CalcPostWallCollVelo, SurfaceModel_EnergyAccommodation
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
-USE MOD_Particle_Vars           ,ONLY: RotRefFramRegion,RotRefFrameAxis,nRefFrameRegions
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -528,9 +526,6 @@ LOGICAL                           :: IsAuxBC
 ! Symmetry
 REAL                              :: rotVelY, rotVelZ, rotPosY
 REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:3), Vector2(1:3),OldVelo(1:3)
-! Rot Ref Frame
-LOGICAL                           :: InRotRefFramePOI
-INTEGER                           :: iRegion
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN
   IsAuxBC=.TRUE.
@@ -561,21 +556,6 @@ END IF !IsAuxBC
 SpecID = PartSpecies(PartID)
 
 POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
-
-!IF(UseRotRefFrame) THEN
-!  IF(nRefFrameRegions.GT.0) THEN
-!    InRotRefFramePOI = .FALSE.
-!    DO iRegion = 1, nRefFrameRegions
-!      IF((POI_vec(RotRefFrameAxis).GT.RotRefFramRegion(1,iRegion)).AND. &
-!         (POI_vec(RotRefFrameAxis).LT.RotRefFramRegion(2,iRegion))) THEN
-!        InRotRefFramePOI = .TRUE.
-!        EXIT
-!      END IF
-!    END DO
-!  ELSE
-!    InRotRefFramePOI = .TRUE.
-!  END IF
-!END IF
 
 IF(PartBound%RotVelo(locBCID)) THEN
   CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
@@ -644,23 +624,8 @@ IF(Symmetry%Axisymmetric) THEN
 ELSE
   NewVelo(1:3) = VeloC(1)*tang1(1:3)-tang2(1:3)*VeloC(2)-VeloC(3)*n_loc(1:3)
 END IF
-!IF(UseRotRefFrame) THEN
-!  IF(InRotRefFramePOI) THEN
-!    IF(PartBound%RotVelo(locBCID)) THEN
-!      ! Nichts
-!    ELSE
-!      NewVelo(1:3) = NewVelo(1:3) - CROSS(RotRefFrameOmega(1:3),POI_vec)
-!    END IF
-!  ELSE
-!    IF(PartBound%RotVelo(locBCID)) THEN
-!      NewVelo(1:3) = NewVelo(1:3) + WallVelo(1:3)
-!    ELSE
-!      ! Nichts
-!    END IF
-!  END IF
-!ELSE
-  NewVelo(1:3) = NewVelo(1:3) + WallVelo(1:3)
-!END IF
+
+NewVelo(1:3) = NewVelo(1:3) + WallVelo(1:3)
 
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
@@ -701,20 +666,6 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
   END IF ! IsAuxBC
 
   PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3) * adaptTimeStep
-
-!  IF(UseRotRefFrame) THEN
-!    IF(InRotRefFrameCheck(PartID)) THEN
-!      IF(.NOT.InRotRefFramePOI) THEN
-!        NewVelo(1:3) = NewVelo(1:3) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
-!        PDM%InRotRefFrame(PartID) = .TRUE.
-!      END IF
-!    ELSE
-!      IF(InRotRefFramePOI) THEN
-!        NewVelo(1:3) = NewVelo(1:3) + CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
-!        PDM%InRotRefFrame(PartID) = .FALSE.
-!      END IF
-!    END IF
-!  END IF
 
 ! 7.) Axisymmetric simulation: Rotate the vector back into the symmetry plane
   IF(Symmetry%Axisymmetric) THEN

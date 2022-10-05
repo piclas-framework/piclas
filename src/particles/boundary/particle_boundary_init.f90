@@ -111,11 +111,10 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-RotOrg'  &
                                 , 'Origin of rotation axis (global x,y,z).' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-RotAxi'  &
-                                , 'Direction of rotation axis (global x,y,z). Note: Rotation direction based on Right-hand rule!' &
+                                , 'Definition of rotation axis and direction (global x,y,z). Note: Rotation direction based on right-hand rule!' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-RotPeriodicDir'  &
-                                , 'Angular degree of rotation periodicity in [deg].' &
-                                , '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-RotPeriodicDir' , 'Direction of rotation periodicity, either 1 or -1. '//&
+                                'Note: Rotation direction based on right-hand rule!', numberedmulti=.TRUE.)
 !CALL prms%CreateLogicalOption(  'Part-RotPeriodicReBuild', 'Force re-creation of rotational periodic mapping (which might already exist in the mesh file).', '.FALSE.')
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp2'  &
                                 , 'Second wall temperature (in [K]) of reflective particle boundary for a temperature gradient.' &
@@ -239,7 +238,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOut
 USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, FindNeighbourElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo
 #if USE_LOADBALANCE
@@ -447,14 +446,13 @@ DO iPartBound=1,nPartBound
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('rot_periodic')
     GEO%RotPeriodicBC = .TRUE.
-    FindNeighbourElems = .TRUE.
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicBC
-    PartBound%RotPeriodicDir(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-RotPeriodicDir','0.')
+    PartBound%RotPeriodicDir(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-RotPeriodicDir')
     IF(ABS(PartBound%RotPeriodicDir(iPartBound)).NE.1) THEN
-      CALL abort(__STAMP__,'Angle for for rotational periodicity must not be zero!')
+      CALL abort(__STAMP__,'Direction for rotational periodicity must be 1 or -1, using the right-hand rule!')
     END IF
   CASE DEFAULT
-    SWRITE(*,*) ' Boundary does not exists: ', TRIM(tmpString)
+    SWRITE(*,*) ' Boundary does not exist: ', TRIM(tmpString)
     CALL abort(__STAMP__,'Particle Boundary Condition does not exist')
   END SELECT
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
@@ -475,7 +473,8 @@ IF(GEO%RotPeriodicBC) THEN
   IF(ALMOSTZERO(GEO%RotPeriodicAngle)) THEN
     CALL abort(__STAMP__,'Angle for for rotational periodicity must not be zero!')
   END IF
-  GEO%RotPeriodicAngle = GEO%RotPeriodicAngle / 180. * PI
+  ! Rotate the particle slightly inside the domain
+  GEO%RotPeriodicAngle = GEO%RotPeriodicAngle / 180. * PI * 0.99999
 END IF
 
 ! Surface particle output to .h5
