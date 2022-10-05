@@ -86,7 +86,7 @@ CALL prms%CreateRealArrayOption('PIC-externalField'           , 'Method 2 of 5: 
 CALL prms%CreateRealOption(     'PIC-scaleexternalField'      , 'Scaling factor for PIC-externalField', '1.0')
 
 ! -- external field 3
-CALL prms%CreateStringOption(   'PIC-variableExternalField'   , 'Method 3 of 5: CSV file containing the external magnetic field Bz in z-direction '//&
+CALL prms%CreateStringOption(   'PIC-variableExternalField'   , 'Method 3 of 5: H5 or CSV file containing the external magnetic field Bz in z-direction '//&
                                                                 'for interpolating the variable field at each particle z-position.', 'none')
 
 ! -- external field 4
@@ -364,9 +364,11 @@ SUBROUTINE ReadVariableExternalField()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,FileNameVariableExternalField
-USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldDim,VariableExternalFieldAxisSym
-USE MOD_HDF5_Input_Field      ,ONLY: ReadVariableExternalFieldFromHDF5
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,FileNameVariableExternalField,DeltaExternalField,VariableExternalFieldDim
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldDim,VariableExternalFieldAxisSym,VariableExternalFieldMin
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldMax,VariableExternalFieldN,VariableExternalFieldAxisDir
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldRadInd
+USE MOD_HDF5_Input_Field      ,ONLY: ReadExternalFieldFromHDF5
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -383,10 +385,6 @@ INTEGER               :: lenstr
 !===================================================================================================================================
 LBWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
 
-! Defaults
-VariableExternalFieldDim     = 1 ! default is 1D
-VariableExternalFieldAxisSym = .FALSE.
-
 ! Check if file exists
 IF(.NOT.FILEEXISTS(FileNameVariableExternalField)) CALL abort(__STAMP__,"File not found: "//TRIM(FileNameVariableExternalField))
 
@@ -396,7 +394,10 @@ IF(lenstr.LT.lenmin) CALL abort(__STAMP__,"File name too short: "//TRIM(FileName
 
 ! Check file ending, either .csv or .h5
 IF(TRIM(FileNameVariableExternalField(lenstr-lenmin+2:lenstr)).EQ.'.h5')THEN
-  CALL ReadVariableExternalFieldFromHDF5()
+  CALL ReadExternalFieldFromHDF5('data',&
+      VariableExternalField        , DeltaExternalField          , FileNameVariableExternalField , VariableExternalFieldDim , &
+      VariableExternalFieldAxisSym , VariableExternalFieldRadInd , VariableExternalFieldAxisDir  , VariableExternalFieldMin , &
+      VariableExternalFieldMax     , VariableExternalFieldN)
 ELSEIF(TRIM(FileNameVariableExternalField(lenstr-lenmin+1:lenstr)).EQ.'.csv')THEN
   CALL ReadVariableExternalFieldFromCSV()
 ELSE

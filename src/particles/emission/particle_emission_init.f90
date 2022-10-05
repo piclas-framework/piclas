@@ -146,9 +146,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ExcludeRegion[$]-Cylind
                                   'Height of excluded cylinder, if'//&
                                   ' Part-Species[$]-Init[$]-ExcludeRegion[$]-SpaceIC=cylinder (set 0 for flat circle),'//&
                                   'negative value = opposite direction ', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-NeutralizationSource'  &
-                                , 'Name of the boundary used for calculating the charged particle balance used for thruster'//&
-                                  ' neutralization (no default).' ,numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-NeutralizationSource'  , 'Name of the boundary used for calculating the charged particle balance used for thruster neutralization (no default).' ,numberedmulti=.TRUE.)
 ! ====================================== photoionization =================================================================
 CALL prms%CreateLogicalOption('Part-Species[$]-Init[$]-FirstQuadrantOnly','Only insert particles in the first quadrant that is'//&
                               ' spanned by the vectors x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R]',  '.FALSE.', numberedmulti=.TRUE.)
@@ -169,6 +167,9 @@ CALL prms%CreateLogicalOption('Part-Species[$]-Init[$]-TraceSpecies','Flag backg
                               ' Different weighting factor can be used',  '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption( 'Part-Species[$]-Init[$]-PartBCIndex','Associated particle boundary ID','-1',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-MacroParticleFactor', 'Emission-specific particle weighting factor: number of simulation particles per real particle',numberedmulti=.TRUE.)
+! ====================================== emission distribution =================================================================
+CALL prms%CreateStringOption( 'Part-Species[$]-Init[$]-EmissionDistributionName' , 'Name of the species, e.g., "electron" or "ArIon" used for initial emission via interpolation of n, T and v from equidistant field data (no default).' ,numberedmulti=.TRUE.)
+CALL prms%CreateStringOption( 'Part-FileNameEmissionDistribution'                , 'H5 or CSV file containing the data for initial emission via interpolation of n, T and v from equidistant field data', 'none')
 END SUBROUTINE DefineParametersParticleEmission
 
 
@@ -181,11 +182,12 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
-USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
+USE MOD_DSMC_Vars        ,ONLY: useDSMC, BGGas
+USE MOD_DSMC_BGGas       ,ONLY: BGGas_Initialize
 #if USE_MPI
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_MPI*/
+USE MOD_Restart_Vars     ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -200,6 +202,7 @@ CHARACTER(32)         :: hilf, hilf2
 ALLOCATE(SpecReset(1:nSpecies))
 SpecReset=.FALSE.
 UseNeutralization = .FALSE.
+UseEmissionDistribution = .FALSE.
 ! Background gas
 BGGas%NumberOfSpecies = 0
 ALLOCATE(BGGas%BackgroundSpecies(nSpecies))
@@ -359,8 +362,7 @@ DO iSpec = 1, nSpecies
     ! 2D simulation/variable time step only with cell_local and/or surface flux
     IF((Symmetry%Order.EQ.2).OR.VarTimeStep%UseVariableTimeStep) THEN
       IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local') THEN
-        CALL abort(__STAMP__&
-          ,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
+        CALL abort(__STAMP__,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
             'cell_local-SpaceIC and/or surface flux!')
       END IF
     END IF
@@ -416,6 +418,11 @@ DO iSpec = 1, nSpecies
       IF(.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow)  CALL CollectiveStop(__STAMP__, &
         ' Linearly ramping of inflow-number-of-particles is only possible with PoissonRounding or DoTimeDepInflow!')
     END IF
+    !--- Emission distribution
+    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
+      UseEmissionDistribution = .TRUE.
+      Species(iSpec)%Init(iInit)%EmissionDistributionName = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-EmissionDistributionName'))
+    END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution'
   END DO ! iInit
 END DO ! iSpec
 IF(nSpecies.GT.0)THEN
@@ -435,6 +442,14 @@ IF (useDSMC) THEN
     END IF
   END IF ! BGGas%NumberOfSpecies.GT.0
 END IF !useDSMC
+
+!-- Read Emission Distribution stuff
+IF(UseEmissionDistribution.AND.(.NOT.DoRestart)) THEN
+  FileNameEmissionDistribution = GETSTR('Part-FileNameEmissionDistribution')
+  CALL ReadUseEmissionDistribution()
+END IF
+!SWRITE (*,*) "BARRIER ="
+!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 END SUBROUTINE InitializeVariablesSpeciesInits
 
@@ -988,5 +1003,60 @@ DO iSpec = 1, nSpecies
 END DO ! iSpec = 1, nSpecies
 
 END SUBROUTINE InitializeEmissionSpecificMPF
+
+
+SUBROUTINE ReadUseEmissionDistribution()
+!===================================================================================================================================
+! ATTENTION: The fields (density, temperature and velocity) need to be defined on equidistant data-points as either .csv or .h5 file
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Emission_Vars ,ONLY: FileNameEmissionDistribution
+USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim,EmissionDistributionAxisSym
+USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistribution,EmissionDistributionDelta,EmissionDistributionDim
+USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMin
+USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMax,EmissionDistributionN
+USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionRadInd,EmissionDistributionAxisDir
+USE MOD_HDF5_Input_Field       ,ONLY: ReadExternalFieldFromHDF5
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER,PARAMETER     :: lenmin=4
+INTEGER               :: lenstr
+!===================================================================================================================================
+LBWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF EMISSION DISTRIBUTION FOR PARTICLES '
+
+! Check if file exists
+IF(.NOT.FILEEXISTS(FileNameEmissionDistribution)) CALL abort(__STAMP__,"File not found: "//TRIM(FileNameEmissionDistribution))
+
+! Check length of file name
+lenstr=LEN(TRIM(FileNameEmissionDistribution))
+IF(lenstr.LT.lenmin) CALL abort(__STAMP__,"File name too short: "//TRIM(FileNameEmissionDistribution))
+
+! Check file ending, either .csv or .h5
+IF(TRIM(FileNameEmissionDistribution(lenstr-lenmin+2:lenstr)).EQ.'.h5')THEN
+  CALL ReadExternalFieldFromHDF5('electron',&
+   EmissionDistribution        , EmissionDistributionDelta  , FileNameEmissionDistribution , EmissionDistributionDim , &
+   EmissionDistributionAxisSym , EmissionDistributionRadInd , EmissionDistributionAxisDir  , EmissionDistributionMin , &
+   EmissionDistributionMax     , EmissionDistributionN)
+ELSEIF(TRIM(FileNameEmissionDistribution(lenstr-lenmin+1:lenstr)).EQ.'.csv')THEN
+  CALL abort(__STAMP__,'ReadUseEmissionDistribution(): Read-in from .csv is not implemented')
+ELSE
+  CALL abort(__STAMP__,"Unrecognised file format for : "//TRIM(FileNameEmissionDistribution))
+END IF
+
+IF(.NOT.ALLOCATED(EmissionDistribution)) CALL abort(__STAMP__,"Failed to load data from: "//TRIM(FileNameEmissionDistribution))
+
+LBWRITE(UNIT_stdOut,'(A)')' ...EMISSION DISTRIBUTION INITIALIZATION DONE'
+END SUBROUTINE ReadUseEmissionDistribution
+
 
 END MODULE MOD_Particle_Emission_Init
