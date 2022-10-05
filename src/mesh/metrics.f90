@@ -260,6 +260,8 @@ DO iElem=1,nElems
       dXCL_Ngeo(2,:,i,j,k)=dXCL_Ngeo(2,:,i,j,k) + DCL_Ngeo(j,ll)*XCL_Ngeo(:,i,ll,k)
       dXCL_Ngeo(3,:,i,j,k)=dXCL_Ngeo(3,:,i,j,k) + DCL_Ngeo(k,ll)*XCL_Ngeo(:,i,j,ll)
     END DO !l=0,N
+    ! AXISYMMETRIC HDG
+    dXCL_Ngeo(3,3,i,j,k)=dXCL_Ngeo(3,3,i,j,k)*XCL_Ngeo(2,i,j,k)
   END DO; END DO; END DO !i,j,k=0,Ngeo
 
   ! 1.c)Jacobians! grad(X_1) (grad(X_2) x grad(X_3))
@@ -329,6 +331,8 @@ DO iElem=1,nElems
         dXCL(2,:)=dXCL(2,:) + DCL_N(j,ll)*XCL_N(:,i,ll,k)
         dXCL(3,:)=dXCL(3,:) + DCL_N(k,ll)*XCL_N(:,i,j,ll)
       END DO !l=0,N
+      ! AXISYMMETRIC HDG
+      dXCL(:,3)=dXCL(:,3) * XCL_N(2,i,j,k)
       END ASSOCIATE
     END DO; END DO; END DO !i,j,k=0,N
   END IF !N>=Ngeo
@@ -354,6 +358,7 @@ DO iElem=1,nElems
       END ASSOCIATE
     END DO; END DO; END DO !i,j,k=0,N
   ELSE ! curl metrics
+    ! AXISYMMETRIC HDG: Does not work without some work :(
     ! invariant curl form, as cross product: R^dd = 1/2( XCL_N(:) x (d/dxi_dd XCL_N(:)))
     !
     !R_CL_N(dd,nn)=1/2*( XCL_N(nn+2)* d/dxi_dd XCL_N(nn+1) - XCL_N(nn+1)* d/dxi_dd XCL_N(nn+2))
