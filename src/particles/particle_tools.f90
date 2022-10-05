@@ -53,6 +53,10 @@ INTERFACE StoreLostParticleProperties
   MODULE PROCEDURE StoreLostParticleProperties
 END INTERFACE
 
+INTERFACE InterpolateEmissionDistribution2D
+  MODULE PROCEDURE InterpolateEmissionDistribution2D
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -62,6 +66,7 @@ PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParti
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
 PUBLIC :: CalcXiElec,ParticleOnProc,  CalcERot_particle, CalcEVib_particle, CalcEElec_particle, CalcVelocity_maxwell_particle
 PUBLIC :: InitializeParticleMaxwell
+PUBLIC :: InterpolateEmissionDistribution2D
 !===================================================================================================================================
 
 CONTAINS
@@ -997,6 +1002,7 @@ USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, VarTime
 USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC, RadialWeighting, AmbipolElecVelo
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Emission_Vars  ,ONLY: EmissionDistributionDim
 !USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcEElec_particle, CalcEVib_particle, CalcERot_particle
 !USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1036,6 +1042,20 @@ CASE(2) ! Emission distribution (equidistant data from .h5 file)
   IF(DSMC%DoAmbipolarDiff) CALL abort(__STAMP__,'DSMC%DoAmbipolarDiff=T'//TRIM(hilf))
   IF(VarTimeStep%UseVariableTimeStep) CALL abort(__STAMP__,'VarTimeStep%UseVariableTimeStep=T'//TRIM(hilf))
   IF(RadialWeighting%DoRadialWeighting) CALL abort(__STAMP__,'RadialWeighting%DoRadialWeighting=T'//TRIM(hilf))
+  ! Check dimensionality of data
+  SELECT CASE(EmissionDistributionDim)
+  CASE(1)
+    CALL abort(__STAMP__,'EmissionDistributionDim=1 is not implemented')
+  CASE(2)
+    ! Density field from .h5 file that is interpolated to the element origin (bilinear interpolation)
+    T(1:3) = InterpolateEmissionDistribution2D(PartState(1:3,iPart),dimLower=4,dimUpper=4,transformation=.FALSE.)
+    v(1:3) = InterpolateEmissionDistribution2D(PartState(1:3,iPart),dimLower=5,dimUpper=6,transformation=.TRUE.)
+  CASE(3)
+    CALL abort(__STAMP__,'EmissionDistributionDim=3 is not implemented')
+  END SELECT
+  Tvib    = T(1)
+  Trot    = T(1)
+  Telec   = T(1)
 CASE DEFAULT
   CALL abort(__STAMP__,'InitializeParticleMaxwell: Mode option is unknown. Mode=',IntInfoOpt=Mode)
 END SELECT
@@ -1082,6 +1102,107 @@ IF (RadialWeighting%DoRadialWeighting) THEN
 END IF
 
 END SUBROUTINE InitializeParticleMaxwell
+
+
+PPURE FUNCTION InterpolateEmissionDistribution2D(Pos,dimLower,dimUpper,transformation)
+!===================================================================================================================================
+!> This function returns a scalar property or a vector property (transformation from cylindrical coordinates to Cartesian required!)
+!> Interpolates the variable external field to the r- and z-position via bilinear interpolation
+!>
+!>   1.2 --------- 2.2
+!>    |             |
+!>  r |             |
+!>    |             |
+!>   1.1 --------- 2.1
+!>           z
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistribution !< data in 2D cylindrical coordinates
+USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDelta
+USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMin
+USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMax,EmissionDistributionN
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)          :: Pos(1:3)       !< coordinate
+LOGICAL,INTENT(IN)       :: transformation !< transform from f(r,z) to f(x,y,z)
+INTEGER,INTENT(IN)       :: dimLower,dimUpper !< lower and upper dimension of variables in EmissionDistribution
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                     :: InterpolateEmissionDistribution2D(dimLower:dimLower+2)  !< 3D Cartesian vector
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                  :: iPos,jPos                                !< index in array (equidistant subdivision assumed)
+REAL                     :: f(dimLower:dimUpper)
+REAL                     :: r,delta,mat(2,2),dx(1:2),dy(1:2),vec(1:2)
+INTEGER                  :: idx1,idx2,idx3,idx4,i
+!===================================================================================================================================
+ASSOCIATE(&
+      x => Pos(1) ,&
+      y => Pos(2) ,&
+      z => Pos(3)  &
+      )
+  r = SQRT(x**2+y**2)
+  iPos = INT((r-EmissionDistribution(1,1))/EmissionDistributionDelta(1)) + 1
+  jPos = INT((z-EmissionDistribution(2,1))/EmissionDistributionDelta(2)) + 1
+
+
+  IF(r.GT.EmissionDistributionMax(1))THEN
+    InterpolateEmissionDistribution2D = 0.
+  ELSEIF(r.LT.EmissionDistributionMin(1))THEN
+    InterpolateEmissionDistribution2D = 0.
+  ELSEIF(z.GT.EmissionDistributionMax(2))THEN
+    InterpolateEmissionDistribution2D = 0.
+  ELSEIF(z.LT.EmissionDistributionMin(2))THEN
+    InterpolateEmissionDistribution2D = 0.
+  ELSE
+    ! 1.1
+    idx1 = (iPos-1)*EmissionDistributionN(1) + jPos
+    ! 2.1
+    idx2 = (iPos-1)*EmissionDistributionN(1) + jPos + 1
+    ! 1.2
+    idx3 = iPos*EmissionDistributionN(1) + jPos
+    ! 2.2
+    idx4 = iPos*EmissionDistributionN(1) + jPos + 1
+
+    ! Interpolate
+    delta = EmissionDistributionDelta(1)*EmissionDistributionDelta(2)
+    delta = 1./delta
+
+    dx(1) = EmissionDistribution(1,idx4)-r
+    dx(2) = EmissionDistributionDelta(1) - dx(1)
+
+    dy(1) = EmissionDistribution(2,idx4)-z
+    dy(2) = EmissionDistributionDelta(2) - dy(1)
+
+    DO i = dimLower, dimUpper
+      mat(1,1) = EmissionDistribution(i,idx1)
+      mat(2,1) = EmissionDistribution(i,idx2)
+      mat(1,2) = EmissionDistribution(i,idx3)
+      mat(2,2) = EmissionDistribution(i,idx4)
+
+      vec(1) = dx(1)
+      vec(2) = dx(2)
+      f(i) = delta * DOT_PRODUCT( vec, MATMUL(mat, (/dy(1),dy(2)/) ) )
+    END DO ! i =  dimLower, dimUpper
+
+    ! Transform from Br, Bz to Bx, By, Bz
+    IF(transformation)THEN
+      r=1./r
+      InterpolateEmissionDistribution2D(dimLower)   = f(dimLower)*x*r
+      InterpolateEmissionDistribution2D(dimLower+1) = f(dimLower)*y*r
+      InterpolateEmissionDistribution2D(dimLower+2) = f(dimUpper)
+    ELSE
+      InterpolateEmissionDistribution2D(dimLower:dimUpper) = f(dimLower:dimUpper)
+      InterpolateEmissionDistribution2D(dimLower+1) = InterpolateEmissionDistribution2D(dimLower)
+      InterpolateEmissionDistribution2D(dimLower+2) = InterpolateEmissionDistribution2D(dimLower)
+    END IF ! transformation
+  END IF ! r.GT.EmissionDistributionMax(1)
+END ASSOCIATE
+
+END FUNCTION InterpolateEmissionDistribution2D
 
 
 END MODULE MOD_part_tools

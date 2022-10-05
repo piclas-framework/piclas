@@ -420,8 +420,10 @@ DO iSpec = 1, nSpecies
     END IF
     !--- Emission distribution
     IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
-      UseEmissionDistribution = .TRUE.
+      UseEmissionDistribution                             = .TRUE.
       Species(iSpec)%Init(iInit)%EmissionDistributionName = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-EmissionDistributionName'))
+      Species(iSpec)%Init(iInit)%ParticleEmissionType     = 0 ! initial particle insert
+      Species(iSpec)%Init(iInit)%ParticleNumber           = 0  ! force 0
     END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution'
   END DO ! iInit
 END DO ! iSpec
@@ -464,7 +466,7 @@ USE MOD_ReadInTools
 USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
-USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity
+USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity,SetPartPosAndVeloEmissionDistribution
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetInitElectronVelo
 USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, VarTimeStep
@@ -497,12 +499,18 @@ DO iSpec = 1,nSpecies
   DO iInit = 1, Species(iSpec)%NumberOfInits
     IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) THEN
       IF(Species(iSpec)%Init(iInit)%ParticleNumber.GT.HUGE(1)) CALL abort(__STAMP__,&
-        ' Integer of initial particle number larger than max integer size: ',HUGE(1))
-      NbrOfParticle = INT(Species(iSpec)%Init(iInit)%ParticleNumber,4)
-      LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',iSpec,' ... '
-      CALL SetParticlePosition(iSpec,iInit,NbrOfParticle)
-      LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',iSpec,' ... '
-      CALL SetParticleVelocity(iSpec,iInit,NbrOfParticle)
+          ' Integer of initial particle number larger than max integer size: ',IntInfoOpt=HUGE(1))
+      ! Set particle position and velocity
+      SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+      CASE('EmissionDistribution')
+        CALL SetPartPosAndVeloEmissionDistribution(iSpec,iInit,NbrOfParticle)
+      CASE DEFAULT
+        NbrOfParticle = INT(Species(iSpec)%Init(iInit)%ParticleNumber,4)
+        LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',iSpec,' ... '
+        CALL SetParticlePosition(iSpec,iInit,NbrOfParticle)
+        LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',iSpec,' ... '
+        CALL SetParticleVelocity(iSpec,iInit,NbrOfParticle)
+      END SELECT
       LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',iSpec,' ... '
       CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
       IF (usevMPF) CALL SetParticleMPF(iSpec,iInit,NbrOfParticle)
@@ -514,12 +522,13 @@ DO iSpec = 1,nSpecies
           IF (PositionNbr .NE. 0) THEN
             PDM%PartInit(PositionNbr) = iInit
           ELSE
-            CALL abort(__STAMP__,&
-              'ERROR in InitialParticleInserting: No free particle index - maximum nbr of particles reached?')
+            CALL abort(__STAMP__,'ERROR in InitialParticleInserting: No free particle index - maximum nbr of particles reached?')
           END IF
         END DO
       END IF
+      ! Add new particles to particle vector length
       PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+      ! Update
       CALL UpdateNextFreePosition()
     END IF  ! Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0
   END DO    ! Species(iSpec)%NumberOfInits
@@ -889,12 +898,10 @@ DO iSpec=1,nSpecies
                 / Species(iSpec)%MacroParticleFactor * (Species(iSpec)%Init(iInit)%RadiusIC**3 * 4./3. * PI))
             END IF
           ELSE
-            CALL abort(__STAMP__, &
-              'BaseVectors are parallel or zero!')
+            CALL abort(__STAMP__,'BaseVectors are parallel or zero!')
           END IF
         CASE DEFAULT
-          CALL abort(__STAMP__, &
-            'Given velocity distribution is not supported with the SpaceIC cuboid/sphere/cylinder!')
+          CALL abort(__STAMP__,'Given velocity distribution is not supported with the SpaceIC cuboid/sphere/cylinder!')
         END SELECT ! Species(iSpec)%Init(iInit)%SpaceIC
       CASE('cell_local')
         SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution))
@@ -926,8 +933,8 @@ DO iSpec=1,nSpecies
 #else
     insertParticles = insertParticles + INT(Species(iSpec)%Init(iInit)%ParticleNumber,8)
 #endif
-  END DO
-END DO
+  END DO ! iInit = 1, Species(iSpec)%NumberOfInits
+END DO ! iSpec=1,nSpecies
 
 IF (insertParticles.GT.PDM%maxParticleNumber) THEN
   IPWRITE(UNIT_stdOut,*)' Maximum particle number : ',PDM%maxParticleNumber

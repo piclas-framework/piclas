@@ -33,8 +33,12 @@ INTERFACE SetParticleVelocity
   MODULE PROCEDURE SetParticleVelocity
 END INTERFACE
 
+INTERFACE SetPartPosAndVeloEmissionDistribution
+  MODULE PROCEDURE SetPartPosAndVeloEmissionDistribution
+END INTERFACE
+
 !===================================================================================================================================
-PUBLIC         :: SetParticleVelocity, SetParticlePosition
+PUBLIC :: SetParticleVelocity, SetParticlePosition, SetPartPosAndVeloEmissionDistribution
 !===================================================================================================================================
 CONTAINS
 
@@ -460,5 +464,77 @@ CASE DEFAULT
   CALL abort(__STAMP__,'wrong velo-distri! velocityDistribution='//TRIM(velocityDistribution))
 END SELECT
 END SUBROUTINE SetParticleVelocity
+
+
+SUBROUTINE SetPartPosAndVeloEmissionDistribution(iSpec,iInit,NbrOfParticle)
+!===================================================================================================================================
+! Set particle position for processor-local particles (only in processor elements)
+!===================================================================================================================================
+! modules
+USE MOD_Globals
+USE MOD_Globals                ,ONLY: abort
+USE MOD_part_tools             ,ONLY: InitializeParticleMaxwell,InterpolateEmissionDistribution2D
+USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
+USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState
+USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared
+USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
+USE MOD_Mesh_Vars              ,ONLY: ElemBaryNGeo
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim
+!----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)  :: iSpec, iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(OUT) :: NbrOfParticle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iElem,iPart,nPart,GlobalElemID
+REAL                :: iRan, RandomPos(3), MPF
+REAL                :: PartDens(1:3) ! dummy vector because the routine can only return vector values
+REAL                :: BBoxVolume, origin(3)
+LOGICAL             :: InsideFlag
+!===================================================================================================================================/
+NbrOfParticle = 0
+
+DO iElem = 1, nElems
+  GlobalElemID = iElem + offsetElem
+  origin(1:3) = ElemBaryNGeo(:,GetCNElemID(GlobalElemID))
+  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
+    BBoxVolume = (Bounds(2,3) - Bounds(1,3))*(Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
+    CALL RANDOM_NUMBER(iRan)
+    MPF      = Species(iSpec)%MacroParticleFactor
+    SELECT CASE(EmissionDistributionDim)
+    CASE(1)
+      CALL abort(__STAMP__,'EmissionDistributionDim=1 is not implemented')
+    CASE(2)
+      ! Density field from .h5 file that is interpolated to the element origin (bilinear interpolation)
+      PartDens(1:3) = InterpolateEmissionDistribution2D(origin(1:3),dimLower=3,dimUpper=3,transformation=.FALSE.)
+    CASE(3)
+      CALL abort(__STAMP__,'EmissionDistributionDim=3 is not implemented')
+    END SELECT
+    nPart    = INT(PartDens(1) * BBoxVolume / MPF + iRan)
+    DO iPart = 1, nPart
+      InsideFlag = .FALSE.
+      CALL RANDOM_NUMBER(RandomPos)
+      RandomPos(1:3) = Bounds(1,1:3) + RandomPos(1:3)*(Bounds(2,1:3)-Bounds(1,1:3))
+      InsideFlag = ParticleInsideCheck(RandomPos,iPart,GlobalElemID)
+      ! Exclude particles outside of the element
+      IF (InsideFlag) THEN
+        NbrOfParticle = NbrOfParticle + 1
+        IF(NbrOfParticle.GE.PDM%maxParticleNumber) CALL abort(__STAMP__,'Emission: Increase maxParticleNumber!',NbrOfParticle)
+        PartState(1:3,NbrOfParticle) = origin(1:3) ! Little hack: store element centre temporarily in PartPos
+        CALL InitializeParticleMaxwell(NbrOfParticle,iSpec,iElem,Mode=2)
+        PartState(1:3,NbrOfParticle) = RandomPos(1:3)
+      END IF
+    END DO ! nPart
+
+  END ASSOCIATE
+END DO ! iElem = 1, nElems
+END SUBROUTINE SetPartPosAndVeloEmissionDistribution
+
 
 END  MODULE MOD_part_pos_and_velo
