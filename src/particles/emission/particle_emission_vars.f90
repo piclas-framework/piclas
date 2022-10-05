@@ -119,6 +119,7 @@ TYPE tInit                                                                   ! P
   INTEGER                            :: BGGRegion         ! Region number to be used for the species init
 !=== Emission distribution
   CHARACTER(30)                      :: EmissionDistributionName  ! Species name, e.g., "electron" or "ArIon1" for particle emission
+  REAL,ALLOCATABLE                   :: EmissionDistribution(:,:) !< pos (r,z or x,y,z) and particle properties (n, T, vx, vy, vz)
 END TYPE tInit
 
 ! 2D Landmark
@@ -142,7 +143,6 @@ LOGICAL           :: CalcBulkElectronTemp        ! Automatic bulk electron calcu
 INTEGER           :: BulkElectronTempSpecID      ! Species ID (electron) for Automatic bulk electron calculation
 ! Emission distribution
 LOGICAL              :: UseEmissionDistribution        !< Flag for activation particle emission by interpolation n, T and v (equidistant)
-REAL,ALLOCATABLE     :: EmissionDistribution(:,:) !< pos (r,z or x,y,z) and particle properties (n, T, vx, vy, vz)
 CHARACTER(255)       :: FileNameEmissionDistribution   !< File name form which the data is read
 INTEGER              :: EmissionDistributionDim      !< Spatial dimension of variable external field data: 1D, 2D or 3D
 LOGICAL              :: EmissionDistributionAxisSym  !< True if the data is axis symmetric, e.g., B(r,z)

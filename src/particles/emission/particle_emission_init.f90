@@ -1020,11 +1020,12 @@ SUBROUTINE ReadUseEmissionDistribution()
 USE MOD_Globals
 USE MOD_Particle_Emission_Vars ,ONLY: FileNameEmissionDistribution
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim,EmissionDistributionAxisSym
-USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistribution,EmissionDistributionDelta,EmissionDistributionDim
+USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDelta,EmissionDistributionDim
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMin
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMax,EmissionDistributionN
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionRadInd,EmissionDistributionAxisDir
 USE MOD_HDF5_Input_Field       ,ONLY: ReadExternalFieldFromHDF5
+USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -1038,6 +1039,7 @@ USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 ! LOCAL VARIABLES
 INTEGER,PARAMETER     :: lenmin=4
 INTEGER               :: lenstr
+INTEGER               :: iSpec,iInit
 !===================================================================================================================================
 LBWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF EMISSION DISTRIBUTION FOR PARTICLES '
 
@@ -1050,17 +1052,22 @@ IF(lenstr.LT.lenmin) CALL abort(__STAMP__,"File name too short: "//TRIM(FileName
 
 ! Check file ending, either .csv or .h5
 IF(TRIM(FileNameEmissionDistribution(lenstr-lenmin+2:lenstr)).EQ.'.h5')THEN
-  CALL ReadExternalFieldFromHDF5('electron',&
-   EmissionDistribution        , EmissionDistributionDelta  , FileNameEmissionDistribution , EmissionDistributionDim , &
-   EmissionDistributionAxisSym , EmissionDistributionRadInd , EmissionDistributionAxisDir  , EmissionDistributionMin , &
-   EmissionDistributionMax     , EmissionDistributionN)
+  DO iSpec = 1,nSpecies
+    DO iInit = 1, Species(iSpec)%NumberOfInits
+      IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
+        CALL ReadExternalFieldFromHDF5(TRIM(Species(iSpec)%Init(iInit)%EmissionDistributionName)                                ,&
+                                            Species(iSpec)%Init(iInit)%EmissionDistribution        , EmissionDistributionDelta  ,&
+            FileNameEmissionDistribution , EmissionDistributionDim , EmissionDistributionAxisSym   , EmissionDistributionRadInd ,&
+            EmissionDistributionAxisDir  , EmissionDistributionMin , EmissionDistributionMax       , EmissionDistributionN       )
+        IF(.NOT.ALLOCATED(Species(iSpec)%Init(iInit)%EmissionDistribution)) CALL abort(__STAMP__,"Failed to load data from: "//TRIM(FileNameEmissionDistribution))
+      END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution'
+    END DO ! iInit = 1, Species(iSpec)%NumberOfInits
+  END DO ! iSpec = 1,nSpecies
 ELSEIF(TRIM(FileNameEmissionDistribution(lenstr-lenmin+1:lenstr)).EQ.'.csv')THEN
   CALL abort(__STAMP__,'ReadUseEmissionDistribution(): Read-in from .csv is not implemented')
 ELSE
   CALL abort(__STAMP__,"Unrecognised file format for : "//TRIM(FileNameEmissionDistribution))
 END IF
-
-IF(.NOT.ALLOCATED(EmissionDistribution)) CALL abort(__STAMP__,"Failed to load data from: "//TRIM(FileNameEmissionDistribution))
 
 LBWRITE(UNIT_stdOut,'(A)')' ...EMISSION DISTRIBUTION INITIALIZATION DONE'
 END SUBROUTINE ReadUseEmissionDistribution

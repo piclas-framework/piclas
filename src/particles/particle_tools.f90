@@ -991,7 +991,7 @@ RETURN
 END FUNCTION CalcEElec_particle
 
 
-SUBROUTINE InitializeParticleMaxwell(iPart,iSpec,iElem,Mode)
+SUBROUTINE InitializeParticleMaxwell(iPart,iSpec,iElem,Mode,iInit)
 !===================================================================================================================================
 !> Initialize a particle from a given macroscopic result, requires the macroscopic velocity, translational and internal temperatures
 !===================================================================================================================================
@@ -1013,6 +1013,7 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)             :: iPart, iSpec, iElem
 INTEGER, INTENT(IN)             :: Mode                  !< 1: Macroscopic restart (data for each element)
                                                          !< 2: Emission distribution (equidistant data from .h5 file)
+INTEGER, INTENT(IN), OPTIONAL   :: iInit                 !< particle emission initialization ID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1048,8 +1049,8 @@ CASE(2) ! Emission distribution (equidistant data from .h5 file)
     CALL abort(__STAMP__,'EmissionDistributionDim=1 is not implemented')
   CASE(2)
     ! Density field from .h5 file that is interpolated to the element origin (bilinear interpolation)
-    T(1:3) = InterpolateEmissionDistribution2D(PartState(1:3,iPart),dimLower=4,dimUpper=4,transformation=.FALSE.)
-    v(1:3) = InterpolateEmissionDistribution2D(PartState(1:3,iPart),dimLower=5,dimUpper=6,transformation=.TRUE.)
+    T(1:3) = InterpolateEmissionDistribution2D(iSpec,iInit,PartState(1:3,iPart),dimLower=4,dimUpper=4,transformation=.FALSE.)
+    v(1:3) = InterpolateEmissionDistribution2D(iSpec,iInit,PartState(1:3,iPart),dimLower=5,dimUpper=6,transformation=.TRUE.)
   CASE(3)
     CALL abort(__STAMP__,'EmissionDistributionDim=3 is not implemented')
   END SELECT
@@ -1104,7 +1105,7 @@ END IF
 END SUBROUTINE InitializeParticleMaxwell
 
 
-PPURE FUNCTION InterpolateEmissionDistribution2D(Pos,dimLower,dimUpper,transformation)
+PPURE FUNCTION InterpolateEmissionDistribution2D(iSpec,iInit,Pos,dimLower,dimUpper,transformation)
 !===================================================================================================================================
 !> This function returns a scalar property or a vector property (transformation from cylindrical coordinates to Cartesian required!)
 !> Interpolates the variable external field to the r- and z-position via bilinear interpolation
@@ -1118,7 +1119,8 @@ PPURE FUNCTION InterpolateEmissionDistribution2D(Pos,dimLower,dimUpper,transform
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistribution !< data in 2D cylindrical coordinates
+USE MOD_Particle_Vars          ,ONLY: Species
+!USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistribution !< data in 2D cylindrical coordinates
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDelta
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMin
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMax,EmissionDistributionN
@@ -1126,6 +1128,7 @@ USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMax,EmissionDistributi
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)       :: iSpec, iInit
 REAL,INTENT(IN)          :: Pos(1:3)       !< coordinate
 LOGICAL,INTENT(IN)       :: transformation !< transform from f(r,z) to f(x,y,z)
 INTEGER,INTENT(IN)       :: dimLower,dimUpper !< lower and upper dimension of variables in EmissionDistribution
@@ -1142,7 +1145,8 @@ INTEGER                  :: idx1,idx2,idx3,idx4,i
 ASSOCIATE(&
       x => Pos(1) ,&
       y => Pos(2) ,&
-      z => Pos(3)  &
+      z => Pos(3) ,&
+      EmissionDistribution => Species(iSpec)%Init(iInit)%EmissionDistribution&
       )
   r = SQRT(x**2+y**2)
   iPos = INT((r-EmissionDistribution(1,1))/EmissionDistributionDelta(1)) + 1

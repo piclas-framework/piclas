@@ -492,7 +492,7 @@ INTEGER,INTENT(IN)  :: iSpec, iInit
 INTEGER,INTENT(OUT) :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem,iPart,nPart,GlobalElemID
+INTEGER             :: iElem,iPart,nPart,GlobalElemID,PositionNbr
 REAL                :: iRan, RandomPos(3), MPF
 REAL                :: PartDens(1:3) ! dummy vector because the routine can only return vector values
 REAL                :: BBoxVolume, origin(3)
@@ -502,7 +502,7 @@ NbrOfParticle = 0
 
 DO iElem = 1, nElems
   GlobalElemID = iElem + offsetElem
-  origin(1:3) = ElemBaryNGeo(:,GetCNElemID(GlobalElemID))
+  origin(1:3) = ElemBaryNGeo(:,iElem)
   ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
     BBoxVolume = (Bounds(2,3) - Bounds(1,3))*(Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
     CALL RANDOM_NUMBER(iRan)
@@ -512,7 +512,7 @@ DO iElem = 1, nElems
       CALL abort(__STAMP__,'EmissionDistributionDim=1 is not implemented')
     CASE(2)
       ! Density field from .h5 file that is interpolated to the element origin (bilinear interpolation)
-      PartDens(1:3) = InterpolateEmissionDistribution2D(origin(1:3),dimLower=3,dimUpper=3,transformation=.FALSE.)
+      PartDens(1:3) = InterpolateEmissionDistribution2D(iSpec,iInit,origin(1:3),dimLower=3,dimUpper=3,transformation=.FALSE.)
     CASE(3)
       CALL abort(__STAMP__,'EmissionDistributionDim=3 is not implemented')
     END SELECT
@@ -525,10 +525,11 @@ DO iElem = 1, nElems
       ! Exclude particles outside of the element
       IF (InsideFlag) THEN
         NbrOfParticle = NbrOfParticle + 1
-        IF(NbrOfParticle.GE.PDM%maxParticleNumber) CALL abort(__STAMP__,'Emission: Increase maxParticleNumber!',NbrOfParticle)
-        PartState(1:3,NbrOfParticle) = origin(1:3) ! Little hack: store element centre temporarily in PartPos
-        CALL InitializeParticleMaxwell(NbrOfParticle,iSpec,iElem,Mode=2)
-        PartState(1:3,NbrOfParticle) = RandomPos(1:3)
+        PositionNbr = PDM%nextFreePosition(NbrOfParticle+PDM%CurrentNextFreePosition)
+        IF(PositionNbr.GE.PDM%maxParticleNumber) CALL abort(__STAMP__,'Emission: Increase maxParticleNumber!',PositionNbr)
+        PartState(1:3,PositionNbr) = origin(1:3) ! Little hack: store element centre temporarily in PartPos
+        CALL InitializeParticleMaxwell(PositionNbr,iSpec,iElem,Mode=2,iInit=iInit)
+        PartState(1:3,PositionNbr) = RandomPos(1:3)
       END IF
     END DO ! nPart
 
