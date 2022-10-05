@@ -106,8 +106,8 @@ CALL prms%CreateLogicalOption(  'Particles-DoTimeDepInflow'   , 'Insertion and S
                                                                 ' inflow-number-of-particles is only possible with'//&
                                                                 ' PoissonRounding or DoTimeDepInflow', '.FALSE.')
 CALL prms%CreateIntOption(      'Part-RotPeriodicAxi'         , 'Axis of rotational periodicity:'//&
-                                                                   'x=1, y=2, z=3', '1')
-CALL prms%CreateRealOption(     'Part-RotPeriodicAngle'       , 'Angle for rotational periodicity [deg]', '1.0')
+                                                                   'x=1, y=2, z=3')
+CALL prms%CreateRealOption(     'Part-RotPeriodicAngle'       , 'Angle for rotational periodicity [deg]')
 CALL prms%CreateIntOption(      'Part-nPeriodicVectors'       , 'Number of the periodic vectors j=1,...,n.'//&
                                                                    ' Value has to be the same as defined in preprog.ini', '0')
 
@@ -205,13 +205,13 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
   ' have to be enabled as well.', '.FALSE.')
 
 ! === Rotational frame of reference
-
-CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'TO-DO ', '.FALSE.')
-CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','axis of rotational frame of reference (x=1, y=2, z=3)','0')
-CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','frequency of rotational frame of reference','0')
-CALL prms%CreateIntOption(      'Part-nRefFrameRegions','TO-DO','0')
-CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MIN','Minimun of RefFrame Region according to RotRefFrame-Axis',numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MAX','Maximun of RefFrame Region according to RotRefFrame-Axis',numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate rotational frame of reference', '.FALSE.')
+CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','Axis of rotational frame of reference (x=1, y=2, z=3)')
+CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','Frequency of rotational frame of reference [1/s], sign according '//&
+                                'to right-hand rule, e.g. positive: counter-clockwise, negative: clockwise')
+CALL prms%CreateIntOption(      'Part-nRefFrameRegions','Number of rotational reference frame regions','0')
+CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MIN','Minimun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MAX','Maximun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticles
 
@@ -1526,7 +1526,7 @@ INTEGER            :: iRegion
 CHARACTER(LEN=5)   :: hilf
 !===================================================================================================================================
 
-UseRotRefFrame = GETLOGICAL('Part-UseRotationalReferenceFrame','.FALSE.')
+UseRotRefFrame = GETLOGICAL('Part-UseRotationalReferenceFrame')
 
 IF(UseRotRefFrame) THEN
   RotRefFrameAxis = GETINT('Part-RotRefFrame-Axis')
