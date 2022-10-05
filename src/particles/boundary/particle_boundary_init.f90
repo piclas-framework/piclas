@@ -239,7 +239,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOut
 USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, FindNeighbourElems
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo
 #if USE_LOADBALANCE
@@ -447,7 +447,6 @@ DO iPartBound=1,nPartBound
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('rot_periodic')
     GEO%RotPeriodicBC = .TRUE.
-    FindNeighbourElems = .TRUE.
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicBC
     PartBound%RotPeriodicDir(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-RotPeriodicDir','0.')
     IF(ABS(PartBound%RotPeriodicDir(iPartBound)).NE.1) THEN

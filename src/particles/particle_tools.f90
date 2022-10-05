@@ -601,7 +601,7 @@ PPURE FUNCTION InRotRefFrameCheck(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Particle_Vars ,ONLY: PartState,Species,RotRefFramRegion,RotRefFrameAxis,nRefFrameRegions
+USE MOD_Particle_Vars ,ONLY: PartState,RotRefFramRegion,RotRefFrameAxis,nRefFrameRegions
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES

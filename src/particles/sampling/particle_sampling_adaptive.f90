@@ -481,9 +481,6 @@ IF(.NOT.initTruncAverage) THEN
     ! Sample the particle properties
     iSpec = PartSpecies(iPart)
     partWeight = GetParticleWeight(iPart)
-!    IF(UseRotRefFrame.AND.PDM%InRotRefFrame(iPart)) THEN
-!      PartState(4:6,iPart) = PartState(4:6,iPart) + CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-!    END IF
     IF(AdaptBCTruncAverage.AND..NOT.initSampling) THEN
       ! Store the samples of the last AdaptBCSampIter and replace the oldest with the newest sample
       AdaptBCAverage(1:3,TruncIter,SampleElemID, iSpec) = AdaptBCAverage(1:3,TruncIter,SampleElemID,iSpec) + PartState(4:6,iPart) * partWeight
@@ -496,9 +493,6 @@ IF(.NOT.initTruncAverage) THEN
       AdaptBCSample(7,SampleElemID, iSpec) = AdaptBCSample(7,SampleElemID, iSpec) + 1.0  ! simulation particle number
       AdaptBCSample(8,SampleElemID, iSpec) = AdaptBCSample(8,SampleElemID, iSpec) + partWeight
     END IF
-!    IF(UseRotRefFrame.AND.PDM%InRotRefFrame(iPart)) THEN
-!      PartState(4:6,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-!    END IF
   END DO
 END IF
 #if USE_LOADBALANCE

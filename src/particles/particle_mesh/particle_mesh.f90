@@ -341,12 +341,14 @@ IF (Symmetry%Order.LE.2) THEN
 END IF
 
 ! Set logical for building node neighbourhood
+FindNeighbourElems = .FALSE.
+! PIC deposition types require the neighbourhood
 SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean','shape_function_adaptive')
     FindNeighbourElems = .TRUE.
-  ! CASE DEFAULT
-  !   FindNeighbourElems = .FALSE.
 END SELECT
+! Rotational periodic BC requires the neighbourhood to add elements of the BC nodes
+IF(GEO%RotPeriodicBC) FindNeighbourElems = .TRUE.
 
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)

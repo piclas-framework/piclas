@@ -39,7 +39,6 @@ USE MOD_Particle_Tracking_vars   ,ONLY: TrackingMethod
 USE MOD_Particle_Tracing         ,ONLY: ParticleTracing
 USE MOD_Particle_RefTracking     ,ONLY: ParticleRefTracking
 USE MOD_Particle_TriaTracking    ,ONLY: ParticleTriaTracking
-USE MOD_Part_Tools               ,ONLY: InRotRefFrameCheck
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -49,8 +48,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: iPart
-LOGICAL                          :: InRotRefFrame_OLD
 !===================================================================================================================================
 
 #ifdef EXTRAE
