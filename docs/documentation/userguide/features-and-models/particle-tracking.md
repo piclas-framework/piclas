@@ -93,35 +93,36 @@ Following parameters can be used for both schemes.
 |      epsilontol       | 100*epsM |       Tolerance for linear and bilinear algorithm.       |
 
 
-## Frame of Reference
+## Rotating Frame of Reference
 
-Beside the described methods of particle tracking it is also important to define the frame of reference for the correct simulation of particle trajectories.
-For conventional computations resting frame of references is used and no further settings for the simulation are necessary.
-Currently, it is not possible to use rotating/changing meshes within a simulation in PICLas. 
-Therefore, rotating frame of references are used in order to represent rotating geometries like e.g. turbine blades. 
-The distinction between a resting frame and a rotating frame of reference is only important for the particle movement step. Here particles
-are not moving on a straight line due to the well-known pseudo forces, i.e. the centripetal force and the Coriolis force. 
-This means that particles follow a circular path towards a stationary boundary, that represents a rotating geometry. The usage of rotating frame of reference is enabled by
+Beside the described methods of particle tracking, it is important to define the frame of reference for the correct simulation of particle trajectories.
+Per default the resting frame of reference is used and no further settings are required.
+The rotating reference frame can be used to represent rotating geometries like e.g. turbine blades, since rotating/changing meshes are currently not supported.
+The corresponding rotational wall velocity has to be defined for the boundary as well, as shown in Section {ref}`sec:particle-boundary-conditions-reflective-wallvelo`.
+The distinction between a resting and rotating frame of reference is only important for the particle movement step. Here particles
+are not moving on a straight line due to the pseudo forces, i.e. the centripetal force and the Coriolis force. 
+This means that particles follow a circular path towards a stationary boundary that represents a rotating geometry. The usage of the rotating reference frame is enabled by
 
     Part-UseRotationalReferenceFrame = T
 
-Additionaly, the rotor axis (x-, y- or z-axis) and frequency have to be defiend by
+Additionally, the rotational axis (x-, y- or z-axis) and frequency have to be defiend by
 
     Part-RotRefFrame-Axis = 1          ! x=1, y=2, z=3 
-    Part-RotRefFrame-Frequency = -100  ! [Hz]
+    Part-RotRefFrame-Frequency = -100  ! [Hz, 1/s]
 
-The sign of the frequency (+/-) defines the direction of rotation according to the right hand rule.
-It is also possible to use both frames of references within a single simulation. For this purpose, regions can be defined in which the rotating frame of referenc is used.
-First, the number of rotating regions is given by
+The sign of the frequency (+/-) defines the direction of rotation according to the right-hand rule.
+It is also possible to use both reference frames within a single simulation. For this purpose, regions can be defined in which the rotating frame of reference is to be used.
+First, the number of rotating regions is defined by
 
     Part-nRefFrameRegions = 2
 
-Afterwards the minimum and maximum coordinates must be defiend for each region. Both values only refers to the coordinates in the direction of the rotation axis, since the 
-boundary surface of these regions can only be defined perpendicular to the rotation axis:
+Afterwards the minimum and maximum coordinates must be defined for each region. Both values refer to the coordinates on the rotational axis, since the 
+boundary surfaces of these regions can only be defined perpendicular to the rotation axis:
 
     Part-RefFrameRegion1-MIN = 10
     Part-RefFrameRegion1-MAX = 20
     Part-RefFrameRegion2-MIN = 100
     Part-RefFrameRegion2-MAX = 110
 
-In this way, systems of rotating and stationary geometries (e.g. pumps with stator and rotor blades) can be modeled within a simulation.
+This allows to model systems of rotating and stationary geometries (e.g. pumps with stator and rotor blades) within a single simulation. For rotationally symmetric cases, the simulation domain can be reduced using the rotationally perodic boundary condition (as shown in Section {ref}`sec:particle-boundary-conditions-rotBC`). Examples are provided in the regression test directory, e.g.
+`regressioncheck/CHE_DSMC/Rotational_Reference_Frame` and `regressioncheck/CHE_DSMC/Rotational_Reference_Frame_Regions`. 
