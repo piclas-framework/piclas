@@ -188,13 +188,7 @@ END IF ! DoBGKCellAdaptation
 
 IF(UseRotRefFrame) THEN
   DO iPart = 1,PDM%ParticleVecLength
-    IF(PDM%ParticleInside(iPart)) THEN
-      IF(InRotRefFrameCheck(iPart)) THEN
-        PDM%InRotRefFrame(iPart) = .TRUE.
-      ELSE
-        PDM%InRotRefFrame(iPart) = .FALSE.
-      END IF
-    END IF
+    IF(PDM%ParticleInside(iPart)) PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
   END DO
 END IF
 

@@ -166,10 +166,7 @@ CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
 ! actual tracking
 
-
-
 CALL PerformTracking()
-
 
 IF (nPorousBC.GT.0) THEN
   CALL PorousBoundaryRemovalProb_Pressure()
@@ -211,6 +208,7 @@ ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleN
   ! gaps in PartState are not filled until next UNFP and array might overflow more easily!
   CALL abort(__STAMP__,'maximum nbr of particles reached!')
 END IF
+
 IF(DSMC%UseOctree)THEN
   ! Case Symmetry%Order=1 is performed in DSMC main
   IF(Symmetry%Order.EQ.2)THEN
@@ -232,13 +230,7 @@ END IF ! DSMC%UseOctree
 
 IF(UseRotRefFrame) THEN
   DO iPart = 1,PDM%ParticleVecLength
-    IF(PDM%ParticleInside(iPart)) THEN
-      IF(InRotRefFrameCheck(iPart)) THEN
-        PDM%InRotRefFrame(iPart) = .TRUE.
-      ELSE
-        PDM%InRotRefFrame(iPart) = .FALSE.
-      END IF
-    END IF
+    IF(PDM%ParticleInside(iPart)) PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
   END DO
 END IF
 
