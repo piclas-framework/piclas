@@ -65,7 +65,8 @@ fi
 #CMAKEVERSION='3.17.0'
 #CMAKEVERSION='3.20.3'
 #CMAKEVERSION='3.21.3'
-CMAKEVERSION='3.24.0'
+#CMAKEVERSION='3.24.0'
+CMAKEVERSION='3.24.2'
 
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}
@@ -90,7 +91,8 @@ if [ ! -e "${MODULEFILE}" ]; then
     #echo "MODULEPATH ="$MODULEPATH
     #echo "MODULESHOME="${MODULESHOME}
     #module av
-    echo -e "${YELLOW}Warning: If the default gcc version is used for compiling CMake, the\nrequired GLIBCXX_3.4.XX version might be too new and cmake will not work\n when another gcc version is loaded that does not support the required version.${NC}"
+    echo -e "${YELLOW}Warning: If the default gcc version is used for compiling CMake, the\nrequired GLIBCXX_3.4.XX (the default gcc11.2 compiler might have been wrongly labelled in ubuntu22 and actually 11.3 was installed) version might be\ntoo new and cmake will not work when another gcc version is loaded that does not support the required version.\n\nCheck with\n\n   strings /lib/i386-linux-gnu/libc.so.6 | grep GLIBC\n\nor with\n\n    ldd --version\n\nThe gcc compiler will now be loaded via 'module load gcc'.\n${NC}"
+    read -p "Press [Enter] to continue or [Crtl+c] to abort!"
     module load gcc
     module li
   fi

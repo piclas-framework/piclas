@@ -14,7 +14,6 @@ module-whatis   "Sets the environment for using petsc-petscversion"
 
 conflict petsc
 
-prereq cmake/CMAKEVERSIONFLAG
 prereq gcc/GCCVERSIONFLAG
 prereq openmpi/MPIVERSIONFLAG/gcc/GCCVERSIONFLAG
 
