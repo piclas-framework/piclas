@@ -1726,13 +1726,15 @@ IF(IonizationReaction) THEN
     IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
       PartState(4:6,iPart) = VeloCOM(1:3) + SQRT(CRela2_Electron) * DiceUnitVector()
       ! Change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
-      ASSOCIATE( b1 => Species(InitSpec)%Init(iInit)%NormalVector1IC(1:3) ,&
-                 b2 => Species(InitSpec)%Init(iInit)%NormalVector2IC(1:3) )
+      ASSOCIATE( b1          => Species(InitSpec)%Init(iInit)%NormalVector1IC(1:3) ,&
+                 b2          => Species(InitSpec)%Init(iInit)%NormalVector2IC(1:3) ,&
+                 normal      => Species(InitSpec)%Init(iInit)%NormalIC             ,&
+                 PartBCIndex => Species(InitSpec)%Init(iInit)%PartBCIndex)
         ! Get random vector b3 in b1-b2-plane
         CALL RANDOM_NUMBER(RandVal)
         PartState(4:6,iPart) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart),RandVal)
         ! Rotate the resulting vector in the b3-NormalIC-plane
-        PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),Species(InitSpec)%Init(iInit)%NormalIC)
+        PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),normal)
         ! Store the particle information in PartStateBoundary.h5
         IF(DoBoundaryParticleOutputHDF5) THEN
           IF(usevMPF)THEN
@@ -1740,8 +1742,9 @@ IF(IonizationReaction) THEN
           ELSE
             MPF = Species(InitSpec)%MacroParticleFactor ! Use species MPF
           END IF ! usevMPF
-          CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),UNITVECTOR(PartState(4:6,iPart)),&
-               Species(InitSpec)%Init(iInit)%NormalIC,iBC=Species(InitSpec)%Init(iInit)%PartBCIndex,mode=2,MPF_optIN=MPF)
+          ! Only store volume-emitted particle data in PartStateBoundary.h5 if the PartBCIndex is greater/equal zero
+          IF(PartBCIndex.GE.0) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
+                                      UNITVECTOR(PartState(4:6,iPart)),normal,iBC=PartBCIndex,mode=2,MPF_optIN=MPF)
         END IF ! DoBoundaryParticleOutputHDF5
       END ASSOCIATE
     END IF
