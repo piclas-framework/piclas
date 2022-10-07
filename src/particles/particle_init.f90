@@ -1506,7 +1506,8 @@ END SUBROUTINE InitRandomSeed
 
 SUBROUTINE InitializeVariablesRotationalRefFrame()
 !===================================================================================================================================
-! Initialize the variables first
+!> Initialize the rotational frame of reference: Calculate the angular velocity and read-in regions for switch between rotational
+!> and stationary reference frame
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1540,7 +1541,7 @@ IF(UseRotRefFrame) THEN
     CASE(3)
       RotRefFrameOmega = (/0.,0.,omegaTemp/)
     CASE DEFAULT
-      CALL abort(__STAMP__,'ERROR Rotaional Reference Frame: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)  
+      CALL abort(__STAMP__,'ERROR Rotational Reference Frame: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)
   END SELECT
   nRefFrameRegions = GETINT('Part-nRefFrameRegions')
   ALLOCATE(RotRefFramRegion(1:2,1:nRefFrameRegions))
@@ -1550,7 +1551,7 @@ IF(UseRotRefFrame) THEN
       RotRefFramRegion(1,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MIN')
       RotRefFramRegion(2,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MAX')
       IF(RotRefFramRegion(1,iRegion).GE.RotRefFramRegion(2,iRegion)) THEN
-        CALL abort(__STAMP__,'ERROR Rotaional Reference Frame: MIN > MAX in definition of region ',IntInfoOpt=iRegion)
+        CALL abort(__STAMP__,'ERROR Rotational Reference Frame: MIN > MAX in definition of region ',IntInfoOpt=iRegion)
       END IF
     END DO
   END IF

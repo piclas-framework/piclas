@@ -359,7 +359,7 @@ END IF !IsAuxBC
 POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 
 !IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
-!  CALL CalcRotWallVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)),POI_vec,WallVelo)
+!  WallVelo(1:3) = CalcRotWallVelo(locBCID,POI_vec)
 !END IF
 
 IF(SUM(ABS(WallVelo)).GT.0.)THEN
@@ -558,7 +558,7 @@ SpecID = PartSpecies(PartID)
 POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 
 IF(PartBound%RotVelo(locBCID)) THEN
-  CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
+  WallVelo(1:3) = CalcRotWallVelo(locBCID,POI_vec)
 END IF
 
 IF(UseRotRefFrame) THEN ! In case of RotRefFrame OldVelo must be reconstructed 

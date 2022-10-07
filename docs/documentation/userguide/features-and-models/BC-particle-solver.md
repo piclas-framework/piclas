@@ -58,14 +58,12 @@ Additionally, a linear wall velocity [m/s] can be given
 
     Part-Boundary2-WallVelo=(/0,0,100/)
 
-In the case of rotating walls the `-RotVelo` flag, a rotation frequency [Hz], a origin of rotation axis (x, y, z coordinates) and
-the rotation axis vector must be set. Note that the definition of rotation direction is given by the rotation axis and the
-right-hand rule.
+In the case of rotating walls the `-RotVelo` flag, a rotation frequency [Hz], and the rotation axis (x=1, y=2, z=3) must be set.
+Note that the definition of the rotational direction is defined by the sign of the frequency using the right-hand rule.
 
     Part-Boundary2-RotVelo = T
     Part-Boundary2-RotFreq = 100
-    Part-Boundary2-RotOrg = (/0.,0.,0./)
-    Part-Boundary2-RotAxi = (/0.,0.,1./)
+    Part-Boundary2-RotAxis = 3
 
 The wall velocity will then be superimposed onto the particle velocity.
 

@@ -99,20 +99,15 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-RotVelo'  &
                                 , 'Flag for rotating walls:'//&
-                                  ' Particles will be accelerated additionaly to the boundary interaction'//&
+                                  ' Particles will be accelerated additionally to the boundary interaction'//&
                                   ' through the rotating wall depending on their POI, rotation frequency and rotation axis.'//&
                                   ' In that case Part-Boundary[$]-WallVelo will be overwritten.' &
-                                , '.FALSE.'&
-                                , numberedmulti=.TRUE.)
+                                , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-RotFreq'  &
-                                , 'Rotation frequency of the wall in [Hz].' &
-                                , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-RotOrg'  &
-                                , 'Origin of rotation axis (global x,y,z).' &
-                                , '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-RotAxi'  &
-                                , 'Definition of rotation axis and direction (global x,y,z). Note: Rotation direction based on right-hand rule!' &
-                                , '0. , 0. , 0.', numberedmulti=.TRUE.)
+                                , 'Rotation frequency of the wall in [Hz]. Note: Rotation direction based on right-hand rule!' &
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-RotAxis'  &
+                                , 'Definition of rotation axis, only major axis: x=1,y=2,z=3.' , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-RotPeriodicDir' , 'Direction of rotation periodicity, either 1 or -1. '//&
                                 'Note: Rotation direction based on right-hand rule!', numberedmulti=.TRUE.)
 !CALL prms%CreateLogicalOption(  'Part-RotPeriodicReBuild', 'Force re-creation of rotational periodic mapping (which might already exist in the mesh file).', '.FALSE.')
@@ -252,8 +247,9 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps
+INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis
 INTEGER               :: ALLOCSTAT, dummy_int
+REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
 LOGICAL               :: DeprecatedVoltage
@@ -291,12 +287,8 @@ ALLOCATE(PartBound%WallVelo(     1:3,1:nPartBound))
 PartBound%WallVelo = 0.
 ALLOCATE(PartBound%RotVelo(          1:nPartBound))
 PartBound%RotVelo = .FALSE.
-ALLOCATE(PartBound%RotFreq(          1:nPartBound))
-PartBound%RotFreq = -1.
-ALLOCATE(PartBound%RotOrg(       1:3,1:nPartBound))
-PartBound%RotOrg = 0.
-ALLOCATE(PartBound%RotAxi(       1:3,1:nPartBound))
-PartBound%RotAxi = 0.
+ALLOCATE(PartBound%RotOmega(       1:3,1:nPartBound))
+PartBound%RotOmega = 0.
 ALLOCATE(PartBound%RotPeriodicDir(  1:nPartBound))
 PartBound%RotPeriodicDir = 0
 ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
@@ -371,9 +363,19 @@ DO iPartBound=1,nPartBound
     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
     PartBound%RotVelo(iPartBound)         = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-RotVelo')
     IF(PartBound%RotVelo(iPartBound)) THEN
-      PartBound%RotFreq(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotFreq')
-      PartBound%RotOrg(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotOrg',3)
-      PartBound%RotAxi(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotAxi',3)
+      RotFreq                             = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotFreq')
+      RotAxis                             = GETINT('Part-Boundary'//TRIM(hilf)//'-RotAxis')
+      omegaTemp = 2. * PI * RotFreq
+      SELECT CASE(RotAxis)
+        CASE(1)
+          PartBound%RotOmega(1:3,iPartBound) = (/omegaTemp,0.,0./)
+        CASE(2)
+          PartBound%RotOmega(1:3,iPartBound) = (/0.,omegaTemp,0./)
+        CASE(3)
+          PartBound%RotOmega(1:3,iPartBound) = (/0.,0.,omegaTemp/)
+        CASE DEFAULT
+          CALL abort(__STAMP__,'ERROR Rotational Wall Velocity: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)
+      END SELECT
     END IF
     PartBound%UseAdaptedWallTemp(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseAdaptedWallTemp')
     PartBound%RadiativeEmissivity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RadiativeEmissivity')
@@ -1426,9 +1428,7 @@ SDEALLOCATE(PartBound%ElecACC)
 SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
 SDEALLOCATE(PartBound%RotVelo)
-SDEALLOCATE(PartBound%RotFreq)
-SDEALLOCATE(PartBound%RotOrg)
-SDEALLOCATE(PartBound%RotAxi)
+SDEALLOCATE(PartBound%RotOmega)
 SDEALLOCATE(PartBound%RotPeriodicDir)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
