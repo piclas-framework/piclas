@@ -42,7 +42,8 @@ endfunction()
 ENABLE_TESTING()
 
 # Add the unit tests
-add_unit_test(ReadInTools ./unitTests/ReadInTools.f90)
+add_unit_test(ReadInTools   ./unitTests/ReadInTools.f90)
+add_unit_test(MatrixInverse ./unitTests/MatrixInverse.f90)
 #add_unit_test(NodesAndWeights ./unitTests/NodesAndWeights.f90)
 #add_unit_test(Vandermonde ./unitTests/Vandermonde.f90)
 #add_unit_test(DerivativeMatrix ./unitTests/DerivativeMatrix.f90)
