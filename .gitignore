@@ -77,3 +77,6 @@ CMakeFiles/
 
 # doxygen build folder
 doxygen/
+
+# unit test
+unitTests/bin/
