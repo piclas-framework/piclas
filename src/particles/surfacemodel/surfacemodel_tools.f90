@@ -331,7 +331,7 @@ CalcPostWallCollVelo(3)  = Cmr * VeloCz
 END FUNCTION CalcPostWallCollVelo
 
 
-PURE FUNCTION CalcRotWallVelo(locBCID,POI)
+PPURE FUNCTION CalcRotWallVelo(locBCID,POI)
 !===================================================================================================================================
 !> Calculation of additional velocity through the rotating wall. The velocity is equal to circumferential speed at
 !> the point of intersection (POI):
