@@ -85,6 +85,7 @@ CALL prms%CreateRealOption(     'LinPhi'           , 'Target potential value for
 ! Special BC with floating potential that is defined by the absorbed power of the charged particles
 CALL prms%CreateRealArrayOption('CoupledPowerPotential' , 'Controlled power input: Supply vector of form (/min, start, max/) for the minimum, start (t=0) and maximum electric potential that is applied at BoundaryType = (/2,2/).', no=3 )
 CALL prms%CreateRealOption(     'CoupledPowerTarget'    , 'Controlled power input: Target input power to which the electric potential is adjusted for BoundaryType = (/2,2/)' )
+CALL prms%CreateRealOption(     'CoupledPowerRelaxFac'    , 'Relaxation factor for calculation of new electric potential due to defined Target input power. Default = 0.05 (5%)', '0.05' )
 #endif /*defined(PARTICLES)*/
 
 END SUBROUTINE DefineParametersEquation
@@ -226,6 +227,7 @@ DO i=1,nBCs
       CoupledPowerTarget = GETREAL('CoupledPowerTarget')
       IF(CoupledPowerTarget.LE.0.) CALL abort(__STAMP__,'CoupledPowerTarget must be > 0.')
       CalcPCouplElectricPotential = .TRUE.
+      CoupledPowerRelaxFac = GETREAL('CoupledPowerRelaxFac')
     END IF ! BCState.EQ.1
 #endif /*defined(PARTICLES)*/
   END IF
