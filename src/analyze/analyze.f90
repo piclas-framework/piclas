@@ -1132,7 +1132,7 @@ END IF
 ! PIC, DSMC and other Particle-based Solvers
 !----------------------------------------------------------------------------------------------------------------------------------
 #ifdef PARTICLES
-IF (DoPartAnalyze.AND.DoPerformPartAnalyze)          CALL AnalyzeParticles(OutputTime)
+IF(DoPartAnalyze.AND.DoPerformPartAnalyze)           CALL AnalyzeParticles(OutputTime)
 IF(DoPerformSurfaceAnalyze)                          CALL AnalyzeSurface(OutputTime)
 IF(TrackParticlePosition.AND.DoPerformPartAnalyze)   CALL WriteParticleTrackingData(OutputTime,iter) ! new function
 #ifdef CODE_ANALYZE

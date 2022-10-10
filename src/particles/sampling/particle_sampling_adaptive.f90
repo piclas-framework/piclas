@@ -406,6 +406,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, usevMPF
 USE MOD_Timedisc_Vars          ,ONLY: iter
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
+!USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame,RotRefFrameOmega
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 USE MOD_LoadBalance_vars       ,ONLY: nPartsPerBCElem

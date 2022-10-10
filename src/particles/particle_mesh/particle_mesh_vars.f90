@@ -359,7 +359,7 @@ INTEGER                                  :: WeirdElems                        ! 
                                                                               ! into themselves)
 LOGICAL                                  :: meshCheckWeirdElements            ! Flag for checking if elements are turned inside out
 !                                                                             ! (default=F)
-LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! Flag defining if mapping for neighbour elements
+LOGICAL                                  :: FindNeighbourElems                ! Flag defining if mapping for neighbour elements
 
 REAL,ALLOCATABLE                         :: ElemTolerance(:)
 INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id is built via nodes
