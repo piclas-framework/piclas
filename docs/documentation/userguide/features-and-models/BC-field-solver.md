@@ -144,7 +144,7 @@ following parameters
     BoundaryName = BC_WALL ! BC name in the mesh.h5 file
     BoundaryType = (/2,2/) ! all BCs with this type will be adjusted to the same electric potential that is adjusted over time
 
-Additionally, a starting value for the potential, lower and upper boundaries and a relaxation factor are required 
+Additionally, a starting value for the potential, lower and upper boundaries and a relaxation factor are required
 as well as the target input power, which is set via
 
     CoupledPowerPotential = (/10. , 1000. , 2000./) ! lower, starting and maximum values for the electric potential
