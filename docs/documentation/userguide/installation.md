@@ -293,7 +293,6 @@ THIS IS NEW:
 ./configure PETSC_ARCH=arch-linux --with-mpi-dir=/opt/hlrs/non-spack/rev-009_2022-09-01/mpi/openmpi/4.1.4-gcc-10.2.0/ --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack --with-blas-lib=/sw/hawk-rh8/hlrs/spack/rev-009_2022-09-01/blis/2.1-gcc-10.2.0-g6f3pga5
 ````
 
-````
 and after configuration, run make
 
 ````
@@ -314,6 +313,7 @@ PICLAS_PETSC   ON
 ````
 
 Load the paths and modules in the submit.sh script on hawk by adding the following lines to the submit.sh script
+
 ````
 module load cmake/3.16.4  gcc/9.2.0  hdf5/1.10.5  libflame/2.1  openmpi/4.0.4  aocl/2.1.0  blis/2.1
 export PETSC_DIR=/zhome/academic/HLRS/irs/iagcopp/petsc-3.17.0
