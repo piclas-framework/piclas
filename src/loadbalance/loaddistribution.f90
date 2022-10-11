@@ -164,13 +164,13 @@ USE MOD_ReadInTools      ,ONLY: GETINT,GETREAL
 USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
 #ifdef PARTICLES
 USE MOD_HDF5_Input       ,ONLY: File_ID,ReadArray,DatasetExists,OpenDataFile,CloseDataFile,ReadAttribute
-USE MOD_LoadBalance_Vars ,ONLY: PartDistri,ParticleMPIWeight
+USE MOD_LoadBalance_Vars ,ONLY: PartDistri,ParticleMPIWeight,nElemsOld
 USE MOD_Particle_Vars    ,ONLY: VarTimeStep,PartIntSize
 USE MOD_Restart_Vars     ,ONLY: RestartFile
-#endif /*PARTICLES*/
-USE MOD_LoadBalance_Vars ,ONLY: nElemsOld,offsetElemMPIOld
-USE MOD_Particle_Vars    ,ONLY: PartInt
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars ,ONLY: offsetElemMPIOld
+USE MOD_Particle_Vars    ,ONLY: PartInt
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

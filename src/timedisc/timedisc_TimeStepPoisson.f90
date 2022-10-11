@@ -37,9 +37,9 @@ USE MOD_Globals                ,ONLY: Abort, LocalTime
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
-#if (PP_TimeDiscMethod==509)
-USE MOD_TimeDisc_Vars          ,ONLY: dt_old
-#endif /*(PP_TimeDiscMethod==509)*/
+!#if (PP_TimeDiscMethod==509)
+!USE MOD_TimeDisc_Vars          ,ONLY: dt_old
+!#endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_HDG                    ,ONLY: HDG
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
@@ -124,7 +124,6 @@ IF (time.GE.DelayTime) THEN
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
       ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
-      IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoSurfaceFlux for compiler-optimization if .FALSE.
         CALL RANDOM_NUMBER(RandVal)
         dtFrac = dt * RandVal
@@ -140,13 +139,14 @@ IF (time.GE.DelayTime) THEN
           END IF
           PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
         ELSE
-          IF ((ABS(dt-dt_old).GT.1.0E-6*dt_old).AND.&
-               isPushParticle(iPart)) THEN ! Don't push the velocity component of neutral particles!
-            PartState(4:6,iPart)  = PartState(4:6,iPart) + Pt(1:3,iPart) * (dt_old-dt)*0.5
-          END IF
+          !IF ((ABS(dt-dt_old).GT.1.0E-6*dt_old).AND.&
+          !     isPushParticle(iPart)) THEN ! Don't push the velocity component of neutral particles!
+          !  PartState(4:6,iPart)  = PartState(4:6,iPart) + Pt(1:3,iPart) * (dt_old-dt)*0.5
+          !END IF
         END IF
 #endif /*(PP_TimeDiscMethod==509)*/
       END IF
+      IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
 #if (PP_TimeDiscMethod==509)
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart) .AND. .NOT.DoForceFreeSurfaceFlux) THEN
         !-- x(BC) => x(n+1) by v(BC+X):

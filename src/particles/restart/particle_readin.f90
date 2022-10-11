@@ -282,11 +282,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   DO iProc = 2,nProcessors
     MPIoffsetPartRecv(iProc) = SUM(MPInPartRecv(1:iProc-1))
   END DO
-
-  DEALLOCATE(PartInt)
-  ALLOCATE(PartInt(PartIntSize,FirstElemInd:LastElemInd))
-  PartInt = PartIntTmp
-  DEALLOCATE(PartIntTmp)
+  CALL MOVE_ALLOC(PartIntTmp,PartInt)
   PartIntExists = .TRUE.
 
   locnPart    = PartInt(ELEM_LastPartInd,LastElemInd)-PartInt(ELEM_FirstPartInd,FirstElemInd)
@@ -308,12 +304,8 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     ! Communicate PartData over MPI
     CALL MPI_ALLTOALLV(PartData,counts_send,disp_send,MPI_STRUCT,PartDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
   END ASSOCIATE
-
-  DEALLOCATE(PartData)
-  ALLOCATE(PartData(PartDataSize,offsetnPart+1_IK:offsetnPart+locnPart))
-  PartData = PartDataTmp
-  DEALLOCATE(PartDataTmp)
-  PartDataExists = .TRUE.
+  CALL MOVE_ALLOC(PartDataTmp,PartData)
+  PartDataExists   = .TRUE.
 
   ! ------------------------------------------------
   ! DSMC-specific arrays
@@ -337,11 +329,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
         ! Communicate VibQuantData over MPI
         CALL MPI_ALLTOALLV(VibQuantData,counts_send,disp_send,MPI_STRUCT,VibQuantDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
       END ASSOCIATE
-
-      DEALLOCATE(VibQuantData)
-      ALLOCATE(VibQuantData(MaxQuantNum,offsetnPart+1_IK:offsetnPart+locnPart))
-      VibQuantData = VibQuantDataTmp
-      DEALLOCATE(VibQuantDataTmp)
+      CALL MOVE_ALLOC(VibQuantDataTmp,VibQuantData)
     END IF
 
     ! Electronic
@@ -363,11 +351,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
         ! Communicate ElecDistriData over MPI
         CALL MPI_ALLTOALLV(ElecDistriData,counts_send,disp_send,MPI_STRUCT,ElecDistriDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
       END ASSOCIATE
-
-      DEALLOCATE(ElecDistriData)
-      ALLOCATE(ElecDistriData(MaxElecQuant,offsetnPart+1_IK:offsetnPart+locnPart))
-      ElecDistriData = ElecDistriDataTmp
-      DEALLOCATE(ElecDistriDataTmp)
+      CALL MOVE_ALLOC(ElecDistriDataTmp,ElecDistriData)
     END IF
 
     ! Ambipolar Diffusion
@@ -389,11 +373,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
         ! Communicate AD_Data over MPI
         CALL MPI_ALLTOALLV(AD_Data,counts_send,disp_send,MPI_STRUCT,AD_DataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
       END ASSOCIATE
-
-      DEALLOCATE(AD_Data)
-      ALLOCATE(AD_Data(3,offsetnPart+1_IK:offsetnPart+locnPart))
-      AD_Data = AD_DataTmp
-      DEALLOCATE(AD_DataTmp)
+      CALL MOVE_ALLOC(AD_DataTmp,AD_Data)
     END IF
   END IF ! useDSMC
 

@@ -34,7 +34,7 @@ SUBROUTINE PerformTracking()
 !> Routine called from the timedisc to call the selected tracking routine
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                  ,ONLY: abort
+USE MOD_Globals                  ,ONLY: abort,CROSS
 USE MOD_Particle_Tracking_vars   ,ONLY: TrackingMethod
 USE MOD_Particle_Tracing         ,ONLY: ParticleTracing
 USE MOD_Particle_RefTracking     ,ONLY: ParticleRefTracking
