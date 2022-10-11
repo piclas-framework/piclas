@@ -3037,8 +3037,11 @@ IMPLICIT NONE
 REAL           :: PowerRatio
 !===================================================================================================================================
 ! Adjust electric potential depending on the instantaneous coupled power
-PowerRatio = PCoupl / CoupledPowerTarget
-CoupledPowerPotential(2) = CoupledPowerPotential(2) * (1.0 - CoupledPowerRelaxFac * (1-(1.0 / PowerRatio))) ! Relaxationsfactor
+PowerRatio = CoupledPowerTarget / PCoupl
+
+! Relaxation factor
+CoupledPowerPotential(2) = CoupledPowerPotential(2) * (1.0 + CoupledPowerRelaxFac * (PowerRatio - 1.0))
+
 ! Keep boundaries
 IF(CoupledPowerPotential(2).GT.CoupledPowerPotential(3)) CoupledPowerPotential(2) = CoupledPowerPotential(3)
 IF(CoupledPowerPotential(2).LT.CoupledPowerPotential(1)) CoupledPowerPotential(2) = CoupledPowerPotential(1)
