@@ -66,7 +66,6 @@ as detailed in the following table.
 |   (/1,-1/)   |  1: periodic |                               -1: negative (opposite) direction of the 1st periodicity vector                              |
 |              |              |                                                                                                                            |
 |    (/2,0/)   | 2: Dirichlet |                                                          0: Phi=0                                                          |
-|    (/2,1/)   | 2: Dirichlet |                                                          1: linear function for Phi, see {ref}`sec:linear-potential`       |
 |  (/2,1001/)  | 2: Dirichlet |                                    1001: linear potential y-z via Phi = 2340y + 2340z                                    |
 |   (/2,101/)  | 2: Dirichlet |                                       101: linear in z-direction: z=-1: 0, z=1, 1000                                       |
 |   (/2,103/)  | 2: Dirichlet |                                                         103: dipole                                                        |
@@ -85,6 +84,8 @@ as detailed in the following table.
 |    (/5,1/)   | 5: Dirichlet |                                          1: use RefState Nbr 1, see details below                                          |
 |              |              |                                                                                                                            |
 |    (/6,1/)   | 6: Dirichlet |                                          1: use RefState Nbr 1, see details below                                          |
+|              |              |                                                                                                                            |
+|    (/7,1/)   | 2: Dirichlet |                      1: use LinState Nbr 1, linear function for Phi, see {ref}`sec:linear-potential`                       |
 |              |              |                                                                                                                            |
 |   (/10,0/)   |  10: Neumann |                                                  zero-gradient (dPhi/dn=0)                                                 |
 |   (/11,0/)   |  11: Neumann |                                                            q*n=1                                                           |
@@ -120,7 +121,7 @@ amplitude *A*
 A linear function that ramps the electric potential from 0 V to a user-defined value can be applied to a boundary via
 
     BoundaryName = BC_WALL ! BC name in the mesh.h5 file
-    BoundaryType = (/2,1/)
+    BoundaryType = (/7,1/) ! 1: 1st LinState
 
 Additionally, this specific boundary condition requires a starting position `LinPhiBasePoint` and
 a direction along which the potential varies `LinPhiNormal`. The distance along which the potential varies as well as the final
@@ -133,6 +134,23 @@ same direction.
     LinPhiNormal    = (/0. , 0. , 1.0/)
     LinPhiHeight    = 10e-3
     LinPhi          = 1000.
+
+The linear potential uses the same functionality as RefState, hence, when two different functions are to be defined use the
+following example
+
+    BoundaryName    = BC_right
+    BoundaryType    = (/7,1/)          ! 7: Dirichlet with linear ramp 1st LinState
+    LinPhiBasePoint = (/0. , 0. , 0./) ! 1st LinState
+    LinPhiNormal    = (/1. , 0. , 0./) ! 1st LinState
+    LinPhiHeight    = 1.0              ! 1st LinState
+    LinPhi          = 1e3              ! 1st LinState
+
+    BoundaryName    = BC_left
+    BoundaryType    = (/7,2/)          ! 7: Dirichlet with linear ramp 2nd LinState
+    LinPhiBasePoint = (/0. , 0. , 0./) ! 2nd LinState
+    LinPhiNormal    = (/1. , 0. , 0./) ! 2nd LinState
+    LinPhiHeight    = 1.0              ! 2nd LinState
+    LinPhi          = 0.0              ! 2nd LinState
 
 ### Zero potential enforcement
 

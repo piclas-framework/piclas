@@ -61,9 +61,9 @@ INTEGER           :: nRefState     !< number of refstates defined in parameter f
 REAL,ALLOCATABLE  :: RefState(:,:) !< refstates in primitive variables (as read from ini file)
 
 ! Special BC with linear potential ramp (constant in time)
-REAL              :: LinPhiBasePoint(3)
-REAL              :: LinPhiNormal(3)
-REAL              :: LinPhiHeight
-REAL              :: LinPhi
+REAL,ALLOCATABLE :: LinPhiBasePoint(:,:)
+REAL,ALLOCATABLE :: LinPhiNormal(:,:)
+REAL,ALLOCATABLE :: LinPhiHeight(:)
+REAL,ALLOCATABLE :: LinPhi(:)
 !===================================================================================================================================
 END MODULE MOD_Equation_Vars
