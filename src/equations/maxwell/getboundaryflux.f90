@@ -70,9 +70,7 @@ INTEGER :: locType,locState
 INTEGER :: MaxBCState,MaxBCStateGlobal
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).AND.(.NOT.MeshInitIsDone).AND.(.NOT.EquationInitIsDone))THEN
-   CALL abort(&
-   __STAMP__&
-   ,"InitBC not ready to be called or already called.")
+   CALL abort(__STAMP__,"InitBC not ready to be called or already called.")
 END IF
 ! determine globally max MaxBCState
 MaxBCState = 0

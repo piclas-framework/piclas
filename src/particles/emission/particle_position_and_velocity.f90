@@ -352,7 +352,7 @@ USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_ta
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_gyrotroncircle
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
-USE MOD_part_tools              ,ONLY: BuildTransGaussNums
+USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck
 USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -461,6 +461,16 @@ CASE('photon_SEE_energy')
 CASE DEFAULT
   CALL abort(__STAMP__,'wrong velo-distri! velocityDistribution='//TRIM(velocityDistribution))
 END SELECT
+
+IF(UseRotRefFrame) THEN
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr.GT.0) THEN
+      PDM%InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
+    END IF
+  END DO
+END IF
+
 END SUBROUTINE SetParticleVelocity
 
 END  MODULE MOD_part_pos_and_velo

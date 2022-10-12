@@ -1154,11 +1154,12 @@ END SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight
 SUBROUTINE SetSurfacefluxVelocities(iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,ElemID,NbrOfParticle,PartIns)
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY : PI, BoltzmannConst
+USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars
-USE MOD_Particle_Surfaces_Vars, ONLY : SurfMeshSubSideData, TriaSurfaceFlux
-USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBezier
+USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfMeshSubSideData, TriaSurfaceFlux
+USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangBezier
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMapElemToSample, AdaptBCMacroVal
+USE MOD_Part_Tools              ,ONLY: InRotRefFrameCheck
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1419,6 +1420,16 @@ CASE('maxwell','maxwell_lpn')
 CASE DEFAULT
   CALL abort(__STAMP__,'ERROR in SurfaceFlux: Wrong velocity distribution!')
 END SELECT
+
+IF(UseRotRefFrame) THEN
+  DO i = NbrOfParticle-PartIns+1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr.GT.0) THEN
+      ! Detect if particle is within a RotRefDomain
+      PDM%InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
+    END IF
+  END DO
+END IF
 
 END SUBROUTINE SetSurfacefluxVelocities
 

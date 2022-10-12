@@ -193,8 +193,7 @@ ALLOCATE(MaskedSide(1:nSides))
 MaskedSide=.FALSE.
 
 IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
-  IF(nMortarMPISides.GT.0) CALL abort( &
-  __STAMP__,&
+  IF(nMortarMPISides.GT.0) CALL abort(__STAMP__,&
   "nMortarMPISides >0: HDG mortar MPI implementation relies on big sides having always only master sides (=> nMortarMPISides=0 )")
 END IF !mortarMesh
 
@@ -207,7 +206,7 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4,5,6) ! Dirichlet
+  CASE(2,4,5,6,7) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
   CASE(10,11) ! Neumann
     nNeumannBCsides=nNeumannBCsides+1
@@ -233,13 +232,15 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4,5,6) ! Dirichlet
+  CASE(2,4,5,6,7) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
     MaskedSide(SideID)=.TRUE.
   CASE(10,11) !Neumann,
     nNeumannBCsides=nNeumannBCsides+1
     NeumannBC(nNeumannBCsides)=SideID
+  CASE DEFAULT ! unknown BCType
+    CALL abort(__STAMP__,' unknown BC Type in hdg.f90!',IntInfoOpt=BCType)
   END SELECT ! BCType
 END DO
 
@@ -380,7 +381,7 @@ DO iBC=1,nBCs
   SELECT CASE(BCType)
   CASE(1) ! periodic
     ! do nothing
-  CASE(2,4,5,6) ! Dirichlet
+  CASE(2,4,5,6,7) ! Dirichlet
     ZeroPotentialSideID = 0 ! no zero potential required
     EXIT ! as soon as one Dirichlet BC is found, no zero potential must be used
   CASE(10,11) ! Neumann
@@ -464,7 +465,11 @@ END SUBROUTINE InitZeroPotential
 !===================================================================================================================================
 !> HDG solver for linear or non-linear systems
 !===================================================================================================================================
+#if defined(PARTICLES)
 SUBROUTINE HDG(t,U_out,iter,ForceCGSolverIteration_opt)
+#else
+SUBROUTINE HDG(t,U_out,iter)
+#endif /*defined(PARTICLES)*/
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -483,7 +488,9 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)     :: t !time
 INTEGER(KIND=8),INTENT(IN)  :: iter
+#if defined(PARTICLES)
 LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in first step (only required for BR electron fluid)
+#endif /*defined(PARTICLES)*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
@@ -623,15 +630,20 @@ DO iVar = 1, PP_nVar
         r=q*(PP_N+1) + p+1
        lambda(iVar,r:r,SideID)=0.
       END DO; END DO !p,q
-    CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
+    CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional) for reference state (with zero crossing)
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
         CALL ExactFunc(-1,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time,iRefState=BCState)
       END DO; END DO !p,q
-    CASE(6) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
+    CASE(6) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional) for reference state (without zero crossing)
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
         CALL ExactFunc(-2,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time,iRefState=BCState)
+      END DO; END DO !p,q
+    CASE(7) ! exact BC = Dirichlet BC !! ExactFunc via LinState (time is optional)for linear potential function
+      DO q=0,PP_N; DO p=0,PP_N
+        r=q*(PP_N+1) + p+1
+        CALL ExactFunc(-3,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iLinState=BCState)
       END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nDirichletBCSides
@@ -815,6 +827,7 @@ END SUBROUTINE HDGLinear
 !===================================================================================================================================
 !> HDG non-linear solver via Newton's method
 !===================================================================================================================================
+#if defined(PARTICLES)
 SUBROUTINE HDGNewton(time,U_out,td_iter,ForceCGSolverIteration_opt)
 ! MODULES
 USE MOD_Globals
@@ -846,7 +859,9 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL,INTENT(IN)     :: time !time
 INTEGER(KIND=8),INTENT(IN)  :: td_iter
+#if defined(PARTICLES)
 LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in first step (only BR electron fluid)
+#endif /*defined(PARTICLES)*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
@@ -890,15 +905,20 @@ DO BCsideID=1,nDirichletBCSides
       r=q*(PP_N+1) + p+1
       lambda(PP_nVar,r:r,SideID)= 0.
     END DO; END DO !p,q
-  CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
+  CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional) for reference state (with zero crossing)
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
       CALL ExactFunc(-1,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iRefState=BCState)
     END DO; END DO !p,q
-  CASE(6) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
+  CASE(6) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional) for reference state (without zero crossing)
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
       CALL ExactFunc(-2,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iRefState=BCState)
+    END DO; END DO !p,q
+  CASE(7) ! exact BC = Dirichlet BC !! ExactFunc via LinState (time is optional)for linear potential function
+    DO q=0,PP_N; DO p=0,PP_N
+      r=q*(PP_N+1) + p+1
+      CALL ExactFunc(-3,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iLinState=BCState)
     END DO; END DO !p,q
   END SELECT ! BCType
 END DO !BCsideID=1,nDirichletBCSides
@@ -1225,6 +1245,7 @@ REAL(KIND=8)      :: Rate
   MPIW8TimeField(3) = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 END SUBROUTINE CheckNonLinRes
+#endif /*defined(PARTICLES)*/
 
 
 !===================================================================================================================================
