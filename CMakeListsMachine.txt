@@ -166,8 +166,8 @@ ENDIF()
 # =========================================================================
 # CHECK SUPPORT FOR VARIOUS FORTRAN (2003,2008) FEATURES
 # =========================================================================
-INCLUDE(CheckSourceCompiles)
-CHECK_SOURCE_COMPILES(Fortran
+INCLUDE(CheckFortranSourceCompiles)
+CHECK_FORTRAN_SOURCE_COMPILES(
 "MODULE F03MOD
 IMPLICIT NONE
 PRIVATE
@@ -182,10 +182,11 @@ END MODULE F03MOD
 
 PROGRAM F03PROG
 END"
-Fortran2003Check)
+Fortran2003Check
+SRC_EXT F90)
 
 IF(NOT Fortran2003Check)
-  MESSAGE(ERROR "Failed to compile basic Fortran2003 programm! Please ensure your compiler is up-to-date!")
+  MESSAGE(FATAL_ERROR "Failed to compile basic Fortran2003 programm! Please ensure your compiler is up-to-date!")
 ENDIF()
 
 MESSAGE(STATUS "Compiling with [${CMAKE_Fortran_COMPILER_ID}] (v${CMAKE_Fortran_COMPILER_VERSION}) fortran compiler using [${PICLAS_INSTRUCTION}] instruction")
