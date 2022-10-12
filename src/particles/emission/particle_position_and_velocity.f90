@@ -526,7 +526,8 @@ DO iElem = 1, nElems
       IF (InsideFlag) THEN
         NbrOfParticle = NbrOfParticle + 1
         PositionNbr = PDM%nextFreePosition(NbrOfParticle+PDM%CurrentNextFreePosition)
-        IF(PositionNbr.GE.PDM%maxParticleNumber) CALL abort(__STAMP__,'Emission: Increase maxParticleNumber!',PositionNbr)
+        IF((PositionNbr.GE.PDM%maxParticleNumber).OR.&
+           (PositionNbr.EQ.0)) CALL abort(__STAMP__,'Emission: Increase maxParticleNumber!',PositionNbr)
         PartState(1:3,PositionNbr) = origin(1:3) ! Little hack: store element centre temporarily in PartPos
         CALL InitializeParticleMaxwell(PositionNbr,iSpec,iElem,Mode=2,iInit=iInit)
         PartState(1:3,PositionNbr) = RandomPos(1:3)

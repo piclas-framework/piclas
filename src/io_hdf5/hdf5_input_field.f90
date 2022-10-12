@@ -221,12 +221,12 @@ ASSOCIATE( x => ExternalFieldN(1:3) )
     IF(MINVAL(DeltaExternalField(1:2)).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for external field.')
     ! z-dir: x(1)
     ! r-dir: x(2)
-    IF(NbrOfColumns.NE.x(1)*x(2)) CALL abort(__STAMP__,'Wrong number of points in 2D')
     LBWRITE (UNIT_stdOut,'(A,2(I0,A))') " Read external field with ",x(1)," x ",x(2)," data points"
+    IF(NbrOfColumns.NE.x(1)*x(2)) CALL abort(__STAMP__,'Wrong number of points in 2D')
   ELSE
+    LBWRITE (UNIT_stdOut,'(A,3(I0,A))') " Read external field with ",x(1)," x ",x(2)," x ",x(3)," data points"
     IF(MINVAL(DeltaExternalField).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for external field.')
     IF(NbrOfColumns.NE.x(1)*x(2)*x(3)) CALL abort(__STAMP__,'Wrong number of points in 3D')
-    LBWRITE (UNIT_stdOut,'(A,3(I0,A))') " Read external field with ",x(1)," x ",x(2)," x ",x(3)," data points"
   END IF ! ExternalFieldDim.EQ.2
 END ASSOCIATE
 
