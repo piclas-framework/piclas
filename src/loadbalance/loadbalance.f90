@@ -361,7 +361,6 @@ USE MOD_LoadBalance_Vars  ,ONLY: CurrentImbalance,MaxWeight,MinWeight
 USE MOD_LoadBalance_Vars  ,ONLY: Currentimbalance,PerformLoadBalance,LoadBalanceMaxSteps
 USE MOD_LoadBalance_Vars  ,ONLY: ElemTimeField
 USE MOD_LoadBalance_Vars  ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
-USE MOD_Mesh_Vars         ,ONLY: nElems,offsetElem
 USE MOD_Piclas_Init       ,ONLY: InitPiclas,FinalizePiclas
 USE MOD_Restart           ,ONLY: Restart
 USE MOD_StringTools       ,ONLY: set_formatting,clear_formatting
@@ -369,7 +368,7 @@ USE MOD_StringTools       ,ONLY: set_formatting,clear_formatting
 USE MOD_LoadBalance_Vars  ,ONLY: ElemTimePart
 USE MOD_LoadBalance_Vars  ,ONLY: ElemInfoRank_Shared,ElemInfoRank_Shared_Win
 USE MOD_LoadBalance_Vars  ,ONLY: nElemsOld,offsetElemOld
-USE MOD_Mesh_Vars         ,ONLY: nGlobalElems
+USE MOD_Mesh_Vars         ,ONLY: nGlobalElems,nElems,offsetElem
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars   ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars,ONLY: ElemInfo_Shared

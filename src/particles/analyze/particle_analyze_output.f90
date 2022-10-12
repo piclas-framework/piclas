@@ -37,16 +37,12 @@ SUBROUTINE WriteParticleTrackingData(time,iter)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals               ,ONLY: FILEEXISTS,unit_stdout,DOTPRODUCT
+USE MOD_Globals               ,ONLY: FILEEXISTS,unit_stdout,DOTPRODUCT,abort,MPI_COMM_WORLD,iError,MPIRoot
 USE MOD_Restart_Vars          ,ONLY: DoRestart
-USE MOD_Globals               ,ONLY: abort
-
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PEM
 USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime
+USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
 USE MOD_Globals_Vars          ,ONLY: c2_inv
-#if USE_MPI
-USE MOD_Globals               ,ONLY: MPIRoot
-#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -91,7 +87,7 @@ INQUIRE(FILE = outfile, EXIST=FileExist)
 IF(.NOT.FileExist)CreateFile=.TRUE.                         ! if no file exists, create one
 
 ! create file with header
-IF(CreateFile) THEN
+IF(MPIRoot.AND.CreateFile) THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
   tmpStr=""
   DO I=1,nOutputVar
@@ -113,6 +109,13 @@ IF(CreateFile) THEN
 
   CLOSE(ioUnit)
 END IF
+
+#if USE_MPI
+! Barrier is required is root creates file and other processor prints to this file
+IF(CreateFile) CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif /*USE_MPI*/
+
+CALL UpdateNextFreePosition()
 
 ! Print info to file
 IF(FILEEXISTS(outfile))THEN

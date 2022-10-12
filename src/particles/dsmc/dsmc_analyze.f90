@@ -127,7 +127,7 @@ END IF
 #endif /*USE_MPI*/
 
 ! Determine the number of variables
-nVar = 5
+nVar = MACROSURF_NVARS
 nVarSpec = 1
 
 ! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle, number, and number per second: Add 10 to the buffer length
@@ -170,7 +170,9 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       CYCLE
     END IF
   END IF
-  !================== INNER BC CHECK
+  !================== ROTATIONALLY PERIODIC BC CHECK
+  IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
+
   OutputCounter = OutputCounter + 1
 
   DO q = 1,nSurfSample
@@ -204,9 +206,11 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       ! Number of simulation particle impacts per iteration
       MacroSurfaceVal(5,p,q,OutputCounter) = CounterSum / IterNum
 
+      MacroSurfaceVal(6,p,q,OutputCounter) = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
+
       ! Output of the pump capacity
       IF(nPorousBC.GT.0) THEN
-        nVarCount = 5
+        nVarCount = MACROSURF_NVARS
         DO iPBC=1, nPorousBC
           IF(MapSurfSideToPorousSide_Shared(iSurfSide).EQ.0) CYCLE
           IF(PorousBCInfo_Shared(1,MapSurfSideToPorousSide_Shared(iSurfSide)).EQ.iPBC) THEN
@@ -644,7 +648,7 @@ SUBROUTINE DSMC_data_sampling()
 USE MOD_Globals
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, PartStateIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution, AmbipolElecVelo
 USE MOD_Part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species!, UseRotRefFrame, RotRefFrameOmega
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/

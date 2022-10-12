@@ -61,6 +61,9 @@ PUBLIC :: CalcPowerDensity
 PUBLIC :: CalculatePartElemData
 PUBLIC :: CalcCoupledPowerPart, CalcEelec
 PUBLIC :: CalcNumberDensityBGGasDistri
+#if USE_HDG
+PUBLIC :: CalculatePCouplElectricPotential
+#endif /*USE_HDG*/
 !===================================================================================================================================
 
 CONTAINS
@@ -3005,7 +3008,7 @@ CASE('before')
   EDiff = (-1.) * CalcEkinPart(iPart)
 CASE('after')
   ! Kinetic energy after particle push (positive)
-  EDiff         = ABS(EDiff + CalcEkinPart(iPart))
+  EDiff         = EDiff + CalcEkinPart(iPart)
   PCoupl        = PCoupl + EDiff
   PCouplAverage = PCouplAverage + EDiff
   iElem         = PEM%LocalElemID(iPart)
@@ -3016,6 +3019,35 @@ END SELECT
 
 END SUBROUTINE CalcCoupledPowerPart
 
+
+#if USE_HDG
+!===================================================================================================================================
+!> Determine the electric potential for Dirichlet BCs in combination with a specific power input through these BCs
+!===================================================================================================================================
+SUBROUTINE CalculatePCouplElectricPotential()
+! MODULES
+USE MOD_Globals
+USE MOD_Equation_Vars         ,ONLY: CoupledPowerPotential,CoupledPowerTarget,CoupledPowerRelaxFac
+USE MOD_Particle_Analyze_Vars ,ONLY: PCoupl
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL           :: PowerRatio
+!===================================================================================================================================
+! Adjust electric potential depending on the instantaneous coupled power
+PowerRatio = CoupledPowerTarget / PCoupl
+
+! Relaxation factor
+CoupledPowerPotential(2) = CoupledPowerPotential(2) * (1.0 + CoupledPowerRelaxFac * (PowerRatio - 1.0))
+
+! Keep boundaries
+IF(CoupledPowerPotential(2).GT.CoupledPowerPotential(3)) CoupledPowerPotential(2) = CoupledPowerPotential(3)
+IF(CoupledPowerPotential(2).LT.CoupledPowerPotential(1)) CoupledPowerPotential(2) = CoupledPowerPotential(1)
+
+END SUBROUTINE CalculatePCouplElectricPotential
+#endif /*USE_HDG*/
 
 #endif /*PARTICLES*/
 END MODULE MOD_Particle_Analyze_Tools

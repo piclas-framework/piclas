@@ -13,24 +13,26 @@ Within the parameter file it is possible to define different particle boundary c
 The `Part-Boundary1-SourceName=` corresponds to the name given during the preprocessing step with HOPR. The available conditions
 (`Part-Boundary1-Condition=`) are described in the table below.
 
-|   Condition    | Description                                                                                                                                                                                 |
-| :------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-|     `open`     | Every particle crossing the boundary will be deleted.                                                                                                                                       |
-|  `reflective`  | Allows the definition of specular and diffuse reflection. A perfect specular reflection is performed, if no other parameters are given (discussed in more detail in the following section). |
-|  `symmetric`   | A perfect specular reflection, without sampling of particle impacts.                                                                                                                        |
-| `rot_periodic` | Allows the definition of rotational periodicity.                                                                                                                                            |
-
-For `reflective` boundaries, an additional option `Part-Boundary2-SurfaceModel` is available, that
-is used for heterogeneous reactions (reactions that have reactants in two or more phases) or secondary electron emission models.
-These models are described in {ref}`sec:surface-chemistry`.
+|   Condition    | Description                                                                                                          |
+| :------------: | :------------------------------------------------------------------------------------------------------------------- |
+|     `open`     | Every particle crossing the boundary will be deleted.                                                                |
+|  `symmetric`   | A perfect specular reflection, without sampling of particle impacts.                                                 |
+|  `reflective`  | Allows the definition of specular and diffuse reflection, Section {ref}`sec:particle-boundary-conditions-reflective` |
+| `rot_periodic` | Allows the definition of rotational periodicity, Section {ref}`sec:particle-boundary-conditions-rotBC`               |
 
 For `rot_periodic` exactly two corresponding boundaries must be defined. Every particle crossing one of these boundaries will be
 inserted at the corresponding other boundary that is rotationally shifted.
 
-## Diffuse Wall
+(sec:particle-boundary-conditions-reflective)=
+## Reflective Wall
 
-Gas-surface interaction can be modelled with the extended Maxwellian model {cite}`Padilla2009`, using accommodation coefficients
-of the form
+A reflective boundary can be defined with
+
+    Part-Boundary2-SourceName=BC_WALL
+    Part-Boundary2-Condition=reflective
+
+A perfect specular reflection is performed, if no other parameters are given. Gas-surface interactions can be modelled with the
+extended Maxwellian model {cite}`Padilla2009`, using accommodation coefficients of the form
 
 $$\alpha = \frac{E_i-E_r}{E_i - E_w}$$
 
@@ -39,8 +41,6 @@ decide whether a diffuse (`MomentumACC` $>R$) or specular reflection (`MomentumA
 $R=[0,1)$ is a random number. Separate accommodation coefficients can be defined for the translation (`TransACC`), rotational
 (`RotACC`), vibrational (`VibACC`) and electronic energy (`ElecACC`) accommodation at a constant wall temperature [K].
 
-    Part-Boundary2-SourceName=BC_WALL
-    Part-Boundary2-Condition=reflective
     Part-Boundary2-MomentumACC=1.
     Part-Boundary2-WallTemp=300.
     Part-Boundary2-TransACC=1.
@@ -48,20 +48,24 @@ $R=[0,1)$ is a random number. Separate accommodation coefficients can be defined
     Part-Boundary2-RotACC=1.
     Part-Boundary2-ElecACC=1.
 
+An additional option `Part-Boundary2-SurfaceModel` is available, that is used for heterogeneous reactions (reactions that have reactants
+in two or more phases) or secondary electron emission models. These models are described in detail in Section {ref}`sec:surface-chemistry`.
+
+(sec:particle-boundary-conditions-reflective-wallvelo)=
 ### Wall movement (Linear & rotational)
 
 Additionally, a linear wall velocity [m/s] can be given
 
     Part-Boundary2-WallVelo=(/0,0,100/)
 
-In the case of rotating walls the `-RotVelo` flag, a rotation frequency [Hz], a origin of rotation axis (x, y, z coordinates) and
-the rotation axis vector must be set. Note that the definition of rotation direction is given by the rotation axis and the
-right-hand rule.
+In the case of rotating walls the `-RotVelo` flag, a rotation frequency [Hz], and the rotation axis (x=1, y=2, z=3) must be set.
+Note that the definition of the rotational direction is defined by the sign of the frequency using the right-hand rule.
 
     Part-Boundary2-RotVelo = T
     Part-Boundary2-RotFreq = 100
-    Part-Boundary2-RotOrg = (/0.,0.,0./)
-    Part-Boundary2-RotAxi = (/0.,0.,1./)
+    Part-Boundary2-RotAxis = 3
+
+The wall velocity will then be superimposed onto the particle velocity.
 
 ### Linear temperature gradient
 
@@ -96,6 +100,7 @@ include the temperature distribution in the `Wall_Temperature` variable (see Sec
 To continue the simulation without further adapting the temperature, the first flag has to be disabled (`Part-AdaptWallTemp = F`).
 It should be noted that the the adaptation should be performed multiple times to achieve a converged temperature distribution.
 
+(sec:particle-boundary-conditions-rotBC)=
 ## Rotational Periodicity
 
 The rotational periodic boundary condition can be used in order to reduce the computational effort in case of an existing
@@ -192,15 +197,15 @@ Modelling of reactive surfaces is enabled by setting `Part-BoundaryX-Condition=r
 appropriate particle boundary surface model `Part-BoundaryX-SurfaceModel`.
 The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the table below.
 
-|    Model    |                                                                                          Description                                                                                          |
-| :---------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0 (default) | Standard extended Maxwellian scattering                                                                                                                                                       |
-|      5      | Secondary electron emission as given by Ref. {cite}`Levko2015`.                                                                                                                               |
-|      7      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. {cite}`Pflug2014` and given by Ref. {cite}`Depla2009` with a default yield of 13 \%.  |
-|      8      | Secondary electron emission due to ion impact (SEE-E with $e^{-}$ on dielectric surfaces) as used in Ref. {cite}`Liu2010` and given by Ref. {cite}`Morozov2004`.                              |
-|      9      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$) with a constant yield of 1 \%. Emitted electrons have an energy of 6.8 eV upon emission.                                  |
-|     10      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on copper) as used in Ref. {cite}`Theis2021` originating from {cite}`Phelps1999`                                           |
-|     11      | Secondary electron emission due to electron impact (SEE-E with $e^{-}$ on quartz (SiO$_{2}$)) as described in Ref. {cite}`Zeng2020` originating from {cite}`Dunaevsky2003`                    |
+|    Model    | Description                                                                                                                                                                                  |
+| :---------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0 (default) | Standard extended Maxwellian scattering                                                                                                                                                      |
+|      5      | Secondary electron emission as given by Ref. {cite}`Levko2015`.                                                                                                                              |
+|      7      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. {cite}`Pflug2014` and given by Ref. {cite}`Depla2009` with a default yield of 13 \%. |
+|      8      | Secondary electron emission due to ion impact (SEE-E with $e^{-}$ on dielectric surfaces) as used in Ref. {cite}`Liu2010` and given by Ref. {cite}`Morozov2004`.                             |
+|      9      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$) with a constant yield of 1 \%. Emitted electrons have an energy of 6.8 eV upon emission.                                 |
+|     10      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on copper) as used in Ref. {cite}`Theis2021` originating from {cite}`Phelps1999`                                          |
+|     11      | Secondary electron emission due to electron impact (SEE-E with $e^{-}$ on quartz (SiO$_{2}$)) as described in Ref. {cite}`Zeng2020` originating from {cite}`Dunaevsky2003`                   |
 
 For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
 
