@@ -3008,7 +3008,7 @@ CASE('before')
   EDiff = (-1.) * CalcEkinPart(iPart)
 CASE('after')
   ! Kinetic energy after particle push (positive)
-  EDiff         = ABS(EDiff + CalcEkinPart(iPart))
+  EDiff         = EDiff + CalcEkinPart(iPart)
   PCoupl        = PCoupl + EDiff
   PCouplAverage = PCouplAverage + EDiff
   iElem         = PEM%LocalElemID(iPart)
@@ -3027,7 +3027,7 @@ END SUBROUTINE CalcCoupledPowerPart
 SUBROUTINE CalculatePCouplElectricPotential()
 ! MODULES
 USE MOD_Globals
-USE MOD_Equation_Vars         ,ONLY: CoupledPowerPotential,CoupledPowerTarget
+USE MOD_Equation_Vars         ,ONLY: CoupledPowerPotential,CoupledPowerTarget,CoupledPowerRelaxFac
 USE MOD_Particle_Analyze_Vars ,ONLY: PCoupl
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -3037,8 +3037,11 @@ IMPLICIT NONE
 REAL           :: PowerRatio
 !===================================================================================================================================
 ! Adjust electric potential depending on the instantaneous coupled power
-PowerRatio = PCoupl / CoupledPowerTarget
-CoupledPowerPotential(2) = CoupledPowerPotential(2) / PowerRatio
+PowerRatio = CoupledPowerTarget / PCoupl
+
+! Relaxation factor
+CoupledPowerPotential(2) = CoupledPowerPotential(2) * (1.0 + CoupledPowerRelaxFac * (PowerRatio - 1.0))
+
 ! Keep boundaries
 IF(CoupledPowerPotential(2).GT.CoupledPowerPotential(3)) CoupledPowerPotential(2) = CoupledPowerPotential(3)
 IF(CoupledPowerPotential(2).LT.CoupledPowerPotential(1)) CoupledPowerPotential(2) = CoupledPowerPotential(1)

@@ -222,7 +222,7 @@ DO iSide = firstSide,lastSide
   IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
 #endif /*USE_MPI*/
 
-  ! count number of reflective and inner BC sides
+  ! count number of reflective and rotationally periodic BC sides
   IF ( (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
        (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicBC) ) THEN
     nSurfSidesProc = nSurfSidesProc + 1
@@ -345,7 +345,7 @@ DO iSide = firstSide,lastSide
 END DO
 #endif /*USE_MPI*/
 
-! Determine the number of surface output sides (inner BCs are not counted twice)
+! Determine the number of surface output sides (inner BCs are not counted twice and rotationally periodic BCs excluded)
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
   nComputeNodeInnerBCs = 0
@@ -384,6 +384,9 @@ IF (myComputeNodeRank.EQ.0) THEN
         CYCLE! Skip sides with the larger index
       END IF
     END IF
+    ! Skip rotationally periodic boundary sides for the output
+    IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
+    ! Count the number of output sides
     nComputeNodeSurfOutputSides = nComputeNodeSurfOutputSides + 1
   END DO
 #if USE_MPI
@@ -442,8 +445,7 @@ DO iBC=1,nBCs
   IF (PartBound%MapToPartBC(iBC).EQ.-1) CYCLE
 
   ! count number of reflective BCs
-  IF ( (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC).OR. &
-       (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%RotPeriodicBC)    ) THEN
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC) THEN
     nSurfBC         = nSurfBC + 1
     BCName(nSurfBC) = BoundaryName(iBC)
   END IF
@@ -734,7 +736,7 @@ FileName   = TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
 FileString = TRIM(FileName)//'.h5'
 
 ! Create dataset attribute "SurfVarNames"
-nVar2D      = 5
+nVar2D      = MACROSURF_NVARS
 nVar2D_Spec = 1
 
 ! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle, total number, number per second: Add 10 variables
@@ -792,12 +794,13 @@ IF (mySurfRank.EQ.0) THEN
 
   END DO ! iSpec=1,nSpecies
 
-  ! fill varnames for total values
+  ! fill varnames for total values (add new variables to MACROSURF_NVARS)
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_ForcePerAreaX')
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_ForcePerAreaY')
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_ForcePerAreaZ')
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_HeatFlux')
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_SimPartPerIter')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'iBC')
 
   IF(nPorousBC.GT.0) THEN
     DO iPBC = 1, nPorousBC

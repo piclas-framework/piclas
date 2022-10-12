@@ -163,6 +163,32 @@ ELSE()
   ENDIF()
 ENDIF()
 
+# =========================================================================
+# CHECK SUPPORT FOR VARIOUS FORTRAN (2003,2008) FEATURES
+# =========================================================================
+INCLUDE(CheckFortranSourceCompiles)
+CHECK_FORTRAN_SOURCE_COMPILES(
+"MODULE F03MOD
+IMPLICIT NONE
+PRIVATE
+CONTAINS
+! Check for MOVE_ALLOC feature
+SUBROUTINE F03_MOVE_ALLOC()
+REAL,ALLOCATABLE::a(:,:),b(:,:)
+ALLOCATE(a(3,3))
+CALL MOVE_ALLOC(a,b)
+END SUBROUTINE F03_MOVE_ALLOC
+END MODULE F03MOD
+
+PROGRAM F03PROG
+END"
+Fortran2003Check
+SRC_EXT F90)
+
+IF(NOT Fortran2003Check)
+  MESSAGE(FATAL_ERROR "Failed to compile basic Fortran2003 programm! Please ensure your compiler is up-to-date!")
+ENDIF()
+
 MESSAGE(STATUS "Compiling with [${CMAKE_Fortran_COMPILER_ID}] (v${CMAKE_Fortran_COMPILER_VERSION}) fortran compiler using [${PICLAS_INSTRUCTION}] instruction")
 
 # =========================================================================

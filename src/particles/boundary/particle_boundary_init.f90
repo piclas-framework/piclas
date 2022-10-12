@@ -99,23 +99,17 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-RotVelo'  &
                                 , 'Flag for rotating walls:'//&
-                                  ' Particles will be accelerated additionaly to the boundary interaction'//&
+                                  ' Particles will be accelerated additionally to the boundary interaction'//&
                                   ' through the rotating wall depending on their POI, rotation frequency and rotation axis.'//&
                                   ' In that case Part-Boundary[$]-WallVelo will be overwritten.' &
-                                , '.FALSE.'&
-                                , numberedmulti=.TRUE.)
+                                , '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-RotFreq'  &
-                                , 'Rotation frequency of the wall in [Hz].' &
-                                , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-RotOrg'  &
-                                , 'Origin of rotation axis (global x,y,z).' &
-                                , '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-RotAxi'  &
-                                , 'Direction of rotation axis (global x,y,z). Note: Rotation direction based on Right-hand rule!' &
-                                , '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-RotPeriodicDir'  &
-                                , 'Angular degree of rotation periodicity in [deg].' &
-                                , '0', numberedmulti=.TRUE.)
+                                , 'Rotation frequency of the wall in [Hz]. Note: Rotation direction based on right-hand rule!' &
+                                , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-RotAxis'  &
+                                , 'Definition of rotation axis, only major axis: x=1,y=2,z=3.' , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-RotPeriodicDir' , 'Direction of rotation periodicity, either 1 or -1. '//&
+                                'Note: Rotation direction based on right-hand rule!', numberedmulti=.TRUE.)
 !CALL prms%CreateLogicalOption(  'Part-RotPeriodicReBuild', 'Force re-creation of rotational periodic mapping (which might already exist in the mesh file).', '.FALSE.')
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp2'  &
                                 , 'Second wall temperature (in [K]) of reflective particle boundary for a temperature gradient.' &
@@ -253,8 +247,9 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps
+INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis
 INTEGER               :: ALLOCSTAT, dummy_int
+REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
 LOGICAL               :: DeprecatedVoltage
@@ -292,12 +287,8 @@ ALLOCATE(PartBound%WallVelo(     1:3,1:nPartBound))
 PartBound%WallVelo = 0.
 ALLOCATE(PartBound%RotVelo(          1:nPartBound))
 PartBound%RotVelo = .FALSE.
-ALLOCATE(PartBound%RotFreq(          1:nPartBound))
-PartBound%RotFreq = -1.
-ALLOCATE(PartBound%RotOrg(       1:3,1:nPartBound))
-PartBound%RotOrg = 0.
-ALLOCATE(PartBound%RotAxi(       1:3,1:nPartBound))
-PartBound%RotAxi = 0.
+ALLOCATE(PartBound%RotOmega(       1:3,1:nPartBound))
+PartBound%RotOmega = 0.
 ALLOCATE(PartBound%RotPeriodicDir(  1:nPartBound))
 PartBound%RotPeriodicDir = 0
 ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
@@ -372,9 +363,19 @@ DO iPartBound=1,nPartBound
     PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
     PartBound%RotVelo(iPartBound)         = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-RotVelo')
     IF(PartBound%RotVelo(iPartBound)) THEN
-      PartBound%RotFreq(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotFreq')
-      PartBound%RotOrg(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotOrg',3)
-      PartBound%RotAxi(1:3,iPartBound)      = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-RotAxi',3)
+      RotFreq                             = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotFreq')
+      RotAxis                             = GETINT('Part-Boundary'//TRIM(hilf)//'-RotAxis')
+      omegaTemp = 2. * PI * RotFreq
+      SELECT CASE(RotAxis)
+        CASE(1)
+          PartBound%RotOmega(1:3,iPartBound) = (/omegaTemp,0.,0./)
+        CASE(2)
+          PartBound%RotOmega(1:3,iPartBound) = (/0.,omegaTemp,0./)
+        CASE(3)
+          PartBound%RotOmega(1:3,iPartBound) = (/0.,0.,omegaTemp/)
+        CASE DEFAULT
+          CALL abort(__STAMP__,'ERROR Rotational Wall Velocity: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)
+      END SELECT
     END IF
     PartBound%UseAdaptedWallTemp(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseAdaptedWallTemp')
     PartBound%RadiativeEmissivity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RadiativeEmissivity')
@@ -448,12 +449,12 @@ DO iPartBound=1,nPartBound
   CASE('rot_periodic')
     GEO%RotPeriodicBC = .TRUE.
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicBC
-    PartBound%RotPeriodicDir(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-RotPeriodicDir','0.')
+    PartBound%RotPeriodicDir(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-RotPeriodicDir')
     IF(ABS(PartBound%RotPeriodicDir(iPartBound)).NE.1) THEN
-      CALL abort(__STAMP__,'Angle for for rotational periodicity must not be zero!')
+      CALL abort(__STAMP__,'Direction for rotational periodicity must be 1 or -1, using the right-hand rule!')
     END IF
   CASE DEFAULT
-    SWRITE(*,*) ' Boundary does not exists: ', TRIM(tmpString)
+    SWRITE(*,*) ' Boundary does not exist: ', TRIM(tmpString)
     CALL abort(__STAMP__,'Particle Boundary Condition does not exist')
   END SELECT
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
@@ -474,7 +475,8 @@ IF(GEO%RotPeriodicBC) THEN
   IF(ALMOSTZERO(GEO%RotPeriodicAngle)) THEN
     CALL abort(__STAMP__,'Angle for for rotational periodicity must not be zero!')
   END IF
-  GEO%RotPeriodicAngle = GEO%RotPeriodicAngle / 180. * PI
+  ! Rotate the particle slightly inside the domain
+  GEO%RotPeriodicAngle = GEO%RotPeriodicAngle / 180. * PI * 0.99999
 END IF
 
 ! Surface particle output to .h5
@@ -624,8 +626,8 @@ USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides,SurfSide2GlobalSide,PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, GEO, ElemInfo_Shared
-USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID, GetGlobalElemID
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeInfo_Shared, NodeToElemInfo, NodeToElemMapping
 USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,nElems
 USE MOD_Analyze_Vars            ,ONLY: CalcMeshInfo
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
@@ -651,9 +653,10 @@ IMPLICIT NONE
 INTEGER,INTENT(OUT)  :: notMappedTotal
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: iSide, jSide, nRotPeriodicSides, SideID,SideID2, MaxNumRotPeriodicNeigh, iNode, iNeigh
-INTEGER                           :: NodeID, CNElemID, LocSideID, k, l, m
-LOGICAL                           :: mySide
+INTEGER                           :: iSide, jSide, nRotPeriodicSides, SideID,SideID2, MaxNumRotPeriodicNeigh, iNode, iNeigh, jNeigh
+INTEGER                           :: NodeID, CNElemID, LocSideID, k, l, m, CNElemID2, LocSideID2, TestElemID, UniqueNodeID
+INTEGER                           :: iElem, jElem, NewNeighNumber, kNeigh
+LOGICAL                           :: mySide, FoundConnection
 REAL                              :: iNodeVec(1:3), jNodeVec(1:3)
 REAL                              :: iNodeR, iNodeH, jNodeR, jNodeH, Node2Rmin, Node2Rmax, Node2Hmin, Node2Hmax, dh, dr
 INTEGER,PARAMETER                 :: NbrOfRotConnections=1000
@@ -726,7 +729,7 @@ CALL Allocate_Shared((/nRotPeriodicSides,NbrOfRotConnections/) , RotPeriodicSide
 CALL MPI_WIN_LOCK_ALL(0 , RotPeriodicSideMapping_temp_Shared_Win , IERROR)
 RotPeriodicSideMapping_temp => RotPeriodicSideMapping_temp_Shared
 IF (myComputeNodeRank.EQ.0) NumRotPeriodicNeigh = 0
-IF (myComputeNodeRank.EQ.0) RotPeriodicSideMapping_temp = -1
+IF (myComputeNodeRank.EQ.0) RotPeriodicSideMapping_temp = 0
 CALL BARRIER_AND_SYNC(NumRotPeriodicNeigh_Shared_Win         , MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(RotPeriodicSideMapping_temp_Shared_Win , MPI_COMM_SHARED)
 firstSide = INT(REAL( myComputeNodeRank   *nRotPeriodicSides)/REAL(nComputeNodeProcessors))+1
@@ -739,7 +742,7 @@ NumRotPeriodicNeigh = 0
 ! number of potential rotational periodic sides is unknown => allocate mapping array with fixed number of NbrOfRotConnections
 ! and reallocate at the end of subroutine
 ALLOCATE(RotPeriodicSideMapping_temp(nRotPeriodicSides,NbrOfRotConnections))
-RotPeriodicSideMapping_temp = -1
+RotPeriodicSideMapping_temp = 0
 #endif /*USE_MPI*/
 
 notMapped=0
@@ -769,6 +772,7 @@ CALL BARRIER_AND_SYNC(BoundingBox_Shared_Win , MPI_COMM_SHARED)
 #else
 ALLOCATE(BoundingBox(4,nRotPeriodicSides))
 #endif /*USE_MPI*/
+
 DO iSide = firstSide, lastSide
 
   ! Get side information
@@ -817,6 +821,7 @@ iSideLoop: DO iSide = firstSide, lastSide
 
   jSideLoop: DO jSide = 1, nRotPeriodicSides
     SideID2 = Rot2Glob_temp(jSide)
+    FoundConnection = .FALSE.
 
     ! Check if both sides are on the same boundary, i.e., they cannot be connected
     IF(PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ. &
@@ -846,6 +851,8 @@ iSideLoop: DO iSide = firstSide, lastSide
       IF(BoundingBox(3,jSide).GT.iNodeR) CYCLE iNodeLoop
       IF(BoundingBox(4,jSide).LT.iNodeR) CYCLE iNodeLoop
 
+      FoundConnection = .TRUE.
+
       ! Check if the side was added in a previous step
       DO iNeigh = 1, NumRotPeriodicNeigh(iSide)
         IF(RotPeriodicSideMapping_temp(iSide,iNeigh).EQ.SideID2) CYCLE iNodeLoop
@@ -859,13 +866,69 @@ iSideLoop: DO iSide = firstSide, lastSide
 
       ! Only do vice versa mapping if the processor has been assigned this side
       IF(mySide)THEN
+        ! Check if the side was added in a previous step
+        DO iNeigh = 1, NumRotPeriodicNeigh(jSide)
+          IF(RotPeriodicSideMapping_temp(jSide,iNeigh).EQ.SideID) CYCLE iNodeLoop
+        END DO ! iNeigh = 1, NumRotPeriodicNeigh(iSide)
         NumRotPeriodicNeigh(jSide) = NumRotPeriodicNeigh(jSide) + 1
         IF(NumRotPeriodicNeigh(jSide).GT.NbrOfRotConnections) CALL abort(__STAMP__,&
             ' jSide: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
         RotPeriodicSideMapping_temp(jSide,NumRotPeriodicNeigh(jSide)) = SideID
       END IF ! mySide
 
+      ! Exit loop over nodes when side has been assigned
+      EXIT iNodeLoop
+
     END DO iNodeLoop ! iNode = 1, 4
+
+    IF(.NOT.FoundConnection) THEN
+      ! Double check is needed if bounding box of jSide is within the original side (iSide) -> check whether jSide is within
+      ! bounding box of iSide. Need to get the NodeIDs of jSide (= SideID2).
+      CNElemID2  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID2))
+      LocSideID2 = SideInfo_Shared(SIDE_LOCALID,SideID2)
+
+      ! Loop the 4 nodes of jSide and test against the bounding box of iSide
+      jNodeLoop: DO iNode = 1, 4
+        NodeID = ElemSideNodeID_Shared(iNode,LocSideID2,CNElemID2) + 1
+        ! Calculate node coordinates in reference system
+        iNodeVec(1:3) = NodeCoords_Shared(1:3,NodeID)
+        iNodeH        = iNodeVec(k)
+        iNodeR        = SQRT(iNodeVec(l)**2+iNodeVec(m)**2)
+
+        ! Cycle if outside of bounding box of iSide
+        IF(BoundingBox(1,iSide).GT.iNodeH) CYCLE jNodeLoop
+        IF(BoundingBox(2,iSide).LT.iNodeH) CYCLE jNodeLoop
+        IF(BoundingBox(3,iSide).GT.iNodeR) CYCLE jNodeLoop
+        IF(BoundingBox(4,iSide).LT.iNodeR) CYCLE jNodeLoop
+
+        ! Check if the side was added in a previous step
+        DO iNeigh = 1, NumRotPeriodicNeigh(iSide)
+          IF(RotPeriodicSideMapping_temp(iSide,iNeigh).EQ.SideID2) CYCLE jNodeLoop
+        END DO ! iNeigh = 1, NumRotPeriodicNeigh(iSide)
+
+        ! Found connection
+        NumRotPeriodicNeigh(iSide) = NumRotPeriodicNeigh(iSide) + 1
+        IF(NumRotPeriodicNeigh(iSide).GT.NbrOfRotConnections) CALL abort(__STAMP__,&
+              ' ERROR: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
+        RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = SideID2
+
+        ! Only do vice versa mapping if the processor has been assigned this side
+        IF(mySide)THEN
+          ! Check if the side was added in a previous step
+          DO iNeigh = 1, NumRotPeriodicNeigh(jSide)
+            IF(RotPeriodicSideMapping_temp(jSide,iNeigh).EQ.SideID) CYCLE jNodeLoop
+          END DO ! iNeigh = 1, NumRotPeriodicNeigh(iSide)
+          NumRotPeriodicNeigh(jSide) = NumRotPeriodicNeigh(jSide) + 1
+          IF(NumRotPeriodicNeigh(jSide).GT.NbrOfRotConnections) CALL abort(__STAMP__,&
+              ' jSide: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
+          RotPeriodicSideMapping_temp(jSide,NumRotPeriodicNeigh(jSide)) = SideID
+        END IF ! mySide
+
+        ! Exit loop over nodes when side has been assigned
+        EXIT jNodeLoop
+
+      END DO jNodeLoop ! iNode = 1, 4
+    END IF ! .NOT.FoundConnection
 
   END DO jSideLoop ! jSide = 1, nRotPeriodicSides
 
@@ -877,11 +940,48 @@ iSideLoop: DO iSide = firstSide, lastSide
     ELSE
       ! Found side on element that is a neighbor element in rot halo region (they have halo flag 3)
       NumRotPeriodicNeigh(iSide) = 1
-      RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = -1
+      RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = 0
     END IF ! ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).NE.3
   END IF ! NumRotPeriodicNeigh(iSide).EQ.0
 
 END DO iSideLoop ! iSide = firstSide, lastSide
+
+! Addition of neighbour elements for each node of a mapped side (especially a problem for tetrahedron-based meshes)
+DO iSide = firstSide, lastSide
+  NewNeighNumber = NumRotPeriodicNeigh(iSide)
+  DO iNeigh=1, NumRotPeriodicNeigh(iSide)
+    SideID = RotPeriodicSideMapping_temp(iSide,iNeigh)
+    CNElemID  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
+    LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+    kNodeLoop: DO iNode = 1, 4
+      NodeID = ElemSideNodeID_Shared(iNode,LocSideID,CNElemID) + 1
+      UniqueNodeID = NodeInfo_Shared(NodeID)
+      ElemLoop: DO iElem = NodeToElemMapping(1,UniqueNodeID) + 1, NodeToElemMapping(1,UniqueNodeID) + NodeToElemMapping(2,UniqueNodeID)
+        TestElemID = NodeToElemInfo(iElem)
+        ! Check if its the same element
+        IF(CNElemID.EQ.TestElemID) CYCLE ElemLoop
+        ! Check if element is already in the list of the OLD neighbours
+        NeighLoop: DO jNeigh=1, NumRotPeriodicNeigh(iSide)
+          ! Skip yourself
+          IF(iNeigh.EQ.jNeigh) CYCLE NeighLoop
+          CNElemID2  = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,RotPeriodicSideMapping_temp(iSide,jNeigh)))
+          IF(CNElemID2.EQ.TestElemID) CYCLE ElemLoop
+        END DO NeighLoop
+        ! Check if element is already in the list of the NEW neighbours
+        NewNeighLoop: DO kNeigh = NumRotPeriodicNeigh(iSide),NewNeighNumber
+          jElem = ABS(RotPeriodicSideMapping_temp(iSide,kNeigh))
+          IF(jElem.EQ.GetGlobalElemID(TestElemID)) CYCLE ElemLoop
+        END DO NewNeighLoop
+        ! Add element to the neighbour list
+        NewNeighNumber = NewNeighNumber + 1
+        IF(NewNeighNumber.GT.NbrOfRotConnections) CALL abort(__STAMP__,&
+            ' NewNeighNumber: Number of rotational periodic side exceed fixed number of ',IntInfoOpt=NbrOfRotConnections)
+        RotPeriodicSideMapping_temp(iSide,NewNeighNumber) = -GetGlobalElemID(TestElemID)
+      END DO ElemLoop
+    END DO kNodeLoop
+  END DO
+  NumRotPeriodicNeigh(iSide) = NewNeighNumber
+END DO
 
 ! (4) reallocate array due to number of potential rotational periodic sides
 #if USE_MPI
@@ -893,7 +993,7 @@ CALL BARRIER_AND_SYNC(RotPeriodicSideMapping_temp_Shared_Win, MPI_COMM_SHARED)
 MaxNumRotPeriodicNeigh = MAXVAL(NumRotPeriodicNeigh)
 
 #if USE_MPI
-CALL Allocate_Shared((/nRotPeriodicSides,NbrOfRotConnections/) , RotPeriodicSideMapping_Shared_Win , RotPeriodicSideMapping_Shared)
+CALL Allocate_Shared((/nRotPeriodicSides,MaxNumRotPeriodicNeigh/) , RotPeriodicSideMapping_Shared_Win , RotPeriodicSideMapping_Shared)
 CALL MPI_WIN_LOCK_ALL(0 , RotPeriodicSideMapping_Shared_Win , IERROR)
 RotPeriodicSideMapping => RotPeriodicSideMapping_Shared
 IF (myComputeNodeRank.EQ.0) RotPeriodicSideMapping = -1
@@ -906,10 +1006,12 @@ RotPeriodicSideMapping = -1
 DO iSide=1, nRotPeriodicSides
   DO iNeigh=1, MaxNumRotPeriodicNeigh
     SideID = RotPeriodicSideMapping_temp(iSide,iNeigh)
-    IF(SideID.NE.-1)THEN
+    IF(SideID.GT.0)THEN
       GlobalElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
       RotPeriodicSideMapping(iSide,iNeigh) = GlobalElemID
-    END IF ! SideID.NE.-1
+    ELSE IF(SideID.LT.0) THEN
+      RotPeriodicSideMapping(iSide,iNeigh) = ABS(SideID)
+    END IF ! SideID.NE.0
   END DO
 END DO
 
@@ -1326,9 +1428,7 @@ SDEALLOCATE(PartBound%ElecACC)
 SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
 SDEALLOCATE(PartBound%RotVelo)
-SDEALLOCATE(PartBound%RotFreq)
-SDEALLOCATE(PartBound%RotOrg)
-SDEALLOCATE(PartBound%RotAxi)
+SDEALLOCATE(PartBound%RotOmega)
 SDEALLOCATE(PartBound%RotPeriodicDir)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)

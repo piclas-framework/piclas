@@ -124,7 +124,6 @@ IF (time.GE.DelayTime) THEN
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
       ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
-      IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoSurfaceFlux for compiler-optimization if .FALSE.
         CALL RANDOM_NUMBER(RandVal)
         dtFrac = dt * RandVal
@@ -147,6 +146,7 @@ IF (time.GE.DelayTime) THEN
         END IF
 #endif /*(PP_TimeDiscMethod==509)*/
       END IF
+      IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
 #if (PP_TimeDiscMethod==509)
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart) .AND. .NOT.DoForceFreeSurfaceFlux) THEN
         !-- x(BC) => x(n+1) by v(BC+X):

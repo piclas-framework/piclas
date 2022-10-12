@@ -901,12 +901,6 @@ ELSE
   ! check if the side is a big mortar side
   NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
 
-#ifdef CODE_ANALYZE
-  WRITE(UNIT_stdout,'(30("-"))')
-  WRITE(UNIT_stdout,*) 'ElemID:',ElemID,'PartID',PartID,'SideID:',SideID,'Move rel. to Side:',DOT_PRODUCT(n_loc,PartTrajectory),'NbElemID:',NbElemID, 'PartElem (w/o refl.)', SinglePointToElement(PartState(1:3,PartID),doHalo=.TRUE.)
-  WRITE(UNIT_stdout,*) 'PartPos',PartState(1:3,PartID), 'PartVel:',PartState(4:6,PartID)
-#endif /* CODE_ANALYZE */
-
   IF (NbElemID.LT.0) THEN ! Mortar side
   nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
 

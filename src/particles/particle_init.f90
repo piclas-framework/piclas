@@ -106,8 +106,8 @@ CALL prms%CreateLogicalOption(  'Particles-DoTimeDepInflow'   , 'Insertion and S
                                                                 ' inflow-number-of-particles is only possible with'//&
                                                                 ' PoissonRounding or DoTimeDepInflow', '.FALSE.')
 CALL prms%CreateIntOption(      'Part-RotPeriodicAxi'         , 'Axis of rotational periodicity:'//&
-                                                                   'x=1, y=2, z=3', '1')
-CALL prms%CreateRealOption(     'Part-RotPeriodicAngle'       , 'Angle for rotational periodicity [deg]', '1.0')
+                                                                   'x=1, y=2, z=3')
+CALL prms%CreateRealOption(     'Part-RotPeriodicAngle'       , 'Angle for rotational periodicity [deg]')
 CALL prms%CreateIntOption(      'Part-nPeriodicVectors'       , 'Number of the periodic vectors j=1,...,n.'//&
                                                                    ' Value has to be the same as defined in preprog.ini', '0')
 
@@ -203,6 +203,15 @@ CALL prms%CreateIntOption(      'Particles-NumberForDSMCOutputs'&
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
   , 'Set [T] to activate sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
   ' have to be enabled as well.', '.FALSE.')
+
+! === Rotational frame of reference
+CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate rotational frame of reference', '.FALSE.')
+CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','Axis of rotational frame of reference (x=1, y=2, z=3)')
+CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','Frequency of rotational frame of reference [1/s], sign according '//&
+                                'to right-hand rule, e.g. positive: counter-clockwise, negative: clockwise')
+CALL prms%CreateIntOption(      'Part-nRefFrameRegions','Number of rotational reference frame regions','0')
+CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MIN','Minimun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MAX','Maximun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersParticles
 
@@ -514,6 +523,7 @@ CALL InitializeVariablesvMPF()
 CALL InitializeVariablesIonization()
 CALL InitializeVariablesVarTimeStep()
 CALL InitializeVariablesAmbipolarDiff()
+CALL InitializeVariablesRotationalRefFrame()
 
 END SUBROUTINE InitializeVariables
 
@@ -573,6 +583,7 @@ ALLOCATE(PartState(1:6,1:PDM%maxParticleNumber)       , &
          Pt(1:3,1:PDM%maxParticleNumber)              , &
          PartSpecies(1:PDM%maxParticleNumber)         , &
          PDM%ParticleInside(1:PDM%maxParticleNumber)  , &
+         PDM%InRotRefFrame(1:PDM%maxParticleNumber)   , &
          PDM%nextFreePosition(1:PDM%maxParticleNumber), &
          PDM%dtFracPush(1:PDM%maxParticleNumber)      , &
          PDM%IsNewPart(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
@@ -582,6 +593,7 @@ __STAMP__&
   ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
 PDM%ParticleInside(1:PDM%maxParticleNumber) = .FALSE.
+PDM%InRotRefFrame(1:PDM%maxParticleNumber)  = .FALSE.
 PDM%dtFracPush(1:PDM%maxParticleNumber)     = .FALSE.
 PDM%IsNewPart(1:PDM%maxParticleNumber)      = .FALSE.
 LastPartPos(1:3,1:PDM%maxParticleNumber)    = 0.
@@ -1369,6 +1381,7 @@ SDEALLOCATE(LastPartPos)
 SDEALLOCATE(PartSpecies)
 SDEALLOCATE(Pt)
 SDEALLOCATE(PDM%ParticleInside)
+SDEALLOCATE(PDM%InRotRefFrame)
 SDEALLOCATE(PDM%nextFreePosition)
 SDEALLOCATE(PDM%nextFreePosition)
 SDEALLOCATE(PDM%dtFracPush)
@@ -1394,6 +1407,7 @@ SDEALLOCATE(PEM%pEnd)
 SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
 SDEALLOCATE(PartPosLandmark)
+SDEALLOCATE(RotRefFramRegion)
 #if USE_MPI
 SDEALLOCATE(SendElemShapeID)
 SDEALLOCATE(ShapeMapping)
@@ -1492,6 +1506,62 @@ END IF
 CALL RANDOM_SEED(PUT=Seeds)
 
 END SUBROUTINE InitRandomSeed
+
+
+SUBROUTINE InitializeVariablesRotationalRefFrame()
+!===================================================================================================================================
+!> Initialize the rotational frame of reference: Calculate the angular velocity and read-in regions for switch between rotational
+!> and stationary reference frame
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Particle_Vars
+USE MOD_Globals_Vars            ,ONLY: ElementaryCharge, PI
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: omegaTemp
+INTEGER            :: iRegion
+CHARACTER(LEN=5)   :: hilf
+!===================================================================================================================================
+
+UseRotRefFrame = GETLOGICAL('Part-UseRotationalReferenceFrame')
+
+IF(UseRotRefFrame) THEN
+  RotRefFrameAxis = GETINT('Part-RotRefFrame-Axis')
+  RotRefFrameFreq = GETREAL('Part-RotRefFrame-Frequency')
+  omegaTemp = 2.*PI*RotRefFrameFreq
+  SELECT CASE(RotRefFrameAxis)
+    CASE(1)
+      RotRefFrameOmega = (/omegaTemp,0.,0./)
+    CASE(2)
+      RotRefFrameOmega = (/0.,omegaTemp,0./)
+    CASE(3)
+      RotRefFrameOmega = (/0.,0.,omegaTemp/)
+    CASE DEFAULT
+      CALL abort(__STAMP__,'ERROR Rotational Reference Frame: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)
+  END SELECT
+  nRefFrameRegions = GETINT('Part-nRefFrameRegions')
+  ALLOCATE(RotRefFramRegion(1:2,1:nRefFrameRegions))
+  IF(nRefFrameRegions.GT.0)THEN
+    DO iRegion=1, nRefFrameRegions
+      WRITE(UNIT=hilf,FMT='(I0)') iRegion
+      RotRefFramRegion(1,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MIN')
+      RotRefFramRegion(2,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MAX')
+      IF(RotRefFramRegion(1,iRegion).GE.RotRefFramRegion(2,iRegion)) THEN
+        CALL abort(__STAMP__,'ERROR Rotational Reference Frame: MIN > MAX in definition of region ',IntInfoOpt=iRegion)
+      END IF
+    END DO
+  END IF
+END IF
+
+END SUBROUTINE InitializeVariablesRotationalRefFrame
 
 
 END MODULE MOD_ParticleInit
