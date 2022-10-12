@@ -237,7 +237,7 @@ END SELECT
 END FUNCTION RelaxElectronicShellWall
 
 
-SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi, NewPart, Xi_elec, XSec_Level)
+SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi, NewPart, XSec_Level)
 !===================================================================================================================================
 !> Electronic energy exchange:
 !> Model 1 (Liechty): Simulation particle has a specific electronic energy level
@@ -258,7 +258,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)           :: iPair, iPart1
 REAL, INTENT(IN)              :: FakXi
 LOGICAL, INTENT(IN),OPTIONAL  :: NewPart
-REAL, INTENT(IN),OPTIONAL     :: Xi_elec
 INTEGER, INTENT(IN),OPTIONAL  :: XSec_Level
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -325,13 +324,9 @@ CASE(2)
   ETraRel = Coll_pData(iPair)%Ec
   IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ETraRel = ETraRel / GetParticleWeight(iPart1)
-  END IF    
-!  IF (PRESENT(NewPart)) THEN
-!    TransElec = 1./(BoltzmannConst*(FakXi+1.+ Xi_elec/2.))*ETraRel
-!  ELSE
-    TransElec = DSMC%InstantTransTemp(nSpecies + 1)
-    IF (TransElec.LE.0.0) TransElec = 1./(BoltzmannConst*(FakXi+1.))*ETraRel
-!  END IF
+  END IF
+  TransElec = DSMC%InstantTransTemp(nSpecies + 1)
+  IF (TransElec.LE.0.0) TransElec = 1./(BoltzmannConst*(FakXi+1.))*ETraRel
   ElectronicPartition = 0.0
   DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
     tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TransElec

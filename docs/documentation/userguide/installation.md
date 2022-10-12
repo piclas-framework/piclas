@@ -5,7 +5,7 @@ of required prerequisites, setting up MPI and HDF5. Please note that high-perfor
 where you have to load the appropriate modules instead of compiling them yourself. The module configuration for some of the clusters
 used by the research group are given in Chapter {ref}`userguide/cluster_guide:Cluster Guidelines`.
 In that case, you can jump directly to the description of the download and installation procedure of PICLas in Section
-{ref}`sec:optaining-the-source`.
+{ref}`sec:obtaining-the-source`.
 
 ## Prerequisites
 **PICLas** has been used on various Linux distributions in the past. This includes Ubuntu 16.04 LTS and 18.04 LTS, 20.04 LTS
@@ -248,10 +248,19 @@ ssh hawk
 tar xf petsc-<version number>.tar.gz
 ````
 
+
 Load the modules on hawk (note that it was not possible to compile PETSc with mpt/2.23), only OpenMPI due to an MPI variable error
+
+THIS IS OLD:
 
 ````
 module load    cmake/3.16.4   aocl/2.1.0    gcc/9.2.0       hdf5/1.10.5    blis/2.1      libflame/2.1    openmpi/4.0.4
+````
+
+THIS IS NEW:
+
+````
+module load    cmake/3.15.2                 gcc/10.2.0      hdf5/1.10.5    blis/2.1                      openmpi/4.1.4
 ````
 
 Configure PETSc (MPI and BLAS/LAPACK have to be installed), which might fail due to the firewall that is active on hawk and prevents direct internet access.
@@ -270,7 +279,36 @@ and then the configuration can be done on hawk
 
 ````
 cd petsc-3.17.0
+````
+
+THIS IS OLD:
+
+````
 ./configure PETSC_ARCH=arch-linux --with-mpi-dir=/opt/hlrs/non-spack/mpi/openmpi/4.0.4-gcc-9.2.0/ --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack
+````
+
+THIS IS NEW (without downloading fblaslapack):
+
+````
+./configure PETSC_ARCH=arch-linux --with-mpi-dir=/opt/hlrs/non-spack/rev-009_2022-09-01/mpi/openmpi/4.1.4-gcc-10.2.0/ --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack --with-blas-lib=/sw/hawk-rh8/hlrs/spack/rev-009_2022-09-01/blis/2.1-gcc-10.2.0-g6f3pga5
+````
+
+THIS IS NEW (with downloading fblaslapack):
+
+````
+./configure PETSC_ARCH=arch-linux --with-mpi-dir=/opt/hlrs/non-spack/rev-009_2022-09-01/mpi/openmpi/4.1.4-gcc-10.2.0/ --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack --download-fblaslapack=1
+````
+
+that requires
+
+````
+cd petsc-3.17.0/arch-linux/externalpackages/
+rsync -avPe ssh git.fblaslapack hawk:~/petsc-3.17.0/arch-linux/externalpackages/.
+````
+
+and after configuration, run make
+
+````
 make all
 ````
 
@@ -288,6 +326,7 @@ PICLAS_PETSC   ON
 ````
 
 Load the paths and modules in the submit.sh script on hawk by adding the following lines to the submit.sh script
+
 ````
 module load cmake/3.16.4  gcc/9.2.0  hdf5/1.10.5  libflame/2.1  openmpi/4.0.4  aocl/2.1.0  blis/2.1
 export PETSC_DIR=/zhome/academic/HLRS/irs/iagcopp/petsc-3.17.0
