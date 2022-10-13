@@ -315,7 +315,7 @@ REAL                           :: StartT,EndT
 IF(MPIRoot)THEN
   LBWRITE(UNIT_StdOut,'(132("-"))')
   LBWRITE(UNIT_StdOut,'(A)') ' Building EpsOneCell for all elements ...'
-  StartT=MPI_WTIME()
+  GETTIME(StartT)
 END IF ! MPIRoot
 
 ! build sJ for all elements not on local proc
@@ -416,7 +416,7 @@ CALL BARRIER_AND_SYNC(ElemEpsOneCell_Shared_Win,MPI_COMM_SHARED)
 !  CALL AddToElemData(ElementOut,'epsOneCell',RealArray=epsOneCell(1:nElems))
 !END IF
 IF(MPIRoot)THEN
-  EndT=MPI_WTIME()
+  GETTIME(EndT)
   LBWRITE(UNIT_stdOut,'(A,F0.3,A)') ' Building EpsOneCell for all elements ... DONE  [',EndT-StartT,'s]'
   LBWRITE(UNIT_StdOut,'(132("-"))')
 END IF ! MPIRoot
