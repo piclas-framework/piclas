@@ -380,8 +380,8 @@ SELECT CASE(TrackingMethod)
     CALL MPI_WIN_LOCK_ALL(0,SideSlabIntervals_Shared_Win,IERROR)
     CALL Allocate_Shared((/nComputeNodeTotalSides/),BoundingBoxIsEmpty_Shared_Win,BoundingBoxIsEmpty_Shared)
     CALL MPI_WIN_LOCK_ALL(0,BoundingBoxIsEmpty_Shared_Win,IERROR)
-    firstSide = INT(REAL (myComputeNodeRank   *nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
-    lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
+    firstSide = INT(REAL (myComputeNodeRank   )*REAL(nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
+    lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
     SideSlabNormals    => SideSlabNormals_Shared
     SideSlabIntervals  => SideSlabIntervals_Shared
     BoundingBoxIsEmpty => BoundingBoxIsEmpty_Shared
