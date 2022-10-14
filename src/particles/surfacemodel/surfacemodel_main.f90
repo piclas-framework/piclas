@@ -62,6 +62,7 @@ USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
 USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
+USE MOD_PICDepo_Vars              ,ONLY: DoDeposition
 USE MOD_part_operations           ,ONLY: RemoveParticle
 USE MOD_part_tools                ,ONLY: CalcRadWeightMPF
 ! IMPLICIT VARIABLE HANDLING
@@ -149,7 +150,8 @@ END IF
 IF(.NOT.PDM%ParticleInside(PartID)) THEN
   ! Increase the counter for deleted/absorbed/adsorbed particles
   IF(CalcSurfCollCounter) SurfAnalyzeNumOfAds(PartSpecImpact) = SurfAnalyzeNumOfAds(PartSpecImpact) + 1
-  IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
+  IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) &
+      CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
   RETURN
 END IF
 !===================================================================================================================================
@@ -182,7 +184,7 @@ CASE (SEE_MODELS_ID)
   IF (ProductSpec(2).GT.0) THEN
     CALL SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobalElemID,PartPosImpact(1:3))
     ! Deposit opposite charge of SEE on node
-    IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN
+    IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN
       ! Get MPF
       IF (usevMPF) THEN
         IF (RadialWeighting%DoRadialWeighting) THEN
@@ -208,7 +210,7 @@ END SELECT
 !===================================================================================================================================
 ! 4.) PIC ONLY: Deposit charges on dielectric surface (when activated), if these were removed/changed in SurfaceModel
 !===================================================================================================================================
-IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charging active + dielectric surface contact
+IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charging active + dielectric surface contact
   IF(.NOT.PDM%ParticleInside(PartID))THEN
     ! Particle was deleted on surface contact: deposit impacting charge
     CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)

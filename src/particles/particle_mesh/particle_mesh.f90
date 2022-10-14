@@ -784,10 +784,12 @@ IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #if USE_LOADBALANCE
-  IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
+  !IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
+  ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
+  IF(.NOT.(PerformLoadBalance.AND.DoDielectricSurfaceCharge))THEN
 #endif /*USE_LOADBALANCE*/
-  ! From InitElemNodeIDs
-  CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
+    ! From InitElemNodeIDs
+    CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
 #if USE_LOADBALANCE
   END IF ! .NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge)
 #endif /*USE_LOADBALANCE*/
@@ -806,9 +808,11 @@ IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
-  IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
+  !IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
+  ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
+  IF(.NOT.(PerformLoadBalance.AND.DoDielectricSurfaceCharge))THEN
 #endif /*USE_LOADBALANCE*/
-    ADEALLOCATE(ElemNodeID_Shared)
+      ADEALLOCATE(ElemNodeID_Shared)
 #if USE_LOADBALANCE
   END IF ! .NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge)
 #endif /*USE_LOADBALANCE*/

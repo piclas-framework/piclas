@@ -86,9 +86,8 @@ USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Interpolation          ,ONLY: GetVandermonde
-USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU
-USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,Vdm_EQ_N
+USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary
+USE MOD_Mesh_Vars              ,ONLY: nElems,sJ
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
 USE MOD_PICDepo_Vars
@@ -482,12 +481,6 @@ CASE('cell_volweight_mean')
     DepoNodetoGlobalNode(iNode) = iNode
   END DO
 #endif /*USE_MPI*/
-
-  IF(DoDielectricSurfaceCharge)THEN
-    ! Allocate and determine Vandermonde mapping from equidistant (visu) to NodeType node set
-    ALLOCATE(Vdm_EQ_N(0:PP_N,0:1))
-    CALL GetVandermonde(1, NodeTypeVISU, PP_N, NodeType, Vdm_EQ_N, modal=.FALSE.)
-  END IF ! DoDielectricSurfaceCharge
 
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 #if USE_MPI
@@ -1130,12 +1123,16 @@ SELECT CASE(TRIM(DepositionType))
 END SELECT
 
 #if USE_LOADBALANCE
-IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition) THEN
-  SDEALLOCATE(PartSourceLB)
-  ALLOCATE(PartSourceLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
-  PartSourceLB = PartSource
+IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
+
+  IF(DoDeposition)THEN
+    SDEALLOCATE(PartSourceLB)
+    ALLOCATE(PartSourceLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
+    PartSourceLB = PartSource
+  END IF ! DoDeposition
+
   IF(DoDielectricSurfaceCharge)THEN
-    CALL ExchangeNodeSourceExtTmp()
+    IF(DoDeposition) CALL ExchangeNodeSourceExtTmp()
     !SDEALLOCATE(NodeSourceExtEquiLB)
     !ALLOCATE(NodeSourceExtEquiLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
     ALLOCATE(NodeSourceExtEquiLB(1:N_variables,0:1,0:1,0:1,nElems))
