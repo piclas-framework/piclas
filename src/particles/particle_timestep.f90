@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -72,11 +72,11 @@ CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor', &
 CALL prms%CreateRealArrayOption('Part-VariableTimeStep-Direction', &
                                 'Direction of the vector along which a linear increase is applied to the time step. '//&
                                 'Currently only scaling along the x-axis (positive or negative direction) is allowed, '//&
-                                'e.g. (/-1.0,0.0,0.0/)')
+                                'e.g. (/-1.0,0.0,0.0/)', no=3)
 CALL prms%CreateRealArrayOption('Part-VariableTimeStep-StartPoint', &
-                                'Starting point of the vector, to use the domain border: -99999.')
+                                'Starting point of the vector, to use the domain border: -99999.',no=3)
 CALL prms%CreateRealArrayOption('Part-VariableTimeStep-EndPoint'  , &
-                                'End point of the vector, to use the domain border: -99999.')
+                                'End point of the vector, to use the domain border: -99999.', no=3)
 ! 2D/Axi: Radial and axial scaling towards
 CALL prms%CreateLogicalOption('Part-VariableTimeStep-Use2DFunction', &
                               'Only 2D/Axi simulations: Enables the scaling of the time step in the x-direction towards and '//&

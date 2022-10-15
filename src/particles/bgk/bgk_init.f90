@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2018 - 2019 Marcel Pfeiffer
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -98,6 +98,9 @@ USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -110,7 +113,7 @@ INTEGER               :: iSpec, iSpec2
 REAL                  :: delta_ij
 LOGICAL               :: MoleculePresent
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
 MoleculePresent = .FALSE.
 ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
@@ -184,7 +187,7 @@ END IF
 
 BGKInitDone = .TRUE.
 
-SWRITE(UNIT_stdOut,'(A)') ' INIT BGK DONE!'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT BGK DONE!'
 
 END SUBROUTINE InitBGK
 

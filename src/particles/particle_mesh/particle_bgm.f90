@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -125,6 +125,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared_Win,BoundsOfElem_
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems,FIBGM_nTotalElems_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic,MeshHasRotPeriodic
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -214,7 +217,7 @@ GEO%FIBGMjmaxglob = BGMjmaxglob
 GEO%FIBGMkminglob = BGMkminglob
 GEO%FIBGMkmaxglob = BGMkmaxglob
 
-SWRITE(UNIT_stdOut,'(A,I18,A,I18,A,I18)') ' | Total FIBGM Cells(x,y,z): '                                     &
+LBWRITE(UNIT_stdOut,'(A,I18,A,I18,A,I18)') ' | Total FIBGM Cells(x,y,z): '                                     &
                                           , BGMimaxglob - BGMiminglob                                    ,', '&
                                           , BGMjmaxglob - BGMjminglob                                    ,', '&
                                           , BGMkmaxglob - BGMkminglob
@@ -227,8 +230,8 @@ CALL Allocate_Shared((/6  ,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
 CALL Allocate_Shared((/2,3,nGlobalElems/),BoundsOfElem_Shared_Win,BoundsOfElem_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win  ,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,BoundsOfElem_Shared_Win,IERROR)
-firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
 ! Periodic Sides
 MeshHasPeriodic    = MERGE(.TRUE.,.FALSE.,GEO%nPeriodicVectors.GT.0)
 MeshHasRotPeriodic = GEO%RotPeriodicBC
@@ -422,7 +425,7 @@ ELSE
                    + (GEO%zmaxglob-GEO%zminglob)**2 )
   IF(halo_eps.GT.globalDiag)THEN
     CALL PrintOption('unlimited halo distance','CALCUL.',RealOpt=halo_eps)
-    SWRITE(UNIT_stdOut,'(A38)') ' |   limitation of halo distance  |    '
+    LBWRITE(UNIT_stdOut,'(A38)') ' |   limitation of halo distance  |    '
     halo_eps=globalDiag
   END IF
 
@@ -443,7 +446,7 @@ DO iElem = firstElem, lastElem
 END DO
 ! >> Communicate global maximum
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxCellRadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
-SWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', for building halo BGM ...'
+LBWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', for building halo BGM ...'
 #if USE_MPI
 StartT=MPI_WTIME()
 #else
@@ -535,6 +538,10 @@ ELSE
   ElemInfo_Shared(ELEM_HALOFLAG,firstElem:lastElem) = 0
   ! Loop global elems
   DO iElem = firstElem, lastElem
+    IF(ElementOnNode(iElem)) THEN
+      ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 1 ! compute-node element
+      CYCLE
+    END IF
     BGMCellXmin = ElemToBGM_Shared(1,iElem)
     BGMCellXmax = ElemToBGM_Shared(2,iElem)
     BGMCellYmin = ElemToBGM_Shared(3,iElem)
@@ -554,11 +561,7 @@ ELSE
           IF(kBGM.LT.BGMkmin) CYCLE
           IF(kBGM.GT.BGMkmax) CYCLE
           !GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
-          IF(ElementOnNode(iElem)) THEN
-            ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 1 ! compute-node element
-          ELSE
-            ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2 ! halo element
-          END IF
+          IF(.NOT.ElementOnNode(iElem)) ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2 ! halo element
         END DO ! kBGM
       END DO ! jBGM
     END DO ! iBGM
@@ -639,8 +642,8 @@ ELSE
 
   ! Distribute nHaloElements evenly on compute-node procs
   IF (nHaloElems.GT.nComputeNodeProcessors) THEN
-    firstHaloElem = INT(REAL( myComputeNodeRank   *nHaloElems)/REAL(nComputeNodeProcessors))+1
-    lastHaloElem  = INT(REAL((myComputeNodeRank+1)*nHaloElems)/REAL(nComputeNodeProcessors))
+    firstHaloElem = INT(REAL( myComputeNodeRank   )*REAL(nHaloElems)/REAL(nComputeNodeProcessors))+1
+    lastHaloElem  = INT(REAL((myComputeNodeRank+1))*REAL(nHaloElems)/REAL(nComputeNodeProcessors))
   ELSE
     firstHaloElem = myComputeNodeRank + 1
     IF (myComputeNodeRank.LT.nHaloElems) THEN
@@ -717,8 +720,8 @@ ELSE
   nMPIProcHalo = COUNT(MPIProcHalo)
 
   IF (nMPIProcHalo.GT.nComputeNodeProcessors) THEN
-    firstProcHalo = INT(REAL( myComputeNodeRank   *nMPIProcHalo)/REAL(nComputeNodeProcessors))+1
-    lastProcHalo  = INT(REAL((myComputeNodeRank+1)*nMPIProcHalo)/REAL(nComputeNodeProcessors))
+    firstProcHalo = INT(REAL( myComputeNodeRank   )*REAL(nMPIProcHalo)/REAL(nComputeNodeProcessors))+1
+    lastProcHalo  = INT(REAL((myComputeNodeRank+1))*REAL(nMPIProcHalo)/REAL(nComputeNodeProcessors))
   ELSE
     firstProcHalo = myComputeNodeRank + 1
     IF (myComputeNodeRank.LT.nMPIProcHalo) THEN
@@ -733,6 +736,9 @@ ELSE
   ! Check if the processor should check at least one halo processor
   IF (lastProcHalo.GT.0) THEN
     DO iProc = 1,nProcessors
+      ! Ignore my own elements
+      IF(iProc-1.EQ.myRank) CYCLE
+
       ! Ignore compute-nodes with no halo elements
       IF (.NOT.MPIProcHalo(iProc)) CYCLE
 
@@ -797,7 +803,7 @@ END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 #else
 !ElemInfo_Shared(ELEM_HALOFLAG,:) = 1
-#endif  /*USE_MPI*/
+#endif /*USE_MPI*/
 
 !--- compute number of elements in each background cell
 DO iElem = offsetElem+1, offsetElem+nElems
@@ -953,8 +959,8 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
   END DO ! iElem = firstHaloElem, lastHaloElem
 
   IF (EnlargeBGM) THEN
-    firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
-    lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
+    firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+    lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
     DO ElemID = firstElem, lastElem
       ! Only add peri halo elems
       IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.3) CYCLE
@@ -1086,8 +1092,8 @@ IF ((SUM(ElemInfo_Shared(ELEM_HALOFLAG,:)  ,MASK=ElemInfo_Shared(ELEM_HALOFLAG,:
 
 ! Debug output
 IF (myRank.EQ.0) THEN
-  SWRITE(Unit_StdOut,'(A)') ' DETERMINED compute-node (CN) halo region ...'
-  SWRITE(Unit_StdOut,'(A)') ' | CN Rank | Local Elements | Halo Elements (non-peri) | Halo Elements (peri) |'
+  LBWRITE(Unit_StdOut,'(A)') ' DETERMINED compute-node (CN) halo region ...'
+  LBWRITE(Unit_StdOut,'(A)') ' | CN Rank | Local Elements | Halo Elements (non-peri) | Halo Elements (peri) |'
   CALL FLUSH(UNIT_stdOut)
   ALLOCATE(NumberOfElements(3*nLeaderGroupProcs))
 END IF
@@ -1105,22 +1111,28 @@ IF (myComputeNodeRank.EQ.0) THEN
   END ASSOCIATE
 END IF
 
-IF (myRank.EQ.0) THEN
-  DO iProc = 0,nLeaderGroupProcs-1
-    WRITE(Unit_StdOut,'(A,I7,A,I15,A,I25,A,I21,A)')  &
-                                      ' |>',iProc, &
-                                      ' |'  ,NumberOfElements(iProc*3+1), &
-                                      ' |'  ,NumberOfElements(iProc*3+2), &
-                                      ' |'  ,NumberOfElements(iProc*3+3), ' |'
-  END DO
+IF (MPIRoot) THEN
+#if USE_LOADBALANCE
+  IF(.NOT.PerformLoadBalance)THEN
+#endif /*USE_LOADBALANCE*/
+    DO iProc = 0,nLeaderGroupProcs-1
+      WRITE(Unit_StdOut,'(A,I7,A,I15,A,I25,A,I21,A)')  &
+                                        ' |>',iProc, &
+                                        ' |'  ,NumberOfElements(iProc*3+1), &
+                                        ' |'  ,NumberOfElements(iProc*3+2), &
+                                        ' |'  ,NumberOfElements(iProc*3+3), ' |'
+    END DO
+#if USE_LOADBALANCE
+  END IF ! .NOT.PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 END IF
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*CODE_ANALYZE*/
 
 EndT = PICLASTIME()
-SWRITE(UNIT_stdOut,'(A,E15.7,A,F0.3,A)') ' | Found max. cell radius as',maxCellRadius,', for building halo BGM ... DONE! ['&
+LBWRITE(UNIT_stdOut,'(A,E15.7,A,F0.3,A)') ' | Found max. cell radius as',maxCellRadius,', for building halo BGM ... DONE! ['&
 ,EndT-StartT,'s]'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 ! ONLY IF HALO_EPS .LT. GLOBAL_DIAG
 ! ONLY IF EMISSION .EQ. 1 .OR. 2
@@ -1148,16 +1160,12 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 !===================================================================================================================================
 #endif /*USE_MPI*/
 
-SWRITE(UNIT_stdOut,'(A)')' BUILDING FIBGM ELEMENT MAPPING ...'
-#if USE_MPI
-StartT=MPI_WTIME()
-#else
-CALL CPU_TIME(StartT)
-#endif /*USE_MPI*/
+LBWRITE(UNIT_stdOut,'(A)')' BUILDING FIBGM ELEMENT MAPPING ...'
+GETTIME(StartT)
 
 #if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
 
 ! Flag each FIBGM element proc positive
 BGMiglobDelta = BGMimaxglob - BGMiminglob
@@ -1331,8 +1339,8 @@ CALL BARRIER_AND_SYNC(FIBGMToProc_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 EndT = PICLASTIME()
-SWRITE(UNIT_stdOut,'(A,F0.3,A)')' BUILDING FIBGM ELEMENT MAPPING DONE! [',EndT-StartT,'s]'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A,F0.3,A)')' BUILDING FIBGM ELEMENT MAPPING DONE! [',EndT-StartT,'s]'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 #if USE_MPI
 ASSOCIATE(FIBGM_nElems => FIBGM_nTotalElems)
@@ -1421,6 +1429,11 @@ USE MOD_Globals
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_MPI_Shared_Vars    ,ONLY: GlobalElem2CNTotalElem
+USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
+#endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1446,7 +1459,6 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 ! Then, free the pointers or arrays
 SDEALLOCATE(CNTotalElem2GlobalElem)
-SDEALLOCATE(GlobalElem2CNTotalElem)
 SDEALLOCATE(CNTotalSide2GlobalSide)
 SDEALLOCATE(GlobalSide2CNTotalSide)
 #endif /*USE_MPI*/
@@ -1470,6 +1482,13 @@ ADEALLOCATE(FIBGMProcs_Shared)
 CALL FinalizeHaloInfo()
 #endif /*USE_MPI*/
 
+#if USE_LOADBALANCE
+! This will be deallocated in FinalizeDeposition() when using load balance
+IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition) )THEN
+  SDEALLOCATE(GlobalElem2CNTotalElem)
+END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
+#endif /*USE_LOADBALANCE*/
+
 END SUBROUTINE FinalizeBGM
 
 
@@ -1488,6 +1507,9 @@ USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,myLeaderGroupRank,nLeade
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloID
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemHaloInfo_Array,ElemHaloInfo_Shared,ElemHaloInfo_Shared_Win,ElemInfo_Shared
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1499,7 +1521,7 @@ INTEGER                        :: iRank,iElem
 CHARACTER(LEN=255)             :: tmpStr
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES') " ADDING halo debug information to State file..."
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE='YES') " ADDING halo debug information to State file..."
 
 ! Allocate array in shared memory for each compute-node rank
 CALL Allocate_Shared((/nGlobalElems*nLeaderGroupProcs/),ElemHaloInfo_Shared_Win,ElemHaloInfo_Array)
@@ -1601,8 +1623,8 @@ INTEGER                        :: iPeriodicVector,jPeriodicVector
 REAL                           :: BoundsOfElemCenter(1:4),LocalBoundsOfElemCenter(1:4)
 !===================================================================================================================================
 
-firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
 
 ! The code below changes ElemInfo_Shared, identification of periodic elements must complete before
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
@@ -1792,8 +1814,8 @@ INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
 INTEGER                        :: iPeriodicDir,iLocElem
 !===================================================================================================================================
 
-firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
 
 ! The code below changes ElemInfo_Shared, identification of periodic elements must complete before
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)

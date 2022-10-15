@@ -358,6 +358,20 @@ ELSE()
 ENDIF()
 
 # =========================================================================
+# Unit test at end of compilation
+# =========================================================================
+IF (CMAKE_BUILD_TYPE MATCHES "Sanitize")
+  MESSAGE(STATUS "Unit tests automatically disabled with CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}")
+  OPTION(PICLAS_UNITTESTS "Enable unit tests after build" OFF)
+ELSE()
+  OPTION(PICLAS_UNITTESTS "Enable unit tests after build" ON)
+ENDIF()
+MARK_AS_ADVANCED(FORCE PICLAS_UNITTESTS)
+IF(PICLAS_UNITTESTS)
+  INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/unitTests/CMakeLists.txt)
+ENDIF()
+
+# =========================================================================
 # PICLas sources & targets
 # =========================================================================
 FUNCTION(add_exec target)
@@ -408,7 +422,9 @@ FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
                             ./src/readintools/*.f90
                             ./src/recordpoints/*.f90
                             ./src/restart/*.f90
-                            ./src/utils/*.f90 )
+                            ./src/utils/*.f90
+                            ./unitTests/unittest.f90
+                            ./unitTests/unittest_vars.f90)
 
 LIST(APPEND timediscF90 ${timediscF90}
                         ./src/timedisc/timedisc.f90
@@ -425,6 +441,7 @@ FILE(GLOB_RECURSE dgF90 ./src/dg/*.f90
 FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/dg/dg.f90
                          ./src/dg/dg_vars.f90
+                         ./src/interpolation/prolongtoface.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/equation.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/equation_vars.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/timeavg.f90
@@ -470,6 +487,8 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90
                          ./src/particles/particle_mesh/particle_mesh_vars.f90
                          ./src/particles/particle_vars.f90
+                         ./src/particles/emission/particle_emission_vars.f90
+                         ./src/particles/emission/particle_surface_flux_vars.f90
                          ./src/posti/superB/superB_vars.f90
                          ./src/particles/boundary/particle_boundary_vars.f90)
 
@@ -512,15 +531,15 @@ IF(SELFBUILTEXTERNALS)
 ENDIF()
 
 ADD_LIBRARY(userblocklib STATIC ./src/output/read_userblock.c)
-SET_TARGET_PROPERTIES(userblocklib PROPERTIES LINKER_LANGUAGE C
+SET_TARGET_PROPERTIES(userblocklib PROPERTIES LANGUAGE C LINKER_LANGUAGE C
                                               COMPILE_FLAGS "-fPIC")
 
 ADD_LIBRARY(stacksizelib STATIC ./src/globals/stacksize.c)
-SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LINKER_LANGUAGE C
+SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LANGUAGE C LINKER_LANGUAGE C
                                               COMPILE_FLAGS "-fPIC")
 
 ADD_LIBRARY(memusagelib STATIC ./src/globals/processmemusage.cxx)
-SET_TARGET_PROPERTIES(memusagelib PROPERTIES LINKER_LANGUAGE CXX
+SET_TARGET_PROPERTIES(memusagelib PROPERTIES LANGUAGE CXX LINKER_LANGUAGE CXX
                                              COMPILE_FLAGS "-fPIC")
 
 # we link the statically built libs

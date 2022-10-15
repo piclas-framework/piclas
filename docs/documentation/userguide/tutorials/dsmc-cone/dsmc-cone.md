@@ -182,6 +182,10 @@ The parameter `Particles-MPIWeight` indicates whether the distribution should be
     LoadBalanceMaxSteps                      = 2
 
 Information about the imbalance are shown in the *std.out* and the *ElemTimeStatistics.csv* file.
+The default load balancing scheme will exchange the required data internally, but there is also the possibility to perform the
+re-balancing step via HDF5, which will create a state file and restart from this file by activating
+
+    UseH5IOLoadBalance = T ! default is False
 
 ## Visualization (post-processing)
 

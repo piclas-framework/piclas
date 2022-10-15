@@ -19,6 +19,7 @@ ENDIF()
 # =========================================================================
 # Git configuration
 # =========================================================================
+IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
 # Setup git hooks
 SET(PRECOMMIT_FILE ".githooks/pre-commit")
 # Check if the pre-commit hooks exits
@@ -40,6 +41,9 @@ IF (DEFINED HOOKSPATH  AND NOT "${HOOKSPATH}" STREQUAL "" AND NOT "${HOOKSPATH}"
   # STRING(ASCII 27 ESCAPE)
   # MESSAGE (STATUS "${ESCAPE}[34mCustom hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.${ESCAPE}[0m")
   MESSAGE (WARNING "Custom git hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
+ENDIF()
+ELSE()
+  MESSAGE(STATUS "git not found")
 ENDIF()
 
 # =========================================================================
@@ -110,11 +114,13 @@ PROJECT(PICLas)
 # =========================================================================
 # Store the current commit information
 # =========================================================================
-EXECUTE_PROCESS(COMMAND git rev-parse HEAD OUTPUT_VARIABLE GIT_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE)
 SET(commit ${CMAKE_CURRENT_SOURCE_DIR}/src/commit.h)
-MESSAGE(STATUS "Current git commit ${GIT_COMMIT} will be written to ${commit}")
 FILE(WRITE ${commit} "! Define the current commit hash. The default must remain empty, i.e., ''. Do not commit the changed file!\n#define GIT_CURRENT_COMMIT  ''\n")
-EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit})
+IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
+  EXECUTE_PROCESS(COMMAND git rev-parse HEAD OUTPUT_VARIABLE GIT_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE)
+  MESSAGE(STATUS "Current git commit ${GIT_COMMIT} will be written to ${commit}")
+  EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit})
+ENDIF()
 
 # =========================================================================
 # Check IPO support:

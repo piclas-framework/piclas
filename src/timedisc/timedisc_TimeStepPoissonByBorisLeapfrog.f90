@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -131,7 +131,6 @@ IF (time.GE.DelayTime) THEN
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
       ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
-      IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoSurfaceFlux for compiler-optimization if .FALSE.
         CALL RANDOM_NUMBER(RandVal)
         dtFrac = dt * RandVal
@@ -152,7 +151,7 @@ IF (time.GE.DelayTime) THEN
           PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
         END IF
       END IF
-
+      IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
       IF(isPushParticle(iPart).AND.DoInterpolation)THEN ! Don't push the velocity component of neutral particles!
         !-- v(n-0.5) => v(n+0.5) by a(n):
         !PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt

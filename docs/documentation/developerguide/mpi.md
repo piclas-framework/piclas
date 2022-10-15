@@ -7,7 +7,7 @@ This chapter describes how PICLas subroutines and functions are parallelized.
 In case any new communicator (e.g. SurfCOMM%COMM) is built during init or anywhere else with
 `CALL MPI_COMM_SPLIT(NEWCOMMUNICATOR,iERROR)` or such, it is necessary to finalize it with `CALL MPI_COMM_FREE(NEWCOMMUNICATOR,iERROR)`.
 
-Else Loadbalances produce undefined errors that are almost impossible to find.
+Else, load balancing will produce undefined errors that are almost impossible to find.
 
 Debug MPI
 

@@ -16,78 +16,80 @@ In this case the boundary type is changed from 4 (in the mesh file) to 5 in the 
 
 ## Maxwell's Equations
 
-The boundary conditions used for Maxwell's equations are defined by the first integer value in the *BoundaryType* vector and
+The boundary conditions used for Maxwell's equations are defined by the first integer value in the *BoundaryType* vector (consisting of the *Type* and *State*) and
 include, periodic, Dirichlet, Silver-Mueller, perfectly conducting, symmetry and reference state boundaries as detailed in the following table.
 
-| BoundaryType |     Type     |                                                           State                                                           |
-|  :--------:  |   :-------:  |                                  :------------------------------------------------------                                  |
-|    (/1,1/)   |  1: periodic |                                    1: positive direction of the 1st periodicity vector                                    |
-|   (/1,-1/)   |  1: periodic |                              -1: negative (opposite) direction of the 1st periodicity vector                              |
-|              |              |                                                                                                                           |
-|    (/2,2/)   | 2: Dirichlet |                                                    2: Coaxial waveguide                                                   |
-|    (/2,3/)   | 2: Dirichlet |                                                        3: Resonator                                                       |
-|    (/2,4/)   | 2: Dirichlet |                 4: Electromagnetic dipole (implemented via RHS source terms and shape function deposition)                |
-|   (/2,40/)   | 2: Dirichlet |   40: Electromagnetic dipole without initial condition (implemented via RHS source terms and shape function deposition)   |
-|   (/2,41/)   | 2: Dirichlet |             41: Pulsed Electromagnetic dipole (implemented via RHS source terms and shape function deposition)            |
-|    (/2,5/)   | 2: Dirichlet |                              5: Transversal Electric (TE) plane wave in a circular waveguide                              |
-|    (/2,7/)   | 2: Dirichlet |                                              7: Special manufactured Solution                                             |
-|   (/2,10/)   | 2: Dirichlet |                10: Issautier 3D test case with source (Stock et al., div. correction paper), domain [0;1]^3               |
-|   (/2,12/)   | 2: Dirichlet |                                                       12: Plane wave                                                      |
-|   (/2,121/)  | 2: Dirichlet |                             121: Pulsed plane wave (infinite spot size) and temporal Gaussian                             |
-|   (/2,14/)   | 2: Dirichlet |             14: Gaussian pulse is initialized inside the domain (usually used as initial condition and not BC)            |
-|   (/2,15/)   | 2: Dirichlet |                                  15: Gaussian pulse with optional delay time *tDelayTime*                                 |
-|   (/2,16/)   | 2: Dirichlet |               16: Gaussian pulse which is initialized in the domain and used as a boundary condition for t>0              |
-|   (/2,50/)   | 2: Dirichlet |                                 50: Initialization and BC Gyrotron - including derivatives                                |
-|   (/2,51/)   | 2: Dirichlet |                   51: Initialization and BC Gyrotron - including derivatives (nothing is set for z>eps)                   |
-|              |              |                                                                                                                           |
-|    (/3,0/)   |     3: SM    |      1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117 with fix     |
-|              |              |              of div. correction field for low B-fields that only set the correction fields when ABS(B)>1e-10              |
-|    (/5,0/)   |     5: SM    |          1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117          |
-|    (/6,0/)   |     6: SM    |      1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117 with fix     |
-|              |              | of div. correction field for low B-fields that only set the correction fields when B is significantly large compared to E |
-|              |              |                                                                                                                           |
-|    (/4,0/)   |     4: PEC   |                           Perfectly conducting surface (Munz, Omnes, Schneider 2000, pp. 97-98)                           |
-|              |              |                                                                                                                           |
-|   (/10,0/)   |    10: Sym   |                                       Symmetry BC (perfect MAGNETIC conductor, PMC)                                       |
-|              |              |                                                                                                                           |
-|   (/20,0/)   |    20: Ref   |                              Use state that is read from .h5 file and interpolated to the BC                              |
+| BoundaryType |   Type    | State                                                                                                                     |
+| :----------: | :-------: | :------------------------------------------------------------------------------------------------------------------------ |
+|   (/1,1/)    | periodic  | 1: positive direction of the 1st periodicity vector                                                                       |
+|   (/1,-1/)   | periodic  | -1: negative (opposite) direction of the 1st periodicity vector                                                           |
+|              |           |                                                                                                                           |
+|   (/2,2/)    | Dirichlet | 2: Coaxial waveguide                                                                                                      |
+|   (/2,3/)    | Dirichlet | 3: Resonator                                                                                                              |
+|   (/2,4/)    | Dirichlet | 4: Electromagnetic dipole (implemented via RHS source terms and shape function deposition)                                |
+|   (/2,40/)   | Dirichlet | 40: Electromagnetic dipole without initial condition (implemented via RHS source terms and shape function deposition)     |
+|   (/2,41/)   | Dirichlet | 41: Pulsed Electromagnetic dipole (implemented via RHS source terms and shape function deposition)                        |
+|   (/2,5/)    | Dirichlet | 5: Transversal Electric (TE) plane wave in a circular waveguide                                                           |
+|   (/2,7/)    | Dirichlet | 7: Special manufactured Solution                                                                                          |
+|   (/2,10/)   | Dirichlet | 10: Issautier 3D test case with source (Stock et al., div. correction paper), domain [0;1]^3                              |
+|   (/2,12/)   | Dirichlet | 12: Plane wave                                                                                                            |
+|  (/2,121/)   | Dirichlet | 121: Pulsed plane wave (infinite spot size) and temporal Gaussian                                                         |
+|   (/2,14/)   | Dirichlet | 14: Gaussian pulse is initialized inside the domain (usually used as initial condition and not BC)                        |
+|   (/2,15/)   | Dirichlet | 15: Gaussian pulse with optional delay time *tDelayTime*                                                                  |
+|   (/2,16/)   | Dirichlet | 16: Gaussian pulse which is initialized in the domain and used as a boundary condition for t>0                            |
+|   (/2,50/)   | Dirichlet | 50: Initialization and BC Gyrotron - including derivatives                                                                |
+|   (/2,51/)   | Dirichlet | 51: Initialization and BC Gyrotron - including derivatives (nothing is set for z>eps)                                     |
+|              |           |                                                                                                                           |
+|   (/3,0/)    |    SM     | 1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117 with fix          |
+|              |           | of div. correction field for low B-fields that only set the correction fields when ABS(B)>1e-10                           |
+|   (/5,0/)    |    SM     | 1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117                   |
+|   (/6,0/)    |    SM     | 1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117 with fix          |
+|              |           | of div. correction field for low B-fields that only set the correction fields when B is significantly large compared to E |
+|              |           |                                                                                                                           |
+|   (/4,0/)    |    PEC    | Perfectly conducting surface (Munz, Omnes, Schneider 2000, pp. 97-98)                                                     |
+|              |           |                                                                                                                           |
+|   (/10,0/)   | Symmetry  | Symmetry BC (perfect MAGNETIC conductor, PMC)                                                                             |
+|              |           |                                                                                                                           |
+|   (/20,0/)   |    Ref    | Use state that is read from .h5 file and interpolated to the BC                                                           |
 
 Dielectric -> type 100?
 
 ## Poisson's Equation
 
-The boundary conditions used for Maxwell's equations are defined by the first integer value in the *BoundaryType* vector and
+The boundary conditions used for Maxwell's equations are defined by the first integer value in the *BoundaryType* vector (consisting of the *Type* and *State*) and
 include, periodic, Dirichlet (via pre-defined function, zero-potential or *RefState*), Neumann and reference state boundaries
 as detailed in the following table.
 
-| BoundaryType |     Type     |                                                            State                                                           |
-|  :--------:  |  :---------: |                                   :------------------------------------------------------                                  |
-|    (/1,1/)   |  1: periodic |                                     1: positive direction of the 1st periodicity vector                                    |
-|   (/1,-1/)   |  1: periodic |                               -1: negative (opposite) direction of the 1st periodicity vector                              |
-|              |              |                                                                                                                            |
-|    (/2,0/)   | 2: Dirichlet |                                                          0: Phi=0                                                          |
-|    (/2,1/)   | 2: Dirichlet |                                                          1: linear function for Phi, see {ref}`sec:linear-potential`       |
-|  (/2,1001/)  | 2: Dirichlet |                                    1001: linear potential y-z via Phi = 2340y + 2340z                                    |
-|   (/2,101/)  | 2: Dirichlet |                                       101: linear in z-direction: z=-1: 0, z=1, 1000                                       |
-|   (/2,103/)  | 2: Dirichlet |                                                         103: dipole                                                        |
-|   (/2,104/)  | 2: Dirichlet |                              104: solution to Laplace's equation: Phi_xx + Phi_yy + Phi_zz = 0                             |
-|              |              |                          $\Phi=(COS(x)+SIN(x))(COS(y)+SIN(y))(COSH(SQRT(2.0)z)+SINH(SQRT(2.0)z))$                          |
-|   (/2,200/)  | 2: Dirichlet | 200: Dielectric Sphere of Radius R in constant electric field E_0 from book: John David Jackson, Classical Electrodynamics |
-|   (/2,300/)  | 2: Dirichlet |                     300: Dielectric Slab in z-direction of half width R in constant electric field E_0:                    |
-|              |              |                                                   adjusted from CASE(200)                                                  |
-|   (/2,301/)  | 2: Dirichlet |                    301: like CASE=300, but only in positive z-direction the dielectric region is assumed                   |
-|   (/2,400/)  | 2: Dirichlet |                                         400: Point Source in Dielectric Region with                                        |
-|              |              |                                              epsR_1  = 1  for x $<$ 0 (vacuum)                                             |
-|              |              |                                         epsR_2 != 1 for x $>$ 0 (dielectric region)                                        |
-|              |              |                                                                                                                            |
-|    (/4,0/)   | 4: Dirichlet |                                                   zero-potential (Phi=0)                                                   |
-|              |              |                                                                                                                            |
-|    (/5,1/)   | 5: Dirichlet |                                          1: use RefState Nbr 1, see details below                                          |
-|              |              |                                                                                                                            |
-|    (/6,1/)   | 6: Dirichlet |                                          1: use RefState Nbr 1, see details below                                          |
-|              |              |                                                                                                                            |
-|   (/10,0/)   |  10: Neumann |                                                  zero-gradient (dPhi/dn=0)                                                 |
-|   (/11,0/)   |  11: Neumann |                                                            q*n=1                                                           |
+| BoundaryType |   Type    | State                                                                                                                      |
+| :----------: | :-------: | :------------------------------------------------------------------------------------------------------------------------- |
+|   (/1,1/)    | periodic  | 1: positive direction of the 1st periodicity vector                                                                        |
+|   (/1,-1/)   | periodic  | -1: negative (opposite) direction of the 1st periodicity vector                                                            |
+|              |           |                                                                                                                            |
+|   (/2,0/)    | Dirichlet | 0: Phi=0                                                                                                                   |
+|   (/2,2/)    | Dirichlet | 2: Automatic adjustment for Phi to meet const. input power, see {ref}`sec:fixed-coupled-power`                             |
+|  (/2,1001/)  | Dirichlet | 1001: linear potential y-z via Phi = 2340y + 2340z                                                                         |
+|  (/2,101/)   | Dirichlet | 101: linear in z-direction: z=-1: 0, z=1, 1000                                                                             |
+|  (/2,103/)   | Dirichlet | 103: dipole                                                                                                                |
+|  (/2,104/)   | Dirichlet | 104: solution to Laplace's equation: Phi_xx + Phi_yy + Phi_zz = 0                                                          |
+|              |           | $\Phi=(COS(x)+SIN(x))(COS(y)+SIN(y))(COSH(SQRT(2.0)z)+SINH(SQRT(2.0)z))$                                                   |
+|  (/2,200/)   | Dirichlet | 200: Dielectric Sphere of Radius R in constant electric field E_0 from book: John David Jackson, Classical Electrodynamics |
+|  (/2,300/)   | Dirichlet | 300: Dielectric Slab in z-direction of half width R in constant electric field E_0:                                        |
+|              |           | adjusted from CASE(200)                                                                                                    |
+|  (/2,301/)   | Dirichlet | 301: like CASE=300, but only in positive z-direction the dielectric region is assumed                                      |
+|  (/2,400/)   | Dirichlet | 400: Point Source in Dielectric Region with                                                                                |
+|              |           | epsR_1  = 1  for x $<$ 0 (vacuum)                                                                                          |
+|              |           | epsR_2 != 1 for x $>$ 0 (dielectric region)                                                                                |
+|              |           |                                                                                                                            |
+|   (/4,0/)    | Dirichlet | zero-potential (Phi=0)                                                                                                     |
+|              |           |                                                                                                                            |
+|   (/5,1/)    | Dirichlet | 1: use RefState Nbr 1, see details below                                                                                   |
+|              |           |                                                                                                                            |
+|   (/6,1/)    | Dirichlet | 1: use RefState Nbr 1, see details below                                                                                   |
+|              |           |                                                                                                                            |
+|   (/7,1/)    | Dirichlet | 1: use LinState Nbr 1, linear function for Phi, see {ref}`sec:linear-potential`                                            |
+|              |           |                                                                                                                            |
+|   (/10,0/)   |  Neumann  | zero-gradient (dPhi/dn=0)                                                                                                  |
+|   (/11,0/)   |  Neumann  | q*n=1                                                                                                                      |
 
 ### RefState boundaries {-}
 
@@ -120,7 +122,7 @@ amplitude *A*
 A linear function that ramps the electric potential from 0 V to a user-defined value can be applied to a boundary via
 
     BoundaryName = BC_WALL ! BC name in the mesh.h5 file
-    BoundaryType = (/2,1/)
+    BoundaryType = (/7,1/) ! 1: 1st LinState
 
 Additionally, this specific boundary condition requires a starting position `LinPhiBasePoint` and
 a direction along which the potential varies `LinPhiNormal`. The distance along which the potential varies as well as the final
@@ -133,6 +135,43 @@ same direction.
     LinPhiNormal    = (/0. , 0. , 1.0/)
     LinPhiHeight    = 10e-3
     LinPhi          = 1000.
+
+The linear potential uses the same functionality as RefState, hence, when two different functions are to be defined use the
+following example
+
+    BoundaryName    = BC_right
+    BoundaryType    = (/7,1/)          ! 7: Dirichlet with linear ramp 1st LinState
+    LinPhiBasePoint = (/0. , 0. , 0./) ! 1st LinState
+    LinPhiNormal    = (/1. , 0. , 0./) ! 1st LinState
+    LinPhiHeight    = 1.0              ! 1st LinState
+    LinPhi          = 1e3              ! 1st LinState
+
+    BoundaryName    = BC_left
+    BoundaryType    = (/7,2/)          ! 7: Dirichlet with linear ramp 2nd LinState
+    LinPhiBasePoint = (/0. , 0. , 0./) ! 2nd LinState
+    LinPhiNormal    = (/1. , 0. , 0./) ! 2nd LinState
+    LinPhiHeight    = 1.0              ! 2nd LinState
+    LinPhi          = 0.0              ! 2nd LinState
+
+(sec:fixed-coupled-power)=
+### Fixed coupled power (const. input power)
+
+An automatic adjustment of the electric potential to ensure that a fixed power input to the system is achieved requires the
+following parameters
+
+    BoundaryName = BC_WALL ! BC name in the mesh.h5 file
+    BoundaryType = (/2,2/) ! all BCs with this type will be adjusted to the same electric potential that is adjusted over time
+
+Additionally, a starting value for the potential, lower and upper boundaries and a relaxation factor are required
+as well as the target input power, which is set via
+
+    CoupledPowerPotential = (/10. , 1000. , 2000./) ! lower, starting and maximum values for the electric potential
+    CoupledPowerRelaxFac  = 0.05  ! the new potential is updated by 5% in each time step
+    CoupledPowerTarget    = 1e-10 ! target power of 1e-10 Watt
+
+The values in `CoupledPowerPotential` correspond to the lower boundary, the starting value and the upper boundary, respectively.
+When a simulation is restarted from a state file, the last known value of the BC will be used instead of the starting value, which
+is only applied when starting a fresh simulation from scratch.
 
 ### Zero potential enforcement
 
@@ -192,14 +231,14 @@ where the following pre-defined cases are available as given in table {numref}`t
 ---
 name: tab:dielectric_test_cases
 ---
-  |            Option            |            Additional Parameters            |                                             Notes                                            |
-  | :--------------------------: | :-----------------------------------------: | :------------------------------------------------------------------------------------------: |
-  |         `FishEyeLens`        |                     none                    |    function with radial dependence: $\varepsilon_{r}=n_{0}^{2}/(1 + (r/r_{max})^{2})^{2}$    |
-  |           `Circle`           |           `DielectricRadiusValue`,          |                Circular dielectric in x-y-direction (constant in z-direction)                |
-  |                              |          `DielectricRadiusValueB`,          |                 with optional cut-out radius DielectricRadiusValueB along the                |
-  |                              |            `DielectricCircleAxis`           |                              axis given by DielectricCircleAxis                              |
-  | `DielectricResonatorAntenna` |           `DielectricRadiusValue`           |                Circular dielectric in x-y-direction (only elements with $z>0$)               |
-  |           `FH_lens`          |                     none                    |             specific geometry (`SUBROUTINE SetGeometry` yields more information)             |
+  |            Option            |   Additional Parameters   |                                         Notes                                          |
+  | :--------------------------: | :-----------------------: | :------------------------------------------------------------------------------------: |
+  |        `FishEyeLens`         |           none            | function with radial dependence: $\varepsilon_{r}=n_{0}^{2}/(1 + (r/r_{max})^{2})^{2}$ |
+  |           `Circle`           | `DielectricRadiusValue`,  |             Circular dielectric in x-y-direction (constant in z-direction)             |
+  |                              | `DielectricRadiusValueB`, |             with optional cut-out radius DielectricRadiusValueB along the              |
+  |                              |  `DielectricCircleAxis`   |                           axis given by DielectricCircleAxis                           |
+  | `DielectricResonatorAntenna` |  `DielectricRadiusValue`  |            Circular dielectric in x-y-direction (only elements with $z>0$)             |
+  |          `FH_lens`           |           none            |          specific geometry (`SUBROUTINE SetGeometry` yields more information)          |
 ```
 
 For the Maxwell solver (DGSEM), the interface fluxes between vacuum and dielectric regions can

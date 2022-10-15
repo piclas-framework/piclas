@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -184,8 +184,8 @@ INTEGER                          :: NodeID(1:8)
 CALL Allocate_Shared((/nUniqueGlobalNodes/),NodeVolume_Shared_Win,NodeVolume_Shared)
 CALL MPI_WIN_LOCK_ALL(0,NodeVolume_Shared_Win,IERROR)
 NodeVolume => NodeVolume_Shared
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 NodeVolumeLoc = 0.
 ! only CN root nullifies
 IF (myComputeNodeRank.EQ.0) THEN
@@ -301,101 +301,99 @@ REAL                     :: StartT,EndT
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
-  SWRITE(UNIT_stdOut,*)'Using TimeAverage as constant PartSource(4) from file:',TRIM(FileName)
+SWRITE(UNIT_stdOut,*)'Using TimeAverage as constant PartSource(4) from file:',TRIM(FileName)
 #if USE_MPI
-  StartT=MPI_WTIME()
+StartT=MPI_WTIME()
 #endif
 
-  IF(MPIRoot) THEN
-    IF(.NOT.FILEEXISTS(FileName))  CALL abort(__STAMP__, &
-          'TimeAverage-File "'//TRIM(FileName)//'" does not exist',999,999.)
-  END IF
-  CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+IF(MPIRoot) THEN
+  IF(.NOT.FILEEXISTS(FileName))  CALL abort(__STAMP__, &
+        'TimeAverage-File "'//TRIM(FileName)//'" does not exist',999,999.)
+END IF
+CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
-  ! get attributes
-  CALL DatasetExists(File_ID,'DG_Solution',SolutionExists)
-  IF(MPIRoot)THEN
-    IF(.NOT.SolutionExists)  CALL abort(&
-      __STAMP__&
-      ,'DG_Solution in TimeAverage-File "'//TRIM(FileName)//'" does not exist!')
-  END IF
-  CALL H5DOPEN_F(File_ID, 'DG_Solution', Dset_ID, iError)
-  ! Get the data space of the dataset.
-  CALL H5DGET_SPACE_F(Dset_ID, FileSpace, iError)
-  ! Get number of dimensions of data space
-  CALL H5SGET_SIMPLE_EXTENT_NDIMS_F(FileSpace, Rank, iError)
-  ! Get size and max size of data space
-  Dims   =0
-  DimsMax=0
-  CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, Dims(1:Rank), DimsMax(1:Rank), iError)
-  CALL H5SCLOSE_F(FileSpace, iError)
-  CALL H5DCLOSE_F(Dset_ID, iError)
-  IF(MPIRoot)THEN
-    IF(INT(Dims(Rank),4).NE.nGlobalElems)  CALL abort(&
-      __STAMP__&
-      ,' MeshSize and Size of TimeAverage-File "'//TRIM(FileName)//'" does not match!')
-  END IF
-  nVars=INT(Dims(1),4)
-  ALLOCATE(VarNames(nVars))
-  CALL ReadAttribute(File_ID,'VarNames',nVars,StrArray=VarNames)
+! get attributes
+CALL DatasetExists(File_ID,'DG_Solution',SolutionExists)
+IF(MPIRoot)THEN
+  IF(.NOT.SolutionExists)  CALL abort(&
+    __STAMP__&
+    ,'DG_Solution in TimeAverage-File "'//TRIM(FileName)//'" does not exist!')
+END IF
+CALL H5DOPEN_F(File_ID, 'DG_Solution', Dset_ID, iError)
+! Get the data space of the dataset.
+CALL H5DGET_SPACE_F(Dset_ID, FileSpace, iError)
+! Get number of dimensions of data space
+CALL H5SGET_SIMPLE_EXTENT_NDIMS_F(FileSpace, Rank, iError)
+! Get size and max size of data space
+Dims   =0
+DimsMax=0
+CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, Dims(1:Rank), DimsMax(1:Rank), iError)
+CALL H5SCLOSE_F(FileSpace, iError)
+CALL H5DCLOSE_F(Dset_ID, iError)
+IF(MPIRoot)THEN
+  IF(INT(Dims(Rank),4).NE.nGlobalElems)  CALL abort(&
+    __STAMP__&
+    ,' MeshSize and Size of TimeAverage-File "'//TRIM(FileName)//'" does not match!')
+END IF
+nVars=INT(Dims(1),4)
+ALLOCATE(VarNames(nVars))
+CALL ReadAttribute(File_ID,'VarNames',nVars,StrArray=VarNames)
 
-  ALLOCATE(PartSourceToVar(nSpecies))
-  PartSourceToVar=0
-  DO iSpec=1,nSpecies
-    WRITE(strhelp,'(I2.2)') iSpec
-    DO iVar=1,nVars
-      IF (VarNames(iVar).EQ.TRIM('ChargeDensity-Spec')//TRIM(strhelp)) THEN
-        PartSourceToVar(iSpec)=iVar
-        EXIT
-      END IF
-    END DO
+ALLOCATE(PartSourceToVar(nSpecies))
+PartSourceToVar=0
+DO iSpec=1,nSpecies
+  WRITE(strhelp,'(I2.2)') iSpec
+  DO iVar=1,nVars
+    IF (VarNames(iVar).EQ.TRIM('ChargeDensity-Spec')//TRIM(strhelp)) THEN
+      PartSourceToVar(iSpec)=iVar
+      EXIT
+    END IF
   END DO
-  IF (.NOT.ANY(PartSourceToVar.NE.0)) CALL abort(__STAMP__, &
-    'No PartSource found in TimeAverage-File "'//TRIM(FileName)//'"!!!',999,999.)
-  DEALLOCATE(VarNames)
+END DO
+IF (.NOT.ANY(PartSourceToVar.NE.0)) CALL abort(__STAMP__, &
+  'No PartSource found in TimeAverage-File "'//TRIM(FileName)//'"!!!',999,999.)
+DEALLOCATE(VarNames)
 
-  !-- read state
-  ALLOCATE(U(nVars,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-  CALL ReadAttribute(File_ID,'N',1,IntScalar=N_HDF5)
-  IF(N_HDF5.EQ.PP_N)THEN! No interpolation needed, read solution directly from file
-    ! Associate construct for integer KIND=8 possibility
-    ASSOCIATE (&
-          nVars       => INT(nVars,IK)     ,&
-          PP_nElems   => INT(PP_nElems,IK) ,&
-          OffsetElem  => INT(OffsetElem,IK) )
-          CALL ReadArray('DG_Solution',5,(/nVars,INT(PP_N,IK)+1_IK,INT(PP_N,IK)+1_IK,INT(PP_N,IK)+1_IK,PP_nElems/),OffsetElem,5,RealArray=U)
-    END ASSOCIATE
-  ELSE
-    CALL abort(__STAMP__, &
-          'N_HDF5.NE.PP_N !',999,999.)
-  END IF
-  CALL CloseDataFile()
+!-- read state
+ALLOCATE(U(nVars,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+CALL ReadAttribute(File_ID,'N',1,IntScalar=N_HDF5)
+IF(N_HDF5.EQ.PP_N)THEN! No interpolation needed, read solution directly from file
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nVars       => INT(nVars,IK)     ,&
+        PP_nElems   => INT(PP_nElems,IK) ,&
+        OffsetElem  => INT(OffsetElem,IK) )
+        CALL ReadArray('DG_Solution',5,(/nVars,INT(PP_N,IK)+1_IK,INT(PP_N,IK)+1_IK,INT(PP_N,IK)+1_IK,PP_nElems/),OffsetElem,5,RealArray=U)
+  END ASSOCIATE
+ELSE
+  CALL abort(__STAMP__, &
+        'N_HDF5.NE.PP_N !',999,999.)
+END IF
+CALL CloseDataFile()
 
-  !-- save to PartSource
-  PartSource(4,:,:,:,:)=0.
-  DO iSpec=1,nSpecies
-    IF (PartSourceToVar(iSpec).NE.0) THEN
-      DO iElem=1,PP_nElems
-        DO kk = 0, PP_N
-          DO ll = 0, PP_N
-            DO mm = 0, PP_N
-              PartSource(4,mm,ll,kk,iElem)=PartSource(4,mm,ll,kk,iElem)+U(PartSourceToVar(iSpec),mm,ll,kk,iElem)
-            END DO
+!-- save to PartSource
+PartSource(4,:,:,:,:)=0.
+DO iSpec=1,nSpecies
+  IF (PartSourceToVar(iSpec).NE.0) THEN
+    DO iElem=1,PP_nElems
+      DO kk = 0, PP_N
+        DO ll = 0, PP_N
+          DO mm = 0, PP_N
+            PartSource(4,mm,ll,kk,iElem)=PartSource(4,mm,ll,kk,iElem)+U(PartSourceToVar(iSpec),mm,ll,kk,iElem)
           END DO
         END DO
       END DO
-    END IF
-  END DO
-  DEALLOCATE(U)
-  DEALLOCATE(PartSourceToVar)
+    END DO
+  END IF
+END DO
+DEALLOCATE(U)
+DEALLOCATE(PartSourceToVar)
 
 #if USE_MPI
-  EndT=MPI_WTIME()
-  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Readin took  [',EndT-StartT,'s].'
-  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' DONE!'
-#else
-  SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' DONE!'
+EndT=MPI_WTIME()
+SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' Readin took  [',EndT-StartT,'s].'
 #endif
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')' DONE!'
 
 END SUBROUTINE ReadTimeAverage
 

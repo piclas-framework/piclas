@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -92,8 +92,8 @@ IF(DG_SourceExtExists)THEN
   CALL GetVandermonde(N_Restart, NodeType, 1, NodeTypeVISU, Vdm_N_EQ, modal=.FALSE.)
 
 !  #if USE_MPI
-!    firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
-!    lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
+!    firstNode = INT(REAL( myComputeNodeRank   )*REAL(nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
+!    lastNode  = INT(REAL((myComputeNodeRank+1))*REAL(nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
 !  #else
 !    firstNode = 1
 !    lastNode = nUniqueGlobalNodes

@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2019 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -12,8 +12,8 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-#if defined(PARTICLES) && USE_HDG
 MODULE MOD_Part_BR_Elecron_Fluid
+#if defined(PARTICLES) && USE_HDG
 !===================================================================================================================================
 !> Module for particle insertion via electron density conversion from fluid model to kinetic particles
 !===================================================================================================================================
@@ -257,7 +257,8 @@ IF(BRNbrOfRegions.GT.0)THEN
         CALL DatasetExists(File_ID,'RegionElectronRef',RegionElectronRefExists)
         IF(RegionElectronRefExists)THEN
           CALL ReadArray('RegionElectronRef',2,(/1_IK,3_IK/),0_IK,2,RealArray=RegionElectronRefHDF5)
-          WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read RegionElectronRef from restart file ["//TRIM(RestartFile)//"] rho0[C/m^3]: ",RegionElectronRefHDF5(1),", phi0[V]: ",RegionElectronRefHDF5(2),", Te[eV]: ",RegionElectronRefHDF5(3)
+          WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read RegionElectronRef from restart file ["//TRIM(RestartFile)//"] rho0[C/m^3]: ",&
+              RegionElectronRefHDF5(1),", phi0[V]: ",RegionElectronRefHDF5(2),", Te[eV]: ",RegionElectronRefHDF5(3)
         END IF ! RegionElectronRefExists
         CALL CloseDataFile()
       END IF ! MPIRoot
@@ -422,7 +423,7 @@ END SUBROUTINE UpdateVariableRefElectronTemp
 
 
 !===================================================================================================================================
-!> When automatically calculating the reference potential, as well as electron density and temperature, also update the 
+!> When automatically calculating the reference potential, as well as electron density and temperature, also update the
 !> temperature- and density-dependent matrices for the non-linear HDG solver
 !===================================================================================================================================
 SUBROUTINE UpdateBRAutomaticElectronRef()
@@ -1232,5 +1233,5 @@ SWRITE(UNIT_stdOut,'(A)') ' ... AVERAGE BR ELECTRON REFERENCE PARAMETERS INITIAL
 END SUBROUTINE InitBRAutomaticElectronRefElements
 
 
-END MODULE MOD_Part_BR_Elecron_Fluid
 #endif /*defined(PARTICLES) && USE_HDG*/
+END MODULE MOD_Part_BR_Elecron_Fluid

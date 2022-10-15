@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -509,6 +509,8 @@ FUNCTION GetSPDInverse(dim1,A) RESULT(Ainv)
 !============================================================================================================================
 ! invert a symmetric positive definite matrix (dependant in LAPACK Routines)
 !============================================================================================================================
+! MODULES
+USE MOD_Globals, ONLY: abort
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
 !input parameters
@@ -522,24 +524,26 @@ REAL                :: Ainv(dim1,dim1)
 INTEGER            :: INFO,i,j
 !============================================================================================================================
 ! Store A in Ainv to prevent it from being overwritten by LAPACK
-   Ainv = A
+Ainv = A
 
-  ! DPOTRF computes the Cholesky decomposition of a symmetric positive definite matrix A
-  CALL DPOTRF('U',dim1,Ainv,dim1,INFO)
-  IF (INFO /= 0) THEN
-    STOP 'SPD MATRIX INVERSION FAILED!'
-  END IF
+! DPOTRF computes the Cholesky decomposition of a symmetric positive definite matrix A
+CALL DPOTRF('U',dim1,Ainv,dim1,INFO)
+IF (INFO /= 0) THEN
+  CALL abort(__STAMP__,'GetSPDInverse(dim1,A): SPD MATRIX INVERSION FAILED for CALL DPOTRF()! INFO = ',IntInfoOpt=INFO)
+END IF
 
-  ! DPOTRI computes the inverse of a matrix using the cholesky decomp.
-  CALL DPOTRI('U', dim1, Ainv, dim1, INFO )
-  IF (INFO /= 0) THEN
-    STOP 'SPD MATRIX INVERSION FAILED..!'
-  END IF
-  DO j=1,dim1
-    DO i=j+1,dim1
-      Ainv(i,j)=Ainv(j,i)
-    END DO
+! DPOTRI computes the inverse of a matrix using the cholesky decomp.
+CALL DPOTRI('U', dim1, Ainv, dim1, INFO )
+IF (INFO /= 0) THEN
+  CALL abort(__STAMP__,'GetSPDInverse(dim1,A): SPD MATRIX INVERSION FAILED for CALL DPOTRI()! INFO = ',IntInfoOpt=INFO)
+END IF
+
+! Reorder matrix
+DO j=1,dim1
+  DO i=j+1,dim1
+    Ainv(i,j)=Ainv(j,i)
   END DO
+END DO
 END FUNCTION GetSPDInverse
 
 

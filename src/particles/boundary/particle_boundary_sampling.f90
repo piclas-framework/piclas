@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -124,6 +124,9 @@ USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
 USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: nOutputSides
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -159,7 +162,7 @@ INTEGER                                :: NbGlobalSideID
 !===================================================================================================================================
 
 ! Get input parameters
-SWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
 
 WRITE(UNIT=hilf,FMT='(I0)') NGeo
 nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
@@ -193,8 +196,8 @@ CALL BARRIER_AND_SYNC(GlobalSide2SurfSide_Shared_Win,MPI_COMM_SHARED)
 ! get number of BC-Sides
 #if USE_MPI
 ! NO HALO REGION REDUCTION
-firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL( myComputeNodeRank   )*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
 ALLOCATE(GlobalSide2SurfSideProc(1:3,firstSide:lastSide))
         !,SurfSide2GlobalSideProc(1:3,1         :INT(nNonUniqueGlobalSides/REAL(nComputeNodeProcessors))))
 #else
@@ -219,7 +222,7 @@ DO iSide = firstSide,lastSide
   IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
 #endif /*USE_MPI*/
 
-  ! count number of reflective and inner BC sides
+  ! count number of reflective and rotationally periodic BC sides
   IF ( (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
        (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicBC) ) THEN
     nSurfSidesProc = nSurfSidesProc + 1
@@ -342,7 +345,7 @@ DO iSide = firstSide,lastSide
 END DO
 #endif /*USE_MPI*/
 
-! Determine the number of surface output sides (inner BCs are not counted twice)
+! Determine the number of surface output sides (inner BCs are not counted twice and rotationally periodic BCs excluded)
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
   nComputeNodeInnerBCs = 0
@@ -381,6 +384,9 @@ IF (myComputeNodeRank.EQ.0) THEN
         CYCLE! Skip sides with the larger index
       END IF
     END IF
+    ! Skip rotationally periodic boundary sides for the output
+    IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
+    ! Count the number of output sides
     nComputeNodeSurfOutputSides = nComputeNodeSurfOutputSides + 1
   END DO
 #if USE_MPI
@@ -439,8 +445,7 @@ DO iBC=1,nBCs
   IF (PartBound%MapToPartBC(iBC).EQ.-1) CYCLE
 
   ! count number of reflective BCs
-  IF ( (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC).OR. &
-       (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%RotPeriodicBC)    ) THEN
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(iBC)).EQ.PartBound%ReflectiveBC) THEN
     nSurfBC         = nSurfBC + 1
     BCName(nSurfBC) = BoundaryName(iBC)
   END IF
@@ -535,8 +540,8 @@ CALL Allocate_Shared((/nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),Surf
 CALL MPI_WIN_LOCK_ALL(0,SurfSideArea_Shared_Win,IERROR)
 SurfSideArea => SurfSideArea_Shared
 
-firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else
 ALLOCATE(SurfSideArea(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 
@@ -661,9 +666,9 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 IF (mySurfRank.EQ.0) THEN
 #endif
-  WRITE(UNIT_StdOut,'(A,I8)')       ' | Number of sampling sides:           '    , nSurfTotalSides
-  WRITE(UNIT_StdOut,'(A,ES10.4E2)') ' | Surface-Area:                         ', Area
-  WRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING DONE'
+  LBWRITE(UNIT_StdOut,'(A,I8)')       ' | Number of sampling sides:           '    , nSurfTotalSides
+  LBWRITE(UNIT_StdOut,'(A,ES10.4E2)') ' | Surface-Area:                         ', Area
+  LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING DONE'
 #if USE_MPI
 END IF
 #endif
@@ -731,7 +736,7 @@ FileName   = TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
 FileString = TRIM(FileName)//'.h5'
 
 ! Create dataset attribute "SurfVarNames"
-nVar2D      = 5
+nVar2D      = MACROSURF_NVARS
 nVar2D_Spec = 1
 
 ! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle, total number, number per second: Add 10 variables
@@ -789,12 +794,13 @@ IF (mySurfRank.EQ.0) THEN
 
   END DO ! iSpec=1,nSpecies
 
-  ! fill varnames for total values
+  ! fill varnames for total values (add new variables to MACROSURF_NVARS)
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_ForcePerAreaX')
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_ForcePerAreaY')
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_ForcePerAreaZ')
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_HeatFlux')
   CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_SimPartPerIter')
+  CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'iBC')
 
   IF(nPorousBC.GT.0) THEN
     DO iPBC = 1, nPorousBC

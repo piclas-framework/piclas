@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -105,6 +105,7 @@ INTEGER,ALLOCATABLE :: ElemInfo(:,:)           !< array containing the node and 
                                                !< mesh file
 INTEGER,ALLOCATABLE :: SideInfo(:,:)           !< array containing the connectivity, flip,... of the sides as stored in the
                                                !< mesh file
+INTEGER,ALLOCATABLE :: SideToNonUniqueGlobalSide(:,:)     !< maps the local SideIDs to global SideIDs (for parallel HDG load balance currently)
 INTEGER,ALLOCATABLE :: ElemToSide(:,:,:) !< SideID    = ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
                                          !< flip      = ElemToSide(E2S_FLIP,ZETA_PLUS,iElem)
 INTEGER,ALLOCATABLE :: SideToElem(:,:)   !< ElemID    = SideToElem(S2E_ELEM_ID,SideID)
@@ -173,10 +174,11 @@ INTEGER(KIND=8),ALLOCATABLE     :: ElemToElemGlob(:,:,:)             !< mapping 
                                                                      !< [1:4] (mortar) neighbors
                                                                      !< [1:6] local sides
                                                                      !< [OffSetElem+1:OffsetElem+PP_nElems]
-INTEGER(KIND=8),ALLOCATABLE     ::  ElemGlobalID(:)                  !< global element id of each element
-INTEGER(KIND=8),ALLOCATABLE     ::  myInvisibleRank(:)               !< global proc ID which the current proc cannot see (particle
+INTEGER(KIND=8),ALLOCATABLE     :: ElemGlobalID(:)                   !< global element id of each element
+INTEGER(KIND=8),ALLOCATABLE     :: myInvisibleRank(:)                !< global proc ID which the current proc cannot see (particle
                                                                      !< communication)
-INTEGER(KIND=8),ALLOCATABLE     ::  LostRotPeriodicSides(:)          !< Number of lost sides during rotational periodic search
+INTEGER(KIND=8),ALLOCATABLE     :: LostRotPeriodicSides(:)           !< Number of lost sides during rotational periodic search
+!LOGICAL                         :: RotPeriodicReBuild                !< Force re-building of mapping (might already exist)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=255),ALLOCATABLE   :: BoundaryName(:)
 CHARACTER(LEN=255)               :: MeshFile        !< name of hdf5 meshfile (write with ending .h5!)

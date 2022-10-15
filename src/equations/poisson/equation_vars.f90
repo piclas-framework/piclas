@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -61,9 +61,17 @@ INTEGER           :: nRefState     !< number of refstates defined in parameter f
 REAL,ALLOCATABLE  :: RefState(:,:) !< refstates in primitive variables (as read from ini file)
 
 ! Special BC with linear potential ramp (constant in time)
-REAL              :: LinPhiBasePoint(3)
-REAL              :: LinPhiNormal(3)
-REAL              :: LinPhiHeight
-REAL              :: LinPhi
+REAL,ALLOCATABLE :: LinPhiBasePoint(:,:)
+REAL,ALLOCATABLE :: LinPhiNormal(:,:)
+REAL,ALLOCATABLE :: LinPhiHeight(:)
+REAL,ALLOCATABLE :: LinPhi(:)
+
+#if defined(PARTICLES)
+! Special BC with floating potential that is defined by the absorbed power of the charged particles
+REAL              :: CoupledPowerPotential(3)   ! (/min, start, max/) electric potential at all BoundaryType = (/2,2/)
+REAL              :: CoupledPowerTarget         ! Target input power at all BoundaryType = (/2,2/)
+REAL              :: CoupledPowerRelaxFac       ! Relaxation factor for calculation of new electric potential
+LOGICAL           :: CalcPCouplElectricPotential! Switch calculation on/off
+#endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 END MODULE MOD_Equation_Vars
