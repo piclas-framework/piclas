@@ -90,10 +90,12 @@ USE MOD_Dielectric_Vars    ,ONLY: NodeSourceExtGlobal
 USE MOD_Mesh_Vars          ,ONLY: MeshFile,nGlobalElems,offsetElem,Vdm_EQ_N
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Globals_Vars       ,ONLY: ProjectName
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
 USE MOD_TimeDisc_Vars      ,ONLY: iter
+USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVISU
+USE MOD_Interpolation      ,ONLY: GetVandermonde
 #if USE_MPI
 USE MOD_PICDepo            ,ONLY: ExchangeNodeSourceExtTmp
 #endif /*USE_MPI*/
@@ -110,7 +112,7 @@ INTEGER,PARAMETER              :: N_variables=1
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: FileName,DataSetName
 INTEGER                        :: iElem,i,iMax
-REAL                           :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1)
+REAL                           :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1),sNodeVol(1:8)
 INTEGER                        :: NodeID(1:8)
 !===================================================================================================================================
 ! create global Eps field for parallel output of Eps distribution
@@ -119,28 +121,43 @@ ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='NodeSourceExt'
 NodeSourceExtGlobal=0.
 
+! Allocate and determine Vandermonde mapping from equidistant (visu) to NodeType node set
+IF(.NOT.ALLOCATED(Vdm_EQ_N))THEN
+  ALLOCATE(Vdm_EQ_N(0:PP_N,0:1))
+  CALL GetVandermonde(1, NodeTypeVISU, PP_N, NodeType, Vdm_EQ_N, modal=.FALSE.)
+END IF ! .NOT.ALLOCATED(Vdm_EQ_N)
+
 ! Skip MPI communication in the first step as nothing has been deposited yet
 IF(iter.NE.0)THEN
 
-! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
 #if USE_MPI
-  CALL ExchangeNodeSourceExtTmp()
+! Communicate the NodeSourceExtTmp values of the last boundary interaction before the state is written to .h5
+! Only call when deposition is active (otherwise this routine only writes the old array from the restart file to keep the data)
+IF(DoDeposition) CALL ExchangeNodeSourceExtTmp()
 #endif /*USE_MPI*/
 
 end if ! iter.NE.0
 
 ! Loop over all elements and store charge density values in equidistantly distributed nodes of PP_N=1
+sNodeVol(1:8) = 1. ! default
+! This array is not allocated when DoDeposition=F, however, the previously calculated surface charge might still be required in
+! the future, when DoDeposition is activated again. Therefore, read the old data and store in the new state file.
+IF(.NOT.ALLOCATED(NodeSourceExt)) THEN
+  ALLOCATE(NodeSourceExt(1:nUniqueGlobalNodes))
+  NodeSourceExt = 0.
+END IF
 DO iElem=1,PP_nElems
   ! Copy values to equidistant distribution
   NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
-  NodeSourceExtEqui(1,0,0,0) = NodeSourceExt(NodeID(1))/NodeVolume(NodeID(1))
-  NodeSourceExtEqui(1,1,0,0) = NodeSourceExt(NodeID(2))/NodeVolume(NodeID(2))
-  NodeSourceExtEqui(1,1,1,0) = NodeSourceExt(NodeID(3))/NodeVolume(NodeID(3))
-  NodeSourceExtEqui(1,0,1,0) = NodeSourceExt(NodeID(4))/NodeVolume(NodeID(4))
-  NodeSourceExtEqui(1,0,0,1) = NodeSourceExt(NodeID(5))/NodeVolume(NodeID(5))
-  NodeSourceExtEqui(1,1,0,1) = NodeSourceExt(NodeID(6))/NodeVolume(NodeID(6))
-  NodeSourceExtEqui(1,1,1,1) = NodeSourceExt(NodeID(7))/NodeVolume(NodeID(7))
-  NodeSourceExtEqui(1,0,1,1) = NodeSourceExt(NodeID(8))/NodeVolume(NodeID(8))
+  IF(DoDeposition) sNodeVol(1:8) = 1./NodeVolume(NodeID(1:8)) ! only required when actual deposition is performed
+  NodeSourceExtEqui(1,0,0,0) = NodeSourceExt(NodeID(1))*sNodeVol(1)
+  NodeSourceExtEqui(1,1,0,0) = NodeSourceExt(NodeID(2))*sNodeVol(2)
+  NodeSourceExtEqui(1,1,1,0) = NodeSourceExt(NodeID(3))*sNodeVol(3)
+  NodeSourceExtEqui(1,0,1,0) = NodeSourceExt(NodeID(4))*sNodeVol(4)
+  NodeSourceExtEqui(1,0,0,1) = NodeSourceExt(NodeID(5))*sNodeVol(5)
+  NodeSourceExtEqui(1,1,0,1) = NodeSourceExt(NodeID(6))*sNodeVol(6)
+  NodeSourceExtEqui(1,1,1,1) = NodeSourceExt(NodeID(7))*sNodeVol(7)
+  NodeSourceExtEqui(1,0,1,1) = NodeSourceExt(NodeID(8))*sNodeVol(8)
 
   ! Map equidistant distribution to G/GL (current node type)
   CALL ChangeBasis3D(1, 1, PP_N, Vdm_EQ_N, NodeSourceExtEqui(:,:,:,:),NodeSourceExtGlobal(:,:,:,:,iElem))

@@ -1432,7 +1432,7 @@ USE MOD_Particle_Mesh_Vars
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_MPI_Shared_Vars    ,ONLY: GlobalElem2CNTotalElem
-USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
+!USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
 #endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1484,8 +1484,10 @@ CALL FinalizeHaloInfo()
 
 #if USE_LOADBALANCE
 ! This will be deallocated in FinalizeDeposition() when using load balance
-IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition) )THEN
-  SDEALLOCATE(GlobalElem2CNTotalElem)
+!IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)).AND.DoDeposition) )THEN
+! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
+IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
+    SDEALLOCATE(GlobalElem2CNTotalElem)
 END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
 #endif /*USE_LOADBALANCE*/
 
