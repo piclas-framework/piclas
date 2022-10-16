@@ -682,8 +682,8 @@ IF (myComputeNodeRank.EQ.0) SurfSide2RotPeriodicSide = -1.
 IF (myComputeNodeRank.EQ.0) Rot2Glob_temp            = -1.
 CALL BARRIER_AND_SYNC(SurfSide2RotPeriodicSide_Shared_Win , MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(Rot2Glob_temp_Shared_Win            , MPI_COMM_SHARED)
-firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else
 firstSide = 1
 lastSide  = nSurfTotalSides
@@ -732,8 +732,8 @@ IF (myComputeNodeRank.EQ.0) NumRotPeriodicNeigh = 0
 IF (myComputeNodeRank.EQ.0) RotPeriodicSideMapping_temp = 0
 CALL BARRIER_AND_SYNC(NumRotPeriodicNeigh_Shared_Win         , MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(RotPeriodicSideMapping_temp_Shared_Win , MPI_COMM_SHARED)
-firstSide = INT(REAL( myComputeNodeRank   *nRotPeriodicSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nRotPeriodicSides)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL( myComputeNodeRank   )*REAL(nRotPeriodicSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nRotPeriodicSides)/REAL(nComputeNodeProcessors))
 #else
 firstSide = 1
 lastSide  = nRotPeriodicSides
@@ -1086,8 +1086,8 @@ IF (myComputeNodeRank.EQ.0) THEN
 END IF
 BoundaryWallTemp => BoundaryWallTemp_Shared
 CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
-firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else
 ALLOCATE(BoundaryWallTemp(nSurfSample,nSurfSample,1:nComputeNodeSurfTotalSides))
 BoundaryWallTemp = 0.
