@@ -879,7 +879,7 @@ USE MOD_Globals_Vars              ,ONLY: ProjectName
 USE MOD_AnalyzeField              ,ONLY: AnalyzeField
 #ifdef PARTICLES
 USE MOD_Mesh_Vars                 ,ONLY: MeshFile
-USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
+USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,ExcitationSampleData
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Tools    ,ONLY: CalculatePartElemData
 USE MOD_Particle_Analyze_Output   ,ONLY: WriteParticleTrackingData
@@ -1160,6 +1160,7 @@ IF ((WriteMacroVolumeValues).AND.(.NOT.OutputHDF5))THEN
     iter_macvalout = 0
     DSMC%SampNum = 0
     DSMC_Solution = 0.0
+    ExcitationSampleData = 0.0
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%QualityFacSamp(:,:) = 0.
       IF(BGKInitDone) BGK_QualityFacSamp(:,:) = 0.

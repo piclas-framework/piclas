@@ -160,7 +160,7 @@ CHARACTER(LEN=255)  :: FileName
 #if USE_MPI
 REAL                :: StartT,EndT
 #endif
-REAL                :: OutputTime!,FutureTime
+REAL                :: OutputTime
 !===================================================================================================================================
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE MyInvisibleRank TO HDF5 FILE...'
@@ -169,7 +169,6 @@ IF(MPIROOT)THEN
 #endif
 END IF
 OutputTime=0.0
-!FutureTime=0.0
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='dummy'
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
@@ -216,7 +215,7 @@ CHARACTER(LEN=255)  :: FileName
 #if USE_MPI
 REAL                :: StartT,EndT
 #endif
-REAL                :: OutputTime!,FutureTime
+REAL                :: OutputTime
 !===================================================================================================================================
 IF(MPIROOT)THEN
   WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE LostRotPeriodicSides TO HDF5 FILE...'
@@ -225,7 +224,6 @@ IF(MPIROOT)THEN
 #endif
 END IF
 OutputTime=0.0
-!FutureTime=0.0
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='dummy'
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
