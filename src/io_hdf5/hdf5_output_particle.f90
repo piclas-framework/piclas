@@ -90,7 +90,7 @@ USE MOD_Dielectric_Vars    ,ONLY: NodeSourceExtGlobal
 USE MOD_Mesh_Vars          ,ONLY: MeshFile,nGlobalElems,offsetElem,Vdm_EQ_N
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Globals_Vars       ,ONLY: ProjectName
-USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume
+USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
 USE MOD_TimeDisc_Vars      ,ONLY: iter
@@ -98,7 +98,6 @@ USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVISU
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 #if USE_MPI
 USE MOD_PICDepo            ,ONLY: ExchangeNodeSourceExtTmp
-USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
