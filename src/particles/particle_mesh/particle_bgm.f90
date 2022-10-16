@@ -1432,7 +1432,7 @@ USE MOD_Particle_Mesh_Vars
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_MPI_Shared_Vars    ,ONLY: GlobalElem2CNTotalElem
-USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
+!USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
 #endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
