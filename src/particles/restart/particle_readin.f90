@@ -69,7 +69,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PartSourceLB,NodeSourceExtEquiLB
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 #endif /*USE_LOADBALANCE*/
@@ -169,7 +169,13 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! ------------------------------------------------
   ! NodeSourceExt (external/additional charge source terms)
   ! ------------------------------------------------
-  IF(DoDeposition.AND.DoDielectricSurfaceCharge)THEN
+  IF(DoDielectricSurfaceCharge)THEN
+    ! This array is not allocated when DoDeposition=F, however, the previously calculated surface charge might still be required in
+    ! the future, when DoDeposition is activated again. Therefore, read the old data and store in the new state file.
+    IF(.NOT.DoDeposition) THEN
+      ALLOCATE(NodeSourceExt(1:nUniqueGlobalNodes))
+      NodeSourceExt = 0.
+    END IF
     ALLOCATE(NodeSourceExtEquiLBTmp(1:N_variables,0:1,0:1,0:1,nElems))
     ASSOCIATE (&
             counts_send  => INT(MPInElemSend     ) ,&

@@ -95,8 +95,8 @@ CALL BARRIER_AND_SYNC(ElemRadius2NGeo_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI*/
 
 #if USE_MPI
-firstElem=INT(REAL(myComputeNodeRank*    nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem =INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem=INT(REAL(myComputeNodeRank    )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem =INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem=1
 lastElem=nElems
@@ -207,8 +207,8 @@ END IF
 #endif /*USE_MPI*/
 
 #if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank*   nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -309,10 +309,14 @@ REAL                           :: dX_NGeoRef(3,3,0:NGeoRef,0:NGeoRef,0:NGeoRef)
 
 INTEGER                        :: ElemLocID
 #endif /*USE_MPI*/
+REAL                           :: StartT,EndT
 !===================================================================================================================================
 
-LBWRITE(UNIT_StdOut,'(132("-"))')
-LBWRITE(UNIT_StdOut,'(A)') ' Building EpsOneCell for all elements ...'
+IF(MPIRoot)THEN
+  LBWRITE(UNIT_StdOut,'(132("-"))')
+  LBWRITE(UNIT_StdOut,'(A)') ' Building EpsOneCell for all elements ...'
+  GETTIME(StartT)
+END IF ! MPIRoot
 
 ! build sJ for all elements not on local proc
 #if USE_MPI
@@ -326,8 +330,8 @@ END IF
 
 CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -411,6 +415,11 @@ CALL BARRIER_AND_SYNC(ElemEpsOneCell_Shared_Win,MPI_COMM_SHARED)
 !IF(CalcMeshInfo)THEN
 !  CALL AddToElemData(ElementOut,'epsOneCell',RealArray=epsOneCell(1:nElems))
 !END IF
+IF(MPIRoot)THEN
+  GETTIME(EndT)
+  LBWRITE(UNIT_stdOut,'(A,F0.3,A)') ' Building EpsOneCell for all elements ... DONE  [',EndT-StartT,'s]'
+  LBWRITE(UNIT_StdOut,'(132("-"))')
+END IF ! MPIRoot
 
 END SUBROUTINE BuildEpsOneCell
 
@@ -512,8 +521,8 @@ END IF
 
 CALL BARRIER_AND_SYNC(ElemToBCSides_Shared_Win,MPI_COMM_SHARED)
 
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 
 ! if running on one node, halo_eps is meaningless. Get a representative BC_halo_eps for BC side identification
 fullMesh = .FALSE.
@@ -798,8 +807,8 @@ END IF ! fullMesh
 #if USE_MPI
 CALL BARRIER_AND_SYNC(SideBCMetrics_Shared_Win,MPI_COMM_SHARED)
 
-firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeBCSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeBCSides)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeBCSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeBCSides)/REAL(nComputeNodeProcessors))
 #else
 firstSide = 1
 lastSide  = nComputeNodeBCSides
@@ -1021,8 +1030,8 @@ ALLOCATE(ElemToElemMapping(2,nElems))
 ! 5. Fill ElemToElemMapping = [offset, Nbr of CN elements]
 !    Note that the number of elements stored in ElemToElemMapping(2,iElem) must be shifted after communication with other procs
 #if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -1189,8 +1198,8 @@ ElemBaryNGeo => ElemBaryNGeo_Shared
 ASSOCIATE(XCL_NGeo => XCL_NGeo_Shared)
 
 ! Set ranges
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 ALLOCATE(ElemBaryNGeo(1:3,nComputeNodeElems))
 firstElem = 1
@@ -1317,8 +1326,8 @@ CALL BARRIER_AND_SYNC(ElemRadius2NGeo_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 #if USE_MPI
-firstElem=INT(REAL( myComputeNodeRank*   nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem =INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem=INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem =INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem=1
 lastElem=nElems
@@ -1418,8 +1427,8 @@ INTEGER                        :: sendbuf,recvbuf
 !===================================================================================================================================
 
 #if USE_MPI
-firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL( myComputeNodeRank   )*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
 #else
 firstSide = 1
 lastSide  = nNonUniqueGlobalSides
@@ -1577,8 +1586,8 @@ BaseVectors2 => BaseVectors2_Shared
 BaseVectors3 => BaseVectors3_Shared
 BaseVectorsScale => BaseVectorsScale_Shared
 
-firstSide = INT(REAL (myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL (myComputeNodeRank   )*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
 #else
 ALLOCATE( BaseVectors0(1:3,1:nNonUniqueGlobalSides),&
           BaseVectors1(1:3,1:nNonUniqueGlobalSides),&
