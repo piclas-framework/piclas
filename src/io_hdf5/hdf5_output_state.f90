@@ -332,7 +332,7 @@ ASSOCIATE (&
     END DO ! SendID = 1, 2
 
     CALL GetMasteriLocSides()
-    
+
   END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 
