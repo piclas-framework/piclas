@@ -276,7 +276,7 @@ DO iElem=1,nElems
   N_VolMesh(iElem)%Metrics_hTilde=0.
 
   !1.a) Transform from EQUI_Ngeo to CL points on Ngeo and N
-  CALL ChangeBasis3D(3, NGeo, NGeo, Vdm_EQNGeo_CLNGeo         , NodeCoords(:,:,:,:,iElem), XCL_Ngeo)
+  CALL ChangeBasis3D(3, NGeo, NGeo, Vdm_EQNGeo_CLNGeo         , NodeCoords(:,:,:,:,iElem), XCL_Ngeo         )
   CALL ChangeBasis3D(3, NGeo, Nloc, NInfo(Nloc)%Vdm_CLNGeo_CLN, XCL_Ngeo                 , NInfo(Nloc)%XCL_N)
 
   !1.b) Jacobi Matrix of d/dxi_dd(X_nn): dXCL_NGeo(dd,nn,i,j,k))
