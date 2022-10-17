@@ -2,19 +2,29 @@ import numpy as np
 import h5py
 from argparse import ArgumentParser
 
-database_output = "Species_Database.h5"
-database_electronic = "Electronic-State-Database.h5"
-database_crosssection = "XSec_Database_H2_Plasma.h5"
+# database_output = "Species_Database.h5"
+# database_electronic = "Electronic-State-Database.h5"
+# database_crosssection = "XSec_Database_H2_Plasma.h5"
 
-hdf = h5py.File(database_output, 'a')
-h5_electronic = h5py.File(database_electronic, 'r')
-h5_crosssection = h5py.File(database_crosssection, 'r')
+# hdf = h5py.File(database_output, 'a')
+# h5_electronic = h5py.File(database_electronic, 'r')
+# h5_crosssection = h5py.File(database_crosssection, 'r')
 
 parser = ArgumentParser(prog='create_species_database')
-parser.add_argument("-f", "--file", dest="ini_filename",
+parser.add_argument("-p", "--parameter", dest="ini_filename",
                     help="DSMC.ini file to read-in parameters", metavar="FILE")
+parser.add_argument("-e", "--electronic", dest="database_electronic",
+                    help="Electronic excitation database to read-in parameters", metavar="FILE")
+parser.add_argument("-c", "--crosssection", dest="database_crosssection",
+                    help="Crosssection database to read-in parameters", metavar="FILE")
+parser.add_argument("-o", "--output", dest="database_output",
+                    help="Output file name", metavar="FILE")
 
 args = parser.parse_args()
+
+hdf = h5py.File(args.database_output, 'a')
+h5_electronic = h5py.File(args.database_electronic, 'r')
+h5_crosssection = h5py.File(args.database_crosssection, 'r')
 
 def is_float(value):
   try:
@@ -42,6 +52,7 @@ else:
 
 # Read-in of DSMC.ini parameters and electronic state
 with open(args.ini_filename) as file:
+  array_dict = {}
   for line in file:
     if not line.startswith('!'):
       if line.startswith('Part-'):
@@ -49,18 +60,34 @@ with open(args.ini_filename) as file:
         var_value = line.strip().replace(" ","").replace("Part-Species","").split('=')[1].split('!', 1)[0]
         if var_name[1].startswith('SpeciesName'):
           hdf_species = var_value
+          species_count = var_name[0]
+          array_dict[species_count] = hdf_species
           if hdf_species in hdf_species_group.keys():
             print('Species already exists: ', hdf_species)
-            species_count = var_name[0]
             hdf_species = hdf_species_group[hdf_species]
           elif hdf_species == 'electron':
             print('Species added to the database: ', hdf_species)
             hdf_species = hdf_species_group.create_dataset(hdf_species,data=[0])
           else:
-            hdf_input_data = h5_electronic[hdf_species]
-            print('Species added to the database: ', hdf_species)
-            hdf_species = hdf_species_group.create_dataset(hdf_species,data=hdf_input_data)
-        else:
+            if hdf_species in h5_electronic.keys():
+              hdf_input_data = h5_electronic[hdf_species]
+              print('Species added to the database: ', hdf_species)
+              hdf_species = hdf_species_group.create_dataset(hdf_species,data=hdf_input_data)
+            else:
+              print('Species added to the database: ', hdf_species)
+              hdf_species = hdf_species_group.create_dataset(hdf_species,data=[0])
+
+with open(args.ini_filename) as file:
+  for line in file:
+    if not line.startswith('!'):
+      if line.startswith('Part-'):
+        var_name = line.strip().replace(" ","").replace("Part-Species","").split('=')[0].split('-')
+        var_value = line.strip().replace(" ","").replace("Part-Species","").split('=')[1].split('!', 1)[0]
+
+        if not var_name[1].startswith('SpeciesName'):
+          species_count = var_name[0]
+          hdf_species = array_dict[species_count]
+          hdf_species = hdf_species_group[hdf_species]
           if var_name[1] in hdf_species.attrs:
             print('Species parameter is already set: ', var_name[1])
           else:
