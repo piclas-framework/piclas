@@ -1318,6 +1318,7 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 ! modules
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
+USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1369,6 +1370,10 @@ LOGICAL                 :: insideExcludeRegion
       Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BasePointIC
       Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal(3)
     END SELECT
+    IF(Symmetry%Order.NE.3) THEN
+      ! Get symmetry position of the calulcated position
+      CALL CalcPartSymmetryPos(Particle_pos)
+    END IF
     IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
       CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
       IF (insideExcludeRegion) THEN

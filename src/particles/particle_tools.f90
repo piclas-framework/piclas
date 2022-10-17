@@ -53,6 +53,10 @@ INTERFACE StoreLostParticleProperties
   MODULE PROCEDURE StoreLostParticleProperties
 END INTERFACE
 
+INTERFACE CalcPartSymmetryPos
+  MODULE PROCEDURE CalcPartSymmetryPos
+END INTERFACE
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -61,6 +65,7 @@ END INTERFACE
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
 PUBLIC :: CalcXiElec,ParticleOnProc,  CalcERot_particle, CalcEVib_particle, CalcEElec_particle, CalcVelocity_maxwell_particle
+PUBLIC :: CalcPartSymmetryPos
 !===================================================================================================================================
 
 CONTAINS
@@ -983,6 +988,118 @@ END SELECT
 RETURN
 
 END FUNCTION CalcEElec_particle
+
+
+SUBROUTINE CalcPartSymmetryPos(Pos,Velo)
+!===================================================================================================================================
+! Hesthaven book, page 64
+! Low-Storage Runge-Kutta integration of degree 4 with 5 stages.
+! This procedure takes the current time t, the time step dt and the solution at
+! the current time U(t) and returns the solution at the next time level.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(INOUT)          :: Pos(3)
+REAL,INTENT(INOUT),OPTIONAL :: Velo(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: NewYPart, NewYVelo!, NewXVelo, NewZVelo, n_rot(3), cosa, sina
+!===================================================================================================================================
+! Axisymmetric treatment of particles: rotation of the position and velocity vector
+IF(Symmetry%Axisymmetric) THEN
+  IF(Symmetry%Order.EQ.2) THEN
+    IF (Pos(2).LT.0.0) THEN
+      NewYPart = -SQRT(Pos(2)**2 + (Pos(3))**2)
+    ELSE
+      NewYPart = SQRT(Pos(2)**2 + (Pos(3))**2)
+    END IF
+    ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
+    !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
+    ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
+    ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
+    ! Pos(1)  = Pos(1)
+    IF(PRESENT(Velo)) THEN
+      NewYVelo = (Velo(2)*(Pos(2))+Velo(3)*Pos(3))/NewYPart
+      Velo(3) = (-Velo(2)*Pos(3)+Velo(3)*(Pos(2)))/NewYPart
+      Velo(2) = NewYVelo
+      ! Velo(1) = Velo(1)
+    END IF
+    Pos(2)  = NewYPart
+    Pos(3)  = 0.0
+  ELSE
+    ! IF (PartState(1,iPart).LT.0.0) THEN
+    !   NewYPart = -SQRT(PartState(1,iPart)**2 + (PartState(3,iPart))**2)
+    ! ELSE
+      NewYPart = SQRT(Pos(1)**2 + (Pos(3))**2)
+    ! END IF
+    ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
+    !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
+    ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
+    ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
+    IF(PRESENT(Velo)) THEN
+      NewYVelo = (Velo(1)*(Pos(1))+Velo(3)*Pos(3))/NewYPart
+      Velo(3) = (-Velo(1)*Pos(3)+Velo(3)*(Pos(1)))/NewYPart
+      Velo(1) = NewYVelo
+      ! Velo(2) = Velo(2)
+    END IF
+    Pos(1)  = NewYPart
+    Pos(2)  = 0.0
+    Pos(3)  = 0.0
+  END IF
+! ELSE IF(Symmetry%SphericalSymmetric) THEN
+!   NewYPart = SQRT(Pos(1)**2 + Pos(2)**2 + Pos(3)**2)
+!   IF(PRESENT(Velo)) THEN
+!     ! Rotation around vector n in 3D with nx=0
+!     !  ( cos(alpha)     -nz*sin(alpha)                 ny*sin(alpha)                 )
+!     ! (  nz*sin(alpha)  ny^2*(1-cos(alpha))+cos(alpha) ny*nz*(1-cos(alpha))           )
+!     !  ( -ny*cos(alpha) nz*ny*(1-cos(alpha))           nz^2(1-cos(alpha))+cos(alpha) )
+
+!     ! Determine rotation axis perpendicuar to PartState and (1,0,0)^T
+!     n_rot(1) = SQRT(Pos(2)**2 + Pos(3)**2)
+!     n_rot(2) = Pos(3)/n_rot(1)
+!     n_rot(3) = -Pos(2)/n_rot(1)
+!     n_rot(1) = 0.0
+!     ! calculate sin(alpha) and cos(alpha)
+!     cosa= Pos(1)/NewYPart
+!     sina=SQRT( Pos(2)**2 + ( Pos(3))**2)/NewYPart
+!     ! Calculate NewVelo
+!     NewXVelo =  cosa * Velo(1) &
+!               - n_rot(3)*sina * Velo(2) &
+!               + n_rot(2)*sina * Velo(3)
+!     NewYVelo =  n_rot(3)*sina * Velo(1)  &
+!               +(n_rot(2)**2*(1-cosa)+cosa) * Velo(2) &
+!               + n_rot(2)*n_rot(3)*(1-cosa) * Velo(3)
+!     NewZVelo =- n_rot(2)*sina * Velo(1) &
+!               + n_rot(2)*n_rot(3)*(1-cosa) * Velo(2) &
+!               +(n_rot(3)**2*(1-cosa)+cosa) * Velo(3)
+!     Velo(1) = NewXVelo
+!     Velo(2) = NewYVelo
+!     Velo(3) = NewZVelo
+!   END IF
+!   Pos(1)  = NewYPart
+!   Pos(2)  = 0.0
+!   Pos(3)  = 0.0
+ELSE
+  IF(Symmetry%Order.EQ.2) THEN
+    ! NewPos(1:2) = OldPos(1:2)
+    Pos(3) = 0
+  ELSE IF(Symmetry%Order.EQ.1) THEN
+    ! NewPos(1) = OldPos(1)
+    Pos(2:3) = 0
+  ! ELSE
+  !   Pos = Pos
+  END IF
+  ! IF(PRESENT(OldVelo)) THEN
+  !   NewVelo = OldVelo
+  ! END IF
+END IF ! Symmetry%SphericalSymmetric
+
+END SUBROUTINE CalcPartSymmetryPos
 
 
 END MODULE MOD_part_tools
