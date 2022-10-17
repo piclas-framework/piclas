@@ -80,6 +80,7 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 USE MOD_LoadBalance_Vars   ,ONLY: UseH5IOLoadBalance
 #endif /*!(USE_HDG)*/
 #endif /*USE_LOADBALANCE*/
+USE MOD_Basis              ,ONLY: DG_ProlongDGElemsToFace
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -94,7 +95,36 @@ IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitI
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT DG...'
 
-CALL initDGbasis(PP_N,xGP,wGP,wBary)
+! Read p-adaption specific input data
+pAdaption    = GETLOGICAL('pAdaption','.FALSE.')
+
+! allocate arrays and initialize local polynomial degree
+ALLOCATE(N_DG(nElems))
+
+! add array containing the local polynomial degree to the hdf5 output
+CALL AddToElemData(ElementOut,'N_Loc',IntArray=N_DG)
+
+ALLOCATE(DG_Elems_master(1:nSides))
+ALLOCATE(DG_Elems_slave (1:nSides))
+
+! By default, the initial degree is set to PP_N
+N_DG = PP_N
+
+! Set polynomial degree at the element sides
+DG_Elems_master = PP_N
+DG_Elems_slave  = PP_N
+CALL DG_ProlongDGElemsToFace()
+
+! allocate arrays of pre-computed dg basis tensors
+ALLOCATE(DGB_N(Nmin:Nmax))
+
+DO N_Loc=Nmin,Nmax
+  ! Pre-compute the dg operator building blocks (differentiation matrices and prolongation operators)
+  CALL InitDGBasis(N_Loc, N_Inter(N_Loc)%xGP, N_Inter(N_Loc)%wGP, N_Inter(N_Loc)%L_minus, N_Inter(N_Loc)%L_plus, &
+                   DGB_N(N_Loc)%D, DGB_N(N_Loc)%D_T, DGB_N(N_Loc)%D_Hat, DGB_N(N_Loc)%D_Hat_T, DGB_N(N_Loc)%L_HatMinus, DGB_N(N_Loc)%L_HatPlus )
+END DO
+
+
 #if USE_LOADBALANCE && !(USE_HDG)
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
@@ -132,10 +162,6 @@ ALLOCATE(U_slave(PP_nVar,0:PP_N,0:PP_N,1:nSides))
 U_master=0.
 U_slave=0.
 
-! Allocate arrays to hold the face flux to reduce memory churn
-ALLOCATE(U_Master_loc(1:PP_nVar        ,0:PP_N,0:PP_N))
-ALLOCATE(U_Slave_loc (1:PP_nVar        ,0:PP_N,0:PP_N))
-
 #ifdef OPTIMIZED
   CALL GetRiemannMatrix()
 #endif /*OPTIMIZED*/
@@ -146,7 +172,6 @@ ALLOCATE(U_Slave_loc (1:PP_nVar        ,0:PP_N,0:PP_N))
 ! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
 ALLOCATE(Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides))
 ALLOCATE(Flux_Slave (1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(Flux_loc   (1:PP_nVar+PMLnVar,0:PP_N,0:PP_N))
 Flux_Master=0.
 Flux_Slave=0.
 #endif /*USE_HDG*/
@@ -157,15 +182,14 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitDG
 
 
-SUBROUTINE InitDGbasis(N_in,xGP,wGP,wBary)
-!===================================================================================================================================
-! Allocate global variable U (solution) and Ut (dg time derivative).
-!===================================================================================================================================
+!==================================================================================================================================
+!> Allocate and initialize the building blocks for the DG operator: Differentiation matrices and prolongation operators
+!==================================================================================================================================
+SUBROUTINE InitDGBasis(N_in,xGP,wGP,L_Minus,L_Plus,D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus)
 ! MODULES
 USE MOD_Globals
 USE MOD_Basis     ,ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis     ,ONLY:PolynomialDerivativeMatrix,LagrangeInterpolationPolys
-USE MOD_DG_Vars   ,ONLY:D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus
 #if USE_HDG
 #if USE_MPI
 USE MOD_PreProc
@@ -178,8 +202,20 @@ USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem,nSides
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)                         :: N_in
-REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP,wGP,wBary
+INTEGER,INTENT(IN)                             :: N_in                   !< Polynomial degree
+REAL,DIMENSION(0:N_in),INTENT(IN)              :: xGP                    !< Gauss/Gauss-Lobatto Nodes
+REAL,DIMENSION(0:N_in),INTENT(IN)              :: wGP                    !< Gauss/Gauss-Lobatto Weights
+REAL,DIMENSION(0:N_in),INTENT(IN)              :: L_Minus                !< Values of lagrange polynomials at \f$ \xi = -1 \f$
+REAL,DIMENSION(0:N_in),INTENT(IN)              :: L_Plus                 !< Values of lagrange polynomials at \f$ \xi = +1 \f$
+REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT)    :: D                      !< Differentation matrix
+REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT)    :: D_T                    !< Transpose of differentation matrix
+REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT)    :: D_Hat                  !< Differentiation matrix premultiplied by mass matrix,
+                                                                         !< \f$ \hat{D} = M^{-1} D^T M \f$
+REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT)    :: D_Hat_T                !< Transpose of D_Hat matrix \f$ \hat{D}^T \f$
+REAL,ALLOCATABLE,DIMENSION(:)  ,INTENT(OUT)    :: L_HatMinus             !< Values of lagrange polynomials at \f$ \xi = -1 \f$
+                                                                         !< premultiplied with mass matrix
+REAL,ALLOCATABLE,DIMENSION(:)  ,INTENT(OUT)    :: L_HatPlus              !< Values of lagrange polynomials at \f$ \xi = +1 \f$
+                                                                         !< premultiplied with mass matrix
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -208,17 +244,15 @@ DO iMass=0,N_in
   Minv(iMass,iMass)=1./wGP(iMass)
 END DO
 D_Hat(:,:) = -MATMUL(Minv,MATMUL(TRANSPOSE(D),M))
-D_Hat_T=TRANSPOSE(D_hat)
+D_Hat_T    = TRANSPOSE(D_hat)
 
 ! interpolate to left and right face (1 and -1) and pre-divide by mass matrix
-CALL LagrangeInterpolationPolys(1.,N_in,xGP,wBary,L_Plus)
-L_HatPlus(:) = MATMUL(Minv,L_Plus)
-CALL LagrangeInterpolationPolys(-1.,N_in,xGP,wBary,L_Minus)
+L_HatPlus(:)  = MATMUL(Minv,L_Plus )
 L_HatMinus(:) = MATMUL(Minv,L_Minus)
 
 #if USE_HDG
 #if USE_MPI
-! exchange is in initDGbasis as InitMesh() and InitMPI() is needed
+! exchange is in InitDGBasis as InitMesh() and InitMPI() is needed
 Geotemp=0.
 Geotemp(1,:,:,:)=SurfElem(:,:,1:nSides)
 Geotemp(2:4,:,:,:)=NormVec(:,:,:,1:nSides)
@@ -237,7 +271,7 @@ TangVec2(:,:,:,1:nSides)=Geotemp(8:10,:,:,:)
 
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
-END SUBROUTINE InitDGbasis
+END SUBROUTINE InitDGBasis
 
 
 #if !(USE_HDG)
@@ -639,9 +673,6 @@ SDEALLOCATE(U_master)
 SDEALLOCATE(U_slave)
 SDEALLOCATE(FLUX_Master)
 SDEALLOCATE(FLUX_Slave)
-SDEALLOCATE(U_Master_loc)
-SDEALLOCATE(U_Slave_loc)
-SDEALLOCATE(Flux_loc)
 
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE && !(USE_HDG)

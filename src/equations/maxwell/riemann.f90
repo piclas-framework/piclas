@@ -544,7 +544,7 @@ SUBROUTINE ExactFlux(t,tDeriv,Flux_Master,Flux_Slave,U_Master, U_slave,NormVec,F
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars,         ONLY:U_Master_loc,U_Slave_loc,Flux_loc
+!USE MOD_DG_Vars,         ONLY:U_Master_loc,U_Slave_loc,Flux_loc
 USE MOD_Equation_Vars,   ONLY:IniExactFunc,ExactFluxDir
 USE MOD_Equation,        ONLY:ExactFunc
 USE MOD_PML_vars,        ONLY:PMLnVar
@@ -562,6 +562,10 @@ REAL,INTENT(IN)       :: U_master(1:PP_nVar,0:PP_N,0:PP_N)
 REAL,INTENT(IN)       :: U_slave (1:PP_nVar,0:PP_N,0:PP_N)
 REAL,INTENT(IN)       :: SurfElem (0:PP_N,0:PP_N)
 INTEGER,INTENT(IN)    :: SideID
+! Allocate arrays to hold the face flux to reduce memory churn
+REAL,ALLOCATABLE      :: U_Master_loc(1:PP_nVar        ,0:PP_N,0:PP_N)
+REAL,ALLOCATABLE      :: U_Slave_loc (1:PP_nVar        ,0:PP_N,0:PP_N)
+REAL,ALLOCATABLE      :: Flux_loc(    1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)    :: Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)

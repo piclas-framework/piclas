@@ -127,6 +127,7 @@ PUBLIC::LagrangeInterpolationPolys
 PUBLIC::LegendrePolynomialAndDerivative
 PUBLIC::GetSPDInverse
 PUBLIC::EQUALTOTOLERANCE
+PUBLIC::DG_ProlongDGElemsToFace
 
 !===================================================================================================================================
 
@@ -1269,5 +1270,30 @@ END DO
 END SUBROUTINE LagrangeInterpolationPolys
 
 
+!==================================================================================================================================
+!> Set DG_Elems_slave and DG_Elems_master information
+!==================================================================================================================================
+SUBROUTINE DG_ProlongDGElemsToFace()
+! MODULES
+USE MOD_DG_Vars         ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
+USE MOD_Mesh_Vars       ,ONLY: SideToElem,nSides
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iSide,ElemID,nbElemID
+!==================================================================================================================================
+! set information which polynomial degree elements adjacent to a side have
+DO iSide = 1,nSides
+  ElemID    = SideToElem(S2E_ELEM_ID   ,iSide)
+  nbElemID  = SideToElem(S2E_NB_ELEM_ID,iSide)
+  !master sides
+  IF(ElemID  .GT.0) DG_Elems_master(iSide) = N_DG(ElemID)
+  !slave side (ElemID,locSide and flip =-1 if not existing)
+  IF(nbElemID.GT.0) DG_Elems_slave( iSide) = N_DG(nbElemID)
+END DO
+END SUBROUTINE DG_ProlongDGElemsToFace
 END MODULE MOD_Basis
 

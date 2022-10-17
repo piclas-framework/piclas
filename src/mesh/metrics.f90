@@ -155,8 +155,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT),OPTIONAL  :: XCL_Ngeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,nElems)      ! mapping X(xi) P\in Ngeo
-REAL ,INTENT(INOUT),OPTIONAL :: dXCL_Ngeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,nElems)   ! jacobi matrix on CL Ngeo
+REAL,INTENT(INOUT),OPTIONAL  :: XCL_NGeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,nElems)      ! mapping X(xi) P\in Ngeo
+REAL ,INTENT(INOUT),OPTIONAL :: dXCL_NGeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,nElems)   ! jacobi matrix on CL Ngeo
 !
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -248,8 +248,8 @@ dXCL_N=0.
 SmallestscaledJacRef=HUGE(1.)
 DO iElem=1,nElems
   !1.a) Transform from EQUI_Ngeo to CL points on Ngeo and N
-  CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_EQNGeo_CLNGeo,NodeCoords(:,:,:,:,iElem)            ,XCL_Ngeo)
-  CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,   XCL_Ngeo                             ,XCL_N)
+  CALL ChangeBasis3D(3,NGeo,NGeo,Vdm_EQNGeo_CLNGeo,NodeCoords(:,:,:,:,iElem),XCL_Ngeo)
+  CALL ChangeBasis3D(3,NGeo,PP_N,Vdm_CLNGeo_CLN,   XCL_Ngeo                 ,XCL_N)
 
   !1.b) Jacobi Matrix of d/dxi_dd(X_nn): dXCL_NGeo(dd,nn,i,j,k))
   dXCL_NGeo=0.
@@ -402,8 +402,8 @@ DO iElem=1,nElems
 #endif /*maxwell*/
 
   ! particle mapping
-  IF(PRESENT(XCL_Ngeo_Out))   XCL_Ngeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)= XCL_Ngeo(1:3,0:Ngeo,0:Ngeo,0:Ngeo)
-  IF(PRESENT(dXCL_ngeo_out)) dXCL_Ngeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)=dXCL_Ngeo(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo)
+  IF(PRESENT(XCL_Ngeo_Out))   XCL_NGeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)     = XCL_Ngeo(1:3,0:Ngeo,0:Ngeo,0:Ngeo)
+  IF(PRESENT(dXCL_ngeo_out)) dXCL_NGeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem) = dXCL_Ngeo(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo)
 END DO !iElem=1,nElems
 
 ! Communicate smallest ref. Jacobian and display

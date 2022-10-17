@@ -311,8 +311,10 @@ IF (meshMode.GT.0) THEN
 #endif /*USE_HDG && USE_LOADBALANCE*/
 
   ! build necessary mappings
-  CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
-                         SideToVolA,SideToVol2A,CGNS_SideToVol2A,FS2M)
+  ALLOCATE(N_Mesh(Nmin:Nmax))
+  DO Nloc = Nmin, Nmax
+    CALL InitMappings(Nloc, N_Mesh(Nloc)%VolToSideA, N_Mesh(Nloc)%VolToSideIJKA, N_Mesh(Nloc)%FS2M)
+  END DO ! Nloc = Nmin, Nmax
 
 END IF ! meshMode.GT.0
 
@@ -320,27 +322,35 @@ IF (meshMode.GT.1) THEN
 
   ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
 
-  ! volume data
-  ALLOCATE(      dXCL_N(3,3,0:PP_N,0:PP_N,0:PP_N,nElems)) ! temp
-  ALLOCATE(Metrics_fTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-  ALLOCATE(Metrics_gTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-  ALLOCATE(Metrics_hTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-  ALLOCATE(sJ            (  0:PP_N,0:PP_N,0:PP_N,nElems))
   NGeoRef=3*NGeo ! build jacobian at higher degree
   ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
 
+  ! volume data
+  ALLOCATE(N_VolMesh(1:nElems))
+  DO iElem = 1, nElems
+    ALLOCATE(N_VolMesh(iElem)%dXCL_N(      3,3,0:PP_N,0:PP_N,0:PP_N))
+    ALLOCATE(N_VolMesh(iElem)%Metrics_fTilde(3,0:PP_N,0:PP_N,0:PP_N))
+    ALLOCATE(N_VolMesh(iElem)%Metrics_gTilde(3,0:PP_N,0:PP_N,0:PP_N))
+    ALLOCATE(N_VolMesh(iElem)%Metrics_hTilde(3,0:PP_N,0:PP_N,0:PP_N))
+    ALLOCATE(N_VolMesh(iElem)%sJ            (  0:PP_N,0:PP_N,0:PP_N))
+  END DO ! iElem = 1, nElems
+
   ! surface data
-  ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,             1:nSides)) ! temp
-  Face_xGP=0.
-  NormVec=0.
-  TangVec1=0.
-  TangVec2=0.
-  SurfElem=0.
+  ALLOCATE(N_SurfMesh(1:nSides))
+  DO iSide = 1, nSides
+    ALLOCATE(N_SurfMesh(iSide)%Face_xGP (3,0:PP_N,0:PP_N))
+    ALLOCATE(N_SurfMesh(iSide)%NormVec  (3,0:PP_N,0:PP_N))
+    ALLOCATE(N_SurfMesh(iSide)%TangVec1 (3,0:PP_N,0:PP_N))
+    ALLOCATE(N_SurfMesh(iSide)%TangVec2 (3,0:PP_N,0:PP_N))
+    ALLOCATE(N_SurfMesh(iSide)%SurfElem (  0:PP_N,0:PP_N))
+    ALLOCATE(N_SurfMesh(iSide)%Ja_Face(3,3,0:PP_N,0:PP_N))
+    N_SurfMesh(iSide)%Face_xGP = 0.
+    N_SurfMesh(iSide)%NormVec  = 0.
+    N_SurfMesh(iSide)%TangVec1 = 0.
+    N_SurfMesh(iSide)%TangVec2 = 0.
+    N_SurfMesh(iSide)%SurfElem = 0.
+  END DO ! iSide = 1, nSides
+
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
   ALLOCATE(nVecLoc(1:3,0:PP_N,0:PP_N,1:6,PP_nElems))
@@ -362,12 +372,15 @@ IF (meshMode.GT.1) THEN
   ! get XCL_NGeo
   ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
   XCL_NGeo = 0.
-#ifdef PARTICLES
+#if defined(PARTICLES)
   ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
   dXCL_NGeo = 0.
-  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
+#endif /*defined(PARTICLES)*/
+
+#ifdef PARTICLES
+  CALL CalcMetrics(NLoc, XCL_NGeo_Out=XCL_NGeo, dXCL_NGeo_Out=dXCL_NGeo)
 #else
-  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
+  CALL CalcMetrics(NLoc, XCL_NGeo_Out=XCL_NGeo)
 #endif
 
   ! Compute element bary and element radius for processor-local elements (without halo region)

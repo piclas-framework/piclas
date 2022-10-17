@@ -150,17 +150,46 @@ IF(PP_N.NE.Ntmp) THEN
 END IF
 #endif
 
+! polynomial degree range for p-Refinement
+Nmin = 1
+Nmax = GETINT('Nmax')
+
 SWRITE(UNIT_stdOut,'(A)') ' NodeType: '//NodeType
-!CALL InitInterpolationBasis(PP_N, xGP ,wGP, swGP,wBary ,L_Minus ,L_Plus , L_PlusMinus, wGPSurf, Vdm_Leg ,sVdm_Leg)
-CALL InitInterpolationBasis(PP_N, xGP ,wGP, wBary ,L_Minus ,L_Plus , L_PlusMinus &
-                           ,swGP=swGP,wGPSurf=wGPSurf)
+DO N_Loc=Nmin,Nmax
+  CALL InitInterpolationBasis(N_Loc , N_Inter(N_Loc)%xGP     , N_Inter(N_Loc)%wGP     , N_Inter(N_Loc)%wBary , &
+                                      N_Inter(N_Loc)%L_Minus , N_Inter(N_Loc)%L_Plus  , N_Inter(N_Loc)%L_PlusMinus , &
+                                      N_Inter(N_Loc)%swGP    , N_Inter(N_Loc)%wGPSurf , &
+                                      N_Inter(N_Loc)%Vdm_Leg , N_Inter(N_Loc)%sVdm_Leg)
+END DO
+
+! Allocate vandermonde matrices for p-refinement
+ALLOCATE(PREF_VDM(Nmin:Nmax,Nmin:Nmax))
+
+DO N_in=Nmin,Nmax
+  DO N_out=Nmin,Nmax
+    ALLOCATE(PREF_VDM(N_in,N_out)%Vdm(0:N_in,0:N_out))
+    IF(N_in.EQ.N_out) THEN
+      DO i=0,N_in; DO j=0,N_in
+        IF(i.EQ.j) THEN
+          PREF_VDM(N_in,N_out)%Vdm(i,j) = 1.
+        ELSE
+          PREF_VDM(N_in,N_out)%Vdm(i,j) = 0.
+        END IF
+      END DO
+    END DO
+  ELSE IF(N_in.GT.N_out) THEN ! p-coarsening: Project from higher degree to lower degree
+    CALL GetVandermonde(N_in, NodeType, N_out, NodeType, PREF_VDM(N_in,N_out)%Vdm, modal=.TRUE. )
+  ELSE                   ! p-refinement: Interpolate lower degree to higher degree
+    CALL GetVandermonde(N_in, NodeType, N_out, NodeType, PREF_VDM(N_in,N_out)%Vdm, modal=.FALSE.)
+  END IF
+END DO;END DO
 
 ! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
 WRITE(DefStr,'(i4)') 2*(PP_N+1)
 NAnalyze = GETINT('NAnalyze',DefStr)
 
 ! Initialize the basis functions for the analyze polynomial
-CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
+CALL InitAnalyzeBasis(Nmax , NAnalyze , N_Inter(Nmax)%xGP , N_Inter(Nmax)%wBary)
 
 InterpolationInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT INTERPOLATION DONE!'
@@ -222,7 +251,7 @@ IF(PRESENT(swGP))THEN
 END IF
 
 !! interpolate to left and right face (1 and -1) and pre-divide by mass matrix
-CALL LagrangeInterpolationPolys(1.,N_in,xGP,wBary,L_Plus)
+CALL LagrangeInterpolationPolys( 1.,N_in,xGP,wBary,L_Plus )
 CALL LagrangeInterpolationPolys(-1.,N_in,xGP,wBary,L_Minus)
 L_PlusMinus(:,  XI_MINUS) = L_Minus
 L_PlusMinus(:, ETA_MINUS) = L_Minus

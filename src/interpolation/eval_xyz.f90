@@ -105,7 +105,7 @@ IF (ElemCurved(CNElemID).OR.(NGeo.EQ.1)) THEN
   ELSE
     CALL RefElemNewton(Xi,X_In,wBaryCL_NGeo,XiCL_NGeo,XCL_NGeo(:,:,:,:,ElemID),dXCL_NGeo(:,:,:,:,:,ElemID),NGeo,ElemID,Mode=iMode)
   END IF ! PRESENT(isSuccessful)
-ELSE
+ELSE ! NGeo>1 and curved=F
   ! fill dummy XCL_NGeo1
   XCL_NGeo1(1:3,0,0,0) = XCL_NGeo(1:3, 0  , 0  , 0  ,ElemID)
   XCL_NGeo1(1:3,1,0,0) = XCL_NGeo(1:3,NGeo, 0  , 0  ,ElemID)

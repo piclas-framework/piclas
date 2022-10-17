@@ -22,17 +22,29 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! reserved for Gauss Points with polynomial degree N, all allocated (0:N)
-REAL,ALLOCATABLE  :: L_Plus(:)                   !< L for boundary flux computation at plus side  (1)
-REAL,ALLOCATABLE  :: L_Minus(:)                  !< L for boundary flux computation at minus side (-1)
-REAL,ALLOCATABLE  :: L_PlusMinus(:,:)            !< L for boundary flux computation at both sides (-1,1)
-REAL,ALLOCATABLE  :: xGP(:)                      !< Gauss point coordinates
-REAL,ALLOCATABLE  :: wGP(:)                      !< GP integration weights
-REAL,ALLOCATABLE  :: swGP(:)                     !< 1.0/ GP integration weights
-REAL,ALLOCATABLE  :: wBary(:)                    !< barycentric weights
-REAL,ALLOCATABLE  :: wGPSurf(:,:)                !< wGPSurf(i,j)=wGP(i)*wGP(j)
-REAL,ALLOCATABLE  :: NChooseK(:,:)               !< array n over n
-REAL,ALLOCATABLE  :: Vdm_Leg(:,:), sVdm_Leg(:,:) !< Legendre Vandermonde matrix
+
+TYPE, PUBLIC :: Interpolation 
+  ! reserved for Gauss Points with polynomial degree N, all allocated (0:N)
+  REAL,ALLOCATABLE  :: L_Plus(:)                   !< L for boundary flux computation at plus side  (1)
+  REAL,ALLOCATABLE  :: L_Minus(:)                  !< L for boundary flux computation at minus side (-1)
+  REAL,ALLOCATABLE  :: L_PlusMinus(:,:)            !< L for boundary flux computation at both sides (-1,1)
+  REAL,ALLOCATABLE  :: xGP(:)                      !< Gauss point coordinates
+  REAL,ALLOCATABLE  :: wGP(:)                      !< GP integration weights
+  REAL,ALLOCATABLE  :: swGP(:)                     !< 1.0/ GP integration weights
+  REAL,ALLOCATABLE  :: wBary(:)                    !< barycentric weights
+  REAL,ALLOCATABLE  :: wGPSurf(:,:)                !< wGPSurf(i,j)=wGP(i)*wGP(j)
+  REAL,ALLOCATABLE  :: NChooseK(:,:)               !< array n over n
+  REAL,ALLOCATABLE  :: Vdm_Leg(:,:), sVdm_Leg(:,:) !< Legendre Vandermonde matrix
+END TYPE Interpolation
+
+TYPE(Interpolation),ALLOCATABLE    :: N_Inter(:)          !< Array of prebuild interpolation matrices
+
+TYPE, PUBLIC :: pVDM
+  REAL,ALLOCATABLE   :: Vdm(:,:)                          !< Vandermonde matrix (PP_in,PP_out)
+END TYPE pVDM
+
+TYPE(pVDM),ALLOCATABLE             :: PREF_VDM(:,:)       !< Vandermonde matrices used for p-refinement and coarsening
+
 ! Analyze variables 
 INTEGER           :: NAnalyze                    !< number of analyzation points is NAnalyze+1
 REAL,ALLOCATABLE  :: wAnalyze(:)                 !< GL integration weights used for the analyze
