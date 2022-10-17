@@ -94,7 +94,7 @@ PUBLIC::ElemToNBElem
 
 CONTAINS
 
-SUBROUTINE InitMappings(N_in,V2S,V2SIJK,V2S2,CV2S,S2V,S2V2,CS2V,FS2M)
+SUBROUTINE InitMappings(N_in, V2S, V2SIJK, FS2M)
 !===================================================================================================================================
 ! initialization of all mappings for polynomial degree N_in
 !===================================================================================================================================
@@ -109,24 +109,14 @@ INTEGER,INTENT(IN)              :: N_in
 ! OUTPUT VARIABLES
 INTEGER,ALLOCATABLE,INTENT(OUT) :: V2S(:,:,:,:,:,:)
 INTEGER,ALLOCATABLE,INTENT(OUT) :: V2SIJK(:,:,:,:,:,:)
-INTEGER,ALLOCATABLE,INTENT(OUT) :: V2S2(:,:,:,:,:)
-INTEGER,ALLOCATABLE,INTENT(OUT) :: CV2S(:,:,:,:,:)
-INTEGER,ALLOCATABLE,INTENT(OUT) :: S2V(:,:,:,:,:,:)
-INTEGER,ALLOCATABLE,INTENT(OUT) :: S2V2(:,:,:,:,:)
-INTEGER,ALLOCATABLE,INTENT(OUT) :: CS2V(:,:,:,:)
 INTEGER,ALLOCATABLE,INTENT(OUT) :: FS2M(:,:,:,:)     !< FlipSlaveToMaster mapping
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                    :: i,j,k,f,s, ijk(3),pq(3),p,q
 !===================================================================================================================================
-ALLOCATE(V2S(3,0:N_in,0:N_in,0:N_in,0:4,1:6))
+ALLOCATE(V2S(   3,0:N_in,0:N_in,0:N_in,0:4,1:6))
 ALLOCATE(V2SIJK(3,0:N_in,0:N_in,0:N_in,0:4,1:6))
-ALLOCATE(V2S2(2,0:N_in,0:N_in,0:4,1:6))
-ALLOCATE(CV2S(3,0:N_in,0:N_in,0:N_in,1:6))
-ALLOCATE(S2V(3,0:N_in,0:N_in,0:N_in,0:4,1:6))
-ALLOCATE(S2V2(2,0:N_in,0:N_in,0:4,1:6))
-ALLOCATE(CS2V(2,0:N_in,0:N_in,1:6))
-ALLOCATE(FS2M(2,0:N_in,0:N_in,0:4))
+ALLOCATE(FS2M(  2,0:N_in,0:N_in,0:4))
 
 DO k=0,N_in; DO j=0,N_in; DO i=0,N_in
   DO f=0,4
@@ -144,62 +134,12 @@ DO k=0,N_in; DO j=0,N_in; DO i=0,N_in
   END DO
 END DO; END DO; END DO
 
-DO j=0,N_in; DO i=0,N_in
-  DO f=0,4
-    DO s=1,6
-      V2S2(:,i,j,f,s) = VolToSide2(i,j,f,s)
-    END DO
-  END DO
-END DO; END DO
-
-DO k=0,N_in; DO j=0,N_in; DO i=0,N_in
-  DO s=1,6
-    CV2S(:,i,j,k,s) = CGNS_VolToSide(i,j,k,s)
-  END DO
-END DO; END DO; END DO
-
-DO k=0,N_in; DO j=0,N_in; DO i=0,N_in
-  DO f=0,4
-    DO s=1,6
-      S2V(:,i,j,k,f,s) = SideToVol(i,j,k,f,s)
-    END DO
-  END DO
-END DO; END DO; END DO
-
-DO j=0,N_in; DO i=0,N_in
-  DO f=0,4
-    DO s=1,6
-      S2V2(:,i,j,f,s) = SideToVol2(N_in,i,j,f,s)
-    END DO
-  END DO
-END DO; END DO
-
-DO j=0,N_in; DO i=0,N_in
-  DO s=1,6
-    CS2V(:,i,j,s) = CGNS_SideToVol2(N_in,i,j,s)
-  END DO
-END DO; END DO
-
 ! Flip_S2M
 DO j=0,N_in; DO i=0,N_in
   DO f=0,4
     FS2M(:,i,j,f) = Flip_S2M(N_in,i,j,f)
   END DO
 END DO; END DO
-
-DO f = 0, 4
-  DO s = 1, 6
-    DO q = 0,N_in; DO p = 0,N_in
-      ijk = S2V(:,0,p,q,f,s)
-      pq = V2S(:,ijk(1),ijk(2),ijk(3),f,s)
-      IF ((pq(1).NE.p).OR.(pq(2).NE.q)) THEN
-CALL abort(&
-__STAMP__&
-,'SideToVol does not fit to VolToSideA')
-      END IF
-    END DO; END DO
-  END DO ! s = 1, 6
-END DO ! f = 0, 4
 
 END SUBROUTINE InitMappings
 

@@ -46,58 +46,88 @@ REAL,ALLOCATABLE :: Vdm_CLNGeo_GaussN(:,:)
 REAL,ALLOCATABLE :: Vdm_NGeo_CLNGeo(:,:)
 REAL,ALLOCATABLE :: DCL_NGeo(:,:)
 REAL,ALLOCATABLE :: DCL_N(:,:)
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! will be used in the future
-REAL,ALLOCATABLE,TARGET :: NodeCoords(:,:,:,:,:) !< XYZ positions (equidistant,NGeo) of element interpolation points from meshfile
-REAL,ALLOCATABLE,TARGET :: Elem_xGP(:,:,:,:,:)          !< XYZ positions (first index 1:3) of the volume Gauss Point
-REAL,ALLOCATABLE :: Face_xGP(:,:,:,:)            !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
-REAL,DIMENSION(6):: xyzMinMax                    !< from Face_xGP points determined maximum domain extension (min/max of domain)
-LOGICAL          :: GetMeshMinMaxBoundariesIsDone!< don't call twice the calculation of xyzMinMax
-REAL,ALLOCATABLE,DIMENSION(:,:):: ElemBaryNGeo   !< element local basis: origin
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Metrics on GaussPoints
-!-----------------------------------------------------------------------------------------------------------------------------------
-REAL,ALLOCATABLE :: Metrics_fTilde(:,:,:,:,:) !< Metric Terms (first indices 3) on each GaussPoint
-REAL,ALLOCATABLE :: Metrics_gTilde(:,:,:,:,:)
-REAL,ALLOCATABLE :: Metrics_hTilde(:,:,:,:,:)
-REAL,ALLOCATABLE,TARGET :: sJ(:,:,:,:)               !< 1/DetJac for each Gauss Point
+REAL,ALLOCATABLE,TARGET         :: NodeCoords(:,:,:,:,:)         !< XYZ positions (equidistant,NGeo) of element interpolation points from meshfile
+REAL,DIMENSION(6)               :: xyzMinMax                     !< from Face_xGP points determined maximum domain extension (min/max of domain)
+LOGICAL                         :: GetMeshMinMaxBoundariesIsDone !< don't call twice the calculation of xyzMinMax
+REAL,ALLOCATABLE,DIMENSION(:,:) :: ElemBaryNGeo                  !< element local basis: origin
+
+
+
+
+
+TYPE, PUBLIC :: Mesh
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! mapping from GaussPoints to Side or Neighbor Volume
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  INTEGER,ALLOCATABLE :: VolToSideA(:,:,:,:,:,:)
+  INTEGER,ALLOCATABLE :: VolToSideIJKA(:,:,:,:,:,:)
+  INTEGER,ALLOCATABLE :: FS2M(:,:,:,:)     !< flip slave side to master and reverse
+
+END TYPE Mesh
+
+TYPE(Mesh),ALLOCATABLE  :: N_Mesh(:)        !< Array to store Mesh metrics object "Mesh" for every Polynomial degree
+
+
+TYPE, PUBLIC :: VolMesh
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! GLOBAL VARIABLES
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  REAL,ALLOCATABLE :: Elem_xGP(:,:,:,:) !< XYZ positions (first index 1:3) of the volume Gauss Point
+
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! Metrics on GaussPoints
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  REAL,ALLOCATABLE :: dXCL_N(:,:,:,:,:)    !< Jacobi matrix of the mapping P\in NGeo
+  REAL,ALLOCATABLE :: Metrics_fTilde(:,:,:,:) !< Metric Terms (first indices 3) on each GaussPoint
+  REAL,ALLOCATABLE :: Metrics_gTilde(:,:,:,:)
+  REAL,ALLOCATABLE :: Metrics_hTilde(:,:,:,:)
+  REAL,ALLOCATABLE :: sJ(:,:,:)     !< 1/DetJac for each Gauss Point
+
+END TYPE VolMesh
+
+TYPE(VolMesh),ALLOCATABLE  :: N_VolMesh(:) !< Array to store Mesh metrics object "VolMesh"
+
+
+
+TYPE, PUBLIC :: SurfMesh
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! GLOBAL VARIABLES
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  REAL,ALLOCATABLE        :: Face_xGP(:,:,:)   !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
+
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! surface vectors
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  REAL,ALLOCATABLE :: NormVec(:,:,:)   !< normal vector for each side       (1:3,0:N,0:N,nSides)
+  REAL,ALLOCATABLE :: TangVec1(:,:,:)  !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
+  REAL,ALLOCATABLE :: TangVec2(:,:,:)  !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
+  REAL,ALLOCATABLE :: SurfElem(:,:)    !< surface area for each side        (    0:N,0:N,nSides)
+  REAL,ALLOCATABLE :: Ja_Face(:,:,:,:) !< surface  metrics for each side
+
+END TYPE SurfMesh
+
+TYPE(SurfMesh),ALLOCATABLE  :: N_SurfMesh(:)        !< Array to store Mesh metrics object "SurfMesh"
+
+
+
+
+REAL,ALLOCATABLE :: detJac_Ref(:,:,:,:,:)  !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
+
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! PIC - for Newton localisation of particles in curved Elements
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL,ALLOCATABLE    :: wBaryCL_NGeo(:)
-!< #ifdef PARTICLES
-REAL,ALLOCATABLE    :: wBaryCL_NGeo1(:)
-REAL,ALLOCATABLE    :: XiCL_NGeo1(:)
-REAL,ALLOCATABLE    :: Vdm_CLNGeo1_CLNGeo(:,:)
-!< #endif /*PARTICLES*/
+REAL,ALLOCATABLE        :: wBaryCL_NGeo(:)
+REAL,ALLOCATABLE        :: wBaryCL_NGeo1(:)
+REAL,ALLOCATABLE        :: XiCL_NGeo1(:)
+REAL,ALLOCATABLE        :: Vdm_CLNGeo1_CLNGeo(:,:)
 REAL,ALLOCATABLE        :: XiCL_NGeo(:)
 REAL,ALLOCATABLE,TARGET :: XCL_NGeo(:,:,:,:,:)
-REAL,ALLOCATABLE,TARGET :: dXCL_NGeo(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
-REAL,ALLOCATABLE        :: dXCL_N(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
-REAL,ALLOCATABLE        :: detJac_Ref(:,:,:,:,:)      !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
-!-----------------------------------------------------------------------------------------------------------------------------------
-! surface vectors
-!-----------------------------------------------------------------------------------------------------------------------------------
-REAL,ALLOCATABLE :: NormVec(:,:,:,:)           !< normal vector for each side       (1:3,0:N,0:N,nSides)
-REAL,ALLOCATABLE :: TangVec1(:,:,:,:)          !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
-REAL,ALLOCATABLE :: TangVec2(:,:,:,:)          !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
-REAL,ALLOCATABLE :: SurfElem(:,:,:)            !< surface area for each side        (    0:N,0:N,nSides)
-REAL,ALLOCATABLE :: Ja_Face(:,:,:,:,:)         !< surface  metrics for each side
-REAL,ALLOCATABLE :: nVecLoc(:,:,:,:,:)         !< element local normal vector       (1:3,0:N,0:N,1:6,1:nElems)
-REAL,ALLOCATABLE :: SurfLoc(:,:,:,:)           !< element local surface element     (    0:N,0:N,1:6,1:nElems)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! mapping from GaussPoints to Side or Neighbor Volume
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,ALLOCATABLE :: VolToSideA(:,:,:,:,:,:)
-INTEGER,ALLOCATABLE :: VolToSideIJKA(:,:,:,:,:,:)
-INTEGER,ALLOCATABLE :: VolToSide2A(:,:,:,:,:)
-INTEGER,ALLOCATABLE :: CGNS_VolToSideA(:,:,:,:,:)
-INTEGER,ALLOCATABLE :: CGNS_SideToVol2A(:,:,:,:)
-INTEGER,ALLOCATABLE :: SideToVolA(:,:,:,:,:,:)
-INTEGER,ALLOCATABLE :: SideToVol2A(:,:,:,:,:)
-INTEGER,ALLOCATABLE :: FS2M(:,:,:,:)     !< flip slave side to master and reverse
+REAL,ALLOCATABLE,TARGET :: dXCL_NGeo(:,:,:,:,:,:) !< jacobi matrix of the mapping P\in NGeo
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! mapping from element to sides and sides to element
 !-----------------------------------------------------------------------------------------------------------------------------------
