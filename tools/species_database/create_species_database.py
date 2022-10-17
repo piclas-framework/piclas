@@ -2,28 +2,20 @@ import numpy as np
 import h5py
 from argparse import ArgumentParser
 
-# database_output = "Species_Database.h5"
-# database_electronic = "Electronic-State-Database.h5"
-# database_crosssection = "XSec_Database_H2_Plasma.h5"
-
-# hdf = h5py.File(database_output, 'a')
-# h5_electronic = h5py.File(database_electronic, 'r')
-# h5_crosssection = h5py.File(database_crosssection, 'r')
-
 parser = ArgumentParser(prog='create_species_database')
 parser.add_argument("-p", "--parameter", dest="ini_filename",
-                    help="DSMC.ini file to read-in parameters", metavar="FILE")
+                    help="DSMC.ini file to read-in parameters", metavar="FILE", default="DSMC.ini")
 parser.add_argument("-e", "--electronic", dest="database_electronic",
-                    help="Electronic excitation database to read-in parameters", metavar="FILE")
+                    help="Electronic excitation database to read-in parameters", metavar="FILE", default="Electronic-State-Database.h5")
 parser.add_argument("-c", "--crosssection", dest="database_crosssection",
-                    help="Crosssection database to read-in parameters", metavar="FILE")
+                    help="Crosssection database to read-in parameters", metavar="FILE", default="XSec_Database.h5")
 parser.add_argument("-o", "--output", dest="database_output",
-                    help="Output file name", metavar="FILE")
+                    help="Output file name", metavar="FILE", default="Species_Database.h5")
 
 args = parser.parse_args()
 
-hdf = h5py.File(args.database_output, 'a')
-h5_electronic = h5py.File(args.database_electronic, 'r')
+h5_species      = h5py.File(args.database_output, 'a')
+h5_electronic   = h5py.File(args.database_electronic, 'r')
 h5_crosssection = h5py.File(args.database_crosssection, 'r')
 
 def is_float(value):
@@ -35,20 +27,20 @@ def is_float(value):
 
 # Create general structure
 hdf_species_group = 'Species'
-if hdf_species_group in hdf.keys():
+if hdf_species_group in h5_species.keys():
   print('Group Species already exists.')
-  hdf_species_group = hdf['Species']
+  hdf_species_group = h5_species['Species']
 else:
   print('Group Species does not exist, creating new group.')
-  hdf_species_group = hdf.create_group('Species')
+  hdf_species_group = h5_species.create_group('Species')
 
 hdf_xsec_group = 'Cross-Sections'
-if hdf_xsec_group in hdf.keys():
+if hdf_xsec_group in h5_species.keys():
   print('Group Cross-Sections already exists.')
-  hdf_xsec_group = hdf['Cross-Sections']
+  hdf_xsec_group = h5_species['Cross-Sections']
 else:
   print('Group Cross-Sections does not exist, creating new group.')
-  hdf_xsec_group = hdf.create_group('Cross-Sections')
+  hdf_xsec_group = h5_species.create_group('Cross-Sections')
 
 # Read-in of DSMC.ini parameters and electronic state
 with open(args.ini_filename) as file:
@@ -104,6 +96,6 @@ for dataset in h5_crosssection.keys():
     print('Cross-section added: ', dataset)
     hdf_xsec_group.copy(source=h5_crosssection[dataset],dest=hdf_xsec_group)
 
-hdf.close()
+h5_species.close()
 h5_electronic.close()
 h5_crosssection.close()
