@@ -1,6 +1,7 @@
 import numpy as np
 import h5py
 from argparse import ArgumentParser
+from datetime import date
 
 parser = ArgumentParser(prog='create_species_database')
 parser.add_argument("-p", "--parameter", dest="ini_filename",
@@ -11,6 +12,8 @@ parser.add_argument("-c", "--crosssection", dest="database_crosssection",
                     help="Crosssection database to read-in parameters", metavar="FILE", default="XSec_Database.h5")
 parser.add_argument("-o", "--output", dest="database_output",
                     help="Output file name", metavar="FILE", default="Species_Database.h5")
+parser.add_argument("-r", "--reference", dest="reference",
+                    help="Reference for species data", default="Unknown")
 
 args = parser.parse_args()
 
@@ -66,7 +69,7 @@ with open(args.ini_filename) as file:
               print('Species added to the database: ', hdf_species)
               hdf_species = hdf_species_group.create_dataset(hdf_species,data=hdf_input_data)
             else:
-              print('Species added to the database: ', hdf_species)
+              print('Species added to the database, but electronic levels are unknown: ', hdf_species)
               hdf_species = hdf_species_group.create_dataset(hdf_species,data=[0])
 
 with open(args.ini_filename) as file:
@@ -81,12 +84,14 @@ with open(args.ini_filename) as file:
           hdf_species = array_dict[species_count]
           hdf_species = hdf_species_group[hdf_species]
           if var_name[1] in hdf_species.attrs:
-            print('Species parameter is already set: ', var_name[1])
+            print('Species parameter is already set: ', var_name[1]) #raus??
           else:
             if is_float(var_value):
               var_value = float(var_value)
             hdf_species.attrs[var_name[1]] = var_value
-            print('Species parameter set: ', var_name[1])
+            print('Species parameter set: ', var_name[1]) #raus??
+            # Write attributes for source and time of retrieval
+            hdf_species.attrs['Reference'] = args.reference + ', Added/Retrieved on ' + date.today().strftime("%B %d, %Y") + '.'
 
 # Copy cross-section data
 for dataset in h5_crosssection.keys():
@@ -95,6 +100,8 @@ for dataset in h5_crosssection.keys():
   else:
     print('Cross-section added: ', dataset)
     hdf_xsec_group.copy(source=h5_crosssection[dataset],dest=hdf_xsec_group)
+
+print('*** Database successfully built. ***')
 
 h5_species.close()
 h5_electronic.close()

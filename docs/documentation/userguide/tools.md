@@ -4,8 +4,52 @@ This section gives an overview over the tools and scripts contained in the **PIC
 It also provides references to the tutorials where their usage is explained.
 An overview of the tools is given in [TOOLS.md](https://github.com/piclas-framework/piclas/blob/master/tools/TOOLS.md).
 
-(sec:tools-xsec-collision)=
-## Collision cross-section database
+(sec:tools-usd)=
+## Unified Species Database (USD)
+
+A tool to create a database containing cross-section, electronic and species data can be found in the *tools* folder: `piclas/tools/species_database/`.
+The Python script (python3.7) `create_species_database.py` creates a new database combining cross-section data, electronic states and species parameters (formerly read-in through ini files). The script uses the `numpy`, `h5py` and `argparse` packages. To create the unified database with
+
+    python3.7 create_species_database.py
+    
+an electronic and cross-section database need to be built before ({ref}`ssec:tools-xsec-collision`, {ref}`ssec:tools-electronic-database`).
+If nothing additionally is specified, the following filenames are called: `DSMC.ini` for the parameter input, `Electronic-State-Database.h5` for the electronic state database, `XSec_Database.h5` for the cross-section data and `Species_Database.h5` for the final output. For custom file names, the following options can be added: 
+
+    python3 create_species_database.py --parameter parameter-filename --electronic electronic_statefile --crosssection crosssection_statefile --output output_filename
+
+or
+
+    python3 create_species_database.py -p parameter-filename -e electronic_statefile -c crosssection_statefile -o output_filename
+    
+The data is grouped in the output file, as shown in the following example:
+    
+    Cross-Sections (group)
+        H2-H2Ion1 (dataset)
+    Species (group)
+        H2 (group)
+            Electronic levels (dataset)
+            Species parameters (attributes)
+        H2Ion1 (group)
+            Electronic levels (dataset)
+            Species parameters (attributes)
+        electron (group)
+            Electronic levels (dataset)
+            Species parameters (attributes)
+        
+
+(ssec:tools-electronic-database)=
+### Electronic database
+
+A tool to create a database containing electronic excitation states can be found in the *tools* folder: `piclas/tools/electronic_database/`.
+The Python script (python3.7) `create_electronic_database_atoms.py` can be used to populate a PICLas-compatible cross-section database, using
+the `pandas`, `h5py`, `io`, `re`, `datetime` and `requests` packages. It can be excuted with
+
+    python3.7 `create_electronic_database_atoms.py` 
+    
+The script gets the data from the NIST database (https://physics.nist.gov/cgi-bin/ASD/energy1.pl) and stores it in an h5-database. Additional species can be added by adapting the `species-list` parameter.
+
+(ssec:tools-xsec-collision)=
+### Collision cross-section database
 
 A tool to create a database containing cross-section data can be found in the *tools* folder: `piclas/tools/crosssection_database/`.
 The Python script (python3.7) `create_xsec_db_lxcat.py` can be used to populate a PICLas-compatible cross-section database, using
