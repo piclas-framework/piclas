@@ -692,6 +692,7 @@ USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo_Shared
 #else
 USE MOD_Mesh_Vars,               ONLY:ElemBaryNGeo
 #endif
+USE MOD_Particle_Vars              ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -716,6 +717,9 @@ ASSOCIATE(ElemBaryNGeo => ElemBaryNGeo_Shared)
 
 epsOne = 1.0 + RefMappingEps
 RefMappingGuessLoc = RefMappingGuess
+
+! AXISYMMETRIC HDG
+IF (Symmetry%Axisymmetric) RefMappingGuessLoc = 4
 
 SELECT CASE(RefMappingGuessLoc)
 

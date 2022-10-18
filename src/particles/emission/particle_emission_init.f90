@@ -357,7 +357,7 @@ DO iSpec = 1, nSpecies
       END IF
     END IF
     ! 2D simulation/variable time step only with cell_local and/or surface flux
-    IF((Symmetry%Order.EQ.2).OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF(VarTimeStep%UseVariableTimeStep) THEN
       IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local') THEN
         CALL abort(__STAMP__&
           ,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
