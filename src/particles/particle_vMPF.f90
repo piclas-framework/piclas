@@ -191,7 +191,7 @@ DO iLoop = 1, nPart
   Energy_old = Energy_old + 0.5 * Species(iSpec)%MassIC &
   * DOT_PRODUCT(PartState(4:6,iPart),PartState(4:6,iPart)) * partWeight
   IF(CollisMode.GT.1) THEN
-    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
       Energy_old = Energy_old + (PartStateIntEn(1,iPart) +  PartStateIntEn(2,iPart)) * partWeight
     END IF
     IF(DSMC%ElectronicModel.GT.0) Energy_old = Energy_old + PartStateIntEn(3,iPart)*partWeight
@@ -212,13 +212,13 @@ DO iLoop = 1, nPart
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   E_trans = E_trans + 0.5 * vmag2 * partWeight * Species(iSpec)%MassIC
   IF(CollisMode.GT.1) THEN
-    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
       ! Rotational and vibrational energy
       E_vib = E_vib + (PartStateIntEn(1,iPart) - SpecDSMC(iSpec)%EZeroPoint) * partWeight
       E_rot = E_rot + partWeight * PartStateIntEn(2,iPart)
     END IF
     ! Electronic energy
-    IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) THEN
+    IF(DSMC%ElectronicModel.GT.0.AND.Species(iSpec)%InterID.NE.4) THEN
       E_elec = E_elec + partWeight * PartStateIntEn(3,iPart)
     END IF
   END IF
@@ -235,7 +235,7 @@ END IF
 
 ! 2.2) Calc temperature and degree of freedoms
 IF(CollisMode.GT.1) THEN
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
       ALLOCATE(DOF_vib_poly(PolyatomMolDSMC(iPolyatMole)%VibDOF))
@@ -261,7 +261,7 @@ IF(CollisMode.GT.1) THEN
     DOF_rot = SpecDSMC(iSpec)%Xi_Rot
     T_rot = 2.*E_rot/(DOF_rot*totalWeight*BoltzmannConst)    
   END IF
-  IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) THEN
+  IF(DSMC%ElectronicModel.GT.0.AND.Species(iSpec)%InterID.NE.4) THEN
     T_elec = CalcTelec(E_elec/totalWeight, iSpec)
     IF (T_elec.GT.0.0) DOF_elec = 2.*E_elec/(totalWeight*BoltzmannConst*T_elec)
   END IF
@@ -296,13 +296,13 @@ DO iLoop = 1, nPartNew
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
   E_trans_new = E_trans_new + 0.5 * vmag2 * partWeight * Species(iSpec)%MassIC
   IF(CollisMode.GT.1) THEN
-    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
       ! Rotational and vibrational energy
       E_vib_new = E_vib_new + (PartStateIntEn(1,iPart) - SpecDSMC(iSpec)%EZeroPoint) * partWeight
       E_rot_new = E_rot_new + partWeight * PartStateIntEn(2,iPart)
     END IF
     ! Electronic energy
-    IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) THEN
+    IF(DSMC%ElectronicModel.GT.0.AND.Species(iSpec)%InterID.NE.4) THEN
       E_elec_new = E_elec_new + partWeight * PartStateIntEn(3,iPart)
     END IF
   END IF
@@ -311,7 +311,7 @@ END DO
 ! 6.) ensuring momentum and energy conservation
 ! 6.1) ensuring electronic excitation
 IF(CollisMode.GT.1) THEN
-  IF(DSMC%ElectronicModel.GT.0.AND.SpecDSMC(iSpec)%InterID.NE.4) THEN
+  IF(DSMC%ElectronicModel.GT.0.AND.Species(iSpec)%InterID.NE.4) THEN
     Energy_Sum = E_elec
     IF (E_elec.GT.0.0) THEN
       IF (E_elec_new.EQ.0.0) THEN 
@@ -358,7 +358,7 @@ END IF
 
 ! 6.2) ensuring vibrational excitation
 IF(CollisMode.GT.1) THEN
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     Energy_Sum = Energy_Sum + E_vib
     IF (E_vib.GT.0.0) THEN
       IF (E_vib_new.EQ.0.0) THEN
@@ -461,7 +461,7 @@ DO iLoop = 1, nPartNew
   ! Energy conservation
   Energy_new = Energy_new + 0.5*Species(iSpec)%MassIC * DOT_PRODUCT(PartState(4:6,iPart),PartState(4:6,iPart)) * partWeight
   IF(CollisMode.GT.1) THEN
-    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
       Energy_new = Energy_new + (PartStateIntEn(1,iPart) + PartStateIntEn(2,iPart)) * partWeight
     END IF
     IF(DSMC%ElectronicModel.GT.0) Energy_new = Energy_new + PartStateIntEn(3,iPart)*partWeight

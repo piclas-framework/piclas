@@ -178,12 +178,12 @@ END IF
 !---------------------------------------------------------------------------------------------------------------------------------
 EZeroPoint_Educt = 0.0; EZeroPoint_Prod = 0.0
 DO iPart = 1, NINT(NumWeightEduct)
-  IF((SpecDSMC(EductReac(iPart))%InterID.EQ.2).OR.(SpecDSMC(EductReac(iPart))%InterID.EQ.20)) THEN
+  IF((Species(EductReac(iPart))%InterID.EQ.2).OR.(Species(EductReac(iPart))%InterID.EQ.20)) THEN
     EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(iPart))%EZeroPoint * Weight(iPart)
   END IF
 END DO
 DO iPart = 1, NINT(NumWeightProd)
-  IF((SpecDSMC(ProductReac(iPart))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(iPart))%InterID.EQ.20)) THEN
+  IF((Species(ProductReac(iPart))%InterID.EQ.2).OR.(Species(ProductReac(iPart))%InterID.EQ.20)) THEN
     EZeroPoint_Prod = EZeroPoint_Prod + SpecDSMC(ProductReac(iPart))%EZeroPoint * Weight(iPart)
   END IF
 END DO
@@ -198,7 +198,7 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
   !---------------------------------------------------------------------------------------------------------------------------------
   Xi_vib = 0.0; Xi_elec = 0.0
   DO iPart = 1, NINT(NumWeightEduct)
-    IF((SpecDSMC(EductReac(iPart))%InterID.EQ.2).OR.(SpecDSMC(EductReac(iPart))%InterID.EQ.20)) THEN
+    IF((Species(EductReac(iPart))%InterID.EQ.2).OR.(Species(EductReac(iPart))%InterID.EQ.20)) THEN
       IF(SpecDSMC(EductReac(iPart))%PolyatomicMol) THEN
         IF (PartStateIntEn(1,ReactInx(iPart)).GT.SpecDSMC(EductReac(iPart))%EZeroPoint) THEN
           Xi_vib(iPart) = 2.*(PartStateIntEn(1,ReactInx(iPart))-SpecDSMC(EductReac(iPart))%EZeroPoint)  &
@@ -209,7 +209,7 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
       END IF
     END IF
     IF (DSMC%ElectronicModel.GT.0) THEN
-      IF((SpecDSMC(EductReac(iPart))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(iPart))%FullyIonized)) THEN
+      IF((Species(EductReac(iPart))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(iPart))%FullyIonized)) THEN
         IF(PartStateIntEn(3,ReactInx(iPart)).GT.0.0)THEN
           Telec=CalcTelec( PartStateIntEn(3,ReactInx(iPart)) , EductReac(iPart))
           Xi_elec(iPart)=2.*PartStateIntEn(3,ReactInx(iPart))/(BoltzmannConst*Telec)
@@ -678,7 +678,7 @@ END IF
 ! Determining the maximal number of vibrational SHOs for allocation of the XiVibPart array
 nDOFMAX = 0
 DO iProd = 1, NumProd
-  IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(iProd))%InterID.EQ.20)) THEN
+  IF((Species(ProductReac(iProd))%InterID.EQ.2).OR.(Species(ProductReac(iProd))%InterID.EQ.20)) THEN
     IF(SpecDSMC(ProductReac(iProd))%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(ProductReac(iProd))%SpecToPolyArray
       nDOFMAX = MAX(nDOFMAX,PolyatomMolDSMC(iPolyatMole)%VibDOF)
@@ -708,7 +708,7 @@ END IF
 !-------------------------------------------------------------------------------------------------------------------------------
 IF(nDOFMAX.GT.0) THEN
   DO iProd = 1, NumProd
-    IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(iProd))%InterID.EQ.20)) THEN
+    IF((Species(ProductReac(iProd))%InterID.EQ.2).OR.(Species(ProductReac(iProd))%InterID.EQ.20)) THEN
       Xi_total = Xi_total + SUM(XiVibPart(iProd,:))
       EZeroTempToExec(iProd) = SpecDSMC(ProductReac(iProd))%EZeroPoint*Weight(iProd)
     END IF
@@ -733,7 +733,7 @@ END DO
 !--------------------------------------------------------------------------------------------------
 IF (DSMC%ElectronicModel.GT.0) THEN
   DO iProd = 1, NumProd
-    IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.4).OR.SpecDSMC(ProductReac(iProd))%FullyIonized) THEN
+    IF((Species(ProductReac(iProd))%InterID.EQ.4).OR.SpecDSMC(ProductReac(iProd))%FullyIonized) THEN
       IF (DSMC%ElectronicModel.EQ.2) THEN
         IF(ALLOCATED(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)) DEALLOCATE(ElectronicDistriPart(ReactInx(iProd))%DistriFunc)
       END IF
@@ -767,7 +767,7 @@ END IF
 ! Vibrational energy exchange
 !--------------------------------------------------------------------------------------------------
 DO iProd = 1, NumProd
-  IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(iProd))%InterID.EQ.20)) THEN
+  IF((Species(ProductReac(iProd))%InterID.EQ.2).OR.(Species(ProductReac(iProd))%InterID.EQ.20)) THEN
     FakXi = FakXi - 0.5*XiVibPart(iProd,1)
     IF(SpecDSMC(ProductReac(iProd))%PolyatomicMol) THEN
       ! Zero-point energy is added (for every vibrational dof separately) and new vibrational state is substracted
@@ -787,7 +787,7 @@ END DO
 ! Rotational energy exchange (additional check: If new particle is an atom, internal energies are zero)
 !--------------------------------------------------------------------------------------------------
 DO iProd = 1, NumProd
-  IF ((SpecDSMC(ProductReac(iProd))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(iProd))%InterID.EQ.20)) THEN
+  IF ((Species(ProductReac(iProd))%InterID.EQ.2).OR.(Species(ProductReac(iProd))%InterID.EQ.20)) THEN
     IF(SpecDSMC(ProductReac(iProd))%Xi_Rot.EQ.3) THEN
       FakXi = FakXi - 0.5*SpecDSMC(ProductReac(iProd))%Xi_Rot
       CALL DSMC_RotRelaxPoly(iPair, ReactInx(iProd), FakXi)
@@ -1205,7 +1205,7 @@ REAL                        :: TempRatio
 Qtra = (2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))**(1.5)
 Qvib = 1.
 Qrot = 1.
-IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
   IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
     iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
     IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
@@ -1229,7 +1229,7 @@ IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     END IF
   END IF
 END IF
-IF((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
+IF((Species(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
   Qelec = 1.
 ELSE
   Qelec = 0.
@@ -1660,7 +1660,7 @@ END IF
 VeloCOM(1:3) = PartState(4:6,ReactInx(1))
 ! Get the properties of the background species used for the photo-ionization reaction
 Temp_Trans = Species(EductReac(1))%Init(1)%MWTemperatureIC
-IF((SpecDSMC(EductReac(1))%InterID.EQ.2).OR.(SpecDSMC(EductReac(1))%InterID.EQ.20)) THEN
+IF((Species(EductReac(1))%InterID.EQ.2).OR.(Species(EductReac(1))%InterID.EQ.20)) THEN
   Temp_Vib   = SpecDSMC(EductReac(1))%Init(1)%TVib
   Temp_Rot   = SpecDSMC(EductReac(1))%Init(1)%TRot
 ELSE
@@ -1676,14 +1676,14 @@ IonizationReaction = .FALSE.
 DO iProd = 1, NumProd
   iPart = ReactInx(iProd)
   iSpec = ProductReac(iProd)
-  IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
+  IF(Species(iSpec)%InterID.EQ.4) THEN
     NumElec = NumElec + Weight(iProd)
     Mass_Electron = Species(iSpec)%MassIC
     IonizationReaction = .TRUE.
     CYCLE
   END IF
   ! Set the internal energies
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,Temp_Vib,iPart)
     PartStateIntEn(2,iPart) = CalcERot_particle(iSpec,Temp_Rot)
   ELSE
@@ -1723,7 +1723,7 @@ IF(IonizationReaction) THEN
     iPart = ReactInx(iProd)
     iSpec = ProductReac(iProd)
     ! Check if particle is an electron
-    IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
+    IF(Species(iSpec)%InterID.EQ.4) THEN
       PartState(4:6,iPart) = VeloCOM(1:3) + SQRT(CRela2_Electron) * DiceUnitVector()
       ! Change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
       ASSOCIATE( b1 => Species(InitSpec)%Init(iInit)%NormalVector1IC(1:3) ,&

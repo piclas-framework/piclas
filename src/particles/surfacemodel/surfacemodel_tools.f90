@@ -120,7 +120,7 @@ SUBROUTINE SurfaceModel_EnergyAccommodation(PartID,locBCID,WallTemp)
 !> Energy accommodation at the surface: Particle internal energies PartStateIntEn() are sampled at surface temperature
 !===================================================================================================================================
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars         ,ONLY: PartSpecies
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, PolyatomMolDSMC, useDSMC
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
@@ -158,7 +158,7 @@ ElecACC   = PartBound%ElecACC(locBCID)
 
 IF (useDSMC) THEN
   IF (CollisMode.GT.1) THEN
-    IF ((SpecDSMC(SpecID)%InterID.EQ.2).OR.(SpecDSMC(SpecID)%InterID.EQ.20)) THEN
+    IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
       !---- Rotational energy accommodation
       IF (SpecDSMC(SpecID)%Xi_Rot.EQ.2) THEN
         CALL RANDOM_NUMBER(RanNum)
@@ -239,7 +239,7 @@ IF (useDSMC) THEN
     END IF
 
     IF (DSMC%ElectronicModel.GT.0) THEN
-      IF((SpecDSMC(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+      IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
         CALL RANDOM_NUMBER(RanNum)
         IF (RanNum.LT.ElecACC) THEN
           PartStateIntEn(3,PartID) = RelaxElectronicShellWall(PartID, WallTemp)

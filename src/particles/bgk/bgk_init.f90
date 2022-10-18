@@ -117,7 +117,7 @@ LBWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
 MoleculePresent = .FALSE.
 ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
-  IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) MoleculePresent = .TRUE.
+  IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) MoleculePresent = .TRUE.
   ALLOCATE(SpecBGK(iSpec)%CollFreqPreFactor(nSpecies))
   DO iSpec2=1, nSpecies
     IF (iSpec.EQ.iSpec2) THEN

@@ -152,7 +152,7 @@ SampWallState(SAMPWALL_DELTA_MOMENTUMZ,SubP,SubQ,SurfSideID) = SampWallState(SAM
 SampWallState(ETransID ,SubP,SubQ,SurfSideID) = SampWallState(ETransID ,SubP,SubQ,SurfSideID) + ETrans * MPF
 IF (useDSMC) THEN
   IF (CollisMode.GT.1) THEN
-    IF ((SpecDSMC(SpecID)%InterID.EQ.2).OR.SpecDSMC(SpecID)%InterID.EQ.20) THEN
+    IF ((Species(SpecID)%InterID.EQ.2).OR.Species(SpecID)%InterID.EQ.20) THEN
       !----  Sampling the internal (rotational) energy accommodation at walls
       SampWallState(ERotID ,SubP,SubQ,SurfSideID) = SampWallState(ERotID ,SubP,SubQ,SurfSideID) + PartStateIntEn(2,PartID) * MPF
       !----  Sampling for internal (vibrational) energy accommodation at walls

@@ -50,7 +50,7 @@ USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,DSMC,PolyatomMolDSMC,Sp
 ! Particles
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5,ReadNodeSourceExtFromHDF5
-USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,nSpecies,usevMPF
+USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,nSpecies,usevMPF, Species
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,RelaxDeposition,PartSourceOld
 ! Restart
 USE MOD_Restart_Vars           ,ONLY: RestartFile,InterpolateSolution,RestartNullifySolution
@@ -226,7 +226,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     IF (DSMC%ElectronicModel.EQ.2) THEN
       MaxElecQuant = 0
       DO iSpec = 1,nSpecies
-        IF (.NOT.((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized)) THEN
+        IF (.NOT.((Species(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized)) THEN
           IF (SpecDSMC(iSpec)%MaxElecQuant.GT.MaxElecQuant) MaxElecQuant = SpecDSMC(iSpec)%MaxElecQuant
         END IF
       END DO
@@ -519,7 +519,7 @@ ELSE
   IF (useDSMC.AND.(DSMC%ElectronicModel.EQ.2)) THEN
     MaxElecQuant = 0
     DO iSpec = 1, nSpecies
-      IF (.NOT.((SpecDSMC(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized)) THEN
+      IF (.NOT.((Species(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized)) THEN
         IF (SpecDSMC(iSpec)%MaxElecQuant.GT.MaxElecQuant) MaxElecQuant = SpecDSMC(iSpec)%MaxElecQuant
       END IF
     END DO

@@ -424,7 +424,7 @@ SUBROUTINE CalcGammaVib()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars ,ONLY: nSpecies
+USE MOD_Particle_Vars ,ONLY: nSpecies, Species
 USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -440,7 +440,7 @@ REAL                  :: CharaTVib, TempTrans, GammaVib
 
 ! Calculate GammaVib Factor  = Xi_Vib² * exp(CharaTVib/T_trans) / 2
 DO iSpec = 1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     ! First, reset the GammaVib array/value
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
@@ -478,7 +478,7 @@ DO iSpec = 1, nSpecies
         END IF
       END IF  ! CharaTVib/TempTrans.LT.80
     END IF    ! TempTrans.GT.0.0
-  END IF      ! (SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)
+  END IF      ! (Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)
 END DO        ! iSpec = 1, nSpecies
 
 END SUBROUTINE CalcGammaVib
@@ -676,13 +676,13 @@ DO iPart=1,PDM%ParticleVecLength
     DSMC_Solution(7,iElem,iSpec) = DSMC_Solution(7,iElem, iSpec) + partWeight  !density number
     IF(useDSMC)THEN
       IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3)) THEN
-        IF ((SpecDSMC(PartSpecies(iPart))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPart))%InterID.EQ.20)) THEN
+        IF ((Species(PartSpecies(iPart))%InterID.EQ.2).OR.(Species(PartSpecies(iPart))%InterID.EQ.20)) THEN
           DSMC_Solution(8,iElem, iSpec) = DSMC_Solution(8,iElem, iSpec) &
             + (PartStateIntEn(1,iPart) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
           DSMC_Solution(9,iElem, iSpec) = DSMC_Solution(9,iElem, iSpec)+PartStateIntEn(2,iPart)*partWeight
         END IF
         IF (DSMC%ElectronicModel.GT.0) THEN
-          IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+          IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
             DSMC_Solution(10,iElem,iSpec)=DSMC_Solution(10,iElem,iSpec)+PartStateIntEn(3,iPart)*partWeight
           END IF
         END IF
@@ -815,7 +815,7 @@ DO iElem = 1, nElems ! element/cell main loop
           ! compute internal energies / has to be changed for vfd
           IF(useDSMC)THEN
             IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-              IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+              IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
                 IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
                   IF( (PartEvib/PartNum) .GT. 0.0 ) THEN
                     Macro_TempVib = CalcTVibPoly(PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, iSpec)
@@ -838,7 +838,7 @@ DO iElem = 1, nElems ! element/cell main loop
                 END IF
               END IF
               IF (DSMC%ElectronicModel.GT.0) THEN
-                IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+                IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
                   Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
                   HeavyPartNum = HeavyPartNum + Macro_PartNum
                 END IF

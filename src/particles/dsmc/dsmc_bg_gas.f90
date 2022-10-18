@@ -1171,7 +1171,7 @@ DO iElem = 1, nElems
       ! Loop over all the inits for the species (different inits for different regions)
       DO iInit = 1, Species(iSpec)%NumberOfInits
         IF(BGGas%RegionElemType(iElem).EQ.Species(iSpec)%Init(iInit)%BGGRegion) THEN
-          IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+          IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
             ! Vibrational temperature
             BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpec),8,iElem) = SpecDSMC(iSpec)%Init(iInit)%TVib
             ! Rotational temperature

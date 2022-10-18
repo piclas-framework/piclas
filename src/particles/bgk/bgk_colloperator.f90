@@ -104,7 +104,7 @@ DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPart)
   Momentum_old(1:3) = Momentum_old(1:3) + PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
   Energy_old = Energy_old + DOTPRODUCT(PartState(4:6,iPart))*0.5*Species(iSpec)%MassIC*partWeight
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     Energy_old = Energy_old + (PartStateIntEn(1,iPart) + PartStateIntEn(2,iPart))*partWeight
   END IF
 END DO
@@ -133,7 +133,7 @@ END IF
 ! Calculation of the rotational and vibrational degrees of freedom for molecules
 nXiVibDOF=0 ! Initialize
 IF (nSpecies.EQ.1) THEN
-  IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
+  IF((Species(1)%InterID.EQ.2).OR.(Species(1)%InterID.EQ.20)) THEN
     IF(SpecDSMC(1)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(1)%SpecToPolyArray
       nXiVibDOF   = PolyatomMolDSMC(iPolyatMole)%VibDOF
@@ -159,7 +159,7 @@ END IF
 
 ! 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency using the collision frequency,
 !     which is not the same as the relaxation frequency of distribution function, calculated above.
-IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
+IF(ANY(Species(:)%InterID.EQ.2).OR.ANY(Species(:)%InterID.EQ.20)) THEN
   collisionfreqSpec = 0.0
   DO iSpec = 1, nSpecies
     DO jSpec = 1, nSpecies
@@ -230,7 +230,7 @@ DO iLoop = 1, nPart-nRelax
 END DO
 
 ! 7.) Vibrational energy of the molecules: Ensure energy conservation by scaling the new vibrational states with the factor alpha
-IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
+IF(ANY(Species(:)%InterID.EQ.2).OR.ANY(Species(:)%InterID.EQ.20)) THEN
   CALL EnergyConsVib(nPart, nVibRelax, nVibRelaxSpec, iPartIndx_NodeRelaxVib, NewEnVib, OldEn, nXiVibDOF, Xi_VibSpec, VibEnergyDOF, TEqui)
 END IF
 
@@ -265,7 +265,7 @@ DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPart)
   Momentum_new(1:3) = Momentum_new(1:3) + (PartState(4:6,iPart)) * Species(iSpec)%MassIC*partWeight
   Energy_new = Energy_new + DOTPRODUCT((PartState(4:6,iPart)))*0.5*Species(iSpec)%MassIC*partWeight
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     Energy_new = Energy_new + (PartStateIntEn(1,iPart) + PartStateIntEn(2,iPart))*partWeight
   END IF
 END DO
@@ -387,7 +387,7 @@ DO iLoop = 1, nPart
     totalWeight3 = totalWeight3 + partWeight*partWeight*partWeight
   END IF
   OldEn = OldEn + 0.5*Species(iSpec)%MassIC * vmag2*partWeight
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     IF(BGKDoVibRelaxation) THEN
       EVibSpec(iSpec) = EVibSpec(iSpec) + (PartStateIntEn(1,iPart) - SpecDSMC(iSpec)%EZeroPoint) * partWeight
     END IF
@@ -436,7 +436,7 @@ SUBROUTINE CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, T
 !> Determine the internal degrees of freedom and the respective temperature (rotation/vibration) for diatomic/polyatomic species
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars          ,ONLY: nSpecies
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PolyatomMolDSMC
 USE MOD_BGK_Vars               ,ONLY: BGKDoVibRelaxation
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
@@ -459,7 +459,7 @@ REAL                          :: exparg
 Xi_VibSpec=0.; InnerDOF=0.; Xi_RotSpec=0.; Xi_Vib_oldSpec=0.; TVibSpec=0.; TRotSpec=0.
 DO iSpec = 1, nSpecies
   IF (nSpec(iSpec).EQ.0) CYCLE
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     IF(BGKDoVibRelaxation) THEN
       IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
         iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
@@ -528,7 +528,7 @@ IF (nSpecies.GT.1) THEN
   DO iSpec = 1, nSpecies
     IF (nSpec(iSpec).EQ.0) CYCLE
     PrandtlCorrection = PrandtlCorrection + MolarFraction(iSpec)*MassIC_Mixture/Species(iSpec)%MassIC
-    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
       C_P = C_P + ((5. + (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec)))/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec)
     ELSE
       C_P = C_P + (5./2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec)
@@ -551,7 +551,7 @@ IF (nSpecies.GT.1) THEN
               *CollInf%Tref(iSpec,iSpec)**(CollInf%omega(iSpec,iSpec) + 0.5)*CellTemp**(-CollInf%omega(iSpec,iSpec) - 0.5))
       END IF
       ! Thermal conductivity per species (Eucken's formula with a correction by Hirschfelder for the internal degrees of freedom)
-      IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
         thermalcondspec(iSpec) = 0.25 * (15. + 2. * (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec))  * 1.328) &
                                             * dynamicvisSpec(iSpec) * BoltzmannConst / Species(iSpec)%MassIC
       ELSE
@@ -658,7 +658,7 @@ DO iLoop = 1, nPart
     iPartIndx_NodeRelaxTemp(nNotRelax) = iPart
     vBulk(1:3) = vBulk(1:3) + PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
   END IF
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     !Rotation
     CALL RANDOM_NUMBER(iRan)
     IF ((1.-RotExpSpec(iSpec)).GT.iRan) THEN
@@ -1358,7 +1358,7 @@ SUBROUTINE CalcTEquiMulti(nPart, nSpec, CellTemp, TRotSpec, TVibSpec, Xi_VibSpec
 ! MODULES
 USE MOD_DSMC_Vars,              ONLY: SpecDSMC
 USE MOD_BGK_Vars,               ONLY: BGKDoVibRelaxation
-USE MOD_Particle_Vars,          ONLY: nSpecies
+USE MOD_Particle_Vars,          ONLY: nSpecies, Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1394,7 +1394,7 @@ correctFacRot = 1.
 RotFracSpec = 0.0
 VibFracSpec = 0.0
 DO iSpec=1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     RotExpSpec(iSpec) = exp(-rotrelaxfreqSpec(iSpec)*dtCell/correctFacRot)
     RotFracSpec(iSpec) = nSpec(iSpec)*(1.-RotExpSpec(iSpec))
     IF(DoVibRelax) THEN
@@ -1411,7 +1411,7 @@ TEqui_Old = 0.0
 TEqui = 3.*(nPart-1.)*CellTemp
 TEquiNumDof = 3.*(nPart-1.)
 DO iSpec=1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     TEqui = TEqui + 2.*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
     TEquiNumDof = TEquiNumDof + 2.*RotFracSpec(iSpec) + Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)
   END IF
@@ -1419,7 +1419,7 @@ END DO
 TEqui = TEqui / TEquiNumDof
 DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   DO iSpec = 1, nSpecies
-    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
       IF (ABS(TRotSpec(iSpec)-TEqui).LT.1E-3) THEN
         RotExpSpec(iSpec) = exp(-rotrelaxfreqSpec(iSpec)*dtCell/correctFacRot)
       ELSE
@@ -1462,7 +1462,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   TEqui = 3.*(nPart-1.)*CellTemp
   TEquiNumDof = 3.*(nPart-1.)
   DO iSpec=1, nSpecies
-    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
       TEqui = TEqui + 2.*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
       TEquiNumDof = TEquiNumDof + 2.*RotFracSpec(iSpec) + Xi_VibSpec(iSpec)*VibFracSpec(iSpec)
     END IF
@@ -1472,7 +1472,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
     DO WHILE( ABS( TEqui - TEqui_Old2 ) .GT. eps_prec )
       TEqui =(TEqui + TEqui_Old2)*0.5
       DO iSpec=1, nSpecies
-        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+        IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
           exparg = SpecDSMC(iSpec)%CharaTVib/TEqui
           IF(CHECKEXP(exparg))THEN
             Xi_VibSpec(iSpec) = 2.*SpecDSMC(iSpec)%CharaTVib/TEqui/(EXP(exparg)-1.)
@@ -1485,7 +1485,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
       TEqui = 3.*(nPart-1.)*CellTemp
       TEquiNumDof = 3.*(nPart-1.)
       DO iSpec=1, nSpecies
-        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+        IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
           TEqui = TEqui + 2.*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
           TEquiNumDof = TEquiNumDof + 2.*RotFracSpec(iSpec) + Xi_VibSpec(iSpec)*VibFracSpec(iSpec)
         END IF

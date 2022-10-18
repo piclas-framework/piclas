@@ -764,10 +764,10 @@ SUBROUTINE XSec_ElectronicRelaxation(iPair,iCase,iPart_p1,iPart_p2,DoElec1,DoEle
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars         ,ONLY: PartSpecies
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species
 #if (PP_TimeDiscMethod==42)
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
-USE MOD_Particle_Vars         ,ONLY: Species, usevMPF
+USE MOD_Particle_Vars         ,ONLY: usevMPF
 USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting
 #endif
 IMPLICIT NONE
@@ -811,7 +811,7 @@ IF(PartStateIntEn(3,iPart_p1).EQ.0.0.AND.PartStateIntEn(3,iPart_p2).EQ.0.0) THEN
     DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
       ProbElec = ProbElec + SpecXSec(iCase)%ElecLevel(iLevel)%Prob
       IF((ProbElec/ProbSum).GT.iRan) THEN
-        IF((SpecDSMC(iSpec_p1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec_p1)%FullyIonized)) THEN
+        IF((Species(iSpec_p1)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec_p1)%FullyIonized)) THEN
           DoElec1 = .TRUE.
         ELSE
           DoElec2 = .TRUE.
@@ -1412,12 +1412,12 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
 
     EZeroPoint_Educt = 0.0; EZeroPoint_Prod = 0.0
     ! Testing if the first reacting particle is an atom or molecule, if molecule: is it polyatomic?
-    IF((SpecDSMC(EductReac(1))%InterID.EQ.2).OR.(SpecDSMC(EductReac(1))%InterID.EQ.20)) THEN
+    IF((Species(EductReac(1))%InterID.EQ.2).OR.(Species(EductReac(1))%InterID.EQ.20)) THEN
       EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(1))%EZeroPoint * Weight(1)
     END IF
     !---------------------------------------------------------------------------------------------------------------------------------
     ! Testing if the second particle is an atom or molecule, if molecule: is it polyatomic?
-    IF((SpecDSMC(EductReac(2))%InterID.EQ.2).OR.(SpecDSMC(EductReac(2))%InterID.EQ.20)) THEN
+    IF((Species(EductReac(2))%InterID.EQ.2).OR.(Species(EductReac(2))%InterID.EQ.20)) THEN
       EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(2))%EZeroPoint * Weight(2)
     END IF
 
@@ -1441,7 +1441,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     END IF
 
     DO iProd = 1, NumWeightProd
-      IF((SpecDSMC(ProductReac(iProd))%InterID.EQ.2).OR.(SpecDSMC(ProductReac(iProd))%InterID.EQ.20)) THEN
+      IF((Species(ProductReac(iProd))%InterID.EQ.2).OR.(Species(ProductReac(iProd))%InterID.EQ.20)) THEN
         EZeroPoint_Prod = EZeroPoint_Prod + SpecDSMC(ProductReac(iProd))%EZeroPoint * Weight(iProd)
       END IF
     END DO

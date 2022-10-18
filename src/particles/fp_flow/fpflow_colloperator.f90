@@ -93,7 +93,7 @@ DO iLoop = 1, nPart
   Momentum_old(1:3) = Momentum_old(1:3) + PartState(4:6,iPart) * partWeight
   Energy_old = Energy_old + (PartState(4,iPart)**2. + PartState(5,iPart)**2. &
                              + PartState(6,iPart)**2.)*0.5*Species(1)%MassIC * partWeight
-  IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
+  IF((Species(1)%InterID.EQ.2).OR.(Species(1)%InterID.EQ.20)) THEN
     Energy_old = Energy_old + (PartStateIntEn(1,iPart) + PartStateIntEn(2,iPart)) * partWeight
   END IF
 END DO
@@ -144,7 +144,7 @@ DO iLoop2 = 1, nPart
     END DO
     u0i(1:3) = u0i(1:3) + V_rel(1:3) * partWeight
   END IF
-  IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
+  IF((Species(1)%InterID.EQ.2).OR.(Species(1)%InterID.EQ.20)) THEN
     IF(FPDoVibRelaxation) Evib = Evib + (PartStateIntEn(1,iPartIndx_Node(iLoop2)) - SpecDSMC(1)%EZeroPoint) * partWeight
     ERot = ERot + PartStateIntEn(2,iPartIndx_Node(iLoop2)) * partWeight
   END IF
@@ -178,7 +178,7 @@ ELSE IF (FPCollModel.EQ.2) THEN
   u0i = u0i / totalWeight
 END IF
 
-IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
+IF((Species(1)%InterID.EQ.2).OR.(Species(1)%InterID.EQ.20)) THEN
   Xi_vib = 0.0
   IF(FPDoVibRelaxation) THEN
     IF(SpecDSMC(1)%PolyatomicMol) THEN
@@ -248,7 +248,7 @@ IF(DSMC%CalcQualityFactors) THEN
   END IF
 END IF
 
-IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
+IF((Species(1)%InterID.EQ.2).OR.(Species(1)%InterID.EQ.20)) THEN
 ! 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency using the collision frequency,
 !     which is not the same as the relaxation frequency of distribution function, calculated above.
   collisionfreq = SpecFP(1)%CollFreqPreFactor(1) * dens *CellTemp**(-CollInf%omega(1,1) +0.5)
@@ -656,7 +656,7 @@ DO iLoop = 1, nPart
   Energy_new = Energy_new &
           + ((PartState(4,iPart))**2. + (PartState(5,iPart))**2. &
           +  (PartState(6,iPart))**2.)*0.5*Species(1)%MassIC*partWeight
-  IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
+  IF((Species(1)%InterID.EQ.2).OR.(Species(1)%InterID.EQ.20)) THEN
     Energy_new = Energy_new + (PartStateIntEn(1,iPart) + PartStateIntEn(2,iPart))*partWeight
   END IF
 END DO

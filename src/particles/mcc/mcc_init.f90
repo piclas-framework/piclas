@@ -71,7 +71,7 @@ SUBROUTINE InitMCC()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
-USE MOD_PARTICLE_Vars ,ONLY: nSpecies
+USE MOD_PARTICLE_Vars ,ONLY: nSpecies, Species
 USE MOD_Mesh_Vars     ,ONLY: nElems
 USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC, ChemReac, CollisMode
 USE MOD_MCC_Vars      ,ONLY: UseMCC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
@@ -108,7 +108,7 @@ DO iSpec = 1, nSpecies
   IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) THEN
     CALL Abort(__STAMP__,'ERROR: Please supply the collision cross-section flag for the particle species and NOT the background species!')
   END IF
-  IF(SpecDSMC(iSpec)%UseElecXSec.AND.SpecDSMC(iSpec)%InterID.EQ.4) THEN
+  IF(SpecDSMC(iSpec)%UseElecXSec.AND.Species(iSpec)%InterID.EQ.4) THEN
     CALL Abort(__STAMP__,'ERROR: Electronic relaxation should be enabled for the respective heavy species, not the electrons!')
   END IF
 #if (PP_TimeDiscMethod!=42)
@@ -194,13 +194,13 @@ DO iSpec = 1, nSpecies
       ! If the species which was given the UseVibXSec flag is diatomic/polyatomic, use the cross-section for that species
       ! If the species is an atom/electron, use the cross-section for the other collision partner (the background species)
       IF(SpecDSMC(iSpec)%UseVibXSec) THEN
-        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+        IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
           SpecXSec(iCase)%SpeciesToRelax = iSpec
         ELSE
           SpecXSec(iCase)%SpeciesToRelax = jSpec
         END IF
       ELSE
-        IF((SpecDSMC(jSpec)%InterID.EQ.2).OR.(SpecDSMC(jSpec)%InterID.EQ.20)) THEN
+        IF((Species(jSpec)%InterID.EQ.2).OR.(Species(jSpec)%InterID.EQ.20)) THEN
           SpecXSec(iCase)%SpeciesToRelax = jSpec
         ELSE
           SpecXSec(iCase)%SpeciesToRelax = iSpec
@@ -260,7 +260,7 @@ DO iSpec = 1, nSpecies
         END DO
         ! Interpolate and store levels at the collision cross-section intervals
         IF(SpecXSec(iCase)%UseCollXSec) THEN
-          IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(SpecDSMC(jSpec)%InterID.NE.4)) THEN
+          IF((Species(iSpec)%InterID.NE.4).AND.(Species(jSpec)%InterID.NE.4)) THEN
             ! Special treatment required if both collision partners have electronic energy levels (ie. one is not an electron)
             CALL abort(__STAMP__,'ERROR: Electronic relaxation with cross-section is only possible for electron collisions!')
           END IF

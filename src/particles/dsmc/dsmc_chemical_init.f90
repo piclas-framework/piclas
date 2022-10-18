@@ -267,7 +267,7 @@ IF (BGGas%NumberOfSpecies.GT.0) THEN
   DO iSpec = 1, nSpecies
     IF(BGGas%BackgroundSpecies(iSpec)) THEN
       ! Background gas: Calculation of the mean vibrational quantum number of diatomic molecules
-      IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
         IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol) THEN
           BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib &
             + BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib / SpecDSMC(iSpec)%Init(1)%TVib) - 1)
@@ -462,8 +462,8 @@ DO iReac = 1, ChemReac%NumOfReact
       END IF
     END IF
     ! At least a molecule is given as a reactant
-    IF((SpecDSMC(ChemReac%Reactants(iReac,1))%InterID.NE.2).AND.(SpecDSMC(ChemReac%Reactants(iReac,1))%InterID.NE.20) &
-      .AND.(SpecDSMC(ChemReac%Reactants(iReac,2))%InterID.NE.2).AND.(SpecDSMC(ChemReac%Reactants(iReac,2))%InterID.NE.20)) THEN
+    IF((Species(ChemReac%Reactants(iReac,1))%InterID.NE.2).AND.(Species(ChemReac%Reactants(iReac,1))%InterID.NE.20) &
+      .AND.(Species(ChemReac%Reactants(iReac,2))%InterID.NE.2).AND.(Species(ChemReac%Reactants(iReac,2))%InterID.NE.20)) THEN
       CALL abort(__STAMP__,&
         'Dissociation - Error in Definition: None of the reactants is a molecule, check species indices and charge definition. ReacNbr: ',iReac)
     END IF
@@ -565,7 +565,7 @@ DO iCase = 1, CollInf%NumCase
     IF(UseBRElectronFluid) THEN
       DO iProd = 1,4
         IF(ChemReac%Products(iReac,iProd).NE.0)THEN
-          IF(SpecDSMC(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP
+          IF(Species(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP
         END IF ! ChemReac%Products(iReac,iProd).NE.0
       END DO
     END IF
@@ -602,7 +602,7 @@ DO iCase = 1, CollInf%NumCase
     IF(UseBRElectronFluid) THEN
       DO iProd = 1,4
         IF(ChemReac%Products(iReac,iProd).NE.0)THEN
-          IF(SpecDSMC(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP2
+          IF(Species(ChemReac%Products(iReac,iProd))%InterID.EQ.4) CYCLE REACLOOP2
         END IF ! ChemReac%Products(iReac,iProd).NE.0
       END DO
     END IF
@@ -647,7 +647,7 @@ SUBROUTINE DSMC_BackwardRate_init()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, PolyatomMolDSMC
-USE MOD_PARTICLE_Vars           ,ONLY: nSpecies
+USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -667,7 +667,7 @@ IF(ChemReac%AnyXSecReaction) CALL abort(__STAMP__,&
 
 ! 1.) Read-in of species parameters for the partition function calculation
 DO iSpec = 1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     SpecDSMC(iSpec)%SymmetryFactor              = GETINT('Part-Species'//TRIM(hilf)//'-SymmetryFactor')
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
@@ -694,7 +694,7 @@ DO iSpec = 1, nSpecies
       END IF
     END IF
   END IF
-  IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
     IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%ElectronicState)) THEN
       CALL abort(&
           __STAMP__&

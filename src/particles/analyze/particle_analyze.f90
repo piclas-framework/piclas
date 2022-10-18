@@ -1185,8 +1185,8 @@ INTEGER             :: iRegions
               DO jSpec = iSpec, nSpecies
                 IF(SpecXSec(CollInf%Coll_Case(iSpec,jSpec))%UseVibXSec) THEN
                   ! Skip entry if both species are NOT molecules
-                  IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
-                    ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
+                  IF(((Species(iSpec)%InterID.NE.2).AND.(Species(iSpec)%InterID.NE.20)).AND. &
+                    ((Species(jSpec)%InterID.NE.2).AND.(Species(jSpec)%InterID.NE.20))) CYCLE
                   WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                   WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-VibRelaxRate', iSpec, '+', jSpec
                   OutputCounter = OutputCounter + 1
@@ -1569,8 +1569,8 @@ IF (PartMPI%MPIROOT) THEN
             iCase = CollInf%Coll_Case(iSpec,jSpec)
             IF(SpecXSec(iCase)%UseVibXSec) THEN
               ! Skip entry if both species are NOT molecules
-              IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
-                  ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
+              IF(((Species(iSpec)%InterID.NE.2).AND.(Species(iSpec)%InterID.NE.20)).AND. &
+                  ((Species(jSpec)%InterID.NE.2).AND.(Species(jSpec)%InterID.NE.20))) CYCLE
               WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', VibRelaxRate(iCase)
             END IF
           END DO
