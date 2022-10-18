@@ -82,7 +82,18 @@ CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  , 'Manual timestep [
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
 CALL prms%CreateStringOption(   'Part-Species[$]-SpeciesName' ,'Species name of Species[$]', 'none', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Particles-Species-Database', 'File name for the species database', 'none')
-CALL prms%CreateLogicalOption(  'Part-Species[$]-DoOverwriteParameters', 'Flag to set parameters in ini-file manually', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-Species[$]-DoOverwriteParameters', 'Flag to set parameters in ini-file manually', '.FALSE.'&
+                                                                        , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-InteractionID' , 'ID for identification of particles \n'//&
+                                                                 '  1: Atom\n'//&
+                                                                 '  2: Molecule\n'//&
+                                                                 '  4: Electron\n'//&
+                                                                 ' 10: Atomic Ion\n'//&
+                                                                 ' 20: Molecular Ion\n'//&
+                                                                 ' 40: Excited Atom\n'//&
+                                                                 '100: Excited Atomic Ion\n'//&
+                                                                 '200: Excited Molecule\n'//&
+                                                                 '400: Excited Molecular Ion)', '0', numberedmulti=.TRUE.)
 ! Ionization
 CALL prms%CreateLogicalOption(  'Part-DoInitialIonization'    , 'When restarting from a state, ionize the species to a '//&
                                                                 'specific degree', '.FALSE.')
@@ -1534,7 +1545,7 @@ DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   SpecDSMC(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
   IF(SpecDSMC(iSpec)%Name .EQ. 'none') THEN
-    ! CALL abort(__STAMP__,'ERROR: Species-name is not defined for Species:', iSpec)
+    CALL abort(__STAMP__,'ERROR: Species-name is not defined for Species:', iSpec)
   END IF
 END DO ! iSpec
 
@@ -1551,7 +1562,7 @@ IF(SpeciesDatabase.NE.'none') THEN
 
   ! Check if file exists
   IF(.NOT.FILEEXISTS(SpeciesDatabase)) THEN
-    ! CALL abort(__STAMP__,'ERROR: Database ['//TRIM(SpeciesDatabase)//'] does not exist.')
+    CALL abort(__STAMP__,'ERROR: Database ['//TRIM(SpeciesDatabase)//'] does not exist.')
   END IF
 
   CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
@@ -1563,12 +1574,12 @@ IF(SpeciesDatabase.NE.'none') THEN
     CALL DatasetExists(file_id_specdb,TRIM(dsetname),DataSetFound)
     IF(.NOT.DataSetFound)THEN
       Species(iSpec)%DoOverwriteParameters = .TRUE.
-      ! SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'
+      SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'
     ELSE
       CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
-      ! LBWRITE (UNIT_stdOut,*) 'ChargeIC: ', Species(iSpec)%ChargeIC
+      LBWRITE (UNIT_stdOut,*) 'ChargeIC: ', Species(iSpec)%ChargeIC
       CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
-      ! LBWRITE (UNIT_stdOut,*) 'MassIC: ', Species(iSpec)%MassIC
+      LBWRITE (UNIT_stdOut,*) 'MassIC: ', Species(iSpec)%MassIC
     END IF
 
   END DO
@@ -1586,6 +1597,7 @@ IF(ANY(Species(:)%DoOverwriteParameters)) THEN
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
       Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
+      Species(iSpec)%InterID               = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID')
     END IF
   END DO ! iSpec
 END IF

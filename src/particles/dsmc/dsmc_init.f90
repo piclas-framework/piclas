@@ -179,17 +179,6 @@ CALL prms%CreateRealOption(     'Part-Collision[$]-alphaVSS'  &
                                            , '1.', numberedmulti=.TRUE.)
 
 CALL prms%SetSection("DSMC Species")
-
-CALL prms%CreateIntOption(     'Part-Species[$]-InteractionID' , 'ID for identification of particles \n'//&
-                                                                 '  1: Atom\n'//&
-                                                                 '  2: Molecule\n'//&
-                                                                 '  4: Electron\n'//&
-                                                                 ' 10: Atomic Ion\n'//&
-                                                                 ' 20: Molecular Ion\n'//&
-                                                                 ' 40: Excited Atom\n'//&
-                                                                 '100: Excited Atomic Ion\n'//&
-                                                                 '200: Excited Molecule\n'//&
-                                                                 '400: Excited Molecular Ion)', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Tref'  &
                                            ,'collision parameter: species-specific reference temperature for VHS/VSS model.' &
                                            , numberedmulti=.TRUE.)
@@ -414,7 +403,6 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
   CollInf%crossSectionConstantMode        = GETINT('Particles-DSMC-crossSectionConstantMode','0')
   DO iSpec = 1, nSpecies
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
-    SpecDSMC(iSpec)%InterID = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID','0')
     ! averagedCollisionParameters set true: species-specific collision parameters get read in
     IF(CollInf%averagedCollisionParameters) THEN
       SpecDSMC(iSpec)%Tref         = GETREAL('Part-Species'//TRIM(hilf)//'-Tref'     )

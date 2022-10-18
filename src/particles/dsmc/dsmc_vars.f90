@@ -109,17 +109,6 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   LOGICAL                     :: PolyatomicMol             ! Species is a polyatomic molecule
   INTEGER                     :: SpecToPolyArray           !
   CHARACTER(LEN=64)           :: Name                      ! Species Name, required for DSMCSpeciesElectronicDatabase
-  INTEGER                     :: InterID                   ! Identification number (e.g. for DSMC_prob_calc), ini_2
-                                                           !     1   : Atom
-                                                           !     2   : Molecule
-                                                           !     4   : Electron
-                                                           !     10  : Atomic ion
-                                                           !     15  : Atomic CEX/MEX ion
-                                                           !     20  : Molecular ion
-                                                           !     40  : Excited atom
-                                                           !     100 : Excited atomic ion
-                                                           !     200 : Excited molecule
-                                                           !     400 : Excited molecular ion
   REAL                        :: Tref                      ! collision model: reference temperature     , ini_2
   REAL                        :: dref                      ! collision model: reference diameter        , ini_2
   REAL                        :: omega                     ! collision model: temperature exponent      , ini_2

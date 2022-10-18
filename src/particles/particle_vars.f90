@@ -131,6 +131,17 @@ TYPE tSpecies                                                                ! P
   TYPE(tInit), ALLOCATABLE               :: Init(:)  !     =>NULL()          ! Particle Data for each Initialisation
   REAL                                   :: ChargeIC                         ! Particle Charge (without MPF)
   REAL                                   :: MassIC                           ! Particle Mass (without MPF)
+  INTEGER                                :: InterID                          ! Identification number (e.g. for DSMC_prob_calc), ini_2
+                                                                             !     1   : Atom
+                                                                             !     2   : Molecule
+                                                                             !     4   : Electron
+                                                                             !     10  : Atomic ion
+                                                                             !     15  : Atomic CEX/MEX ion
+                                                                             !     20  : Molecular ion
+                                                                             !     40  : Excited atom
+                                                                             !     100 : Excited atomic ion
+                                                                             !     200 : Excited molecule
+                                                                             !     400 : Excited molecular ion
   REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
   TYPE(typeSurfaceflux),ALLOCATABLE      :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission
