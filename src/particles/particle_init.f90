@@ -1580,6 +1580,8 @@ IF(SpeciesDatabase.NE.'none') THEN
       LBWRITE (UNIT_stdOut,*) 'ChargeIC: ', Species(iSpec)%ChargeIC
       CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
       LBWRITE (UNIT_stdOut,*) 'MassIC: ', Species(iSpec)%MassIC
+      CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
+      LBWRITE (UNIT_stdOut,*) 'InteractionID: ', Species(iSpec)%InterID
     END IF
 
   END DO
@@ -1601,47 +1603,6 @@ IF(ANY(Species(:)%DoOverwriteParameters)) THEN
     END IF
   END DO ! iSpec
 END IF
-
-
-! IF(SpeciesDatabase.EQ.'none') THEN
-!   DO iSpec = 1, nSpecies
-!     LBWRITE (UNIT_stdOut,'(66(". "))')
-!     WRITE(UNIT=hilf,FMT='(I0)') iSpec
-!     Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
-!     Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
-!   END DO ! iSpec
-! ELSE
-!   ! Initialize FORTRAN interface.
-!   CALL H5OPEN_F(err)
-
-!   ! Check if file exists
-!   IF(.NOT.FILEEXISTS(SpeciesDatabase)) THEN
-!     CALL abort(__STAMP__,'ERROR: Database ['//TRIM(SpeciesDatabase)//'] does not exist.')
-!   END IF
-
-!   CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
-
-!   DO iSpec = 1, nSpecies
-!     LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
-!     dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
-
-!     CALL DatasetExists(file_id_specdb,TRIM(dsetname),DataSetFound)
-!     IF(.NOT.DataSetFound)THEN
-!       CALL abort(&
-!       __STAMP__&
-!       ,'DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']')
-!     END IF
-
-!     CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
-!     LBWRITE (UNIT_stdOut,*) 'ChargeIC: ', Species(iSpec)%ChargeIC
-!     CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
-!     LBWRITE (UNIT_stdOut,*) 'MassIC: ', Species(iSpec)%MassIC
-!   END DO
-!   ! Close the file.
-!   CALL H5FCLOSE_F(file_id_specdb, err)
-!   ! Close FORTRAN interface.
-!   CALL H5CLOSE_F(err)
-! END IF
 
 IF(nSpecies.GT.0)THEN
   LBWRITE (UNIT_stdOut,'(66(". "))')
