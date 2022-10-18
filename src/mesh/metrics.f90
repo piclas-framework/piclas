@@ -449,7 +449,7 @@ LBWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took    
 END SUBROUTINE CalcMetrics
 
 
-SUBROUTINE CalcSurfMetrics(Nloc,JaCL_N,XCL_N,Vdm_CLN_N,iElem,NormVec,TangVec1,TangVec2,SurfElem,Face_xGP,Ja_Face)
+SUBROUTINE CalcSurfMetrics(Nloc,JaCL_N,XCL_N,Vdm_CLN_N,iElem)
 !===================================================================================================================================
 ! Compute normal and tangential vectors from element metrics. Input is JaCL_N, the 3D element metrics on Cebychev-Lobatto points
 !===================================================================================================================================
@@ -457,7 +457,7 @@ SUBROUTINE CalcSurfMetrics(Nloc,JaCL_N,XCL_N,Vdm_CLN_N,iElem,NormVec,TangVec1,Ta
 USE MOD_PreProc
 USE MOD_Globals,     ONLY:CROSS
 USE MOD_Mesh_Vars,   ONLY:ElemToSide,nSides,MortarType,xyzMinMax,GetMeshMinMaxBoundariesIsDone
-USE MOD_Mesh_Vars,   ONLY:NormalDirs,TangDirs,NormalSigns
+USE MOD_Mesh_Vars,   ONLY:NormalDirs,TangDirs,NormalSigns, N_VolMesh
 USE MOD_Mappings,    ONLY:CGNS_SideToVol2
 USE MOD_ChangeBasis, ONLY:ChangeBasis2D
 USE MOD_Mortar_Metrics, ONLY:Mortar_CalcSurfMetrics
@@ -473,12 +473,6 @@ REAL,INTENT(IN)    :: XCL_N(     1:3,0:Nloc,0:Nloc,0:Nloc)  !< (IN) element geo.
 REAL,INTENT(IN)    :: Vdm_CLN_N(   0:Nloc,0:Nloc)         !< (IN) Vandermonde matrix from Cheby-Lob on N to final nodeset on N
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)   ::    NormVec(3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face normal vectors
-REAL,INTENT(OUT)   ::   TangVec1(3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face tangential vectors
-REAL,INTENT(OUT)   ::   TangVec2(3,0:Nloc,0:Nloc,1:nSides) !< (OUT) element face tangential vectors
-REAL,INTENT(OUT)   ::   SurfElem(  0:Nloc,0:Nloc,1:nSides) !< (OUT) element face surface area
-REAL,INTENT(OUT)   :: Face_xGP(1:3,0:Nloc,0:Nloc,1:nSides)                       !< (OUT) element face interpolation points
-REAL,INTENT(OUT),OPTIONAL :: Ja_Face(3,3,0:Nloc,0:Nloc,1:nSides)  !< (OUT) surface metrics
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: p,q,pq(2),dd,iLocSide,SideID,SideID2,iMortar,nbSideIDs(4)
@@ -527,7 +521,7 @@ DO iLocSide=1,6
   DO q=0,Nloc; DO p=0,Nloc
     pq=CGNS_SideToVol2(Nloc,p,q,iLocSide)
     ! Compute Face_xGP for sides
-    Face_xGP(1:3,p,q,SideID)=tmp2(:,pq(1),pq(2))
+    N_VolMesh(SideID)%Face_xGP(1:3,p,q)=tmp2(:,pq(1),pq(2))
   END DO; END DO ! p,q
 
   NormalDir=NormalDirs(iLocSide); TangDir=TangDirs(iLocSide); NormalSign=NormalSigns(iLocSide);
@@ -555,13 +549,11 @@ DO iLocSide=1,6
       !Ja_Face(dd,1:3,p,q)=tmp2(:,pq(1),pq(2))
     END DO; END DO ! p,q
   END DO ! dd
-  IF(PRESENT(Ja_Face)) Ja_Face(:,:,:,:,SideID)=Ja_Face_l
-
 
   NormalDir=NormalDirs(iLocSide); TangDir=TangDirs(iLocSide); NormalSign=NormalSigns(iLocSide)
   CALL SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Ja_Face_l,&
-                         NormVec(:,:,:,SideID),TangVec1(:,:,:,SideID),&
-                         TangVec2(:,:,:,SideID),SurfElem(:,:,SideID))
+                         N_VolMesh(SideID)%NormVec(:,:,:),N_VolMesh(SideID)%TangVec1(:,:,:),&
+                         N_VolMesh(SideID)%TangVec2(:,:,:),N_VolMesh(SideID)%SurfElem(:,:))
 
   !compute metrics for mortar faces, interpolate Ja_Face to small sides
   IF(MortarType(1,SideID).GT.0)THEN
