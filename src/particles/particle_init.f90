@@ -82,6 +82,7 @@ CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  , 'Manual timestep [
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
 CALL prms%CreateStringOption(   'Part-Species[$]-SpeciesName' ,'Species name of Species[$]', 'none', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Particles-Species-Database', 'File name for the species database', 'none')
+CALL prms%CreateLogicalOption(  'Part-Species[$]-DoOverwriteParameters', 'Flag to set parameters in ini-file manually', '.FALSE.')
 ! Ionization
 CALL prms%CreateLogicalOption(  'Part-DoInitialIonization'    , 'When restarting from a state, ionize the species to a '//&
                                                                 'specific degree', '.FALSE.')
@@ -1503,7 +1504,7 @@ USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_io_hdf5
-USE MOD_HDF5_input,         ONLY:ReadAttribute
+USE MOD_HDF5_input,         ONLY:ReadAttribute, DatasetExists
 USE MOD_DSMC_Vars         ,ONLY: SpecDSMC
 #if USE_MPI
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
@@ -1521,32 +1522,36 @@ CHARACTER(32)         :: hilf, hilf2
 CHARACTER(LEN=64)     :: dsetname
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
 INTEGER(HID_T)        :: dset_id_specdb                       ! Dataset identifier
+LOGICAL               :: DataSetFound
 !===================================================================================================================================
 
 ! Read-in of the species database
-SpeciesDatabase = GETSTR('Particles-Species-Database')
+SpeciesDatabase       = GETSTR('Particles-Species-Database')
 
 ALLOCATE(SpecDSMC(nSpecies))
 
 DO iSpec = 1, nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   SpecDSMC(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName','none'))
+  IF(SpecDSMC(iSpec)%Name .EQ. 'none') THEN
+    ! CALL abort(__STAMP__,'ERROR: Species-name is not defined for Species:', iSpec)
+  END IF
 END DO ! iSpec
 
-IF(SpeciesDatabase.EQ.'none') THEN
-  DO iSpec = 1, nSpecies
-    LBWRITE (UNIT_stdOut,'(66(". "))')
-    WRITE(UNIT=hilf,FMT='(I0)') iSpec
-    Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
-    Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
-  END DO ! iSpec
-ELSE
+DO iSpec = 1, nSpecies
+  Species(iSpec)%DoOverwriteParameters = GETLOGICAL('Part-Species'//TRIM(hilf)//'-DoOverwriteParameters')
+  IF(SpeciesDatabase.EQ.'none') THEN
+    Species(iSpec)%DoOverwriteParameters = .TRUE.
+  END IF
+END DO
+
+IF(SpeciesDatabase.NE.'none') THEN
   ! Initialize FORTRAN interface.
   CALL H5OPEN_F(err)
 
   ! Check if file exists
   IF(.NOT.FILEEXISTS(SpeciesDatabase)) THEN
-    CALL abort(__STAMP__,'ERROR: Database ['//TRIM(SpeciesDatabase)//'] does not exist.')
+    ! CALL abort(__STAMP__,'ERROR: Database ['//TRIM(SpeciesDatabase)//'] does not exist.')
   END IF
 
   CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
@@ -1554,16 +1559,77 @@ ELSE
   DO iSpec = 1, nSpecies
     LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
     dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
-    CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
-    LBWRITE (UNIT_stdOut,*) 'ChargeIC: ', Species(iSpec)%ChargeIC
-    CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
-    LBWRITE (UNIT_stdOut,*) 'MassIC: ', Species(iSpec)%MassIC
+
+    CALL DatasetExists(file_id_specdb,TRIM(dsetname),DataSetFound)
+    IF(.NOT.DataSetFound)THEN
+      Species(iSpec)%DoOverwriteParameters = .TRUE.
+      ! SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'
+    ELSE
+      CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
+      ! LBWRITE (UNIT_stdOut,*) 'ChargeIC: ', Species(iSpec)%ChargeIC
+      CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
+      ! LBWRITE (UNIT_stdOut,*) 'MassIC: ', Species(iSpec)%MassIC
+    END IF
+
   END DO
   ! Close the file.
   CALL H5FCLOSE_F(file_id_specdb, err)
   ! Close FORTRAN interface.
   CALL H5CLOSE_F(err)
+
 END IF
+
+IF(ANY(Species(:)%DoOverwriteParameters)) THEN 
+  DO iSpec = 1, nSpecies
+    IF(Species(iSpec)%DoOverwriteParameters) THEN
+      LBWRITE (UNIT_stdOut,'(66(". "))')
+      WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
+      Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
+    END IF
+  END DO ! iSpec
+END IF
+
+
+! IF(SpeciesDatabase.EQ.'none') THEN
+!   DO iSpec = 1, nSpecies
+!     LBWRITE (UNIT_stdOut,'(66(". "))')
+!     WRITE(UNIT=hilf,FMT='(I0)') iSpec
+!     Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
+!     Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
+!   END DO ! iSpec
+! ELSE
+!   ! Initialize FORTRAN interface.
+!   CALL H5OPEN_F(err)
+
+!   ! Check if file exists
+!   IF(.NOT.FILEEXISTS(SpeciesDatabase)) THEN
+!     CALL abort(__STAMP__,'ERROR: Database ['//TRIM(SpeciesDatabase)//'] does not exist.')
+!   END IF
+
+!   CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+
+!   DO iSpec = 1, nSpecies
+!     LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
+!     dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+
+!     CALL DatasetExists(file_id_specdb,TRIM(dsetname),DataSetFound)
+!     IF(.NOT.DataSetFound)THEN
+!       CALL abort(&
+!       __STAMP__&
+!       ,'DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']')
+!     END IF
+
+!     CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
+!     LBWRITE (UNIT_stdOut,*) 'ChargeIC: ', Species(iSpec)%ChargeIC
+!     CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
+!     LBWRITE (UNIT_stdOut,*) 'MassIC: ', Species(iSpec)%MassIC
+!   END DO
+!   ! Close the file.
+!   CALL H5FCLOSE_F(file_id_specdb, err)
+!   ! Close FORTRAN interface.
+!   CALL H5CLOSE_F(err)
+! END IF
 
 IF(nSpecies.GT.0)THEN
   LBWRITE (UNIT_stdOut,'(66(". "))')

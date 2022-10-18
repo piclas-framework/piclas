@@ -135,6 +135,7 @@ TYPE tSpecies                                                                ! P
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
   TYPE(typeSurfaceflux),ALLOCATABLE      :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission
   INTEGER                                :: nSurfacefluxBCs                  ! Number of SF emissions
+  LOGICAL                                :: DoOverwriteParameters            ! Flag to read in parameters manually
 #if IMPA
   LOGICAL                                :: IsImplicit
 #endif
