@@ -7,13 +7,13 @@ Cylinder(2) = {-50, 0, 0, 100, 0, 0, 50, Pi/6};
 // Substract the 70degCone (tool) from the cylinder (object) = Object minus tool
 BooleanDifference(3) = { Volume{2}; Delete; }{ Volume{1}; Delete; };
 // Define boundary conditions
-Physical Surface("BC_INFLOW", 29) = {4, 1};
+Physical Surface("IN", 29) = {4, 1};
 //+
-Physical Surface("BC_SYMMETRY", 30) = {3, 5};
+Physical Surface("SYM", 30) = {3, 5};
 //+
-Physical Surface("BC_OUTFLOW", 31) = {2};
+Physical Surface("OUT", 31) = {2};
 //+
-Physical Surface("BC_WALL", 32) = {7, 8, 9, 10, 11, 6};
+Physical Surface("WALL", 32) = {7, 8, 9, 10, 11, 6};
 //
 Mesh.MeshSizeMin = 1;
 //
@@ -46,3 +46,7 @@ Mesh.Binary = 0;
 Mesh.MshFileVersion = 4.1;
 //
 Save "70degCone_3D.msh";
+//+
+Field[3] = Min;
+//+
+Delete Field [3];
