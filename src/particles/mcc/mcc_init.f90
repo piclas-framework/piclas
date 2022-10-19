@@ -71,7 +71,7 @@ SUBROUTINE InitMCC()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
-USE MOD_PARTICLE_Vars ,ONLY: nSpecies, Species
+USE MOD_PARTICLE_Vars ,ONLY: nSpecies, Species, SpeciesDatabase
 USE MOD_Mesh_Vars     ,ONLY: nElems
 USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC, ChemReac, CollisMode
 USE MOD_MCC_Vars      ,ONLY: UseMCC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
@@ -144,7 +144,9 @@ IF(.NOT.UseMCC) RETURN
 ! Initialize & read-in of cross-section data
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Read-in of the cross-section database
-XSec_Database = GETSTR('Particles-CollXSec-Database')
+IF (SpeciesDatabase.EQ.'none') THEN
+  XSec_Database = GETSTR('Particles-CollXSec-Database')
+END IF
 ! Null collision method only works with a background gas
 IF(BGGas%NumberOfSpecies.GT.0) XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
 
