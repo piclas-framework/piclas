@@ -1,4 +1,5 @@
-# Hypersonic Flow around the 70° Cone (DSMC)
+(sec:tutorial-dsmc-cone-2D)=
+# Hypersonic Flow around the 70° Cone (DSMC) - 2D Mesh
 
 A widespread validation case for rarefied gas flows is the wind tunnel test of the 70° blunted cone in a hypersonic, diatomic nitrogen flow {cite}`Allegre1997`, {cite}`Moss1995`.
 Before beginning with the tutorial, copy the `dsmc-cone` directory from the tutorial folder in the top level directory to a separate location
