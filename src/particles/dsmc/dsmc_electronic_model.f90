@@ -1190,7 +1190,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars        ,ONLY: DSMC, SpecDSMC
 USE MOD_HDF5_Input       ,ONLY: DatasetExists
 USE MOD_part_tools       ,ONLY: CalcXiElec
-USE MOD_Particle_Vars    ,ONLY: Species
+USE MOD_Particle_Vars    ,ONLY: Species, SpeciesDatabase
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -1207,6 +1207,8 @@ CHARACTER(LEN=64),INTENT(IN)                          :: dsetname
 ! LOCAL VARIABLES
 INTEGER                                               :: err
 ! HDF5 specifier taken from extractParticles
+CHARACTER(LEN=256)                                    :: ElLevelDatabase
+CHARACTER(LEN=64)                                     :: datasetname
 INTEGER(HSIZE_T), DIMENSION(2)                        :: dims,sizeMax
 INTEGER(HID_T)                                        :: file_id_dsmc                       ! File identifier
 INTEGER(HID_T)                                        :: dset_id_dsmc                       ! Dataset identifier
@@ -1218,19 +1220,26 @@ REAL                                                  :: tempEnergyDiff, tempEne
 REAL                                                  :: XiMean, XiMeanMax
 LOGICAL                                               :: DataSetFound
 !===================================================================================================================================
-LBWRITE(UNIT_StdOut,'(A)') 'Read electronic level entries '//TRIM(dsetname)//' from '//TRIM(DSMC%ElectronicModelDatabase)
+IF (Species(iSpec)%DoOverwriteParameters) THEN
+  datasetname = dsetname
+  ElLevelDatabase = TRIM(DSMC%ElectronicModelDatabase)
+ELSE
+  datasetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+  ElLevelDatabase = TRIM(SpeciesDatabase)
+END IF
+LBWRITE(UNIT_StdOut,'(A)') 'Read electronic level entries '//TRIM(datasetname)//' from '//TRIM(ElLevelDatabase)
 ! Initialize FORTRAN interface.
 CALL H5OPEN_F(err)
 ! Open the file.
-CALL H5FOPEN_F (TRIM(DSMC%ElectronicModelDatabase), H5F_ACC_RDONLY_F, file_id_dsmc, err)
-CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DataSetFound)
+CALL H5FOPEN_F (TRIM(ElLevelDatabase), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+CALL DatasetExists(File_ID_DSMC,TRIM(datasetname),DataSetFound)
 IF(.NOT.DataSetFound)THEN
   CALL abort(&
   __STAMP__&
-  ,'DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(DSMC%ElectronicModelDatabase)//']')
+  ,'DataSet not found: ['//TRIM(datasetname)//'] ['//TRIM(ElLevelDatabase)//']')
 END IF
 ! Open the  dataset.
-CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
+CALL H5DOPEN_F(file_id_dsmc, datasetname, dset_id_dsmc, err)
 ! Get the file space of the dataset.
 CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
 ! get size
@@ -1279,7 +1288,7 @@ ELSE
   SpecDSMC(iSpec)%ElectronicState( 1:2, 0) = ElectronicState(1:2,0)
   SpecDSMC(iSpec)%ElectronicState( 1:2, nQuants) = ElectronicState(1:2,dims(2)-1)
   SpecDSMC(iSpec)%MaxElecQuant  = SIZE( SpecDSMC(iSpec)%ElectronicState,2)
-  LBWRITE(UNIT_StdOut,'(A,I5,A,I5,A,A,A)') 'Merged ',dims(2),' Electronic States to ',nQuants, ' for ',TRIM(dsetname),&
+  LBWRITE(UNIT_StdOut,'(A,I5,A,I5,A,A,A)') 'Merged ',dims(2),' Electronic States to ',nQuants, ' for ',TRIM(datasetname),&
       ' (+1 for the ground state)'
 END IF
 ! Close the file.
