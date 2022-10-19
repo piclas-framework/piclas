@@ -32,11 +32,11 @@ Detailed instructions for some mesh generators that we have experience with (Gms
 
 ### Mesh generation with Gmsh
 
-[Gmsh](https://gmsh.info/) is an open-source mesh generator with a built-in CAD engine. As of Gmsh 4.11.0 (October 2022), meshes can be exported in the `.msh` format. For the mesh conversion with HOPR, it is required to enable the option `save all elements` and chose the ASCII code for the file export. The mesh file can be converted with HOPR, using the corresponding mode:
+[Gmsh](https://gmsh.info/) is an open-source mesh generator with a built-in CAD engine. As of Gmsh 4.11.0 (October 2022), meshes can be exported in the `.msh` format. For the mesh conversion with HOPR, it is required to enable the option `Save all elements` and chose the ASCII code for the file export. The mesh file can be converted with HOPR, using the corresponding mode:
     
     Mode = 5
 
-Tetrahedral meshes are created by default. Hexahedral meshes can be generated directly in gmsh by using the subdivision algorithm or by using the following option in HOPR for a tetrahedral mesh:
+Tetrahedral or mixed meshes are created by default. Hexahedral meshes can be generated directly in gmsh by using the subdivision algorithm or by using the following option in HOPR for a tetrahedral mesh:
 
     SplitToHex = TRUE
 

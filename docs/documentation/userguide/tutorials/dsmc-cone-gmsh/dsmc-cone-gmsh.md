@@ -59,8 +59,7 @@ The following commands are required to save all elements even if they are not pa
     Mesh.MshFileVersion = 4.1;
     Save "70degCone_3D.msh";
 
-The mesh file (`70degCone_3D.msh`) used by **piclas** are created by supplying an input file `hopr.ini` with the required information for a mesh that has been created by Gmsh.
-The mesh file is then converted with HOPR, using the corresponding mode:
+The mesh file in the file format `.h5` used by **piclas** has to be converted using HOPR by supplying an input file `hopr.ini` using the corresponding mode:
     
     Mode = 5
 
@@ -68,5 +67,31 @@ As another possibility, the `SplitToHex` option can be enabled in the `hopr.ini`
 
 ## Flow simulation with DSMC
 
-changes compared to 2D simulation
-{ref}`sec:tutorial-dsmc-cone-2D`
+For the general information on the setup of the DSMC simulation, please see the previous tutorial {ref}`sec:tutorial-dsmc-cone-2D`. In this tutorial, only the changes in the `parameter.ini` file for the 3D simulation compared to the 2D simulation are explained further.
+
+First, the mesh file name is adapted. The number of boundaries is reduced from five to four, as only one symmetrical boundary is used in this 3D simulation. The maximum particle number per processor is increased due to the changed simulation domain. Additionally, the octree is adapted to the standard values for a 3D simulation.
+
+    MeshFile = 70degCone_3D_mesh.h5
+    Part-nBounds               = 4
+    Part-maxParticleNumber = 1500000
+    Particles-OctreePartNumNode        = 80
+    Particles-OctreePartNumNodeMin     = 60
+
+Compared to the `parameter.ini` for the 2D simulation, the symmetrical boundaries, the commands for the 2D axisymmetric simulation and the radial weighting are deleted:
+
+    Part-Boundary4-SourceName  = SYMAXIS
+    Part-Boundary4-Condition   = symmetric_axis
+    Part-Boundary5-SourceName  = ROTSYM
+    Part-Boundary5-Condition   = symmetric
+    Particles-Symmetry-Order         = 2
+    Particles-Symmetry2DAxisymmetric = T
+    Particles-RadialWeighting                 = T
+    Particles-RadialWeighting-PartScaleFactor = 60
+    Particles-RadialWeighting-CloneMode       = 2
+    Particles-RadialWeighting-CloneDelay      = 5
+
+Instead, a new symmetrical boundary is added:
+
+    Part-Boundary4-SourceName  = SYM
+    Part-Boundary4-Condition   = symmetric
+
