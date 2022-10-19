@@ -309,6 +309,8 @@ DO !iter_t=0,MaxIter
   CALL TimeStep_FPFlow()
 #elif (PP_TimeDiscMethod==400)
   CALL TimeStep_BGK()
+#elif (PP_TimeDiscMethod==600)
+  CALL TimeStep_DVM()
 #elif (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 #if USE_HDG
 #if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
@@ -317,8 +319,6 @@ DO !iter_t=0,MaxIter
   CALL TimeStepPoissonByHigueraCary() ! Higuera-Cary, Poisson
 #elif (PP_TimeDiscMethod==508)
   CALL TimeStepPoissonByBorisLeapfrog() ! Boris-Leapfrog, Poisson
-#elif (PP_TimeDiscMethod==600)
-  CALL TimeStep_DVM()
 #else
   CALL TimeStepPoissonByLSERK() ! Runge Kutta Explicit, Poisson
 #endif

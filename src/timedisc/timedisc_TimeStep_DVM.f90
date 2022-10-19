@@ -50,7 +50,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 
 !===================================================================================================================================
-
+! print*, time, IniExactFunc
+! read*
 IF (IniExactFunc.EQ.4.AND.time.EQ.0.) CALL RescaleInit(dt) ! initial rescaling if simulation initialized with non-equilibrium flow
 
 IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt)

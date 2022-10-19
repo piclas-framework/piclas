@@ -93,7 +93,6 @@ DO SideID=firstSideID,lastSideID
   ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
   locSideID  = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
   flip         = SideToElem(S2E_FLIP,SideID)
-
   Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID)
 END DO
 

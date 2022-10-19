@@ -723,13 +723,19 @@ DO iElem=1,nElems
   NormVec       (:,0,0,:)   = NormVec_PP_1       (:,0,0,:)
   TangVec1      (:,0,0,:)   = TangVec1_PP_1      (:,0,0,:)
   TangVec2      (:,0,0,:)   = TangVec2_PP_1      (:,0,0,:)
-  SurfElem      (0,0,:)     = SurfElem_PP_1      (0,0,:) !copy or sum up SurfElem?
-  Ja_Face       (:,:,0,0,:)   = Ja_Face_PP_1       (:,:,0,0,:)
-  Metrics_fTilde(:,0,0,0,:) = Metrics_fTilde_PP_1(:,0,0,0,:)
+  SurfElem      (0,0,:)     = SUM(SUM(SurfElem_PP_1(:,:,:),2),1)
+  Ja_Face       (:,:,0,0,:)   = SUM(SUM(Ja_Face_PP_1(:,:,:,:,:),4),3)
+  Metrics_fTilde(:,0,0,0,:) = Metrics_fTilde_PP_1(:,0,0,0,:)!SUM(SUM(SUM(Metrics_fTilde_PP_1(:,:,:,:,:),4),3),2)
   Metrics_gTilde(:,0,0,0,:) = Metrics_gTilde_PP_1(:,0,0,0,:)
   Metrics_hTilde(:,0,0,0,:) = Metrics_hTilde_PP_1(:,0,0,0,:)
-  ! print*, SurfElem      (0,0,:)
-  ! print*, nSides
+  ! print*, Face_xGP_PP_1
+  ! print*,'------------------'
+  ! print*, Metrics_fTilde_PP_1(:,:,:,:,:)
+  ! print*,'------------------'
+  ! print*, Metrics_gTilde_PP_1(:,:,:,:,:)
+  ! print*,'------------------'
+  ! print*, Metrics_hTilde_PP_1(:,:,:,:,:)
+  ! print*,'------------------'
   ! read*
 
   ! particle mapping

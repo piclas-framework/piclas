@@ -99,6 +99,7 @@ SWRITE(UNIT_stdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT EIDV...'
 
 Pi=ACOS(-1.)
+IniExactFunc = GETINT('IniExactFunc')
 
 DVMSpeciesData%omegaVHS = GETREAL('DVM-omegaVHS')
 DVMSpeciesData%T_Ref = GETREAL('DVM-T_Ref')

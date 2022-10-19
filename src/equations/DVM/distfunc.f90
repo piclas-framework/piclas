@@ -330,6 +330,7 @@ DO iElem =1, nElems
     CALL MacroValuesFromDistribution(MacroVal(:),U(:,i,j,k,iElem),tDeriv,tau,tilde)
     SELECT CASE (tilde)
       CASE(1) ! f~  -----> f2^    (tDeriv=dt)
+        print*, MacroVal(6), tau
         DVMMomentSave(1:3,iElem) = MacroVal(6:8)
         prefac = (EXP(-tDeriv/tau/2.)-EXP(-3.*tDeriv/tau/2.))/(1.-EXP(-tDeriv/tau/2.))/2.
       CASE(2) ! f2^ -----> f^     (tDeriv=dt/2)
