@@ -25,10 +25,10 @@ The simulation domain is created next by adding a cylindrical section and subtra
 
 Physical groups are used to define the boundary conditions at all surfaces:
 
-    Physical Surface("BC_INFLOW", 29) = {4, 1};
-    Physical Surface("BC_SYMMETRY", 30) = {3, 5};
-    Physical Surface("BC_OUTFLOW", 31) = {2};
-    Physical Surface("BC_WALL", 32) = {7, 8, 9, 10, 11, 6};
+    Physical Surface("IN", 29) = {4, 1};
+    Physical Surface("SYM", 30) = {3, 5};
+    Physical Surface("OUT", 31) = {2};
+    Physical Surface("WALL", 32) = {7, 8, 9, 10, 11, 6};
 
 The mesh options can be set with the following commands:
 
@@ -44,12 +44,27 @@ The mesh options can be set with the following commands:
     Mesh.SubdivisionAlgorithm = 2;
     Mesh.OptimizeNetgen = 1;
 
-With the added `Field` options, the size of the mesh can be specified using an explicit mathematical function using `MathEval` and restriced to specific surfaces with `Restrict`. In this tutorial, a mesh refinement at the frontal wall of the cone is enabled with this.
-Different meshing algorithms can be chosen within Gmsh
+The commands `Mesh.MeshSizeMin` and `Mesh.MeshSizeMax` define the minimum and maximum mesh element sizes. With the prescribed `Field` options, the size of the mesh can be specified using an explicit mathematical function using `MathEval` and restriced to specific surfaces with `Restrict`. In this tutorial, a mesh refinement at the frontal wall of the cone is enabled with this. `Background Field = 2` sets `Field[2]` as background field.
+Different meshing algorithms for creating the 2D and 3D meshes can be chosen within Gmsh. The command `Mesh.SubdisionAlgorithm = 2` enables the generation of a fully hexahedral mesh by subdivision of cells.
+`Mesh.OptimizeNetgen` improves the mesh quality additionally.
 
-mesh
+Next, the 3D mesh is created:
 
-save, export
+    Mesh 3;
+
+The following commands are required to save all elements even if they are not part of a physical group and to use the ASCII format, before saving the mesh as `70degCone_3D.msh`:
+
+    Mesh.SaveAll = 1;
+    Mesh.Binary = 0;
+    Mesh.MshFileVersion = 4.1;
+    Save "70degCone_3D.msh";
+
+The mesh file (`70degCone_3D.msh`) used by **piclas** are created by supplying an input file `hopr.ini` with the required information for a mesh that has been created by Gmsh.
+The mesh file is then converted with HOPR, using the corresponding mode:
+    
+    Mode = 5
+
+As another possibility, the `SplitToHex` option can be enabled in the `hopr.ini` file instead of using the `SubdivionAlgorithm` command in Gmsh.
 
 ## Flow simulation with DSMC
 
