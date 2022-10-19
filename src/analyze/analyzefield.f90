@@ -317,7 +317,11 @@ USE MOD_Mesh_Vars          ,ONLY: nElems, SurfElem, NormVec
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,S,isPoyntingIntSide,SideIDToPoyntingSide,PoyntingMainDir
 USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus,wGPSurf
+#if USE_FV
+USE MOD_FV_Vars            ,ONLY: U,U_master
+#else
 USE MOD_DG_Vars            ,ONLY: U,U_master
+#endif
 USE MOD_Globals_Vars       ,ONLY: smu0
 USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,Dielectric_MuR_Master_inv,DoDielectric
 #if USE_MPI
@@ -809,8 +813,11 @@ USE MOD_Interpolation_Vars, ONLY : wGP
 USE MOD_Globals_Vars       ,ONLY: smu0
 #endif /*PP_nVar=8*/
 USE MOD_Globals_Vars       ,ONLY: eps0
+#if USE_FV
+USE MOD_FV_Vars            ,ONLY: U
+#else
 #if !(USE_HDG)
-USE MOD_DG_Vars,            ONLY : U
+USE MOD_DG_Vars            ,ONLY: U
 #endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==1
@@ -823,6 +830,7 @@ USE MOD_Equation_Vars      ,ONLY: B,E
 #else
 USE MOD_PML_Vars           ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -857,7 +865,7 @@ Wphi=0.
 Wpsi=0.
 #endif /*PP_nVar=8*/
 DO iElem=1,nElems
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
   IF(DoPML)THEN
     IF(isPMLElem(iElem))CYCLE
   END IF
@@ -967,6 +975,9 @@ USE MOD_Globals_Vars       ,ONLY: smu0
 #endif /*PP_nVar=8*/
 USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_Dielectric_vars    ,ONLY: isDielectricElem,DielectricEps,ElemToDielectric
+#if USE_FV
+USE MOD_FV_Vars            ,ONLY: U
+#else
 #if !(USE_HDG)
 USE MOD_DG_Vars            ,ONLY: U
 #endif /*PP_nVar=8*/
@@ -981,6 +992,7 @@ USE MOD_Equation_Vars      ,ONLY: B,E
 #else
 USE MOD_PML_Vars           ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
+#endif /*USE_FV*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1016,7 +1028,7 @@ Wpsi=0.
 #endif /*PP_nVar=8*/
 
 DO iElem=1,nElems
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
   IF(DoPML)THEN
     IF(isPMLElem(iElem))CYCLE
   END IF
@@ -1281,7 +1293,7 @@ END SUBROUTINE SetDielectricFaceProfileForPoynting
 #if USE_HDG
 SUBROUTINE CalculateAverageElectricPotential()
 !===================================================================================================================================
-! Calculation of the average electric potential with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is 
+! Calculation of the average electric potential with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is
 ! missing ... ups
 !===================================================================================================================================
 ! MODULES

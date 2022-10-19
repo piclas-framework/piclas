@@ -1,9 +1,9 @@
 !=================================================================================================================================
-! Copyright (c) 2016  Prof. Claus-Dieter Munz 
+! Copyright (c) 2016  Prof. Claus-Dieter Munz
 ! This file is part of FLEXI, a high-order accurate framework for numerically solving PDEs with discontinuous Galerkin methods.
 ! For more information see https://www.flexi-project.org and https://nrg.iag.uni-stuttgart.de/
 !
-! FLEXI is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License 
+! FLEXI is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License
 ! as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
 !
 ! FLEXI is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
@@ -39,7 +39,7 @@ CONTAINS
 !> This routine will read in the current state from the statefile. Will call one of two routines: ReadStateWithoutGradients if no
 !> gradients have to be visualized or calculated and so no DG operator call is necessary, or ReadStateAndGradients if gradients
 !> are needed and we need to calculate the DG operator once.
-!> If the DG operator has to be called, we need some parameters. Either a seperate parameter file is passed,  then this one will 
+!> If the DG operator has to be called, we need some parameters. Either a seperate parameter file is passed,  then this one will
 !> be used, or we try to extract the parameter file from the userblock.
 !> If both fails and we need to compute the DG operator, the program will abort.
 !> If the DG operator should not be called and no parameter file (seperate or from userblock) can be found,
@@ -51,7 +51,7 @@ USE MOD_PreProc
 USE MOD_ReadInTools ,ONLY:ExtractParameterFile
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)               :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(INOUT) :: prmfile      !< FLEXI parameter file, used if DG operator is called
 CHARACTER(LEN=255),INTENT(IN)    :: statefile    !< HDF5 state file
@@ -61,7 +61,7 @@ LOGICAL                          :: userblockFound
 !===================================================================================================================================
 userblockFound = .TRUE. ! Set to true to later test for existing parameters either form userblock or from seperate file
 IF (LEN_TRIM(prmfile).EQ.0) THEN ! No seperate parameter file has been given
-  ! Try to extract parameter file 
+  ! Try to extract parameter file
   prmfile = ".piclas_posti.ini"
   CALL ExtractParameterFile(statefile,prmfile,userblockFound)
   ! Only abort if we need some parameters to call the DG operator
@@ -90,11 +90,15 @@ USE MOD_ReadInTools         ,ONLY: prms
 USE MOD_ReadInTools         ,ONLY: FinalizeParameters
 USE MOD_Mesh_Vars           ,ONLY: nElems,offsetElem
 USE MOD_HDF5_Input,          ONLY: OpenDataFile,ReadArray,CloseDataFile
+#if USE_FV
+USE MOD_FV_Vars             ,ONLY: U
+#else
 USE MOD_DG_Vars             ,ONLY: U
+#endif /*FV*/
 USE MOD_Interpolation       ,ONLY: DefineParametersInterpolation,InitInterpolation,FinalizeInterpolation
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT / OUTPUT VARIABLES 
+! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)           :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(IN):: prmfile       !< FLEXI parameter file, used if DG operator is called
 CHARACTER(LEN=255),INTENT(IN):: statefile     !< HDF5 state file

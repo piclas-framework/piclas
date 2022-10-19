@@ -898,7 +898,7 @@ USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 USE MOD_PML_Vars              ,ONLY: DoPML,xyzPhysicalMinMax
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -918,7 +918,7 @@ Ekin    = 0.!d0
 IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF (PartState(1,i) .GE. xyzPhysicalMinMax(1) .AND. PartState(1,i) .LE. xyzPhysicalMinMax(2) .AND. &
             PartState(2,i) .GE. xyzPhysicalMinMax(3) .AND. PartState(2,i) .LE. xyzPhysicalMinMax(4) .AND. &
@@ -958,7 +958,7 @@ IF (nSpecAnalyze.GT.1) THEN
 ELSE ! nSpecAnalyze = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF (PartState(1,i) .GE. xyzPhysicalMinMax(1) .AND. PartState(1,i) .LE. xyzPhysicalMinMax(2) .AND. &
             PartState(2,i) .GE. xyzPhysicalMinMax(3) .AND. PartState(2,i) .LE. xyzPhysicalMinMax(4) .AND. &
@@ -1006,7 +1006,7 @@ USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze,LaserInteractionEkinMaxRadius,LaserInteractionEkinMaxZPosMin
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 USE MOD_PML_Vars              ,ONLY: DoPML,xyzPhysicalMinMax
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
@@ -1030,7 +1030,7 @@ EkinMax = -1.
 IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF (PartState(1,i) .GE. xyzPhysicalMinMax(1) .AND. PartState(1,i) .LE. xyzPhysicalMinMax(2) .AND. &
             PartState(2,i) .GE. xyzPhysicalMinMax(3) .AND. PartState(2,i) .LE. xyzPhysicalMinMax(4) .AND. &
@@ -1073,7 +1073,7 @@ IF (nSpecAnalyze.GT.1) THEN
 ELSE ! nSpecAnalyze = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF (PartState(1,i) .GE. xyzPhysicalMinMax(1) .AND. PartState(1,i) .LE. xyzPhysicalMinMax(2) .AND. &
             PartState(2,i) .GE. xyzPhysicalMinMax(3) .AND. PartState(2,i) .LE. xyzPhysicalMinMax(4) .AND. &
@@ -2358,6 +2358,9 @@ USE MOD_Part_RHS         ,ONLY: PartVeloToImp
 USE MOD_Preproc
 USE MOD_PICDepo          ,ONLY: Deposition
 USE MOD_Mesh_Tools       ,ONLY: GetCNElemID
+#if USE_FV
+USE MOD_FV_Vars          ,ONLY: U
+#else
 #if ! (USE_HDG)
 USE MOD_DG_Vars          ,ONLY: U
 #else
@@ -2366,6 +2369,7 @@ USE MOD_Equation_Vars    ,ONLY: E
 #else
 #endif
 #endif
+#endif /*USE_FV*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!

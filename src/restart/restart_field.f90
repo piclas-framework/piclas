@@ -42,7 +42,11 @@ SUBROUTINE FieldRestart()
 ! USED MODULES
 USE MOD_Globals
 USE MOD_PreProc
+#if USE_FV
+USE MOD_FV_Vars                ,ONLY: U
+#else
 USE MOD_DG_Vars                ,ONLY: U
+#endif
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_IO_HDF5
 USE MOD_Mesh_Vars              ,ONLY: OffsetElem
@@ -79,7 +83,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 #endif /*USE_LOADBALANCE*/
 !USE MOD_HDG                    ,ONLY: HDG
 #else /*USE_HDG*/
+#if !(USE_FV)
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
+#endif /*USE_FV*/
 USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
@@ -251,7 +257,7 @@ ELSE ! normal restart
   PP_nVarTmp    = INT(PP_nVar,IK)
   PP_nElemsTmp  = INT(PP_nElems,IK)
   N_RestartTmp  = INT(N_Restart,IK)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
   PMLnVarTmp    = INT(PMLnVar,IK)
 #endif /*not USE_HDG*/
   ! ===========================================================================
@@ -385,6 +391,7 @@ ELSE ! normal restart
 
 #else
       CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+#if !(USE_FV)
       IF(DoPML)THEN
         ALLOCATE(U_local(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
         CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),&
@@ -394,6 +401,7 @@ ELSE ! normal restart
         END DO ! iPML
         DEALLOCATE(U_local)
       END IF ! DoPML
+#endif /*USE_FV*/
 #endif
       !CALL ReadState(RestartFile,PP_nVar,PP_N,PP_nElems,U)
     ELSE! We need to interpolate the solution to the new computational grid
@@ -449,6 +457,7 @@ ELSE ! normal restart
         CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
       END DO
       DEALLOCATE(U_local)
+#if !(USE_FV)
       IF(DoPML)THEN
         ALLOCATE(U_local(PMLnVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
         ALLOCATE(U_local2(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
@@ -462,6 +471,7 @@ ELSE ! normal restart
         END DO ! iPML
         DEALLOCATE(U_local,U_local2)
       END IF ! DoPML
+#endif /*FV*/
 #endif
       SWRITE(UNIT_stdOut,*)' DONE!'
     END IF ! IF(.NOT. InterpolateSolution)

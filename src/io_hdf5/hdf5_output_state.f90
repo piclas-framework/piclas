@@ -47,7 +47,11 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
+#if USE_FV
+USE MOD_FV_Vars                ,ONLY: U
+#else
 USE MOD_DG_Vars                ,ONLY: U
+#endif
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems,nGlobalUniqueSides,nUniqueSides,offsetSide
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
@@ -331,7 +335,7 @@ ASSOCIATE (&
     END DO ! SendID = 1, 2
 
     CALL GetMasteriLocSides()
-    
+
   END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 

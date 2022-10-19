@@ -31,6 +31,7 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           RESERVOIR
                                                           FP-Flow
                                                           BGK-Flow
+                                                          DVM
                                                           CN
                                                           ImplicitO3
                                                           ImplicitO4
@@ -94,6 +95,7 @@ ENDIF(PICLAS_IMPLICIT_ANALYZE)
 SET(PICLAS_POLYNOMIAL_DEGREE "N" CACHE STRING "N: compile with variable polynomial degree. 1,2,3,...: compile with fixed polynomial degree for performance (untested).")
 ADD_DEFINITIONS(-DPP_N=${PICLAS_POLYNOMIAL_DEGREE})
 
+
 # =========================================================================
 # Node type
 # =========================================================================
@@ -133,24 +135,30 @@ IF(PICLAS_EQNSYSNAME STREQUAL "maxwell")
   #SET(PICLAS_C_PREPROC ${F2P_C_PREPROC} -Dmaxwell)
   ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell)
   SET(PICLAS_HDG OFF)
+  SET(PICLAS_FV OFF)
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "poisson")
   ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
   SET(PICLAS_HDG ON)
+  SET(PICLAS_FV OFF)
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
   ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell_pois -DPOIS)
   SET(PICLAS_HDG OFF)
+  SET(PICLAS_FV OFF)
   MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic")
   ADD_DEFINITIONS(-DPP_nVar=3 -Dmagnetostatic)
   SET(PICLAS_HDG ON)
+  SET(PICLAS_FV OFF)
   MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic_poisson")
   ADD_DEFINITIONS(-DPP_nVar=4 -Dmagnetostatic_poisson)
   SET(PICLAS_HDG ON)
+  SET(PICLAS_FV OFF)
   MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "DVM")
   ADD_DEFINITIONS(-DPP_nVar=15 -DDVM)
   SET(PICLAS_HDG OFF)
+  SET(PICLAS_FV ON)
 ELSE()
    MESSAGE(SEND_ERROR "Unknown equation system.")
 ENDIF()
@@ -288,6 +296,9 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
    FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_BGK.f90)
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "DVM")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DVM.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=600)
 ELSE()
    MESSAGE(SEND_ERROR "Unknown time discretization method.")
 ENDIF()
@@ -334,6 +345,21 @@ IF(PICLAS_HDG)
 ELSE()
   ADD_DEFINITIONS(-DUSE_HDG=0)
 ENDIF(PICLAS_HDG)
+
+# =========================================================================
+# FV
+# =========================================================================
+
+IF(PICLAS_FV)
+  ADD_DEFINITIONS(-DUSE_FV=1)
+  IF(PICLAS_TIMEDISCMETHOD STREQUAL "DVM")
+      MESSAGE(STATUS "use FV with DVM")
+  ELSE()
+      MESSAGE(SEND_ERROR "Unknown time discretization method for FV.")
+  ENDIF()
+ELSE()
+  ADD_DEFINITIONS(-DUSE_FV=0)
+ENDIF(PICLAS_FV)
 
 # ========================================================================
 # LOADBALANCE
@@ -436,6 +462,11 @@ FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/getboundaryflux.f90)
 
 
+FILE(GLOB_RECURSE fvF90 ./src/fv/*.f90
+                        ./src/interpolation/prolongtoface.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/*.f90)
+
+
 FILE(GLOB_RECURSE implicitF90 ./src/linearsolver/linearsolver.f90
                               ./src/linearsolver/linearsolver_vars.f90
                               ./src/linearsolver/particlesolver.f90
@@ -490,6 +521,8 @@ IF(PICLAS_HDG)
   IF(PICLAS_IMPLICIT)
     LIST(APPEND piclasF90 ${implicitF90})
   ENDIF(PICLAS_IMPLICIT)
+ELSEIF(PICLAS_FV)
+  LIST(APPEND piclasF90 ${fvF90})
 ELSE()
   LIST(FILTER particlesF90 EXCLUDE REGEX ".*particle_br_electron_fluid.f90$")
   LIST(FILTER particlesF90 EXCLUDE REGEX ".*superb.f90$")
@@ -498,7 +531,7 @@ ELSE()
     LIST(APPEND piclasF90 ${implicitF90})
     LIST(APPEND piclasF90 ${precondF90})
   ENDIF(PICLAS_IMPLICIT)
-ENDIF(PICLAS_HDG)
+ENDIF()
 
 #LIST(APPEND piclasF90 ${mainF90})
 IF (PICLAS_PARTICLES)

@@ -121,7 +121,7 @@ USE MOD_Globals      ,ONLY: Abort
 USE MOD_Mesh_Vars    ,ONLY: BoundaryType,BC
 USE MOD_Equation    ,ONLY: ExactFunc
 USE MOD_DistFunc     ,ONLY: MaxwellDistribution, MaxwellScattering, MacroValuesFromDistribution
-USE MOD_Equation_Vars,ONLY: IniExactFunc, RefStatePrim, DVMSpeciesData
+USE MOD_Equation_Vars,ONLY: IniExactFunc, RefState, DVMSpeciesData
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -158,12 +158,12 @@ CASE(2) !Exact function or refstate
     END DO; END DO
   ELSE
     DO q=0,Nloc; DO p=0,Nloc
-      CALL MaxwellDistribution(RefStatePrim(:,BCState),UPrim_boundary(:,p,q))
+      CALL MaxwellDistribution(RefState(:,BCState),UPrim_boundary(:,p,q))
     END DO; END DO
   END IF
 
 CASE(4) ! maxwell scattering
-  MacroVal(:) = RefStatePrim(:,BCState)
+  MacroVal(:) = RefState(:,BCState)
   DO q=0,Nloc; DO p=0,Nloc
     CALL MaxwellDistribution(MacroVal,UPrim_boundary(:,p,q))
     CALL MaxwellScattering(UPrim_boundary(:,p,q),UPrim_master(:,p,q),NormVec(:,p,q),1,t) ! t=tDeriv here
@@ -172,15 +172,15 @@ CASE(4) ! maxwell scattering
 CASE(5) !constant static pressure+temperature inlet
   DO q=0,Nloc; DO p=0,Nloc
     CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q),t,tau,1)
-    MacroVal(1)=RefStatePrim(1,BCState)
-    MacroVal(5)=RefStatePrim(5,BCState)
+    MacroVal(1)=RefState(1,BCState)
+    MacroVal(5)=RefState(5,BCState)
     CALL MaxwellDistribution(MacroVal,UPrim_boundary(:,p,q))
   END DO; END DO
 
 CASE(6) !constant static pressure outlet
   DO q=0,Nloc; DO p=0,Nloc
     CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q),t,tau,1)
-    MacroVal(5)=RefStatePrim(5,BCState)*RefStatePrim(1,BCState)/MacroVal(1) !to get the pressure given by refstate
+    MacroVal(5)=RefState(5,BCState)*RefState(1,BCState)/MacroVal(1) !to get the pressure given by refstate
     CALL MaxwellDistribution(MacroVal,UPrim_boundary(:,p,q))
   END DO; END DO
 
@@ -276,7 +276,7 @@ USE MOD_PreProc
 USE MOD_Globals       ,ONLY: Abort
 USE MOD_Mesh_Vars     ,ONLY: BoundaryType,BC
 USE MOD_Equation     ,ONLY: ExactFunc
-USE MOD_Equation_Vars ,ONLY: IniExactFunc, RefStatePrim
+USE MOD_Equation_Vars ,ONLY: IniExactFunc, RefState
 USE MOD_TimeDisc_Vars, ONLY : dt
 USE MOD_DistFunc      ,ONLY: MaxwellDistribution, MacroValuesFromDistribution, MaxwellScattering
 IMPLICIT NONE
@@ -309,7 +309,7 @@ CASE(2) ! exact BC = Dirichlet BC !!
     IF(BCState.EQ.0) THEN ! Determine the exact BC state
       CALL ExactFunc(IniExactFunc,t,0,Face_xGP(:,p,q),UPrim_boundary)
     ELSE
-      CALL MaxwellDistribution(RefStatePrim(:,BCState),UPrim_boundary)
+      CALL MaxwellDistribution(RefState(:,BCState),UPrim_boundary)
     END IF
     gradU(:,p,q) = (UPrim_master(:,p,q) - UPrim_boundary) * sdx_Face(p,q,3)
   END DO; END DO
@@ -325,7 +325,7 @@ CASE(3) ! specular reflection
   END DO ! q
 
 CASE(4) ! diffusive
-  MacroVal(:) = RefStatePrim(:,BCState)
+  MacroVal(:) = RefState(:,BCState)
   DO q=0,PP_N
     DO p=0,PP_N
       CALL MaxwellDistribution(MacroVal,UPrim_boundary)
@@ -337,8 +337,8 @@ CASE(4) ! diffusive
 CASE(5) !constant static pressure+temperature inlet
   DO q=0,PP_N; DO p=0,PP_N
     CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q),dt,tau,2)
-    MacroVal(1)=RefStatePrim(1,BCState)
-    MacroVal(5)=RefStatePrim(5,BCState)
+    MacroVal(1)=RefState(1,BCState)
+    MacroVal(5)=RefState(5,BCState)
     CALL MaxwellDistribution(MacroVal,UPrim_boundary)
     gradU(:,p,q) = (UPrim_master(:,p,q) - UPrim_boundary) * sdx_Face(p,q,3)
   END DO; END DO
@@ -346,7 +346,7 @@ CASE(5) !constant static pressure+temperature inlet
 CASE(6) !constant static pressure outlet
   DO q=0,PP_N; DO p=0,PP_N
     CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q),dt,tau,2)
-    MacroVal(5)=RefStatePrim(5,BCState)*RefStatePrim(1,BCState)/MacroVal(1)
+    MacroVal(5)=RefState(5,BCState)*RefState(1,BCState)/MacroVal(1)
     CALL MaxwellDistribution(MacroVal,UPrim_boundary)
     gradU(:,p,q) = (UPrim_master(:,p,q) - UPrim_boundary) * sdx_Face(p,q,3)
   END DO; END DO

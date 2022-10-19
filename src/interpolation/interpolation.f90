@@ -130,6 +130,10 @@ END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT INTERPOLATION...'
 
+#if USE_FV
+PP_N = 0
+SWRITE(UNIT_stdOut,'(A)') ' Finite Volumes: PP_N set to 0'
+#else
 ! Access ini-file
 #if PP_N == N
 IF(PRESENT(Nin))THEN
@@ -149,6 +153,7 @@ IF(PP_N.NE.Ntmp) THEN
   'N in ini-file is different from hard-compiled N in PICLas. Ini/Compiled:',Ntmp,REAL(PP_N))
 END IF
 #endif
+#endif /*USE_FV*/
 
 SWRITE(UNIT_stdOut,'(A)') ' NodeType: '//NodeType
 !CALL InitInterpolationBasis(PP_N, xGP ,wGP, swGP,wBary ,L_Minus ,L_Plus , L_PlusMinus, wGPSurf, Vdm_Leg ,sVdm_Leg)
@@ -517,4 +522,3 @@ InterpolationInitIsDone = .FALSE.
 END SUBROUTINE FinalizeInterpolation
 
 END MODULE MOD_Interpolation
-

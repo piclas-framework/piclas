@@ -339,7 +339,7 @@ SUBROUTINE CalcTimeAverage(Finalize,dt,t,tPrevious)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars                ,ONLY: U
+USE MOD_FV_Vars                ,ONLY: U
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nElems
 USE MOD_HDF5_Output            ,ONLY: WriteTimeAverage
 USE MOD_Globals_Vars           ,ONLY: smu0

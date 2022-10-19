@@ -28,8 +28,7 @@ REAL              :: DiffC                    !< Diffusion constant
 INTEGER           :: IniExactFunc             !< Number of exact function used for initialization
 INTEGER           :: IniRefState              !< RefState for initialization
 INTEGER           :: nRefState                !< number of refstates defined in parameter file
-REAL,ALLOCATABLE  :: RefStatePrim(:,:)        !< Primite reference state
-REAL,ALLOCATABLE  :: RefStateCons(:,:)        !< Conservative reference state
+REAL,ALLOCATABLE  :: RefState(:,:)        !< reference state
 
 REAL              :: Pi
 
@@ -48,9 +47,7 @@ REAL                 :: DVMVeloMax(3)
 INTEGER              :: DVMDim
 REAL, ALLOCATABLE    :: DVMVelos(:,:)
 REAL, ALLOCATABLE    :: DVMWeights(:,:)
-REAL,PARAMETER       :: BoltzmannConst= 1.380648813e-23
 REAL                 :: DVMForce(3)
-REAL                 :: DVMManualTimeStep
 
 REAL                 :: c_corr
 REAL                 :: fDamping

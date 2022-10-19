@@ -311,7 +311,7 @@ USE MOD_Equation_Vars,  ONLY : DVMBGKModel, DVMMomentSave
 USE MOD_Globals,        ONLY :abort
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
-USE MOD_DG_Vars,        ONLY : U
+USE MOD_FV_Vars,        ONLY : U
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -359,7 +359,7 @@ USE MOD_Equation_Vars,  ONLY: DVMBGKModel
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
-USE MOD_DG_Vars,        ONLY : U
+USE MOD_FV_Vars,        ONLY : U
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -399,7 +399,7 @@ USE MOD_Equation_Vars,  ONLY: DVMBGKModel, DVMnVelos, DVMVelos, DVMSpeciesData, 
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
-USE MOD_DG_Vars,        ONLY : U
+USE MOD_FV_Vars,        ONLY : U
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

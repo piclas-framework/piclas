@@ -43,7 +43,7 @@ SUBROUTINE EvalFlux3D(iElem,f,g,h)
 USE MOD_PreProc
 USE MOD_Globals      ,ONLY: Abort
 USE MOD_TimeDisc_Vars,ONLY : dt
-USE MOD_DG_Vars      ,ONLY: U
+USE MOD_FV_Vars      ,ONLY: U
 USE MOD_Equation_Vars,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMBGKModel
 USE MOD_DistFunc     ,ONLY: MacroValuesFromDistribution, MaxwellDistribution, ShakhovDistribution
 IMPLICIT NONE

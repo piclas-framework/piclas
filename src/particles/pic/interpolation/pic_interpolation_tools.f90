@@ -252,6 +252,9 @@ PPURE FUNCTION GetEMField(ElemID,PartPosRef_loc)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Eval_xyz      ,ONLY: EvaluateFieldAtRefPos
+#if USE_FV
+USE MOD_FV_Vars            ,ONLY: U
+#else
 #if ! (USE_HDG)
 USE MOD_DG_Vars       ,ONLY: U
 #endif
@@ -267,6 +270,7 @@ USE MOD_Equation_Vars ,ONLY: B
 USE MOD_Equation_Vars ,ONLY: B,E
 #endif /*PP_nVar==1*/
 #endif /*USE_HDG*/
+#endif /*USE_FV*/
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -328,6 +332,9 @@ USE MOD_PICInterpolation_Vars ,ONLY: useBGField
 USE MOD_Interpolation_Vars    ,ONLY: BGField,BGType,BGDataSize
 USE MOD_Globals
 USE MOD_PreProc
+#if USE_FV
+USE MOD_FV_Vars            ,ONLY: U
+#else
 #if ! (USE_HDG)
 USE MOD_DG_Vars       ,ONLY: U
 #endif
@@ -343,6 +350,7 @@ USE MOD_Equation_Vars ,ONLY: B
 USE MOD_Equation_Vars ,ONLY: B,E
 #endif /*PP_nVar==1*/
 #endif /*USE_HDG*/
+#endif /*USE_FV*/
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -402,7 +410,7 @@ DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
     DistSum = 1.
     EXIT
   END IF ! norm.GT.0.
-  DistSum = DistSum + PartDistDepo(k,l,m) 
+  DistSum = DistSum + PartDistDepo(k,l,m)
 END DO; END DO; END DO
 
 GetEMFieldDW = 0.0

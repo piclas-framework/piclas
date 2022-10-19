@@ -58,17 +58,16 @@ CALL prms%CreateRealOption(     'DVM-T_Ref',        "Blabla.")
 CALL prms%CreateRealOption(     'DVM-d_Ref',        "Blabla.")
 CALL prms%CreateRealOption(     'DVM-Internal_DOF',        "Blabla.")
 CALL prms%CreateRealOption(     'DVM-Mass',        "Blabla.")
-CALL prms%CreateRealOption(     'DVM-ManualTimeStep',        "Blabla.", "0.")
 CALL prms%CreateIntOption(     'DVM-BGKModel',        "Blabla.")
 CALL prms%CreateIntOption(     'DVM-VeloDiscretization',        "Blabla.")
-CALL prms%CreateRealArrayOption(     'DVM-GaussHermiteTemp',        "Blabla.","300.")
-CALL prms%CreateRealArrayOption(     'DVM-VeloMin',        "Blabla.")
-CALL prms%CreateRealArrayOption(     'DVM-VeloMax',        "Blabla.")
+CALL prms%CreateRealArrayOption(     'DVM-GaussHermiteTemp',        "Blabla.","(/273.,273.,273./)")
+CALL prms%CreateRealArrayOption(     'DVM-VeloMin',        "Blabla.", "(/-1.,-1.,-1./)")
+CALL prms%CreateRealArrayOption(     'DVM-VeloMax',        "Blabla.", "(/1.,1.,1./)")
 CALL prms%CreateIntOption(     'DVM-Dimension',        "Blabla.", "3")
-CALL prms%CreateIntArrayOption(     'DVM-NewtonCotesDegree',        "Blabla.", "1")
+CALL prms%CreateIntArrayOption(     'DVM-NewtonCotesDegree',        "Blabla.", "(/1,1,1/)")
 CALL prms%CreateIntOption(      'IniRefState',  "Refstate required for initialization.")
 CALL prms%CreateRealArrayOption('RefState',     "State(s) in primitive variables (density, velx, vely, velz, pressure).",&
-                                                multiple=.TRUE.)
+                                                multiple=.TRUE., no=8 )
 CALL prms%CreateRealArrayOption('DVM-Accel', "Acceleration vector for force term", "(/0., 0., 0./)")
 END SUBROUTINE DefineParametersEquation
 
@@ -78,6 +77,7 @@ END SUBROUTINE DefineParametersEquation
 SUBROUTINE InitEquation()
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY : BoltzmannConst
 USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: nElems
 USE MOD_ReadInTools,        ONLY:GETREALARRAY,GETINTARRAY,GETREAL,GETINT, CountOption
@@ -163,8 +163,6 @@ END IF ! DVMVeloDisc
 SWRITE(UNIT_stdOut,*) DVMVelos
 SWRITE(UNIT_stdOut,*) DVMWeights
 
-DVMManualTimeStep = GETREAL('DVM-ManualTimeStep')
-
 ! Read Boundary information / RefStates / perform sanity check
 IniRefState = GETINT('IniRefState')
 nRefState=CountOption('RefState')
@@ -174,11 +172,9 @@ IF(IniRefState.GT.nRefState)THEN
 END IF
 
 IF(nRefState .GT. 0)THEN
-  ALLOCATE(RefStatePrim(8,nRefState))
-  ALLOCATE(RefStateCons(8,nRefState))
+  ALLOCATE(RefState(8,nRefState))
   DO i=1,nRefState
-    RefStatePrim(1:8,i)  = GETREALARRAY('RefState',8)
-    RefStateCons(:,i) = RefStatePrim(:,i)
+    RefState(1:8,i)  = GETREALARRAY('RefState',8)
   END DO
 END IF
 
@@ -207,7 +203,7 @@ SUBROUTINE ExactFunc(ExactFunction,tIn,tDeriv,x,resu)
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_DistFunc,      ONLY: MaxwellDistribution, MacroValuesFromDistribution, GradDistribution
-USE MOD_Equation_Vars, ONLY: DVMSpeciesData, RefStatePrim
+USE MOD_Equation_Vars, ONLY: DVMSpeciesData, RefState
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -230,18 +226,18 @@ CASE(0)
   Resu=0.
 
 CASE(1,4) !Grad 13 uniform init (only heat flux for now)
-  MacroVal(:) = RefStatePrim(:,1)
+  MacroVal(:) = RefState(:,1)
   CALL GradDistribution(MacroVal,Resu(:))
 
 CASE(2) ! couette flow, L=1m between walls, RefState: 1 -> initial state, 2 -> y=-0.5 boundary, 3 -> y=0.5 boundary
-  MacroVal(:) = RefStatePrim(:,1)
+  MacroVal(:) = RefState(:,1)
   CALL GradDistribution(MacroVal,Resu(:))
   ! steady state
   IF (tIn.GT.0.) THEN
-    WallVelo1 = RefStatePrim(2,2)
-    WallTemp1 = RefStatePrim(5,2)
-    WallVelo2 = RefStatePrim(2,3)
-    WallTemp2 = RefStatePrim(5,3)
+    WallVelo1 = RefState(2,2)
+    WallTemp1 = RefState(5,2)
+    WallVelo2 = RefState(2,3)
+    WallTemp2 = RefState(5,3)
     MacroVal(2) = WallVelo2 + (WallVelo1-WallVelo2)*(0.5-x(2))
     MacroVal(5) = WallTemp2 + (0.5-x(2))*(WallTemp1-WallTemp2+((WallVelo1-WallVelo2)**2)*(0.5+x(2))*4/15/DVMSpeciesData%R_S/2)
                                                                                                     ! cf Eucken's relation
@@ -302,14 +298,13 @@ END SUBROUTINE CalcSource
 !==================================================================================================================================
 SUBROUTINE FinalizeEquation()
 ! MODULES
-USE MOD_Equation_Vars,ONLY:EquationInitIsDone, DVMVelos, DVMWeights, RefStateCons, RefStatePrim
+USE MOD_Equation_Vars,ONLY:EquationInitIsDone, DVMVelos, DVMWeights, RefState
 IMPLICIT NONE
 !==================================================================================================================================
 EquationInitIsDone = .FALSE.
 SDEALLOCATE(DVMVelos)
 SDEALLOCATE(DVMWeights)
-SDEALLOCATE(RefStateCons)
-SDEALLOCATE(RefStatePrim)
+SDEALLOCATE(RefState)
 END SUBROUTINE FinalizeEquation
 
 END MODULE MOD_Equation

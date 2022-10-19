@@ -306,7 +306,11 @@ SUBROUTINE RecordPoints(t,Output)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+#if USE_FV
+USE MOD_FV_Vars           ,ONLY: U
+#else
 USE MOD_DG_Vars           ,ONLY: U
+#endif /*FV*/
 USE MOD_Timedisc_Vars     ,ONLY: dt
 USE MOD_TimeDisc_Vars     ,ONLY: tAnalyze
 USE MOD_Analyze_Vars      ,ONLY: Analyze_dt,FieldAnalyzeStep

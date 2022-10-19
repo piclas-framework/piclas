@@ -102,7 +102,6 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,GEO,FIBGM_Element
 USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 #endif
 #if ! (USE_HDG)
-USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
 USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
 #endif /*USE_HDG*/
 #if USE_MPI

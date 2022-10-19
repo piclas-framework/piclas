@@ -68,11 +68,15 @@ USE MOD_Mesh                 ,ONLY: InitMesh
 USE MOD_Mesh_Vars            ,ONLY: GetMeshMinMaxBoundariesIsDone
 USE MOD_Equation             ,ONLY: InitEquation
 USE MOD_GetBoundaryFlux      ,ONLY: InitBC
+#if USE_FV
+USE MOD_FV                   ,ONLY: InitFV
+#else
 USE MOD_DG                   ,ONLY: InitDG
 USE MOD_Mortar               ,ONLY: InitMortar
 #if ! (USE_HDG)
 USE MOD_PML                  ,ONLY: InitPML
 #endif /*USE_HDG*/
+#endif /*USE_FV*/
 USE MOD_Dielectric           ,ONLY: InitDielectric
 USE MOD_Analyze              ,ONLY: InitAnalyze
 USE MOD_RecordPoints         ,ONLY: InitRecordPoints
@@ -149,9 +153,9 @@ IF(IsLoadBalance)THEN
   !WriteNewMesh       =.FALSE. !not used anymore?
   InterpolateSolution=.FALSE.
   N_Restart=PP_N
-  CALL InitMortar()
+  ! CALL InitMortar()
 ELSE
-  CALL InitMortar()
+  ! CALL InitMortar()
   CALL InitRestart()
   GetMeshMinMaxBoundariesIsDone = .FALSE. ! Initialize this logical only once (assume that the mesh sizes does not change during load balance restarts)
 END IF
@@ -179,6 +183,9 @@ CALL InitBC()
 !#ifdef PARTICLES
 !CALL InitParticles()
 !#endif
+#if USE_FV
+CALL InitFV()
+#else
 #if !(USE_HDG)
 CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
 #endif /*USE_HDG*/
@@ -187,6 +194,7 @@ CALL InitDG()
 #if defined(ROS) || defined(IMPA)
 CALL InitLinearSolver()
 #endif /*ROS /IMEX*/
+#endif /*USE_FV*/
 !#if defined(IMEX)
 !CALL InitCSR()
 !#endif /*IMEX*/
@@ -252,6 +260,9 @@ USE MOD_Mesh                       ,ONLY: FinalizeMesh
 USE MOD_Equation                   ,ONLY: FinalizeEquation
 USE MOD_Interfaces                 ,ONLY: FinalizeInterfaces
 USE MOD_GetBoundaryFlux            ,ONLY: FinalizeBC
+#if USE_FV
+USE MOD_FV                         ,ONLY: FinalizeFV
+#else
 USE MOD_DG                         ,ONLY: FinalizeDG
 USE MOD_Mortar                     ,ONLY: FinalizeMortar
 USE MOD_Dielectric                 ,ONLY: FinalizeDielectric
@@ -260,6 +271,7 @@ USE MOD_PML                        ,ONLY: FinalizePML
 #else
 USE MOD_HDG                        ,ONLY: FinalizeHDG
 #endif /*USE_HDG*/
+#endif /*USE_FV*/
 USE MOD_Analyze                    ,ONLY: FinalizeAnalyze
 USE MOD_RecordPoints               ,ONLY: FinalizeRecordPoints
 USE MOD_RecordPoints_Vars          ,ONLY: RP_Data
@@ -317,6 +329,9 @@ CALL FinalizeElemData(ElementOut)
 !Finalize
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()
+#if USE_FV
+CALL FinalizeFV()
+#else
 CALL FinalizeDG()
 #if defined(IMPA) || defined(ROS)
 !CALL FinalizeCSR()
@@ -328,12 +343,13 @@ CALL FinalizePML()
 #else
 CALL FinalizeHDG()
 #endif /*USE_HDG*/
+#endif /*USE_FV*/
 CALL FinalizeEquation()
 CALL FinalizeBC()
 IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
 CALL FinalizeRestart()
 CALL FinalizeMesh()
-CALL FinalizeMortar()
+! CALL FinalizeMortar()
 #ifdef PARTICLES
 CALL FinalizeSurfaceModel()
 CALL FinalizeSurfaceModelAnalyze()

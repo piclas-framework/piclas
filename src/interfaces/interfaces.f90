@@ -75,7 +75,7 @@ SUBROUTINE InitInterfaces
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars        ,ONLY: nSides
-#if ! (USE_HDG)
+#if ! (USE_HDG) && !(USE_FV)
 USE MOD_PML_vars         ,ONLY: DoPML,isPMLFace
 #endif /*NOT HDG*/
 USE MOD_Dielectric_vars  ,ONLY: DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem,DielectricFluxNonConserving
@@ -104,7 +104,7 @@ ALLOCATE(InterfaceRiemann(1:nSides))
 DO SideID=1,nSides
   InterfaceRiemann(SideID)=-1 ! set default to invalid number: check later
   ! 0.) Sanity: It is forbidden to connect a PML to a dielectric region because it is not implemented!
-#if !(USE_HDG) /*pure Maxwell simulations*/
+#if !(USE_HDG) && !(USE_FV) /*pure Maxwell simulations*/
   IF(DoPML.AND.DoDielectric)THEN
     IF(isPMLFace(SideID).AND.isDielectricFace(SideID))THEN
       CALL abort(&

@@ -351,7 +351,11 @@ SUBROUTINE CalcError(time,L_2_Error,L_Inf_Error)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+#if USE_FV
+USE MOD_FV_Vars            ,ONLY: U
+#else
 USE MOD_DG_Vars            ,ONLY: U
+#endif /*FV*/
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze

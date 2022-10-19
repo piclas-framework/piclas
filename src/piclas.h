@@ -112,6 +112,10 @@
 #define PP_ij      i,j
 #endif
 
+#if USE_FV
+#define PP_1 1
+#endif
+
 #ifdef INTKIND8
 #define MPI_INTEGER_INT_KIND MPI_INTEGER8
 #else

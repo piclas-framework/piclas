@@ -52,7 +52,7 @@ USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
 USE MOD_Restart_Vars           ,ONLY: DoRestart,FlushInitialState
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
 #if USE_LOADBALANCE
@@ -62,7 +62,8 @@ USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
 #endif /*USE_LOADBALANCE*/
-#else
+#endif /*!(USE_HDG) && !(USE_FV)*/
+#if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: iterationTotal,RunTimeTotal
 #endif /*USE_HDG*/
 #ifdef PP_POIS
@@ -226,7 +227,7 @@ IF(MeasureTrackTime)THEN
   tTracking=0
   tLocalization=0
 END IF
-IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file 
+IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file
 #endif /*PARTICLES*/
 
 ! No computation needed if tEnd=tStart!
@@ -259,14 +260,15 @@ DO !iter_t=0,MaxIter
 
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
 
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
   IF(DoPML) CALL PMLTimeRamping(time,PMLTimeRamp)
-#else
+#endif /*!(USE_HDG) && !(USE_FV)*/
+#if USE_HDG
   IF(MPIroot)THEN
     iterationTotal = 0
     RunTimeTotal   = 0.
   END IF ! MPIroot
-#endif /*NOT USE_HDG*/
+#endif /*USE_HDG*/
 
   CALL PrintStatusLine(time,dt,tStart,tEnd)
 
@@ -315,6 +317,8 @@ DO !iter_t=0,MaxIter
   CALL TimeStepPoissonByHigueraCary() ! Higuera-Cary, Poisson
 #elif (PP_TimeDiscMethod==508)
   CALL TimeStepPoissonByBorisLeapfrog() ! Boris-Leapfrog, Poisson
+#elif (PP_TimeDiscMethod==600)
+  CALL TimeStep_DVM()
 #else
   CALL TimeStepPoissonByLSERK() ! Runge Kutta Explicit, Poisson
 #endif

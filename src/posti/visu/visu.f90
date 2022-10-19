@@ -523,7 +523,11 @@ END SUBROUTINE visu
 SUBROUTINE FinalizeVisu()
 USE MOD_Globals
 USE MOD_Visu_Vars
+#if USE_FV
+USE MOD_FV_Vars
+#else
 USE MOD_DG_Vars
+#endif /*FV*/
 USE MOD_Mesh_Vars, ONLY: Elem_xGP
 IMPLICIT NONE
 !===================================================================================================================================

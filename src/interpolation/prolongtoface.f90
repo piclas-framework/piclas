@@ -25,9 +25,15 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
+#if USE_FV
+INTERFACE ProlongToFace
+  MODULE PROCEDURE ProlongToFace_FV
+END INTERFACE
+#else
 INTERFACE ProlongToFace
   MODULE PROCEDURE ProlongToFace_sideBased
 END INTERFACE
+#endif
 
 INTERFACE ProlongToFace_BC
   MODULE PROCEDURE ProlongToFace_BC
@@ -44,6 +50,72 @@ PUBLIC::ProlongToFace_Elementlocal
 !===================================================================================================================================
 
 CONTAINS
+
+SUBROUTINE ProlongToFace_FV(Uvol,Uface_master,Uface_slave,doMPISides)
+!===================================================================================================================================
+! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
+! integration points, using fast 1D Interpolation and store in global side structure
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Interpolation_Vars, ONLY: L_Minus,L_Plus
+USE MOD_PreProc
+USE MOD_Mesh_Vars,          ONLY: SideToElem
+USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide
+USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,nSides,firstMortarMPISide,lastMortarMPISide
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
+REAL,INTENT(IN)                 :: Uvol(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(INOUT)              :: Uface_master(PP_nVar,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar,0:PP_N,0:PP_N,1:nSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: l,p,q,ElemID,SideID,flip,LocSideID,firstSideID,lastSideID
+REAL                            :: Uface(PP_nVar,0:PP_N,0:PP_N)
+!===================================================================================================================================
+IF(doMPISides)THEN
+  ! only YOUR MPI Sides are filled
+  firstSideID = firstMPISide_YOUR
+  lastSideID  = lastMPISide_YOUR
+ELSE
+  ! (Mortar-)InnerSides and MINE MPISides are filled
+  firstSideID = firstInnerSide
+  lastSideID  = lastMPISide_MINE
+END IF
+
+DO SideID=firstSideID,lastSideID
+  ! neighbor side !ElemID,locSideID and flip =-1 if not existing
+  ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
+  locSideID  = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
+  flip         = SideToElem(S2E_FLIP,SideID)
+
+  Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID)
+END DO
+
+! Second process Minus/Master sides, U_Minus is always MINE
+! master side, flip=0
+IF(doMPISides)THEN
+  ! only MPI mortars
+  firstSideID = firstMortarMPISide
+   lastSideID =  lastMortarMPISide
+ELSE
+  ! BCSides, (Mortar-)InnerSides and MINE MPISides are filled
+  firstSideID = firstBCSide
+   lastSideID =  lastMPISide_MINE
+END IF
+
+DO SideID=firstSideID,lastSideID
+  ElemID    = SideToElem(S2E_ELEM_ID,SideID)
+  locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
+  Uface_master(:,0,0,SideID)=Uvol(:,0,0,0,ElemID)
+END DO !SideID
+
+END SUBROUTINE ProlongToFace_FV
 
 SUBROUTINE ProlongToFace_SideBased(Uvol,Uface_master,Uface_slave,doMPISides)
 !===================================================================================================================================

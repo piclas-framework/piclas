@@ -740,15 +740,24 @@ REAL,INTENT(OUT),OPTIONAL :: wGP(0:N_in)  ! Gausspoint weights
 !local variables
 INTEGER            :: iGP
 !===================================================================================================================================
-DO iGP=0,N_in
-  xGP(iGP)=-COS(iGP/REAL(N_in)*ACOS(-1.))
-END DO
-IF(PRESENT(wGP))THEN
+! Attention PP_N=0: Lobatto has no meaning, respectively Gauss/Lobatto nodes can't be distinguished anymore
+! natural choice: xGP=0 and wGP=2
+IF(N_in.EQ.0)THEN
+  xGP=0.
+  IF(PRESENT(wGP))THEN
+    wGP=2.
+  END IF
+ELSE
   DO iGP=0,N_in
-    wGP(iGP)=ACOS(-1.)/REAL(N_in)
+    xGP(iGP)=-COS(iGP/REAL(N_in)*ACOS(-1.))
   END DO
-  wGP(0)=wGP(0)*0.5
-  wGP(N_in)=wGP(N_in)*0.5
+  IF(PRESENT(wGP))THEN
+    DO iGP=0,N_in
+      wGP(iGP)=ACOS(-1.)/REAL(N_in)
+    END DO
+    wGP(0)=wGP(0)*0.5
+    wGP(N_in)=wGP(N_in)*0.5
+  END IF
 END IF
 END SUBROUTINE ChebyGaussLobNodesAndWeights
 
