@@ -16,15 +16,38 @@ First, create a new file in gmsh: `70DegCone_3D.geo`. In general, the mesh can b
 After opening the `.geo` script file, select the OpenCASCADE CAD kernel and open the provided `70DegCone_3D_model.step` file with the following commands:
 
     SetFactory("OpenCASCADE");
-    (v) = 70DegCone_3D_model.step;
+    v() = ShapeFromFile("70degCone_3D_model.step");
 
-physical groups
+The simulation domain is created next by adding a cylindrical section and subtracting the volume of the cone.
 
-mesh options
+    Cylinder(2) = {-50, 0, 0, 100, 0, 0, 50, Pi/6};
+    BooleanDifference(3) = { Volume{2}; Delete; }{ Volume{1}; Delete; };
 
-mesh + refinements
+Physical groups are used to define the boundary conditions at all surfaces:
 
-edit script
+    Physical Surface("BC_INFLOW", 29) = {4, 1};
+    Physical Surface("BC_SYMMETRY", 30) = {3, 5};
+    Physical Surface("BC_OUTFLOW", 31) = {2};
+    Physical Surface("BC_WALL", 32) = {7, 8, 9, 10, 11, 6};
+
+The mesh options can be set with the following commands:
+
+    Mesh.MeshSizeMin = 1;
+    Mesh.MeshSizeMax = 10;
+    Field[1] = MathEval;
+    Field[1].F = "0.2";
+    Field[2] = Restrict;
+    Field[2].SurfacesList = {7, 8, 9};
+    Background Field = 2;
+    Mesh.Algorithm = 1;
+    Mesh.Algorithm3D = 7;
+    Mesh.SubdivisionAlgorithm = 2;
+    Mesh.OptimizeNetgen = 1;
+
+With the added `Field` options, the size of the mesh can be specified using an explicit mathematical function using `MathEval` and restriced to specific surfaces with `Restrict`. In this tutorial, a mesh refinement at the frontal wall of the cone is enabled with this.
+Different meshing algorithms can be chosen within Gmsh
+
+mesh
 
 save, export
 
