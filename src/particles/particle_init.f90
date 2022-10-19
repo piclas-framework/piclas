@@ -1552,6 +1552,7 @@ DO iSpec = 1, nSpecies
 END DO ! iSpec
 
 DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
   Species(iSpec)%DoOverwriteParameters = GETLOGICAL('Part-Species'//TRIM(hilf)//'-DoOverwriteParameters')
   IF(SpeciesDatabase.EQ.'none') THEN
     Species(iSpec)%DoOverwriteParameters = .TRUE.
