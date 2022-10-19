@@ -1515,7 +1515,7 @@ USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_io_hdf5
-USE MOD_HDF5_input,         ONLY:ReadAttribute, DatasetExists
+USE MOD_HDF5_input,         ONLY:ReadAttribute, DatasetExists, AttributeExists
 USE MOD_DSMC_Vars         ,ONLY: SpecDSMC
 #if USE_MPI
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
@@ -1531,14 +1531,13 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 INTEGER               :: iSpec,err
 CHARACTER(32)         :: hilf, hilf2
 CHARACTER(LEN=64)     :: dsetname
-CHARACTER(LEN=64)     :: attrname
+CHARACTER(LEN=64)     :: AttribName
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
 INTEGER(HID_T)        :: dset_id_specdb                       ! Dataset identifier
 LOGICAL               :: DataSetFound
-LOGICAL               :: AttrExists
+LOGICAL               :: Attr_Exists
+INTEGER(HID_T)        :: Loc_ID, Attr_ID
 !===================================================================================================================================
-AttrExists = .TRUE.
-
 ! Read-in of the species database
 SpeciesDatabase       = GETSTR('Particles-Species-Database')
 
@@ -1574,25 +1573,18 @@ IF(SpeciesDatabase.NE.'none') THEN
     LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
     dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
 
-    ! CALL DatasetExists(file_id_specdb,TRIM(TRIM(dsetname)//'/ChargeIC'),DataSetFound,attrib=.TRUE.)
-    ! print*, '********************', DataSetFound
-    ! IF(DatasetFound) THEN
-      
-    ! END IF
-
-
-
     CALL DatasetExists(file_id_specdb,TRIM(dsetname),DataSetFound)
     IF(.NOT.DataSetFound)THEN
       Species(iSpec)%DoOverwriteParameters = .TRUE.
       SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'
     ELSE
-      ! attrname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name//'/ChargeIC'))
-      attrname = TRIM('ChargeIC')
-      !CALL DatasetExists(file_id_specdb,'ChargeIC',AttrExists,attrib=.TRUE.)
-      ! CALL H5AEXISTS_BY_NAME_F(file_id_specdb,'/Species/H2/ChargeIC',AttrExists,iError)
-      ! print*, 'Attribute exists  ', TRIM(attrname), AttrExists
-      CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
+
+      CALL AttributeExists(file_id_specdb,'ChargeIC',TRIM(dsetname), AttrExists=Attr_Exists)
+      IF (Attr_Exists) THEN
+        CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
+      ELSE 
+        Species(iSpec)%ChargeIC = 0.0
+      END IF
       LBWRITE (UNIT_stdOut,*) 'ChargeIC: ', Species(iSpec)%ChargeIC
       CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
       LBWRITE (UNIT_stdOut,*) 'MassIC: ', Species(iSpec)%MassIC

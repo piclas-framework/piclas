@@ -287,7 +287,7 @@ USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelo
 USE MOD_part_emission_tools    ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_RegionsSetInternalTemp
 USE MOD_io_hdf5
-USE MOD_HDF5_input             ,ONLY:ReadAttribute, DatasetExists
+USE MOD_HDF5_input             ,ONLY:ReadAttribute, DatasetExists, AttributeExists
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -304,6 +304,7 @@ INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iDOF, VarNum,
 INTEGER               :: iColl, jColl, pColl, nCollision ! for collision parameter read in
 REAL                  :: A1, A2, delta_ij     ! species constant for cross section (p. 24 Laux)
 LOGICAL               :: PostCollPointerSet
+LOGICAL               :: Attr_Exists
 CHARACTER(LEN=64)     :: dsetname
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
 INTEGER(HID_T)        :: dset_id_specdb                       ! Dataset identifier
@@ -419,6 +420,7 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
       IF(CollInf%averagedCollisionParameters) THEN
         LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
         dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+        print*, 'DatasetName', dsetname, file_id_specdb
 
         IF(Species(iSpec)%DoOverwriteParameters) THEN
           SpecDSMC(iSpec)%Tref     = GETREAL('Part-Species'//TRIM(hilf)//'-Tref'     )
@@ -435,13 +437,26 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
           END IF ! alphaVSS parameter check
         ELSE
           CALL ReadAttribute(file_id_specdb,'Tref',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Tref)
-          LBWRITE (UNIT_stdOut,*) 'Tref: ', SpecDSMC(iSpec)%Tref
+          LBWRITE (UNIT_stdOut,*) 'Tref: ', SpecDSMC(iSpec)%Tref, iSpec, dsetname, file_id_specdb
           CALL ReadAttribute(file_id_specdb,'dref',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%dref)
           LBWRITE (UNIT_stdOut,*) 'dref: ', SpecDSMC(iSpec)%dref
           CALL ReadAttribute(file_id_specdb,'omega',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%omega)
           LBWRITE (UNIT_stdOut,*) 'omega: ', SpecDSMC(iSpec)%omega
-          CALL ReadAttribute(file_id_specdb,'alphaVSS',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%alphaVSS)
+          ! CALL AttributeExists(file_id_specdb,'alphaVSS',TRIM(dsetname), AttrExists=Attr_Exists)
+          ! IF (Attr_Exists) THEN
+          !   CALL ReadAttribute(file_id_specdb,'alphaVSS',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%alphaVSS)
+          ! ELSE 
+            SpecDSMC(iSpec)%alphaVSS = 1.0
+          !END IF
           LBWRITE (UNIT_stdOut,*) 'alphaVSS: ', SpecDSMC(iSpec)%alphaVSS
+          ! check for faulty parameters
+          IF((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
+            CALL Abort(__STAMP__,'ERROR in species data: check collision parameters in ini \n'//&
+              'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0 - but must not be 0')
+          END IF ! (Tref * dref * alphaVSS) .EQ. 0
+          IF ((SpecDSMC(iSpec)%alphaVSS.LT.0.0) .OR. (SpecDSMC(iSpec)%alphaVSS.GT.2.0)) THEN
+            CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Species'//TRIM(hilf)//'-alphaVSS must not be lower 0 or greater 2')
+          END IF ! alphaVSS parameter check
         END IF
 
       END IF ! averagedCollisionParameters
