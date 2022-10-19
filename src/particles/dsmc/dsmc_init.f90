@@ -426,13 +426,13 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
           SpecDSMC(iSpec)%omega    = GETREAL('Part-Species'//TRIM(hilf)//'-omega'    )
           SpecDSMC(iSpec)%alphaVSS = GETREAL('Part-Species'//TRIM(hilf)//'-alphaVSS' )
           ! check for faulty parameters
-            ! IF((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
-            !   CALL Abort(__STAMP__,'ERROR in species data: check collision parameters in ini \n'//&
-            !     'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0 - but must not be 0')
-            ! END IF ! (Tref * dref * alphaVSS) .EQ. 0
-            ! IF ((SpecDSMC(iSpec)%alphaVSS.LT.0.0) .OR. (SpecDSMC(iSpec)%alphaVSS.GT.2.0)) THEN
-            !   CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Species'//TRIM(hilf)//'-alphaVSS must not be lower 0 or greater 2')
-            ! END IF ! alphaVSS parameter check
+          IF((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
+            CALL Abort(__STAMP__,'ERROR in species data: check collision parameters in ini \n'//&
+              'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0 - but must not be 0')
+          END IF ! (Tref * dref * alphaVSS) .EQ. 0
+          IF ((SpecDSMC(iSpec)%alphaVSS.LT.0.0) .OR. (SpecDSMC(iSpec)%alphaVSS.GT.2.0)) THEN
+            CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Species'//TRIM(hilf)//'-alphaVSS must not be lower 0 or greater 2')
+          END IF ! alphaVSS parameter check
         ELSE
           CALL ReadAttribute(file_id_specdb,'Tref',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Tref)
           LBWRITE (UNIT_stdOut,*) 'Tref: ', SpecDSMC(iSpec)%Tref
@@ -440,6 +440,8 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
           LBWRITE (UNIT_stdOut,*) 'dref: ', SpecDSMC(iSpec)%dref
           CALL ReadAttribute(file_id_specdb,'omega',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%omega)
           LBWRITE (UNIT_stdOut,*) 'omega: ', SpecDSMC(iSpec)%omega
+          CALL ReadAttribute(file_id_specdb,'alphaVSS',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%alphaVSS)
+          LBWRITE (UNIT_stdOut,*) 'alphaVSS: ', SpecDSMC(iSpec)%alphaVSS
         END IF
 
       END IF ! averagedCollisionParameters

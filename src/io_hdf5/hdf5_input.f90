@@ -623,7 +623,7 @@ END IF
 CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
 
 IF(iError.NE.0) CALL abort(__STAMP__,&
-    'Attribute '//TRIM(AttribName)//' does not exist or h5 file already opened by a differen program')
+    'Attribute '//TRIM(AttribName)//' does not exist or h5 file already opened by a different program')
 
 IF(PRESENT(RealArray))     RealArray=0.
 IF(PRESENT(RealScalar))    RealScalar=0.

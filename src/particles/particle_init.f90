@@ -1531,10 +1531,13 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 INTEGER               :: iSpec,err
 CHARACTER(32)         :: hilf, hilf2
 CHARACTER(LEN=64)     :: dsetname
+CHARACTER(LEN=64)     :: attrname
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
 INTEGER(HID_T)        :: dset_id_specdb                       ! Dataset identifier
 LOGICAL               :: DataSetFound
+LOGICAL               :: AttrExists
 !===================================================================================================================================
+AttrExists = .TRUE.
 
 ! Read-in of the species database
 SpeciesDatabase       = GETSTR('Particles-Species-Database')
@@ -1571,16 +1574,29 @@ IF(SpeciesDatabase.NE.'none') THEN
     LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
     dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
 
+    ! CALL DatasetExists(file_id_specdb,TRIM(TRIM(dsetname)//'/ChargeIC'),DataSetFound,attrib=.TRUE.)
+    ! print*, '********************', DataSetFound
+    ! IF(DatasetFound) THEN
+      
+    ! END IF
+
+
+
     CALL DatasetExists(file_id_specdb,TRIM(dsetname),DataSetFound)
     IF(.NOT.DataSetFound)THEN
       Species(iSpec)%DoOverwriteParameters = .TRUE.
       SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'
     ELSE
+      ! attrname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name//'/ChargeIC'))
+      attrname = TRIM('ChargeIC')
+      !CALL DatasetExists(file_id_specdb,'ChargeIC',AttrExists,attrib=.TRUE.)
+      ! CALL H5AEXISTS_BY_NAME_F(file_id_specdb,'/Species/H2/ChargeIC',AttrExists,iError)
+      ! print*, 'Attribute exists  ', TRIM(attrname), AttrExists
       CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
       LBWRITE (UNIT_stdOut,*) 'ChargeIC: ', Species(iSpec)%ChargeIC
       CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
       LBWRITE (UNIT_stdOut,*) 'MassIC: ', Species(iSpec)%MassIC
-      CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
+      CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,IntScalar=Species(iSpec)%InterID)
       LBWRITE (UNIT_stdOut,*) 'InteractionID: ', Species(iSpec)%InterID
     END IF
 
