@@ -95,7 +95,9 @@ END IF
 !==============================
 
 ! 1. compute flux for non-BC sides: Compute fluxes on PP_N, no additional interpolation required
-DO SideID=firstSideID,lastSideID
+! print*, firstSideID,lastSideID
+DO SideID=firstSideID_wo_BC,lastSideID
+  ! print*, SideID
   ! print*, U_Master(:,:,:,SideID)
   ! print*, '-----------------'
   ! print*, U_Slave(:,:,:,SideID)
