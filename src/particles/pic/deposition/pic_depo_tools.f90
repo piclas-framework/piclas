@@ -160,6 +160,7 @@ USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
 USE MOD_PICDepo_Vars       ,ONLY: NodeVolume
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemsJ, ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared
+USE MOD_Mesh_Vars          ,ONLY: sJ
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -225,14 +226,25 @@ DO iElem = firstElem, lastElem
 #endif /*USE_MPI*/
     ! Get UniqueNodeIDs
     NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iElem))
-    NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + DetJac(1,0,0,0)
-    NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + DetJac(1,1,0,0)
-    NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + DetJac(1,1,1,0)
-    NodeVolume(NodeID(4)) = NodeVolume(NodeID(4)) + DetJac(1,0,1,0)
-    NodeVolume(NodeID(5)) = NodeVolume(NodeID(5)) + DetJac(1,0,0,1)
-    NodeVolume(NodeID(6)) = NodeVolume(NodeID(6)) + DetJac(1,1,0,1)
-    NodeVolume(NodeID(7)) = NodeVolume(NodeID(7)) + DetJac(1,1,1,1)
-    NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + DetJac(1,0,1,1)
+    ! NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + DetJac(1,0,0,0)
+    ! NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + DetJac(1,1,0,0)
+    ! NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + DetJac(1,1,1,0)
+    ! NodeVolume(NodeID(4)) = NodeVolume(NodeID(4)) + DetJac(1,0,1,0)
+    ! NodeVolume(NodeID(5)) = NodeVolume(NodeID(5)) + DetJac(1,0,0,1)
+    ! NodeVolume(NodeID(6)) = NodeVolume(NodeID(6)) + DetJac(1,1,0,1)
+    ! NodeVolume(NodeID(7)) = NodeVolume(NodeID(7)) + DetJac(1,1,1,1)
+    ! NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + DetJac(1,0,1,1)
+
+    DO i=0,PP_N;DO j=0,PP_N;DO k=0,PP_N
+      NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + 1/sJ(i,j,k,iElem)*((1.-xGP(i))*(1.-xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + 1/sJ(i,j,k,iElem)*((1.+xGP(i))*(1.-xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + 1/sJ(i,j,k,iElem)*((1.+xGP(i))*(1.+xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NodeVolume(NodeID(4)) = NodeVolume(NodeID(4)) + 1/sJ(i,j,k,iElem)*((1.-xGP(i))*(1.+xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NodeVolume(NodeID(5)) = NodeVolume(NodeID(5)) + 1/sJ(i,j,k,iElem)*((1.-xGP(i))*(1.-xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NodeVolume(NodeID(6)) = NodeVolume(NodeID(6)) + 1/sJ(i,j,k,iElem)*((1.+xGP(i))*(1.-xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NodeVolume(NodeID(7)) = NodeVolume(NodeID(7)) + 1/sJ(i,j,k,iElem)*((1.+xGP(i))*(1.+xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + 1/sJ(i,j,k,iElem)*((1.-xGP(i))*(1.+xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+    END DO; END DO; END DO
 #if USE_MPI
   END ASSOCIATE
 #endif /*USE_MPI*/

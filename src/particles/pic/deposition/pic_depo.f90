@@ -87,7 +87,7 @@ USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNo
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Interpolation          ,ONLY: GetVandermonde
-USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU
+USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU, wGP
 USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,Vdm_EQ_N
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
@@ -210,28 +210,19 @@ CASE('cell_volweight','better_volweight')
   ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
   CellVolWeightFac(0:PP_N) = xGP(0:PP_N)
   CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
-  CALL LegendreGaussNodesAndWeights(1,xGP_tmp,wGP_tmp)
-  ALLOCATE( Vdm_tmp(0:1,0:PP_N))
-  CALL InitializeVandermonde(PP_N,1,wBary,xGP,xGP_tmp,Vdm_tmp)
+  CellVolWeight_Volumes=0.0
   DO iElem=1, nElems
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
-          DetLocal(1,i,j,k)=1./sJ(i,j,k,iElem)
-        END DO ! i=0,PP_N
-      END DO ! j=0,PP_N
-    END DO ! k=0,PP_N
-    CALL ChangeBasis3D(1,PP_N, 1,Vdm_tmp, DetLocal(:,:,:,:),DetJac(:,:,:,:))
-    DO k=0,1
-      DO j=0,1
-        DO i=0,1
-          CellVolWeight_Volumes(i,j,k,iElem) = DetJac(1,i,j,k)*wGP_tmp(i)*wGP_tmp(j)*wGP_tmp(k)
-        END DO ! i=0,PP_N
-      END DO ! j=0,PP_N
-    END DO ! k=0,PP_N
+    DO i=0,PP_N;DO j=0,PP_N;DO k=0,PP_N
+      CellVolWeight_Volumes(0,0,0,iElem) = CellVolWeight_Volumes(0,0,0,iElem) + 1/sJ(i,j,k,iElem)*((1.-xGP(i))*(1.-xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      CellVolWeight_Volumes(0,0,1,iElem) = CellVolWeight_Volumes(0,0,1,iElem) + 1/sJ(i,j,k,iElem)*((1.-xGP(i))*(1.-xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      CellVolWeight_Volumes(0,1,0,iElem) = CellVolWeight_Volumes(0,1,0,iElem) + 1/sJ(i,j,k,iElem)*((1.-xGP(i))*(1.+xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      CellVolWeight_Volumes(0,1,1,iElem) = CellVolWeight_Volumes(0,1,1,iElem) + 1/sJ(i,j,k,iElem)*((1.-xGP(i))*(1.+xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      CellVolWeight_Volumes(1,0,0,iElem) = CellVolWeight_Volumes(1,0,0,iElem) + 1/sJ(i,j,k,iElem)*((1.+xGP(i))*(1.-xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      CellVolWeight_Volumes(1,0,1,iElem) = CellVolWeight_Volumes(1,0,1,iElem) + 1/sJ(i,j,k,iElem)*((1.+xGP(i))*(1.-xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      CellVolWeight_Volumes(1,1,0,iElem) = CellVolWeight_Volumes(1,1,0,iElem) + 1/sJ(i,j,k,iElem)*((1.+xGP(i))*(1.+xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      CellVolWeight_Volumes(1,1,1,iElem) = CellVolWeight_Volumes(1,1,1,iElem) + 1/sJ(i,j,k,iElem)*((1.+xGP(i))*(1.+xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+    END DO; END DO; END DO
   END DO
-  DEALLOCATE(Vdm_tmp)
-  DEALLOCATE(wGP_tmp, xGP_tmp)
 CASE('cell_volweight_mean')
 #if USE_MPI
   ALLOCATE(RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1))
