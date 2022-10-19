@@ -360,12 +360,18 @@ ENDIF
 
 PartStateIntEn = 0. ! nullify
 
-DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
-IF ((DSMC%ElectronicModelDatabase .NE. 'none').AND.((CollisMode .GT. 1).OR.(CollisMode .EQ. 0))) THEN
-  ! CollisMode=0 is for use of in PIC simulation without collisions
-  DSMC%EpsElecBin = GETREAL('EpsMergeElectronicState','1E-4')
-ELSEIF(DSMC%ElectronicModel.EQ.1.OR.DSMC%ElectronicModel.EQ.2.OR.DSMC%ElectronicModel.EQ.4) THEN
-  CALL Abort(__STAMP__,'ERROR: Electronic models 1, 2 & 4 require an electronic levels database and CollisMode > 1!')
+  DSMC%ElectronicModelDatabase = TRIM(GETSTR('Particles-DSMCElectronicDatabase','none'))
+IF (SpeciesDatabase.EQ.'none') THEN
+  IF ((DSMC%ElectronicModelDatabase .NE. 'none').AND.((CollisMode .GT. 1).OR.(CollisMode .EQ. 0))) THEN
+    ! CollisMode=0 is for use of in PIC simulation without collisions
+    DSMC%EpsElecBin = GETREAL('EpsMergeElectronicState','1E-4')
+  ELSEIF(DSMC%ElectronicModel.EQ.1.OR.DSMC%ElectronicModel.EQ.2.OR.DSMC%ElectronicModel.EQ.4) THEN
+    CALL Abort(__STAMP__,'ERROR: Electronic models 1, 2 & 4 require an electronic levels database and CollisMode > 1!')
+  END IF
+ELSE 
+  IF ((CollisMode .GT. 1).OR.(CollisMode .EQ. 0)) THEN
+    DSMC%EpsElecBin = GETREAL('EpsMergeElectronicState','1E-4')
+  END IF
 END IF
 
 DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation')
@@ -474,13 +480,15 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
     END DO !iSpec
   END IF
 
-  DO iSpec=1, nSpecies
+    DO iSpec=1, nSpecies
     SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
     ! Save the electron species into a global variable
     IF(Species(iSpec)%InterID.EQ.4) DSMC%ElectronSpecies = iSpec
     ! reading electronic state informations from HDF5 file
-    IF((DSMC%ElectronicModelDatabase.NE.'none').AND.(Species(iSpec)%InterID.NE.4)) CALL SetElectronicModel(iSpec)
-  END DO
+      IF(((DSMC%ElectronicModelDatabase.NE.'none').OR.(SpeciesDatabase.NE.'none')).AND.(Species(iSpec)%InterID.NE.4)) THEN
+        CALL SetElectronicModel(iSpec)
+      END IF
+    END DO
 
   ! determine number of different species combinations and allocate collidingSpecies array
   nCollision=0
@@ -1036,7 +1044,7 @@ ELSE !CollisMode.GT.0
         DSMC%ElectronSpecies = iSpec
       END IF
       ! Read-in of electronic levels for QK and backward reaction rate -------------------------------------------------------------
-      IF (DSMC%ElectronicModelDatabase .EQ.'none') THEN
+      IF ((DSMC%ElectronicModelDatabase .EQ.'none').AND.(SpeciesDatabase.EQ.'none')) THEN
         IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           SpecDSMC(iSpec)%MaxElecQuant               = GETINT('Part-Species'//TRIM(hilf)//'-NumElectronicLevels','0')
           IF(SpecDSMC(iSpec)%MaxElecQuant.GT.0) THEN
