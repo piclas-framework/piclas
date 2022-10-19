@@ -149,6 +149,7 @@ USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars      ,ONLY: Symmetry
+USE MOD_Globals_Vars       ,ONLY: PI
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -262,7 +263,7 @@ DO iElem=1,nElems
       dXCL_Ngeo(3,:,i,j,k)=dXCL_Ngeo(3,:,i,j,k) + DCL_Ngeo(k,ll)*XCL_Ngeo(:,i,j,ll)
     END DO !l=0,N
     ! AXISYMMETRIC HDG
-    IF(Symmetry%Axisymmetric) dXCL_Ngeo(3,3,i,j,k)=dXCL_Ngeo(3,3,i,j,k)*XCL_Ngeo(2,i,j,k)
+    IF(Symmetry%Axisymmetric) dXCL_Ngeo(3,3,i,j,k)=PI*XCL_Ngeo(2,i,j,k)
   END DO; END DO; END DO !i,j,k=0,Ngeo
 
   ! 1.c)Jacobians! grad(X_1) (grad(X_2) x grad(X_3))
@@ -333,7 +334,7 @@ DO iElem=1,nElems
         dXCL(3,:)=dXCL(3,:) + DCL_N(k,ll)*XCL_N(:,i,j,ll)
       END DO !l=0,N
       ! AXISYMMETRIC HDG
-      IF(Symmetry%Axisymmetric) dXCL(:,3)=dXCL(:,3) * XCL_N(2,i,j,k)
+      IF(Symmetry%Axisymmetric) dXCL(:,3)=PI * XCL_N(2,i,j,k)
       END ASSOCIATE
     END DO; END DO; END DO !i,j,k=0,N
   END IF !N>=Ngeo

@@ -205,7 +205,7 @@ END IF
 !--- init DepositionType-specific vars
 SELECT CASE(TRIM(DepositionType))
 CASE('projection')
-CASE('cell_volweight')
+CASE('cell_volweight','better_volweight')
   ALLOCATE(CellVolWeightFac(0:PP_N),wGP_tmp(0:PP_N) , xGP_tmp(0:PP_N))
   ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
   CellVolWeightFac(0:PP_N) = xGP(0:PP_N)

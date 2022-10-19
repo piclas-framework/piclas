@@ -43,6 +43,7 @@ INTEGER,PARAMETER      :: PRM_DEPO_SF_ADAPTIVE= 2  ! shape_function_adaptive
 INTEGER,PARAMETER      :: PRM_DEPO_CVW  = 6  ! cell_volweight
 INTEGER,PARAMETER      :: PRM_DEPO_CVWM = 12 ! cell_volweight_mean
 INTEGER,PARAMETER      :: PRM_DEPO_PRJ  = 18 ! projection
+INTEGER,PARAMETER      :: PRM_DEPO_BVW  = 42 ! projection
 
 INTERFACE InitDepositionMethod
   MODULE PROCEDURE InitDepositionMethod
@@ -87,6 +88,7 @@ CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_adaptive'    , PRM_
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight'             , PRM_DEPO_CVW)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight_mean'        , PRM_DEPO_CVWM)
 CALL addStrListEntry('PIC-Deposition-Type' , 'projection'                 , PRM_DEPO_PRJ)
+CALL addStrListEntry('PIC-Deposition-Type' , 'better_volweight'           , PRM_DEPO_BVW)
 END SUBROUTINE DefineParametersDepositionMethod
 
 
@@ -139,6 +141,9 @@ Case(PRM_DEPO_CVWM) ! cell_volweight_mean
 Case(PRM_DEPO_PRJ) ! projection
   DepositionType   = 'projection'
   DepositionMethod => DepositionMethod_PRJ
+Case(PRM_DEPO_BVW) ! the REAL one
+  DepositionType   = 'better_volweight'
+  DepositionMethod => DepositionMethod_BVW
 CASE DEFAULT
   CALL CollectiveStop(__STAMP__,&
       'Unknown DepositionMethod!' ,IntInfo=DepositionType_loc)
@@ -195,6 +200,7 @@ CALL DepositionMethod_SF()
 CALL DepositionMethod_CVW()
 CALL DepositionMethod_CVWM()
 CALL DepositionMethod_PRJ()
+CALL DepositionMethod_BVW()
 
 END SUBROUTINE InitDepositionMethod
 
@@ -938,5 +944,202 @@ END IF
 
 
 END SUBROUTINE DepositionMethod_SF
+
+
+SUBROUTINE DepositionMethod_BVW(doParticle_In, stage_opt)
+!===================================================================================================================================
+! 'cell_volweight'
+! Linear charge density distribution within a cell (discontinuous across cell interfaces)
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,PartPosRef,usevMPF,PartMPF
+USE MOD_Particle_Vars          ,ONLY: PartState
+USE MOD_PICDepo_Vars           ,ONLY: PartSource,CellVolWeight_Volumes,CellVolWeightFac
+USE MOD_Part_Tools             ,ONLY: isDepositParticle
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
+USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
+#endif /*USE_LOADBALANCE*/
+USE MOD_Mesh_Vars              ,ONLY: nElems
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+#if ((USE_HDG) && (PP_nVar==1))
+USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
+#endif
+#if USE_MPI
+USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
+#endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars              ,ONLY:NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo
+USE MOD_Eval_xyz               ,ONLY:TensorProductInterpolation
+USE MOD_Interpolation_Vars     ,ONLY: wGP, xGP, wBary
+USE MOD_Basis                  ,ONLY: LagrangeInterpolationPolys
+USE MOD_Mesh_Vars              ,ONLY: sJ
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
+INTEGER,INTENT(IN),OPTIONAL :: stage_opt 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL, ALLOCATABLE  :: BGMSourceCellVol(:,:,:,:,:)
+REAL               :: Charge, TSource(1:4)
+REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3),r(9)
+#if USE_LOADBALANCE
+REAL               :: tLBStart
+#endif /*USE_LOADBALANCE*/
+#if !((USE_HDG) && (PP_nVar==1))
+INTEGER, PARAMETER :: SourceDim=1
+LOGICAL, PARAMETER :: doCalculateCurrentDensity=.TRUE.
+#else
+LOGICAL            :: doCalculateCurrentDensity
+INTEGER            :: SourceDim
+#endif
+INTEGER            :: kk, ll, mm, i ,j, k
+INTEGER            :: iPart,iElem
+REAL               :: L_xi(0:1,0:PP_N),L_eta(0:1,0:PP_N),L_ceta(0:1,0:PP_N),A(0:1,0:1,0:1)
+!===================================================================================================================================
+
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
+
+! Check whether charge and current density have to be computed or just the charge density
+#if ((USE_HDG) && (PP_nVar==1))
+IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
+  doCalculateCurrentDensity=.TRUE.
+  SourceDim=1
+ELSE ! do not calculate current density
+  doCalculateCurrentDensity=.FALSE.
+  SourceDim=4
+END IF
+#endif
+
+ALLOCATE(BGMSourceCellVol(SourceDim:4,0:1,0:1,0:1,1:nElems))
+BGMSourceCellVol(:,:,:,:,:) = 0.0
+DO iPart = 1,PDM%ParticleVecLength
+  ! TODO: Info why and under which conditions the following 'CYCLE' is called
+  IF(PRESENT(doParticle_In))THEN
+    IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
+  ELSE
+    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+  END IF
+  ! Don't deposit neutral particles!
+  IF(.NOT.isDepositParticle(iPart)) CYCLE
+  IF (usevMPF) THEN
+    Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
+  ELSE
+    Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
+  END IF ! usevMPF
+  IF(TrackingMethod.EQ.REFMAPPING)THEN
+    TempPartPos(1:3)=PartPosRef(1:3,iPart)
+  ELSE
+    CALL GetPositionInRefElem(PartState(1:3,iPart),TempPartPos,PEM%GlobalElemID(iPart),ForceMode=.TRUE.)
+  END IF
+  IF(doCalculateCurrentDensity)THEN
+    TSource(1:3) = PartState(4:6,iPart)*Charge
+  ELSE
+    TSource(1:3) = 0.0
+  END IF
+  iElem = PEM%LocalElemID(iPart)
+  TSource(4) = Charge
+
+  ! DO k=0,1; DO l=0,1; DO m=0,1
+  !   DO kk=0,1;DO ll=0,1;DO mm=0,1
+
+  !   END DO; END DO; END DO
+  ! END DO; END DO; END DO
+  A=0.
+  CALL LagrangeInterpolationPolys((TempPartPos(1)-1.)/2.,PP_N,xGP,wBary,L_xi(0,:))
+  CALL LagrangeInterpolationPolys((TempPartPos(2)-1.)/2.,PP_N,xGP,wBary,L_eta(0,:))
+  CALL LagrangeInterpolationPolys((TempPartPos(3)-1.)/2.,PP_N,xGP,wBary,L_ceta(0,:))
+  CALL LagrangeInterpolationPolys((TempPartPos(1)+1.)/2.,PP_N,xGP,wBary,L_xi(1,:))
+  CALL LagrangeInterpolationPolys((TempPartPos(2)+1.)/2.,PP_N,xGP,wBary,L_eta(1,:))
+  CALL LagrangeInterpolationPolys((TempPartPos(3)+1.)/2.,PP_N,xGP,wBary,L_ceta(1,:))
+  ! WRITE(*,*) L_xi(0,:)
+  ! WRITE(*,*) L_xi(1,:)
+  ! WRITE(*,*) L_eta(0,:)
+  ! WRITE(*,*) L_eta(1,:)
+  ! WRITE(*,*) L_ceta(0,:)
+  ! WRITE(*,*) L_ceta(1,:)
+  ! WRITE(*,*)
+  DO i=0,PP_N;DO j=0,PP_N;DO k=0,PP_N
+    A(0,0,0) = A(0,0,0) + 1/sJ(i,j,k,iElem)*(L_xi(0,i)*(1+TempPartPos(1))*L_eta(0,j)*(1+TempPartPos(2))*L_ceta(0,k)*(1+TempPartPos(3)))
+    ! WRITE(*,*) sJ(i,j,k,iElem)
+    ! WRITE(*,*) 1/sJ(i,j,k,iElem)*(L_xi(0,i)*(1+TempPartPos(1))*L_eta(0,j)*(1+TempPartPos(2))*L_ceta(0,k)*(1+TempPartPos(3)))
+    A(0,0,1) = A(0,0,1) + 1/sJ(i,j,k,iElem)*(L_xi(0,i)*(1+TempPartPos(1))*L_eta(0,j)*(1+TempPartPos(2))*L_ceta(1,k)*(1-TempPartPos(3)))
+    A(0,1,0) = A(0,1,0) + 1/sJ(i,j,k,iElem)*(L_xi(0,i)*(1+TempPartPos(1))*L_eta(1,j)*(1-TempPartPos(2))*L_ceta(0,k)*(1+TempPartPos(3)))
+    A(0,1,1) = A(0,1,1) + 1/sJ(i,j,k,iElem)*(L_xi(0,i)*(1+TempPartPos(1))*L_eta(1,j)*(1-TempPartPos(2))*L_ceta(1,k)*(1-TempPartPos(3)))
+    A(1,0,0) = A(1,0,0) + 1/sJ(i,j,k,iElem)*(L_xi(1,i)*(1-TempPartPos(1))*L_eta(0,j)*(1+TempPartPos(2))*L_ceta(0,k)*(1+TempPartPos(3)))
+    A(1,0,1) = A(1,0,1) + 1/sJ(i,j,k,iElem)*(L_xi(1,i)*(1-TempPartPos(1))*L_eta(0,j)*(1+TempPartPos(2))*L_ceta(1,k)*(1-TempPartPos(3)))
+    A(1,1,0) = A(1,1,0) + 1/sJ(i,j,k,iElem)*(L_xi(1,i)*(1-TempPartPos(1))*L_eta(1,j)*(1-TempPartPos(2))*L_ceta(0,k)*(1+TempPartPos(3)))
+    A(1,1,1) = A(1,1,1) + 1/sJ(i,j,k,iElem)*(L_xi(1,i)*(1-TempPartPos(1))*L_eta(1,j)*(1-TempPartPos(2))*L_ceta(1,k)*(1-TempPartPos(3)))
+  END DO; END DO; END DO
+  ! WRITE(*,*) 'PartState', PartState(1:3,iPart)
+  ! WRITE(*,*) 'TempPartPos',TempPartPos
+  ! WRITE(*,*) 'A',A
+  A = A / SUM(A)
+  ! WRITE(*,*) 'A',A
+  ! READ(*,*)
+
+  BGMSourceCellVol(:,0,0,0,iElem) = BGMSourceCellVol(:,0,0,0,iElem) + (TSource(SourceDim:4)*A(1,1,1))
+  BGMSourceCellVol(:,0,0,1,iElem) = BGMSourceCellVol(:,0,0,1,iElem) + (TSource(SourceDim:4)*A(1,1,0))
+  BGMSourceCellVol(:,0,1,0,iElem) = BGMSourceCellVol(:,0,1,0,iElem) + (TSource(SourceDim:4)*A(1,0,1))
+  BGMSourceCellVol(:,0,1,1,iElem) = BGMSourceCellVol(:,0,1,1,iElem) + (TSource(SourceDim:4)*A(1,0,0))
+  BGMSourceCellVol(:,1,0,0,iElem) = BGMSourceCellVol(:,1,0,0,iElem) + (TSource(SourceDim:4)*A(0,1,1))
+  BGMSourceCellVol(:,1,0,1,iElem) = BGMSourceCellVol(:,1,0,1,iElem) + (TSource(SourceDim:4)*A(0,1,0))
+  BGMSourceCellVol(:,1,1,0,iElem) = BGMSourceCellVol(:,1,1,0,iElem) + (TSource(SourceDim:4)*A(0,0,1))
+  BGMSourceCellVol(:,1,1,1,iElem) = BGMSourceCellVol(:,1,1,1,iElem) + (TSource(SourceDim:4)*A(0,0,0))
+#if USE_LOADBALANCE
+  CALL LBElemSplitTime(iElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
+#endif /*USE_LOADBALANCE*/
+END DO
+
+DO iElem=1, nElems
+  BGMSourceCellVol(:,0,0,0,iElem) = BGMSourceCellVol(:,0,0,0,iElem)*8/ElemVolume_Shared(iElem)!/CellVolWeight_Volumes(0,0,0,iElem)
+  BGMSourceCellVol(:,0,0,1,iElem) = BGMSourceCellVol(:,0,0,1,iElem)*8/ElemVolume_Shared(iElem)!/CellVolWeight_Volumes(0,0,1,iElem)
+  BGMSourceCellVol(:,0,1,0,iElem) = BGMSourceCellVol(:,0,1,0,iElem)*8/ElemVolume_Shared(iElem)!/CellVolWeight_Volumes(0,1,0,iElem)
+  BGMSourceCellVol(:,0,1,1,iElem) = BGMSourceCellVol(:,0,1,1,iElem)*8/ElemVolume_Shared(iElem)!/CellVolWeight_Volumes(0,1,1,iElem)
+  BGMSourceCellVol(:,1,0,0,iElem) = BGMSourceCellVol(:,1,0,0,iElem)*8/ElemVolume_Shared(iElem)!/CellVolWeight_Volumes(1,0,0,iElem)
+  BGMSourceCellVol(:,1,0,1,iElem) = BGMSourceCellVol(:,1,0,1,iElem)*8/ElemVolume_Shared(iElem)!/CellVolWeight_Volumes(1,0,1,iElem)
+  BGMSourceCellVol(:,1,1,0,iElem) = BGMSourceCellVol(:,1,1,0,iElem)*8/ElemVolume_Shared(iElem)!/CellVolWeight_Volumes(1,1,0,iElem)
+  BGMSourceCellVol(:,1,1,1,iElem) = BGMSourceCellVol(:,1,1,1,iElem)*8/ElemVolume_Shared(iElem)!/CellVolWeight_Volumes(1,1,1,iElem)
+END DO
+
+DO iElem = 1, nElems
+  DO kk = 0, PP_N
+    DO ll = 0, PP_N
+      DO mm = 0, PP_N
+        alpha1 = CellVolWeightFac(kk)
+        alpha2 = CellVolWeightFac(ll)
+        alpha3 = CellVolWeightFac(mm)
+        PartSource(SourceDim:4,kk,ll,mm,iElem) = &
+            PartSource(SourceDim:4,kk,ll,mm,iElem) + &
+            BGMSourceCellVol(:,0,0,0,iElem) * (1-alpha1) * (1-alpha2) * (1-alpha3)    + &
+            BGMSourceCellVol(:,0,0,1,iElem) * (1-alpha1) * (1-alpha2) *   (alpha3)    + &
+            BGMSourceCellVol(:,0,1,0,iElem) * (1-alpha1) *   (alpha2) * (1-alpha3)    + &
+            BGMSourceCellVol(:,0,1,1,iElem) * (1-alpha1) *   (alpha2) *   (alpha3)    + &
+            BGMSourceCellVol(:,1,0,0,iElem) *   (alpha1) * (1-alpha2) * (1-alpha3)    + &
+            BGMSourceCellVol(:,1,0,1,iElem) *   (alpha1) * (1-alpha2) *   (alpha3)    + &
+            BGMSourceCellVol(:,1,1,0,iElem) *   (alpha1) *   (alpha2) * (1-alpha3)    + &
+            BGMSourceCellVol(:,1,1,1,iElem) *   (alpha1) *   (alpha2) *   (alpha3)
+      END DO ! mm
+    END DO ! ll
+  END DO ! kk
+END DO ! iElem
+#if USE_LOADBALANCE
+CALL LBElemSplitTime_avg(tLBStart) ! Average over the number of elems (and Start again)
+#endif /*USE_LOADBALANCE*/
+DEALLOCATE(BGMSourceCellVol)
+
+! Suppress compiler warnings
+RETURN
+iPart=stage_opt
+END SUBROUTINE DepositionMethod_BVW
 
 END MODULE MOD_PICDepo_Method

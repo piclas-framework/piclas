@@ -1013,11 +1013,11 @@ REAL               :: NewYPart, NewYVelo!, NewXVelo, NewZVelo, n_rot(3), cosa, s
 ! Axisymmetric treatment of particles: rotation of the position and velocity vector
 IF(Symmetry%Axisymmetric) THEN
   IF(Symmetry%Order.EQ.2) THEN
-    IF (Pos(2).LT.0.0) THEN
-      NewYPart = -SQRT(Pos(2)**2 + (Pos(3))**2)
-    ELSE
+    ! IF (Pos(2).LT.0.0) THEN
+    !   NewYPart = -SQRT(Pos(2)**2 + (Pos(3))**2)
+    ! ELSE
       NewYPart = SQRT(Pos(2)**2 + (Pos(3))**2)
-    END IF
+    ! END IF
     ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
     !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
     ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
