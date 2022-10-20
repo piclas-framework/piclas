@@ -2,7 +2,7 @@
 SetFactory("OpenCASCADE");
 v() = ShapeFromFile("70degCone_2DSurf.step");
 //
-Translate {0, 0, -0.5} {
+Translate {0, 0, -1.0} {
   Surface{1}; 
 }
 //
