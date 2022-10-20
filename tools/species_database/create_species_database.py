@@ -138,10 +138,10 @@ with open(args.ini_filename) as file:
             elif var_name[1] in spec_attr_list:
               var_value = str(int(var_value))
               spec_name_list = spec_dict[var_value]
-              hdf_species.attrs[var_name[1]] = spec_name_list
+              hdf_species.attrs[var_name[1]] = np.string_(spec_name_list)
               print('Species parameter set: ', var_name[1]) 
             else:
-              if 'F' in var_value or 'false' in var_value:
+              if 'F' in var_value or 'false' in var_value or 'F':
                 var_value = 0
               else:
                 var_value = 1
@@ -226,6 +226,7 @@ with open(args.ini_filename) as file:
 
 surf_attr_list = ['Reactants', 'Products']
 surf_wo_readin = ['Boundaries', 'NumOfBoundaries', 'Inhibition', 'Promotion']
+surf_string_list = ['Type']
 
 # Read-in of gas-surface reaction data
 with open(args.ini_filename) as file:
@@ -264,7 +265,10 @@ with open(args.ini_filename) as file:
             if is_float(var_value):
               var_value = float(var_value)
             if var_name[1] not in surf_attr_list and var_name[1] not in surf_wo_readin:
-              hdf_surf.attrs[var_name[1]] = var_value
+              if var_name[1] not in surf_string_list:
+                hdf_surf.attrs[var_name[1]] = var_value
+              else:
+                hdf_surf.attrs[var_name[1]] = np.string_(var_value)     
               print('Catalytic parameter set: ', var_name[1]) 
             elif var_name[1] in surf_attr_list:
               spec_name_list = ''
