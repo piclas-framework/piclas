@@ -185,8 +185,8 @@ IF (time.GE.DelayTime) THEN
           PDM%dtFracPush(iPart) = .FALSE.
         END IF
       END IF
-      CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
 #endif /*(PP_TimeDiscMethod==509)*/
+      CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
       ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
     END IF
