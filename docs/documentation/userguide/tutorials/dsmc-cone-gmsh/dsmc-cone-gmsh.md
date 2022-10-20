@@ -63,7 +63,16 @@ The mesh file in the file format `.h5` used by **piclas** has to be converted us
     
     Mode = 5
 
-As another possibility, the `SplitToHex` option can be enabled in the `hopr.ini` file instead of using the `SubdivionAlgorithm` command in Gmsh.
+As another possibility, the `SplitToHex` option can be enabled in the `hopr.ini` file instead of using the `SubdivionAlgorithm` command in Gmsh. The expected result for the 3D mesh is shown in {numref}`fig:dsmc-cone-gmsh-mesh`.
+
+```{figure} mesh/dsmc-cone-gmsh-mesh.jpg
+---
+name: fig:dsmc-cone-gmsh-mesh
+width: 90%
+---
+
+3D mesh of the 70° cone.
+```
 
 ## Flow simulation with DSMC
 
@@ -95,3 +104,13 @@ Instead, a new symmetrical boundary is added:
     Part-Boundary4-SourceName  = SYM
     Part-Boundary4-Condition   = symmetric
 
+An exemplary simulation result using the 3D mesh generated with Gmsh is shown in {numref}`fig:dsmc-cone-gmsh-visu`.
+
+```{figure} results/dsmc-cone-gmsh-visu.jpg
+---
+name: fig:dsmc-cone-gmsh-visu
+width: 90%
+---
+
+Translational temperature around the 70° cone.
+```
