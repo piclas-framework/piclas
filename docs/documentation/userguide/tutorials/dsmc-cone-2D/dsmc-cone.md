@@ -49,7 +49,7 @@ The `BoundaryName` needs to be the same as in the CGNS file.
 
 To create the `.h5` mesh file, you would simply run
 
-    hopr hopr.ini
+    hopr hopr_cgns.ini
 
 This would create the mesh file `70degCone_2D_mesh.h5` in HDF5 format. For more information see directly at [https://github.com/hopr-framework/hopr](https://github.com/hopr-framework/hopr).
 
@@ -120,7 +120,7 @@ While `zLength` specifies the length of the mesh in $z$-direction, `nElemsZ` ens
 
 Again, to create the `.h5` mesh file, you would simply run
 
-    hopr hopr.ini
+    hopr hopr_gmsh.ini
 
 This would create the mesh file `70degCone_2D_mesh.h5` in HDF5 format. 
 
