@@ -1,7 +1,7 @@
 // Gmsh project created on Tue Oct 18 18:46:36 2022
 SetFactory("OpenCASCADE");
 v() = ShapeFromFile("70degCone_2DSurf.step");
-//+
+//
 Translate {0, 0, -0.5} {
   Surface{1}; 
 }

@@ -4,8 +4,8 @@
 With the validation case of a 70° blunted cone already used in the previous tutorial ({ref}`sec:tutorial-dsmc-cone-2D`), the 3D mesh generation using [Gmsh](https://gmsh.info/) is presented in greater detail in this tutorial.
 Before starting, copy the `dsmc-cone-gmsh` directory from the tutorial folder in the top level directory to a separate location
 
-    cp -r $PICLAS_PATH/tutorials/dsmc-cone-gmsh .
-    cd dsmc-cone-gmsh
+    cp -r $PICLAS_PATH/tutorials/dsmc-cone-3D .
+    cd dsmc-cone-3D
 
 The general information needed to setup a DSMC simulation is given in the previous tutorials {ref}`sec:tutorial-dsmc-reservoir` and {ref}`sec:tutorial-dsmc-cone-2D`. The following focuses on the mesh generation with Gmsh and case-specific differences for the DSMC simulation.
 

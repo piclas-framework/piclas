@@ -4,8 +4,8 @@
 A widespread validation case for rarefied gas flows is the wind tunnel test of the 70° blunted cone in a hypersonic, diatomic nitrogen flow {cite}`Allegre1997`, {cite}`Moss1995`.
 Before beginning with the tutorial, copy the `dsmc-cone` directory from the tutorial folder in the top level directory to a separate location
 
-    cp -r $PICLAS_PATH/tutorials/dsmc-cone .
-    cd dsmc-cone
+    cp -r $PICLAS_PATH/tutorials/dsmc-cone-2D .
+    cd dsmc-cone-2D
 
 The general information needed to setup a DSMC simulation is given in the previous tutorial {ref}`sec:tutorial-dsmc-reservoir`. The following focuses on case-specific differences.
 
