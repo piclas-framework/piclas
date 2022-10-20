@@ -57,6 +57,7 @@ CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactionModel'  &
                                             'phIonXSec: photon-ionization with cross-section-based data for the reaction\n'//&
                                             'QK: quantum kinetic\n'//&
                                             'XSec: cross-section-based data for the reaction', 'TCE', numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'DSMC-Reaction[$]-ReactionName', 'name to identify reaction', numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'DSMC-Reaction[$]-Reactants'  &
                                            ,'Reactants of Reaction[$]\n'//&
                                             '(SpecNumOfReactant1,\n'//&
@@ -230,6 +231,7 @@ ALLOCATE(ChemReac%ReactType(ChemReac%NumOfReact))
 ChemReac%ReactType = '0'
 ALLOCATE(ChemReac%ReactModel(ChemReac%NumOfReact))
 ChemReac%ReactModel = '0'
+ALLOCATE(ChemReac%ReactionName(ChemReac%NumOfReact))
 ALLOCATE(ChemReac%Reactants(ChemReac%NumOfReact,3))
 ChemReac%Reactants = 0
 ALLOCATE(ChemReac%Products(ChemReac%NumOfReact,4))
@@ -288,6 +290,7 @@ DoScat = .false.
 DO iReac = 1, ReadInNumOfReact
   WRITE(UNIT=hilf,FMT='(I0)') iReac
   ChemReac%ReactModel(iReac)  = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionModel'))
+  ChemReac%ReactionName(iReac)= TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionName'))
   ChemReac%Reactants(iReac,:) = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Reactants',3)
   ChemReac%Products(iReac,:)  = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Products',4)
   SELECT CASE (TRIM(ChemReac%ReactModel(iReac)))

@@ -395,6 +395,7 @@ TYPE tChemReactions
                                                             !    phIon (photon-ionization)
                                                             !    phIonXSec (photon-ionization based on cross-section data)
                                                             !    XSec (based on cross-section data)
+  CHARACTER(LEN=200),ALLOCATABLE  :: ReactionName(:)        ! Name of reaction to identify reaction [NumofReact]
   INTEGER, ALLOCATABLE            :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
   INTEGER, ALLOCATABLE            :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
   INTEGER, ALLOCATABLE            :: ReactCase(:)           ! Case/pair of the reaction (1:NumOfReact)
