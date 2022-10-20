@@ -44,6 +44,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 CALL prms%SetSection("Chemistry")
 CALL prms%CreateIntOption(      'DSMC-NumOfReactions','Number of chemical reactions')
+CALL prms%CreateLogicalOption(  'DSMC-OverwriteReacDatabase','Flag to set reac parameters manually', '.FALSE.')
 CALL prms%CreateIntOption(      'DSMC-Reaction[$]-NumberOfNonReactives', &
                                           'Number of non-reactive collision partners (Length of the read-in vector)', &
                                           '0', numberedmulti=.TRUE.)
@@ -135,12 +136,14 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
-USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
+USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species, SpeciesDatabase
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions
+USE MOD_io_hdf5
+USE MOD_HDF5_input              ,ONLY: ReadAttribute, DatasetExists, AttributeExists
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -153,11 +156,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit
+INTEGER               :: iReac, iReac2, iSpec, iPart, iReacDiss, iSpec2, iInit, err
 INTEGER, ALLOCATABLE  :: DummyRecomb(:,:)
 LOGICAL               :: DoScat
 REAL                  :: BGGasEVib, PhotonEnergy, omega, ChargeProducts, ChargeReactants
 INTEGER               :: Reactant1, Reactant2, Reactant3, MaxSpecies, ReadInNumOfReact
+LOGICAL               :: Attr_Exists, DataSetFound
+CHARACTER(LEN=64)     :: dsetname
+INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
 !===================================================================================================================================
 
 NbrOfPhotonXsecReactions = 0
@@ -286,6 +292,11 @@ IF (BGGas%NumberOfSpecies.GT.0) THEN
   END DO
 END IF
 
+ChemReac%DoOverwriteReacParameters = GETLOGICAL('DSMC-OverwriteReacDatabase')
+IF(SpeciesDatabase.EQ.'none') THEN 
+  ChemReac%DoOverwriteReacParameters = .TRUE.
+END IF
+
 DoScat = .false.
 DO iReac = 1, ReadInNumOfReact
   WRITE(UNIT=hilf,FMT='(I0)') iReac
@@ -295,10 +306,54 @@ DO iReac = 1, ReadInNumOfReact
   ChemReac%Products(iReac,:)  = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Products',4)
   SELECT CASE (TRIM(ChemReac%ReactModel(iReac)))
     CASE('TCE')
-      ! Total Collision Energy: Arrhenius-based chemistry model
-      ChemReac%Arrhenius_Prefactor(iReac)   = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Prefactor')
-      ChemReac%Arrhenius_Powerfactor(iReac) = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Powerfactor')
-      ChemReac%EActiv(iReac)                = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Activation-Energy_K')*BoltzmannConst
+      IF(SpeciesDatabase.NE.'none') THEN
+        ! Initialize FORTRAN interface.
+        CALL H5OPEN_F(err)
+        CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+        LBWRITE (UNIT_stdOut,*) 'Read-in from database for reaction: ', ChemReac%ReactionName(iReac)
+        dsetname = TRIM('/Reaction/'//TRIM(ChemReac%ReactionName(iReac)))
+        CALL DatasetExists(file_id_specdb,TRIM(dsetname),DataSetFound)
+        IF(.NOT.DataSetFound)THEN
+          Species(iSpec)%DoOverwriteParameters = .TRUE.
+          SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'
+        ELSE
+          CALL AttributeExists(file_id_specdb,'Arrhenius-Prefactor',TRIM(dsetname), AttrExists=Attr_Exists)
+          IF (Attr_Exists) THEN
+            CALL ReadAttribute(file_id_specdb,'Arrhenius-Prefactor',1,DatasetName = dsetname,RealScalar=ChemReac%Arrhenius_Prefactor(iReac))
+          ELSE 
+            ChemReac%Arrhenius_Prefactor(iReac) = 0.0
+          END IF
+          LBWRITE (UNIT_stdOut,*) 'Arrhenius-Prefactor: ', ChemReac%Arrhenius_Prefactor(iReac)
+          CALL AttributeExists(file_id_specdb,'Arrhenius-Powerfactor',TRIM(dsetname), AttrExists=Attr_Exists)
+          IF (Attr_Exists) THEN
+            CALL ReadAttribute(file_id_specdb,'Arrhenius-Powerfactor',1,DatasetName = dsetname,RealScalar=ChemReac%Arrhenius_Powerfactor(iReac))
+          ELSE 
+            ChemReac%Arrhenius_Powerfactor(iReac) = 0.0
+          END IF
+          LBWRITE (UNIT_stdOut,*) 'Arrhenius-Powerfactor: ', ChemReac%Arrhenius_Powerfactor(iReac)
+          CALL AttributeExists(file_id_specdb,'Activation-Energy_K',TRIM(dsetname), AttrExists=Attr_Exists)
+          IF (Attr_Exists) THEN
+            CALL ReadAttribute(file_id_specdb,'Activation-Energy_K',1,DatasetName = dsetname,RealScalar=ChemReac%EActiv(iReac))
+            ChemReac%EActiv(iReac) = ChemReac%EActiv(iReac)*BoltzmannConst
+          ELSE 
+            ChemReac%EActiv(iReac) = 0.0
+          END IF
+          LBWRITE (UNIT_stdOut,*) 'Activation-Energy_K: ', ChemReac%EActiv(iReac)
+        END IF
+
+        ! Close the file.
+        CALL H5FCLOSE_F(file_id_specdb, err)
+        ! Close FORTRAN interface.
+        CALL H5CLOSE_F(err)
+      END IF !database
+  
+      IF(ChemReac%DoOverwriteReacParameters) THEN
+        ! Total Collision Energy: Arrhenius-based chemistry model
+        ChemReac%Arrhenius_Prefactor(iReac)   = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Prefactor')
+        ChemReac%Arrhenius_Powerfactor(iReac) = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Arrhenius-Powerfactor')
+        ChemReac%EActiv(iReac)                = GETREAL('DSMC-Reaction'//TRIM(hilf)//'-Activation-Energy_K')*BoltzmannConst
+      END IF
+
     CASE('QK')
       ! Quantum Kinetic: Threshold energy based chemistry model
       ChemReac%AnyQKReaction = .TRUE.

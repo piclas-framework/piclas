@@ -141,7 +141,7 @@ with open(args.ini_filename) as file:
               hdf_species.attrs[var_name[1]] = np.string_(spec_name_list)
               print('Species parameter set: ', var_name[1]) 
             else:
-              if 'F' in var_value or 'false' in var_value or 'F':
+              if 'F' in var_value or 'false' in var_value:
                 var_value = 0
               else:
                 var_value = 1

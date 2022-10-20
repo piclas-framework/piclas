@@ -373,7 +373,8 @@ END TYPE
 
 TYPE tChemReactions
   LOGICAL                         :: AnyQKReaction          ! Defines if any QK reaction present
-  INTEGER                         :: NumOfReact             ! Number of possible reactions
+  INTEGER                         :: NumOfReact             ! Number of possible reactions 
+  LOGICAL                         :: DoOverwriteReacParameters ! Flag to overwrite reaction parameters manually
   INTEGER                         :: NumOfReactWOBackward   ! Number of possible reactions w/o automatic backward reactions
   TYPE(tArbDiss), ALLOCATABLE     :: ArbDiss(:)             ! Construct to allow the definition of a list of non-reactive educts
   LOGICAL, ALLOCATABLE            :: BackwardReac(:)        ! Defines if backward reaction is calculated
