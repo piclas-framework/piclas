@@ -84,6 +84,7 @@ else:
   hdf_surf_group.attrs['* Created'] = date.today().strftime("%B %d, %Y")
 
 logical_list = ['PolyatomicMol', 'LinearMolec']
+spec_attr_list = ['PreviousState']
 
 # Read-in of DSMC.ini parameters and electronic state
 with open(args.ini_filename) as file:
@@ -127,13 +128,18 @@ with open(args.ini_filename) as file:
           hdf_species = spec_dict[species_count]
           hdf_species = hdf_species_group[hdf_species]
           if var_name[1] in hdf_species.attrs:
-            print('Species parameter is already set: ', var_name[1]) #raus??
+            print('Species parameter is already set: ', var_name[1]) 
           else:
             if is_float(var_value):
               var_value = float(var_value)
-            if var_name[1] not in logical_list:
+            if var_name[1] not in logical_list and var_name[1] not in spec_attr_list:
               hdf_species.attrs[var_name[1]] = var_value
-              print('Species parameter set: ', var_name[1]) #raus??
+              print('Species parameter set: ', var_name[1]) 
+            elif var_name[1] in spec_attr_list:
+              var_value = str(int(var_value))
+              spec_name_list = spec_dict[var_value]
+              hdf_species.attrs[var_name[1]] = spec_name_list
+              print('Species parameter set: ', var_name[1]) 
             else:
               if 'F' in var_value or 'false' in var_value:
                 var_value = 0
