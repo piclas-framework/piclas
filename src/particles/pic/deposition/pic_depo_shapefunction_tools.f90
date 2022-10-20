@@ -1038,6 +1038,7 @@ USE MOD_ReadInTools        ,ONLY: PrintOption
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Mesh_Vars          ,ONLY: nGlobalElems
 USE MOD_PICDepo_Tools      ,ONLY: beta
+USE MOD_Particle_Vars      ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1071,9 +1072,17 @@ SELECT CASE (dim_sf)
   CASE (1) ! --- 1D shape function -------------------------------------------------------------------------------------------------
     ! Set perpendicular directions
     IF(dim_sf_dir.EQ.1)THEN ! Shape function deposits charge in x-direction
-      dimFactorSF = (GEO%ymaxglob-GEO%yminglob)*2*PI !(GEO%zmaxglob-GEO%zminglob) ! AXISYMMETRIC HDG
+      IF(Symmetry%axisymmetric) THEN
+        dimFactorSF = (GEO%ymaxglob-GEO%yminglob)*2*PI !(GEO%zmaxglob-GEO%zminglob) ! AXISYMMETRIC HDG
+      ELSE
+        dimFactorSF = (GEO%ymaxglob-GEO%yminglob)*(GEO%zmaxglob-GEO%zminglob)
+      END IF
     ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in y-direction
-      dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*2*PI !(GEO%zmaxglob-GEO%zminglob) ! AXISYMMETRIC HDG
+      IF(Symmetry%axisymmetric) THEN
+        dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*2*PI !(GEO%zmaxglob-GEO%zminglob) ! AXISYMMETRIC HDG
+      ELSE
+        dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*(GEO%zmaxglob-GEO%zminglob) ! AXISYMMETRIC HDG
+      END IF
     ELSE IF (dim_sf_dir.EQ.3)THEN ! Shape function deposits charge in z-direction
       dimFactorSF = (GEO%xmaxglob-GEO%xminglob)*(GEO%ymaxglob-GEO%yminglob)
     END IF
@@ -1098,7 +1107,11 @@ SELECT CASE (dim_sf)
     ELSE IF (dim_sf_dir.EQ.2)THEN ! Shape function deposits charge in x-z-direction (const. in y)
       dimFactorSF = (GEO%ymaxglob-GEO%yminglob)
     ELSE IF (dim_sf_dir.EQ.3)THEN! Shape function deposits charge in x-y-direction (const. in z)
-      dimFactorSF = 2*PI !(GEO%zmaxglob-GEO%zminglob) ! AXISYMMETRIC HDG
+      IF(Symmetry%axisymmetric) THEN
+        dimFactorSF = 2*PI !(GEO%zmaxglob-GEO%zminglob) ! AXISYMMETRIC HDG
+      ELSE
+        dimFactorSF = (GEO%zmaxglob-GEO%zminglob) ! AXISYMMETRIC HDG
+      END IF
     END IF
 
     ! Set prefix factor
