@@ -650,8 +650,13 @@ SUBROUTINE DSMC_BackwardRate_init()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, PolyatomMolDSMC
-USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species
+USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species, SpeciesDatabase
 USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
+USE MOD_io_hdf5
+USE MOD_HDF5_input              ,ONLY: ReadAttribute
+#if USE_MPI
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -661,8 +666,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=3)      :: hilf
-INTEGER               :: iSpec, iReac, iReacForward, iPolyatMole, PartitionArraySize, iInter
+INTEGER               :: iSpec, iReac, iReacForward, iPolyatMole, PartitionArraySize, iInter,err
 REAL                  :: Temp, Qtra, Qrot, Qvib, Qelec
+CHARACTER(LEN=64)     :: dsetname
+INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
 !===================================================================================================================================
 
 IF(ChemReac%AnyXSecReaction) CALL abort(__STAMP__,&
@@ -672,7 +679,34 @@ IF(ChemReac%AnyXSecReaction) CALL abort(__STAMP__,&
 DO iSpec = 1, nSpecies
   IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
-    SpecDSMC(iSpec)%SymmetryFactor              = GETINT('Part-Species'//TRIM(hilf)//'-SymmetryFactor')
+
+
+    IF(SpeciesDatabase.NE.'none') THEN
+      ! Initialize FORTRAN interface.
+      CALL H5OPEN_F(err)    
+      CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+    
+      
+      LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
+      dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+      CALL ReadAttribute(file_id_specdb,'SymmetryFactor',1,DatasetName = dsetname,IntScalar=SpecDSMC(iSpec)%SymmetryFactor)
+        LBWRITE (UNIT_stdOut,*) 'SymmetryFactor: ', SpecDSMC(iSpec)%SymmetryFactor
+
+      ! Close the file.
+      CALL H5FCLOSE_F(file_id_specdb, err)
+      ! Close FORTRAN interface.
+      CALL H5CLOSE_F(err)
+    
+    END IF
+    
+    IF(ANY(Species(:)%DoOverwriteParameters)) THEN 
+      IF(Species(iSpec)%DoOverwriteParameters) THEN
+        LBWRITE (UNIT_stdOut,'(66(". "))')
+        WRITE(UNIT=hilf,FMT='(I0)') iSpec
+        SpecDSMC(iSpec)%SymmetryFactor = GETINT('Part-Species'//TRIM(hilf)//'-SymmetryFactor')
+      END IF
+    END IF
+
     IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
       IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN

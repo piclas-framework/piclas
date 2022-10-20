@@ -308,6 +308,8 @@ LOGICAL               :: Attr_Exists
 CHARACTER(LEN=64)     :: dsetname
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
 INTEGER(HID_T)        :: dset_id_specdb                       ! Dataset identifier
+INTEGER               :: IntToLog
+CHARACTER(LEN=255)     :: hilfname
 !===================================================================================================================================
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
@@ -693,12 +695,14 @@ ELSE !CollisMode.GT.0
 
       DO iSpec = 1, nSpecies
         IF(.NOT.Species(iSpec)%DoOverwriteParameters) THEN
+          dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
           WRITE(UNIT=hilf,FMT='(I0)') iSpec
           IF(Species(iSpec)%InterID.NE.4) THEN
             dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
-            CALL AttributeExists(file_id_specdb,'PolyatomicMol',TRIM(dsetname), AttrExists=Attr_Exists)
+            CALL AttributeExists(file_id_specdb,'PolyatomicMol',TRIM(dsetname),AttrExists=Attr_Exists)
             IF (Attr_Exists) THEN
-              CALL ReadAttribute(file_id_specdb,'PolyatomicMol',1,DatasetName = dsetname,LogicalScalar=SpecDSMC(iSpec)%PolyatomicMol)
+              CALL ReadAttribute(file_id_specdb,'PolyatomicMol',1,DatasetName = dsetname,IntScalar=IntToLog)
+              IF(IntToLog.EQ.1) SpecDSMC(iSpec)%PolyatomicMol = .TRUE.
               LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
               LBWRITE (UNIT_stdOut,*) 'PolyatomicMol: ', SpecDSMC(iSpec)%PolyatomicMol
             ELSE 
@@ -1033,6 +1037,7 @@ ELSE !CollisMode.GT.0
         ! from the electronic state database to ensure consistent energies across chemical reactions of QK and Arrhenius type.
         IF((Species(iSpec)%InterID.EQ.10).OR.(Species(iSpec)%InterID.EQ.20).OR.(Species(iSpec)%InterID.EQ.4)) THEN
           SpecDSMC(iSpec)%HeatOfFormation = 0.0
+          LBWRITE (UNIT_stdOut,*) 'HeatOfFormation_K: ', SpecDSMC(iSpec)%HeatOfFormation
         ELSE
           CALL ReadAttribute(file_id_specdb,'HeatOfFormation_K',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%HeatOfFormation)
           LBWRITE (UNIT_stdOut,*) 'HeatOfFormation_K: ', SpecDSMC(iSpec)%HeatOfFormation
@@ -1057,13 +1062,48 @@ ELSE !CollisMode.GT.0
           SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
         END IF
       END IF
+    END DO
       ! Heat of formation of ionized species is modified with the ionization energy directly from read-in electronic energy levels
       ! of the ground/previous state of the respective species (Input requires a species number (eg species number of N for NIon1))
-      IF((Species(iSpec)%InterID.EQ.10).OR.(Species(iSpec)%InterID.EQ.20)) THEN
-        SpecDSMC(iSpec)%PreviousState = GETINT('Part-Species'//TRIM(hilf)//'-PreviousState')
-      ELSE
-        SpecDSMC(iSpec)%PreviousState = 0
+    IF(SpeciesDatabase.NE.'none') THEN
+      ! Initialize FORTRAN interface.
+      CALL H5OPEN_F(err)
+      CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+      DO iSpec=1,nSpecies
+        LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
+        dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+        WRITE(UNIT=hilf,FMT='(I0)') iSpec
+        CALL AttributeExists(file_id_specdb,'PreviousState',TRIM(dsetname), AttrExists=Attr_Exists)
+        IF (Attr_Exists) THEN
+          CALL ReadAttribute(file_id_specdb,'PreviousState',1,DatasetName = dsetname,StrScalar=hilfname)
+          DO jSpec=1,nSpecies
+            IF(TRIM(hilfname).EQ.TRIM(SpecDSMC(jSpec)%Name)) THEN
+              SpecDSMC(iSpec)%PreviousState=jSpec
+            END IF
+          END DO
+        ELSE 
+          SpecDSMC(iSpec)%PreviousState = 0
+        END IF
+        LBWRITE (UNIT_stdOut,*) 'PreviousState: ', SpecDSMC(iSpec)%PreviousState
+      END DO
+      ! Close the file.
+      CALL H5FCLOSE_F(file_id_specdb, err)
+      ! Close FORTRAN interface.
+      CALL H5CLOSE_F(err)
+    END IF !database
+
+    DO iSpec=1,nSpecies
+      WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      IF(Species(iSpec)%DoOverwriteParameters) THEN
+        IF((Species(iSpec)%InterID.EQ.10).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+          SpecDSMC(iSpec)%PreviousState = GETINT('Part-Species'//TRIM(hilf)//'-PreviousState')
+        ELSE
+          SpecDSMC(iSpec)%PreviousState = 0
+        END IF
       END IF
+    END DO
+
+    DO iSpec=1,nSpecies 
       ! Read-in of species for field ionization (only required if it cannot be determined automatically)
       IF(Species(iSpec)%InterID.NE.4) THEN
         SpecDSMC(iSpec)%NextIonizationSpecies = GETINT('Part-Species'//TRIM(hilf)//'-NextIonizationSpecies')
@@ -1315,8 +1355,10 @@ USE MOD_Globals          ,ONLY: abort,UNIT_stdOut
 USE MOD_Globals          ,ONLY: mpiroot
 #endif
 USE MOD_Globals_Vars     ,ONLY: BoltzmannConst,Joule2eV
-USE MOD_PARTICLE_Vars    ,ONLY: nSpecies, Species
+USE MOD_PARTICLE_Vars    ,ONLY: nSpecies, Species, SpeciesDatabase
 USE MOD_DSMC_Vars        ,ONLY: SpecDSMC
+USE MOD_io_hdf5
+USE MOD_HDF5_input       ,ONLY:ReadAttribute
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -1325,9 +1367,11 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(32) :: hilf2
-LOGICAL       :: AutoDetect
-INTEGER       :: iSpec,jSpec,counter,MaxElecQua
+CHARACTER(32)         :: hilf2
+LOGICAL               :: AutoDetect
+INTEGER               :: iSpec,jSpec,counter,MaxElecQua,err
+CHARACTER(LEN=64)     :: dsetname
+INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
 !===================================================================================================================================
 AutoDetect=.TRUE.
 DO iSpec = 1, nSpecies
@@ -1335,7 +1379,39 @@ DO iSpec = 1, nSpecies
   IF((Species(iSpec)%InterID.EQ.10).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     IF(SpecDSMC(iSpec)%PreviousState.EQ.0) THEN
       WRITE(UNIT=hilf2,FMT='(I0)') iSpec
-      SpecDSMC(iSpec)%HeatOfFormation = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfFormation_K') * BoltzmannConst
+      IF(SpeciesDatabase.NE.'none') THEN
+        ! Initialize FORTRAN interface.
+        CALL H5OPEN_F(err)
+        CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+        LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
+        dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+        ! Read-in of heat of formation, ions are treated later using the heat of formation of their ground state and data from the
+        ! from the electronic state database to ensure consistent energies across chemical reactions of QK and Arrhenius type.
+        IF((Species(iSpec)%InterID.EQ.10).OR.(Species(iSpec)%InterID.EQ.20).OR.(Species(iSpec)%InterID.EQ.4)) THEN
+          SpecDSMC(iSpec)%HeatOfFormation = 0.0
+          LBWRITE (UNIT_stdOut,*) 'HeatOfFormation_K: ', SpecDSMC(iSpec)%HeatOfFormation
+        ELSE
+          CALL ReadAttribute(file_id_specdb,'HeatOfFormation_K',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%HeatOfFormation)
+          LBWRITE (UNIT_stdOut,*) 'HeatOfFormation_K: ', SpecDSMC(iSpec)%HeatOfFormation
+          SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
+        ENDIF
+        ! Close the file.
+        CALL H5FCLOSE_F(file_id_specdb, err)
+        ! Close FORTRAN interface.
+        CALL H5CLOSE_F(err)
+      END IF !database
+  
+      IF(Species(iSpec)%DoOverwriteParameters) THEN
+      ! Read-in of heat of formation, ions are treated later using the heat of formation of their ground state and data from the
+      ! from the electronic state database to ensure consistent energies across chemical reactions of QK and Arrhenius type.
+        IF((Species(iSpec)%InterID.EQ.10).OR.(Species(iSpec)%InterID.EQ.20).OR.(Species(iSpec)%InterID.EQ.4)) THEN
+          SpecDSMC(iSpec)%HeatOfFormation = 0.0
+        ELSE
+          SpecDSMC(iSpec)%HeatOfFormation = GETREAL('Part-Species'//TRIM(hilf2)//'-HeatOfFormation_K')
+          SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
+        END IF
+      END IF
+
     ELSE
       IF(SpecDSMC(SpecDSMC(iSpec)%PreviousState)%MaxElecQuant.GT.0) THEN
         jSpec = SpecDSMC(iSpec)%PreviousState
