@@ -46,7 +46,3 @@ Mesh.Binary = 0;
 Mesh.MshFileVersion = 4.1;
 //
 Save "70degCone_3D.msh";
-//+
-Field[3] = Min;
-//+
-Delete Field [3];
