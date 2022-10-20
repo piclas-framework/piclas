@@ -1033,7 +1033,7 @@ IF(Symmetry%Axisymmetric) THEN
     Pos(3)  = 0.0
   ELSE
     IF (PartState(1,iPart).LT.0.0) THEN
-      NewYPart = -SQRT(PartState(1,iPart)**2 + (PartState(3,iPart))**2)
+      NewYPart = -SQRT(Pos(1)**2 + (Pos(3))**2)
     ELSE
       NewYPart = SQRT(Pos(1)**2 + (Pos(3))**2)
     END IF
