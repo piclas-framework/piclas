@@ -80,7 +80,7 @@ IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitI
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT FV...'
 
-! CALL initDGbasis(PP_N,xGP,wGP,wBary)
+CALL initDGbasis(PP_N,xGP,wGP,wBary)
 #if USE_LOADBALANCE && !(USE_HDG)
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
@@ -133,87 +133,87 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitFV
 
 
-! SUBROUTINE InitDGbasis(N_in,xGP,wGP,wBary)
-! !===================================================================================================================================
-! ! Allocate global variable U (solution) and Ut (dg time derivative).
-! !===================================================================================================================================
-! ! MODULES
-! USE MOD_Globals
-! USE MOD_Basis     ,ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
-! USE MOD_Basis     ,ONLY:PolynomialDerivativeMatrix,LagrangeInterpolationPolys
-! USE MOD_DG_Vars   ,ONLY:D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus
-! #if USE_HDG
-! #if USE_MPI
-! USE MOD_PreProc
-! USE MOD_MPI_vars,      ONLY:SendRequest_Geo,RecRequest_Geo
-! USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-! USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem,nSides
-! #endif /*USE_MPI*/
-! #endif /*USE_HDG*/
-! ! IMPLICIT VARIABLE HANDLING
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT VARIABLES
-! INTEGER,INTENT(IN)                         :: N_in
-! REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP,wGP,wBary
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! OUTPUT VARIABLES
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES
-! REAL,DIMENSION(0:N_in,0:N_in)              :: M,Minv
-! REAL,DIMENSION(0:N_in)                     :: L_minus,L_plus
-! INTEGER                                    :: iMass
-! #if USE_HDG
-! #if USE_MPI
-! REAL                                       :: Geotemp(10,0:PP_N,0:PP_N,1:nSides)
-! #endif /*USE_MPI*/
-! #endif /*USE_HDG*/
-! !===================================================================================================================================
-! ALLOCATE(L_HatMinus(0:N_in), L_HatPlus(0:N_in))
-! ALLOCATE(D(0:N_in,0:N_in), D_T(0:N_in,0:N_in))
-! ALLOCATE(D_Hat(0:N_in,0:N_in), D_Hat_T(0:N_in,0:N_in))
-! ! Compute Differentiation matrix D for given Gausspoints
-! CALL PolynomialDerivativeMatrix(N_in,xGP,D)
-! D_T=TRANSPOSE(D)
-!
-! ! Build D_Hat matrix. (D^ = M^(-1) * D^T * M
-! M(:,:)=0.
-! Minv(:,:)=0.
-! DO iMass=0,N_in
-!   M(iMass,iMass)=wGP(iMass)
-!   Minv(iMass,iMass)=1./wGP(iMass)
-! END DO
-! D_Hat(:,:) = -MATMUL(Minv,MATMUL(TRANSPOSE(D),M))
-! D_Hat_T=TRANSPOSE(D_hat)
-!
-! ! interpolate to left and right face (1 and -1) and pre-divide by mass matrix
-! CALL LagrangeInterpolationPolys(1.,N_in,xGP,wBary,L_Plus)
-! L_HatPlus(:) = MATMUL(Minv,L_Plus)
-! CALL LagrangeInterpolationPolys(-1.,N_in,xGP,wBary,L_Minus)
-! L_HatMinus(:) = MATMUL(Minv,L_Minus)
-!
-! #if USE_HDG
-! #if USE_MPI
-! ! exchange is in initDGbasis as InitMesh() and InitMPI() is needed
-! Geotemp=0.
-! Geotemp(1,:,:,:)=SurfElem(:,:,1:nSides)
-! Geotemp(2:4,:,:,:)=NormVec(:,:,:,1:nSides)
-! Geotemp(5:7,:,:,:)=TangVec1(:,:,:,1:nSides)
-! Geotemp(8:10,:,:,:)=TangVec2(:,:,:,1:nSides)
-! !Geotemp(11:13,:,:,:)=Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)
-! CALL StartReceiveMPIData(10,Geotemp,1,nSides,RecRequest_Geo ,SendID=1) ! Receive MINE
-! CALL StartSendMPIData(   10,Geotemp,1,nSides,SendRequest_Geo,SendID=1) ! Send YOUR
-! CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)                                 ! Send YOUR - receive MINE
-!
-! SurfElem(:,:,1:nSides)=Geotemp(1,:,:,:)
-! NormVec(:,:,:,1:nSides)=Geotemp(2:4,:,:,:)
-! TangVec1(:,:,:,1:nSides)=Geotemp(5:7,:,:,:)
-! TangVec2(:,:,:,1:nSides)=Geotemp(8:10,:,:,:)
-! !Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(11:13,:,:,:)
-!
-! #endif /*USE_MPI*/
-! #endif /*USE_HDG*/
-! END SUBROUTINE InitDGbasis
+SUBROUTINE InitDGbasis(N_in,xGP,wGP,wBary)
+!===================================================================================================================================
+! Allocate global variable U (solution) and Ut (dg time derivative).
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Basis     ,ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
+USE MOD_Basis     ,ONLY:PolynomialDerivativeMatrix,LagrangeInterpolationPolys
+USE MOD_FV_Vars   ,ONLY:D,D_T,D_Hat,D_Hat_T,L_HatMinus,L_HatPlus
+#if USE_HDG
+#if USE_MPI
+USE MOD_PreProc
+USE MOD_MPI_vars,      ONLY:SendRequest_Geo,RecRequest_Geo
+USE MOD_MPI,           ONLY:StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_Mesh_Vars,     ONLY:NormVec,TangVec1,TangVec2,SurfElem,nSides
+#endif /*USE_MPI*/
+#endif /*USE_HDG*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                         :: N_in
+REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP,wGP,wBary
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,DIMENSION(0:N_in,0:N_in)              :: M,Minv
+REAL,DIMENSION(0:N_in)                     :: L_minus,L_plus
+INTEGER                                    :: iMass
+#if USE_HDG
+#if USE_MPI
+REAL                                       :: Geotemp(10,0:PP_N,0:PP_N,1:nSides)
+#endif /*USE_MPI*/
+#endif /*USE_HDG*/
+!===================================================================================================================================
+ALLOCATE(L_HatMinus(0:N_in), L_HatPlus(0:N_in))
+ALLOCATE(D(0:N_in,0:N_in), D_T(0:N_in,0:N_in))
+ALLOCATE(D_Hat(0:N_in,0:N_in), D_Hat_T(0:N_in,0:N_in))
+! Compute Differentiation matrix D for given Gausspoints
+CALL PolynomialDerivativeMatrix(N_in,xGP,D)
+D_T=TRANSPOSE(D)
+
+! Build D_Hat matrix. (D^ = M^(-1) * D^T * M
+M(:,:)=0.
+Minv(:,:)=0.
+DO iMass=0,N_in
+  M(iMass,iMass)=wGP(iMass)
+  Minv(iMass,iMass)=1./wGP(iMass)
+END DO
+D_Hat(:,:) = -MATMUL(Minv,MATMUL(TRANSPOSE(D),M))
+D_Hat_T=TRANSPOSE(D_hat)
+
+! interpolate to left and right face (1 and -1) and pre-divide by mass matrix
+CALL LagrangeInterpolationPolys(1.,N_in,xGP,wBary,L_Plus)
+L_HatPlus(:) = MATMUL(Minv,L_Plus)
+CALL LagrangeInterpolationPolys(-1.,N_in,xGP,wBary,L_Minus)
+L_HatMinus(:) = MATMUL(Minv,L_Minus)
+
+#if USE_HDG
+#if USE_MPI
+! exchange is in initDGbasis as InitMesh() and InitMPI() is needed
+Geotemp=0.
+Geotemp(1,:,:,:)=SurfElem(:,:,1:nSides)
+Geotemp(2:4,:,:,:)=NormVec(:,:,:,1:nSides)
+Geotemp(5:7,:,:,:)=TangVec1(:,:,:,1:nSides)
+Geotemp(8:10,:,:,:)=TangVec2(:,:,:,1:nSides)
+!Geotemp(11:13,:,:,:)=Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)
+CALL StartReceiveMPIData(10,Geotemp,1,nSides,RecRequest_Geo ,SendID=1) ! Receive MINE
+CALL StartSendMPIData(   10,Geotemp,1,nSides,SendRequest_Geo,SendID=1) ! Send YOUR
+CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)                                 ! Send YOUR - receive MINE
+
+SurfElem(:,:,1:nSides)=Geotemp(1,:,:,:)
+NormVec(:,:,:,1:nSides)=Geotemp(2:4,:,:,:)
+TangVec1(:,:,:,1:nSides)=Geotemp(5:7,:,:,:)
+TangVec2(:,:,:,1:nSides)=Geotemp(8:10,:,:,:)
+!Face_xGP(:,:,:,SideID_minus_lower:SideID_minus_upper)=Geotemp(11:13,:,:,:)
+
+#endif /*USE_MPI*/
+#endif /*USE_HDG*/
+END SUBROUTINE InitDGbasis
 
 SUBROUTINE FV_main(t,tStage,doSource)
 !===================================================================================================================================
@@ -229,6 +229,7 @@ USE MOD_SurfInt            ,ONLY: SurfInt
 USE MOD_ProlongToFace     ,ONLY: ProlongToFace
 USE MOD_FillFlux          ,ONLY: FillFlux
 USE MOD_Equation          ,ONLY: CalcSource
+USE MOD_Interpolation     ,ONLY: ApplyJacobian
 ! USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
 #if USE_MPI
 USE MOD_Mesh_Vars         ,ONLY: nSides
@@ -285,6 +286,7 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 CALL ProlongToFace(U,U_master,U_slave,doMPISides=.FALSE.)
 ! CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
 
+
 #if USE_MPI
 #if defined(PARTICLES) && defined(LSERK)
 IF (time.GE.DelayTime) THEN
@@ -339,7 +341,6 @@ CALL FillFlux(t,Flux_Master,Flux_Slave,U_master,U_slave,doMPISides=.FALSE.)
 ! compute surface integral contribution and add to ut
 CALL SurfInt(Flux_Master,Flux_Slave,Ut,doMPISides=.FALSE.)
 
-
 #if USE_MPI
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
@@ -357,6 +358,9 @@ CALL SurfInt(Flux_Master,Flux_Slave,Ut,doMPISides=.TRUE.)
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif
+
+! Swap to right sign and divide by element volume (1/sJ)
+CALL ApplyJacobian(Ut,toPhysical=.TRUE.,toSwap=.TRUE.)
 
 ! Add Source Terms
 IF(doSource) CALL CalcSource(tStage,1.0,Ut)

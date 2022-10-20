@@ -95,13 +95,7 @@ END IF
 !==============================
 
 ! 1. compute flux for non-BC sides: Compute fluxes on PP_N, no additional interpolation required
-! print*, firstSideID,lastSideID
 DO SideID=firstSideID_wo_BC,lastSideID
-  ! print*, SideID
-  ! print*, U_Master(:,:,:,SideID)
-  ! print*, '-----------------'
-  ! print*, U_Slave(:,:,:,SideID)
-  ! read*
   CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec(:,:,:,SideID))
 END DO ! SideID
 

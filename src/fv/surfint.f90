@@ -46,6 +46,7 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: SideToElem
 USE MOD_Mesh_Vars,          ONLY: nSides
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_MINE
+!USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -60,11 +61,8 @@ REAL,INTENT(INOUT)   :: Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 ! LOCAL VARIABLES
 INTEGER            :: ElemID,Flip,SideID,locSideID
 INTEGER            :: firstSideID,lastSideID
-#if (PP_NodeType>1)
-REAL               ::L_HatMinus0,L_HatPlusN
-#endif
+!INTEGER            :: offsetElemCNProc
 !===================================================================================================================================
-
 IF(doMPISides)THEN
   ! MPI YOUR
   firstSideID = firstMPISide_YOUR
@@ -75,10 +73,6 @@ ELSE
    lastSideID = lastMPISide_MINE
 END IF
 
-#if (PP_NodeType>1)
-L_HatMinus0 = L_HatMinus(0)
-L_HatPlusN  = L_HatPlus(PP_N)
-#endif
 DO SideID=firstSideID,lastSideID
   ! neighbor side
   ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
@@ -86,7 +80,7 @@ DO SideID=firstSideID,lastSideID
   flip      = SideToElem(S2E_FLIP,SideID)
   ! ignore MPI-faces and boundary faces
   IF(ElemID.LT.0) CYCLE ! boundary side is BC or MPI side
-  Ut(:,0,0,0,ElemID) = Ut(:,0,0,0,ElemID) - Flux_Slave(:,0,0,SideID)
+  Ut(:,0,0,0,ElemID) = Ut(:,0,0,0,ElemID) - Flux_Slave(:,0,0,SideID)!/ElemVolume_Shared(ElemID+offsetElemCNProc)
 END DO ! SideID=1,nSides
 
 
@@ -96,7 +90,7 @@ DO SideID=firstSideID,lastSideID
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   flip      = 0
   IF(ElemID.LT.0) CYCLE ! if master is MPI side
-  Ut(:,0,0,0,ElemID) = Ut(:,0,0,0,ElemID) + Flux_Master(:,0,0,SideID)
+  Ut(:,0,0,0,ElemID) = Ut(:,0,0,0,ElemID) + Flux_Master(:,0,0,SideID)!/ElemVolume_Shared(ElemID+offsetElemCNProc)
 END DO ! SideID=1,nSides
 
 END SUBROUTINE SurfInt

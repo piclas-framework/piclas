@@ -466,7 +466,7 @@ REAL ,INTENT(INOUT),OPTIONAL :: dXCL_Ngeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,nElem
 INTEGER :: i,j,k,q,iElem
 INTEGER :: ll
 ! Jacobian on CL N and NGeoRef
-REAL    :: DetJac_N( 1,0:PP_N,   0:PP_N,   0:PP_N)
+REAL    :: DetJac_N_PP_1( 1,0:PP_1,   0:PP_1,   0:PP_1)
 ! interpolation points and derivatives on CL N
 REAL    :: XCL_N(      3,  0:PP_1,0:PP_1,0:PP_1)          ! mapping X(xi) P\in N
 REAL    :: XCL_Ngeo(   3,  0:Ngeo,0:Ngeo,0:Ngeo)          ! mapping X(xi) P\in Ngeo
@@ -552,7 +552,7 @@ CALL GetDerivativeMatrix(Ngeo  , NodeTypeCL  , DCL_Ngeo)
 
 ! 1.c) Jacobian: CLNgeo to NgeoRef, CLNgeoRef to N
 CALL GetVandermonde(    Ngeo   , NodeTypeCL  , NgeoRef , NodeType  , Vdm_CLNgeo_NgeoRef, modal=.FALSE.)
-CALL GetVandermonde(    NgeoRef, NodeType    , PP_N    , NodeType  , Vdm_NgeoRef_N     , modal=.TRUE.)
+CALL GetVandermonde(    NgeoRef, NodeType    , PP_1    , NodeType  , Vdm_NgeoRef_N     , modal=.TRUE.)
 CALL GetNodesAndWeights(NgeoRef, NodeType    , xiRef   , wIPBary=wBaryRef)
 
 ! 1.d) derivatives (dXCL) by projection or by direct derivation (D_CL):
@@ -620,16 +620,16 @@ DO iElem=1,nElems
   END IF
 
   ! project detJac_ref onto the solution basis
-  CALL ChangeBasis3D(1,NgeoRef,PP_N,Vdm_NgeoRef_N,DetJac_Ref(:,:,:,:,iElem),DetJac_N)
+  CALL ChangeBasis3D(1,NgeoRef,PP_1,Vdm_NgeoRef_N,DetJac_Ref(:,:,:,:,iElem),DetJac_N_PP_1)
 
   ! assign to global Variable sJ
-  sJ(0,0,0,iElem)=1./DetJac_N(1,0,0,0)
+  sJ(0,0,0,iElem)=1./SUM(SUM(SUM(DetJac_N_PP_1(1,:,:,:),3),2),1)
 
   ! check for negative Jacobians
-  IF(DetJac_N(1,0,0,0).LE.0.)&
+  IF(DetJac_N_PP_1(1,0,0,0).LE.0.)&
     WRITE(Unit_StdOut,*) 'Negative Jacobian found on Gauss point. Coords:', Elem_xGP(:,0,0,0,iElem)
   ! check scaled Jacobians
-  scaledJac(2)=MINVAL(DetJac_N(1,:,:,:))/MAXVAL(DetJac_N(1,:,:,:))
+  scaledJac(2)=MINVAL(DetJac_N_PP_1(1,:,:,:))/MAXVAL(DetJac_N_PP_1(1,:,:,:))
   IF(scaledJac(2).LT.0.01) THEN
     WRITE(Unit_StdOut,*) 'Too small scaled Jacobians found (CL/Gauss):', scaledJac
     CALL abort(__STAMP__,&
@@ -728,8 +728,6 @@ DO iElem=1,nElems
   Metrics_fTilde(:,0,0,0,:) = Metrics_fTilde_PP_1(:,0,0,0,:)!SUM(SUM(SUM(Metrics_fTilde_PP_1(:,:,:,:,:),4),3),2)
   Metrics_gTilde(:,0,0,0,:) = Metrics_gTilde_PP_1(:,0,0,0,:)
   Metrics_hTilde(:,0,0,0,:) = Metrics_hTilde_PP_1(:,0,0,0,:)
-  ! print*, Face_xGP_PP_1
-  ! print*,'------------------'
   ! print*, Metrics_fTilde_PP_1(:,:,:,:,:)
   ! print*,'------------------'
   ! print*, Metrics_gTilde_PP_1(:,:,:,:,:)

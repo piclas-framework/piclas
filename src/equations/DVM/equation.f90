@@ -161,8 +161,8 @@ ELSE
              'Undefined velocity space discretization')
 END IF ! DVMVeloDisc
 
-SWRITE(UNIT_stdOut,*) DVMVelos
-SWRITE(UNIT_stdOut,*) DVMWeights
+! SWRITE(UNIT_stdOut,*) DVMVelos
+! SWRITE(UNIT_stdOut,*) DVMWeights
 
 ! Read Boundary information / RefStates / perform sanity check
 IniRefState = GETINT('IniRefState')
@@ -245,23 +245,28 @@ CASE(2) ! couette flow, L=1m between walls, RefState: 1 -> initial state, 2 -> y
     CALL MaxwellDistribution(MacroVal,Resu(:))
   END IF
 
-! CASE(3) !sod shock
-!   Resu=0.
-!
-!   IF (x(1).LT.(-tIn*cL)) THEN
-!     CALL MaxwellDistribution(SodMacro_L,Resu(:))
-!   ELSE IF (x(1).LT.(tIn*(SodMacro_M(2)-cM))) THEN
-!     SodMacro_LL(2) = 2./(gamma+1.) * (cL + x(1)/tIn)
-!     SodMacro_LL(1) = SodMacro_L(1) * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2./(gamma-1.))
-!     SodMacro_LL(5) = pL * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2*gamma/(gamma-1))/DVMSpeciesData%R_S/SodMacro_LL(1)
-!     CALL MaxwellDistribution(SodMacro_LL,Resu(:))
-!   ELSE IF (x(1).LT.(tIn*SodMacro_M(2))) THEN
-!     CALL MaxwellDistribution(SodMacro_M,Resu(:))
-!   ELSE IF (x(1).LT.(tIn*vs)) THEN
-!     CALL MaxwellDistribution(SodMacro_RR,Resu(:))
-!   ELSE
-!     CALL MaxwellDistribution(SodMacro_R,Resu(:))
-!   END IF
+CASE(3) !sod shock
+  Resu=0.
+
+  IF (x(1).LT.0.) THEN
+    CALL MaxwellDistribution(RefState(:,1),Resu(:))
+  ELSE
+    CALL MaxwellDistribution(RefState(:,2),Resu(:))
+  END IF
+  ! IF (x(1).LT.(-tIn*cL)) THEN
+  !   CALL MaxwellDistribution(SodMacro_L,Resu(:))
+  ! ELSE IF (x(1).LT.(tIn*(SodMacro_M(2)-cM))) THEN
+  !   SodMacro_LL(2) = 2./(gamma+1.) * (cL + x(1)/tIn)
+  !   SodMacro_LL(1) = SodMacro_L(1) * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2./(gamma-1.))
+  !   SodMacro_LL(5) = pL * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2*gamma/(gamma-1))/DVMSpeciesData%R_S/SodMacro_LL(1)
+  !   CALL MaxwellDistribution(SodMacro_LL,Resu(:))
+  ! ELSE IF (x(1).LT.(tIn*SodMacro_M(2))) THEN
+  !   CALL MaxwellDistribution(SodMacro_M,Resu(:))
+  ! ELSE IF (x(1).LT.(tIn*vs)) THEN
+  !   CALL MaxwellDistribution(SodMacro_RR,Resu(:))
+  ! ELSE
+  !   CALL MaxwellDistribution(SodMacro_R,Resu(:))
+  ! END IF
 
 CASE DEFAULT
   CALL abort(__STAMP__,&

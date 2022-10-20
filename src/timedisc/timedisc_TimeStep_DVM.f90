@@ -39,6 +39,7 @@ USE MOD_TimeDisc_Vars         ,ONLY: dt,time
 USE MOD_FV                    ,ONLY: FV_main
 USE MOD_DistFunc              ,ONLY: RescaleU, RescaleInit, ForceStep
 USE MOD_Equation_Vars         ,ONLY: IniExactFunc, DVMForce
+USE MOD_Mesh_Vars     ,ONLY: Elem_xGP
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -50,14 +51,15 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 
 !===================================================================================================================================
-! print*, time, IniExactFunc
-! read*
 IF (IniExactFunc.EQ.4.AND.time.EQ.0.) CALL RescaleInit(dt) ! initial rescaling if simulation initialized with non-equilibrium flow
 
 IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt)
-
+! print*, Ut(95,0,0,0,31)
 CALL RescaleU(1,dt)  ! ftilde -> fchapeau2
 CALL FV_main(time,time,doSource=.FALSE.)  ! fchapeau2 -> ftilde2 -> Ut = flux de f
+! print*, Ut(95,0,0,0,31)
+! print*, Elem_xGP(1,0,0,0,31)
+! ! read*
 CALL RescaleU(2,dt/2.)  ! fchapeau2 -> fchapeau
 U = U + Ut*dt        ! fchapeau -> ftilde
 

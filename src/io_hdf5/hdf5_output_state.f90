@@ -75,6 +75,10 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
+#if (PP_TimeDiscMethod==600) /*DVM*/
+USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution
+USE MOD_TimeDisc_Vars          ,ONLY: dt
+#endif
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: nGP_face, iLocSides
 #if PP_nVar==1
@@ -138,6 +142,8 @@ REAL                           :: StartT,EndT
 
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
+#elif (PP_TimeDiscMethod==600) /*DVM with FV*/
+REAL                           :: Utemp(1:9,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #elif USE_HDG
 #if PP_nVar==1
 REAL                           :: Utemp(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
@@ -151,6 +157,10 @@ REAL                           :: Utemp(1:7,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*not maxwell*/
 #endif /*PP_POIS*/
+#if (PP_TimeDiscMethod==600) /*DVM*/
+REAL                           :: tau
+INTEGER                        :: iElem
+#endif /*DVM*/
 REAL                           :: OutputTime_loc
 REAL                           :: PreviousTime_loc
 INTEGER(KIND=IK)               :: PP_nVarTmp
@@ -222,7 +232,11 @@ IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputT
 IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc)
 #endif
 #else
+#if (PP_TimeDiscMethod==600) /*DVM*/
+IF(MPIRoot) CALL GenerateFileSkeleton('State',9,StrVarNames,MeshFileName,OutputTime_loc)
+#else
 IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
+#endif /*DVM*/
 #endif /*USE_HDG*/
 ! generate nextfile info in previous output file
 usePreviousTime_loc=.FALSE.
@@ -472,6 +486,17 @@ ASSOCIATE (&
       offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE., RealArray=Utemp)
 #endif /*(PP_nVar==1)*/
+#elif (PP_TimeDiscMethod==600) /*DVM*/
+  DO iElem=1,INT(PP_nElems)
+    CALL MacroValuesFromDistribution(Utemp(1:8,0,0,0,iElem),U(:,0,0,0,iElem),dt,tau,1)
+    Utemp(9,0,0,0,iElem) = dt/tau
+  END DO
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DVM_Solution', rank=5,&
+      nValGlobal=(/9_IK, N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+      nVal=      (/9_IK, N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+      collective=.TRUE.,RealArray=Utemp)
 #else
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
