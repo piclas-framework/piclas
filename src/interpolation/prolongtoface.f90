@@ -29,6 +29,10 @@ PRIVATE
 INTERFACE ProlongToFace
   MODULE PROCEDURE ProlongToFace_FV
 END INTERFACE
+
+INTERFACE CalcFVGradients
+  MODULE PROCEDURE CalcFVGradients
+END INTERFACE
 #else
 INTERFACE ProlongToFace
   MODULE PROCEDURE ProlongToFace_sideBased
@@ -47,9 +51,104 @@ END INTERFACE
 PUBLIC::ProlongToFace
 PUBLIC::ProlongToFace_BC
 PUBLIC::ProlongToFace_Elementlocal
+PUBLIC::CalcFVGradients
 !===================================================================================================================================
 
 CONTAINS
+
+SUBROUTINE CalcFVGradients()
+!===================================================================================================================================
+! Compute gradients for fv reconstruction
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_FV_Limiter               ,ONLY: FV_Limiter
+USE MOD_FV_Vars                  ,ONLY: U, U_master, U_slave, FV_dx_slave, FV_dx_master, FV_gradU, FV_gradU_limited
+USE MOD_Mesh_Vars                ,ONLY: nSides, nElems
+USE MOD_Mesh_Vars                ,ONLY: NormVec,TangVec1,TangVec2,Face_xGP
+USE MOD_GetBoundaryFlux          ,ONLY: GetBoundaryFVgradient
+USE MOD_Mesh_Vars,          ONLY: SideToElem, ElemToSide
+USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide
+USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,nSides,firstMortarMPISide,lastMortarMPISide
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iElem,SideID,iLocSide, ElemID, firstSideID, lastSideID, SideID_1, SideID_2
+!===================================================================================================================================
+
+DO iElem=1,nElems
+  DO iLocSide=1,3
+    SideID_1=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    IF (FV_dx_slave(SideID_1).LT.0.) THEN
+      CALL GetBoundaryFVgradient(SideID_1,FV_gradU(:,SideID_1),&
+                                           U_master(:,0,0,SideID_1),&
+                                              NormVec(:,0,0,SideID_1),&
+                                             TangVec1(:,0,0,SideID_1),&
+                                             TangVec2(:,0,0,SideID_1),&
+                                             Face_xGP(:,0,0,SideID_1),&
+                                             FV_dx_master(SideID_1))
+    ELSE
+      FV_gradU(:,SideID_1) = (U_master(:,0,0,SideID_1) - U_slave(:,0,0,SideID_1))/(FV_dx_master(SideID_1)+FV_dx_slave(SideID_1))
+    END IF
+    SELECT CASE(iLocSide)
+      CASE(1)
+        SideID_2=ElemToSide(E2S_SIDE_ID,6,iElem)
+      CASE(2)
+        SideID_2=ElemToSide(E2S_SIDE_ID,4,iElem)
+      CASE(3)
+        SideID_2=ElemToSide(E2S_SIDE_ID,5,iElem)
+    END SELECT
+    IF (FV_dx_slave(SideID_2).LT.0.) THEN
+      CALL GetBoundaryFVgradient(SideID_2,FV_gradU(:,SideID_2),&
+                                           U_master(:,0,0,SideID_2),&
+                                              NormVec(:,0,0,SideID_2),&
+                                             TangVec1(:,0,0,SideID_2),&
+                                             TangVec2(:,0,0,SideID_2),&
+                                             Face_xGP(:,0,0,SideID_2),&
+                                             FV_dx_master(SideID_2))
+    ELSE
+      FV_gradU(:,SideID_2) = (U_master(:,0,0,SideID_2) - U_slave(:,0,0,SideID_2))/(FV_dx_master(SideID_2)+FV_dx_slave(SideID_2))
+    END IF
+    CALL FV_Limiter(FV_gradU(:,SideID_1),FV_gradU(:,SideID_2),FV_gradU_limited(:,iElem))
+  END DO
+END DO
+firstSideID = firstInnerSide
+lastSideID  = lastMPISide_MINE
+DO SideID=firstSideID,lastSideID
+  ! neighbor side !ElemID,locSideID and flip =-1 if not existing
+  ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
+  U_slave(:,0,0,SideID) = U(:,0,0,0,ElemID)+ FV_gradU_limited(:,ElemID)*FV_dx_slave(SideID)
+END DO
+firstSideID = firstBCSide
+lastSideID =  lastMPISide_MINE
+DO SideID=firstSideID,lastSideID
+  ElemID    = SideToElem(S2E_ELEM_ID,SideID)
+  U_master(:,0,0,SideID)=U(:,0,0,0,ElemID)- FV_gradU_limited(:,ElemID)*FV_dx_master(SideID)
+END DO !SideID
+
+! DO SideID=1,nSides
+!   IF (FV_dx_slave(SideID).LT.0.) THEN
+!     CALL GetBoundaryFVgradient(SideID,FV_gradU(:,SideID),&
+!                                          U_master(:,0,0,SideID),&
+!                                             NormVec(:,0,0,SideID),&
+!                                            TangVec1(:,0,0,SideID),&
+!                                            TangVec2(:,0,0,SideID),&
+!                                            Face_xGP(:,0,0,SideID),&
+!                                            FV_dx_master(SideID))
+!   ELSE
+!     FV_gradU(:,SideID) = (U_master(:,0,0,SideID) - U_slave(:,0,0,SideID))/(FV_dx_master(SideID)+FV_dx_slave(SideID))
+!   END IF
+!   U_master(:,0,0,SideID) = U_master(:,0,0,SideID) - FV_gradU(:,SideID)*FV_dx_master(SideID)
+!   U_slave(:,0,0,SideID) = U_slave(:,0,0,SideID) + FV_gradU(:,SideID)*FV_dx_slave(SideID)
+! END DO
+
+END SUBROUTINE CalcFVGradients
 
 SUBROUTINE ProlongToFace_FV(Uvol,Uface_master,Uface_slave,doMPISides)
 !===================================================================================================================================
@@ -75,7 +174,7 @@ REAL,INTENT(INOUT)              :: Uface_master(PP_nVar,0:PP_N,0:PP_N,1:nSides)
 REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: l,p,q,ElemID,SideID,flip,LocSideID,firstSideID,lastSideID
+INTEGER                         :: ElemID,SideID,firstSideID,lastSideID
 REAL                            :: Uface(PP_nVar,0:PP_N,0:PP_N)
 !===================================================================================================================================
 IF(doMPISides)THEN
@@ -91,8 +190,6 @@ END IF
 DO SideID=firstSideID,lastSideID
   ! neighbor side !ElemID,locSideID and flip =-1 if not existing
   ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
-  locSideID  = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-  flip         = SideToElem(S2E_FLIP,SideID)
   Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID)
 END DO
 
@@ -110,7 +207,6 @@ END IF
 
 DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-  locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   Uface_master(:,0,0,SideID)=Uvol(:,0,0,0,ElemID)
 END DO !SideID
 

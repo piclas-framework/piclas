@@ -30,6 +30,10 @@ INTERFACE GetBoundaryFlux
   MODULE PROCEDURE GetBoundaryFlux
 END INTERFACE
 
+INTERFACE GetBoundaryFVgradient
+  MODULE PROCEDURE GetBoundaryFVgradient
+END INTERFACE
+
 INTERFACE InitBC
   MODULE PROCEDURE InitBC
 END INTERFACE
@@ -38,7 +42,7 @@ INTERFACE FinalizeBC
   MODULE PROCEDURE FinalizeBC
 END INTERFACE
 
-PUBLIC::GetBoundaryFlux
+PUBLIC::GetBoundaryFlux, GetBoundaryFVgradient
 PUBLIC:: InitBC,FinalizeBC
 !===================================================================================================================================
 
@@ -255,13 +259,17 @@ DO iBC=1,nBCs
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
 
-  ! CASE(4,5,6) ! diffusive or constant static pressure in/outlet
-  !   CALL GetBoundaryState(SideID,dt,PP_N,UPrim_boundary,UPrim_master,NormVec,TangVec1,TangVec2,Face_xGP)
-  !   CALL Riemann(Flux,UPrim_master,UPrim_boundary,NormVec)
+  CASE(4,5,6) ! diffusive or constant static pressure in/outlet
+    DO iSide=1,nBCLoc
+      SideID=BCSideID(iBC,iSide)
+      CALL GetBoundaryState(SideID,dt,PP_N,UPrim_boundary,UPrim_master(:,:,:,SideID),NormVec(:,:,:,SideID) &
+        ,TangVec1(:,:,:,SideID),TangVec2(:,:,:,SideID),Face_xGP(:,:,:,SideID))
+      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
+    END DO
 
   CASE DEFAULT ! unknown BCType
     CALL abort(__STAMP__,&
-         'no BC defined in linearscalaradvection/getboundaryflux.f90!')
+         'no BC defined in DVM/getboundaryflux.f90!')
   END SELECT ! BCType
 END DO
 
@@ -270,31 +278,29 @@ END SUBROUTINE GetBoundaryFlux
 !==================================================================================================================================
 !> Computes the gradient at a boundary for FV subcells.
 !==================================================================================================================================
-SUBROUTINE GetBoundaryFVgradient(SideID,t,gradU,UPrim_master,NormVec,TangVec1,TangVec2,Face_xGP,sdx_Face)
+SUBROUTINE GetBoundaryFVgradient(SideID,gradU,UPrim_master,NormVec,TangVec1,TangVec2,Face_xGP,dx_Face)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals       ,ONLY: Abort
 USE MOD_Mesh_Vars     ,ONLY: BoundaryType,BC
 USE MOD_Equation     ,ONLY: ExactFunc
 USE MOD_Equation_Vars ,ONLY: IniExactFunc, RefState
-USE MOD_TimeDisc_Vars, ONLY : dt
+USE MOD_TimeDisc_Vars, ONLY : dt, time
 USE MOD_DistFunc      ,ONLY: MaxwellDistribution, MacroValuesFromDistribution, MaxwellScattering
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN):: SideID
-REAL,INTENT(IN)   :: t
-REAL,INTENT(IN)   :: UPrim_master(PP_nVar,0:PP_N,0:PP_N)
-REAL,INTENT(OUT)  :: gradU       (PP_nVar,0:PP_N,0:PP_N)
-REAL,INTENT(IN)   :: NormVec (              3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)   :: TangVec1(              3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)   :: TangVec2(              3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)   :: Face_xGP(              3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)   :: sdx_Face(                0:PP_N,0:PP_N,3)
+REAL,INTENT(IN)   :: UPrim_master(PP_nVar)
+REAL,INTENT(OUT)  :: gradU       (PP_nVar)
+REAL,INTENT(IN)   :: NormVec (3)
+REAL,INTENT(IN)   :: TangVec1(3)
+REAL,INTENT(IN)   :: TangVec2(3)
+REAL,INTENT(IN)   :: Face_xGP(3)
+REAL,INTENT(IN)   :: dx_Face
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: p,q
 INTEGER :: BCType,BCState
 REAL    :: UPrim_boundary(1:PP_nVar), MacroVal(8), tau
 !==================================================================================================================================
@@ -305,51 +311,40 @@ SELECT CASE(BCType)
 CASE(1) !Periodic already filled!
 
 CASE(2) ! exact BC = Dirichlet BC !!
-  DO q=0,PP_N; DO p=0,PP_N
-    IF(BCState.EQ.0) THEN ! Determine the exact BC state
-      CALL ExactFunc(IniExactFunc,t,0,Face_xGP(:,p,q),UPrim_boundary)
-    ELSE
-      CALL MaxwellDistribution(RefState(:,BCState),UPrim_boundary)
-    END IF
-    gradU(:,p,q) = (UPrim_master(:,p,q) - UPrim_boundary) * sdx_Face(p,q,3)
-  END DO; END DO
+  IF(BCState.EQ.0) THEN ! Determine the exact BC state
+    CALL ExactFunc(IniExactFunc,time,0,Face_xGP,UPrim_boundary)
+  ELSE
+    CALL MaxwellDistribution(RefState(:,BCState),UPrim_boundary)
+  END IF
+  gradU = (UPrim_master - UPrim_boundary) / dx_Face
 
 CASE(3) ! specular reflection
-  DO q=0,PP_N
-    DO p=0,PP_N
-      CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q),dt,tau,2)
-      MacroVal(2:4) = MacroVal(2:4) - 2.*DOT_PRODUCT(NormVec(1:3,p,q),MacroVal(2:4))*NormVec(1:3,p,q)
-      CALL MaxwellDistribution(MacroVal,UPrim_boundary)
-      gradU(:,p,q) = (UPrim_master(:,p,q) - UPrim_boundary) * sdx_Face(p,q,3)
-    END DO ! p
-  END DO ! q
+  CALL MacroValuesFromDistribution(MacroVal,UPrim_master,dt,tau,2)
+  MacroVal(2:4) = MacroVal(2:4) - 2.*DOT_PRODUCT(NormVec(1:3),MacroVal(2:4))*NormVec(1:3)
+  CALL MaxwellDistribution(MacroVal,UPrim_boundary)
+  gradU = (UPrim_master - UPrim_boundary) /dx_Face
 
 CASE(4) ! diffusive
   MacroVal(:) = RefState(:,BCState)
-  DO q=0,PP_N
-    DO p=0,PP_N
-      CALL MaxwellDistribution(MacroVal,UPrim_boundary)
-      CALL MaxwellScattering(UPrim_boundary,UPrim_master(:,p,q),NormVec(:,p,q),2,dt)
-      gradU(:,p,q) = (UPrim_master(:,p,q) - UPrim_boundary) * sdx_Face(p,q,3)
-    END DO ! p
-  END DO ! q
+  CALL MaxwellDistribution(MacroVal,UPrim_boundary)
+  CALL MaxwellScattering(UPrim_boundary,UPrim_master,NormVec,2,dt)
+  gradU = (UPrim_master - UPrim_boundary) /dx_Face
+
 
 CASE(5) !constant static pressure+temperature inlet
-  DO q=0,PP_N; DO p=0,PP_N
-    CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q),dt,tau,2)
-    MacroVal(1)=RefState(1,BCState)
-    MacroVal(5)=RefState(5,BCState)
-    CALL MaxwellDistribution(MacroVal,UPrim_boundary)
-    gradU(:,p,q) = (UPrim_master(:,p,q) - UPrim_boundary) * sdx_Face(p,q,3)
-  END DO; END DO
+  CALL MacroValuesFromDistribution(MacroVal,UPrim_master,dt,tau,2)
+  MacroVal(1)=RefState(1,BCState)
+  MacroVal(5)=RefState(5,BCState)
+  CALL MaxwellDistribution(MacroVal,UPrim_boundary)
+  gradU = (UPrim_master - UPrim_boundary) /dx_Face
+
 
 CASE(6) !constant static pressure outlet
-  DO q=0,PP_N; DO p=0,PP_N
-    CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q),dt,tau,2)
-    MacroVal(5)=RefState(5,BCState)*RefState(1,BCState)/MacroVal(1)
-    CALL MaxwellDistribution(MacroVal,UPrim_boundary)
-    gradU(:,p,q) = (UPrim_master(:,p,q) - UPrim_boundary) * sdx_Face(p,q,3)
-  END DO; END DO
+  CALL MacroValuesFromDistribution(MacroVal,UPrim_master,dt,tau,2)
+  MacroVal(5)=RefState(5,BCState)*RefState(1,BCState)/MacroVal(1)
+  CALL MaxwellDistribution(MacroVal,UPrim_boundary)
+  gradU = (UPrim_master - UPrim_boundary) /dx_Face
+
 
 CASE DEFAULT ! unknown BCType
   CALL abort(__STAMP__,&

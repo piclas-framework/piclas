@@ -53,6 +53,9 @@ USE MOD_PML                        ,ONLY: DefineParametersPML
 #if USE_HDG
 USE MOD_HDG                        ,ONLY: DefineParametersHDG
 #endif /*USE_HDG*/
+#if USE_FV
+USE MOD_FV                         ,ONLY: DefineParametersFV
+#endif
 USE MOD_Dielectric                 ,ONLY: DefineParametersDielectric
 USE MOD_Piclas_Init                ,ONLY: DefineParametersPiclas
 #ifdef PARTICLES
@@ -116,6 +119,9 @@ CALL DefineParametersPML()
 #if USE_HDG
 CALL DefineParametersHDG()
 #endif /*USE_HDG*/
+#if USE_FV
+CALL DefineParametersFV()
+#endif
 CALL DefineParametersDielectric()
 CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()
