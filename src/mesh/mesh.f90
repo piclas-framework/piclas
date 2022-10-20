@@ -356,6 +356,10 @@ IF (meshMode.GT.1) THEN
 ! assign normal and tangential vectors and surfElems on faces
 
   crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
+  IF(Symmetry%axisymmetric.AND..NOT.crossProductMetrics) THEN
+    crossProductMetrics = .TRUE.
+    SWRITE(UNIT_stdOut,'(A)') 'WARNING: setting ""crossProductMetrics" to true for axisymmetric simulations!'
+  END IF
   LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
   CALL InitMeshBasis(NGeo,PP_N,xGP)
 
