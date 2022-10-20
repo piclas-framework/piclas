@@ -785,6 +785,7 @@ SUBROUTINE getVARformatStr(VARformatStr,L2name)
 !===================================================================================================================================
 ! MODULES
   USE MOD_Globals
+  USE MOD_PreProc
   USE MOD_Equation_Vars,ONLY:StrVarNames
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -793,7 +794,7 @@ SUBROUTINE getVARformatStr(VARformatStr,L2name)
   ! CALC%varName: Name of conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-  CHARACTER(LEN=30) :: L2name(PP_nVar) ! The name of the Tecplot variables
+  CHARACTER(LEN=30) :: L2name(:) ! The name of the Tecplot variables
   CHARACTER(LEN=50) :: VARformatStr ! L2name format string
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES

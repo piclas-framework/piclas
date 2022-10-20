@@ -64,6 +64,7 @@ CALL prms%CreateRealArrayOption(     'DVM-GaussHermiteTemp',        "Blabla.","(
 CALL prms%CreateRealArrayOption(     'DVM-VeloMin',        "Blabla.", "(/-1.,-1.,-1./)")
 CALL prms%CreateRealArrayOption(     'DVM-VeloMax',        "Blabla.", "(/1.,1.,1./)")
 CALL prms%CreateIntOption(     'DVM-Dimension',        "Blabla.", "3")
+CALL prms%CreateIntOption( 'DVM-nVelo' , "Number of velocity discretization points", '15')
 CALL prms%CreateIntArrayOption(     'DVM-NewtonCotesDegree',        "Blabla.", "(/1,1,1/)")
 CALL prms%CreateIntOption(      'IniRefState',  "Refstate required for initialization.")
 CALL prms%CreateRealArrayOption('RefState',     "State(s) in primitive variables (density, velx, vely, velz, pressure).",&
@@ -119,9 +120,11 @@ IF ((DVMDim+DVMSpeciesData%Internal_DOF).LT.3.) CALL abort(__STAMP__,&
 DVMSpeciesData%Prandtl = 2./3.
 DVMnVelos(1:3) = 1
 IF (DVMSpeciesData%Internal_DOF.GT.0.0) THEN
-  DVMnVelos(1:DVMDim) = NINT((PP_nVar/2.)**(1./FLOAT(DVMDim)))
+  DVMnVelos(1:DVMDim) = GETINT('DVM-nVelo')
+  PP_nVar = (DVMnVelos(1)**DVMDim)*2
 ELSE
-  DVMnVelos(:) = NINT(PP_nVar**(1./3.))
+  DVMnVelos(:) = GETINT('DVM-nVelo')
+  PP_nVar = (DVMnVelos(1)**3)
 END IF
 SWRITE(UNIT_stdOut,*)'DVM uses ', DVMnVelos(1), 'x', DVMnVelos(2), 'x', DVMnVelos(3),' velocities!'
 

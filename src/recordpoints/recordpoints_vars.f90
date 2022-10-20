@@ -41,7 +41,7 @@ REAL,ALLOCATABLE   :: L_eta_RP(:,:)
 REAL,ALLOCATABLE   :: L_zeta_RP(:,:)
 REAL,ALLOCATABLE   :: RP_Data(:,:,:)          ! solution evaluated at RPs (nvar,nRP,nSamples)
 REAL,ALLOCATABLE   :: lastSample(:,:)         ! solution evaluated at RPs (nvar,nRP,nSamples)
-CHARACTER(LEN=255) :: StrVarNames(PP_nVar)
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! MPI Communicator for RPs
 !-----------------------------------------------------------------------------------------------------------------------------------

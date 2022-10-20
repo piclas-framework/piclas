@@ -77,7 +77,7 @@ USE MOD_ReadInTools         ,ONLY: GETSTR,GETINT,GETLOGICAL,GETREAL
 USE MOD_Interpolation_Vars  ,ONLY: InterpolationInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RPDefFile,RP_inUse,RP_onProc,RecordpointsInitIsDone
 USE MOD_RecordPoints_Vars   ,ONLY: RP_MaxBuffersize
-USE MOD_RecordPoints_Vars   ,ONLY: nRP,nGlobalRP,lastSample,iSample,nSamples,RP_fileExists
+USE MOD_RecordPoints_Vars   ,ONLY: nRP,nGlobalRP,lastSample,iSample,nSamples,RP_fileExists,StrVarNames
 #if USE_MPI
 USE MOD_Recordpoints_Vars ,ONLY: RP_COMM
 #endif
@@ -101,6 +101,8 @@ IF((.NOT.InterpolationInitIsDone) .OR. RecordPointsInitIsDone)THEN
 END IF
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT RECORDPOINTS...'
+
+ALLOCATE(StrVarNames(PP_nVar))
 
 nRP=0
 iSample=0

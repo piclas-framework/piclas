@@ -12,7 +12,7 @@
 !==================================================================================================================================
 MODULE MOD_PreProc
 !===================================================================================================================================
-! Use this module in other modules without the 'ONLY' directive, because when one of the following variables is compiled as an 
+! Use this module in other modules without the 'ONLY' directive, because when one of the following variables is compiled as an
 ! integer or real, then no variable is declared.
 !===================================================================================================================================
 ! MODULES
@@ -26,6 +26,9 @@ IMPLICIT NONE
 REAL,PARAMETER        :: PP_RealTolerance = EPSILON(1.0D0) !< machine precision
 #if PP_N == N
   INTEGER             :: PP_N                              !< polynomial degree
+#endif
+#if (PP_TimeDiscMethod==600) /*DVM*/
+  INTEGER             :: PP_nVar
 #endif
 #if PP_nElems == NELEMZ
   INTEGER             :: PP_nElems = 0              ! pp preproc
