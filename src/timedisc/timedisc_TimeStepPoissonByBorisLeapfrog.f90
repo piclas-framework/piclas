@@ -64,7 +64,7 @@ USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif
-USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
+USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle,CalcPartSymmetryPos
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_vMPF                   ,ONLY: SplitAndMerge
 USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
@@ -187,6 +187,7 @@ IF (time.GE.DelayTime) THEN
 
       !-- x(n) => x(n+1) by v(n+0.5):
       PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtFrac
+      CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
 
       ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
