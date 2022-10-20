@@ -116,7 +116,7 @@ To extrude the 2D quadrangular mesh to a 3D hexahedral mesh with only one elemen
     lowerZ_BC    = (/3,0,0,0/)
     upperZ_BC    = (/3,0,0,0/)
 
-While `zLength` specifies the length of the mesh in $z$-direction, `nElemsZ` ensures a single cell row. `lowerZ_BC` and `upperZ_BC` are the boundary conditions on the surfaces in the $xy$-plane, that need to be defined as stated.
+While `zLength` specifies the length of the mesh in $z$-direction, `nElemsZ` ensures a single cell row. `lowerZ_BC` and `upperZ_BC` are the boundary conditions on the surfaces parallel to the $xy$-plane, that need to be defined as stated.
 
 Again, to create the `.h5` mesh file, you would simply run
 
@@ -172,12 +172,24 @@ In axially symmetrical cases, the simulation effort can be greatly reduced. For 
     Particles-Symmetry-Order         = 2
     Particles-Symmetry2DAxisymmetric = T
 
-First of all, certain requirements are placed on the grid. The $y$-axis acts as the symmetry axis, while the $x$-axis defines the radial direction. Therefore grid lies in the $xy$-plane and should have an extension of one cell in the $z$-direction, the extent in $z$-direction is irrelevant whilst it is centered on $z=0$. In addition, the boundary at $y = 0$ must be provided with the condition `symmetric_axis` and the two boundaries parallel to the $xy$-plane with the condition `symmetric`. 
+First of all, certain requirements are placed on the grid. The $y$-axis acts as the symmetry axis, while the $x$-axis defines the radial direction. Therefore grid lies in the $xy$-plane and should have an extension of one cell in the $z$-direction, the extent in $z$-direction is irrelevant whilst it is centered on $z=0$. In addition, the boundary at $y = 0$ must be provided with the condition `symmetric_axis` and the boundaries parallel to the $xy$-plane with the condition `symmetric`. 
 
     Part-Boundary4-SourceName  = SYMAXIS
     Part-Boundary4-Condition   = symmetric_axis
+
+For the `.cgns` mesh, the following commands need to be enabled:
+
+    Part-nBounds               = 5
     Part-Boundary5-SourceName  = ROTSYM
     Part-Boundary5-Condition   = symmetric
+
+For the `.msh` mesh instead, the following commands need to be enabled:
+
+    Part-nBounds               = 6
+    Part-Boundary5-SourceName  = lowerZ_BC
+    Part-Boundary5-Condition   = symmetric
+    Part-Boundary6-SourceName  = upperZ_BC
+    Part-Boundary6-Condition   = symmetric
 
 To fully exploit rotational symmetry, a radial weighting can be enabled via `Particles-RadialWeighting = T`, which will linearly increase the weighting factor towards $y_{\text{max}}$, depending on the current $y$-position of the particle. Thereby the `Particles-RadialWeighting-PartScaleFactor` multiplied by the `MacroParticleFactor` is the weighting factor at $y_{\text{max}}$. Since this position based weighting requires an adaptive weighting factor, particle deletion and cloning is necessary. `Particles-RadialWeighting-CloneDelay` defines the number of iterations in which the information of the particles to be cloned are stored and `Particles-RadialWeighting-CloneMode = 2` ensures that the particles from this list are inserted randomly after the delay.
 
