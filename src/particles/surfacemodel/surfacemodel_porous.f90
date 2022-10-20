@@ -98,7 +98,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Tools     ,ONLY: GetRadialDistance2D
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars               ,ONLY: Symmetry
+USE MOD_Symmetry_Vars               ,ONLY: Symmetry
 USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound, nPorousSides, MapSurfSideToPorousSide_Shared, PorousBCSampWall
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCInfo_Shared,PorousBCProperties_Shared,PorousBCSampWall_Shared

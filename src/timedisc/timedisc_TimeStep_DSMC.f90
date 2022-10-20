@@ -37,7 +37,7 @@ USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals                  ,ONLY: abort
 USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, VarTimeStep, Species, PartSpecies
+USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, VarTimeStep, Species, PartSpecies
 USE MOD_Particle_Vars            ,ONLY: UseSplitAndMerge
 USE MOD_DSMC_Vars                ,ONLY: DSMC, CollisMode, AmbipolElecVelo
 USE MOD_DSMC                     ,ONLY: DSMC_main
@@ -49,6 +49,7 @@ USE MOD_Particle_Tracking        ,ONLY: PerformTracking
 USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
+USE MOD_Symmetry_Vars            ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/

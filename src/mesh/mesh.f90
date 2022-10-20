@@ -131,7 +131,8 @@ USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #ifdef PARTICLES
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Particle_Mesh_Vars     ,ONLY: meshScale
-USE MOD_Particle_Vars          ,ONLY: usevMPF, Symmetry
+USE MOD_Particle_Vars          ,ONLY: usevMPF
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #endif
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_Mesh_Tools             ,ONLY: BuildSideToNonUniqueGlobalSide

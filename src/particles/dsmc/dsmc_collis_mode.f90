@@ -1116,8 +1116,9 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, Coll_pData, SelectionProc
 USE MOD_DSMC_Vars             ,ONLY: DSMC
-USE MOD_Particle_Vars         ,ONLY: PartState, WriteMacroVolumeValues, Symmetry
+USE MOD_Particle_Vars         ,ONLY: PartState, WriteMacroVolumeValues
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd, Time
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 #if (PP_TimeDiscMethod==42)
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: usevMPF, Species, PartSpecies

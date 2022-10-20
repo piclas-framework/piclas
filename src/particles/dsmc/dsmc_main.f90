@@ -48,9 +48,10 @@ USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode, ElecRelaxPart
 USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Relaxation       ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
-USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry
+USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree, DSMC_pairing_dotree
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/

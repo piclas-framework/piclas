@@ -41,10 +41,11 @@ USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmetry, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, VarTimeStep
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

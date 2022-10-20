@@ -43,7 +43,7 @@ SUBROUTINE BGK_DSMC_main(stage_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
-USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
+USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, usevMPF
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKDSMCSwitchDens
 ! USE MOD_BGK_Vars            ,ONLY: BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
@@ -56,6 +56,7 @@ USE MOD_Part_Tools          ,ONLY: GetParticleWeight
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
+USE MOD_Symmetry_Vars       ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars  ,ONLY: IsExchangeElem
 #endif
@@ -168,7 +169,7 @@ USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
-USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry
+USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation!, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
@@ -177,6 +178,7 @@ USE MOD_DSMC_Analyze        ,ONLY: DSMCMacroSampling
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 USE MOD_DSMC_Vars           ,ONLY: DSMC
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
+USE MOD_Symmetry_Vars       ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars  ,ONLY: IsExchangeElem
 #endif

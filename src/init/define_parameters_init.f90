@@ -31,6 +31,7 @@ USE MOD_Globals                    ,ONLY: UNIT_stdOut
 #if USE_MPI
 USE MOD_Globals                    ,ONLY: MPIRoot
 #endif /*USE_MPI*/
+USE MOD_Symmetry                   ,ONLY: DefineParametersSymmetry
 USE MOD_Globals_Init               ,ONLY: DefineParametersGlobals
 USE MOD_ReadInTools                ,ONLY: prms
 USE MOD_MPI                        ,ONLY: DefineParametersMPI
@@ -99,6 +100,7 @@ SWRITE(UNIT_stdOut,'(132("="))')
 CALL DefineParametersMPI()
 CALL DefineParametersIO()
 CALL DefineParametersGlobals()
+CALL DefineParametersSymmetry()
 CALL DefineParametersLoadBalance()
 CALL DefineParametersInterpolation()
 CALL DefineParametersRestart()

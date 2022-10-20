@@ -584,7 +584,7 @@ USE MOD_Globals
 USE MOD_Particle_Surfaces       ,ONLY: GetSideBoundingBox
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetSideBoundingBoxTria
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_Particle_Vars           ,ONLY: Symmetry
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

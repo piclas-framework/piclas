@@ -999,7 +999,7 @@ SUBROUTINE CalcPartSymmetryPos(Pos,Velo)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

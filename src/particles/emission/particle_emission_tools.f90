@@ -924,8 +924,9 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
-USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, Symmetry, VarTimeStep, PartMPF
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, VarTimeStep, PartMPF
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1317,8 +1318,9 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

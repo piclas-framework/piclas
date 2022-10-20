@@ -51,7 +51,8 @@ USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSi
 USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfOutputSides, BoundaryWallTemp
 USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared, AdaptWallTemp
 USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry
+USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep
+USE MOD_Symmetry_Vars              ,ONLY: Symmetry
 USE MOD_Restart_Vars               ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
@@ -719,7 +720,7 @@ USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting, BGGas
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 USE MOD_Restart_Vars           ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
@@ -727,6 +728,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

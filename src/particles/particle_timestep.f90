@@ -103,7 +103,8 @@ SUBROUTINE VarTimeStep_Init()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_ReadInTools             ,ONLY: GETLOGICAL, GETINT, GETREAL, GETREALARRAY
-USE MOD_Particle_Vars           ,ONLY: Symmetry, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: VarTimeStep
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -176,7 +177,8 @@ USE MOD_PreProc
 USE MOD_io_hdf5
 USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
 USE MOD_HDF5_Input,             ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray,ReadAttribute,GetDataProps
-USE MOD_PARTICLE_Vars,          ONLY: VarTimeStep, Symmetry
+USE MOD_PARTICLE_Vars,          ONLY: VarTimeStep
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_Restart_Vars,           ONLY: DoRestart, RestartFile, DoMacroscopicRestart, MacroRestartFileName
 USE MOD_StringTools             ,ONLY:STRICMP
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -403,7 +405,8 @@ REAL FUNCTION CalcVarTimeStep(xPos, yPos, iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: VarTimeStep, Symmetry
+USE MOD_Particle_Vars           ,ONLY: VarTimeStep
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

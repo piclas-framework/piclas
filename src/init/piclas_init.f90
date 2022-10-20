@@ -93,7 +93,7 @@ USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
-USE MOD_DSMC_Symmetry        ,ONLY: Init_Symmetry
+USE MOD_Symmetry             ,ONLY: Init_Symmetry
 USE MOD_PICDepo_Method       ,ONLY: InitDepositionMethod
 #if USE_MPI
 USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results

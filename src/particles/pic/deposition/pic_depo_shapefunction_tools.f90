@@ -179,7 +179,7 @@ USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
-USE MOD_Particle_Vars      ,ONLY: Symmetry
+USE MOD_Symmetry_Vars      ,ONLY: Symmetry
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -300,7 +300,7 @@ USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
-USE MOD_Particle_Vars      ,ONLY: Symmetry
+USE MOD_Symmetry_Vars      ,ONLY: Symmetry
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -402,7 +402,7 @@ USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
-USE MOD_Particle_Vars      ,ONLY: Symmetry
+USE MOD_Symmetry_Vars      ,ONLY: Symmetry
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -498,7 +498,7 @@ USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
-USE MOD_Particle_Vars      ,ONLY: Symmetry
+USE MOD_Symmetry_Vars      ,ONLY: Symmetry
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -663,7 +663,7 @@ USE MOD_Particle_Vars      ,ONLY: PEM
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
-USE MOD_Particle_Vars      ,ONLY: Symmetry
+USE MOD_Symmetry_Vars      ,ONLY: Symmetry
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1038,7 +1038,7 @@ USE MOD_ReadInTools        ,ONLY: PrintOption
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Mesh_Vars          ,ONLY: nGlobalElems
 USE MOD_PICDepo_Tools      ,ONLY: beta
-USE MOD_Particle_Vars      ,ONLY: Symmetry
+USE MOD_Symmetry_Vars      ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!

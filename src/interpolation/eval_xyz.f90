@@ -692,7 +692,7 @@ USE MOD_Particle_Mesh_Vars,      ONLY:ElemBaryNGeo_Shared
 #else
 USE MOD_Mesh_Vars,               ONLY:ElemBaryNGeo
 #endif
-USE MOD_Particle_Vars              ,ONLY: Symmetry
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

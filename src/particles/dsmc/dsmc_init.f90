@@ -291,7 +291,8 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, VarTimeStep, usevMPF
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, VarTimeStep, usevMPF
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
@@ -1468,7 +1469,6 @@ SDEALLOCATE(BGGas%RegionElemType)
 
 SDEALLOCATE(RadialWeighting%ClonePartNum)
 SDEALLOCATE(ClonedParticles)
-SDEALLOCATE(SymmetrySide)
 SDEALLOCATE(AmbiPolarSFMapping)
 END SUBROUTINE FinalizeDSMC
 

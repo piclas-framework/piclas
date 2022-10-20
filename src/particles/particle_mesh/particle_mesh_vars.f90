@@ -364,6 +364,8 @@ LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! 
 REAL,ALLOCATABLE                         :: ElemTolerance(:)
 INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id is built via nodes
 
+INTEGER, ALLOCATABLE                     :: SymmetrySide(:,:)
+
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Mesh_Vars

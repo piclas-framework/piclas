@@ -528,7 +528,6 @@ TYPE tSampler ! DSMC sampling for Steady-State Detection       ! DSMC sampling f
   REAL                           :: EElec                      ! Energy of Cell (Electronic State)
 END TYPE
 
-INTEGER, ALLOCATABLE      :: SymmetrySide(:,:)
 REAL,ALLOCATABLE          :: DSMC_Solution(:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
 
 TYPE tTreeNode

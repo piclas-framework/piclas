@@ -462,8 +462,9 @@ SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, To
 USE MOD_Globals                
 USE MOD_DSMC_Vars               ,ONLY: BGGas, CollisMode, DSMC, PartStateIntEn, AmbipolElecVelo, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi
-USE MOD_PARTICLE_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, Species, VarTimeStep, PartMPF, Symmetry, usevMPF
+USE MOD_PARTICLE_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, Species, VarTimeStep, PartMPF, usevMPF
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

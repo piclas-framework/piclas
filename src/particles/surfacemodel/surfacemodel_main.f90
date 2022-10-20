@@ -497,10 +497,11 @@ USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec, VECNORM, DOTPRODUCT
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature, CalcRotWallVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 #if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif

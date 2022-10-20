@@ -368,7 +368,7 @@ USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_part_operations        ,ONLY: RemoveParticle
 #ifdef CODE_ANALYZE
 USE MOD_Globals                ,ONLY: unit_stdout,myrank
-USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,nPartOut,PartEkinIn,PartEkinOut
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart

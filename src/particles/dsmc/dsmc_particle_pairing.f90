@@ -369,7 +369,7 @@ USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: SelectionProc, useRelaxProbCorrFactor, iPartIndx_NodeNewElecRelax, newElecRelaxParts
 USE MOD_DSMC_Vars               ,ONLY: iPartIndx_NodeElecRelaxChem,nElecRelaxChemParts
-USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, Symmetry, usevMPF
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath, CalcInstantElecTempXi
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -378,6 +378,7 @@ USE MOD_DSMC_Symmetry           ,ONLY: DSMC_2D_TreatIdenticalParticles
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
 USE MOD_DSMC_ElectronicModel    ,ONLY: LT_ElectronicEnergyExchange, LT_ElectronicExc_ConstructPartList
 USE MOD_DSMC_ElectronicModel    ,ONLY: CalcProbCorrFactorElec, LT_ElectronicEnergyExchangeChem
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1173,7 +1174,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars             ,ONLY: DSMC, ElemNodeVol
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: Symmetry
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1229,7 +1230,8 @@ SUBROUTINE DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, Node)
 ! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,              ONLY : OctreeVdm, tNodeVolume, SymmetrySide
+USE MOD_DSMC_Vars,              ONLY : OctreeVdm, tNodeVolume
+USE MOD_Particle_Mesh_Vars     ,ONLY: SymmetrySide
 USE MOD_Mesh_Vars,              ONLY : SurfElem, Face_xGP
 USE MOD_Preproc
 USE MOD_ChangeBasis,            ONLY : ChangeBasis2D
@@ -1472,7 +1474,7 @@ RECURSIVE SUBROUTINE AddNodeVolumes2D(NodeDepth, Node, DetJac, VdmLocal, iElem, 
 ! MODULES
 USE MOD_Globals_Vars    ,ONLY: Pi
 USE MOD_DSMC_Vars       ,ONLY: tOctreeVdm, tNodeVolume
-USE MOD_Particle_Vars   ,ONLY: Symmetry
+USE MOD_Symmetry_Vars   ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1824,8 +1826,7 @@ SUBROUTINE GeoCoordToMap2D(x_in,xi_Out,iElem)
 !> xi is defined in the 1DrefElem xi=[-1,1]
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SymmetrySide
-USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
+USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared,SymmetrySide
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
@@ -1910,8 +1911,7 @@ FUNCTION MapToGeo2D(xi,iElem)
 !>
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
-USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SymmetrySide
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
@@ -2029,7 +2029,7 @@ RECURSIVE SUBROUTINE AddNodeVolumes1D(NodeDepth, Node, iElem, SubNodesIn)
 USE MOD_Globals
 USE MOD_Globals_Vars        ,ONLY: Pi
 USE MOD_DSMC_Vars           ,ONLY: tOctreeVdm, tNodeVolume
-USE MOD_Particle_Vars       ,ONLY: Symmetry
+USE MOD_Symmetry_Vars       ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Vars  ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

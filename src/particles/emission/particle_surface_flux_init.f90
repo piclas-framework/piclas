@@ -375,13 +375,14 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, VarTimeStep, DoPoissonRounding, DoTimeDepInflow
-USE MOD_Particle_Vars          ,ONLY: Symmetry, UseCircularInflow
+USE MOD_Particle_Vars          ,ONLY: UseCircularInflow
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -679,10 +680,11 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, offsetElem, BC, SideToElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, ElemMidPoint_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, Species, DoSurfaceFlux, nSpecies, Symmetry
-USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
+USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, Species, DoSurfaceFlux, nSpecies
+USE MOD_Particle_Mesh_Tools    ,ONLY: DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/

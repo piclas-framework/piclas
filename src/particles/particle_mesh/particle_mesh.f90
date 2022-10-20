@@ -156,7 +156,7 @@ USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: InitPEM_LocalElemID,InitPEM_CNElemID,GetMeshMinMax,IdentifyElemAndSideType
 USE MOD_Particle_Mesh_Tools    ,ONLY: CalcParticleMeshMetrics,InitElemNodeIDs,InitParticleGeometry,CalcBezierControlPoints
-USE MOD_Particle_Mesh_Tools    ,ONLY: CalcXCL_NGeo
+USE MOD_Particle_Mesh_Tools    ,ONLY: CalcXCL_NGeo,InitVolumes_2D,InitVolumes_1D
 USE MOD_Particle_Surfaces      ,ONLY: GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
@@ -169,7 +169,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
-USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #ifdef CODE_ANALYZE
 !USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -477,6 +477,10 @@ END SELECT
 
 ! Build mappings UniqueNodeID->CN Element IDs and CN Element ID -> CN Element IDs
 IF(FindNeighbourElems) CALL BuildNodeNeighbourhood()
+
+! Calculate the volumes for 2D/1D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
+IF(Symmetry%Order.EQ.2) CALL InitVolumes_2D()
+IF(Symmetry%Order.EQ.1) CALL InitVolumes_1D()
 
 ! BezierAreaSample stuff:
 IF (TriaSurfaceFlux) THEN
@@ -841,6 +845,7 @@ SDEALLOCATE(ElemToGlobalElemID)
 ADEALLOCATE(ConcaveElemSide_Shared)
 ADEALLOCATE(ElemSideNodeID_Shared)
 ADEALLOCATE(ElemMidPoint_Shared)
+SDEALLOCATE(SymmetrySide)
 
 ! Load Balance
 !#if !USE_LOADBALANCE

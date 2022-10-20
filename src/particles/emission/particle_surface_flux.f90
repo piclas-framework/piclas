@@ -49,6 +49,7 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetSFElectronVelo
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 #endif /*IMPA*/
