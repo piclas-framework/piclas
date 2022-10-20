@@ -695,11 +695,11 @@ ELSE !CollisMode.GT.0
         IF(.NOT.Species(iSpec)%DoOverwriteParameters) THEN
           WRITE(UNIT=hilf,FMT='(I0)') iSpec
           IF(Species(iSpec)%InterID.NE.4) THEN
-            LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
             dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
             CALL AttributeExists(file_id_specdb,'PolyatomicMol',TRIM(dsetname), AttrExists=Attr_Exists)
             IF (Attr_Exists) THEN
               CALL ReadAttribute(file_id_specdb,'PolyatomicMol',1,DatasetName = dsetname,LogicalScalar=SpecDSMC(iSpec)%PolyatomicMol)
+              LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
               LBWRITE (UNIT_stdOut,*) 'PolyatomicMol: ', SpecDSMC(iSpec)%PolyatomicMol
             ELSE 
               SpecDSMC(iSpec)%PolyatomicMol = .FALSE.
@@ -713,6 +713,7 @@ ELSE !CollisMode.GT.0
               DSMC%NumPolyatomMolecs = DSMC%NumPolyatomMolecs + 1
               SpecDSMC(iSpec)%SpecToPolyArray = DSMC%NumPolyatomMolecs
             ELSEIF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+              LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
               SpecDSMC(iSpec)%Xi_Rot     = 2
               CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTVib)
               LBWRITE (UNIT_stdOut,*) 'CharaTempVib: ', SpecDSMC(iSpec)%CharaTVib
@@ -1019,15 +1020,42 @@ ELSE !CollisMode.GT.0
   ! Define chemical reactions (including ionization and backward reaction rate)
   !-----------------------------------------------------------------------------------------------------------------------------------
   IF (CollisMode.EQ.3) THEN ! perform chemical reactions
+
+    IF(SpeciesDatabase.NE.'none') THEN
+      ! Initialize FORTRAN interface.
+      CALL H5OPEN_F(err)
+      CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+      DO iSpec = 1, nSpecies
+        LBWRITE (UNIT_stdOut,*) 'Read-in from database for species: ', TRIM(SpecDSMC(iSpec)%Name)
+        dsetname = TRIM('/Species/'//TRIM(SpecDSMC(iSpec)%Name))
+        WRITE(UNIT=hilf,FMT='(I0)') iSpec
+        ! Read-in of heat of formation, ions are treated later using the heat of formation of their ground state and data from the
+        ! from the electronic state database to ensure consistent energies across chemical reactions of QK and Arrhenius type.
+        IF((Species(iSpec)%InterID.EQ.10).OR.(Species(iSpec)%InterID.EQ.20).OR.(Species(iSpec)%InterID.EQ.4)) THEN
+          SpecDSMC(iSpec)%HeatOfFormation = 0.0
+        ELSE
+          CALL ReadAttribute(file_id_specdb,'HeatOfFormation_K',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%HeatOfFormation)
+          LBWRITE (UNIT_stdOut,*) 'HeatOfFormation_K: ', SpecDSMC(iSpec)%HeatOfFormation
+          SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
+        ENDIF
+      END DO ! iSpec = nSpecies
+      ! Close the file.
+      CALL H5FCLOSE_F(file_id_specdb, err)
+      ! Close FORTRAN interface.
+      CALL H5CLOSE_F(err)
+    END IF !database
+
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      IF(Species(iSpec)%DoOverwriteParameters) THEN
       ! Read-in of heat of formation, ions are treated later using the heat of formation of their ground state and data from the
       ! from the electronic state database to ensure consistent energies across chemical reactions of QK and Arrhenius type.
-      IF((Species(iSpec)%InterID.EQ.10).OR.(Species(iSpec)%InterID.EQ.20).OR.(Species(iSpec)%InterID.EQ.4)) THEN
-        SpecDSMC(iSpec)%HeatOfFormation = 0.0
-      ELSE
-        SpecDSMC(iSpec)%HeatOfFormation = GETREAL('Part-Species'//TRIM(hilf)//'-HeatOfFormation_K')
-        SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
+        IF((Species(iSpec)%InterID.EQ.10).OR.(Species(iSpec)%InterID.EQ.20).OR.(Species(iSpec)%InterID.EQ.4)) THEN
+          SpecDSMC(iSpec)%HeatOfFormation = 0.0
+        ELSE
+          SpecDSMC(iSpec)%HeatOfFormation = GETREAL('Part-Species'//TRIM(hilf)//'-HeatOfFormation_K')
+          SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
+        END IF
       END IF
       ! Heat of formation of ionized species is modified with the ionization energy directly from read-in electronic energy levels
       ! of the ground/previous state of the respective species (Input requires a species number (eg species number of N for NIon1))

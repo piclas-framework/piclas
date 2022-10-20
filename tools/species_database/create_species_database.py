@@ -27,23 +27,27 @@ def is_float(value):
     return True
   except:
     return False
-
+    
 # Create general structure
 hdf_species_group = 'Species'
 if hdf_species_group in h5_species.keys():
   print('Group Species already exists.')
   hdf_species_group = h5_species['Species']
+  hdf_species_group.attrs['* Last Modified'] = date.today().strftime("%B %d, %Y")
 else:
   print('Group Species does not exist, creating new group.')
   hdf_species_group = h5_species.create_group('Species')
+  hdf_species_group.attrs['* Created'] = date.today().strftime("%B %d, %Y")
 
 hdf_xsec_group = 'Cross-Sections'
 if hdf_xsec_group in h5_species.keys():
   print('Group Cross-Sections already exists.')
   hdf_xsec_group = h5_species['Cross-Sections']
+  hdf_xsec_group.attrs['* Last Modified'] = date.today().strftime("%B %d, %Y")
 else:
   print('Group Cross-Sections does not exist, creating new group.')
   hdf_xsec_group = h5_species.create_group('Cross-Sections')
+  hdf_xsec_group.attrs['* Created'] = date.today().strftime("%B %d, %Y")
 
 # Read-in of DSMC.ini parameters and electronic state
 with open(args.ini_filename) as file:
@@ -63,14 +67,17 @@ with open(args.ini_filename) as file:
           elif hdf_species == 'electron':
             print('Species added to the database: ', hdf_species)
             hdf_species = hdf_species_group.create_dataset(hdf_species,data=[0])
+            hdf_species.attrs['* Created']   = 1 #date.today().strftime("%B %d, %Y, %H:%M:%S")
           else:
             if hdf_species in h5_electronic.keys():
               hdf_input_data = h5_electronic[hdf_species]
               print('Species added to the database: ', hdf_species)
               hdf_species = hdf_species_group.create_dataset(hdf_species,data=hdf_input_data)
+              hdf_species.attrs['* Created']   = 1 #date.today().strftime("%B %d, %Y, %H:%M:%S")
             else:
               print('Species added to the database, but electronic levels are unknown: ', hdf_species)
               hdf_species = hdf_species_group.create_dataset(hdf_species,data=[0])
+              hdf_species.attrs['* Created']   = 1 #date.today().strftime("%B %d, %Y, %H:%M:%S")
 
 with open(args.ini_filename) as file:
   for line in file:
@@ -91,7 +98,9 @@ with open(args.ini_filename) as file:
             hdf_species.attrs[var_name[1]] = var_value
             print('Species parameter set: ', var_name[1]) #raus??
             # Write attributes for source and time of retrieval
-            hdf_species.attrs['Reference'] = args.reference + ', Added/Retrieved on ' + date.today().strftime("%B %d, %Y") + '.'
+            hdf_species.attrs['* Reference'] = args.reference
+            hdf_species.attrs['* Created']   = 1 #date.today().strftime("%B %d, %Y, %H:%M:%S")
+            hdf_species.attrs['* Last Modified'] = 2#date.today().strftime("%B %d, %Y, %H:%M:%S")
 
 # Copy cross-section data
 for dataset in h5_crosssection.keys():
