@@ -7,24 +7,35 @@ An overview of the tools is given in [TOOLS.md](https://github.com/piclas-framew
 (sec:tools-usd)=
 ## Unified Species Database (USD)
 
-A tool to create a database containing cross-section, electronic and species data can be found in the *tools* folder: `piclas/tools/species_database/`.
-The Python script (python3.7) `create_species_database.py` creates a new database combining cross-section data, electronic states and species parameters (formerly read-in through ini files). The script uses the `numpy`, `h5py` and `argparse` packages. To create the unified database with
+A tool to create a database containing cross-section, electronic states, surface reactions, Arrhenius rates, and species data can be found in the *tools* folder: `piclas/tools/species_database/`.
+The Python script (python3.7) `create_species_database.py` creates a new database or expands an existing one combining all necessary parameters (formerly read-in through ini files). The script uses the `numpy`, `h5py`, `argparse`,`datetime`, `cmath`, and `matplotlib.rcsetup` packages. To create the unified database with
 
     python3.7 create_species_database.py
     
-an electronic and cross-section database need to be built before ({ref}`ssec:tools-xsec-collision`, {ref}`ssec:tools-electronic-database`).
-If nothing additionally is specified, the following filenames are called: `DSMC.ini` for the parameter input, `Electronic-State-Database.h5` for the electronic state database, `XSec_Database.h5` for the cross-section data and `Species_Database.h5` for the final output. For custom file names, the following options can be added: 
+an electronic states and a cross-section database need to be built before ({ref}`ssec:tools-xsec-collision`, {ref}`ssec:tools-electronic-database`).
+If nothing additionally is specified, the following filenames are called: `DSMC.ini` for the parameter and (gas and surface) reaction input, `Electronic-State-Database.h5` for the electronic state database, `XSec_Database.h5` for the cross-section data,`Rad.dat` for the radiation data, and `Species_Database.h5` for the final output. For custom file names, the following options can be added: 
 
-    python3 create_species_database.py --parameter parameter-filename --electronic electronic_statefile --crosssection crosssection_statefile --output output_filename
+    python3 create_species_database.py --parameter parameter-filename --electronic electronic_statefile --crosssection crosssection_statefile --radiation radiation-filename --output output_filename --reference reference-name
 
 or
 
-    python3 create_species_database.py -p parameter-filename -e electronic_statefile -c crosssection_statefile -o output_filename
+    python3 create_species_database.py -p parameter-filename -e electronic_statefile -c crosssection_statefile -s radiation-filename -o output_filename -r reference-name
     
 The data is grouped in the output file, as shown in the following example:
     
     Cross-Sections (group)
         H2-H2Ion1 (dataset)
+    Radiation (group)
+        N (group)
+            Levels (dataset)
+            Lines (dataset)
+    Reaction (group)
+        DISS_CH3_TO_CH2 (dataset)
+        Arrhenius parameters (attributes)
+        EXC_CN+_N (dataset)
+        Arrhenius parameters (attributes)
+        RECOMB_C_N_ION (dataset)
+        Arrhenius parameters (attributes)
     Species (group)
         H2 (group)
             Electronic levels (dataset)
@@ -35,6 +46,18 @@ The data is grouped in the output file, as shown in the following example:
         electron (group)
             Electronic levels (dataset)
             Species parameters (attributes)
+    Surface-Chemistry
+        Adsorption_CO (dataset)
+        Reaction parameters (attributes)
+        LH_Oxidation_CO (dataset)
+        Reaction parameters (attributes)
+        
+For cross-sections, reactions, radiation and species data, the former `DSMC.ini` files are used to create the database. However, for every species and for every reaction, names must be defined to create the database and to run simulations.
+
+    Part-Species1-SpeciesName=CO2
+    DSMC-Reaction1-ReactionName = DISS_CH3_TO_CH2
+    Surface-Reaction1-SurfName = Adsorption_CO
+    
         
 
 (ssec:tools-electronic-database)=

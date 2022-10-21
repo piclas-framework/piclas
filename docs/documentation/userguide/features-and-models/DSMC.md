@@ -23,6 +23,8 @@ exchange (by default including the rotational and vibrational energy treatment).
 the parameters for the internal energy exchange (Section {ref}`sec:DSMC-relaxation`) and chemical reactions (Section
 {ref}`sec:DSMC-chemistry`).
 
+Additionally, species parameter can be read from a database instead of using the `DSMC.ini` file. The procedure is described in Section {ref}`sec:DSMC-database`
+
 A fixed ("manual") simulation time step $\Delta t$ is defined by
 
     ManualTimeStep = 1.00E-7
@@ -160,7 +162,7 @@ parameters can be obtained from e.g. {cite}`Swaminathan-Gopalan2016`.
 ### Cross-section based collision probabilities
 
 Cross-section data to model collisional and relaxation probabilities (e.g. in case of electron-neutral collisions), analogous to
-Monte Carlo Collisions, can be utilized and is described in Section {ref}`sec:tools-xsec-collision` and {ref}`sec:xsec-chemistry`.
+Monte Carlo Collisions, can be utilized and is described in Section {ref}`ssec:tools-xsec-collision` and {ref}`sec:xsec-chemistry`.
 
 (sec:DSMC-relaxation)=
 ## Inelastic Collisions \& Relaxation
@@ -258,7 +260,7 @@ distribution function attached. The three models utilize tabulated energy levels
 species (e.g. for monatomic {cite}`NISTASD`, diatomic {cite}`Huber1979`, polyatomic {cite}`Herzberg1966` molecules). An example
 database `DSMCSpecies_electronic_state_full_Data.h5` can be found in e.g.
 `piclas/regressioncheck/NIG_Reservoir/CHEM_EQUI_TCE_Air_5Spec`, where the energy levels are stored in containers and
-accessed via the species name, e.g. `Part-Species1-SpeciesName=N2`. Each level is described by its degeneracy in the first column
+accessed via the species name, e.g. `Part-Species1-SpeciesName=N2`. The database is described in Section {ref}`ssec:tools-electronic-database`. Each level is described by its degeneracy in the first column
 and by the energy in [J] in the second column. To include electronic excitation in the simulation, the following parameters are
 required
 
@@ -474,4 +476,19 @@ $$w < \frac{1}{\left(\sqrt{2}\pi d_{\mathrm{ref}}^2 n^{2/3}\right)^3},$$
 where $d_{\mathrm{ref}}$ is the reference diameter and $n$ the number density. Here, the largest number density within the
 simulation domain should be used as the worst-case. For supersonic/hypersonic flows, the conditions behind a normal shock can be
 utilized as a first guess. For a thruster/nozzle expansion simulation, the chamber or throat conditions are the limiting factor.
+
+(sec:DSMC-database)=
+## Unified Species Database
+
+- [] allgemeines (default normales einlesen, falls datenbank-name gesetzt ist wird daraus eingelesen)
+- [] angabe datenbank in parameter.ini
+- [] was muss in parameter.ini noch zwingend angegeben werden
+- [] Verweis erstellung
+- [] Beispiele regression check
+- [] unterkapitel bereiche der Datenbank
+    - [] wie aktivieren
+    - [] overwrite
+    - [] was ist drin? was nicht? tabelle
+    - [] was muss gesetzt werden?
+- [] schema: was laesst sich kombinieren
 
