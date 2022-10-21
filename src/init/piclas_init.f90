@@ -79,7 +79,7 @@ USE MOD_RecordPoints         ,ONLY: InitRecordPoints
 #if defined(ROS) || defined(IMPA)
 USE MOD_LinearSolver         ,ONLY: InitLinearSolver
 #endif /*ROS or IMPA*/
-USE MOD_Restart_Vars         ,ONLY: N_Restart,InterpolateSolution,RestartNullifySolution
+USE MOD_Restart_Vars         ,ONLY: N_Restart,RestartNullifySolution
 #if USE_MPI
 USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
@@ -147,7 +147,6 @@ IF(IsLoadBalance)THEN
   RestartNullifySolution=.FALSE.
   !BuildNewMesh       =.FALSE. !not used anymore?
   !WriteNewMesh       =.FALSE. !not used anymore?
-  InterpolateSolution=.FALSE.
   N_Restart=PP_N
   CALL InitMortar()
 ELSE

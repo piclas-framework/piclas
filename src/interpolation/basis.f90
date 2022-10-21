@@ -1276,7 +1276,7 @@ END SUBROUTINE LagrangeInterpolationPolys
 SUBROUTINE DG_ProlongDGElemsToFace()
 ! MODULES
 USE MOD_DG_Vars         ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
-USE MOD_Mesh_Vars       ,ONLY: SideToElem,nSides
+USE MOD_Mesh_Vars       ,ONLY: SideToElem,nSides,nBCSides
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1293,7 +1293,10 @@ DO iSide = 1,nSides
   IF(ElemID  .GT.0) DG_Elems_master(iSide) = N_DG(ElemID)
   !slave side (ElemID,locSide and flip =-1 if not existing)
   IF(nbElemID.GT.0) DG_Elems_slave( iSide) = N_DG(nbElemID)
+  IF(iSide.LE.nBCSides) DG_Elems_slave( iSide) = DG_Elems_master(iSide)
 END DO
 END SUBROUTINE DG_ProlongDGElemsToFace
+
+
 END MODULE MOD_Basis
 

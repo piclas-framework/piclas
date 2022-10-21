@@ -65,22 +65,25 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars
 USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
-USE MOD_Interpolation_Vars ,ONLY: xGP,wGP,wBary,InterpolationInitIsDone
-USE MOD_Mesh_Vars          ,ONLY: nSides
+USE MOD_Interpolation_Vars ,ONLY: N_Inter,InterpolationInitIsDone,Nmax,Nmin
+USE MOD_Mesh_Vars          ,ONLY: nSides,nElems
 USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
 #if ! (USE_HDG)
 USE MOD_PML_Vars           ,ONLY: PMLnVar ! Additional fluxes for the CFS-PML auxiliary variables
 #endif /*USE_HDG*/
-#ifdef OPTIMIZED
-USE MOD_Riemann            ,ONLY: GetRiemannMatrix
-#endif /*OPTIMIZED*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #if !(USE_HDG)
 USE MOD_LoadBalance_Vars   ,ONLY: UseH5IOLoadBalance
 #endif /*!(USE_HDG)*/
 #endif /*USE_LOADBALANCE*/
-USE MOD_Basis              ,ONLY: DG_ProlongDGElemsToFace
+#if USE_MPI
+USE MOD_MPI                ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
+USE MOD_MPI_Vars           ,ONLY: SendRequest_U,RecRequest_U,SendRequest_U2,RecRequest_U2
+#endif /*USE_MPI*/
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
+USE MOD_TimeDisc_Vars          ,ONLY: Ut_N
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -89,64 +92,61 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER           :: Nloc,iElem,iSide
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitIsDone).OR.DGInitIsDone) CALL abort(__STAMP__,&
     'InitDG not ready to be called or already called.')
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT DG...'
 
-! Read p-adaption specific input data
-pAdaption    = GETLOGICAL('pAdaption','.FALSE.')
-
-! allocate arrays and initialize local polynomial degree
-ALLOCATE(N_DG(nElems))
-
-! add array containing the local polynomial degree to the hdf5 output
-CALL AddToElemData(ElementOut,'N_Loc',IntArray=N_DG)
-
-ALLOCATE(DG_Elems_master(1:nSides))
-ALLOCATE(DG_Elems_slave (1:nSides))
-
-! By default, the initial degree is set to PP_N
-N_DG = PP_N
-
-! Set polynomial degree at the element sides
-DG_Elems_master = PP_N
-DG_Elems_slave  = PP_N
-CALL DG_ProlongDGElemsToFace()
-
 ! allocate arrays of pre-computed dg basis tensors
 ALLOCATE(DGB_N(Nmin:Nmax))
 
-DO N_Loc=Nmin,Nmax
+DO Nloc=Nmin,Nmax
   ! Pre-compute the dg operator building blocks (differentiation matrices and prolongation operators)
-  CALL InitDGBasis(N_Loc, N_Inter(N_Loc)%xGP, N_Inter(N_Loc)%wGP, N_Inter(N_Loc)%L_minus, N_Inter(N_Loc)%L_plus, &
-                   DGB_N(N_Loc)%D, DGB_N(N_Loc)%D_T, DGB_N(N_Loc)%D_Hat, DGB_N(N_Loc)%D_Hat_T, DGB_N(N_Loc)%L_HatMinus, DGB_N(N_Loc)%L_HatPlus )
+  CALL InitDGBasis(Nloc, N_Inter(Nloc)%xGP, N_Inter(Nloc)%wGP, N_Inter(Nloc)%L_minus, N_Inter(Nloc)%L_plus, &
+                   DGB_N(Nloc)%D, DGB_N(Nloc)%D_T, DGB_N(Nloc)%D_Hat, DGB_N(Nloc)%D_Hat_T, DGB_N(Nloc)%L_HatMinus, DGB_N(Nloc)%L_HatPlus )
 END DO
-
 
 #if USE_LOADBALANCE && !(USE_HDG)
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
   ! the local DG solution in physical and reference space
-  ALLOCATE( U(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-  U=0.
+  ALLOCATE(U_N(1:PP_nElems))
+  DO iElem = 1, PP_nElems
+    Nloc = N_DG(iElem)
+    ALLOCATE(U_N(iElem)%U(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+    U_N(iElem)%U = 0.
+  END DO ! iElem = 1, PP_nElems
 #if !(USE_HDG)
 #if USE_LOADBALANCE
 END IF
 #endif /*USE_LOADBALANCE*/
+
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 ! the time derivative computed with the DG scheme
-ALLOCATE(Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-Ut=0.
+ALLOCATE(Ut_N(PP_nElems))
+#endif
+
+! the time derivative computed with the DG scheme
+DO iElem = 1, PP_nElems
+  Nloc = N_DG(iElem)
+  ALLOCATE(U_N(iElem)%Ut(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+  U_N(iElem)%Ut = 0.
+#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
+  ALLOCATE(Ut_N(iElem)%Ut_temp(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+  Ut_N(iElem)%Ut_temp = 0.
+#endif
+END DO ! iElem = 1, PP_nElems
 #endif /*USE_HDG*/
 
 #if IMPA || ROS
 ALLOCATE( Un(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 Un=0.
 #endif
-nTotal_face=(PP_N+1)*(PP_N+1)
-nTotal_vol=nTotal_face*(PP_N+1)
-nTotalU=PP_nVar*nTotal_vol*PP_nElems
+!nTotal_face = (PP_N+1)*(PP_N+1)
+!nTotal_vol  = nTotal_face*(PP_N+1)
+!nTotalU     = PP_nVar*nTotal_vol*PP_nElems
 
 ! U is filled with the ini solution
 IF(.NOT.DoRestart) CALL FillIni()
@@ -156,24 +156,30 @@ IF(.NOT.DoRestart) CALL FillIni()
 !ALLOCATE(U_Plus(PP_nVar,0:PP_N,0:PP_N,sideID_plus_lower:sideID_plus_upper))
 !U_Minus=0.
 !U_Plus=0.
+ALLOCATE(U_Surf_N(1:nSides))
 
-ALLOCATE(U_master(PP_nVar,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(U_slave(PP_nVar,0:PP_N,0:PP_N,1:nSides))
-U_master=0.
-U_slave=0.
-
-#ifdef OPTIMIZED
-  CALL GetRiemannMatrix()
-#endif /*OPTIMIZED*/
+DO iSide = 1, nSides
+  Nloc = DG_Elems_master(iSide)
+  ALLOCATE(U_Surf_N(iSide)%U_master(1:PP_nVar,0:Nloc,0:Nloc))
+  Nloc = DG_Elems_slave(iSide)
+  ALLOCATE(U_Surf_N(iSide)%U_slave( 1:PP_nVar,0:Nloc,0:Nloc))
+  U_Surf_N(iSide)%U_master = 0.
+  U_Surf_N(iSide)%U_slave  = 0.
+END DO ! iSide = 1, nSides
 
 #if !(USE_HDG)
 ! unique flux per side
 ! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
 ! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
-ALLOCATE(Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides))
-ALLOCATE(Flux_Slave (1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides))
-Flux_Master=0.
-Flux_Slave=0.
+
+DO iSide = 1, nSides
+  Nloc = DG_Elems_master(iSide)
+  ALLOCATE(U_Surf_N(iSide)%Flux_Master(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc))
+  Nloc = DG_Elems_slave(iSide)
+  ALLOCATE(U_Surf_N(iSide)%Flux_Slave( 1:PP_nVar+PMLnVar,0:Nloc,0:Nloc))
+  U_Surf_N(iSide)%Flux_Master = 0.
+  U_Surf_N(iSide)%Flux_Slave  = 0.
+END DO ! iSide = 1, nSides
 #endif /*USE_HDG*/
 
 DGInitIsDone=.TRUE.
@@ -221,7 +227,6 @@ REAL,ALLOCATABLE,DIMENSION(:)  ,INTENT(OUT)    :: L_HatPlus              !< Valu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,DIMENSION(0:N_in,0:N_in)              :: M,Minv
-REAL,DIMENSION(0:N_in)                     :: L_minus,L_plus
 INTEGER                                    :: iMass
 #if USE_HDG
 #if USE_MPI
@@ -284,20 +289,21 @@ SUBROUTINE DGTimeDerivative_weakForm(t,tStage,tDeriv,doSource)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Vector
-USE MOD_DG_Vars           ,ONLY: U,Ut,U_master,U_slave,Flux_Master,Flux_Slave
+USE MOD_DG_Vars           ,ONLY: U_N
 USE MOD_SurfInt           ,ONLY: SurfInt
 USE MOD_VolInt            ,ONLY: VolInt
-USE MOD_ProlongToFace     ,ONLY: ProlongToFace
+USE MOD_ProlongToFace     ,ONLY: ProlongToFace_TypeBased
 USE MOD_FillFlux          ,ONLY: FillFlux
 USE MOD_Equation          ,ONLY: CalcSource
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
 USE MOD_PML_Vars          ,ONLY: DoPML,U2t
-USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
+USE MOD_Mesh_Vars         ,ONLY: nElems
+!USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
 #if USE_MPI
 USE MOD_PML_Vars          ,ONLY: PMLnVar
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
-USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI               ,ONLY: StartExchange_DG_Elems,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #if defined(PARTICLES) && defined(LSERK)
 USE MOD_Particle_Vars     ,ONLY: DelayTime
 USE MOD_TimeDisc_Vars     ,ONLY: time
@@ -323,6 +329,7 @@ LOGICAL,INTENT(IN)              :: doSource
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
+INTEGER                         :: iElem
 !===================================================================================================================================
 
 ! prolong the solution to the face integration points for flux computation
@@ -347,8 +354,8 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
-CALL ProlongToFace(U,U_master,U_slave,doMPISides=.FALSE.)
-CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
+CALL ProlongToFace_TypeBased(doMPISides=.FALSE.)
+!CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
 
 #if USE_MPI
 #if defined(PARTICLES) && defined(LSERK)
@@ -370,10 +377,12 @@ END IF
 ! NOTE: IF NEW DG_VOLINT AND LIFTING_VOLINT ARE USED AND CALLED FIRST,
 !       ARRAYS DO NOT NEED TO BE NULLIFIED, OTHERWISE THEY HAVE TO!
 !CALL VNullify(nTotalU,Ut)
-Ut=0.
+DO iElem = 1, nElems
+  U_N(iElem)%Ut = 0.
+END DO ! iElem = 1, nElems
 IF(DoPML) U2t=0. ! set U2t for auxiliary variables to zero
 ! compute volume integral contribution and add to ut, first half of all elements
-CALL VolInt(Ut,dofirstElems=.TRUE.)
+CALL VolInt(dofirstElems=.TRUE.)
 
 #if USE_MPI
 #if USE_LOADBALANCE
@@ -402,13 +411,13 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_MPI*/
 
 ! fill the all surface fluxes on this proc
-CALL FillFlux(t,tDeriv,Flux_Master,Flux_Slave,U_master,U_slave,doMPISides=.FALSE.)
-CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.FALSE.)
+CALL FillFlux(t,tDeriv,doMPISides=.FALSE.)
+!CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.FALSE.)
 ! compute surface integral contribution and add to ut
-CALL SurfInt(Flux_Master,Flux_Slave,Ut,doMPISides=.FALSE.)
+CALL SurfInt(doMPISides=.FALSE.)
 
 ! compute volume integral contribution and add to ut
-CALL VolInt(Ut,dofirstElems=.FALSE.)
+CALL VolInt(dofirstElems=.FALSE.)
 
 #if USE_MPI
 #if USE_LOADBALANCE
@@ -421,18 +430,18 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 !FINALIZE Fluxes for MPI Sides
-CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.TRUE.)
-CALL SurfInt(Flux_Master,Flux_Slave,Ut,doMPISides=.TRUE.)
+!CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.TRUE.)
+CALL SurfInt(doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif
 
 ! swap and map to physical space
-CALL ApplyJacobian(Ut,toPhysical=.TRUE.,toSwap=.TRUE.)
+CALL ApplyJacobian(toPhysical=.TRUE.,toSwap=.TRUE.)
 
 ! Add Source Terms
-IF(doSource) CALL CalcSource(tStage,1.0,Ut)
+IF(doSource) CALL CalcSource(tStage,1.0)
 
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
@@ -450,10 +459,10 @@ CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*defined(PARTICLES) && defined(LSERK)*/
 
 END SUBROUTINE DGTimeDerivative_weakForm
-#endif /*USE_HDG*/
+#endif /*!(USE_HDG)*/
+
 
 #ifdef PP_POIS
-
 SUBROUTINE DGTimeDerivative_weakForm_Pois(t,tStage,tDeriv)
 !===================================================================================================================================
 ! Computes the DG time derivative consisting of Volume Integral and Surface integral for the whole field
@@ -602,12 +611,12 @@ SUBROUTINE FillIni()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_DG_Vars,ONLY:U
-USE MOD_Mesh_Vars,ONLY:Elem_xGP
-USE MOD_Equation_Vars,ONLY:IniExactFunc
-USE MOD_Equation,ONLY:ExactFunc
+USE MOD_DG_Vars       ,ONLY: U_N,N_DG
+USE MOD_Mesh_Vars     ,ONLY: N_VolMesh
+USE MOD_Equation_Vars ,ONLY: IniExactFunc
+USE MOD_Equation      ,ONLY: ExactFunc
 #ifdef maxwell
-USE MOD_Equation_Vars,ONLY:DoExactFlux
+USE MOD_Equation_Vars ,ONLY: DoExactFlux
 #endif /*maxwell*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -617,7 +626,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i,j,k,iElem
+INTEGER                         :: i,j,k,iElem,Nloc
 !===================================================================================================================================
 ! Determine Size of the Loops, i.e. the number of grid cells in the
 ! corresponding directions
@@ -625,13 +634,14 @@ INTEGER                         :: i,j,k,iElem
 IF(DoExactFlux.AND.(IniExactFunc.NE.16)) RETURN ! IniExactFunc=16 is pulsed laser mixed IC+BC
 #endif /*maxwell*/
 DO iElem=1,PP_nElems
-  DO k=0,PP_N
-    DO j=0,PP_N
-      DO i=0,PP_N
+  Nloc = N_DG(iElem)
+  DO k=0,Nloc
+    DO j=0,Nloc
+      DO i=0,Nloc
 #if USE_HDG
-        CALL ExactFunc(IniExactFunc,Elem_xGP(1:3,i,j,k,iElem),U(1:PP_nVar,i,j,k,iElem),ElemID=iElem)
+        CALL ExactFunc(IniExactFunc,     N_VolMesh(iElem)%Elem_xGP(1:3,i,j,k),U_N(iElem)%U(1:PP_nVar,i,j,k),ElemID=iElem)
 #else
-        CALL ExactFunc(IniExactFunc,0.,0,Elem_xGP(1:3,i,j,k,iElem),U(1:PP_nVar,i,j,k,iElem))
+        CALL ExactFunc(IniExactFunc,0.,0,N_VolMesh(iElem)%Elem_xGP(1:3,i,j,k),U_N(iElem)%U(1:PP_nVar,i,j,k))
 #endif
       END DO ! i
     END DO ! j
@@ -659,26 +669,19 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SDEALLOCATE(D)
-SDEALLOCATE(D_T)
-SDEALLOCATE(D_Hat)
-SDEALLOCATE(D_Hat_T)
-SDEALLOCATE(L_HatMinus)
-SDEALLOCATE(L_HatPlus)
-SDEALLOCATE(Ut)
+SDEALLOCATE(DGB_N)
+SDEALLOCATE(U_N)
 #if IMPA || ROS
 SDEALLOCATE(Un)
 #endif
-SDEALLOCATE(U_master)
-SDEALLOCATE(U_slave)
-SDEALLOCATE(FLUX_Master)
-SDEALLOCATE(FLUX_Slave)
+SDEALLOCATE(U_Surf_N)
 
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE && !(USE_HDG)
 IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
+CALL abort(__STAMP__,'not implemented, keep U ?!')
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
-  SDEALLOCATE(U)
+  !SDEALLOCATE(U)
 #if USE_LOADBALANCE && !(USE_HDG)
 END IF
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/

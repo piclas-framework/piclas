@@ -106,19 +106,19 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,MaxBCStateGlobal,1,MPI_INTEGER,MPI_MAX,MPI_COMM_
 !    'ERROR: Boundary RefState not defined! (MaxBCState,nRefState):',MaxBCState,REAL(nRefState))
 
 
-! Initialize State File Boundary condition
-DO i=1,nBCs
-  locType =BoundaryType(i,BC_TYPE)
-  IF(locType.EQ.20)THEN
-    ! Allocate buffer array to store temp data for all BC sides
-    ALLOCATE(BCData(PP_nVar,0:PP_N,0:PP_N,nBCSides))
-    BCData=0.
-    CALL ReadBCFlow(BCStateFile)
-    !CALL abort(__STAMP__,&
-    !     'no BC defined in maxwell/getboundaryflux.f90!')
-    EXIT
-  END IF
-END DO
+! ! Initialize State File Boundary condition
+! DO i=1,nBCs
+!   locType =BoundaryType(i,BC_TYPE)
+!   IF(locType.EQ.20)THEN
+!     ! Allocate buffer array to store temp data for all BC sides
+!     ALLOCATE(BCData(PP_nVar,0:PP_N,0:PP_N,nBCSides))
+!     BCData=0.
+!     CALL ReadBCFlow(BCStateFile)
+!     !CALL abort(__STAMP__,&
+!     !     'no BC defined in maxwell/getboundaryflux.f90!')
+!     EXIT
+!   END IF
+! END DO
 
 ! Count number of sides of each boundary
 ALLOCATE(nBCByType(nBCs))
@@ -144,7 +144,7 @@ END DO
 END SUBROUTINE InitBC
 
 
-SUBROUTINE GetBoundaryFlux(t,tDeriv, Flux, U_Minus, NormVec, TangVec1, TangVec2, BCFace_xGP)
+SUBROUTINE GetBoundaryFlux(SideID, t,tDeriv, Nloc, Flux, U_Minus, NormVec, TangVec1, TangVec2, BCFace_xGP)
 !===================================================================================================================================
 ! Computes the boundary values for a given Cartesian mesh face (defined by FaceID)
 ! BCType: 1...periodic, 2...exact BC
@@ -159,239 +159,216 @@ USE MOD_Riemann         ,ONLY: RiemannVacuum,RiemannPML
 USE MOD_Riemann         ,ONLY: RiemannDielectric
 USE MOD_Equation        ,ONLY: ExactFunc
 USE MOD_Globals_Vars    ,ONLY: c,c_inv
-USE MOD_Mesh_Vars       ,ONLY: nBCSides,nBCs,BoundaryType
+USE MOD_Mesh_Vars       ,ONLY: nBCSides,nBCs,BoundaryType,BC
 USE MOD_Equation_Vars   ,ONLY: nBCByType,BCSideID,BCData,nBCByType
 USE MOD_PML_Vars        ,ONLY: PMLnVar, DoPML
 USE MOD_Interfaces_Vars ,ONLY: InterfaceRiemann
-USE MOD_Dielectric_vars ,ONLY: Dielectric_Master
+USE MOD_Dielectric_vars ,ONLY: DielectricSurf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                      :: t
+INTEGER,INTENT(IN)                   :: SideID                             !< ID of current side
+REAL,INTENT(IN)                      :: t                                  !< current time (provided by time integration scheme)
 INTEGER,INTENT(IN)                   :: tDeriv
-REAL,INTENT(IN)                      :: U_Minus(     PP_nVar,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN)                      :: NormVec(           3,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN),OPTIONAL             :: TangVec1(          3,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN),OPTIONAL             :: TangVec2(          3,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN)                      :: BCFace_xGP(        3,0:PP_N,0:PP_N,1:nBCSides)
+INTEGER,INTENT(IN)                   :: Nloc                               !< polynomial degree
+REAL,INTENT(IN)                      :: U_Minus(     PP_nVar,0:Nloc,0:Nloc)
+REAL,INTENT(IN)                      :: NormVec(           3,0:Nloc,0:Nloc)
+REAL,INTENT(IN),OPTIONAL             :: TangVec1(          3,0:Nloc,0:Nloc)
+REAL,INTENT(IN),OPTIONAL             :: TangVec2(          3,0:Nloc,0:Nloc)
+REAL,INTENT(IN)                      :: BCFace_xGP(        3,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                     :: Flux( PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nBCSides)
+REAL,INTENT(OUT)                     :: Flux( PP_nVar+PMLnVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: iBC,iSide,p,q,SideID
-INTEGER                              :: BCType,BCState,nBCLoc
+INTEGER                              :: iSide,p,q
+INTEGER                              :: BCType,BCState
 REAL                                 :: n_loc(3),resul(PP_nVar),epsBC
-REAL                                 :: U_Face_loc(PP_nVar,0:PP_N,0:PP_N)
+REAL                                 :: U_Face_loc(PP_nVar,0:Nloc,0:Nloc)
 !===================================================================================================================================
 
-DO iBC=1,nBCs
-  IF(nBCByType(iBC).LE.0) CYCLE
-  BCType =BoundaryType(iBC,BC_TYPE)
-  BCState=BoundaryType(iBC,BC_STATE)
-  nBCLoc =nBCByType(iBC)
-  SELECT CASE(BCType)
-  CASE(1) !Periodic already filled!
+BCType =BoundaryType(BC(SideID),BC_TYPE)
+BCState=BoundaryType(BC(SideID),BC_STATE)
 
-  CASE(2) ! exact BC = Dirichlet BC !!
-    DO iSide=1,nBCLoc
-      SideID=BCSideID(iBC,iSide)
-      DO q=0,PP_N
-        DO p=0,PP_N
-          CALL ExactFunc(BCState,t,tDeriv,BCFace_xGP(:,p,q,SideID),U_Face_loc(:,p,q))
-        END DO ! p
-      END DO ! q
-      ! Dirichlet means that we use the gradients from inside the grid cell
-      SELECT CASE(InterfaceRiemann(SideID))
-      CASE(RIEMANN_DIELECTRIC)
-        CALL RiemannDielectric(Flux(1:8,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),&
-                               NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
-        IF(DoPML) Flux(9:32,:,:,SideID) = 0.
-      CASE(RIEMANN_PML)
-        CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
-      CASE DEFAULT
-        CALL RiemannVacuum(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
-        IF(DoPML) Flux(9:32,:,:,SideID) = 0.
-      END SELECT
-   END DO
+SELECT CASE(BCType)
+CASE(1) !Periodic already filled!
 
-  CASE(3) ! 1st order absorbing BC
-          ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
-    epsBC=1e-10
-    DO iSide=1,nBCLoc
-      SideID=BCSideID(iBC,iSide)
+CASE(2) ! exact BC = Dirichlet BC !!
+  DO q=0,Nloc
+    DO p=0,Nloc
+      CALL ExactFunc(BCState,t,tDeriv,BCFace_xGP(:,p,q),U_Face_loc(:,p,q))
+    END DO ! p
+  END DO ! q
+  ! Dirichlet means that we use the gradients from inside the grid cell
+  SELECT CASE(InterfaceRiemann(SideID))
+  CASE(RIEMANN_DIELECTRIC)
+    CALL RiemannDielectric(Nloc, Flux(1:8,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),&
+                           NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
+    IF(DoPML) Flux(9:32,:,:) = 0.
+  CASE(RIEMANN_PML)
+    CALL RiemannPML(Nloc, Flux(1:PP_nVar+PMLnVar,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),NormVec(:,:,:))
+  CASE DEFAULT
+    CALL RiemannVacuum(Nloc, Flux(1:PP_nVar,:,:),U_Minus(:,:,:),U_Face_loc(  :,:,:), NormVec(:,:,:))
+    IF(DoPML) Flux(9:32,:,:) = 0.
+  END SELECT
 
-      U_Face_loc=0.
-      ! A problem of the absorbing BC arises if E or B is close to zero.
-      ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
-      !          that E cross n is zero which is enforced through the div. cleaning of E
-      DO q=0,PP_N
-        DO p=0,PP_N
-          IF (SUM(abs(U_Minus(4:6,p,q,SideID))).GT.epsBC)THEN
-            U_Face_loc(7,p,q) = - U_Minus(7,p,q,SideID) - c*(DOT_PRODUCT(U_Minus(4:6,p,q,SideID),normVec(1:3,p,q,SideID)))
-            U_Face_loc(8,p,q) = - U_Minus(8,p,q,SideID) - c_inv*(DOT_PRODUCT(U_Minus(1:3,p,q,SideID),normVec(1:3,p,q,SideID)))
-          END IF ! sum(abs(B)) > epsBC
-        END DO ! p
-      END DO ! q
-
-      SELECT CASE(InterfaceRiemann(SideID))
-      CASE(RIEMANN_DIELECTRIC)
-        CALL RiemannDielectric(Flux(1:8,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),&
-                               NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
-        IF(DoPML) Flux(9:32,:,:,SideID) = 0.
-      CASE(RIEMANN_PML)
-        CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
-      CASE DEFAULT
-        CALL RiemannVacuum(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
-        IF(DoPML) Flux(9:32,:,:,SideID) = 0.
-      END SELECT
-    END DO
-
-  CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
-    ! Determine the exact BC state
-    DO iSide=1,nBCLoc
-      SideID=BCSideID(iBC,iSide)
-      DO q=0,PP_N
-        DO p=0,PP_N
-          resul=U_Minus(:,p,q,SideID)
-          n_loc=normVec(:,p,q,SideID)
-          U_Face_loc(1:3,p,q) = -resul(1:3) + 2*(DOT_PRODUCT(resul(1:3),n_loc))*n_loc
-          U_Face_loc(4:6,p,q) =  resul(4:6) - 2*(DOT_PRODUCT(resul(4:6),n_loc))*n_loc
-          U_Face_loc(  7,p,q) =  resul(  7)
-          U_Face_loc(  8,p,q) = -resul(  8)
-        END DO ! p
-      END DO ! q
-      SELECT CASE(InterfaceRiemann(SideID))
-      CASE(RIEMANN_DIELECTRIC)
-        CALL RiemannDielectric(Flux(1:8,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),&
-                               NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
-        IF(DoPML) Flux(9:32,:,:,SideID) = 0.
-      CASE(RIEMANN_PML)
-        CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
-      CASE DEFAULT
-        CALL RiemannVacuum(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
-        IF(DoPML) Flux(9:32,:,:,SideID) = 0.
-      END SELECT
-    END DO
-
-  CASE(5) ! 1st order absorbing BC
+CASE(3) ! 1st order absorbing BC
         ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
-    ! A problem of the absorbing BC arises if E or B is close to zero.
-    ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
-    !          that E cross n is zero which is enforced through the div. cleaning of E
-    DO iSide=1,nBCLoc
-      SideID=BCSideID(iBC,iSide)
-      U_Face_loc=0.
-      ! A problem of the absorbing BC arises if E or B is close to zero.
-      ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
-      !          that E cross n is zero which is enforced through the div. cleaning of E
-      DO q=0,PP_N
-        DO p=0,PP_N
-          U_Face_loc(7,p,q) = - U_Minus(7,p,q,SideID) - c*(DOT_PRODUCT(U_Minus(4:6,p,q,SideID),normVec(1:3,p,q,SideID)))
-          U_Face_loc(8,p,q) = - U_Minus(8,p,q,SideID) - c_inv*(DOT_PRODUCT(U_Minus(1:3,p,q,SideID),normVec(1:3,p,q,SideID)))
-        END DO ! p
-      END DO ! q
-      SELECT CASE(InterfaceRiemann(SideID))
-      CASE(RIEMANN_DIELECTRIC)
-        CALL RiemannDielectric(Flux(1:8,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),&
-                               NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
-        IF(DoPML) Flux(9:32,:,:,SideID) = 0.
-      CASE(RIEMANN_PML)
-        CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
-      CASE DEFAULT
-        CALL RiemannVacuum(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
-        IF(DoPML) Flux(9:32,:,:,SideID) = 0.
-      END SELECT
-    END DO
+  epsBC=1e-10
 
-  CASE(6) ! 1st order absorbing BC + fix for low B field
-          ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
-    DO iSide=1,nBCLoc
-      SideID=BCSideID(iBC,iSide)
-      U_Face_loc=0.
-      ! A problem of the absorbing BC arises if E or B is close to zero.
-      ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
-      !          that E cross n is zero which is enforced through the div. cleaning of E
-      DO q=0,PP_N
-        DO p=0,PP_N
-          IF (DOT_PRODUCT(U_Minus(4:6,p,q,SideID),U_Minus(4:6,p,q,SideID))*c*10.&
-          .GT.DOT_PRODUCT(U_Minus(1:3,p,q,SideID),U_Minus(1:3,p,q,SideID)))THEN
-            U_Face_loc(7,p,q) = - U_Minus(7,p,q,SideID) - c*(DOT_PRODUCT(U_Minus(4:6,p,q,SideID),normVec(1:3,p,q,SideID)))
-            U_Face_loc(8,p,q) = - U_Minus(8,p,q,SideID) - c_inv*(DOT_PRODUCT(U_Minus(1:3,p,q,SideID),normVec(1:3,p,q,SideID)))
-          END IF ! sum(abs(B)) > epsBC
-        END DO ! p
-      END DO ! q
-      SELECT CASE(InterfaceRiemann(SideID))
-      CASE(RIEMANN_DIELECTRIC)
-        CALL RiemannDielectric(Flux(1:8,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),&
-                               NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
-        IF(DoPML) Flux(9:32,:,:,SideID) = 0.
-      CASE(RIEMANN_PML)
-        CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
-      CASE DEFAULT
-        CALL RiemannVacuum(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
-        IF(DoPML) Flux(9:32,:,:,SideID) = 0.
-      END SELECT
-    END DO
+  U_Face_loc=0.
+  ! A problem of the absorbing BC arises if E or B is close to zero.
+  ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
+  !          that E cross n is zero which is enforced through the div. cleaning of E
+  DO q=0,Nloc
+    DO p=0,Nloc
+      IF (SUM(abs(U_Minus(4:6,p,q))).GT.epsBC)THEN
+        U_Face_loc(7,p,q) = - U_Minus(7,p,q) - c*(DOT_PRODUCT(U_Minus(4:6,p,q),normVec(1:3,p,q)))
+        U_Face_loc(8,p,q) = - U_Minus(8,p,q) - c_inv*(DOT_PRODUCT(U_Minus(1:3,p,q),normVec(1:3,p,q)))
+      END IF ! sum(abs(B)) > epsBC
+    END DO ! p
+  END DO ! q
 
-  CASE(10) ! symmetry BC (perfect MAGNETIC conductor, PMC)
-    ! Determine the exact BC state
-    DO iSide=1,nBCLoc
-      SideID=BCSideID(iBC,iSide)
-      DO q=0,PP_N
-        DO p=0,PP_N
-          resul=U_Minus(:,p,q,SideID)
-          n_loc=normVec(:,p,q,SideID)
-          U_Face_loc(1:3,p,q) =  resul(1:3) - 2*(DOT_PRODUCT(resul(1:3),n_loc))*n_loc
-          U_Face_loc(4:6,p,q) = -resul(4:6) + 2*(DOT_PRODUCT(resul(4:6),n_loc))*n_loc
-          U_Face_loc(  7,p,q) = -resul(  7)
-          U_Face_loc(  8,p,q) =  resul(  8)
-        END DO ! p
-      END DO ! q
-      ! Dirichlet means that we use the gradients from inside the grid cell
-      !CALL RiemannVacuum(Flux(:,:,:,SideID),U_Minus(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
-      SELECT CASE(InterfaceRiemann(SideID))
-      CASE(RIEMANN_DIELECTRIC)
-        CALL RiemannDielectric(Flux(1:8,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),&
-                               NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
-        IF(DoPML) Flux(9:32,:,:,SideID) = 0.
-      CASE(RIEMANN_PML)
-        CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
-      CASE DEFAULT
-        CALL RiemannVacuum(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
-        IF(DoPML) Flux(9:32,:,:,SideID) = 0.
-      END SELECT
-    END DO
+  SELECT CASE(InterfaceRiemann(SideID))
+  CASE(RIEMANN_DIELECTRIC)
+    CALL RiemannDielectric(Nloc, Flux(1:8,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),&
+                           NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
+    IF(DoPML) Flux(9:32,:,:) = 0.
+  CASE(RIEMANN_PML)
+    CALL RiemannPML(Nloc, Flux(1:PP_nVar+PMLnVar,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),NormVec(:,:,:))
+  CASE DEFAULT
+    CALL RiemannVacuum(Nloc, Flux(1:PP_nVar,:,:),U_Minus(:,:,:),U_Face_loc(  :,:,:), NormVec(:,:,:))
+    IF(DoPML) Flux(9:32,:,:) = 0.
+  END SELECT
 
-  CASE(20) ! exact BC = Dirichlet BC !!
-    ! SPECIAL BC: BCState uses readin state
-    DO iSide=1,nBCLoc
-      SideID=BCSideID(iBC,iSide)
-      U_Face_loc=BCData(:,:,:,SideID)
-      SELECT CASE(InterfaceRiemann(SideID))
-      CASE(RIEMANN_DIELECTRIC)
-        CALL RiemannDielectric(Flux(1:8,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),&
-                               NormVec(:,:,:,SideID),Dielectric_Master(0:PP_N,0:PP_N,SideID))
-        IF(DoPML) Flux(9:32,:,:,SideID) = 0.
-      CASE(RIEMANN_PML)
-        CALL RiemannPML(Flux(1:PP_nVar+PMLnVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(:,:,:),NormVec(:,:,:,SideID))
-      CASE DEFAULT
-        CALL RiemannVacuum(Flux(1:PP_nVar,:,:,SideID),U_Minus(:,:,:,SideID),U_Face_loc(  :,:,:), NormVec(:,:,:,SideID))
-        IF(DoPML) Flux(9:32,:,:,SideID) = 0.
-      END SELECT
-    END DO
+CASE(4) ! perfectly conducting surface (MunzOmnesSchneider 2000, pp. 97-98)
+  ! Determine the exact BC state
+  DO q=0,Nloc
+    DO p=0,Nloc
+      resul=U_Minus(:,p,q)
+      n_loc=normVec(:,p,q)
+      U_Face_loc(1:3,p,q) = -resul(1:3) + 2*(DOT_PRODUCT(resul(1:3),n_loc))*n_loc
+      U_Face_loc(4:6,p,q) =  resul(4:6) - 2*(DOT_PRODUCT(resul(4:6),n_loc))*n_loc
+      U_Face_loc(  7,p,q) =  resul(  7)
+      U_Face_loc(  8,p,q) = -resul(  8)
+    END DO ! p
+  END DO ! q
+  SELECT CASE(InterfaceRiemann(SideID))
+  CASE(RIEMANN_DIELECTRIC)
+    CALL RiemannDielectric(Nloc, Flux(1:8,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),&
+                           NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
+    IF(DoPML) Flux(9:32,:,:) = 0.
+  CASE(RIEMANN_PML)
+    CALL RiemannPML(Nloc, Flux(1:PP_nVar+PMLnVar,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),NormVec(:,:,:))
+  CASE DEFAULT
+    CALL RiemannVacuum(Nloc, Flux(1:PP_nVar,:,:),U_Minus(:,:,:),U_Face_loc(  :,:,:), NormVec(:,:,:))
+    IF(DoPML) Flux(9:32,:,:) = 0.
+  END SELECT
 
-  CASE DEFAULT ! unknown BCType
-    CALL abort(&
-__STAMP__&
-        ,'no BC defined in maxwell/getboundaryflux.f90!')
-  END SELECT ! BCType
-END DO ! iBC=1,nBC
+CASE(5) ! 1st order absorbing BC
+      ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
+  ! A problem of the absorbing BC arises if E or B is close to zero.
+  ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
+  !          that E cross n is zero which is enforced through the div. cleaning of E
+  U_Face_loc=0.
+  ! A problem of the absorbing BC arises if E or B is close to zero.
+  ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
+  !          that E cross n is zero which is enforced through the div. cleaning of E
+  DO q=0,Nloc
+    DO p=0,Nloc
+      U_Face_loc(7,p,q) = - U_Minus(7,p,q) - c*(DOT_PRODUCT(U_Minus(4:6,p,q),normVec(1:3,p,q)))
+      U_Face_loc(8,p,q) = - U_Minus(8,p,q) - c_inv*(DOT_PRODUCT(U_Minus(1:3,p,q),normVec(1:3,p,q)))
+    END DO ! p
+  END DO ! q
+  SELECT CASE(InterfaceRiemann(SideID))
+  CASE(RIEMANN_DIELECTRIC)
+    CALL RiemannDielectric(Nloc, Flux(1:8,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),&
+                           NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
+    IF(DoPML) Flux(9:32,:,:) = 0.
+  CASE(RIEMANN_PML)
+    CALL RiemannPML(Nloc, Flux(1:PP_nVar+PMLnVar,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),NormVec(:,:,:))
+  CASE DEFAULT
+    CALL RiemannVacuum(Nloc, Flux(1:PP_nVar,:,:),U_Minus(:,:,:),U_Face_loc(  :,:,:), NormVec(:,:,:))
+    IF(DoPML) Flux(9:32,:,:) = 0.
+  END SELECT
+
+CASE(6) ! 1st order absorbing BC + fix for low B field
+        ! Silver-Mueller BC - Munz et al. 2000 / Computer Physics Communication 130, 83-117
+  U_Face_loc=0.
+  ! A problem of the absorbing BC arises if E or B is close to zero.
+  ! Example: electro(dynamic or static) dominated problem and B is approximately zero, than the Silver-Mueller BC requires
+  !          that E cross n is zero which is enforced through the div. cleaning of E
+  DO q=0,Nloc
+    DO p=0,Nloc
+      IF (DOT_PRODUCT(U_Minus(4:6,p,q),U_Minus(4:6,p,q))*c*10.&
+      .GT.DOT_PRODUCT(U_Minus(1:3,p,q),U_Minus(1:3,p,q)))THEN
+        U_Face_loc(7,p,q) = - U_Minus(7,p,q) - c*(DOT_PRODUCT(U_Minus(4:6,p,q),normVec(1:3,p,q)))
+        U_Face_loc(8,p,q) = - U_Minus(8,p,q) - c_inv*(DOT_PRODUCT(U_Minus(1:3,p,q),normVec(1:3,p,q)))
+      END IF ! sum(abs(B)) > epsBC
+    END DO ! p
+  END DO ! q
+  SELECT CASE(InterfaceRiemann(SideID))
+  CASE(RIEMANN_DIELECTRIC)
+    CALL RiemannDielectric(Nloc, Flux(1:8,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),&
+                           NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
+    IF(DoPML) Flux(9:32,:,:) = 0.
+  CASE(RIEMANN_PML)
+    CALL RiemannPML(Nloc, Flux(1:PP_nVar+PMLnVar,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),NormVec(:,:,:))
+  CASE DEFAULT
+    CALL RiemannVacuum(Nloc, Flux(1:PP_nVar,:,:),U_Minus(:,:,:),U_Face_loc(  :,:,:), NormVec(:,:,:))
+    IF(DoPML) Flux(9:32,:,:) = 0.
+  END SELECT
+
+CASE(10) ! symmetry BC (perfect MAGNETIC conductor, PMC)
+  ! Determine the exact BC state
+  DO q=0,Nloc
+    DO p=0,Nloc
+      resul=U_Minus(:,p,q)
+      n_loc=normVec(:,p,q)
+      U_Face_loc(1:3,p,q) =  resul(1:3) - 2*(DOT_PRODUCT(resul(1:3),n_loc))*n_loc
+      U_Face_loc(4:6,p,q) = -resul(4:6) + 2*(DOT_PRODUCT(resul(4:6),n_loc))*n_loc
+      U_Face_loc(  7,p,q) = -resul(  7)
+      U_Face_loc(  8,p,q) =  resul(  8)
+    END DO ! p
+  END DO ! q
+  ! Dirichlet means that we use the gradients from inside the grid cell
+  !CALL RiemannVacuum(Nloc, Flux(:,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),normal(:,:,:))
+  SELECT CASE(InterfaceRiemann(SideID))
+  CASE(RIEMANN_DIELECTRIC)
+    CALL RiemannDielectric(Nloc, Flux(1:8,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),&
+                           NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
+    IF(DoPML) Flux(9:32,:,:) = 0.
+  CASE(RIEMANN_PML)
+    CALL RiemannPML(Nloc, Flux(1:PP_nVar+PMLnVar,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),NormVec(:,:,:))
+  CASE DEFAULT
+    CALL RiemannVacuum(Nloc, Flux(1:PP_nVar,:,:),U_Minus(:,:,:),U_Face_loc(  :,:,:), NormVec(:,:,:))
+    IF(DoPML) Flux(9:32,:,:) = 0.
+  END SELECT
+
+CASE(20) ! exact BC = Dirichlet BC !!
+  ! SPECIAL BC: BCState uses readin state
+  CALL abort(__STAMP__,'no state file BC implemented')
+  !U_Face_loc=BCData(:,:,:)
+  SELECT CASE(InterfaceRiemann(SideID))
+  CASE(RIEMANN_DIELECTRIC)
+   CALL RiemannDielectric(Nloc, Flux(1:8,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),&
+                           NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
+    IF(DoPML) Flux(9:32,:,:) = 0.
+  CASE(RIEMANN_PML)
+    CALL RiemannPML(Nloc, Flux(1:PP_nVar+PMLnVar,:,:),U_Minus(:,:,:),U_Face_loc(:,:,:),NormVec(:,:,:))
+  CASE DEFAULT
+    CALL RiemannVacuum(Nloc, Flux(1:PP_nVar,:,:),U_Minus(:,:,:),U_Face_loc(  :,:,:), NormVec(:,:,:))
+    IF(DoPML) Flux(9:32,:,:) = 0.
+  END SELECT
+
+CASE DEFAULT ! unknown BCType
+  CALL abort(__STAMP__,'no BC defined in maxwell/getboundaryflux.f90!')
+END SELECT ! BCType
 
 IF(1.EQ.2)THEN
-  epsBC=TangVec1(1,1,1,1)
-  epsBC=TangVec2(1,1,1,1)
+  epsBC=TangVec1(1,1,1)
+  epsBC=TangVec2(1,1,1)
 END IF
 
 END SUBROUTINE GetBoundaryFlux
@@ -416,110 +393,6 @@ SDEALLOCATE(BCData)
 SDEALLOCATE(nBCByType)
 SDEALLOCATE(BCSideID)
 END SUBROUTINE FinalizeBC
-
-
-SUBROUTINE ReadBCFlow(FileName)
-!===================================================================================================================================
-! Get parameters used for the sponge region
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals
-USE MOD_Equation_Vars,      ONLY:BCData
-USE MOD_Mesh_Vars,          ONLY:offsetElem
-USE MOD_HDF5_input,         ONLY:OpenDataFile,GetDataProps,CloseDataFile,ReadAttribute,ReadArray
-USE MOD_Basis,              ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
-USE MOD_Basis,              ONLY:BarycentricWeights,InitializeVandermonde
-USE MOD_Interpolation_Vars, ONLY:xGP
-USE MOD_ChangeBasis,        ONLY:ChangeBasis3D
-USE MOD_ProlongToFace,      ONLY:ProlongToFace_BC
-USE MOD_Interpolation_Vars, ONLY:NodeType
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=255),INTENT(IN) :: FileName
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL,ALLOCATABLE   :: U_local(:,:,:,:,:),U_N(:,:,:,:,:)
-REAL,ALLOCATABLE   :: Vdm_NHDF5_N(:,:)
-INTEGER            :: iElem,nVar_HDF5,N_HDF5,nElems_HDF5
-CHARACTER(LEN=255) :: NodeType_HDF5
-LOGICAL            :: InterpolateSolution
-REAL,ALLOCATABLE   :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:)
-!===================================================================================================================================
-SWRITE(UNIT_StdOut,'(A,A)')'  Read BC state from file "',FileName
-CALL OpenDataFile(FileName,create=.FALSE.,readOnly=.TRUE.,single=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
-CALL GetDataProps('DG_Solution',nVar_HDF5,N_HDF5,nElems_HDF5,NodeType_HDF5)
-IF(((N_HDF5.NE.PP_N) .OR. (TRIM(NodeType_HDF5).NE.TRIM(NodeType))))THEN
-  InterpolateSolution=.TRUE.
-ELSE
-  InterpolateSolution=.FALSE.
-END IF
-
-!temporal array for extrapolation to boundary
-ALLOCATE(U_N(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-
-! Read in state
-IF(.NOT. InterpolateSolution)THEN
-  ! No interpolation needed, read solution directly from file
-
-  ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE (&
-        PP_NP1     => INT(PP_N,IK)       ,&
-        PP_nElems  => INT(PP_nElems,IK)  ,&
-        OffsetElem => INT(OffsetElem,IK) )
-    CALL ReadArray('DG_Solution',5,(/INT(PP_nVar,IK),PP_NP1,PP_NP1,PP_NP1,PP_nElems/),OffsetElem,5,RealArray=U_N)
-  END ASSOCIATE
-  ! read additional data (e.g. indicators etc)
-ELSE
-  SWRITE(UNIT_stdOut,'(A)')' Interpolating BC-state...'
-  ! We need to interpolate the solution to the new computational grid
-  ALLOCATE(Vdm_NHDF5_N(0:PP_N,0:N_HDF5)         &
-          , wGP_tmp(0:N_HDF5)                   &
-          , xGP_tmp(0:N_HDF5)                   &
-          , wBary_tmp(0:N_HDF5)                 )
-
-
-  SELECT CASE(TRIM(NodeType_HDF5))
-  CASE("GAUSS")
-    CALL LegendreGaussNodesAndWeights(N_HDF5,xGP_tmp,wGP_tmp)
-  CASE("GAUSS-LOBATTO")
-    CALL LegGaussLobNodesAndWeights(N_HDF5,xGP_tmp,wGP_tmp)
-  CASE DEFAULT
-    CALL abort(&
-__STAMP__ &
-      , ' Not type of BackGround-Field is not implemented!')
-  END SELECT
-  CALL BarycentricWeights(N_HDF5,xGP_tmp,wBary_tmp)
-  CALL InitializeVandermonde(N_HDF5,PP_N,wBary_tmp,xGP_tmp,xGP,Vdm_NHDF5_N)
-
-  ALLOCATE(U_local(PP_nVar,0:N_HDF5,0:N_HDF5,0:N_HDF5,PP_nElems))
-
-  ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE (&
-        N_HDF5P1   => INT(N_HDF5+1,IK)       ,&
-        PP_nElems  => INT(PP_nElems,IK)  ,&
-        OffsetElem => INT(OffsetElem,IK) )
-    CALL ReadArray('DG_Solution',5,(/INT(PP_nVar,IK),N_HDF5P1,N_HDF5P1,N_HDF5P1,PP_nElems/),OffsetElem,5,RealArray=U_local)
-  END ASSOCIATE
-  SWRITE(UNIT_stdOut,*)'Interpolating base flow from restart grid with N=',N_HDF5,' to computational grid with N=',PP_N
-  DO iElem=1,PP_nElems
-    CALL ChangeBasis3D(PP_nVar,N_HDF5,PP_N,Vdm_NHDF5_N,U_local(:,:,:,:,iElem),U_N(:,:,:,:,iElem))
-  END DO
-  DEALLOCATE(U_local,Vdm_NHDF5_N)
-  DEALLOCATE(wGP_tmp, xGP_tmp,wBary_tmp)
-END IF
-CALL CloseDataFile()
-
-SWRITE(UNIT_stdOut,'(A)')'  Interpolating the BC flow on the BC sides...'
-CALL ProlongToFace_BC(U_N,BCData)
-DEALLOCATE(U_N)
-
-SWRITE(UNIT_stdOut,'(A)')'  done initializing BC state!'
-END SUBROUTINE ReadBCFlow
 
 
 END MODULE MOD_GetBoundaryFlux

@@ -59,32 +59,38 @@ PUBLIC::Riemann,RiemannVacuum,RiemannPML,Exactflux,RiemannDielectric,RiemannDiel
 
 CONTAINS
 
-SUBROUTINE Riemann(Flux_Master,Flux_Slave,U_Master,U_Slave,NormVec,SideID)
+SUBROUTINE Riemann(Nloc,Flux_Master,Flux_Slave,U_Master,U_Slave,NormVec,SideID)
 !===================================================================================================================================
 !
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Dielectric_vars ,ONLY: Dielectric_Master
+USE MOD_Dielectric_vars ,ONLY: DielectricSurf
 USE MOD_Globals         ,ONLY: Abort
 USE MOD_PML_vars        ,ONLY: PMLnVar
 USE MOD_Interfaces_Vars ,ONLY: InterfaceRiemann
+USE MOD_DG_Vars         ,ONLY: DG_Elems_master
+USE MOD_Interpolation_Vars, ONLY: PREF_VDM
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)   :: Nloc
 INTEGER,INTENT(IN)   :: SideID
-REAL,INTENT(IN)      :: NormVec(PP_nVar,0:PP_N,0:PP_N)
-REAL,INTENT(IN)      :: U_master(PP_nVar,0:PP_N,0:PP_N)
-REAL,INTENT(IN)      :: U_slave (PP_nVar,0:PP_N,0:PP_N)
+REAL,INTENT(IN)      :: NormVec(PP_nVar,0:Nloc,0:Nloc)
+REAL,INTENT(IN)      :: U_master(PP_nVar,0:Nloc,0:Nloc)
+REAL,INTENT(IN)      :: U_slave (PP_nVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)   :: Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
-REAL,INTENT(INOUT)   :: Flux_Slave(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
+REAL,INTENT(INOUT)   :: Flux_Master(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc)
+REAL,INTENT(INOUT)   :: Flux_Slave(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL,ALLOCATABLE      :: DieLoc(:,:,:), DieTmp(:,:,:)
+INTEGER               :: NDie
 !===================================================================================================================================
-
+NDie = DG_Elems_master(SideID)
 ! Check every face and set the correct identifier for selecting the corresponding Riemann solver
 ! possible connections are (Master <-> Slave direction is important):
 SELECT CASE(InterfaceRiemann(SideID))
@@ -98,39 +104,82 @@ SELECT CASE(InterfaceRiemann(SideID))
   !   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC_NC = 6 ! for non-conservative fluxes (two fluxes)
 CASE(RIEMANN_VACUUM)
   ! standard flux
-  CALL RiemannVacuum(Flux_Master(1:8,:,:),U_Master( :,:,:),U_Slave(  :,:,:),NormVec(:,:,:))
+  CALL RiemannVacuum(Nloc,Flux_Master(1:8,:,:),U_Master( :,:,:),U_Slave(  :,:,:),NormVec(:,:,:))
 CASE(RIEMANN_PML)
   ! RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations (flux-splitting!)
-  CALL RiemannPML(Flux_Master(1:32,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:))
+  CALL RiemannPML(Nloc,Flux_Master(1:32,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:))
 CASE(RIEMANN_DIELECTRIC)
   ! dielectric region <-> dielectric region
-  CALL RiemannDielectric(Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+  ALLOCATE(DieLoc(1,0:Nloc,0:Nloc), DieTmp(1,0:NDie,0:NDie))  
+  IF (NDie.LT.Nloc) THEN
+    DieTmp(1,0:NDie,0:NDie) = DielectricSurf(SideID)%Dielectric_Master(0:NDie,0:NDie)
+    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp, DieLoc(:,:,:))
+  ELSE
+    DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
+  END IF 
+  CALL RiemannDielectric(Nloc,Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),DieLoc(1,0:Nloc,0:Nloc))
+  SDEALLOCATE(DieLoc)
+  SDEALLOCATE(DieTmp)
 CASE(RIEMANN_DIELECTRIC2VAC)
+  ALLOCATE(DieLoc(1,0:Nloc,0:Nloc), DieTmp(1,0:NDie,0:NDie))
+  IF (NDie.LT.Nloc) THEN
+    DieTmp(1,0:NDie,0:NDie) = DielectricSurf(SideID)%Dielectric_Master(0:NDie,0:NDie)
+    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp, DieLoc(:,:,:))
+  ELSE
+    DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
+  END IF 
   ! master is DIELECTRIC and slave PHYSICAL: A+(Eps0,Mu0) and A-(EpsR,MuR)
-  CALL RiemannDielectricInterFace2(Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+  CALL RiemannDielectricInterFace2(Nloc,Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),DieLoc(1,0:Nloc,0:Nloc))
+  SDEALLOCATE(DieLoc)
+  SDEALLOCATE(DieTmp)
 CASE(RIEMANN_VAC2DIELECTRIC)
+  ALLOCATE(DieLoc(1,0:Nloc,0:Nloc), DieTmp(1,0:NDie,0:NDie))
+  IF (NDie.LT.Nloc) THEN    
+    DieTmp(1,0:NDie,0:NDie) = DielectricSurf(SideID)%Dielectric_Master(0:NDie,0:NDie)
+    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp, DieLoc(:,:,:))
+  ELSE
+    DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
+  END IF 
   ! master is PHYSICAL and slave DIELECTRIC: A+(EpsR,MuR) and A-(Eps0,Mu0)
-  CALL RiemannDielectricInterFace(Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+  CALL RiemannDielectricInterFace(Nloc,Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),DieLoc(1,0:Nloc,0:Nloc))
+  SDEALLOCATE(DieLoc)
+  SDEALLOCATE(DieTmp)
 CASE(RIEMANN_DIELECTRIC2VAC_NC)  ! use non-conserving fluxes (two different fluxes for master and slave side)
+  ALLOCATE(DieLoc(1,0:Nloc,0:Nloc), DieTmp(1,0:NDie,0:NDie))
+  IF (NDie.LT.Nloc) THEN
+    DieTmp(1,0:NDie,0:NDie) = DielectricSurf(SideID)%Dielectric_Master(0:NDie,0:NDie)
+    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp, DieLoc(:,:,:))
+  ELSE
+    DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
+  END IF 
   ! 1.) dielectric master side
-  CALL RiemannDielectric(Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+  CALL RiemannDielectric(Nloc,Flux_Master(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),DieLoc(1,0:Nloc,0:Nloc))
   ! 2.) vacuum slave side
-  CALL RiemannVacuum(Flux_Slave(1:8,:,:),U_Master( :,:,:),U_Slave(  :,:,:),NormVec(:,:,:))
+  CALL RiemannVacuum(Nloc,Flux_Slave(1:8,:,:),U_Master( :,:,:),U_Slave(  :,:,:),NormVec(:,:,:))
+  SDEALLOCATE(DieLoc)
+  SDEALLOCATE(DieTmp)
 CASE(RIEMANN_VAC2DIELECTRIC_NC) ! use non-conserving fluxes (two different fluxes for master and slave side)
+  ALLOCATE(DieLoc(1,0:Nloc,0:Nloc), DieTmp(1,0:NDie,0:NDie))
+  IF (NDie.LT.Nloc) THEN
+    DieTmp(1,0:NDie,0:NDie) = DielectricSurf(SideID)%Dielectric_Master(0:NDie,0:NDie)
+    CALL ChangeBasis2D(1, NDie, Nloc, PREF_VDM(NDie,Nloc)%Vdm, DieTmp, DieLoc(:,:,:))
+  ELSE
+    DieLoc(1,0:Nloc,0:Nloc) = DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc)
+  END IF 
   ! 1.) dielectric slave side
-  CALL RiemannDielectric(Flux_Slave(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+  CALL RiemannDielectric(Nloc,Flux_Slave(1:8,:,:),U_Master(:,:,:),U_Slave(:,:,:),NormVec(:,:,:),DieLoc(1,0:Nloc,0:Nloc))
   ! 2.) vacuum master side
-  CALL RiemannVacuum(Flux_Master(1:8,:,:),U_Master( :,:,:),U_Slave(  :,:,:),NormVec(:,:,:))
+  CALL RiemannVacuum(Nloc,Flux_Master(1:8,:,:),U_Master( :,:,:),U_Slave(  :,:,:),NormVec(:,:,:))
+  SDEALLOCATE(DieLoc)
+  SDEALLOCATE(DieTmp)
 CASE DEFAULT
-  CALL abort(&
-      __STAMP__&
-      ,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
+  CALL abort(__STAMP__,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
 END SELECT
 
 END SUBROUTINE Riemann
 
 
-SUBROUTINE RiemannVacuum(F,U_L,U_R,nv)
+SUBROUTINE RiemannVacuum(Nloc,F,U_L,U_R,nv)
 !===================================================================================================================================
 ! Computes the numerical flux
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotated: don't use it after this routine!!
@@ -143,11 +192,12 @@ USE MOD_Equation_Vars ,ONLY: eta_c,c_corr,c_corr_c,c_corr_c2,CentralFlux
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N),INTENT(IN) :: U_L,U_R
-REAL,INTENT(IN)                                  :: nv(3,0:PP_N,0:PP_N)
+INTEGER,INTENT(IN)                               :: Nloc
+REAL,DIMENSION(PP_nVar,0:Nloc,0:Nloc),INTENT(IN) :: U_L,U_R
+REAL,INTENT(IN)                                  :: nv(3,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
+REAL,INTENT(OUT)                                 :: F(PP_nVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -160,8 +210,8 @@ INTEGER                                          :: Count_1,Count_2
 
 IF(CentralFlux)THEN
   ! Gauss point i,j
-  DO Count_2=0,PP_N
-    DO Count_1=0,PP_N
+  DO Count_2=0,Nloc
+    DO Count_1=0,Nloc
       n_loc(:)=nv(:,Count_1,Count_2)
       A=0.
       ! check again 7 and 8
@@ -198,8 +248,8 @@ IF(CentralFlux)THEN
   END DO
 ELSE
   ! Gauss point i,j
-  DO Count_2=0,PP_N
-    DO Count_1=0,PP_N
+  DO Count_2=0,Nloc
+    DO Count_1=0,Nloc
       n_loc(:)=nv(:,Count_1,Count_2)
 
   !--- for original version see below (easier to understand)
@@ -339,7 +389,7 @@ END IF
 END SUBROUTINE RiemannVacuum
 
 
-SUBROUTINE RiemannPML(F,U_L,U_R,nv)
+SUBROUTINE RiemannPML(Nloc,F,U_L,U_R,nv)
 !===================================================================================================================================
 ! Computes the numerical flux
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotated: don't use it after this routine!!
@@ -353,11 +403,12 @@ USE MOD_PML_vars      ,ONLY: PMLnVar
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N),INTENT(IN) :: U_L,U_R
-REAL,INTENT(IN)                                  :: nv(3,0:PP_N,0:PP_N) !,t1(3,0:PP_N,0:PP_N),t2(3,0:PP_N,0:PP_N)
+INTEGER,INTENT(IN)                               :: Nloc
+REAL,DIMENSION(PP_nVar,0:Nloc,0:Nloc),INTENT(IN) :: U_L,U_R
+REAL,INTENT(IN)                                  :: nv(3,0:Nloc,0:Nloc) !,t1(3,0:Nloc,0:Nloc),t2(3,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                                 :: F(PP_nVar+PMLnVar,0:PP_N,0:PP_N)
+REAL,INTENT(OUT)                                 :: F(PP_nVar+PMLnVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -369,8 +420,8 @@ INTEGER                                          :: Count_1,Count_2
 !===================================================================================================================================
 ! Gauss point i,j
 
-DO Count_2=0,PP_N
-  DO Count_1=0,PP_N
+DO Count_2=0,Nloc
+  DO Count_1=0,Nloc
     n_loc(:)=nv(:,Count_1,Count_2)
 
     ! A^-*U_R + A^+*U_L
@@ -526,7 +577,7 @@ END DO
 END SUBROUTINE RiemannPML
 
 
-SUBROUTINE ExactFlux(t,tDeriv,Flux_Master,Flux_Slave,U_Master, U_slave,NormVec,Face_xGP,SurfElem,SideID)
+SUBROUTINE ExactFlux(SideID,t,tDeriv,Nloc,Flux_Master,Flux_Slave,U_Master, U_slave,NormVec,Face_xGP,SurfElem)
 !===================================================================================================================================
 ! Routine to add an exact function to a Riemann-Problem Face
 ! used at PML interfaces to emit a wave
@@ -549,27 +600,28 @@ USE MOD_Equation_Vars,   ONLY:IniExactFunc,ExactFluxDir
 USE MOD_Equation,        ONLY:ExactFunc
 USE MOD_PML_vars,        ONLY:PMLnVar
 USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann
-USE MOD_Dielectric_vars, ONLY:Dielectric_Master
+USE MOD_Dielectric_vars, ONLY:DielectricSurf
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)    :: SideID
+INTEGER,INTENT(IN)    :: Nloc
 REAL,INTENT(IN)       :: t           ! time
 INTEGER,INTENT(IN)    :: tDeriv      ! deriv
-REAL,INTENT(IN)       :: NormVec(1:3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)       :: Face_xGP(1:3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)       :: U_master(1:PP_nVar,0:PP_N,0:PP_N)
-REAL,INTENT(IN)       :: U_slave (1:PP_nVar,0:PP_N,0:PP_N)
-REAL,INTENT(IN)       :: SurfElem (0:PP_N,0:PP_N)
-INTEGER,INTENT(IN)    :: SideID
+REAL,INTENT(IN)       :: NormVec(1:3,0:Nloc,0:Nloc)
+REAL,INTENT(IN)       :: Face_xGP(1:3,0:Nloc,0:Nloc)
+REAL,INTENT(IN)       :: U_master(1:PP_nVar,0:Nloc,0:Nloc)
+REAL,INTENT(IN)       :: U_slave (1:PP_nVar,0:Nloc,0:Nloc)
+REAL,INTENT(IN)       :: SurfElem (0:Nloc,0:Nloc)
 ! Allocate arrays to hold the face flux to reduce memory churn
-REAL,ALLOCATABLE      :: U_Master_loc(1:PP_nVar        ,0:PP_N,0:PP_N)
-REAL,ALLOCATABLE      :: U_Slave_loc (1:PP_nVar        ,0:PP_N,0:PP_N)
-REAL,ALLOCATABLE      :: Flux_loc(    1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
+REAL                  :: U_Master_loc(1:PP_nVar        ,0:Nloc,0:Nloc)
+REAL                  :: U_Slave_loc (1:PP_nVar        ,0:Nloc,0:Nloc)
+REAL                  :: Flux_loc(    1:PP_nVar+PMLnVar,0:Nloc,0:Nloc)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)    :: Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
-REAL,INTENT(INOUT)    :: Flux_Slave (1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
+REAL,INTENT(INOUT)    :: Flux_Master(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc)
+REAL,INTENT(INOUT)    :: Flux_Slave (1:PP_nVar+PMLnVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: p,q
@@ -584,25 +636,21 @@ IF(NormVec(ExactFluxDir,0,0).GT.0)THEN
 ELSE IF(NormVec(ExactFluxDir,0,0).LT.0)THEN
   UseMaster=.TRUE.
 ELSE
-  CALL abort(&
-__STAMP__&
-,'weired mesh?')
+  CALL abort(__STAMP__,'ExactFlux has encountered an error with the normal vector.')
 END IF
 
 U_Slave_loc =U_Slave
 U_Master_loc=U_Master
 
-DO q=0,PP_N
-  DO p=0,PP_N
+DO q=0,Nloc
+  DO p=0,Nloc
     ! the second state is always zero and already computed
     ! caution, rotation
     CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_loc(:))
     IF(UseMaster)THEN
-      !U_Master_loc(:,p,q)=U_Master(:,p,q)
       U_Slave_loc(:,p,q)=U_Slave_loc(:,p,q) + U_loc
     ELSE
       U_Master_loc(:,p,q)=U_Master_loc(:,p,q) + U_loc
-      !U_Slave_loc(:,p,q)=U_Slave(:,p,q)
     END IF
   END DO ! p
 END DO ! q
@@ -612,171 +660,40 @@ Flux_loc=0.
 ! check interface type for Riemann solver selection
 SELECT CASE(InterfaceRiemann(SideID))
 CASE(RIEMANN_VACUUM) ! standard flux
-  CALL RiemannVacuum(Flux_loc(1:8,:,:),U_Master_loc( :,:,:),U_Slave_loc(  :,:,:),NormVec(:,:,:))
+  CALL RiemannVacuum(Nloc,Flux_loc(1:8,:,:),U_Master_loc( :,:,:),U_Slave_loc(  :,:,:),NormVec(:,:,:))
 CASE(RIEMANN_PML) ! RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations (flux-splitting!)
-  CALL RiemannPML(Flux_loc(1:32,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
+  CALL RiemannPML(Nloc,Flux_loc(1:32,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
 CASE(RIEMANN_DIELECTRIC) ! dielectric region <-> dielectric region
-  CALL RiemannDielectric(Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
-                         NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+  CALL RiemannDielectric(Nloc,Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
+                         NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
 CASE(RIEMANN_DIELECTRIC2VAC) ! master is DIELECTRIC and slave PHYSICAL: A+(Eps0,Mu0) and A-(EpsR,MuR)
-  CALL RiemannDielectricInterFace2(Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
-                                   NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+  CALL RiemannDielectricInterFace2(Nloc,Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
+                                   NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
 CASE(RIEMANN_VAC2DIELECTRIC) ! master is PHYSICAL and slave DIELECTRIC: A+(EpsR,MuR) and A-(Eps0,Mu0)
-  CALL RiemannDielectricInterFace(Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
-                                              NormVec(:,:,:),Dielectric_Master(0:PP_N,0:PP_N,SideID))
+  CALL RiemannDielectricInterFace(Nloc,Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
+                                              NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
 CASE DEFAULT
-  CALL abort(&
-  __STAMP__&
-  ,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
+  CALL abort(__STAMP__,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
 END SELECT
 
 IF(Usemaster)THEN
-  DO q=0,PP_N
-    DO p=0,PP_N
-      !Flux_Slave(:,p,q) =Flux_loc(:,p,q)*SurfElem(p,q)
+  DO q=0,Nloc
+    DO p=0,Nloc
       Flux_Master(:,p,q)=Flux_loc(:,p,q)*SurfElem(p,q)
-      !Flux_Master(:,p,q)=Flux_Master(:,p,q)+Flux_loc(:,p,q)*SurfElem(p,q)
     END DO ! p
   END DO ! q
 ELSE
-  DO q=0,PP_N
-    DO p=0,PP_N
-      !Flux_Master(:,p,q)=Flux_loc(:,p,q)*SurfElem(p,q)
+  DO q=0,Nloc
+    DO p=0,Nloc
       Flux_Slave(:,p,q)=Flux_loc(:,p,q)*SurfElem(p,q)
-      !Flux_Slave(:,p,q)=Flux_Slave(:,p,q)+Flux_loc(:,p,q)*SurfElem(p,q)
     END DO ! p
   END DO ! q
 END IF
 
-
-!UseMaster=.TRUE.
-!! emission over plane, hence, first entry decides orientation of  plane
-!IF(NormVec(ExactFluxDir,0,0).GT.0)THEN
-!  UseMaster=.FALSE.
-!ELSE IF(NormVec(ExactFluxDir,0,0).LT.0)THEN
-!  UseMaster=.TRUE.
-!ELSE
-!  CALL abort(&
-!__STAMP__&
-!,'wired mesh?')
-!END IF
-!
-!U_Slave_loc=0.
-!U_Master_loc=0.
-!DO q=0,PP_N
-!  DO p=0,PP_N
-!    IF(ALMOSTEQUALRELATIVE(Face_xGP(ExactFluxDir,p,q),xyzPhysicalMinMax(ExactFluxDir*2-1),1e-4))THEN
-!      ! the second state is always zero and already computed
-!      IF(UseMaster)THEN
-!        CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_Slave_loc(:,p,q))
-!        !U_Master_loc(:,p,q)=U_Master(:,p,q)
-!      ELSE
-!        CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_Master_loc(:,p,q))
-!        !U_Slave_loc(:,p,q)=U_Slave(:,p,q)
-!      END IF
-!    END IF
-!  END DO ! p
-!END DO ! q
-!
-!!CALL RiemannPML(Flux_loc(1:32,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
-!CALL RiemannVacuum(Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
-!IF(Usemaster)THEN
-!  DO q=0,PP_N
-!    DO p=0,PP_N
-!      Flux_Master(:,p,q)=Flux_Master(:,p,q)+Flux_loc(:,p,q)*SurfElem(p,q)
-!    END DO ! p
-!  END DO ! q
-!ELSE
-!  DO q=0,PP_N
-!    DO p=0,PP_N
-!      Flux_Slave(:,p,q)=Flux_Slave(:,p,q)+Flux_loc(:,p,q)*SurfElem(p,q)
-!    END DO ! p
-!  END DO ! q
-!END IF
-
-!! assume that U_ex is solution of RP at interface and add to flux
-!DO q=0,PP_N
-!  DO p=0,PP_N
-!    U_Face_loc=0.
-!    IF(ALMOSTEQUALRELATIVE(Face_xGP(ExactFluxDir,p,q),xyzPhysicalMinMax(ExactFluxDir*2-1),1e-4))THEN
-!      CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_Face_loc)
-!      n_loc(1:3)=NormVec(1:3,p,q)
-!      A(1,1:4)=0.
-!      A(1, 5 )=c2*n_loc(3)
-!      A(1, 6 )=-c2*n_loc(2)
-!      A(1, 7 )=0.
-!      A(1, 8 )=c_corr_c2*n_loc(1)
-!      A(2,1:3)=0.
-!      A(2, 4 )=-c2*n_loc(3)
-!      A(2, 5 )=0.
-!      A(2, 6 )=c2*n_loc(1)
-!      A(2, 7 )=0.
-!      A(2, 8 )=c_corr_c2*n_loc(2)
-!      A(3,1:3)=0.
-!      A(3, 4 )=c2*n_loc(2)
-!      A(3, 5 )=-c2*n_loc(1)
-!      A(3, 6 )=0.
-!      A(3, 7 )=0.
-!      A(3, 8 )=c_corr_c2*n_loc(3)
-!
-!      A(4, 1 )=0.
-!      A(4, 2 )=-n_loc(3)
-!      A(4, 3 )=n_loc(2)
-!      A(4,4:6)=0.
-!      A(4, 7 )=c_corr*n_loc(1)
-!      A(4, 8 )=0.
-!
-!      A(5, 1 )=n_loc(3)
-!      A(5, 2 )=0.
-!      A(5, 3 )=-n_loc(1)
-!      A(5,4:6)=0.
-!      A(5, 7 )=c_corr*n_loc(2)
-!      A(5, 8 )=0.
-!
-!      A(6, 1 )=-n_loc(2)
-!      A(6, 2 )=n_loc(1)
-!      A(6, 3 )=0.
-!      A(6,4:6)=0.
-!      A(6, 7 )=c_corr*n_loc(3)
-!      A(6, 8 )=0.
-!
-!      A(7,1:3)=0.
-!      A(7, 4 )=c_corr_c2*n_loc(1)
-!      A(7, 5 )=c_corr_c2*n_loc(2)
-!      A(7, 6 )=c_corr_c2*n_loc(3)
-!      A(7, 7 )=0.
-!      A(7, 8 )=0.
-!
-!      A(8, 1 )=c_corr*n_loc(1)
-!      A(8, 2 )=c_corr*n_loc(2)
-!      A(8, 3 )=c_corr*n_loc(3)
-!      A(8,4:6)=0.
-!      A(8, 7 )=0.
-!      A(8, 8 )=0.
-!      !Flux_loc=0.
-!      Flux_loc(1:PP_nVar)=MATMUL(A,U_Face_loc)
-!      ! mapping
-!      !         |
-!      ! Master  |  Slave
-!      !         |
-!      !  nvec ----->
-!      !         |
-!      !         |
-!      ! FluxM   | FluxSlave
-!      ! PO: are the signs correct?
-!      IF(NormVec(ExactFluxDir,p,q).GT.0)THEN
-!        Flux_Slave(1:PP_nVar,p,q)=Flux_Slave(1:PP_nVar,p,q)+Flux_loc*SurfElem(p,q)
-!      ELSE
-!        Flux_Master(1:PP_nVar,p,q)=Flux_Master(1:PP_nVar,p,q)+Flux_loc*SurfElem(p,q) ! or sign change?
-!      END IF
-!    END IF
-!  END DO ! p
-!END DO ! q
-
 END SUBROUTINE ExactFlux
 
 
-SUBROUTINE RiemannDielectric(F,U_L,U_R,nv,Dielectric_Master)
+SUBROUTINE RiemannDielectric(Nloc,F,U_L,U_R,nv,Dielectric_Master)
 !===================================================================================================================================
 ! Computes the numerical flux
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotated: don't use it after this routine!!
@@ -790,12 +707,13 @@ USE MOD_Equation_Vars ,ONLY: CentralFlux,c_corr,c_corr_c
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N),INTENT(IN) :: U_L,U_R
-REAL,INTENT(IN)                                  :: nv(3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)                                  :: Dielectric_Master(0:PP_N,0:PP_N)
+INTEGER,INTENT(IN)                               :: Nloc
+REAL,DIMENSION(PP_nVar,0:Nloc,0:Nloc),INTENT(IN) :: U_L,U_R
+REAL,INTENT(IN)                                  :: nv(3,0:Nloc,0:Nloc)
+REAL,INTENT(IN)                                  :: Dielectric_Master(0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
+REAL,INTENT(OUT)                                 :: F(PP_nVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -807,13 +725,11 @@ REAL                                             :: c_corr_c_dielectric,c_corr_c
 !===================================================================================================================================
 
 IF(CentralFlux)THEN
-  CALL abort(&
-  __STAMP__&
-  ,'central flux for dielectric media not implemented!')
+  CALL abort(__STAMP__,'central flux for dielectric media not implemented!')
 ELSE
   ! Gauss point i,j
-  DO Count_2=0,PP_N
-    DO Count_1=0,PP_N
+  DO Count_2=0,Nloc
+    DO Count_1=0,Nloc
       n_loc(:)=nv(:,Count_1,Count_2)
 
       ! set dielectric values
@@ -885,12 +801,10 @@ ELSE
       A_n(8,8)   = -A_p(8,8)
 
       IF(MINVAL(ABS(A_n+1234567))==0)THEN
-        print*,"stop A_n RiemannDielectric"
-        stop
+        CALL abort(__STAMP__,'A_n RiemannDielectric')
       END IF
       IF(MINVAL(ABS(A_p+1234567))==0)THEN
-        print*,"stop A_p RiemannDielectric"
-        stop
+        CALL abort(__STAMP__,'A_p RiemannDielectric')
       END IF
       F(:,Count_1,Count_2)=0.5*(MATMUL(A_n,U_R(:,Count_1,Count_2))+MATMUL(A_p,U_L(:,Count_1,Count_2)))
     END DO
@@ -900,7 +814,7 @@ END IF
 END SUBROUTINE RiemannDielectric
 
 
-SUBROUTINE RiemannDielectricInterFace(F,U_L,U_R,nv,Dielectric_Master)
+SUBROUTINE RiemannDielectricInterFace(Nloc,F,U_L,U_R,nv,Dielectric_Master)
 !===================================================================================================================================
 ! Computes the numerical flux
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotated: don't use it after this routine!!
@@ -915,12 +829,13 @@ USE MOD_Equation_Vars ,ONLY: CentralFlux,eta_c,c_corr,c_corr_c,c_corr_c2
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N),INTENT(IN) :: U_L,U_R
-REAL,INTENT(IN)                                  :: nv(3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)                                  :: Dielectric_Master(0:PP_N,0:PP_N)
+INTEGER,INTENT(IN)                               :: Nloc
+REAL,DIMENSION(PP_nVar,0:Nloc,0:Nloc),INTENT(IN) :: U_L,U_R
+REAL,INTENT(IN)                                  :: nv(3,0:Nloc,0:Nloc)
+REAL,INTENT(IN)                                  :: Dielectric_Master(0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
+REAL,INTENT(OUT)                                 :: F(PP_nVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -932,13 +847,11 @@ REAL                                             :: c_corr_c_dielectric,c_corr_c
 !===================================================================================================================================
 
 IF(CentralFlux)THEN
-  CALL abort(&
-  __STAMP__&
-  ,'central flux for dielectric media not implemented!')
+  CALL abort(__STAMP__,'central flux for dielectric media not implemented!')
 ELSE
   ! Gauss point i,j
-  DO Count_2=0,PP_N
-    DO Count_1=0,PP_N
+  DO Count_2=0,Nloc
+    DO Count_1=0,Nloc
       n_loc(:)=nv(:,Count_1,Count_2)
 
       ! set dielectric values
@@ -1044,7 +957,7 @@ END IF
 END SUBROUTINE RiemannDielectricInterFace
 
 
-SUBROUTINE RiemannDielectricInterFace2(F,U_L,U_R,nv,Dielectric_Master)
+SUBROUTINE RiemannDielectricInterFace2(Nloc,F,U_L,U_R,nv,Dielectric_Master)
 !===================================================================================================================================
 ! Computes the numerical flux
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotated: don't use it after this routine!!
@@ -1059,12 +972,13 @@ USE MOD_Equation_Vars ,ONLY: CentralFlux,eta_c,c_corr,c_corr_c,c_corr_c2
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N),INTENT(IN) :: U_L,U_R
-REAL,INTENT(IN)                                  :: nv(3,0:PP_N,0:PP_N)
-REAL,INTENT(IN)                                  :: Dielectric_Master(0:PP_N,0:PP_N)
+INTEGER,INTENT(IN)                               :: Nloc
+REAL,DIMENSION(PP_nVar,0:Nloc,0:Nloc),INTENT(IN) :: U_L,U_R
+REAL,INTENT(IN)                                  :: nv(3,0:Nloc,0:Nloc)
+REAL,INTENT(IN)                                  :: Dielectric_Master(0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                                 :: F(PP_nVar,0:PP_N,0:PP_N)
+REAL,INTENT(OUT)                                 :: F(PP_nVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1076,13 +990,11 @@ REAL                                             :: c_corr_c_dielectric,c_corr_c
 !===================================================================================================================================
 
 IF(CentralFlux)THEN
-  CALL abort(&
-  __STAMP__&
-  ,'central flux for dielectric media not implemented!')
+  CALL abort(__STAMP__,'central flux for dielectric media not implemented!')
 ELSE
   ! Gauss point i,j
-  DO Count_2=0,PP_N
-    DO Count_1=0,PP_N
+  DO Count_2=0,Nloc
+    DO Count_1=0,Nloc
       n_loc(:)=nv(:,Count_1,Count_2)
 
       ! set dielectric values

@@ -42,10 +42,10 @@ SUBROUTINE FieldRestart()
 ! USED MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars                ,ONLY: U
+USE MOD_DG_Vars                ,ONLY: U_N
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_IO_HDF5
-USE MOD_Restart_Vars           ,ONLY: N_Restart,RestartFile,InterpolateSolution,RestartNullifySolution
+USE MOD_Restart_Vars           ,ONLY: N_Restart,RestartFile,RestartNullifySolution
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
 USE MOD_HDF5_Input             ,ONLY: DatasetExists
@@ -87,13 +87,18 @@ USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 #endif /*USE_HDG*/
 USE MOD_Mesh_Vars              ,ONLY: OffsetElem
+USE MOD_DG_Vars, ONLY: N_DG
+USE MOD_ChangeBasis, ONLY: ChangeBasis3D
+USE MOD_Interpolation_Vars, ONLY: N_Inter,PREF_VDM
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(KIND=IK)                   :: PP_NTmp,OffsetElemTmp,PP_nVarTmp,PP_nElemsTmp,N_RestartTmp
+INTEGER(KIND=IK)                   :: Nres,nVar
+INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp
+INTEGER                            :: Nloc
 #if USE_HDG
 LOGICAL                            :: DG_SolutionLambdaExists
 LOGICAL                            :: DG_SolutionUExists
@@ -126,6 +131,8 @@ INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*defined(PARTICLES) || !(USE_HDG)*/
 #endif /*USE_LOADBALANCE*/
+REAL,ALLOCATABLE                   :: U(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: Uloc(:,:,:,:)
 !===================================================================================================================================
 
 ! ===========================================================================
@@ -251,14 +258,17 @@ ELSE ! normal restart
 #endif /*USE_LOADBALANCE*/
 
   ! Temp. vars for integer KIND=8 possibility
-  PP_NTmp       = INT(PP_N,IK)
+  Nres          = INT(N_Restart,IK)
   OffsetElemTmp = INT(OffsetElem,IK)
-  PP_nVarTmp    = INT(PP_nVar,IK)
+  nVar          = INT(PP_nVar,IK)
   PP_nElemsTmp  = INT(PP_nElems,IK)
-  N_RestartTmp  = INT(N_Restart,IK)
 #if !(USE_HDG)
   PMLnVarTmp    = INT(PMLnVar,IK)
 #endif /*not USE_HDG*/
+
+
+
+
   ! ===========================================================================
   ! Read the field solution
   ! ===========================================================================
@@ -271,205 +281,157 @@ ELSE ! normal restart
     ! Read in time from restart file
     !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
     ! Read in state
-    IF(.NOT. InterpolateSolution)THEN! No interpolation needed, read solution directly from file
+
+
+    SWRITE(UNIT_stdOut,*)'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
+
+
+
 #ifdef PP_POIS
 #if (PP_nVar==8)
-      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-      CALL ReadArray('DG_SolutionPhi',5,(/4_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
+    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    CALL ReadArray('DG_SolutionPhi',5,(/4_IK,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #else
-      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-      CALL ReadArray('DG_SolutionPhi',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
+    CALL ReadArray('DG_SolutionE',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Phi)
 #endif
 #elif USE_HDG
-      CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
-      IF(DG_SolutionUExists)THEN
-        CALL ReadArray('DG_SolutionU',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-      ELSE
-        CALL ReadArray('DG_Solution' ,5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-      END IF
+    CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
+    IF(DG_SolutionUExists)THEN
+      CALL ReadArray('DG_SolutionU',5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    ELSE
+      CALL ReadArray('DG_Solution' ,5,(/PP_nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    END IF
 
-      ! Read HDG lambda solution (sorted in ascending global unique side ID ordering)
-      CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
+    ! Read HDG lambda solution (sorted in ascending global unique side ID ordering)
+    CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
 
-      IF(DG_SolutionLambdaExists)THEN
-        MinGlobalSideID = HUGE(1)
-        MaxGlobalSideID = -1
+    IF(DG_SolutionLambdaExists)THEN
+      MinGlobalSideID = HUGE(1)
+      MaxGlobalSideID = -1
+      DO iSide = 1, nSides
+        MaxGlobalSideID = MERGE(ABS(GlobalUniqueSideID(iSide)) , MaxGlobalSideID , ABS(GlobalUniqueSideID(iSide)).GT.MaxGlobalSideID)
+        MinGlobalSideID = MERGE(ABS(GlobalUniqueSideID(iSide)) , MinGlobalSideID , ABS(GlobalUniqueSideID(iSide)).LT.MinGlobalSideID)
+      END DO
+
+      ASSOCIATE( &
+            ExtendedOffsetSide => INT(MinGlobalSideID-1,IK)                 ,&
+            ExtendednSides     => INT(MaxGlobalSideID-MinGlobalSideID+1,IK) ,&
+            nGP_face           => INT(nGP_face,IK)                           )
+        !ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,MinGlobalSideID:MaxGlobalSideID))
+        ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,1:ExtendednSides))
+        ExtendedLambda = HUGE(1.)
+        lambda = HUGE(1.)
+        ! WARGNING: Data read in overlapping mode, therefore ReadNonOverlap_opt=F
+        CALL ReadArray('DG_SolutionLambda',3,(/PP_nVar,nGP_face,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda&
+#if USE_MPI
+            ,ReadNonOverlap_opt=.FALSE.&
+#endif /*USE_MPI*/
+            )
+
         DO iSide = 1, nSides
-          MaxGlobalSideID = MERGE(ABS(GlobalUniqueSideID(iSide)) , MaxGlobalSideID , ABS(GlobalUniqueSideID(iSide)).GT.MaxGlobalSideID)
-          MinGlobalSideID = MERGE(ABS(GlobalUniqueSideID(iSide)) , MinGlobalSideID , ABS(GlobalUniqueSideID(iSide)).LT.MinGlobalSideID)
+          IF(iSide.LE.lastMPISide_MINE)THEN
+            iLocSide        = SideToElem(S2E_LOC_SIDE_ID    , iSide)
+            iLocSide_master = SideToElem(S2E_LOC_SIDE_ID    , iSide)
+            iLocSide_NB     = SideToElem(S2E_NB_LOC_SIDE_ID , iSide)
+
+            ! Check real small mortar side (when the same proc has both the big an one or more small side connected elements)
+            ! blue side with orange also on same proc
+            !IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.NE.-1) iLocSide_master = iLocSide_NB
+            ! blue side found orange side
+
+            ! is small virtual mortar side is encountered and no NB iLocSide_master is given
+            ! blue but no orange side on same proc
+            ! find iLocSide of yellow (big mortar) and assign to blue
+            ! you spin me right round baby right round
+            !IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
+            IF(MortarType(1,iSide).EQ.0)THEN!.AND.iLocSide_NB.EQ.-1)THEN
+              ! check all my big mortar sides and find the one to which the small virtual is connected
+              ! check all yellow (big mortar) sides
+              Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+                nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+                ! loop over all blue sides (small mortar master)
+                DO iMortar=1,nMortars
+                  SideID = MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
+                  ! check if for "21,22,23" and find the "3"
+                  ! iSide=21,22,23 is blue
+                  ! SideID=3 is yellow
+                  IF(iSide.EQ.SideID)THEN
+                    iLocSide_master = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
+                    IF(iLocSide_master.EQ.-1)THEN
+                      CALL abort(__STAMP__,'This big mortar side must be master')
+                    END IF !iLocSide.NE.-1
+                    EXIT Check1
+                  END IF ! iSide.EQ.SideID
+                END DO !iMortar
+              END DO Check1 !MortarSideID
+            END IF ! MortarType(1,iSide).EQ.0
+
+            DO q=0,PP_N
+              DO p=0,PP_N
+                pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_master)
+                r  = q    *(PP_N+1)+p    +1
+                rr = pq(2)*(PP_N+1)+pq(1)+1
+                lambda(:,r:r,iSide) = ExtendedLambda(:,rr:rr,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
+              END DO
+            END DO !p,q
+            !IPWRITE(UNIT_StdOut,*) "iSide,SUM(lambda(:,r:r,iSide)) =", iSide,SUM(lambda(:,r:r,iSide))
+          END IF ! iSide.LE.lastMPISide_MINE
         END DO
-
-        ASSOCIATE( &
-              ExtendedOffsetSide => INT(MinGlobalSideID-1,IK)                 ,&
-              ExtendednSides     => INT(MaxGlobalSideID-MinGlobalSideID+1,IK) ,&
-              nGP_face           => INT(nGP_face,IK)                           )
-          !ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,MinGlobalSideID:MaxGlobalSideID))
-          ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,1:ExtendednSides))
-          ExtendedLambda = HUGE(1.)
-          lambda = HUGE(1.)
-          ! WARGNING: Data read in overlapping mode, therefore ReadNonOverlap_opt=F
-          CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda&
-#if USE_MPI
-              ,ReadNonOverlap_opt=.FALSE.&
-#endif /*USE_MPI*/
-              )
-          !  IPWRITE(UNIT_StdOut,*) "nSides,lastMPISide_MINE,MinGlobalSideID,MaxGlobalSideID,ExtendedOffsetSide =",&
-          !                          nSides,lastMPISide_MINE,MinGlobalSideID,MaxGlobalSideID,ExtendedOffsetSide
-          !  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-          !  IF(myrank.eq.2)THEN
-          !    DO p = 1, ExtendednSides
-          !      IPWRITE(UNIT_StdOut,*) "ExtendedLambda(1,1,:) =", p,ExtendedLambda(:,:,p),SUM(ExtendedLambda(:,:,p))
-          !    END DO ! p = 1, ExtendednSides
-          !  END IF ! myrank.eq.2
-          !  IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-
-          DO iSide = 1, nSides
-            IF(iSide.LE.lastMPISide_MINE)THEN
-              iLocSide        = SideToElem(S2E_LOC_SIDE_ID    , iSide)
-              iLocSide_master = SideToElem(S2E_LOC_SIDE_ID    , iSide)
-              iLocSide_NB     = SideToElem(S2E_NB_LOC_SIDE_ID , iSide)
-
-              ! Check real small mortar side (when the same proc has both the big an one or more small side connected elements)
-              ! blue side with orange also on same proc
-              !IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.NE.-1) iLocSide_master = iLocSide_NB
-              ! blue side found orange side
-
-              ! is small virtual mortar side is encountered and no NB iLocSide_master is given
-              ! blue but no orange side on same proc
-              ! find iLocSide of yellow (big mortar) and assign to blue
-              ! you spin me right round baby right round
-              !IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
-              IF(MortarType(1,iSide).EQ.0)THEN!.AND.iLocSide_NB.EQ.-1)THEN
-                ! check all my big mortar sides and find the one to which the small virtual is connected
-                ! check all yellow (big mortar) sides
-                Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
-                  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-                  ! loop over all blue sides (small mortar master)
-                  DO iMortar=1,nMortars
-                    SideID = MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
-                    ! check if for "21,22,23" and find the "3"
-                    ! iSide=21,22,23 is blue
-                    ! SideID=3 is yellow
-                    IF(iSide.EQ.SideID)THEN
-                      iLocSide_master = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
-                      IF(iLocSide_master.EQ.-1)THEN
-                        CALL abort(__STAMP__,'This big mortar side must be master')
-                      END IF !iLocSide.NE.-1
-                      EXIT Check1
-                    END IF ! iSide.EQ.SideID
-                  END DO !iMortar
-                END DO Check1 !MortarSideID
-              END IF ! MortarType(1,iSide).EQ.0
-
-              DO q=0,PP_N
-                DO p=0,PP_N
-                  pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_master)
-                  r  = q    *(PP_N+1)+p    +1
-                  rr = pq(2)*(PP_N+1)+pq(1)+1
-                  lambda(:,r:r,iSide) = ExtendedLambda(:,rr:rr,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
-                END DO
-              END DO !p,q
-              !IPWRITE(UNIT_StdOut,*) "iSide,SUM(lambda(:,r:r,iSide)) =", iSide,SUM(lambda(:,r:r,iSide))
-            END IF ! iSide.LE.lastMPISide_MINE
-          END DO
-          DEALLOCATE(ExtendedLambda)
-        END ASSOCIATE
+        DEALLOCATE(ExtendedLambda)
+      END ASSOCIATE
 
 #if USE_MPI
-        ! Exchange lambda MINE -> YOUR direction (as only the master sides have read the solution until now)
-        CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-        CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-        CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+      ! Exchange lambda MINE -> YOUR direction (as only the master sides have read the solution until now)
+      CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+      CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+      CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif /*USE_MPI*/
 
-        CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+      CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
 
-      ELSE
-        lambda=0.
-      END IF
-
-#else
-      CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-      IF(DoPML)THEN
-        ALLOCATE(U_local(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-        CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),&
-            OffsetElemTmp,5,RealArray=U_local)
-        DO iPML=1,nPMLElems
-          U2(:,:,:,:,iPML) = U_local(:,:,:,:,PMLToElem(iPML))
-        END DO ! iPML
-        DEALLOCATE(U_local)
-      END IF ! DoPML
-#endif
-      !CALL ReadState(RestartFile,PP_nVar,PP_N,PP_nElems,U)
-    ELSE! We need to interpolate the solution to the new computational grid
-      SWRITE(UNIT_stdOut,*)'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
-#ifdef PP_POIS
-#if (PP_nVar==8)
-      ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
-          OffsetElemTmp,5,RealArray=U_local)
-      DO iElem=1,PP_nElems
-        CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
-      END DO
-      DEALLOCATE(U_local)
-
-      ALLOCATE(U_local(4,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      CALL ReadArray('DG_SolutionPhi',5,(/4_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
-          OffsetElemTmp,5,RealArray=U_local)
-      DO iElem=1,PP_nElems
-        CALL ChangeBasis3D(4,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
-      END DO
-      DEALLOCATE(U_local)
-#else
-      ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      CALL ReadArray('DG_SolutionE',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
-          OffsetElemTmp,5,RealArray=U_local)
-      DO iElem=1,PP_nElems
-        CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
-      END DO
-      CALL ReadArray('DG_SolutionPhi',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
-          OffsetElemTmp,5,RealArray=U_local)
-      DO iElem=1,PP_nElems
-        CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),Phi(:,:,:,:,iElem))
-      END DO
-      DEALLOCATE(U_local)
-#endif
-#elif USE_HDG
+    ELSE
       lambda=0.
-      !CALL abort(&
-          !__STAMP__&
-          !,' Restart with changed polynomial degree not implemented for HDG!')
-      !    ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      !    CALL ReadArray('DG_SolutionLambda',5,(/PP_nVar,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),OffsetElem,5,RealArray=U_local)
-      !    DO iElem=1,PP_nElems
-      !      CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
-      !    END DO
-      !    DEALLOCATE(U_local)
-      !CALL RestartHDG(U)
+    END IF
+
 #else
-      ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-      CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+    ALLOCATE(U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
+    CALL ReadArray('DG_Solution',5,(/nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+    DO iElem = 1, nElems
+      Nloc = N_DG(iElem)
+      IF(Nloc.EQ.N_Restart)THEN
+        U_N(iElem)%U(1:nVar,0:Nres,0:Nres,0:Nres) = U(1:nVar,0:Nres,0:Nres,0:Nres,iElem)
+      ELSEIF(Nloc.GT.N_Restart)THEN
+        CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
+      ELSE
+        ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
+        !transform the slave side to the same degree as the master: switch to Legendre basis
+        CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), Uloc)
+        ! switch back to nodal basis
+        CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:nVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
+        DEALLOCATE(Uloc)
+      END IF ! Nloc.EQ.N_Restart
+    END DO ! iElem = 1, nElems
+    IF(DoPML)THEN
+      ALLOCATE(U_local(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+      CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
-      DO iElem=1,PP_nElems
-        CALL ChangeBasis3D(PP_nVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U(:,:,:,:,iElem))
-      END DO
+      DO iPML=1,nPMLElems
+        U2(:,:,:,:,iPML) = U_local(:,:,:,:,PMLToElem(iPML))
+      END DO ! iPML
       DEALLOCATE(U_local)
-      IF(DoPML)THEN
-        ALLOCATE(U_local(PMLnVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
-        ALLOCATE(U_local2(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-        CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),&
-            OffsetElemTmp,5,RealArray=U_local)
-        DO iElem=1,PP_nElems
-          CALL ChangeBasis3D(PMLnVar,N_Restart,PP_N,Vdm_GaussNRestart_GaussN,U_local(:,:,:,:,iElem),U_local2(:,:,:,:,iElem))
-        END DO
-        DO iPML=1,nPMLElems
-          U2(:,:,:,:,iPML) = U_local2(:,:,:,:,PMLToElem(iPML))
-        END DO ! iPML
-        DEALLOCATE(U_local,U_local2)
-      END IF ! DoPML
+    END IF ! DoPML
 #endif
-      SWRITE(UNIT_stdOut,*)' DONE!'
-    END IF ! IF(.NOT. InterpolateSolution)
+    !CALL ReadState(RestartFile,nVar,PP_N,PP_nElems,U)
+
+
+
+
+
+
+
+
+
   END IF ! IF(.NOT. RestartNullifySolution)
   CALL CloseDataFile()
 

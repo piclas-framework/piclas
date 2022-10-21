@@ -94,6 +94,8 @@ SUBROUTINE InitTimeDisc()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
+USE MOD_Mesh_Vars     ,ONLY: nElems
+USE MOD_DG_Vars       ,ONLY: N_DG
 USE MOD_ReadInTools   ,ONLY: GetReal,GetInt, GETLOGICAL
 USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStepUser
 USE MOD_TimeDisc_Vars ,ONLY: CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal,dtWeight
@@ -107,7 +109,7 @@ USE MOD_TimeDisc_Vars ,ONLY: RK_c, RK_inflow,nRKStages
 #endif
 USE MOD_TimeDisc_Vars ,ONLY: TEnd
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
-USE MOD_TimeDisc_Vars          ,ONLY: Ut_temp,U2t_temp
+USE MOD_TimeDisc_Vars          ,ONLY: U2t_temp
 USE MOD_PML_Vars               ,ONLY: nPMLElems
 USE MOD_PML_Vars               ,ONLY: PMLnVar
 #endif
@@ -123,6 +125,7 @@ IMPLICIT NONE
 INTEGER                   :: iCounter
 REAL                      :: rtmp
 #endif
+INTEGER           :: Nloc,iElem
 !===================================================================================================================================
 IF(TimeDiscInitIsDone)THEN
    SWRITE(*,*) "InitTimeDisc already called."
@@ -246,7 +249,7 @@ RKdtFracTotal = 1.
 dtWeight      = 1.
 
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
-ALLOCATE(Ut_temp(   1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)) ! temporal variable for Ut
+! Attention: nPMLElems is always zero (here!)
 ALLOCATE(U2t_temp(  1:PMLnVar,0:PP_N,0:PP_N,0:PP_N,1:nPMLElems)) ! temporal variable for U2t
 #ifdef PP_POIS
 ALLOCATE(Phit_temp( 1:4      ,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
@@ -479,7 +482,7 @@ SUBROUTINE FinalizeTimeDisc()
 USE MOD_Globals
 USE MOD_TimeDisc_Vars, ONLY:TimeDiscInitIsDone
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
-USE MOD_TimeDisc_Vars          ,ONLY: Ut_temp,U2t_temp
+USE MOD_TimeDisc_Vars          ,ONLY: Ut_N,U2t_temp
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -492,7 +495,7 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
-SDEALLOCATE(Ut_temp)
+SDEALLOCATE(Ut_N)
 SDEALLOCATE(U2t_temp)
 #ifdef PP_POIS
 SDEALLOCATE(Phit_temp)

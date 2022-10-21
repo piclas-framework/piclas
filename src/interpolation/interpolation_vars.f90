@@ -23,7 +23,7 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-TYPE, PUBLIC :: Interpolation 
+TYPE, PUBLIC :: Interpolation
   ! reserved for Gauss Points with polynomial degree N, all allocated (0:N)
   REAL,ALLOCATABLE  :: L_Plus(:)                   !< L for boundary flux computation at plus side  (1)
   REAL,ALLOCATABLE  :: L_Minus(:)                  !< L for boundary flux computation at minus side (-1)
@@ -39,16 +39,44 @@ END TYPE Interpolation
 
 TYPE(Interpolation),ALLOCATABLE    :: N_Inter(:)          !< Array of prebuild interpolation matrices
 
+INTEGER            :: Nmin                         !< Minimum polynomial degree for the solution (p-adaption)
+INTEGER            :: Nmax                         !< Maximum polynomial degree for the solution (p-adaption)
+
 TYPE, PUBLIC :: pVDM
   REAL,ALLOCATABLE   :: Vdm(:,:)                          !< Vandermonde matrix (PP_in,PP_out)
 END TYPE pVDM
 
 TYPE(pVDM),ALLOCATABLE             :: PREF_VDM(:,:)       !< Vandermonde matrices used for p-refinement and coarsening
 
-! Analyze variables 
+TYPE N_Type
+  ! interpolation points and derivatives on CL N
+  REAL,ALLOCATABLE    :: XCL_N(:,  :,:,:)     ! mapping X(xi) P\in N
+  REAL,ALLOCATABLE    :: R_CL_N(:,:,:,:,:)    ! buffer for metric terms, uses XCL_N,dXCL_N
+  REAL,ALLOCATABLE    :: JaCL_N(:,:,:,:,:)    ! metric terms P\in N
+  ! Jacobian on CL N and NGeoRef
+  REAL,ALLOCATABLE    :: DetJac_N( :,:,:,:)
+  ! Polynomial derivation matrices
+  REAL,ALLOCATABLE    :: DCL_N(:,:)
+  ! Vandermonde matrices (N_OUT,N_IN)
+  REAL,ALLOCATABLE    :: Vdm_NgeoRef_N(:,:)
+  REAL,ALLOCATABLE    :: Vdm_CLNGeo_CLN(:,:)
+  REAL,ALLOCATABLE    :: Vdm_CLN_N(:,:)
+END TYPE N_Type
+
+TYPE(N_Type), DIMENSION(:), ALLOCATABLE :: NInfo
+
+! -------------------
+
+! Analyze variables
 INTEGER           :: NAnalyze                    !< number of analyzation points is NAnalyze+1
 REAL,ALLOCATABLE  :: wAnalyze(:)                 !< GL integration weights used for the analyze
-REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze(:,:)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
+
+TYPE N_Type_Analyze
+  ! interpolation points and derivatives on CL N
+  REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze(:,:)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
+END TYPE N_Type_Analyze
+
+TYPE(N_Type_Analyze), DIMENSION(:), ALLOCATABLE :: N_InterAnalyze
 
 !==================================================================================================================================
 !@{ Named nodetype parameters

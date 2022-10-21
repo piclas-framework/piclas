@@ -42,7 +42,6 @@ REAL,ALLOCATABLE :: Vdm_N_GL(:,:)               !< Vandermonde mapping from Node
 ! check if these arrays are still used
 REAL,ALLOCATABLE :: Vdm_CLN_GaussN(:,:)
 REAL,ALLOCATABLE :: Vdm_CLNGeo_CLN(:,:)
-REAL,ALLOCATABLE :: Vdm_CLNGeo_GaussN(:,:)
 REAL,ALLOCATABLE :: Vdm_NGeo_CLNGeo(:,:)
 REAL,ALLOCATABLE :: DCL_NGeo(:,:)
 REAL,ALLOCATABLE :: DCL_N(:,:)

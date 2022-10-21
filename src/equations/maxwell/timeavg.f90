@@ -339,7 +339,7 @@ SUBROUTINE CalcTimeAverage(Finalize,dt,t,tPrevious)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars                ,ONLY: U
+USE MOD_DG_Vars                ,ONLY: U_N
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nElems
 USE MOD_HDF5_Output            ,ONLY: WriteTimeAverage
 USE MOD_Globals_Vars           ,ONLY: smu0
@@ -382,27 +382,28 @@ DO iElem=1,nElems
   ! Compute time averaged variables and fluctuations of these variables
   ! loop over all variables
   DO iVar=1,PP_nVar
-    IF(CalcAvg(iVar)) tmpVars(iAvg(iVar),:,:,:) = U(iVar,:,:,:,iElem)
+    CALL abort(__STAMP__,'p-adaption with time avg not implemented')
+    !IF(CalcAvg(iVar)) tmpVars(iAvg(iVar),:,:,:) = U_N(iElem)%U(iVar,:,:,:,iElem)
   END DO ! iVar=1,PP_nVar
 
   ! ElectricFieldMagnitude
   IF(CalcAvg(9))THEN
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      tmpVars(iAvg(9),i,j,k)=SQRT(SUM(U(1:3,i,j,k,iElem)**2))
+      !tmpVars(iAvg(9),i,j,k)=SQRT(SUM(U(1:3,i,j,k,iElem)**2))
     END DO; END DO; END DO
   END IF
 
   ! MagneticFieldMagnitude
   IF(CalcAvg(10))THEN
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      tmpVars(iAvg(10),i,j,k)=SQRT(SUM(U(4:6,i,j,k,iElem)**2))
+      !tmpVars(iAvg(10),i,j,k)=SQRT(SUM(U(4:6,i,j,k,iElem)**2))
     END DO; END DO; END DO
   END IF
 
   ! PoyntingVector and PoyntingVectorMagnitude
   IF(DoPoyntingVectorAvg)THEN
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      tmpPoyntingVector = smu0*CROSS(U(1:3,i,j,k,iElem),U(4:6,i,j,k,iElem))
+      !tmpPoyntingVector = smu0*CROSS(U(1:3,i,j,k,iElem),U(4:6,i,j,k,iElem))
       IF(CalcAvg(11)) tmpVars(iAvg(11),i,j,k) = tmpPoyntingVector(1)
       IF(CalcAvg(12)) tmpVars(iAvg(12),i,j,k) = tmpPoyntingVector(1)
       IF(CalcAvg(13)) tmpVars(iAvg(13),i,j,k) = tmpPoyntingVector(1)

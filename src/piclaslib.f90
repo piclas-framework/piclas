@@ -194,9 +194,7 @@ IF(DoSwapMesh)THEN
     SWRITE(UNIT_stdOut,'(132("="))')
     STOP
   ELSE
-  CALL abort(&
-  __STAMP__&
-  ,'DO NOT CALL SWAPMESH WITH MORE THAN 1 Procs!',iError,999.)
+  CALL abort(__STAMP__,'DO NOT CALL SWAPMESH WITH MORE THAN 1 Procs!',iError,999.)
   END IF
 END IF
 LOGWRITE_BARRIER

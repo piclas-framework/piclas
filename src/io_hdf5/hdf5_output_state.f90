@@ -47,7 +47,7 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_DG_Vars                ,ONLY: U
+USE MOD_DG_Vars                ,ONLY: U_N
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems,nGlobalUniqueSides,nUniqueSides,offsetSide
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
@@ -103,6 +103,9 @@ USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateE
 USE MOD_HDF5_Output_Particles  ,ONLY: AddBRElectronFluidToPartSource
 USE MOD_Equation_Vars          ,ONLY: CoupledPowerPotential,CalcPCouplElectricPotential
 #endif /*PARTICLES*/
+#else
+USE MOD_DG_vars                ,ONLY: N_DG
+USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM,Nmax
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
@@ -111,6 +114,7 @@ USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
 USE MOD_HDF5_Output_Fields     ,ONLY: WritePMLDataToHDF5
 #endif
 USE MOD_HDF5_Output_ElemData   ,ONLY: WriteAdditionalElemData
+USE MOD_ChangeBasis            ,ONLY : ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -144,6 +148,8 @@ REAL                           :: Utemp(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 REAL                           :: Utemp(1:7,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 #endif /*PP_nVar==1*/
 #else
+INTEGER                        :: iElem,Nloc
+REAL                           :: U(PP_nVar,0:Nmax,0:Nmax,0:Nmax,PP_nElems)
 #ifndef maxwell
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*not maxwell*/
@@ -470,6 +476,14 @@ ASSOCIATE (&
       collective=.TRUE., RealArray=Utemp)
 #endif /*(PP_nVar==1)*/
 #else
+  DO iElem = 1, INT(PP_nElems)
+    Nloc = N_DG(iElem)
+    IF(Nloc.Eq.Nmax)THEN
+      U(:,:,:,:,iElem) = U_N(iElem)%U(:,:,:,:)
+    ELSE
+      CALL ChangeBasis3D(PP_nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%U(:,:,:,:),U(:,:,:,:,iElem))
+    END IF ! Nloc.Eq.Nmax
+  END DO ! iElem = 1, nElems
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
       nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &

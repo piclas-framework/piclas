@@ -50,11 +50,14 @@ SUBROUTINE WriteDielectricGlobalToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars ,ONLY: DielectricGlobal,DielectricEps
-USE MOD_Dielectric_Vars ,ONLY: DielectricMu,isDielectricElem,ElemToDielectric
+USE MOD_Dielectric_Vars ,ONLY: DielectricGlobal
+USE MOD_Dielectric_Vars ,ONLY: DielectricVol,isDielectricElem,ElemToDielectric
 USE MOD_Mesh_Vars       ,ONLY: MeshFile,nGlobalElems,offsetElem
 USE MOD_Globals_Vars    ,ONLY: ProjectName
 USE MOD_io_HDF5
+USE MOD_ChangeBasis     ,ONLY: ChangeBasis3D
+USE MOD_DG_vars                ,ONLY: N_DG
+USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM,Nmax
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -73,21 +76,32 @@ CHARACTER(LEN=255)  :: FileName
 REAL                :: StartT,EndT
 #endif
 REAL                :: OutputTime!,FutureTime
-INTEGER             :: iElem
+INTEGER             :: iElem, Nloc
+REAL, ALLOCATABLE   :: DummyElem(:,:,:,:)
 !===================================================================================================================================
 #if USE_LOADBALANCE
 IF(PerformLoadBalance) RETURN
 #endif /*USE_LOADBALANCE*/
 ! create global Eps field for parallel output of Eps distribution
-ALLOCATE(DielectricGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+ALLOCATE(DielectricGlobal(1:N_variables,0:Nmax,0:Nmax,0:Nmax,1:PP_nElems))
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='DielectricEpsGlobal'
 StrVarNames(2)='DielectricMuGlobal'
 DielectricGlobal=0.
+
 DO iElem=1,PP_nElems
   IF(isDielectricElem(iElem))THEN
-    DielectricGlobal(1,:,:,:,iElem)=DielectricEps(:,:,:,ElemToDielectric(iElem))
-    DielectricGlobal(2,:,:,:,iElem)=DielectricMu( :,:,:,ElemToDielectric(iElem))
+    Nloc = N_DG(iElem)
+    IF (Nloc.EQ.Nmax) THEN
+      DielectricGlobal(1,:,:,:,iElem)=DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)
+      DielectricGlobal(2,:,:,:,iElem)=DielectricVol(ElemToDielectric(iElem))%DielectricMu( :,:,:)
+    ELSE
+      ALLOCATE(DummyElem(2,0:Nloc,0:Nloc,0:Nloc))
+      DummyElem(1,0:Nloc,0:Nloc,0:Nloc)= DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)
+      DummyElem(2,0:Nloc,0:Nloc,0:Nloc)= DielectricVol(ElemToDielectric(iElem))%DielectricMu(:,:,:)
+      CALL ChangeBasis3D(2,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, DummyElem(:,:,:,:),DielectricGlobal(1:2,:,:,:,iElem))
+      DEALLOCATE(DummyElem)
+    END IF  
   END IF
 END DO!iElem
 IF(MPIROOT)THEN
@@ -115,7 +129,7 @@ ASSOCIATE (&
         nGlobalElems    => INT(nGlobalElems,IK)    ,&
         PP_nElems       => INT(PP_nElems,IK)       ,&
         N_variables     => INT(N_variables,IK)     ,&
-        N               => INT(PP_N,IK)            ,&
+        N               => INT(Nmax,IK)            ,&
         offsetElem      => INT(offsetElem,IK)      )
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
                           DataSetName='DG_Solution' , rank=5 , &

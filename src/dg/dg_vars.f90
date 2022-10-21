@@ -23,8 +23,8 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! number of array items in U, Ut, gradUx, gradUy, gradUz after allocated
-INTEGER                               :: nTotal_vol    !loop i,j,k
-INTEGER                               :: nTotal_face   !loop i,j
+!INTEGER                               :: nTotal_vol    !loop i,j,k
+!INTEGER                               :: nTotal_face   !loop i,j
 
 #if defined(IMPA) || defined(ROS)
 REAL,ALLOCATABLE                      :: Un(:,:,:,:,:) ! computed from JU

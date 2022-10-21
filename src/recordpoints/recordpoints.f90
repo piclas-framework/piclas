@@ -275,7 +275,7 @@ SUBROUTINE InitRPBasis(xi_RP)
 ! MODULES
 USE MOD_PreProc
 USE MOD_RecordPoints_Vars     ,ONLY: nRP,L_xi_RP,L_eta_RP,L_zeta_RP
-USE MOD_Interpolation_Vars    ,ONLY: xGP,wBary
+USE MOD_Interpolation_Vars    ,ONLY: N_Inter
 USE MOD_Basis                 ,ONLY: LagrangeInterpolationPolys
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -291,9 +291,9 @@ INTEGER                       :: iRP
 ! build local basis for Recordpoints
 ALLOCATE(L_xi_RP(0:PP_N,nRP), L_eta_RP(0:PP_N,nRP), L_zeta_RP(0:PP_N,nRP))
 DO iRP=1,nRP
-  CALL LagrangeInterpolationPolys(xi_RP(1,iRP),PP_N,xGP,wBary,L_xi_RP(:,iRP))
-  CALL LagrangeInterpolationPolys(xi_RP(2,iRP),PP_N,xGP,wBary,L_eta_RP(:,iRP))
-  CALL LagrangeInterpolationPolys(xi_RP(3,iRP),PP_N,xGP,wBary,L_zeta_RP(:,iRP))
+  CALL LagrangeInterpolationPolys(xi_RP(1,iRP),PP_N,N_Inter(PP_N)%xGP,N_Inter(PP_N)%wBary,L_xi_RP(:,iRP))
+  CALL LagrangeInterpolationPolys(xi_RP(2,iRP),PP_N,N_Inter(PP_N)%xGP,N_Inter(PP_N)%wBary,L_eta_RP(:,iRP))
+  CALL LagrangeInterpolationPolys(xi_RP(3,iRP),PP_N,N_Inter(PP_N)%xGP,N_Inter(PP_N)%wBary,L_zeta_RP(:,iRP))
 END DO
 END SUBROUTINE InitRPBasis
 
@@ -306,7 +306,7 @@ SUBROUTINE RecordPoints(t,Output)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_DG_Vars           ,ONLY: U
+USE MOD_DG_Vars           ,ONLY: U_N
 USE MOD_Timedisc_Vars     ,ONLY: dt
 USE MOD_TimeDisc_Vars     ,ONLY: tAnalyze
 USE MOD_Analyze_Vars      ,ONLY: Analyze_dt,FieldAnalyzeStep
@@ -366,10 +366,10 @@ DO iRP=1,nRP
       DO i=0,PP_N
 #if USE_HDG
 #if PP_nVar==1
-        U_RP(:,iRP)=U_RP(:,iRP) + (/ U(:,i,j,k,RP_ElemID(iRP)), E(1:3,i,j,k,RP_ElemID(iRP)) /)*l_xi_RP(i,iRP)*l_eta_zeta_RP
+        U_RP(:,iRP)=U_RP(:,iRP) + (/ U_N(RP_ElemID(iRP))%U(:,i,j,k), E(1:3,i,j,k,RP_ElemID(iRP)) /)*l_xi_RP(i,iRP)*l_eta_zeta_RP
 #endif /*PP_nVar==1*/
 #else
-        U_RP(:,iRP)=U_RP(:,iRP) +    U(:,i,j,k,RP_ElemID(iRP))                                *l_xi_RP(i,iRP)*l_eta_zeta_RP
+        U_RP(:,iRP)=U_RP(:,iRP) +    U_N(RP_ElemID(iRP))%U(:,i,j,k)                                *l_xi_RP(i,iRP)*l_eta_zeta_RP
 #endif /*USE_HDG*/
       END DO !i
     END DO !j

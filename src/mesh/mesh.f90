@@ -111,12 +111,12 @@ USE MOD_PreProc
 USE MOD_Analyze_Vars           ,ONLY: CalcMeshInfo
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_HDF5_Input
-USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
+USE MOD_Interpolation_Vars     ,ONLY: InterpolationInitIsDone,Nmin,Nmax
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Mappings               ,ONLY: InitMappings
 USE MOD_Mesh_Vars
 USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
-USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics
+USE MOD_Metrics                ,ONLY: BuildElem_xGP,CalcMetrics
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
@@ -136,6 +136,7 @@ USE MOD_Particle_Vars          ,ONLY: usevMPF
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_Mesh_Tools             ,ONLY: BuildSideToNonUniqueGlobalSide
 #endif /*USE_HDG && USE_LOADBALANCE*/
+USE MOD_DG_Vars                ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -157,6 +158,9 @@ LOGICAL             :: validMesh,ExistFile
 #ifndef PARTICLES
 REAL                :: meshScale
 #endif
+INTEGER             :: Nloc,iSide
+REAL                :: RandVal
+REAL              :: x1,r
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(__STAMP__,'InitMesh not ready to be called or already called.')
@@ -255,8 +259,37 @@ IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
   END DO
 END IF
 
-ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
-CALL BuildCoords(NodeCoords,PP_N,Elem_xGP)
+! allocate arrays and initialize local polynomial degree
+ALLOCATE(N_DG(nElems))
+! By default, the initial degree is set to PP_N
+!N_DG = 1
+!N_DG(1) = PP_N
+N_DG = PP_N
+!N_DG(1) = 5
+
+!             DO iElem=1,nElems
+!               !CALL RANDOM_NUMBER(RandVal)
+!               !N_DG (iElem) = 1+INT(RandVal*Nmax)
+!               !N_DG (iElem) = MAX(N_DG (iElem),4)
+!                 kLoop: DO k=0,NGeo; DO j=0,NGeo; DO i=0,NGeo
+!                   x1 = coords(1,i,j,k,iElem)
+!                   r = SQRT(coords(1,i,j,k,iElem)**2+&
+!                            coords(2,i,j,k,iElem)**2+&
+!                            coords(3,i,j,k,iElem)**2  )
+!             
+!               IF(r.lt.1.0 .and. x1.lt.0)THEN
+!                 N_DG(iElem) = PP_N
+!                 EXIT kLoop
+!               ELSE
+!                 N_DG(iElem) = PP_N-6-1
+!                 !EXIT kLoop
+!               END IF ! r.le.1.0 .and. x.le.0
+!                 END DO ; END DO; END DO kLoop;
+!             END DO
+
+! Build Elem_xGP
+ALLOCATE(N_VolMesh(1:nElems))
+CALL BuildElem_xGP(NodeCoords)
 
 ! Return if no connectivity and metrics are required (e.g. for visualization mode)
 IF (meshMode.GT.0) THEN
@@ -318,6 +351,8 @@ IF (meshMode.GT.0) THEN
 
 END IF ! meshMode.GT.0
 
+CALL InitpAdaption()
+
 IF (meshMode.GT.1) THEN
 
   ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
@@ -326,24 +361,26 @@ IF (meshMode.GT.1) THEN
   ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
 
   ! volume data
-  ALLOCATE(N_VolMesh(1:nElems))
   DO iElem = 1, nElems
-    ALLOCATE(N_VolMesh(iElem)%dXCL_N(      3,3,0:PP_N,0:PP_N,0:PP_N))
-    ALLOCATE(N_VolMesh(iElem)%Metrics_fTilde(3,0:PP_N,0:PP_N,0:PP_N))
-    ALLOCATE(N_VolMesh(iElem)%Metrics_gTilde(3,0:PP_N,0:PP_N,0:PP_N))
-    ALLOCATE(N_VolMesh(iElem)%Metrics_hTilde(3,0:PP_N,0:PP_N,0:PP_N))
-    ALLOCATE(N_VolMesh(iElem)%sJ            (  0:PP_N,0:PP_N,0:PP_N))
+    Nloc = N_DG(iElem)
+    ALLOCATE(N_VolMesh(iElem)%dXCL_N(      3,3,0:Nloc,0:Nloc,0:Nloc))
+    ALLOCATE(N_VolMesh(iElem)%Metrics_fTilde(3,0:Nloc,0:Nloc,0:Nloc))
+    ALLOCATE(N_VolMesh(iElem)%Metrics_gTilde(3,0:Nloc,0:Nloc,0:Nloc))
+    ALLOCATE(N_VolMesh(iElem)%Metrics_hTilde(3,0:Nloc,0:Nloc,0:Nloc))
+    ALLOCATE(N_VolMesh(iElem)%sJ            (  0:Nloc,0:Nloc,0:Nloc))
   END DO ! iElem = 1, nElems
 
   ! surface data
   ALLOCATE(N_SurfMesh(1:nSides))
   DO iSide = 1, nSides
-    ALLOCATE(N_SurfMesh(iSide)%Face_xGP (3,0:PP_N,0:PP_N))
-    ALLOCATE(N_SurfMesh(iSide)%NormVec  (3,0:PP_N,0:PP_N))
-    ALLOCATE(N_SurfMesh(iSide)%TangVec1 (3,0:PP_N,0:PP_N))
-    ALLOCATE(N_SurfMesh(iSide)%TangVec2 (3,0:PP_N,0:PP_N))
-    ALLOCATE(N_SurfMesh(iSide)%SurfElem (  0:PP_N,0:PP_N))
-    ALLOCATE(N_SurfMesh(iSide)%Ja_Face(3,3,0:PP_N,0:PP_N))
+
+    ! Allocate with max. polynomial degree of the two master-slave sides
+    Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+    ALLOCATE(N_SurfMesh(iSide)%Face_xGP (3,0:Nloc,0:Nloc))
+    ALLOCATE(N_SurfMesh(iSide)%NormVec  (3,0:Nloc,0:Nloc))
+    ALLOCATE(N_SurfMesh(iSide)%TangVec1 (3,0:Nloc,0:Nloc))
+    ALLOCATE(N_SurfMesh(iSide)%TangVec2 (3,0:Nloc,0:Nloc))
+    ALLOCATE(N_SurfMesh(iSide)%SurfElem (  0:Nloc,0:Nloc))
     N_SurfMesh(iSide)%Face_xGP = 0.
     N_SurfMesh(iSide)%NormVec  = 0.
     N_SurfMesh(iSide)%TangVec1 = 0.
@@ -367,7 +404,6 @@ IF (meshMode.GT.1) THEN
 
   crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
   LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
-  CALL InitMeshBasis(NGeo,PP_N,xGP)
 
   ! get XCL_NGeo
   ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
@@ -378,14 +414,16 @@ IF (meshMode.GT.1) THEN
 #endif /*defined(PARTICLES)*/
 
 #ifdef PARTICLES
-  CALL CalcMetrics(NLoc, XCL_NGeo_Out=XCL_NGeo, dXCL_NGeo_Out=dXCL_NGeo)
+  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo, dXCL_NGeo_Out=dXCL_NGeo)
 #else
-  CALL CalcMetrics(NLoc, XCL_NGeo_Out=XCL_NGeo)
+  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
 #endif
 
+#if defined(PARTICLES) || USE_HDG
   ! Compute element bary and element radius for processor-local elements (without halo region)
   ALLOCATE(ElemBaryNGeo(1:3,1:nElems))
   CALL BuildElementOrigin()
+#endif /*defined(PARTICLES) || USE_HDG*/
 
 #ifndef PARTICLES
   ! dealloacte pointers
@@ -399,8 +437,6 @@ IF (meshMode.GT.1) THEN
 #ifndef PARTICLES
   DEALLOCATE(NodeCoords)
 #endif
-  DEALLOCATE(dXCL_N)
-  DEALLOCATE(Ja_Face)
 
   IF(meshMode.NE.3)THEN
 #ifdef PARTICLES
@@ -435,61 +471,68 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitMesh
 
 
-SUBROUTINE InitMeshBasis(NGeo_in,N_in,xGP)
 !===================================================================================================================================
-! Read Parameter from inputfile
+!> Get local N for each element and side
 !===================================================================================================================================
+SUBROUTINE InitpAdaption()
 ! MODULES
-USE MOD_Mesh_Vars ,ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm_CLNGeo_GaussN,Vdm_NGeo_CLNGeo,DCL_NGeo,DCL_N
-USE MOD_Mesh_Vars ,ONLY: wBaryCL_NGeo,XiCL_NGeo,DeltaXi_NGeo
-USE MOD_Basis     ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
-USE MOD_Basis     ,ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
-! IMPLICIT VARIABLE HANDLING
+USE MOD_PreProc
+USE MOD_DG_Vars   ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG
+USE MOD_IO_HDF5   ,ONLY: AddToElemData,ElementOut
+USE MOD_Mesh_Vars ,ONLY: nSides,nElems
+USE MOD_Basis     ,ONLY: DG_ProlongDGElemsToFace
 IMPLICIT NONE
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                         :: NGeo_in,N_in
-REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(0:N_in)                     :: XiCL_N,wBaryCL_N
-REAL,DIMENSION(0:NGeo_in)                  :: wBary_NGeo!: XiCL_NGeo,!,wBaryCL_NGeo,wBary_NGeo
-INTEGER                                    :: i
+
 !===================================================================================================================================
-ALLOCATE(DCL_N(0:N_in,0:N_in),Vdm_CLN_GaussN(0:N_in,0:N_in))
-ALLOCATE(Xi_NGeo(0:NGeo_in))
-ALLOCATE(DCL_NGeo(0:NGeo_in,0:NGeo_in))
-ALLOCATE(Vdm_CLNGeo_GaussN(0:N_in,0:NGeo_in))
-ALLOCATE(Vdm_CLNGeo_CLN(0:N_in,0:NGeo_in))
-ALLOCATE(Vdm_NGeo_CLNGeo(0:NGeo_in,0:NGeo_in))
+! Read p-adaption specific input data
+!pAdaption    = GETLOGICAL('pAdaption','.FALSE.')
 
-ALLOCATE(wBaryCL_NGeo(0:NGeo_In))
-ALLOCATE(XiCL_NGeo(0:NGeo_In))
-! Chebyshev-Lobatto N
-CALL ChebyGaussLobNodesAndWeights(N_in,XiCL_N)
-CALL BarycentricWeights(N_in,XiCL_N,wBaryCL_N)
-CALL PolynomialDerivativeMatrix(N_in,XiCL_N,DCL_N)
-CALL InitializeVandermonde(N_in,N_in,wBaryCL_N,XiCL_N,xGP,Vdm_CLN_GaussN)
-!equidistant-Lobatto NGeo
-DO i=0,NGeo_in
-  Xi_NGeo(i) = 2./REAL(NGeo_in) * REAL(i) - 1.
-END DO
-DeltaXi_NGeo=2./NGeo_in
-CALL BarycentricWeights(NGeo_in,Xi_NGeo,wBary_NGeo)
+! add array containing the local polynomial degree to the hdf5 output
+CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG)
+ALLOCATE(DG_Elems_master(1:nSides))
+ALLOCATE(DG_Elems_slave (1:nSides))
 
-! Chebyshev-Lobatto NGeo
-CALL ChebyGaussLobNodesAndWeights(NGeo_in,XiCL_NGeo)
-CALL BarycentricWeights(NGeo_in,XiCL_NGeo,wBaryCL_NGeo)
-CALL PolynomialDerivativeMatrix(NGeo_in,XiCL_NGeo,DCL_NGeo)
+! Set polynomial degree at the element sides
+DG_Elems_master = PP_N
+DG_Elems_slave  = PP_N
+#if USE_MPI
+! Exchange element local polynomial degree (N_LOC)
+CALL StartExchange_DG_Elems(DG_Elems_slave ,1,nSides,SendRequest_U ,RecRequest_U ,SendID=2)  ! RECEIVE MINE, SEND YOUR / DG_Elems_slave:  slave  -> master                                                                                       ! Send MINE, receive YOUR / DG_Elems_slave : slave  -> master
+CALL StartExchange_DG_Elems(DG_Elems_master,1,nSides,SendRequest_U2,RecRequest_U2,SendID=1)  ! RECEIVE YOUR, SEND MINE / DG_Elems_master: master -> slave    
+! Complete send / receive
+CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=2) ! Send YOUR - receive MINE
+CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=1) ! Send YOUR - receive MINE
+! Initialize the send/rec face sizes for master/slave communication
+DataSizeSideRec=0
+DataSizeSideSend=0
+DO iNbProc = 1, nNbProcs
+  ! 1:Set number of sides and offset for SEND MINE - RECEIVE YOUR case
+  IF(nMPISides_rec( iNbProc,1).GT.0) THEN
+    DO iSide = OffsetMPISides_rec(iNbProc-1,1)+1, OffsetMPISides_rec(iNbProc,1)
+      Nloc = DG_Elems_master(iSide) ! polynomial degree of the sending master side
+      DataSizeSideRec(iNbProc,1) = DataSizeSideRec(iNbProc,1)  + (Nloc+1)**2
+    END DO ! iSide = 1, nMPISides_rec(iNbProc,1)
+  END IF
 
-CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,xGP      ,Vdm_CLNGeo_GaussN)
-CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,XiCL_N   ,Vdm_CLNGeo_CLN   )
-CALL InitializeVandermonde(NGeo_in,NGeo_in,wBary_NGeo  ,Xi_NGeo  ,XiCL_NGeo,Vdm_NGeo_CLNGeo  )
+  IF(nMPISides_send( iNbProc,1).GT.0) THEN
+    DO iSide = OffsetMPISides_send(iNbProc-1,1)+1, OffsetMPISides_send(iNbProc,1)
+      Nloc = DG_Elems_slave(iSide) ! polynomial degree of the sending master side
+      DataSizeSideSend(iNbProc,1) = DataSizeSideSend(iNbProc,1)  + (Nloc+1)**2
+    END DO ! iSide = 1, nMPISides_rec(iNbProc,1)
+  END IF
 
-END SUBROUTINE InitMeshBasis
+  DataSizeSideSend(iNbProc,2) = DataSizeSideRec( iNbProc,1)
+  DataSizeSideRec( iNbProc,2) = DataSizeSideSend(iNbProc,1)
+END DO ! iNbProc = 1, nNbProcs
+#endif /*USE_MPI*/
+CALL DG_ProlongDGElemsToFace()
+
+END SUBROUTINE InitpAdaption
 
 
 SUBROUTINE SwapMesh()
@@ -765,6 +808,7 @@ GetMeshMinMaxBoundariesIsDone=.TRUE.
 END SUBROUTINE GetMeshMinMaxBoundaries
 
 
+#if defined(PARTICLES) || USE_HDG
 SUBROUTINE BuildElementOrigin()
 !================================================================================================================================
 ! compute the element origin at xi=(0,0,0)^T and set it as ElemBaryNGeo
@@ -806,6 +850,7 @@ DO iElem=1,PP_nElems
 END DO ! iElem
 
 END SUBROUTINE BuildElementOrigin
+#endif /*defined(PARTICLES) || USE_HDG*/
 
 
 SUBROUTINE InitElemVolumes()
@@ -815,8 +860,9 @@ SUBROUTINE InitElemVolumes()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals            ,ONLY: UNIT_StdOut
-USE MOD_Interpolation_Vars ,ONLY: wGP
-USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
+USE MOD_DG_Vars            ,ONLY: N_DG
+USE MOD_Mesh_Vars          ,ONLY: nElems,N_VolMesh
 USE MOD_Particle_Mesh_Vars ,ONLY: LocalVolume,MeshVolume
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_ReadInTools
@@ -843,8 +889,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iElem,CNElemID
-INTEGER                         :: i,j,k
-REAL                            :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+INTEGER                         :: i,j,k,Nloc
 INTEGER                         :: offsetElemCNProc
 #if USE_MPI
 #ifdef PARTICLES
@@ -887,9 +932,10 @@ ElemCharLength_Shared(:) = 0.
 DO iElem = 1,nElems
   CNElemID=iElem+offsetElemCNProc
   !--- Calculate and save volume of element iElem
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
+  Nloc = N_DG(iElem)
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+    ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) + &
+                                  N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)/N_VolMesh(iElem)%sJ(i,j,k)
   END DO; END DO; END DO
   !---- Calculate characteristic cell length: V^(1/3)
   ElemCharLength_Shared(CNElemID) = ElemVolume_Shared(CNElemID)**(1./3.)
@@ -1042,7 +1088,6 @@ SDEALLOCATE(Xi_NGeo)
 SDEALLOCATE(DCL_N)
 SDEALLOCATE(DCL_NGeo)
 SDEALLOCATE(VdM_CLN_GaussN)
-SDEALLOCATE(VdM_CLNGeo_GaussN)
 SDEALLOCATE(Vdm_CLNGeo_CLN)
 SDEALLOCATE(Vdm_NGeo_CLNgeo)
 SDEALLOCATE(Vdm_EQ_N)
@@ -1056,15 +1101,6 @@ SDEALLOCATE(SideToElem)
 SDEALLOCATE(BC)
 SDEALLOCATE(GlobalUniqueSideID)
 ! elem-xgp and metrics
-SDEALLOCATE(Elem_xGP)
-SDEALLOCATE(Metrics_fTilde)
-SDEALLOCATE(Metrics_gTilde)
-SDEALLOCATE(Metrics_hTilde)
-SDEALLOCATE(sJ)
-SDEALLOCATE(NormVec)
-SDEALLOCATE(TangVec1)
-SDEALLOCATE(TangVec2)
-SDEALLOCATE(SurfElem)
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
 SDEALLOCATE(nVecLoc)
@@ -1076,10 +1112,9 @@ SDEALLOCATE(SurfLoc)
 !SDEALLOCATE(SideBoundingBoxVolume)
 !#endif
 !#endif
-SDEALLOCATE(Face_xGP)
 SDEALLOCATE(ElemToElemGlob)
 SDEALLOCATE(XCL_NGeo)
-SDEALLOCATE(dXCL_NGeo)
+!SDEALLOCATE(dXCL_NGeo)
 SDEALLOCATE(wbaryCL_NGeo)
 SDEALLOCATE(XiCL_NGeo)
 ! mortars
@@ -1087,18 +1122,11 @@ SDEALLOCATE(MortarType)
 SDEALLOCATE(MortarInfo)
 SDEALLOCATE(MortarSlave2MasterInfo)
 ! mappings
-SDEALLOCATE(VolToSideA)
-SDEALLOCATE(VolToSide2A)
-SDEALLOCATE(CGNS_VolToSideA)
-SDEALLOCATE(SideToVolA)
-SDEALLOCATE(SideToVol2A)
-SDEALLOCATE(CGNS_SideToVol2A)
-SDEALLOCATE(FS2M)
 SDEALLOCATE(DetJac_Ref)
 SDEALLOCATE(Vdm_CLNGeo1_CLNGeo)
 SDEALLOCATE(wBaryCL_NGeo1)
 SDEALLOCATE(XiCL_NGeo1)
-SDEALLOCATE(VolToSideIJKA)
+SDEALLOCATE(N_Mesh)
 MeshInitIsDone = .FALSE.
 SDEALLOCATE(ElemBaryNGeo)
 SDEALLOCATE(ElemGlobalID)

@@ -38,10 +38,11 @@ FUNCTION CALCTIMESTEP()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars     ,ONLY: sJ,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+USE MOD_Mesh_Vars     ,ONLY: N_VolMesh
 USE MOD_Equation_Vars ,ONLY: c_corr
 USE MOD_Globals_Vars  ,ONLY: c
 USE MOD_TimeDisc_Vars ,ONLY: CFLScale
+USE MOD_DG_Vars       ,ONLY: N_DG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -51,36 +52,25 @@ IMPLICIT NONE
 REAL                         :: CalcTimeStep
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: i,j,k,iElem
+INTEGER                      :: i,j,k,iElem,Nloc
 REAL                         :: Max_Lambda1,Max_Lambda2,Max_Lambda3
 REAL                         :: TimeStepConv,locTimeStepConv
 !===================================================================================================================================
 locTimeStepConv=HUGE(1.)
 DO iElem=1,PP_nElems
+  Nloc = N_DG(iElem)
   Max_Lambda1=0.
   Max_Lambda2=0.
   Max_Lambda3=0.
-  DO k=0,PP_N
-    DO j=0,PP_N
-      DO i=0,PP_N
-        ! Convective Eigenvalues
-! VERSION 1 & 2: -----------------------------
-        Max_Lambda1=MAX(Max_Lambda1,sJ(i,j,k,iElem)*(MAX(1.,c_corr)*c &
-                        *SQRT(SUM(Metrics_fTilde(:,i,j,k,iElem)*Metrics_fTilde(:,i,j,k,iElem)))))
-        Max_Lambda2=MAX(Max_Lambda2,sJ(i,j,k,iElem)*(MAX(1.,c_corr)*c &
-                        *SQRT(SUM(Metrics_gTilde(:,i,j,k,iElem)*Metrics_gTilde(:,i,j,k,iElem)))))
-        Max_Lambda3=MAX(Max_Lambda3,sJ(i,j,k,iElem)*(MAX(1.,c_corr)*c &
-                        *SQRT(SUM(Metrics_hTilde(:,i,j,k,iElem)*Metrics_hTilde(:,i,j,k,iElem)))))
-! --------------------------------------------
-! VERSION 3: ---------------------------------
-!        Max_Lambda1=MAX(&
-!                        Max_Lambda1,&
-!                        sJ(i,j,k,iElem)*(MAX(1.,c_corr)*c &
-!                        *(SQRT(SUM(Metrics_fTilde(:,i,j,k,iElem)*Metrics_fTilde(:,i,j,k,iElem)) &
-!                              +SUM(Metrics_gTilde(:,i,j,k,iElem)*Metrics_gTilde(:,i,j,k,iElem)) &
-!                              +SUM(Metrics_hTilde(:,i,j,k,iElem)*Metrics_hTilde(:,i,j,k,iElem)) ) ))&
-!                        )
-! --------------------------------------------
+  DO k=0,Nloc
+    DO j=0,Nloc
+      DO i=0,Nloc
+        Max_Lambda1=MAX(Max_Lambda1,N_VolMesh(iElem)%sJ(i,j,k)*(MAX(1.,c_corr)*c &
+                        *SQRT(SUM(N_VolMesh(iElem)%Metrics_fTilde(:,i,j,k)*N_VolMesh(iElem)%Metrics_fTilde(:,i,j,k)))))
+        Max_Lambda2=MAX(Max_Lambda2,N_VolMesh(iElem)%sJ(i,j,k)*(MAX(1.,c_corr)*c &
+                        *SQRT(SUM(N_VolMesh(iElem)%Metrics_gTilde(:,i,j,k)*N_VolMesh(iElem)%Metrics_gTilde(:,i,j,k)))))
+        Max_Lambda3=MAX(Max_Lambda3,N_VolMesh(iElem)%sJ(i,j,k)*(MAX(1.,c_corr)*c &
+                        *SQRT(SUM(N_VolMesh(iElem)%Metrics_hTilde(:,i,j,k)*N_VolMesh(iElem)%Metrics_hTilde(:,i,j,k)))))
       END DO ! i
     END DO ! j
   END DO ! k
@@ -97,9 +87,7 @@ DO iElem=1,PP_nElems
   IF(locTimeStepConv.NE.locTimeStepConv)THEN
     ERRWRITE(*,'(A,I0,A,I0,A,I0,A,I0)')'Convective timestep NaN on proc ',myRank,' at global position (iElem): ',iElem
     ERRWRITE(*,*)'dt_conv=',locTimeStepConv
-    CALL abort(&
-        __STAMP__&
-        ,'Convective timestep NaN!',999,999.)
+    CALL abort(__STAMP__,'Convective timestep NaN!',999,999.)
   END IF
 END DO ! iElem
 #if USE_MPI

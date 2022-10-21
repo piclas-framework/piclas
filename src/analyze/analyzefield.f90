@@ -246,7 +246,7 @@ IF(CalcEpot)THEN
 #endif /*PP_nVar=8*/
 END IF
 #if (PP_nVar>=6)
-IF(CalcPoyntingInt) CALL CalcPoyntingIntegral(PoyntingIntegral,doProlong=.TRUE.)
+IF(CalcPoyntingInt) CALL CalcPoyntingIntegral(PoyntingIntegral)
 #endif /*PP_nVar>=6*/
 
 #ifdef PARTICLES
@@ -308,114 +308,105 @@ END IF
 END SUBROUTINE AnalyzeField
 
 #if (PP_nVar>=6)
-SUBROUTINE CalcPoyntingIntegral(PoyntingIntegral,doProlong)
+SUBROUTINE CalcPoyntingIntegral(PoyntingIntegral)
 !===================================================================================================================================
 ! Calculation of Poynting Integral with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is missing ... ups
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars          ,ONLY: nElems, SurfElem, NormVec
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,S,isPoyntingIntSide,SideIDToPoyntingSide,PoyntingMainDir
-USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus,wGPSurf
-USE MOD_DG_Vars            ,ONLY: U,U_master
+USE MOD_Interpolation_Vars ,ONLY: N_inter
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG
 USE MOD_Globals_Vars       ,ONLY: smu0
 USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,Dielectric_MuR_Master_inv,DoDielectric
-#if USE_MPI
 USE MOD_Globals
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN),OPTIONAL :: doProlong
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)          :: PoyntingIntegral(1:nPoyntingIntPlanes)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER          :: iElem, SideID,ilocSide,iPoyntingSide
+INTEGER          :: iElem, SideID,ilocSide,iPoyntingSide,Nloc
 INTEGER          :: p,q,l
-REAL             :: Uface(PP_nVar,0:PP_N,0:PP_N)
-REAL             :: SIP(0:PP_N,0:PP_N)
+REAL,ALLOCATABLE :: Uface(:,:,:)
+REAL,ALLOCATABLE :: SIP(:,:)
 #if USE_MPI
 REAL             :: SumSabs(nPoyntingIntPlanes)
 #endif
-LOGICAL          :: Prolong=.TRUE.
-!REAL             :: sresvac
 !===================================================================================================================================
-
-IF(PRESENT(doProlong))THEN
-  Prolong=doProlong
-ELSE
-  Prolong=.TRUE.
-ENDIF
 
 S    = 0.
 PoyntingIntegral = 0.
 
 iPoyntingSide = 0 ! only if all Poynting vectors are desired
 DO iELEM = 1, nElems
+  Nloc = N_DG(iElem)
+  ALLOCATE(Uface(PP_nVar,0:Nloc,0:Nloc))
+  ALLOCATE(SIP(0:Nloc,0:Nloc))
   Do ilocSide = 1, 6
     IF(ElemToSide(E2S_FLIP,ilocSide,iElem)==0)THEN ! only master sides
       SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
       IF(.NOT.isPoyntingIntSide(SideID)) CYCLE
-      IF(Prolong)THEN
 #if (PP_NodeType==1) /* for Gauss-points*/
         SELECT CASE(ilocSide)
         CASE(XI_MINUS)
-          DO q=0,PP_N
-            DO p=0,PP_N
-              Uface(:,q,p)=U(:,0,p,q,iElem)*L_Minus(0)
-              DO l=1,PP_N
+          DO q=0,Nloc
+            DO p=0,Nloc
+              Uface(:,q,p)=U_N(iElem)%U(:,0,p,q)*N_Inter(Nloc)%L_Minus(0)
+              DO l=1,Nloc
                 ! switch to right hand system
-                Uface(:,q,p)=Uface(:,q,p)+U(:,l,p,q,iElem)*L_Minus(l)
+                Uface(:,q,p)=Uface(:,q,p)+U_N(iElem)%U(:,l,p,q)*N_Inter(Nloc)%L_Minus(l)
               END DO ! l
             END DO ! p
           END DO ! q
         CASE(ETA_MINUS)
-          DO q=0,PP_N
-            DO p=0,PP_N
-              Uface(:,p,q)=U(:,p,0,q,iElem)*L_Minus(0)
-              DO l=1,PP_N
-                Uface(:,p,q)=Uface(:,p,q)+U(:,p,l,q,iElem)*L_Minus(l)
+          DO q=0,Nloc
+            DO p=0,Nloc
+              Uface(:,p,q)=U_N(iElem)%U(:,p,0,q)*N_Inter(Nloc)%L_Minus(0)
+              DO l=1,Nloc
+                Uface(:,p,q)=Uface(:,p,q)+U_N(iElem)%U(:,p,l,q)*N_Inter(Nloc)%L_Minus(l)
               END DO ! l
             END DO ! p
           END DO ! q
         CASE(ZETA_MINUS)
-          DO q=0,PP_N
-            DO p=0,PP_N
-              Uface(:,q,p)=U(:,p,q,0,iElem)*L_Minus(0)
-              DO l=1,PP_N
+          DO q=0,Nloc
+            DO p=0,Nloc
+              Uface(:,q,p)=U_N(iElem)%U(:,p,q,0)*N_Inter(Nloc)%L_Minus(0)
+              DO l=1,Nloc
                 ! switch to right hand system
-                Uface(:,q,p)=Uface(:,q,p)+U(:,p,q,l,iElem)*L_Minus(l)
+                Uface(:,q,p)=Uface(:,q,p)+U_N(iElem)%U(:,p,q,l)*N_Inter(Nloc)%L_Minus(l)
               END DO ! l
             END DO ! p
           END DO ! qfirst stuff
         CASE(XI_PLUS)
-          DO q=0,PP_N
-            DO p=0,PP_N
-              Uface(:,p,q)=U(:,0,p,q,iElem)*L_Plus(0)
-              DO l=1,PP_N
-                Uface(:,p,q)=Uface(:,p,q)+U(:,l,p,q,iElem)*L_Plus(l)
+          DO q=0,Nloc
+            DO p=0,Nloc
+              Uface(:,p,q)=U_N(iElem)%U(:,0,p,q)*N_Inter(Nloc)%L_Plus(0)
+              DO l=1,Nloc
+                Uface(:,p,q)=Uface(:,p,q)+U_N(iElem)%U(:,l,p,q)*N_Inter(Nloc)%L_Plus(l)
               END DO ! l
             END DO ! p
           END DO ! q
         CASE(ETA_PLUS)
-          DO q=0,PP_N
-            DO p=0,PP_N
-              Uface(:,PP_N-p,q)=U(:,p,0,q,iElem)*L_Plus(0)
-              DO l=1,PP_N
+          DO q=0,Nloc
+            DO p=0,Nloc
+              Uface(:,Nloc-p,q)=U_N(iElem)%U(:,p,0,q)*N_Inter(Nloc)%L_Plus(0)
+              DO l=1,Nloc
                 ! switch to right hand system
-                Uface(:,PP_N-p,q)=Uface(:,PP_N-p,q)+U(:,p,l,q,iElem)*L_Plus(l)
+                Uface(:,Nloc-p,q)=Uface(:,Nloc-p,q)+U_N(iElem)%U(:,p,l,q)*N_Inter(Nloc)%L_Plus(l)
               END DO ! l
             END DO ! p
           END DO ! q
         CASE(ZETA_PLUS)
-          DO q=0,PP_N
-            DO p=0,PP_N
-              Uface(:,p,q)=U(:,p,q,0,iElem)*L_Plus(0)
-              DO l=1,PP_N
-                Uface(:,p,q)=Uface(:,p,q)+U(:,p,q,l,iElem)*L_Plus(l)
+          DO q=0,Nloc
+            DO p=0,Nloc
+              Uface(:,p,q)=U_N(iElem)%U(:,p,q,0)*N_Inter(Nloc)%L_Plus(0)
+              DO l=1,Nloc
+                Uface(:,p,q)=Uface(:,p,q)+U_N(iElem)%U(:,p,q,l)*N_Inter(Nloc)%L_Plus(l)
               END DO ! l
             END DO ! p
           END DO ! q
@@ -423,45 +414,43 @@ DO iELEM = 1, nElems
 #else /* for Gauss-Lobatto-points*/
         SELECT CASE(ilocSide)
         CASE(XI_MINUS)
-          DO q=0,PP_N
-            DO p=0,PP_N
-              Uface(:,q,p)=U(:,0,p,q,iElem)
+          DO q=0,Nloc
+            DO p=0,Nloc
+              Uface(:,q,p)=U_N(iElem)%U(:,0,p,q)
             END DO ! p
           END DO ! q
         CASE(ETA_MINUS)
-          Uface(:,:,:)=U(:,:,0,:,iElem)
+          Uface(:,:,:)=U_N(iElem)%U(:,:,0,:)
         CASE(ZETA_MINUS)
-          DO q=0,PP_N
-            DO p=0,PP_N
-              Uface(:,q,p)=U(:,p,q,0,iElem)
+          DO q=0,Nloc
+            DO p=0,Nloc
+              Uface(:,q,p)=U_N(iElem)%U(:,p,q,0)
             END DO ! p
           END DO ! q
         CASE(XI_PLUS)
-          Uface(:,:,:)=U(:,PP_N,:,:,iElem)
+          Uface(:,:,:)=U_N(iElem)%U(:,Nloc,:,:)
         CASE(ETA_PLUS)
-          DO q=0,PP_N
-            DO p=0,PP_N
-              Uface(:,PP_N-p,q)=U(:,p,PP_N,q,iElem)
+          DO q=0,Nloc
+            DO p=0,Nloc
+              Uface(:,Nloc-p,q)=U_N(iElem)%U(:,p,Nloc,q)
             END DO ! p
           END DO ! q
         CASE(ZETA_PLUS)
-          DO q=0,PP_N
-            DO p=0,PP_N
-              Uface(:,p,q)=U(:,p,q,PP_N,iElem)
+          DO q=0,Nloc
+            DO p=0,Nloc
+              Uface(:,p,q)=U_N(iElem)%U(:,p,q,Nloc)
             END DO ! p
           END DO ! q
         END SELECT
 #endif
-        ELSE ! no prolonge to face
-          Uface=U_master(:,:,:,SideID)
-        END IF ! Prolong
         ! calculate Poynting vector
         iPoyntingSide = iPoyntingSide + 1
 
         ! check if dielectric regions are involved
         IF(DoDielectric)THEN
           IF(PoyntingUseMuR_Inv.AND.isDielectricFace(SideID))THEN
-            CALL PoyntingVectorDielectric(Uface(:,:,:),S(:,:,:,iPoyntingSide),Dielectric_MuR_Master_inv(0:PP_N,0:PP_N,SideID))
+            CALL abort(__STAMP__,'not implemented')
+            CALL PoyntingVectorDielectric(Uface(:,:,:),S(:,:,:,iPoyntingSide),Dielectric_MuR_Master_inv(0:Nloc,0:Nloc,SideID))
           ELSE
             CALL PoyntingVector(Uface(:,:,:),S(:,:,:,iPoyntingSide))
           END IF
@@ -469,22 +458,25 @@ DO iELEM = 1, nElems
           CALL PoyntingVector(Uface(:,:,:),S(:,:,:,iPoyntingSide))
         END IF
 
-        IF ( NormVec(PoyntingMainDir,0,0,SideID) .GT. 0.0 ) THEN
-          SIP(:,:) =   S(1,:,:,iPoyntingSide) * NormVec(1,:,:,SideID) &
-                     + S(2,:,:,iPoyntingSide) * NormVec(2,:,:,SideID) &
-                     + S(3,:,:,iPoyntingSide) * NormVec(3,:,:,SideID)
+        IF ( N_SurfMesh(SideID)%NormVec(PoyntingMainDir,0,0) .GT. 0.0 ) THEN
+          SIP(:,:) =   S(1,:,:,iPoyntingSide) * N_SurfMesh(SideID)%NormVec(1,0,0) &
+                     + S(2,:,:,iPoyntingSide) * N_SurfMesh(SideID)%NormVec(2,0,0) &
+                     + S(3,:,:,iPoyntingSide) * N_SurfMesh(SideID)%NormVec(3,0,0)
         ELSE ! NormVec(PoyntingMainDir,:,:,iPoyningSide) < 0
-          SIP(:,:) = - S(1,:,:,iPoyntingSide) * NormVec(1,:,:,SideID) &
-                     - S(2,:,:,iPoyntingSide) * NormVec(2,:,:,SideID) &
-                     - S(3,:,:,iPoyntingSide) * NormVec(3,:,:,SideID)
+          SIP(:,:) = - S(1,:,:,iPoyntingSide) * N_SurfMesh(SideID)%NormVec(1,0,0) &
+                     - S(2,:,:,iPoyntingSide) * N_SurfMesh(SideID)%NormVec(2,0,0) &
+                     - S(3,:,:,iPoyntingSide) * N_SurfMesh(SideID)%NormVec(3,0,0)
         END IF ! NormVec(PoyntingMainDir,:,:,iPoyntingSide)
         ! multiplied by surface element and  Gauss Points
-        SIP(:,:) = SIP(:,:) * SurfElem(:,:,SideID) * wGPSurf(:,:)
+        CALL abort(__STAMP__,'not implemented: SurfElem is built on N = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))')
+        !SIP(:,:) = SIP(:,:) * N_SurfMesh(SideID)%SurfElem(:,:,SideID) * N_Inter(Nloc)%wGPSurf(:,:)
 
         ! total flux through each plane
         PoyntingIntegral(SideIDToPoyntingSide(SideID)) = PoyntingIntegral(SideIDToPoyntingSide(SideID)) + smu0* SUM(SIP(:,:))
     END IF ! flip =0
   END DO ! iSides
+  DEALLOCATE(Uface)
+  DEALLOCATE(SIP)
 END DO ! iElems
 
 #if USE_MPI
@@ -573,17 +565,18 @@ SUBROUTINE GetPoyntingIntPlane()
 !> with a defined Poynting vector integral plane.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars       ,ONLY: nSides,nElems,Face_xGP
-USE MOD_Mesh_Vars       ,ONLY: ElemToSide,normvec
+USE MOD_Mesh_Vars       ,ONLY: nSides,nElems
+USE MOD_Mesh_Vars       ,ONLY: ElemToSide,N_SurfMesh
 USE MOD_Analyze_Vars    ,ONLY: PoyntingIntCoordErr,nPoyntingIntPlanes,PosPoyntingInt,S,STEM
 USE MOD_Analyze_Vars    ,ONLY: isPoyntingIntSide,SideIDToPoyntingSide,PoyntingMainDir
 USE MOD_ReadInTools     ,ONLY: GETINT,GETREAL
-USE MOD_Dielectric_Vars ,ONLY: DoDielectric,nDielectricElems,DielectricMu,ElemToDielectric,isDielectricInterFace
+USE MOD_Dielectric_Vars ,ONLY: DoDielectric,nDielectricElems,DielectricVol,ElemToDielectric,isDielectricInterFace
 USE MOD_Dielectric_Vars ,ONLY: isDielectricFace,PoyntingUseMuR_Inv
 USE MOD_Globals         ,ONLY: abort
 #if USE_MPI
 USE MOD_Globals
 #endif
+USE MOD_DG_Vars         ,ONLY: N_DG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -592,7 +585,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem, iSide, iPlane, SideID
+INTEGER             :: iElem, iSide, iPlane, SideID, Nloc
 INTEGER,ALLOCATABLE :: nFaces(:)
 REAL                :: diff
 INTEGER             :: p,q
@@ -655,9 +648,12 @@ PoyntingIntCoordErr=GETREAL('Plane-Tolerance')
 !     parameter of mu_r
 CheckDielectricSides=.FALSE.
 IF(DoDielectric)THEN
-  IF(ANY(ABS(DielectricMu(:,:,:,1:nDielectricElems)-1.0).GT.0.0))THEN
-    CheckDielectricSides=.TRUE.
-  END IF
+  DO iElem = 1, nDielectricElems
+    IF(ANY(ABS(DielectricVol(iElem)%DielectricMu(:,:,:)-1.0).GT.0.0))THEN
+      CheckDielectricSides=.TRUE.
+      EXIT
+    END IF
+  END DO
 END IF
 
 ! 2.) for dielectric sides (NOT interface sides between dielectric and some other region), determine mu_r on face for Poynting vector
@@ -667,18 +663,19 @@ PoyntingUseMuR_Inv=.FALSE.
 DO iPlane = 1, nPoyntingIntPlanes
   ! Loop over all elements
   DO iElem=1,nElems
+    Nloc = N_DG(iElem)
     ! Loop over all local sides
     DO iSide=1,6
       IF(ElemToSide(E2S_FLIP,iSide,iElem)==0)THEN ! only master sides
         SideID=ElemToSide(E2S_SIDE_ID,iSide,iElem)
         ! First search only planes with normal vector parallel to direction of "MainDir"
-        IF((     NormVec(PoyntingNormalDir1,0,0,SideID)  < PoyntingIntCoordErr) .AND. &
-           (     NormVec(PoyntingNormalDir2,0,0,SideID)  < PoyntingIntCoordErr) .AND. &
-           ( ABS(NormVec(PoyntingMainDir   ,0,0,SideID)) > PoyntingIntCoordErr))THEN
+        IF((     N_SurfMesh(SideID)%NormVec(PoyntingNormalDir1,0,0)  < PoyntingIntCoordErr) .AND. &
+           (     N_SurfMesh(SideID)%NormVec(PoyntingNormalDir2,0,0)  < PoyntingIntCoordErr) .AND. &
+           ( ABS(N_SurfMesh(SideID)%NormVec(PoyntingMainDir   ,0,0)) > PoyntingIntCoordErr))THEN
         ! Loop over all Points on Face
-          DO q=0,PP_N
-            DO p=0,PP_N
-              diff = ABS(Face_xGP(PoyntingMainDir,p,q,SideID) - PosPoyntingInt(iPlane))
+          DO q=0,Nloc
+            DO p=0,Nloc
+              diff = ABS(N_SurfMesh(SideID)%Face_xGP(PoyntingMainDir,p,q) - PosPoyntingInt(iPlane))
               IF (diff < PoyntingIntCoordErr) THEN
                 IF (.NOT.isPoyntingIntSide(SideID)) THEN
                   nPoyntingIntSides = nPoyntingIntSides +1
@@ -690,7 +687,7 @@ DO iPlane = 1, nPoyntingIntPlanes
                   IF(CheckDielectricSides)THEN
                     ! 1.) Check for illegal sides in dielectrics: mu_r != 1.0 on dielectric interface
                     IF(isDielectricInterFace(SideID))THEN
-                      IF(ANY(ABS(DielectricMu(:,:,:,ElemToDielectric(iElem))-1.0).GT.0.0))THEN
+                      IF(ANY(ABS(DielectricVol(ElemToDielectric(iElem))%DielectricMu(:,:,:)-1.0).GT.0.0))THEN
                         ! If the Poynting vector integral SideID additionally is a dielectric interface between a dielectric region
                         ! with a permittivity and vacuum, then mu_r might be unequal to 1.0 on the interface and the calculation of
                         ! the Poynting vector is not implemented for this case
@@ -803,14 +800,14 @@ SUBROUTINE CalcPotentialEnergy(WEl)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,          ONLY : nElems, sJ
-USE MOD_Interpolation_Vars, ONLY : wGP
+USE MOD_Mesh_Vars,          ONLY : nElems, N_VolMesh
+USE MOD_Interpolation_Vars, ONLY : N_Inter
 #if (PP_nVar==8)
 USE MOD_Globals_Vars       ,ONLY: smu0
 #endif /*PP_nVar=8*/
 USE MOD_Globals_Vars       ,ONLY: eps0
 #if !(USE_HDG)
-USE MOD_DG_Vars,            ONLY : U
+USE MOD_DG_Vars,            ONLY : U_N,N_DG
 #endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==1
@@ -835,9 +832,8 @@ REAL,INTENT(OUT)                :: WMag,Wpsi,Wphi
 #endif /*PP_nVar=8*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem
+INTEGER           :: iElem,Nloc
 INTEGER           :: i,j,k
-REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: WEl_tmp, WMag_tmp, E_abs
 #if !(USE_HDG)
 REAL              :: B_abs , Phi_abs, Psi_abs
@@ -866,11 +862,13 @@ DO iElem=1,nElems
   WEl_tmp=0.
   WMag_tmp=0.
 #if (PP_nVar==8)
-    Wphi_tmp = 0.
-    Wpsi_tmp = 0.
+  Wphi_tmp = 0.
+  Wpsi_tmp = 0.
 #endif /*PP_nVar=8*/
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  Nloc = N_DG(iElem)
+  ASSOCIATE( wGP => N_Inter(Nloc)%wGP)
+
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 ! in electromagnetische felder by henke 2011 - springer
 ! WMag = 1/(2mu) * int_V B^2 dV
 #if USE_HDG
@@ -883,28 +881,29 @@ DO iElem=1,nElems
     B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #endif /*PP_nVar==1*/
 #else
-    E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+    E_abs = U_N(iElem)%U(1,i,j,k)**2 + U_N(iElem)%U(2,i,j,k)**2 + U_N(iElem)%U(3,i,j,k)**2
 #endif /*USE_HDG*/
 
 #if (PP_nVar==8)
-    B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
-    Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem)
-    Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem)
+    B_abs = U_N(iElem)%U(4,i,j,k)**2 + U_N(iElem)%U(5,i,j,k)**2 + U_N(iElem)%U(6,i,j,k)**2
+    Phi_abs = U_N(iElem)%U(7,i,j,k)*U_N(iElem)%U(7,i,j,k)
+    Psi_abs = U_N(iElem)%U(8,i,j,k)*U_N(iElem)%U(8,i,j,k)
 #endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==3
-      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * B_abs
 #elif PP_nVar==4
-      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * B_abs
 #endif /*PP_nVar==3*/
 #endif /*USE_HDG*/
-    WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs
+    WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k)   / N_VolMesh(iElem)%sJ(i,j,k) * E_abs
 #if (PP_nVar==8)
-    WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
-    Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Phi_abs
-    Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Psi_abs
+    WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k)   / N_VolMesh(iElem)%sJ(i,j,k) * B_abs
+    Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k)   / N_VolMesh(iElem)%sJ(i,j,k) * Phi_abs
+    Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k)   / N_VolMesh(iElem)%sJ(i,j,k) * Psi_abs
 #endif /*PP_nVar=8*/
   END DO; END DO; END DO
+  END ASSOCIATE
   WEl = WEl + WEl_tmp
 #if (PP_nVar==8)
   WMag = WMag + WMag_tmp
@@ -956,19 +955,19 @@ USE MOD_Globals
 USE MOD_Preproc
 #if USE_HDG
 #if PP_nVar==3 || PP_nVar==4
-USE MOD_Dielectric_vars    ,ONLY: DielectricMu
+USE MOD_Dielectric_vars    ,ONLY: DielectricVol
 #endif /*PP_nVar==3 or 4*/
 #endif /*USE_HDG or PP_nVar==8*/
-USE MOD_Mesh_Vars          ,ONLY: nElems, sJ
-USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if (PP_nVar==8)
-USE MOD_Dielectric_vars    ,ONLY: DielectricMu
+USE MOD_Dielectric_vars    ,ONLY: DielectricVol
 USE MOD_Globals_Vars       ,ONLY: smu0
 #endif /*PP_nVar=8*/
 USE MOD_Globals_Vars       ,ONLY: eps0
-USE MOD_Dielectric_vars    ,ONLY: isDielectricElem,DielectricEps,ElemToDielectric
+USE MOD_Dielectric_vars    ,ONLY: isDielectricElem,DielectricVol,ElemToDielectric
 #if !(USE_HDG)
-USE MOD_DG_Vars            ,ONLY: U
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG
 #endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==1
@@ -993,9 +992,8 @@ REAL,INTENT(OUT)                :: WMag,Wpsi,Wphi
 #endif /*PP_nVar=8*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem
+INTEGER           :: iElem,Nloc
 INTEGER           :: i,j,k
-REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: WEl_tmp, WMag_tmp, E_abs
 #if !(USE_HDG)
 REAL              :: B_abs , Phi_abs, Psi_abs
@@ -1024,14 +1022,11 @@ DO iElem=1,nElems
   !--- Calculate and save volume of element iElem
   WEl_tmp=0.
   WMag_tmp=0.
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-
-
-
-
+  Nloc = N_DG(iElem)
+  ASSOCIATE( wGP => N_Inter(Nloc)%wGP)
 
   IF(isDielectricElem(iElem))THEN
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       ! in electromagnetische felder by henke 2011 - springer
       ! WMag = 1/(2mu) * int_V B^2 dV
 #if USE_HDG
@@ -1044,30 +1039,30 @@ DO iElem=1,nElems
       B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #endif /*PP_nVar==1*/
 #else
-      E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+      E_abs = U_N(iElem)%U(1,i,j,k)**2 + U_N(iElem)%U(2,i,j,k)**2 * U_N(iElem)%U(3,i,j,k)**2
 #endif /*USE_HDG*/
 
 #if (PP_nVar==8)
-      B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
-      Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem)
-      Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem)
+      B_abs = U_N(iElem)%U(4,i,j,k)**2 + U_N(iElem)%U(5,i,j,k)**2 * U_N(iElem)%U(6,i,j,k)**2
+      Phi_abs = U_N(iElem)%U(7,i,j,k)*U_N(iElem)%U(7,i,j,k)
+      Psi_abs = U_N(iElem)%U(8,i,j,k)*U_N(iElem)%U(8,i,j,k)
 #endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==3
-      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs / DielectricMu( i,j,k,ElemToDielectric(iElem))
+      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * B_abs / DielectricVol(ElemToDielectric(iElem))%DielectricMu( i,j,k)
 #elif PP_nVar==4
-      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs / DielectricMu( i,j,k,ElemToDielectric(iElem))
+      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * B_abs / DielectricVol(ElemToDielectric(iElem))%DielectricMu( i,j,k)
 #endif /*PP_nVar==3*/
 #endif /*USE_HDG*/
-      WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs * DielectricEps(i,j,k,ElemToDielectric(iElem))
+      WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * E_abs * DielectricVol(ElemToDielectric(iElem))%DielectricEps(i,j,k)
 #if (PP_nVar==8)
-      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs / DielectricMu(i,j,k,ElemToDielectric(iElem))
-      Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Phi_abs * DielectricEps(i,j,k,ElemToDielectric(iElem))
-      Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Psi_abs / DielectricMu(i,j,k,ElemToDielectric(iElem))
+      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * B_abs / DielectricVol(ElemToDielectric(iElem))%DielectricMu(i,j,k)
+      Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Phi_abs * DielectricVol(ElemToDielectric(iElem))%DielectricEps(i,j,k)
+      Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Psi_abs / DielectricVol(ElemToDielectric(iElem))%DielectricMu(i,j,k)
 #endif /*PP_nVar=8*/
     END DO; END DO; END DO
   ELSE
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       ! in electromagnetische felder by henke 2011 - springer
       ! WMag = 1/(2mu) * int_V B^2 dV
 #if USE_HDG
@@ -1080,29 +1075,30 @@ DO iElem=1,nElems
       B_abs = B(1,i,j,k,iElem)*B(1,i,j,k,iElem) + B(2,i,j,k,iElem)*B(2,i,j,k,iElem) + B(3,i,j,k,iElem)*B(3,i,j,k,iElem)
 #endif /*PP_nVar==1*/
 #else
-      E_abs = U(1,i,j,k,iElem)*U(1,i,j,k,iElem) + U(2,i,j,k,iElem)*U(2,i,j,k,iElem) + U(3,i,j,k,iElem)*U(3,i,j,k,iElem)
+      E_abs = U_N(iElem)%U(1,i,j,k)**2 + U_N(iElem)%U(2,i,j,k)**2 * U_N(iElem)%U(3,i,j,k)**2
 #endif /*USE_HDG*/
 
 #if (PP_nVar==8)
-      B_abs = U(4,i,j,k,iElem)*U(4,i,j,k,iElem) + U(5,i,j,k,iElem)*U(5,i,j,k,iElem) + U(6,i,j,k,iElem)*U(6,i,j,k,iElem)
-      Phi_abs = U(7,i,j,k,iElem)*U(7,i,j,k,iElem)
-      Psi_abs = U(8,i,j,k,iElem)*U(8,i,j,k,iElem)
+      B_abs = U_N(iElem)%U(4,i,j,k)**2 + U_N(iElem)%U(5,i,j,k)**2 * U_N(iElem)%U(6,i,j,k)**2
+      Phi_abs = U_N(iElem)%U(7,i,j,k)*U_N(iElem)%U(7,i,j,k)
+      Psi_abs = U_N(iElem)%U(8,i,j,k)*U_N(iElem)%U(8,i,j,k)
 #endif /*PP_nVar=8*/
 #if USE_HDG
 #if PP_nVar==3
-      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * B_abs
 #elif PP_nVar==4
-      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
+      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * B_abs
 #endif /*PP_nVar==3*/
 #endif /*USE_HDG*/
-      WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * E_abs
+      WEl_tmp  = WEl_tmp  + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * E_abs
 #if (PP_nVar==8)
-      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * B_abs
-      Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Phi_abs
-      Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) * J_N(1,i,j,k) * Psi_abs
+      WMag_tmp = WMag_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * B_abs
+      Wphi_tmp = Wphi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Phi_abs
+      Wpsi_tmp = Wpsi_tmp + wGP(i)*wGP(j)*wGP(k) / N_VolMesh(iElem)%sJ(i,j,k) * Psi_abs
 #endif /*PP_nVar=8*/
     END DO; END DO; END DO
   END IF
+  END ASSOCIATE
 
 
     WEl = WEl + WEl_tmp
@@ -1161,14 +1157,14 @@ SUBROUTINE SetDielectricFaceProfileForPoynting()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars ,ONLY: Dielectric_MuR_Master_inv,Dielectric_MuR_Slave_inv
-USE MOD_Dielectric_Vars ,ONLY: isDielectricElem,ElemToDielectric,DielectricMu
+USE MOD_Dielectric_Vars ,ONLY: isDielectricElem,ElemToDielectric,DielectricVol
 USE MOD_Mesh_Vars       ,ONLY: nSides
 USE MOD_ProlongToFace   ,ONLY: ProlongToFace
 #if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI             ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif
-USE MOD_FillMortar      ,ONLY: U_Mortar
+!USE MOD_FillMortar      ,ONLY: U_Mortar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1211,7 +1207,7 @@ Dielectric_dummy_Slave   = -1.
 DO iElem=1,PP_nElems
   IF(isDielectricElem(iElem))THEN
     ! set only the first dimension to 1./MuR (the rest are dummies)
-    Dielectric_dummy_elem(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=1.0 / DielectricMu(0:PP_N,0:PP_N,0:PP_N,ElemToDielectric(iElem))
+    Dielectric_dummy_elem(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=1.0 / DielectricVol(ElemToDielectric(iElem))%DielectricMu(0:PP_N,0:PP_N,0:PP_N)
   ELSE
     Dielectric_dummy_elem(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=1.0
   END IF
@@ -1219,10 +1215,11 @@ END DO
 
 !3.   Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar)
 CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
-CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
+CALL abort(__STAMP__,'not implemented')
+!CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
 #if USE_MPI
   CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
-  CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
+  !CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
 
   ! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI
   !     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
@@ -1309,12 +1306,6 @@ LOGICAL,PARAMETER:: Prolong=.TRUE.
 REAL             :: AverageElectricPotentialProc
 REAL             :: area_loc,integral_loc
 !===================================================================================================================================
-
-!IF(PRESENT(doProlong))THEN
-  !Prolong=doProlong
-!ELSE
-  !Prolong=.TRUE.
-!ENDIF
 
 AverageElectricPotentialProc = 0.
 

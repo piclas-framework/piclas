@@ -40,35 +40,36 @@ CONTAINS
 
 
 #if !(USE_HDG)
-SUBROUTINE VolInt_weakForm(Ut,dofirstElems)
+SUBROUTINE VolInt_weakForm(dofirstElems)
 !===================================================================================================================================
 ! Computes the volume integral of the weak DG form a la Kopriva
 ! Attention 1: 1/J(i,j,k) is not yet accounted for
 ! Attention 2: ut is initialized and is updated with the volume flux derivatives
 !===================================================================================================================================
 ! MODULES
-USE MOD_DG_Vars,           ONLY:D_hat
-USE MOD_Mesh_Vars,         ONLY:Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
-USE MOD_PML_Vars,          ONLY: DoPML,ElemToPML,isPMLElem,U2t
-USE MOD_Dielectric_Vars,   ONLY: DoDielectric,isDielectricElem
 USE MOD_PreProc
-USE MOD_Flux,ONLY:EvalFlux3D,EvalFlux3DDielectric                      ! computes volume fluxes in local coordinates
+USE MOD_DG_Vars            ,ONLY: N_DG,DGB_N,U_N
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh
+USE MOD_Interpolation_Vars ,ONLY: Nmax
+USE MOD_PML_Vars           ,ONLY: DoPML,ElemToPML,isPMLElem,U2t
+USE MOD_Dielectric_Vars    ,ONLY: DoDielectric,isDielectricElem
+USE MOD_Flux               ,ONLY: EvalFlux3D,EvalFlux3DDielectric              ! computes volume fluxes in local coordinates
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)                                  :: Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 LOGICAL,INTENT(IN)                                  :: dofirstElems
 ! Adds volume contribution to time derivative Ut contained in MOD_DG_Vars (=aufschmutzen!)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N)      :: f,g,h                ! volume fluxes at all Gauss points
+REAL,DIMENSION(PP_nVar,0:NMax,0:NMax,0:NMax)      :: f,g,h                ! volume fluxes at all Gauss points
 REAL,DIMENSION(PP_nVar)                           :: fTilde,gTilde,hTilde ! auxiliary variables needed to store the fluxes at one GP
 INTEGER                                           :: i,j,k,iElem
 INTEGER                                           :: l                    ! row index for matrix vector product
 INTEGER                                           :: firstElemID, lastElemID
+INTEGER                                           :: Nloc
 !===================================================================================================================================
 
 IF(dofirstElems)THEN
@@ -80,36 +81,43 @@ ELSE ! second half of elements
 END IF
 
 DO iElem=firstElemID,lastElemID
+  Nloc = N_DG(iElem)
 !DO iElem=1,PP_nElems
   ! Cut out the local DG solution for a grid cell iElem and all Gauss points from the global field
   ! Compute for all Gauss point values the Cartesian flux components
-  IF(DoDielectric)THEN
-    IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
-      CALL EvalFlux3DDielectric(iElem,f,g,h)
+  !ASSOCIATE( f => f(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc)  ,&
+             !g => g(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc)  ,&
+             !h => h(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc)  )
+    IF(DoDielectric)THEN
+      IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
+        CALL EvalFlux3DDielectric(Nloc,iElem,f(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc),g(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc),h(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+      ELSE
+        CALL EvalFlux3D(Nloc,iElem,f(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc),g(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc),h(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+      END IF
     ELSE
-      CALL EvalFlux3D(iElem,f,g,h)
-    END IF
-  ELSE
-    CALL EvalFlux3D(iElem,f,g,h)
-  END IF
+      CALL EvalFlux3D(Nloc,iElem,f(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc),g(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc),h(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+      !Fortran runtime error: Index '0' of dimension 2 of array 'f' outside of expected range (1:2)
 
-  DO k=0,PP_N
-    DO j=0,PP_N
-      DO i=0,PP_N
-        fTilde=f(:,i,j,k)
-        gTilde=g(:,i,j,k)
-        hTilde=h(:,i,j,k)
+    END IF
+  !END ASSOCIATE
+
+  DO k=0,NLoc
+    DO j=0,NLoc
+      DO i=0,NLoc
+        fTilde(1:PP_nVar)=f(1:PP_nVar,i,j,k)
+        gTilde(1:PP_nVar)=g(1:PP_nVar,i,j,k)
+        hTilde(1:PP_nVar)=h(1:PP_nVar,i,j,k)
         ! Compute the transformed fluxes with the metric terms
         ! Attention 1: we store the transformed fluxes in f,g,h again
-        f(:,i,j,k) = fTilde(:)*Metrics_fTilde(1,i,j,k,iElem) + &
-                     gTilde(:)*Metrics_fTilde(2,i,j,k,iElem) + &
-                     hTilde(:)*Metrics_fTilde(3,i,j,k,iElem)
-        g(:,i,j,k) = fTilde(:)*Metrics_gTilde(1,i,j,k,iElem) + &
-                     gTilde(:)*Metrics_gTilde(2,i,j,k,iElem) + &
-                     hTilde(:)*Metrics_gTilde(3,i,j,k,iElem)
-        h(:,i,j,k) = fTilde(:)*Metrics_hTilde(1,i,j,k,iElem) + &
-                     gTilde(:)*Metrics_hTilde(2,i,j,k,iElem) + &
-                     hTilde(:)*Metrics_hTilde(3,i,j,k,iElem)
+        f(1:PP_nVar,i,j,k) = fTilde(1:PP_nVar)*N_VolMesh(iElem)%Metrics_fTilde(1,i,j,k) + &
+                             gTilde(1:PP_nVar)*N_VolMesh(iElem)%Metrics_fTilde(2,i,j,k) + &
+                             hTilde(1:PP_nVar)*N_VolMesh(iElem)%Metrics_fTilde(3,i,j,k)
+        g(1:PP_nVar,i,j,k) = fTilde(1:PP_nVar)*N_VolMesh(iElem)%Metrics_gTilde(1,i,j,k) + &
+                             gTilde(1:PP_nVar)*N_VolMesh(iElem)%Metrics_gTilde(2,i,j,k) + &
+                             hTilde(1:PP_nVar)*N_VolMesh(iElem)%Metrics_gTilde(3,i,j,k)
+        h(1:PP_nVar,i,j,k) = fTilde(1:PP_nVar)*N_VolMesh(iElem)%Metrics_hTilde(1,i,j,k) + &
+                             gTilde(1:PP_nVar)*N_VolMesh(iElem)%Metrics_hTilde(2,i,j,k) + &
+                             hTilde(1:PP_nVar)*N_VolMesh(iElem)%Metrics_hTilde(3,i,j,k)
       END DO ! i
     END DO ! j
   END DO ! k
@@ -117,85 +125,67 @@ DO iElem=firstElemID,lastElemID
 
   IF(DoPML)THEN
     IF(isPMLElem(iElem)) THEN ! 1.) PML version - PML element
-      DO l=0,PP_N
-        DO k=0,PP_N
-          DO j=0,PP_N
-            DO i=0,PP_N
+      DO l=0,Nloc
+        DO k=0,Nloc
+          DO j=0,Nloc
+            DO i=0,Nloc
               ! Update the time derivative with the spatial derivatives of the transformed fluxes
-              Ut(:,i,j,k,iElem) = Ut(:,i,j,k,iElem) + D_hat(i,l)*f(:,l,j,k) + &
-                                                      D_hat(j,l)*g(:,i,l,k) + &
-                                                      D_hat(k,l)*h(:,i,j,l)
+              U_N(iElem)%Ut(:,i,j,k) = U_N(iElem)%Ut(:,i,j,k) + DGB_N(Nloc)%D_hat(i,l)*f(:,l,j,k) + &
+                                                                DGB_N(Nloc)%D_hat(j,l)*g(:,i,l,k) + &
+                                                                DGB_N(Nloc)%D_hat(k,l)*h(:,i,j,l)
               ! Update the time derivatives of the auxiliary variables of the CFS-PML region
               U2t(1 : 3,i,j,k,ElemToPML(iElem)) = U2t(1 : 3,i,j,k,ElemToPML(iElem)) + &
-                                              (/ D_hat(i,l)*f(1,l,j,k) , D_hat(j,l)*g(1,i,l,k) , D_hat(k,l)*h(1,i,j,l) /)
+                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(1,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(1,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(1,i,j,l) /)
               U2t(4 : 6,i,j,k,ElemToPML(iElem)) = U2t(4 : 6,i,j,k,ElemToPML(iElem)) + &
-                                              (/ D_hat(i,l)*f(2,l,j,k) , D_hat(j,l)*g(2,i,l,k) , D_hat(k,l)*h(2,i,j,l) /)
+                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(2,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(2,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(2,i,j,l) /)
               U2t(7 : 9,i,j,k,ElemToPML(iElem)) = U2t(7 : 9,i,j,k,ElemToPML(iElem)) + &
-                                              (/ D_hat(i,l)*f(3,l,j,k) , D_hat(j,l)*g(3,i,l,k) , D_hat(k,l)*h(3,i,j,l) /)
+                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(3,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(3,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(3,i,j,l) /)
               U2t(10:12,i,j,k,ElemToPML(iElem)) = U2t(10:12,i,j,k,ElemToPML(iElem)) + &
-                                              (/ D_hat(i,l)*f(4,l,j,k) , D_hat(j,l)*g(4,i,l,k) , D_hat(k,l)*h(4,i,j,l) /)
+                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(4,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(4,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(4,i,j,l) /)
               U2t(13:15,i,j,k,ElemToPML(iElem)) = U2t(13:15,i,j,k,ElemToPML(iElem)) + &
-                                              (/ D_hat(i,l)*f(5,l,j,k) , D_hat(j,l)*g(5,i,l,k) , D_hat(k,l)*h(5,i,j,l) /)
+                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(5,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(5,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(5,i,j,l) /)
               U2t(16:18,i,j,k,ElemToPML(iElem)) = U2t(16:18,i,j,k,ElemToPML(iElem)) + &
-                                              (/ D_hat(i,l)*f(6,l,j,k) , D_hat(j,l)*g(6,i,l,k) , D_hat(k,l)*h(6,i,j,l) /)
+                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(6,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(6,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(6,i,j,l) /)
               !Phi_B
               U2t(19:21,i,j,k,ElemToPML(iElem)) = U2t(19:21,i,j,k,ElemToPML(iElem)) + &
-                                              (/ D_hat(i,l)*f(7,l,j,k) , D_hat(j,l)*g(7,i,l,k) , D_hat(k,l)*h(7,i,j,l) /)
+                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(7,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(7,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(7,i,j,l) /)
               !Phi_E
               U2t(22:24,i,j,k,ElemToPML(iElem)) = U2t(22:24,i,j,k,ElemToPML(iElem)) + &
-                                              (/ D_hat(i,l)*f(8,l,j,k) , D_hat(j,l)*g(8,i,l,k) , D_hat(k,l)*h(8,i,j,l) /)
+                                              (/ DGB_N(Nloc)%D_hat(i,l)*f(8,l,j,k) , DGB_N(Nloc)%D_hat(j,l)*g(8,i,l,k) , DGB_N(Nloc)%D_hat(k,l)*h(8,i,j,l) /)
               !print *,"FPt(:,i,j,k,ElemToPML(iElem))",FPt(:,i,j,k,ElemToPML(iElem))
             END DO !i
           END DO ! j
         END DO ! k
       END DO ! l
     ELSE ! 2.) PML version - physical element
-      DO l=0,PP_N
-        DO k=0,PP_N
-          DO j=0,PP_N
-            DO i=0,PP_N
+      DO l=0,Nloc
+        DO k=0,Nloc
+          DO j=0,Nloc
+            DO i=0,Nloc
               ! Update the time derivative with the spatial derivatives of the transformed fluxes
-              Ut(:,i,j,k,iElem) = Ut(:,i,j,k,iElem) + D_hat(i,l)*f(:,l,j,k) + &
-                                                      D_hat(j,l)*g(:,i,l,k) + &
-                                                      D_hat(k,l)*h(:,i,j,l)
+              U_N(iElem)%Ut(:,i,j,k) = U_N(iElem)%Ut(:,i,j,k) + DGB_N(Nloc)%D_hat(i,l)*f(:,l,j,k) + &
+                                                                DGB_N(Nloc)%D_hat(j,l)*g(:,i,l,k) + &
+                                                                DGB_N(Nloc)%D_hat(k,l)*h(:,i,j,l)
             END DO !i
           END DO ! j
         END DO ! k
       END DO ! l
     END IF
   ELSE ! 3.) physical element
-    DO l=0,PP_N
-      DO k=0,PP_N
-        DO j=0,PP_N
-          DO i=0,PP_N
+    DO l=0,Nloc
+      DO k=0,Nloc
+        DO j=0,Nloc
+          DO i=0,Nloc
             ! Update the time derivative with the spatial derivatives of the transformed fluxes
-            Ut(:,i,j,k,iElem) = Ut(:,i,j,k,iElem) + D_hat(i,l)*f(:,l,j,k) + &
-                                                    D_hat(j,l)*g(:,i,l,k) + &
-                                                    D_hat(k,l)*h(:,i,j,l)
+            U_N(iElem)%Ut(:,i,j,k) = U_N(iElem)%Ut(:,i,j,k) + DGB_N(Nloc)%D_hat(i,l)*f(:,l,j,k) + &
+                                                              DGB_N(Nloc)%D_hat(j,l)*g(:,i,l,k) + &
+                                                              DGB_N(Nloc)%D_hat(k,l)*h(:,i,j,l)
           END DO !i
         END DO ! j
       END DO ! k
     END DO ! l
   END IF ! isPMLElem(iElem)
 
-  !CALL VolInt_Metrics(f,g,h,Metrics_fTilde(:,:,:,:,iElem),&
-  !                          Metrics_gTilde(:,:,:,:,iElem),&
-  !                          Metrics_hTilde(:,:,:,:,iElem))
-  !DO k=0,PP_N
-  !  DO j=0,PP_N
-  !    DO i=0,PP_N
-  !      Ut(:,i,j,k,iElem) = D_Hat_T(0,i)*f(:,0,j,k) + &
-  !                          D_Hat_T(0,j)*g(:,i,0,k) + &
-  !                          D_Hat_T(0,k)*h(:,i,j,0)
-  !      DO l=1,PP_N
-  !        ! Update the time derivative with the spatial derivatives of the transformed fluxes
-  !        Ut(:,i,j,k,iElem) = Ut(:,i,j,k,iElem) + D_Hat_T(l,i)*f(:,l,j,k) + &
-  !                                                D_Hat_T(l,j)*g(:,i,l,k) + &
-  !                                                D_Hat_T(l,k)*h(:,i,j,l)
-  !      END DO ! l
-  !    END DO !i
-  !  END DO ! j
-  !END DO ! k
 END DO ! iElem
 END SUBROUTINE VolInt_weakForm
 #endif

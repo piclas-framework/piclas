@@ -45,11 +45,12 @@ INTERFACE FinalizeMPI
 END INTERFACE
 
 
-PUBLIC::InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
+PUBLIC :: InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
+PUBLIC :: StartExchange_DG_Elems
 #endif
-PUBLIC::DefineParametersMPI
+PUBLIC :: DefineParametersMPI
 #if defined(MEASURE_MPI_WAIT)
-PUBLIC::OutputMPIW8Time
+PUBLIC :: OutputMPIW8Time
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
@@ -326,6 +327,54 @@ DO iNbProc=1,nNbProcs
   END IF
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIData
+
+
+!==================================================================================================================================
+!> Subroutine that performs the send and receive operations for the DG_Elems_slave information at the face
+!> that has to be exchanged between processors.
+!==================================================================================================================================
+SUBROUTINE StartExchange_DG_Elems(DG_Elems,LowerBound,UpperBound,SendRequest,RecRequest,SendID)
+! MODULES
+USE MOD_Globals 
+USE MOD_PreProc
+USE MOD_MPI_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)    :: SendID                          !< defines the send / receive direction -> 1=send MINE/receive YOUR,
+                                                         !< 2=send YOUR / receive MINE
+INTEGER,INTENT(IN)    :: LowerBound                      !< lower side index for last dimension of DG_Elems
+INTEGER,INTENT(IN)    :: UpperBound                      !< upper side index for last dimension of DG_Elems
+INTEGER,INTENT(OUT)   :: SendRequest(nNbProcs)           !< communicatio handles for send
+INTEGER,INTENT(OUT)   :: RecRequest(nNbProcs)            !< communicatio handles for receive
+INTEGER,INTENT(INOUT) :: DG_Elems(LowerBound:UpperBound) !< information about DG_Elems at faces to be communicated
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!==================================================================================================================================
+DO iNbProc=1,nNbProcs
+  ! Start send face data
+  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
+    nSendVal    =nMPISides_send(iNbProc,SendID)
+    SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
+    SideID_end  =OffsetMPISides_send(iNbProc,SendID)
+    CALL MPI_ISEND(DG_Elems(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
+                    nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
+  ELSE
+    SendRequest(iNbProc)=MPI_REQUEST_NULL
+  END IF
+  ! Start receive face data
+  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+    nRecVal     =nMPISides_rec(iNbProc,SendID)
+    SideID_start=OffsetMPISides_rec(iNbProc-1,SendID)+1
+    SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
+    CALL MPI_IRECV(DG_Elems(SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
+                    nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest(iNbProc),iError)
+  ELSE
+    RecRequest(iNbProc)=MPI_REQUEST_NULL
+  END IF
+END DO !iProc=1,nNBProcs
+END SUBROUTINE StartExchange_DG_Elems
 
 
 !===================================================================================================================================

@@ -62,12 +62,12 @@ INTEGER             :: nDielectricElems,nDielectricFaces,nDielectricInterFaces  
 INTEGER,ALLOCATABLE :: DielectricToElem(:),DielectricToFace(:),DielectricInterToFace(:) ! Mapping to total element/face list
 INTEGER,ALLOCATABLE :: ElemToDielectric(:),FaceToDielectric(:),FaceToDielectricInter(:) ! Mapping to Dielectric element/face list
 !
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricEps
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricMu
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricConstant_inv         ! 1./(EpsR*MuR)
+!REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricEps
+!REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricMu
+!REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricConstant_inv         ! 1./(EpsR*MuR)
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: DielectricGlobal               ! Contains DielectricEps and DielectricMu for HDF5 output
-REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_Master              ! face array containing 1./SQRT(EpsR*MuR) for each DOF
-REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_Slave
+!REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_Master              ! face array containing 1./SQRT(EpsR*MuR) for each DOF
+!REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_Slave
 
 ! For Poynting vector calculation
 LOGICAL                               :: poyntingusemur_inv             ! True/false depending on dielectric permittivity and
@@ -76,5 +76,22 @@ REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_MuR_Master_inv      ! face a
 REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_MuR_Slave_inv
 ! Charges on dielectric surfaces
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: NodeSourceExtGlobal      ! Write NodeSourceExt (external charge density) field to HDF5 file
+
+! Dielectric polynomial in volume
+TYPE N_Dielectric_Vol
+  REAL,ALLOCATABLE  :: DielectricEps(:,:,:)
+  REAL,ALLOCATABLE  :: DielectricMu(:,:,:)
+  REAL,ALLOCATABLE  :: DielectricConstant_inv(:,:,:)
+END TYPE N_Dielectric_Vol
+
+TYPE(N_Dielectric_Vol),ALLOCATABLE :: DielectricVol(:)       !< Dielectric variable for each node and element
+
+! Dielectric polynomial on surface
+TYPE N_Dielectric_Surf
+  REAL,ALLOCATABLE  :: Dielectric_Master(:,:)
+  REAL,ALLOCATABLE  :: Dielectric_Slave(:,:)
+END TYPE N_Dielectric_Surf
+
+TYPE(N_Dielectric_Surf),ALLOCATABLE :: DielectricSurf(:)       !< Dielectric variable for each node and surface
 !===================================================================================================================================
 END MODULE MOD_Dielectric_Vars

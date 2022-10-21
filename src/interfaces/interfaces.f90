@@ -191,11 +191,12 @@ USE MOD_Globals         ,ONLY: abort,UNIT_stdOut
 #if USE_MPI
 USE MOD_Globals         ,ONLY: mpiroot
 #endif /*USE_MPI*/
-USE MOD_Mesh_Vars       ,ONLY: Elem_xGP
+USE MOD_Mesh_Vars       ,ONLY: N_VolMesh
 USE MOD_Dielectric_Vars ,ONLY: DielectricRadiusValueB
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_DG_vars         ,ONLY: N_DG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -212,7 +213,7 @@ INTEGER,INTENT(IN),OPTIONAL            :: GeometryAxis    ! Spatial direction fo
 LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem,i,j,k,m, dim_1, dim_2
+INTEGER             :: iElem,i,j,k,m, dim_1, dim_2, Nloc
 REAL                :: r
 REAL                :: rInterpolated
 !===================================================================================================================================
@@ -245,32 +246,38 @@ END IF
 ! 1.) use standard bounding box region
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! all DOF in an element must be inside the region, if one DOF is outside, the element is excluded
-DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  DO m=1,3 ! m=x,y,z
-    IF ( (Elem_xGP(m,i,j,k,iElem) .LT. region(2*m-1)) .OR. & ! 1,3,5
-         (Elem_xGP(m,i,j,k,iElem) .GT. region(2*m)) ) THEN   ! 2,4,6 ! element is outside
-          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
-    END IF
-  END DO
-END DO; END DO; END DO; END DO !iElem,k,j,i
+DO iElem=1,PP_nElems 
+  Nloc = N_DG(iElem)
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+    DO m=1,3 ! m=x,y,z
+      IF ( (N_VolMesh(iElem)%Elem_xGP(m,i,j,k) .LT. region(2*m-1)) .OR. & ! 1,3,5
+           (N_VolMesh(iElem)%Elem_xGP(m,i,j,k) .GT. region(2*m)) ) THEN   ! 2,4,6 ! element is outside
+            isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
+      END IF
+    END DO
+  END DO; END DO; END DO
+END DO !iElem,k,j,i
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! 2.) Additionally check a radius (e.g. half sphere regions)
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! if option 'DoRadius' is applied, elements are double-checked if they are within a certain radius
 IF(DoRadius.AND.Radius.GT.0.0)THEN
-  DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    r = SQRT(Elem_xGP(1,i,j,k,iElem)**2+&
-             Elem_xGP(2,i,j,k,iElem)**2+&
-             Elem_xGP(3,i,j,k,iElem)**2  )
-    ! check if r is larger than the supplied value .AND.
-    ! if r is not almost equal to the radius
-    IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
-      IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
-        isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
+  DO iElem=1,PP_nElems
+    Nloc = N_DG(iElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      r = SQRT(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)**2+&
+               N_VolMesh(iElem)%Elem_xGP(2,i,j,k)**2+&
+               N_VolMesh(iElem)%Elem_xGP(3,i,j,k)**2  )
+      ! check if r is larger than the supplied value .AND.
+      ! if r is not almost equal to the radius
+      IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
+        IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
+          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
+        END IF
       END IF
-    END IF
-  END DO; END DO; END DO; END DO !iElem,k,j,i
+    END DO; END DO; END DO
+  END DO !iElem,k,j,i
 END IF
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
@@ -284,23 +291,26 @@ IF(PRESENT(GeometryName))THEN
   SELECT CASE(TRIM(GeometryName))
   CASE('FH_lens')
     ! Loop every element and compare the DOF position
-    DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      ! x-axis symmetric geometry: get interpolated radius of lens geometry -> r_interpolated(x)
-      CALL InterpolateGeometry(Elem_xGP(1,i,j,k,iElem),dim_x=1,dim_y=2,x_OUT=rInterpolated) ! Scale radius
+    DO iElem=1,PP_nElems
+      Nloc = N_DG(iElem)
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+        ! x-axis symmetric geometry: get interpolated radius of lens geometry -> r_interpolated(x)
+        CALL InterpolateGeometry(N_VolMesh(iElem)%Elem_xGP(1,i,j,k),dim_x=1,dim_y=2,x_OUT=rInterpolated) ! Scale radius
 
-      ! Calculate 2D radius for y-z-plane for comparison with interpolated lens radius
-      r = SQRT(&
-          Elem_xGP(2,i,j,k,iElem)**2+&
-          Elem_xGP(3,i,j,k,iElem)**2  )
+        ! Calculate 2D radius for y-z-plane for comparison with interpolated lens radius
+        r = SQRT(&
+            N_VolMesh(iElem)%Elem_xGP(2,i,j,k)**2+&
+            N_VolMesh(iElem)%Elem_xGP(3,i,j,k)**2  )
 
-      ! Check if r is larger than the interpolated radius of the geometry .AND.
-      ! if r is not almost equal to the radius invert the "isElem" logical value
-      IF(r.GT.rInterpolated.AND.(.NOT.ALMOSTEQUALRELATIVE(r,rInterpolated,1e-3)))THEN
-        IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
-          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
+        ! Check if r is larger than the interpolated radius of the geometry .AND.
+        ! if r is not almost equal to the radius invert the "isElem" logical value
+        IF(r.GT.rInterpolated.AND.(.NOT.ALMOSTEQUALRELATIVE(r,rInterpolated,1e-3)))THEN
+          IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
+             isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
+          END IF
         END IF
-      END IF
-    END DO; END DO; END DO; END DO !iElem,k,j,i
+      END DO; END DO; END DO
+    END DO !iElem,k,j,i
   CASE('FishEyeLens')
     ! Nothing to do, because the geometry is set by using the sphere's radius in step 2.)
   CASE('DielectricResonatorAntenna') ! Radius is checked, but only in x-y (not z)
@@ -308,15 +318,15 @@ IF(PRESENT(GeometryName))THEN
       IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
 
         ! Calculate 2D radius for x-y-plane
-        r = SQRT(Elem_xGP(1,i,j,k,iElem)**2 + Elem_xGP(2,i,j,k,iElem)**2)
+        r = SQRT(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)**2 + N_VolMesh(iElem)%Elem_xGP(2,i,j,k)**2)
 
-        ! Only perform check for elements in z = Elem_xGP(3) > 0
-        IF(Elem_xGP(3,i,j,k,iElem).GT.0.0)THEN
+        ! Only perform check for elements in z = N_VolMesh(iElem)%Elem_xGP(3) > 0
+        IF(N_VolMesh(iElem)%Elem_xGP(3,i,j,k).GT.0.0)THEN
           ! Check if r is larger than the supplied value .AND. if r is not almost equal to the radius
           IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
               isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
           END IF ! r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3))
-        END IF ! Elem_xGP(3,i,j,k,iElem).GT.0.0
+        END IF ! N_VolMesh(iElem)%Elem_xGP(3,i,j,k).GT.0.0
       END IF ! isElem(iElem).EQV.ElementIsInside
     END DO; END DO; END DO; END DO !iElem,k,j,i
   CASE('Circle') ! Radius is checked
@@ -334,26 +344,29 @@ IF(PRESENT(GeometryName))THEN
         SWRITE(UNIT_stdOut,'(A)') ' '
         CALL abort(__STAMP__,'Error in CALL FindElementInRegion(GeometryName): GeometryAxis is wrong!')
     END SELECT
-    DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
+    DO iElem=1,PP_nElems
+      Nloc = N_DG(iElem)
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+        IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
 
-        ! Calculate 2D radius for x-y-plane
-        r = SQRT(Elem_xGP(dim_1,i,j,k,iElem)**2 + Elem_xGP(dim_2,i,j,k,iElem)**2)
+          ! Calculate 2D radius for x-y-plane
+          r = SQRT(N_VolMesh(iElem)%Elem_xGP(dim_1,i,j,k)**2 + N_VolMesh(iElem)%Elem_xGP(dim_2,i,j,k)**2)
 
-        ! Check if r is larger than the supplied value .AND. if r is not almost equal to the radius
-        IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
-          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
-        END IF
-
-        ! For dielectric regions, check (optional) 2nd radius and exclude regions within the radius
-        ! Check if r is smaller than the radius DielectricRadiusValueB .AND. if r is not almost equal to the radius DielectricRadiusValueB
-        IF(DielectricRadiusValueB.GT.0.0)THEN
-          IF(r.LT.DielectricRadiusValueB.AND.(.NOT.ALMOSTEQUALRELATIVE(r,DielectricRadiusValueB,1e-3)))THEN
+          ! Check if r is larger than the supplied value .AND. if r is not almost equal to the radius
+          IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
             isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
-          END IF ! r.LT.DielectricRadiusValueB
-        END IF ! DielectricRadiusValueB.GT.0.0
-      END IF ! isElem(iElem).EQV.ElementIsInside
-    END DO; END DO; END DO; END DO !iElem,k,j,i
+          END IF
+
+          ! For dielectric regions, check (optional) 2nd radius and exclude regions within the radius
+          ! Check if r is smaller than the radius DielectricRadiusValueB .AND. if r is not almost equal to the radius DielectricRadiusValueB
+          IF(DielectricRadiusValueB.GT.0.0)THEN
+            IF(r.LT.DielectricRadiusValueB.AND.(.NOT.ALMOSTEQUALRELATIVE(r,DielectricRadiusValueB,1e-3)))THEN
+              isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
+            END IF ! r.LT.DielectricRadiusValueB
+          END IF ! DielectricRadiusValueB.GT.0.0
+        END IF ! isElem(iElem).EQV.ElementIsInside
+      END DO; END DO; END DO
+    END DO !iElem,k,j,i
   CASE('HollowCircle') ! Inner (r.LT.DielectricRadiusValueB) and outer radius (Radius) are checked: region between is excluded
     SELECT CASE(GeometryAxis)
       CASE(1) ! x-axis
@@ -370,27 +383,30 @@ IF(PRESENT(GeometryName))THEN
         CALL abort(__STAMP__,'Error in CALL FindElementInRegion(GeometryName): GeometryAxis is wrong!')
     END SELECT
 
-    DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
+    DO iElem=1,PP_nElems
+      Nloc = N_DG(iElem)
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+        IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
 
-        ! Calculate 2D radius for x-y-plane
-        r = SQRT(Elem_xGP(dim_1,i,j,k,iElem)**2 + Elem_xGP(dim_2,i,j,k,iElem)**2)
+          ! Calculate 2D radius for x-y-plane
+          r = SQRT(N_VolMesh(iElem)%Elem_xGP(dim_1,i,j,k)**2 + N_VolMesh(iElem)%Elem_xGP(dim_2,i,j,k)**2)
 
-        ! Check if r is smaller than the supplied value .AND. if r is not almost equal to the radius
-        IF(r.LT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
-          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
-        END IF
+          ! Check if r is smaller than the supplied value .AND. if r is not almost equal to the radius
+          IF(r.LT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
+            isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
+          END IF
 
-        ! For dielectric regions, check (optional) 2nd radius and INCLUDE regions within the radius
-        ! Check if r is smaller than the radius DielectricRadiusValueB .AND. if r is not almost equal to the radius DielectricRadiusValueB
-        IF(DielectricRadiusValueB.GT.0.0)THEN
-          IF( (r.LT.DielectricRadiusValueB).AND.&
-              (.NOT.ALMOSTEQUALRELATIVE(r,DielectricRadiusValueB,1e-3)))THEN
-            isElem(iElem) = ElementIsInside ! INCLUDE elements smaller than the radius again
-          END IF ! r.LT.DielectricRadiusValueB
-        END IF ! DielectricRadiusValueB.GT.0.0
-      END IF ! isElem(iElem).EQV.ElementIsInside
-    END DO; END DO; END DO; END DO !iElem,k,j,i
+          ! For dielectric regions, check (optional) 2nd radius and INCLUDE regions within the radius
+          ! Check if r is smaller than the radius DielectricRadiusValueB .AND. if r is not almost equal to the radius DielectricRadiusValueB
+          IF(DielectricRadiusValueB.GT.0.0)THEN
+            IF( (r.LT.DielectricRadiusValueB).AND.&
+                (.NOT.ALMOSTEQUALRELATIVE(r,DielectricRadiusValueB,1e-3)))THEN
+              isElem(iElem) = ElementIsInside ! INCLUDE elements smaller than the radius again
+            END IF ! r.LT.DielectricRadiusValueB
+          END IF ! DielectricRadiusValueB.GT.0.0
+        END IF ! isElem(iElem).EQV.ElementIsInside
+      END DO; END DO; END DO
+    END DO !iElem,k,j,i
   CASE('default')
     ! Nothing to do, because the geometry is set by using the box coordinates
   CASE DEFAULT

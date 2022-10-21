@@ -97,7 +97,7 @@ USE MOD_ReadInTools            ,ONLY: GETINT
 USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample
 USE MOD_ReadInTools            ,ONLY: PrintOption
 #endif /*USE_LOADBALANCE*/
-USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
+USE MOD_Interpolation_Vars     ,ONLY: InterpolationInitIsDone
 USE MOD_Restart_Vars
 USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
 USE MOD_HDF5_Input             ,ONLY: DatasetExists
@@ -246,11 +246,6 @@ END IF
 IF(DoRestart .AND. (N_Restart .NE. PP_N))THEN
   BuildNewMesh       =.TRUE.
   WriteNewMesh       =.TRUE.
-  InterpolateSolution=.TRUE.
-END IF
-
-IF(InterpolateSolution)THEN
-  CALL initRestartBasis(PP_N,N_Restart,xGP)
 END IF
 
 ! Check whether (during restart) the statefile from which the restart is performed should be deleted
@@ -262,39 +257,6 @@ RestartInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT RESTART DONE!'
 SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitRestart
-
-
-SUBROUTINE InitRestartBasis(N_in,N_Restart_in,xGP)
-!===================================================================================================================================
-! Initialize all necessary information to perform the restart
-!===================================================================================================================================
-! MODULES
-USE MOD_Restart_Vars, ONLY:Vdm_GaussNRestart_GaussN
-USE MOD_Basis,        ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,ChebyGaussLobNodesAndWeights
-USE MOD_Basis,        ONLY:BarycentricWeights,InitializeVandermonde
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                  :: N_in,N_Restart_in
-REAL,INTENT(IN),DIMENSION(0:N_in)   :: xGP
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL,DIMENSION(0:N_Restart_in)  :: xGP_Restart,wBary_Restart
-!===================================================================================================================================
-  ALLOCATE(Vdm_GaussNRestart_GaussN(0:N_in,0:N_Restart_in))
-#if (PP_NodeType==1)
-  CALL LegendreGaussNodesAndWeights(N_Restart_in,xGP_Restart)
-#elif (PP_NodeType==2)
-  CALL LegGaussLobNodesAndWeights(N_Restart_in,xGP_Restart)
-#elif (PP_NodeType==3)
-  CALL ChebyGaussLobNodesAndWeights(N_Restart_in,xGP_Restart)
-#endif
-  CALL BarycentricWeights(N_Restart_in,xGP_Restart,wBary_Restart)
-  CALL InitializeVandermonde(N_Restart_in,N_in,wBary_Restart,xGP_Restart,xGP,Vdm_GaussNRestart_GaussN)
-END SUBROUTINE InitRestartBasis
 
 
 SUBROUTINE Restart()

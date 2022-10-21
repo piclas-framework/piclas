@@ -37,10 +37,11 @@ SUBROUTINE TimeStepByLSERK()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Vector
+USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,time
 USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
-USE MOD_TimeDisc_Vars          ,ONLY: Ut_temp,U2t_temp
-USE MOD_DG_Vars                ,ONLY: U,Ut
+USE MOD_TimeDisc_Vars          ,ONLY: Ut_N,U2t_temp
+USE MOD_DG_Vars                ,ONLY: U_N
 USE MOD_PML_Vars               ,ONLY: U2,U2t,DoPML
 USE MOD_PML                    ,ONLY: PMLTimeDerivative,CalcPMLSource
 USE MOD_Equation               ,ONLY: DivCleaningDamping
@@ -92,6 +93,7 @@ INTEGER                       :: iPart
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
+INTEGER                       :: iElem
 !===================================================================================================================================
 
 ! RK coefficients
@@ -243,11 +245,16 @@ DO iStage = 1,nRKStages
 
   ! EM field
   IF (iStage.EQ.1) THEN
-    Ut_temp = Ut
+    DO iElem = 1, nElems
+      Ut_N(iElem)%Ut_temp = U_N(iElem)%Ut
+      U_N(iElem)%U        = U_N(iElem)%U + Ut_N(iElem)%Ut_temp*b_dt(iStage)
+    END DO ! iElem = 1, nElems
   ELSE
-    Ut_temp = Ut - Ut_temp*RK_a(iStage)
+    DO iElem = 1, nElems
+      Ut_N(iElem)%Ut_temp = U_N(iElem)%Ut - Ut_N(iElem)%Ut_temp*RK_a(iStage)
+      U_N(iElem)%U        = U_N(iElem)%U  + Ut_N(iElem)%Ut_temp*b_dt(iStage)
+    END DO ! iElem = 1, nElems
   END IF
-  U = U + Ut_temp*b_dt(iStage)
 
 #ifdef PP_POIS
   IF (iStage.EQ.1) THEN

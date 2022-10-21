@@ -29,8 +29,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 INTERFACE SurfInt
-  !MODULE PROCEDURE SurfInt1
-  MODULE PROCEDURE SurfInt2
+  MODULE PROCEDURE SurfInt
 END INTERFACE
 
 PUBLIC::SurfInt
@@ -38,52 +37,40 @@ PUBLIC::SurfInt
 CONTAINS
 
 
-SUBROUTINE SurfInt2(Flux_Master,Flux_Slave,Ut,doMPISides)
+SUBROUTINE SurfInt(doMPISides)
 !===================================================================================================================================
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-#if (PP_NodeType>1)
-USE MOD_DG_Vars,            ONLY: L_HatPlus,L_HatMinus
-#endif
-USE MOD_Mesh_Vars,          ONLY: SideToElem
-USE MOD_PML_Vars,           ONLY: DoPML,PMLnVar,isPMLElem
-USE MOD_Mesh_Vars,          ONLY: nSides
-USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_MINE
+USE MOD_DG_Vars   ,ONLY: U_Surf_N,N_DG,DGB_N,U_N
+USE MOD_Mesh_Vars ,ONLY: SideToElem
+USE MOD_PML_Vars  ,ONLY: DoPML,PMLnVar,isPMLElem
+USE MOD_Mesh_Vars ,ONLY: nSides
+USE MOD_Mesh_Vars ,ONLY: firstMPISide_YOUR,lastMPISide_MINE
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides+InnerSides+MPISides MINE
-REAL,INTENT(IN)    :: Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
-REAL,INTENT(IN)    :: Flux_Slave(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)   :: Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: ElemID,Flip,SideID,locSideID
+INTEGER            :: ElemID,Flip,SideID,locSideID,Nloc
 INTEGER            :: firstSideID,lastSideID
-#if (PP_NodeType>1)
-REAL               ::L_HatMinus0,L_HatPlusN
-#endif
 !===================================================================================================================================
 
 IF(doMPISides)THEN
   ! MPI YOUR
   firstSideID = firstMPISide_YOUR
-   lastSideID = nSides
+  lastSideID = nSides
 ELSE
   ! inner sides and MPI mine
   firstSideID = 1
-   lastSideID = lastMPISide_MINE
+  lastSideID = lastMPISide_MINE
 END IF
 
-#if (PP_NodeType>1)
-L_HatMinus0 = L_HatMinus(0)
-L_HatPlusN  = L_HatPlus(PP_N)
-#endif
 DO SideID=firstSideID,lastSideID
   ! neighbor side
   ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
@@ -91,67 +78,74 @@ DO SideID=firstSideID,lastSideID
   flip      = SideToElem(S2E_FLIP,SideID)
   ! ignore MPI-faces and boundary faces
   IF(ElemID.LT.0) CYCLE ! boundary side is BC or MPI side
-  IF(DoPML)THEN
-    IF(isPMLElem(ElemID))THEN
-      CALL CalcSurfInt2PML(Flux_Slave(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,SideID),Ut,flip,ElemID,locSideID)
+  Nloc      = N_DG(ElemID)
+  ASSOCIATE( Ut         => U_N(ElemID)%Ut(:,:,:,:) ,&
+             L_hatMinus => DGB_N(Nloc)%L_HatMinus  ,&
+             L_hatPlus  => DGB_N(Nloc)%L_HatPlus   )
+    IF(DoPML)THEN
+      IF(isPMLElem(ElemID))THEN
+        CALL CalcSurfIntPML(Ut,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Slave(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc),flip,ElemID,locSideID)
+      ELSE
+        CALL CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Slave(1:PP_nVar,0:Nloc,0:Nloc),Flip,ElemID,locSideID)
+      END IF
     ELSE
-      CALL CalcSurfInt2(Flux_Slave(1:PP_nVar,0:PP_N,0:PP_N,SideID),Ut,Flip,ElemID,locSideID)
+      CALL CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Slave(1:PP_nVar,0:Nloc,0:Nloc),Flip,ElemID,locSideID)
     END IF
-  ELSE
-    CALL CalcSurfInt2(Flux_Slave(1:PP_nVar,0:PP_N,0:PP_N,SideID),Ut,Flip,ElemID,locSideID)
-  END IF
+  END ASSOCIATE
 END DO ! SideID=1,nSides
-
 
 DO SideID=firstSideID,lastSideID
   ! master side, flip=0
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
-  flip      = 0
+  flip      = 0  
   IF(ElemID.LT.0) CYCLE ! if master is MPI side
-  IF(DoPML)THEN
-    IF(isPMLElem(ElemID))THEN
-      CALL CalcSurfInt2PML(Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,SideID),Ut,flip,ElemID,locSideID)
+  Nloc      = N_DG(ElemID)
+  ASSOCIATE( Ut         => U_N(ElemID)%Ut(:,:,:,:) ,&
+             L_hatMinus => DGB_N(Nloc)%L_HatMinus  ,&
+             L_hatPlus  => DGB_N(Nloc)%L_HatPlus   )
+    IF(DoPML)THEN
+      IF(isPMLElem(ElemID))THEN
+        CALL CalcSurfIntPML(Ut,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Master(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc),flip,ElemID,locSideID)
+      ELSE
+        CALL CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Master(1:PP_nVar,0:Nloc,0:Nloc),Flip,ElemID,locSideID)
+      END IF
     ELSE
-      CALL CalcSurfInt2(Flux_Master(1:PP_nVar,0:PP_N,0:PP_N,SideID),Ut,Flip,ElemID,locSideID)
+      CALL CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Master(1:PP_nVar,0:Nloc,0:Nloc),Flip,ElemID,locSideID)
     END IF
-  ELSE
-    CALL CalcSurfInt2(Flux_Master(1:PP_nVar,0:PP_N,0:PP_N,SideID),Ut,Flip,ElemID,locSideID)
-  END IF
+  END ASSOCIATE
 END DO ! SideID=1,nSides
 
-END SUBROUTINE SurfInt2
+END SUBROUTINE SurfInt
 
-SUBROUTINE CalcSurfInt2(Flux,Ut,flip,ElemID,locSideID)
+SUBROUTINE CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,Flux,flip,ElemID,locSideID)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars,            ONLY: L_HatPlus,L_HatMinus
-!USE MOD_Mesh_Vars,          ONLY: SideToElem
-!USE MOD_Mesh_Vars,          ONLY: nSides,nBCSides,nInnerSides,nMPISides_MINE,nMPISides_YOUR
-!USE MOD_PML_Vars,           ONLY: DoPML,PMLnVar,ElemToPML,U2t,isPMLElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-!REAL,INTENT(IN)    :: Flux(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,nSides)
-REAL,INTENT(IN)    :: Flux(1:PP_nVar,0:PP_N,0:PP_N)
+REAL,INTENT(INOUT) :: Ut(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc)
+REAL,INTENT(IN)    :: L_hatMinus(0:Nloc)
+REAL,INTENT(IN)    :: L_hatPlus(0:Nloc)
+INTEGER,INTENT(IN) :: Nloc
+REAL,INTENT(IN)    :: Flux(1:PP_nVar,0:Nloc,0:Nloc)
 INTEGER,INTENT(IN) :: flip,ElemID,locSideID!,SideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)   :: Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: p,q,l
 !INTEGER            :: firstSideID,lastSideID
 #if (PP_NodeType>1)
-REAL            ::L_HatMinus0,L_HatPlusN
+REAL            ::L_hatMinus0,L_hatPlusN
 #endif
 !===================================================================================================================================
 #if (PP_NodeType>1)
-L_HatMinus0 = L_HatMinus(0)
-L_HatPlusN  = L_HatPlus(PP_N)
+L_hatMinus0 = L_HatMinus(0)
+L_hatPlusN  = L_HatPlus(Nloc)
 #endif
 
 #if (PP_NodeType==1)
@@ -161,24 +155,24 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0) ! master side
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)=Ut(:,l,p,q,ElemID)+Flux(:,q,p)*L_hatMinus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)=Ut(:,l,p,q)+Flux(:,q,p)*L_hatMinus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)=Ut(:,l,p,q,ElemID)-Flux(:,p,q)*L_hatMinus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)=Ut(:,l,p,q)-Flux(:,p,q)*L_hatMinus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)=Ut(:,l,p,q,ElemID)-Flux(:,PP_N-q,p)*L_hatMinus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)=Ut(:,l,p,q)-Flux(:,Nloc-q,p)*L_hatMinus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)=Ut(:,l,p,q,ElemID)-Flux(:,PP_N-p,PP_N-q)*L_hatMinus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)=Ut(:,l,p,q)-Flux(:,Nloc-p,Nloc-q)*L_hatMinus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)=Ut(:,l,p,q,ElemID)-Flux(:,q,PP_N-p)*L_hatMinus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)=Ut(:,l,p,q)-Flux(:,q,Nloc-p)*L_hatMinus(l)
       END DO; END DO; END DO ! l,p,q
     END SELECT
 !===================================================================================================================================
@@ -186,24 +180,24 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0) ! master side
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)=Ut(:,p,l,q,ElemID)+Flux(:,p,q)*L_hatMinus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)=Ut(:,p,l,q)+Flux(:,p,q)*L_hatMinus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)=Ut(:,p,l,q,ElemID)-Flux(:,q,p)*L_hatMinus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)=Ut(:,p,l,q)-Flux(:,q,p)*L_hatMinus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)=Ut(:,p,l,q,ElemID)-Flux(:,PP_N-p,q)*L_hatMinus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)=Ut(:,p,l,q)-Flux(:,Nloc-p,q)*L_hatMinus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)=Ut(:,p,l,q,ElemID)-Flux(:,PP_N-q,PP_N-p)*L_hatMinus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)=Ut(:,p,l,q)-Flux(:,Nloc-q,Nloc-p)*L_hatMinus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)=Ut(:,p,l,q,ElemID)-Flux(:,p,PP_N-q)*L_hatMinus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)=Ut(:,p,l,q)-Flux(:,p,Nloc-q)*L_hatMinus(l)
       END DO; END DO; END DO ! p,l,q
     END SELECT
 !===================================================================================================================================
@@ -211,24 +205,24 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0) ! master side
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)= Ut(:,p,q,l,ElemID)+Flux(:,q,p)*L_hatMinus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)= Ut(:,p,q,l)+Flux(:,q,p)*L_hatMinus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(1) ! slave side, SideID=q,jSide=p
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)= Ut(:,p,q,l,ElemID)-Flux(:,p,q)*L_hatMinus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)= Ut(:,p,q,l)-Flux(:,p,q)*L_hatMinus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)= Ut(:,p,q,l,ElemID)-Flux(:,PP_N-q,p)*L_hatMinus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)= Ut(:,p,q,l)-Flux(:,Nloc-q,p)*L_hatMinus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)= Ut(:,p,q,l,ElemID)-Flux(:,PP_N-p,PP_N-q)*L_hatMinus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)= Ut(:,p,q,l)-Flux(:,Nloc-p,Nloc-q)*L_hatMinus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)= Ut(:,p,q,l,ElemID)-Flux(:,q,PP_N-p)*L_hatMinus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)= Ut(:,p,q,l)-Flux(:,q,Nloc-p)*L_hatMinus(l)
       END DO; END DO; END DO ! p,q,l
     END SELECT
 !===================================================================================================================================
@@ -236,24 +230,24 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0) ! master side
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut(:,l,p,q,ElemID)=Ut(:,l,p,q,ElemID)+Flux(:,p,q)*L_hatPlus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut(:,l,p,q)=Ut(:,l,p,q)+Flux(:,p,q)*L_hatPlus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut(:,l,p,q,ElemID)=Ut(:,l,p,q,ElemID)-Flux(:,q,p)*L_hatPlus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut(:,l,p,q)=Ut(:,l,p,q)-Flux(:,q,p)*L_hatPlus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut(:,l,p,q,ElemID)=Ut(:,l,p,q,ElemID)-Flux(:,PP_N-p,q)*L_hatPlus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut(:,l,p,q)=Ut(:,l,p,q)-Flux(:,Nloc-p,q)*L_hatPlus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut(:,l,p,q,ElemID)=Ut(:,l,p,q,ElemID)-Flux(:,PP_N-q,PP_N-p)*L_hatPlus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut(:,l,p,q)=Ut(:,l,p,q)-Flux(:,Nloc-q,Nloc-p)*L_hatPlus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut(:,l,p,q,ElemID)=Ut(:,l,p,q,ElemID)-Flux(:,p,PP_N-q)*L_hatPlus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut(:,l,p,q)=Ut(:,l,p,q)-Flux(:,p,Nloc-q)*L_hatPlus(l)
       END DO; END DO; END DO ! l,p,q
     END SELECT
 !===================================================================================================================================
@@ -261,24 +255,24 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0) ! master side
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut(:,p,l,q,ElemID)=Ut(:,p,l,q,ElemID)+Flux(:,PP_N-p,q)*L_hatPlus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut(:,p,l,q)=Ut(:,p,l,q)+Flux(:,Nloc-p,q)*L_hatPlus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut(:,p,l,q,ElemID)=Ut(:,p,l,q,ElemID)-Flux(:,q,PP_N-p)*L_hatPlus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut(:,p,l,q)=Ut(:,p,l,q)-Flux(:,q,Nloc-p)*L_hatPlus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut(:,p,l,q,ElemID)=Ut(:,p,l,q,ElemID)-Flux(:,p,q)*L_hatPlus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut(:,p,l,q)=Ut(:,p,l,q)-Flux(:,p,q)*L_hatPlus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut(:,p,l,q,ElemID)=Ut(:,p,l,q,ElemID)-Flux(:,PP_N-q,p)*L_hatPlus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut(:,p,l,q)=Ut(:,p,l,q)-Flux(:,Nloc-q,p)*L_hatPlus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut(:,p,l,q,ElemID)=Ut(:,p,l,q,ElemID)-Flux(:,PP_N-p,PP_N-q)*L_hatPlus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut(:,p,l,q)=Ut(:,p,l,q)-Flux(:,Nloc-p,Nloc-q)*L_hatPlus(l)
       END DO; END DO; END DO ! p,l,q
     END SELECT
 !===================================================================================================================================
@@ -286,24 +280,24 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0) ! master side
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)=Ut(:,p,q,l,ElemID)+Flux(:,p,q)*L_hatPlus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)=Ut(:,p,q,l)+Flux(:,p,q)*L_hatPlus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(1) ! slave side, SideID=q,jSide=p
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)=Ut(:,p,q,l,ElemID)-Flux(:,q,p)*L_hatPlus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)=Ut(:,p,q,l)-Flux(:,q,p)*L_hatPlus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)=Ut(:,p,q,l,ElemID)-Flux(:,PP_N-p,q)*L_hatPlus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)=Ut(:,p,q,l)-Flux(:,Nloc-p,q)*L_hatPlus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)=Ut(:,p,q,l,ElemID)-Flux(:,PP_N-q,PP_N-p)*L_hatPlus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)=Ut(:,p,q,l)-Flux(:,Nloc-q,Nloc-p)*L_hatPlus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)=Ut(:,p,q,l,ElemID)-Flux(:,p,PP_N-q)*L_hatPlus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)=Ut(:,p,q,l)-Flux(:,p,Nloc-q)*L_hatPlus(l)
       END DO; END DO; END DO ! p,q,l
     END SELECT
   END SELECT !locSideID
@@ -315,24 +309,24 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,0,p,q,ElemID)=Ut(:,0,p,q,ElemID)+Flux(:,q,p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,0,p,q)=Ut(:,0,p,q)+Flux(:,q,p)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(1)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,0,p,q,ElemID)=Ut(:,0,p,q,ElemID)-Flux(:,p,q)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,0,p,q)=Ut(:,0,p,q)-Flux(:,p,q)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(2)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,0,p,q,ElemID)=Ut(:,0,p,q,ElemID)-Flux(:,PP_N-q,p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,0,p,q)=Ut(:,0,p,q)-Flux(:,Nloc-q,p)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(3)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,0,p,q,ElemID)=Ut(:,0,p,q,ElemID)-Flux(:,PP_N-p,PP_N-q)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,0,p,q)=Ut(:,0,p,q)-Flux(:,Nloc-p,Nloc-q)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(4)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,0,p,q,ElemID)=Ut(:,0,p,q,ElemID)-Flux(:,q,PP_N-p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,0,p,q)=Ut(:,0,p,q)-Flux(:,q,Nloc-p)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
 
@@ -342,24 +336,24 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,0,q,ElemID)=Ut(:,p,0,q,ElemID)+Flux(:,p,q)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,0,q)=Ut(:,p,0,q)+Flux(:,p,q)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(1)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,0,q,ElemID)=Ut(:,p,0,q,ElemID)-Flux(:,q,p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,0,q)=Ut(:,p,0,q)-Flux(:,q,p)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(2)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,0,q,ElemID)=Ut(:,p,0,q,ElemID)-Flux(:,PP_N-p,q)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,0,q)=Ut(:,p,0,q)-Flux(:,Nloc-p,q)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(3)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,0,q,ElemID)=Ut(:,p,0,q,ElemID)-Flux(:,PP_N-q,PP_N-p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,0,q)=Ut(:,p,0,q)-Flux(:,Nloc-q,Nloc-p)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(4)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,0,q,ElemID)=Ut(:,p,0,q,ElemID)-Flux(:,p,PP_N-q)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,0,q)=Ut(:,p,0,q)-Flux(:,p,Nloc-q)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
 
@@ -369,24 +363,24 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,0,ElemID)=Ut(:,p,q,0,ElemID)+Flux(:,q,p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,0)=Ut(:,p,q,0)+Flux(:,q,p)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(1)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,0,ElemID)=Ut(:,p,q,0,ElemID)-Flux(:,p,q)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,0)=Ut(:,p,q,0)-Flux(:,p,q)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(2)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,0,ElemID)=Ut(:,p,q,0,ElemID)-Flux(:,PP_N-q,p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,0)=Ut(:,p,q,0)-Flux(:,Nloc-q,p)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(3)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,0,ElemID)=Ut(:,p,q,0,ElemID)-Flux(:,PP_N-p,PP_N-q)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,0)=Ut(:,p,q,0)-Flux(:,Nloc-p,Nloc-q)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(4)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,0,ElemID)=Ut(:,p,q,0,ElemID)-Flux(:,q,PP_N-p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,0)=Ut(:,p,q,0)-Flux(:,q,Nloc-p)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
 
@@ -395,24 +389,24 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,PP_N,p,q,ElemID)=Ut(:,PP_N,p,q,ElemID)+Flux(:,p,q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,Nloc,p,q)=Ut(:,Nloc,p,q)+Flux(:,p,q)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(1)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,PP_N,p,q,ElemID)=Ut(:,PP_N,p,q,ElemID)-Flux(:,q,p)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,Nloc,p,q)=Ut(:,Nloc,p,q)-Flux(:,q,p)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(2)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,PP_N,p,q,ElemID)=Ut(:,PP_N,p,q,ElemID)-Flux(:,PP_N-p,q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,Nloc,p,q)=Ut(:,Nloc,p,q)-Flux(:,Nloc-p,q)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(3)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,PP_N,p,q,ElemID)=Ut(:,PP_N,p,q,ElemID)-Flux(:,PP_N-q,PP_N-p)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,Nloc,p,q)=Ut(:,Nloc,p,q)-Flux(:,Nloc-q,Nloc-p)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(4)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,PP_N,p,q,ElemID)=Ut(:,PP_N,p,q,ElemID)-Flux(:,p,PP_N-q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,Nloc,p,q)=Ut(:,Nloc,p,q)-Flux(:,p,Nloc-q)*L_hatPlusN
       END DO; END DO ! p,q
     END SELECT
 
@@ -422,24 +416,24 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,PP_N,q,ElemID)=Ut(:,p,PP_N,q,ElemID)+Flux(:,PP_N-p,q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,Nloc,q)=Ut(:,p,Nloc,q)+Flux(:,Nloc-p,q)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(1)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,PP_N,q,ElemID)=Ut(:,p,PP_N,q,ElemID)-Flux(:,q,PP_N-p)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,Nloc,q)=Ut(:,p,Nloc,q)-Flux(:,q,Nloc-p)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(2)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,PP_N,q,ElemID)=Ut(:,p,PP_N,q,ElemID)-Flux(:,p,q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,Nloc,q)=Ut(:,p,Nloc,q)-Flux(:,p,q)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(3)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,PP_N,q,ElemID)=Ut(:,p,PP_N,q,ElemID)-Flux(:,PP_N-q,p)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,Nloc,q)=Ut(:,p,Nloc,q)-Flux(:,Nloc-q,p)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(4)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,PP_N,q,ElemID)=Ut(:,p,PP_N,q,ElemID)-Flux(:,PP_N-p,PP_N-q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,Nloc,q)=Ut(:,p,Nloc,q)-Flux(:,Nloc-p,Nloc-q)*L_hatPlusN
       END DO; END DO ! p,q
     END SELECT
 
@@ -449,60 +443,60 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,PP_N,ElemID)=Ut(:,p,q,PP_N,ElemID)+Flux(:,p,q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,Nloc)=Ut(:,p,q,Nloc)+Flux(:,p,q)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(1)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,PP_N,ElemID)=Ut(:,p,q,PP_N,ElemID)-Flux(:,q,p)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,Nloc)=Ut(:,p,q,Nloc)-Flux(:,q,p)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(2)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,PP_N,ElemID)=Ut(:,p,q,PP_N,ElemID)-Flux(:,PP_N-p,q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,Nloc)=Ut(:,p,q,Nloc)-Flux(:,Nloc-p,q)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(3)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,PP_N,ElemID)=Ut(:,p,q,PP_N,ElemID)-Flux(:,PP_N-q,PP_N-p)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,Nloc)=Ut(:,p,q,Nloc)-Flux(:,Nloc-q,Nloc-p)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(4)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,PP_N,ElemID)=Ut(:,p,q,PP_N,ElemID)-Flux(:,p,PP_N-q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,Nloc)=Ut(:,p,q,Nloc)-Flux(:,p,Nloc-q)*L_hatPlusN
       END DO; END DO ! p,q
     END SELECT
   END SELECT !locSideID
 #endif
-END SUBROUTINE CalcSurfInt2
+END SUBROUTINE CalcSurfInt
 
 
-SUBROUTINE CalcSurfInt2PML(Flux,Ut,flip,ElemID,locSideID)
+SUBROUTINE CalcSurfIntPML(Ut,L_hatMinus,L_hatPlus,Nloc,Flux,flip,ElemID,locSideID)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars,            ONLY: L_HatPlus,L_HatMinus
-USE MOD_PML_Vars,           ONLY: PMLnVar,ElemToPML,U2t
+USE MOD_PML_Vars ,ONLY: PMLnVar,ElemToPML,U2t
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)    :: Flux(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N)
+REAL,INTENT(INOUT) :: Ut(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc)
+REAL,INTENT(IN)    :: L_hatMinus(0:Nloc)
+REAL,INTENT(IN)    :: L_hatPlus(0:Nloc)
+INTEGER,INTENT(IN) :: Nloc
+REAL,INTENT(IN)    :: Flux(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc)
 INTEGER,INTENT(IN) :: flip,ElemID,locSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)   :: Ut(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: p,q,l
-!INTEGER            :: firstSideID,lastSideID
 #if (PP_NodeType>1)
 REAL            ::L_HatMinus0,L_HatPlusN
 #endif
 !===================================================================================================================================
 #if (PP_NodeType>1)
-L_HatMinus0 = L_HatMinus(0)
-L_HatPlusN  = L_HatPlus(PP_N)
+L_hatMinus0 = L_hatMinus(0)
+L_hatPlusN  = L_hatPlus(Nloc)
 #endif
-
 
 #if (PP_NodeType==1)
   SELECT CASE(locSideID)
@@ -511,29 +505,29 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0) ! master side
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)           =Ut( :,l,p,q,ElemID)           +Flux(1: 8,q,p)*L_hatMinus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)           =Ut( :,l,p,q)           +Flux(1: 8,q,p)*L_hatMinus(l)
         U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))+Flux(9:32,q,p)*L_hatMinus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)           =Ut( :,l,p,q,ElemID)           -Flux(1: 8,p,q)*L_hatMinus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)           =Ut( :,l,p,q)           -Flux(1: 8,p,q)*L_hatMinus(l)
         U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))-Flux(9:32,p,q)*L_hatMinus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)           =Ut( :,l,p,q,ElemID)           -Flux(1: 8,PP_N-q,p)*L_hatMinus(l)
-        U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))-Flux(9:32,PP_N-q,p)*L_hatMinus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)           =Ut( :,l,p,q)           -Flux(1: 8,Nloc-q,p)*L_hatMinus(l)
+        U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))-Flux(9:32,Nloc-q,p)*L_hatMinus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)           =Ut( :,l,p,q,ElemID)           -Flux(1: 8,PP_N-p,PP_N-q)*L_hatMinus(l)
-        U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))-Flux(9:32,PP_N-p,PP_N-q)*L_hatMinus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)           =Ut( :,l,p,q)           -Flux(1: 8,Nloc-p,Nloc-q)*L_hatMinus(l)
+        U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))-Flux(9:32,Nloc-p,Nloc-q)*L_hatMinus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)           =Ut( :,l,p,q,ElemID)           -Flux(1: 8,q,PP_N-p)*L_hatMinus(l)
-        U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))-Flux(9:32,q,PP_N-p)*L_hatMinus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)           =Ut( :,l,p,q)           -Flux(1: 8,q,Nloc-p)*L_hatMinus(l)
+        U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))-Flux(9:32,q,Nloc-p)*L_hatMinus(l)
       END DO; END DO; END DO ! l,p,q
     END SELECT
 !===================================================================================================================================
@@ -541,29 +535,29 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0) ! master side
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)           =Ut( :,p,l,q,ElemID)           +Flux(1: 8,p,q)*L_hatMinus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)           =Ut( :,p,l,q)           +Flux(1: 8,p,q)*L_hatMinus(l)
         U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))+Flux(9:32,p,q)*L_hatMinus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)           =Ut( :,p,l,q,ElemID)           -Flux(1: 8,q,p)*L_hatMinus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)           =Ut( :,p,l,q)           -Flux(1: 8,q,p)*L_hatMinus(l)
         U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))-Flux(9:32,q,p)*L_hatMinus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)           =Ut( :,p,l,q,ElemID)           -Flux(1: 8,PP_N-p,q)*L_hatMinus(l)
-        U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))-Flux(9:32,PP_N-p,q)*L_hatMinus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)           =Ut( :,p,l,q)           -Flux(1: 8,Nloc-p,q)*L_hatMinus(l)
+        U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))-Flux(9:32,Nloc-p,q)*L_hatMinus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)           =Ut( :,p,l,q,ElemID)           -Flux(1: 8,PP_N-q,PP_N-p)*L_hatMinus(l)
-        U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))-Flux(9:32,PP_N-q,PP_N-p)*L_hatMinus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)           =Ut( :,p,l,q)           -Flux(1: 8,Nloc-q,Nloc-p)*L_hatMinus(l)
+        U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))-Flux(9:32,Nloc-q,Nloc-p)*L_hatMinus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)           =Ut( :,p,l,q,ElemID)           -Flux(1: 8,p,PP_N-q)*L_hatMinus(l)
-        U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))-Flux(9:32,p,PP_N-q)*L_hatMinus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)           =Ut( :,p,l,q)           -Flux(1: 8,p,Nloc-q)*L_hatMinus(l)
+        U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))-Flux(9:32,p,Nloc-q)*L_hatMinus(l)
       END DO; END DO; END DO ! p,l,q
     END SELECT
 !===================================================================================================================================
@@ -572,29 +566,29 @@ L_HatPlusN  = L_HatPlus(PP_N)
 
     SELECT CASE(flip)
     CASE(0) ! master side
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)           = Ut( :,p,q,l,ElemID)           +Flux(1: 8,q,p)*L_hatMinus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)           = Ut( :,p,q,l)           +Flux(1: 8,q,p)*L_hatMinus(l)
         U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))+Flux(9:32,q,p)*L_hatMinus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(1) ! slave side, SideID=q,jSide=p
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)           = Ut( :,p,q,l,ElemID)           -Flux(1: 8,p,q)*L_hatMinus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)           = Ut( :,p,q,l)           -Flux(1: 8,p,q)*L_hatMinus(l)
         U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))-Flux(9:32,p,q)*L_hatMinus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)           = Ut( :,p,q,l,ElemID)           -Flux(1: 8,PP_N-q,p)*L_hatMinus(l)
-        U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))-Flux(9:32,PP_N-q,p)*L_hatMinus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)           = Ut( :,p,q,l)           -Flux(1: 8,Nloc-q,p)*L_hatMinus(l)
+        U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))-Flux(9:32,Nloc-q,p)*L_hatMinus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)           = Ut( :,p,q,l,ElemID)           -Flux(1: 8,PP_N-p,PP_N-q)*L_hatMinus(l)
-        U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))-Flux(9:32,PP_N-p,PP_N-q)*L_hatMinus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)           = Ut( :,p,q,l)           -Flux(1: 8,Nloc-p,Nloc-q)*L_hatMinus(l)
+        U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))-Flux(9:32,Nloc-p,Nloc-q)*L_hatMinus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut(:,p,q,l,ElemID)           = Ut( :,p,q,l,ElemID)           -Flux(1: 8,q,PP_N-p)*L_hatMinus(l)
-        U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))-Flux(9:32,q,PP_N-p)*L_hatMinus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut(:,p,q,l)           = Ut( :,p,q,l)           -Flux(1: 8,q,Nloc-p)*L_hatMinus(l)
+        U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))-Flux(9:32,q,Nloc-p)*L_hatMinus(l)
       END DO; END DO; END DO ! p,q,l
     END SELECT
 !===================================================================================================================================
@@ -602,29 +596,29 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0) ! master side
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)           =Ut( :,l,p,q,ElemID)           +Flux(1: 8,p,q)*L_hatPlus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)           =Ut( :,l,p,q)           +Flux(1: 8,p,q)*L_hatPlus(l)
         U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))+Flux(9:32,p,q)*L_hatPlus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)           =Ut( :,l,p,q,ElemID)           -Flux(1: 8,q,p)*L_hatPlus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)           =Ut( :,l,p,q)           -Flux(1: 8,q,p)*L_hatPlus(l)
         U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))-Flux(9:32,q,p)*L_hatPlus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)           =Ut( :,l,p,q,ElemID)           -Flux(1: 8,PP_N-p,q)*L_hatPlus(l)
-        U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))-Flux(9:32,PP_N-p,q)*L_hatPlus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)           =Ut( :,l,p,q)           -Flux(1: 8,Nloc-p,q)*L_hatPlus(l)
+        U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))-Flux(9:32,Nloc-p,q)*L_hatPlus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)           =Ut( :,l,p,q,ElemID)           -Flux(1: 8,PP_N-q,PP_N-p)*L_hatPlus(l)
-        U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))-Flux(9:32,PP_N-q,PP_N-p)*L_hatPlus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)           =Ut( :,l,p,q)           -Flux(1: 8,Nloc-q,Nloc-p)*L_hatPlus(l)
+        U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))-Flux(9:32,Nloc-q,Nloc-p)*L_hatPlus(l)
       END DO; END DO; END DO ! l,p,q
     CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,PP_N; DO p=0,PP_N; DO l=0,PP_N
-        Ut( :,l,p,q,ElemID)           =Ut( :,l,p,q,ElemID)           -Flux(1: 8,p,PP_N-q)*L_hatPlus(l)
-        U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))-Flux(9:32,p,PP_N-q)*L_hatPlus(l)
+      DO q=0,Nloc; DO p=0,Nloc; DO l=0,Nloc
+        Ut( :,l,p,q)           =Ut( :,l,p,q)           -Flux(1: 8,p,Nloc-q)*L_hatPlus(l)
+        U2t(:,l,p,q,ElemToPML(ElemID))=U2t(:,l,p,q,ElemToPML(ElemID))-Flux(9:32,p,Nloc-q)*L_hatPlus(l)
       END DO; END DO; END DO ! l,p,q
     END SELECT
 !===================================================================================================================================
@@ -632,29 +626,29 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0) ! master side
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)           =Ut( :,p,l,q,ElemID)           +Flux(1: 8,PP_N-p,q)*L_hatPlus(l)
-        U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))+Flux(9:32,PP_N-p,q)*L_hatPlus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)           =Ut( :,p,l,q)           +Flux(1: 8,Nloc-p,q)*L_hatPlus(l)
+        U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))+Flux(9:32,Nloc-p,q)*L_hatPlus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(1) ! slave side, SideID=q,jSide=p
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)           =Ut( :,p,l,q,ElemID)           -Flux(1: 8,q,PP_N-p)*L_hatPlus(l)
-        U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))-Flux(9:32,q,PP_N-p)*L_hatPlus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)           =Ut( :,p,l,q)           -Flux(1: 8,q,Nloc-p)*L_hatPlus(l)
+        U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))-Flux(9:32,q,Nloc-p)*L_hatPlus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)           =Ut( :,p,l,q,ElemID)           -Flux(1: 8,p,q)*L_hatPlus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)           =Ut( :,p,l,q)           -Flux(1: 8,p,q)*L_hatPlus(l)
         U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))-Flux(9:32,p,q)*L_hatPlus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)           =Ut( :,p,l,q,ElemID)           -Flux(1: 8,PP_N-q,p)*L_hatPlus(l)
-        U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))-Flux(9:32,PP_N-q,p)*L_hatPlus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)           =Ut( :,p,l,q)           -Flux(1: 8,Nloc-q,p)*L_hatPlus(l)
+        U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))-Flux(9:32,Nloc-q,p)*L_hatPlus(l)
       END DO; END DO; END DO ! p,l,q
     CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO q=0,PP_N; DO l=0,PP_N; DO p=0,PP_N
-        Ut( :,p,l,q,ElemID)           =Ut( :,p,l,q,ElemID)           -Flux(1: 8,PP_N-p,PP_N-q)*L_hatPlus(l)
-        U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))-Flux(9:32,PP_N-p,PP_N-q)*L_hatPlus(l)
+      DO q=0,Nloc; DO l=0,Nloc; DO p=0,Nloc
+        Ut( :,p,l,q)           =Ut( :,p,l,q)           -Flux(1: 8,Nloc-p,Nloc-q)*L_hatPlus(l)
+        U2t(:,p,l,q,ElemToPML(ElemID))=U2t(:,p,l,q,ElemToPML(ElemID))-Flux(9:32,Nloc-p,Nloc-q)*L_hatPlus(l)
       END DO; END DO; END DO ! p,l,q
     END SELECT
 !===================================================================================================================================
@@ -662,29 +656,29 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0) ! master side
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut( :,p,q,l,ElemID)           =Ut( :,p,q,l,ElemID)           +Flux(1: 8,p,q)*L_hatPlus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut( :,p,q,l)           =Ut( :,p,q,l)           +Flux(1: 8,p,q)*L_hatPlus(l)
         U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))+Flux(9:32,p,q)*L_hatPlus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(1) ! slave side, SideID=q,jSide=p
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut( :,p,q,l,ElemID)           =Ut( :,p,q,l,ElemID)           -Flux(1: 8,q,p)*L_hatPlus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut( :,p,q,l)           =Ut( :,p,q,l)           -Flux(1: 8,q,p)*L_hatPlus(l)
         U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))-Flux(9:32,q,p)*L_hatPlus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(2) ! slave side, SideID=N-p,jSide=q
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut( :,p,q,l,ElemID)           =Ut( :,p,q,l,ElemID)           -Flux(1: 8,PP_N-p,q)*L_hatPlus(l)
-        U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))-Flux(9:32,PP_N-p,q)*L_hatPlus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut( :,p,q,l)           =Ut( :,p,q,l)           -Flux(1: 8,Nloc-p,q)*L_hatPlus(l)
+        U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))-Flux(9:32,Nloc-p,q)*L_hatPlus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(3) ! slave side, SideID=N-q,jSide=N-p
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut( :,p,q,l,ElemID)           =Ut( :,p,q,l,ElemID)           -Flux(1: 8,PP_N-q,PP_N-p)*L_hatPlus(l)
-        U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))-Flux(9:32,PP_N-q,PP_N-p)*L_hatPlus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut( :,p,q,l)           =Ut( :,p,q,l)           -Flux(1: 8,Nloc-q,Nloc-p)*L_hatPlus(l)
+        U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))-Flux(9:32,Nloc-q,Nloc-p)*L_hatPlus(l)
       END DO; END DO; END DO ! p,q,l
     CASE(4) ! slave side, SideID=p,jSide=N-q
-      DO l=0,PP_N; DO q=0,PP_N; DO p=0,PP_N
-        Ut( :,p,q,l,ElemID)           =Ut( :,p,q,l,ElemID)           -Flux(1: 8,p,PP_N-q)*L_hatPlus(l)
-        U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))-Flux(9:32,p,PP_N-q)*L_hatPlus(l)
+      DO l=0,Nloc; DO q=0,Nloc; DO p=0,Nloc
+        Ut( :,p,q,l)           =Ut( :,p,q,l)           -Flux(1: 8,p,Nloc-q)*L_hatPlus(l)
+        U2t(:,p,q,l,ElemToPML(ElemID))=U2t(:,p,q,l,ElemToPML(ElemID))-Flux(9:32,p,Nloc-q)*L_hatPlus(l)
       END DO; END DO; END DO ! p,q,l
     END SELECT
   END SELECT !locSideID
@@ -696,29 +690,29 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,0,p,q,ElemID)           =Ut (:,0,p,q,          ElemID )+Flux(1: 8,q,p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,0,p,q)           =Ut (:,0,p,q,          ElemID )+Flux(1: 8,q,p)*L_hatMinus0
         U2t(:,0,p,q,ElemToPML(ElemID))=U2t(:,0,p,q,ElemToPML(ElemID))+Flux(9:32,q,p)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(1)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,0,p,q,ElemID)           =Ut (:,0,p,q,ElemID)           -Flux(1:8  ,p,q)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,0,p,q)           =Ut (:,0,p,q)           -Flux(1:8  ,p,q)*L_hatMinus0
         U2t(:,0,p,q,ElemToPML(ElemID))=U2t(:,0,p,q,ElemToPML(ElemID))-Flux(9:32,p,q)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(2)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut( :,0,p,q,ElemID)           =Ut (:,0,p,q,ElemID)           -Flux(1:8 ,PP_N-q,p)*L_hatMinus0
-        U2t(:,0,p,q,ElemToPML(ElemID))=U2t(:,0,p,q,ElemToPML(ElemID))-Flux(9:32,PP_N-q,p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut( :,0,p,q)           =Ut (:,0,p,q)           -Flux(1:8 ,Nloc-q,p)*L_hatMinus0
+        U2t(:,0,p,q,ElemToPML(ElemID))=U2t(:,0,p,q,ElemToPML(ElemID))-Flux(9:32,Nloc-q,p)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(3)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,0,p,q,ElemID)           =Ut (:,0,p,q,ElemID)           -Flux(1:8 ,PP_N-p,PP_N-q)*L_hatMinus0
-        U2t(:,0,p,q,ElemToPML(ElemID))=U2t(:,0,p,q,ElemToPML(ElemID))-Flux(9:32,PP_N-p,PP_N-q)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,0,p,q)           =Ut (:,0,p,q)           -Flux(1:8 ,Nloc-p,Nloc-q)*L_hatMinus0
+        U2t(:,0,p,q,ElemToPML(ElemID))=U2t(:,0,p,q,ElemToPML(ElemID))-Flux(9:32,Nloc-p,Nloc-q)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(4)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,0,p,q,ElemID)           =Ut (:,0,p,q,ElemID)           -Flux(1:8 ,q,PP_N-p)*L_hatMinus0
-        U2t(:,0,p,q,ElemToPML(ElemID))=U2t(:,0,p,q,ElemToPML(ElemID))-Flux(9:32,q,PP_N-p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,0,p,q)           =Ut (:,0,p,q)           -Flux(1:8 ,q,Nloc-p)*L_hatMinus0
+        U2t(:,0,p,q,ElemToPML(ElemID))=U2t(:,0,p,q,ElemToPML(ElemID))-Flux(9:32,q,Nloc-p)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
 
@@ -728,29 +722,29 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,0,q,ElemID)           =Ut (:,p,0,q,ElemID)           +Flux(1:8 ,p,q)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,0,q)           =Ut (:,p,0,q)           +Flux(1:8 ,p,q)*L_hatMinus0
         U2t(:,p,0,q,ElemToPML(ElemID))=U2t(:,p,0,q,ElemToPML(ElemID))+Flux(9:32,p,q)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(1)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,0,q,ElemID)           =Ut (:,p,0,q,ElemID)           -Flux(1:8 ,q,p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,0,q)           =Ut (:,p,0,q)           -Flux(1:8 ,q,p)*L_hatMinus0
         U2t(:,p,0,q,ElemToPML(ElemID))=U2t(:,p,0,q,ElemToPML(ElemID))-Flux(9:32,q,p)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(2)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,0,q,ElemID)           =Ut (:,p,0,q,ElemID)           -Flux(1:8 ,PP_N-p,q)*L_hatMinus0
-        U2t(:,p,0,q,ElemToPML(ElemID))=U2t(:,p,0,q,ElemToPML(ElemID))-Flux(9:32,PP_N-p,q)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,0,q)           =Ut (:,p,0,q)           -Flux(1:8 ,Nloc-p,q)*L_hatMinus0
+        U2t(:,p,0,q,ElemToPML(ElemID))=U2t(:,p,0,q,ElemToPML(ElemID))-Flux(9:32,Nloc-p,q)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(3)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,0,q,ElemID)           =Ut (:,p,0,q,ElemID)           -Flux(1:8 ,PP_N-q,PP_N-p)*L_hatMinus0
-        U2t(:,p,0,q,ElemToPML(ElemID))=U2t(:,p,0,q,ElemToPML(ElemID))-Flux(9:32,PP_N-q,PP_N-p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,0,q)           =Ut (:,p,0,q)           -Flux(1:8 ,Nloc-q,Nloc-p)*L_hatMinus0
+        U2t(:,p,0,q,ElemToPML(ElemID))=U2t(:,p,0,q,ElemToPML(ElemID))-Flux(9:32,Nloc-q,Nloc-p)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(4)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,0,q,ElemID)           =Ut (:,p,0,q,ElemID)           -Flux(1:8 ,p,PP_N-q)*L_hatMinus0
-        U2t(:,p,0,q,ElemToPML(ElemID))=U2t(:,p,0,q,ElemToPML(ElemID))-Flux(9:32,p,PP_N-q)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,0,q)           =Ut (:,p,0,q)           -Flux(1:8 ,p,Nloc-q)*L_hatMinus0
+        U2t(:,p,0,q,ElemToPML(ElemID))=U2t(:,p,0,q,ElemToPML(ElemID))-Flux(9:32,p,Nloc-q)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
 
@@ -760,29 +754,29 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,q,0,ElemID)           =Ut (:,p,q,0,ElemID)           +Flux(1:8 ,q,p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,q,0)           =Ut (:,p,q,0)           +Flux(1:8 ,q,p)*L_hatMinus0
         U2t(:,p,q,0,ElemToPML(ElemID))=U2t(:,p,q,0,ElemToPML(ElemID))+Flux(9:32,q,p)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(1)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,q,0,ElemID)           =Ut (:,p,q,0,ElemID)           -Flux(1:8 ,p,q)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,q,0)           =Ut (:,p,q,0)           -Flux(1:8 ,p,q)*L_hatMinus0
         U2t(:,p,q,0,ElemToPML(ElemID))=U2t(:,p,q,0,ElemToPML(ElemID))-Flux(9:32,p,q)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(2)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,q,0,ElemID)           =Ut (:,p,q,0,ElemID)           -Flux(1:8 ,PP_N-q,p)*L_hatMinus0
-        U2t(:,p,q,0,ElemToPML(ElemID))=U2t(:,p,q,0,ElemToPML(ElemID))-Flux(9:32,PP_N-q,p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,q,0)           =Ut (:,p,q,0)           -Flux(1:8 ,Nloc-q,p)*L_hatMinus0
+        U2t(:,p,q,0,ElemToPML(ElemID))=U2t(:,p,q,0,ElemToPML(ElemID))-Flux(9:32,Nloc-q,p)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(3)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,q,0,ElemID)           =Ut (:,p,q,0,ElemID)           -Flux(1:8 ,PP_N-p,PP_N-q)*L_hatMinus0
-        U2t(:,p,q,0,ElemToPML(ElemID))=U2t(:,p,q,0,ElemToPML(ElemID))-Flux(9:32,PP_N-p,PP_N-q)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,q,0)           =Ut (:,p,q,0)           -Flux(1:8 ,Nloc-p,Nloc-q)*L_hatMinus0
+        U2t(:,p,q,0,ElemToPML(ElemID))=U2t(:,p,q,0,ElemToPML(ElemID))-Flux(9:32,Nloc-p,Nloc-q)*L_hatMinus0
       END DO; END DO ! p,q
     CASE(4)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,q,0,ElemID)           =Ut (:,p,q,0,ElemID)           -Flux(1:8 ,q,PP_N-p)*L_hatMinus0
-        U2t(:,p,q,0,ElemToPML(ElemID))=U2t(:,p,q,0,ElemToPML(ElemID))-Flux(9:32,q,PP_N-p)*L_hatMinus0
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,q,0)           =Ut (:,p,q,0)           -Flux(1:8 ,q,Nloc-p)*L_hatMinus0
+        U2t(:,p,q,0,ElemToPML(ElemID))=U2t(:,p,q,0,ElemToPML(ElemID))-Flux(9:32,q,Nloc-p)*L_hatMinus0
       END DO; END DO ! p,q
     END SELECT
 
@@ -791,29 +785,29 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,PP_N,p,q,ElemID)           =Ut (:,PP_N,p,q,ElemID)           +Flux(1:8 ,p,q)*L_hatPlusN
-        U2t(:,PP_N,p,q,ElemToPML(ElemID))=U2t(:,PP_N,p,q,ElemToPML(ElemID))+Flux(9:32,p,q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,Nloc,p,q)           =Ut (:,Nloc,p,q)           +Flux(1:8 ,p,q)*L_hatPlusN
+        U2t(:,Nloc,p,q,ElemToPML(ElemID))=U2t(:,Nloc,p,q,ElemToPML(ElemID))+Flux(9:32,p,q)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(1)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,PP_N,p,q,ElemID)           =Ut (:,PP_N,p,q,ElemID)           -Flux(1:8 ,q,p)*L_hatPlusN
-        U2t(:,PP_N,p,q,ElemToPML(ElemID))=U2t(:,PP_N,p,q,ElemToPML(ElemID))-Flux(9:32,q,p)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,Nloc,p,q)           =Ut (:,Nloc,p,q)           -Flux(1:8 ,q,p)*L_hatPlusN
+        U2t(:,Nloc,p,q,ElemToPML(ElemID))=U2t(:,Nloc,p,q,ElemToPML(ElemID))-Flux(9:32,q,p)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(2)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,PP_N,p,q,ElemID)           =Ut (:,PP_N,p,q,ElemID)           -Flux(1:8 ,PP_N-p,q)*L_hatPlusN
-        U2t(:,PP_N,p,q,ElemToPML(ElemID))=U2t(:,PP_N,p,q,ElemToPML(ElemID))-Flux(9:32,PP_N-p,q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,Nloc,p,q)           =Ut (:,Nloc,p,q)           -Flux(1:8 ,Nloc-p,q)*L_hatPlusN
+        U2t(:,Nloc,p,q,ElemToPML(ElemID))=U2t(:,Nloc,p,q,ElemToPML(ElemID))-Flux(9:32,Nloc-p,q)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(3)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,PP_N,p,q,ElemID)           =Ut (:,PP_N,p,q,ElemID)           -Flux(1:8 ,PP_N-q,PP_N-p)*L_hatPlusN
-        U2t(:,PP_N,p,q,ElemToPML(ElemID))=U2t(:,PP_N,p,q,ElemToPML(ElemID))-Flux(9:32,PP_N-q,PP_N-p)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,Nloc,p,q)           =Ut (:,Nloc,p,q)           -Flux(1:8 ,Nloc-q,Nloc-p)*L_hatPlusN
+        U2t(:,Nloc,p,q,ElemToPML(ElemID))=U2t(:,Nloc,p,q,ElemToPML(ElemID))-Flux(9:32,Nloc-q,Nloc-p)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(4)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,PP_N,p,q,ElemID)           =Ut (:,PP_N,p,q,ElemID)           -Flux(1:8 ,p,PP_N-q)*L_hatPlusN
-        U2t(:,PP_N,p,q,ElemToPML(ElemID))=U2t(:,PP_N,p,q,ElemToPML(ElemID))-Flux(9:32,p,PP_N-q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,Nloc,p,q)           =Ut (:,Nloc,p,q)           -Flux(1:8 ,p,Nloc-q)*L_hatPlusN
+        U2t(:,Nloc,p,q,ElemToPML(ElemID))=U2t(:,Nloc,p,q,ElemToPML(ElemID))-Flux(9:32,p,Nloc-q)*L_hatPlusN
       END DO; END DO ! p,q
     END SELECT
 
@@ -823,29 +817,29 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,PP_N,q,ElemID)           =Ut (:,p,PP_N,q,ElemID)           +Flux(1:8 ,PP_N-p,q)*L_hatPlusN
-        U2t(:,p,PP_N,q,ElemToPML(ElemID))=U2t(:,p,PP_N,q,ElemToPML(ElemID))+Flux(9:32,PP_N-p,q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,Nloc,q)           =Ut (:,p,Nloc,q)           +Flux(1:8 ,Nloc-p,q)*L_hatPlusN
+        U2t(:,p,Nloc,q,ElemToPML(ElemID))=U2t(:,p,Nloc,q,ElemToPML(ElemID))+Flux(9:32,Nloc-p,q)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(1)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,PP_N,q,ElemID)           =Ut (:,p,PP_N,q,ElemID)           -Flux(1:8 ,q,PP_N-p)*L_hatPlusN
-        U2t(:,p,PP_N,q,ElemToPML(ElemID))=U2t(:,p,PP_N,q,ElemToPML(ElemID))-Flux(9:32,q,PP_N-p)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,Nloc,q)           =Ut (:,p,Nloc,q)           -Flux(1:8 ,q,Nloc-p)*L_hatPlusN
+        U2t(:,p,Nloc,q,ElemToPML(ElemID))=U2t(:,p,Nloc,q,ElemToPML(ElemID))-Flux(9:32,q,Nloc-p)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(2)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,PP_N,q,ElemID)           =Ut (:,p,PP_N,q,ElemID)           -Flux(1:8 ,p,q)*L_hatPlusN
-        U2t(:,p,PP_N,q,ElemToPML(ElemID))=U2t(:,p,PP_N,q,ElemToPML(ElemID))-Flux(9:32,p,q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,Nloc,q)           =Ut (:,p,Nloc,q)           -Flux(1:8 ,p,q)*L_hatPlusN
+        U2t(:,p,Nloc,q,ElemToPML(ElemID))=U2t(:,p,Nloc,q,ElemToPML(ElemID))-Flux(9:32,p,q)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(3)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,PP_N,q,ElemID)           =Ut (:,p,PP_N,q,ElemID)           -Flux(1:8 ,PP_N-q,p)*L_hatPlusN
-        U2t(:,p,PP_N,q,ElemToPML(ElemID))=U2t(:,p,PP_N,q,ElemToPML(ElemID))-Flux(9:32,PP_N-q,p)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,Nloc,q)           =Ut (:,p,Nloc,q)           -Flux(1:8 ,Nloc-q,p)*L_hatPlusN
+        U2t(:,p,Nloc,q,ElemToPML(ElemID))=U2t(:,p,Nloc,q,ElemToPML(ElemID))-Flux(9:32,Nloc-q,p)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(4)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,PP_N,q,ElemID)           =Ut (:,p,PP_N,q,ElemID)           -Flux(1:8 ,PP_N-p,PP_N-q)*L_hatPlusN
-        U2t(:,p,PP_N,q,ElemToPML(ElemID))=U2t(:,p,PP_N,q,ElemToPML(ElemID))-Flux(9:32,PP_N-p,PP_N-q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,Nloc,q)           =Ut (:,p,Nloc,q)           -Flux(1:8 ,Nloc-p,Nloc-q)*L_hatPlusN
+        U2t(:,p,Nloc,q,ElemToPML(ElemID))=U2t(:,p,Nloc,q,ElemToPML(ElemID))-Flux(9:32,Nloc-p,Nloc-q)*L_hatPlusN
       END DO; END DO ! p,q
     END SELECT
 
@@ -855,33 +849,33 @@ L_HatPlusN  = L_HatPlus(PP_N)
 !===================================================================================================================================
     SELECT CASE(flip)
     CASE(0)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,q,PP_N,ElemID)           =Ut (:,p,q,PP_N,ElemID)           +Flux(1:8 ,p,q)*L_hatPlusN
-        U2t(:,p,q,PP_N,ElemToPML(ElemID))=U2t(:,p,q,PP_N,ElemToPML(ElemID))+Flux(9:32,p,q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,q,Nloc)           =Ut (:,p,q,Nloc)           +Flux(1:8 ,p,q)*L_hatPlusN
+        U2t(:,p,q,Nloc,ElemToPML(ElemID))=U2t(:,p,q,Nloc,ElemToPML(ElemID))+Flux(9:32,p,q)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(1)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,q,PP_N,ElemID)           =Ut (:,p,q,PP_N,ElemID)           -Flux(1:8 ,q,p)*L_hatPlusN
-        U2t(:,p,q,PP_N,ElemToPML(ElemID))=U2t(:,p,q,PP_N,ElemToPML(ElemID))-Flux(9:32,q,p)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,q,Nloc)           =Ut (:,p,q,Nloc)           -Flux(1:8 ,q,p)*L_hatPlusN
+        U2t(:,p,q,Nloc,ElemToPML(ElemID))=U2t(:,p,q,Nloc,ElemToPML(ElemID))-Flux(9:32,q,p)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(2)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,q,PP_N,ElemID)           =Ut (:,p,q,PP_N,ElemID)           -Flux(1:8 ,PP_N-p,q)*L_hatPlusN
-        U2t(:,p,q,PP_N,ElemToPML(ElemID))=U2t(:,p,q,PP_N,ElemToPML(ElemID))-Flux(9:32,PP_N-p,q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,q,Nloc)           =Ut (:,p,q,Nloc)           -Flux(1:8 ,Nloc-p,q)*L_hatPlusN
+        U2t(:,p,q,Nloc,ElemToPML(ElemID))=U2t(:,p,q,Nloc,ElemToPML(ElemID))-Flux(9:32,Nloc-p,q)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(3)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,q,PP_N,ElemID)           =Ut (:,p,q,PP_N,ElemID)           -Flux(1:8 ,PP_N-q,PP_N-p)*L_hatPlusN
-        U2t(:,p,q,PP_N,ElemToPML(ElemID))=U2t(:,p,q,PP_N,ElemToPML(ElemID))-Flux(9:32,PP_N-q,PP_N-p)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,q,Nloc)           =Ut (:,p,q,Nloc)           -Flux(1:8 ,Nloc-q,Nloc-p)*L_hatPlusN
+        U2t(:,p,q,Nloc,ElemToPML(ElemID))=U2t(:,p,q,Nloc,ElemToPML(ElemID))-Flux(9:32,Nloc-q,Nloc-p)*L_hatPlusN
       END DO; END DO ! p,q
     CASE(4)
-      DO q=0,PP_N; DO p=0,PP_N
-        Ut (:,p,q,PP_N,ElemID)           =Ut (:,p,q,PP_N,ElemID)           -Flux(1:8 ,p,PP_N-q)*L_hatPlusN
-        U2t(:,p,q,PP_N,ElemToPML(ElemID))=U2t(:,p,q,PP_N,ElemToPML(ElemID))-Flux(9:32,p,PP_N-q)*L_hatPlusN
+      DO q=0,Nloc; DO p=0,Nloc
+        Ut (:,p,q,Nloc)           =Ut (:,p,q,Nloc)           -Flux(1:8 ,p,Nloc-q)*L_hatPlusN
+        U2t(:,p,q,Nloc,ElemToPML(ElemID))=U2t(:,p,q,Nloc,ElemToPML(ElemID))-Flux(9:32,p,Nloc-q)*L_hatPlusN
       END DO; END DO ! p,q
     END SELECT
   END SELECT !locSideID
 #endif
-END SUBROUTINE CalcSurfInt2PML
+END SUBROUTINE CalcSurfIntPML
 
 END MODULE MOD_SurfInt

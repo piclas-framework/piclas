@@ -982,7 +982,7 @@ END SELECT
 END SUBROUTINE ExactFunc
 
 
-SUBROUTINE CalcSource(t,coeff,Ut)
+SUBROUTINE CalcSource(t,coeff)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -998,12 +998,12 @@ USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,
 USE MOD_LinearSolver_Vars ,ONLY: ExplicitPartSource
 #endif
 #endif /*PARTICLES*/
-USE MOD_Mesh_Vars         ,ONLY: Elem_xGP
+USE MOD_Mesh_Vars         ,ONLY: N_VolMesh
 #if defined(LSERK) || defined(IMPA) || defined(ROS)
 USE MOD_Equation_Vars     ,ONLY: DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars     ,ONLY: sdtCFLOne
-USE MOD_DG_Vars           ,ONLY: U
 #endif /*LSERK*/
+USE MOD_DG_Vars           ,ONLY: N_DG,U_N
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1011,7 +1011,6 @@ IMPLICIT NONE
 REAL,INTENT(IN)                 :: t,coeff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem
@@ -1022,51 +1021,54 @@ REAL,PARAMETER                  :: Q=1, d=1    ! for Dipole
 REAL                            :: PartSourceLoc(1:4)
 #endif
 REAL                            :: coeff_loc
+INTEGER                         :: Nloc
 !===================================================================================================================================
 eps0inv = 1./eps0
 #ifdef PARTICLES
 IF(DoDeposition)THEN
   IF(DoDielectric)THEN
     DO iElem=1,PP_nElems
+      Nloc = N_DG(iElem)
       IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
-        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+        DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if IMPA
-          PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
+          PartSourceLoc=PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
 #else
-          PartSourceLoc=PartSource(:,i,j,k,iElem)
+          PartSourceLoc=PartSource(:,i,j,k)
 #endif
           !  Get PartSource from Particles
-          !Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem) * DielectricEpsR_inv
-          !Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr * DielectricEpsR_inv
-          Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSourceloc(1:3) &
+          !U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSource(1:3,i,j,k) * DielectricEpsR_inv
+          !U_N(iElem)%Ut(  8,i,j,k) = U_N(iElem)%Ut(  8,i,j,k) + eps0inv *coeff* PartSource(  4,i,j,k) * c_corr * DielectricEpsR_inv
+          U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSourceloc(1:3) &
                                                       / DielectricEps(i,j,k,ElemToDielectric(iElem)) ! only use x
-          Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr &
+          U_N(iElem)%Ut(  8,i,j,k) = U_N(iElem)%Ut(  8,i,j,k) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr &
                                                       / DielectricEps(i,j,k,ElemToDielectric(iElem)) ! only use x
         END DO; END DO; END DO
       ELSE
-        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+        DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if IMPA
-          PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
+          PartSourceLoc=PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
 #else
-          PartSourceLoc=PartSource(:,i,j,k,iElem)
+          PartSourceLoc=PartSource(:,i,j,k)
 #endif
           !  Get PartSource from Particles
-          Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSourceloc(1:3)
-          Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr
+          U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSourceloc(1:3)
+          U_N(iElem)%Ut(  8,i,j,k) = U_N(iElem)%Ut(  8,i,j,k) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr
         END DO; END DO; END DO
       END IF
     END DO
   ELSE
     DO iElem=1,PP_nElems
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+      Nloc = N_DG(iElem)
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if IMPA
-        PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
+        PartSourceLoc=PartSource(:,i,j,k)+ExplicitPartSource(:,i,j,k)
 #else
-        PartSourceLoc=PartSource(:,i,j,k,iElem)
+        PartSourceLoc=PartSource(:,i,j,k)
 #endif
         !  Get PartSource from Particles
-        Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSourceloc(1:3)
-        Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr
+        U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSourceloc(1:3)
+        U_N(iElem)%Ut(  8,i,j,k) = U_N(iElem)%Ut(  8,i,j,k) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr
       END DO; END DO; END DO
     END DO
   END IF
@@ -1080,46 +1082,50 @@ CASE(2) ! Coaxial Waveguide - no sources
 CASE(3) ! Resonator         - no sources
 CASE(4) ! Dipole
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
+    Nloc = N_DG(iElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      r = SQRT(DOT_PRODUCT(N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole,N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
-        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) *coeff* Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
+        U_N(iElem)%Ut(3,i,j,k) = U_N(iElem)%Ut(3,i,j,k) - (shapefunc(r)) *coeff* Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
     ! dipole should be neutral
-        Ut(8,i,j,k,iElem) = Ut(8,i,j,k,iElem) + (shapefunc(r)) *coeff* c_corr*Q*d*SIN(DipoleOmega*t) * eps0inv
+        U_N(iElem)%Ut(8,i,j,k) = U_N(iElem)%Ut(8,i,j,k) + (shapefunc(r)) *coeff* c_corr*Q*d*SIN(DipoleOmega*t) * eps0inv
       END IF
     END DO; END DO; END DO
   END DO
 CASE(40) ! Dipole without initial condition
   coeff_loc = 1.0e-11 ! amplitude scaling
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
+    Nloc = N_DG(iElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      r = SQRT(DOT_PRODUCT(N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole,N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
-        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) *coeff_loc* Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
+        U_N(iElem)%Ut(3,i,j,k) = U_N(iElem)%Ut(3,i,j,k) - (shapefunc(r)) *coeff_loc* Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
     ! dipole should be neutral
-        Ut(8,i,j,k,iElem) = Ut(8,i,j,k,iElem) + (shapefunc(r)) *coeff_loc* c_corr*Q*d*SIN(DipoleOmega*t) * eps0inv
+        U_N(iElem)%Ut(8,i,j,k) = U_N(iElem)%Ut(8,i,j,k) + (shapefunc(r)) *coeff_loc* c_corr*Q*d*SIN(DipoleOmega*t) * eps0inv
       END IF
     END DO; END DO; END DO
   END DO
 CASE(5) ! TE_34,19 Mode     - no sources
 CASE(7) ! Manufactured Solution
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * eps0inv
-      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * c_corr * eps0inv
+    Nloc = N_DG(iElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      U_N(iElem)%Ut(1,i,j,k)=U_N(iElem)%Ut(1,i,j,k) - coeff*2*pi*COS(2*pi*(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)-t)) * eps0inv
+      U_N(iElem)%Ut(8,i,j,k)=U_N(iElem)%Ut(8,i,j,k) + coeff*2*pi*COS(2*pi*(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)-t)) * c_corr * eps0inv
     END DO; END DO; END DO
   END DO
 CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), domain [0;1]^3!!!
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      x(:)=Elem_xGP(:,i,j,k,iElem)
-      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(1)*SIN(Pi*x(2))*SIN(Pi*x(3))
-      Ut(2,i,j,k,iElem) =Ut(2,i,j,k,iElem) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(2)*SIN(Pi*x(3))*SIN(Pi*x(1))
-      Ut(3,i,j,k,iElem) =Ut(3,i,j,k,iElem) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(3)*SIN(Pi*x(1))*SIN(Pi*x(2))
-      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - coeff*(COS(t)-1.)*pi*COS(Pi*x(1))*(SIN(Pi*x(2))+SIN(Pi*x(3)))
-      Ut(2,i,j,k,iElem) =Ut(2,i,j,k,iElem) - coeff*(COS(t)-1.)*pi*COS(Pi*x(2))*(SIN(Pi*x(3))+SIN(Pi*x(1)))
-      Ut(3,i,j,k,iElem) =Ut(3,i,j,k,iElem) - coeff*(COS(t)-1.)*pi*COS(Pi*x(3))*(SIN(Pi*x(1))+SIN(Pi*x(2)))
-      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + coeff*c_corr*SIN(t)*( SIN(pi*x(2))*SIN(pi*x(3)) &
+    Nloc = N_DG(iElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      x(:)=N_VolMesh(iElem)%Elem_xGP(:,i,j,k)
+      U_N(iElem)%Ut(1,i,j,k) =U_N(iElem)%Ut(1,i,j,k) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(1)*SIN(Pi*x(2))*SIN(Pi*x(3))
+      U_N(iElem)%Ut(2,i,j,k) =U_N(iElem)%Ut(2,i,j,k) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(2)*SIN(Pi*x(3))*SIN(Pi*x(1))
+      U_N(iElem)%Ut(3,i,j,k) =U_N(iElem)%Ut(3,i,j,k) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(3)*SIN(Pi*x(1))*SIN(Pi*x(2))
+      U_N(iElem)%Ut(1,i,j,k) =U_N(iElem)%Ut(1,i,j,k) - coeff*(COS(t)-1.)*pi*COS(Pi*x(1))*(SIN(Pi*x(2))+SIN(Pi*x(3)))
+      U_N(iElem)%Ut(2,i,j,k) =U_N(iElem)%Ut(2,i,j,k) - coeff*(COS(t)-1.)*pi*COS(Pi*x(2))*(SIN(Pi*x(3))+SIN(Pi*x(1)))
+      U_N(iElem)%Ut(3,i,j,k) =U_N(iElem)%Ut(3,i,j,k) - coeff*(COS(t)-1.)*pi*COS(Pi*x(3))*(SIN(Pi*x(1))+SIN(Pi*x(2)))
+      U_N(iElem)%Ut(8,i,j,k) =U_N(iElem)%Ut(8,i,j,k) + coeff*c_corr*SIN(t)*( SIN(pi*x(2))*SIN(pi*x(3)) &
                                                             +SIN(pi*x(3))*SIN(pi*x(1)) &
                                                             +SIN(pi*x(1))*SIN(pi*x(2)) )
     END DO; END DO; END DO
@@ -1135,17 +1141,20 @@ CASE(41) ! Dipole via temporal Gausspuls
 !TEnd=30.E-9 -> short pulse for 100ns runtime
 IF(1.EQ.2)THEN ! new formulation with divergence correction considered
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * eps0inv
-      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * c_corr * eps0inv
+    Nloc = N_DG(iElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      U_N(iElem)%Ut(1,i,j,k) =U_N(iElem)%Ut(1,i,j,k) - coeff*2*pi*COS(2*pi*(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)-t)) * eps0inv
+      U_N(iElem)%Ut(8,i,j,k) =U_N(iElem)%Ut(8,i,j,k) + coeff*2*pi*COS(2*pi*(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)-t)) * c_corr * eps0inv
     END DO; END DO; END DO
   END DO
 ELSE ! old/original formulation
-  DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  DO iElem=1,PP_nElems; 
+    Nloc = N_DG(iElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     IF (t.LE.2*tPulse) THEN
-      r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
+      r = SQRT(DOT_PRODUCT(N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole,N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
-        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - ((shapefunc(r))*Q*d*COS(DipoleOmega*t)*eps0inv)*&
+        U_N(iElem)%Ut(3,i,j,k) = U_N(iElem)%Ut(3,i,j,k) - ((shapefunc(r))*Q*d*COS(DipoleOmega*t)*eps0inv)*&
                             EXP(-(t-tPulse/5)**2/(2*(tPulse/(4*5))**2))
       END IF
     END IF
@@ -1160,8 +1169,9 @@ END SELECT ! ExactFunction
 
 #if defined(LSERK) ||  defined(ROS) || defined(IMPA)
 IF(DoParabolicDamping)THEN
-  !Ut(7:8,:,:,:,:) = Ut(7:8,:,:,:,:) - (1.0-fDamping)*sdtCFLOne/RK_b(iStage)*U(7:8,:,:,:,:)
-  Ut(7:8,:,:,:,:) = Ut(7:8,:,:,:,:) - (1.0-fDamping)*sdtCFLOne*U(7:8,:,:,:,:)
+  DO iElem = 1, PP_nElems
+    U_N(iElem)%Ut(7:8,:,:,:) = U_N(iElem)%Ut(7:8,:,:,:) - (1.0-fDamping)*sdtCFLOne*U_N(iElem)%U(7:8,:,:,:)
+  END DO ! iElem = 1, PP_nElems
 END IF
 #endif /*LSERK*/
 
@@ -1175,7 +1185,7 @@ SUBROUTINE DivCleaningDamping()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars,       ONLY : U
+USE MOD_DG_Vars,       ONLY : U_N,N_DG
 USE MOD_Equation_Vars, ONLY : fDamping,DoParabolicDamping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1185,13 +1195,14 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i,j,k,iElem
+INTEGER                         :: i,j,k,iElem,Nloc
 !===================================================================================================================================
 IF(DoParabolicDamping) RETURN
 DO iElem=1,PP_nElems
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  Nloc = N_DG(iElem)
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     !  Get source from Particles
-    U(7:8,i,j,k,iElem) = U(7:8,i,j,k,iElem) * fDamping
+    U_N(iElem)%U(7:8,i,j,k) = U_N(iElem)%U(7:8,i,j,k) * fDamping
   END DO; END DO; END DO
 END DO
 END SUBROUTINE DivCleaningDamping
@@ -1237,13 +1248,14 @@ SUBROUTINE GetWaveGuideRadius(DoSide)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars    ,  ONLY:nSides,Face_xGP
-USE MOD_Equation_Vars,  ONLY:TERadius
+USE MOD_DG_Vars            ,ONLY: DG_Elems_master
+USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
+USE MOD_Equation_Vars      ,ONLY: TERadius
 #if (PP_NodeType==1)
-USE MOD_ChangeBasis,    ONLY:ChangeBasis2D
-USE MOD_Basis,          ONLY:LegGaussLobNodesAndWeights
-USE MOD_Basis,          ONLY:BarycentricWeights,InitializeVandermonde
-USE MOD_Interpolation_Vars, ONLY:xGP,wBary
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
+USE MOD_Basis              ,ONLY: LegGaussLobNodesAndWeights
+USE MOD_Basis              ,ONLY: BarycentricWeights,InitializeVandermonde
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1255,38 +1267,42 @@ LOGICAL,INTENT(IN)      :: DoSide(1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Radius
-INTEGER                 :: iSide,p,q
+INTEGER                 :: iSide,p,q,Nloc
 #if (PP_NodeType==1)
-REAL                    :: xGP_tmp(0:PP_N),wBary_tmp(0:PP_N),wGP_tmp(0:PP_N)
-REAL                    :: Vdm_PolN_GL(0:PP_N,0:PP_N)
+REAL,ALLOCATABLE        :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:)
+REAL,ALLOCATABLE        :: Vdm_PolN_GL(:,:)
 #endif
-REAL                    :: Face_xGL(1:2,0:PP_N,0:PP_N)
+REAL,ALLOCATABLE        :: Face_xGL(:,:,:)
 !===================================================================================================================================
-
-#if (PP_NodeType==1)
-! get Vandermonde, change from Gauss or Gauss-Lobatto Points to Gauss-Lobatto-Points
-! radius requires GL-points
-CALL LegGaussLobNodesAndWeights(PP_N,xGP_tmp,wGP_tmp)
-CALL BarycentricWeights(PP_N,xGP_tmp,wBary_tmp)
-!CALL InitializeVandermonde(PP_N,PP_N,wBary_tmp,xGP,xGP_tmp,Vdm_PolN_GL)
-CALL InitializeVandermonde(PP_N,PP_N,wBary,xGP,xGP_tmp,Vdm_PolN_GL)
-#endif
 
 TERadius=0.
 Radius   =0.
 DO iSide=1,nSides
   IF(.NOT.DoSide(iSide)) CYCLE
+  Nloc = DG_Elems_master(iSide)
+  ALLOCATE(Face_xGL(1:2,0:Nloc,0:Nloc))
 #if (PP_NodeType==1)
-  CALL ChangeBasis2D(2,PP_N,PP_N,Vdm_PolN_GL,Face_xGP(1:2,:,:,iSide),Face_xGL)
+  ALLOCATE(Vdm_PolN_GL(0:Nloc,0:Nloc))
+  ! get Vandermonde, change from Gauss or Gauss-Lobatto Points to Gauss-Lobatto-Points
+  ! radius requires GL-points
+  CALL LegGaussLobNodesAndWeights(Nloc,xGP_tmp,wGP_tmp)
+  CALL BarycentricWeights(Nloc,xGP_tmp,wBary_tmp)
+  !CALL InitializeVandermonde(Nloc,Nloc,wBary_tmp,xGP,xGP_tmp,Vdm_PolN_GL)
+  CALL InitializeVandermonde(Nloc,Nloc,N_Inter(Nloc)%wBary,N_Inter(Nloc)%xGP,xGP_tmp,Vdm_PolN_GL)
+  CALL ChangeBasis2D(2,Nloc,Nloc,Vdm_PolN_GL,N_SurfMesh(iSide)%Face_xGP(1:2,:,:),Face_xGL)
 #else
-  Face_xGL(1:2,:,:)=Face_xGP(1:2,:,:,iSide)
+  Face_xGL(1:2,:,:)=N_SurfMesh(iSide)%Face_xGP(1:2,:,:)
 #endif
-  DO q=0,PP_N
-    DO p=0,PP_N
+  DO q=0,Nloc
+    DO p=0,Nloc
       Radius=SQRT(Face_xGL(1,p,q)**2+Face_xGL(2,p,q)**2)
       TERadius=MAX(Radius,TERadius)
     END DO ! p
   END DO ! q
+  DEALLOCATE(Face_xGL)
+#if PP_NodeType==1
+  DEALLOCATE(xGP_tmp,wBary_tmp,wGP_tmp,Vdm_PolN_GL)
+#endif /*PP_NodeType==1*/
 END DO
 
 #if USE_MPI
