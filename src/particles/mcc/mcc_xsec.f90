@@ -1086,7 +1086,13 @@ ProductReac(1:4) = ChemReac%Products(iReac,1:4)
 
 DatasetFound = .FALSE.; GroupFound = .FALSE.
 
-EductPair = TRIM(SpecDSMC(EductReac(1))%Name)//'-'//TRIM(SpecDSMC(EductReac(2))%Name)
+
+IF (SpeciesDatabase.EQ.'none') THEN
+  EductPair = TRIM(SpecDSMC(EductReac(1))%Name)//'-'//TRIM(SpecDSMC(EductReac(2))%Name)
+ELSE
+  EductPair = TRIM('/Cross-Sections/'//TRIM(SpecDSMC(EductReac(1))%Name)//'-'//TRIM(SpecDSMC(EductReac(2))%Name))
+END IF
+CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
 
 IF(SpeciesDatabase.EQ.'none') THEN
   XSecDatabaseName = TRIM(XSec_Database)
@@ -1106,7 +1112,7 @@ IF(.NOT.GroupFound) THEN
   IF (SpeciesDatabase.EQ.'none') THEN
     EductPair = TRIM(SpecDSMC(EductReac(2))%Name)//'-'//TRIM(SpecDSMC(EductReac(1))%Name)
   ELSE
-    EductPair = TRIM('/Cross-Sections/'//SpecDSMC(EductReac(2))%Name)//'-'//TRIM(SpecDSMC(EductReac(1))%Name)
+    EductPair = TRIM('/Cross-Sections/'//TRIM(SpecDSMC(EductReac(2))%Name)//'-'//TRIM(SpecDSMC(EductReac(1))%Name))
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
   IF(.NOT.GroupFound) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)

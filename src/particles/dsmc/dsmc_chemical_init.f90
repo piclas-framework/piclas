@@ -301,7 +301,9 @@ DoScat = .false.
 DO iReac = 1, ReadInNumOfReact
   WRITE(UNIT=hilf,FMT='(I0)') iReac
   ChemReac%ReactModel(iReac)  = TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionModel'))
-  ChemReac%ReactionName(iReac)= TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionName'))
+  IF (TRIM(ChemReac%ReactModel(iReac)).EQ.'TCE') THEN
+    ChemReac%ReactionName(iReac)= TRIM(GETSTR('DSMC-Reaction'//TRIM(hilf)//'-ReactionName'))
+  END IF
   ChemReac%Reactants(iReac,:) = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Reactants',3)
   ChemReac%Products(iReac,:)  = GETINTARRAY('DSMC-Reaction'//TRIM(hilf)//'-Products',4)
   SELECT CASE (TRIM(ChemReac%ReactModel(iReac)))
