@@ -171,7 +171,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                             :: Vdm_loc(0:1,0:PP_N),wGP_loc,xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
 REAL                             :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
-INTEGER                          :: j,k,l,iElem, firstElem, lastElem
+INTEGER                          :: i,j,k,l,iElem, firstElem, lastElem
 #if USE_MPI
 INTEGER                          :: MessageSize
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
