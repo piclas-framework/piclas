@@ -290,6 +290,11 @@ ELSE()
 ENDIF()
 
 # =========================================================================
+# HOPR pre-processor
+# =========================================================================
+OPTION(PICLAS_BUILD_HOPR "Build HOPR pre-processor" OFF)
+
+# =========================================================================
 # Userblock
 # =========================================================================
 #MESSAGE(STATUS "Running: generateuserblock.sh ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}  ${CMAKE_CACHEFILE_DIR} ${CMAKE_CACHE_MAJOR_VERSION}.${CMAKE_CACHE_MINOR_VERSION}.${CMAKE_CACHE_PATCH_VERSION} ${CMAKE_CURRENT_SOURCE_DIR}/src/globals/globals_vars.f90")
