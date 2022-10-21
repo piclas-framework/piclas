@@ -68,7 +68,7 @@ USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars ,ONLY: xGP,wGP,wBary,InterpolationInitIsDone
 USE MOD_Mesh_Vars          ,ONLY: nSides
 USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
-#if ! (USE_HDG)FV
+#if ! (USE_HDG)
 USE MOD_PML_Vars           ,ONLY: PMLnVar ! Additional fluxes for the CFS-PML auxiliary variables
 #endif /*USE_HDG*/
 #ifdef OPTIMIZED

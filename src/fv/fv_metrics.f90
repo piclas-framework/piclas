@@ -76,6 +76,7 @@ END IF
 DO SideID=firstSideID,lastSideID
   ! neighbor side !ElemID,locSideID and flip =-1 if not existing
   ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
+  IF (ElemID.LT.0) CYCLE
   FV_dx_slave(SideID)=VECNORM(Elem_xGP(:,0,0,0,ElemID)-Face_xGP(:,0,0,SideID))
 END DO
 

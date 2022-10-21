@@ -195,9 +195,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Vector
 USE MOD_FV_Vars           ,ONLY: U,Ut,Flux_Master,Flux_Slave, doFVReconstruction
-USE MOD_FV_Vars           ,ONLY: U_master, U_slave
+USE MOD_FV_Vars           ,ONLY: U_master, U_slave, FV_gradU,  FV_gradU_limited
 USE MOD_SurfInt            ,ONLY: SurfInt
-USE MOD_ProlongToFace     ,ONLY: ProlongToFace, CalcFVGradients
+USE MOD_ProlongToFace     ,ONLY: ProlongToFace, CalcFVGradients, LimitFVGradients
 USE MOD_FillFlux          ,ONLY: FillFlux
 USE MOD_Equation          ,ONLY: CalcSource
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
@@ -257,10 +257,6 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 CALL ProlongToFace(U,U_master,U_slave,doMPISides=.FALSE.)
 ! CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
 
-IF (doFVReconstruction) THEN
-  CALL CalcFVGradients()
-END IF
-
 
 #if USE_MPI
 #if defined(PARTICLES) && defined(LSERK)
@@ -290,7 +286,70 @@ CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 ! Complete send / receive
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
+#endif /*MPI*/
 
+IF (doFVReconstruction) THEN
+
+#if USE_MPI
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
+  ! Initialization of the time derivative
+  !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
+  CALL StartReceiveMPIData(PP_nVar,FV_gradU,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
+  ! fill the global surface flux list
+  CALL CalcFVGradients(doMPISides=.TRUE.)
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
+  CALL StartSendMPIData(PP_nVar,FV_gradU,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
+#endif /*USE_MPI*/
+
+  ! fill the all gradients on this proc
+  CALL CalcFVGradients(doMPISides=.FALSE.)
+
+  CALL LimitFVGradients()
+
+! prolong the solution to the face integration points for flux computation
+#if USE_MPI
+! Prolong to face for MPI sides - send direction
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+  CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
+  CALL StartReceiveMPIData(PP_nVar,U_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
+  CALL ProlongToFace(U,U_master,U_slave,FV_gradU_limited,doMPISides=.TRUE.)
+! CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
+  CALL StartSendMPIData(PP_nVar,U_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
+#if USE_LOADBALANCE
+  CALL LBSplitTime(LB_DGCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
+#endif /*USE_MPI*/
+
+  ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
+  CALL ProlongToFace(U,U_master,U_slave,FV_gradU_limited,doMPISides=.FALSE.)
+  ! CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
+END IF
+
+#if USE_MPI
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_DG,tLBStart)
+#endif /*USE_LOADBALANCE*/
+! Complete send / receive
+CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
 ! Initialization of the time derivative
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
 CALL StartReceiveMPIData(PP_nVar,Flux_Slave,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE

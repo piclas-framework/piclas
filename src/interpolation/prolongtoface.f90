@@ -33,6 +33,11 @@ END INTERFACE
 INTERFACE CalcFVGradients
   MODULE PROCEDURE CalcFVGradients
 END INTERFACE
+
+INTERFACE LimitFVGradients
+  MODULE PROCEDURE LimitFVGradients
+END INTERFACE
+
 #else
 INTERFACE ProlongToFace
   MODULE PROCEDURE ProlongToFace_sideBased
@@ -51,12 +56,15 @@ END INTERFACE
 PUBLIC::ProlongToFace
 PUBLIC::ProlongToFace_BC
 PUBLIC::ProlongToFace_Elementlocal
-PUBLIC::CalcFVGradients
+#if USE_FV
+PUBLIC::CalcFVGradients, LimitFVGradients
+#endif
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE CalcFVGradients()
+#if USE_FV
+SUBROUTINE CalcFVGradients(doMPISides)
 !===================================================================================================================================
 ! Compute gradients for fv reconstruction
 !===================================================================================================================================
@@ -69,68 +77,67 @@ USE MOD_Mesh_Vars                ,ONLY: nSides, nElems
 USE MOD_Mesh_Vars                ,ONLY: NormVec,TangVec1,TangVec2,Face_xGP
 USE MOD_GetBoundaryFlux          ,ONLY: GetBoundaryFVgradient
 USE MOD_Mesh_Vars,          ONLY: SideToElem, ElemToSide
-USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide
-USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,nSides,firstMortarMPISide,lastMortarMPISide
+USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastInnerSide
+USE MOD_Mesh_Vars,          ONLY: firstMPISide_MINE,lastMPISide_MINE,nSides, nBCSides
+USE MOD_GetBoundaryFlux          ,ONLY: GetBoundaryFVgradient
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN)              :: doMPISides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iElem,SideID,iLocSide, ElemID, firstSideID, lastSideID, SideID_1, SideID_2
+INTEGER                         :: iElem,SideID,iLocSide, ElemID, firstSideID, lastSideID, SideID_1, SideID_2, firstSideID_wo_BC
 !===================================================================================================================================
 
-DO iElem=1,nElems
-  DO iLocSide=1,3
-    SideID_1=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    IF (FV_dx_slave(SideID_1).LT.0.) THEN
-      CALL GetBoundaryFVgradient(SideID_1,FV_gradU(:,SideID_1),&
-                                           U_master(:,0,0,SideID_1),&
-                                              NormVec(:,0,0,SideID_1),&
-                                             TangVec1(:,0,0,SideID_1),&
-                                             TangVec2(:,0,0,SideID_1),&
-                                             Face_xGP(:,0,0,SideID_1),&
-                                             FV_dx_master(SideID_1))
-    ELSE
-      FV_gradU(:,SideID_1) = (U_master(:,0,0,SideID_1) - U_slave(:,0,0,SideID_1))/(FV_dx_master(SideID_1)+FV_dx_slave(SideID_1))
-    END IF
-    SELECT CASE(iLocSide)
-      CASE(1)
-        SideID_2=ElemToSide(E2S_SIDE_ID,6,iElem)
-      CASE(2)
-        SideID_2=ElemToSide(E2S_SIDE_ID,4,iElem)
-      CASE(3)
-        SideID_2=ElemToSide(E2S_SIDE_ID,5,iElem)
-    END SELECT
-    IF (FV_dx_slave(SideID_2).LT.0.) THEN
-      CALL GetBoundaryFVgradient(SideID_2,FV_gradU(:,SideID_2),&
-                                           U_master(:,0,0,SideID_2),&
-                                              NormVec(:,0,0,SideID_2),&
-                                             TangVec1(:,0,0,SideID_2),&
-                                             TangVec2(:,0,0,SideID_2),&
-                                             Face_xGP(:,0,0,SideID_2),&
-                                             FV_dx_master(SideID_2))
-    ELSE
-      FV_gradU(:,SideID_2) = (U_master(:,0,0,SideID_2) - U_slave(:,0,0,SideID_2))/(FV_dx_master(SideID_2)+FV_dx_slave(SideID_2))
-    END IF
-    CALL FV_Limiter(FV_gradU(:,SideID_1),FV_gradU(:,SideID_2),FV_gradU_limited(:,iElem))
-  END DO
-END DO
-firstSideID = firstInnerSide
-lastSideID  = lastMPISide_MINE
-DO SideID=firstSideID,lastSideID
+! Set the side range according to MPI or no MPI
+IF(doMPISides)THEN
+  ! fill only flux for MINE MPISides (where the local proc is master)
+  firstSideID_wo_BC = firstMPISide_MINE
+  firstSideID = firstMPISide_MINE
+  lastSideID =  lastMPISide_MINE
+ELSE
+  ! fill only InnerSides that do not need communication
+  firstSideID_wo_BC = firstInnerSide ! for fluxes
+  firstSideID = firstBCSide    ! include BCs for master sides
+  lastSideID = lastInnerSide
+END IF
+
+DO SideID=firstSideID_wo_BC,lastSideID
   ! neighbor side !ElemID,locSideID and flip =-1 if not existing
-  ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
-  U_slave(:,0,0,SideID) = U(:,0,0,0,ElemID)+ FV_gradU_limited(:,ElemID)*FV_dx_slave(SideID)
+  FV_gradU(:,SideID) = (U_master(:,0,0,SideID) - U_slave(:,0,0,SideID))/(FV_dx_master(SideID)+FV_dx_slave(SideID))
 END DO
-firstSideID = firstBCSide
-lastSideID =  lastMPISide_MINE
-DO SideID=firstSideID,lastSideID
-  ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-  U_master(:,0,0,SideID)=U(:,0,0,0,ElemID)- FV_gradU_limited(:,ElemID)*FV_dx_master(SideID)
-END DO !SideID
+
+! 2. Compute the fluxes at the boundary conditions: 1..nBCSides
+IF(.NOT.doMPISides)THEN
+  DO SideID=1,nBCSides
+    CALL GetBoundaryFVGradient(SideID,FV_gradU(:,SideID),&
+                                         U_master(:,0,0,SideID),&
+                                            NormVec(:,0,0,SideID),&
+                                           TangVec1(:,0,0,SideID),&
+                                           TangVec2(:,0,0,SideID),&
+                                           Face_xGP(:,0,0,SideID),&
+                                           FV_dx_master(SideID))
+  END DO
+END IF
+
+!
+! firstSideID = firstInnerSide
+! lastSideID  = lastMPISide_MINE
+! DO SideID=firstSideID,lastSideID
+!   ! neighbor side !ElemID,locSideID and flip =-1 if not existing
+!   ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
+!   IF (ElemID.LT.0) CYCLE
+!   U_slave(:,0,0,SideID) = U(:,0,0,0,ElemID)+ FV_gradU_limited(:,ElemID)*FV_dx_slave(SideID)
+! END DO
+! firstSideID = firstBCSide
+! lastSideID =  lastMPISide_MINE
+! DO SideID=firstSideID,lastSideID
+!   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
+!   U_master(:,0,0,SideID)=U(:,0,0,0,ElemID)- FV_gradU_limited(:,ElemID)*FV_dx_master(SideID)
+! END DO !SideID
 
 ! DO SideID=1,nSides
 !   IF (FV_dx_slave(SideID).LT.0.) THEN
@@ -150,7 +157,45 @@ END DO !SideID
 
 END SUBROUTINE CalcFVGradients
 
-SUBROUTINE ProlongToFace_FV(Uvol,Uface_master,Uface_slave,doMPISides)
+SUBROUTINE LimitFVGradients()
+!===================================================================================================================================
+! Limit gradients for fv reconstruction
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_FV_Limiter               ,ONLY: FV_Limiter
+USE MOD_FV_Vars                  ,ONLY: FV_gradU, FV_gradU_limited
+USE MOD_Mesh_Vars                ,ONLY: nElems
+USE MOD_Mesh_Vars                ,ONLY: ElemToSide
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iElem,iLocSide, SideID_1, SideID_2
+!===================================================================================================================================
+DO iElem=1,nElems
+  DO iLocSide=1,3
+    SideID_1=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    SELECT CASE(iLocSide)
+      CASE(1)
+        SideID_2=ElemToSide(E2S_SIDE_ID,6,iElem)
+      CASE(2)
+        SideID_2=ElemToSide(E2S_SIDE_ID,4,iElem)
+      CASE(3)
+        SideID_2=ElemToSide(E2S_SIDE_ID,5,iElem)
+    END SELECT
+    CALL FV_Limiter(FV_gradU(:,SideID_1),FV_gradU(:,SideID_2),FV_gradU_limited(:,iElem))
+  END DO
+END DO
+
+END SUBROUTINE LimitFVGradients
+
+SUBROUTINE ProlongToFace_FV(Uvol,Uface_master,Uface_slave,FV_gradU_limited,doMPISides)
 !===================================================================================================================================
 ! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
 ! integration points, using fast 1D Interpolation and store in global side structure
@@ -159,6 +204,7 @@ SUBROUTINE ProlongToFace_FV(Uvol,Uface_master,Uface_slave,doMPISides)
 USE MOD_Globals
 USE MOD_Interpolation_Vars, ONLY: L_Minus,L_Plus
 USE MOD_PreProc
+USE MOD_FV_Vars,            ONLY: FV_dx_slave, FV_dx_master
 USE MOD_Mesh_Vars,          ONLY: SideToElem
 USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,nSides,firstMortarMPISide,lastMortarMPISide
@@ -168,6 +214,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
 REAL,INTENT(IN)                 :: Uvol(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL,INTENT(IN),OPTIONAL        :: FV_gradU_limited(PP_nVar,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Uface_master(PP_nVar,0:PP_N,0:PP_N,1:nSides)
@@ -190,7 +237,12 @@ END IF
 DO SideID=firstSideID,lastSideID
   ! neighbor side !ElemID,locSideID and flip =-1 if not existing
   ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
-  Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID)
+  IF (ElemID.LT.0) CYCLE
+  IF (PRESENT(FV_gradU_limited)) THEN
+    Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID)+FV_gradU_limited(:,ElemID)*FV_dx_slave(SideID)
+  ELSE
+    Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID)
+  END IF
 END DO
 
 ! Second process Minus/Master sides, U_Minus is always MINE
@@ -207,10 +259,15 @@ END IF
 
 DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-  Uface_master(:,0,0,SideID)=Uvol(:,0,0,0,ElemID)
+  IF (PRESENT(FV_gradU_limited)) THEN
+    Uface_master(:,0,0,SideID) = Uvol(:,0,0,0,ElemID)-FV_gradU_limited(:,ElemID)*FV_dx_master(SideID)
+  ELSE
+    Uface_master(:,0,0,SideID)=Uvol(:,0,0,0,ElemID)
+  END IF
 END DO !SideID
 
 END SUBROUTINE ProlongToFace_FV
+#endif /*USE_FV*/
 
 SUBROUTINE ProlongToFace_SideBased(Uvol,Uface_master,Uface_slave,doMPISides)
 !===================================================================================================================================
