@@ -481,8 +481,10 @@ SUBROUTINE SetPartPosAndVeloEmissionDistribution(iSpec,iInit,NbrOfParticle)
 ! Set particle position for processor-local particles (only in processor elements)
 !===================================================================================================================================
 ! modules
-USE MOD_Globals
-USE MOD_Globals                ,ONLY: abort
+!USE MOD_Globals
+USE MOD_Globals                ,ONLY: abort,iError
+USE MOD_Globals   ,ONLY: myrank,UNIT_StdOut,MPI_COMM_WORLD,MPIRoot
+USE MOD_PreProc
 USE MOD_part_tools             ,ONLY: InitializeParticleMaxwell,InterpolateEmissionDistribution2D
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState
@@ -491,6 +493,20 @@ USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
 USE MOD_Mesh_Vars              ,ONLY: ElemBaryNGeo
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim
+
+USE MOD_Interpolation          ,ONLY: GetVandermonde,GetNodesAndWeights
+USE MOD_Basis                  ,ONLY: BarycentricWeights
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Equation           ,ONLY: ExactFunc
+USE MOD_Equation_Vars      ,ONLY: IniExactFunc
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze
+USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ
+USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
+USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
+USE MOD_Mesh_Vars              ,ONLY: Vdm_N_EQ
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
+USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
+USE MOD_Mesh_Vars           ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -507,14 +523,39 @@ REAL                :: iRan, RandomPos(3), MPF
 REAL                :: PartDens(1:3) ! dummy vector because the routine can only return vector values
 REAL                :: BBoxVolume, origin(3)
 LOGICAL             :: InsideFlag
+INTEGER                       :: k,l,m
+REAL                          :: densityGL(1,0:PP_N,0:PP_N,0:PP_N), densityVISU(1,0:PP_N,0:PP_N,0:PP_N)
+REAL                          :: J_NAnalyze(1,0:PP_N,0:PP_N,0:PP_N)
+REAL                          :: IntegrationWeight
+REAL              :: SumVol,intvol,intBB
+REAL                          :: Coords_NAnalyze(3,0:PP_N,0:PP_N,0:PP_N)
+REAL                               :: xIP_VISU(0:PP_N),wIP_VISU(0:PP_N)
+REAL                    :: RandVal(3),Xi(3),dXi
 !===================================================================================================================================/
+
+!CALL LegendreGaussNodesAndWeights(PP_N,Xi_NGeo,wGP_NGeo)
+  ! Allocate and determine Vandermonde mapping from NodeType to equidistant (visu) node set
+  IF(.NOT.ALLOCATED(Vdm_N_EQ))THEN
+    ALLOCATE(Vdm_N_EQ(0:PP_N,0:PP_N))
+    CALL GetVandermonde(PP_N, NodeType, PP_N, NodeTypeVISU, Vdm_N_EQ, modal=.FALSE.)
+
+  END IF ! .NOT.ALLOCATED(Vdm_N_EQ)
+
+  CALL GetNodesAndWeights(PP_N,NodeTypeVISU,xIP_VISU,wIP=wIP_VISU)
+  !WRITE (*,*) "NodeTypeVISU,xIP_VISU =", NodeTypeVISU,xIP_VISU
+  !WRITE (*,*) "wIP_VISU =", wIP_VISU
+  dXi = 2./(PP_N+1.0)
+  !WRITE (*,*) "dXi =", dXi
+
+
 NbrOfParticle = 0
 
 DO iElem = 1, nElems
   GlobalElemID = iElem + offsetElem
-  origin(1:3) = ElemBaryNGeo(:,iElem)
-  ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
-    BBoxVolume = (Bounds(2,3) - Bounds(1,3))*(Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
+  origin(1:3)  = ElemBaryNGeo(:,iElem)
+  ASSOCIATE( &
+    Bounds    => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
+    BBoxVolume = (Bounds(2,3) - Bounds(1,3))*(Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1) )
     CALL RANDOM_NUMBER(iRan)
     MPF      = Species(iSpec)%MacroParticleFactor
     SELECT CASE(EmissionDistributionDim)
@@ -527,22 +568,78 @@ DO iElem = 1, nElems
       CALL abort(__STAMP__,'EmissionDistributionDim=3 is not implemented')
     END SELECT
     nPart    = INT(PartDens(1) * BBoxVolume / MPF + iRan)
-    DO iPart = 1, nPart
-      InsideFlag = .FALSE.
-      CALL RANDOM_NUMBER(RandomPos)
-      RandomPos(1:3) = Bounds(1,1:3) + RandomPos(1:3)*(Bounds(2,1:3)-Bounds(1,1:3))
-      InsideFlag = ParticleInsideCheck(RandomPos,iPart,GlobalElemID)
-      ! Exclude particles outside of the element
-      IF (InsideFlag) THEN
-        NbrOfParticle = NbrOfParticle + 1
-        PositionNbr = PDM%nextFreePosition(NbrOfParticle+PDM%CurrentNextFreePosition)
-        IF((PositionNbr.GE.PDM%maxParticleNumber).OR.&
-           (PositionNbr.EQ.0)) CALL abort(__STAMP__,'Emission: Increase maxParticleNumber!',PositionNbr)
-        PartState(1:3,PositionNbr) = origin(1:3) ! Little hack: store element centre temporarily in PartPos
-        CALL InitializeParticleMaxwell(PositionNbr,iSpec,iElem,Mode=2,iInit=iInit)
-        PartState(1:3,PositionNbr) = RandomPos(1:3)
-      END IF
-    END DO ! nPart
+    intvol = PartDens(1) * ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+    intBB = PartDens(1)* BBoxVolume
+
+
+  ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
+  !CALL ChangeBasis3D(3,PP_N,PP_N,Vdm_N_EQ,Elem_xGP(1:3,:,:,:,iElem),Coords_NAnalyze(1:3,:,:,:))
+
+
+  densityGL = -1.
+  DO m=0,PP_N
+    DO l=0,PP_N
+      DO k=0,PP_N
+        ! Density field from .h5 file that is interpolated to the element xGP (bilinear interpolation)
+        PartDens(1:3) = InterpolateEmissionDistribution2D(iSpec,iInit,Elem_xGP(1:3,k,l,m,iElem),dimLower=3,dimUpper=3,transformation=.FALSE.)
+        densityGL(1,k,l,m) = PartDens(1)
+        !PartDens(1:3) = InterpolateEmissionDistribution2D(iSpec,iInit,Coords_NAnalyze(1:3,k,l,m),dimLower=3,dimUpper=3,transformation=.FALSE.)
+        !densityVISU(1,k,l,m) = PartDens(1)
+      END DO ! k
+    END DO ! l
+  END DO ! m
+  ! Interpolate the density at Elem_xGP to the equidistant position, needed for exact function
+  !WRITE (*,*) "densityGL(1:1,:,:,:)   =", densityGL(1:1,:,:,:)
+  CALL ChangeBasis3D(1,PP_N,PP_N,Vdm_N_EQ,densityGL(1:1,:,:,:),densityVISU(1:1,:,:,:))
+  !WRITE (*,*) "densityVISU(1:1,:,:,:) =", densityVISU(1:1,:,:,:)
+  ! Interpolate the Jacobian to the equidistant grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
+  CALL ChangeBasis3D(1,PP_N,PP_N,Vdm_N_EQ,1./sJ(:,:,:,iElem),J_NAnalyze(1:1,:,:,:))
+  SumVol = 0.
+  DO m=0,PP_N
+    DO l=0,PP_N
+      DO k=0,PP_N
+        IntegrationWeight = wIP_VISU(k)*wIP_VISU(l)*wIP_VISU(m)*J_NAnalyze(1,k,l,m)
+        CALL RANDOM_NUMBER(iRan)
+        nPart    = INT(densityVISU(1,k,l,m)*IntegrationWeight/ MPF + iRan)
+
+        DO iPart = 1, nPart
+
+          CALL RANDOM_NUMBER(RandVal)
+          Xi(1) = dXi*(k + RandVal(1)) -1.0
+          Xi(2) = dXi*(l + RandVal(2)) -1.0
+          Xi(3) = dXi*(m + RandVal(3)) -1.0
+          ! Get the physical coordinates that correspond to the reference coordinates
+          CALL TensorProductInterpolation(Xi(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem) ,RandomPos(1:3)) !Map into phys. space
+          !WRITE (*,*) "nPart,Xi,pos =", nPart,Xi,RandomPos(1:3)
+
+          InsideFlag = .TRUE.
+
+          !InsideFlag = .FALSE.
+          !CALL RANDOM_NUMBER(RandomPos)
+          !RandomPos(1:3) = Bounds(1,1:3) + RandomPos(1:3)*(Bounds(2,1:3)-Bounds(1,1:3))
+          !InsideFlag = ParticleInsideCheck(RandomPos,iPart,GlobalElemID)
+          ! Exclude particles outside of the element
+          IF (InsideFlag) THEN
+            NbrOfParticle = NbrOfParticle + 1
+            PositionNbr = PDM%nextFreePosition(NbrOfParticle+PDM%CurrentNextFreePosition)
+            IF((PositionNbr.GE.PDM%maxParticleNumber).OR.&
+                (PositionNbr.EQ.0)) CALL abort(__STAMP__,'Emission: Increase maxParticleNumber!',PositionNbr)
+            PartState(1:3,PositionNbr) = origin(1:3) ! Little hack: store element centre temporarily in PartPos
+            CALL InitializeParticleMaxwell(PositionNbr,iSpec,iElem,Mode=2,iInit=iInit)
+            PartState(1:3,PositionNbr) = RandomPos(1:3)
+            !WRITE (*,*) "PartState(1:3,PositionNbr) =", PartState(1:3,PositionNbr)
+            !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+          END IF
+        END DO ! nPart
+
+        SumVol = SumVol + densityVISU(1,k,l,m)*IntegrationWeight
+      END DO ! k
+    END DO ! l
+  END DO ! m
+
+  !SWRITE (UNIT_stdOut,'(A,E24.12,E24.12,E24.12)') "SumVol,PartDens(1) * volElem ,intBB=", SumVol,Intvol,intBB
+  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+
 
   END ASSOCIATE
 END DO ! iElem = 1, nElems

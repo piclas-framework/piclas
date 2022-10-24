@@ -79,15 +79,8 @@ CHARACTER(LEN=2)               :: strhelp
 
 nVarAvg  = CountOption('VarNameAvg')
 nVarFluc = CountOption('VarNameFluc')
-IF((nVarAvg.EQ.0).AND.(nVarFluc.EQ.0))THEN
-  CALL CollectiveStop(__STAMP__, &
+IF((nVarAvg.EQ.0).AND.(nVarFluc.EQ.0)) CALL CollectiveStop(__STAMP__,&
     'No quantities for time averaging have been specified. Please specify quantities or disable time averaging!')
-#if FV_ENABLED
-ELSE
-  CALL CollectiveStop(__STAMP__, &
-    'Timeaveraging has not been implemented for FV yet!')
-#endif
-END IF
 
 ! --- Mean values
 ! Define variables to be averaged
@@ -194,8 +187,7 @@ DO iVar=1,nVarAvg
     SWRITE (*,*) "   ChargeDensity-Spec0x"
     SWRITE (*,*) "   ChargeDensityX-Spec0x\n    ChargeDensityY-Spec0x\n    ChargeDensityZ-Spec0x\n    ChargeDensity-Spec0x"
 #endif /*PARTICLES*/
-    CALL CollectiveStop(__STAMP__, &
-    'Specified varname does not exist: ' // VarNamesAvgIni(iVar))
+    CALL CollectiveStop(__STAMP__, 'Specified varname does not exist: ' // VarNamesAvgIni(iVar))
   END IF
 END DO
 
