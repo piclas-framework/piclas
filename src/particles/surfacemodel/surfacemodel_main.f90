@@ -37,6 +37,7 @@ CONTAINS
 !> 2.) Count and sample the properties BEFORE the surface interaction
 !> 3.) Perform the selected gas-surface interaction, currently implemented models:
 !           0: Maxwell Scattering
+!          20: Adsorption or Eley-Rideal reaction
 !       5/6/7/8/9/10/11: Secondary Electron Emission
 !> 4.) PIC ONLY: Deposit charges on dielectric surface (when activated), if these were removed/changed in SpeciesSwap or SurfaceModel
 !> 5.) Count and sample the properties AFTER the surface interaction
@@ -52,7 +53,7 @@ USE MOD_TimeDisc_Vars             ,ONLY: dt
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample,SurfSideArea_Shared
-USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfChemReac , ChemWallProp, ChemSampWall, ChemCountReacWall !, RecombModel
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfChemReac , ChemWallProp, ChemSampWall !, ChemCountReacWall 
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, BoundsOfElem_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos,PartState 
 USE MOD_Particle_Vars             ,ONLY: UseCircularInflow
@@ -96,8 +97,8 @@ REAL               :: ChargeHole                      !< Charge of SEE electrons
 INTEGER            :: i
 !===================================================================================================================================
 CHARACTER(LEN=5)   :: InteractionType
-REAL               :: RanNum   ! Random number   
-REAL               :: Coverage, MaxCoverage, TotalCoverage, Theta
+REAL               :: RanNum, RanNum2   
+REAL               :: Coverage, MaxCoverage, TotalCoverage, Theta, MaxTotalCov
 REAL               :: CoAds_Coverage, CoAds_MaxCov
 REAL               :: S_0, StickCoeff
 REAL               :: EqConstant, DissOrder
@@ -187,37 +188,45 @@ CASE (0) ! Maxwellian scattering (diffuse/specular reflection)
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL MaxwellScattering(PartID,SideID,n_Loc,SpecularReflectionOnly)
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE(20)
+CASE(20)  ! Adsorption or Eley-Rideal reaction
+          !> Selection and execution of a catalytic gas-surface interaction
+          !> 0.) Determine the surface parameters: Coverage and number of surface molecules
+          !> 1.) Calculate the sticking coefficient by the Kisliuk model (adsorption)
+          !> 2.) Calculate the reaction probability by the Arrhenius equation (bias-free for multiple channels)
+          !> 3.) Choose the occuring pathway by comparison with a random number
+          !> 4.) Perform the chosen process
+            !> a.) Adsorption: delete the incoming particle and update the surface values
+            !> b.) ER: delete the incoming particle, update the surface values and create the gas phase products
+!-----------------------------------------------------------------------------------------------------------------------------------
+  
+  ! 0.) Determine the surface parameters: Coverage and number of surface molecules
   SubP = TrackInfo%p
   SubQ = TrackInfo%q
   InteractionType = 'None'
   StickCoeff = 0.0
   Prob = 0.0
   iReac_ER = 0
-
   speciesID = PartSpecies(PartID)
   SurfNumOfReac = SurfChemReac%NumOfReact 
-
-  ! Determination of the particle weights and MPF
+  ! MacroParticleFactor
   partWeight = GetParticleWeight(PartID)
   IF(.NOT.(usevMPF.OR.RadialWeighting%DoRadialWeighting)) THEN
     partWeight = partWeight * Species(speciesID)%MacroParticleFactor
   END IF
 
-  ! Calculate the number of molecules on the surface
   IF(PartBound%LatticeVec(locBCID).GT.0.) THEN
-    ! Surface molecules in dependence of the occupancy of the unit cell
+    ! Number of surface molecules in dependence of the occupancy of the unit cell
     SurfMol = PartBound%MolPerUnitCell(locBCID) * SurfSideArea_Shared(SubP, SubQ,SurfSideID) &
                                 /(PartBound%LatticeVec(locBCID)*PartBound%LatticeVec(locBCID)) 
   ELSE
-    ! Alternative calculation by average number of molecules per area for a monolayer
+    ! Alternative calculation by the average number of surface molecules per area for a monolayer
     SurfMol = 10.**19 * SurfSideArea_Shared(SubP, SubQ,SurfSideID)
-  END IF
+  END IF ! LatticeVec.GT.0
 
   DO iReac = 1, SurfNumOfReac
-
     SELECT CASE (TRIM(SurfChemReac%ReactType(iReac)))
 
+    ! 1.) Calculate the sticking coefficient by the Kisliuk model (adsorption)
     CASE('A')
       IF(ANY(SurfChemReac%Reactants(iReac,:).EQ.speciesID)) THEN
         iReac_Ads = iReac
@@ -234,18 +243,18 @@ CASE(20)
           Coverage = ChemWallProp(speciesID,1,SubP,SubQ,SurfSideID)
         END IF
 
-
          ! Definition of the variables
         MaxCoverage = PartBound%MaxCoverage(locBCID,speciesID)
         TotalCoverage = SUM(ChemWallProp(:,1,SubP, SubQ, SurfSideID))
+        MaxTotalCov = PartBound%MaxTotalCoverage(locBCID)
         DissOrder = SurfChemReac%DissOrder(iReac)
         S_0 = SurfChemReac%S_initial(iReac)
         EqConstant = SurfChemReac%EqConstant(iReac)
         StickCoeff = SurfChemReac%StickCoeff(iReac)
 
         ! Determine the heat of adsorption in dependence of the coverage [J]
-        AdsHeat = (SurfChemReac%EReact(iReac) - Coverage * SurfChemReac%EScale(iReac)) * BoltzmannConst
-      
+        AdsHeat = (SurfChemReac%EReact(iReac) - Coverage * SurfChemReac%EScale(iReac)) * BoltzmannConst      
+        
         ! Theta = free surface sites required for the adsorption
         ! Determination of possible coadsorption processes
         IF(SurfChemReac%Inhibition(iReac).NE.0) THEN
@@ -265,10 +274,9 @@ CASE(20)
         END IF
 
         ! Check whether the maximum coverage value is reached:
-        IF(Theta.GE.0.0 .AND. TotalCoverage.LT.1.0) THEN
+        IF(Theta.GE.0.0 .AND. TotalCoverage.LT.MaxTotalCov) THEN
           Theta = Theta**DissOrder
-          ! Kisluik model
-        ! For EqConstant=1 and MaxCoverage=1: Langmuir model
+        ! Kisliuk model (for EqConstant=1 and MaxCoverage=1: Langmuir model)
           StickCoeff = S_0 * (1.0 + EqConstant * (1.0/Theta - 1.0))**(-1.0)
         ELSE 
           StickCoeff = 0.0
@@ -276,7 +284,7 @@ CASE(20)
 
       END IF
 
-    ! Eley-Rideal reaction mechanism
+    ! 2.) Calculate the reaction probability by the Arrhenius equation (bias-free for multiple channels)
     CASE('ER')
       IF(ANY(SurfChemReac%Reactants(iReac,:).EQ.speciesID)) THEN
 
@@ -287,13 +295,18 @@ CASE(20)
           Rate = SurfChemReac%Rate(iReac)
           BetaCoeff = SurfChemReac%HeatAccomodation(iReac)
 
-          ! Check for the coverage values for the reactant adsorbed on the surface
+          ! Check for the coverage values of the reactant adsorbed on the surface
           IF(ANY(SurfChemReac%Reactants(iReac,:).NE.speciesID)) THEN
             DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
               IF(SurfChemReac%Reactants(iReac,iValReac).NE.speciesID .AND. SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
                 iReactant = SurfChemReac%Reactants(iReac,iValReac)
-                Coverage = ChemWallProp(iReactant,1,SubP, SubQ, SurfSideID)
-                AdCountIter = ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID)
+                IF(iReactant.NE.SurfChemReac%SurfSpecies) THEN
+                  Coverage = ChemWallProp(iReactant,1,SubP, SubQ, SurfSideID)
+                  AdCountIter = ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID)
+                ELSE  ! Involvement of the bulk species
+                  Coverage = 1.
+                  AdCountIter = 0.
+                END IF
               END IF
             END DO
           ELSE
@@ -301,6 +314,7 @@ CASE(20)
             AdCountIter = ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID)
           END IF
 
+          ! Determine the reaction heat in dependence of the coverage [J]
           ReacHeat = (SurfChemReac%EReact(iReac) - Coverage * SurfChemReac%EScale(iReac)) * BoltzmannConst
 
         ! Bias free calculation for multiple reaction channels
@@ -330,7 +344,6 @@ CASE(20)
             Prob_new = 0.0
           END IF
 
-
           ! determine most likely reaction channel
           CALL RANDOM_NUMBER(RanNum)
 
@@ -344,40 +357,41 @@ CASE(20)
             END IF 
           END IF
         END IF !iReac.EQ.0
-
       END IF !iReac.EQ.speciesID
 
     CASE DEFAULT
-
     END SELECT !Surface reaction
-
   END DO !iReac
 
+  ! 3.) Choose the occuring pathway by comparison with a random number
   CALL RANDOM_NUMBER(RanNum)
+  CALL RANDOM_NUMBER(RanNum2)
 
   ! Rescale the probability (ER-Reaction) and the sticking coefficient (adsorption)
   IF ((Prob+StickCoeff).GT.0.) THEN
     Prob_Scaled = Prob/(Prob + StickCoeff)
     IF(Prob_Scaled.GT.RanNum) THEN
-      IF(Prob.GT.RanNum) THEN
+      IF(Prob.GT.RanNum2) THEN
         InteractionType = 'ER'
         iReac = iReac_ER
       END IF
     ELSE 
-      IF (StickCoeff.GT.RanNum) THEN
+      IF (StickCoeff.GT.RanNum2) THEN
         InteractionType = 'A'
         iReac = iReac_Ads
       END IF
     END IF
   END IF
   
+  ! 4.) Perform the chosen process
   SELECT CASE(TRIM(InteractionType))
 
+  ! 4a.) Adsorption: delete the incoming particle and update the surface values
   CASE('A')
     CALL RemoveParticle(PartID)
 
-    ! Calculate the heat flux on the boundary from the adsorption energy 
-    ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID)+ AdsHeat * partWeight
+    ! Heat flux on the surface created by the adsorption
+    ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) + AdsHeat * partWeight
     ! Update the number of adsorbed molecules
     IF(ANY(SurfChemReac%Products(iReac,:).NE.0)) THEN
       DO iValProd=1, SIZE(SurfChemReac%Products(iReac,:)) 
@@ -391,8 +405,10 @@ CASE(20)
     END IF
 
     ! Count the number of surface reactions
-    ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + 1.
+    ! ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + partWeight
 
+
+  ! 4b.) ER: delete the incoming particle, update the surface values and create the gas phase products
   CASE('ER')
     CALL RemoveParticle(PartID)
 
@@ -402,7 +418,6 @@ CASE(20)
     ! Create the Eley-Rideal reaction product
     TempErgy = SQRT(2*BoltzmannConst*WallTemp/Species(speciesID)%MassIC)
     WallVelo = PartBound%WallVelo(1:3,locBCID)
-
     CALL OrthoNormVec(n_loc,tang1,tang2)
 
     ! Get Elem Center
@@ -434,7 +449,9 @@ CASE(20)
       DO iValReac=1, SIZE(SurfChemReac%Reactants(iReac,:))
         IF(SurfChemReac%Reactants(iReac,iValReac).NE.speciesID .AND. SurfChemReac%Reactants(iReac,iValReac).NE.0) THEN
           iReactant = SurfChemReac%Reactants(iReac,iValReac)
-          ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) - partWeight
+          IF(iReactant.NE.SurfChemReac%SurfSpecies) THEN
+            ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) - partWeight
+          END IF
         END IF
       END DO 
     ELSE
@@ -442,7 +459,7 @@ CASE(20)
     END IF
 
     ! Count the number of surface reactions
-    ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + 1.
+    ! ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) = ChemCountReacWall(iReac, 1, SubP, SubQ, SurfSideID) + partWeight
 
   CASE DEFAULT
     CALL MaxwellScattering(PartID,SideID,n_Loc)

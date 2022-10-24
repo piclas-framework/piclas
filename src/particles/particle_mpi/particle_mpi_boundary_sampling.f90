@@ -558,12 +558,15 @@ DO iSide = firstSide, lastSide
   
   DO iSpec =1, nSpecies
     IF (PartBound%LatticeVec(locBCID).GT.0.) THEN
+    ! update the surface coverage (direct calculation of the number of surface atoms)
       ChemWallProp(iSpec,1,:,:,iSide) = ChemWallProp(iSpec,1,:,:,iSide) + ChemSampWall(iSpec,1,:,:,iSide) * PartBound%LatticeVec(locBCID)* &
                                         PartBound%LatticeVec(locBCID)/(PartBound%MolPerUnitCell(locBCID)*SurfSideArea_Shared(:,:,iSide))
     ELSE 
+    ! update the surface coverage (calculation with a surface monolayer)
       ChemWallProp(iSpec,1,:,:,iSide) = ChemWallProp(iSpec,1,:,:,iSide) + ChemSampWall(iSpec,1,:,:,iSide) / &
                                         (10.**(19)*SurfSideArea_Shared(:,:,iSide))
     END IF
+    ! calculate the heat flux on the surface subside
     ChemWallProp(iSpec,2,:,:,iSide) = ChemWallProp(iSpec,2,:,:,iSide) + ChemSampWall(iSpec,2,:,:,iSide)
   END DO
   ChemSampWall(:,:,:,:,iSide) = 0.0

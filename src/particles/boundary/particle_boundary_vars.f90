@@ -245,7 +245,8 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         ! Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           ! Species to be changed at wall (in, out), out=0: delete
   INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction (e.g. SEE models)
-  REAL    , ALLOCATABLE                  :: TotalCoverage(:)
+  REAL    , ALLOCATABLE                  :: TotalCoverage(:)              ! Total surface coverage
+  REAL    , ALLOCATABLE                  :: MaxTotalCoverage(:)           ! Maximum total surface coverage
   REAL    , ALLOCATABLE                  :: LatticeVec(:)                 ! Lattice constant for a fcc crystal
   REAL    , ALLOCATABLE                  :: MolPerUnitCell(:)             ! Molecules per unit cell
   REAL    , ALLOCATABLE                  :: CoverageIni(:,:)               ! Initial boundary coverage

@@ -50,103 +50,108 @@ TYPE(tPorousBC), ALLOCATABLE     :: PorousBC(:)                     ! Container 
 !=== Heterogenous Surface BC ========================================================================================================
 
 TYPE tBoundMap
-  INTEGER, ALLOCATABLE                   :: Boundaries(:)
+  INTEGER, ALLOCATABLE                   :: Boundaries(:)          ! Map of the reactions to the boundaries
 END TYPE
 
 TYPE tPureSurf
-  LOGICAL, ALLOCATABLE                   :: PureSurfReac(:)
+  LOGICAL, ALLOCATABLE                   :: PureSurfReac(:)        ! List of boundaries on which LH/D reactions occur
 END TYPE
 
-  LOGICAL                                :: DoChemSurface 
+LOGICAL                                  :: DoChemSurface          ! Call the surface catalysis routines
+
+  CHARACTER(LEN=256)                     :: SpeciesDatabase        ! Name of the species database
 
 TYPE tSurfReactions
-  INTEGER                                :: NumOfReact             ! Number of possible reactions
-  CHARACTER(LEN=5),ALLOCATABLE           :: ReactType(:)           ! Type of Reaction (reaction num)
+  INTEGER                                :: NumOfReact             ! Number of catalytic reactions
+  CHARACTER(LEN=64),ALLOCATABLE          :: CatName(:)
+  LOGICAL                                :: OverwriteCatParameters ! Flag to read the cat parameters manually
+  INTEGER                                :: SurfSpecies            ! Bulk species of the surface, involved in the reactions
+  CHARACTER(LEN=255),ALLOCATABLE         :: ReactType(:)           ! Type of Reaction (reaction num)
                                                                    !    A (adsorption)
                                                                    !    D (desorption)
                                                                    !    LH (Langmuir-Hinshlewood)
+                                                                   !    LHD (LH with instant desorption)
                                                                    !    ER (Eley-Rideal)
   INTEGER, ALLOCATABLE                   :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
   INTEGER, ALLOCATABLE                   :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
-  INTEGER, ALLOCATABLE                   :: Inhibition(:)          ! Inhibition reaction
-  INTEGER, ALLOCATABLE                   :: Promotion(:)           ! Promoting reaction
-  INTEGER, ALLOCATABLE                   :: NumOfBounds(:)         
-  REAL, ALLOCATABLE                      :: EReact(:)              ! Energy exchange with the surface
-  REAL, ALLOCATABLE                      :: EScale(:)              ! dependence of the energy values on the coverage
-  REAL, ALLOCATABLE                      :: HeatAccomodation(:)    ! beta coefficient, determining the heat flux on the surface
-  !REAL, ALLOCATABLE                     :: ReactProb(:)
-  REAL, ALLOCATABLE                      :: EForm(:)
+  INTEGER, ALLOCATABLE                   :: Inhibition(:)          ! Reaction number of inhibiting reactions
+  INTEGER, ALLOCATABLE                   :: Promotion(:)           ! Reaction number of promoting reactions
+  INTEGER, ALLOCATABLE                   :: NumOfBounds(:)         ! Number of catalytic boundaries
+  ! Surface energy accomodation
+  REAL, ALLOCATABLE                      :: EReact(:)              ! Reaction energy [K]
+  REAL, ALLOCATABLE                      :: EScale(:)              ! Scaling factor for E_reac [K]
+  REAL, ALLOCATABLE                      :: HeatAccomodation(:)    ! Beta coefficient for the energy accomodation
   ! Parameters for the adsorption
-  REAL, ALLOCATABLE                      :: S_initial(:)           ! Initial sticking coefficient
+  REAL, ALLOCATABLE                      :: S_initial(:)           ! Initial sticking coefficient at zero coverage
   REAL, ALLOCATABLE                      :: MaxCoverage(:)         ! Maximal surface coverage
-  REAL, ALLOCATABLE                      :: DissOrder(:)           ! molecular or dissociative adsorption
-  REAL, ALLOCATABLE                      :: EqConstant(:)          ! adsorption/dissociation
-  REAL, ALLOCATABLE                      :: StickCoeff(:)         
+  REAL, ALLOCATABLE                      :: DissOrder(:)           ! Molecular (1) or dissociative (2) adsorption
+  REAL, ALLOCATABLE                      :: EqConstant(:)          ! Equilibrium constant for adsorption/desorption
+  REAL, ALLOCATABLE                      :: StickCoeff(:)          ! Sticking coefficient 
   ! Parameters for the desorption
-  REAL, ALLOCATABLE                      :: E_initial(:)
-  REAL, ALLOCATABLE                      :: W_interact(:)
-  REAL, ALLOCATABLE                      :: C_a(:)
-  REAL, ALLOCATABLE                      :: C_b(:)
+  REAL, ALLOCATABLE                      :: E_initial(:)           ! Desorption energy at zero coverage [K]
+  REAL, ALLOCATABLE                      :: W_interact(:)          ! Scaling factor for Edes [K]
+  REAL, ALLOCATABLE                      :: C_a(:)                 ! Pre-exponential factor
+  REAL, ALLOCATABLE                      :: C_b(:)                 ! Pre-exponential factor
   ! General Parameters
-  REAL, ALLOCATABLE                      :: Rate(:)
-  REAL, ALLOCATABLE                      :: Prob(:)
-  REAL, ALLOCATABLE                      :: Prefactor(:)
-  REAL, ALLOCATABLE                      :: ArrheniusEnergy(:)
-  LOGICAL, ALLOCATABLE                   :: BoundisChemSurf(:)  
+  REAL, ALLOCATABLE                      :: Rate(:)                ! Catalytic reaction rate [Cov/s*m^2]
+  REAL, ALLOCATABLE                      :: Prob(:)                ! Catalytic reaction probability
+  REAL, ALLOCATABLE                      :: Prefactor(:)           ! Pre-exponential factor [1/s]
+  REAL, ALLOCATABLE                      :: ArrheniusEnergy(:)     ! Catalytic reaction energy [K]
+  LOGICAL, ALLOCATABLE                   :: BoundisChemSurf(:)     ! Boundary with catalytic activity
   LOGICAL                                :: Diffusion              ! Activates instantaneous diffussion over the whole boundary
   LOGICAL                                :: TotDiffusion           ! Activates instantaneous diffussion over all boundaries
-  INTEGER                                :: CatBoundNum
-  TYPE(tBoundMap), ALLOCATABLE           :: BoundMap(:)   
+  INTEGER                                :: CatBoundNum            ! Number of catalytic boundaries
+  TYPE(tBoundMap), ALLOCATABLE           :: BoundMap(:)            ! Map of the reactions to the boundaries
   TYPE(tPureSurf), ALLOCATABLE           :: PSMap(:)               ! Map for reactions occurring only on the surface   
   TYPE(tCollCaseInfo), ALLOCATABLE       :: CollCaseInfo(:)        ! Information of collision cases (nCase) 
   TYPE(tSurfaceflux), ALLOCATABLE        :: SurfaceFlux(:)         ! Surface flux data
 END TYPE
 TYPE(tSurfReactions)                     :: SurfChemReac
 
-TYPE tSurfaceflux
-  INTEGER                                :: BC                              
-  CHARACTER(30)                          :: velocityDistribution           
-  REAL                                   :: VeloIC             
-  REAL                                   :: VeloVecIC(3)            
-  REAL                                   :: MWTemperatureIC                  
-  LOGICAL                                :: VeloIsNormal                    
-  LOGICAL                                :: AcceptReject                    
-  INTEGER                                :: ARM_DmaxSampleN               
-  REAL                                   :: VFR_total                       
-  REAL                     , ALLOCATABLE :: VFR_total_allProcs(:)          
-  REAL                                   :: VFR_total_allProcsTotal         
-  REAL                                   :: totalAreaSF                  
-  INTEGER(KIND=8)                        :: InsertedParticle                 
-  INTEGER(KIND=8)                        :: tmpInsertedParticle              
-  INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus      
-  TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)     
-  INTEGER                                :: dir(3)                          
-  REAL                                   :: origin(2)                        
-  REAL                                   :: rmax                           
-  REAL                                   :: rmin                            
-  LOGICAL                                :: Adaptive                        
-  INTEGER                                :: AdaptiveType                
-  REAL, ALLOCATABLE                      :: nVFRSub(:,:)                  
+TYPE tSurfaceflux                                                           ! Surface flux properties on reactive boundaries
+  INTEGER                                :: BC                              ! Catalytic boundary         
+  CHARACTER(30)                          :: velocityDistribution            ! keyword for the velocity distribution        
+  REAL                                   :: VeloIC                          ! velocity for inital Data
+  REAL                                   :: VeloVecIC(3)                    ! normalized velocity vector
+  REAL                                   :: MWTemperatureIC                 ! Temperature for Maxwell Distribution     
+  LOGICAL                                :: VeloIsNormal                    ! VeloIC is in Surf-Normal instead of VeloVecIC    
+  LOGICAL                                :: AcceptReject                    ! perform ARM for skewness of RefMap-positioning    
+  INTEGER                                :: ARM_DmaxSampleN                 ! number of sample intervals in xi/eta for Dmax-calc.  
+  REAL                                   :: VFR_total                       ! Total Volumetric flow rate through surface    
+  REAL                     , ALLOCATABLE :: VFR_total_allProcs(:)           ! -''-, all values for root in ReduceNoise-case   
+  REAL                                   :: VFR_total_allProcsTotal         !     -''-, total    
+  REAL                                   :: totalAreaSF                     ! Total area of the respective surface flux 
+  INTEGER(KIND=8)                        :: InsertedParticle                ! Number of all already inserted Particles     
+  INTEGER(KIND=8)                        :: tmpInsertedParticle             ! tmp Number of all already inserted Particles     
+  INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus      ! tmp Number of all already inserted Particles    
+  TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)     ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)   
+  INTEGER                                :: dir(3)                          ! axial (1) and orth. coordinates (2,3) of polar system    
+  REAL                                   :: origin(2)                       ! origin in orth. coordinates of polar system     
+  REAL                                   :: rmax                            ! max radius of to-be inserted particles   
+  REAL                                   :: rmin                            ! min radius of to-be inserted particles    
+  LOGICAL                                :: Adaptive                        ! Is the surface flux an adaptive boundary?    
+  INTEGER                                :: AdaptiveType                    ! Chose the adaptive type, description in DefineParams
+  REAL, ALLOCATABLE                      :: nVFRSub(:,:)                    ! normal volume flow rate through subsubside  
 END TYPE
 
-TYPE tSurfFluxSubSideData
-  REAL                                   :: projFak                                                    
-  REAL                                   :: Velo_t1                       
-  REAL                                   :: Velo_t2 
-  REAL                                   :: Dmax                        
-  REAL,ALLOCATABLE                       :: nVFR(:)                              
-  REAL,ALLOCATABLE                       :: a_nIn(:)                        
+TYPE tSurfFluxSubSideData                                                   ! Reactive surface flux sub sides
+  REAL                                   :: projFak                         ! VeloVecIC projected to inwards normal                           
+  REAL                                   :: Velo_t1                         ! Velo comp. of first orth. vector
+  REAL                                   :: Velo_t2                         ! Velo comp. of second orth. vector
+  REAL                                   :: Dmax                            ! maximum Jacobian determinant of subside for opt. ARM              
+  REAL,ALLOCATABLE                       :: nVFR(:)                         ! normal volume flow rate through subside     
+  REAL,ALLOCATABLE                       :: a_nIn(:)                        ! speed ratio projected to inwards normal
 END TYPE tSurfFluxSubSideData
 
-REAL,ALLOCATABLE                         :: ChemSampWall(:,:,:,:,:) 
-REAL,ALLOCATABLE                         :: ChemDesorpWall(:,:,:,:,:) 
-REAL,ALLOCATABLE                         :: ChemCountReacWall(:,:,:,:,:)
-REAL,ALLOCPOINT                          :: ChemWallProp(:,:,:,:,:) 
+REAL,ALLOCATABLE                         :: ChemSampWall(:,:,:,:,:)         ! Sampling direct impact mechanism
+REAL,ALLOCATABLE                         :: ChemDesorpWall(:,:,:,:,:)       ! Desorption numbers
+REAL,ALLOCPOINT                          :: ChemWallProp(:,:,:,:,:)         ! Adsorption count / heat flux
+! INTEGER,ALLOCATABLE                      :: ChemCountReacWall(:,:,:,:,:)    ! Count the number of catalytic reactions on the subside
 
 #if USE_MPI
-INTEGER                                  :: ChemWallProp_Shared_Win
-REAL,ALLOCPOINT                          :: ChemWallProp_Shared(:,:,:,:,:)
-REAL,POINTER                             :: ChemSampWall_Shared(:,:,:,:,:) 
+INTEGER                                  :: ChemWallProp_Shared_Win         ! Adsorption count / heat flux
+REAL,ALLOCPOINT                          :: ChemWallProp_Shared(:,:,:,:,:)    
+REAL,POINTER                             :: ChemSampWall_Shared(:,:,:,:,:)  ! Sampling direct impact mechanism    
 INTEGER                                  :: ChemSampWall_Shared_Win
 #endif
 

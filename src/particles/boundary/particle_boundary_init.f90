@@ -150,6 +150,9 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-Coverage'  &
 CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-MaxCoverage'  &
                                 , 'Initial coverage of the surface by an adsorbed species'&
                                 , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-MaxTotalCoverage'  &
+                                , 'Maximal coverage valure for the surface (default = 1.)'&
+                                , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Number of Species to be changed at wall.', '0', numberedmulti=.TRUE.)
@@ -320,6 +323,8 @@ ALLOCATE(PartBound%MaxCoverage(nPartBound, nSpecies))
 PartBound%MaxCoverage = 0.
 ALLOCATE(PartBound%TotalCoverage(nPartBound))
 PartBound%TotalCoverage = 0.
+ALLOCATE(PartBound%MaxTotalCoverage(nPartBound))
+PartBound%MaxTotalCoverage = 0.
 ALLOCATE(PartBound%LatticeVec(nPartBound))
 PartBound%LatticeVec = 0.
 ALLOCATE(PartBound%MolPerUnitCell(nPartBound))
@@ -421,17 +426,24 @@ DO iPartBound=1,nPartBound
     END IF
     PartBound%LatticeVec(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-LatticeVector', '0.')
     PartBound%MolPerUnitCell(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-NbrOfMol-UnitCell', '1.')
-    PartBound%TotalCoverage(iPartBound) = 0.
     DO iSpec=1, nSpecies
       WRITE(UNIT=hilf2,FMT='(I0)') iSpec
       PartBound%CoverageIni(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-Coverage', '0.')
       PartBound%MaxCoverage(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-MaxCoverage', '1.')
+      IF (PartBound%CoverageIni(iPartBound, iSpec).GT.PartBound%MaxCoverage(iPartBound, iSpec)) THEN
+        CALL abort(&
+      __STAMP__&
+      ,'ERROR: Surface coverage can not be larger than the maximum value', iPartBound)
+      END IF
       PartBound%TotalCoverage(iPartBound) = PartBound%TotalCoverage(iPartBound) + PartBound%CoverageIni(iPartBound, iSpec)
     END DO
-    IF (PartBound%TotalCoverage(iPartBound).GT.1.) THEN
+    PartBound%TotalCoverage(iPartBound) = SUM(PartBound%CoverageIni(iPartBound,:))
+    PartBound%MaxTotalCoverage(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-MaxTotalCoverage', '1.')
+    ! Check if the maximum of the coverage is reached
+    IF (PartBound%TotalCoverage(iPartBound).GT.PartBound%MaxTotalCoverage(iPartBound)) THEN
       CALL abort(&
     __STAMP__&
-    ,'ERROR: Surface coverage can not be larger than 1.', iPartBound)
+    ,'ERROR: Maximum surface coverage reached.', iPartBound)
     END IF
     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) THEN
       !read Species to be changed at wall (in, out), out=0: delete
@@ -1148,6 +1160,7 @@ SDEALLOCATE(PartBound%SurfaceModel)
 SDEALLOCATE(PartBound%CoverageIni)
 SDEALLOCATE(PartBound%MaxCoverage)
 SDEALLOCATE(PartBound%TotalCoverage)
+SDEALLOCATE(PartBound%MaxTotalCoverage)
 SDEALLOCATE(PartBound%LatticeVec)
 SDEALLOCATE(PartBound%MolPerUnitCell)
 SDEALLOCATE(PartBound%Reactive)
