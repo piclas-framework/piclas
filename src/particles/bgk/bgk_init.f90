@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2018 - 2019 Marcel Pfeiffer
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -98,6 +98,9 @@ USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -110,7 +113,7 @@ INTEGER               :: iSpec, iSpec2
 REAL                  :: delta_ij
 LOGICAL               :: MoleculePresent
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
 MoleculePresent = .FALSE.
 ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
@@ -128,16 +131,12 @@ DO iSpec=1, nSpecies
   END DO
 END DO
 IF ((nSpecies.GT.1).AND.(ANY(SpecDSMC(:)%PolyatomicMol))) THEN
-  CALL abort(&
-__STAMP__&
-,' ERROR Multispec not implemented with polyatomic molecules!')
+  CALL abort(__STAMP__,' ERROR Multispec not implemented with polyatomic molecules!')
 END IF
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
-      CALL abort(&
-__STAMP__&
-,' ERROR Multispec only with ESBGK model!')
+      CALL abort(__STAMP__,' ERROR Multispec only with ESBGK model!')
 END IF
 BGKMixtureModel = GETINT('Particles-BGK-MixtureModel')
 ! ESBGK options
@@ -155,9 +154,7 @@ IF(DoBGKCellAdaptation) THEN
   BGKMinPartPerCell = GETINT('Particles-BGK-MinPartsPerCell')
   IF(.NOT.DSMC%UseOctree) THEN
     DSMC%UseOctree = .TRUE.
-    IF(NGeo.GT.PP_N) CALL abort(&
-__STAMP__&
-,' Set PP_N to NGeo, otherwise the volume is not computed correctly.')
+    IF(NGeo.GT.PP_N) CALL abort(__STAMP__,' Set PP_N to NGeo, otherwise the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
 END IF
@@ -165,13 +162,11 @@ BGKSplittingDens = GETREAL('Particles-BGK-SplittingDens')
 ! Moving Average
 BGKMovingAverage = GETLOGICAL('Particles-BGK-MovingAverage')
 IF(BGKMovingAverage) THEN
-  CALL abort(__STAMP__,&
-    ' ERROR BGK Init: Moving average is currently not implemented!')
+  CALL abort(__STAMP__,' ERROR BGK Init: Moving average is currently not implemented!')
   BGKMovingAverageLength = GETINT('Particles-BGK-MovingAverageLength')
   CALL BGK_init_MovingAverage()
   IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-    CALL abort(__STAMP__,&
-      ' ERROR BGK Init: Moving average is neither implemented with radial weighting nor variable time step!')
+    CALL abort(__STAMP__,' ERROR BGK Init: Moving average is neither implemented with radial weighting nor variable time step!')
   END IF
 END IF
 IF(MoleculePresent) THEN
@@ -192,7 +187,7 @@ END IF
 
 BGKInitDone = .TRUE.
 
-SWRITE(UNIT_stdOut,'(A)') ' INIT BGK DONE!'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT BGK DONE!'
 
 END SUBROUTINE InitBGK
 

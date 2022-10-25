@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -70,9 +70,7 @@ INTEGER :: locType,locState
 INTEGER :: MaxBCState,MaxBCStateGlobal
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).AND.(.NOT.MeshInitIsDone).AND.(.NOT.EquationInitIsDone))THEN
-   CALL abort(&
-   __STAMP__&
-   ,"InitBC not ready to be called or already called.")
+   CALL abort(__STAMP__,"InitBC not ready to be called or already called.")
 END IF
 ! determine globally max MaxBCState
 MaxBCState = 0

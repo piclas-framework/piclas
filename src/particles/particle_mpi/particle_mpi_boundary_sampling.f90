@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2019 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -63,6 +63,9 @@ USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared, SideInfo_Shared
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeInnerBCs
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -228,7 +231,12 @@ CALL MPI_COMM_GROUP(MPI_COMM_LEADERS_SURF  ,surfGroup   ,IERROR)
 
 ! Finally translate global rank to local rank
 CALL MPI_GROUP_TRANSLATE_RANKS(leadersGroup,nLeaderGroupProcs,MPIRankSharedLeader,surfGroup,MPIRankSurfLeader,IERROR)
-IF (mySurfRank.EQ.0) WRITE(UNIT_stdOUt,'(A,I0,A)') ' Starting surface communication between ', nSurfLeaders, ' compute nodes...'
+IF (mySurfRank.EQ.0) THEN
+#if USE_LOADBALANCE
+  IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+  WRITE(UNIT_stdOUt,'(A,I0,A)') ' Starting surface communication between ', nSurfLeaders, ' compute nodes...'
+END IF
 
 !--- Open receive buffer (mapping from message surface ID to global side ID)
 ALLOCATE(SurfMapping(0:nSurfLeaders-1))

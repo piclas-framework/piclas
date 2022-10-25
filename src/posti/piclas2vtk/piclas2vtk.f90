@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -25,28 +25,6 @@
 !> piclas2vtk --NVisu=INTEGER State1.h5 State2.h5 State3.h5 ...
 !> All other options are set to their standard values.
 !==================================================================================================================================
-MODULE MOD_piclas2vtk_Vars
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-
-REAL,ALLOCATABLE            :: NodeCoords_Connect(:,:)
-INTEGER,ALLOCATABLE         :: ElemUniqueNodeID(:,:)
-INTEGER                     :: nUniqueNodes
-!----------------------------------------------------------------------------------------------------------------------------------
-! Mapping of nodes and surface sides, required for connectivity of elements
-!----------------------------------------------------------------------------------------------------------------------------------
-TYPE tSurfaceConnect
-  INTEGER                         :: nSurfaceNode                 !< Number of Nodes on Surface (reflective)
-  INTEGER                         :: nSurfaceBCSides              !< Number of Sides on Surface (reflective)
-  REAL, ALLOCATABLE               :: NodeCoords(:,:)
-  INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)         !< Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceBCSides)
-END TYPE
-
-TYPE (tSurfaceConnect)               :: SurfConnect
-
-END MODULE MOD_piclas2vtk_Vars
-
 PROGRAM piclas2vtk
 ! MODULES
 USE MOD_piclas2vtk_Vars

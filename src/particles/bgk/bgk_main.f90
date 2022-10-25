@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2018 - 2019 Marcel Pfeiffer
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_BGK
+#if (PP_TimeDiscMethod==400)
 !===================================================================================================================================
 !> Main module for the the Bhatnagar-Gross-Krook method
 !===================================================================================================================================
@@ -49,7 +50,7 @@ USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounte
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC                ,ONLY: DSMC_main
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC, RadialWeighting
+USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_Part_Tools          ,ONLY: GetParticleWeight
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
@@ -62,7 +63,7 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: IsExchangeElem
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN),OPTIONAL :: stage_opt 
+INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -78,7 +79,6 @@ ELSE
   stage = 0
 END IF
 
-IF (stage.LE.1) DSMC_RHS = 0.0
 DoElement = .FALSE.
 
 DO iElem = 1, nElems
@@ -175,7 +175,7 @@ USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_Analyze        ,ONLY: DSMCMacroSampling
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
-USE MOD_DSMC_Vars           ,ONLY: DSMC_RHS, DSMC
+USE MOD_DSMC_Vars           ,ONLY: DSMC
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars  ,ONLY: IsExchangeElem
@@ -190,15 +190,13 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER               :: iElem, nPart, iLoop, iPart, CNElemID, stage
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
-INTEGER,INTENT(IN),OPTIONAL :: stage_opt 
+INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !===================================================================================================================================
 IF (PRESENT(stage_opt)) THEN
   stage = stage_opt
 ELSE
   stage = 0
 END IF
-
-IF (stage.LE.1) DSMC_RHS = 0.0
 
 IF (DoBGKCellAdaptation) THEN
   DO iElem = 1, nElems
@@ -269,4 +267,5 @@ END IF
 
 END SUBROUTINE BGK_main
 
+#endif /*(PP_TimeDiscMethod==400)*/
 END MODULE MOD_BGK

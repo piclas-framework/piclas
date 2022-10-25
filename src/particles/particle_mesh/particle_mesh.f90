@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -148,7 +148,7 @@ USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalElemID,InitGetCNElemID,GetCNE
 USE MOD_Mesh_Tools             ,ONLY: InitGetGlobalSideID,InitGetCNSideID,GetGlobalSideID
 USE MOD_Mesh_Vars              ,ONLY: deleteMeshPointer,NodeCoords
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoElevated
-USE MOD_Mesh_Vars              ,ONLY: useCurveds, nElems
+USE MOD_Mesh_Vars              ,ONLY: useCurveds
 #if USE_MPI
 USE MOD_Analyze_Vars           ,ONLY: CalcHaloInfo
 #endif /*USE_MPI*/
@@ -156,6 +156,7 @@ USE MOD_Particle_BGM           ,ONLY: BuildBGMAndIdentifyHaloRegion
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Mesh_Tools    ,ONLY: InitPEM_LocalElemID,InitPEM_CNElemID,GetMeshMinMax,IdentifyElemAndSideType
 USE MOD_Particle_Mesh_Tools    ,ONLY: CalcParticleMeshMetrics,InitElemNodeIDs,InitParticleGeometry,CalcBezierControlPoints
+USE MOD_Particle_Mesh_Tools    ,ONLY: CalcXCL_NGeo
 USE MOD_Particle_Surfaces      ,ONLY: GetSideSlabNormalsAndIntervals
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN,BezierSampleXi,SurfFluxSideSize,TriaSurfaceFlux
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
@@ -180,6 +181,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 USE MOD_Particle_BGM           ,ONLY: WriteHaloInfo
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
+USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
 #endif /* USE_MPI */
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildBCElemDistance
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius
@@ -188,6 +190,8 @@ USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBa
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICDepo_Shapefunction_Tools, ONLY:InitShapeFunctionDimensionalty
+USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+USE MOD_Mesh_Vars              ,ONLY: nElems
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -210,22 +214,28 @@ INTEGER          :: ALLOCSTAT
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH ...'
-IF(ParticleMeshInitIsDone) CALL abort(&
-__STAMP__&
-, ' Particle-Mesh is already initialized.')
-ALLOCATE(IsExchangeElem(nElems))
-IsExchangeElem = .FALSE.
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH ...'
+IF(ParticleMeshInitIsDone) CALL abort(__STAMP__, ' Particle-Mesh is already initialized.')
+
+#if USE_MPI
+IF(DoParticleLatencyHiding)THEN
+  ! Exchange elements may receive particles during MPI communication and cannot be used for latency hiding
+  ALLOCATE(IsExchangeElem(nElems))
+  IsExchangeElem = .FALSE.
+  CALL AddToElemData(ElementOut,'IsExchangeElem',LogArray=IsExchangeElem)
+END IF ! DoParticleLatencyHiding
+#endif /*USE_MPI*/
+
 ! Potentially curved elements. FIBGM needs to be built on BezierControlPoints rather than NodeCoords to avoid missing elements
 IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING) THEN
   ! Bezier elevation now more important than ever, also determines size of FIBGM extent
   BezierElevation = GETINT('BezierElevation')
   NGeoElevated    = NGeo + BezierElevation
 
-  CALL CalcParticleMeshMetrics()
-
-  CALL CalcBezierControlPoints()
+  CALL CalcParticleMeshMetrics() ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
+  CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared
+  CALL CalcBezierControlPoints() ! Required for BezierControlPoints3D and BezierControlPoints3DElevated
 END IF
 
 ! Mesh min/max must be built on BezierControlPoint for possibly curved elements
@@ -309,7 +319,7 @@ END IF
 WRITE(tmpStr,'(I2.2)') RefMappingGuessProposal
 RefMappingGuess = GETINT('RefMappingGuess',tmpStr)
 IF((RefMappingGuess.LT.1).AND.(UseCurveds)) THEN ! Linear intial guess on curved meshes might cause problems.
-  SWRITE(UNIT_stdOut,'(A)')' WARNING: read-in [RefMappingGuess=1] when using [UseCurveds=T] may create problems!'
+  LBWRITE(UNIT_stdOut,'(A)')' WARNING: read-in [RefMappingGuess=1] when using [UseCurveds=T] may create problems!'
 END IF
 RefMappingEps   = GETREAL('RefMappingEps','1e-4')
 
@@ -327,17 +337,19 @@ IF((TrackingMethod.EQ.TRIATRACKING).AND.(.NOT.TriaSurfaceFlux)) THEN
   CALL ABORT(__STAMP__,'TriaSurfaceFlux must be for TriaTracking!')
 END IF
 IF (Symmetry%Order.LE.2) THEN
-  SWRITE(UNIT_stdOut,'(A)') "Surface Flux set to triangle approximation due to Symmetry2D."
+  LBWRITE(UNIT_stdOut,'(A)') "Surface Flux set to triangle approximation due to Symmetry2D."
   TriaSurfaceFlux = .TRUE.
 END IF
 
 ! Set logical for building node neighbourhood
+FindNeighbourElems = .FALSE.
+! PIC deposition types require the neighbourhood
 SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean','shape_function_adaptive')
     FindNeighbourElems = .TRUE.
-  CASE DEFAULT
-    FindNeighbourElems = .FALSE.
 END SELECT
+! Rotational periodic BC requires the neighbourhood to add elements of the BC nodes
+IF(GEO%RotPeriodicBC) FindNeighbourElems = .TRUE.
 
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)
@@ -349,9 +361,9 @@ SELECT CASE(TrackingMethod)
     ! Interpolation needs coordinates in reference system
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
     IF (DoInterpolation.OR.DoDeposition) THEN
-      CALL CalcParticleMeshMetrics()
-
-      CALL BuildElemTypeAndBasisTria()
+      CALL CalcParticleMeshMetrics()   ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
+      CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
+      CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved, XiEtaZetaBasis and slenXiEtaZetaBasis. Needs XCL_NGeo_Shared
     END IF ! DoInterpolation.OR.DSMC%UseOctree
 
     IF (DoDeposition) CALL BuildEpsOneCell()
@@ -362,10 +374,6 @@ SELECT CASE(TrackingMethod)
     ! ElemNodeID_Shared required
     IF(FindNeighbourElems) CALL InitElemNodeIDs()
 
-!    CALL CalcParticleMeshMetrics()
-
-!    CALL CalcBezierControlPoints()
-
 #if USE_MPI
     CALL Allocate_Shared((/3,3,nComputeNodeTotalSides/),SideSlabNormals_Shared_Win,SideSlabNormals_Shared)
     CALL MPI_WIN_LOCK_ALL(0,SideSlabNormals_Shared_Win,IERROR)
@@ -373,8 +381,8 @@ SELECT CASE(TrackingMethod)
     CALL MPI_WIN_LOCK_ALL(0,SideSlabIntervals_Shared_Win,IERROR)
     CALL Allocate_Shared((/nComputeNodeTotalSides/),BoundingBoxIsEmpty_Shared_Win,BoundingBoxIsEmpty_Shared)
     CALL MPI_WIN_LOCK_ALL(0,BoundingBoxIsEmpty_Shared_Win,IERROR)
-    firstSide = INT(REAL (myComputeNodeRank   *nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
-    lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
+    firstSide = INT(REAL (myComputeNodeRank   )*REAL(nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))+1
+    lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalSides)/REAL(nComputeNodeProcessors))
     SideSlabNormals    => SideSlabNormals_Shared
     SideSlabIntervals  => SideSlabIntervals_Shared
     BoundingBoxIsEmpty => BoundingBoxIsEmpty_Shared
@@ -489,12 +497,12 @@ END IF
 
 ParticleMeshInitIsDone=.TRUE.
 
-SWRITE(UNIT_stdOut,'(A)') " NOW CALLING deleteMeshPointer..."
+LBWRITE(UNIT_stdOut,'(A)') " NOW CALLING deleteMeshPointer..."
 CALL deleteMeshPointer()
 DEALLOCATE(NodeCoords)
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitParticleMesh
 
@@ -520,6 +528,9 @@ USE MOD_MPI_Shared
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+#else
+USE MOD_LoadBalance_Vars       ,ONLY: ElemTime
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -773,8 +784,16 @@ END SELECT
 IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-  ! From InitElemNodeIDs
-  CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
+#if USE_LOADBALANCE
+  !IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
+  ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
+  IF(.NOT.(PerformLoadBalance.AND.DoDielectricSurfaceCharge))THEN
+#endif /*USE_LOADBALANCE*/
+    ! From InitElemNodeIDs
+    CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
+#if USE_LOADBALANCE
+  END IF ! .NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge)
+#endif /*USE_LOADBALANCE*/
 
   !FindNeighbourElems = .FALSE. ! THIS IS SET TO FALSE CURRENTLY in InitParticleMesh()
   ! TODO: fix when FindNeighbourElems is not always set false
@@ -789,7 +808,15 @@ IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
 
-  ADEALLOCATE(ElemNodeID_Shared)
+#if USE_LOADBALANCE
+  !IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
+  ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
+  IF(.NOT.(PerformLoadBalance.AND.DoDielectricSurfaceCharge))THEN
+#endif /*USE_LOADBALANCE*/
+      ADEALLOCATE(ElemNodeID_Shared)
+#if USE_LOADBALANCE
+  END IF ! .NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge)
+#endif /*USE_LOADBALANCE*/
   IF(FindNeighbourElems)THEN
     ADEALLOCATE(NodeToElemMapping_Shared)
     ADEALLOCATE(NodeToElemInfo_Shared)
@@ -801,7 +828,9 @@ SDEALLOCATE(GEO%DirPeriodicVectors)
 SDEALLOCATE(GEO%PeriodicVectors)
 SDEALLOCATE(GEO%FIBGM)
 SDEALLOCATE(GEO%TFIBGM)
+#if USE_MPI
 SDEALLOCATE(IsExchangeElem)
+#endif /*USE_MPI*/
 
 ADEALLOCATE(XiEtaZetaBasis)
 ADEALLOCATE(slenXiEtaZetaBasis)
@@ -819,6 +848,11 @@ SDEALLOCATE(ElemToGlobalElemID)
 ADEALLOCATE(ConcaveElemSide_Shared)
 ADEALLOCATE(ElemSideNodeID_Shared)
 ADEALLOCATE(ElemMidPoint_Shared)
+
+! Load Balance
+!#if !USE_LOADBALANCE
+!SDEALLOCATE(ElemTime)
+!#endif /* !USE_LOADBALANCE */
 
 ParticleMeshInitIsDone=.FALSE.
 

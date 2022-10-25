@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -109,10 +109,23 @@ INTEGER                                 :: SampWallImpactNumber_Shared_Win
 
 ! ====================================================================
 ! Rotational periodic sides
-INTEGER,ALLOCATABLE                     :: RotPeriodicSide2GlobalSide(:) ! Mapping BC-side with PartBoundCond=6 to Global Side ID
-INTEGER,ALLOCATABLE                     :: NumRotPeriodicNeigh(:)        ! Number of adjacent Neigbours sites in rotational periodic BC
-INTEGER,ALLOCATABLE                     :: RotPeriodicSideMapping(:,:)   ! Mapping between rotational periodic sides.
-INTEGER,ALLOCATABLE                     :: SurfSide2RotPeriodicSide(:)   ! Mapping between surf side and periodic sides.
+INTEGER,ALLOCPOINT,DIMENSION(:)   :: NumRotPeriodicNeigh       ! Number of adjacent Neigbours sites in rotational periodic BC
+INTEGER,ALLOCPOINT,DIMENSION(:,:) :: RotPeriodicSideMapping    ! Mapping between rotational periodic sides.
+INTEGER,ALLOCPOINT,DIMENSION(:)   :: SurfSide2RotPeriodicSide  ! Mapping between surf side and periodic sides.
+#if USE_MPI
+INTEGER,POINTER,DIMENSION(:)    :: SurfSide2RotPeriodicSide_Shared
+INTEGER                         :: SurfSide2RotPeriodicSide_Shared_Win
+INTEGER,POINTER,DIMENSION(:)    :: NumRotPeriodicNeigh_Shared
+INTEGER                         :: NumRotPeriodicNeigh_Shared_Win
+INTEGER,POINTER,DIMENSION(:)    :: Rot2Glob_temp_Shared
+INTEGER                         :: Rot2Glob_temp_Shared_Win
+INTEGER,POINTER,DIMENSION(:,:)  :: RotPeriodicSideMapping_temp_Shared
+INTEGER                         :: RotPeriodicSideMapping_temp_Shared_Win
+INTEGER,POINTER,DIMENSION(:,:)  :: RotPeriodicSideMapping_Shared
+INTEGER                         :: RotPeriodicSideMapping_Shared_Win
+REAL,POINTER,DIMENSION(:,:)     :: BoundingBox_Shared
+INTEGER                         :: BoundingBox_Shared_Win
+#endif /*USE_MPI*/
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! required variables
@@ -237,9 +250,7 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: WallVelo(:,:)
   REAL    , ALLOCATABLE                  :: Voltage(:)
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
-  REAL    , ALLOCATABLE                  :: RotFreq(:)                    ! Rotation frequency of the wall
-  REAL    , ALLOCATABLE                  :: RotAxi(:,:)                   ! Direction of rotation axis
-  REAL    , ALLOCATABLE                  :: RotOrg(:,:)                   ! Origin of rotation axis
+  REAL    , ALLOCATABLE                  :: RotOmega(:,:)                 ! Angular velocity
   INTEGER , ALLOCATABLE                  :: RotPeriodicDir(:)             ! Direction of rotation
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          ! Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         ! Probability of SpeciesSwaps at wall

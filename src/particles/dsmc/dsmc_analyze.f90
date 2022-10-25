@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -128,7 +128,7 @@ END IF
 #endif /*USE_MPI*/
 
 ! Determine the number of variables
-nVar = 5
+nVar = MACROSURF_NVARS
 nVarSpec = 1
 
 ! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle, number, and number per second: Add 10 to the buffer length
@@ -171,7 +171,9 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       CYCLE
     END IF
   END IF
-  !================== INNER BC CHECK
+  !================== ROTATIONALLY PERIODIC BC CHECK
+  IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
+
   OutputCounter = OutputCounter + 1
 
   DO q = 1,nSurfSample
@@ -205,9 +207,11 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       ! Number of simulation particle impacts per iteration
       MacroSurfaceVal(5,p,q,OutputCounter) = CounterSum / IterNum
 
+      MacroSurfaceVal(6,p,q,OutputCounter) = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
+
       ! Output of the pump capacity
       IF(nPorousBC.GT.0) THEN
-        nVarCount = 5
+        nVarCount = MACROSURF_NVARS
         DO iPBC=1, nPorousBC
           IF(MapSurfSideToPorousSide_Shared(iSurfSide).EQ.0) CYCLE
           IF(PorousBCInfo_Shared(1,MapSurfSideToPorousSide_Shared(iSurfSide)).EQ.iPBC) THEN
@@ -646,7 +650,7 @@ SUBROUTINE DSMC_data_sampling()
 USE MOD_Globals
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, PartStateIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution, AmbipolElecVelo
 USE MOD_Part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species!, UseRotRefFrame, RotRefFrameOmega
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -688,15 +692,15 @@ DO iPart=1,PDM%ParticleVecLength
             DSMC_Solution(10,iElem,iSpec)=DSMC_Solution(10,iElem,iSpec)+PartStateIntEn(3,iPart)*partWeight
           END IF
         END IF
-        IF (DSMC%DoAmbipolarDiff) THEN
-          IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
-            DSMC_Solution(1:3,iElem,DSMC%AmbiDiffElecSpec) = DSMC_Solution(1:3,iElem,DSMC%AmbiDiffElecSpec) &
-              + AmbipolElecVelo(iPart)%ElecVelo(1:3)*partWeight
-            DSMC_Solution(4:6,iElem,DSMC%AmbiDiffElecSpec) = DSMC_Solution(4:6,iElem,DSMC%AmbiDiffElecSpec) &
-              + AmbipolElecVelo(iPart)%ElecVelo(1:3)**2*partWeight
-            DSMC_Solution(7,iElem,DSMC%AmbiDiffElecSpec) = DSMC_Solution(7,iElem, DSMC%AmbiDiffElecSpec) + partWeight
-            DSMC_Solution(11,iElem, DSMC%AmbiDiffElecSpec) = DSMC_Solution(11,iElem, DSMC%AmbiDiffElecSpec) + 1.0
-          END IF
+      END IF
+      IF (DSMC%DoAmbipolarDiff) THEN
+        IF(Species(PartSpecies(iPart))%ChargeIC.GT.0.0) THEN
+          DSMC_Solution(1:3,iElem,DSMC%AmbiDiffElecSpec) = DSMC_Solution(1:3,iElem,DSMC%AmbiDiffElecSpec) &
+            + AmbipolElecVelo(iPart)%ElecVelo(1:3)*partWeight
+          DSMC_Solution(4:6,iElem,DSMC%AmbiDiffElecSpec) = DSMC_Solution(4:6,iElem,DSMC%AmbiDiffElecSpec) &
+            + AmbipolElecVelo(iPart)%ElecVelo(1:3)**2*partWeight
+          DSMC_Solution(7,iElem,DSMC%AmbiDiffElecSpec) = DSMC_Solution(7,iElem, DSMC%AmbiDiffElecSpec) + partWeight
+          DSMC_Solution(11,iElem, DSMC%AmbiDiffElecSpec) = DSMC_Solution(11,iElem, DSMC%AmbiDiffElecSpec) + 1.0
         END IF
       END IF
     END IF

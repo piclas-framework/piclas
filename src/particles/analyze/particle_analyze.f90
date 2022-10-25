@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -85,7 +85,7 @@ CALL prms%CreateRealOption(     'printDiffTime'           , 'Time for starting t
 CALL prms%CreateRealArrayOption('printDiffVec'            , 'Vector (x,v) that is used to calcualte the L2 norm when using Part-TrackPosition=T','0. , 0. , 0. , 0. , 0. , 0.')
 CALL prms%CreateLogicalOption(  'CalcNumSpec'             , 'Calculate the number of simulation particles per species for the complete domain','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcNumDens'             , 'Calculate the number density [1/m3] per species for the complete domain','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcAdaptiveBCInfo'      , 'Calculate the massflow rate [kg/s] per species and surface flux','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcSurfFluxInfo'        , 'Calculate the massflow rate [kg/s], current [A], or pressure [Pa] per species and surface flux','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCollRates'           , 'Calculate the collision rates per collision pair','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcReacRates'           , 'Calculate the reaction rate per reaction','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcShapeEfficiency'     , 'Use efficiency methods for shape functions.', '.FALSE.')
@@ -138,8 +138,12 @@ USE MOD_Mesh_Vars             ,ONLY: ElemBaryNGeo
 USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp,BRAutomaticElectronRef
+USE MOD_Equation_Vars         ,ONLY: CalcPCouplElectricPotential
 #endif /*USE_HDG*/
 USE MOD_Particle_Analyze_Tools,ONLY: CalcNumberDensityBGGasDistri
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -160,8 +164,8 @@ CALL abort(__STAMP__,&
 'InitParticleAnalyse already called.',999,999.)
   RETURN
 END IF
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE ANALYZE...'
 
 ! Average number of points per shape function: max. number allowed is (PP_N+1)^3
 IF(StringBeginsWith(DepositionType,'shape_function'))THEN
@@ -524,7 +528,7 @@ IF(DoDeposition) THEN
   CalcCharge = GETLOGICAL('CalcCharge')
   IF(CalcCharge) DoPartAnalyze = .TRUE.
 ELSE
-  SWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
+  LBWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
 END IF
 
 CalcEkin = GETLOGICAL('CalcKineticEnergy')
@@ -558,12 +562,15 @@ END IF
 
 !-- Coupled Power
 CalcCoupledPower = GETLOGICAL('CalcCoupledPower')
+#if USE_HDG
+IF(CalcPCouplElectricPotential.AND.(.NOT.CalcCoupledPower)) CALL abort(__STAMP__,'BoundaryType = (/2,2/) requires CalcCoupledPower=T') 
+#endif /*USE_HDG*/
 
 IF(CalcCoupledPower) THEN
   DisplayCoupledPower = GETLOGICAL('DisplayCoupledPower')
   DoPartAnalyze = .TRUE.
   PCouplAverage = 0.0
-#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
+#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
   CALL abort(__STAMP__,'ERROR: CalcCoupledPower is not implemented yet with the chosen time discretization method!')
 #endif
   ! Allocate type array for all ranks
@@ -605,16 +612,16 @@ IF(TrackParticlePosition)THEN
 END IF
 CalcSimNumSpec = GETLOGICAL('CalcNumSpec')
 CalcNumDens    = GETLOGICAL('CalcNumDens')
-CalcAdaptiveBCInfo = GETLOGICAL('CalcAdaptiveBCInfo')
-IF(CalcAdaptiveBCInfo) THEN
+CalcSurfFluxInfo = GETLOGICAL('CalcSurfFluxInfo')
+IF(CalcSurfFluxInfo) THEN
+  ALLOCATE(FlowRateSurfFlux(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
+  FlowRateSurfFlux = 0.
   IF(UseAdaptive) THEN
-    ALLOCATE(MassflowRate(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
-    MassflowRate = 0.
     ALLOCATE(PressureAdaptiveBC(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
     PressureAdaptiveBC = 0.
-  ELSE
-    CalcAdaptiveBCInfo = .FALSE.
   END IF
+ELSE
+  CalcSurfFluxInfo = .FALSE.
 END IF
 CalcCollRates = GETLOGICAL('CalcCollRates')
 CalcReacRates = GETLOGICAL('CalcReacRates')
@@ -629,7 +636,7 @@ IF(CalcReacRates) THEN
       'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
 END IF
 
-IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcAdaptiveBCInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
+IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcSurfFluxInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
 
 !-- Compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos')
@@ -641,7 +648,7 @@ IF (CalcVelos) THEN
   VeloDirs_hilf = GetIntArray('VelocityDirections',4,'1,1,1,1') ! x,y,z,abs -> 0/1 = T/F
   VeloDirs(:) = .FALSE.
   IF(.NOT.CalcSimNumSpec)THEN
-    SWRITE(UNIT_stdOut,'(A)') ' Velocity computation requires NumSpec and SimNumSpec. Setting CalcSimNumSpec=.TRUE.'
+    LBWRITE(UNIT_stdOut,'(A)') ' Velocity computation requires NumSpec and SimNumSpec. Setting CalcSimNumSpec=.TRUE.'
     CalcSimNumSpec = .TRUE.
   END IF
   DO dir = 1,4
@@ -651,9 +658,7 @@ IF (CalcVelos) THEN
   END DO
   IF ((.NOT. VeloDirs(1)) .AND. (.NOT. VeloDirs(2)) .AND. &
       (.NOT. VeloDirs(3)) .AND. (.NOT. VeloDirs(4))) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'No VelocityDirections set in CalcVelos!')
+    CALL abort(__STAMP__,'No VelocityDirections set in CalcVelos!')
   END IF
 END IF
 
@@ -691,8 +696,8 @@ CalcEMFieldOutput = GETLOGICAL('CalcEMFieldOutput')
 
 ParticleAnalyzeInitIsDone=.TRUE.
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTCILE ANALYZE DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTCILE ANALYZE DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitParticleAnalyze
 
@@ -711,6 +716,9 @@ USE MOD_IO_HDF5               ,ONLY: OpenDataFile,CloseDataFile,File_ID
 USE MOD_Restart_Vars          ,ONLY: RestartFile,DoRestart
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcTemp,DoPartAnalyze
 USE MOD_ReadInTools           ,ONLY: PrintOption
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -768,9 +776,9 @@ IF(CalcBulkElectronTemp)THEN
       IF(BulkElectronTempExists)THEN
         CALL ReadArray(TRIM(ContainerName),2,(/1_IK,1_IK/),0_IK,2,RealArray=TmpArray(1,1))
         BulkElectronTemp = TmpArray(1,1)
-        WRITE(UNIT_stdOut,'(1(A,ES10.2E3))') " Read BulkElectronTemp from restart file ["//TRIM(RestartFile)//"] Te[eV]:",&
+        LBWRITE(UNIT_stdOut,'(1(A,ES10.2E3))') " Read BulkElectronTemp from restart file ["//TRIM(RestartFile)//"] Te[eV]:",&
             BulkElectronTemp
-      END IF ! RegionElectronRefExists
+      END IF ! BulkElectronTempExists
       CALL CloseDataFile()
     END IF ! DoRestart
   END IF ! MPIRoot
@@ -809,8 +817,9 @@ USE MOD_Particle_Vars           ,ONLY: Species,nSpecies
 USE MOD_PIC_Analyze             ,ONLY: CalcDepositedCharge
 USE MOD_Restart_Vars            ,ONLY: RestartTime,DoRestart
 USE MOD_TimeDisc_Vars           ,ONLY: iter, dt, IterDisplayStep
+USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptive
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumPartsOfSpec,CalcShapeEfficiencyR,CalcKineticEnergy,CalcKineticEnergyAndMaximum
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumberDensity,CalcAdaptBCInfo,CalcTransTemp,CalcVelocities
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumberDensity,CalcSurfaceFluxInfo,CalcTransTemp,CalcVelocities
 USE MOD_Particle_Analyze_Output ,ONLY: DisplayCoupledPowerPart
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 USE MOD_DSMC_Vars               ,ONLY: CollisMode
@@ -828,6 +837,8 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,CalcRelaxRatesEl
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,BRAutomaticElectronRef,RegionElectronRef
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
+USE MOD_Equation_Vars          ,ONLY: CalcPCouplElectricPotential,CoupledPowerPotential
+USE MOD_Particle_Analyze_Tools ,ONLY: CalculatePCouplElectricPotential
 #endif /*USE_HDG*/
 USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
 USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
@@ -864,6 +875,9 @@ INTEGER             :: dir
 #if USE_HDG
 INTEGER             :: iRegions
 #endif /*USE_HDG*/
+#if USE_MPI
+REAL                :: tmpArray(1:2)
+#endif /*USE_MPI*/
 !===================================================================================================================================
   IF ( DoRestart ) THEN
     isRestart = .true.
@@ -919,15 +933,21 @@ INTEGER             :: iRegions
             OutputCounter = OutputCounter + 1
           END DO
         END IF
-        IF(CalcAdaptiveBCInfo) THEN
+        IF(CalcSurfFluxInfo) THEN
           DO iSpec = 1, nSpecies
             DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
               WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Massflow-Spec-',iSpec,'-SF-',iSF
+              IF(Species(iSpec)%Surfaceflux(iSF)%UseEmissionCurrent) THEN
+                WRITE(unit_index,'(I3.3,A14,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Current-Spec-',iSpec,'-SF-',iSF
+              ELSE
+                WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Massflow-Spec-',iSpec,'-SF-',iSF
+              END IF
               OutputCounter = OutputCounter + 1
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Pressure-Spec-',iSpec,'-SF-',iSF
-              OutputCounter = OutputCounter + 1
+              IF(UseAdaptive) THEN
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Pressure-Spec-',iSpec,'-SF-',iSF
+                OutputCounter = OutputCounter + 1
+              END IF
             END DO
           END DO
         END IF
@@ -1218,6 +1238,9 @@ INTEGER             :: iRegions
             OutputCounter = OutputCounter + 1
           END DO
         END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
+        IF(CalcPCouplElectricPotential)THEN
+          WRITE(unit_index,'(A1,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-CoupledPowerPotential-[V]'
+        END IF ! CalcPCouplElectricPotential
 #endif /*USE_HDG*/
         IF(CalcBulkElectronTemp)THEN
           WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-BulkElectronTemp-[K]'
@@ -1235,8 +1258,8 @@ INTEGER             :: iRegions
   ! Computes the real and simulated number of particles
   CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec,.TRUE.,CalcSimNumSpec)
   IF(CalcNumDens) CALL CalcNumberDensity(NumSpec,NumDens)
-  ! Determine the mass flux [kg/s] and pressure [Pa] per species and surface flux (includes MPI communication)
-  IF(CalcAdaptiveBCInfo) CALL CalcAdaptBCInfo()
+  ! Determine the mass flux [kg/s], current [A] and/or pressure [Pa] per species and surface flux (includes MPI communication)
+  IF(CalcSurfFluxInfo) CALL CalcSurfaceFluxInfo()
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate total temperature of each molecular species (Laux, p. 109)
   IF(CalcEkin.OR.CalcEint(1))THEN
@@ -1316,16 +1339,21 @@ INTEGER             :: iRegions
 ! All routines ABOVE contain the required MPI-Communication
 !===================================================================================================================================
 #if USE_MPI
+  IF(CalcCoupledPower) THEN
+    tmpArray = (/PCoupl, PCouplAverage/)
+    CALL MPI_ALLREDUCE(MPI_IN_PLACE , tmpArray , 2 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , IERROR)
+    PCoupl        = tmpArray(1)
+    PCouplAverage = tmpArray(2)
+    ! Only the root process keeps PCouplAverage, but all processes require PCoupl if CalcPCouplElectricPotential=T
+    IF(.NOT.MPIRoot) PCouplAverage = 0.
+  END IF
+  ! Switch between root and non-root processes
   IF (PartMPI%MPIRoot) THEN
     IF (CalcPartBalance)THEN
       CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(1:nSpecAnalyze)    ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,nPartOut(1:nSpecAnalyze)   ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(1:nSpecAnalyze) ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(1:nSpecAnalyze),nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-    END IF
-    IF(CalcCoupledPower) THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,PCoupl       ,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,PCouplAverage,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
   ELSE ! no Root
     IF (CalcPartBalance)THEN
@@ -1334,12 +1362,21 @@ INTEGER             :: iRegions
       CALL MPI_REDUCE(PartEkinIn ,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
       CALL MPI_REDUCE(PartEkinOut,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
     END IF
-    IF(CalcCoupledPower) THEN
-      CALL MPI_REDUCE(PCoupl       ,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(PCouplAverage,0,1,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-    END IF
   END IF
 #endif /*USE_MPI*/
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Analyze Routines that require MPI_REDUCE of other variables
+#if USE_HDG
+  ! Moving Average of PCoupl:
+  IF(CalcCoupledPower) THEN
+    ! Moving Average of PCoupl:
+    IF(ABS(Time-RestartTime).GT.0.0) PCouplAverage = PCouplAverage / (Time-RestartTime)
+    ! current PCoupl (Delta_E / Timestep)
+    PCoupl = PCoupl / dt
+  END IF
+! Calculate electric potential for special BCs BoundaryType = (/2,2/) to meet a specific input power
+IF((iter.GT.0).AND.CalcPCouplElectricPotential) CALL CalculatePCouplElectricPotential()
+#endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Perform averaging/summation of the MPI communicated variables on the root only (and for the non-MPI case, MPIRoot is set to true)
 IF(PartMPI%MPIRoot) THEN
@@ -1365,14 +1402,7 @@ IF(PartMPI%MPIRoot) THEN
       IF(BGK_MeanRelaxFactorCounter.GT.0) BGK_MeanRelaxFactor = BGK_MeanRelaxFactor / REAL(BGK_MeanRelaxFactorCounter)
     END IF
   END IF
-    ! Moving Average of PCoupl:
-  IF(CalcCoupledPower) THEN
-    ! Moving Average of PCoupl:
-    IF(ABS(Time-RestartTime).GT.0.0) PCouplAverage = PCouplAverage / (Time-RestartTime)
-    ! current PCoupl (Delta_E / Timestep)
-    PCoupl = PCoupl / dt
-  END IF
-END IF
+END IF ! PartMPI%MPIRoot
 
 IF(CalcCoupledPower) THEN
   ! Moving Average of PCoupl for each species
@@ -1404,202 +1434,205 @@ END IF
 IF (PartMPI%MPIROOT) THEN
 #endif /*USE_MPI*/
   WRITE(unit_index,'(E23.16E3)',ADVANCE='NO') Time
-    IF (CalcSimNumSpec) THEN
-      DO iSpec=1, nSpecAnalyze
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(SimNumSpec(iSpec))
+  IF (CalcSimNumSpec) THEN
+    DO iSpec=1, nSpecAnalyze
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(SimNumSpec(iSpec))
+    END DO
+  END IF
+  IF (CalcNumDens) THEN
+    DO iSpec=1, nSpecAnalyze
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(NumDens(iSpec))
+    END DO
+  END IF
+  IF(CalcSurfFluxInfo) THEN
+    DO iSpec = 1, nSpecies
+      DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', FlowRateSurfFlux(iSpec,iSF)
+        IF(UseAdaptive) WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PressureAdaptiveBC(iSpec,iSF)
       END DO
-    END IF
-    IF (CalcNumDens) THEN
-      DO iSpec=1, nSpecAnalyze
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(NumDens(iSpec))
+    END DO
+  END IF
+  IF (CalcCharge) THEN
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PartCharge(1)
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PartCharge(2)
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PartCharge(3)
+  END IF
+  IF (CalcPartBalance) THEN
+    DO iSpec=1, nSpecAnalyze
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(nPartIn(iSpec))
+    END DO
+    DO iSpec=1, nSpecAnalyze
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(nPartOut(iSpec))
+    END DO
+  END IF
+  IF (CalcEkin) THEN
+    DO iSpec=1, nSpecAnalyze
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Ekin(iSpec)
+    END DO
+  END IF
+  IF (CalcCoupledPower) THEN
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCoupl
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCouplAverage
+  END IF
+  IF (CalcLaserInteraction) THEN
+    DO iSpec=1, nSpecies
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', EkinMax(iSpec)
+    END DO
+  END IF
+  IF (CalcEpot .AND. CalcEkin .AND. CalcEtot) THEN
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Ekin(nSpecAnalyze) + WEl + WMag + Wphi+Wpsi
+  END IF
+  IF (CalcTemp(2)) THEN
+    DO iSpec=1, nSpecAnalyze
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Temp(iSpec)
+    END DO
+  END IF
+  IF (CalcVelos) THEN
+    DO iSpec=1, nSpecies
+      DO dir = 1,4
+        IF (VeloDirs(dir)) THEN
+          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PartVtrans(iSpec,dir)
+          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PartVtherm(iSpec,dir)
+        END IF
       END DO
-    END IF
-    IF(CalcAdaptiveBCInfo) THEN
-      DO iSpec = 1, nSpecies
-        DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
-          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MassflowRate(iSpec,iSF)
-          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PressureAdaptiveBC(iSpec,iSF)
+    END DO
+  END IF
+  IF (CalcPartBalance) THEN
+    DO iSpec=1, nSpecAnalyze
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PartEkinIn(iSpec)
+    END DO
+    DO iSpec=1, nSpecAnalyze
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PartEkinOut(iSpec)
+    END DO
+  END IF
+
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+  IF (CollisMode.GT.1) THEN
+    IF(CalcEint(2)) THEN
+      DO iSpec=1, nSpecAnalyze
+        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', IntEn(iSpec,1)
+      END DO
+      DO iSpec=1, nSpecAnalyze
+        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', IntEn(iSpec,2)
+      END DO
+      IF (DSMC%ElectronicModel.GT.0) THEN
+        DO iSpec=1, nSpecAnalyze
+          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', IntEn(iSpec,3)
         END DO
-      END DO
+      END IF
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ETotal
     END IF
-    IF (CalcCharge) THEN
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PartCharge(1)
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PartCharge(2)
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PartCharge(3)
+    IF(CalcEpot .AND. CalcEtot .AND. CalcEint(2))THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ETotal+WEl+WMag + Wphi+Wpsi
     END IF
-    IF (CalcPartBalance) THEN
-      DO iSpec=1, nSpecAnalyze
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(nPartIn(iSpec))
-      END DO
-      DO iSpec=1, nSpecAnalyze
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(nPartOut(iSpec))
-      END DO
-    END IF
-    IF (CalcEkin) THEN
-      DO iSpec=1, nSpecAnalyze
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Ekin(iSpec)
-      END DO
-    END IF
-    IF (CalcCoupledPower) THEN
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCoupl
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCouplAverage
-    END IF
-    IF (CalcLaserInteraction) THEN
+    IF(CalcTemp(2)) THEN
       DO iSpec=1, nSpecies
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', EkinMax(iSpec)
+        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', IntTemp(iSpec,1)
       END DO
-    END IF
-    IF (CalcEpot .AND. CalcEkin .AND. CalcEtot) THEN
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Ekin(nSpecAnalyze) + WEl + WMag + Wphi+Wpsi
-    END IF
-    IF (CalcTemp(2)) THEN
-      DO iSpec=1, nSpecAnalyze
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Temp(iSpec)
-      END DO
-    END IF
-    IF (CalcVelos) THEN
       DO iSpec=1, nSpecies
-        DO dir = 1,4
-          IF (VeloDirs(dir)) THEN
-            WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PartVtrans(iSpec,dir)
-            WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PartVtherm(iSpec,dir)
+        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Xi_Vib(iSpec)
+      END DO
+      DO iSpec=1, nSpecies
+        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', IntTemp(iSpec,2)
+      END DO
+      IF (DSMC%ElectronicModel.GT.0) THEN
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', IntTemp(iSpec,3)
+        END DO
+        DO iSpec=1, nSpecies
+          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Xi_Elec(iSpec)
+        END DO
+      END IF
+      DO iSpec=1, nSpecAnalyze
+        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', TempTotal(iSpec)
+      END DO
+    END IF
+  END IF
+  IF(DSMC%CalcQualityFactors) THEN
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanCollProb
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MaxCollProb
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanFreePath
+    IF(CalcRelaxProb) THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RotRelaxProb(2)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RotRelaxProb(1)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', VibRelaxProb(2)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', VibRelaxProb(1)
+    END IF
+  END IF
+#endif
+  IF(FPInitDone) THEN
+    IF(DSMC%CalcQualityFactors) THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', FP_MeanRelaxFactor
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', FP_MaxRelaxFactor
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', FP_MaxRotRelaxFactor
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', FP_PrandtlNumber
+    END IF
+  END IF
+  IF(BGKInitDone) THEN
+    IF(DSMC%CalcQualityFactors) THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BGK_MeanRelaxFactor
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BGK_MaxRelaxFactor
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BGK_MaxRotRelaxFactor
+    END IF
+  END IF
+#if (PP_TimeDiscMethod==42)
+  IF(CalcCollRates) THEN
+    DO iCase=1, CollInf%NumCase +1
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', CRate(iCase)
+    END DO
+  END IF
+  IF(CalcRelaxProb) THEN
+    IF(XSec_Relaxation) THEN
+      DO iSpec = 1, nSpecies
+        DO jSpec = iSpec, nSpecies
+          iCase = CollInf%Coll_Case(iSpec,jSpec)
+          IF(SpecXSec(iCase)%UseVibXSec) THEN
+            ! Skip entry if both species are NOT molecules
+            IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
+                ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
+            WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', VibRelaxRate(iCase)
           END IF
         END DO
       END DO
     END IF
-    IF (CalcPartBalance) THEN
-      DO iSpec=1, nSpecAnalyze
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PartEkinIn(iSpec)
-      END DO
-      DO iSpec=1, nSpecAnalyze
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PartEkinOut(iSpec)
-      END DO
-    END IF
-
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
-    IF (CollisMode.GT.1) THEN
-      IF(CalcEint(2)) THEN
-        DO iSpec=1, nSpecAnalyze
-          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', IntEn(iSpec,1)
+    IF(DSMC%ElectronicModel.EQ.3) THEN
+      DO iSpec = 1, nSpecies
+        DO jSpec = iSpec, nSpecies
+          iCase = CollInf%Coll_Case(iSpec,jSpec)
+          IF(SpecXSec(iCase)%UseElecXSec) THEN
+            DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+              WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ElecRelaxRate(iCase,iLevel)
+            END DO
+          END IF
         END DO
-        DO iSpec=1, nSpecAnalyze
-          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', IntEn(iSpec,2)
-        END DO
-        IF (DSMC%ElectronicModel.GT.0) THEN
-          DO iSpec=1, nSpecAnalyze
-            WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', IntEn(iSpec,3)
-          END DO
-        END IF
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ETotal
-      END IF
-      IF(CalcEpot .AND. CalcEtot .AND. CalcEint(2))THEN
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ETotal+WEl+WMag + Wphi+Wpsi
-      END IF
-      IF(CalcTemp(2)) THEN
-        DO iSpec=1, nSpecies
-          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', IntTemp(iSpec,1)
-        END DO
-        DO iSpec=1, nSpecies
-          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Xi_Vib(iSpec)
-        END DO
-        DO iSpec=1, nSpecies
-          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', IntTemp(iSpec,2)
-        END DO
-        IF (DSMC%ElectronicModel.GT.0) THEN
-          DO iSpec=1, nSpecies
-            WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', IntTemp(iSpec,3)
-          END DO
-          DO iSpec=1, nSpecies
-            WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Xi_Elec(iSpec)
-          END DO
-        END IF
-        DO iSpec=1, nSpecAnalyze
-          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', TempTotal(iSpec)
-        END DO
-      END IF
-    END IF
-    IF(DSMC%CalcQualityFactors) THEN
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanCollProb
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MaxCollProb
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanFreePath
-      IF(CalcRelaxProb) THEN
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RotRelaxProb(2)
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RotRelaxProb(1)
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', VibRelaxProb(2)
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', VibRelaxProb(1)
-      END IF
-    END IF
-#endif
-    IF(FPInitDone) THEN
-      IF(DSMC%CalcQualityFactors) THEN
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', FP_MeanRelaxFactor
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', FP_MaxRelaxFactor
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', FP_MaxRotRelaxFactor
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', FP_PrandtlNumber
-      END IF
-    END IF
-    IF(BGKInitDone) THEN
-      IF(DSMC%CalcQualityFactors) THEN
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BGK_MeanRelaxFactor
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BGK_MaxRelaxFactor
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BGK_MaxRotRelaxFactor
-      END IF
-    END IF
-#if (PP_TimeDiscMethod==42)
-    IF(CalcCollRates) THEN
-      DO iCase=1, CollInf%NumCase +1
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', CRate(iCase)
       END DO
     END IF
-    IF(CalcRelaxProb) THEN
-      IF(XSec_Relaxation) THEN
-        DO iSpec = 1, nSpecies
-          DO jSpec = iSpec, nSpecies
-            iCase = CollInf%Coll_Case(iSpec,jSpec)
-            IF(SpecXSec(iCase)%UseVibXSec) THEN
-              ! Skip entry if both species are NOT molecules
-              IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
-                  ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
-              WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', VibRelaxRate(iCase)
-            END IF
-          END DO
-        END DO
-      END IF
-      IF(DSMC%ElectronicModel.EQ.3) THEN
-        DO iSpec = 1, nSpecies
-          DO jSpec = iSpec, nSpecies
-            iCase = CollInf%Coll_Case(iSpec,jSpec)
-            IF(SpecXSec(iCase)%UseElecXSec) THEN
-              DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
-                WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ElecRelaxRate(iCase,iLevel)
-              END DO
-            END IF
-          END DO
-        END DO
-      END IF
-    END IF
-    IF(CalcReacRates) THEN
-      DO iCase=1, ChemReac%NumOfReact
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RRate(iCase)
-      END DO
-    END IF
+  END IF
+  IF(CalcReacRates) THEN
+    DO iCase=1, ChemReac%NumOfReact
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RRate(iCase)
+    END DO
+  END IF
 #endif /*(PP_TimeDiscMethod==42)*/
 #if USE_HDG
-    IF(CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef)THEN ! variable reference electron temperature
-      DO iRegions=1,BRNbrOfRegions
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(1,iRegions)/ElementaryCharge ! Density in 1/m^3
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(2,iRegions) ! Phi in Volt
-        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(3,iRegions)*ElementaryCharge/BoltzmannConst ! convert eV to K
-      END DO
-    END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
+  IF(CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef)THEN ! variable reference electron temperature
+    DO iRegions=1,BRNbrOfRegions
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(1,iRegions)/ElementaryCharge ! Density in 1/m^3
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(2,iRegions) ! Phi in Volt
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(3,iRegions)*ElementaryCharge/BoltzmannConst ! convert eV to K
+    END DO
+  END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
+  IF(CalcPCouplElectricPotential)THEN
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', CoupledPowerPotential(2) ! Electric potential in V
+  END IF ! CalcPCouplElectricPotential
 #endif /*USE_HDG*/
-    IF(CalcBulkElectronTemp)THEN
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BulkElectronTemp*eV2Kelvin ! Temperature in Kelvin
-    END IF ! CalcBulkElectronTemp
-    ! Finish the line with new line character
-    WRITE(unit_index,'(A)') ''
+  IF(CalcBulkElectronTemp)THEN
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BulkElectronTemp*eV2Kelvin ! Temperature in Kelvin
+  END IF ! CalcBulkElectronTemp
+  ! Finish the line with new line character
+  WRITE(unit_index,'(A)') ''
 #if USE_MPI
-  END IF
+END IF ! PartMPI%MPIROOT
 #endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Reset coupled power to particles if output of coupled power is active
@@ -1678,7 +1711,7 @@ SDEALLOCATE(nPartIn)
 SDEALLOCATE(nPartOut)
 SDEALLOCATE(PartEkinIn)
 SDEALLOCATE(PartEkinOut)
-SDEALLOCATE(MassflowRate)
+SDEALLOCATE(FlowRateSurfFlux)
 SDEALLOCATE(PressureAdaptiveBC)
 
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN

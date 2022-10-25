@@ -10,18 +10,20 @@ The following two sections give an overview of using the different methods.
 (sec:variableExternalField)=
 ## Variable External Field
 
-One- or two dimensional magnetic fields can be used as fixed background fields for certain time discretization methods (full Maxwell
-time discs and the Poisson Boris-Leapfrog scheme)
-The read-in variable for either .csv (only for 1D along $z$-direction) or .h5 (only for 2D axis symmetric $z$-direction) files is set via
+One-, two- and three-dimensional magnetic fields can be used as fixed background fields for certain time discretization methods
+(full Maxwell time discs and the Poisson Boris-Leapfrog scheme)
+The read-in variable for either .csv (only for 1D along $z$-direction) or .h5 (only for 2D axis symmetric $z$-direction or fully 3D)
+files is set via
 
     PIC-variableExternalField = X.csv, X.h5
 
-Two examples are located within the regression test directory
+Three examples are located within the regression test directory
 
     regressioncheck/CHE_PIC_maxwell_RK4/gyrotron_variable_Bz
     regressioncheck/CHE_PIC_maxwell_RK4/2D_variable_B
+    regressioncheck/CHE_PIC_maxwell_RK4/3D_variable_B
 
-for 1D and 2D fields, respectively. Note that 1D currently only allows magnetic fields of type $B_{z}(z)$ and 2D only allows the 
+for 1D, 2D and 3D fields, respectively. Note that 1D currently only allows magnetic fields of type $B_{z}(z)$ and 2D only allows the 
 components $B_{r}(r,z)$ and $B_{z}(r,z)$ that comprise a rotationally symmetric vector field $\textbf{B}$.
 
 The first example (1D and .csv file) uses data via
@@ -57,6 +59,28 @@ It is only allowed that the first $N$ rows have the same $r$ value and varying $
 $z$ is the inner loop variable when unrolling the data into an array).
 This is automatically checked by comparing the distances in $r$ and $z$ direction, which must be equidistant.
 In addition, the attributes r, z, Br and Bz, which contain the indices of the corresponding column number in "data".
+
+Three-dimensional fields must be supplied in the following format
+
+    x1 y1 z1 Bx1 By1 Bz1
+    x2 y2 z2 Bx2 By2 Bz2
+    x3 y3 z3 Bx3 By3 Bz3
+    x4 y4 z4 Bx4 By4 Bz4
+    x5 y5 z5 Bx5 By5 Bz5
+    ....
+
+where the data (dataset is labelled "data" in the .h5 file) is sorted in lines in ascending coordinates.
+For everything to work, the order must be like this
+
+    x1 y1 z1 Bx1 By1 Bz1
+    x2 y1 z1 Bx2 By2 Bz2
+    x1 y2 z1 Bx3 By3 Bz3
+    x2 y2 z1 Bx4 By4 Bz4
+    x1 y1 z2 Bx5 By5 Bz5
+    x2 y1 z2 Bx6 By6 Bz6
+    ....
+
+where first the $x$-coordinate changes, then $y$ and finally the $z$.
 
 (sec:superB)=
 ## superB

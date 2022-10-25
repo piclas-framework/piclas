@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2019 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -352,7 +352,7 @@ USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_ta
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_gyrotroncircle
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
-USE MOD_part_tools              ,ONLY: BuildTransGaussNums
+USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck
 USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -369,7 +369,8 @@ REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3),MPF
 !===================================================================================================================================
 
 IF(NbrOfParticle.LT.1) RETURN
-IF(NbrOfParticle.GT.PDM%maxParticleNumber) CALL abort(__STAMP__,'NbrOfParticle > PDM%maxParticleNumber!')
+IF(NbrOfParticle.GT.PDM%maxParticleNumber) CALL abort(__STAMP__,'NbrOfParticle > PDM%maxParticleNumber! '//&
+                                                                'Increase Part-maxParticleNumber or use more processors.')
 
 velocityDistribution=Species(FractNbr)%Init(iInit)%velocityDistribution
 VeloIC=Species(FractNbr)%Init(iInit)%VeloIC
@@ -460,6 +461,16 @@ CASE('photon_SEE_energy')
 CASE DEFAULT
   CALL abort(__STAMP__,'wrong velo-distri! velocityDistribution='//TRIM(velocityDistribution))
 END SELECT
+
+IF(UseRotRefFrame) THEN
+  DO i = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
+    IF (PositionNbr.GT.0) THEN
+      PDM%InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
+    END IF
+  END DO
+END IF
+
 END SUBROUTINE SetParticleVelocity
 
 END  MODULE MOD_part_pos_and_velo

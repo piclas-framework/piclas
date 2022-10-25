@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -26,8 +26,9 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, CalcXiVib, CalcXiTotalEqui, DSMC_calc_P_rot, DSMC_calc_var_P_vib
-PUBLIC :: InitCalcVibRelaxProb, DSMC_calc_P_vib, SumVibRelaxProb, FinalizeCalcVibRelaxProb, DSMC_SetInternalEnr_Diatomic
+PUBLIC :: InitCalcVibRelaxProb, SumVibRelaxProb, FinalizeCalcVibRelaxProb
+PUBLIC :: DSMC_SetInternalEnr_Diatomic, DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, CalcXiVib, CalcXiTotalEqui
+PUBLIC :: DSMC_calc_P_rot, DSMC_calc_var_P_vib, DSMC_calc_P_vib, DSMC_calc_P_elec
 !===================================================================================================================================
 
 CONTAINS
@@ -145,7 +146,7 @@ DO iSpec = 1, nSpecies
       ! Skip the background gas species (value initialized in dsmc_chemical_init.f90)
       IF(BGGas%BackgroundSpecies(iSpec)) CYCLE
       ! Only treat species present in the cell
-      IF(CollInf%Coll_SpecPartNum(iSpec).GT.0) THEN
+      IF(CollInf%Coll_SpecPartNum(iSpec).GT.0.) THEN
         ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
         VibQuaTemp = ChemReac%MeanEVib_PerIter(iSpec) / (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
         CALL RANDOM_NUMBER(iRan)
@@ -281,7 +282,7 @@ ASSOCIATE( ProductReac => ChemReac%Products(iReac,1:4) )
       ELSE
         IF(PRESENT(XiVibPart)) XiVibPart(iProd,:) = 0.0
       END IF
-      IF((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2)) THEN
+      IF((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.4)) THEN
         IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           XiElecPart(iProd) = CalcXiElec(MiddleTemp, iSpec)
           Xi_TotalTemp = Xi_TotalTemp + XiElecPart(iProd)
@@ -399,6 +400,35 @@ ELSE
 END IF
 
 END SUBROUTINE DSMC_calc_P_rot
+
+
+SUBROUTINE DSMC_calc_P_elec(iSpec1, iSpec2, ProbElec)
+!===================================================================================================================================
+! Calculation of probability for electronic relaxation. 
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, useRelaxProbCorrFactor, DSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)         :: iSpec1, iSpec2
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)         :: ProbElec
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL              :: CorrFact
+!===================================================================================================================================
+IF(useRelaxProbCorrFactor.AND.(DSMC%ElectronicModel.EQ.1)) THEN
+  CorrFact = SpecDSMC(iSpec1)%ElecRelaxCorrectFac(iSpec2)
+ELSE
+  CorrFact = 1.
+END IF
+ProbElec = SpecDSMC(iSpec1)%ElecRelaxProb*CorrFact
+
+END SUBROUTINE DSMC_calc_P_elec
+
 
 
 SUBROUTINE DSMC_calc_P_vib(iPair, iSpec, jSpec, Xi_rel, iElem, ProbVib)
@@ -549,6 +579,7 @@ INTEGER                   :: cSpec1, cSpec2
 !===================================================================================================================================
 
   ! variable vibrational relaxation probability has to average of all collisions
+IF(Coll_pData(iPair)%cRela2.EQ.0) RETURN
 IF(DSMC%VibRelaxProb.EQ.2.0) THEN
   cSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
   cSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)

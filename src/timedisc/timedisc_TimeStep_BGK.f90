@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -35,23 +35,28 @@ SUBROUTINE TimeStep_BGK()
 ! MODULES
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
-USE MOD_Globals                ,ONLY: abort
+USE MOD_Globals                ,ONLY: abort, CROSS
 USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, RotRefFrameOmega
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep, Symmetry
-USE MOD_DSMC_Vars              ,ONLY: DSMC_RHS, DSMC, CollisMode
+USE MOD_DSMC_Vars              ,ONLY: DSMC, CollisMode
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_part_RHS               ,ONLY: CalcPartRHSRotRefFrame
+USE MOD_Part_Tools             ,ONLY: InRotRefFrameCheck
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
 #endif /*USE_MPI*/
 USE MOD_BGK                    ,ONLY: BGK_main, BGK_DSMC_main
-USE MOD_BGK_Vars               ,ONLY: CoupledBGKDSMC
+USE MOD_BGK_Vars               ,ONLY: CoupledBGKDSMC,DoBGKCellAdaptation
 USE MOD_SurfaceModel_Porous    ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
+USE MOD_DSMC_ParticlePairing   ,ONLY: GeoCoordToMap2D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -60,7 +65,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
-REAL                  :: RandVal, dtVar, NewYPart, NewYVelo
+REAL                  :: RandVal, dtVar, NewYPart, NewYVelo, Pt_local(1:3), RotRefVelo(1:3)
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))
@@ -87,7 +92,17 @@ DO iPart=1,PDM%ParticleVecLength
     LastPartPos(1:3,iPart)=PartState(1:3,iPart)
     PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
   END IF
-  PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
+  IF(UseRotRefFrame) THEN
+    IF(PDM%InRotRefFrame(iPart)) THEN
+      RotRefVelo(1:3) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+      CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:3),RotRefVelo(1:3))
+      PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * dtVar
+    ELSE
+      PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
+    END IF
+  ELSE
+    PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
+  END IF
   ! Axisymmetric treatment of particles: rotation of the position and velocity vector
   IF(Symmetry%Axisymmetric) THEN
     IF (PartState(2,iPart).LT.0.0) THEN
@@ -144,27 +159,48 @@ ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
   CALL UpdateNextFreePosition(.TRUE.) !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
 ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
          PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
-  CALL abort(&
-__STAMP__,&
-'maximum nbr of particles reached!')  !gaps in PartState are not filled until next UNFP and array might overflow more easily!
+  ! gaps in PartState are not filled until next UNFP and array might overflow more easily!
+  CALL abort(__STAMP__,'maximum nbr of particles reached!')
 END IF
 
 #if USE_MPI
 ! finish communication of number of particles and send particles
 CALL MPIParticleSend(.TRUE.)
-#endif
-!IF (CoupledBGKDSMC) THEN
-!  CALL BGK_DSMC_main(1)
-!ELSE
-!  CALL BGK_main(1)
-!END IF
-DO iPart=1,PDM%ParticleVecLength
-  IF (PDM%ParticleInside(iPart)) THEN
-    CALL GetPositionInRefElem(PartState(1:3,iPart),LastPartPos(1:3,iPart),PEM%GlobalElemID(iPart))
-  END IF
-END DO
+#endif /*USE_MPI*/
+
+IF(DoBGKCellAdaptation)THEN
+  IF(Symmetry%Order.EQ.2)THEN
+    DO iPart=1,PDM%ParticleVecLength
+      IF (PDM%ParticleInside(iPart)) THEN
+        ! Store reference position in LastPartPos array to reduce memory demand
+        CALL GeoCoordToMap2D(PartState(1:2,iPart), LastPartPos(1:2,iPart), PEM%LocalElemID(iPart))
+      END IF
+    END DO
+  ELSE
+    DO iPart=1,PDM%ParticleVecLength
+      IF (PDM%ParticleInside(iPart)) THEN
+        ! Store reference position in LastPartPos array to reduce memory demand
+        CALL GetPositionInRefElem(PartState(1:3,iPart),LastPartPos(1:3,iPart),PEM%GlobalElemID(iPart))
+      END IF
+    END DO
+  END IF ! Symmetry%Order.EQ.2
+END IF ! DoBGKCellAdaptation
+
+IF(UseRotRefFrame) THEN
+  DO iPart = 1,PDM%ParticleVecLength
+    IF(PDM%ParticleInside(iPart)) PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
+  END DO
+END IF
 
 #if USE_MPI
+IF(DoParticleLatencyHiding)THEN
+  IF (CoupledBGKDSMC) THEN
+    CALL BGK_DSMC_main(1)
+  ELSE
+    CALL BGK_main(1)
+  END IF
+END IF ! DoParticleLatencyHiding
+
 ! finish communication
 CALL MPIParticleRecv(.TRUE.)
 #endif /*USE_MPI*/
@@ -177,25 +213,36 @@ CALL MPIParticleRecv(.TRUE.)
 !#ifdef EXTRAE
 !CALL extrae_eventandcounters(int(9000001), int8(0))
 !#endif /*EXTRAE*/
-
-IF (CoupledBGKDSMC) THEN
-  CALL BGK_DSMC_main()
+#if USE_MPI
+IF(DoParticleLatencyHiding)THEN
+  IF (CoupledBGKDSMC) THEN
+    CALL BGK_DSMC_main(2)
+  ELSE
+    CALL BGK_main(2)
+  END IF
 ELSE
-  CALL BGK_main()
-END IF
+#endif /*USE_MPI*/
+  IF (CoupledBGKDSMC) THEN
+    CALL BGK_DSMC_main()
+  ELSE
+    CALL BGK_main()
+  END IF
+#if USE_MPI
+END IF ! DoParticleLatencyHiding
+#endif /*USE_MPI*/
 
 !#ifdef EXTRAE
 !CALL extrae_eventandcounters(int(9000001), int8(52))
 !#endif /*EXTRAE*/
 
 
-PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 
 !#ifdef EXTRAE
 !CALL extrae_eventandcounters(int(9000001), int8(0))
 !#endif /*EXTRAE*/
+
 END SUBROUTINE TimeStep_BGK
 
 
 END MODULE MOD_TimeStep
-#endif
+#endif /*(PP_TimeDiscMethod==400)*/

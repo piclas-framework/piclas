@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -38,7 +38,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep, Symmetry
-USE MOD_DSMC_Vars              ,ONLY: DSMC_RHS, DSMC, CollisMode
+USE MOD_DSMC_Vars              ,ONLY: DSMC, CollisMode
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
@@ -155,8 +155,6 @@ IF (CoupledFPDSMC) THEN
 ELSE
   CALL FPFlow_main()
 END IF
-
-PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 
 
 END SUBROUTINE TimeStep_FPFlow

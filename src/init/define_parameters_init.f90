@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -68,6 +68,7 @@ USE MOD_Particle_Analyze           ,ONLY: DefineParametersParticleAnalyze
 USE MOD_TTMInit                    ,ONLY: DefineParametersTTM
 USE MOD_PICInit                    ,ONLY: DefineParametersPIC
 USE MOD_DSMC_Init                  ,ONLY: DefineParametersDSMC
+USE MOD_DSMC_BGGas                 ,ONLY: DefineParametersBGG
 USE MOD_MCC_Init                   ,ONLY: DefineParametersMCC
 USE MOD_DSMC_ChemInit              ,ONLY: DefineParametersChemistry
 USE MOD_SurfaceModel_Init          ,ONLY: DefineParametersSurfModel
@@ -136,6 +137,7 @@ CALL DefineParametersParticleAnalyze()
 CALL DefineParametersTTM()
 CALL DefineParametersPIC()
 CALL DefineParametersDSMC()
+CALL DefineParametersBGG()
 CALL DefineParametersMCC()
 CALL DefineParametersChemistry()
 #if (PP_TimeDiscMethod==300)

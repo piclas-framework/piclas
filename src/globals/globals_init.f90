@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -76,6 +76,9 @@ USE MOD_ReadInTools  ,ONLY: PrintOption
 #if USE_MPI
 USE MOD_Globals      ,ONLY: MPIRoot
 #endif /*USE_MPI*/
+#if defined(PARTICLES)
+USE MOD_Globals      ,ONLY: nGlobalNbrOfParticles
+#endif /*defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -120,6 +123,10 @@ IF(.NOT.ALMOSTEQUALRELATIVE(c_test,c,10E-8))THEN
   CALL abort(__STAMP__,' Speed of light coefficients does not match!')
 END IF
 
+#if defined(PARTICLES)
+nGlobalNbrOfParticles=0
+nGlobalNbrOfParticles(4)=HUGE(nGlobalNbrOfParticles(4))
+#endif /*defined(PARTICLES)*/
 
 ! Open file for logging
 IF(Logging)THEN

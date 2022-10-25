@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -76,8 +76,8 @@ INTERFACE AddToElemData
   MODULE PROCEDURE AddToElemData
 END INTERFACE
 
-INTERFACE ClearElemData
-  MODULE PROCEDURE ClearElemData
+INTERFACE FinalizeElemData
+  MODULE PROCEDURE FinalizeElemData
 END INTERFACE
 
 INTERFACE GetDatasetNamesInGroup
@@ -134,8 +134,13 @@ IMPLICIT NONE
 !===================================================================================================================================
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)')' INIT IOHDF5 ...'
-gatheredWrite=.FALSE.
-IF(nLeaderProcs.LT.nProcessors) gatheredWrite=GETLOGICAL('gatheredWrite','.FALSE.')
+
+gatheredWrite   = .FALSE.
+UseCollectiveIO = .FALSE.
+IF(nLeaderProcs.LT.nProcessors)THEN
+  gatheredWrite   = GETLOGICAL('gatheredWrite')
+  UseCollectiveIO = GETLOGICAL('UseCollectiveIO')
+END IF
 
 CALL InitMPIInfo()
 SWRITE(UNIT_stdOut,'(A)')' INIT DONE!'
@@ -209,12 +214,10 @@ CALL H5OPEN_F(iError)
 ! Setup file access property list with parallel I/O access (MPI) or with default property list.
 IF(create)THEN
   CALL H5PCREATE_F(H5P_FILE_CREATE_F, Plist_File_ID, iError)
-  IF(iError.NE.0) CALL abort(__STAMP__,&
-    'ERROR: Could not create file '//TRIM(FileString))
+  IF(iError.NE.0) CALL abort(__STAMP__,'ERROR: Could not create file '//TRIM(FileString))
 ELSE
   CALL H5PCREATE_F(H5P_FILE_ACCESS_F, Plist_File_ID, iError)
-  IF(iError.NE.0) CALL abort(__STAMP__,&
-    'ERROR: Could not open file '//TRIM(FileString))
+  IF(iError.NE.0) CALL abort(__STAMP__,'ERROR: Could not open file '//TRIM(FileString))
 END IF
 
 #if USE_MPI
@@ -223,8 +226,7 @@ IF(.NOT.single)THEN
     'ERROR: communicatorOpt must be supplied in OpenDataFile when single=.FALSE.')
   CALL H5PSET_FAPL_MPIO_F(Plist_File_ID, communicatorOpt, MPIInfo, iError)
 END IF
-  IF(iError.NE.0) CALL abort(__STAMP__,&
-    'ERROR: H5PSET_FAPL_MPIO_F failed in OpenDataFile')
+  IF(iError.NE.0) CALL abort(__STAMP__,'ERROR: H5PSET_FAPL_MPIO_F failed in OpenDataFile')
 #endif /*USE_MPI*/
 
 ! Open the file collectively.
@@ -245,8 +247,7 @@ ELSE !read-only ! and write (added later)
     CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDWR_F,  File_ID, iError, access_prp = Plist_File_ID)
   END IF
 END IF
-IF(iError.NE.0) CALL abort(__STAMP__,&
-  'ERROR: Could not open or create file '//TRIM(FileString))
+IF(iError.NE.0) CALL abort(__STAMP__,'ERROR: Could not open or create file '//TRIM(FileString))
 
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE OpenDataFile
@@ -356,7 +357,7 @@ END SUBROUTINE AddToElemData
 !> Deallocate all pointers to element-wise arrays or scalars which will be gathered and written out.
 !> The linked list of the pointer is deallocated for each entry
 !==================================================================================================================================
-SUBROUTINE ClearElemData(ElementOut)
+SUBROUTINE FinalizeElemData(ElementOut)
 ! MODULES
 USE MOD_Globals
 IMPLICIT NONE
@@ -366,32 +367,30 @@ TYPE(tElementOut),POINTER,INTENT(INOUT)    :: ElementOut           !< Pointer li
                                                                    !< is written to the state file
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-TYPE(tElementOut),POINTER          :: e,e2
+TYPE(tElementOut),POINTER          :: current,next
 !==================================================================================================================================
-IF(.NOT.ASSOCIATED(ElementOut))THEN
-  RETURN
-ENDIF
+IF(.NOT.ASSOCIATED(ElementOut))RETURN
 
-e=>ElementOut
-DO WHILE(ASSOCIATED(e))
-  e%VarName = ''
-  IF(ASSOCIATED(e%RealArray))    NULLIFY(e%RealArray    ) !=> NULL()
-  IF(ASSOCIATED(e%RealScalar))   NULLIFY(e%RealScalar   ) !=> NULL()
-  IF(ASSOCIATED(e%IntArray))     NULLIFY(e%IntArray     ) !=> NULL()
-  IF(ASSOCIATED(e%IntScalar))    NULLIFY(e%IntScalar    ) !=> NULL()
-  IF(ASSOCIATED(e%LongIntArray)) NULLIFY(e%LongIntArray ) !=> NULL()
-  IF(ASSOCIATED(e%LogArray))     NULLIFY(e%LogArray     ) !=> NULL()
-  IF(ASSOCIATED(e%eval))         NULLIFY(e%eval         ) !=> NULL()
-  e2=>e%next
-  ! deallocate stuff
-  DEALLOCATE(e)
-  e=> e2
-END DO
-
+current => ElementOut
 !ElementOut   => NULL() !< linked list of output pointers
 NULLIFY(ElementOut)
 
-END SUBROUTINE ClearElemData
+DO WHILE(ASSOCIATED(current))
+  current%VarName = ''
+  IF(ASSOCIATED(current%RealArray))    NULLIFY(current%RealArray    ) !=> NULL()
+  IF(ASSOCIATED(current%RealScalar))   NULLIFY(current%RealScalar   ) !=> NULL()
+  IF(ASSOCIATED(current%IntArray))     NULLIFY(current%IntArray     ) !=> NULL()
+  IF(ASSOCIATED(current%IntScalar))    NULLIFY(current%IntScalar    ) !=> NULL()
+  IF(ASSOCIATED(current%LongIntArray)) NULLIFY(current%LongIntArray ) !=> NULL()
+  IF(ASSOCIATED(current%LogArray))     NULLIFY(current%LogArray     ) !=> NULL()
+  IF(ASSOCIATED(current%eval))         NULLIFY(current%eval         ) !=> NULL()
+  next => current%next
+  DEALLOCATE(current)
+  NULLIFY(current)
+  current => next
+END DO
+
+END SUBROUTINE FinalizeElemData
 
 !==================================================================================================================================
 !> Takes a group and reads the names of the datasets

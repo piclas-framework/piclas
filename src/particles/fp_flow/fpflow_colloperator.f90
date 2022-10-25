@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2018 - 2019 Marcel Pfeiffer
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -47,7 +47,7 @@ USE MOD_FPFlow_Vars             ,ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuan
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, VarTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, DSMC_RHS, VibQuantsPar, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: CollInf, RadialWeighting
 USE Ziggurat
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTVibPoly
@@ -68,7 +68,7 @@ REAL                  :: FPCoeffMatr(9,9), FPSolVec(9,1)
 REAL                  ::  u0ij(6), u2ij(6), u0ijk(10), u2, u4i(3), OldEn, NewEn, u2i(3), u4, vBulk(3), u0ijMat(3,3),u0i(3)
 REAL                  :: dens, vmag2, relaxtime, Lambda, alpha, CellTemp
 REAL                  :: V_rel(3), FP_FakA, FP_FakB, FP_FakC, Prandtl, InnerDOF, SMat(3,3), tempVelo(3), KronDelta
-INTEGER               :: iLoop, fillMa1, fillMa2, fillMa3, iLoop2, iPolyatMole, iDOF, IPIV(9)
+INTEGER               :: iLoop, fillMa1, fillMa2, fillMa3, iLoop2, iPolyatMole, iDOF, IPIV(9), nXiVibDOF
 REAL,ALLOCATABLE      :: Ni(:,:), iRanPart(:,:)
 REAL                  :: dynamicvis, relaxfreq
 REAL                  :: MaxColQua, ERot, EVib, Xi_vib, collisionfreq, vibrelaxfreq, rotrelaxfreq
@@ -183,7 +183,8 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   IF(FPDoVibRelaxation) THEN
     IF(SpecDSMC(1)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(1)%SpecToPolyArray
-      ALLOCATE(Xi_vib_DOF(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+      nXiVibDOF   = PolyatomMolDSMC(iPolyatMole)%VibDOF
+      ALLOCATE(Xi_vib_DOF(nXiVibDOF))
       Xi_vib_DOF(:) = 0.
       TVib = CalcTVibPoly(Evib/totalWeight, 1)
       IF (TVib.GT.0.0) THEN
@@ -254,7 +255,7 @@ IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
   rotrelaxfreq = collisionfreq * DSMC%RotRelaxProb
   vibrelaxfreq = collisionfreq * DSMC%VibRelaxProb
   IF(SpecDSMC(1)%PolyatomicMol) THEN
-    CALL CalcTEquiPoly(nPart, CellTemp, TRot, TVib, Xi_vib_DOF, Xi_Vib_old, RotExp, VibExp, TEqui, rotrelaxfreq, vibrelaxfreq, &
+    CALL CalcTEquiPoly(nPart, CellTemp, TRot, TVib, nXiVibDOF, Xi_vib_DOF, Xi_Vib_old, RotExp, VibExp, TEqui, rotrelaxfreq, vibrelaxfreq, &
                         dtCell, DoVibRelaxIn=FPDoVibRelaxation)
       Xi_vib = SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
   ELSE
@@ -603,7 +604,7 @@ DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
   V_rel(1:3)=PartState(4:6,iPartIndx_Node(iLoop))-vBulkAll(1:3)
   vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
-  DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = 0.0
+  PartState(4:6,iPartIndx_Node(iLoop)) = 0.0
 !  IF ((FPCollModel.EQ.1).AND.(nPart.GE.5)) THEN
   IF (FPCollModel.EQ.1) THEN
     Ni(1,iLoop)  = FPSolVec(1,1)*V_rel(1)+FPSolVec(2,1)*V_rel(2) +FPSolVec(3,1)*V_rel(3) &
@@ -615,31 +616,30 @@ DO iLoop = 1, nPart
     Ni(3,iLoop)  = FPSolVec(3,1)*V_rel(1)+FPSolVec(5,1)*V_rel(2) +FPSolVec(6,1)*V_rel(3) &
             + FPSolVec(9,1) * (vmag2 - u2) &
             + Lambda*(V_rel(3)*vmag2 -  u2i(3))
-    DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = relaxtime*FP_FakB*Ni(1:3,iLoop)
+    PartState(4:6,iPartIndx_Node(iLoop)) = relaxtime*FP_FakB*Ni(1:3,iLoop)
   END IF
 
   IF (FPCollModel.EQ.2) THEN
     tempVelo(1:3) = FP_FakC*iRanPart(1:3,iLoop)
-    DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = DSMC_RHS(1:3,iPartIndx_Node(iLoop)) &
+    PartState(4:6,iPartIndx_Node(iLoop)) = PartState(4:6,iPartIndx_Node(iLoop)) &
               + V_rel(1:3)*FP_FakA + MATMUL(SMat,tempVelo)
   ELSE
-    DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = DSMC_RHS(1:3,iPartIndx_Node(iLoop)) &
+    PartState(4:6,iPartIndx_Node(iLoop)) = PartState(4:6,iPartIndx_Node(iLoop)) &
               + V_rel(1:3)*FP_FakA + FP_FakC*iRanPart(1:3,iLoop)
   END IF
-  vBulk(1:3) = vBulk(1:3) + DSMC_RHS(1:3,iPartIndx_Node(iLoop)) * partWeight
+  vBulk(1:3) = vBulk(1:3) + PartState(4:6,iPartIndx_Node(iLoop)) * partWeight
 END DO
 
 vBulk(1:3) = vBulk(1:3) / totalWeight
 DO iLoop = 1, nPart
   partWeight = GetParticleWeight(iPartIndx_Node(iLoop))
-  V_rel(1:3) = DSMC_RHS(1:3,iPartIndx_Node(iLoop)) - vBulk(1:3)
+  V_rel(1:3) = PartState(4:6,iPartIndx_Node(iLoop)) - vBulk(1:3)
   NewEn = NewEn + (V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2 )*0.5*Species(1)%MassIC*partWeight
 END DO
 
 alpha = SQRT(OldEn/NewEn*(3.*(nPart-1.))/(Xi_rot*nRotRelax+3.*(nPart-1.)))
 DO iLoop = 1, nPart
-  DSMC_RHS(1:3,iPartIndx_Node(iLoop)) = alpha*(DSMC_RHS(1:3,iPartIndx_Node(iLoop))-vBulk(1:3)) + vBulkAll(1:3) &
-    - PartState(4:6,iPartIndx_Node(iLoop))
+  PartState(4:6,iPartIndx_Node(iLoop)) = alpha*(PartState(4:6,iPartIndx_Node(iLoop))-vBulk(1:3)) + vBulkAll(1:3)
 END DO
 IF ( (nRotRelax.GT.0)) alpha = OldEn/NewEnRot*(Xi_rot*nRotRelax/(Xi_rot*nRotRelax+3.*(nPart-1.)))
 DO iLoop = 1, nRotRelax
@@ -652,10 +652,10 @@ DEALLOCATE(Ni)
 DO iLoop = 1, nPart
   iPart = iPartIndx_Node(iLoop)
   partWeight = GetParticleWeight(iPart)
-  Momentum_new(1:3) = Momentum_new(1:3) + (DSMC_RHS(1:3,iPart) + PartState(4:6,iPart))*partWeight
+  Momentum_new(1:3) = Momentum_new(1:3) + (PartState(4:6,iPart))*partWeight
   Energy_new = Energy_new &
-          + ((DSMC_RHS(1,iPart) + PartState(4,iPart))**2. + (DSMC_RHS(2,iPart) + PartState(5,iPart))**2. &
-          +  (DSMC_RHS(3,iPart) + PartState(6,iPart))**2.)*0.5*Species(1)%MassIC*partWeight
+          + ((PartState(4,iPart))**2. + (PartState(5,iPart))**2. &
+          +  (PartState(6,iPart))**2.)*0.5*Species(1)%MassIC*partWeight
   IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
     Energy_new = Energy_new + (PartStateIntEn(1,iPart) + PartStateIntEn(2,iPart))*partWeight
   END IF

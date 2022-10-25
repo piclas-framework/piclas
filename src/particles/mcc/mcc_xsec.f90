@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -37,9 +37,12 @@ SUBROUTINE ReadCollXSec(iCase,iSpec,jSpec)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC
-USE MOD_MCC_Vars                  ,ONLY: XSec_Database, SpecXSec
-USE MOD_HDF5_Input                ,ONLY: DatasetExists
+USE MOD_DSMC_Vars        ,ONLY: SpecDSMC
+USE MOD_MCC_Vars         ,ONLY: XSec_Database, SpecXSec
+USE MOD_HDF5_Input       ,ONLY: DatasetExists
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -79,7 +82,7 @@ IF(.NOT.DatasetFound) THEN
   spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), DatasetFound, err)
   IF(.NOT.DatasetFound) THEN
-    SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No data set found. Using standard collision modelling.'
+    LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No data set found. Using standard collision modelling.'
     RETURN
   END IF
 END IF
@@ -93,16 +96,16 @@ IF(DatasetFound) THEN
   CALL DatasetExists(File_ID_DSMC,TRIM('/'//TRIM(spec_pair)//'/ELASTIC'),DatasetFound)
   IF(DatasetFound) CALL abort(__STAMP__,'ERROR: Please provide either elastic or effective collision cross-section data '//&
                                              & 'for '//TRIM(spec_pair)//'.')
-  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': Found EFFECTIVE collision cross section.'
+  LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': Found EFFECTIVE collision cross section.'
 ELSE
   dsetname = TRIM('/'//TRIM(spec_pair)//'/ELASTIC')
   CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DatasetFound)
   IF(DatasetFound) THEN
     SpecXSec(iCase)%UseCollXSec = .TRUE.
     SpecXSec(iCase)%CollXSec_Effective = .FALSE.
-  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': Found ELASTIC collision cross section.'
+  LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': Found ELASTIC collision cross section.'
   ELSE
-    SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No data set found. Using standard collision modelling.'
+    LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No data set found. Using standard collision modelling.'
     RETURN
   END IF
 END IF
@@ -137,9 +140,12 @@ SUBROUTINE ReadVibXSec(iCase,iSpec,jSpec)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC
-USE MOD_MCC_Vars                  ,ONLY: XSec_Database, SpecXSec
-USE MOD_HDF5_Input                ,ONLY: DatasetExists
+USE MOD_DSMC_Vars        ,ONLY: SpecDSMC
+USE MOD_MCC_Vars         ,ONLY: XSec_Database, SpecXSec
+USE MOD_HDF5_Input       ,ONLY: DatasetExists
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -184,7 +190,7 @@ IF(.NOT.GroupFound) THEN
   spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
   IF(.NOT.GroupFound) THEN
-    SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
+    LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
     RETURN
   END IF
 END IF
@@ -193,7 +199,7 @@ END IF
 groupname = TRIM(spec_pair)//'/VIBRATION/'
 CALL H5LEXISTS_F(file_id_dsmc, TRIM(groupname), GroupFound, err)
 IF(.NOT.GroupFound) THEN
-  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
+  LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
   RETURN
 END IF
 
@@ -202,13 +208,13 @@ IF(GroupFound) THEN
   call H5Gget_info_f(group_id, storage, nVib,max_corder, err)
   ! If cross-section data is found, set the corresponding flag
   IF(nVib.GT.0) THEN
-    SWRITE(UNIT_StdOut,'(A,I3,A)') TRIM(spec_pair)//': Found ', nVib,' vibrational excitation cross section(s).'
+    LBWRITE(UNIT_StdOut,'(A,I3,A)') TRIM(spec_pair)//': Found ', nVib,' vibrational excitation cross section(s).'
     SpecXSec(iCase)%UseVibXSec = .TRUE.
   ELSE
-    SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
+    LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
   END IF
 ELSE
-  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
+  LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No vibrational excitation cross sections found, using constant read-in values.'
 END IF
 
 IF(SpecXSec(iCase)%UseVibXSec) THEN
@@ -248,9 +254,12 @@ SUBROUTINE ReadElecXSec(iCase,iSpec,jSpec)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC
-USE MOD_MCC_Vars                  ,ONLY: XSec_Database, SpecXSec
-USE MOD_HDF5_Input                ,ONLY: DatasetExists
+USE MOD_DSMC_Vars        ,ONLY: SpecDSMC
+USE MOD_MCC_Vars         ,ONLY: XSec_Database, SpecXSec
+USE MOD_HDF5_Input       ,ONLY: DatasetExists
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -295,7 +304,7 @@ IF(.NOT.GroupFound) THEN
   spec_pair = TRIM(SpecDSMC(iSpec)%Name)//'-'//TRIM(SpecDSMC(jSpec)%Name)
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
   IF(.NOT.GroupFound) THEN
-    SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+    LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
     RETURN
   END IF
 END IF
@@ -304,7 +313,7 @@ END IF
 groupname = TRIM(spec_pair)//'/ELECTRONIC/'
 CALL H5LEXISTS_F(file_id_dsmc, TRIM(groupname), GroupFound, err)
 IF(.NOT.GroupFound) THEN
-  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+  LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
   RETURN
 END IF
 
@@ -313,14 +322,14 @@ IF(GroupFound) THEN
   call H5Gget_info_f(group_id, storage, nElec,max_corder, err)
   ! If cross-section data is found, set the corresponding flag
   IF(nElec.GT.0) THEN
-    SWRITE(UNIT_StdOut,'(A,I3,A)') TRIM(spec_pair)//': Found ', nElec,' electronic excitation cross section(s).'
+    LBWRITE(UNIT_StdOut,'(A,I3,A)') TRIM(spec_pair)//': Found ', nElec,' electronic excitation cross section(s).'
     SpecXSec(iCase)%UseElecXSec = .TRUE.
     SpecXSec(iCase)%NumElecLevel = nElec
   ELSE
-    SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+    LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
   END IF
 ELSE
-  SWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+  LBWRITE(UNIT_StdOut,'(A)') TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
 END IF
 
 IF(SpecXSec(iCase)%UseElecXSec) THEN
@@ -989,10 +998,13 @@ SUBROUTINE ReadReacXSec(iCase,iPath)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,Joule2eV
-USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac
-USE MOD_MCC_Vars                  ,ONLY: XSec_Database, SpecXSec
-USE MOD_HDF5_Input                ,ONLY: DatasetExists
+USE MOD_Globals_Vars     ,ONLY: ElementaryCharge,Joule2eV
+USE MOD_DSMC_Vars        ,ONLY: SpecDSMC, ChemReac
+USE MOD_MCC_Vars         ,ONLY: XSec_Database, SpecXSec
+USE MOD_HDF5_Input       ,ONLY: DatasetExists
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1048,7 +1060,7 @@ CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)
 CALL H5Gget_info_f(group_id, storage, nSets,max_corder, err)
 IF(nSets.EQ.0) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
 
-SWRITE(UNIT_StdOut,'(A,I0)') 'Read cross section for '//TRIM(EductPair)//' from '//TRIM(XSec_Database)//' for reaction # ', iReac
+LBWRITE(UNIT_StdOut,'(A,I0)') 'Read cross section for '//TRIM(EductPair)//' from '//TRIM(XSec_Database)//' for reaction # ', iReac
 
 SELECT CASE(COUNT(ProductReac.GT.0))
 CASE(2)
@@ -1108,11 +1120,11 @@ IF(SpecXSec(iCase)%ReactionPath(iPath)%XSecData(2,1).GT.0.0) THEN
   ! Sanity check: Is the heat of formation larger than the first energy level of the cross-section data
   ERatio=SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,1)/SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2)
   IF(ERatio.GT.1.0) THEN
-    SWRITE(*,*) '      (Negative) Heat of reaction [J]: ', -ChemReac%EForm(iReac),", [eV]: ",-ChemReac%EForm(iReac)*Joule2eV
-    SWRITE(*,*) ' First energy level from database [J]: ', SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2),", [eV]: ",&
+    LBWRITE(*,*) '      (Negative) Heat of reaction [J]: ', -ChemReac%EForm(iReac),", [eV]: ",-ChemReac%EForm(iReac)*Joule2eV
+    LBWRITE(*,*) ' First energy level from database [J]: ', SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2),", [eV]: ",&
     SpecXSec(iCase)%ReactionPath(iPath)%XSecData(1,2)*Joule2eV
     WRITE(UNIT=hilf,FMT='(F8.2)') ERatio
-    SWRITE (*,'(A,I0)') 'Warning: Heat of reaction is factor '//TRIM(ADJUSTL(hilf))//&
+    LBWRITE (*,'(A,I0)') 'Warning: Heat of reaction is factor '//TRIM(ADJUSTL(hilf))//&
         ' greater than the first read-in energy level for reaction number: ',iReac
     IF(ERatio.GT.10.0) CALL abort(__STAMP__,&
         ' Heat of reaction is much greater than the first read-in energy level for reaction number:', iReac)
@@ -1137,10 +1149,13 @@ SUBROUTINE ReadReacPhotonXSec(iPhotoReac)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
-USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac
-USE MOD_HDF5_Input                ,ONLY: DatasetExists
-USE MOD_MCC_Vars                  ,ONLY: XSec_Database,SpecPhotonXSec,PhotoReacToReac
+USE MOD_Globals_Vars     ,ONLY: ElementaryCharge
+USE MOD_DSMC_Vars        ,ONLY: SpecDSMC, ChemReac
+USE MOD_HDF5_Input       ,ONLY: DatasetExists
+USE MOD_MCC_Vars         ,ONLY: XSec_Database,SpecPhotonXSec,PhotoReacToReac
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1194,7 +1209,7 @@ CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)
 CALL H5Gget_info_f(group_id, storage, nSets,max_corder, err)
 IF(nSets.EQ.0) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
 
-SWRITE(UNIT_StdOut,'(A,I0)') 'Read cross section for '//TRIM(EductPair)//' from '//TRIM(XSec_Database)//' for reaction # ', iReac
+LBWRITE(UNIT_StdOut,'(A,I0)') 'Read cross section for '//TRIM(EductPair)//' from '//TRIM(XSec_Database)//' for reaction # ', iReac
 
 SELECT CASE(COUNT(ProductReac.GT.0))
 CASE(2)
@@ -1255,10 +1270,13 @@ SUBROUTINE ReadReacPhotonSpectrum(iPhotoReac)
 ! use module
 USE MOD_io_hdf5
 USE MOD_Globals
-USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
-USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac
-USE MOD_MCC_Vars                  ,ONLY: XSec_Database, PhotoReacToReac, PhotonSpectrum
-USE MOD_HDF5_Input                ,ONLY: DatasetExists
+USE MOD_Globals_Vars     ,ONLY: ElementaryCharge
+USE MOD_DSMC_Vars        ,ONLY: SpecDSMC, ChemReac
+USE MOD_MCC_Vars         ,ONLY: XSec_Database, PhotoReacToReac, PhotonSpectrum
+USE MOD_HDF5_Input       ,ONLY: DatasetExists
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1312,7 +1330,7 @@ CALL H5GOPEN_F(file_id_dsmc,TRIM(groupname), group_id, err)
 CALL H5Gget_info_f(group_id, storage, nSets,max_corder, err)
 IF(nSets.EQ.0) CALL abort(__STAMP__,'No reaction cross sections found in database for reaction number:',IntInfoOpt=iReac)
 
-SWRITE(UNIT_StdOut,'(A)') 'Read photon energy spectrum for '//TRIM(EductPair)//' from '//TRIM(XSec_Database)
+LBWRITE(UNIT_StdOut,'(A)') 'Read photon energy spectrum for '//TRIM(EductPair)//' from '//TRIM(XSec_Database)
 
 ReactionFound = .FALSE.
 
@@ -1354,10 +1372,11 @@ END SUBROUTINE ReadReacPhotonSpectrum
 
 SUBROUTINE XSec_CalcReactionProb(iPair,iCase,iElem,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
 !===================================================================================================================================
-!> Calculate the collision probability if collision cross-section data is used. Can be utilized in combination with the regular
-!> DSMC collision calculation probability.
+!> Calculate the reaction probability if cross-section data is used. Utilized in combination with the regular DSMC collision
+!> calculation probability (non-MCC routines).
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals_Vars
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
@@ -1372,7 +1391,7 @@ REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume
 ! LOCAL VARIABLES
 INTEGER                       :: iPath, ReacTest, EductReac(1:3), ProductReac(1:4), ReactInx(1:2), nPair, iProd
 INTEGER                       :: NumWeightProd, targetSpec, bgSpec
-REAL                          :: EZeroPoint_Prod, dtCell, Weight(1:4), ReducedMass, ReducedMassUnweighted, CollEnergy
+REAL                          :: EZeroPoint_Prod, dtCell, Weight(1:4), ReducedMass, ReducedMassUnweighted, CollEnergy, GammaFac
 REAL                          :: EZeroPoint_Educt, SpecNumTarget, SpecNumSource, CrossSection
 !===================================================================================================================================
 Weight = 0.; ReactInx = 0
@@ -1432,9 +1451,18 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     ELSE
       dtCell = dt
     END IF
-    Coll_pData(iPair)%Ec = 0.5 * ReducedMass * Coll_pData(iPair)%CRela2 &
-                + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
-                + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2)
+
+    IF(Coll_pData(iPair)%cRela2 .LT. RelativisticLimit) THEN
+      Coll_pData(iPair)%Ec = 0.5 * ReducedMass * Coll_pData(iPair)%cRela2
+    ELSE
+      ! Relativistic treatment under the assumption that the velocity of the background species is zero or negligible
+      GammaFac = Coll_pData(iPair)%cRela2*c2_inv
+      GammaFac = 1./SQRT(1.-GammaFac)
+      Coll_pData(iPair)%Ec = (GammaFac-1.) * ReducedMass * c2
+    END IF
+
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
+                                                + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2)
     IF (DSMC%ElectronicModel.GT.0) THEN
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(1))*Weight(1) &
                                                   + PartStateIntEn(3,ReactInx(2))*Weight(2)

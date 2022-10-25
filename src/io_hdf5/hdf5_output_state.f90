@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -72,7 +72,7 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: lambda, nGP_face
+USE MOD_HDG_Vars               ,ONLY: nGP_face, iLocSides
 #if PP_nVar==1
 USE MOD_Equation_Vars          ,ONLY: E,Et
 #elif PP_nVar==3
@@ -82,14 +82,13 @@ USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 USE MOD_Mesh_Vars              ,ONLY: nSides
 USE MOD_Utils                  ,ONLY: QuickSortTwoArrays
-USE MOD_Mesh_Vars              ,ONLY: MortarType,SideToElem,MortarInfo
-USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE,lastInnerSide
+USE MOD_Mesh_Vars              ,ONLY: lastInnerSide
 USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
 USE MOD_Utils                  ,ONLY: Qsort1DoubleInt1PInt
+USE MOD_Mesh_Tools             ,ONLY: LambdaSideToMaster
 #if USE_MPI
-USE MOD_MPI_Vars               ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc,RecRequest_U,SendRequest_U
-USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI_Vars               ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc
+USE MOD_Mesh_Tools             ,ONLY: GetMasteriLocSides
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID
 USE MOD_Analyze_Vars           ,ONLY: CalcElectricTimeDerivative
@@ -102,12 +101,12 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronIonDensity,CalcElectronTempera
 USE MOD_Particle_Analyze_Tools ,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 USE MOD_HDF5_Output_Particles  ,ONLY: AddBRElectronFluidToPartSource
+USE MOD_Equation_Vars          ,ONLY: CoupledPowerPotential,CalcPCouplElectricPotential
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
-USE MOD_HDF5_Input             ,ONLY: ReadArray
 #if (PP_nVar==8)
 USE MOD_HDF5_Output_Fields     ,ONLY: WritePMLDataToHDF5
 #endif
@@ -129,7 +128,7 @@ CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
 #endif /*defined(PARTICLES)*/
 #ifdef PARTICLES
-REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
+REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1),TmpArray2(3,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
@@ -155,13 +154,12 @@ INTEGER(KIND=IK)               :: PP_nVarTmp
 LOGICAL                        :: usePreviousTime_loc
 #if USE_HDG
 INTEGER                        :: iSide
-INTEGER                        :: SideID,iGlobSide,iLocSide,iLocSide_NB,iMortar,nMortars,MortarSideID
+INTEGER                        :: iGlobSide
 INTEGER,ALLOCATABLE            :: SortedUniqueSides(:),GlobalUniqueSideID_tmp(:)
 LOGICAL,ALLOCATABLE            :: OutputSide(:)
 REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
-INTEGER                        :: SortedOffset,SortedStart,SortedEnd,p,q,r,rr,pq(1:2)
+INTEGER                        :: SortedOffset,SortedStart,SortedEnd
 INTEGER                        :: SideID_start, SideID_end,iNbProc,SendID
-REAL,ALLOCATABLE               :: iLocSides(:,:,:)          ! iLocSides, ((PP_N+1)^2,nSides)
 #ifdef PARTICLES
 INTEGER                        :: i,j,k,iElem
 #endif /*PARTICLES*/
@@ -192,8 +190,8 @@ END IF
 IF(.NOT.DoWriteStateToHDF5)THEN
   ! Check if the total number of particles has already been determined
   IF(.NOT.GlobalNbrOfParticlesUpdated) CALL CalcNumPartsOfSpec(NumSpec,SimNumSpec,.FALSE.,.TRUE.)
-  ! Output total number of particles here as the end of this routine will not be reached
-  SWRITE(UNIT_StdOut,'(A,ES16.7)') "#Particles : ", REAL(nGlobalNbrOfParticles)
+  ! Output total number of particles here as the end of this routine will not be reached when DoWriteStateToHDF5 is false
+  CALL DisplayNumberOfParticles(1)
 END IF ! .NOT.DoWriteStateToHDF5
 #endif /*PARTICLES*/
 
@@ -333,40 +331,8 @@ ASSOCIATE (&
       END DO !iProc=1,nNBProcs
     END DO ! SendID = 1, 2
 
-  ! Exchange iLocSides from master to slaves: Send MINE, receive YOUR direction
-    ALLOCATE(iLocSides(PP_nVar,nGP_face,nSides))
-    iLocSides = -100.
-    DO iSide = 1, nSides
-      iLocSides(:,:,iSide) = REAL(SideToElem(S2E_LOC_SIDE_ID,iSide))
+    CALL GetMasteriLocSides()
 
-      iLocSide_NB = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
-
-      ! Check real small mortar side (when the same proc has both the big an one or more small side connected elements)
-      IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.NE.-1) iLocSides(:,:,iSide) = REAL(iLocSide_NB)
-
-      ! is small virtual mortar side is encountered and no NB iLocSide is given
-      IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
-        ! check all my big mortar sides and find the one to which the small virtual is connected
-        Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
-          nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-          DO iMortar=1,nMortars
-            SideID= MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
-            IF(iSide.EQ.SideID)THEN
-              iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
-              IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
-                iLocSides(:,:,iSide) = REAL(iLocSide)
-              ELSE
-                CALL abort(__STAMP__,'This big mortar side must be master')
-              END IF !iLocSide.NE.-1
-              EXIT Check1
-            END IF ! iSide.EQ.SideID
-          END DO !iMortar
-        END DO Check1 !MortarSideID
-      END IF ! MortarType(1,iSide).EQ.0
-    END DO
-    CALL StartReceiveMPIData(1,iLocSides,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-    CALL StartSendMPIData(   1,iLocSides,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-    CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
   END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 
@@ -386,76 +352,21 @@ ASSOCIATE (&
   ! Fill array with lambda values in global unique side sorted order
   ALLOCATE(SortedLambda(PP_nVar,nGP_face,nSides))
   SortedLambda = HUGE(1.)
+  ! This loop goes over all nSides and is labelled iGlobSide because all unique global sides that each processors outputs must be
+  ! transformed into master side orientation for read-in during restart later on
   DO iGlobSide = 1, nSides
     ! Set side ID in processor local list
     iSide = SortedUniqueSides(iGlobSide)
 
     ! Skip sides that are not processed by the current proc
     IF(nProcessors.GT.1)THEN
+      ! Check if a side belongs to me (all BC and inner sides automatically included); at MPI interfaces the smaller rank wins and
+      ! must output the data, because for these sides it is ambiguous
       IF(.NOT.OutputSide(iSide)) CYCLE
     END IF ! nProcessors.GT.1
 
-    IF(iSide.GT.lastMPISide_MINE)THEN
-      iLocSide = NINT(iLocSides(1,1,iSide))
-    ELSE
-      iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
-    END IF ! iSide.GT.lastMPISide_MINE
+    CALL LambdaSideToMaster(iSide,SortedLambda(:,:,iGlobSide))
 
-    !master element
-    !iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
-    IF(iLocSide.NE.-1)THEN ! MINE side
-      DO q=0,PP_N
-        DO p=0,PP_N
-          pq=CGNS_SideToVol2(PP_N,p,q,iLocSide)
-          r  = q    *(PP_N+1)+p    +1
-          rr = pq(2)*(PP_N+1)+pq(1)+1
-          SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
-        END DO
-      END DO !p,q
-      CYCLE
-    END IF !iLocSide.NE.-1
-
-    ! neighbour element (e.g. small mortar sides when one proc has both the large and one or more small side connected elements)
-    iLocSide_NB = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
-    IF(iLocSide_NB.NE.-1)THEN ! YOUR side
-      DO q=0,PP_N
-        DO p=0,PP_N
-          pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_NB)
-          r  = q    *(PP_N+1)+p    +1
-          rr = pq(2)*(PP_N+1)+pq(1)+1
-          SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
-        END DO
-      END DO !p,q
-      CYCLE
-    END IF !iLocSide_NB.NE.-1
-
-    ! is small virtual mortar side is encountered and no NB iLocSide is given
-    IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
-      ! check all my big mortar sides and find the one to which the small virtual is connected
-      Check2: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
-        nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-        !locSide=MortarType(2,MortarSideID)
-        DO iMortar=1,nMortars
-          SideID= MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
-          IF(iSide.EQ.SideID)THEN
-            iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
-            IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
-              DO q=0,PP_N
-                DO p=0,PP_N
-                  pq=CGNS_SideToVol2(PP_N,p,q,iLocSide)
-                  r  = q    *(PP_N+1)+p    +1
-                  rr = pq(2)*(PP_N+1)+pq(1)+1
-                  SortedLambda(:,r:r,iGlobSide) = lambda(:,rr:rr,iSide)
-                END DO
-              END DO !p,q
-            ELSE
-              CALL abort(__STAMP__,'This big mortar side must be master')
-            END IF !iLocSide.NE.-1
-            EXIT Check2
-          END IF ! iSide.EQ.SideID
-        END DO !iMortar
-      END DO Check2 !MortarSideID
-    END IF ! MortarType(1,iSide).EQ.0
   END DO ! iGlobSide = 1, nSides
 
   ! Deallocate temporary arrays
@@ -487,7 +398,8 @@ ASSOCIATE (&
   ASSOCIATE( nOutputSides => INT(SortedEnd-SortedStart+1,IK) ,&
         SortedOffset => INT(SortedOffset,IK)            ,&
         SortedStart  => INT(SortedStart,IK)             ,&
-        SortedEnd    => INT(SortedEnd,IK)                )
+        SortedEnd    => INT(SortedEnd,IK)               ,&
+        nGP_face     => INT(nGP_face,IK)                )
     CALL GatheredWriteArray(FileName,create=.FALSE.,&
         DataSetName = 'DG_SolutionLambda', rank=3,&
         nValGlobal  = (/PP_nVarTmp , nGP_face , nGlobalUniqueSides/) , &
@@ -509,8 +421,8 @@ ASSOCIATE (&
 #ifdef PARTICLES
   ! Adjust electric field for Landmark testcase
   IF(useAlgebraicExternalField.AND.AlgebraicExternalField.EQ.1)THEN
-    DO iElem=1,PP_nElems
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    DO iElem=1,INT(PP_nElems)
+      DO k=0,INT(PP_N); DO j=0,INT(PP_N); DO i=0,INT(PP_N)
         ASSOCIATE( Ue => AverageElectricPotential ,&
               xe => 2.4e-2                        ,&
               x  => Elem_xGP(1,i,j,k,iElem))
@@ -645,18 +557,29 @@ IF (ANY(PartBound%UseAdaptedWallTemp)) CALL WriteAdaptiveWallTempToHDF5(FileName
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
 ! For restart purposes, store the electron bulk temperature in .h5 state
-IF(CalcBulkElectronTemp)THEN
-  IF(MPIRoot)THEN ! only root writes the container
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    TmpArray(1,1) = BulkElectronTemp
-    CALL WriteArrayToHDF5( DataSetName = 'BulkElectronTemp' , rank = 2 , &
-                           nValGlobal  = (/1_IK , 1_IK/)     , &
-                           nVal        = (/1_IK , 1_IK/)     , &
-                           offset      = (/0_IK , 0_IK/)     , &
-                           collective  = .FALSE., RealArray = TmpArray(1,1))
-    CALL CloseDataFile()
-  END IF ! MPIRoot
-END IF ! CalcBulkElectronTemp
+! Only root writes the container
+IF(CalcBulkElectronTemp.AND.MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  TmpArray(1,1) = BulkElectronTemp
+  CALL WriteArrayToHDF5( DataSetName = 'BulkElectronTemp' , rank = 2 , &
+                         nValGlobal  = (/1_IK , 1_IK/)               , &
+                         nVal        = (/1_IK , 1_IK/)               , &
+                         offset      = (/0_IK , 0_IK/)               , &
+                         collective  = .FALSE., RealArray = TmpArray(1,1))
+  CALL CloseDataFile()
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#if USE_HDG
+IF(CalcPCouplElectricPotential.AND.MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  TmpArray2(1:3,1) = CoupledPowerPotential(1:3)
+  CALL WriteArrayToHDF5( DataSetName = 'CoupledPowerPotential' , rank = 2 , &
+                         nValGlobal  = (/1_IK , 3_IK/)                    , &
+                         nVal        = (/1_IK , 3_IK/)                    , &
+                         offset      = (/0_IK , 0_IK/)                    , &
+                         collective  = .FALSE., RealArray = TmpArray2(1:3,1))
+  CALL CloseDataFile()
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 #if USE_LOADBALANCE
@@ -681,10 +604,10 @@ IF(UseBRElectronFluid) THEN
     CALL CalculateElectronTemperatureCell()
   END IF
   CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElectronTemperatureCell')
-END IF
-! Automatically obtain the reference parameters (from a fully kinetic simulation), store them in .h5 state
-IF(BRAutomaticElectronRef)THEN
-  IF(MPIRoot)THEN ! only root writes the container
+
+  ! Automatically obtain the reference parameters (from a fully kinetic simulation), store them in .h5 state
+  ! Only root writes the container
+  IF(BRAutomaticElectronRef.AND.MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteArrayToHDF5( DataSetName = 'RegionElectronRef' , rank = 2 , &
                            nValGlobal  = (/1_IK , 3_IK/)     , &
@@ -718,7 +641,9 @@ CALL WriteEmissionVariablesToHDF5(FileName)
 
 EndT=PICLASTIME()
 SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-SWRITE(UNIT_StdOut,'(A,ES16.7)') "#Particles : ", REAL(nGlobalNbrOfParticles)
+#if defined(PARTICLES)
+CALL DisplayNumberOfParticles(1)
+#endif /*defined(PARTICLES)*/
 
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
@@ -803,6 +728,7 @@ USE MOD_Restart_Vars  ,ONLY: DoRestart
 USE MOD_MPI           ,ONLY: FinalizeMPI
 #endif /*USE_MPI*/
 USE MOD_ReadInTools   ,ONLY: PrintOption
+USE MOD_HDF5_Output_Particles,ONLY: FillParticleData
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -847,22 +773,19 @@ IF(.NOT.DoRestart)THEN
     SWRITE(UNIT_StdOut,'(A,ES25.14E3,A,F15.3,A)')     '   Calculated time t :',t,' (',t*1e12,' ps)'
 
     tFuture=t
+    CALL FillParticleData()
     CALL WriteStateToHDF5(TRIM(MeshFile),t,tFuture)
     SWRITE(UNIT_StdOut,'(A)')'   Particles: StateFile (IMD MD data) created. Terminating successfully!'
 #if USE_MPI
     CALL FinalizeMPI()
     CALL MPI_FINALIZE(iERROR)
     IF(iERROR.NE.0)THEN
-      CALL abort(&
-      __STAMP__&
-      , ' MPI_FINALIZE(iERROR) returned non-zero integer value',iERROR)
+      CALL abort(__STAMP__, ' MPI_FINALIZE(iERROR) returned non-zero integer value',iERROR)
     END IF
 #endif /*USE_MPI*/
     STOP 0 ! terminate successfully
   ELSE
-    CALL abort(&
-    __STAMP__&
-    , ' IMDLengthScale.LE.0.0 which is not allowed')
+    CALL abort(__STAMP__, ' IMDLengthScale.LE.0.0 which is not allowed')
   END IF
 END IF
 END SUBROUTINE WriteIMDStateToHDF5
@@ -888,7 +811,6 @@ SUBROUTINE WriteElemDataToSeparateContainer(FileName,ElemList,ElemDataName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: nElems
-USE MOD_HDF5_Input       ,ONLY: ReadArray
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime,ElemTime_tmp,NullifyElemTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart

@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -61,6 +61,8 @@ CALL prms%CreateIntOption(    'PIC-AnalyticInterpolation-SubType', "SubType of A
 
 CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationP'       , "parameter 'p' for AnalyticInterpolationType = 1", '1.')
 CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationPhase'   , "Phase shift angle phi that is used for cos(w*t + phi)", '0.')
+CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationGamma'   , "Relativistic Lorentz factor", '1.')
+CALL prms%CreateRealOption(   'PIC-AnalyticInterpolationE'       , "Electric field strength")
 #endif /*CODE_ANALYZE*/
 
 CALL prms%CreateLogicalOption(  'PIC-DoInterpolation'         , "Interpolate electric/magnetic fields at charged particle position"//&
@@ -112,6 +114,9 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars         ,ONLY: PDM
 USE MOD_PICInterpolation_Vars
 USE MOD_ReadInTools           ,ONLY: PrintOption
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -126,7 +131,7 @@ REAL                      :: scaleExternalField
 CHARACTER(LEN=20)         :: tempStr
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE INTERPOLATION...'
 
 IF(.NOT.DoInterpolation) THEN
   ! Fill interpolation type with empty string
@@ -173,19 +178,13 @@ IF(AlgebraicExternalFieldDelta.LT.0) CALL abort(__STAMP__,'AlgebraicExternalFiel
 
 !--- Allocate arrays for interpolation of fields to particles
 ALLOCATE(FieldAtParticle(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-  __STAMP__ &
-  ,'ERROR in pic_interpolation.f90: Cannot allocate FieldAtParticle array!',ALLOCSTAT)
-END IF
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__ ,'ERROR in pic_interpolation.f90: Cannot allocate FieldAtParticle array!',ALLOCSTAT)
 
 SELECT CASE(TRIM(InterpolationType))
 CASE('particle_position')
   ! PASS
 CASE DEFAULT
-  CALL abort(&
-  __STAMP__ &
-  ,'Unknown InterpolationType ['//TRIM(ADJUSTL(InterpolationType))//'] in pic_interpolation.f90')
+  CALL abort(__STAMP__ ,'Unknown InterpolationType ['//TRIM(ADJUSTL(InterpolationType))//'] in pic_interpolation.f90')
 END SELECT
 
 #ifdef CODE_ANALYZE
@@ -195,24 +194,35 @@ IF(DoInterpolationAnalytic)THEN
   AnalyticInterpolationPhase = GETREAL('PIC-AnalyticInterpolationPhase')
   SELECT CASE(AnalyticInterpolationType)
   CASE(0) ! 0: const. magnetostatic field: B = B_z = (/ 0 , 0 , 1 T /) = const.
-    ! no special parameters required
+    ! AnalyticInterpolationSubType 0: non-relativistic
+    !                              1: relativistic
+    AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
+    AnalyticInterpolationGamma   = GETREAL('PIC-AnalyticInterpolationGamma')
   CASE(1) ! 1: magnetostatic field: B = B_z = (/ 0 , 0 , B_0 * EXP(x/l) /) = const.
     AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
     AnalyticInterpolationP       = GETREAL('PIC-AnalyticInterpolationP')
   CASE(2) !2: const. electromagnetic field: B = B_z = (/ 0 , 0 , (x^2+y^2)^0.5 /) = const.
           !                                 E = 1e-2/(x^2+y^2)^(3/2) * (/ x , y , 0. /)
     ! no special parameters required
+  CASE(3) ! 3: const. electric field: E = E_x = (/ 1 V/m , 0 , 0 /) = const.
+    AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
+    AnalyticInterpolationGamma   = GETREAL('PIC-AnalyticInterpolationGamma')
+    AnalyticInterpolationE       = GETREAL('PIC-AnalyticInterpolationE')
+  CASE(4) ! 3: uniform electric field: E = E_x = (/ X V/m , 0 , 0 /) = const.
+    !          from Ripperda "A Comprehensive Comparison of Relativistic Particle Integrators", 2018
+    ! AnalyticInterpolationSubType 0: non-relativistic
+    !                              1: relativistic
+    AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
+    AnalyticInterpolationE       = GETREAL('PIC-AnalyticInterpolationE')
   CASE DEFAULT
     WRITE(TempStr,'(I5)') AnalyticInterpolationType
-    CALL abort(&
-        __STAMP__ &
-        ,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_interpolation.f90')
+    CALL abort(__STAMP__,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_interpolation.f90')
   END SELECT
 
   ! Calculate the initial velocity of the particle from an analytic expression: must be implemented for the different
   ! AnalyticInterpolationType methods
   ! Note that for time-staggered methods, Leapfrog and Boris, the initial velocity in shifted by -dt/2 into the past
-  IF(DoInterpolationAnalytic.AND.ANY((/0,1/).EQ.AnalyticInterpolationType))THEN
+  IF(DoInterpolationAnalytic.AND.ANY((/0,1,3,4/).EQ.AnalyticInterpolationType))THEN
     DoInitAnalyticalParticleState = .TRUE.
   ELSE
     DoInitAnalyticalParticleState = .FALSE.
@@ -220,7 +230,7 @@ IF(DoInterpolationAnalytic)THEN
 END IF
 #endif /*CODE_ANALYZE*/
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE INTERPOLATION DONE!'
 END SUBROUTINE InitializeParticleInterpolation
 
 
@@ -355,8 +365,11 @@ SUBROUTINE ReadVariableExternalField()
 ! MODULES
 USE MOD_Globals
 USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,FileNameVariableExternalField
-USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField2D,VariableExternalFieldAxisSym
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldDim,VariableExternalFieldAxisSym
 USE MOD_HDF5_Input_Field      ,ONLY: ReadVariableExternalFieldFromHDF5
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -368,10 +381,10 @@ USE MOD_HDF5_Input_Field      ,ONLY: ReadVariableExternalFieldFromHDF5
 INTEGER,PARAMETER     :: lenmin=4
 INTEGER               :: lenstr
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
+LBWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
 
 ! Defaults
-VariableExternalField2D      = .FALSE.
+VariableExternalFieldDim     = 1 ! default is 1D
 VariableExternalFieldAxisSym = .FALSE.
 
 ! Check if file exists
@@ -392,7 +405,7 @@ END IF
 
 IF(.NOT.ALLOCATED(VariableExternalField)) CALL abort(__STAMP__,"Failed to load data from: "//TRIM(FileNameVariableExternalField))
 
-SWRITE(UNIT_stdOut,'(A)')' ...VARIABLE EXTERNAL FIELD INITIALIZATION DONE'
+LBWRITE(UNIT_stdOut,'(A)')' ...VARIABLE EXTERNAL FIELD INITIALIZATION DONE'
 END SUBROUTINE ReadVariableExternalField
 
 
@@ -406,7 +419,10 @@ SUBROUTINE ReadVariableExternalFieldFromCSV()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PICInterpolation_Vars, ONLY:VariableExternalField,DeltaExternalField,nIntPoints,FileNameVariableExternalField
+USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,DeltaExternalField,nIntPoints,FileNameVariableExternalField
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -451,15 +467,15 @@ CLOSE (ioUnit)
 
 IF(ncounts.GT.1) THEN
   DeltaExternalField(1) = VariableExternalField(1,2)  - VariableExternalField(1,1)
-  SWRITE(UNIT_stdOut,'(A,1X,ES25.14E3)') ' Delta external field: ',DeltaExternalField(1)
+  LBWRITE(UNIT_stdOut,'(A,1X,ES25.14E3)') ' Delta external field: ',DeltaExternalField(1)
   IF(DeltaExternalField(1).LE.0) THEN
-    SWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
+    LBWRITE(*,'(A)') ' ERROR: wrong sign in external field delta-x'
   END IF
 ELSE
   CALL abort(__STAMP__," ERROR: not enough data points in variable external field file!")
 END IF
 
-SWRITE(UNIT_stdOut,'(A,I4.0,A)')' Found ', ncounts,' data points.'
+LBWRITE(UNIT_stdOut,'(A,I4.0,A)')' Found ', ncounts,' data points.'
 END SUBROUTINE ReadVariableExternalFieldFromCSV
 
 
@@ -515,7 +531,7 @@ SUBROUTINE InitAnalyticalParticleState()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInitAnalyticalParticleState
+USE MOD_PICInterpolation_Vars  ,ONLY: DoInitAnalyticalParticleState,AnalyticPartDim
 USE MOD_Particle_Analyze_Code  ,ONLY: CalcAnalyticalParticleState
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
@@ -526,7 +542,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL    :: PartStateAnalytic(6)
+REAL    :: PartStateAnalytic(1:AnalyticPartDim)
 INTEGER :: iPart
 !===================================================================================================================================
 ! Return here, if no analytical function can be used

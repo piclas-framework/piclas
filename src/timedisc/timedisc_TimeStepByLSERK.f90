@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -64,7 +64,7 @@ USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_DSMC                   ,ONLY: DSMC_main
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
@@ -72,6 +72,8 @@ USE MOD_TimeDisc_Vars          ,ONLY: iter
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
+USE MOD_vMPF                   ,ONLY: SplitAndMerge
+USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -315,7 +317,7 @@ IF (useDSMC) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
+    IF(UseSplitAndMerge) CALL SplitAndMerge()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/

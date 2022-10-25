@@ -2,7 +2,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2015 - 2019 Wladimir Reschke
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -28,7 +28,9 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER , ALLOCATABLE            :: SurfModResultSpec(:,:)          ! Resulting species after surface model treatment
                                                                     ! (nPartBound,nSpecies)
-CHARACTER(LEN=50) , ALLOCATABLE  :: SurfModEnergyDistribution(:)    ! Energy distribution of the reflected particles
+CHARACTER(LEN=50) , ALLOCATABLE  :: SurfModEnergyDistribution(:)    ! Energy distribution of the reflected/created particle(s)
+REAL , ALLOCATABLE               :: SurfModEmissionEnergy(:)        ! Energy of emitted particle for surface emission model (only available for SurfaceModel=7)
+REAL , ALLOCATABLE               :: SurfModEmissionYield(:)         ! Emission yield factor for surface emission model (only changable for SurfaceModel=7)
 REAL                             :: BackupVeloABS                   ! Backup of velocity during double-ARMfor 2nd SEE
 ! === Porous BC ====================================================================================================================
 INTEGER                          :: nPorousBC                       ! Number of porous BCs

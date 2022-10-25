@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -89,6 +89,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars
 USE MOD_ReadInTools       ,ONLY: GETLOGICAL
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -101,12 +104,24 @@ IMPLICIT NONE
 !#endif /*USE_MPI*/
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI ... '
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI ... '
 IF(ParticleMPIInitIsDone) CALL ABORT(__STAMP__,' Particle MPI already initialized!')
 
-! Get flag for ignoring the abort if the number of global exchange procs is non-symmetric
+! Get flag for ignoring the check and/or abort if the number of global exchange procs is non-symmetric
 CheckExchangeProcs = GETLOGICAL('CheckExchangeProcs')
+IF(CheckExchangeProcs)THEN
+  AbortExchangeProcs = GETLOGICAL('AbortExchangeProcs')
+ELSE
+  AbortExchangeProcs=.FALSE.
+END IF ! .NOT.CheckExchangeProcs
+
+! Get flag for particle latency hiding based on splitting elements in two groups. This first group has particle communication with
+! other processors and the second does not.
+DoParticleLatencyHiding = GETLOGICAL('DoParticleLatencyHiding')
+#if !(PP_TimeDiscMethod==400)
+IF(DoParticleLatencyHiding) CALL abort(__STAMP__,'DoParticleLatencyHiding=T not imeplemented for this time disc!')
+#endif /*!(PP_TimeDiscMethod==400)*/
 
 #if USE_MPI
 CALL MPI_COMM_DUP (MPI_COMM_WORLD,PartMPI%COMM,iError)
@@ -124,8 +139,8 @@ PartMPI%MPIRoot = .TRUE.
 #endif  /*USE_MPI*/
 
 ParticleMPIInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitParticleMPI
 
@@ -866,14 +881,15 @@ SUBROUTINE MPIParticleRecv(DoMPIUpdateNextFreePos)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
-USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf!,PartMPI
-USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors, ExchangeProcToGlobalProc
+USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: doParticleMerge, vMPF_SpecNumElem, LastPartPos
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
+USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc,DoParticleLatencyHiding
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if defined(LSERK)
 USE MOD_Particle_Vars          ,ONLY: Pt_temp
@@ -1250,12 +1266,13 @@ DO iProc=0,nExchangeProcessors-1
       IF (ElemID.LT.1) THEN
         CALL abort(__STAMP__,'Particle received in not in proc! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
       END IF
-      IF(.NOT.IsExchangeElem(ElemID)) THEN
-        IPWRITE(*,*) 'Part Pos + Velo:',PartID,ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc), PartState(1:6,PartID)
-        CALL abort(__STAMP__,'Particle received in non exchange elem! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
-      END IF
-      IF (useDSMC) THEN 
-        DSMC_RHS(1:3,PartID) = 0.0
+      IF(DoParticleLatencyHiding)THEN
+        IF(.NOT.IsExchangeElem(ElemID)) THEN
+          IPWRITE(*,*) 'Part Pos + Velo:',PartID,ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc), PartState(1:6,PartID)
+          CALL abort(__STAMP__,'Particle received in non exchange elem! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
+        END IF
+      END IF ! DoParticleLatencyHiding
+      IF (useDSMC) THEN
         CALL GetPositionInRefElem(PartState(1:3,PartID),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID))
       END IF
       IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
@@ -1282,7 +1299,7 @@ PDM%ParticleVecLength         = PDM%ParticleVecLength + PartMPIExchange%nMPIPart
 PDM%CurrentNextFreePosition   = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
 PartMPIExchange%nMPIParticles = 0
 IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL ABORT(__STAMP__&
-    ,' ParticleVecLegnth>MaxParticleNumber due to MPI-communication!')
+    ,' ParticleVecLegnth>MaxParticleNumber due to MPI-communication! Increase Part-maxParticleNumber or use more processors.')
 
 IF(RadialWeighting%PerformCloning) THEN
   ! Checking whether received particles have to be cloned or deleted
