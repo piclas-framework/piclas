@@ -32,9 +32,9 @@ CONTAINS
 !> Particle insertion by pure surface reactions
 !> 1.) Determine the surface parameters
 !> 2.) Calculate the number of newly created products and update the surface properties
-!>  a) Langmuir-Hinshlewood reaction with instantaneous desorption (Arrhenius model)
-!>  b) Langmuir-Hinshlewood reaction (Arrhenius model)
-!>  c) Thermal desorption (Polyani-Wigner equation)
+!>  a) Langmuir-Hinshelwood reaction with instantaneous desorption (Arrhenius model)
+!>  b) Langmuir-Hinshelwood reaction (Arrhenius model)
+!>  c) Thermal desorption (Polanyi-Wigner equation)
 !> 3.) Insert the product species into the gas phase
 !===================================================================================================================================
 SUBROUTINE ParticleSurfChemFlux()
@@ -57,8 +57,12 @@ USE MOD_Particle_Surfaces_Vars
 USE MOD_Particle_Boundary_Vars 
 USE MOD_SurfaceModel_Vars      ,ONLY: ChemWallProp_Shared_Win,SurfChemReac, ChemWallProp, ChemDesorpWall !, ChemCountReacWall
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
-USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
-USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
+USE MOD_Particle_SurfFlux       ,ONLY: CalcPartPosTriaSurface
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
+#if USE_MPI
+USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
+#endif
 !#if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod, TrackInfo
 !#endif /*IMPA*/
@@ -77,9 +81,7 @@ IMPLICIT NONE
 INTEGER                     :: iSpec , PositionNbr, iSF, iSide, SideID, NbrOfParticle, ParticleIndexNbr
 INTEGER                     :: BCSideID, ElemID, iLocSide, iSample, jSample, PartInsSubSide, iPart, iPartTotal
 INTEGER                     :: PartsEmitted, Node1, Node2, globElemId
-REAL                        :: Particle_pos(3), xyzNod(3), Vector1(3), Vector2(3)
-REAL                        :: ndist(3), midpoint(3)
-REAL,ALLOCATABLE            :: particle_positions(:)
+REAL                        :: xyzNod(3), Vector1(3), Vector2(3), ndist(3), midpoint(3)
 REAL                        :: ReacHeat, DesHeat
 REAL                        :: DesCount
 REAL                        :: nu, E_act, Coverage, Rate, DissOrder, AdCount
@@ -116,11 +118,7 @@ DO iSF = 1, nSF
       SideID=GetGlobalNonUniqueSideID(globElemId,iLocSide)
       SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
 
-      IF (SurfSideID.LT.1) THEN
-        CALL abort(&
-        __STAMP__&
-        ,'Chemical Surface Flux is not allowed on non-sampling sides!')
-      END IF  
+      IF (SurfSideID.LT.1) CALL abort(__STAMP__,'Chemical Surface Flux is not allowed on non-sampling sides!')
 
       WallTemp = PartBound%WallTemp(BoundID) ! Boundary temperature
 
@@ -144,7 +142,7 @@ DO iSF = 1, nSF
           ! 2.) Calculate the number of newly created products and update the surface properties
           SELECT CASE (TRIM(SurfChemReac%ReactType(iReac)))
 
-          ! 2a) Langmuir-Hinshlewood reaction with instantaneous desorption (Arrhenius model)
+          ! 2a) Langmuir-Hinshelwood reaction with instantaneous desorption (Arrhenius model)
           CASE('LHD')
             Coverage = 1.
             ! Product of the reactant coverage values
@@ -215,7 +213,7 @@ DO iSF = 1, nSF
               END IF ! iVal in Products 
             END DO ! iVal            
 
-          ! b) Langmuir-Hinshlewood reaction (Arrhenius model)
+          ! b) Langmuir-Hinshelwood reaction (Arrhenius model)
           CASE('LH')
             Coverage = 1.
             ! Product of the reactant coverage values
@@ -287,7 +285,7 @@ DO iSF = 1, nSF
             END DO ! iVal    
 
 
-          ! c) Thermal desorption (Polyani-Wigner equation)
+          ! c) Thermal desorption (Polanyi-Wigner equation)
           CASE('D')
             DO iVal=1, SIZE(SurfChemReac%Products(iReac,:))
               IF (SurfChemReac%Products(iReac,iVal).NE.0) THEN
@@ -401,17 +399,6 @@ DO iSF = 1, nSF
             ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID) = ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID) &
                                                             - INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8)
             NbrOfParticle = NbrOfParticle + PartInsSubSide
-            ALLOCATE(particle_positions(1:PartInsSubSide*3))
-
-            iPart = 1
-            !-- Set Positions
-            DO WHILE (iPart .LE. PartInsSubSide)
-              Particle_pos(1:3) = CalcPartPosTriaSurface(xyzNod, Vector1, Vector2, ndist, midpoint)
-              particle_positions(iPart*3-2) = Particle_pos(1)
-              particle_positions(iPart*3-1) = Particle_pos(2)
-              particle_positions(iPart*3  ) = Particle_pos(3)
-              iPart=iPart+1
-            END DO
 
             !-- Fill Particle Informations (PartState, Partelem, etc.)
             ParticleIndexNbr = 1
@@ -420,7 +407,7 @@ DO iSF = 1, nSF
                 ParticleIndexNbr = PDM%nextFreePosition(iPartTotal + 1 + PDM%CurrentNextFreePosition)
               END IF
               IF (ParticleIndexNbr .ne. 0) THEN
-                PartState(1:3,ParticleIndexNbr) = particle_positions(3*(iPart-1)+1:3*(iPart-1)+3)
+                PartState(1:3,ParticleIndexNbr) = CalcPartPosTriaSurface(xyzNod, Vector1, Vector2, ndist, midpoint)
                 LastPartPos(1:3,ParticleIndexNbr)=PartState(1:3,ParticleIndexNbr)
                 PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
                 PDM%dtFracPush(ParticleIndexNbr) = .TRUE.
@@ -432,26 +419,28 @@ DO iSF = 1, nSF
                   PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
                 END IF
               ELSE
-                CALL abort(&
-            __STAMP__&
-            ,'ERROR in ParticleSurfaceflux: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+                CALL abort(__STAMP__,'ERROR in ParticleSurfChemFlux: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
               END IF
             END DO
-            DEALLOCATE(particle_positions)
             
             CALL SetSurfacefluxVelocities(iSpec,iReac,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartInsSubSide)
                   
             PartsEmitted = PartsEmitted + PartInsSubSide
           END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
         END IF ! iSide
-        IF (NbrOfParticle.NE.iPartTotal) CALL abort(__STAMP__, 'Error 2 in ParticleSurfaceflux!')
+        IF (NbrOfParticle.NE.iPartTotal) CALL abort(__STAMP__, 'ERROR in ParticleSurfChemFlux: NbrOfParticle.NE.iPartTotal')
 
         ! Set the particle properties
         CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
 
         IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(iSpec,-1,NbrOfParticle)
 
-        IF (useDSMC.AND.(CollisMode.GT.1)) CALL SetInnerEnergies(iSpec, BoundID, NbrOfParticle,iReac)
+        IF (useDSMC.AND.(CollisMode.GT.1)) THEN
+          DO iPart = 1,NbrOfParticle
+            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+            IF (PositionNbr .NE. 0) CALL DSMC_SetInternalEnr(iSpec, BoundID, PositionNbr, 3, iReac)
+          END DO
+        END IF
 
         IF(CalcPartBalance) THEN
         ! Compute number of input particles and energy
@@ -469,9 +458,7 @@ DO iSF = 1, nSF
 
         IF (NbrOfParticle.NE.PartsEmitted) THEN
           ! should be equal for including the following lines in tSurfaceFlux
-          CALL abort(&
-        __STAMP__&
-        ,'ERROR in ParticleSurfaceflux: NbrOfParticle.NE.PartsEmitted')
+          CALL abort(__STAMP__,'ERROR in ParticleSurfChemFlux: NbrOfParticle.NE.PartsEmitted')
         END IF
       END DO ! iSpec
 
@@ -635,78 +622,6 @@ END IF !Diffusion
 
 END SUBROUTINE ParticleSurfDiffusion
 
-
-
-!===================================================================================================================================
-!> 
-!===================================================================================================================================
-SUBROUTINE SetInnerEnergies(iSpec, BoundID, NbrOfParticle,iReac)
-! MODULES
-USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
-USE MOD_Particle_Vars           ,ONLY: PDM
-USE MOD_DSMC_PolyAtomicModel ,ONLY: DSMC_SetInternalEnr
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)                        :: iSpec, BoundID, NbrOfParticle,iReac
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                 :: iPart, PositionNbr
-!===================================================================================================================================
-iPart = 1
-
-DO WHILE (iPart .le. NbrOfParticle)
-  PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-
-  IF (PositionNbr .ne. 0) THEN
-    CALL DSMC_SetInternalEnr(iSpec, BoundID, PositionNbr,3,iReac)
-  END IF
-  iPart = iPart + 1
-END DO
-END SUBROUTINE SetInnerEnergies
-
-
-!===================================================================================================================================
-!> Calculate random normalized vector in 3D (unit space)
-!===================================================================================================================================
-FUNCTION CalcPartPosTriaSurface(xyzNod, Vector1, Vector2, ndist, midpoint)
-! MODULES
-USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)            :: xyzNod(3), Vector1(3), Vector2(3), ndist(3), midpoint(3)
-REAL                        :: CalcPartPosTriaSurface(3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                        :: RandVal2(2), PartDistance
-REAL, PARAMETER             :: eps_nontria=1.0E-6
-!===================================================================================================================================
-  CALL RANDOM_NUMBER(RandVal2)
-  IF (TrackingMethod.NE.TRIATRACKING) THEN !prevent inconsistency with non-triatracking by bilinear-routine (tol. might be increased)
-    RandVal2 = RandVal2 + eps_nontria*(1. - 2.*RandVal2) !shift randVal off from 0 and 1
-    DO WHILE (ABS(RandVal2(1)+RandVal2(2)-1.0).LT.eps_nontria) !sum must not be 1, since this corresponds to third egde
-      CALL RANDOM_NUMBER(RandVal2)
-      RandVal2 = RandVal2 + eps_nontria*(1. - 2.*RandVal2)
-    END DO
-  END IF
-  CalcPartPosTriaSurface = xyzNod + Vector1 * RandVal2(1)
-  CalcPartPosTriaSurface = CalcPartPosTriaSurface + Vector2 * RandVal2(2)
-  PartDistance = ndist(1)*(CalcPartPosTriaSurface(1)-midpoint(1)) & !Distance from v1-v2
-              + ndist(2)*(CalcPartPosTriaSurface(2)-midpoint(2)) &
-              + ndist(3)*(CalcPartPosTriaSurface(3)-midpoint(3))
-  IF (PartDistance.GT.0.) THEN !flip into right triangle if outside
-    CalcPartPosTriaSurface(1:3) = 2.*midpoint(1:3)-CalcPartPosTriaSurface(1:3)
-  END IF
-
-END FUNCTION CalcPartPosTriaSurface
 
 !===================================================================================================================================
 !> Determine the particle velocity of each inserted particle

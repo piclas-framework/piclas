@@ -24,7 +24,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ParticleSurfaceflux
+PUBLIC :: ParticleSurfaceflux, CalcPartPosTriaSurface
 !===================================================================================================================================
 CONTAINS
 
@@ -49,6 +49,7 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetSFElectronVelo
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 #endif /*IMPA*/
@@ -295,7 +296,12 @@ __STAMP__&
     CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
     IF (usevMPF.AND.(.NOT.RadialWeighting%DoRadialWeighting)) CALL SetParticleMPF(iSpec,-1,NbrOfParticle)
     ! define molecule stuff
-    IF (useDSMC.AND.(CollisMode.GT.1)) CALL SetInnerEnergies(iSpec, iSF, NbrOfParticle)
+    IF (useDSMC.AND.(CollisMode.GT.1)) THEN
+      DO iPart = 1,NbrOfParticle
+        PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+        IF (PositionNbr .NE. 0) CALL DSMC_SetInternalEnr(iSpec, iSF, PositionNbr,2)
+      END DO
+    END IF
     IF(CalcPartBalance) THEN
     ! Compute number of input particles and energy
       nPartIn(iSpec)=nPartIn(iSpec) + NBrofParticle
@@ -314,9 +320,7 @@ __STAMP__&
     ! Sample Energies on Surfaces when particles are emitted from them
     IF (NbrOfParticle.NE.PartsEmitted) THEN
       ! should be equal for including the following lines in tSurfaceFlux
-      CALL abort(&
-__STAMP__&
-,'ERROR in ParticleSurfaceflux: NbrOfParticle.NE.PartsEmitted')
+      CALL abort(__STAMP__,'ERROR in ParticleSurfaceflux: NbrOfParticle.NE.PartsEmitted')
     END IF
   END DO !iSF
 END DO !iSpec
@@ -522,37 +526,6 @@ IF(   (LastPartPos(1,ParticleIndexNbr).GT.GEO%xmaxglob).AND. .NOT.ALMOSTEQUAL(La
 END IF
 END SUBROUTINE AnalyzePartPos
 #endif /*CODE_ANALYZE*/
-
-
-!===================================================================================================================================
-!>
-!===================================================================================================================================
-SUBROUTINE SetInnerEnergies(iSpec, iSF, NbrOfParticle)
-! MODULES
-USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
-USE MOD_Particle_Vars           ,ONLY: PDM
-USE MOD_DSMC_PolyAtomicModel ,ONLY: DSMC_SetInternalEnr
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)                        :: iSpec, iSF, NbrOfParticle
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                 :: iPart, PositionNbr
-!===================================================================================================================================
-iPart = 1
-DO WHILE (iPart .le. NbrOfParticle)
-  PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-  IF (PositionNbr .ne. 0) THEN
-    CALL DSMC_SetInternalEnr(iSpec, iSF, PositionNbr,2)
-  END IF
-  iPart = iPart + 1
-END DO
-END SUBROUTINE SetInnerEnergies
 
 
 !===================================================================================================================================
