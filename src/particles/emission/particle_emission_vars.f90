@@ -141,16 +141,18 @@ REAL              :: BulkElectronTemp            ! Bulk electron temperature for
                                                  ! to eV for  usage in the code OR for neutralization BC (e.g. landmark)
 LOGICAL           :: CalcBulkElectronTemp        ! Automatic bulk electron calculation
 INTEGER           :: BulkElectronTempSpecID      ! Species ID (electron) for Automatic bulk electron calculation
+
 ! Emission distribution
-LOGICAL              :: UseEmissionDistribution        !< Flag for activation particle emission by interpolation n, T and v (equidistant)
-CHARACTER(255)       :: FileNameEmissionDistribution   !< File name form which the data is read
-INTEGER              :: EmissionDistributionDim      !< Spatial dimension of variable external field data: 1D, 2D or 3D
-LOGICAL              :: EmissionDistributionAxisSym  !< True if the data is axis symmetric, e.g., B(r,z)
-INTEGER              :: EmissionDistributionRadInd   !< Index of radial r-coordinate when using 2D data and axis symmetric 
-INTEGER              :: EmissionDistributionAxisDir  !< Direction that is used for the axial symmetric direction (1,2 or 3)
-INTEGER              :: EmissionDistributionN(1:3)    !< Number of points in x, y and z-direction
-REAL                 :: EmissionDistributionMin(1:3) !< Minimum values in x,y,z
-REAL                 :: EmissionDistributionMax(1:3) !< Maximum values in x,y,z
-REAL                 :: EmissionDistributionDelta(1:3)       !< equidistant z-spacing for the VariableExternalField (fast computation)
+LOGICAL              :: UseEmissionDistribution       !< Flag for activation particle emission by interpolation n, T and v (equidistant)
+CHARACTER(255)       :: EmissionDistributionFileName  !< File name form which the data is read
+INTEGER              :: EmissionDistributionN         !< Polynomial degree for particle emission in each element
+INTEGER              :: EmissionDistributionDim       !< Spatial dimension of variable external field data: 1D, 2D or 3D
+LOGICAL              :: EmissionDistributionAxisSym   !< True if the data is axis symmetric, e.g., B(r,z)
+INTEGER              :: EmissionDistributionRadInd    !< Index of radial r-coordinate when using 2D data and axis symmetric 
+INTEGER              :: EmissionDistributionAxisDir   !< Direction that is used for the axial symmetric direction (1,2 or 3)
+INTEGER              :: EmissionDistributionNum(1:3)  !< Number of points in x, y and z-direction
+REAL                 :: EmissionDistributionMin(1:3)  !< Minimum values in x,y,z
+REAL                 :: EmissionDistributionMax(1:3)  !< Maximum values in x,y,z
+REAL                 :: EmissionDistributionDelta(1:3)!< equidistant z-spacing for the VariableExternalField (fast computation)
 !===================================================================================================================================
 END MODULE MOD_Particle_Emission_Vars

@@ -1159,7 +1159,7 @@ USE MOD_Particle_Vars          ,ONLY: Species
 !USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistribution !< data in 2D cylindrical coordinates
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDelta
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMin
-USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMax,EmissionDistributionN
+USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMax,EmissionDistributionNum
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1199,13 +1199,13 @@ ASSOCIATE(&
     InterpolateEmissionDistribution2D = 0.
   ELSE
     ! 1.1
-    idx1 = (iPos-1)*EmissionDistributionN(1) + jPos
+    idx1 = (iPos-1)*EmissionDistributionNum(1) + jPos
     ! 2.1
-    idx2 = (iPos-1)*EmissionDistributionN(1) + jPos + 1
+    idx2 = (iPos-1)*EmissionDistributionNum(1) + jPos + 1
     ! 1.2
-    idx3 = iPos*EmissionDistributionN(1) + jPos
+    idx3 = iPos*EmissionDistributionNum(1) + jPos
     ! 2.2
-    idx4 = iPos*EmissionDistributionN(1) + jPos + 1
+    idx4 = iPos*EmissionDistributionNum(1) + jPos + 1
 
     ! Interpolate
     delta = EmissionDistributionDelta(1)*EmissionDistributionDelta(2)

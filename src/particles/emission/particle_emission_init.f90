@@ -169,7 +169,8 @@ CALL prms%CreateIntOption( 'Part-Species[$]-Init[$]-PartBCIndex','Associated par
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-MacroParticleFactor', 'Emission-specific particle weighting factor: number of simulation particles per real particle',numberedmulti=.TRUE.)
 ! ====================================== emission distribution =================================================================
 CALL prms%CreateStringOption( 'Part-Species[$]-Init[$]-EmissionDistributionName' , 'Name of the species, e.g., "electron" or "ArIon" used for initial emission via interpolation of n, T and v from equidistant field data (no default).' ,numberedmulti=.TRUE.)
-CALL prms%CreateStringOption( 'Part-FileNameEmissionDistribution'                , 'H5 or CSV file containing the data for initial emission via interpolation of n, T and v from equidistant field data', 'none')
+CALL prms%CreateStringOption( 'Part-EmissionDistributionFileName'                , 'H5 or CSV file containing the data for initial emission via interpolation of n, T and v from equidistant field data', 'none')
+CALL prms%CreateIntOption(    'Part-EmissionDistributionN'                       , 'Polynomial degree for particle emission in each element. The default value is 2(N+1) with N being the polynomial degree of the solution.')
 END SUBROUTINE DefineParametersParticleEmission
 
 
@@ -179,6 +180,7 @@ SUBROUTINE InitializeVariablesSpeciesInits()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_PreProc
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
@@ -197,7 +199,7 @@ USE MOD_Restart_Vars     ,ONLY: DoRestart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iInit
-CHARACTER(32)         :: hilf, hilf2
+CHARACTER(32)         :: hilf, hilf2, DefStr
 !===================================================================================================================================
 ALLOCATE(SpecReset(1:nSpecies))
 SpecReset=.FALSE.
@@ -447,7 +449,9 @@ END IF !useDSMC
 
 !-- Read Emission Distribution stuff
 IF(UseEmissionDistribution.AND.(.NOT.DoRestart)) THEN
-  FileNameEmissionDistribution = GETSTR('Part-FileNameEmissionDistribution')
+  EmissionDistributionFileName = GETSTR('Part-EmissionDistributionFileName')
+  WRITE(DefStr,'(i4)') 2*(PP_N+1)
+  EmissionDistributionN   = GETINT('Part-EmissionDistributionN', DefStr)
   CALL ReadUseEmissionDistribution()
 END IF
 !SWRITE (*,*) "BARRIER ="
@@ -1018,11 +1022,11 @@ SUBROUTINE ReadUseEmissionDistribution()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Emission_Vars ,ONLY: FileNameEmissionDistribution
+USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionFileName
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim,EmissionDistributionAxisSym
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDelta,EmissionDistributionDim
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMin
-USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMax,EmissionDistributionN
+USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMax,EmissionDistributionNum
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionRadInd,EmissionDistributionAxisDir
 USE MOD_HDF5_Input_Field       ,ONLY: ReadExternalFieldFromHDF5
 USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
@@ -1044,29 +1048,30 @@ INTEGER               :: iSpec,iInit
 LBWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF EMISSION DISTRIBUTION FOR PARTICLES '
 
 ! Check if file exists
-IF(.NOT.FILEEXISTS(FileNameEmissionDistribution)) CALL abort(__STAMP__,"File not found: "//TRIM(FileNameEmissionDistribution))
+IF(.NOT.FILEEXISTS(EmissionDistributionFileName)) CALL abort(__STAMP__,"File not found: "//TRIM(EmissionDistributionFileName))
 
 ! Check length of file name
-lenstr=LEN(TRIM(FileNameEmissionDistribution))
-IF(lenstr.LT.lenmin) CALL abort(__STAMP__,"File name too short: "//TRIM(FileNameEmissionDistribution))
+lenstr=LEN(TRIM(EmissionDistributionFileName))
+IF(lenstr.LT.lenmin) CALL abort(__STAMP__,"File name too short: "//TRIM(EmissionDistributionFileName))
 
 ! Check file ending, either .csv or .h5
-IF(TRIM(FileNameEmissionDistribution(lenstr-lenmin+2:lenstr)).EQ.'.h5')THEN
+IF(TRIM(EmissionDistributionFileName(lenstr-lenmin+2:lenstr)).EQ.'.h5')THEN
   DO iSpec = 1,nSpecies
     DO iInit = 1, Species(iSpec)%NumberOfInits
       IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
         CALL ReadExternalFieldFromHDF5(TRIM(Species(iSpec)%Init(iInit)%EmissionDistributionName)                                ,&
                                             Species(iSpec)%Init(iInit)%EmissionDistribution        , EmissionDistributionDelta  ,&
-            FileNameEmissionDistribution , EmissionDistributionDim , EmissionDistributionAxisSym   , EmissionDistributionRadInd ,&
-            EmissionDistributionAxisDir  , EmissionDistributionMin , EmissionDistributionMax       , EmissionDistributionN       )
-        IF(.NOT.ALLOCATED(Species(iSpec)%Init(iInit)%EmissionDistribution)) CALL abort(__STAMP__,"Failed to load data from: "//TRIM(FileNameEmissionDistribution))
+            EmissionDistributionFileName , EmissionDistributionDim , EmissionDistributionAxisSym   , EmissionDistributionRadInd ,&
+            EmissionDistributionAxisDir  , EmissionDistributionMin , EmissionDistributionMax       , EmissionDistributionNum     )
+        IF(.NOT.ALLOCATED(Species(iSpec)%Init(iInit)%EmissionDistribution)) CALL abort(__STAMP__,&
+            "Failed to load data from: "//TRIM(EmissionDistributionFileName))
       END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution'
     END DO ! iInit = 1, Species(iSpec)%NumberOfInits
   END DO ! iSpec = 1,nSpecies
-ELSEIF(TRIM(FileNameEmissionDistribution(lenstr-lenmin+1:lenstr)).EQ.'.csv')THEN
+ELSEIF(TRIM(EmissionDistributionFileName(lenstr-lenmin+1:lenstr)).EQ.'.csv')THEN
   CALL abort(__STAMP__,'ReadUseEmissionDistribution(): Read-in from .csv is not implemented')
 ELSE
-  CALL abort(__STAMP__,"Unrecognised file format for : "//TRIM(FileNameEmissionDistribution))
+  CALL abort(__STAMP__,"Unrecognised file format for : "//TRIM(EmissionDistributionFileName))
 END IF
 
 LBWRITE(UNIT_stdOut,'(A)')' ...EMISSION DISTRIBUTION INITIALIZATION DONE'
