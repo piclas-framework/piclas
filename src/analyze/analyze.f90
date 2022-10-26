@@ -296,6 +296,7 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 ! Points Per Wavelength
 CalcPointsPerWavelength = GETLOGICAL('CalcPointsPerWavelength')
 IF(CalcPointsPerWavelength)THEN
+  IF(WaveLength.LT.0.) WaveLength = GETREAL('WaveLength','1.')
   ! calculate cell local number excluding neighbor DOFs
   ALLOCATE( PPWCell(1:PP_nElems) )
   PPWCell=0.0

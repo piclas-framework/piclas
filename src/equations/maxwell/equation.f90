@@ -209,6 +209,9 @@ c_corr_c  = c_corr*c
 c_corr_c2 = c_corr*c2
 eta_c     = (c_corr-1.)*c
 
+! default
+WaveLength = -1.
+
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
 nRefStates=nBCs+1
