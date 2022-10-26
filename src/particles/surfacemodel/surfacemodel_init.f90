@@ -220,8 +220,10 @@ SDEALLOCATE(SurfChemReac%Prefactor)
 
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-  CALL UNLOCK_AND_FREE(ChemWallProp_Shared_Win)
-  CALL UNLOCK_AND_FREE(ChemSampWall_Shared_Win)
+  IF(SurfChemReac%NumOfReact.GT.0) THEN
+    CALL UNLOCK_AND_FREE(ChemWallProp_Shared_Win)
+    CALL UNLOCK_AND_FREE(ChemSampWall_Shared_Win)
+  END IF
   ADEALLOCATE(ChemSampWall_Shared)
   ADEALLOCATE(ChemWallProp_Shared)
   SDEALLOCATE(ChemDesorpWall)

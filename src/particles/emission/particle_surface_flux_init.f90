@@ -1429,6 +1429,7 @@ DO iSF = 1, CatBoundNum
   SurfChemReac%Surfaceflux(iSF)%InsertedParticle = 0
   SurfChemReac%Surfaceflux(iSF)%VFR_total = 0
   SurfChemReac%Surfaceflux(iSF)%VFR_total_allProcsTotal = 0
+  SurfChemReac%Surfaceflux(iSF)%Adaptive = .FALSE.
 
   ! get surfaceflux data
   IF (SurfChemReac%Surfaceflux(iSF)%BC.LT.1 .OR. SurfChemReac%Surfaceflux(iSF)%BC.GT.nPartBound) THEN
