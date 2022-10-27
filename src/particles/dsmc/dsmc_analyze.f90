@@ -26,8 +26,8 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
-PUBLIC :: CalcTVib, CalcSurfaceValues, CalcGammaVib
+PUBLIC :: DSMC_data_sampling, CalcMeanFreePath, WriteDSMCToHDF5
+PUBLIC :: CalcSurfaceValues, CalcGammaVib
 PUBLIC :: CalcInstantTransTemp, SummarizeQualityFactors, DSMCMacroSampling
 PUBLIC :: SamplingRotVibRelaxProb, CalcInstantElecTempXi
 !===================================================================================================================================
@@ -286,68 +286,6 @@ CALL WriteSurfSampleToHDF5(TRIM(MeshFile),ActualTime)
 DEALLOCATE(MacroSurfaceVal,MacroSurfaceSpecVal)
 
 END SUBROUTINE CalcSurfaceValues
-
-
-REAL FUNCTION CalcTVib(ChaTVib,MeanEVib,nMax)
-!===================================================================================================================================
-!> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals       ,ONLY: abort
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars     ,ONLY: DSMC
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL, INTENT(IN)                :: ChaTVib,MeanEVib  ! Charak TVib, mean vibrational Energy of all molecules
-INTEGER, INTENT(IN)             :: nMax              ! INT(CharaTDisss/CharaTVib) + 1
-REAL(KIND=8)                    :: LowerVal, UpperVal, MiddleVal, MaxPosiVal  ! upper and lower value of zero point search
-REAl(KIND=8)                    :: eps_prec=0.1   ! precision of zero point search
-REAL(KIND=8)                    :: ZeroVal1, ZeroVal2 ! both fuction values to compare
-!===================================================================================================================================
-
-IF (MeanEVib.GT.0) THEN
-  !.... Initial limits for a: lower limit = very small value
-  !                           upper limit = max. value allowed by system
-  !     zero point = CharaTVib / TVib
-  LowerVal  = 1.0/(2.0*nMax)                                    ! Tvib is max for nMax => lower limit = 1.0/nMax
-  UpperVal  = LOG(HUGE(MiddleVal*nMax))/nMax-1.0/(2.0 * nMax)   ! upper limit = for max possible EXP(nMax*MiddleVal)-value
-  MaxPosiVal = LOG(HUGE(MaxPosiVal))  ! maximum value possible in system
-  DO WHILE (ABS(LowerVal-UpperVal).GT.eps_prec)                      !  Let's search the zero point by bisection
-    MiddleVal = 0.5*(LowerVal+UpperVal)
-
-    IF ((LowerVal.GT.MaxPosiVal).OR.(MiddleVal.GT.MaxPosiVal)) THEN
-       CALL Abort(&
-__STAMP__&
-,'Cannot find zero point in TVib Calculation Function! CharTVib:',RealInfoOpt=ChaTVib)
-    END IF
-
-    ! Calc of actual function values
-    ZeroVal1 = DSMC%GammaQuant + 1/(EXP(LowerVal)-1) - nMax/(EXP(nMax*LowerVal)-1) - MeanEVib/(ChaTVib*BoltzmannConst)
-    ZeroVal2 = DSMC%GammaQuant + 1/(EXP(MiddleVal)-1) - nMax/(EXP(nMax*MiddleVal)-1) - MeanEVib/(ChaTVib*BoltzmannConst)
-    ! decision of direction of bisection
-    IF (ZeroVal1*ZeroVal2.LT.0) THEN
-      UpperVal = MiddleVal
-    ELSE
-      LowerVal = MiddleVal
-    END IF
-  END DO
-  CalcTVib = ChaTVib/LowerVal ! LowerVal = CharaTVib / TVib
-ELSE
-  CalcTVib = 0
-END IF
-
-RETURN
-
-END FUNCTION CalcTVib
-
-!-----------------------------------------------------------------------------------------------------------------------------------
-
 
 
 REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_temp)
@@ -713,7 +651,7 @@ END SUBROUTINE DSMC_data_sampling
 
 SUBROUTINE DSMC_output_calc(nVar,nVar_quality,nVarloc,DSMC_MacroVal)
 !===================================================================================================================================
-!> Subroutine to calculate the solution U for writing into HDF5 format DSMC_output
+!> Calculation of the macroscopic output from sampled particles properties including the mixture values (Total_).
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -1000,20 +938,66 @@ END IF
 END SUBROUTINE DSMC_output_calc
 
 
-SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime,FutureTime)
+SUBROUTINE CalcMacroElecExcitation(MacroElecExcitation)
 !===================================================================================================================================
-!> Subroutine to write the solution U to HDF5 format
-!> Is used for postprocessing and for restart
+!> 
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: DSMC, RadialWeighting, CollisMode
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: ProjectName
+USE MOD_Mesh_Vars             ,ONLY: nElems
+USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime
+USE MOD_Particle_Vars         ,ONLY: ExcitationSampleData,ExcitationLevelCounter
+USE MOD_Restart_Vars          ,ONLY: RestartTime
+USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+USE MOD_Timedisc_Vars         ,ONLY: time,dt
+USE MOD_DSMC_Vars             ,ONLY: DSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(INOUT)      :: MacroElecExcitation(1:ExcitationLevelCounter,nElems)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+! INTEGER                 :: 
+REAL                    :: TimeSample
+!===================================================================================================================================
+
+! Determine the sampling time for the calculation of the rate (TODO: SAME AS IN CalcSurfaceValues)
+IF (WriteMacroSurfaceValues) THEN
+  ! Elapsed time since last sampling (variable dt's possible!)
+  TimeSample = Time - MacroValSampTime
+  MacroValSampTime = Time
+ELSE IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
+  ! Sampling at the end of the simulation: When a restart is performed and the sampling starts immediately, determine the correct sampling time
+  ! (e.g. sampling is set to 20% of tend = 1s, and restart is performed at 0.9s, sample time = 0.1s)
+  TimeSample = Time - RestartTime
+ELSE
+  ! Sampling at the end of the simulation: calculated from the user given input
+  TimeSample = (Time-(1-DSMC%TimeFracSamp)*TEnd)
+END IF
+
+! Rate 
+MacroElecExcitation = ExcitationSampleData / TimeSample
+
+END SUBROUTINE CalcMacroElecExcitation
+
+SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
+!===================================================================================================================================
+!> Subroutine to write the sampled macroscopic solution to the HDF5 format
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars     ,ONLY: DSMC, RadialWeighting, CollisMode, CollInf, SpecDSMC
+USE MOD_MCC_Vars      ,ONLY: SpecXSec
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Globals_Vars  ,ONLY: ProjectName, ElementaryCharge
 USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
-USE MOD_HDF5_Output   ,ONLY: WriteArrayToHDF5
-USE MOD_Particle_Vars ,ONLY: nSpecies, VarTimeStep
+USE MOD_HDF5_Output   ,ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayToHDF5
+USE MOD_Particle_Vars ,ONLY: nSpecies, VarTimeStep, SampleElecExcitation, ExcitationLevelCounter
 USE MOD_BGK_Vars      ,ONLY: BGKInitDone
 USE MOD_FPFlow_Vars   ,ONLY: FPInitDone
 ! IMPLICIT VARIABLE HANDLING
@@ -1022,16 +1006,17 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
 REAL,INTENT(IN)                :: OutputTime
-REAL,INTENT(IN),OPTIONAL       :: FutureTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName
-CHARACTER(LEN=255)             :: SpecID
+CHARACTER(LEN=255)             :: SpecID, LevelID
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER                        :: nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec, nVarRelax
-REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:)
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNamesElecExci(:)
+INTEGER                        :: nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec, nVarRelax, nSpecOut, nVarExci, iCase, iLevel
+INTEGER                        :: jSpec
+REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:), MacroElecExcitation(:,:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================
   SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DSMC TO HDF5 FILE...'
@@ -1041,6 +1026,12 @@ REAL                           :: StartT,EndT
   StartT=LOCALTIME()
 #endif
 
+IF(nSpecies.EQ.1) THEN
+  nSpecOut = 1
+ELSE
+  nSpecOut = nSpecies + 1
+END IF
+
 ! Create dataset attribute "VarNames"
 nVarloc=DSMC_NVARS
 nVarRelax=0
@@ -1048,11 +1039,8 @@ IF(DSMC%CalcQualityFactors.AND.(CollisMode.GE.2)) THEN
   IF(DSMC%RotRelaxProb.GE.2) nVarRelax = nVarRelax + 2
   IF(DSMC%VibRelaxProb.EQ.2) nVarRelax = nVarRelax + 2
 END IF
-IF(nSpecies.EQ.1) THEN
-  nVar=nVarloc+nVarRelax
-ELSE
-  nVar=(nVarloc+nVarRelax)*(nSpecies+1)
-END IF
+
+nVar=(nVarloc+nVarRelax)*nSpecOut
 
 IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
@@ -1155,41 +1143,92 @@ IF (DSMC%CalcQualityFactors) THEN
   END IF
 END IF
 
+IF(SampleElecExcitation) THEN
+  ! Number of excitation outputs (currently only electronic -> only species, multiply for additional excitation)
+  ALLOCATE(StrVarNamesElecExci(1:ExcitationLevelCounter))
+  nVarCount = 1
+  DO iSpec = 1, nSpecies
+    DO jSpec = iSpec, nSpecies
+      iCase = CollInf%Coll_Case(iSpec,jSpec)
+      IF(.NOT.SpecXSec(iCase)%UseElecXSec) CYCLE
+      ! Output of the non-election species
+      IF(SpecDSMC(iSpec)%InterID.EQ.4) THEN
+        WRITE(SpecID,'(I3.3)') jSpec
+      ELSE
+        WRITE(SpecID,'(I3.3)') iSpec
+      END IF
+      DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+        WRITE(LevelID,'(F0.2)') SpecXSec(iCase)%ElecLevel(iLevel)%Threshold/ElementaryCharge
+        StrVarNamesElecExci(nVarCount)='Spec'//TRIM(SpecID)//'_ExcitationRate_Elec_'//TRIM(LevelID)
+        nVarCount = nVarCount + 1
+      END DO
+    END DO
+  END DO
+END IF
+
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DSMCState',OutputTime))//'.h5'
-IF(MPIRoot) CALL GenerateDSMCFileSkeleton('DSMCState',nVar+nVar_quality,StrVarNames,MeshFileName,OutputTime,FutureTime)
+IF(MPIRoot) THEN
+  CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL WriteHDF5Header(TRIM('DSMCState'),File_ID)
+  ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
+  CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
+  CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
+  CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
+  ! Standard variable names 
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar,StrArray=StrVarNames)
+  ! Additional variable names: electronic excitation rate output
+  IF(SampleElecExcitation) CALL WriteAttributeToHDF5(File_ID,'VarNamesExci',ExcitationLevelCounter,StrArray=StrVarNamesElecExci)
+  CALL CloseDataFile()
+END IF
 
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 
+! Open data file for parallel output
 CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 
 ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality,nElems), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,' Cannot allocate output array DSMC_MacroVal array!')
+  CALL abort(__STAMP__,' Cannot allocate output array: DSMC_MacroVal!')
 END IF
 CALL DSMC_output_calc(nVar,nVar_quality,nVarloc+nVarRelax,DSMC_MacroVal)
 
+IF(SampleElecExcitation) THEN
+  ALLOCATE(MacroElecExcitation(1:ExcitationLevelCounter,nElems), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) THEN
+    CALL abort(__STAMP__,' Cannot allocate output array: MacroElecExcitation!')
+  END IF
+  CALL CalcMacroElecExcitation(MacroElecExcitation)
+END IF
+
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-  nVarX        => INT(nVar+nVar_quality,IK)    ,&
-  PP_nElems    => INT(PP_nElems,IK)            ,&
-  offsetElem   => INT(offsetElem,IK)           ,&
+  nVarX        => INT(nVar+nVar_quality,IK)       ,&
+  nVarExci     => INT(ExcitationLevelCounter,IK)  ,&
+  PP_nElems    => INT(PP_nElems,IK)               ,&
+  offsetElem   => INT(offsetElem,IK)              ,&
   nGlobalElems => INT(nGlobalElems,IK)         )
   CALL WriteArrayToHDF5(DataSetName='ElemData' , rank=2         , &
                         nValGlobal =(/nVarX    , nGlobalElems/) , &
                         nVal       =(/nVarX    , PP_nElems/)    , &
                         offset     =(/0_IK     , offsetElem/)   , &
                         collective =.false.,  RealArray=DSMC_MacroVal(:,:))
+  IF(SampleElecExcitation) THEN
+    CALL WriteArrayToHDF5(DataSetName='ExcitationData' , rank=2         , &
+                          nValGlobal =(/nVarExci , nGlobalElems/) , &
+                          nVal       =(/nVarExci , PP_nElems/)    , &
+                          offset     =(/0_IK     , offsetElem/)   , &
+                          collective =.false.,  RealArray=MacroElecExcitation(:,:))
+  END IF
 END ASSOCIATE
 
 CALL CloseDataFile()
 
 DEALLOCATE(StrVarNames)
 DEALLOCATE(DSMC_MacroVal)
+DEALLOCATE(MacroElecExcitation)
 #if USE_MPI
 IF(MPIROOT) EndT=MPI_WTIME()
 #else
@@ -1199,55 +1238,6 @@ EndT=LOCALTIME()
 SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
 
 END SUBROUTINE WriteDSMCToHDF5
-
-
-SUBROUTINE GenerateDSMCFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime)
-!===================================================================================================================================
-!> Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
-!===================================================================================================================================
-! MODULES
-USE MOD_Preproc
-USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: ProjectName
-USE MOD_io_HDF5
-USE MOD_HDF5_Output   ,ONLY: WriteAttributeToHDF5, WriteHDF5Header
-USE MOD_Particle_Vars ,ONLY: nSpecies
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN)    :: TypeString
-INTEGER,INTENT(IN)             :: nVar
-CHARACTER(LEN=255)             :: StrVarNames(nVar)
-CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
-REAL,INTENT(IN)                :: OutputTime
-REAL,INTENT(IN),OPTIONAL       :: FutureTime
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(LEN=255)             :: FileName,MeshFile255
-!===================================================================================================================================
-! Create file
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
-CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.)
-
-CALL WriteHDF5Header(TRIM('DSMCState'),File_ID)
-
-! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
-CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
-CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
-IF(PRESENT(FutureTime))THEN
-  MeshFile255=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),FutureTime))//'.h5'
-  CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=(/MeshFile255/))
-END IF
-CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar,StrArray=StrVarNames)
-
-CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
-
-CALL CloseDataFile()
-
-END SUBROUTINE GenerateDSMCFileSkeleton
 
 
 SUBROUTINE SamplingRotVibRelaxProb(iElem)

@@ -71,7 +71,7 @@ SUBROUTINE InitMCC()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
-USE MOD_PARTICLE_Vars ,ONLY: nSpecies
+USE MOD_PARTICLE_Vars ,ONLY: nSpecies, SampleElecExcitation, ExcitationLevelCounter, ExcitationSampleData, ExcitationLevelMapping
 USE MOD_Mesh_Vars     ,ONLY: nElems
 USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC, ChemReac, CollisMode
 USE MOD_MCC_Vars      ,ONLY: UseMCC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
@@ -333,6 +333,22 @@ IF (CollisMode.EQ.3) THEN
     CALL InitPhotoionizationXSec()
     CALL CheckPhotoionizationXSec()
   END IF
+END IF
+
+! Allocation of electronic excitation array
+IF(SampleElecExcitation) THEN
+  ExcitationLevelCounter = 0
+  ALLOCATE(ExcitationLevelMapping(CollInf%NumCase,MAXVAL(SpecXSec(:)%NumElecLevel)))
+  DO iCase = 1, CollInf%NumCase
+    IF(.NOT.SpecXSec(iCase)%UseElecXSec) CYCLE
+    DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+      ExcitationLevelCounter = ExcitationLevelCounter + 1
+      ExcitationLevelMapping(iCase,iLevel) = ExcitationLevelCounter
+    END DO
+    IF(ExcitationLevelCounter.NE.SUM(SpecXSec(:)%NumElecLevel)) CALL abort(__STAMP__,'Electronic excitation sampling: Wrong level counter!')
+    ALLOCATE(ExcitationSampleData(ExcitationLevelCounter,nElems))
+    ExcitationSampleData = 0.
+  END DO
 END IF
 
 #if defined(PARTICLES) && USE_HDG

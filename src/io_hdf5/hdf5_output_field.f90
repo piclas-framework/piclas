@@ -72,7 +72,7 @@ CHARACTER(LEN=255)  :: FileName
 #if USE_MPI
 REAL                :: StartT,EndT
 #endif
-REAL                :: OutputTime!,FutureTime
+REAL                :: OutputTime
 INTEGER             :: iElem
 !===================================================================================================================================
 #if USE_LOADBALANCE
@@ -97,7 +97,6 @@ IF(MPIROOT)THEN
 #endif
 END IF
 OutputTime=0.0
-!FutureTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DielectricGlobal',OutputTime))//'.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('DielectricGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)
@@ -254,7 +253,7 @@ CHARACTER(LEN=255)  :: FileName
 #if USE_MPI
 REAL                :: StartT,EndT
 #endif
-REAL                :: OutputTime!,FutureTime
+REAL                :: OutputTime
 INTEGER             :: iElem
 !===================================================================================================================================
 #if USE_LOADBALANCE
@@ -283,7 +282,6 @@ IF(MPIROOT)THEN
 #endif
 END IF
 OutputTime=0.0
-!FutureTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PMLZetaGlobal',OutputTime))//'.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('PMLZetaGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)
