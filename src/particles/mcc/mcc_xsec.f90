@@ -499,7 +499,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)            :: iCase                            !< Case index
-INTEGER,INTENT(IN)            :: iLevel                           !< 
+INTEGER,INTENT(IN)            :: iLevel                           !<
 REAL,INTENT(IN)               :: CollisionEnergy                  !< Collision energy in [J]
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -571,7 +571,7 @@ INTEGER                       :: iDOF, MaxDOF
 InterpolateVibRelaxProb = 0.
 MaxDOF = SIZE(SpecXSec(iCase)%VibXSecData,2)
 
-IF(CollisionEnergy.GT.SpecXSec(iCase)%VibXSecData(1,MaxDOF)) THEN 
+IF(CollisionEnergy.GT.SpecXSec(iCase)%VibXSecData(1,MaxDOF)) THEN
   ! If the collision energy is greater than the maximal value, get the cross-section of the last level and leave routine
   InterpolateVibRelaxProb = SpecXSec(iCase)%VibXSecData(2,MaxDOF)
   ! Leave routine
@@ -1377,6 +1377,7 @@ SUBROUTINE XSec_CalcReactionProb(iPair,iCase,iElem,SpecNum1,SpecNum2,MacroPartic
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars
+USE MOD_Globals               ,ONLY: abort
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
@@ -1392,7 +1393,7 @@ REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume
 INTEGER                       :: iPath, ReacTest, EductReac(1:3), ProductReac(1:4), ReactInx(1:2), nPair, iProd
 INTEGER                       :: NumWeightProd, targetSpec, bgSpec
 REAL                          :: EZeroPoint_Prod, dtCell, Weight(1:4), ReducedMass, ReducedMassUnweighted, CollEnergy, GammaFac
-REAL                          :: EZeroPoint_Educt, SpecNumTarget, SpecNumSource, CrossSection
+REAL                          :: EZeroPoint_Educt, SpecNumTarget, SpecNumSource, CrossSection, EcRelativistic
 !===================================================================================================================================
 Weight = 0.; ReactInx = 0
 nPair = SIZE(Coll_pData)
@@ -1452,14 +1453,8 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       dtCell = dt
     END IF
 
-    IF(Coll_pData(iPair)%cRela2 .LT. RelativisticLimit) THEN
-      Coll_pData(iPair)%Ec = 0.5 * ReducedMass * Coll_pData(iPair)%cRela2
-    ELSE
-      ! Relativistic treatment under the assumption that the velocity of the background species is zero or negligible
-      GammaFac = Coll_pData(iPair)%cRela2*c2_inv
-      GammaFac = 1./SQRT(1.-GammaFac)
-      Coll_pData(iPair)%Ec = (GammaFac-1.) * ReducedMass * c2
-    END IF
+    ! No relativistic treatment here until the chemistry is done fully considering relativistic effects
+    Coll_pData(iPair)%Ec = 0.5 * ReducedMass * Coll_pData(iPair)%cRela2
 
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
                                                 + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2)
@@ -1469,8 +1464,30 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     END IF
     ! Check first if sufficient energy is available for the products after the reaction
     ASSOCIATE( ReactionProb => ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) )
-      IF(((Coll_pData(iPair)%Ec-EZeroPoint_Prod).GE.(-ChemReac%EForm(ReacTest)*SUM(Weight)/NumWeightProd))) THEN
-        CollEnergy = (Coll_pData(iPair)%Ec-EZeroPoint_Educt) * 2./(Weight(1)+Weight(2))
+      IF(((Coll_pData(iPair)%Ec-EZeroPoint_Prod).GE.(-ChemReac%EForm(ReacTest)*SUM(Weight)/REAL(NumWeightProd)))) THEN
+
+        ! Check relativistic limit for the interpolation of the XSec data but not for in inquiry above
+        IF(Coll_pData(iPair)%cRela2 .LT. RelativisticLimit) THEN
+          CollEnergy = (Coll_pData(iPair)%Ec-EZeroPoint_Educt) * 2./(Weight(1)+Weight(2))
+        ELSE
+          ! Relativistic treatment under the assumption that the velocity of the background species is zero or negligible
+          GammaFac = Coll_pData(iPair)%cRela2*c2_inv
+          ! Sanity check
+          IF(GammaFac.GE.1.0)THEN
+            CALL abort(__STAMP__,'X = Coll_pData(iPair)%cRela2*c2_inv >= 1.0, which results in SQRT(1-X) failing.')
+          ELSE
+            GammaFac = 1./SQRT(1.-GammaFac)
+          END IF
+          EcRelativistic = (GammaFac-1.) * ReducedMass * c2
+
+          EcRelativistic = EcRelativistic + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
+                                                      + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2)
+          IF (DSMC%ElectronicModel.GT.0) EcRelativistic = EcRelativistic + PartStateIntEn(3,ReactInx(1))*Weight(1) &
+                                                                         + PartStateIntEn(3,ReactInx(2))*Weight(2)
+
+          CollEnergy = (EcRelativistic-EZeroPoint_Educt) * 2./(Weight(1)+Weight(2))
+        END IF
+
         CrossSection = InterpolateCrossSection_Chem(iCase,iPath,CollEnergy)
         IF(SpecXSec(iCase)%UseCollXSec) THEN
           ! Interpolate the reaction cross-section
