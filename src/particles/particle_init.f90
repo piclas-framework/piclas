@@ -1426,6 +1426,7 @@ SDEALLOCATE(BRAverageElemToElem)
 #endif /*USE_HDG*/
 SDEALLOCATE(isNeutralizationElem)
 SDEALLOCATE(NeutralizationBalanceElem)
+SDEALLOCATE(ExcitationLevelMapping)
 SDEALLOCATE(ExcitationSampleData)
 END SUBROUTINE FinalizeParticles
 
