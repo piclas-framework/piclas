@@ -155,6 +155,7 @@ SpecXSec(:)%UseElecXSec = .FALSE.
 SpecXSec(:)%CollXSec_Effective = .FALSE.
 SpecXSec(:)%SpeciesToRelax = 0
 SpecXSec(:)%ProbNull = 0.
+SpecXSec(:)%NumElecLevel = 0
 TotalProb = 0.
 
 DO iSpec = 1, nSpecies
@@ -345,7 +346,11 @@ IF(SampleElecExcitation) THEN
       ExcitationLevelCounter = ExcitationLevelCounter + 1
       ExcitationLevelMapping(iCase,iLevel) = ExcitationLevelCounter
     END DO
-    IF(ExcitationLevelCounter.NE.SUM(SpecXSec(:)%NumElecLevel)) CALL abort(__STAMP__,'Electronic excitation sampling: Wrong level counter!')
+    IF(ExcitationLevelCounter.NE.SUM(SpecXSec(:)%NumElecLevel)) THEN
+      IPWRITE(UNIT_StdOut,*) "ExcitationLevelCounter        =", ExcitationLevelCounter
+      IPWRITE(UNIT_StdOut,*) "SUM(SpecXSec(:)%NumElecLevel) =", SUM(SpecXSec(:)%NumElecLevel)
+      CALL abort(__STAMP__,'Electronic excitation sampling: Wrong level counter!')
+    END IF
     ALLOCATE(ExcitationSampleData(ExcitationLevelCounter,nElems))
     ExcitationSampleData = 0.
   END DO
