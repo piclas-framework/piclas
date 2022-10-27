@@ -62,7 +62,7 @@ DO k=0,PP_N
   DO j=0,PP_N
     DO i=0,PP_N
       UTemp=U(:,i,j,k,iElem)
-      CALL MacroValuesFromDistribution(MacroVal,UTemp,dt,tau,1)
+      CALL MacroValuesFromDistribution(MacroVal,UTemp,dt/2.,tau,1)
       ! wrong because no reconstruction/relaxation was done before ---> DVM only works with FV
       SELECT CASE (DVMBGKModel)
         CASE(1)
@@ -73,7 +73,7 @@ DO k=0,PP_N
           CALL abort(__STAMP__,'DVM BGK Model not implemented')
       END SELECT
       IF (dt.GT.0.) THEN
-        gamma = tau*(1.-EXP(-dt/tau))/dt
+        gamma = 2.*tau*(1.-EXP(-dt/2./tau))/dt
         UTemp = gamma*UTemp + (1.-gamma)*fTarget
       ELSE
         UTemp = 0.

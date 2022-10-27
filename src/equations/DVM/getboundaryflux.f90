@@ -247,7 +247,7 @@ DO iBC=1,nBCs
       SideID=BCSideID(iBC,iSide)
       DO q=0,PP_N
         DO p=0,PP_N
-          CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q,SideID),dt,tau,1)
+          CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q,SideID),dt/2.,tau,1)
           MacroVal(2:4) = MacroVal(2:4) - 2.*DOT_PRODUCT(NormVec(1:3,p,q,SideID),MacroVal(2:4))*NormVec(1:3,p,q,SideID)
           CALL MaxwellDistribution(MacroVal,UPrim_boundary(:,p,q))
         END DO ! p
@@ -258,7 +258,7 @@ DO iBC=1,nBCs
   CASE(4,5,6) ! diffusive or constant static pressure in/outlet
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      CALL GetBoundaryState(SideID,dt,PP_N,UPrim_boundary,UPrim_master(:,:,:,SideID),NormVec(:,:,:,SideID) &
+      CALL GetBoundaryState(SideID,dt/2.,PP_N,UPrim_boundary,UPrim_master(:,:,:,SideID),NormVec(:,:,:,SideID) &
         ,TangVec1(:,:,:,SideID),TangVec2(:,:,:,SideID),Face_xGP(:,:,:,SideID))
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO

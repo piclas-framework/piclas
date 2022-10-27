@@ -56,8 +56,8 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
   DO Count_2=0,PP_N
     DO Count_1=0,PP_N
       n_loc(:)=nv(:,Count_1,Count_2)
-      CALL MacroValuesFromDistribution(MacroVal_L,U_L(:,Count_1,Count_2),dt,tau_L,1)
-      CALL MacroValuesFromDistribution(MacroVal_R,U_R(:,Count_1,Count_2),dt,tau_R,1)
+      CALL MacroValuesFromDistribution(MacroVal_L,U_L(:,Count_1,Count_2),dt/2.,tau_L,1)
+      CALL MacroValuesFromDistribution(MacroVal_R,U_R(:,Count_1,Count_2),dt/2.,tau_R,1)
       SELECT CASE (DVMBGKModel)
         CASE(1)
           CALL MaxwellDistribution(MacroVal_L,fTarget_L)
@@ -72,8 +72,8 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
         UTemp_L = 0.
         UTemp_R = 0.
       ELSE
-        gamma_L = tau_L*(1.-EXP(-dt/tau_L))/dt
-        gamma_R = tau_R*(1.-EXP(-dt/tau_R))/dt
+        gamma_L = 2.*tau_L*(1.-EXP(-dt/2./tau_L))/dt
+        gamma_R = 2.*tau_R*(1.-EXP(-dt/2./tau_R))/dt
         UTemp_L = gamma_L*U_L(:,Count_1,Count_2) + (1.-gamma_L)*fTarget_L
         UTemp_R = gamma_R*U_R(:,Count_1,Count_2) + (1.-gamma_R)*fTarget_R
       END IF

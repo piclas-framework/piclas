@@ -127,6 +127,11 @@ USE MOD_FV_Vars,            ONLY: FV_dx_slave, FV_dx_master
 USE MOD_Mesh_Vars,          ONLY: nSides, SideToElem, ElemToSide
 USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,firstMortarMPISide,lastMortarMPISide
+#if (PP_TimeDiscMethod==600) /*DVM*/
+USE MOD_TimeDisc_Vars,      ONLY: dt
+USE MOD_Mesh_Vars,          ONLY: NormVec
+USE MOD_Equation_Vars,      ONLY: DVMnVelos, DVMVelos, DVMSpeciesData
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -142,6 +147,10 @@ REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar,0:PP_N,0:PP_N,1:nSides)
 ! LOCAL VARIABLES
 INTEGER                         :: ElemID,SideID,firstSideID,lastSideID,SideID_2,locSideID
 REAL                            :: gradUlimited(PP_nVar)
+#if (PP_TimeDiscMethod==600) /*DVM*/
+INTEGER                         :: iVel, jVel, kVel, upos, upos2
+REAL                            :: trajToSide
+#endif
 !===================================================================================================================================
 IF(doMPISides)THEN
   ! only YOUR MPI Sides are filled
@@ -181,7 +190,25 @@ DO SideID=firstSideID,lastSideID
       !slave/master case
       CALL FV_Limiter(FV_gradU(:,SideID),FV_gradU(:,SideID_2),gradULimited)
     END IF
+#if (PP_TimeDiscMethod==600)
+    !DVM specific reconstruction
+    DO kVel=1, DVMnVelos(3); DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+      upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+      trajToSide = (dt/2.)*(NormVec(1,0,0,SideID)*DVMVelos(iVel,1) & !always the same
+                         + NormVec(2,0,0,SideID)*DVMVelos(jVel,2) &  !--> should be put in the ini fv metrics
+                         + NormVec(3,0,0,SideID)*DVMVelos(kVel,3))
+      Uface_slave(upos,0,0,SideID) = Uface_slave(upos,0,0,SideID) &
+            + gradUlimited(upos) * (FV_dx_slave(SideID) + trajToSide)
+      IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+        upos2 = NINT(PP_nVar/2.)+upos
+        Uface_slave(upos2,0,0,SideID) = Uface_slave(upos2,0,0,SideID) &
+              + gradUlimited(upos2) * (FV_dx_slave(SideID) + trajToSide)
+      END IF
+    END DO; END DO; END DO
+#else
+  print*, 'brefrefew'
     Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID)+gradUlimited(:)*FV_dx_slave(SideID)
+#endif
   ELSE
     Uface_slave(:,0,0,SideID) = Uvol(:,0,0,0,ElemID)
   END IF
@@ -225,7 +252,24 @@ DO SideID=firstSideID,lastSideID
       ! master/master case-> flip gradient
       CALL FV_Limiter(FV_gradU(:,SideID),-FV_gradU(:,SideID_2),gradULimited)
     END IF
+#if (PP_TimeDiscMethod==600)
+    !DVM specific reconstruction
+    DO kVel=1, DVMnVelos(3); DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+      upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+      trajToSide = -(dt/2.)*(NormVec(1,0,0,SideID)*DVMVelos(iVel,1) &
+                         + NormVec(2,0,0,SideID)*DVMVelos(jVel,2) &
+                         + NormVec(3,0,0,SideID)*DVMVelos(kVel,3))
+      Uface_master(upos,0,0,SideID) = Uface_master(upos,0,0,SideID) &
+            - gradUlimited(upos) * (FV_dx_master(SideID) + trajToSide)
+      IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+        upos2 = NINT(PP_nVar/2.)+upos
+        Uface_master(upos2,0,0,SideID) = Uface_master(upos2,0,0,SideID) &
+              - gradUlimited(upos2) * (FV_dx_master(SideID) + trajToSide)
+      END IF
+    END DO; END DO; END DO
+#else
     Uface_master(:,0,0,SideID) = Uvol(:,0,0,0,ElemID)-gradUlimited(:)*FV_dx_master(SideID)
+#endif
   ELSE
     Uface_master(:,0,0,SideID)=Uvol(:,0,0,0,ElemID)
   END IF
