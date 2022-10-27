@@ -1302,7 +1302,7 @@ REAL,INTENT(OUT),OPTIONAL :: wGP(0:N_in)       ! Gausspoint weights
 !local variables
 REAL                      :: hermCompMat(0:N_in,0:N_in), wTemp, dx, H_Np1,Hder_Np1, pi, wSum
 REAL                      :: Work(1000)
-INTEGER                   :: iN, jN, factorial, iGP, iFac
+INTEGER                   :: iN, factorial, iGP, iFac
 INTEGER                   :: INFO
 !===================================================================================================================================
 

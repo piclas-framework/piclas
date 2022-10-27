@@ -30,20 +30,13 @@ INTERFACE InitFV_Metrics
   MODULE PROCEDURE InitFV_Metrics
 END INTERFACE
 
-INTERFACE FinalizeFV_Metrics
-  MODULE PROCEDURE FinalizeFV_Metrics
-END INTERFACE
-
 PUBLIC::InitFV_Metrics
-PUBLIC::FinalizeFV_Metrics
-
 !==================================================================================================================================
 
 CONTAINS
 
 !==================================================================================================================================
-!> Compute the remaining metric terms for FV subcells, that are not computed in metrics.f90.
-!> Normal, tangential vectors, SurfElems, ... for FV subcells.
+!> Compute the distance FV_dx from interface to cell center of the master/slave element
 !==================================================================================================================================
 SUBROUTINE InitFV_Metrics(doMPISides)
 ! MODULES
@@ -74,7 +67,7 @@ ELSE
 END IF
 
 DO SideID=firstSideID,lastSideID
-  ! neighbor side !ElemID,locSideID and flip =-1 if not existing
+  ! neighbor side !ElemID=-1 if not existing
   ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
   IF (ElemID.LT.0) CYCLE
   FV_dx_slave(SideID)=VECNORM(Elem_xGP(:,0,0,0,ElemID)-Face_xGP(:,0,0,SideID))
@@ -100,19 +93,6 @@ END DO !SideID
 SWRITE(UNIT_stdOut,'(A)')' Done !'
 
 END SUBROUTINE InitFV_Metrics
-
-
-!==================================================================================================================================
-!> Finalizes global variables of the module.
-!> Deallocate allocatable arrays, nullify pointers, set *InitIsDone = .FALSE.
-!==================================================================================================================================
-SUBROUTINE FinalizeFV_Metrics()
-! MODULES
-USE MOD_FV_Vars
-IMPLICIT NONE
-!==================================================================================================================================
-
-END SUBROUTINE FinalizeFV_Metrics
 
 
 END MODULE MOD_FV_Metrics

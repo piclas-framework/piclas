@@ -44,10 +44,9 @@ REAL,ALLOCATABLE                      :: FV_dx_slave(:)
 REAL,ALLOCATABLE                      :: FV_dx_master(:)
 
 REAL,ALLOCATABLE                      :: FV_gradU(:,:)
-REAL,ALLOCATABLE                      :: FV_gradU_limited(:,:)
 
 INTEGER                               :: LimiterType
-INTEGER                               :: FV_sweby_beta
+REAL                                  :: FV_sweby_beta
 
 LOGICAL                               :: FVInitIsDone=.FALSE.
 LOGICAL                               :: doFVReconstruction

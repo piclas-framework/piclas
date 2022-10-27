@@ -48,7 +48,6 @@ USE MOD_Riemann         ,ONLY: Riemann
 USE MOD_Mesh_Vars       ,ONLY: NormVec,TangVec1, tangVec2, SurfElem,Face_xGP
 USE MOD_GetBoundaryFlux ,ONLY: GetBoundaryFlux
 USE MOD_Mesh_Vars       ,ONLY: firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
-USE MOD_Equation_Vars   ,ONLY: DoExactFlux,isExactFluxInterFace
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -63,7 +62,7 @@ REAL,INTENT(OUT)   :: Flux_Master(1:PP_nVar,0:PP_N,0:PP_N,nSides)
 REAL,INTENT(OUT)   :: Flux_Slave(1:PP_nVar,0:PP_N,0:PP_N,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: SideID,p,q,firstSideID_wo_BC,firstSideID ,lastSideID
+INTEGER            :: SideID,firstSideID_wo_BC,firstSideID ,lastSideID
 !===================================================================================================================================
 
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
@@ -84,14 +83,9 @@ END IF
 ! Workflow:
 !
 !  1.  compute flux for non-BC sides
-!  1.1) advective flux
-!  ( 1.2) viscous flux )
-!  ( 1.3) add up viscous flux to Flux_master )
 !  2.  compute flux for BC sides
 !  3.  multiply by SurfElem
 !  4.  copy flux from Flux_master to Flux_slave
-!  ( 5.  convert FV flux to DG flux at mixed interfaces )
-!  6. Exact flux determination (inner BC)
 !==============================
 
 ! 1. compute flux for non-BC sides: Compute fluxes on PP_N, no additional interpolation required
