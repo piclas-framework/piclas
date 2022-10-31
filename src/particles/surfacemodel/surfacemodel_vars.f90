@@ -83,7 +83,7 @@ TYPE tSurfReactions
   ! Surface energy accomodation
   REAL, ALLOCATABLE                      :: EReact(:)              ! Reaction energy [K]
   REAL, ALLOCATABLE                      :: EScale(:)              ! Scaling factor for E_reac [K]
-  REAL, ALLOCATABLE                      :: HeatAccomodation(:)    ! Beta coefficient for the energy accomodation
+  REAL, ALLOCATABLE                      :: HeatAccommodation(:)    ! Beta coefficient for the energy accomodation
   ! Parameters for the adsorption
   REAL, ALLOCATABLE                      :: S_initial(:)           ! Initial sticking coefficient at zero coverage
   REAL, ALLOCATABLE                      :: MaxCoverage(:)         ! Maximal surface coverage

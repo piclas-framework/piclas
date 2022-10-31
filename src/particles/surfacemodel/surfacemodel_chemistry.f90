@@ -60,8 +60,8 @@ CALL prms%CreateIntArrayOption( 'Surface-Reaction[$]-Products'  &
                                     'Heat flux to or from the surface due to the reaction', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-HeatScaling', &
                                     'Linear dependence of the heat flux on the coverage', '0.' , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Surface-Reaction[$]-EnergyAccomodation', &
-                                    'Energy accomodation coefficient', '0.' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Surface-Reaction[$]-EnergyAccommodation', &
+                                    'Energy accommodation coefficient', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Surface-Reaction[$]-Inhibition','Inhibition/Coadsorption behaviour due to other reactions', &
                                 '0', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Surface-Reaction[$]-Promotion','Promotion/Coadsorption behaviour due to other reactions', &
@@ -71,7 +71,7 @@ CALL prms%CreateRealOption(     'Surface-Reaction[$]-StickingCoefficient', &
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-DissOrder',  &
                                     'Associative = 1, dissociative = 2', '0.' , numberedmulti=.TRUE.) 
  CALL prms%CreateRealOption(     'Surface-Reaction[$]-EqConstant',  &
-                                    'Equilibrium constant between the adsorption and desorption (K), Langmuir: K=1', '0.' , numberedmulti=.TRUE.)                                                                         
+                                    'Equilibrium constant between the adsorption and desorption (K), Langmuir: K=1', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-LateralInteraction', &
                                     'Interaction between neighbouring particles (W), Edes = E0 + W*Coverage', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-Ca', &
@@ -81,15 +81,13 @@ CALL prms%CreateRealOption(     'Surface-Reaction[$]-Cb', &
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-Prefactor', &
                                     'Arrhenius prefactor for the reaction/desorption', '0.' , numberedmulti=.TRUE.) 
 CALL prms%CreateRealOption(     'Surface-Reaction[$]-Energy', &
-                                    'Arrhenius energy for the reaction/desorption', '0.' , numberedmulti=.TRUE.)                                
+                                    'Arrhenius energy for the reaction/desorption', '0.' , numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Surface-Diffusion', 'Diffusion along the surface', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Surface-TotalDiffusion', 'Diffusion along all possible surface', '.FALSE.')
-CALL prms%CreateIntOption(      'Surface-Reaction[$]-NumOfBoundaries', &
-                                          'Num of boundaries for surface reaction.', &
-                                            numberedmulti=.TRUE.) 
-CALL prms%CreateIntArrayOption( 'Surface-Reaction[$]-Boundaries'  &
-                                           ,'Array of boundary indices of surface reaction.' &
-                                           ,numberedmulti=.TRUE.)                                     
+CALL prms%CreateIntOption(      'Surface-Reaction[$]-NumOfBoundaries', 'Num of boundaries for surface reaction.', &
+                                    numberedmulti=.TRUE.)
+CALL prms%CreateIntArrayOption( 'Surface-Reaction[$]-Boundaries', 'Array of boundary indices of surface reaction.', &
+                                    numberedmulti=.TRUE., no=0)
 END SUBROUTINE DefineParametersSurfaceChemistry
 
 SUBROUTINE SurfaceModel_Chemistry_Init()
@@ -203,8 +201,8 @@ ALLOCATE(SurfChemReac%EReact(SurfChemReac%NumOfReact))
 SurfChemReac%EReact = 0.0
 ALLOCATE(SurfChemReac%EScale(SurfChemReac%NumOfReact))
 SurfChemReac%EScale = 0.0
-ALLOCATE(SurfChemReac%HeatAccomodation(SurfChemReac%NumOfReact))
-SurfChemReac%HeatAccomodation = 0.0
+ALLOCATE(SurfChemReac%HeatAccommodation(SurfChemReac%NumOfReact))
+SurfChemReac%HeatAccommodation = 0.0
 
 ! Get the reaction names, reactive species and boundaries
 DO iReac = 1, ReadInNumOfReact
@@ -215,9 +213,7 @@ DO iReac = 1, ReadInNumOfReact
 
   SurfChemReac%NumOfBounds(iReac)           = GETINT('Surface-Reaction'//TRIM(hilf)//'-NumOfBoundaries','0')
   IF (SurfChemReac%NumOfBounds(iReac).EQ.0) THEN
-      CALL abort(&
-    __STAMP__&
-    ,'ERROR: At least one boundary must be defined for each surface reaction!',iReac)
+      CALL abort(__STAMP__,'ERROR: At least one boundary must be defined for each surface reaction!',iReac)
   END IF
 
   SurfChemReac%BoundMap(iReac)%Boundaries = GETINTARRAY('Surface-Reaction'//TRIM(hilf)//'-Boundaries', &
@@ -226,13 +222,13 @@ DO iReac = 1, ReadInNumOfReact
   PartBound%SurfaceModel(SurfChemReac%BoundMap(iReac)%Boundaries) = 20
 
   DO iReac2 = 1, SurfChemReac%NumOfBounds(iReac)   
-    SurfChemReac%BoundisChemSurf(SurfChemReac%BoundMap(iReac)%Boundaries(iReac2)) = .TRUE.                                
+    SurfChemReac%BoundisChemSurf(SurfChemReac%BoundMap(iReac)%Boundaries(iReac2)) = .TRUE.
   END DO
 
   ! Select pure surface reactions
   DO iVal = 1, SurfChemReac%NumOfBounds(iReac)   
-    iBound = SurfChemReac%BoundMap(iReac)%Boundaries(iVal)         
-    SurfChemReac%PSMap(iBound)%PureSurfReac(iReac) = .TRUE.        
+    iBound = SurfChemReac%BoundMap(iReac)%Boundaries(iVal)
+    SurfChemReac%PSMap(iBound)%PureSurfReac(iReac) = .TRUE.
   END DO
 END DO
 
@@ -297,11 +293,11 @@ IF(SpeciesDatabase.NE.'none') THEN
       ELSE 
         SurfChemReac%EScale(iReac)= 0.
       END IF
-      CALL AttributeExists(file_id_specdb,'EnergyAccomodation',TRIM(dsetname), AttrExists=Attr_Exists)
+      CALL AttributeExists(file_id_specdb,'EnergyAccommodation',TRIM(dsetname), AttrExists=Attr_Exists)
       IF (Attr_Exists) THEN
-        CALL ReadAttribute(file_id_specdb,'EnergyAccomodation',1,DatasetName = dsetname,RealScalar=SurfChemReac%HeatAccomodation(iReac))
+        CALL ReadAttribute(file_id_specdb,'EnergyAccommodation',1,DatasetName = dsetname,RealScalar=SurfChemReac%HeatAccommodation(iReac))
       ELSE 
-        SurfChemReac%HeatAccomodation(iReac)= 0.
+        SurfChemReac%HeatAccommodation(iReac)= 0.
       END IF
 
       SELECT CASE (TRIM(SurfChemReac%ReactType(iReac)))
@@ -436,7 +432,7 @@ IF (SurfChemReac%OverwriteCatParameters) THEN
     SurfChemReac%Promotion(iReac)             = GETINT('Surface-Reaction'//TRIM(hilf)//'-Promotion','0')  
     SurfChemReac%EReact(iReac)                = GETREAL('Surface-Reaction'//TRIM(hilf)//'-ReactHeat','0.') 
     SurfChemReac%EScale(iReac)                = GETREAL('Surface-Reaction'//TRIM(hilf)//'-HeatScaling','0.') 
-    SurfChemReac%HeatAccomodation(iReac)      = GETREAL('Surface-Reaction'//TRIM(hilf)//'-EnergyAccomodation','1.')
+    SurfChemReac%HeatAccommodation(iReac)      = GETREAL('Surface-Reaction'//TRIM(hilf)//'-EnergyAccommodation','1.')
 
     SELECT CASE (TRIM(SurfChemReac%ReactType(iReac)))
     CASE('A')

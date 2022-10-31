@@ -295,7 +295,7 @@ CASE(20)  ! Adsorption or Eley-Rideal reaction
           nu = SurfChemReac%Prefactor(iReac)
           E_act = SurfChemReac%ArrheniusEnergy(iReac)        
           Rate = SurfChemReac%Rate(iReac)
-          BetaCoeff = SurfChemReac%HeatAccomodation(iReac)
+          BetaCoeff = SurfChemReac%HeatAccommodation(iReac)
 
           ! Check for the coverage values of the reactant adsorbed on the surface
           IF(ANY(SurfChemReac%Reactants(iReac,:).NE.speciesID)) THEN

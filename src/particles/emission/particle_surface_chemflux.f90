@@ -156,7 +156,7 @@ DO iSF = 1, nSF
             END DO
 
             ! Determine the reaction energy in dependence of the surface coverage [J]
-            BetaCoeff = SurfChemReac%HeatAccomodation(iReac)
+            BetaCoeff = SurfChemReac%HeatAccommodation(iReac)
             ReacHeat = (SurfChemReac%EReact(iReac) - Coverage*SurfChemReac%EScale(iReac)) * BoltzmannConst
 
             nu = SurfChemReac%Prefactor(iReac)
@@ -229,7 +229,7 @@ DO iSF = 1, nSF
             END DO
 
             ! Determine the reaction energy in dependence of the surface coverage [J]
-            BetaCoeff = SurfChemReac%HeatAccomodation(iReac)
+            BetaCoeff = SurfChemReac%HeatAccommodation(iReac)
             ReacHeat = (SurfChemReac%EReact(iReac) - Coverage*SurfChemReac%EScale(iReac)) * BoltzmannConst
 
             nu = SurfChemReac%Prefactor(iReac)    
