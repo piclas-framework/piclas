@@ -1190,40 +1190,38 @@ IF (.NOT.SF%VeloIsNormal) THEN
   vec_t2(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2(1:3)
 END IF !.NOT.VeloIsNormal
 
-! Adaptive surface flux is only compatible with regular emission and ambipolar diffusion
-IF(Mode.EQ.1.OR.Mode.EQ.3) THEN
-  IF(SF%Adaptive) THEN !SF%Adaptive
-    SampleElemID = AdaptBCMapElemToSample(SideToElem(S2E_ELEM_ID,BCSideID))
-    SELECT CASE(SF%AdaptiveType)
-    CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
-      T =  SF%MWTemperatureIC
-    CASE(2) ! adaptive Outlet/freestream
-      pressure = SF%AdaptivePressure
-      T = pressure / (BoltzmannConst * AdaptBCMacroVal(4,SampleElemID,iSpec))
-    CASE DEFAULT
-      CALL abort(__STAMP__,'ERROR in SurfaceFlux: Wrong adaptive type for Surfaceflux velocities!')
-    END SELECT
-    VeloVec(1) = AdaptBCMacroVal(DSMC_VELOX,SampleElemID,iSpec)
-    VeloVec(2) = AdaptBCMacroVal(DSMC_VELOY,SampleElemID,iSpec)
-    VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,SampleElemID,iSpec)
-    vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
-    VeloVec(1:3) = DOT_PRODUCT(VeloVec,vec_nIn)*vec_nIn(1:3)
-    VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
-    IF (ABS(VeloIC).GT.0.) THEN
-      VeloVecIC = VeloVec / VeloIC
-    ELSE
-      VeloVecIC = (/1.,0.,0./)
-    END IF
-    projFak = DOT_PRODUCT(vec_nIn,VeloVecIC) !VeloVecIC projected to inwards normal
-    v_thermal = SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC) !thermal speed
-    IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
-      v_thermal = 1.
-    END IF
-    a = VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
-    Velo_t1 = VeloIC * DOT_PRODUCT(vec_t1,VeloVecIC) !v in t1-dir
-    Velo_t2 = VeloIC * DOT_PRODUCT(vec_t2,VeloVecIC) !v in t2-dir
-  END IF !Adaptive SurfaceFlux
-END IF ! Mode = 1
+! Adaptive surface flux (per default on FALSE in SurfChemReac)
+IF(SF%Adaptive) THEN !SF%Adaptive
+  SampleElemID = AdaptBCMapElemToSample(SideToElem(S2E_ELEM_ID,BCSideID))
+  SELECT CASE(SF%AdaptiveType)
+  CASE(1,3,4) ! Pressure and massflow inlet (pressure/massflow, temperature const)
+    T =  SF%MWTemperatureIC
+  CASE(2) ! adaptive Outlet/freestream
+    pressure = SF%AdaptivePressure
+    T = pressure / (BoltzmannConst * AdaptBCMacroVal(4,SampleElemID,iSpec))
+  CASE DEFAULT
+    CALL abort(__STAMP__,'ERROR in SetSurfacefluxVelocities: Wrong adaptive type!')
+  END SELECT
+  VeloVec(1) = AdaptBCMacroVal(DSMC_VELOX,SampleElemID,iSpec)
+  VeloVec(2) = AdaptBCMacroVal(DSMC_VELOY,SampleElemID,iSpec)
+  VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,SampleElemID,iSpec)
+  vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
+  VeloVec(1:3) = DOT_PRODUCT(VeloVec,vec_nIn)*vec_nIn(1:3)
+  VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
+  IF (ABS(VeloIC).GT.0.) THEN
+    VeloVecIC = VeloVec / VeloIC
+  ELSE
+    VeloVecIC = (/1.,0.,0./)
+  END IF
+  projFak = DOT_PRODUCT(vec_nIn,VeloVecIC) !VeloVecIC projected to inwards normal
+  v_thermal = SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC) !thermal speed
+  IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
+    v_thermal = 1.
+  END IF
+  a = VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
+  Velo_t1 = VeloIC * DOT_PRODUCT(vec_t1,VeloVecIC) !v in t1-dir
+  Velo_t2 = VeloIC * DOT_PRODUCT(vec_t2,VeloVecIC) !v in t2-dir
+END IF !Adaptive SurfaceFlux
 
 ! Set velocities
 SELECT CASE(TRIM(SF%velocityDistribution))
@@ -1394,7 +1392,7 @@ CASE('maxwell','maxwell_lpn')
           END IF
         END DO
       CASE DEFAULT
-        CALL abort(__STAMP__,'ERROR in SurfaceFlux: Wrong envelope in SetSurfacefluxVelocities!')
+        CALL abort(__STAMP__,'ERROR in SetSurfacefluxVelocities: Wrong envelope!')
       END SELECT
       !-- 2.: sample normal directions and build complete velo-vector
       Vec3D(1:3) = vec_nIn(1:3) * SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC)*(a-zstar)
@@ -1417,11 +1415,11 @@ CASE('maxwell','maxwell_lpn')
         PartState(4:6,PositionNbr) = Vec3D(1:3)
       END IF
     ELSE !PositionNbr .EQ. 0
-      CALL abort(__STAMP__,'ERROR in SurfaceFlux: PositionNbr .EQ. 0!')
+      CALL abort(__STAMP__,'ERROR in SetSurfacefluxVelocities: PositionNbr .EQ. 0, increase Part-maxParticleNumber!')
     END IF !PositionNbr .NE. 0
   END DO !i = ...NbrOfParticle
 CASE DEFAULT
-  CALL abort(__STAMP__,'ERROR in SurfaceFlux: Wrong velocity distribution!')
+  CALL abort(__STAMP__,'ERROR in SetSurfacefluxVelocities: Wrong velocity distribution!')
 END SELECT
 
 IF(UseRotRefFrame) THEN

@@ -1381,6 +1381,7 @@ DO iSF = 1, CatBoundNum
     SurfChemReac%Surfaceflux(iSF)%AcceptReject=.FALSE.
   END IF
 
+  SurfChemReac%Surfaceflux(iSF)%Adaptive = .FALSE.
   ! get surfaceflux data
   IF (SurfChemReac%Surfaceflux(iSF)%BC.LT.1 .OR. SurfChemReac%Surfaceflux(iSF)%BC.GT.nPartBound) THEN
     CALL abort(__STAMP__, 'Chemistry Surfaceflux BCs must be between 1 and nPartBound!')
