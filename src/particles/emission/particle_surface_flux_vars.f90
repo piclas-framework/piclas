@@ -37,7 +37,7 @@ TYPE tSurfFluxSubSideData
                                                                              ! (1:2,0:NGeo,0:NGeo)
 END TYPE tSurfFluxSubSideData
 
-TYPE typeSurfaceflux
+TYPE tSurfaceFlux
   INTEGER                                :: BC                               ! PartBound to be emitted from
   CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
   REAL                                   :: VeloIC                           ! velocity for inital Data

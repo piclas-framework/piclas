@@ -18,7 +18,8 @@ MODULE MOD_SurfaceModel_Vars
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 
-USE MOD_DSMC_Vars,                ONLY:tCollCaseInfo
+USE MOD_DSMC_Vars                   ,ONLY: tCollCaseInfo
+USE MOD_Particle_SurfaceFlux_Vars   ,ONLY: tSurfaceFlux
 
 IMPLICIT NONE 
 PUBLIC
@@ -71,7 +72,7 @@ TYPE tSurfReactions
   CHARACTER(LEN=255),ALLOCATABLE         :: ReactType(:)           ! Type of Reaction (reaction num)
                                                                    !    A (adsorption)
                                                                    !    D (desorption)
-                                                                   !    LH (Langmuir-Hinshlewood)
+                                                                   !    LH (Langmuir-Hinshelwood)
                                                                    !    LHD (LH with instant desorption)
                                                                    !    ER (Eley-Rideal)
   INTEGER, ALLOCATABLE                   :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
@@ -106,44 +107,14 @@ TYPE tSurfReactions
   TYPE(tBoundMap), ALLOCATABLE           :: BoundMap(:)            ! Map of the reactions to the boundaries
   TYPE(tPureSurf), ALLOCATABLE           :: PSMap(:)               ! Map for reactions occurring only on the surface   
   TYPE(tCollCaseInfo), ALLOCATABLE       :: CollCaseInfo(:)        ! Information of collision cases (nCase) 
-  TYPE(tSurfaceflux), ALLOCATABLE        :: SurfaceFlux(:)         ! Surface flux data
+  TYPE(tSurfaceFlux), POINTER            :: SurfaceFlux(:)         ! Surface flux data (using the regular surface flux type)
+  TYPE(tSFAux), ALLOCATABLE              :: SFAux(:)               ! Additional surface flux data, where variables differ from the regular surface flux type
 END TYPE
 TYPE(tSurfReactions)                     :: SurfChemReac
 
-TYPE tSurfaceflux                                                           ! Surface flux properties on reactive boundaries
-  INTEGER                                :: BC                              ! Catalytic boundary         
-  CHARACTER(30)                          :: velocityDistribution            ! keyword for the velocity distribution        
-  REAL                                   :: VeloIC                          ! velocity for inital Data
-  REAL                                   :: VeloVecIC(3)                    ! normalized velocity vector
-  REAL                                   :: MWTemperatureIC                 ! Temperature for Maxwell Distribution     
-  LOGICAL                                :: VeloIsNormal                    ! VeloIC is in Surf-Normal instead of VeloVecIC    
-  LOGICAL                                :: AcceptReject                    ! perform ARM for skewness of RefMap-positioning    
-  INTEGER                                :: ARM_DmaxSampleN                 ! number of sample intervals in xi/eta for Dmax-calc.  
-  REAL                                   :: VFR_total                       ! Total Volumetric flow rate through surface    
-  REAL                     , ALLOCATABLE :: VFR_total_allProcs(:)           ! -''-, all values for root in ReduceNoise-case   
-  REAL                                   :: VFR_total_allProcsTotal         !     -''-, total    
-  REAL                                   :: totalAreaSF                     ! Total area of the respective surface flux 
-  INTEGER(KIND=8)                        :: InsertedParticle                ! Number of all already inserted Particles     
-  INTEGER(KIND=8)                        :: tmpInsertedParticle             ! tmp Number of all already inserted Particles     
-  INTEGER(KIND=8)                        :: tmpInsertedParticleSurplus      ! tmp Number of all already inserted Particles    
-  TYPE(tSurfFluxSubSideData), ALLOCATABLE :: SurfFluxSubSideData(:,:,:)     ! SF-specific Data of Sides (1:N,1:N,1:SideNumber)   
-  INTEGER                                :: dir(3)                          ! axial (1) and orth. coordinates (2,3) of polar system    
-  REAL                                   :: origin(2)                       ! origin in orth. coordinates of polar system     
-  REAL                                   :: rmax                            ! max radius of to-be inserted particles   
-  REAL                                   :: rmin                            ! min radius of to-be inserted particles    
-  LOGICAL                                :: Adaptive                        ! Is the surface flux an adaptive boundary?    
-  INTEGER                                :: AdaptiveType                    ! Chose the adaptive type, description in DefineParams
-  REAL, ALLOCATABLE                      :: nVFRSub(:,:)                    ! normal volume flow rate through subsubside  
+TYPE tSFAux
+  REAL, ALLOCATABLE                      :: a_nIn(:,:,:,:)       ! Speed ratio projected to inwards normal (additionally to regular surface flux variable due to missing species dependency)
 END TYPE
-
-TYPE tSurfFluxSubSideData                                                   ! Reactive surface flux sub sides
-  REAL                                   :: projFak                         ! VeloVecIC projected to inwards normal                           
-  REAL                                   :: Velo_t1                         ! Velo comp. of first orth. vector
-  REAL                                   :: Velo_t2                         ! Velo comp. of second orth. vector
-  REAL                                   :: Dmax                            ! maximum Jacobian determinant of subside for opt. ARM              
-  REAL,ALLOCATABLE                       :: nVFR(:)                         ! normal volume flow rate through subside     
-  REAL,ALLOCATABLE                       :: a_nIn(:)                        ! speed ratio projected to inwards normal
-END TYPE tSurfFluxSubSideData
 
 REAL,ALLOCATABLE                         :: ChemSampWall(:,:,:,:,:)         ! Sampling direct impact mechanism
 REAL,ALLOCATABLE                         :: ChemDesorpWall(:,:,:,:,:)       ! Desorption numbers

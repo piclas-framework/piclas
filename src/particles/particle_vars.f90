@@ -133,7 +133,7 @@ TYPE tSpecies                                                                ! P
   REAL                                   :: MassIC                           ! Particle Mass (without MPF)
   REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
-  TYPE(typeSurfaceflux),ALLOCATABLE      :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission
+  TYPE(tSurfaceFlux),POINTER             :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission
   INTEGER                                :: nSurfacefluxBCs                  ! Number of SF emissions
 #if IMPA
   LOGICAL                                :: IsImplicit
@@ -248,7 +248,6 @@ LOGICAL                                  :: vMPF_relativistic
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding
-LOGICAL                                  :: DoZigguratSampling                ! Sample normal randoms with Ziggurat method
 
 TYPE tVariableTimeStep
   LOGICAL                              :: UseVariableTimeStep

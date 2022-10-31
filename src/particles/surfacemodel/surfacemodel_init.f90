@@ -234,7 +234,8 @@ SDEALLOCATE(SurfChemReac%Prefactor)
   SDEALLOCATE(ChemWallProp)
 #endif
 
-SDEALLOCATE(SurfChemReac%Surfaceflux)
+SNULLIFY(SurfChemReac%Surfaceflux)
+SDEALLOCATE(SurfChemReac%SFAux)
 
 SDEALLOCATE(SurfModEmissionEnergy)
 SDEALLOCATE(SurfModEmissionYield)

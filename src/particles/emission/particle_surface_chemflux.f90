@@ -57,7 +57,7 @@ USE MOD_Particle_Surfaces_Vars
 USE MOD_Particle_Boundary_Vars 
 USE MOD_SurfaceModel_Vars      ,ONLY: ChemWallProp_Shared_Win,SurfChemReac, ChemWallProp, ChemDesorpWall !, ChemCountReacWall
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
-USE MOD_Particle_SurfFlux       ,ONLY: CalcPartPosTriaSurface
+USE MOD_Particle_SurfFlux       ,ONLY: SetSurfacefluxVelocities, CalcPartPosTriaSurface
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 #if USE_MPI
 USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
@@ -423,8 +423,7 @@ DO iSF = 1, nSF
               END IF
             END DO
             
-            CALL SetSurfacefluxVelocities(iSpec,iReac,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartInsSubSide)
-                  
+            CALL SetSurfacefluxVelocities(2,iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartInsSubSide)
             PartsEmitted = PartsEmitted + PartInsSubSide
           END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
         END IF ! iSide
@@ -621,188 +620,5 @@ END IF !Diffusion
 #endif
 
 END SUBROUTINE ParticleSurfDiffusion
-
-
-!===================================================================================================================================
-!> Determine the particle velocity of each inserted particle
-!===================================================================================================================================
-SUBROUTINE SetSurfacefluxVelocities(iSpec,iReac,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartIns)
-! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars,           ONLY : PI, BoltzmannConst
-USE MOD_Particle_Vars
-USE MOD_Particle_Surfaces_Vars, ONLY : SurfMeshSubSideData, TriaSurfaceFlux
-USE MOD_Particle_Surfaces,      ONLY : CalcNormAndTangBezier
-USE MOD_SurfaceModel_Vars
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: iSpec,iReac,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartIns
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                          :: i,PositionNbr,envelope,BoundID
-REAL                             :: Vec3D(3), vec_nIn(1:3), vec_t1(1:3), vec_t2(1:3)
-REAL                             :: a,zstar,RandVal1,RandVal2(2),RandVal3(3),u,RandN,RandN_save,Velo1,Velo2,Velosq,T,beta,z
-LOGICAL                          :: RandN_in_Mem
-REAL                             :: projFak                          ! VeloVecIC projected to inwards normal of tria
-REAL                             :: Velo_t1                          ! Velo comp. of first orth. vector in tria
-REAL                             :: Velo_t2                          ! Velo comp. of second orth. vector in tria
-REAL                             :: VeloIC
-!===================================================================================================================================
-IF(PartIns.LT.1) RETURN
-
-RandN_in_Mem=.FALSE.
-envelope=-1
-BoundID = SurfChemReac%Surfaceflux(iSF)%BC
-
-IF (.NOT.SurfChemReac%Surfaceflux(iSF)%VeloIsNormal) THEN
-  vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
-  vec_t1(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1(1:3)
-  vec_t2(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2(1:3)
-END IF !.NOT.VeloIsNormal
-
-VeloIC = SurfChemReac%Surfaceflux(iSF)%VeloIC
-T = SurfChemReac%Surfaceflux(iSF)%MWTemperatureIC
-a = SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%a_nIn(iSpec)
-projFak = SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak
-Velo_t1 = SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1
-Velo_t2 = SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2
-
-! Set velocities
-  !-- determine envelope for most efficient ARM [Garcia and Wagner 2006, JCP217-2]
-  IF (ALMOSTZERO(VeloIC*projFak)) THEN
-    ! Rayleigh distri
-    envelope = 0
-  ELSE IF (-0.4.LT.a .AND. a.LT.1.3) THEN
-    ! low speed flow
-    IF (a.LE.0.) THEN
-      envelope = 1
-    ELSE
-      envelope = 3
-    END IF !choose envelope based on flow direction
-  ELSE
-    ! high speed / general flow
-    IF (a.LT.0.) THEN
-      envelope = 2
-    ELSE
-      envelope = 4
-    END IF !choose envelope based on flow direction
-  END IF !low speed / high speed / rayleigh flow
-
-  DO i = NbrOfParticle-PartIns+1,NbrOfParticle
-    PositionNbr = PDM%nextFreePosition(i+PDM%CurrentNextFreePosition)
-    IF (PositionNbr .NE. 0) THEN
-      ! In case of side-normal velocities: calc n-/t-vectors at particle position, xi was saved in PartState(4:5)
-      IF (SurfChemReac%Surfaceflux(iSF)%VeloIsNormal .AND. TriaSurfaceFlux) THEN
-        vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
-        vec_t1(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1(1:3)
-        vec_t2(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2(1:3)
-      END IF !VeloIsNormal
-
-      SELECT CASE(envelope)
-      CASE(0)
-        CALL RANDOM_NUMBER(RandVal1)
-        zstar = -SQRT(-LOG(RandVal1))
-      CASE(1)
-        DO
-          CALL RANDOM_NUMBER(RandVal2)
-          zstar = -SQRT(a*a-LOG(RandVal2(1)))
-          IF ( -(a-zstar)/zstar .GT. RandVal2(2)) THEN
-            EXIT
-          END IF
-        END DO
-      CASE(2)
-        z = 0.5*(a-SQRT(a*a+2.))
-        beta  = a-(1.0-a)*(a-z)
-        DO
-          CALL RANDOM_NUMBER(RandVal3)
-          IF (EXP(-(beta*beta))/(EXP(-(beta*beta))+2.0*(a-z)*(a-beta)*EXP(-(z*z))).GT.RandVal3(1)) THEN
-            zstar=-SQRT(beta*beta-LOG(RandVal3(2)))
-            IF ( -(a-zstar)/zstar .GT. RandVal3(3)) THEN
-              EXIT
-            END IF
-          ELSE
-            zstar=beta+(a-beta)*RandVal3(2)
-            IF ( (a-zstar)/(a-z)*EXP(z*z-(zstar*zstar)) .GT. RandVal3(3)) THEN
-              EXIT
-            END IF
-          END IF
-        END DO
-      CASE(3)
-        DO
-          CALL RANDOM_NUMBER(RandVal3)
-          u = RandVal3(1)
-          IF ( a*SQRT(PI)/(a*SQRT(PI)+1+a*a) .GT. u) THEN
-
-            zstar = -1./SQRT(2.)*ABS(RandN)
-            EXIT
-          ELSE IF ( (a*SQRT(PI)+1.)/(a*SQRT(PI)+1+a*a) .GT. u) THEN
-            zstar = -SQRT(-LOG(RandVal3(2)))
-            EXIT
-          ELSE
-            zstar = (1.0-SQRT(RandVal3(2)))*a
-            IF (EXP(-(zstar*zstar)).GT.RandVal3(3)) THEN
-              EXIT
-            END IF
-          END IF
-        END DO
-      CASE(4)
-        DO
-          CALL RANDOM_NUMBER(RandVal3)
-          IF (1.0/(2.0*a*SQRT(PI)+1.0).GT.RandVal3(1)) THEN
-            zstar=-SQRT(-LOG(RandVal3(2)))
-          ELSE
-
-              IF (RandN_in_Mem) THEN !reusing second RandN form previous polar method
-                RandN = RandN_save
-                RandN_in_Mem=.FALSE.
-              ELSE
-                Velosq = 2
-                DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-                  CALL RANDOM_NUMBER(RandVal2)
-                  Velo1 = 2.*RandVal2(1) - 1.
-                  Velo2 = 2.*RandVal2(2) - 1.
-                  Velosq = Velo1**2 + Velo2**2
-                END DO
-                RandN = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
-                RandN_save = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
-                RandN_in_Mem=.TRUE.
-              END IF
-
-            zstar = 1./SQRT(2.)*RandN
-          END IF
-          IF ( (a-zstar)/a .GT. RandVal3(3)) THEN
-            EXIT
-          END IF
-        END DO
-      CASE DEFAULT
-        CALL abort(__STAMP__,'ERROR in SurfaceFlux: Wrong envelope in SetSurfacefluxVelocities!')
-      END SELECT
-
-      ! sample normal directions and build complete velo-vector
-      Vec3D(1:3) = vec_nIn(1:3) * SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC)*(a-zstar)
-!      IF (.NOT.DoZigguratSampling) THEN !polar method
-        Velosq = 2
-        DO WHILE ((Velosq .GE. 1.) .OR. (Velosq .EQ. 0.))
-          CALL RANDOM_NUMBER(RandVal2)
-          Velo1 = 2.*RandVal2(1) - 1.
-          Velo2 = 2.*RandVal2(2) - 1.
-          Velosq = Velo1**2 + Velo2**2
-        END DO
-        Velo1 = Velo1*SQRT(-2*LOG(Velosq)/Velosq)
-        Velo2 = Velo2*SQRT(-2*LOG(Velosq)/Velosq)
-
-      Vec3D(1:3) = Vec3D(1:3) + vec_t1(1:3) * ( Velo_t1+Velo1*SQRT(BoltzmannConst*T/Species(iSpec)%MassIC) )
-      Vec3D(1:3) = Vec3D(1:3) + vec_t2(1:3) * ( Velo_t2+Velo2*SQRT(BoltzmannConst*T/Species(iSpec)%MassIC) )
-      PartState(4:6,PositionNbr) = Vec3D(1:3)
-    ELSE !PositionNbr .EQ. 0
-      CALL abort(__STAMP__,'PositionNbr .EQ. 0!')
-    END IF !PositionNbr .NE. 0
-  END DO !i = ...NbrOfParticle 
-
-END SUBROUTINE SetSurfacefluxVelocities
 
 END MODULE MOD_Particle_SurfChemFlux
