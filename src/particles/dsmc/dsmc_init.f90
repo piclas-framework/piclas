@@ -885,7 +885,7 @@ ELSE !CollisMode.GT.0
     IF (useRelaxProbCorrFactor.AND.(DSMC%ElectronicModel.EQ.1)) THEN
       DO iSpec = 1, nSpecies
         ALLOCATE(SpecDSMC(iSpec)%ElecRelaxCorrectFac(nSpecies))
-      END DO 
+      END DO
     END IF
   END IF
 
@@ -936,7 +936,7 @@ ELSE !CollisMode.GT.0
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate vib collision numbers and characteristic velocity, according to Abe
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ! (i) dref changed from dref = 0.5 * (dref_1+dref_2) 
+  ! (i) dref changed from dref = 0.5 * (dref_1+dref_2)
   !                  to   dref(iSpec,jSpec) which is identical to old definition (for averagedCollisionParameters=TRUE (DEFAULT))
   ! in case of averagedCollisionParameter=FALSE dref(iSpec,jSpec) contains collision specific dref see --help for details
   IF((DSMC%VibRelaxProb.EQ.2).AND.(CollisMode.GE.2)) THEN
@@ -1370,6 +1370,7 @@ SDEALLOCATE(DSMC%QualityFacSampRotSamp)
 SDEALLOCATE(DSMC%QualityFacSampVibSamp)
 SDEALLOCATE(DSMC%CalcVibProb)
 SDEALLOCATE(DSMC%CalcRotProb)
+SDEALLOCATE(DSMC%InstantTXiElec)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(PartStateIntEn)
 SDEALLOCATE(ElecRelaxPart)
@@ -1517,7 +1518,7 @@ TYPE (tNodeVolume), INTENT(IN), POINTER  :: Node
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF(ASSOCIATED(Node%SubNode1)) THEN 
+IF(ASSOCIATED(Node%SubNode1)) THEN
   CALL DeleteNodeVolume(Node%SubNode1)
   DEALLOCATE(Node%SubNode1)
 END IF
