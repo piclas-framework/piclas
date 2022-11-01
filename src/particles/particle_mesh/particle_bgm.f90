@@ -192,6 +192,7 @@ REAL                           :: halo_eps
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
 REAL                           :: StartT,EndT ! Timer
+CHARACTER(LEN=255)             :: hilf
 !===================================================================================================================================
 
 ! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -446,12 +447,9 @@ DO iElem = firstElem, lastElem
 END DO
 ! >> Communicate global maximum
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxCellRadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
-LBWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', for building halo BGM ...'
-#if USE_MPI
-StartT=MPI_WTIME()
-#else
-CALL CPU_TIME(StartT)
-#endif /*USE_MPI*/
+WRITE(hilf,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', for building halo BGM ...'
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') TRIM(hilf)
+GETTIME(StartT)
 
 ! Check, whether the BGM must be enlarged. Periodic sides plus EITHER of the following
 ! 1. RefMapping
@@ -1122,17 +1120,18 @@ IF (MPIRoot) THEN
                                         ' |'  ,NumberOfElements(iProc*3+2), &
                                         ' |'  ,NumberOfElements(iProc*3+3), ' |'
     END DO
+    WRITE(Unit_StdOut,'(A)') ' '
 #if USE_LOADBALANCE
   END IF ! .NOT.PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 END IF
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#else
+hilf=' '
 #endif /*CODE_ANALYZE*/
 
-EndT = PICLASTIME()
-LBWRITE(UNIT_stdOut,'(A,E15.7,A,F0.3,A)') ' | Found max. cell radius as',maxCellRadius,', for building halo BGM ... DONE! ['&
-,EndT-StartT,'s]'
-LBWRITE(UNIT_StdOut,'(132("-"))')
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, TRIM(hilf)//'DONE!')
 
 ! ONLY IF HALO_EPS .LT. GLOBAL_DIAG
 ! ONLY IF EMISSION .EQ. 1 .OR. 2
@@ -1160,7 +1159,7 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 !===================================================================================================================================
 #endif /*USE_MPI*/
 
-LBWRITE(UNIT_stdOut,'(A)')' BUILDING FIBGM ELEMENT MAPPING ...'
+LBWRITE(UNIT_stdOut,'(A)', ADVANCE='NO')' BUILDING FIBGM ELEMENT MAPPING ...'
 GETTIME(StartT)
 
 #if USE_MPI
@@ -1338,9 +1337,8 @@ CALL BARRIER_AND_SYNC(FIBGMProcs_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(FIBGMToProc_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
-EndT = PICLASTIME()
-LBWRITE(UNIT_stdOut,'(A,F0.3,A)')' BUILDING FIBGM ELEMENT MAPPING DONE! [',EndT-StartT,'s]'
-LBWRITE(UNIT_StdOut,'(132("-"))')
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
 
 #if USE_MPI
 ASSOCIATE(FIBGM_nElems => FIBGM_nTotalElems)
