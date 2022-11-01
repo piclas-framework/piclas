@@ -285,6 +285,7 @@ spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
 
 GroupFound = .FALSE.
 SpecXSec(iCase)%UseElecXSec = .FALSE.
+SpecXSec(iCase)%NumElecLevel = 0
 
 ! Initialize FORTRAN interface.
 CALL H5OPEN_F(err)
@@ -499,7 +500,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,INTENT(IN)            :: iCase                            !< Case index
-INTEGER,INTENT(IN)            :: iLevel                           !< 
+INTEGER,INTENT(IN)            :: iLevel                           !<
 REAL,INTENT(IN)               :: CollisionEnergy                  !< Collision energy in [J]
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -571,7 +572,7 @@ INTEGER                       :: iDOF, MaxDOF
 InterpolateVibRelaxProb = 0.
 MaxDOF = SIZE(SpecXSec(iCase)%VibXSecData,2)
 
-IF(CollisionEnergy.GT.SpecXSec(iCase)%VibXSecData(1,MaxDOF)) THEN 
+IF(CollisionEnergy.GT.SpecXSec(iCase)%VibXSecData(1,MaxDOF)) THEN
   ! If the collision energy is greater than the maximal value, get the cross-section of the last level and leave routine
   InterpolateVibRelaxProb = SpecXSec(iCase)%VibXSecData(2,MaxDOF)
   ! Leave routine
@@ -758,18 +759,16 @@ SUBROUTINE XSec_ElectronicRelaxation(iPair,iCase,iPart_p1,iPart_p2,DoElec1,DoEle
 !> 1. Interpolate the cross-section (MCC) or use the probability (VHS)
 !> 2. Determine which electronic level is to be excited
 !> 3. Reduce the total collision probability if no electronic excitation occurred
-!> 4. 4. Count the number of relaxation process for the relaxation rate (TimeDisc=42 only)
+!> 4. Count the number of relaxation process for the relaxation rate (TimeDisc=42 only)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars         ,ONLY: PartSpecies
-#if (PP_TimeDiscMethod==42)
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, PEM, WriteMacroVolumeValues
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
-USE MOD_Particle_Vars         ,ONLY: Species, usevMPF
-USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting
-#endif
+USE MOD_Particle_Vars         ,ONLY: Species, usevMPF, SampleElecExcitation, ExcitationSampleData, ExcitationLevelMapping
+USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting, SamplingActive
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -780,11 +779,9 @@ LOGICAL,INTENT(OUT)           :: DoElec1, DoElec2
 INTEGER,INTENT(OUT)           :: ElecLevelRelax
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iSpec_p1, iSpec_p2, iLevel
+INTEGER                       :: iSpec_p1, iSpec_p2, iLevel, ElecLevel, ElemID
 REAL                          :: ProbSum, ProbElec, iRan
-#if (PP_TimeDiscMethod==42)
-REAL                          :: MacroParticleFactor
-#endif
+REAL                          :: WeightedParticle
 !===================================================================================================================================
 
 iSpec_p1 = PartSpecies(iPart_p1)
@@ -831,27 +828,29 @@ IF(PartStateIntEn(3,iPart_p1).EQ.0.0.AND.PartStateIntEn(3,iPart_p2).EQ.0.0) THEN
   END IF  ! SUM(SpecXSec(iCase)%ElecLevel(:)%Prob).GT.0.
 END IF    ! Electronic energy = 0, ground-state
 
-#if (PP_TimeDiscMethod==42)
 ! 4. Count the number of relaxation process for the relaxation rate
-IF(CalcRelaxProb) THEN
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-    ! Weighting factor already included in GetParticleWeight
-    MacroParticleFactor = 1.
-  ELSE
-    ! Weighting factor should be the same for all species anyway (BGG: first species is the non-BGG particle species)
-    MacroParticleFactor = Species(iSpec_p1)%MacroParticleFactor
-  END IF
-  IF (DSMC%ElectronicModel.EQ.3) THEN
+IF(CalcRelaxProb.OR.SamplingActive.OR.WriteMacroVolumeValues) THEN
+  IF(ElecLevelRelax.GT.0) THEN
+    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+      ! Weighting factor already included in GetParticleWeight
+      WeightedParticle = 1.
+    ELSE
+      ! Weighting factor should be the same for all species anyway (BGG: first species is the non-BGG particle species)
+      WeightedParticle = Species(iSpec_p1)%MacroParticleFactor
+    END IF
     IF(DoElec1) THEN
-      SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter &
-                                                          + GetParticleWeight(iPart_p1) * MacroParticleFactor
+      WeightedParticle = GetParticleWeight(iPart_p1) * WeightedParticle
     ELSE IF(DoElec2) THEN
-      SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter &
-                                                          + GetParticleWeight(iPart_p2) * MacroParticleFactor
+      WeightedParticle = GetParticleWeight(iPart_p2) * WeightedParticle
+    END IF
+    SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter = SpecXSec(iCase)%ElecLevel(ElecLevelRelax)%Counter + WeightedParticle
+    IF(SampleElecExcitation) THEN
+      ElecLevel = ExcitationLevelMapping(iCase,ElecLevelRelax)
+      ElemID = PEM%LocalElemID(iPart_p1)
+      ExcitationSampleData(ElecLevel,ElemID) = ExcitationSampleData(ElecLevel,ElemID) + WeightedParticle
     END IF
   END IF
 END IF
-#endif
 
 END SUBROUTINE XSec_ElectronicRelaxation
 
@@ -1377,6 +1376,7 @@ SUBROUTINE XSec_CalcReactionProb(iPair,iCase,iElem,SpecNum1,SpecNum2,MacroPartic
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars
+USE MOD_Globals               ,ONLY: abort
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
@@ -1392,7 +1392,7 @@ REAL,INTENT(IN),OPTIONAL      :: SpecNum1, SpecNum2, MacroParticleFactor, Volume
 INTEGER                       :: iPath, ReacTest, EductReac(1:3), ProductReac(1:4), ReactInx(1:2), nPair, iProd
 INTEGER                       :: NumWeightProd, targetSpec, bgSpec
 REAL                          :: EZeroPoint_Prod, dtCell, Weight(1:4), ReducedMass, ReducedMassUnweighted, CollEnergy, GammaFac
-REAL                          :: EZeroPoint_Educt, SpecNumTarget, SpecNumSource, CrossSection
+REAL                          :: EZeroPoint_Educt, SpecNumTarget, SpecNumSource, CrossSection, EcRelativistic
 !===================================================================================================================================
 Weight = 0.; ReactInx = 0
 nPair = SIZE(Coll_pData)
@@ -1452,14 +1452,8 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       dtCell = dt
     END IF
 
-    IF(Coll_pData(iPair)%cRela2 .LT. RelativisticLimit) THEN
-      Coll_pData(iPair)%Ec = 0.5 * ReducedMass * Coll_pData(iPair)%cRela2
-    ELSE
-      ! Relativistic treatment under the assumption that the velocity of the background species is zero or negligible
-      GammaFac = Coll_pData(iPair)%cRela2*c2_inv
-      GammaFac = 1./SQRT(1.-GammaFac)
-      Coll_pData(iPair)%Ec = (GammaFac-1.) * ReducedMass * c2
-    END IF
+    ! No relativistic treatment here until the chemistry is done fully considering relativistic effects
+    Coll_pData(iPair)%Ec = 0.5 * ReducedMass * Coll_pData(iPair)%cRela2
 
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
                                                 + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2)
@@ -1469,8 +1463,30 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     END IF
     ! Check first if sufficient energy is available for the products after the reaction
     ASSOCIATE( ReactionProb => ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) )
-      IF(((Coll_pData(iPair)%Ec-EZeroPoint_Prod).GE.(-ChemReac%EForm(ReacTest)*SUM(Weight)/NumWeightProd))) THEN
-        CollEnergy = (Coll_pData(iPair)%Ec-EZeroPoint_Educt) * 2./(Weight(1)+Weight(2))
+      IF(((Coll_pData(iPair)%Ec-EZeroPoint_Prod).GE.(-ChemReac%EForm(ReacTest)*SUM(Weight)/REAL(NumWeightProd)))) THEN
+
+        ! Check relativistic limit for the interpolation of the XSec data but not for in inquiry above
+        IF(Coll_pData(iPair)%cRela2 .LT. RelativisticLimit) THEN
+          CollEnergy = (Coll_pData(iPair)%Ec-EZeroPoint_Educt) * 2./(Weight(1)+Weight(2))
+        ELSE
+          ! Relativistic treatment under the assumption that the velocity of the background species is zero or negligible
+          GammaFac = Coll_pData(iPair)%cRela2*c2_inv
+          ! Sanity check
+          IF(GammaFac.GE.1.0)THEN
+            CALL abort(__STAMP__,'X = Coll_pData(iPair)%cRela2*c2_inv >= 1.0, which results in SQRT(1-X) failing.')
+          ELSE
+            GammaFac = 1./SQRT(1.-GammaFac)
+          END IF
+          EcRelativistic = (GammaFac-1.) * ReducedMass * c2
+
+          EcRelativistic = EcRelativistic + (PartStateIntEn(1,ReactInx(1)) + PartStateIntEn(2,ReactInx(1))) * Weight(1) &
+                                                      + (PartStateIntEn(1,ReactInx(2)) + PartStateIntEn(2,ReactInx(2))) * Weight(2)
+          IF (DSMC%ElectronicModel.GT.0) EcRelativistic = EcRelativistic + PartStateIntEn(3,ReactInx(1))*Weight(1) &
+                                                                         + PartStateIntEn(3,ReactInx(2))*Weight(2)
+
+          CollEnergy = (EcRelativistic-EZeroPoint_Educt) * 2./(Weight(1)+Weight(2))
+        END IF
+
         CrossSection = InterpolateCrossSection_Chem(iCase,iPath,CollEnergy)
         IF(SpecXSec(iCase)%UseCollXSec) THEN
           ! Interpolate the reaction cross-section

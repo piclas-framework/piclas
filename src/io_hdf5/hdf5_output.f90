@@ -97,10 +97,9 @@ CHARACTER(LEN=255)             :: FileName
 REAL                           :: StartT,EndT
 !==================================================================================================================================
 IF((nVar_Avg.EQ.0).AND.(nVar_Fluc.EQ.0)) RETURN ! no time averaging
-StartT=PICLASTIME()
-IF(MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE TIME AVERAGED STATE AND FLUCTUATIONS TO HDF5 FILE...'
-END IF
+
+GETTIME(StartT)
+SWRITE (UNIT_stdOut,'(A)',ADVANCE='NO') ' WRITE TIME AVERAGED STATE AND FLUCTUATIONS TO HDF5 FILE...'
 
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
@@ -168,14 +167,12 @@ IF(nVar_Fluc.GT.0)THEN
   END ASSOCIATE
 END IF
 
-endT=PICLASTIME()
-IF(MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
+GETTIME(endT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteTimeAverage
 
 
-SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime,FileNameIn)
+SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FileNameIn)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
@@ -206,7 +203,6 @@ INTEGER,INTENT(IN)                   :: nVar
 CHARACTER(LEN=255)                   :: StrVarNames(nVar)
 CHARACTER(LEN=*),INTENT(IN)          :: MeshFileName
 REAL,INTENT(IN)                      :: OutputTime
-REAL,INTENT(IN),OPTIONAL             :: FutureTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -243,10 +239,6 @@ CALL H5SCLOSE_F(FileSpace, iError)
 CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=PP_N)
 CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
 CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
-IF(PRESENT(FutureTime))THEN
-  MeshFile255=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),FutureTime))//'.h5'
-  CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=(/MeshFile255/))
-END IF
 CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
 CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
 

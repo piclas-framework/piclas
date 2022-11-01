@@ -210,6 +210,10 @@ LOGICAL                                  :: WriteMacroVolumeValues =.FALSE.   ! 
 LOGICAL                                  :: WriteMacroSurfaceValues=.FALSE.   ! Output of macroscopic values on surface
 INTEGER                                  :: MacroValSamplIterNum              ! Number of iterations for sampling
                                                                               ! macroscopic values
+LOGICAL                                  :: SampleElecExcitation              ! Sampling the electronic excitation rate per species
+INTEGER                                  :: ExcitationLevelCounter            ! 
+REAL, ALLOCATABLE                        :: ExcitationSampleData(:,:)         ! 
+INTEGER, ALLOCATABLE                     :: ExcitationLevelMapping(:,:)       ! 
 
 INTEGER, ALLOCATABLE                     :: vMPFMergeThreshold(:)             ! Max particle number per cell and (iSpec)
 INTEGER, ALLOCATABLE                     :: vMPFSplitThreshold(:)             ! Min particle number per cell and (iSpec)

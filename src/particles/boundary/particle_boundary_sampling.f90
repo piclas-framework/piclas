@@ -715,7 +715,7 @@ CHARACTER(LEN=255)                  :: NodeTypeTemp
 CHARACTER(LEN=255)                  :: SpecID, PBCID
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: nVar2D, nVar2D_Spec, nVar2D_Total, nVarCount, iSpec, iPBC
-REAL                                :: tstart,tend
+REAL                                :: StartT,EndT
 !===================================================================================================================================
 
 #if USE_MPI
@@ -728,8 +728,8 @@ IF (nSurfTotalSides      .EQ.0) RETURN
 #endif /*USE_MPI*/
 
 IF (mySurfRank.EQ.0) THEN
-  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DSMCSurfSTATE TO HDF5 FILE...'
-  tstart=LOCALTIME()
+  WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DSMCSurfSTATE TO HDF5 FILE...'
+  StartT=LOCALTIME()
 END IF
 
 FileName   = TIMESTAMP(TRIM(ProjectName)//'_DSMCSurfState',OutputTime)
@@ -855,8 +855,8 @@ END ASSOCIATE
 CALL CloseDataFile()
 
 IF (mySurfRank.EQ.0) THEN
-  tend=LOCALTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',tend-tstart,'s]'
+  EndT=LOCALTIME()
+  CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE., rank=mySurfRank)
 END IF
 
 END SUBROUTINE WriteSurfSampleToHDF5
