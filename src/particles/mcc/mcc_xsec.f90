@@ -370,7 +370,6 @@ PPURE REAL FUNCTION InterpolateCrossSection(XSecData,CollisionEnergy)
 !> Assumption: First species given is the particle species, second species input is the background gas species
 !===================================================================================================================================
 ! MODULES
-USE MOD_MCC_Vars              ,ONLY: SpecXSec
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
