@@ -76,7 +76,7 @@ USE MOD_Mesh_Vars     ,ONLY: nElems
 USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC, ChemReac, CollisMode
 USE MOD_MCC_Vars      ,ONLY: UseMCC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
 USE MOD_MCC_Vars      ,ONLY: NbrOfPhotonXsecReactions
-USE MOD_MCC_XSec      ,ONLY: ReadCollXSec, ReadVibXSec, InterpolateCrossSection_Vib, ReadElecXSec, InterpolateCrossSection_Elec
+USE MOD_MCC_XSec      ,ONLY: ReadCollXSec, ReadVibXSec, InterpolateCrossSection, ReadElecXSec
 #if defined(PARTICLES) && USE_HDG
 USE MOD_HDG_Vars      ,ONLY: UseBRElectronFluid,BRNullCollisionDefault
 USE MOD_ReadInTools   ,ONLY: PrintOption
@@ -225,7 +225,7 @@ DO iSpec = 1, nSpecies
         ! vibrational probability (vibrational cross-section divided by the effective)
         DO iStep = 1, MaxDim
           DO iLevel = 1, nVib
-            CrossSection = InterpolateCrossSection_Vib(iCase,iLevel,SpecXSec(iCase)%CollXSecData(1,iStep))
+            CrossSection = InterpolateCrossSection(SpecXSec(iCase)%VibMode(iLevel)%XSecData,SpecXSec(iCase)%CollXSecData(1,iStep))
             SpecXSec(iCase)%VibXSecData(2,iStep) = SpecXSec(iCase)%VibXSecData(2,iStep) + CrossSection
             ! When no effective cross-section is available, the vibrational cross-section has to be added to the collisional
             IF(SpecXSec(iCase)%CollXSec_Effective) THEN
@@ -270,13 +270,13 @@ DO iSpec = 1, nSpecies
           ! Using the same energy intervals as for the collision cross-sections
           SpecXSec(iCase)%ElecXSecData(1,:) = SpecXSec(iCase)%CollXSecData(1,:)
           SpecXSec(iCase)%ElecXSecData(2,:) = 0.
-          ! Interpolate the vibrational cross section at the energy levels of the collision collision cross section and sum-up the
-          ! vibrational probability (vibrational cross-section divided by the effective)
+          ! Interpolate the electronic cross section at the energy levels of the collision collision cross section and sum-up the
+          ! electronic probability (electronic cross-section divided by the effective)
           DO iStep = 1, MaxDim
             DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
-              CrossSection = InterpolateCrossSection_Elec(iCase,iLevel,SpecXSec(iCase)%CollXSecData(1,iStep))
+              CrossSection = InterpolateCrossSection(SpecXSec(iCase)%ElecLevel(iLevel)%XSecData,SpecXSec(iCase)%CollXSecData(1,iStep))
               SpecXSec(iCase)%ElecXSecData(2,iStep) = SpecXSec(iCase)%ElecXSecData(2,iStep) + CrossSection
-              ! When no effective cross-section is available, the vibrational cross-section has to be added to the collisional
+              ! When no effective cross-section is available, the electronic cross-section has to be added to the collisional
               IF(SpecXSec(iCase)%CollXSec_Effective) THEN
                 IF(CrossSection.GT.SpecXSec(iCase)%CollXSecData(2,iStep)) THEN
                   SWRITE(*,*) 'Current electronic energy level [eV]: ', SpecXSec(iCase)%ElecLevel(iLevel)%Threshold / ElementaryCharge
@@ -415,7 +415,7 @@ SUBROUTINE MCC_Chemistry_Init()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_MCC_XSec      ,ONLY: ReadReacXSec, InterpolateCrossSection_Chem
+USE MOD_MCC_XSec      ,ONLY: ReadReacXSec, InterpolateCrossSection
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies
 USE MOD_DSMC_Vars     ,ONLY: BGGas, CollInf, ChemReac
 USE MOD_MCC_Vars      ,ONLY: SpecXSec, XSec_NullCollision
@@ -454,7 +454,7 @@ DO iCase = 1, CollInf%NumCase
       ! Interpolate the reaction cross section at the energy levels of the collision collision cross section
       DO iPath = 1, NumPaths
         DO iStep = 1, MaxDim
-          ReactionCrossSection = InterpolateCrossSection_Chem(iCase,iPath,SpecXSec(iCase)%CollXSecData(1,iStep))
+          ReactionCrossSection = InterpolateCrossSection(SpecXSec(iCase)%ReactionPath(iPath)%XSecData,SpecXSec(iCase)%CollXSecData(1,iStep))
           SpecXSec(iCase)%CollXSecData(2,iStep) = SpecXSec(iCase)%CollXSecData(2,iStep) + ReactionCrossSection
         END DO
       END DO
