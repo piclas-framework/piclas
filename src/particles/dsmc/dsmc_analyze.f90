@@ -1224,7 +1224,7 @@ CALL CloseDataFile()
 
 DEALLOCATE(StrVarNames)
 DEALLOCATE(DSMC_MacroVal)
-DEALLOCATE(MacroElecExcitation)
+IF(SampleElecExcitation) DEALLOCATE(MacroElecExcitation)
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
