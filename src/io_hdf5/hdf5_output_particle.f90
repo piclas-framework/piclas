@@ -1566,15 +1566,11 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVal
 INTEGER,PARAMETER              :: outputVars=6
 REAL,ALLOCATABLE               :: outputArray(:,:,:,:,:)
-#if USE_MPI
 REAL                           :: StartT,EndT
-#endif /*USE_MPI*/
 INTEGER                        :: iElem,i,j,k
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PIC EM-FIELD TO HDF5 FILE...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#endif /*USE_MPI*/
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE PIC EM-FIELD TO HDF5 FILE...'
+GETTIME(StartT)
 
 ALLOCATE(outputArray(1:outputVars,0:PP_N,0:PP_N,0:PP_N,1:nElems))
 DO iElem=1,PP_nElems
@@ -1644,14 +1640,8 @@ CALL CloseDataFile()
 DEALLOCATE(StrVarNames)
 DEALLOCATE(outputArray)
 
-#if USE_MPI
-IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
-  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
-#else
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif /*USE_MPI*/
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
 END SUBROUTINE WriteElectroMagneticPICFieldToHDF5
 

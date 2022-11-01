@@ -157,17 +157,11 @@ IMPLICIT NONE
 INTEGER,PARAMETER   :: N_variables=1
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
-#if USE_MPI
 REAL                :: StartT,EndT
-#endif
 REAL                :: OutputTime
 !===================================================================================================================================
-IF(MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE MyInvisibleRank TO HDF5 FILE...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#endif
-END IF
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE MyInvisibleRank TO HDF5 FILE...'
+GETTIME(StartT)
 OutputTime=0.0
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='dummy'
@@ -181,14 +175,8 @@ IF(MPIRoot) CALL GenerateFileSkeleton('MyInvisibleRank',N_variables,StrVarNames,
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
 CALL WriteAdditionalElemData(FileName,ElementOut)
 
-#if USE_MPI
-IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
-#else
-WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteMyInvisibleRankToHDF5
 #endif /*USE_MPI*/
 
@@ -212,17 +200,11 @@ IMPLICIT NONE
 INTEGER,PARAMETER   :: N_variables=1
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
-#if USE_MPI
 REAL                :: StartT,EndT
-#endif
 REAL                :: OutputTime
 !===================================================================================================================================
-IF(MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE LostRotPeriodicSides TO HDF5 FILE...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#endif
-END IF
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE LostRotPeriodicSides TO HDF5 FILE...'
+GETTIME(StartT)
 OutputTime=0.0
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='dummy'
@@ -236,14 +218,8 @@ IF(MPIRoot) CALL GenerateFileSkeleton('LostRotPeriodicSides',N_variables,StrVarN
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
 CALL WriteAdditionalElemData(FileName,ElementOut)
 
-#if USE_MPI
-IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
-#else
-WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteLostRotPeriodicSidesToHDF5
 #endif /*defined(PARTICLES)*/
 

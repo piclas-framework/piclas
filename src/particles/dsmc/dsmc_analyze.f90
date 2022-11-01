@@ -1019,12 +1019,8 @@ INTEGER                        :: jSpec
 REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:), MacroElecExcitation(:,:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================
-  SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DSMC TO HDF5 FILE...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#else
-  StartT=LOCALTIME()
-#endif
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DSMC TO HDF5 FILE...'
+GETTIME(StartT)
 
 IF(nSpecies.EQ.1) THEN
   nSpecOut = 1
@@ -1229,13 +1225,8 @@ CALL CloseDataFile()
 DEALLOCATE(StrVarNames)
 DEALLOCATE(DSMC_MacroVal)
 DEALLOCATE(MacroElecExcitation)
-#if USE_MPI
-IF(MPIROOT) EndT=MPI_WTIME()
-#else
-EndT=LOCALTIME()
-#endif
-
-SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
 END SUBROUTINE WriteDSMCToHDF5
 
