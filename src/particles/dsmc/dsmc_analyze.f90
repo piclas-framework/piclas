@@ -1228,7 +1228,7 @@ CALL CloseDataFile()
 
 DEALLOCATE(StrVarNames)
 DEALLOCATE(DSMC_MacroVal)
-DEALLOCATE(MacroElecExcitation)
+IF(SampleElecExcitation) DEALLOCATE(MacroElecExcitation)
 #if USE_MPI
 IF(MPIROOT) EndT=MPI_WTIME()
 #else
