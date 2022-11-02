@@ -81,7 +81,7 @@ USE MOD_FV_Metrics         ,ONLY: InitFV_Metrics
 USE MOD_FV_Limiter         ,ONLY: InitFV_Limiter
 USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
-USE MOD_Mesh_Vars          ,ONLY: nSides, Face_xGP
+USE MOD_Mesh_Vars          ,ONLY: nSides, Face_xGP, NormVec
 USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
@@ -101,6 +101,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_MPI
+REAL                      :: Geotemp(6,1:nSides), dx_slave_temp(PP_nVar+1,1:nSides)
+#endif /*USE_MPI*/
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitIsDone).OR.FVInitIsDone) CALL abort(__STAMP__,&
     'InitFV not ready to be called or already called.')
@@ -158,30 +161,43 @@ Flux_Slave=0.
 IF (doFVReconstruction) THEN
   LimiterType = GETINT('FV-LimiterType')
   CALL InitFV_Limiter()
+
   ALLOCATE(FV_dx_slave(1:nSides))
   ALLOCATE(FV_dx_master(1:nSides))
-  FV_dx_master=0.
-  FV_dx_slave=0.
+#if (PP_TimeDiscMethod==600) /*DVM*/
+  ALLOCATE(DVMtraj_slave(PP_nVar,1:nSides))
+  ALLOCATE(DVMtraj_master(PP_nVar,1:nSides))
+#endif
+
   ALLOCATE(FV_gradU(1:PP_nVar,1:nSides))
-  FV_gradU=0.
+
   !calculate face to center distances for reconstruction
 #if USE_MPI
   !send face coordinates because MPI slave sides don't have them
-  CALL StartReceiveMPIData(3,Face_xGP,1,nSides,RecRequest_Geo,SendID=1) ! Receive YOUR
-  CALL StartSendMPIData(3,Face_xGP,1,nSides,SendRequest_Geo,SendID=1) ! Send MINE
+  Geotemp=0.
+  Geotemp(1:3,:)=Face_xGP(:,0,0,1:nSides)
+  Geotemp(4:6,:)=NormVec(:,0,0,1:nSides)
+  CALL StartReceiveMPIData(6,Geotemp,1,nSides,RecRequest_Geo,SendID=1) ! Receive YOUR
+  CALL StartSendMPIData(6,Geotemp,1,nSides,SendRequest_Geo,SendID=1) ! Send MINE
   CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)
+  Face_xGP(:,0,0,1:nSides)=Geotemp(1:3,:)
+  NormVec(:,0,0,1:nSides)=Geotemp(4:6,:)
+
   ! distances for MPI sides - send direction
-  CALL StartReceiveMPIData(1,FV_dx_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
-  CALL InitFV_Metrics(doMPISides=.TRUE.)
-  CALL StartSendMPIData(1,FV_dx_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
+  CALL StartReceiveMPIData(PP_nVar+1,dx_slave_temp,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
+  CALL InitFV_Metrics(dx_slave_temp,doMPISides=.TRUE.)
+  CALL StartSendMPIData(PP_nVar+1,dx_slave_temp,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 #endif /*USE_MPI*/
   ! distances for BCSides, InnerSides and MPI sides - receive direction
-  CALL InitFV_Metrics(doMPISides=.FALSE.)
+  CALL InitFV_Metrics(dx_slave_temp,doMPISides=.FALSE.)
 #if USE_MPI
   CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
+#endif /*USE_MPI*/
+  FV_dx_slave(:)=dx_slave_temp(PP_nVar+1,:)
+#if (PP_TimeDiscMethod==600)
+  DVMtraj_slave(1:PP_nVar,:)=dx_slave_temp(1:PP_nVar,:)
 #endif
 END IF
-
 
 FVInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT DG DONE!'
@@ -247,7 +263,7 @@ CALL StartReceiveMPIData(PP_nVar,U_slave,1,nSides,RecRequest_U,SendID=2) ! Recei
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 CALL ProlongToFace(U,U_master,U_slave,doMPISides=.TRUE.)
-! CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
+! CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.) !mortars not yet implemented
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/

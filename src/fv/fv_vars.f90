@@ -42,6 +42,10 @@ REAL,ALLOCATABLE                      :: Flux_Slave(:,:,:,:)
 ! Distances for reconstruction
 REAL,ALLOCATABLE                      :: FV_dx_slave(:)
 REAL,ALLOCATABLE                      :: FV_dx_master(:)
+#if (PP_TimeDiscMethod==600)
+REAL,ALLOCATABLE                      :: DVMtraj_slave(:,:)
+REAL,ALLOCATABLE                      :: DVMtraj_master(:,:)
+#endif
 
 REAL,ALLOCATABLE                      :: FV_gradU(:,:)
 

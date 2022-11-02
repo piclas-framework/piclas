@@ -38,7 +38,7 @@ CONTAINS
 !==================================================================================================================================
 !> Compute the distance FV_dx from interface to cell center of the master/slave element
 !==================================================================================================================================
-SUBROUTINE InitFV_Metrics(doMPISides)
+SUBROUTINE InitFV_Metrics(dx_slave_temp,doMPISides)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -46,13 +46,21 @@ USE MOD_FV_Vars
 USE MOD_Mesh_Vars,          ONLY: SideToElem, Face_xGP, Elem_xGP
 USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,nSides,firstMortarMPISide,lastMortarMPISide
+#if (PP_TimeDiscMethod==600)
+USE MOD_Mesh_Vars,          ONLY: NormVec
+USE MOD_Equation_Vars,      ONLY: DVMnVelos, DVMVelos, DVMSpeciesData
+#endif
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
+REAL, INTENT(OUT)                      :: dx_slave_temp(1:PP_nVar+1,1:nSides)
 LOGICAL, INTENT(IN)                    :: doMPISides
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                :: SideID, ElemID, firstSideID, lastSideID
+#if (PP_TimeDiscMethod==600)
+INTEGER                                :: iVel, jVel, kVel, upos
+#endif
 !==================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  Build FV Metrics ...'
 
@@ -70,7 +78,19 @@ DO SideID=firstSideID,lastSideID
   ! neighbor side !ElemID=-1 if not existing
   ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
   IF (ElemID.LT.0) CYCLE
-  FV_dx_slave(SideID)=VECNORM(Elem_xGP(:,0,0,0,ElemID)-Face_xGP(:,0,0,SideID))
+  dx_slave_temp(PP_nVar+1,SideID)=VECNORM(Elem_xGP(:,0,0,0,ElemID)-Face_xGP(:,0,0,SideID))
+
+#if (PP_TimeDiscMethod==600)
+  DO kVel=1, DVMnVelos(3); DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+    upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+    dx_slave_temp(upos,SideID) = NormVec(1,0,0,SideID)*DVMVelos(iVel,1) &
+                               + NormVec(2,0,0,SideID)*DVMVelos(jVel,2) &
+                               + NormVec(3,0,0,SideID)*DVMVelos(kVel,3)
+    IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+      dx_slave_temp(NINT(PP_nVar/2.)+upos,SideID)=dx_slave_temp(upos,SideID)
+    END IF
+  END DO; END DO; END DO
+#endif
 END DO
 
 ! Second process Minus/Master sides, U_Minus is always MINE
@@ -88,6 +108,18 @@ END IF
 DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   FV_dx_master(SideID)=VECNORM(Elem_xGP(:,0,0,0,ElemID)-Face_xGP(:,0,0,SideID))
+
+#if (PP_TimeDiscMethod==600)
+  DO kVel=1, DVMnVelos(3); DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+    upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+    DVMtraj_master(upos,SideID) = NormVec(1,0,0,SideID)*DVMVelos(iVel,1) &
+                                + NormVec(2,0,0,SideID)*DVMVelos(jVel,2) &
+                                + NormVec(3,0,0,SideID)*DVMVelos(kVel,3)
+    IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+      DVMtraj_master(NINT(PP_nVar/2.)+upos,SideID)=DVMtraj_master(upos,SideID)
+    END IF
+  END DO; END DO; END DO
+#endif
 END DO !SideID
 
 SWRITE(UNIT_stdOut,'(A)')' Done !'
