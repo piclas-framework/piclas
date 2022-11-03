@@ -119,13 +119,14 @@ REAL                           :: RotBoundsOfElemCenter(1:3)
 LOGICAL                        :: SideIsRotPeriodic
 INTEGER                        :: BCindex
 REAL                           :: StartT,EndT
+CHARACTER(LEN=255)             :: hilf
 !=================================================================================================================================
 
-IF(MPIRoot)THEN
-  LBWRITE(UNIT_StdOut,'(132("-"))')
-  LBWRITE(UNIT_stdOut,'(A)') ' IDENTIFYING Particle Exchange Processors ...'
-  StartT=MPI_WTIME()
-END IF ! MPIRoot
+WRITE(hilf,'(A)') 'IDENTIFYING Particle Exchange Processors ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' '//TRIM(hilf)
+GETTIME(StartT)
+StartT=MPI_WTIME()
 
 ! Allocate arrays
 ALLOCATE(GlobalProcToExchangeProc(EXCHANGE_PROC_SIZE,0:nProcessors_Global-1))
@@ -145,8 +146,8 @@ GlobalProcToRecvProc = .FALSE.
 ! Identify all procs with elements in range. This includes checking the procs on the compute-node as they might lie far apart
 IF (nProcessors.EQ.1) THEN
   SWRITE(UNIT_stdOut,'(A)') ' | Running on one processor. Particle exchange communication disabled.'
-  SWRITE(UNIT_stdOut,'(A)') ' IDENTIFYING Particle Exchange Processors DONE!'
-  SWRITE(UNIT_StdOut,'(132("-"))')
+  GETTIME(EndT)
+  CALL DisplayMessageAndTime(EndT-StartT, TRIM(hilf)//' DONE!', DisplayDespiteLB=.TRUE.)
   IF(TRIM(DepositionType).EQ.'cell_volweight_mean')THEN
     ALLOCATE(FlagShapeElem(1:nComputeNodeTotalElems))
     FlagShapeElem = .FALSE.
@@ -1484,11 +1485,8 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   ADEALLOCATE(ShapeElemProcSend_Shared)
 END IF
 
-IF(MPIRoot)THEN
-  EndT=MPI_WTIME()
-  LBWRITE(UNIT_stdOut,'(A,F0.3,A)') ' IDENTIFYING Particle Exchange Processors DONE  [',EndT-StartT,'s]'
-  LBWRITE(UNIT_StdOut,'(132("-"))')
-END IF ! MPIRoot
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, TRIM(hilf)//' DONE!')
 
 END SUBROUTINE IdentifyPartExchangeProcs
 
