@@ -245,7 +245,9 @@ DO iSpec = 1, nSpecies
             CollXSecDataTemp(1:2,1:MaxDim) = SpecXSec(iCase)%CollXSecData(1:2,1:MaxDim)
             ! Determine the bounds of vibrational energy levels to be added to the collision array
             MaxDimLevel = UBOUND(SpecXSec(iCase)%VibMode(MaxLevelIndex)%XSecData,DIM=2)
-            CollXSecDataTemp(1:2,MaxDim+1:MaxDim+NumLevel) = SpecXSec(iCase)%VibMode(MaxLevelIndex)%XSecData(1:2,MaxDimLevel-NumLevel+1:MaxDimLevel)
+            ! Add the energy levels but not the cross-section, it will added in the next step
+            CollXSecDataTemp(1,MaxDim+1:MaxDim+NumLevel) = SpecXSec(iCase)%VibMode(MaxLevelIndex)%XSecData(1,MaxDimLevel-NumLevel+1:MaxDimLevel)
+            CollXSecDataTemp(2,MaxDim+1:MaxDim+NumLevel) = 0.
             CALL MOVE_ALLOC(CollXSecDataTemp,SpecXSec(iCase)%CollXSecData)
             LBWRITE(*,*) 'Resizing CollXSecData array from ', MaxDim, ' to ', UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
             MaxDim = UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
@@ -319,7 +321,9 @@ DO iSpec = 1, nSpecies
               CollXSecDataTemp(1:2,1:MaxDim) = SpecXSec(iCase)%CollXSecData(1:2,1:MaxDim)
               ! Determine the bounds of electronic energy levels to be added to the collision array
               MaxDimLevel = UBOUND(SpecXSec(iCase)%ElecLevel(MaxLevelIndex)%XSecData,DIM=2)
-              CollXSecDataTemp(1:2,MaxDim+1:MaxDim+NumLevel) = SpecXSec(iCase)%ElecLevel(MaxLevelIndex)%XSecData(1:2,MaxDimLevel-NumLevel+1:MaxDimLevel)
+              ! Add the energy levels but not the cross-section, it will added in the next step
+              CollXSecDataTemp(1,MaxDim+1:MaxDim+NumLevel) = SpecXSec(iCase)%ElecLevel(MaxLevelIndex)%XSecData(1,MaxDimLevel-NumLevel+1:MaxDimLevel)
+              CollXSecDataTemp(2,MaxDim+1:MaxDim+NumLevel) = 0.
               CALL MOVE_ALLOC(CollXSecDataTemp,SpecXSec(iCase)%CollXSecData)
               LBWRITE(*,*) 'Resizing CollXSecData array from ', MaxDim, ' to ', UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
               MaxDim = UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
@@ -534,7 +538,9 @@ DO iCase = 1, CollInf%NumCase
         CollXSecDataTemp(1:2,1:MaxDim) = SpecXSec(iCase)%CollXSecData(1:2,1:MaxDim)
         ! Determine the bounds of vibrational energy levels to be added to the collision array
         MaxDimLevel = UBOUND(SpecXSec(iCase)%ReactionPath(MaxLevelIndex)%XSecData,DIM=2)
-        CollXSecDataTemp(1:2,MaxDim+1:MaxDim+NumLevel) = SpecXSec(iCase)%ReactionPath(MaxLevelIndex)%XSecData(1:2,MaxDimLevel-NumLevel+1:MaxDimLevel)
+        ! Add the energy levels but not the cross-section, it will added in the next step
+        CollXSecDataTemp(1,MaxDim+1:MaxDim+NumLevel) = SpecXSec(iCase)%ReactionPath(MaxLevelIndex)%XSecData(1,MaxDimLevel-NumLevel+1:MaxDimLevel)
+        CollXSecDataTemp(2,MaxDim+1:MaxDim+NumLevel) = 0.
         CALL MOVE_ALLOC(CollXSecDataTemp,SpecXSec(iCase)%CollXSecData)
         LBWRITE(*,*) 'Resizing CollXSecData array from ', MaxDim, ' to ', UBOUND(SpecXSec(iCase)%CollXSecData,dim=2), &
                         'due to reaction #', ChemReac%CollCaseInfo(iCase)%ReactionIndex(MaxLevelIndex)
