@@ -157,6 +157,7 @@ ALLOCATE(SpecXSec(CollInf%NumCase))
 SpecXSec(:)%UseCollXSec = .FALSE.
 SpecXSec(:)%UseVibXSec = .FALSE.
 SpecXSec(:)%UseElecXSec = .FALSE.
+SpecXSec(:)%NumElecLevel = 0
 SpecXSec(:)%CollXSec_Effective = .FALSE.
 SpecXSec(:)%SpeciesToRelax = 0
 SpecXSec(:)%ProbNull = 0.
