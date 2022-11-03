@@ -269,7 +269,8 @@ SELECT CASE(tilde)
   CASE(1)
     prefac = tau*(1.-EXP(-tDeriv/tau))/tDeriv ! f from f2~
   CASE(2)
-    prefac = 1.!tau*(EXP(tDeriv/tau)-1.)/tDeriv ! f from f2^
+    CALL abort(__STAMP__,'Maxwell scattering density scaling not possible from f_hat',999,999.)
+    ! prefac = 1.!tau*(EXP(tDeriv/tau)-1.)/tDeriv ! f from f2^
 END SELECT
 END IF
 SELECT CASE (DVMBGKModel)

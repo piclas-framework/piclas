@@ -90,6 +90,9 @@ USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 #endif /*USE_HDG*/
+#if (PP_TimeDiscMethod==600) /*DVM*/
+USE MOD_DistFunc               ,ONLY: GradDistribution
+#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -389,6 +392,16 @@ ELSE ! normal restart
         lambda=0.
       END IF
 
+#elif (PP_TimeDiscMethod==600) /*DVM*/
+      SWRITE(UNIT_stdOut,*)'Performing DVM restart using Grads 13 moment distribution'
+      ALLOCATE(UTmp(9,0:PP_N,0:PP_N,0:PP_N,nElems))
+      UTmp=0.
+      CALL ReadArray('DVM_Solution',5,(/9,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Utmp)
+      DO iElem=1,nElems
+        print*, Utmp(:,:,:,:,iElem)
+        CALL GradDistribution(Utmp(1:8,0,0,0,iElem),U(1:PP_nVar,0,0,0,iElem))
+      END DO
+      DEALLOCATE(UTmp)
 #else
       CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
 #if !(USE_FV)

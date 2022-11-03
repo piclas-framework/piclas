@@ -166,6 +166,8 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   IF(DG_SolutionUExists)THEN
     CALL GetDataProps('DG_SolutionU',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
   END IF
+#elif (PP_TimeDiscMethod==600) /*DVM*/
+  CALL GetDataProps('DVM_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
 #else
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
 #endif
@@ -178,6 +180,8 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
       SWRITE(UNIT_StdOut,'(A,I5)')"nVar_Restart =", nVar_Restart
 #if USE_HDG
       SWRITE(UNIT_StdOut,'(A)')" HDG: Restarting from a different equation system."
+#elif (PP_TimeDiscMethod==600) /*DVM*/
+      SWRITE(UNIT_StdOut,'(A)')"DVM: Restarting from macroscopic values."
 #else
       CALL abort(__STAMP__,'PP_nVar!=nVar_Restart (Number of variables in restart file does no match the compiled equation system).')
 #endif /*USE_HDG*/
