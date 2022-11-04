@@ -303,7 +303,7 @@ USE MOD_Mesh_Vars         ,ONLY: nElems
 USE MOD_PML_Vars          ,ONLY: PMLnVar
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
-USE MOD_MPI               ,ONLY: StartExchange_DG_Elems,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI               ,ONLY: StartExchange_DG_Elems,StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
 #if defined(PARTICLES) && defined(LSERK)
 USE MOD_Particle_Vars     ,ONLY: DelayTime
 USE MOD_TimeDisc_Vars     ,ONLY: time
@@ -338,16 +338,16 @@ INTEGER                         :: iElem
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-CALL StartReceiveMPIData(PP_nVar,U_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
+CALL StartReceiveMPIDataType(RecRequest_U,SendID=2) ! Receive MINE
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
-CALL ProlongToFace(U,U_master,U_slave,doMPISides=.TRUE.)
-CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
+CALL ProlongToFace_TypeBased(doMPISides=.TRUE.)
+!CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
-CALL StartSendMPIData(PP_nVar,U_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
+CALL StartSendMPIDataType(SendRequest_U,SendID=2) ! Send YOUR
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -389,22 +389,23 @@ CALL VolInt(dofirstElems=.TRUE.)
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 ! Complete send / receive
-CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
+CALL FinishExchangeMPIDataType(SendRequest_U,RecRequest_U,SendID=2) !Send YOUR - receive MINE
 
 ! Initialization of the time derivative
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
-CALL StartReceiveMPIData(PP_nVar+PMLnVar,Flux_Slave,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
+!CALL StartReceiveMPIDataType(PP_nVar+PMLnVar,Flux_Slave,1,nSides,RecRequest_Flux,SendID=1) ! Receive MINE
+CALL StartReceiveMPIDataType(RecRequest_Flux,SendID=1) ! Receive MINE
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 ! fill the global surface flux list
-CALL FillFlux(t,tDeriv,Flux_Master,Flux_Slave,U_master,U_slave,doMPISides=.TRUE.)
+CALL FillFlux(t,tDeriv,doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-CALL StartSendMPIData(PP_nVar+PMLnVar,Flux_Slave,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
-!CALL StartExchangeMPIData(PP_nVar,Flux,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
+!CALL StartSendMPIData(PP_nVar+PMLnVar,Flux_Slave,1,nSides,SendRequest_Flux,SendID=1) ! Send YOUR
+CALL StartSendMPIDataType(SendRequest_Flux,SendID=1) ! Send YOUR
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -424,7 +425,7 @@ CALL VolInt(dofirstElems=.FALSE.)
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 ! Complete send / receive
-CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
+CALL FinishExchangeMPIDataType(SendRequest_Flux,RecRequest_Flux,SendID=1) !Send MINE -receive YOUR
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -650,12 +651,12 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE FillIni
 
 
-
 SUBROUTINE FinalizeDG()
 !===================================================================================================================================
 ! Deallocate global variable U (solution) and Ut (dg time derivative).
 !===================================================================================================================================
 ! MODULES
+USE MOD_globals, ONLY: abort
 USE MOD_DG_Vars
 #if USE_LOADBALANCE && !(USE_HDG)
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
@@ -679,7 +680,7 @@ SDEALLOCATE(U_Surf_N)
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE && !(USE_HDG)
 IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
-CALL abort(__STAMP__,'not implemented, keep U ?!')
+!CALL abort(__STAMP__,'not implemented, keep U ?!')
 #endif /*USE_LOADBALANCE && !(USE_HDG)*/
   !SDEALLOCATE(U)
 #if USE_LOADBALANCE && !(USE_HDG)

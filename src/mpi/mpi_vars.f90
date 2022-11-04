@@ -44,6 +44,13 @@ INTEGER,ALLOCATABLE   :: offsetMPISides_YOUR(:)! gives position of send/recv blo
 INTEGER,ALLOCATABLE   :: offsetElemMPI(:)      ! gives offset position of elements of all procs
 INTEGER,ALLOCATABLE   :: nMPISides_send(:,:),nMPISides_rec(:,:)
 INTEGER,ALLOCATABLE   :: OffsetMPISides_send(:,:),OffsetMPISides_rec(:,:)
+INTEGER,ALLOCATABLE   :: DataSizeSideSend(:,:),DataSizeSideRec(:,:)
+
+TYPE tExchangeData
+  REAL,ALLOCATABLE      :: FaceData(:,:)
+END TYPE tExchangeData
+
+TYPE(tExchangeData), ALLOCATABLE :: DGExchange(:)
 #endif /*USE_MPI*/
 
 #if defined(MEASURE_MPI_WAIT)

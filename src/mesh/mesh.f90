@@ -480,14 +480,13 @@ USE MOD_PreProc
 USE MOD_DG_Vars   ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG
 USE MOD_IO_HDF5   ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars ,ONLY: nSides,nElems
-USE MOD_Basis     ,ONLY: DG_ProlongDGElemsToFace
+!USE MOD_DG        ,ONLY: DG_ProlongDGElemsToFace
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 ! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-
 !===================================================================================================================================
 ! Read p-adaption specific input data
 !pAdaption    = GETLOGICAL('pAdaption','.FALSE.')
@@ -500,6 +499,48 @@ ALLOCATE(DG_Elems_slave (1:nSides))
 ! Set polynomial degree at the element sides
 DG_Elems_master = PP_N
 DG_Elems_slave  = PP_N
+
+CALL DG_ProlongDGElemsToFace()
+
+END SUBROUTINE InitpAdaption
+
+
+!==================================================================================================================================
+!> Set DG_Elems_slave and DG_Elems_master information
+!==================================================================================================================================
+SUBROUTINE DG_ProlongDGElemsToFace()
+! MODULES
+USE MOD_DG_Vars   ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
+USE MOD_Mesh_Vars ,ONLY: SideToElem,nSides,nBCSides
+#if USE_MPI
+USE MOD_MPI       ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
+USE MOD_MPI_Vars  ,ONLY: DataSizeSideSend,DataSizeSideRec,nNbProcs,nMPISides_rec,nMPISides_send,OffsetMPISides_rec
+USE MOD_MPI_Vars  ,ONLY: OffsetMPISides_send,DGExchange
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iSide,ElemID,nbElemID
+#if USE_MPI
+INTEGER :: iNbProc,Nloc
+#endif /*USE_MPI*/
+INTEGER, DIMENSION(nNbProcs) :: RecRequest_U,SendRequest_U,RecRequest_U2,SendRequest_U2
+!==================================================================================================================================
+! set information which polynomial degree elements adjacent to a side have
+DO iSide = 1,nSides
+  ElemID    = SideToElem(S2E_ELEM_ID   ,iSide)
+  nbElemID  = SideToElem(S2E_NB_ELEM_ID,iSide)
+  ! Master sides
+  IF(ElemID  .GT.0) DG_Elems_master(iSide) = N_DG(ElemID)
+  ! Slave side (ElemID,locSide and flip =-1 if not existing)
+  IF(nbElemID.GT.0) DG_Elems_slave( iSide) = N_DG(nbElemID)
+  ! Boundaries
+  IF(iSide.LE.nBCSides) DG_Elems_slave( iSide) = DG_Elems_master(iSide)
+END DO
+
 #if USE_MPI
 ! Exchange element local polynomial degree (N_LOC)
 CALL StartExchange_DG_Elems(DG_Elems_slave ,1,nSides,SendRequest_U ,RecRequest_U ,SendID=2)  ! RECEIVE MINE, SEND YOUR / DG_Elems_slave:  slave  -> master                                                                                       ! Send MINE, receive YOUR / DG_Elems_slave : slave  -> master
@@ -508,31 +549,38 @@ CALL StartExchange_DG_Elems(DG_Elems_master,1,nSides,SendRequest_U2,RecRequest_U
 CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=2) ! Send YOUR - receive MINE
 CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=1) ! Send YOUR - receive MINE
 ! Initialize the send/rec face sizes for master/slave communication
-DataSizeSideRec=0
+IF(.NOT.ALLOCATED(DataSizeSideSend)) ALLOCATE(DataSizeSideSend(nNbProcs,2), DataSizeSideRec(nNbProcs,2))
 DataSizeSideSend=0
+DataSizeSideRec=0
 DO iNbProc = 1, nNbProcs
-  ! 1:Set number of sides and offset for SEND MINE - RECEIVE YOUR case
-  IF(nMPISides_rec( iNbProc,1).GT.0) THEN
+
+  ! 1: Set number of sides and offset for SEND MINE - RECEIVE YOUR case
+  IF(nMPISides_rec(iNbProc,1).GT.0) THEN
     DO iSide = OffsetMPISides_rec(iNbProc-1,1)+1, OffsetMPISides_rec(iNbProc,1)
-      Nloc = DG_Elems_master(iSide) ! polynomial degree of the sending master side
+      Nloc = DG_Elems_slave(iSide) ! polynomial degree of the sending slave side
       DataSizeSideRec(iNbProc,1) = DataSizeSideRec(iNbProc,1)  + (Nloc+1)**2
     END DO ! iSide = 1, nMPISides_rec(iNbProc,1)
   END IF
 
-  IF(nMPISides_send( iNbProc,1).GT.0) THEN
+  IF(nMPISides_send(iNbProc,1).GT.0) THEN
     DO iSide = OffsetMPISides_send(iNbProc-1,1)+1, OffsetMPISides_send(iNbProc,1)
-      Nloc = DG_Elems_slave(iSide) ! polynomial degree of the sending master side
+      Nloc = DG_Elems_slave(iSide) ! polynomial degree of the sending slave side
       DataSizeSideSend(iNbProc,1) = DataSizeSideSend(iNbProc,1)  + (Nloc+1)**2
     END DO ! iSide = 1, nMPISides_rec(iNbProc,1)
   END IF
 
+  ! Important: Keep symmetry
   DataSizeSideSend(iNbProc,2) = DataSizeSideRec( iNbProc,1)
   DataSizeSideRec( iNbProc,2) = DataSizeSideSend(iNbProc,1)
 END DO ! iNbProc = 1, nNbProcs
-#endif /*USE_MPI*/
-CALL DG_ProlongDGElemsToFace()
 
-END SUBROUTINE InitpAdaption
+! Create unrolled arrays
+ALLOCATE(DGExchange(nNbProcs))
+DO iNbProc=1,nNbProcs
+  ALLOCATE(DGExchange(iNbProc)%FaceData(PP_nVar, DataSizeSideRec(iNbProc,1)))
+END DO !iProc=1,nNBProcs
+#endif /*USE_MPI*/
+END SUBROUTINE DG_ProlongDGElemsToFace
 
 
 SUBROUTINE SwapMesh()

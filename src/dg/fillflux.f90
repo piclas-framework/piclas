@@ -107,17 +107,6 @@ DO SideID=firstSideID_wo_BC, lastSideID
   N_slave  = DG_Elems_slave (SideID)
   N_max    = MAX(N_master,N_slave)
 
-  !flip  =ElemToSide(E2S_FLIP,1:6,1)
-  !write(*,*) flip
-  !flip  =ElemToSide(E2S_FLIP,1:6,2)
-  !write(*,*) flip
-  !read*
-
-  !IF(SideToElem(S2E_ELEM_ID,SideID).eq.1.or.SideToElem(S2E_NB_ELEM_ID,SideID).eq.1)THEN
-    !WRITE (*,*) "sideid,n_master,n_slave,n_max =", sideid,n_master,n_slave,n_max
-    !read*
-  !END IF ! Side
-
   CALL GetSurfaceFlux(SideID, N_master, N_slave, N_max    ,&
                       U_Surf_N(SideID)%Flux_Master(1:PP_nVar,0:N_master,0:N_master) ,&
                       U_Surf_N(SideID)%Flux_Slave( 1:PP_nVar,0:N_slave ,0:N_slave)  ,&

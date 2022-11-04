@@ -349,7 +349,7 @@ LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FAL
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: l,p,q,ElemID,SideID,flip,LocSideID,firstSideID,lastSideID,Nloc
+INTEGER            :: l,p,q,nbElemID,ElemID,SideID,flip,LocSideID,firstSideID,lastSideID,Nloc
 REAL,ALLOCATABLE   :: Uface(:,:,:)
 !===================================================================================================================================
 IF(doMPISides)THEN
@@ -363,12 +363,13 @@ ELSE
 END IF
 
 DO SideID=firstSideID,lastSideID
-  ! neighbor side !ElemID,locSideID and flip =-1 if not existing
-  ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
+  ! neighbor side !nbElemID,locSideID and flip =-1 if not existing
+  nbElemID   = SideToElem(S2E_NB_ELEM_ID,SideID)
+  IF(nbElemID.LE.0) CYCLE
   locSideID  = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
   flip       = SideToElem(S2E_FLIP,SideID)
-  Nloc = N_DG(ElemID)
-  CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, flip, ElemID,  U_N(ElemID)%U, U_Surf_N(SideID)%U_slave)
+  Nloc = N_DG(nbElemID)
+  CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, flip, nbElemID,  U_N(nbElemID)%U, U_Surf_N(SideID)%U_slave)
   
 END DO !SideID
 
@@ -385,6 +386,7 @@ ELSE
 END IF
 DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
+  IF(ElemID.LE.0) CYCLE
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   Nloc = N_DG(ElemID)
 

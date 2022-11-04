@@ -46,6 +46,7 @@ END INTERFACE
 
 
 PUBLIC :: InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
+PUBLIC :: StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
 PUBLIC :: StartExchange_DG_Elems
 #endif
 PUBLIC :: DefineParametersMPI
@@ -295,6 +296,38 @@ END SUBROUTINE StartReceiveMPIData
 
 
 !===================================================================================================================================
+!> Subroutine does the receive operations for the face data that has to be exchanged between processors (type-based p-adaption).
+!===================================================================================================================================
+SUBROUTINE StartReceiveMPIDataType(MPIRequest,SendID)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)  :: SendID                                                 !< defines the send / receive direction -> 1=send MINE
+                                                                              !< / receive YOUR, 3=send YOUR / receive MINE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+    nRecVal = PP_nVar*DataSizeSideRec(iNbProc,SendID)
+    CALL MPI_IRECV(DGExchange(iNbProc)%FaceData(:,:),nRecVal,MPI_DOUBLE_PRECISION,  &
+                    nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+  ELSE
+    MPIRequest(iNbProc)=MPI_REQUEST_NULL
+  END IF
+END DO !iProc=1,nNBProcs
+END SUBROUTINE StartReceiveMPIDataType
+
+
+!===================================================================================================================================
 !> See above, but for for send direction
 !===================================================================================================================================
 SUBROUTINE StartSendMPIData(firstDim,FaceData,LowerBound,UpperBound,MPIRequest,SendID)
@@ -329,6 +362,65 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIData
 
 
+!===================================================================================================================================
+!> See above, but for for send direction
+!===================================================================================================================================
+SUBROUTINE StartSendMPIDataType(MPIRequest,SendID)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Vars
+USE MOD_DG_Vars, ONLY: U_Surf_N,DG_Elems_slave
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)          :: SendID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER, INTENT(OUT)         :: MPIRequest(nNbProcs)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                      :: i,p,q,iSide,N_slave
+!===================================================================================================================================
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
+    nSendVal     = PP_nVar*DataSizeSideSend(iNbProc,SendID)
+    SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
+    SideID_end   = OffsetMPISides_send(iNbProc,SendID)
+
+    i = 1
+    IF(SendID.EQ.2)THEN
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            DGExchange(iNbProc)%FaceData(1:PP_nVar,i) = U_Surf_N(iSide)%U_Slave(1:PP_nVar,p,q)
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    ELSE
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            DGExchange(iNbProc)%FaceData(1:PP_nVar,i) = U_Surf_N(iSide)%Flux_Slave(1:PP_nVar,p,q)
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    END IF ! SendID.EQ.2
+
+    CALL MPI_ISEND(DGExchange(iNbProc)%FaceData(:,:),nSendVal,MPI_DOUBLE_PRECISION,  &
+                    nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
+  ELSE
+    MPIRequest(iNbProc)=MPI_REQUEST_NULL
+  END IF
+END DO !iProc=1,nNBProcs
+END SUBROUTINE StartSendMPIDataType
+
+
 !==================================================================================================================================
 !> Subroutine that performs the send and receive operations for the DG_Elems_slave information at the face
 !> that has to be exchanged between processors.
@@ -355,9 +447,9 @@ INTEGER,INTENT(INOUT) :: DG_Elems(LowerBound:UpperBound) !< information about DG
 DO iNbProc=1,nNbProcs
   ! Start send face data
   IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
-    nSendVal    =nMPISides_send(iNbProc,SendID)
-    SideID_start=OffsetMPISides_send(iNbProc-1,SendID)+1
-    SideID_end  =OffsetMPISides_send(iNbProc,SendID)
+    nSendVal     = nMPISides_send(iNbProc,SendID)
+    SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
+    SideID_end   = OffsetMPISides_send(iNbProc,SendID)
     CALL MPI_ISEND(DG_Elems(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
                     nbProc(iNbProc),0,MPI_COMM_WORLD,SendRequest(iNbProc),iError)
   ELSE
@@ -365,9 +457,9 @@ DO iNbProc=1,nNbProcs
   END IF
   ! Start receive face data
   IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
-    nRecVal     =nMPISides_rec(iNbProc,SendID)
-    SideID_start=OffsetMPISides_rec(iNbProc-1,SendID)+1
-    SideID_end  =OffsetMPISides_rec(iNbProc,SendID)
+    nRecVal      = nMPISides_rec(iNbProc,SendID)
+    SideID_start = OffsetMPISides_rec(iNbProc-1,SendID)+1
+    SideID_end   = OffsetMPISides_rec(iNbProc,SendID)
     CALL MPI_IRECV(DG_Elems(SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
                     nbProc(iNbProc),0,MPI_COMM_WORLD,RecRequest(iNbProc),iError)
   ELSE
@@ -375,7 +467,6 @@ DO iNbProc=1,nNbProcs
   END IF
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartExchange_DG_Elems
-
 
 !===================================================================================================================================
 !> We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers
@@ -429,6 +520,96 @@ END DO !iProc=1,nNBProcs
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 END SUBROUTINE FinishExchangeMPIData
+
+
+
+!===================================================================================================================================
+!> We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers
+!> SendRequest, RecRequest: communication handles
+!> SendID: defines the send / receive direction -> 1=send MINE / receive YOUR  2=send YOUR / receive MINE
+!===================================================================================================================================
+SUBROUTINE FinishExchangeMPIDataType(SendRequest,RecRequest,SendID)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc 
+USE MOD_MPI_Vars
+USE MOD_DG_Vars  ,ONLY: U_Surf_N,DG_Elems_slave
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)          :: SendID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER, INTENT(INOUT)       :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart,CounterEnd
+REAL(KIND=8)                  :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+INTEGER                       :: i,p,q,iSide,N_slave
+!===================================================================================================================================
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
+! Check receive operations first
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_rec(iNbProc,SendID).GT.0) CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
+END DO !iProc=1,nNBProcs
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  ! Note: Send and Receive are switched to have the same ordering as for particles (1. Send, 2. Receive)
+  MPIW8TimeField(2) = MPIW8TimeField(2) + REAL(CounterEnd-CounterStart,8)/Rate
+  CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
+! Check send operations
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
+END DO !iProc=1,nNBProcs
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  ! Note: Send and Receive are switched to have the same ordering as for particles (1. Send, 2. Receive)
+  MPIW8TimeField(1) = MPIW8TimeField(1) + REAL(CounterEnd-CounterStart,8)/Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
+! Unroll data
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+    SideID_start = OffsetMPISides_rec(iNbProc-1,SendID)+1
+    SideID_end   = OffsetMPISides_rec(iNbProc,SendID)
+
+    i = 1
+    IF(SendID.EQ.2)THEN
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            U_Surf_N(iSide)%U_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceData(1:PP_nVar,i)
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    ELSE
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            U_Surf_N(iSide)%Flux_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceData(1:PP_nVar,i)
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    END IF ! SendID.EQ.2
+
+  END IF
+END DO !iProc=1,nNBProcs
+
+END SUBROUTINE FinishExchangeMPIDataType
 
 
 !----------------------------------------------------------------------------------------------------------------------------------!

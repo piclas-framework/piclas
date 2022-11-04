@@ -344,7 +344,7 @@ REAL,ALLOCATABLE           :: Dielectric_dummy_elem(:,:,:,:)
 #if USE_MPI
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Master2
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Slave2
-INTEGER                                                  :: I,J,iSide
+INTEGER                                                  :: I,J
 #endif /*USE_MPI*/
 INTEGER                                                  :: nMaster, nSlave, locSideID, ElemID, flip, iSide
 !===================================================================================================================================
@@ -402,53 +402,55 @@ DO iSide =1, nSides
 !  DEALLOCATE(Dielectric_dummy_elem, Dielectric_dummy_side)  
 END DO
 
-!CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
-#if USE_MPI
-  CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
-  !CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
-
-  ! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI
-  !     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
-  !     is not allowed)
-  !     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the
-  !     information)
-  Dielectric_dummy_Master2 = 0.
-  Dielectric_dummy_Slave2  = 0.
-  DO I=0,PP_N
-    DO J=0,PP_N
-      DO iSide=1,nSides
-        Dielectric_dummy_Master2(1,I,J,iSide)=Dielectric_dummy_Master(1,I,J,iSide)
-        Dielectric_dummy_Slave2 (1,I,J,iSide)=Dielectric_dummy_Slave( 1,I,J,iSide)
-      END DO
-    END DO
-  END DO
-
-  ! 5.  Send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
-  CALL StartReceiveMPIData(1,Dielectric_dummy_Slave2 ,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
-  CALL StartSendMPIData(   1,Dielectric_dummy_Slave2 ,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
-
-  ! Send Master Dielectric info (real array with dimension (N+1)*(N+1)) to Slave procs
-  CALL StartReceiveMPIData(1,Dielectric_dummy_Master2,1,nSides ,RecRequest_U ,SendID=1) ! Receive YOUR
-  CALL StartSendMPIData(   1,Dielectric_dummy_Master2,1,nSides,SendRequest_U ,SendID=1) ! Send MINE
-
-  CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
-  CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE
-#endif /*USE_MPI*/
+CALL abort(__STAMP__,'implement mortar and mpi dielectric')
+!    !CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.FALSE.)
+!    #if USE_MPI
+!      CALL ProlongToFace(Dielectric_dummy_elem,Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
+!      !CALL U_Mortar(Dielectric_dummy_Master,Dielectric_dummy_Slave,doMPISides=.TRUE.)
+!    
+!      ! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI
+!      !     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
+!      !     is not allowed)
+!      !     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the
+!      !     information)
+!      Dielectric_dummy_Master2 = 0.
+!      Dielectric_dummy_Slave2  = 0.
+!      DO I=0,PP_N
+!        DO J=0,PP_N
+!          DO iSide=1,nSides
+!            Dielectric_dummy_Master2(1,I,J,iSide)=Dielectric_dummy_Master(1,I,J,iSide)
+!            Dielectric_dummy_Slave2 (1,I,J,iSide)=Dielectric_dummy_Slave( 1,I,J,iSide)
+!          END DO
+!        END DO
+!      END DO
+!    
+!      ! 5.  Send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
+!      CALL StartReceiveMPIData(1,Dielectric_dummy_Slave2 ,1,nSides ,RecRequest_U2,SendID=2) ! Receive MINE
+!      CALL StartSendMPIData(   1,Dielectric_dummy_Slave2 ,1,nSides,SendRequest_U2,SendID=2) ! Send YOUR
+!    
+!      ! Send Master Dielectric info (real array with dimension (N+1)*(N+1)) to Slave procs
+!      CALL StartReceiveMPIData(1,Dielectric_dummy_Master2,1,nSides ,RecRequest_U ,SendID=1) ! Receive YOUR
+!      CALL StartSendMPIData(   1,Dielectric_dummy_Master2,1,nSides,SendRequest_U ,SendID=1) ! Send MINE
+!    
+!      CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
+!      CALL FinishExchangeMPIData(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE
+!    #endif /*USE_MPI*/
 
 
 
 ! 7.  With MPI, use dummy array which was used for sending the MPI data
 !     or with single execution, directly use prolonged data on face
 #if USE_MPI
-  Dielectric_Master=Dielectric_dummy_Master2(1,0:PP_N,0:PP_N,1:nSides)
-  Dielectric_Slave =Dielectric_dummy_Slave2( 1,0:PP_N,0:PP_N,1:nSides)
+CALL abort(__STAMP__,'insert type here....')
+  !Dielectric_Master=Dielectric_dummy_Master2(1,0:PP_N,0:PP_N,1:nSides)
+  !Dielectric_Slave =Dielectric_dummy_Slave2( 1,0:PP_N,0:PP_N,1:nSides)
   ! 8.  Check if the default value remains unchanged (negative material constants are not allowed until now)
-IF(MINVAL(Dielectric_Master).LT.0.0)THEN
-  CALL abort(&
-  __STAMP__&
-  ,'Dielectric material values for Riemann solver not correctly determined. MINVAL(Dielectric_Master)=',&
-  RealInfoOpt=MINVAL(Dielectric_Master))
-END IF
+!IF(MINVAL(Dielectric_Master).LT.0.0)THEN
+  !CALL abort(&
+  !__STAMP__&
+  !,'Dielectric material values for Riemann solver not correctly determined. MINVAL(Dielectric_Master)=',&
+  !RealInfoOpt=MINVAL(Dielectric_Master))
+!END IF
 #endif
 
 
