@@ -1143,6 +1143,85 @@ WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(h
 END SUBROUTINE DisplaySimulationTime
 
 
+!===================================================================================================================================
+! Output message to UNIT_stdOut and an elapsed time is seconds as well as min/hour/day format
+!===================================================================================================================================
+SUBROUTINE DisplayMessageAndTime(ElapsedTimeIn, Message, DisplayDespiteLB, DisplayLine, rank)
+! MODULES
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: Message          !< Output message
+REAL,INTENT(IN)             :: ElapsedTimeIn !< Time difference
+LOGICAL,INTENT(IN),OPTIONAL :: DisplayDespiteLB !< Display output even though LB is performed (default is FALSE)
+LOGICAL,INTENT(IN),OPTIONAL :: DisplayLine      !< Display 132*"-" (default is TRUE)
+INTEGER,INTENT(IN),OPTIONAL :: rank             !< if 0, some kind of root is assumed, every other processor return this routine
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL    :: ElapsedTime,mins,secs,hours,days
+LOGICAL :: DisplayDespiteLBLoc, DisplayLineLoc, LocalRoot
+#if !USE_LOADBALANCE
+LOGICAL :: PerformLoadBalance
+#endif /*!USE_LOADBALANCE*/
+!===================================================================================================================================
+#if !USE_LOADBALANCE
+PerformLoadBalance = .FALSE.
+#endif /*!USE_LOADBALANCE*/
+
+! Define who returns and who does the output (default is MPIRoot)
+LocalRoot = .FALSE. ! default
+IF(PRESENT(rank))THEN
+  IF(rank.EQ.0) LocalRoot = .TRUE.
+ELSE
+  IF(MPIRoot) LocalRoot = .TRUE.
+END IF ! PRESENT(rank)
+
+! Return with all procs except LocalRoot
+IF(.NOT.LocalRoot) RETURN
+
+! Check if output should be performed during LB restarts
+IF(PRESENT(DisplayDespiteLB))THEN
+  DisplayDespiteLBLoc = DisplayDespiteLB
+ELSE
+  DisplayDespiteLBLoc = .FALSE.
+END IF ! PRESENT(DisplayDespiteLB)
+
+! Check if 132*"-" is required
+IF(PRESENT(DisplayLine))THEN
+  DisplayLineLoc = DisplayLine
+ELSE
+  DisplayLineLoc = .TRUE.
+END IF ! PRESENT(DisplayLine)
+
+! Aux variable
+ElapsedTime=ElapsedTimeIn
+
+! Get secs, mins, hours and days
+secs = MOD(ElapsedTime,60.)
+ElapsedTime = ElapsedTime / 60.
+mins = MOD(ElapsedTime,60.)
+ElapsedTime = ElapsedTime / 60.
+hours = MOD(ElapsedTime,24.)
+ElapsedTime = ElapsedTime / 24.
+!days = MOD(ElapsedTime,365.) ! Use this if years are also to be displayed
+days = ElapsedTime
+
+! Output message
+IF(LocalRoot.AND.((.NOT.PerformLoadBalance).OR.DisplayDespiteLBLoc))THEN
+  WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' '//TRIM(Message)//' [',ElapsedTime,' sec ]'
+  WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
+  IF(DisplayLineLoc) WRITE(UNIT_StdOut,'(132("-"))')
+END IF ! LocalRoot.AND.((.NOT.PerformLoadBalance).OR.DisplayDespiteLBLoc)
+
+END SUBROUTINE DisplayMessageAndTime
+
+
 PPURE LOGICAL FUNCTION StringBeginsWith(MainString,SubString)
 !===================================================================================================================================
 ! Check if the string MainString starts with the string SubString

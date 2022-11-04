@@ -204,12 +204,8 @@ END IF ! .NOT.DoWriteStateToHDF5
 ! Check if state file creation should be skipped
 IF(.NOT.DoWriteStateToHDF5) RETURN
 
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
-#if USE_MPI
-StartT=MPI_WTIME()
-#else
-CALL CPU_TIME(StartT)
-#endif
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
+GETTIME(StartT)
 
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
@@ -653,8 +649,9 @@ IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
 CALL WriteEmissionVariablesToHDF5(FileName)
 #endif /*PARTICLES*/
 
-EndT=PICLASTIME()
-SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+
 #if defined(PARTICLES)
 CALL DisplayNumberOfParticles(1)
 #endif /*defined(PARTICLES)*/

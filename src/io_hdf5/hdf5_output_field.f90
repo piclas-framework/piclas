@@ -72,9 +72,7 @@ IMPLICIT NONE
 INTEGER,PARAMETER   :: N_variables=2
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
-#if USE_MPI
 REAL                :: StartT,EndT
-#endif
 REAL                :: OutputTime!,FutureTime
 INTEGER             :: iElem, Nloc
 REAL, ALLOCATABLE   :: DummyElem(:,:,:,:)
@@ -104,12 +102,8 @@ DO iElem=1,PP_nElems
     END IF  
   END IF
 END DO!iElem
-IF(MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DielectricGlobal TO HDF5 FILE...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#endif
-END IF
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DielectricGlobal TO HDF5 FILE...'
+GETTIME(StartT)
 OutputTime=0.0
 !FutureTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
@@ -138,14 +132,8 @@ ASSOCIATE (&
                           offset     =(/       0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem  /) , &
                           collective =.TRUE.        , RealArray=DielectricGlobal)
 END ASSOCIATE
-#if USE_MPI
-IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
-#else
-WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 SDEALLOCATE(DielectricGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteDielectricGlobalToHDF5
@@ -179,9 +167,7 @@ INTEGER,PARAMETER  :: N_variables=1
 REAL               :: BRAverageElem(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 CHARACTER(LEN=255) :: StrVarNames(1:N_variables)
 CHARACTER(LEN=255) :: FileName
-#if USE_MPI
 REAL               :: StartT,EndT
-#endif
 REAL               :: OutputTime
 INTEGER            :: iElem
 !===================================================================================================================================
@@ -196,12 +182,8 @@ DO iElem=1,PP_nElems
     BRAverageElem(:,:,:,:,iElem) = 1.0
   END IF
 END DO!iElem
-IF(MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE BRAverageElem TO HDF5 FILE...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#endif
-END IF
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE BRAverageElem TO HDF5 FILE...'
+GETTIME(StartT)
 OutputTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_BRAverageElem',OutputTime))//'.h5'
@@ -227,14 +209,8 @@ ASSOCIATE (&
                           offset     =(/       0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem  /) , &
                           collective =.TRUE.        , RealArray=BRAverageElem)
 END ASSOCIATE
-#if USE_MPI
-IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
-#else
-WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteBRAverageElemToHDF5
 #endif /*defined(PARTICLES)*/
 
@@ -265,9 +241,7 @@ IMPLICIT NONE
 INTEGER,PARAMETER   :: N_variables=3
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
-#if USE_MPI
 REAL                :: StartT,EndT
-#endif
 REAL                :: OutputTime!,FutureTime
 INTEGER             :: iElem
 !===================================================================================================================================
@@ -290,12 +264,9 @@ DO iElem=1,PP_nElems
     END IF
   END IF
 END DO!iElem
-IF(MPIROOT)THEN
-  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PMLZetaGlobal TO HDF5 FILE...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#endif
-END IF
+
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PMLZetaGlobal TO HDF5 FILE...'
+GETTIME(StartT)
 OutputTime=0.0
 !FutureTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
@@ -322,14 +293,8 @@ ASSOCIATE (&
                           offset     =(/       0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem  /) , &
                           collective =.TRUE.        , RealArray=PMLzetaGlobal)
 END ASSOCIATE
-#if USE_MPI
-IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
-#else
-WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 SDEALLOCATE(PMLzetaGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WritePMLzetaGlobalToHDF5
@@ -366,9 +331,7 @@ REAL,INTENT(IN),OPTIONAL         :: OutputTime
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVal
-#if USE_MPI
 REAL                           :: StartT,EndT
-#endif /*USE_MPI*/
 !===================================================================================================================================
 #if USE_LOADBALANCE
 IF(PerformLoadBalance) RETURN
@@ -381,9 +344,7 @@ ELSE
 END IF ! PRESENT(OutputTime)
 
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE BG-FIELD ['//TRIM(FileName)//'] TO HDF5 FILE...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#endif /*USE_MPI*/
+GETTIME(StartT)
 
 ! Create dataset attribute "VarNames"
 ALLOCATE(StrVarNames(1:BGDataSize))
@@ -461,14 +422,8 @@ CALL CloseDataFile()
 
 DEALLOCATE(StrVarNames)
 
-#if USE_MPI
-IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
-  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
-#else
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif /*USE_MPI*/
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteBGFieldToHDF5
 
 
@@ -501,17 +456,13 @@ CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVal
 REAL,ALLOCATABLE               :: outputArray(:,:,:,:,:)
-#if USE_MPI
 REAL                           :: StartT,EndT
-#endif /*USE_MPI*/
 !===================================================================================================================================
 #if USE_LOADBALANCE
 IF(PerformLoadBalance) RETURN
 #endif /*USE_LOADBALANCE*/
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE BG-FIELD Analytic solution TO HDF5 FILE...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#endif /*USE_MPI*/
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE BG-FIELD Analytic solution TO HDF5 FILE...'
+GETTIME(StartT)
 
 ALLOCATE(outputArray(1:BGDataSize,0:PP_N,0:PP_N,0:PP_N,1:nElems))
 outputArray(1,:,:,:,:) = BGFieldAnalytic(1,:,:,:,:)
@@ -566,14 +517,8 @@ CALL CloseDataFile()
 DEALLOCATE(StrVarNames)
 DEALLOCATE(outputArray)
 
-#if USE_MPI
-IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
-  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
-#else
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif /*USE_MPI*/
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteBGFieldAnalyticToHDF5
 
 

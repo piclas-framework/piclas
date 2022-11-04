@@ -493,11 +493,7 @@ INTEGER                        :: offsetNodeID!,nNodeIDs
 !===================================================================================================================================
 
 ! Start timer: finished in FinishCommunicateMeshReadin()
-#if USE_MPI
-StartT=MPI_WTIME()
-#else
-CALL CPU_TIME(StartT)
-#endif
+GETTIME(StartT)
 
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
@@ -522,8 +518,7 @@ IF (PerformLoadBalance) THEN
     LBWRITE(UNIT_stdOut,'(A)',ADVANCE="NO") ' Updating mesh on shared memory...'
 
     ! Arrays for the compute node to hold the elem offsets
-    ALLOCATE(displsElem(   0:nLeaderGroupProcs-1),&
-             recvcountElem(0:nLeaderGroupProcs-1))
+    ALLOCATE(displsElem(   0:nLeaderGroupProcs-1), recvcountElem(0:nLeaderGroupProcs-1))
     displsElem(myLeaderGroupRank) = offsetComputeNodeElem
     CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsElem,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
     DO iProc=1,nLeaderGroupProcs-1
@@ -538,8 +533,7 @@ IF (PerformLoadBalance) THEN
 
   IF (myComputeNodeRank.EQ.0) THEN
     ! Arrays for the compute node to hold the side offsets
-    ALLOCATE(displsSide(   0:nLeaderGroupProcs-1),&
-             recvcountSide(0:nLeaderGroupProcs-1))
+    ALLOCATE(displsSide(   0:nLeaderGroupProcs-1), recvcountSide(0:nLeaderGroupProcs-1))
     displsSide(myLeaderGroupRank) = offsetComputeNodeSide
     CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsSide,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
     DO iProc=1,nLeaderGroupProcs-1
@@ -570,8 +564,7 @@ LBWRITE(UNIT_stdOut,'(A)',ADVANCE="NO") ' Communicating mesh on shared memory...
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
   ! Arrays for the compute node to hold the elem offsets
-  ALLOCATE(displsElem(   0:nLeaderGroupProcs-1),&
-           recvcountElem(0:nLeaderGroupProcs-1))
+  ALLOCATE(displsElem(   0:nLeaderGroupProcs-1), recvcountElem(0:nLeaderGroupProcs-1))
   displsElem(myLeaderGroupRank) = offsetComputeNodeElem
   CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsElem,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
   DO iProc=1,nLeaderGroupProcs-1
@@ -586,8 +579,7 @@ CALL MPI_BCAST(offsetComputeNodeSide,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 
 IF (myComputeNodeRank.EQ.0) THEN
   ! Arrays for the compute node to hold the side offsets
-  ALLOCATE(displsSide(   0:nLeaderGroupProcs-1),&
-           recvcountSide(0:nLeaderGroupProcs-1))
+  ALLOCATE(displsSide(   0:nLeaderGroupProcs-1), recvcountSide(0:nLeaderGroupProcs-1))
   displsSide(myLeaderGroupRank) = offsetComputeNodeSide
   CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsSide,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
   DO iProc=1,nLeaderGroupProcs-1
@@ -602,8 +594,7 @@ CALL MPI_BCAST(offsetComputeNodeNode,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 
 IF (myComputeNodeRank.EQ.0) THEN
   ! Arrays for the compute node to hold the node offsets
-  ALLOCATE(displsNode(   0:nLeaderGroupProcs-1),&
-           recvcountNode(0:nLeaderGroupProcs-1))
+  ALLOCATE(displsNode(   0:nLeaderGroupProcs-1), recvcountNode(0:nLeaderGroupProcs-1))
   displsNode(myLeaderGroupRank) = offsetComputeNodeNode
   CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsNode,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
   DO iProc=1,nLeaderGroupProcs-1
@@ -773,10 +764,9 @@ CALL BARRIER_AND_SYNC(NodeCoords_Shared_Win,MPI_COMM_SHARED)
 nUniqueGlobalNodes = MAXVAL(NodeInfo_Shared)
 SDEALLOCATE(SideInfo_Shared_tmp)
 
-EndT=PICLASTIME()
+GETTIME(EndT)
 CommMeshReadinWallTime=EndT-StartT
-LBWRITE(UNIT_stdOut,'(A,F0.3,A)')' DONE  [',CommMeshReadinWallTime,'s]'
-LBWRITE(UNIT_stdOut,'(132("."))')
+CALL DisplayMessageAndTime(CommMeshReadinWallTime, 'DONE!')
 
 END SUBROUTINE FinishCommunicateMeshReadin
 
