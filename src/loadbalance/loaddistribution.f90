@@ -170,6 +170,7 @@ USE MOD_Restart_Vars     ,ONLY: RestartFile
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars ,ONLY: offsetElemMPIOld
 USE MOD_Particle_Vars    ,ONLY: PartInt
+USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -209,6 +210,8 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   DO iProc = 0,nProcessors-1
     ElemPerProc(iProc) = offsetElemMPIOld(iProc+1) - offsetElemMPIOld(iProc)
   END DO
+  ! Sanity check
+  IF(.NOT.ALLOCATED(PartInt)) CALL abort(__STAMP__,'PartInt is not allocated') ! Missing call to FillParticleData()
   CALL MPI_GATHERV(PartInt,nElemsOld,MPI_DOUBLE_PRECISION,PartIntGlob,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
   PartIntExists = .TRUE.
 ELSE
