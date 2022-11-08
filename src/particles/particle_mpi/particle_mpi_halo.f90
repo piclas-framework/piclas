@@ -126,7 +126,6 @@ WRITE(hilf,'(A)') 'IDENTIFYING Particle Exchange Processors ...'
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' '//TRIM(hilf)
 GETTIME(StartT)
-StartT=MPI_WTIME()
 
 ! Allocate arrays
 ALLOCATE(GlobalProcToExchangeProc(EXCHANGE_PROC_SIZE,0:nProcessors_Global-1))

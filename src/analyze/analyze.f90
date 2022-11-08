@@ -1298,8 +1298,7 @@ IF(DoPerformErrorCalc)THEN
     END IF ! DoMeasureAnalyzeTime
     IF (OutputTime.GT.0.) THEN
       WRITE(UNIT_StdOut,'(132("."))')
-      WRITE(UNIT_stdOut,'(A,A,A,F14.2,A)') ' PICLAS RUNNING ',TRIM(ProjectName),'... [',StartAnalyzeTime-StartTime,' sec ]'
-      WRITE(UNIT_StdOut,'(132("-"))')
+      CALL DisplayMessageAndTime(StartAnalyzeTime-StartTime, 'PICLAS RUNNING '//TRIM(ProjectName)//'... ', DisplayDespiteLB=.TRUE.)
     ELSE
       WRITE(UNIT_StdOut,'(132("="))')
     END IF

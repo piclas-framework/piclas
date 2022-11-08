@@ -1147,28 +1147,6 @@ DO iMom=1,iMomDim
 END DO
 #endif /* CODE_ANALYZE */
 
-associate( iPart1 => ReactInx(1), iPart2 => ReactInx(2))
-  IF(ANY(ISNAN(PartState(:,iPart1))))THEN
-    IPWRITE(UNIT_StdOut,*) "after eight "
-    IPWRITE(UNIT_StdOut,*) "iPart1,PartState(:,iPart1) =", iPart1,PartState(:,iPart1)
-    CALL abort(__STAMP__,'after 8')
-  END IF ! ANY(ISNAN(PartState(:,iPart1)))
-  IF(ANY(ISNAN(PartState(:,iPart2))))THEN
-    IPWRITE(UNIT_StdOut,*) "after eight "
-    IPWRITE(UNIT_StdOut,*) "iPart2,PartState(:,iPart2) =", iPart2,PartState(:,iPart2)
-    CALL abort(__STAMP__,'after 8')
-  END IF ! ANY(ISNAN(PartState(:,iPart2)))
-END ASSOCIATE
-
-IF(ProductReac(3).NE.0)THEN
-IF(ANY(ISNAN(PartState(:,ReactInx(3)))))THEN
-  IPWRITE(UNIT_StdOut,*) "AFTER "
-  IPWRITE(UNIT_StdOut,*) "ReactInx(3),PartState(:,ReactInx(3)) =", ReactInx(3),PartState(:,ReactInx(3))
-    CALL abort(__STAMP__,'after 3')
-END IF ! ANY(ISNAN(PartState(:,ReactInx(3))))
-
-END IF ! ProductReac(3).EQ.0
-
 END SUBROUTINE DSMC_Chemistry
 
 
