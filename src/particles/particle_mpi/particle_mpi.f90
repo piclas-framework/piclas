@@ -359,17 +359,18 @@ DO iPart=1,PDM%ParticleVecLength
   ! Particle on local proc, do nothing
   IF (ProcID.EQ.myRank) CYCLE
 
-  ! Sanity check (fails here if halo region is too small)
+  ! Sanity check (fails here if halo region is too small or particle is over speed of light because the time step is too large)
   IF(GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0)THEN
     IPWRITE (*,*) "GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) =", GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
     IPWRITE (*,*) "ProcID                                              =", ProcID
+    IPWRITE (*,*) "global ElemID                                       =", ElemID
+    IPWRITE(UNIT_StdOut,'(I12,A,3(ES25.14E3))') " PartState(1:3,iPart)          =", PartState(1:3,iPart)
     IPWRITE(UNIT_StdOut,'(I12,A,3(ES25.14E3))') " PartState(4:6,iPart)          =", PartState(4:6,iPart)
     IPWRITE(UNIT_StdOut,'(I12,A,ES25.14E3)')    " VECNORM(PartState(4:6,iPart)) =", VECNORM(PartState(4:6,iPart))
     IPWRITE(UNIT_StdOut,'(I12,A,ES25.14E3)')    " halo_eps_velo                 =", halo_eps_velo
-    CALL abort(&
-    __STAMP__&
-    ,'Error: GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) is negative. '//&
-     'The halo region might be too small. Try increasing Particles-HaloEpsVelo!')
+    CALL abort(__STAMP__,'Error: GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) is negative. '//&
+                         'The halo region might be too small. Try increasing Particles-HaloEpsVelo! '//&
+                         'If this does not help, then maybe the time step is too big. Try reducing ManualTimeStep!')
   END IF ! GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0
 
   ! Add particle to target proc count
