@@ -1214,7 +1214,7 @@ days = ElapsedTime
 
 ! Output message
 IF(LocalRoot.AND.((.NOT.PerformLoadBalance).OR.DisplayDespiteLBLoc))THEN
-  WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' '//TRIM(Message)//' [',ElapsedTime,' sec ]'
+  WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' '//TRIM(Message)//' [',ElapsedTimeIn,' sec ]'
   WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
   IF(DisplayLineLoc) WRITE(UNIT_StdOut,'(132("-"))')
 END IF ! LocalRoot.AND.((.NOT.PerformLoadBalance).OR.DisplayDespiteLBLoc)
