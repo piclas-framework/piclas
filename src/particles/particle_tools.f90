@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -41,6 +41,10 @@ INTERFACE isPushParticle
   MODULE PROCEDURE isPushParticle
 END INTERFACE
 
+INTERFACE InRotRefFrameCheck
+  MODULE PROCEDURE InRotRefFrameCheck
+END INTERFACE
+
 INTERFACE isDepositParticle
   MODULE PROCEDURE isDepositParticle
 END INTERFACE
@@ -61,6 +65,7 @@ END INTERFACE
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
 PUBLIC :: CalcXiElec,ParticleOnProc,  CalcERot_particle, CalcEVib_particle, CalcEElec_particle, CalcVelocity_maxwell_particle
+PUBLIC :: InRotRefFrameCheck
 !===================================================================================================================================
 
 CONTAINS
@@ -90,7 +95,7 @@ LOGICAL, OPTIONAL         :: WithOutMPIParts
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: counter,i,n
+INTEGER            :: counter,i
 INTEGER            :: ElemID
 #if USE_LOADBALANCE
 REAL               :: tLBStart
@@ -107,24 +112,24 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
 END IF
 
 PDM%ParticleVecLengthOld = PDM%ParticleVecLength
-n                        = PDM%ParticleVecLength
 counter                  = 0
 PDM%ParticleVecLength    = 0
 
 ! Check size of PDM%ParticleInside array vs. PDM%ParticleVecLength. During particle splitting, the max particle number might be
 ! exceeded, which may lead to an out-of-bounds here
 IF(usevMPF)THEN
-  IF(n.GT.SIZE(PDM%ParticleInside))THEN
-    IPWRITE(UNIT_StdOut,*) "PDM%ParticleVecLength    :", PDM%ParticleVecLength
+  IF(PDM%ParticleVecLengthOld.GT.SIZE(PDM%ParticleInside))THEN
+    IPWRITE(UNIT_StdOut,*) "PDM%ParticleVecLength    :", PDM%ParticleVecLengthOld
     IPWRITE(UNIT_StdOut,*) "SIZE(PDM%ParticleInside) :", SIZE(PDM%ParticleInside)
-    CALL abort(__STAMP__,'PDM%ParticleVecLength exceeds allocated arrays. Possible vMPF overflow.')
-  END IF ! n.GT.SIZE(PDM%ParticleInside)
+    CALL abort(__STAMP__,'PDM%ParticleVecLength exceeds allocated arrays. Possible vMPF overflow during particle split or '//&
+                         'restart file with too many particles. Increase Part-maxParticleNumber or use more processors')
+  END IF ! PDM%ParticleVecLengthOld.GT.SIZE(PDM%ParticleInside)
 END IF ! usevMPF
 
 IF (doParticleMerge) vMPF_SpecNumElem = 0
 
 IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
-  DO i = 1,n
+  DO i = 1,PDM%ParticleVecLengthOld
     IF (.NOT.PDM%ParticleInside(i)) THEN
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
       counter = counter + 1
@@ -179,7 +184,7 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
   END DO
 ! no DSMC
 ELSE
-  DO i = 1,n
+  DO i = 1,PDM%ParticleVecLengthOld
     IF (.NOT.PDM%ParticleInside(i)) THEN
       counter = counter + 1
       PDM%nextFreePosition(counter) = i
@@ -203,7 +208,7 @@ ENDIF
 PDM%CurrentNextFreePosition = 0
 
 ! Positions after ParticleVecLength in freePosition
-DO i = n+1,PDM%maxParticleNumber
+DO i = PDM%ParticleVecLengthOld+1,PDM%maxParticleNumber
   IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
   counter = counter + 1
   PDM%nextFreePosition(counter) = i
@@ -271,18 +276,14 @@ ASSOCIATE( iMax => PartStateLostVecLength )
 
     ! --- PartStateLost ---
     ALLOCATE(PartStateLost_tmp(1:PartLostDataSize,1:dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-          __STAMP__&
-          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost_tmp temporary array!')
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost_tmp array!')
     ! Save old data
     PartStateLost_tmp(1:PartLostDataSize,1:dims(2)) = PartStateLost(1:PartLostDataSize,1:dims(2))
 
     ! Re-allocate PartStateLost to twice the size
     DEALLOCATE(PartStateLost)
     ALLOCATE(PartStateLost(1:PartLostDataSize,1:2*dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-          __STAMP__&
-          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost array!')
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateLost array!')
     PartStateLost(1:PartLostDataSize,        1:  dims(2)) = PartStateLost_tmp(1:PartLostDataSize,1:dims(2))
     PartStateLost(1:PartLostDataSize,dims(2)+1:2*dims(2)) = 0.
 
@@ -390,6 +391,18 @@ CASE('deltadistribution')
   VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
   ! Set magnitude
   VeloFromDistribution = Tempergy*VeloFromDistribution ! Tempergy here is [m/s]
+
+CASE('uniform-energy')
+
+  ! Get random vector
+  VeloFromDistribution = DiceUnitVector()
+  ! Mirror z-component of velocity (particles are emitted from surface!)
+  VeloFromDistribution(3) = ABS(VeloFromDistribution(3))
+  ! Set uniform energy distribution. Note that Tempergy here is [eV], which is converted from eV to J
+  CALL RANDOM_NUMBER(RandVal) ! random value between 0 and 1.
+  VeloABS = SQRT(2.0 * RandVal * Tempergy * eV2Joule / ElectronMass)
+  ! Set magnitude
+  VeloFromDistribution = VeloABS*VeloFromDistribution
 
 CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardment on dielectric surfaces
 
@@ -582,6 +595,37 @@ ELSE
 END IF ! ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0
 END FUNCTION isPushParticle
 
+PPURE FUNCTION InRotRefFrameCheck(iPart)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Check if particle is in a rotating frame of reference region.
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Particle_Vars ,ONLY: PartState,RotRefFramRegion,RotRefFrameAxis,nRefFrameRegions
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN)  :: iPart
+LOGICAL             :: InRotRefFrameCheck
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iRegion
+!===================================================================================================================================
+
+IF(nRefFrameRegions.GT.0) THEN
+  InRotRefFrameCheck = .FALSE.
+  DO iRegion = 1, nRefFrameRegions
+    IF((PartState(RotRefFrameAxis,iPart).GT.RotRefFramRegion(1,iRegion)).AND. &
+       (PartState(RotRefFrameAxis,iPart).LT.RotRefFramRegion(2,iRegion))) THEN
+      InRotRefFrameCheck = .TRUE.
+      EXIT
+    END IF
+  END DO
+ELSE
+  InRotRefFrameCheck = .TRUE.
+END IF
+
+END FUNCTION InRotRefFrameCheck
 
 PPURE FUNCTION isDepositParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!

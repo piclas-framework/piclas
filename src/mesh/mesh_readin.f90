@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -55,11 +55,14 @@ SUBROUTINE ReadBCs()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars   ,ONLY: BoundaryName,BoundaryType,nBCs,nUserBCs
+USE MOD_Mesh_Vars        ,ONLY: BoundaryName,BoundaryType,nBCs,nUserBCs
 #if USE_HDG
-USE MOD_Mesh_Vars   ,ONLY: ChangedPeriodicBC
+USE MOD_Mesh_Vars        ,ONLY: ChangedPeriodicBC
 #endif /*USE_HDG*/
-USE MOD_ReadInTools ,ONLY: GETINTARRAY,CountOption,GETSTR
+USE MOD_ReadInTools      ,ONLY: GETINTARRAY,CountOption,GETSTR
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -69,9 +72,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL,ALLOCATABLE            :: UserBCFound(:)
+LOGICAL                        :: NameCheck,LengthCheck
 CHARACTER(LEN=255),ALLOCATABLE :: BCNames(:)
 INTEGER, ALLOCATABLE           :: BCMapping(:),BCType(:,:)
-INTEGER                        :: iBC,iUserBC
+INTEGER                        :: iBC,iUserBC,OriginalBC,NewBC
 INTEGER                        :: Offset=0 ! Every process reads all BCs
 !===================================================================================================================================
 ! read in boundary conditions from ini file, will overwrite BCs from meshfile!
@@ -102,20 +106,25 @@ END ASSOCIATE
 ! User may have redefined boundaries in the ini file. So we have to create mappings for the boundaries.
 BCMapping=0
 UserBCFound=.FALSE.
-IF(nUserBCs .GT. 0)THEN
+IF(nUserBCs.GT.0)THEN
   DO iBC=1,nBCs
     DO iUserBC=1,nUserBCs
-      IF(INDEX(TRIM(BCNames(iBC)),TRIM(BoundaryName(iUserBC))).NE.0)THEN
+      ! Check if BoundaryName(iUserBC) is a substring of BCNames(iBC)
+      NameCheck = INDEX(TRIM(BCNames(iBC)),TRIM(BoundaryName(iUserBC))).NE.0
+      ! Check if both strings have equal length
+      LengthCheck = LEN(TRIM(BCNames(iBC))).EQ.LEN(TRIM(BoundaryName(iUserBC)))
+      ! Check if both strings are equal (length has to be checked because index checks for substrings!)
+      IF(NameCheck.AND.LengthCheck)THEN
         BCMapping(iBC)=iUserBC
         UserBCFound(iUserBC)=.TRUE.
-      END IF
+      END IF ! NameCheck.AND.LengthCheck
     END DO
   END DO
 END IF
+
+! Check if all BCs were found
 DO iUserBC=1,nUserBCs
-  IF(.NOT.UserBCFound(iUserBC)) CALL Abort(&
-__STAMP__&
-,'Boundary condition specified in parameter file has not been found: '//TRIM(BoundaryName(iUserBC)))
+  IF(.NOT.UserBCFound(iUserBC)) CALL Abort(__STAMP__,'Boundary condition in parameter file not found: '//TRIM(BoundaryName(iUserBC)))
 END DO
 DEALLOCATE(UserBCFound)
 
@@ -136,27 +145,25 @@ END ASSOCIATE
 ChangedPeriodicBC=.FALSE. ! set true if BCs are changed from periodic to non-periodic
 #endif /*USE_HDG*/
 IF(nUserBCs .GT. 0)THEN
+  LBWRITE(Unit_StdOut,'(A)')' REMAPPING BOUNDARY CONDITIONS...'
   DO iBC=1,nBCs
-    IF(BCMapping(iBC) .NE. 0)THEN
+    IF(BCMapping(iBC).NE.0)THEN
+      ! Compare new and original BC type (from mesh file)
+      OriginalBC = BoundaryType(BCMapping(iBC),1)
+      NewBC      = BCType(1,iBC)
       ! non-periodic to periodic
-      IF((BoundaryType(BCMapping(iBC),1).EQ.1).AND.(BCType(1,iBC).NE.1)) CALL abort(&
-          __STAMP__&
-          ,'Remapping non-periodic to periodic BCs is not possible!')
+      IF((OriginalBC.EQ.1).AND.(NewBC.NE.1)) CALL abort(__STAMP__,'Remapping non-periodic to periodic BCs is not possible!')
 #if USE_HDG
       ! periodic to non-periodic
-      IF((BCType(1,iBC).EQ.1).AND.(BoundaryType(BCMapping(iBC),1).NE.1))THEN
+      IF((NewBC.EQ.1).AND.(OriginalBC.NE.1))THEN
         ChangedPeriodicBC=.TRUE.
-        ! Currently, remapping periodic to non-periodic BCs is not allowed. In the future, implement nGlobalUniqueSides
-        ! determination.
-        CALL abort(&
-        __STAMP__&
-        ,'Remapping periodic to non-periodic BCs is currently not possible for HDG because this changes nGlobalUniqueSides!')
+        ! Currently, remapping periodic to non-periodic BCs is not allowed. TODO: implement nGlobalUniqueSides determination.
+        CALL abort(__STAMP__,'Remapping periodic to non-periodic BCs is currently not possible for HDG (changes nGlobalUniqueSides)')
       END IF
 #endif /*USE_HDG*/
       ! Output
-      SWRITE(Unit_StdOut,'(A,A)')    ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC))
-      SWRITE(Unit_StdOut,'(A,I8,I8)')' |                            was | ',BCType(1,iBC),BCType(3,iBC)
-      SWRITE(Unit_StdOut,'(A,I8,I8)')' |                      is set to | ',BoundaryType(BCMapping(iBC),1:2)
+      LBWRITE(Unit_StdOut,'(A,A50,A,I4,I4,A,I4,I4)') ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC)), &
+                                      ' was ', NewBC,BCType(3,iBC), ' is set to ',BoundaryType(BCMapping(iBC),1:2)
       BCType(1,iBC) = BoundaryType(BCMapping(iBC),BC_TYPE)
       BCType(3,iBC) = BoundaryType(BCMapping(iBC),BC_STATE)
     END IF
@@ -170,12 +177,12 @@ BoundaryName = BCNames
 BoundaryType(:,BC_TYPE)  = BCType(1,:)
 BoundaryType(:,BC_STATE) = BCType(3,:)
 BoundaryType(:,BC_ALPHA) = BCType(4,:)
-SWRITE(UNIT_StdOut,'(132("."))')
-SWRITE(Unit_StdOut,'(A,A15,A20,A10,A10,A10)')' BOUNDARY CONDITIONS','|','Name','Type','State','Alpha'
+LBWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(Unit_StdOut,'(A,A15,A20,A10,A10,A10)')' BOUNDARY CONDITIONS','|','Name','Type','State','Alpha'
 DO iBC=1,nBCs
-  SWRITE(*,'(A,A33,A20,I10,I10,I10)')' |','|',TRIM(BoundaryName(iBC)),BoundaryType(iBC,:)
+  LBWRITE(*,'(A,A33,A20,I10,I10,I10)')' |','|',TRIM(BoundaryName(iBC)),BoundaryType(iBC,:)
 END DO
-SWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(UNIT_StdOut,'(132("."))')
 DEALLOCATE(BCNames,BCType,BCMapping)
 END SUBROUTINE ReadBCs
 
@@ -220,8 +227,13 @@ USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem,nTracksPerElem,nPartsPerBCElem,nSurfacefluxPerElem
+! Restart without HDF5
+USE MOD_Particle_Mesh_Vars   ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 #endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance,offsetElemMPIOld
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -257,38 +269,52 @@ REAL, ALLOCATABLE              :: GlobVarTimeStep(:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================
 IF(MESHInitIsDone) RETURN
-IF(MPIRoot)THEN
-  IF(.NOT.FILEEXISTS(FileString))  CALL abort(&
-__STAMP__ &
-,'readMesh from data file "'//TRIM(FileString)//'" does not exist')
+
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  IF(MPIRoot) THEN
+    IF(.NOT.FILEEXISTS(FileString))  CALL Abort(__STAMP__,'readMesh from data file "'//TRIM(FileString)//'" does not exist')
+  END IF
+  SWRITE(UNIT_stdOut,'(132("-"))')
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO")' READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
+  GETTIME(StartT)
+
+  ! Get ElemInfo from Mesh file
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
+  CALL ReadAttribute(File_ID,'nUniqueSides',1,IntScalar=nGlobalUniqueSidesFromMesh)
+  CALL ReadAttribute(File_ID,'nSides',1,IntScalar=nNonUniqueGlobalSides)
+  CALL ReadAttribute(File_ID,'nNodes',1,IntScalar=nNonUniqueGlobalNodes)
+  CALL CloseDataFile()
+  ! INTEGER KIND=4 check for number of elements
+  CHECKSAFEINT(HSize(2),4)
+  nGlobalElems=INT(HSize(2),4) !global number of elements
+  ! INTEGER KIND=4 check for number of nodes
+  CHECKSAFEINT(8_8*INT(nGlobalElems,8),4)
+  DEALLOCATE(HSize)
+  IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
+      ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
+  GETTIME(EndT)
+  ReadMeshWallTime=EndT-StartT
+  CALL DisplayMessageAndTime(ReadMeshWallTime, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+#if defined(PARTICLES) && USE_LOADBALANCE
 END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 
-SWRITE(UNIT_stdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO")' READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
+#if USE_LOADBALANCE
+IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+  SDEALLOCATE(offsetElemMPIOld)
+  ALLOCATE(   offsetElemMPIOld(0:nProcessors))
+  offsetElemMPIOld = offsetElemMPI
+END IF
+#endif /*USE_LOADBALANCE*/
+
 #if USE_MPI
-StartT=MPI_WTIME()
-#else
-CALL CPU_TIME(StartT)
-#endif
-
-! Get ElemInfo from Mesh file
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-CALL GetDataSize(File_ID,'ElemInfo',nDims,HSize)
-CALL ReadAttribute(File_ID,'nUniqueSides',1,IntScalar=nGlobalUniqueSidesFromMesh)
-CALL ReadAttribute(File_ID,'nSides',1,IntScalar=nNonUniqueGlobalSides)
-CALL ReadAttribute(File_ID,'nNodes',1,IntScalar=nNonUniqueGlobalNodes)
-CALL CloseDataFile()
-! INTEGER KIND=4 check for number of elements
-CHECKSAFEINT(HSize(2),4)
-nGlobalElems=INT(HSize(2),4) !global number of elements
-! INTEGER KIND=4 check for number of nodes
-CHECKSAFEINT(8_8*INT(nGlobalElems,8),4)
-DEALLOCATE(HSize)
-IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
-    ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
-EndT=PICLASTIME()
-ReadMeshWallTime=EndT-StartT
-SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DONE  [',ReadMeshWallTime,'s]'
+SDEALLOCATE(offsetElemMPI)
+ALLOCATE(   offsetElemMPI(0:nProcessors))
+offsetElemMPI = 0
+#endif /*USE_MPI*/
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              DOMAIN DECOMPOSITION
@@ -352,8 +378,14 @@ IF(VarTimeStep%UseDistribution) THEN
 END IF
 #endif
 
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-CALL ReadBCs()
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL ReadBCs()
+#if defined(PARTICLES) && USE_LOADBALANCE
+END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------
 !                              ELEMENTS
 !----------------------------------------------------------------------------------------------------------------------------
@@ -369,7 +401,15 @@ ASSOCIATE (&
       ElemInfoSize => INT(ELEMINFOSIZE_H5,IK) ,&
       nElems       => INT(nElems,IK)       ,&
       offsetElem   => INT(offsetElem,IK)  )
-  CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray_i4=ElemInfo(1:ElemInfoSize,:))
+#if defined(PARTICLES) && USE_LOADBALANCE
+  IF (PerformLoadBalance) THEN
+    ElemInfo(1:ElemInfoSize,:) = ElemInfo_Shared(1:ElemInfoSize,offsetElem+1:offsetElem+nElems)
+  ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+    CALL ReadArray('ElemInfo',2,(/ElemInfoSize,nElems/),offsetElem,2,IntegerArray_i4=ElemInfo(1:ElemInfoSize,:))
+#if defined(PARTICLES) && USE_LOADBALANCE
+  END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 END ASSOCIATE
 
 DO iElem=FirstElemInd,LastElemInd
@@ -418,7 +458,16 @@ ASSOCIATE (&
       SideInfoSize   => INT(SIDEINFOSIZE_H5,IK)   ,&
       nSideIDs       => INT(nSideIDs,IK)       ,&
       offsetSideID   => INT(offsetSideID,IK)  )
-  CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo(1:SideInfoSize,:))
+#if defined(PARTICLES) && USE_LOADBALANCE
+  IF (PerformLoadBalance) THEN
+    SideInfo(1:SideInfoSize,:) = SideInfo_Shared(1:SideInfoSize,offsetSideID+1:offsetSideID+nSideIDs)
+  ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+    CALL ReadArray('SideInfo',2,(/SideInfoSize,nSideIDs/),offsetSideID,2,IntegerArray_i4=SideInfo(1:SideInfoSize,:))
+    CALL CloseDataFile()
+#if defined(PARTICLES) && USE_LOADBALANCE
+  END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 END ASSOCIATE
 
 #ifdef PARTICLES
@@ -576,26 +625,47 @@ CALL ReadMeshNodes()
 #endif
 
 ! get physical coordinates
-CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) &
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+  CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
 IF(useCurveds)THEN
   ALLOCATE(NodeCoords(3,0:NGeo,0:NGeo,0:NGeo,nElems))
-  CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoords)
+#if defined(PARTICLES) && USE_LOADBALANCE
+  IF (PerformLoadBalance) THEN
+    NodeCoords = RESHAPE(NodeCoords_Shared(1:3,(NGeo+1)**3*offsetElem+1:(NGeo+1)**3*(offsetElem+nElems)),(/3,NGeo+1,NGeo+1,NGeo+1,nElems/))
+  ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+    CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoords)
+#if defined(PARTICLES) && USE_LOADBALANCE
+  END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 ELSE
   ALLOCATE(NodeCoords(   3,0:1,   0:1,   0:1,   nElems))
-  ALLOCATE(NodeCoordsTmp(3,0:NGeo,0:NGeo,0:NGeo,nElems))
-  ! read all nodes
-  CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoordsTmp)
-  ! throw away all nodes except the 8 corner nodes of each hexa
-  NodeCoords(:,0,0,0,:)=NodeCoordsTmp(:,0,   0,   0,   :)
-  NodeCoords(:,1,0,0,:)=NodeCoordsTmp(:,NGeo,0,   0,   :)
-  NodeCoords(:,0,1,0,:)=NodeCoordsTmp(:,0,   NGeo,0,   :)
-  NodeCoords(:,1,1,0,:)=NodeCoordsTmp(:,NGeo,NGeo,0,   :)
-  NodeCoords(:,0,0,1,:)=NodeCoordsTmp(:,0,   0,   NGeo,:)
-  NodeCoords(:,1,0,1,:)=NodeCoordsTmp(:,NGeo,0,   NGeo,:)
-  NodeCoords(:,0,1,1,:)=NodeCoordsTmp(:,0,   NGeo,NGeo,:)
-  NodeCoords(:,1,1,1,:)=NodeCoordsTmp(:,NGeo,NGeo,NGeo,:)
-  DEALLOCATE(NodeCoordsTmp)
-  NGeo=1 ! linear mesh; set polynomial degree of geometry to 1
+#if defined(PARTICLES) && USE_LOADBALANCE
+  IF (PerformLoadBalance) THEN
+    NGeo       = 1 ! linear mesh; set polynomial degree of geometry to 1
+    NodeCoords = RESHAPE(NodeCoords_Shared(1:3,8*offsetElem+1:8*(offsetElem+nElems)),(/3,NGeo+1,NGeo+1,NGeo+1,nElems/))
+  ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+    ALLOCATE(NodeCoordsTmp(3,0:NGeo,0:NGeo,0:NGeo,nElems))
+    ! read all nodes
+    CALL ReadArray('NodeCoords',2,(/3_IK,INT(nElems*(NGeo+1)**3,IK)/),INT(offsetElem*(NGeo+1)**3,IK),2,RealArray=NodeCoordsTmp)
+    ! throw away all nodes except the 8 corner nodes of each hexa
+    NodeCoords(:,0,0,0,:)=NodeCoordsTmp(:,0,   0,   0,   :)
+    NodeCoords(:,1,0,0,:)=NodeCoordsTmp(:,NGeo,0,   0,   :)
+    NodeCoords(:,0,1,0,:)=NodeCoordsTmp(:,0,   NGeo,0,   :)
+    NodeCoords(:,1,1,0,:)=NodeCoordsTmp(:,NGeo,NGeo,0,   :)
+    NodeCoords(:,0,0,1,:)=NodeCoordsTmp(:,0,   0,   NGeo,:)
+    NodeCoords(:,1,0,1,:)=NodeCoordsTmp(:,NGeo,0,   NGeo,:)
+    NodeCoords(:,0,1,1,:)=NodeCoordsTmp(:,0,   NGeo,NGeo,:)
+    NodeCoords(:,1,1,1,:)=NodeCoordsTmp(:,NGeo,NGeo,NGeo,:)
+    DEALLOCATE(NodeCoordsTmp)
+    NGeo=1 ! linear mesh; set polynomial degree of geometry to 1
+#if defined(PARTICLES) && USE_LOADBALANCE
+  END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 ENDIF
 
 CALL CloseDataFile()
@@ -605,7 +675,6 @@ CALL CloseDataFile()
 CALL StartCommunicateMeshReadin()
 #endif
 
-DEALLOCATE(ElemInfo,SideInfo)
 ! Readin of mesh is now finished
 
 !----------------------------------------------------------------------------------------------------------------------------
@@ -734,26 +803,32 @@ CALL MPI_ALLREDUCE(MPI_IN_PLACE,ReduceData,11,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD
 nGlobalMortarSides=ReduceData(9)
 
 IF(MPIRoot)THEN
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nElems | ',ReduceData(1) !nElems
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, unique | ',ReduceData(3) !nNodes
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, total  | ',ReduceData(11) !nNodes
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides         | ',ReduceData(2)-ReduceData(7)/2
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,    BC  | ',ReduceData(6) !nBCSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,   MPI  | ',ReduceData(7)/2 !nMPISides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides, Inner  | ',ReduceData(4) !nInnerSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar  | ',nGlobalMortarSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Total | ',ReduceData(5)-ReduceData(10)/2
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Inner | ',ReduceData(5)-ReduceData(10)
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,  MPI | ',ReduceData(10)/2 !nPeriodicSides
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nAnalyzeSides | ',ReduceData(8) !nAnalyzeSides
-  WRITE(UNIT_stdOut,'(A,A34,L1)')' |','useCurveds | ',useCurveds
-  WRITE(UNIT_stdOut,'(A,A34,I0)')' |','Ngeo | ',Ngeo
-  WRITE(UNIT_stdOut,'(132("."))')
+#if USE_LOADBALANCE
+  IF(.NOT.PerformLoadBalance)THEN
+#endif /*USE_LOADBALANCE*/
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nElems | ',ReduceData(1) !nElems
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, unique | ',ReduceData(3) !nNodes
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, total  | ',ReduceData(11) !nNodes
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides         | ',ReduceData(2)-ReduceData(7)/2
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,    BC  | ',ReduceData(6) !nBCSides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,   MPI  | ',ReduceData(7)/2 !nMPISides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides, Inner  | ',ReduceData(4) !nInnerSides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar  | ',nGlobalMortarSides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Total | ',ReduceData(5)-ReduceData(10)/2
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Inner | ',ReduceData(5)-ReduceData(10)
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,  MPI | ',ReduceData(10)/2 !nPeriodicSides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nAnalyzeSides | ',ReduceData(8) !nAnalyzeSides
+    WRITE(UNIT_stdOut,'(A,A34,L1)')' |','useCurveds | ',useCurveds
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','Ngeo | ',Ngeo
+    WRITE(UNIT_stdOut,'(132("."))')
+#if USE_LOADBALANCE
+  END IF ! .NOT.PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 END IF
 
 LOGWRITE_BARRIER
 
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE ReadMesh
 
 

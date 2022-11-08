@@ -18,7 +18,8 @@ initialization regions are allowed if the species is already defined a backgroun
     Part-Species1-PartDensity = 1E+22
 
 Other species parameters such as mass, charge, temperature and velocity distribution for the background are also defined by the
-regular read-in parameters. Every time step particles are generated from the background gas (for a mixture, the species of the generated particle is chosen
+regular read-in parameters. A mixture as a background gas can be simulated by simply defining multiple background species. Every
+time step particles are generated from the background gas (for a mixture, the species of the generated particle is chosen
 based on the species composition) and paired with the particle species. Subsequently, the collision probabilities are calculated
 using the conventional DSMC routines and the VHS cross-section model. Afterwards, the collision process is performed (if the
 probability is greater than a random number) and it is tested whether additional energy exchange and chemical reactions occur.
@@ -26,18 +27,45 @@ While the VHS model is sufficient to model collisions between neutral species, i
 neutral-electron interaction. For this purpose, the cross-section based collision probabilities should be utilized, which are
 discussed in the following section.
 
-A spatially varying background gas distribution may be used by running a pure DSMC simulation beforehand and using a time-averaged
+## Distribution from DSMC result
+
+A spatially varying background gas distribution may be used by running a stand-alone DSMC simulation beforehand and using a time-averaged
 DSMC state file (*PROJECT_DSMCState_\*.h5*) as input for the actual simulation by setting
 
     Particles-BGGas-UseDistribution              = T
     Particles-MacroscopicRestart-Filename        = DSMCResult.h5
-    Part-SpeciesX-InitX-DistributionSpeciesIndex = 1
+    Part-SpeciesX-InitX-BGG-Distribution-SpeciesIndex = 1
 
 where the first parameter activates the background gas distribution and the second parameter supplies the relative path to the file
 from which the background gas density, velocity and temperature field is read (cell-constant values).
 The third parameter defines which species index within the DSMC file is to be used as it may contain multiple species.
 
-A mixture as a background gas can be simulated by simply defining multiple background species. If the number densities of the background gas species differ greatly and a specific background species is of interest (or the interaction with it) that has a lower number density compared to the other background species, it can be defined as a so-called trace species as shown below.
+## Regions
+
+Another possibility to define a non-constant background gas is available through the definition of regions. Multiple regions defined
+by simple geometrical volumes (e.g. cylinder) can be mapped to different species. First, one or more regions are defined:
+
+    Particles-BGGas-nRegions                  = 1
+    Particles-BGGas-Region1-Type              = cylinder
+    Particles-BGGas-Region1-RadiusIC          = 5E-6
+    Particles-BGGas-Region1-CylinderHeightIC  = 5E-6
+    Particles-BGGas-Region1-BasePointIC       = (/0.,0.,0./)
+    Particles-BGGas-Region1-BaseVector1IC     = (/1.,0.,0./)
+    Particles-BGGas-Region1-BaseVector2IC     = (/0.,1.,0./)
+
+Here, a cylinder is defined by two base vectors (from which a normal is determined for the direction of the cylinder height),
+basepoint, radius and cylinder height. The definition of the species is the same as described above, with the addition of an
+additional parameter, defining in which region, these properties should be applied to:
+
+    Part-Species1-Init1-BGG-Region            = 1
+
+While a species can be part of different regions through multiple inits and multiple species can be part of a single region,
+overlapping regions are not allowed. Whether an element is within a region is determined through the midpoint of the element and
+thus it does not have to be fully enveloped.
+
+## Trace species
+
+If the number densities of the background gas species differ greatly and a specific background species is of interest (or the interaction with it) that has a lower number density compared to the other background species, it can be defined as a so-called trace species as shown below.
 
     Part-vMPF                        = T
     Part-Species1-Init1-TraceSpecies = T

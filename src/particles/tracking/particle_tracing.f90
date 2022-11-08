@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -901,12 +901,6 @@ ELSE
   ! check if the side is a big mortar side
   NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
 
-#ifdef CODE_ANALYZE
-  WRITE(UNIT_stdout,'(30("-"))')
-  WRITE(UNIT_stdout,*) 'ElemID:',ElemID,'PartID',PartID,'SideID:',SideID,'Move rel. to Side:',DOT_PRODUCT(n_loc,PartTrajectory),'NbElemID:',NbElemID, 'PartElem (w/o refl.)', SinglePointToElement(PartState(1:3,PartID),doHalo=.TRUE.)
-  WRITE(UNIT_stdout,*) 'PartPos',PartState(1:3,PartID), 'PartVel:',PartState(4:6,PartID)
-#endif /* CODE_ANALYZE */
-
   IF (NbElemID.LT.0) THEN ! Mortar side
   nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
 
@@ -915,12 +909,12 @@ ELSE
       NbCNSideID = GetCNSideID(NbSideID)
       ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
       ! no way to recover it during runtime
-      IF (NbSideID.LT.1) CALL ABORT(__STAMP__,'Small mortar side not defined!',SideID + iMortar)
+      IF (NbSideID.LT.1) CALL ABORT(__STAMP__,'Small mortar side not defined! SideID + iMortar=',SideID + iMortar)
 
-      NbElemID = SideInfo_Shared(SIDE_ELEMID,nbSideID)
+      NbElemID = SideInfo_Shared(SIDE_ELEMID,NbSideID)
       ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
       ! no way to recover it during runtime
-      IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined!',ElemID)
+      IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined! ElemID=',ElemID)
 
       ! BezierControlPoints are now built in cell local system. We are checking mortar sides, so everything is reversed
       ! locFlip = MERGE(0,MOD(SideInfo_Shared(SIDE_FLIP,nbSideID),10),SideInfo_Shared(SIDE_ID,nbSideID).GT.0)
@@ -952,10 +946,10 @@ ELSE
             dolocSide(iLocalSide) = .FALSE.
             EXIT
           END IF
-        END DO
+        END DO ! iLocalSide = 1,6
         RETURN
-      END IF
-    END DO
+      END IF ! isHit
+    END DO ! iMortar = 1,nMortarElems
 
     ! passed none of the mortar elements. Keep particle inside current element and warn
     IPWRITE(UNIT_stdOut,*) 'Boundary issue with inner mortar element', ElemID
@@ -963,9 +957,7 @@ ELSE
   ! regular side
   ELSE
     ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
-    IF (ElemID.LT.1) &
-      CALL abort(__STAMP__,'ERROR in SelectInterSectionType. No Neighbour Elem found!')
-!      CALL abort(__STAMP__,'ERROR in SelectInterSectionType. No Neighbour Elem found --> increase haloregion')
+    IF (ElemID.LT.1) CALL abort(__STAMP__,'ERROR in SelectInterSectionType. No Neighbour Elem found!')
 
     TrackInfo%CurrElem = ElemID
 
@@ -976,9 +968,9 @@ ELSE
         dolocSide(iLocalSide) = .FALSE.
         EXIT
       END IF
-    END DO
+    END DO ! iLocalSide = 1,6
 
-  END IF
+  END IF ! NbElemID.LT.0
 END IF
 
 END SUBROUTINE SelectInterSectionType

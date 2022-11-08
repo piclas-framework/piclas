@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2019 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -252,7 +252,7 @@ AxisVec2(1) = CoilInfo(iCoil)%LengthVector(2) * CoilInfo(iCoil)%AxisVec1(3) -&
 AxisVec2(2) = CoilInfo(iCoil)%LengthVector(3) * CoilInfo(iCoil)%AxisVec1(1) -&
     CoilInfo(iCoil)%LengthVector(1) * CoilInfo(iCoil)%AxisVec1(3)
 AxisVec2(3) = CoilInfo(iCoil)%LengthVector(1) * CoilInfo(iCoil)%AxisVec1(2) -&
-    CoilInfo(iCoil)%LengthVector(2) * CoilInfo(iCoil)%AxisVec1(1)              
+    CoilInfo(iCoil)%LengthVector(2) * CoilInfo(iCoil)%AxisVec1(1)
 ! Calculate the length of the axis vectors in order to get the normalized base vectors
 LengthAxisVec1 = SQRT(CoilInfo(iCoil)%AxisVec1(1)**2 + CoilInfo(iCoil)%AxisVec1(2)**2 +&
     CoilInfo(iCoil)%AxisVec1(3)**2)

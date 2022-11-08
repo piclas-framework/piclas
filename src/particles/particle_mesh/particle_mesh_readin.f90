@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -111,7 +111,7 @@ USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -123,11 +123,7 @@ IMPLICIT NONE
 
 #if USE_MPI
 #if USE_LOADBALANCE
-IF (PerformLoadBalance) THEN
-  ! Only update the mapping of element to rank
-  ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = myRank
-  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-ELSE
+IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
   ! allocate shared array for ElemInfo
   CALL Allocate_Shared((/ELEMINFOSIZE,nGlobalElems/),ElemInfo_Shared_Win,ElemInfo_Shared)
@@ -137,6 +133,9 @@ ELSE
   ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = myRank
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 #if USE_LOADBALANCE
+ELSEIF(UseH5IOLoadBalance)THEN
+  ElemInfo_Shared(ELEM_RANK        ,offsetElem+1:offsetElem+nElems) = myRank
+  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 END IF
 #endif /*USE_LOADBALANCE*/
 #endif  /*USE_MPI*/
@@ -237,7 +236,7 @@ IF (ElemID.EQ.0) THEN
   SideInfo_Shared_tmp(SideID) = 0
 ELSE
 #if USE_MPI
-  IF (ElemID.LE.offsetComputeNodeElem+1 .OR. ElemID.GT.offsetComputeNodeElem+nComputeNodeElems) THEN
+  IF (.NOT.ElementOnNode(ElemID)) THEN
     ! neighbour element is outside of compute-node
     SideInfo_Shared_tmp(SideID) = 2
   ELSE
@@ -424,7 +423,7 @@ ELSE
     ElemInfo_Shared(ELEM_LASTNODEIND ,iElem) = 8* iElem
     DO iNode = 1,8
       NodeCoords_Shared(:,8*(iElem-1) + iNode) = NodeCoords_indx(:,FirstNodeInd+CNS(iNode))
-      NodeInfo_Shared  (  8*(iElem-1) + iNode) = NodeInfoTmp(2,NodeInfo(FirstNodeInd+CNS(iNode)))
+      NodeInfo_Shared  (  8*(iElem-1) + iNode) = NodeInfoTmp(2,NodeInfo(FirstNodeInd+offsetNodeID+CNS(iNode)))
     END DO
   END DO
 
@@ -469,7 +468,7 @@ SUBROUTINE StartCommunicateMeshReadin()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars              ,ONLY: StartT
+USE MOD_Globals_Vars       ,ONLY: StartT
 USE MOD_Mesh_Vars
 USE MOD_Particle_Mesh_Vars
 #if USE_MPI
@@ -477,7 +476,7 @@ USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -494,11 +493,7 @@ INTEGER                        :: offsetNodeID!,nNodeIDs
 !===================================================================================================================================
 
 ! Start timer: finished in FinishCommunicateMeshReadin()
-#if USE_MPI
-StartT=MPI_WTIME()
-#else
-CALL CPU_TIME(StartT)
-#endif
+GETTIME(StartT)
 
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
@@ -519,17 +514,11 @@ nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo_Shared(ELE
 
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
-  ! Update SideInfo with new information
-  SideInfo_Shared(SIDE_NBELEMTYPE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
-  DEALLOCATE(SideInfo_Shared_tmp)
-  CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
-
   IF (myComputeNodeRank.EQ.0) THEN
-    SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO") ' Updating mesh on shared memory...'
+    LBWRITE(UNIT_stdOut,'(A)',ADVANCE="NO") ' Updating mesh on shared memory...'
 
     ! Arrays for the compute node to hold the elem offsets
-    ALLOCATE(displsElem(   0:nLeaderGroupProcs-1),&
-             recvcountElem(0:nLeaderGroupProcs-1))
+    ALLOCATE(displsElem(   0:nLeaderGroupProcs-1), recvcountElem(0:nLeaderGroupProcs-1))
     displsElem(myLeaderGroupRank) = offsetComputeNodeElem
     CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsElem,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
     DO iProc=1,nLeaderGroupProcs-1
@@ -544,8 +533,7 @@ IF (PerformLoadBalance) THEN
 
   IF (myComputeNodeRank.EQ.0) THEN
     ! Arrays for the compute node to hold the side offsets
-    ALLOCATE(displsSide(   0:nLeaderGroupProcs-1),&
-             recvcountSide(0:nLeaderGroupProcs-1))
+    ALLOCATE(displsSide(   0:nLeaderGroupProcs-1), recvcountSide(0:nLeaderGroupProcs-1))
     displsSide(myLeaderGroupRank) = offsetComputeNodeSide
     CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsSide,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
     DO iProc=1,nLeaderGroupProcs-1
@@ -554,11 +542,13 @@ IF (PerformLoadBalance) THEN
     recvcountSide(nLeaderGroupProcs-1) = nNonUniqueGlobalSides - displsSide(nLeaderGroupProcs-1)
 
     ! Gather mesh information in a non-blocking way
-    ALLOCATE(MPI_COMM_LEADERS_REQUEST(1:2))
-    CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared,ELEMINFOSIZE    *recvcountElem  &
-        ,ELEMINFOSIZE*displsElem     ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(1),IERROR)
-    CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,(SIDEINFOSIZE+1)*recvcountSide  &
-        ,(SIDEINFOSIZE+1)*displsSide ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(2),IERROR)
+    ALLOCATE(MPI_COMM_LEADERS_REQUEST(1))
+    ! ElemInfo_Shared only needs ELEM_RANK updated, performed in loadbalance_tools.f90
+    ! CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared,ELEMINFOSIZE       *recvcountElem  &
+    !     ,ELEMINFOSIZE*displsElem     ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(1),IERROR)
+    CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,(SIDEINFOSIZE+1)   *recvcountSide  &
+        ,(SIDEINFOSIZE+1)*displsSide ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(1),IERROR)
+
   END IF
 
   ! Broadcast compute node node offset on node
@@ -569,13 +559,12 @@ IF (PerformLoadBalance) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 
-SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO") ' Communicating mesh on shared memory...'
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE="NO") ' Communicating mesh on shared memory...'
 
 #if USE_MPI
 IF (myComputeNodeRank.EQ.0) THEN
   ! Arrays for the compute node to hold the elem offsets
-  ALLOCATE(displsElem(   0:nLeaderGroupProcs-1),&
-           recvcountElem(0:nLeaderGroupProcs-1))
+  ALLOCATE(displsElem(   0:nLeaderGroupProcs-1), recvcountElem(0:nLeaderGroupProcs-1))
   displsElem(myLeaderGroupRank) = offsetComputeNodeElem
   CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsElem,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
   DO iProc=1,nLeaderGroupProcs-1
@@ -590,8 +579,7 @@ CALL MPI_BCAST(offsetComputeNodeSide,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 
 IF (myComputeNodeRank.EQ.0) THEN
   ! Arrays for the compute node to hold the side offsets
-  ALLOCATE(displsSide(   0:nLeaderGroupProcs-1),&
-           recvcountSide(0:nLeaderGroupProcs-1))
+  ALLOCATE(displsSide(   0:nLeaderGroupProcs-1), recvcountSide(0:nLeaderGroupProcs-1))
   displsSide(myLeaderGroupRank) = offsetComputeNodeSide
   CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsSide,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
   DO iProc=1,nLeaderGroupProcs-1
@@ -606,17 +594,14 @@ CALL MPI_BCAST(offsetComputeNodeNode,1, MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 
 IF (myComputeNodeRank.EQ.0) THEN
   ! Arrays for the compute node to hold the node offsets
-  ALLOCATE(displsNode(   0:nLeaderGroupProcs-1),&
-           recvcountNode(0:nLeaderGroupProcs-1))
+  ALLOCATE(displsNode(   0:nLeaderGroupProcs-1), recvcountNode(0:nLeaderGroupProcs-1))
   displsNode(myLeaderGroupRank) = offsetComputeNodeNode
   CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsNode,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
   DO iProc=1,nLeaderGroupProcs-1
     recvcountNode(iProc-1) = displsNode(iProc)-displsNode(iProc-1)
   END DO
   recvcountNode(nLeaderGroupProcs-1) = nNonUniqueGlobalNodes - displsNode(nLeaderGroupProcs-1)
-END IF
 
-IF (myComputeNodeRank.EQ.0) THEN
   ! Gather mesh information in a non-blocking way
   ALLOCATE(MPI_COMM_LEADERS_REQUEST(1:4))
   CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared,ELEMINFOSIZE    *recvcountElem  &
@@ -663,18 +648,40 @@ INTEGER :: iLocSide,jLocSide,nlocSides,nlocSidesNb,NbSideID
 REAL    :: EndT
 !===================================================================================================================================
 
+#if USE_MPI
+! calculate all offsets
+FirstElemInd = offsetElem+1
+LastElemInd  = offsetElem+nElems
+offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND ,LastElemInd) - ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
+#else
+FirstElemInd = 1
+LastElemInd  = nElems
+offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
+#endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
   ! Finish non-blocking mesh communication
   IF (myComputeNodeRank.EQ.0) THEN
-    CALL MPI_WAITALL(2,MPI_COMM_LEADERS_REQUEST,MPI_STATUSES_IGNORE,IERROR)
+    CALL MPI_WAITALL(1,MPI_COMM_LEADERS_REQUEST,MPI_STATUSES_IGNORE,IERROR)
     DEALLOCATE(MPI_COMM_LEADERS_REQUEST)
   END IF
 
   ! final sync of all mesh shared arrays
   CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+  CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
+
+  ! Write compute-node local SIDE_NBELEMTYPE
+  IF (myComputeNodeRank.EQ.0) THEN
+    SideInfo_Shared(SIDE_NBELEMTYPE,:) = 0
+  END IF
+  CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
+
+  SideInfo_Shared(SIDE_NBELEMTYPE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
+  DEALLOCATE(SideInfo_Shared_tmp)
   CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
 
   RETURN
@@ -692,17 +699,6 @@ END IF
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
-
-! calculate all offsets
-FirstElemInd = offsetElem+1
-LastElemInd  = offsetElem+nElems
-offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
-nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND ,LastElemInd) - ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
-#else
-FirstElemInd = 1
-LastElemInd  = nElems
-offsetSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
-nSideIDs     = ElemInfo_Shared(ELEM_LASTSIDEIND,LastElemInd)-ElemInfo_Shared(ELEM_FIRSTSIDEIND,FirstElemInd)
 #endif /*USE_MPI*/
 
 DO iElem = FirstElemInd,LastElemInd
@@ -752,6 +748,10 @@ END IF
 ! Write compute-node local SIDE_NBELEMTYPE
 CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
 
+IF (myComputeNodeRank.EQ.0) THEN
+  SideInfo_Shared(SIDE_NBELEMTYPE,:) = 0
+END IF
+CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
 SideInfo_Shared(SIDE_NBELEMTYPE,offsetSideID+1:offsetSideID+nSideIDs) = SideInfo_Shared_tmp
 
 ! final sync of all mesh shared arrays
@@ -764,10 +764,9 @@ CALL BARRIER_AND_SYNC(NodeCoords_Shared_Win,MPI_COMM_SHARED)
 nUniqueGlobalNodes = MAXVAL(NodeInfo_Shared)
 SDEALLOCATE(SideInfo_Shared_tmp)
 
-EndT=PICLASTIME()
+GETTIME(EndT)
 CommMeshReadinWallTime=EndT-StartT
-SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DONE  [',CommMeshReadinWallTime,'s]'
-SWRITE(UNIT_stdOut,'(132("."))')
+CALL DisplayMessageAndTime(CommMeshReadinWallTime, 'DONE!')
 
 END SUBROUTINE FinishCommunicateMeshReadin
 

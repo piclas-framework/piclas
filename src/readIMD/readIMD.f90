@@ -50,6 +50,7 @@ subroutine read_IMD_results()
   use mod_part_tools,only:UpdateNextFreePosition
   use mod_mesh,only:getmeshminmaxboundaries
   use mod_mesh_vars,only:xyzMinMax
+  use mod_HDF5_Output_Particles,only:FillParticleData
 
   implicit none
   ! --------------------------------------------------------
@@ -305,6 +306,7 @@ subroutine read_IMD_results()
     WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')'Writing HDF5 data file ...'
   end if
 
+  call FillParticleData()
   !call WriteStateToHDF5( trim(meshfile), t, tFuture )
   call WriteStateToHDF5( trim(meshfile), 0.0_8, 0.0_8 )
 

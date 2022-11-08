@@ -64,7 +64,9 @@ fi
 #CMAKEVERSION='3.15.3'
 #CMAKEVERSION='3.17.0'
 #CMAKEVERSION='3.20.3'
-CMAKEVERSION='3.21.3'
+#CMAKEVERSION='3.21.3'
+#CMAKEVERSION='3.24.0'
+CMAKEVERSION='3.24.2'
 
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}
@@ -85,14 +87,17 @@ if [ ! -e "${MODULEFILE}" ]; then
   if [[ -n $(module purge 2>&1) ]]; then
     echo -e "${RED}module: command not found.\nThis script must be run in an interactive shell (the first line must read #! /bin/bash -i)${NC}"
     exit
-  #else
+  else
     #echo "MODULEPATH ="$MODULEPATH
     #echo "MODULESHOME="${MODULESHOME}
     #module av
-    #module li
+    echo -e "${YELLOW}Warning: If the default gcc version is used for compiling CMake, the\nrequired GLIBCXX_3.4.XX (the default gcc11.2 compiler might have been wrongly labelled in ubuntu22 and actually 11.3 was installed) version might be\ntoo new and cmake will not work when another gcc version is loaded that does not support the required version.\n\nCheck with\n\n   strings /lib/i386-linux-gnu/libc.so.6 | grep GLIBC\n\nor with\n\n    ldd --version\n\nThe gcc compiler will now be loaded via 'module load gcc'.\n${NC}"
+    read -p "Press [Enter] to continue or [Crtl+c] to abort!"
+    module load gcc
+    module li
   fi
 
-  echo -e "This will install Cmake version ${GREEN}${CMAKEVERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
+  echo -e "This will install Cmake version ${GREEN}${CMAKEVERSION}${NC} with either the system gcc compiler or the module loaded version (note the warning above).\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
   read -p "Press [Enter] to continue or [Crtl+c] to abort!"
   cd ${SOURCESDIR}
 

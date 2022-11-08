@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -425,10 +425,8 @@ LOGICAL,INTENT(IN)             :: finalizeFile
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)             :: FileString
-#if USE_MPI
+CHARACTER(LEN=255)             :: FileString,hilf
 REAL                           :: startT,endT
-#endif
 #if USE_HDG
 #if PP_nVar==1
 INTEGER,PARAMETER       :: AddVar=3
@@ -437,10 +435,9 @@ INTEGER,PARAMETER       :: AddVar=3
 INTEGER,PARAMETER       :: AddVar=0
 #endif /*USE_HDG*/
 !===================================================================================================================================
-IF(myRPrank.EQ.0) WRITE(UNIT_stdOut,'(a)')' WRITE RECORDPOINT DATA TO HDF5 FILE...'
-#if USE_MPI
-startT=MPI_WTIME()
-#endif
+WRITE(hilf,'(A)') ' WRITE RECORDPOINT DATA TO HDF5 FILE...'
+SWRITE(UNIT_stdOut,'(A)')' '//TRIM(hilf)
+GETTIME(startT)
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_RP',OutputTime))//'.h5'
 IF(myRPrank.EQ.0)THEN
@@ -528,14 +525,13 @@ IF(finalizeFile)THEN
   iSample=1
   nSamples=0
   RP_Data(:,:,1)=lastSample
+  SWRITE (UNIT_stdOut,'(A)') ' '
+ELSE
+  hilf=' '
 END IF
 
-#if USE_MPI
-endT=MPI_WTIME()
-IF(myRPrank.EQ.0) WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' DONE  [',EndT-StartT,'s]'
-#else
-IF(myRPrank.EQ.0) WRITE(UNIT_stdOut,'(a)',ADVANCE='YES')' DONE'
-#endif
+GETTIME(endT)
+CALL DisplayMessageAndTime(EndT-StartT, TRIM(hilf)//' DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteRPToHDF5
 
 

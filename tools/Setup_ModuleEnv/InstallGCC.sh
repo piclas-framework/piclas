@@ -83,16 +83,21 @@ fi
 #GCCVERSION='10.1.0'
 #GCCVERSION='10.3.0'
 
-# 10.1.0: Building GCC requires GMP 4.2+, MPFR 3.1.0+ and MPC 0.8.0+.
+# 11.2.0: Building GCC requires GMP 4.2+, MPFR 3.1.0+ and MPC 0.8.0+.
 # sudo apt-get install libmpfr-dev
 # sudo apt-get install libmpc-dev
-GCCVERSION='11.2.0'
+#GCCVERSION='11.2.0'
+
+# 12.2.0: Building GCC requires GMP 4.2+, MPFR 3.1.0+ and MPC 0.8.0+.
+# sudo apt-get install libmpfr-dev
+# sudo apt-get install libmpc-dev
+GCCVERSION='12.2.0'
 
 # --------------------------------------------------------------------------------------------------
 # Check pre-requisites
 # --------------------------------------------------------------------------------------------------
 
-if [[ ${GCCVERSION} == '9.3.0' ]] || [[ ${GCCVERSION} == '10.1.0' ]] || [[ ${GCCVERSION} == '10.3.0' ]] || [[ ${GCCVERSION} == '11.2.0' ]]; then
+if [[ ${GCCVERSION} == '9.3.0' ]] || [[ ${GCCVERSION} == '10.1.0' ]] || [[ ${GCCVERSION} == '10.3.0' ]] || [[ ${GCCVERSION} == '11.2.0' ]] || [[ ${GCCVERSION} == '12.2.0' ]]; then
   echo -e "${GREEN}Installing libmpfr-dev and libmpc-dev for this version of GCC${NC}"
   sudo apt-get install libmpfr-dev -y
   sudo apt-get install libmpc-dev -y

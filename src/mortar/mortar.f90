@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -56,9 +56,12 @@ SUBROUTINE InitMortar()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Interpolation_Vars,ONLY: InterpolationInitIsDone,NodeType
-USE MOD_Interpolation     ,ONLY: GetNodesAndWeights
+USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone,NodeType
+USE MOD_Interpolation      ,ONLY: GetNodesAndWeights
 USE MOD_Mortar_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_NodeType==1)
@@ -86,12 +89,8 @@ test2=1.5
 CALL GetNodesAndWeights(PP_N,'GAUSS',xi_Gauss,w_Gauss) !Gauss nodes and integration weights
 error=ABS(0.25*SUM((MATMUL(TRANSPOSE(M_1_0),test1)+MATMUL(TRANSPOSE(M_2_0),test2))*w_Gauss)-1.)
 
-IF(error.GT. 100.*PP_RealTolerance) THEN
-  CALL abort(__STAMP__,&
-    'problems in building Mortar',999,error)
-ELSE
-  SWRITE(UNIT_StdOut,'(A)')' Mortar operators built successfully.'
-END IF
+IF(error.GT. 100.*PP_RealTolerance) CALL abort(__STAMP__,'problems in building Mortar',999,error)
+LBWRITE(UNIT_StdOut,'(A)')' Mortar operators built successfully.'
 #endif
 
 MortarInitIsDone=.TRUE.

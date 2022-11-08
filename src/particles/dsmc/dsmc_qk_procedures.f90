@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -295,7 +295,7 @@ FUNCTION gammainc( arg )
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER                        :: n
-  REAL(KIND=real_kind)           :: gamser, gln, ap, del, summ, an, ser, tmp, x,y, b,c,d,h
+  REAL(KIND=real_kind)           :: gamser, gln, ap, del, summ, an, ser, tmp, x,y, b,c,d,h, exparg
   REAL(KIND=real_kind)           :: gammainc
   ! parameters
   REAL(KIND=real_kind),PARAMETER,DIMENSION(6) :: &
@@ -357,7 +357,12 @@ FUNCTION gammainc( arg )
       del=d*c
       h=h*del
     END DO
-    gammainc=exp(-arg(2)+arg(1)*log(arg(2))-gln) * h
+    exparg = -arg(2)+arg(1)*log(arg(2))-gln
+    IF(CHECKEXP(exparg))THEN
+      gammainc = exp(exparg) * h
+    ELSE
+      gammainc = 0.
+    END IF ! CHECKEXP(exparg)
   END IF
 END FUNCTION gammainc
 

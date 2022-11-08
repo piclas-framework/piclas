@@ -23,7 +23,7 @@ fi
 # Check for updates
 sudo apt-get update
 
-# filesystem operations
+# Boost C++ libraries development files
 sudo apt-get install  libboost-dev -y
 
 # cmake

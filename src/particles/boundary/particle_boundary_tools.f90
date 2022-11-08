@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2015 - 2019 Wladimir Reschke
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -275,8 +275,7 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
 
     ! --- PartStateBoundary ---
     ALLOCATE(PartStateBoundary_tmp(1:nVarPartStateBoundary,1:dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-          __STAMP__&
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
           ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary_tmp temporary array!')
     ! Save old data
     PartStateBoundary_tmp(1:nVarPartStateBoundary,1:dims(2)) = PartStateBoundary(1:nVarPartStateBoundary,1:dims(2))
@@ -284,8 +283,7 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
     ! Re-allocate PartStateBoundary to twice the size
     DEALLOCATE(PartStateBoundary)
     ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:2*dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(&
-          __STAMP__&
+    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
           ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary array!')
     PartStateBoundary(1:nVarPartStateBoundary,        1:  dims(2)) = PartStateBoundary_tmp(1:nVarPartStateBoundary,1:dims(2))
     PartStateBoundary(1:nVarPartStateBoundary,dims(2)+1:2*dims(2)) = 0.
@@ -302,6 +300,7 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
   ELSE
     CALL abort(__STAMP__,'StoreBoundaryParticleProperties: mode must be either 1 or 2! mode=',IntInfoOpt=mode)
   END IF ! mode.EQ.1
+  IF(PartStateBoundary(7,iMax).EQ.0) CALL abort(__STAMP__,'Error in StoreBoundaryParticleProperties. SpecID is zero')
   PartStateBoundary(8  ,iMax) = MPF
   PartStateBoundary(9  ,iMax) = time
   PartStateBoundary(10 ,iMax) = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))))
@@ -585,6 +584,7 @@ USE MOD_Globals
 USE MOD_Particle_Surfaces       ,ONLY: GetSideBoundingBox
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetSideBoundingBoxTria
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
+USE MOD_Particle_Vars           ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -607,67 +607,72 @@ IF (TrackingMethod.EQ.TRIATRACKING) THEN
 ELSE
   CALL GetSideBoundingBox(GlobalSideID,BoundingBox)
 END IF
-r0inside=.FALSE.
-Vector1(:)=0.
-Vector2(:)=0.
-Vector3(:)=0.
-xyzNod(1)=MINVAL(BoundingBox(1,:))
-xyzNod(2)=MINVAL(BoundingBox(2,:))
-xyzNod(3)=MINVAL(BoundingBox(3,:))
-VecBoundingBox(1) = MAXVAL(BoundingBox(1,:)) -MINVAL(BoundingBox(1,:))
-VecBoundingBox(2) = MAXVAL(BoundingBox(2,:)) -MINVAL(BoundingBox(2,:))
-VecBoundingBox(3) = MAXVAL(BoundingBox(3,:)) -MINVAL(BoundingBox(3,:))
-Vector1(dir(2)) = VecBoundingBox(dir(2))
-Vector2(dir(2)) = VecBoundingBox(dir(2))
-Vector2(dir(3)) = VecBoundingBox(dir(3))
-Vector3(dir(3)) = VecBoundingBox(dir(3))
-!-- determine rmax (and corners)
-DO iNode=1,4
-  SELECT CASE(iNode)
-  CASE(1)
-    corner = xyzNod
-  CASE(2)
-    corner = xyzNod + Vector1
-  CASE(3)
-    corner = xyzNod + Vector2
-  CASE(4)
-    corner = xyzNod + Vector3
-  END SELECT
-  corner(dir(2)) = corner(dir(2)) - origin(1)
-  corner(dir(3)) = corner(dir(3)) - origin(2)
-  radiusCorner(1,iNode)=SQRT(corner(dir(2))**2+corner(dir(3))**2)
-END DO !iNode
-rmax=MAXVAL(radiusCorner(1,1:4))
-!-- determine rmin
-DO iNode=1,4
-  SELECT CASE(iNode)
-  CASE(1)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
-    vec=(/Vector1(dir(2)),Vector1(dir(3))/)
-  CASE(2)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
-    vec=(/Vector3(dir(2)),Vector3(dir(3))/)
-  CASE(3)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
-    vec=(/-Vector1(dir(2)),-Vector1(dir(3))/)
-  CASE(4)
-    point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
-    vec=(/-Vector3(dir(2)),-Vector3(dir(3))/)
-  END SELECT
-  vec=point + MIN(MAX(-DOT_PRODUCT(point,vec)/DOT_PRODUCT(vec,vec),0.),1.)*vec
-  radiusCorner(2,iNode)=SQRT(DOT_PRODUCT(vec,vec)) !rmin
-END DO !iNode
-!-- determine if r0 is inside of bounding box
-IF ((origin(1) .GE. MINVAL(BoundingBox(dir(2),:))) .AND. &
-    (origin(1) .LE. MAXVAL(BoundingBox(dir(2),:))) .AND. &
-    (origin(2) .GE. MINVAL(BoundingBox(dir(3),:))) .AND. &
-    (origin(2) .LE. MAXVAL(BoundingBox(dir(3),:))) ) THEN
-    r0inside = .TRUE.
-END IF
-IF (r0inside) THEN
-  rmin = 0.
+IF(Symmetry%Axisymmetric) THEN
+  rmin = BoundingBox(2,1)
+  rmax = BoundingBox(2,3)
 ELSE
-  rmin=MINVAL(radiusCorner(2,1:4))
+  r0inside=.FALSE.
+  Vector1(:)=0.
+  Vector2(:)=0.
+  Vector3(:)=0.
+  xyzNod(1)=MINVAL(BoundingBox(1,:))
+  xyzNod(2)=MINVAL(BoundingBox(2,:))
+  xyzNod(3)=MINVAL(BoundingBox(3,:))
+  VecBoundingBox(1) = MAXVAL(BoundingBox(1,:)) -MINVAL(BoundingBox(1,:))
+  VecBoundingBox(2) = MAXVAL(BoundingBox(2,:)) -MINVAL(BoundingBox(2,:))
+  VecBoundingBox(3) = MAXVAL(BoundingBox(3,:)) -MINVAL(BoundingBox(3,:))
+  Vector1(dir(2)) = VecBoundingBox(dir(2))
+  Vector2(dir(2)) = VecBoundingBox(dir(2))
+  Vector2(dir(3)) = VecBoundingBox(dir(3))
+  Vector3(dir(3)) = VecBoundingBox(dir(3))
+  !-- determine rmax (and corners)
+  DO iNode=1,4
+    SELECT CASE(iNode)
+    CASE(1)
+      corner = xyzNod
+    CASE(2)
+      corner = xyzNod + Vector1
+    CASE(3)
+      corner = xyzNod + Vector2
+    CASE(4)
+      corner = xyzNod + Vector3
+    END SELECT
+    corner(dir(2)) = corner(dir(2)) - origin(1)
+    corner(dir(3)) = corner(dir(3)) - origin(2)
+    radiusCorner(1,iNode)=SQRT(corner(dir(2))**2+corner(dir(3))**2)
+  END DO !iNode
+  rmax=MAXVAL(radiusCorner(1,1:4))
+  !-- determine rmin
+  DO iNode=1,4
+    SELECT CASE(iNode)
+    CASE(1)
+      point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
+      vec=(/Vector1(dir(2)),Vector1(dir(3))/)
+    CASE(2)
+      point=(/xyzNod(dir(2)),xyzNod(dir(3))/)-origin
+      vec=(/Vector3(dir(2)),Vector3(dir(3))/)
+    CASE(3)
+      point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
+      vec=(/-Vector1(dir(2)),-Vector1(dir(3))/)
+    CASE(4)
+      point=(/xyzNod(dir(2)),xyzNod(dir(3))/)+(/Vector2(dir(2)),Vector2(dir(3))/)-origin
+      vec=(/-Vector3(dir(2)),-Vector3(dir(3))/)
+    END SELECT
+    vec=point + MIN(MAX(-DOT_PRODUCT(point,vec)/DOT_PRODUCT(vec,vec),0.),1.)*vec
+    radiusCorner(2,iNode)=SQRT(DOT_PRODUCT(vec,vec)) !rmin
+  END DO !iNode
+  !-- determine if r0 is inside of bounding box
+  IF ((origin(1) .GE. MINVAL(BoundingBox(dir(2),:))) .AND. &
+      (origin(1) .LE. MAXVAL(BoundingBox(dir(2),:))) .AND. &
+      (origin(2) .GE. MINVAL(BoundingBox(dir(3),:))) .AND. &
+      (origin(2) .LE. MAXVAL(BoundingBox(dir(3),:))) ) THEN
+      r0inside = .TRUE.
+  END IF
+  IF (r0inside) THEN
+    rmin = 0.
+  ELSE
+    rmin=MINVAL(radiusCorner(2,1:4))
+  END IF
 END IF
 
 END SUBROUTINE GetRadialDistance2D

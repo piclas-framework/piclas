@@ -62,4 +62,23 @@ elif [[ ${LSBREVMAJOR} == "21" ]]; then # Ubuntu 21
   # /usr/lib/qt5/bin/xmlpatterns is contained in package qtxmlpatterns5-dev-tools:
   sudo apt install qtxmlpatterns5-dev-tools -y
 
+elif [[ ${LSBREVMAJOR} == "22" ]]; then # Ubuntu 22
+  # ------------------------------------------------
+  # This has been tested for ParaView version 5.9.1
+  # ------------------------------------------------
+  # python3 development
+  sudo apt install python3-dev -y
+
+  # extras and mesa
+  sudo apt install libgl1-mesa-dev -y
+
+  # Could NOT find Qt5Svg (missing: Qt5Svg_DIR)
+  sudo apt install libqt5svg5-dev -y
+
+  # '/usr/lib/qt5/bin/xmlpatterns': No such file or directory
+  # Tried the follwing, which did not help
+  sudo apt install libqt5xmlpatterns5-dev -y
+  # /usr/lib/qt5/bin/xmlpatterns is contained in package qtxmlpatterns5-dev-tools:
+  sudo apt install qtxmlpatterns5-dev-tools -y
+
 fi
