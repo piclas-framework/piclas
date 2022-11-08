@@ -1714,15 +1714,17 @@ REAL        :: ViscMat(nSpecies, nSpecies), RHSSolve(nSpecies), m0, pressure
 INTEGER     :: iSpec, jSpec, kSpec, IPIV(nSpecies), info_dgesv
 !===================================================================================================================================
 ViscSpec = 0.; ThermalCondSpec = 0.; ThermalCondSpec_Vib = 0.; ThermalCondSpec_Rot = 0.; DiffCoef =0.; A_12 = 0.; B_12 = 0.
-Xj_Dij = 0.
+Xj_Dij = 0.; cv_rot = 0.; cv_vib = 0.; E_12 = 0.
 ! Loop over all species combinations
 DO iSpec = 1, nSpecies
+  IF (Xi(iSpec).LE.0.0) CYCLE
   ! Calculate cv with rotational and vibrational degrees of freedom
   IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     cv_rot = (Xi_RotSpec(iSpec)*BoltzmannConst)/(2.*Species(iSpec)%MassIC)
     cv_vib = (Xi_VibSpec(iSpec)*BoltzmannConst)/(2.*Species(iSpec)%MassIC)
   END IF
   DO jSpec = iSpec, nSpecies
+    IF (Xi(jSpec).LE.0.0) CYCLE
     ! Interaction parameters
     InteractDiam = CollInf%dref(iSpec,jSpec)
     Mass = Species(iSpec)%MassIC*Species(jSpec)%MassIC/(Species(iSpec)%MassIC + Species(jSpec)%MassIC) ! reduced mass
@@ -1764,15 +1766,19 @@ DO iSpec = 1, nSpecies
       DiffCoef(iSpec,jSpec) = 3.*E_12/(2.*(Species(iSpec)%MassIC+Species(jSpec)%MassIC)*dens)
       DiffCoef(jSpec,iSpec) = DiffCoef(iSpec,jSpec)
     END IF
-    Xj_Dij(iSpec,jSpec) = Xi(jSpec)/DiffCoef(iSpec,jSpec)
-    Xj_Dij(jSpec,iSpec) = Xj_Dij(iSpec,jSpec)
+    IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      Xj_Dij(iSpec,jSpec) = Xi(jSpec)/DiffCoef(iSpec,jSpec)
+      Xj_Dij(jSpec,iSpec) = Xj_Dij(iSpec,jSpec)
+    END IF
   END DO
-  ! Calculation of thermal conductivity of rotation and vibration for each molecular species
-  ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 254
-  Xi_Dij_tot = SUM(Xj_Dij(iSpec,:))
-  rhoSpec = dens * Species(iSpec)%MassIC * Xi(iSpec)
-  ThermalCondSpec_Rot(iSpec) = (rhoSpec*cv_rot/Xi_Dij_tot)
-  ThermalCondSpec_Vib(iSpec) = (rhoSpec*cv_vib/Xi_Dij_tot)
+  IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    ! Calculation of thermal conductivity of rotation and vibration for each molecular species
+    ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 254
+    Xi_Dij_tot = SUM(Xj_Dij(iSpec,:))
+    rhoSpec = dens * Species(iSpec)%MassIC * Xi(iSpec)
+    ThermalCondSpec_Rot(iSpec) = (rhoSpec*cv_rot/Xi_Dij_tot)
+    ThermalCondSpec_Vib(iSpec) = (rhoSpec*cv_vib/Xi_Dij_tot)
+  END IF
 END DO
 
 ! Calculate mixture viscosity by solving a system of linear equations with matrices
@@ -1780,7 +1786,9 @@ END DO
 ! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar–Gross–Krook method for monatomic gas species"
 ViscMat = 0.0
 DO iSpec = 1, nSpecies
+  IF (Xi(iSpec).LE.0.0) CYCLE
   DO jSpec = 1, nSpecies
+    IF (Xi(jSpec).LE.0.0) CYCLE
     IF (iSpec.EQ.jSpec) THEN
       ViscMat(iSpec, jSpec) = ViscMat(iSpec, jSpec) + Xi(iSpec)/ViscSpec(iSpec)
       DO kSpec = 1, nSpecies
@@ -1804,7 +1812,9 @@ Visc = SUM(RHSSolve)
 pressure = BoltzmannConst*dens*CellTemp(nSpecies+1)
 ViscMat = 0.0
 DO iSpec = 1, nSpecies
+  IF (Xi(iSpec).LE.0.0) CYCLE
   DO jSpec = 1, nSpecies
+    IF (Xi(jSpec).LE.0.0) CYCLE
     IF (iSpec.EQ.jSpec) THEN
       ViscMat(iSpec, jSpec) = ViscMat(iSpec, jSpec) + Xi(iSpec)/ThermalCondSpec(iSpec)
       DO kSpec = 1, nSpecies
