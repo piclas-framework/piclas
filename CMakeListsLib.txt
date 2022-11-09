@@ -450,24 +450,27 @@ IF(PICLAS_BUILD_HOPR)
   # Set HOPR build dir
   SET(LIBS_HOPR_DIR  ${LIBS_EXTERNAL_LIB_DIR}/hopr/build)
   MESSAGE(STATUS "HOPR directory: ${LIBS_HOPR_DIR}")
-  # Check if HDF5 was already built
-  IF (NOT EXISTS "${LIBS_HOPR_DIR}/src/HOPR-build/bin/hopr")
+  # Check if HOPR was already built and the executable is in the piclas/build/bin folder
+  IF (NOT EXISTS "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/hopr")
     SET(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY TRUE)
+    MESSAGE(STATUS "HOPR executable not found in: ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}. HOPR will be built.")
     # Let CMake take care of download, configure and build
     EXTERNALPROJECT_ADD(HOPR
     GIT_REPOSITORY ${HOPR_DOWNLOAD}
-    #GIT_TAG ${HDF5_TAG}
+    # TODO: Set hopr tag, when one is available
+    #GIT_TAG ${HOPR_TAG}
     GIT_PROGRESS TRUE
     ${${GITSHALLOW}}
     PREFIX ${LIBS_HOPR_DIR}
+    UPDATE_COMMAND ""
     CMAKE_ARGS -DLIBS_BUILD_HDF5=OFF -DLIBS_BUILD_CGNS=ON -DLIBS_USE_MPI=OFF -DCMAKE_BUILD_TYPE=Release
-    # TODO: copy hopr executable to build folder
+    INSTALL_COMMAND ""
     )
     IF(LIBS_BUILD_HDF5)
       ExternalProject_Add_StepDependencies(HOPR build HDF5)
     ENDIF()
   ELSE()
-    MESSAGE(STATUS "HOPR has already been build.")
+    MESSAGE(STATUS "HOPR has already been built.")
   ENDIF()
 ENDIF()
 
