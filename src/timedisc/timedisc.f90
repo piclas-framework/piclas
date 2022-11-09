@@ -36,6 +36,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime,ProjectName
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze
+USE MOD_TimeDisc_Vars          ,ONLY: time_start
 #if USE_LOADBALANCE
 USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
 #if defined(PARTICLES)
@@ -237,6 +238,7 @@ IF(ALMOSTEQUALRELATIVE(time,tEnd,1e-10))RETURN
 !-----------------------------------------------------------------------------------------------------------------------------------
 SWRITE(UNIT_StdOut,*)'CALCULATION RUNNING...'
 WallTimeStart=PICLASTIME()
+CALL CPU_TIME(time_start)
 
 DO !iter_t=0,MaxIter
 
