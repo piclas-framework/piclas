@@ -1418,7 +1418,7 @@ USE MOD_HDG_Vars  ,ONLY: nGP_face
 USE MOD_HDG_Vars  ,ONLY: EpsNonLinear
 USE MOD_Mesh_Vars ,ONLY: nSides,nMPISides_YOUR
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI_Vars  ,ONLY: MPIW8TimeField
+USE MOD_MPI_Vars  ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1462,7 +1462,8 @@ REAL(KIND=8)      :: Rate
 
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(3) = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8TimeField(3)  = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8CountField(3) = MPIW8CountField(3) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 END SUBROUTINE CheckNonLinRes
 #endif /*defined(PARTICLES)*/
@@ -1483,7 +1484,7 @@ USE MOD_Mesh_Vars          ,ONLY: nSides,nMPISides_YOUR
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField
+USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1550,7 +1551,8 @@ END IF
 
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(3) = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8TimeField(3)  = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8CountField(3) = MPIW8CountField(3) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 IF(converged) THEN !converged
@@ -1607,7 +1609,8 @@ DO iteration=1,MaxIterCG
 
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(3) = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8TimeField(3)  = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8CountField(3) = MPIW8CountField(3) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 #else
@@ -1924,7 +1927,7 @@ USE MOD_PreProc
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField
+USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1972,7 +1975,8 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(4) = MPIW8TimeField(4) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8TimeField(4)  = MPIW8TimeField(4) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8CountField(4) = MPIW8CountField(4) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 END SUBROUTINE VectorDotProduct

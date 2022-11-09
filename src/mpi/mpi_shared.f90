@@ -907,7 +907,7 @@ SUBROUTINE BARRIER_AND_SYNC(SharedWindow,Communicator) !,Barrier_Opt)
 ! MODULES
 USE MOD_Globals
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI_Vars          ,ONLY: MPIW8TimeBaS
+USE MOD_MPI_Vars          ,ONLY: MPIW8TimeBaS,MPIW8CountBaS
 #endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -936,7 +936,8 @@ CALL MPI_WIN_SYNC(SharedWindow,iError)
 
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-MPIW8TimeBaS = MPIW8TimeBaS + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8TimeBaS  = MPIW8TimeBaS + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountBaS = MPIW8CountBaS + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! IF(iError.NE.0)THEN
