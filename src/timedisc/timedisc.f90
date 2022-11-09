@@ -216,7 +216,6 @@ IF((.NOT.DoRestart).OR.FlushInitialState.OR.(.NOT.FILEEXISTS(TRIM(TIMESTAMP(TRIM
 #if defined(PARTICLES)
   CALL FillParticleData() ! Fill the SFC-ordered particle arrays
 #endif /*defined(PARTICLES)*/
-
   CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze) ! Write initial state to file
 END IF
 
@@ -350,8 +349,8 @@ DO !iter_t=0,MaxIter
   !IF ((dt.EQ.dt_Min(DT_ANALYZE)).OR.(dt.EQ.dt_Min(DT_END))) THEN   ! timestep is equal to time to analyze or end
 #if USE_LOADBALANCE
   ! For automatic initial restart, check if the number of sampling steps has been achieved and force a load balance step, but skip
-  ! this procedure in the final iteration after which the simulation if finished
-  !      DoInitialAutoRestart: user-activated load balance restart in first time step (could already be a restart)
+  ! this procedure in the final iteration after which the simulation is finished
+  !      DoInitialAutoRestart: user-activated load balance restart in first time step (could also be during a normal restart)
   ! iter.GE.LoadBalanceSample: as soon as the number of time steps for sampling is reached, perform the load balance restart
   !                 finalIter: prevent removal of last state file even though no load balance restart was performed
   IF(DoInitialAutoRestart.AND.(iter.GE.LoadBalanceSample).AND.(.NOT.finalIter)) ForceInitialLoadBalance=.TRUE.
@@ -406,7 +405,9 @@ DO !iter_t=0,MaxIter
     ! finalIter=T: last iteration of the simulation is reached, hence, always perform analysis and output to hdf5
 #if USE_LOADBALANCE
     ! PerformLoadBalance.AND.UseH5IOLoadBalance: Load balance step will be performed and load balance restart via hdf5 IO active
-    IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. (PerformLoadBalance.AND.UseH5IOLoadBalance) .OR. finalIter)THEN
+    ! .NOT.(DoInitialAutoRestart.AND.(.NOT.UseH5IOLoadBalance)): Skip I/O for initial LB because MOD might give 0
+    IF( ((.NOT.(DoInitialAutoRestart.AND.(.NOT.UseH5IOLoadBalance))).AND.MOD(iAnalyze,nSkipAnalyze).EQ.0)&
+        .OR. (PerformLoadBalance.AND.UseH5IOLoadBalance) .OR. finalIter )THEN
 #else
     IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. finalIter)THEN
 #endif /*USE_LOADBALANCE*/
@@ -415,7 +416,7 @@ DO !iter_t=0,MaxIter
       ! write information out to std-out of console
       CALL WriteInfoStdOut()
 #if defined(PARTICLES)
-      CALL FillParticleData() ! Fill the SFC-ordered particle arrays
+      CALL FillParticleData() ! Fill the SFC-ordered particle arrays for LB or I/O
 #endif /*defined(PARTICLES)*/
       ! Write state to file
       CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
@@ -425,6 +426,10 @@ DO !iter_t=0,MaxIter
       tPreviousAnalyze        = tAnalyze
       tPreviousAverageAnalyze = tAnalyze
       SWRITE(UNIT_StdOut,'(132("-"))')
+#if USE_LOADBALANCE && defined(PARTICLES)
+    ELSEIF(PerformLoadBalance) THEN
+      CALL FillParticleData() ! Fill the SFC-ordered particle arrays for LB
+#endif /*USE_LOADBALANCE && defined(PARTICLES)*/
     END IF ! actual analyze is done
 
     iter_PID=0
