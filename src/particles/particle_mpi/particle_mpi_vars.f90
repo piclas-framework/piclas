@@ -121,8 +121,8 @@ REAL, ALLOCATABLE                         :: PartShiftVector(:,:)           ! st
 #endif /*USE_MPI*/
 
 #if defined(MEASURE_MPI_WAIT)
-REAL(KIND=8)                              :: MPIW8TimePart(MPIW8SIZEPART)    ! measure the time on each proc it is in MPI_WAIT()
-                                                                            ! during particle communication
+REAL(KIND=8)                              :: MPIW8TimePart(MPIW8SIZEPART)  ! measure the time on each proc it is in MPI_WAIT() during particle communication
+INTEGER(KIND=8)                           :: MPIW8CountPart(MPIW8SIZEPART) ! counter for measurements on each proc it is in MPI_WAIT() during particle communication
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
