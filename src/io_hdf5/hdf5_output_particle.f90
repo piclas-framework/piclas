@@ -1814,7 +1814,7 @@ USE MOD_Particle_Vars          ,ONLY: PartInt,PartData
 USE MOD_Particle_Vars          ,ONLY: locnPart,offsetnPart
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,DSMC,PolyatomMolDSMC,SpecDSMC
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data,MaxQuantNum,MaxElecQuant
-USE MOD_Particle_Vars          ,ONLY: PDM, PartState, PartSpecies, PartMPF, usevMPF, nSpecies, Species
+USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PartMPF, usevMPF, nSpecies, Species
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
@@ -2090,9 +2090,7 @@ IF(withDSMC.AND.DSMC%DoAmbipolarDiff)THEN
       END DO
       iPart = PartInt(2,iElem_glob)
     ELSE
-      CALL abort(&
-      __STAMP__&
-      , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
+      CALL abort(__STAMP__, " Particle HDF5-Output method not supported! PEM%pNumber not associated")
     END IF
     PartInt(2,iElem_glob)=iPart
   END DO

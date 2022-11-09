@@ -209,7 +209,6 @@ ElemTimeFieldTot = 0.
 #ifdef PARTICLES
   ElemTimePartTot = 0.
 #endif /*PARTICLES*/
-
 ! If elem times are calculated by time measurement (PerformLBSample) and no Partweight Loadbalance is enabled
 IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
 
@@ -319,8 +318,7 @@ ELSE IF(PerformLBSample .AND. LoadBalanceSample.EQ.0) THEN
   END DO ! iElem=1,PP_nElems
   IF((MAXVAL(nPartsPerElem).GT.0).AND.(MAXVAL(ElemTime).LE.1.0))THEN
     IPWRITE (*,*) "parts, time =", MAXVAL(nPartsPerElem),MAXVAL(ElemTime)
-    CALL abort(&
-        __STAMP__&
+    CALL abort(__STAMP__&
         ,' ERROR: MAXVAL(nPartsPerElem).GT.0 but MAXVAL(ElemTime).LE.1.0 with ParticleMPIWeight=',RealInfoOpt=ParticleMPIWeight)
   END IF
 #endif /*PARTICLES*/
