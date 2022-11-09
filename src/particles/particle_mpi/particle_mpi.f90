@@ -458,7 +458,7 @@ USE MOD_Particle_Vars,           ONLY:PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart
+USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -769,8 +769,10 @@ DO iProc=0,nExchangeProcessors-1
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
-  MPIW8TimePart(1) = MPIW8TimePart(1) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
-  MPIW8TimePart(2) = MPIW8TimePart(2) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+  MPIW8TimePart(1)  = MPIW8TimePart(1) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
+  MPIW8CountPart(1) = MPIW8CountPart(1) + 1_8
+  MPIW8TimePart(2)  = MPIW8TimePart(2) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+  MPIW8CountPart(2) = MPIW8CountPart(2) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 END DO ! iProc
 
@@ -916,7 +918,7 @@ USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_RadialWeighting
 USE MOD_part_tools             ,ONLY: ParticleOnProc
 !USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart
+USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -962,6 +964,7 @@ DO iProc=0,nExchangeProcessors-1
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(1), count_rate=Rate(1))
   MPIW8TimePart(3) = MPIW8TimePart(3) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
+  MPIW8CountPart(3) = MPIW8CountPart(3) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 END DO ! iProc
 
@@ -1010,6 +1013,7 @@ DO iProc=0,nExchangeProcessors-1
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
   MPIW8TimePart(4) = MPIW8TimePart(4) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+  MPIW8CountPart(4) = MPIW8CountPart(4) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
   ! place particle information in correct arrays

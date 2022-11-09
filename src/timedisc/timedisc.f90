@@ -366,7 +366,7 @@ DO !iter_t=0,MaxIter
       PID                  = (WallTimeEnd-WallTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_PID)
     END IF
 #if defined(MEASURE_MPI_WAIT)
-    MPIW8TimeSim   = MPIW8TimeSim + (WallTimeEnd-WallTimeStart)
+    MPIW8TimeSim = MPIW8TimeSim + (WallTimeEnd-WallTimeStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 #if USE_MPI
