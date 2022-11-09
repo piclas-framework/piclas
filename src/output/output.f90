@@ -172,6 +172,7 @@ SUBROUTINE PrintStatusLine(t,dt,tStart,tEnd)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Output_Vars , ONLY: doPrintStatusLine
+USE MOD_TimeDisc_Vars,ONLY: time_start
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -194,8 +195,9 @@ IF(MPIroot)THEN
 #endif
   percent = (t-tStart) / (tend-tStart)
   CALL CPU_TIME(time_remaining)
+  time_remaining = time_remaining - time_start
   IF (percent.GT.0.0) time_remaining = time_remaining/percent - time_remaining
-  percent =  percent*100.
+  percent = percent*100.
   secs = MOD(time_remaining,60.)
   time_remaining = time_remaining / 60
   mins = MOD(time_remaining,60.)
