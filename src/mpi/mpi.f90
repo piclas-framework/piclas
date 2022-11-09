@@ -134,7 +134,6 @@ MPILocalRoot=.TRUE.
 END SUBROUTINE InitMPI
 
 
-
 #if USE_MPI
 !===================================================================================================================================
 !> Initialize derived MPI types used for communication and allocate HALO data.
