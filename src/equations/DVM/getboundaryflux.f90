@@ -169,11 +169,10 @@ CASE(4) ! maxwell scattering
     ! CALL MaxwellScattering(UPrim_boundary(:,p,q),UPrim_master(:,p,q),NormVec(:,p,q),1,t) ! t=tDeriv here
   END DO; END DO
 
-CASE(5) !constant static pressure+temperature inlet
+CASE(5) !nflow
   DO q=0,Nloc; DO p=0,Nloc
     CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q),t,tau,1)
-    MacroVal(1)=RefState(1,BCState)
-    MacroVal(5)=RefState(5,BCState)
+    MacroVal(1:8)=RefState(1:8,BCState)
     CALL MaxwellDistribution(MacroVal,UPrim_boundary(:,p,q))
   END DO; END DO
 
