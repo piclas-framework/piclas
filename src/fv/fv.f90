@@ -169,7 +169,7 @@ IF (doFVReconstruction) THEN
   ALLOCATE(DVMtraj_master(PP_nVar,1:nSides))
 #endif
 
-  ALLOCATE(FV_gradU(1:PP_nVar,1:nSides))
+  ALLOCATE(FV_gradU(1:PP_nVar,0:PP_N,0:PP_N,1:nSides))
 
   !calculate face to center distances for reconstruction
 #if USE_MPI
@@ -217,11 +217,11 @@ USE MOD_Vector
 USE MOD_FV_Vars           ,ONLY: U,Ut,Flux_Master,Flux_Slave, doFVReconstruction
 USE MOD_FV_Vars           ,ONLY: U_master, U_slave, FV_gradU
 USE MOD_SurfInt            ,ONLY: SurfInt
-USE MOD_ProlongToFace     ,ONLY: ProlongToFace, CalcFVGradients!, LimitFVGradients
+USE MOD_ProlongToFace     ,ONLY: ProlongToFace, CalcFVGradients
 USE MOD_FillFlux          ,ONLY: FillFlux
 USE MOD_Equation          ,ONLY: CalcSource
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
-! USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
+USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
 #if USE_MPI
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
@@ -263,7 +263,7 @@ CALL StartReceiveMPIData(PP_nVar,U_slave,1,nSides,RecRequest_U,SendID=2) ! Recei
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 CALL ProlongToFace(U,U_master,U_slave,doMPISides=.TRUE.)
-! CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.) !mortars not yet implemented
+CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.) !mortars not yet implemented
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -275,7 +275,7 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace(U,U_master,U_slave,doMPISides=.FALSE.)
-! CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
+CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
 
 #if USE_MPI
 #if defined(PARTICLES) && defined(LSERK)
@@ -324,6 +324,7 @@ IF (doFVReconstruction) THEN
 
   ! fill the all gradients on this proc
   CALL CalcFVGradients(doMPISides=.FALSE.)
+  CALL Flux_Mortar(FV_gradU,FV_gradU,doMPISides=.FALSE.)
 
 ! prolong the solution to the faces by applying reconstruction gradients
 #if USE_MPI
@@ -334,13 +335,15 @@ IF (doFVReconstruction) THEN
   ! Complete send / receive of gradients
   CALL FinishExchangeMPIData(SendRequest_gradUx,RecRequest_gradUx,SendID=1)
 
+  CALL Flux_Mortar(FV_gradU,FV_gradU,doMPISides=.TRUE.)
+
   ! prolong the solution to the faces by applying reconstruction gradients
   CALL StartReceiveMPIData(PP_nVar,U_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
   CALL ProlongToFace(U,U_master,U_slave,FV_gradU,doMPISides=.TRUE.)
-! CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
+  CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -352,6 +355,7 @@ IF (doFVReconstruction) THEN
 
   ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
   CALL ProlongToFace(U,U_master,U_slave,FV_gradU,doMPISides=.FALSE.)
+  CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
 
 END IF ! end of reconstruction
 
@@ -376,7 +380,7 @@ CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 CALL StartSendMPIData(PP_nVar,Flux_Slave,1,nSides,SendRequest_Flux,SendID=1) ! Send MINE
-!CALL StartExchangeMPIData(PP_nVar,Flux,1,nSides,SendRequest_Flux,RecRequest_Flux,SendID=1) ! Send MINE - receive YOUR
+
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -384,7 +388,7 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 
 ! fill the all surface fluxes on this proc
 CALL FillFlux(t,Flux_Master,Flux_Slave,U_master,U_slave,doMPISides=.FALSE.)
-! CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.FALSE.)
+CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.FALSE.)
 ! compute surface integral contribution and add to ut
 CALL SurfInt(Flux_Master,Flux_Slave,Ut,doMPISides=.FALSE.)
 
@@ -399,7 +403,7 @@ CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 !FINALIZE Fluxes for MPI Sides
-! CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.TRUE.)
+CALL Flux_Mortar(Flux_Master,Flux_Slave,doMPISides=.TRUE.)
 CALL SurfInt(Flux_Master,Flux_Slave,Ut,doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)

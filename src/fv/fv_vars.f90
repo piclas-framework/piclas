@@ -47,7 +47,7 @@ REAL,ALLOCATABLE                      :: DVMtraj_slave(:,:)
 REAL,ALLOCATABLE                      :: DVMtraj_master(:,:)
 #endif
 
-REAL,ALLOCATABLE                      :: FV_gradU(:,:)
+REAL,ALLOCATABLE                      :: FV_gradU(:,:,:,:)
 
 INTEGER                               :: LimiterType
 REAL                                  :: FV_sweby_beta

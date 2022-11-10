@@ -107,6 +107,7 @@ END IF
 
 DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
+  IF (ElemID.LT.0) CYCLE !small mortar sides don't have info of the big master element
   FV_dx_master(SideID)=VECNORM(Elem_xGP(:,0,0,0,ElemID)-Face_xGP(:,0,0,SideID))
 
 #if (PP_TimeDiscMethod==600)

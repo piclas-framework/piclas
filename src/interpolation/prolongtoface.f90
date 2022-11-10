@@ -95,14 +95,14 @@ ELSE
 END IF
 
 DO SideID=firstSideID_wo_BC,lastSideID
-  FV_gradU(:,SideID) = (U_master(:,0,0,SideID) - U_slave(:,0,0,SideID))/(FV_dx_master(SideID)+FV_dx_slave(SideID))
+  FV_gradU(:,0,0,SideID) = (U_master(:,0,0,SideID) - U_slave(:,0,0,SideID))/(FV_dx_master(SideID)+FV_dx_slave(SideID))
 END DO
 
 ! 2. Compute the gradients at the boundary conditions: 1..nBCSides
 IF(.NOT.doMPISides)THEN
   DO SideID=firstBCSide,lastBCSide
     ! FV_gradU(:,SideID) = myrank*1000+SideID
-    CALL GetBoundaryGrad(SideID,FV_gradU(:,SideID),&
+    CALL GetBoundaryGrad(SideID,FV_gradU(:,0,0,SideID),&
                                         U_master(:,0,0,SideID),&
                                           NormVec(:,0,0,SideID),&
                                           TangVec1(:,0,0,SideID),&
@@ -137,7 +137,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
 REAL,INTENT(IN)                 :: Uvol(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-REAL,INTENT(IN),OPTIONAL        :: FV_gradU(PP_nVar,1:nSides)
+REAL,INTENT(IN),OPTIONAL        :: FV_gradU(PP_nVar,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Uface_master(PP_nVar,0:PP_N,0:PP_N,1:nSides)
@@ -180,10 +180,10 @@ DO SideID=firstSideID,lastSideID
     END SELECT
     IF (SideToElem(S2E_NB_ELEM_ID,SideID_2).EQ.ElemID) THEN
       !this element is also the slave for the opposite side (slave/slave case)-> flip gradient
-      CALL FV_Limiter(FV_gradU(:,SideID),-FV_gradU(:,SideID_2),gradULimited)
+      CALL FV_Limiter(FV_gradU(:,0,0,SideID),-FV_gradU(:,0,0,SideID_2),gradULimited)
     ELSE
       !slave/master case
-      CALL FV_Limiter(FV_gradU(:,SideID),FV_gradU(:,SideID_2),gradULimited)
+      CALL FV_Limiter(FV_gradU(:,0,0,SideID),FV_gradU(:,0,0,SideID_2),gradULimited)
     END IF
 #if (PP_TimeDiscMethod==600)
     !DVM specific reconstruction
@@ -211,6 +211,7 @@ END IF
 
 DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
+  IF (ElemID.LT.0) CYCLE !for small mortar sides without info on big master element
   IF (PRESENT(FV_gradU)) THEN
     locSideID  = SideToElem(S2E_LOC_SIDE_ID,SideID)
     SELECT CASE(locSideID)
@@ -230,10 +231,10 @@ DO SideID=firstSideID,lastSideID
     END SELECT
     IF (SideToElem(S2E_NB_ELEM_ID,SideID_2).EQ.ElemID) THEN
       !this element is the slave for the opposite side (master/slave case)
-      CALL FV_Limiter(FV_gradU(:,SideID),FV_gradU(:,SideID_2),gradULimited)
+      CALL FV_Limiter(FV_gradU(:,0,0,SideID),FV_gradU(:,0,0,SideID_2),gradULimited)
     ELSE
       ! master/master case-> flip gradient
-      CALL FV_Limiter(FV_gradU(:,SideID),-FV_gradU(:,SideID_2),gradULimited)
+      CALL FV_Limiter(FV_gradU(:,0,0,SideID),-FV_gradU(:,0,0,SideID_2),gradULimited)
     END IF
 #if (PP_TimeDiscMethod==600)
     !DVM specific reconstruction

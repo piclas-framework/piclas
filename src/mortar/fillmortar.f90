@@ -29,7 +29,7 @@ INTERFACE U_Mortar
   MODULE PROCEDURE U_Mortar
 END INTERFACE
 
-#if !(USE_HDG) && !(USE_FV)
+#if !(USE_HDG)
 INTERFACE Flux_Mortar
   MODULE PROCEDURE Flux_Mortar
 END INTERFACE
@@ -186,7 +186,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
 END DO !MortarSideID
 END SUBROUTINE U_Mortar
 
-#if !(USE_HDG) && !(USE_FV)
+#if !(USE_HDG)
 SUBROUTINE Flux_Mortar(Flux_Master,Flux_Slave,doMPISides)
 !===================================================================================================================================
 ! fills master side from small non-conforming sides, Using 1D projection operators M_1_0,M_2_0
@@ -211,13 +211,20 @@ USE MOD_Mortar_Vars, ONLY: M_1_0,M_2_0
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,FS2M
 USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
+#if !(USE_FV)
 USE MOD_PML_vars,    ONLY:PMLnVar
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+#if (USE_FV)
+REAL,INTENT(INOUT) :: Flux_Master(1:PP_nVar,0:PP_N,0:PP_N,1:nSides)
+REAL,INTENT(INOUT) :: Flux_Slave(1:PP_nVar,0:PP_N,0:PP_N,1:nSides)
+#else
 REAL,INTENT(INOUT) :: Flux_Master(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides)
 REAL,INTENT(INOUT) :: Flux_Slave(1:PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:nSides)
+#endif
 LOGICAL,INTENT(IN) :: doMPISides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -227,8 +234,13 @@ INTEGER  :: p,q,l
 INTEGER  :: iMortar,nMortars
 INTEGER  :: firstMortarSideID,lastMortarSideID
 INTEGER  :: MortarSideID,SideID,iSide,flip
+#if (USE_FV)
+REAL         :: Flux_tmp( PP_nVar,0:PP_N,0:PP_N,1:4)
+REAL         :: Flux_tmp2(PP_nVar,0:PP_N,0:PP_N,1:2)
+#else
 REAL         :: Flux_tmp( PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:4)
 REAL         :: Flux_tmp2(PP_nVar+PMLnVar,0:PP_N,0:PP_N,1:2)
+#endif
 REAL,POINTER :: M1(:,:),M2(:,:)
 !===================================================================================================================================
 

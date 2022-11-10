@@ -68,11 +68,11 @@ USE MOD_Mesh                 ,ONLY: InitMesh
 USE MOD_Mesh_Vars            ,ONLY: GetMeshMinMaxBoundariesIsDone
 USE MOD_Equation             ,ONLY: InitEquation
 USE MOD_GetBoundaryFlux      ,ONLY: InitBC
+USE MOD_Mortar               ,ONLY: InitMortar
 #if USE_FV
 USE MOD_FV                   ,ONLY: InitFV
 #else
 USE MOD_DG                   ,ONLY: InitDG
-USE MOD_Mortar               ,ONLY: InitMortar
 #if ! (USE_HDG)
 USE MOD_PML                  ,ONLY: InitPML
 #endif /*USE_HDG*/
@@ -153,9 +153,9 @@ IF(IsLoadBalance)THEN
   !WriteNewMesh       =.FALSE. !not used anymore?
   InterpolateSolution=.FALSE.
   N_Restart=PP_N
-  ! CALL InitMortar()
+  CALL InitMortar()
 ELSE
-  ! CALL InitMortar()
+  CALL InitMortar()
   CALL InitRestart()
   GetMeshMinMaxBoundariesIsDone = .FALSE. ! Initialize this logical only once (assume that the mesh sizes does not change during load balance restarts)
 END IF
@@ -260,11 +260,11 @@ USE MOD_Mesh                       ,ONLY: FinalizeMesh
 USE MOD_Equation                   ,ONLY: FinalizeEquation
 USE MOD_Interfaces                 ,ONLY: FinalizeInterfaces
 USE MOD_GetBoundaryFlux            ,ONLY: FinalizeBC
+USE MOD_Mortar                     ,ONLY: FinalizeMortar
 #if USE_FV
 USE MOD_FV                         ,ONLY: FinalizeFV
 #else
 USE MOD_DG                         ,ONLY: FinalizeDG
-USE MOD_Mortar                     ,ONLY: FinalizeMortar
 USE MOD_Dielectric                 ,ONLY: FinalizeDielectric
 #if ! (USE_HDG)
 USE MOD_PML                        ,ONLY: FinalizePML
@@ -349,7 +349,7 @@ CALL FinalizeBC()
 IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
 CALL FinalizeRestart()
 CALL FinalizeMesh()
-! CALL FinalizeMortar()
+CALL FinalizeMortar()
 #ifdef PARTICLES
 CALL FinalizeSurfaceModel()
 CALL FinalizeSurfaceModelAnalyze()
