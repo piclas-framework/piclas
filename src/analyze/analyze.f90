@@ -166,9 +166,7 @@ USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,PrintOption,GETIN
 USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage           ,ONLY: InitTimeAverage
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
-#ifdef maxwell
 USE MOD_Equation_vars         ,ONLY: Wavelength
-#endif /* maxwell */
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
 #if USE_MPI && defined(PARTICLES)
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
@@ -296,17 +294,13 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 ! Points Per Wavelength
 CalcPointsPerWavelength = GETLOGICAL('CalcPointsPerWavelength')
 IF(CalcPointsPerWavelength)THEN
-  IF(WaveLength.LT.0.) WaveLength = GETREAL('WaveLength','1.')
   ! calculate cell local number excluding neighbor DOFs
   ALLOCATE( PPWCell(1:PP_nElems) )
   PPWCell=0.0
   CALL AddToElemData(ElementOut,'PPWCell',RealArray=PPWCell(1:PP_nElems))
   ! Calculate PPW for each cell
-#ifdef maxwell
+  IF(WaveLength.LT.0.) WaveLength = GETREAL('WaveLength','1.')
   CALL PrintOption('Wavelength for PPWCell','OUTPUT',RealOpt=Wavelength)
-#else
-  CALL PrintOption('Wavelength for PPWCell (fixed to 1.0)','OUTPUT',RealOpt=1.0)
-#endif /* maxwell */
   PPWCellMin=HUGE(1.)
   PPWCellMax=-HUGE(1.)
   DO iElem = 1, nElems
@@ -316,13 +310,9 @@ IF(CalcPointsPerWavelength)THEN
 #else
     CNElemID = iElem
 #endif /*USE_MPI && defined(PARTICLES)*/
-#ifdef maxwell
-    PPWCell(iElem)     = (REAL(PP_N)+1.)*Wavelength/ElemCharLength_Shared(CNElemID)
-#else
-    PPWCell(iElem)     = (REAL(PP_N)+1.)/ElemCharLength_Shared(CNElemID)
-#endif /* maxwell */
-    PPWCellMin=MIN(PPWCellMin,PPWCell(iElem))
-    PPWCellMax=MAX(PPWCellMax,PPWCell(iElem))
+    PPWCell(iElem) = (REAL(PP_N)+1.)*Wavelength/ElemCharLength_Shared(CNElemID)
+    PPWCellMin     = MIN(PPWCellMin,PPWCell(iElem))
+    PPWCellMax     = MAX(PPWCellMax,PPWCell(iElem))
   END DO ! iElem = 1, nElems
 #if USE_MPI
   IF(MPIroot)THEN
