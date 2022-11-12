@@ -124,7 +124,7 @@ CASE(RIEMANN_VAC2DIELECTRIC_NC) ! use non-conserving fluxes (two different fluxe
 CASE DEFAULT
   CALL abort(&
       __STAMP__&
-      ,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
+      ,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)',IntInfoOpt=InterfaceRiemann(SideID))
 END SELECT
 
 END SUBROUTINE Riemann
