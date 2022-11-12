@@ -230,8 +230,6 @@ ASSOCIATE( x => ExternalFieldN(1:3) )
   END IF ! ExternalFieldDim.EQ.2
 END ASSOCIATE
 
-!WRITE (*,*) " =", ExternalFieldMin
-!WRITE (*,*) " =", ExternalFieldMax
 ! Close the file.
 CALL H5FCLOSE_F(file_id_loc, err)
 ! Close FORTRAN interface.
