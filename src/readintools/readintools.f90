@@ -873,6 +873,7 @@ current => prms%firstLink
 DO WHILE (associated(current))
   this%maxNameLen = MAX(this%maxNameLen, current%opt%GETNAMELEN())
   this%maxValueLen = MAX(this%maxValueLen, current%opt%GETVALUELEN())
+  this%maxValueLen = MIN(this%maxValueLen, 50)
   current => current%next
 END DO
 
