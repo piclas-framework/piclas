@@ -134,7 +134,6 @@ MPILocalRoot=.TRUE.
 END SUBROUTINE InitMPI
 
 
-
 #if USE_MPI
 !===================================================================================================================================
 !> Initialize derived MPI types used for communication and allocate HALO data.
@@ -365,6 +364,7 @@ END DO !iProc=1,nNBProcs
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
   ! Note: Send and Receive are switched to have the same ordering as for particles (1. Send, 2. Receive)
   MPIW8TimeField(2) = MPIW8TimeField(2) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8CountField(2) = MPIW8CountField(2) + 1_8
   CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
@@ -377,6 +377,7 @@ END DO !iProc=1,nNBProcs
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
   ! Note: Send and Receive are switched to have the same ordering as for particles (1. Send, 2. Receive)
   MPIW8TimeField(1) = MPIW8TimeField(1) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8CountField(1) = MPIW8CountField(1) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 END SUBROUTINE FinishExchangeMPIData
@@ -453,10 +454,12 @@ END SUBROUTINE FinalizeMPI
 SUBROUTINE OutputMPIW8Time()
 ! MODULES
 USE MOD_Globals
-USE MOD_MPI_Vars          ,ONLY: MPIW8TimeGlobal,MPIW8TimeSim,MPIW8TimeProc,MPIW8TimeField,MPIW8Time,MPIW8TimeGlobal,MPIW8TimeBaS
+USE MOD_MPI_Vars          ,ONLY: MPIW8TimeGlobal      , MPIW8TimeProc      , MPIW8TimeField      , MPIW8Time      , MPIW8TimeBaS
+USE MOD_MPI_Vars          ,ONLY: MPIW8CountGlobal , MPIW8CountProc , MPIW8CountField , MPIW8Count , MPIW8CountBaS
+USE MOD_MPI_Vars          ,ONLY: MPIW8TimeSim
 USE MOD_StringTools       ,ONLY: INTTOSTR
 #if defined(PARTICLES)
-USE MOD_Particle_MPI_Vars ,ONLY: MPIW8TimePart
+USE MOD_Particle_MPI_Vars ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(PARTICLES)*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -472,27 +475,40 @@ CHARACTER(LEN=22),PARAMETER            :: outfilePerc='MPIW8TimePercent.csv'
 CHARACTER(LEN=22),PARAMETER            :: outfileProc='MPIW8TimeProc'
 CHARACTER(LEN=30)                      :: outfileProc_loc
 CHARACTER(LEN=10)                      :: hilf
-INTEGER,PARAMETER                      :: nTotalVars =MPIW8SIZE+2
+INTEGER,PARAMETER                      :: nTotalVars =2*MPIW8SIZE+2
 CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER(LEN=255) :: &
-    'nProcessors'       , &
-    'WallTimeSim'       , &
-    'Barrier-and-Sync'    &
+    'nProcessors'                 , &
+    'WallTimeSim'                 , &
+    'Barrier-and-Sync'            , &
+    'Barrier-and-Sync-Counter'      &
 #if USE_HDG
-   ,'HDG-SendLambda'    , & ! (1)
-    'HDG-ReceiveLambda' , & ! (2)
-    'HDG-Broadcast'     , & ! (3)
-    'HDG-Allreduce'       & ! (4)
+   ,'HDG-SendLambda'              , & ! (1)
+    'HDG-SendLambda-Counter'      , & ! (1)
+    'HDG-ReceiveLambda'           , & ! (2)
+    'HDG-ReceiveLambda-Counter'   , & ! (2)
+    'HDG-Broadcast'               , & ! (3)
+    'HDG-Broadcast-Counter'       , & ! (3)
+    'HDG-Allreduce'               , & ! (4)
+    'HDG-Allreduce-Counter'         & ! (4)
 #else
-   ,'DGSEM-Send'    , &     ! (1)
-    'DGSEM-Receive'   &     ! (2)
+   ,'DGSEM-Send'                  , &     ! (1)
+    'DGSEM-Send-Counter'          , &     ! (1)
+    'DGSEM-Receive'               , &     ! (2)
+    'DGSEM-Receive-Counter'         &     ! (2)
 #endif /*USE_HDG*/
 #if defined(PARTICLES)
-   ,'SendNbrOfParticles'  , & ! (1)
-    'RecvNbrOfParticles'  , & ! (2)
-    'SendParticles'       , & ! (3)
-    'RecvParticles'       , & ! (4)
-    'EmissionParticles'   , & ! (5)
-    'PIC-depo-Wait'         & ! (6)
+   ,'SendNbrOfParticles'          , & ! (1)
+    'SendNbrOfParticles-Counter'  , & ! (1)
+    'RecvNbrOfParticles'          , & ! (2)
+    'RecvNbrOfParticles-Counter'  , & ! (2)
+    'SendParticles'               , & ! (3)
+    'SendParticles-Counter'       , & ! (3)
+    'RecvParticles'               , & ! (4)
+    'RecvParticles-Counter'       , & ! (4)
+    'EmissionParticles'           , & ! (5)
+    'EmissionParticles-Counter'   , & ! (5)
+    'PIC-depo-Wait'               , & ! (6)
+    'PIC-depo-Wait-Counter'         & ! (6)
 #endif /*defined(PARTICLES)*/
     /)
 ! CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNamesProc(nTotalVars)=(/ CHARACTER(LEN=255) :: &
@@ -507,22 +523,34 @@ CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER
 CHARACTER(LEN=255)         :: tmpStr(nTotalVars)
 CHARACTER(LEN=1000)        :: tmpStr2
 CHARACTER(LEN=1),PARAMETER :: delimiter=","
-REAL                       :: TotalSimTime
+REAL                       :: TotalSimTime,MPIW8TimeSimeGlobal,TotalCounter
 !===================================================================================================================================
-MPIW8Time(               1:1)                              = MPIW8TimeBaS
-MPIW8Time(               2:MPIW8SIZEFIELD+1)               = MPIW8TimeField
+MPIW8Time(                1:1)                              = MPIW8TimeBaS
+MPIW8Count(               1:1)                              = MPIW8CountBaS
+MPIW8Time(                2:MPIW8SIZEFIELD+1)               = MPIW8TimeField
+MPIW8Count(               2:MPIW8SIZEFIELD+1)               = MPIW8CountField
 #if defined(PARTICLES)
-MPIW8Time(MPIW8SIZEFIELD+2:MPIW8SIZEFIELD+MPIW8SIZEPART+1) = MPIW8TimePart
+MPIW8Time( MPIW8SIZEFIELD+2:MPIW8SIZEFIELD+MPIW8SIZEPART+1) = MPIW8TimePart
+MPIW8Count(MPIW8SIZEFIELD+2:MPIW8SIZEFIELD+MPIW8SIZEPART+1) = MPIW8CountPart
 #endif /*defined(PARTICLES)*/
 
 ! Collect and output measured MPI_WAIT() times
 IF(MPIroot)THEN
   ALLOCATE(MPIW8TimeProc(MPIW8SIZE*nProcessors))
-  CALL MPI_REDUCE(MPIW8Time , MPIW8TimeGlobal , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
-  CALL MPI_GATHER(MPIW8Time , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPIW8TimeProc , MPIW8SIZE , MPI_DOUBLE_PRECISION , 0 , MPI_COMM_WORLD , iError)
+  ALLOCATE(MPIW8CountProc(MPIW8SIZE*nProcessors))
+  CALL MPI_REDUCE(MPIW8TimeSim , MPIW8TimeSimeGlobal , 1         , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MPIW8Time    , MPIW8TimeGlobal     , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MPIW8Count   , MPIW8CountGlobal    , MPIW8SIZE , MPI_INTEGER8         , MPI_SUM , 0 , MPI_COMM_WORLD , iError)
+
+  CALL MPI_GATHER(MPIW8Time  , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPIW8TimeProc  , MPIW8SIZE , MPI_DOUBLE_PRECISION , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_GATHER(MPIW8Count , MPIW8SIZE , MPI_INTEGER8         , MPIW8CountProc , MPIW8SIZE , MPI_INTEGER8         , 0 , MPI_COMM_WORLD , iError)
 ELSE
-  CALL MPI_REDUCE(MPIW8Time , 0               , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IError)
-  CALL MPI_GATHER(MPIW8Time , MPIW8SIZE , MPI_DOUBLE_PRECISION , 0             , 0         , 0                    , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_REDUCE(MPIW8TimeSim , 0 , 1         , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IError)
+  CALL MPI_REDUCE(MPIW8Time    , 0 , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IError)
+  CALL MPI_REDUCE(MPIW8Count   , 0 , MPIW8SIZE , MPI_INTEGER8         , MPI_SUM , 0 , MPI_COMM_WORLD , IError)
+
+  CALL MPI_GATHER(MPIW8Time  , MPIW8SIZE , MPI_DOUBLE_PRECISION , 0 , 0 , 0 , 0 , MPI_COMM_WORLD , iError)
+  CALL MPI_GATHER(MPIW8Count , MPIW8SIZE , MPI_INTEGER8         , 0 , 0 , 0 , 0 , MPI_COMM_WORLD , iError)
 END IF
 
 ! --------------------------------------------------
@@ -563,23 +591,34 @@ END IF ! WriteHeader
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
   WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
-  WRITE(tmpStr2,formatStr)&
-      " ",REAL(nProcessors)       ,&
-      delimiter,MPIW8TimeSim      ,&
-      delimiter,MPIW8TimeGlobal(1),&
-      delimiter,MPIW8TimeGlobal(2),&
-      delimiter,MPIW8TimeGlobal(3) &
+  WRITE(tmpStr2,formatStr)                                  &
+      " ",REAL(nProcessors)                                ,& !     'nProcessors'
+      delimiter,MPIW8TimeSimeGlobal                        ,& !     'WallTimeSim'
+      delimiter,MPIW8TimeGlobal(1)                         ,& !     'Barrier-and-Sync'
+      delimiter,REAL(MPIW8CountGlobal(1))                  ,& !     'Barrier-and-Sync-Counter'
+      delimiter,MPIW8TimeGlobal(2)                         ,& ! (1) 'HDG-SendLambda'    or 'DGSEM-Send'
+      delimiter,REAL(MPIW8CountGlobal(2))                  ,& ! (1) 'HDG-SendLambda-Counter'    or 'DGSEM-Send-Counter'
+      delimiter,MPIW8TimeGlobal(3)                         ,& ! (2) 'HDG-ReceiveLambda' or 'DGSEM-Receive'
+      delimiter,REAL(MPIW8CountGlobal(3))                   & ! (2) 'HDG-ReceiveLambda-Counter' or 'DGSEM-Receive-Counter'
 #if USE_HDG
-     ,delimiter,MPIW8TimeGlobal(4),&
-      delimiter,MPIW8TimeGlobal(5) &
+     ,delimiter,MPIW8TimeGlobal(4)                         ,& ! (3) 'HDG-Broadcast'
+      delimiter,REAL(MPIW8CountGlobal(4))                  ,& ! (3) 'HDG-Broadcast-Counter'
+      delimiter,MPIW8TimeGlobal(5)                         ,& ! (4) 'HDG-Allreduce'
+      delimiter,REAL(MPIW8CountGlobal(5))                   & ! (4) 'HDG-Allreduce-Counter'
 #endif /*USE_HDG*/
 #if defined(PARTICLES)
-     ,delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+1),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+2),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+3),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+4),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+5),&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6) &
+     ,delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+1)        ,& ! (1) 'SendNbrOfParticles'
+      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+1+1)) ,& ! (1) 'SendNbrOfParticles-Counter'
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+2)        ,& ! (2) 'RecvNbrOfParticles'
+      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+1+2)) ,& ! (2) 'RecvNbrOfParticles-Counter'
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+3)        ,& ! (3) 'SendParticles'
+      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+1+3)) ,& ! (3) 'SendParticles-Counter'
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+4)        ,& ! (4) 'RecvParticles'
+      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+1+4)) ,& ! (4) 'RecvParticles-Counter'
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+5)        ,& ! (5) 'EmissionParticles'
+      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+1+5)) ,& ! (5) 'EmissionParticles-Counter'
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6)        ,& ! (6) 'PIC-depo-Wait'
+      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+1+6))  & ! (6) 'PIC-depo-Wait-Counter'
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
@@ -621,24 +660,37 @@ END IF ! WriteHeader
 IF(FILEEXISTS(outfilePerc))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfilePerc),POSITION="APPEND",STATUS="OLD")
   WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
-  TotalSimTime = MPIW8TimeSim*REAL(nProcessors)
-  WRITE(tmpStr2,formatStr)&
-      " ",REAL(nProcessors)       ,&
-      delimiter,100.              ,& ! MPIW8TimeSim*nProcessors / TotalSimTime
-      delimiter,MPIW8TimeGlobal(1)/TotalSimTime,&
-      delimiter,MPIW8TimeGlobal(2)/TotalSimTime,&
-      delimiter,MPIW8TimeGlobal(3)/TotalSimTime &
+  !TotalSimTime = MPIW8TimeSim*REAL(nProcessors)
+  TotalSimTime = MPIW8TimeSimeGlobal*0.01         ! Convert to [%]
+  TotalCounter = REAL(SUM(MPIW8CountGlobal))*0.01 ! Convert to [%]
+  WRITE(tmpStr2,formatStr)                              &
+      " ",REAL(nProcessors)                            ,&
+      delimiter,100.                                   ,& ! MPIW8TimeSim*nProcessors / TotalSimTime
+      delimiter,MPIW8TimeGlobal(1)/TotalSimTime        ,&
+      delimiter,REAL(MPIW8CountGlobal(1))/TotalCounter ,&
+      delimiter,MPIW8TimeGlobal(2)/TotalSimTime        ,&
+      delimiter,REAL(MPIW8CountGlobal(2))/TotalCounter ,&
+      delimiter,MPIW8TimeGlobal(3)/TotalSimTime        ,&
+      delimiter,REAL(MPIW8CountGlobal(3))/TotalCounter  &
 #if USE_HDG
-     ,delimiter,MPIW8TimeGlobal(4)/TotalSimTime,&
-      delimiter,MPIW8TimeGlobal(5)/TotalSimTime &
+     ,delimiter,MPIW8TimeGlobal(4)/TotalSimTime        ,&
+      delimiter,REAL(MPIW8CountGlobal(4))/TotalCounter ,&
+      delimiter,MPIW8TimeGlobal(5)/TotalSimTime        ,&
+      delimiter,REAL(MPIW8CountGlobal(5))/TotalCounter  &
 #endif /*USE_HDG*/
 #if defined(PARTICLES)
-     ,delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+1)/TotalSimTime,&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+2)/TotalSimTime,&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+3)/TotalSimTime,&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+4)/TotalSimTime,&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+5)/TotalSimTime,&
-      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6)/TotalSimTime &
+     ,delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+1)/TotalSimTime        ,&
+      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+1+1))/TotalCounter ,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+2)/TotalSimTime        ,&
+      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+1+2))/TotalCounter ,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+3)/TotalSimTime        ,&
+      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+1+3))/TotalCounter ,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+4)/TotalSimTime        ,&
+      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+1+4))/TotalCounter ,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+5)/TotalSimTime        ,&
+      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+1+5))/TotalCounter ,&
+      delimiter,MPIW8TimeGlobal(MPIW8SIZEFIELD+1+6)/TotalSimTime        ,&
+      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+1+6))/TotalCounter  &
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
@@ -682,30 +734,41 @@ WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear whit
 ! Output the processor wait times
 WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
 DO i = 0,nProcessors-1
-  WRITE(tmpStr2,formatStr)&
-            " ",REAL(i)                     ,&
-      delimiter,MPIW8TimeSim                ,&
-      delimiter,MPIW8TimeProc(i*MPIW8SIZE+1),&
-      delimiter,MPIW8TimeProc(i*MPIW8SIZE+2),&
-      delimiter,MPIW8TimeProc(i*MPIW8SIZE+3) &
+  WRITE(tmpStr2,formatStr)                                            &
+            " ",REAL(i)                                              ,&
+      delimiter,MPIW8TimeSim                                         ,&
+      delimiter,MPIW8TimeProc(i*MPIW8SIZE+1)                         ,&
+      delimiter,REAL(MPIW8CountProc(i*MPIW8SIZE+1))                  ,&
+      delimiter,MPIW8TimeProc(i*MPIW8SIZE+2)                         ,&
+      delimiter,REAL(MPIW8CountProc(i*MPIW8SIZE+2))                  ,&
+      delimiter,MPIW8TimeProc(i*MPIW8SIZE+3)                         ,&
+      delimiter,REAL(MPIW8CountProc(i*MPIW8SIZE+3))                   &
 #if USE_HDG
-     ,delimiter,MPIW8TimeProc(i*MPIW8SIZE+4),&
-      delimiter,MPIW8TimeProc(i*MPIW8SIZE+5) &
+     ,delimiter,MPIW8TimeProc(i*MPIW8SIZE+4)                         ,&
+      delimiter,REAL(MPIW8CountProc(i*MPIW8SIZE+4))                  ,&
+      delimiter,MPIW8TimeProc(i*MPIW8SIZE+5)                         ,&
+      delimiter,REAL(MPIW8CountProc(i*MPIW8SIZE+5))                   &
 #endif /*USE_HDG*/
 #if defined(PARTICLES)
-     ,delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+1),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+2),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+3),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+4),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+5),&
-      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+6) &
+     ,delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+1)        ,&
+      delimiter,REAL(MPIW8CountProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+1)) ,&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+2)        ,&
+      delimiter,REAL(MPIW8CountProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+2)) ,&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+3)        ,&
+      delimiter,REAL(MPIW8CountProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+3)) ,&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+4)        ,&
+      delimiter,REAL(MPIW8CountProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+4)) ,&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+5)        ,&
+      delimiter,REAL(MPIW8CountProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+5)) ,&
+      delimiter,MPIW8TimeProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+6)        ,&
+      delimiter,REAL(MPIW8CountProc(MPIW8SIZEFIELD+1+i*MPIW8SIZE+6))  &
 #endif /*defined(PARTICLES)*/
   ; ! this is required for terminating the "&" when particles=off
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
 END DO
 CLOSE(ioUnit)
 
-DEALLOCATE(MPIW8TimeProc)
+DEALLOCATE(MPIW8TimeProc, MPIW8CountProc)
 
 END SUBROUTINE OutputMPIW8Time
 #endif /*defined(MEASURE_MPI_WAIT)*/

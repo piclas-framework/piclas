@@ -89,7 +89,7 @@ INTEGER          :: offsetElemSend,offsetElemRecv
 INTEGER          :: iProc,iElem,ElemRank,nElemsProc
 !===================================================================================================================================
 LBWRITE(UNIT_StdOut,'(132("."))')
-LBWRITE(UNIT_stdOut,'(A)')' DOMAIN DECOMPOSITION ...'
+LBWRITE(UNIT_stdOut,'(A)', ADVANCE='NO')' DOMAIN DECOMPOSITION ...'
 
 GETTIME(StartT)
 
@@ -265,8 +265,7 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
   TargetWeight = SUM(WeightSum_proc)/nProcessors
   NewImbalance = (MaxWeight-TargetWeight)/TargetWeight
 
-  IF(TargetWeight.LE.0.0) CALL abort(&
-      __STAMP__, &
+  IF(TargetWeight.LE.0.0) CALL abort(__STAMP__, &
       ' LoadBalance: TargetWeight = ',RealInfoOpt=TargetWeight)
   LBWRITE(UNIT_stdOut,'(A)') ' Calculated new (theoretical) imbalance with offsetElemMPI information'
   SWRITE(UNIT_stdOut,'(A,ES10.3,A,ES10.3,A,ES10.3,A,ES10.3,A)')&
@@ -274,15 +273,14 @@ IF(ElemTimeExists.AND.MPIRoot)THEN
         NewImbalance,' (theoretical)'
   DEALLOCATE(WeightSum_proc)
 ELSE
-  LBWRITE(UNIT_stdOut,'(A)') ' No ElemTime found in restart file'
+  LBWRITE(UNIT_stdOut,'(A)', ADVANCE='NO') ' No ElemTime found in restart file ... '
   NewImbalance = -1.
   MaxWeight = -1.
   MinWeight = -1.
 END IF
-EndT=PICLASTIME()
+GETTIME(EndT)
 DomainDecompositionWallTime=EndT-StartT
-LBWRITE(UNIT_stdOut,'(A,F0.3,A)')' DOMAIN DECOMPOSITION DONE! [',DomainDecompositionWallTime,'s]'
-LBWRITE(UNIT_StdOut,'(132("-"))')
+CALL DisplayMessageAndTime(DomainDecompositionWallTime, 'DONE!')
 END SUBROUTINE DomainDecomposition
 
 

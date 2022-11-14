@@ -161,7 +161,10 @@ IF (FileNameVariableExternalField.NE.'none') THEN ! if supplied, read the data f
   ! Activate variable external field
   useVariableExternalField = .TRUE.
   ! Read data from .csv or .h5 file
-  CALL ReadVariableExternalField()
+#if defined(PARTICLES) && USE_LOADBALANCE
+  IF(.NOT.PerformLoadBalance) & ! Only allocate and read data once (skip during load balance)
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+    CALL ReadVariableExternalField()
 END IF
 
 ! Algebraic external field
@@ -169,8 +172,7 @@ useAlgebraicExternalField    = .FALSE.
 AlgebraicExternalField = GETINT('PIC-AlgebraicExternalField')
 IF(AlgebraicExternalField.GT.0) useAlgebraicExternalField=.TRUE.
 ! Sanity Check: Add all integer values that are possible to the vector for checking
-IF(.NOT.ANY(AlgebraicExternalField.EQ.(/0,1,2,3/))) CALL abort(&
-  __STAMP__&
+IF(.NOT.ANY(AlgebraicExternalField.EQ.(/0,1,2,3/))) CALL abort(__STAMP__&
   ,'Value for PIC-AlgebraicExternalField not defined',IntInfoOpt=AlgebraicExternalField)
 
 AlgebraicExternalFieldDelta = GETINT('PIC-AlgebraicExternalFieldDelta')
@@ -378,10 +380,12 @@ USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER,PARAMETER     :: lenmin=4
-INTEGER               :: lenstr
+INTEGER,PARAMETER :: lenmin=4
+INTEGER           :: lenstr
+REAL              :: StartT,EndT
 !===================================================================================================================================
 LBWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES '
+GETTIME(StartT)
 
 ! Defaults
 VariableExternalFieldDim     = 1 ! default is 1D
@@ -405,7 +409,8 @@ END IF
 
 IF(.NOT.ALLOCATED(VariableExternalField)) CALL abort(__STAMP__,"Failed to load data from: "//TRIM(FileNameVariableExternalField))
 
-LBWRITE(UNIT_stdOut,'(A)')' ...VARIABLE EXTERNAL FIELD INITIALIZATION DONE'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, ' INITIALIZATION OF VARIABLE EXTERNAL FIELD FOR PARTICLES ... DONE')
 END SUBROUTINE ReadVariableExternalField
 
 
@@ -573,6 +578,9 @@ SUBROUTINE FinalizePICInterpolation()
 ! finalize pic interpolation
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
+#if defined(PARTICLES) && USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle,VariableExternalField
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -584,7 +592,13 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 SDEALLOCATE(FieldAtParticle)
+
+! Keep the following arrays during load balance as they do not change
+#if defined(PARTICLES) && USE_LOADBALANCE
+IF (PerformLoadBalance) RETURN
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 SDEALLOCATE(VariableExternalField)
+
 END SUBROUTINE FinalizePICInterpolation
 
 
