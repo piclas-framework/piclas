@@ -412,6 +412,9 @@ DO iDOF = 1, MaxDOF
                               / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
     ! Leave routine and do not finish DO loop
     RETURN
+  ELSE IF(CollisionEnergy.EQ.XSecData(1,iDOF)) THEN
+    ! In case the collision energy is exactly the stored value
+    InterpolateCrossSection = XSecData(2,iDOF)
   END IF
 END DO
 
