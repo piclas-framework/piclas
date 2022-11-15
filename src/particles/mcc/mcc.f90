@@ -26,7 +26,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: MCC
+PUBLIC :: MonteCarloCollision
 !===================================================================================================================================
 
 CONTAINS
@@ -44,7 +44,7 @@ CONTAINS
 !>    e. Perform collision: set particle information of the background gas particle, if the particle is not utilized in a reaction
 !>       and did not changed its species, utilize it in the next pairing
 !===================================================================================================================================
-SUBROUTINE MCC(iElem)
+SUBROUTINE MonteCarloCollision(iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars
@@ -68,7 +68,7 @@ USE MOD_Part_Emission_Tools     ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
-USE MOD_MCC_XSec                ,ONLY: InterpolateCrossSection, InterpolateCrossSection_Vib, InterpolateCrossSection_Elec
+USE MOD_MCC_XSec                ,ONLY: InterpolateCrossSection
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -382,7 +382,7 @@ DO iSpec = 1, nSpecies
         ! XSec
         ! ==========================================================================================
         ! Interpolate cross-section at the collision energy
-        SpecXSec(iCase)%CrossSection = InterpolateCrossSection(iCase,CollEnergy)
+        SpecXSec(iCase)%CrossSection = InterpolateCrossSection(SpecXSec(iCase)%CollXSecData,CollEnergy)
         ! Calculate the collision probability
         CollProb = (1. - EXP(-SQRT(CRela2) * SpecXSec(iCase)%CrossSection * BGGasNumDens * dt))
         ! Correct the collision probability in the case of the second species being a background species as the number of pairs
@@ -422,7 +422,7 @@ DO iSpec = 1, nSpecies
           nVib = SIZE(SpecXSec(iCase)%VibMode)
           SumVibCrossSection = 0.
           DO iLevel = 1, nVib
-            SumVibCrossSection = SumVibCrossSection + InterpolateCrossSection_Vib(iCase,iLevel,CollEnergy)
+            SumVibCrossSection = SumVibCrossSection + InterpolateCrossSection(SpecXSec(iCase)%VibMode(iLevel)%XSecData,CollEnergy)
           END DO
           ! Calculate the total vibrational relaxation probability
           SpecXSec(iCase)%VibProb = 1. - EXP(-SQRT(CRela2) * SumVibCrossSection * BGGasNumDens * dt)
@@ -437,7 +437,7 @@ DO iSpec = 1, nSpecies
           DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
             IF(CollEnergy.GT.SpecXSec(iCase)%ElecLevel(iLevel)%Threshold) THEN
               ! Interpolate the electronic cross-section
-              SpecXSec(iCase)%ElecLevel(iLevel)%Prob = InterpolateCrossSection_Elec(iCase,iLevel,CollEnergy)
+              SpecXSec(iCase)%ElecLevel(iLevel)%Prob = InterpolateCrossSection(SpecXSec(iCase)%ElecLevel(iLevel)%XSecData,CollEnergy)
               ! Calculate the electronic excitation probability
               SpecXSec(iCase)%ElecLevel(iLevel)%Prob = 1. - EXP(-SQRT(CRela2) * SpecXSec(iCase)%ElecLevel(iLevel)%Prob &
                                                             * BGGasNumDens * dt)
@@ -588,7 +588,7 @@ DEALLOCATE(UseSpecPartNum)
 DEALLOCATE(SpecPairNum)
 DEALLOCATE(Coll_pData)
 
-END SUBROUTINE MCC
+END SUBROUTINE MonteCarloCollision
 
 
 !===================================================================================================================================
@@ -600,7 +600,7 @@ USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, BGGas, ChemReac, DSMC, PartStateI
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_part_tools            ,ONLY: CalcERot_particle, CalcEVib_particle, CalcEElec_particle
-USE MOD_MCC_XSec              ,ONLY: InterpolateCrossSection_Chem
+USE MOD_MCC_XSec              ,ONLY: InterpolateCrossSection
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -671,7 +671,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     ! Check first if sufficient energy is available for the products after the reaction
     IF(((CollEnergy-EZeroPoint_Prod).GE.-ChemReac%EForm(ReacTest))) THEN
       CollEnergy = CollEnergy - EZeroPoint_Educt
-      CrossSection = InterpolateCrossSection_Chem(iCase,iPath,CollEnergy)
+      CrossSection = InterpolateCrossSection(SpecXSec(iCase)%ReactionPath(iPath)%XSecData,CollEnergy)
       ASSOCIATE( ReactionProb => ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) )
         IF(SpecXSec(iCase)%UseCollXSec) THEN
           ! Interpolate the reaction cross-section

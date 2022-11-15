@@ -22,7 +22,7 @@ IMPLICIT NONE
 PRIVATE
 
 PUBLIC :: ReadCollXSec, ReadVibXSec, ReadElecXSec, ReadReacXSec, ReadReacPhotonXSec, ReadReacPhotonSpectrum
-PUBLIC :: InterpolateCrossSection, InterpolateCrossSection_Vib, InterpolateCrossSection_Elec, InterpolateCrossSection_Chem
+PUBLIC :: InterpolateCrossSection
 PUBLIC :: XSec_CalcCollisionProb, XSec_CalcVibRelaxProb, XSec_CalcElecRelaxProb, XSec_CalcReactionProb
 PUBLIC :: XSec_ElectronicRelaxation
 !===================================================================================================================================
@@ -362,7 +362,7 @@ CALL H5CLOSE_F(err)
 END SUBROUTINE ReadElecXSec
 
 
-PPURE REAL FUNCTION InterpolateCrossSection(iCase,CollisionEnergy)
+PPURE REAL FUNCTION InterpolateCrossSection(XSecData,CollisionEnergy)
 !===================================================================================================================================
 !> Interpolate the collision cross-section [m^2] from the available data at the given collision energy [J]
 !> Collision energies below and above the given data will be set at the first and last level of the data set
@@ -370,233 +370,55 @@ PPURE REAL FUNCTION InterpolateCrossSection(iCase,CollisionEnergy)
 !> Assumption: First species given is the particle species, second species input is the background gas species
 !===================================================================================================================================
 ! MODULES
-USE MOD_MCC_Vars              ,ONLY: SpecXSec
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(IN)            :: iCase                            !< Case index
+REAL,INTENT(IN)               :: XSecData(:,:)                    !< Array for the interpolation [1:2,1:MaxDOF]
 REAL,INTENT(IN)               :: CollisionEnergy                  !< Collision energy in [J]
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iDOF, MaxDOF
 !===================================================================================================================================
 
-ASSOCIATE( CollXSecData => SpecXSec(iCase)%CollXSecData )
-  InterpolateCrossSection = 0.
-  MaxDOF = SIZE(CollXSecData,2)
+InterpolateCrossSection = 0.
+MaxDOF = SIZE(XSecData,2)
 
-  IF(CollisionEnergy.GT.CollXSecData(1,MaxDOF)) THEN
-    ! If the collision energy is greater than the maximal value, extrapolate from the last two values
-    IF((MaxDOF.LT.2).OR.(CollXSecData(2,MaxDOF).LE.0.))THEN
-      ! If only one value is given or the last cross-section is zero
-      InterpolateCrossSection = CollXSecData(2,MaxDOF)
-    ELSE
-      ! Extrapolate
-      InterpolateCrossSection = CollXSecData(2,MaxDOF-1)                          &
-                              +        (CollisionEnergy - CollXSecData(1,MaxDOF-1)) &
-                              / (CollXSecData(1,MaxDOF) - CollXSecData(1,MaxDOF-1)) &
-                              * (CollXSecData(2,MaxDOF) - CollXSecData(2,MaxDOF-1))
-     ! Check if extrapolation drops under zero
-     IF(InterpolateCrossSection.LE.0.) InterpolateCrossSection = 0.
-    END IF ! (MaxDOF.LT.2).OR.(CollXSecData(2,MaxDOF).LE.0.)
-    ! Leave routine
-    RETURN
-  ELSE IF(CollisionEnergy.LE.CollXSecData(1,1)) THEN
-    ! If collision energy is below the minimal value, get the cross-section of the first level and leave routine
-    InterpolateCrossSection = CollXSecData(2,1)
-    ! Leave routine
-    RETURN
-  END IF
-
-  DO iDOF = 1, MaxDOF
-    ! Check if the stored energy value is above the collision energy
-    IF(CollXSecData(1,iDOF).GT.CollisionEnergy) THEN
-      ! Interpolate the cross-section from the data set using the current and the energy level below
-      InterpolateCrossSection = CollXSecData(2,iDOF-1)                          &
-                              + (     CollisionEnergy - CollXSecData(1,iDOF-1)) &
-                              / (CollXSecData(1,iDOF) - CollXSecData(1,iDOF-1)) &
-                              * (CollXSecData(2,iDOF) - CollXSecData(2,iDOF-1))
-      ! Leave routine and do not finish DO loop
-      RETURN
-    END IF
-  END DO
-END ASSOCIATE
-
-END FUNCTION InterpolateCrossSection
-
-
-PPURE REAL FUNCTION InterpolateCrossSection_Vib(iCase,iVib,CollisionEnergy)
-!===================================================================================================================================
-!> Interpolate the vibrational cross-section data for specific vibrational level at the given collision energy
-!> Note: Requires the data to be sorted by ascending energy values
-!> Assumption: First species given is the particle species, second species input is the background gas species
-!===================================================================================================================================
-! MODULES
-USE MOD_MCC_Vars              ,ONLY: SpecXSec
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(IN)            :: iCase                            !< Case index
-INTEGER,INTENT(IN)            :: iVib                             !< Vib index
-REAL,INTENT(IN)               :: CollisionEnergy                  !< Collision energy in [J]
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: iDOF, MaxDOF
-!===================================================================================================================================
-
-ASSOCIATE( XSecData => SpecXSec(iCase)%VibMode(iVib)%XSecData )
-  InterpolateCrossSection_Vib = 0.
-  MaxDOF = SIZE(XSecData,2)
-
-  IF(CollisionEnergy.GT.XSecData(1,MaxDOF)) THEN
-    ! If the collision energy is greater than the maximal value, extrapolate from the last two values
-    IF((MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))THEN
-      ! If only one value is given or the last cross-section is zero
-      InterpolateCrossSection_Vib = XSecData(2,MaxDOF)
-    ELSE
-      ! Extrapolate
-      InterpolateCrossSection_Vib = XSecData(2,MaxDOF-1)   &
-                + (   CollisionEnergy - XSecData(1,MaxDOF-1)) &
-                / (XSecData(1,MaxDOF) - XSecData(1,MaxDOF-1)) &
-                * (XSecData(2,MaxDOF) - XSecData(2,MaxDOF-1))
-     ! Check if extrapolation drops under zero
-     IF(InterpolateCrossSection_Vib.LE.0.) InterpolateCrossSection_Vib=0.
-    END IF ! (MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))
-    ! Leave routine
-    RETURN
-  ELSE IF(CollisionEnergy.LE.XSecData(1,1)) THEN
-    ! If collision energy is below the minimal value, get the cross-section of the first level and leave routine
-    InterpolateCrossSection_Vib = XSecData(2,1)
-    ! Leave routine
-    RETURN
-  END IF
-
-  DO iDOF = 1, MaxDOF
-    ! Check if the stored energy value is above the collision energy
-    IF(XSecData(1,iDOF).GE.CollisionEnergy) THEN
-      ! Interpolate the cross-section from the data set using the current and the energy level below
-      InterpolateCrossSection_Vib = XSecData(2,iDOF-1) &
-                + ( CollisionEnergy - XSecData(1,iDOF-1)) &
-                / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) &
-                * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
-      ! Leave routine and do not finish DO loop
-      RETURN
-    END IF
-  END DO
-END ASSOCIATE
-
-END FUNCTION InterpolateCrossSection_Vib
-
-
-PPURE REAL FUNCTION InterpolateCrossSection_Elec(iCase,iLevel,CollisionEnergy)
-!===================================================================================================================================
-!> Interpolate the electronic cross-section data for specific electronic level at the given collision energy
-!> Note: Requires the data to be sorted by ascending energy values
-!===================================================================================================================================
-! MODULES
-USE MOD_MCC_Vars              ,ONLY: SpecXSec
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(IN)            :: iCase                            !< Case index
-INTEGER,INTENT(IN)            :: iLevel                           !<
-REAL,INTENT(IN)               :: CollisionEnergy                  !< Collision energy in [J]
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: iDOF, MaxDOF
-!===================================================================================================================================
-
-InterpolateCrossSection_Elec = 0.
-MaxDOF = SIZE(SpecXSec(iCase)%ElecLevel(iLevel)%XSecData,2)
-
-ASSOCIATE( XSecData => SpecXSec(iCase)%ElecLevel(iLevel)%XSecData )
-  IF(CollisionEnergy.GT.XSecData(1,MaxDOF)) THEN
-    ! If the collision energy is greater than the maximal value, extrapolate from the last two values
-    IF((MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))THEN
-      ! If only one value is given or the last cross-section is zero
-      InterpolateCrossSection_Elec = XSecData(2,MaxDOF)
-    ELSE
-      ! Extrapolate
-      InterpolateCrossSection_Elec = XSecData(2,MaxDOF-1)   &
-             + (   CollisionEnergy - XSecData(1,MaxDOF-1)) &
-             / (XSecData(1,MaxDOF) - XSecData(1,MaxDOF-1)) &
-             * (XSecData(2,MaxDOF) - XSecData(2,MaxDOF-1))
-     ! Check if extrapolation drops under zero
-     IF(InterpolateCrossSection_Elec.LE.0.) InterpolateCrossSection_Elec=0.
-    END IF ! (MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))
-    ! Leave routine
-    RETURN
-  ELSE IF(CollisionEnergy.LE.XSecData(1,1)) THEN
-    ! If collision energy is below the minimal value, get the cross-section of the first level and leave routine
-    InterpolateCrossSection_Elec = XSecData(2,1)
-    ! Leave routine
-    RETURN
-  END IF
-
-  DO iDOF = 1, MaxDOF
-    ! Check if the stored energy value is above the collision energy
-    IF(XSecData(1,iDOF).GE.CollisionEnergy) THEN
-      ! Interpolate the cross-section from the data set using the current and the energy level below
-      InterpolateCrossSection_Elec = XSecData(2,iDOF-1) &
-               + ( CollisionEnergy - XSecData(1,iDOF-1)) &
-               / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) &
-               * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
-      ! Leave routine and do not finish DO loop
-      RETURN
-    END IF
-  END DO
-END ASSOCIATE
-
-END FUNCTION InterpolateCrossSection_Elec
-
-
-PPURE REAL FUNCTION InterpolateVibRelaxProb(iCase,CollisionEnergy)
-!===================================================================================================================================
-!> Interpolate the vibrational relaxation probability at the same intervals as the effective collision cross-section
-!> Note: Requires the data to be sorted by ascending energy values
-!> Assumption: First species given is the particle species, second species input is the background gas species
-!===================================================================================================================================
-! MODULES
-USE MOD_MCC_Vars              ,ONLY: SpecXSec
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(IN)            :: iCase                            !< Case index
-REAL,INTENT(IN)               :: CollisionEnergy                  !< Collision energy in [J]
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: iDOF, MaxDOF
-!===================================================================================================================================
-
-InterpolateVibRelaxProb = 0.
-MaxDOF = SIZE(SpecXSec(iCase)%VibXSecData,2)
-
-IF(CollisionEnergy.GT.SpecXSec(iCase)%VibXSecData(1,MaxDOF)) THEN
-  ! If the collision energy is greater than the maximal value, get the cross-section of the last level and leave routine
-  InterpolateVibRelaxProb = SpecXSec(iCase)%VibXSecData(2,MaxDOF)
+IF(CollisionEnergy.GT.XSecData(1,MaxDOF)) THEN
+  ! If the collision energy is greater than the maximal value, extrapolate from the last two values
+  IF((MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))THEN
+    ! If only one value is given or the last cross-section is zero
+    InterpolateCrossSection = XSecData(2,MaxDOF)
+  ELSE
+    ! Extrapolate
+    InterpolateCrossSection = XSecData(2,MaxDOF-1) + (CollisionEnergy - XSecData(1,MaxDOF-1)) &
+                            / (XSecData(1,MaxDOF) - XSecData(1,MaxDOF-1)) * (XSecData(2,MaxDOF) - XSecData(2,MaxDOF-1))
+    ! Check if extrapolation drops under zero
+    IF(InterpolateCrossSection.LE.0.) InterpolateCrossSection = 0.
+  END IF ! (MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.)
   ! Leave routine
   RETURN
-ELSE IF(CollisionEnergy.LE.SpecXSec(iCase)%VibXSecData(1,1)) THEN
+ELSE IF(CollisionEnergy.LE.XSecData(1,1)) THEN
   ! If collision energy is below the minimal value, get the cross-section of the first level and leave routine
-  InterpolateVibRelaxProb = SpecXSec(iCase)%VibXSecData(2,1)
+  InterpolateCrossSection = XSecData(2,1)
   ! Leave routine
   RETURN
 END IF
 
 DO iDOF = 1, MaxDOF
   ! Check if the stored energy value is above the collision energy
-  IF(SpecXSec(iCase)%VibXSecData(1,iDOF).GT.CollisionEnergy) THEN
+  IF(XSecData(1,iDOF).GT.CollisionEnergy) THEN
     ! Interpolate the cross-section from the data set using the current and the energy level below
-    InterpolateVibRelaxProb = SpecXSec(iCase)%VibXSecData(2,iDOF-1) &
-              + (CollisionEnergy - SpecXSec(iCase)%VibXSecData(1,iDOF-1)) &
-              / (SpecXSec(iCase)%VibXSecData(1,iDOF) - SpecXSec(iCase)%VibXSecData(1,iDOF-1)) &
-              * (SpecXSec(iCase)%VibXSecData(2,iDOF) - SpecXSec(iCase)%VibXSecData(2,iDOF-1))
+    InterpolateCrossSection = XSecData(2,iDOF-1) + (CollisionEnergy  - XSecData(1,iDOF-1)) &
+                              / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
     ! Leave routine and do not finish DO loop
     RETURN
+  ELSE IF(CollisionEnergy.EQ.XSecData(1,iDOF)) THEN
+    ! In case the collision energy is exactly the stored value
+    InterpolateCrossSection = XSecData(2,iDOF)
   END IF
 END DO
 
-END FUNCTION InterpolateVibRelaxProb
+END FUNCTION InterpolateCrossSection
 
 
 SUBROUTINE XSec_CalcCollisionProb(iPair,iElem,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
@@ -643,7 +465,7 @@ IF(SpecXSec(iCase)%UseCollXSec) THEN
   ! Using the relative kinetic energy of the particle pair (real energy value per particle pair, no weighting/scaling factors)
   CollEnergy = 0.5 * ReducedMassUnweighted * Coll_pData(iPair)%CRela2
   ! Calculate the collision probability
-  SpecXSec(iCase)%CrossSection = InterpolateCrossSection(iCase,CollEnergy)
+  SpecXSec(iCase)%CrossSection = InterpolateCrossSection(SpecXSec(iCase)%CollXSecData,CollEnergy)
   Coll_pData(iPair)%Prob = (1. - EXP(-SQRT(Coll_pData(iPair)%CRela2) * SpecXSec(iCase)%CrossSection * SpecNumTarget * MacroParticleFactor &
                                         / Volume * dtCell))
   ! Correction for conditional probabilities in case of MCC
@@ -721,7 +543,7 @@ CollEnergy = 0.5 * ReducedMassUnweighted * Coll_pData(iPair)%CRela2
 ! Calculate the total vibrational cross-section
 nVib = SIZE(SpecXSec(iCase)%VibMode)
 DO iVib = 1, nVib
-  SumVibCrossSection = SumVibCrossSection + InterpolateCrossSection_Vib(iCase,iVib,CollEnergy)
+  SumVibCrossSection = SumVibCrossSection + InterpolateCrossSection(SpecXSec(iCase)%VibMode(iVib)%XSecData,CollEnergy)
 END DO
 
 IF(SpecXSec(iCase)%UseCollXSec) THEN
@@ -898,7 +720,7 @@ CollEnergy = 0.5 * ReducedMassUnweighted * Coll_pData(iPair)%CRela2
 ! Calculate the electronic cross-section
 DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
   IF(CollEnergy.GT.SpecXSec(iCase)%ElecLevel(iLevel)%Threshold) THEN
-    SpecXSec(iCase)%ElecLevel(iLevel)%Prob = InterpolateCrossSection_Elec(iCase,iLevel,CollEnergy)
+    SpecXSec(iCase)%ElecLevel(iLevel)%Prob = InterpolateCrossSection(SpecXSec(iCase)%ElecLevel(iLevel)%XSecData,CollEnergy)
   END IF
 END DO
 
@@ -925,69 +747,6 @@ IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
 END IF
 
 END SUBROUTINE XSec_CalcElecRelaxProb
-
-
-PPURE REAL FUNCTION InterpolateCrossSection_Chem(iCase,iPath,CollisionEnergy)
-!===================================================================================================================================
-!> Interpolate the reaction cross-section data for specific reaction path at the given collision energy
-!> Note: Requires the data to be sorted by ascending energy values
-!> Assumption: First species given is the particle species, second species input is the background gas species
-!===================================================================================================================================
-! MODULES
-USE MOD_MCC_Vars              ,ONLY: SpecXSec
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(IN)            :: iCase                            !< Case index
-INTEGER,INTENT(IN)            :: iPath                            !< Reaction path index
-REAL,INTENT(IN)               :: CollisionEnergy                  !< Collision energy in [J]
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: iDOF, MaxDOF
-!===================================================================================================================================
-
-ASSOCIATE( XSecData => SpecXSec(iCase)%ReactionPath(iPath)%XSecData )
-  InterpolateCrossSection_Chem = 0.
-  MaxDOF = SIZE(XSecData,2)
-
-  IF(CollisionEnergy.GT.XSecData(1,MaxDOF)) THEN
-    ! If the collision energy is greater than the maximal value, extrapolate from the last two values
-    IF((MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))THEN
-      ! If only one value is given or the last cross-section is zero
-      InterpolateCrossSection_Chem = XSecData(2,MaxDOF)
-    ELSE
-      ! Extrapolate
-      InterpolateCrossSection_Chem = XSecData(2,MaxDOF-1)   &
-                + (   CollisionEnergy - XSecData(1,MaxDOF-1)) &
-                / (XSecData(1,MaxDOF) - XSecData(1,MaxDOF-1)) &
-                * (XSecData(2,MaxDOF) - XSecData(2,MaxDOF-1))
-     ! Check if extrapolation drops under zero
-     IF(InterpolateCrossSection_Chem.LE.0.) InterpolateCrossSection_Chem=0.
-    END IF ! (MaxDOF.LT.2).OR.(XSecData(2,MaxDOF).LE.0.))
-    ! Leave routine
-    RETURN
-  ELSE IF(CollisionEnergy.LE.XSecData(1,1)) THEN
-    ! If collision energy is below the minimal value, get the cross-section of the first level and leave routine
-    InterpolateCrossSection_Chem = XSecData(2,1)
-    ! Leave routine
-    RETURN
-  END IF
-
-  DO iDOF = 1, MaxDOF
-    ! Check if the stored energy value is above the collision energy
-    IF(XSecData(1,iDOF).GT.CollisionEnergy) THEN
-      ! Interpolate the cross-section from the data set using the current and the energy level below
-      InterpolateCrossSection_Chem = XSecData(2,iDOF-1)   &
-                + ( CollisionEnergy - XSecData(1,iDOF-1)) &
-                / (XSecData(1,iDOF) - XSecData(1,iDOF-1)) &
-                * (XSecData(2,iDOF) - XSecData(2,iDOF-1))
-      ! Leave routine and do not finish DO loop
-      RETURN
-    END IF
-  END DO
-END ASSOCIATE
-
-END FUNCTION InterpolateCrossSection_Chem
 
 
 SUBROUTINE ReadReacXSec(iCase,iPath)
@@ -1488,7 +1247,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
           CollEnergy = (EcRelativistic-EZeroPoint_Educt) * 2./(Weight(1)+Weight(2))
         END IF
 
-        CrossSection = InterpolateCrossSection_Chem(iCase,iPath,CollEnergy)
+        CrossSection = InterpolateCrossSection(SpecXSec(iCase)%ReactionPath(iPath)%XSecData,CollEnergy)
         IF(SpecXSec(iCase)%UseCollXSec) THEN
           ! Interpolate the reaction cross-section
           ReactionProb = CrossSection
