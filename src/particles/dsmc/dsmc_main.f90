@@ -54,8 +54,8 @@ USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_MCC                   ,ONLY: MCC
 USE MOD_MCC_Vars              ,ONLY: UseMCC
+USE MOD_MCC                   ,ONLY: MonteCarloCollision
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -99,7 +99,7 @@ DO iElem = 1, nElems ! element/cell main loop
     IF(BGGas%NumberOfSpecies.GT.0) THEN
       ! Decide between MCC and DSMC-based background gas
       IF(UseMCC) THEN
-        CALL MCC(iElem)
+        CALL MonteCarloCollision(iElem)
       ELSE
         CALL DSMC_pairing_bggas(iElem)
       END IF

@@ -8,9 +8,9 @@ def get_numbers_from_filename(filename):
 directory = os.getcwd()
 
 # H2 + H3Ion reactions
-varName_01 = '005-Reaction001     '
-varName_02 = '006-Reaction002     '
-varName_03 = '007-Reaction003      '
+varName_01 = '005-Reaction001'
+varName_02 = '006-Reaction002'
+varName_03 = '007-Reaction003'
 print('===============================================')
 print('Reactions: H2 + H3Ion')
 for filename in sorted(os.listdir(directory)):
