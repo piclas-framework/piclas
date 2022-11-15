@@ -66,7 +66,7 @@ SUBROUTINE Riemann(Flux_Master,Flux_Slave,U_Master,U_Slave,NormVec,SideID)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Dielectric_vars ,ONLY: Dielectric_Master
-USE MOD_Globals         ,ONLY: Abort
+USE MOD_Globals         ,ONLY: abort,myrank,UNIT_StdOut
 USE MOD_PML_vars        ,ONLY: PMLnVar
 USE MOD_Interfaces_Vars ,ONLY: InterfaceRiemann
 ! IMPLICIT VARIABLE HANDLING
@@ -122,9 +122,9 @@ CASE(RIEMANN_VAC2DIELECTRIC_NC) ! use non-conserving fluxes (two different fluxe
   ! 2.) vacuum master side
   CALL RiemannVacuum(Flux_Master(1:8,:,:),U_Master( :,:,:),U_Slave(  :,:,:),NormVec(:,:,:))
 CASE DEFAULT
-  CALL abort(&
-      __STAMP__&
-      ,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
+  IPWRITE(UNIT_StdOut,*) "SideID                   = ", SideID
+  IPWRITE(UNIT_StdOut,*) "InterfaceRiemann(SideID) = ", InterfaceRiemann(SideID)
+  CALL abort(__STAMP__,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
 END SELECT
 
 END SUBROUTINE Riemann
