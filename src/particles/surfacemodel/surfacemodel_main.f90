@@ -255,7 +255,7 @@ CASE(20)  ! Adsorption or Eley-Rideal reaction
         StickCoeff = SurfChemReac%StickCoeff(iReac)
 
         ! Determine the heat of adsorption in dependence of the coverage [J]
-        AdsHeat = (SurfChemReac%EReact(iReac) - Coverage * SurfChemReac%EScale(iReac)) * BoltzmannConst      
+        AdsHeat = (SurfChemReac%EReact(iReac) - Coverage * SurfChemReac%EScale(iReac)) * BoltzmannConst
         
         ! Theta = free surface sites required for the adsorption
         ! Determination of possible coadsorption processes
@@ -366,11 +366,10 @@ CASE(20)  ! Adsorption or Eley-Rideal reaction
   END DO !iReac
 
   ! 3.) Choose the occuring pathway by comparison with a random number
-  CALL RANDOM_NUMBER(RanNum)
-  CALL RANDOM_NUMBER(RanNum2)
-
   ! Rescale the probability (ER-Reaction) and the sticking coefficient (adsorption)
   IF ((Prob+StickCoeff).GT.0.) THEN
+    CALL RANDOM_NUMBER(RanNum)
+    CALL RANDOM_NUMBER(RanNum2)
     Prob_Scaled = Prob/(Prob + StickCoeff)
     IF(Prob_Scaled.GT.RanNum) THEN
       IF(Prob.GT.RanNum2) THEN
@@ -425,8 +424,8 @@ CASE(20)  ! Adsorption or Eley-Rideal reaction
     ! Get Elem Center
     BoundsOfElemCenter(1:3) = (/SUM(BoundsOfElem_Shared(1:2,1,GlobalElemID)), &
                                 SUM(BoundsOfElem_Shared(1:2,2,GlobalElemID)), &
-                                SUM(BoundsOfElem_Shared(1:2,3,GlobalElemID)) /) / 2.                            
-                           
+                                SUM(BoundsOfElem_Shared(1:2,3,GlobalElemID)) /) / 2.
+
     iNewPart = 1
     ProductSpecNbr = 1
 

@@ -80,10 +80,10 @@ TYPE tSurfReactions
   INTEGER, ALLOCATABLE                   :: Inhibition(:)          ! Reaction number of inhibiting reactions
   INTEGER, ALLOCATABLE                   :: Promotion(:)           ! Reaction number of promoting reactions
   INTEGER, ALLOCATABLE                   :: NumOfBounds(:)         ! Number of catalytic boundaries
-  ! Surface energy accomodation
+  ! Surface energy accommodation
   REAL, ALLOCATABLE                      :: EReact(:)              ! Reaction energy [K]
   REAL, ALLOCATABLE                      :: EScale(:)              ! Scaling factor for E_reac [K]
-  REAL, ALLOCATABLE                      :: HeatAccommodation(:)    ! Beta coefficient for the energy accomodation
+  REAL, ALLOCATABLE                      :: HeatAccommodation(:)   ! Beta coefficient for the energy accommodation
   ! Parameters for the adsorption
   REAL, ALLOCATABLE                      :: S_initial(:)           ! Initial sticking coefficient at zero coverage
   REAL, ALLOCATABLE                      :: MaxCoverage(:)         ! Maximal surface coverage
