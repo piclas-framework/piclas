@@ -650,10 +650,8 @@ IF(notMappedTotal.GT.0)THEN
   !LBWRITE(Unit_StdOut,'(A)')" | If the file does not exist, it can be re-created with RotPeriodicReBuild=T"
 END IF ! notMappedTotal.GT.0
 
-
 GETTIME(EndT)
-LBWRITE(UNIT_stdOut,'(A,F0.3,A)') ' INIT ROTATIONAL PERIODIC BOUNDARY DONE! [',EndT-StartT,'s]'
-LBWRITE(UNIT_StdOut,'(132("-"))')
+CALL DisplayMessageAndTime(EndT-StartT, 'INIT ROTATIONAL PERIODIC BOUNDARY DONE!')
 
 END SUBROUTINE InitParticleBoundaryRotPeriodic
 

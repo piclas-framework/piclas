@@ -1036,12 +1036,8 @@ INTEGER                        :: nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT,
 REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:)
 REAL                           :: StartT,EndT
 !===================================================================================================================================
-  SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE DSMC TO HDF5 FILE...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#else
-  StartT=LOCALTIME()
-#endif
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DSMC TO HDF5 FILE...'
+GETTIME(StartT)
 
 ! Create dataset attribute "VarNames"
 nVarloc=DSMC_NVARS
@@ -1192,13 +1188,8 @@ CALL CloseDataFile()
 
 DEALLOCATE(StrVarNames)
 DEALLOCATE(DSMC_MacroVal)
-#if USE_MPI
-IF(MPIROOT) EndT=MPI_WTIME()
-#else
-EndT=LOCALTIME()
-#endif
-
-SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
 END SUBROUTINE WriteDSMCToHDF5
 
