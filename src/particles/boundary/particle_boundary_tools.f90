@@ -140,9 +140,7 @@ CASE ('new')
     END IF
   END IF
 CASE DEFAULT
-  CALL abort(&
-    __STAMP__&
-    ,'ERROR in CalcWallSample: wrong SampleType specified. Possible types -> ( old , new )')
+  CALL abort(__STAMP__,'ERROR in CalcWallSample: wrong SampleType specified. Possible types -> ( old , new )')
 END SELECT
 !----  Sampling force at walls (correct sign is set above)
 SampWallState(SAMPWALL_DELTA_MOMENTUMX,SubP,SubQ,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMX,SubP,SubQ,SurfSideID) + MomArray(1)

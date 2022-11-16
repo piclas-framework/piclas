@@ -49,7 +49,7 @@ USE MOD_Globals                   ,ONLY: myrank
 #endif /*USE_MPI*/
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
-USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide, dXiEQ_SurfSample, PartBound
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
@@ -163,6 +163,10 @@ CASE (0) ! Maxwellian scattering (diffuse/specular reflection)
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL MaxwellScattering(PartID,SideID,n_Loc,SpecularReflectionOnly)
 !-----------------------------------------------------------------------------------------------------------------------------------
+CASE (1)  ! Sticking coefficient model using tabulated, empirical values
+!-----------------------------------------------------------------------------------------------------------------------------------
+  CALL StickingCoefficientModel(PartID,SideID,n_Loc)
+!-----------------------------------------------------------------------------------------------------------------------------------
 CASE (SEE_MODELS_ID)
   ! 5: SEE by Levko2015
   ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
@@ -251,8 +255,8 @@ END IF
 ! Sampling
 IF(DoSample) THEN
   ! Sample momentum, heatflux and collision counter on surface (only the original impacting particle, not the newly created parts
-  ! through SurfaceModel_ParticleEmission)
-  CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
+  ! through SurfaceModel_ParticleEmission), checking if the particle was deleted/absorbed/adsorbed at the wall
+  IF(PDM%ParticleInside(PartID)) CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
 END IF
 
 END SUBROUTINE SurfaceModel
@@ -847,6 +851,85 @@ DO iSF=1,Species(iSpec)%nSurfacefluxBCs
 END DO
 
 END SUBROUTINE SurfaceFluxBasedBoundaryTreatment
+
+
+SUBROUTINE StickingCoefficientModel(PartID,SideID,n_Loc)
+!===================================================================================================================================
+!> Empirical sticking coefficient model using the product of a non-bounce probability (angle dependence with a cut-off angle) and
+!> condensation probability (linear temperature dependence, using different temperature limits)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: PI
+USE MOD_Particle_Vars           ,ONLY: Species, PartSpecies, VarTimeStep, nSpecies
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, SampWallState, GlobalSide2SurfSide
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_part_operations         ,ONLY: RemoveParticle
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
+USE MOD_SurfaceModel_Vars       ,ONLY: StickingCoefficientData
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                 :: n_loc(1:3)
+INTEGER,INTENT(IN)              :: PartID, SideID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iVal, ArrayPos, SubP, SubQ, locBCID, SurfSideID
+REAL                            :: ImpactAngle, NonBounceProb, Prob, alpha_B, LowerTemp, UpperTemp, RanNum, WallTemp
+!===================================================================================================================================
+
+locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+WallTemp = PartBound%WallTemp(locBCID)
+! Determine impact angle of particle to calculate non-bounce probability B(alpha)
+ImpactAngle = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(TrackInfo%PartTrajectory,n_loc))))
+! Calculate the bounce probability and select the appropriate temperature coefficients
+IF(ImpactAngle.GE.MINVAL(StickingCoefficientData(1,:))) THEN
+  DO iVal = 1, UBOUND(StickingCoefficientData,dim=1)
+    IF(ImpactAngle.GE.StickingCoefficientData(1,iVal)) THEN
+      alpha_B   = StickingCoefficientData(1,iVal)
+      LowerTemp = StickingCoefficientData(2,iVal)
+      UpperTemp = StickingCoefficientData(3,iVal)
+    END IF
+  END DO
+  NonBounceProb = (90.-ImpactAngle) / (90.-alpha_B)
+ELSE
+  LowerTemp = StickingCoefficientData(2,1)
+  UpperTemp = StickingCoefficientData(3,1)
+  NonBounceProb = 1.
+END IF
+
+! Calculate the sticking probability, using the wall temperature
+IF(WallTemp.LT.LowerTemp) THEN
+  Prob = NonBounceProb
+ELSE IF(WallTemp.GT.UpperTemp) THEN
+  Prob = 0.
+ELSE
+  Prob = NonBounceProb * (UpperTemp - WallTemp) / (UpperTemp - LowerTemp)
+END IF
+
+CALL RANDOM_NUMBER(RanNum)
+
+IF(VarTimeStep%UseVariableTimeStep) THEN
+  ArrayPos = SAMPWALL_NVARS+nSpecies+2
+ELSE
+  ArrayPos = SAMPWALL_NVARS+nSpecies+1
+END IF
+SubP = TrackInfo%p
+SubQ = TrackInfo%q
+SampWallState(ArrayPos,SubP,SubQ,SurfSideID) = SampWallState(ArrayPos,SubP,SubQ,SurfSideID) + Prob
+
+IF(Prob.GT.RanNum) THEN
+  ! Remove the particle
+  CALL RemoveParticle(PartID)
+ELSE
+  CALL MaxwellScattering(PartID,SideID,n_Loc)
+END IF
+
+END SUBROUTINE StickingCoefficientModel
 
 
 END MODULE MOD_SurfaceModel

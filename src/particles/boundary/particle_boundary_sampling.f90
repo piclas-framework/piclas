@@ -417,6 +417,7 @@ SurfOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
 !> Energy + Force + nSpecies
 SurfSampSize = SAMPWALL_NVARS+nSpecies
 IF(VarTimeStep%UseVariableTimeStep) SurfSampSize = SurfSampSize + 1
+IF(ANY(PartBound%SurfaceModel.EQ.1)) SurfSampSize = SurfSampSize + 1
 
 !> Leader communication
 #if USE_MPI
@@ -745,6 +746,7 @@ IF (CalcSurfaceImpact) nVar2D_Spec = nVar2D_Spec + 10
 IF (nPorousBC.GT.0)    nVar2D = nVar2D + nPorousBC
 
 IF (ANY(PartBound%UseAdaptedWallTemp)) nVar2D = nVar2D + 1
+IF (ANY(PartBound%SurfaceModel.EQ.1)) nVar2D = nVar2D + 1
 
 nVar2D_Total = nVar2D + nVar2D_Spec*nSpecies
 
@@ -810,6 +812,7 @@ IF (mySurfRank.EQ.0) THEN
   END IF
 
   IF (ANY(PartBound%UseAdaptedWallTemp)) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Wall_Temperature')
+  IF (ANY(PartBound%SurfaceModel.EQ.1)) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Sticking_Coefficient')
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
 

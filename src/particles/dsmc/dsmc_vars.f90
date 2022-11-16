@@ -496,7 +496,7 @@ REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)      ! variables,p
 REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues for Species specific surface output
                                                                    ! (4,p,q,nSurfSides,nSpecies)
                                                                    ! 1: Surface Collision Counter
-                                                                   ! 2: Accomodation
+                                                                   ! 2: Accommodation
                                                                    ! 3: Coverage
                                                                    ! 4 (or 2): Impact energy trans
                                                                    ! 5 (or 3): Impact energy rot

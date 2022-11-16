@@ -82,7 +82,7 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 INTEGER                            :: iSpec,iSurfSide,p,q, nVar, nVarSpec, iPBC, nVarCount, OutputCounter
 REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum, nImpacts, IterNum
 LOGICAL                            :: during_dt
-INTEGER                            :: idx, GlobalSideID, SurfSideNb, iBC
+INTEGER                            :: idx, GlobalSideID, SurfSideNb, iBC, ArrayPos
 !===================================================================================================================================
 
 IF (PRESENT(during_dt_opt)) THEN
@@ -139,6 +139,9 @@ END IF
 IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
   nVar = nVar + 1
 END IF
+IF (ANY(PartBound%SurfaceModel.EQ.1)) THEN
+  nVar = nVar + 1
+END IF
 ! Allocate the output container
 ALLOCATE(MacroSurfaceVal(1:nVar         , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfOutputSides))
 MacroSurfaceVal     = 0.
@@ -177,7 +180,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
 
   DO q = 1,nSurfSample
     DO p = 1,nSurfSample
-      ! --- Total output (force per area, heat flux, simulation particle impact per iteration)
+      ! --- Default output (force per area, heat flux, simulation particle impact per iteration, boundary index)
       CounterSum = SUM(SampWallState(SAMPWALL_NVARS+1:SAMPWALL_NVARS+nSpecies,p,q,iSurfSide))
 
       ! Correct the sample time in the case of a cell local time step with the average time step factor for each side
@@ -206,20 +209,44 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       ! Number of simulation particle impacts per iteration
       MacroSurfaceVal(5,p,q,OutputCounter) = CounterSum / IterNum
 
+      ! Boundary index
       MacroSurfaceVal(6,p,q,OutputCounter) = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
 
+      ! --- Output of optional variables
+      nVarCount = MACROSURF_NVARS
       ! Output of the pump capacity
       IF(nPorousBC.GT.0) THEN
-        nVarCount = MACROSURF_NVARS
         DO iPBC=1, nPorousBC
           IF(MapSurfSideToPorousSide_Shared(iSurfSide).EQ.0) CYCLE
           IF(PorousBCInfo_Shared(1,MapSurfSideToPorousSide_Shared(iSurfSide)).EQ.iPBC) THEN
+            nVarCount = nVarCount + 1
             ! Pump capacity is already in cubic meter per second (diving by the number of iterations)
-            MacroSurfaceVal(nVarCount+iPBC,p,q,OutputCounter) = SampWallPumpCapacity(iSurfSide) / IterNum
+            MacroSurfaceVal(nVarCount,p,q,OutputCounter) = SampWallPumpCapacity(iSurfSide) / IterNum
           END IF
         END DO
       END IF
-      ! --- Species-specific output
+      ! Output of the wall temperature
+      IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
+        IF ((MacroSurfaceVal(4,p,q,OutputCounter).GT.0.0).AND.AdaptWallTemp) THEN
+          iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
+          BoundaryWallTemp(p,q,iSurfSide) = (MacroSurfaceVal(4,p,q,OutputCounter) &
+              /(StefanBoltzmannConst*PartBound%RadiativeEmissivity(iBC)))**(1./4.)
+        END IF
+        nVarCount = nVarCount + 1
+        MacroSurfaceVal(nVarCount,p,q,OutputCounter) = BoundaryWallTemp(p,q,iSurfSide)
+      END IF
+      ! Output of the sticking probability
+      IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
+        nVarCount = nVarCount + 1
+        IF(nVarCount.GT.nVar) CALL Abort(__STAMP__,'ERROR in CalcSurfaceValues: Number of output variables greater than the allocated array!')
+        IF(VarTimeStep%UseVariableTimeStep) THEN
+          ArrayPos = SAMPWALL_NVARS+nSpecies+2
+        ELSE
+          ArrayPos = SAMPWALL_NVARS+nSpecies+1
+        END IF
+        IF(CounterSum.GT.0) MacroSurfaceVal(nVarCount,p,q,OutputCounter) = SampWallState(ArrayPos,p,q,iSurfSide) / CounterSum
+      END IF
+      ! --- Species-specific output (in a separate array)
       DO iSpec=1,nSpecies
         idx = 1
         ! Species-specific counter of simulation particle impacts per iteration
@@ -260,16 +287,6 @@ DO iSurfSide = 1,nComputeNodeSurfSides
           END IF ! nImpacts.GT.0.
         END IF ! CalcSurfaceImpact
       END DO ! iSpec=1,nSpecies
-
-      IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
-        IF ((MacroSurfaceVal(4,p,q,OutputCounter).GT.0.0).AND.AdaptWallTemp) THEN
-          iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
-          BoundaryWallTemp(p,q,iSurfSide) = (MacroSurfaceVal(4,p,q,OutputCounter) &
-              /(StefanBoltzmannConst*PartBound%RadiativeEmissivity(iBC)))**(1./4.)
-        END IF
-        MacroSurfaceVal(nVar,p,q,OutputCounter) = BoundaryWallTemp(p,q,iSurfSide)
-      END IF
-
     END DO ! q=1,nSurfSample
   END DO ! p=1,nSurfSample
 END DO ! iSurfSide=1,nComputeNodeSurfSides
