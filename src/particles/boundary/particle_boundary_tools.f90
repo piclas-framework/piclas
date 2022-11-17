@@ -44,7 +44,7 @@ USE MOD_Particle_Vars
 USE MOD_Globals                   ,ONLY: abort,DOTPRODUCT
 USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC,useDSMC,PartStateIntEn,RadialWeighting
 USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC,AmbipolElecVelo
-USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact,SWIVarTimeStep
 USE MOD_part_tools                ,ONLY: GetParticleWeight
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
@@ -124,7 +124,7 @@ CASE ('old')
   END IF
   ! Sample the time step for the correct determination of the heat flux
   IF (VarTimeStep%UseVariableTimeStep) THEN
-    SampWallState(SAMPWALL_NVARS+nSpecies+1,SubP,SubQ,SurfSideID) = SampWallState(SAMPWALL_NVARS+nSpecies+1,SubP,SubQ,SurfSideID) &
+    SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) = SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) &
                                                               + VarTimeStep%ParticleTimeStep(PartID)
   END IF
 CASE ('new')

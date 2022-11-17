@@ -856,13 +856,13 @@ END SUBROUTINE SurfaceFluxBasedBoundaryTreatment
 SUBROUTINE StickingCoefficientModel(PartID,SideID,n_Loc)
 !===================================================================================================================================
 !> Empirical sticking coefficient model using the product of a non-bounce probability (angle dependence with a cut-off angle) and
-!> condensation probability (linear temperature dependence, using different temperature limits)
+!> condensation probability (linear temperature dependence, using different temperature limits). Particle sticking to the wall
+!> will be simply deleted, transfering the complete energy to the wall heat flux
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI
-USE MOD_Particle_Vars           ,ONLY: Species, PartSpecies, VarTimeStep, nSpecies
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, SampWallState, GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, SampWallState, GlobalSide2SurfSide, SWIStickingCoefficient
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_part_operations         ,ONLY: RemoveParticle
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
@@ -877,7 +877,7 @@ INTEGER,INTENT(IN)              :: PartID, SideID
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iVal, ArrayPos, SubP, SubQ, locBCID, SurfSideID
+INTEGER                         :: iVal, SubP, SubQ, locBCID, SurfSideID
 REAL                            :: ImpactAngle, NonBounceProb, Prob, alpha_B, LowerTemp, UpperTemp, RanNum, WallTemp
 !===================================================================================================================================
 
@@ -913,14 +913,10 @@ END IF
 
 CALL RANDOM_NUMBER(RanNum)
 
-IF(VarTimeStep%UseVariableTimeStep) THEN
-  ArrayPos = SAMPWALL_NVARS+nSpecies+2
-ELSE
-  ArrayPos = SAMPWALL_NVARS+nSpecies+1
-END IF
+! Sampling the sticking coefficient
 SubP = TrackInfo%p
 SubQ = TrackInfo%q
-SampWallState(ArrayPos,SubP,SubQ,SurfSideID) = SampWallState(ArrayPos,SubP,SubQ,SurfSideID) + Prob
+SampWallState(SWIStickingCoefficient,SubP,SubQ,SurfSideID) = SampWallState(SWIStickingCoefficient,SubP,SubQ,SurfSideID) + Prob
 
 IF(Prob.GT.RanNum) THEN
   ! Remove the particle
@@ -930,6 +926,5 @@ ELSE
 END IF
 
 END SUBROUTINE StickingCoefficientModel
-
 
 END MODULE MOD_SurfaceModel
