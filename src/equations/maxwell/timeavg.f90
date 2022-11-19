@@ -93,13 +93,13 @@ ALLOCATE(VarNamesAvgList(nMaxVarAvg))
 DO iVar=1,PP_nVar
   VarNamesAvgList(iVar)=StrVarNames(iVar)
 END DO ! iVar=1,PP_nVar
-VarNamesAvgList( 9)='ElectricFieldMagnitude'
-VarNamesAvgList(10)='MagneticFieldMagnitude'
+VarNamesAvgList(PP_nVar+1)='ElectricFieldMagnitude'
+VarNamesAvgList(PP_nVar+2)='MagneticFieldMagnitude'
 ! derived quantity
-VarNamesAvgList(11)='PoyntingVectorX'
-VarNamesAvgList(12)='PoyntingVectorY'
-VarNamesAvgList(13)='PoyntingVectorZ'
-VarNamesAvgList(14)='PoyntingVectorMagnitude'
+VarNamesAvgList(PP_nVar+3)='PoyntingVectorX'
+VarNamesAvgList(PP_nVar+4)='PoyntingVectorY'
+VarNamesAvgList(PP_nVar+5)='PoyntingVectorZ'
+VarNamesAvgList(PP_nVar+6)='PoyntingVectorMagnitude'
 
 #ifdef PARTICLES
 iCounter=PP_nVar+6
@@ -129,16 +129,16 @@ hasAvgVars=.TRUE.
 DO iVar=1,PP_nVar
   VarNamesFlucList(iVar)=StrVarNames(iVar)
 END DO ! iVar=1,PP_nVar
-VarNamesFlucList( 9)='ElectricFieldMagnitude'
-VarNamesFlucList(10)='MagneticFieldMagnitude'
+VarNamesFlucList(PP_nVar+1)='ElectricFieldMagnitude'
+VarNamesFlucList(PP_nVar+2)='MagneticFieldMagnitude'
 ! derived quantity
-VarNamesFlucList(11)='PoyntingVectorX'
-VarNamesFlucList(12)='PoyntingVectorY'
-VarNamesFlucList(13)='PoyntingVectorZ'
-VarNamesFlucList(14)='PoyntingVectorMagnitude'
+VarNamesFlucList(PP_nVar+3)='PoyntingVectorX'
+VarNamesFlucList(PP_nVar+4)='PoyntingVectorY'
+VarNamesFlucList(PP_nVar+5)='PoyntingVectorZ'
+VarNamesFlucList(PP_nVar+6)='PoyntingVectorMagnitude'
 
 #ifdef PARTICLES
-iCounter=PP_nVar+2
+iCounter=PP_nVar+6
 DO iSpec=1,nSpecies
   WRITE(strhelp,'(I2.2)') iSpec
   VarnamesFlucList(iCounter+1)=TRIM('PowerDensityX-Spec')//TRIM(strhelp)
@@ -214,7 +214,7 @@ IF(ANY(CalcFluc(11:14))) DoPoyntingVectorAvg = .TRUE.
 
 ! particles, additional marking for sampling
 #ifdef PARTICLES
-iCounter=PP_nVar+2
+iCounter=PP_nVar+6
 ALLOCATE(DoPowerDensity(1:nSpecies))
 DoPowerDensity=.FALSE.
 nSpecPowerDensity=0
