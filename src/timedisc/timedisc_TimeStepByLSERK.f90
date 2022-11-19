@@ -53,6 +53,8 @@ USE MOD_Equation_Vars          ,ONLY: Phi,Phit,nTotalPhi
 USE MOD_TimeDisc_Vars          ,ONLY: Phit_temp
 #endif /*PP_POIS*/
 #ifdef PARTICLES
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcCoupledPowerPart
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,MeasureTrackTime
 USE MOD_PICDepo                ,ONLY: Deposition
@@ -97,6 +99,9 @@ REAL                          :: tLBStart ! load balance
 ! RK coefficients
 b_dt = RK_b*dt
 
+#if defined(PARTICLES)
+IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
+#endif /*defined(PARTICLES)*/
 DO iStage = 1,nRKStages
   IF (iStage.EQ.1) THEN
     tStage = time
@@ -156,8 +161,10 @@ DO iStage = 1,nRKStages
           PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart)*b_dt(iStage)
           ! Don't push the velocity component of neutral particles!
           IF (isPushParticle(iPart)) THEN
+            IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
             Pt_temp(  4:6,iPart) = Pt(       1:3,iPart)
             PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart)*b_dt(iStage)
+            IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
           END IF
         END IF ! PDM%ParticleInside(iPart)
       END DO ! iPart=1,PDM%ParticleVecLength
@@ -168,8 +175,10 @@ DO iStage = 1,nRKStages
           PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)
           ! Don't push the velocity component of neutral particles!
           IF (isPushParticle(iPart)) THEN
+            IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
             Pt_temp(  4:6,iPart) =        Pt(1:3,iPart) - RK_a(iStage) * Pt_temp(4:6,iPart)
             PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(4:6,iPart)*b_dt(iStage)
+            IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
           END IF
         END IF ! PDM%ParticleInside(iPart)
       END DO ! iPart=1,PDM%ParticleVecLength
