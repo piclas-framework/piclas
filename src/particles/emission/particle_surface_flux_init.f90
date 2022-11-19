@@ -558,6 +558,9 @@ DO iSpec=1,nSpecies
         SF%PartDensity       = SF%AdaptivePressure / (BoltzmannConst * SF%MWTemperatureIC)
       CASE(3,4)
         SF%AdaptiveMassflow  = GETREAL('Part-Species'//TRIM(hilf2)//'-Adaptive-Massflow')
+        IF(ALMOSTEQUAL(SF%AdaptiveMassflow,0.).AND.SF%AdaptiveMassflow.NE.0.) THEN
+          CALL abort(__STAMP__,'ERROR in adaptive inlet: given mass flow is within machine tolerance!')
+        END IF
         IF(SF%VeloIC.LE.0.0) THEN
           CALL abort(__STAMP__,'ERROR in adaptive inlet: positive initial guess of velocity for Type 3/Type 4 condition required!')
         END IF
