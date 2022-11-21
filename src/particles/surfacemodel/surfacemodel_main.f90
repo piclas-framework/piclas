@@ -869,6 +869,7 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_SurfaceModel_Vars       ,ONLY: StickingCoefficientData
 USE MOD_DSMC_Vars               ,ONLY: DSMC, SamplingActive
 USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
+USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -885,12 +886,13 @@ REAL                            :: ImpactAngle, NonBounceProb, Prob, alpha_B, Lo
 
 locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
-WallTemp = PartBound%WallTemp(locBCID)
+! Get the wall temperature
+WallTemp = GetWallTemperature(PartID,locBCID,SideID)
 ! Determine impact angle of particle to calculate non-bounce probability B(alpha)
 ImpactAngle = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(TrackInfo%PartTrajectory,n_loc))))
 ! Calculate the bounce probability and select the appropriate temperature coefficients
 IF(ImpactAngle.GE.MINVAL(StickingCoefficientData(1,:))) THEN
-  DO iVal = 1, UBOUND(StickingCoefficientData,dim=1)
+  DO iVal = 1, UBOUND(StickingCoefficientData,dim=2)
     IF(ImpactAngle.GE.StickingCoefficientData(1,iVal)) THEN
       alpha_B   = StickingCoefficientData(1,iVal)
       LowerTemp = StickingCoefficientData(2,iVal)
@@ -914,19 +916,19 @@ ELSE
 END IF
 
 CALL RANDOM_NUMBER(RanNum)
+IF(Prob.GT.RanNum) THEN
+  ! Remove the particle
+  CALL RemoveParticle(PartID)
+ELSE
+  ! Perform regular Maxwell scattering
+  CALL MaxwellScattering(PartID,SideID,n_Loc)
+END IF
 
 ! Sampling the sticking coefficient
 IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
   SubP = TrackInfo%p
   SubQ = TrackInfo%q
   SampWallState(SWIStickingCoefficient,SubP,SubQ,SurfSideID) = SampWallState(SWIStickingCoefficient,SubP,SubQ,SurfSideID) + Prob
-END IF
-
-IF(Prob.GT.RanNum) THEN
-  ! Remove the particle
-  CALL RemoveParticle(PartID)
-ELSE
-  CALL MaxwellScattering(PartID,SideID,n_Loc)
 END IF
 
 END SUBROUTINE StickingCoefficientModel
