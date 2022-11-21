@@ -867,6 +867,8 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_part_operations         ,ONLY: RemoveParticle
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_SurfaceModel_Vars       ,ONLY: StickingCoefficientData
+USE MOD_DSMC_Vars               ,ONLY: DSMC, SamplingActive
+USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -914,9 +916,11 @@ END IF
 CALL RANDOM_NUMBER(RanNum)
 
 ! Sampling the sticking coefficient
-SubP = TrackInfo%p
-SubQ = TrackInfo%q
-SampWallState(SWIStickingCoefficient,SubP,SubQ,SurfSideID) = SampWallState(SWIStickingCoefficient,SubP,SubQ,SurfSideID) + Prob
+IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+  SubP = TrackInfo%p
+  SubQ = TrackInfo%q
+  SampWallState(SWIStickingCoefficient,SubP,SubQ,SurfSideID) = SampWallState(SWIStickingCoefficient,SubP,SubQ,SurfSideID) + Prob
+END IF
 
 IF(Prob.GT.RanNum) THEN
   ! Remove the particle

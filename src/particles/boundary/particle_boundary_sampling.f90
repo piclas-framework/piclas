@@ -925,7 +925,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
             idx = idx + 1
             MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactAngle(iSpec,p,q,iSurfSide) / nImpacts
 
-            ! Add number of impacts
+            ! Add number of impacts (real particles with weighting factor)
             idx = idx + 1
             MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts
 

@@ -4,7 +4,9 @@ This section shall describe how to extend the code in a general way e.g. to impl
 
 ## Surface Sampling & Output
 
-The surface sampling values are stored in the `SampWallState` array and the derived output variables in `MacroSurfaceVal`, which can be extended to include new **optional** variables and to exploit the already implemented MPI communication. The variables `SurfSampSize` and `SurfOutputSize` define the size of the arrays is set in `InitParticleBoundarySampling` in `piclas/src/particles/boundary/particle_boundary_sampling.f90` with default values as given in `piclas.h`
+*Location: `piclas/src/particles/boundary/particle_boundary_sampling.f90`*
+
+The surface sampling values are stored in the `SampWallState` array and the derived output variables in `MacroSurfaceVal`, which can be extended to include new **optional** variables and to exploit the already implemented MPI communication. The variables `SurfSampSize` and `SurfOutputSize` define the size of the arrays is set in `InitParticleBoundarySampling` with default values as given in `piclas.h`
 
     SurfSampSize = SAMPWALL_NVARS+nSpecies
     SurfOutputSize = MACROSURF_NVARS
@@ -21,14 +23,14 @@ To be able to store the new sampling variable at the correct position make sure 
 
     SampWallState(SWIStickingCoefficient,SubP,SubQ,SurfSideID) = SampWallState(SWIStickingCoefficient,SubP,SubQ,SurfSideID) + Prob
 
-The calculation & output of the sampled values is performed in `CalcSurfaceValues` in `piclas/src/particles/dsmc/dsmc_analyze.f90` through the array `MacroSurfaceVal`. In a loop over all `nComputeNodeSurfSides` the sampled variables can be averaged (or manipulated in any other way). The variable `nVarCount` guarantees that you do not overwrite other variables
+The calculation & output of the sampled values is performed in `CalcSurfaceValues` through the array `MacroSurfaceVal`. In a loop over all `nComputeNodeSurfSides` the sampled variables can be averaged (or manipulated in any other way). The variable `nVarCount` guarantees that you do not overwrite other variables
 
     IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
       nVarCount = nVarCount + 1
       IF(CounterSum.GT.0) MacroSurfaceVal(nVarCount,p,q,OutputCounter) = SampWallState(SWIStickingCoefficient,p,q,iSurfSide) / CounterSum
     END IF
 
-Finally, the `WriteSurfSampleToHDF5` routine in `piclas/src/particles/boundary/particle_boundary_sampling.f90` writes the prepared `MacroSurfaceVal` array to the `ProjectName_DSMCSurfState_Timestamp.h5` file. Here, you have define a variable name, which will be shown in the output (e.g. in ParaView)
+Finally, the `WriteSurfSampleToHDF5` routine writes the prepared `MacroSurfaceVal` array to the `ProjectName_DSMCSurfState_Timestamp.h5` file. Here, you have define a variable name, which will be shown in the output (e.g. in ParaView)
 
     IF (ANY(PartBound%SurfaceModel.EQ.1)) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Sticking_Coefficient')
 
