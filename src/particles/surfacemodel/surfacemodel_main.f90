@@ -858,6 +858,7 @@ SUBROUTINE StickingCoefficientModel(PartID,SideID,n_Loc)
 !> Empirical sticking coefficient model using the product of a non-bounce probability (angle dependence with a cut-off angle) and
 !> condensation probability (linear temperature dependence, using different temperature limits). Particle sticking to the wall
 !> will be simply deleted, transfering the complete energy to the wall heat flux
+!> Assumed data input is [upper impact angle limit (deg), alpha_B (deg), T_1 (K), T_2 (K)]
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -882,42 +883,69 @@ INTEGER,INTENT(IN)              :: PartID, SideID
 ! LOCAL VARIABLES
 INTEGER                         :: iVal, SubP, SubQ, locBCID, SurfSideID
 REAL                            :: ImpactAngle, NonBounceProb, Prob, alpha_B, LowerTemp, UpperTemp, RanNum, WallTemp
+LOGICAL                         :: CalcStickCoeff, ParticleSticks
 !===================================================================================================================================
 
+CalcStickCoeff = .TRUE.
+ParticleSticks = .FALSE.
 locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
 ! Get the wall temperature
 WallTemp = GetWallTemperature(PartID,locBCID,SideID)
-! Determine impact angle of particle to calculate non-bounce probability B(alpha)
+! Determine impact angle of particle
 ImpactAngle = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(TrackInfo%PartTrajectory,n_loc))))
-! Calculate the bounce probability and select the appropriate temperature coefficients
-IF(ImpactAngle.GE.MINVAL(StickingCoefficientData(1,:))) THEN
+! Select the appropriate temperature coefficients and bounce angle
+IF(UBOUND(StickingCoefficientData,dim=2).GE.2) THEN
+  ! More than 1 row of coefficients
   DO iVal = 1, UBOUND(StickingCoefficientData,dim=2)
-    IF(ImpactAngle.GE.StickingCoefficientData(1,iVal)) THEN
-      alpha_B   = StickingCoefficientData(1,iVal)
-      LowerTemp = StickingCoefficientData(2,iVal)
-      UpperTemp = StickingCoefficientData(3,iVal)
+    IF(ImpactAngle.LE.StickingCoefficientData(1,iVal)) THEN
+      alpha_B   = StickingCoefficientData(2,iVal)
+      LowerTemp = StickingCoefficientData(3,iVal)
+      UpperTemp = StickingCoefficientData(4,iVal)
+      CalcStickCoeff = .TRUE.
+      EXIT
+    ELSE
+      ! Impact angle is outside coefficient data range
+      CalcStickCoeff = .FALSE.
     END IF
   END DO
-  NonBounceProb = (90.-ImpactAngle) / (90.-alpha_B)
 ELSE
-  LowerTemp = StickingCoefficientData(2,1)
-  UpperTemp = StickingCoefficientData(3,1)
-  NonBounceProb = 1.
+  ! 1 row of coefficients
+  IF(ImpactAngle.LE.StickingCoefficientData(1,1)) THEN
+    alpha_B   = StickingCoefficientData(2,1)
+    LowerTemp = StickingCoefficientData(3,1)
+    UpperTemp = StickingCoefficientData(4,1)
+  ELSE
+    ! Impact angle is outside coefficient data range
+    CalcStickCoeff = .FALSE.
+  END IF
 END IF
 
-! Calculate the sticking probability, using the wall temperature
-IF(WallTemp.LT.LowerTemp) THEN
-  Prob = NonBounceProb
-ELSE IF(WallTemp.GT.UpperTemp) THEN
-  Prob = 0.
-ELSE
-  Prob = NonBounceProb * (UpperTemp - WallTemp) / (UpperTemp - LowerTemp)
+! Calculate the sticking coefficient and compare with random number
+IF(CalcStickCoeff) THEN
+  ! Calculate the non-bounce probability
+  IF(ImpactAngle.GE.alpha_B) THEN
+    NonBounceProb = (90.-ImpactAngle) / (90.-alpha_B)
+  ELSE
+    NonBounceProb = 1.
+  END IF
+  ! Calculate the sticking probability, using the wall temperature
+  IF(WallTemp.LT.LowerTemp) THEN
+    Prob = NonBounceProb
+  ELSE IF(WallTemp.GT.UpperTemp) THEN
+    Prob = 0.
+  ELSE
+    Prob = NonBounceProb * (UpperTemp - WallTemp) / (UpperTemp - LowerTemp)
+  END IF
+  ! Determine whether the particles sticks to the boundary
+  IF(Prob.GT.0.) THEN
+    CALL RANDOM_NUMBER(RanNum)
+    IF(Prob.GT.RanNum) ParticleSticks = .TRUE.
+  END IF
 END IF
 
-CALL RANDOM_NUMBER(RanNum)
-IF(Prob.GT.RanNum) THEN
-  ! Remove the particle
+IF(ParticleSticks) THEN
+  ! Remove the particle from the simulation (total energy was added to the sampled heat flux before the interaction)
   CALL RemoveParticle(PartID)
 ELSE
   ! Perform regular Maxwell scattering
