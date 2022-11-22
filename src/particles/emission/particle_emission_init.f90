@@ -445,6 +445,8 @@ IF (useDSMC) THEN
       DEALLOCATE(BGGas%NumberDensity)
     END IF
   END IF ! BGGas%NumberOfSpecies.GT.0
+ELSE
+  IF((BGGas%NumberOfSpecies.GT.0).OR.BGGas%UseDistribution) CALL abort(__STAMP__,'BGG requires UseDSMC=T')
 END IF !useDSMC
 
 !-- Read Emission Distribution stuff
