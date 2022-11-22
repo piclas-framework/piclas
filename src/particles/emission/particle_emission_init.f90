@@ -200,6 +200,7 @@ USE MOD_Restart_Vars     ,ONLY: DoRestart
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iInit
 CHARACTER(32)         :: hilf, hilf2, DefStr
+REAL                  :: MPFOld
 !===================================================================================================================================
 ALLOCATE(SpecReset(1:nSpecies))
 SpecReset=.FALSE.
@@ -239,6 +240,11 @@ DO iSpec = 1, nSpecies
   Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
   Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
   Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf)//'-MacroParticleFactor')
+  IF((iSpec.GT.1).AND.UseDSMC.AND.(.NOT.UsevMPF))THEN
+    IF(.NOT.ALMOSTEQUALRELATIVE(Species(iSpec)%MacroParticleFactor,MPFOld,1e-5)) CALL CollectiveStop(__STAMP__,&
+        'Different MPFs only allowed when using Part-vMPF=T')
+  END IF ! (iSpec.GT.1).AND.UseDSMC.AND.(.NOT.UsevMPF)
+  MPFOld = Species(iSpec)%MacroParticleFactor
 #if defined(IMPA)
   Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsImplicit')
 #endif
