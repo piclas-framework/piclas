@@ -215,7 +215,7 @@ BGGas%TraceSpecies = .FALSE.
 BGGas%UseDistribution = GETLOGICAL('Particles-BGGas-UseDistribution')
 BGGas%nRegions = GETINT('Particles-BGGas-nRegions')
 IF(BGGas%UseDistribution.AND.(BGGas%nRegions.GT.0)) THEN
-  CALL abort(__STAMP__,'ERORR: Background gas can either be used with a distribution OR regions!')
+  CALL CollectiveStop(__STAMP__,'ERORR: Background gas can either be used with a distribution OR regions!')
 ELSEIF (BGGas%UseDistribution) THEN
   ALLOCATE(BGGas%DistributionSpeciesIndex(nSpecies))
 ELSEIF (BGGas%nRegions.GT.0) THEN
@@ -267,7 +267,7 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%RadiusIC               = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC')
       Species(iSpec)%Init(iInit)%Radius2IC              = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC')
       Species(iSpec)%Init(iInit)%CylinderHeightIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-CylinderHeightIC')
-      IF(Species(iSpec)%Init(iInit)%Radius2IC.GE.Species(iSpec)%Init(iInit)%RadiusIC) CALL abort(__STAMP__,&
+      IF(Species(iSpec)%Init(iInit)%Radius2IC.GE.Species(iSpec)%Init(iInit)%RadiusIC) CALL CollectiveStop(__STAMP__,&
           'For this emission type RadiusIC must be greater than Radius2IC!')
     CASE('cuboid','photon_rectangle')
       Species(iSpec)%Init(iInit)%CuboidHeightIC = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC')
@@ -358,13 +358,13 @@ DO iSpec = 1, nSpecies
     ! Check if number density and particle number have been defined
     IF ((Species(iSpec)%Init(iInit)%PartDensity.GT.0.)) THEN
       IF (Species(iSpec)%Init(iInit)%ParticleNumber.GT.0) THEN
-        CALL abort(__STAMP__, 'Either ParticleNumber or PartDensity can be defined for selected parameters, not both!')
+        CALL CollectiveStop(__STAMP__, 'Either ParticleNumber or PartDensity can be defined for selected parameters, not both!')
       END IF
     END IF
     ! 2D simulation/variable time step only with cell_local and/or surface flux
     IF((Symmetry%Order.EQ.2).OR.VarTimeStep%UseVariableTimeStep) THEN
       IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local') THEN
-        CALL abort(__STAMP__,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
+        CALL CollectiveStop(__STAMP__,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
             'cell_local-SpaceIC and/or surface flux!')
       END IF
     END IF
@@ -379,13 +379,13 @@ DO iSpec = 1, nSpecies
         SWRITE(*,*) 'Part-Species[$]-Init[$]-BaseVector1IC=(/0.,1.,0/)'
         SWRITE(*,*) 'Part-Species[$]-Init[$]-BaseVector2IC=(/0.,0.,1/)'
         SWRITE(*,*) 'Part-Species[$]-Init[$]-CuboidHeightIC is the extension of the insertion region and has to be positive'
-        CALL abort(__STAMP__,'See above')
+        CALL CollectiveStop(__STAMP__,'See above')
       END IF
     END IF
     !--- integer check for ParticleEmissionType 2
     IF((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &
          (ABS(Species(iSpec)%Init(iInit)%ParticleNumber-INT(Species(iSpec)%Init(iInit)%ParticleNumber,8)).GT.0.0)) THEN
-      CALL abort(__STAMP__,' If ParticleEmissionType = 2 (parts per iteration), ParticleNumber has to be an integer number')
+      CALL CollectiveStop(__STAMP__,' If ParticleEmissionType = 2 (parts per iteration), ParticleNumber has to be an integer number')
     END IF
     !--- ExcludeRegions
     IF (Species(iSpec)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
@@ -395,7 +395,7 @@ DO iSpec = 1, nSpecies
     IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'background') THEN
       IF(BGGas%BackgroundSpecies(iSpec)) THEN
         ! Only regions allows multiple background inits (additionally, avoid counting the same species multiple times)
-        IF(.NOT.BGGas%UseRegions) CALL abort(__STAMP__, 'ERROR: Only one background definition per species is allowed!')
+        IF(.NOT.BGGas%UseRegions) CALL CollectiveStop(__STAMP__, 'ERROR: Only one background definition per species is allowed!')
       ELSE
         ! Count each species only once
         BGGas%NumberOfSpecies = BGGas%NumberOfSpecies + 1
@@ -409,7 +409,7 @@ DO iSpec = 1, nSpecies
       ELSE IF(BGGas%UseRegions) THEN
         Species(iSpec)%Init(iInit)%BGGRegion = GETINT('Part-Species'//TRIM(hilf2)//'-BGG-Region')
         IF(Species(iSpec)%Init(iInit)%BGGRegion.GT.BGGas%nRegions) THEN
-          CALL abort(__STAMP__, 'ERROR: Given background gas region number is greater than the defined number of regions!')
+          CALL CollectiveStop(__STAMP__, 'ERROR: Given background gas region number is greater than the defined number of regions!')
         END IF
       ELSE
         BGGas%NumberDensity(iSpec) = Species(iSpec)%Init(iInit)%PartDensity
@@ -446,7 +446,7 @@ IF (useDSMC) THEN
     END IF
   END IF ! BGGas%NumberOfSpecies.GT.0
 ELSE
-  IF((BGGas%NumberOfSpecies.GT.0).OR.BGGas%UseDistribution) CALL abort(__STAMP__,'BGG requires UseDSMC=T')
+  IF((BGGas%NumberOfSpecies.GT.0).OR.BGGas%UseDistribution) CALL CollectiveStop(__STAMP__,'BGG requires UseDSMC=T')
 END IF !useDSMC
 
 !-- Read Emission Distribution stuff
