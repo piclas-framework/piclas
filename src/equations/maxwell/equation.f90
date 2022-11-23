@@ -1278,6 +1278,9 @@ USE MOD_Basis,          ONLY:LegGaussLobNodesAndWeights
 USE MOD_Basis,          ONLY:BarycentricWeights,InitializeVandermonde
 USE MOD_Interpolation_Vars, ONLY:xGP,wBary
 #endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1326,7 +1329,7 @@ END DO
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,TERadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
 
-SWRITE(UNIT_StdOut,*) ' Found waveguide radius of ', TERadius
+LBWRITE(UNIT_StdOut,*) ' Found waveguide radius of ', TERadius
 
 END SUBROUTINE GetWaveGuideRadius
 
@@ -1337,14 +1340,17 @@ SUBROUTINE InitExactFlux()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals,         ONLY:abort,UNIT_stdOut,mpiroot
+USE MOD_Globals          ,ONLY: abort,UNIT_stdOut,mpiroot,CollectiveStop
 #if USE_MPI
-USE MOD_Globals,         ONLY:MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER,IERROR
+USE MOD_Globals          ,ONLY: MPI_COMM_WORLD,MPI_SUM,MPI_INTEGER,IERROR
 #endif
-USE MOD_Mesh_Vars,       ONLY:nElems,ElemToSide,SideToElem,lastMPISide_MINE
-USE MOD_Interfaces,      ONLY:FindElementInRegion,FindInterfacesInRegion,CountAndCreateMappings
-USE MOD_Equation_Vars,   ONLY:ExactFluxDir,ExactFluxPosition,isExactFluxInterFace
-USE MOD_ReadInTools,     ONLY:GETREAL,GETINT
+USE MOD_Mesh_Vars        ,ONLY: nElems,ElemToSide,SideToElem,lastMPISide_MINE
+USE MOD_Interfaces       ,ONLY: FindElementInRegion,FindInterfacesInRegion,CountAndCreateMappings
+USE MOD_Equation_Vars    ,ONLY: ExactFluxDir,ExactFluxPosition,isExactFluxInterFace
+USE MOD_ReadInTools      ,ONLY: GETREAL,GETINT
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1377,9 +1383,7 @@ CASE(2) ! y
 CASE(3) ! z
   InterFaceRegion(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),ExactFluxPosition/)
 CASE DEFAULT
-  CALL abort(&
-      __STAMP__&
-      ,' Unknown exact flux direction: ExactFluxDir=',ExactFluxDir)
+  CALL CollectiveStop(__STAMP__,' Unknown exact flux direction: ExactFluxDir=',ExactFluxDir)
 END SELECT
 
 ! set all elements lower/higher than the ExactFluxPosition to True/False for interface determination
@@ -1406,12 +1410,11 @@ END DO
 #else
   sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
 #endif /*USE_MPI*/
-SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux.'
+LBWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux.'
 
 IF(mpiroot)THEN
   IF(sumExactFluxMasterInterFaces.LE.0)THEN
-    CALL abort(&
-        __STAMP__&
+    CALL abort(__STAMP__&
         ,' [sumExactFluxMasterInterFaces.LE.0]: using ExactFlux but no interfaces found: sumExactFlux=',sumExactFluxMasterInterFaces)
   END IF
 END IF
@@ -1431,7 +1434,7 @@ END DO
 #else
   sumExactFluxMasterInterFaces=nExactFluxMasterInterFaces
 #endif /*USE_MPI*/
-SWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux. <<<<<< DEBUG this'
+LBWRITE(UNIT_StdOut,'(A8,I10,A)') '  Found ',sumExactFluxMasterInterFaces,' interfaces for ExactFlux. <<<<<< DEBUG this'
 
 
 
