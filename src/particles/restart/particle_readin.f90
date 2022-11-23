@@ -72,6 +72,9 @@ USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_Particle_Vars          ,ONLY: DelayTime
+USE MOD_PICDepo_Vars           ,ONLY: PartSource
+USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize
@@ -135,7 +138,9 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! ------------------------------------------------
   ! PartSource
   ! ------------------------------------------------
-  IF (DoDeposition .AND. RelaxDeposition) THEN
+  ! 1.) relax deposition
+  ! 2.) particle delay time active
+  IF (DoDeposition .AND. (RelaxDeposition.OR.(time.LT.DelayTime))) THEN
     ALLOCATE(PartSource_HDF5(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
     ASSOCIATE (&
             counts_send  => INT(MPInElemSend     ) ,&
@@ -153,17 +158,33 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     END ASSOCIATE
     DEALLOCATE(PartSourceLB)
 
-    DO iElem =1,PP_nElems
-      DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+    ! 1.) relax deposition
+    IF(RelaxDeposition)THEN
+      DO iElem =1,PP_nElems
+        DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
 #if ((USE_HDG) && (PP_nVar==1))
-        PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
-        PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+          PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+          PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
 #else
-        PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
-        PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+          PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+          PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
 #endif
-      END DO; END DO; END DO
-    END DO
+        END DO; END DO; END DO
+      END DO
+    END IF ! RelaxDeposition
+
+    ! 2.) particle delay time active
+    IF(time.LT.DelayTime)THEN
+      DO iElem =1,PP_nElems
+        DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+#if ((USE_HDG) && (PP_nVar==1))
+          PartSource(1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+#else
+          PartSource(1:4,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+#endif
+        END DO; END DO; END DO
+      END DO
+    END IF ! time.LE.DelayTime
   END IF ! (DoDeposition .AND. RelaxDeposition)
 
   ! ------------------------------------------------
