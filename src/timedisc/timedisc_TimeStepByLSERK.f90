@@ -114,7 +114,7 @@ DO iStage = 1,nRKStages
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
-  CALL IRecvNbofParticles()
+  IF(time.GE.DelayTime) CALL IRecvNbofParticles()
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
@@ -130,12 +130,9 @@ DO iStage = 1,nRKStages
 
   CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB. Also done for state output of PartsPerElem
 
-  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-    ! Forces on particle
-    IF (time.GE.DelayTime) CALL InterpolateFieldToParticle()
-  END IF
-
+  ! Forces on particle
   IF (time.GE.DelayTime) THEN
+    CALL InterpolateFieldToParticle()
     IF(DoFieldIonization) CALL FieldIonization()
     IF(DoInterpolation)   CALL CalcPartRHS()
   END IF
@@ -191,7 +188,7 @@ DO iStage = 1,nRKStages
   CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 
-  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
+  IF (time.GE.DelayTime) THEN
     IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
     CALL PerformTracking()
 #ifdef EXTRAE

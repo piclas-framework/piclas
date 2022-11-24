@@ -603,8 +603,7 @@ DO iElem=FirstElemInd,LastElemInd
           aSide%connection%Elem=>GETNEWELEM()
           aSide%NbProc = ELEMIPROC(elemID)
 #else
-          CALL abort(__STAMP__, &
-            ' ElemID of neighbor not in global Elem list ')
+          CALL abort(__STAMP__, ' ElemID of neighbor not in global Elem list ')
 #endif
         END IF
       END IF
