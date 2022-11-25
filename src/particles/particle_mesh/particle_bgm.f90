@@ -1798,6 +1798,7 @@ USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems,GEO
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1811,7 +1812,7 @@ INTEGER                        :: iElem,firstElem,lastElem
 REAL                           :: RotBoundsOfElemCenter(3)
 REAL                           :: BoundsOfElemCenter(1:4),LocalBoundsOfElemCenter(1:4)
 INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
-INTEGER                        :: iPeriodicDir,iLocElem
+INTEGER                        :: iPeriodicDir,iLocElem,iPartBound
 !===================================================================================================================================
 
 firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
@@ -1849,8 +1850,10 @@ DO iElem = firstElem ,lastElem
                                              BoundsOfElem_Shared(2  ,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
     !   3. Rotate the global element and check the distance of all compute-node elements to
     !      this element and flag it with halo flag 3 if the element can be reached by a particle
-    DO iPeriodicDir = 1,2
-      ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
+!    DO iPeriodicDir = 1,2
+!      ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
+    DO iPartBound = 1, nPartBound
+      ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) )
         SELECT CASE(GEO%RotPeriodicAxi)
           CASE(1) ! x-rotation axis
             RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
@@ -1874,7 +1877,7 @@ DO iElem = firstElem ,lastElem
         ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
         IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
       END IF ! VECNORM( ...
-    END DO ! iPeriodicDir = 1,2
+    END DO ! nPartBound
   END DO ! iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
 END DO ! firstElem,lastElem
 

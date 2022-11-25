@@ -108,7 +108,7 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RotFreq'  &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-RotAxis'  &
                                 , 'Definition of rotation axis, only major axis: x=1,y=2,z=3.' , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-RotPeriodicDir' , 'Direction of rotation periodicity, either 1 or -1. '//&
+CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicAngle' , 'Angle and Direction of rotation periodicity, either + or - '//&
                                 'Note: Rotation direction based on right-hand rule!', numberedmulti=.TRUE.)
 !CALL prms%CreateLogicalOption(  'Part-RotPeriodicReBuild', 'Force re-creation of rotational periodic mapping (which might already exist in the mesh file).', '.FALSE.')
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp2'  &
@@ -289,8 +289,8 @@ ALLOCATE(PartBound%RotVelo(          1:nPartBound))
 PartBound%RotVelo = .FALSE.
 ALLOCATE(PartBound%RotOmega(       1:3,1:nPartBound))
 PartBound%RotOmega = 0.
-ALLOCATE(PartBound%RotPeriodicDir(  1:nPartBound))
-PartBound%RotPeriodicDir = 0
+ALLOCATE(PartBound%RotPeriodicAngle(  1:nPartBound))
+PartBound%RotPeriodicAngle = 0
 ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
 PartBound%TempGradStart = 0.
 ALLOCATE(PartBound%TempGradEnd(  1:3,1:nPartBound))
@@ -336,6 +336,7 @@ DoBoundaryParticleOutputHDF5=.FALSE.
 
 PartMeshHasPeriodicBCs=.FALSE.
 GEO%RotPeriodicBC =.FALSE.
+GEO%nRotPeriodicBCs  = 0
 #if defined(IMPA) || defined(ROS)
 PartMeshHasReflectiveBCs=.FALSE.
 #endif
@@ -448,11 +449,14 @@ DO iPartBound=1,nPartBound
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('rot_periodic')
     GEO%RotPeriodicBC = .TRUE.
+    GEO%nRotPeriodicBCs  = GEO%nRotPeriodicBCs + 1
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicBC
-    PartBound%RotPeriodicDir(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-RotPeriodicDir')
-    IF(ABS(PartBound%RotPeriodicDir(iPartBound)).NE.1) THEN
-      CALL abort(__STAMP__,'Direction for rotational periodicity must be 1 or -1, using the right-hand rule!')
+    PartBound%RotPeriodicAngle(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicAngle')
+    IF(ALMOSTZERO(PartBound%RotPeriodicAngle(iPartBound))) THEN
+      CALL abort(__STAMP__,'Angle for rotational periodicity can not be zero (using the right-hand rule!)')
     END IF
+   ! Rotate the particle slightly inside the domain
+    PartBound%RotPeriodicAngle(iPartBound) = PartBound%RotPeriodicAngle(iPartBound) / 180. * PI * 0.99999
   CASE DEFAULT
     SWRITE(*,*) ' Boundary does not exist: ', TRIM(tmpString)
     CALL abort(__STAMP__,'Particle Boundary Condition does not exist')
@@ -471,12 +475,10 @@ AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
 IF(GEO%RotPeriodicBC) THEN
   GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')
-  GEO%RotPeriodicAngle = GETREAL('Part-RotPeriodicAngle')
-  IF(ALMOSTZERO(GEO%RotPeriodicAngle)) THEN
-    CALL abort(__STAMP__,'Angle for for rotational periodicity must not be zero!')
+! Check whether two corresponding RotPeriodi BCs are always set
+  IF(MOD(GEO%nRotPeriodicBCs,2).NE.0) THEN
+    CALL abort(__STAMP__,'Check whether two corresponding RotPeriodi BCs are set!')
   END IF
-  ! Rotate the particle slightly inside the domain
-  GEO%RotPeriodicAngle = GEO%RotPeriodicAngle / 180. * PI * 0.99999
 END IF
 
 ! Surface particle output to .h5
@@ -822,8 +824,8 @@ iSideLoop: DO iSide = firstSide, lastSide
     FoundConnection = .FALSE.
 
     ! Check if both sides are on the same boundary, i.e., they cannot be connected
-    IF(PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ. &
-        PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2)))) CYCLE jSideLoop
+    IF(PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ. &
+        PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2)))) CYCLE jSideLoop
 
     ! Check if jSide is assigned to the proc
     mySide = (jSide.GE.firstSide).AND.(jSide.LE.lastSide)
@@ -1427,7 +1429,7 @@ SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
 SDEALLOCATE(PartBound%RotVelo)
 SDEALLOCATE(PartBound%RotOmega)
-SDEALLOCATE(PartBound%RotPeriodicDir)
+SDEALLOCATE(PartBound%RotPeriodicAngle)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)

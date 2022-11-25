@@ -107,7 +107,7 @@ CALL prms%CreateLogicalOption(  'Particles-DoTimeDepInflow'   , 'Insertion and S
                                                                 ' PoissonRounding or DoTimeDepInflow', '.FALSE.')
 CALL prms%CreateIntOption(      'Part-RotPeriodicAxi'         , 'Axis of rotational periodicity:'//&
                                                                    'x=1, y=2, z=3')
-CALL prms%CreateRealOption(     'Part-RotPeriodicAngle'       , 'Angle for rotational periodicity [deg]')
+CALL prms%CreateIntOption(      'Part-nRotPeriodicBCs'        , 'Number of rotaional periodic BCs')
 CALL prms%CreateIntOption(      'Part-nPeriodicVectors'       , 'Number of the periodic vectors j=1,...,n.'//&
                                                                    ' Value has to be the same as defined in preprog.ini', '0')
 
