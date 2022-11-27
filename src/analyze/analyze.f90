@@ -911,6 +911,7 @@ USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars              ,ONLY: DoDeposition, RelaxDeposition
 #endif /*PARTICLES*/
+USE MOD_TimeDisc_Vars             ,ONLY: time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -967,7 +968,7 @@ CALL extrae_eventandcounters(int(9000001), int8(6))
 #endif /*EXTRAE*/
 
 ! Create .csv file for performance analysis and load balance: write header line
-CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter_opt=iter)
+CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter_opt=iter,time_opt=time)
 
 ! check if final/last iteration iteration
 LastIter=.FALSE.
