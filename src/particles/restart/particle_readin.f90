@@ -126,6 +126,7 @@ REAL,ALLOCATABLE                   :: AD_DataTmp(:,:)
 INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
+CHARACTER(LEN=32)                  :: hilf
 !===================================================================================================================================
 
 FirstElemInd = offsetElem+1
@@ -611,11 +612,13 @@ ELSE
         DO iVar=1,PartDataSize
           IF (.NOT.readVarFromState(iVar)) THEN
             IF (TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational') THEN
-              SWRITE(*,*) 'WARNING: The following VarNamesParticles will be set to zero: '//TRIM(StrVarNames(iVar))
+              WRITE(UNIT=hilf,FMT='(I0)') iVar
+              SWRITE(*,*) 'WARNING: The following VarNamesParticles(iVar='//TRIM(hilf)//') will be set to zero: '//TRIM(StrVarNames(iVar))
             ELSE IF(TRIM(StrVarNames(iVar)).EQ.'MPF') THEN
               SWRITE(*,*) 'WARNING: The particle weighting factor will be initialized with the given global weighting factor!'
             ELSE
-              CALL Abort(__STAMP__,"not associated VarNamesParticles to be reset!")
+              CALL Abort(__STAMP__,"not associated VarNamesParticles to be reset! StrVarNames(iVar)="//TRIM(StrVarNames(iVar))//&
+              '. Note that initializing electronic DOF and vibrational molecular species with zero ist not imeplemted.')
             END IF ! TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational'
           END IF ! .NOT.readVarFromState(iVar)
         END DO ! iVar=1,PartDataSize
