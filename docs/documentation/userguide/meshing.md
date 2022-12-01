@@ -1,21 +1,34 @@
+(sec:mesh-generation)=
 # Mesh Generation
 
 **PICLas** utilizes computational meshes from the high order preprocessor **HOPR** in the HDF5 format.
-It is available under GPLv3 at [https://github.com/hopr-framework/hopr](https://github.com/hopr-framework/hopr).
+It is available under GPLv3 at [https://github.com/hopr-framework/hopr](https://github.com/hopr-framework/hopr) and is included as part of the PICLas installation.
+To compile HOPR together with PICLas, you can set the following CMake variable in the CMake GUI:
+
+    LIBS_BUILD_HOPR         ON
+
+or add the following variable to the console command:
+
+    cmake -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HOPR=ON ..
+
+The source code will be downloaded and built automatically, afterwards the executable `hopr` will be placed in the `build/bin/` folder next to the other executables.
+If you would like to install HOPR directly from the repository by yourself (e.g. if you would like to join the development),
+please refer to the [HOPR documentation](https://hopr.readthedocs.io/en/latest/).
+
 The design philosophy is that all tasks related to mesh organization, different input formats and the construction of high order
 geometrical mappings are separated from the *parallel* simulation code. These tasks are implemented most efficiently in a *serial*
 environment.
 The employed mesh format is designed to make the parallel read-in process as simple and fast as possible.
 For details concerning the mesh format please refer to the
 [HOPR HDF5 Curved Mesh Format Documentation](https://www.hopr-project.org/upload/e/e6/MeshFormat.pdf).
-Installation instructions can be found [here](https://github.com/hopr-framework/hopr/blob/master/INSTALL.md).
+
 The basic command for either mesh generation or conversion of an external mesh is
 
 ~~~~~~~
 hopr hopr.ini
 ~~~~~~~
 
-Note that the path to the **HOPR** executable is omitted in the command (visit {ref}`sec:directory-paths`).
+Note that the path to the **HOPR** executable, which depends on whether HOPR was installed together with PICLas or separately, is omitted in the command. For the former, the path set in Section {ref}`sec:directory-paths` for PICLas applies for the HOPR executable as well.
 
 
 ## Mesh generation with HOPR

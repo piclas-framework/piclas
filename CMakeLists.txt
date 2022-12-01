@@ -292,7 +292,7 @@ ENDIF()
 # =========================================================================
 # HOPR pre-processor
 # =========================================================================
-OPTION(PICLAS_BUILD_HOPR "Build HOPR pre-processor" OFF)
+OPTION(LIBS_BUILD_HOPR "Build HOPR pre-processor" OFF)
 
 # =========================================================================
 # Userblock

@@ -441,7 +441,7 @@ ENDIF()
 # =========================================================================
 # HOPR pre-processor
 # =========================================================================
-IF(PICLAS_BUILD_HOPR)
+IF(LIBS_BUILD_HOPR)
   SET (HOPRDOWNLOAD "https://github.com/hopr-framework/hopr.git")
   SET (HOPR_DOWNLOAD ${HOPRDOWNLOAD} CACHE STRING "HOPR Download-link")
   MESSAGE (STATUS "HOPR download link: ${HOPRDOWNLOAD}")
