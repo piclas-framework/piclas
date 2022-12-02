@@ -47,7 +47,8 @@ END TYPE
 TYPE(tPorousBC), ALLOCATABLE     :: PorousBC(:)                     ! Container for the porous BC, allocated with nPorousBC
 ! === Sticking coefficient from simple models/interpolation
 REAL, ALLOCATABLE                :: StickingCoefficientData(:,:)    ! Data for the model using non-bounce and condensation probability
-                                                                    ! [:,1]: Cut-off angle for non-bounce probability
-                                                                    ! [:,2:3]: Temperature limits for linear interpolation of condensation probability
+                                                                    ! [:,1]: Maximum impact angle for model parameters
+                                                                    ! [:,2]: Cut-off angle for non-bounce probability
+                                                                    ! [:,3:4]: Temperature limits for linear interpolation of condensation probability
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Vars

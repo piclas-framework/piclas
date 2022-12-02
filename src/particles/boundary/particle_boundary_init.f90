@@ -544,7 +544,8 @@ IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   StickingCoefficientExists = .FALSE.
   dsetname = TRIM('/Surface-Chemistry/StickingCoefficient')
   CALL DatasetExists(File_ID,TRIM(dsetname),StickingCoefficientExists)
-  IF(.NOT.StickingCoefficientExists) CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: No /Surface-Chemistry/StickingCoefficient dataset found in SpeciesDatabase')
+  IF(.NOT.StickingCoefficientExists) CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: '//  &
+                                      'No /Surface-Chemistry/StickingCoefficient dataset found in SpeciesDatabase!')
   ! Get dimensions
   CALL GetDataSize(File_ID,dsetname,nDims,HSize,attrib=.FALSE.)
   ! Allocate the data array

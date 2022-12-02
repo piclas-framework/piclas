@@ -888,6 +888,7 @@ LOGICAL                         :: CalcStickCoeff, ParticleSticks
 
 CalcStickCoeff = .TRUE.
 ParticleSticks = .FALSE.
+Prob = 0.
 locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
 ! Get the wall temperature
