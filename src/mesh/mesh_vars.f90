@@ -382,13 +382,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER       :: FirstElemInd,LastElemInd
-INTEGER       :: iElem,iLocSide
+INTEGER       :: iElem,iLocSide,iNbLocSide
 INTEGER       :: iMortar,iNode
 TYPE(tElem),POINTER :: aElem
 TYPE(tSide),POINTER :: aSide
 !===================================================================================================================================
 FirstElemInd = offsetElem+1
 LastElemInd  = offsetElem+nElems
+
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
   DO iNode=1,8
@@ -397,27 +398,60 @@ DO iElem=FirstElemInd,LastElemInd
   DEALLOCATE(aElem%Node)
   DO iLocSide=1,6
     aSide=>aElem%Side(iLocSide)%sp
+    ! Free nodes
     DO iNode=1,4
       NULLIFY(aSide%Node(iNode)%np)
     END DO
     DEALLOCATE(aSide%Node)
+    ! Free mortar sides
     DO iMortar=1,aSide%nMortars
-      NULLIFY(aSide%MortarSide(iMortar)%sp)
+      ! Free MPI connection
+      IF (ASSOCIATED(aSide%MortarSide(iMortar)%sp%connection) .AND. aSide%MortarSide(iMortar)%sp%NbProc.NE.-1) THEN
+        ! Free the connected elem
+        DO iNbLocSide=1,6
+          DEALLOCATE(aSide%MortarSide(iMortar)%sp%connection%Elem%Side(iNbLocSide)%sp%Node)
+          DEALLOCATE(aSide%MortarSide(iMortar)%sp%connection%Elem%Side(iNbLocSide)%sp)
+        END DO
+        DEALLOCATE(aSide%MortarSide(iMortar)%sp%connection%Elem%Node)
+        DEALLOCATE(aSide%MortarSide(iMortar)%sp%connection%Elem%Side)
+        DEALLOCATE(aSide%MortarSide(iMortar)%sp%connection%Elem)
+        ! Free the connected size
+        DEALLOCATE(aSide%MortarSide(iMortar)%sp%connection%Node)
+        DEALLOCATE(aSide%MortarSide(iMortar)%sp%connection)
+      END IF
+      DEALLOCATE(aSide%MortarSide(iMortar)%sp%Node)
+      DEALLOCATE(aSide%MortarSide(iMortar)%sp)
     END DO
     IF(ASSOCIATED(aSide%MortarSide)) DEALLOCATE(aSide%MortarSide)
+    ! Free MPI connection
+    IF (ASSOCIATED(aSide%connection) .AND. aSide%NbProc.NE.-1) THEN
+      ! Free the connected elem
+      DO iNbLocSide=1,6
+        DEALLOCATE(aSide%connection%Elem%Side(iNbLocSide)%sp%Node)
+        DEALLOCATE(aSide%connection%Elem%Side(iNbLocSide)%sp)
+      END DO
+      DEALLOCATE(aSide%connection%Elem%Node)
+      DEALLOCATE(aSide%connection%Elem%Side)
+      DEALLOCATE(aSide%connection%Elem)
+      ! Free the connected size
+      DEALLOCATE(aSide%connection%Node)
+      DEALLOCATE(aSide%connection)
+    END IF
     DEALLOCATE(aSide)
   END DO
   DEALLOCATE(aElem%Side)
   DEALLOCATE(aElem)
 END DO
 DEALLOCATE(Elems)
+
+! Free the node pointer
 DO iNode=1,nNodes
   IF(ASSOCIATED(Nodes(iNode)%np))THEN
     DEALLOCATE(Nodes(iNode)%np)
   END IF
 END DO
 !DEALLOCATE(Nodes)
-END SUBROUTINE deleteMeshPointer
 
+END SUBROUTINE deleteMeshPointer
 
 END MODULE MOD_Mesh_Vars
