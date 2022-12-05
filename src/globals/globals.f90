@@ -1113,7 +1113,8 @@ REAL,INTENT(IN)             :: Time, StartTime !< Current simulation time and be
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL :: SimulationTime,mins,secs,hours,days
+REAL              :: SimulationTime,mins,secs,hours,days
+CHARACTER(LEN=60) :: hilf
 !===================================================================================================================================
 ! Return with all procs except root if not called during abort
 IF(.NOT.MPIRoot.AND.(Message.NE.'ABORTED')) RETURN
@@ -1138,8 +1139,9 @@ days = SimulationTime
 
 ! Output message with all procs, as root might not be the calling process during abort
 IF(MPIRoot.AND.(Message.NE.'ABORTED')) WRITE(UNIT_stdOut,'(132("="))')
-WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [',Time-StartTime,' sec ]'
-WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
+WRITE(hilf,'(F16.2)') Time-StartTime
+WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [ '//TRIM(ADJUSTL(hilf))//' sec ]'
+WRITE(UNIT_stdOut,'(A3,I0,A1,I0.2,A1,I0.2,A1,I0.2,A2)') ' [ ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),' ]'
 END SUBROUTINE DisplaySimulationTime
 
 
@@ -1164,10 +1166,11 @@ INTEGER,INTENT(IN),OPTIONAL :: rank             !< if 0, some kind of root is as
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL    :: ElapsedTime,mins,secs,hours,days
-LOGICAL :: DisplayDespiteLBLoc, DisplayLineLoc, LocalRoot
+REAL              :: ElapsedTime,mins,secs,hours,days
+LOGICAL           :: DisplayDespiteLBLoc, DisplayLineLoc, LocalRoot
+CHARACTER(LEN=60) :: hilf
 #if !USE_LOADBALANCE
-LOGICAL :: PerformLoadBalance
+LOGICAL           :: PerformLoadBalance
 #endif /*!USE_LOADBALANCE*/
 !===================================================================================================================================
 #if !USE_LOADBALANCE
@@ -1214,8 +1217,9 @@ days = ElapsedTime
 
 ! Output message
 IF(LocalRoot.AND.((.NOT.PerformLoadBalance).OR.DisplayDespiteLBLoc))THEN
-  WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' '//TRIM(Message)//' [',ElapsedTime,' sec ]'
-  WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
+  WRITE(hilf,'(F16.2)')  ElapsedTimeIn
+  WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' '//TRIM(Message)//' [ '//TRIM(ADJUSTL(hilf))//' sec ]'
+  WRITE(UNIT_stdOut,'(A3,I0,A1,I0.2,A1,I0.2,A1,I0.2,A2)') ' [ ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),' ]'
   IF(DisplayLineLoc) WRITE(UNIT_StdOut,'(132("-"))')
 END IF ! LocalRoot.AND.((.NOT.PerformLoadBalance).OR.DisplayDespiteLBLoc)
 

@@ -1579,7 +1579,7 @@ DO WHILE (associated(current))
                     ALLOCATE(logicalopt)
                     ! remove trailing comma
                     tmpValue(len(TRIM(tmpValue)):len(TRIM(tmpValue))) = ' '
-                    WRITE(tmpValue,'(*(L))') (multi%value(j), ",",j=1,no)
+                    WRITE(tmpValue,'(*(L1))') (multi%value(j), ",",j=1,no)
                     CALL prms%CreateOption(logicalopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
                   END SELECT
               END SELECT

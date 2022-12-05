@@ -938,7 +938,7 @@ USE MOD_PICDepo_Vars       ,ONLY: nNodeRecvExchangeProcs
 USE MOD_PICDepo_Vars       ,ONLY: NodeRecvDepoRankToGlobalRank
 #endif  /*USE_MPI*/
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart
+USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1000,7 +1000,8 @@ DO iProc = 1, nNodeRecvExchangeProcs
 END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! 3) Extract messages
