@@ -342,8 +342,8 @@ per area per second.
 WIP, PartAnalyze/FieldAnalyze
 
 ## Dynamic Mode Decomposition
-The dynamic mode decomposition is an algorithm divide a temporal series into a set of modes which are associated with a frequency
-and grow/decay rate.
+The dynamic mode decomposition is an algorithm that divides a temporal series into a set of modes which are associated with a
+frequency and grow/decay rate.
 The dynamic mode decomposition (DMD) is implemented according to Schmid et al. {cite}`Schmid2009`.
 To use the DMD tool, it needs to be compiled first. In cmake, set the flag
 

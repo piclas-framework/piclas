@@ -603,7 +603,7 @@ REAL,ALLOCATABLE,TARGET         :: Coords_DG(:,:,:,:,:)
 REAL,POINTER                    :: Coords_DG_p(:,:,:,:,:)
 REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             !< Vandermonde from equidistant mesh to visualization nodes
 REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  !< Vandermonde from state to visualization nodes
-LOGICAL                         :: DGSourceExists,DGTimeDerivativeExists,TimeExists,DGSourceExtExists,DMDMode,DGolutionDatasetExists
+LOGICAL                         :: DGSourceExists,DGTimeDerivativeExists,TimeExists,DGSourceExtExists,DMDMode,DGSolutionDatasetExists
 CHARACTER(LEN=16)               :: hilf
 CHARACTER(LEN=255)              :: DMDFields(1:16), Dataset
 !===================================================================================================================================
@@ -611,14 +611,14 @@ CHARACTER(LEN=255)              :: DMDFields(1:16), Dataset
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
 
 ! Check if data set exists, if not return
-CALL DatasetExists(File_ID,TRIM(DGSolutionDataset),DGolutionDatasetExists)
-IF(.NOT.DGolutionDatasetExists)THEN
+CALL DatasetExists(File_ID,TRIM(DGSolutionDataset),DGSolutionDatasetExists)
+IF(.NOT.DGSolutionDatasetExists)THEN
   CALL CloseDataFile()
   iErrorReturn=1
   RETURN
 ELSE
   iErrorReturn=0
-END IF ! .NOT.DGolutionDatasetExists
+END IF ! .NOT.DGSolutionDatasetExists
 
 ! Read-in of dimensions of the field array (might have an additional dimension, i.e., rank is 6 instead of 5)
 CALL GetDataSize(File_ID,TRIM(DGSolutionDataset),nDims,HSize)
