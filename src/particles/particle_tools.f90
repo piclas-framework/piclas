@@ -1184,10 +1184,7 @@ ASSOCIATE(&
       z => Pos(3) ,&
       EmissionDistribution => Species(iSpec)%Init(iInit)%EmissionDistribution&
       )
-  r = SQRT(x**2+y**2)
-  iPos = INT((r-EmissionDistribution(1,1))/EmissionDistributionDelta(1)) + 1
-  jPos = INT((z-EmissionDistribution(2,1))/EmissionDistributionDelta(2)) + 1
-
+  r = SQRT(x*x + y*y)
 
   IF(r.GT.EmissionDistributionMax(1))THEN
     InterpolateEmissionDistribution2D = 0.
@@ -1198,14 +1195,26 @@ ASSOCIATE(&
   ELSEIF(z.LT.EmissionDistributionMin(2))THEN
     InterpolateEmissionDistribution2D = 0.
   ELSE
-    ! 1.1
-    idx1 = (iPos-1)*EmissionDistributionNum(1) + jPos
-    ! 2.1
-    idx2 = (iPos-1)*EmissionDistributionNum(1) + jPos + 1
-    ! 1.2
-    idx3 = iPos*EmissionDistributionNum(1) + jPos
-    ! 2.2
-    idx4 = iPos*EmissionDistributionNum(1) + jPos + 1
+
+    ! Get index in r and z
+    iPos = INT((r-EmissionDistribution(1,1))/EmissionDistributionDelta(1)) + 1 ! dr = EmissionDistributionDelta(1)
+    jPos = INT((z-EmissionDistribution(2,1))/EmissionDistributionDelta(2)) + 1 ! dz = EmissionDistributionDelta(2)
+    ! Catch problem when r or z are exactly at the upper boundary and INT() does not round to the lower integer (do not add +1 in
+    ! this case)
+    iPos = MIN(iPos, EmissionDistributionNum(2) - 1 )
+    jPos = MIN(jPos, EmissionDistributionNum(1) - 1 )
+
+    ! Shift all points by Nz = EmissionDistributionNum(1)
+    ASSOCIATE( Nz => EmissionDistributionNum(1) )
+      ! 1.1
+      idx1 = (iPos-1)*Nz + jPos
+      ! 2.1
+      idx2 = (iPos-1)*Nz + jPos + 1
+      ! 1.2
+      idx3 = iPos*Nz + jPos
+      ! 2.2
+      idx4 = iPos*Nz + jPos + 1
+    END ASSOCIATE
 
     ! Interpolate
     delta = EmissionDistributionDelta(1)*EmissionDistributionDelta(2)
