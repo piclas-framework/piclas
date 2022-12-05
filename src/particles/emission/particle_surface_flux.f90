@@ -1043,7 +1043,7 @@ INTEGER, INTENT(IN)             :: iSpec, iSF
 INTEGER                         :: iSide, BCSideID, ElemID, iLocSide, SideID, currentBC, PartInsSubSum, iSample, jSample
 INTEGER                         :: SampleElemID
 INTEGER, ALLOCATABLE            :: PartInsSubSidesAdapt(:,:,:)
-REAL                            :: VeloVec(1:3), vec_nIn(1:3), T, ElemPartDensity, VeloIC, VeloVecIC(1:3), projFak
+REAL                            :: VeloVec(1:3), vec_nIn(1:3), ElemPartDensity, VeloIC, VeloVecIC(1:3), projFak
 REAL                            :: v_thermal, a, vSF, nVFR, RandVal1, area
 !===================================================================================================================================
 
@@ -1057,6 +1057,7 @@ PartInsSubSidesAdapt = 0
 PartInsSubSum = 0
 
 DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+  ! Skip sides outside of the circular inflow region
   IF (SF%CircularInflow) THEN
     IF(SF%SurfFluxSideRejectType(iSide).EQ.1) CYCLE
   END IF
@@ -1065,28 +1066,30 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
   SampleElemID = AdaptBCMapElemToSample(ElemID)
   iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
   SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
+  ! Get the sampled velocity vector
+  VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
+  ! Determine the velocity magnitude
+  VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
+  IF (ABS(VeloIC).GT.0.) THEN
+    ! Calculate the normalized velocity vector
+    VeloVecIC = VeloVec / VeloIC
+    ! Store the vector as backup for low particle numbers
+    AdaptBCBackupVelocity(1:3,SampleElemID,iSpec) = VeloVec(1:3)
+  ELSE
+    ! Using the old velocity vector, overwriting the sampled value with the old one
+    VeloVec(1:3) = AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
+    AdaptBCMacroVal(1:3,SampleElemID,iSpec) = AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
+    VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
+    IF(ABS(VeloIC).GT.0.) THEN
+      VeloVecIC = VeloVec / VeloIC
+    ELSE
+      ! Dummy value, for maxwell only the thermal velocity will be considered
+      VeloVecIC = (/1.,0.,0./)
+    END IF
+  END IF
+  ! Loop over the triangles
   DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     ElemPartDensity = 0.
-    ! Get the sampled velocity vector
-    VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
-    ! Determine the velocity magnitude
-    VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
-    IF (ABS(VeloIC).GT.0.) THEN
-      VeloVecIC = VeloVec / VeloIC
-      ! Store the vector as backup for low particle numbers
-      AdaptBCBackupVelocity(1:3,SampleElemID,iSpec) = VeloVec(1:3)
-    ELSE
-      ! Using the old velocity vector, overwriting the sampled value with the old one
-      VeloVec(1:3) = AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
-      AdaptBCMacroVal(1:3,SampleElemID,iSpec) = AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
-      VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
-      IF(ABS(VeloIC).GT.0.) THEN
-        VeloVecIC = VeloVec / VeloIC
-      ELSE
-        ! Dummy value, for maxwell only the thermal velocity will be considered
-        VeloVecIC = (/1.,0.,0./)
-      END IF
-    END IF
     ! Set the area of the side, different area for circular inflow
     IF(SF%CircularInflow) THEN
       area = SF%CircleAreaPerTriaSide(iSample,jSample,iSide)
@@ -1096,15 +1099,14 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
     ! VeloVecIC projected to inwards normal
     vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
     projFak = DOT_PRODUCT(vec_nIn,VeloVecIC)
-    ! Thermal velocity
-    T =  SF%MWTemperatureIC
-    v_thermal = SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC)
     ! Compute total volume flow rate through surface
     SELECT CASE(TRIM(SF%velocityDistribution))
     CASE('constant')
       vSF = VeloIC * projFak !Velo proj. to inwards normal
       nVFR = MAX(area * vSF,0.) !VFR proj. to inwards normal (only positive parts!)
     CASE('maxwell','maxwell_lpn')
+      ! Thermal velocity
+      v_thermal = SQRT(2.*BoltzmannConst*SF%MWTemperatureIC/Species(iSpec)%MassIC)
       IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
         v_thermal = 1.
       END IF
