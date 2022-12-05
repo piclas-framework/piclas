@@ -341,3 +341,83 @@ per area per second.
 
 WIP, PartAnalyze/FieldAnalyze
 
+## Dynamic Mode Decomposition
+The dynamic mode decomposition is an algorithm divide a temporal series into a set of modes which are associated with a frequency
+and grow/decay rate.
+The dynamic mode decomposition (DMD) is implemented according to Schmid et al. {cite}`Schmid2009`.
+To use the DMD tool, it needs to be compiled first. In cmake, set the flag
+
+    POSTI_BUILD_DMD = ON (default is OFF)
+
+which creates the executable `./bin/dmd`.
+The input for the DMD tool is provided by a series of state files with a high temporal resolution between each output file in order
+to capture the relevant frequencies that are to be visualized.
+To analyze a specific frequency, multiple state files should be created within one period of the oscillation.
+
+Run the DMD executable with the help command to see the available options
+
+    ./dmd --help
+
+To execute the DMD after a simulation, with e.g. the Maxwell solver, run the command
+
+    dmd dmd.ini coaxial_State_000.00*
+
+with an exemplary `dmd.ini` file
+
+    N            = 4
+    SvdThreshold = 1e-8 ! Define relative lower bound of singular values
+
+where `N=4` is the polynomial degree of the solution and `SvdThreshold = 1e-8` is used to filter singular values of the DMD.
+
+Depending on the available memory one might have to decrease the number of input state files.
+After the execution two additional files **coaxial_DMD.h5** and **coaxial_DMD_Spec.dat** will be created.
+The first file contains the field representation of the different modes and the second file contains the Ritz spectrum of the modes.
+
+### Ritz spectrum (coaxial_DMD_Spec.dat)
+
+With the python script *plot_RitzSpectrum.py* the Ritz spectrum of the DMD can be plotted.
+The script is placed in the tools folder of **piclas**.
+To plot the spectrum execute:
+
+    python [PICLAS_DIRECTORY]/tools/plot_RitzSpectrum.py -d coaxial_DMD_Spec.dat
+
+The result is a Ritz spectrum depicting all the calculated modes and their growth rate.
+On the *x-axis* the frequency of the modes and on the *y-axis* the growth/decay factor is plotted, whereat modes with $\omega_r<0$
+are damped.
+The modes placed directly on the x-axis are the global, the first, the second harmonic mode and so on.
+The color and size of the plotted modes represent the Euclidian norm of the mode which can be interpreted as an energy norm of the mode.
+
+### Mode visualization (coaxial_DMD.h5)
+To visualize the field run the following command:
+
+    piclas2vtk [posti.ini] coaxial_DMD.h5
+
+The new file **coaxial_DMD_000.00000000000000000.vtu** now contains multiple modes to visualize.
+Two additional input parameters are used to control the output of `piclas2vtk` by placing them in the `posti.ini` file
+
+    dmdSingleModeOutput  = 2  ! only extract mode 002
+    dmdMaximumModeOutput = 10 ! only extract modes 001-010
+
+The parameter `dmdSingleModeOutput` is used to convert only a single specific mode to `.vtu` ignoring all other modes and
+`dmdMaximumModeOutput` can be used to dump all output modes up to this number.
+Note that each mode is written to a separate output file because a single might can become quite large very quickly and is then too
+large to visualize.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
