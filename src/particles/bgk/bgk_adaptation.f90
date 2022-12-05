@@ -38,7 +38,8 @@ SUBROUTINE BGK_octree_adapt(iElem)
 ! MODULES
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
-USE MOD_Particle_Vars           ,ONLY: PEM, PartPosRef,Species,WriteMacroVolumeValues, usevMPF, LastPartPos
+USE MOD_Particle_Vars           ,ONLY: PEM, PartPosRef,Species,WriteMacroVolumeValues, usevMPF, LastPartPos, VirtMergedCells
+USE MOD_Particle_Vars           ,ONLY: DoVirtualCellMerge
 #if PP_TimeDiscMethod==300
 USE MOD_Particle_Vars           ,ONLY: PartState
 #endif /*PP_TimeDiscMethod==300*/
@@ -65,8 +66,9 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart,iLoop,nPart,CNElemID,GlobalElemID
+INTEGER                       :: iPart,iLoop,nPart,CNElemID,GlobalElemID, nPartMerged, nPartLoc, locElem, iLoopLoc, iMergeElem
 REAL                          :: Dens,partWeight,totalWeight
+LOGICAL                       :: DoMergedCell
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
@@ -79,77 +81,119 @@ IF(DSMC%CalcQualityFactors) THEN
     FP_MeanRelaxFactorCounter = 0; FP_MeanRelaxFactor = 0.; FP_MaxRelaxFactor = 0.; FP_MaxRotRelaxFactor = 0.; FP_PrandtlNumber = 0.
   END IF
 END IF
-
+DoMergedCell = .FALSE.
 ! Skip cell if number of particles is less than 2, create particle list (iPartIndx_Node) and sum-up bulk velocity
 nPart = PEM%pNumber(iElem)
-IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
+IF (DoVirtualCellMerge) THEN
+  IF(VirtMergedCells(iElem)%isMerged) RETURN
+  IF(VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
+    nPartMerged = nPart
+    DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+      nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
+    END DO
+    NULLIFY(TreeNode)
+    ALLOCATE(TreeNode)
+    ALLOCATE(TreeNode%iPartIndx_Node(nPartMerged))
+    iPart = PEM%pStart(iElem)
+    iLoopLoc = 0
+    DO iLoop = 1, nPart
+      iLoopLoc = iLoopLoc + 1
+      TreeNode%iPartIndx_Node(iLoopLoc) = iPart
+      iPart = PEM%pNext(iPart)
+    END DO
+    DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+      locElem = VirtMergedCells(iElem)%MergedCellID(iMergeElem)
+      nPartLoc = PEM%pNumber(locElem)
+      iPart = PEM%pStart(locElem)
+      DO iLoop = 1, nPartLoc
+        iLoopLoc = iLoopLoc + 1
+        TreeNode%iPartIndx_Node(iLoopLoc) = iPart
+        iPart = PEM%pNext(iPart)
+      END DO
+    END DO
+    DoMergedCell = .TRUE.
+  END IF  
+ELSE IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
 END IF
 
-GlobalElemID = iElem+offSetElem
-CNElemID     = GetCNElemID(GlobalElemID)
-
-NULLIFY(TreeNode)
-ALLOCATE(TreeNode)
-ALLOCATE(TreeNode%iPartIndx_Node(nPart))
-TreeNode%iPartIndx_Node(1:nPart) = 0
-
-totalWeight = 0.0
-iPart = PEM%pStart(iElem)
-DO iLoop = 1, nPart
-  TreeNode%iPartIndx_Node(iLoop) = iPart
-  partWeight = GetParticleWeight(iPart)
-  totalWeight = totalWeight + partWeight
-  iPart = PEM%pNext(iPart)
-END DO
-
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-  ! totalWeight contains the weighted particle number
-  Dens = totalWeight / ElemVolume_Shared(CNElemID)
+IF (DoMergedCell) THEN
+#if (PP_TimeDiscMethod==300)
+  CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged, VirtMergedCells(iELem)%MergedVolume)
+#else
+!  IF (BGKMovingAverage) THEN
+!   CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged,VirtMergedCells(iELem)%MergedVolume, &
+!            ElemNodeAveraging(iElem)%Root%AverageValues(:))
+!  ELSE
+    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged, VirtMergedCells(iELem)%MergedVolume)
+!  END IF
+#endif
 ELSE
-  Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
-END IF
+  GlobalElemID = iElem+offSetElem
+  CNElemID     = GetCNElemID(GlobalElemID)
+
+  NULLIFY(TreeNode)
+  ALLOCATE(TreeNode)
+  ALLOCATE(TreeNode%iPartIndx_Node(nPart))
+  TreeNode%iPartIndx_Node(1:nPart) = 0
+
+  totalWeight = 0.0
+  iPart = PEM%pStart(iElem)
+  DO iLoop = 1, nPart
+    TreeNode%iPartIndx_Node(iLoop) = iPart
+    partWeight = GetParticleWeight(iPart)
+    totalWeight = totalWeight + partWeight
+    iPart = PEM%pNext(iPart)
+  END DO
+
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    ! totalWeight contains the weighted particle number
+    Dens = totalWeight / ElemVolume_Shared(CNElemID)
+  ELSE
+    Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
+  END IF
 
 ! The octree refinement is performed if either the particle number or number density is above a user-given limit
-IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
-  ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
-  TreeNode%PNum_Node = nPart
-  IF (TrackingMethod.EQ.REFMAPPING) THEN
-    DO iLoop = 1, nPart
-      TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,TreeNode%iPartIndx_Node(iLoop))
-    END DO
-  ELSE ! position in reference space [-1,1] has to be computed
-    DO iLoop = 1, nPart
+  IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
+    ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
+    TreeNode%PNum_Node = nPart
+    IF (TrackingMethod.EQ.REFMAPPING) THEN
+      DO iLoop = 1, nPart
+        TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,TreeNode%iPartIndx_Node(iLoop))
+      END DO
+    ELSE ! position in reference space [-1,1] has to be computed
+      DO iLoop = 1, nPart
 #if PP_TimeDiscMethod==300
-      CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(1:3,iLoop),GlobalElemID)
+        CALL GetPositionInRefElem(PartState(1:3,TreeNode%iPartIndx_Node(iLoop)),TreeNode%MappedPartStates(1:3,iLoop),GlobalElemID)
 #else
       ! Attention: LastPartPos is the reference position here
-      TreeNode%MappedPartStates(1:3,iLoop)=LastPartPos(1:3,TreeNode%iPartIndx_Node(iLoop))
+       TreeNode%MappedPartStates(1:3,iLoop)=LastPartPos(1:3,TreeNode%iPartIndx_Node(iLoop))
 #endif /*PP_TimeDiscMethod==300*/
-    END DO
-  END IF ! TrackingMethod.EQ.REFMAPPING
-  TreeNode%NodeDepth = 1
-  TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
-  ! Start of the recursive routine, which will descend further down the octree until the aforementioned criteria are fulfilled
-  ! IF (BGKMovingAverage) THEN
-  !   CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
-  ! ELSE
-    CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
-  ! END IF
-  DEALLOCATE(TreeNode%MappedPartStates)
-ELSE ! No octree refinement: Call of the respective collision operator
+      END DO
+    END IF ! TrackingMethod.EQ.REFMAPPING
+    TreeNode%NodeDepth = 1
+    TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
+    ! Start of the recursive routine, which will descend further down the octree until the aforementioned criteria are fulfilled
+    ! IF (BGKMovingAverage) THEN
+    !   CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
+    ! ELSE
+      CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
+    ! END IF
+    DEALLOCATE(TreeNode%MappedPartStates)
+  ELSE ! No octree refinement: Call of the respective collision operator
 #if (PP_TimeDiscMethod==300)
     CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
 #else
-  ! IF (BGKMovingAverage) THEN
-  !   CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart,ElemVolume_Shared(CNElemID), &
-  !            ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
-  !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
-  ! ELSE
-    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
-  ! END IF
+    ! IF (BGKMovingAverage) THEN
+    !   CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart,ElemVolume_Shared(CNElemID), &
+    !            ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
+    !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
+    ! ELSE
+      CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
+    ! END IF
 #endif
-END IF ! nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)
+  END IF ! nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)
+END IF
 
 ! Sampling of quality factors for BGK and FP-Flow methods
 IF(DSMC%CalcQualityFactors) THEN
@@ -522,7 +566,7 @@ SUBROUTINE BGK_quadtree_adapt(iElem)
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_DSMC_ParticlePairing    ,ONLY: GeoCoordToMap2D
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
-USE MOD_Particle_Vars           ,ONLY: PEM, Species,WriteMacroVolumeValues, usevMPF
+USE MOD_Particle_Vars           ,ONLY: PEM, Species,WriteMacroVolumeValues, usevMPF, VirtMergedCells, DoVirtualCellMerge
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens!,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength
 USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
@@ -548,8 +592,9 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart, CNElemID
+INTEGER                       :: iPart, iLoop, nPart, CNElemID, nPartMerged, nPartLoc, locElem, iLoopLoc, iMergeElem
 REAL                          :: Dens, partWeight, totalWeight
+LOGICAL                       :: DoMergedCell
 TYPE(tTreeNode), POINTER      :: TreeNode
 !===================================================================================================================================
 
@@ -562,73 +607,115 @@ IF(DSMC%CalcQualityFactors) THEN
     FP_MeanRelaxFactorCounter = 0; FP_MeanRelaxFactor = 0.; FP_MaxRelaxFactor = 0.; FP_MaxRotRelaxFactor = 0.; FP_PrandtlNumber = 0.
   END IF
 END IF
-
+DoMergedCell = .FALSE.
 ! Skip cell if number of particles is less than 2, create particle list (iPartIndx_Node) and sum-up bulk velocity
 nPart = PEM%pNumber(iElem)
-IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
+IF (DoVirtualCellMerge) THEN
+  IF(VirtMergedCells(iElem)%isMerged) RETURN
+  IF(VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
+    nPartMerged = nPart
+    DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+      nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
+    END DO
+    NULLIFY(TreeNode)
+    ALLOCATE(TreeNode)
+    ALLOCATE(TreeNode%iPartIndx_Node(nPartMerged))
+    iPart = PEM%pStart(iElem)
+    iLoopLoc = 0
+    DO iLoop = 1, nPart
+      iLoopLoc = iLoopLoc + 1
+      TreeNode%iPartIndx_Node(iLoopLoc) = iPart
+      iPart = PEM%pNext(iPart)
+    END DO
+    DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+      locElem = VirtMergedCells(iElem)%MergedCellID(iMergeElem)
+      nPartLoc = PEM%pNumber(locElem)
+      iPart = PEM%pStart(locElem)
+      DO iLoop = 1, nPartLoc
+        iLoopLoc = iLoopLoc + 1
+        TreeNode%iPartIndx_Node(iLoopLoc) = iPart
+        iPart = PEM%pNext(iPart)
+      END DO
+    END DO
+    DoMergedCell = .TRUE.
+  END IF  
+ELSE IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
 END IF
 
-CNElemID = GetCNElemID(iElem+offSetElem)
-
-NULLIFY(TreeNode)
-ALLOCATE(TreeNode)
-ALLOCATE(TreeNode%iPartIndx_Node(nPart))
-TreeNode%iPartIndx_Node(1:nPart) = 0
-
-totalWeight = 0.0
-iPart = PEM%pStart(iElem)
-DO iLoop = 1, nPart
-  TreeNode%iPartIndx_Node(iLoop) = iPart
-  partWeight = GetParticleWeight(iPart)
-  totalWeight = totalWeight + partWeight
-  iPart = PEM%pNext(iPart)
-END DO
-
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-  ! totalWeight contains the weighted particle number
-  Dens = totalWeight / ElemVolume_Shared(CNElemID)
-ELSE
-  Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
-END IF
-
-! The quadtree refinement is performed if either the particle number or number density is above a user-given limit
-IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
-  ALLOCATE(TreeNode%MappedPartStates(1:2,1:nPart))
-  TreeNode%PNum_Node = nPart
-  iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-  DO iLoop = 1, nPart
-#if PP_TimeDiscMethod==300
-    CALL GeoCoordToMap2D(PartState(1:2,iPart), TreeNode%MappedPartStates(1:2,iLoop), iElem)
+IF (DoMergedCell) THEN
+#if (PP_TimeDiscMethod==300)
+  CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged, VirtMergedCells(iELem)%MergedVolume)
 #else
-    ! Attention: LastPartPos is the reference position here
-    TreeNode%MappedPartStates(1:2,iLoop)=LastPartPos(1:2,iPart)
-#endif /*PP_TimeDiscMethod==300*/
+!  IF (BGKMovingAverage) THEN
+!    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged,VirtMergedCells(iELem)%MergedVolume, &
+!            ElemNodeAveraging(iElem)%Root%AverageValues(:))
+!  ELSE
+    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged, VirtMergedCells(iELem)%MergedVolume)
+!  END IF
+#endif
+ELSE
+  CNElemID = GetCNElemID(iElem+offSetElem)
+
+  NULLIFY(TreeNode)
+  ALLOCATE(TreeNode)
+  ALLOCATE(TreeNode%iPartIndx_Node(nPart))
+  TreeNode%iPartIndx_Node(1:nPart) = 0
+
+  totalWeight = 0.0
+  iPart = PEM%pStart(iElem)
+  DO iLoop = 1, nPart
+    TreeNode%iPartIndx_Node(iLoop) = iPart
+    partWeight = GetParticleWeight(iPart)
+    totalWeight = totalWeight + partWeight
     iPart = PEM%pNext(iPart)
   END DO
-  TreeNode%NodeDepth = 1
-  TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
-  ! Start of the recursive routine, which will descend further down the quadtree until the aforementioned criteria are fulfilled
-  ! IF (BGKMovingAverage) THEN
-  !   CALL AddBGKQuadtreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
-  ! ELSE
-    CALL AddBGKQuadtreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
-  ! END IF
-  DEALLOCATE(TreeNode%MappedPartStates)
-ELSE ! No quadtree refinement: Call of the respective collision operator
-#if (PP_TimeDiscMethod==300)
-    CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
+
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    ! totalWeight contains the weighted particle number
+    Dens = totalWeight / ElemVolume_Shared(CNElemID)
+  ELSE
+    Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
+  END IF
+
+  ! The quadtree refinement is performed if either the particle number or number density is above a user-given limit
+  IF(nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)) THEN
+    ALLOCATE(TreeNode%MappedPartStates(1:2,1:nPart))
+    TreeNode%PNum_Node = nPart
+    iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+    DO iLoop = 1, nPart
+#if PP_TimeDiscMethod==300
+      CALL GeoCoordToMap2D(PartState(1:2,iPart), TreeNode%MappedPartStates(1:2,iLoop), iElem)
 #else
-  ! IF (BGKMovingAverage) THEN
-  !   CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, &
-  !             ElemVolume_Shared(CNElemID), &
-  !            ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
-  !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
-  ! ELSE
-    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
-  ! END IF
+      ! Attention: LastPartPos is the reference position here
+      TreeNode%MappedPartStates(1:2,iLoop)=LastPartPos(1:2,iPart)
+#endif /*PP_TimeDiscMethod==300*/
+      iPart = PEM%pNext(iPart)
+    END DO
+    TreeNode%NodeDepth = 1
+    TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
+    ! Start of the recursive routine, which will descend further down the quadtree until the aforementioned criteria are fulfilled
+    ! IF (BGKMovingAverage) THEN
+    !   CALL AddBGKQuadtreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
+    ! ELSE
+      CALL AddBGKQuadtreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
+    ! END IF
+    DEALLOCATE(TreeNode%MappedPartStates)
+  ELSE ! No quadtree refinement: Call of the respective collision operator
+#if (PP_TimeDiscMethod==300)
+      CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
+#else
+    ! IF (BGKMovingAverage) THEN
+    !   CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, &
+    !             ElemVolume_Shared(CNElemID), &
+    !            ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
+    !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
+    ! ELSE
+      CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
+    ! END IF
 #endif
-END IF ! nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)
+  END IF ! nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)
+END IF
 
 ! Sampling of quality factors for BGK and FP-Flow methods
 IF(DSMC%CalcQualityFactors) THEN

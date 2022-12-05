@@ -168,7 +168,7 @@ USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
-USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry
+USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry, DoVirtualCellMerge, VirtMergedCells
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation!, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
@@ -184,13 +184,14 @@ USE MOD_Particle_Mesh_Vars  ,ONLY: IsExchangeElem
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iElem, nPart, iLoop, iPart, CNElemID, stage
-INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
-INTEGER,INTENT(IN),OPTIONAL :: stage_opt
+INTEGER                     :: iElem, nPart, iLoop, iPart, CNElemID, stage, nPartMerged, iMergeElem, iLoopLoc, locElem, nPartLoc
+INTEGER, ALLOCATABLE        :: iPartIndx_Node(:)
+REAL                        :: elemVolume
 !===================================================================================================================================
 IF (PRESENT(stage_opt)) THEN
   stage = stage_opt
@@ -222,15 +223,45 @@ ELSE ! No octree cell refinement
       IF (.NOT.IsExchangeElem(iELem)) CYCLE
     END IF
 #endif
-    CNElemID = GetCNElemID(iElem + offsetElem)
-    nPart = PEM%pNumber(iElem)
-    IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
-    ALLOCATE(iPartIndx_Node(nPart))
-    iPart = PEM%pStart(iElem)
-    DO iLoop = 1, nPart
-      iPartIndx_Node(iLoop) = iPart
-      iPart = PEM%pNext(iPart)
-    END DO
+    IF (DoVirtualCellMerge) THEN
+      IF(VirtMergedCells(iElem)%isMerged) RETURN
+      IF(VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
+        nPartMerged = nPart
+        DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+          nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
+        END DO
+        ALLOCATE(iPartIndx_Node(nPartMerged))
+        iPart = PEM%pStart(iElem)
+        iLoopLoc = 0
+        DO iLoop = 1, nPart
+          iLoopLoc = iLoopLoc + 1
+          iPartIndx_Node(iLoopLoc) = iPart
+          iPart = PEM%pNext(iPart)
+        END DO
+        DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+          locElem = VirtMergedCells(iElem)%MergedCellID(iMergeElem)
+          nPartLoc = PEM%pNumber(locElem)
+          iPart = PEM%pStart(locElem)
+          DO iLoop = 1, nPartLoc
+            iLoopLoc = iLoopLoc + 1
+            iPartIndx_Node(iLoopLoc) = iPart
+            iPart = PEM%pNext(iPart)
+          END DO
+        END DO
+      END IF  
+      elemVolume = VirtMergedCells(iELem)%MergedVolume
+    ELSE
+      CNElemID = GetCNElemID(iElem + offsetElem)
+      nPart = PEM%pNumber(iElem)
+      IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
+      ALLOCATE(iPartIndx_Node(nPart))
+      iPart = PEM%pStart(iElem)
+      DO iLoop = 1, nPart
+        iPartIndx_Node(iLoop) = iPart
+        iPart = PEM%pNext(iPart)
+      END DO
+      elemVolume = ElemVolume_Shared(CNElemID)
+    END IF
 
     IF(DSMC%CalcQualityFactors) THEN
       BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
@@ -242,7 +273,7 @@ ELSE ! No octree cell refinement
     !       ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
     !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
     ! ELSE
-      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, elemVolume)
     ! END IF
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN

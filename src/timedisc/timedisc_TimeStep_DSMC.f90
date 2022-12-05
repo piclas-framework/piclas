@@ -38,11 +38,11 @@ USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Globals                  ,ONLY: abort, CROSS
 USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
 USE MOD_Particle_Vars            ,ONLY: UseRotRefFrame, RotRefFrameOmega
-USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, VarTimeStep, Species, PartSpecies
+USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, VarTimeStep, Species, PartSpecies, DoVirtualCellMerge
 USE MOD_Particle_Vars            ,ONLY: UseSplitAndMerge
 USE MOD_DSMC_Vars                ,ONLY: DSMC, CollisMode, AmbipolElecVelo
 USE MOD_DSMC                     ,ONLY: DSMC_main
-USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
+USE MOD_part_tools               ,ONLY: UpdateNextFreePosition, MergeCells
 USE MOD_part_emission            ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux        ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,MeasureTrackTime
@@ -52,6 +52,7 @@ USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
 USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame
 USE MOD_Part_Tools               ,ONLY: InRotRefFrameCheck
+USE MOD_Restart_Vars             ,ONLY: DoRestart
 #if USE_MPI
 USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -76,6 +77,11 @@ REAL                  :: tLBStart
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
+
+
+IF (DoVirtualCellMerge) THEN
+  IF ((iter.EQ.0).AND.DoRestart) CALL MergeCells()
+END IF
 
 IF (DoSurfaceFlux) THEN
 #if USE_LOADBALANCE

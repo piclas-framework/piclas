@@ -37,13 +37,14 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars          ,ONLY: VarTimeStep, Symmetry
+USE MOD_Particle_Vars          ,ONLY: VarTimeStep, Symmetry, DoVirtualCellMerge
 USE MOD_DSMC_Vars              ,ONLY: DSMC, CollisMode
-USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition, MergeCells
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,MeasureTrackTime
+USE MOD_Restart_Vars           ,ONLY: DoRestart
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -61,6 +62,9 @@ REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
 REAL                  :: RandVal, dtVar, NewYPart, NewYVelo
 !===================================================================================================================================
+IF (DoVirtualCellMerge) THEN
+  IF ((iter.EQ.0).AND.DoRestart) CALL MergeCells()
+END IF
 IF (DoSurfaceFlux) THEN
   CALL ParticleSurfaceflux()
 END IF

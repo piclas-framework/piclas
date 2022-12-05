@@ -235,4 +235,18 @@ If the resulting weighting factor would drop below a specific limit that is defi
 the split is stopped and the desired number of particles will not be reached.
 The basic functionality of both routines is verified during the nightly regression testing in `piclas/regressioncheck/NIG_code_analyze/vMPF_SplitAndMerge_Reservoir`.
 
+## Virtual Cell Merge
+
+In the case of very complex geometries, very small cells can sometimes be created to represent the geometry, in which, however, only very few particles are present. This results in a very large statistical noise in these cells and the collision process is only inadequately covered due to the poor statistics. In this case, cells can be virtually merged with neighbouring cells during the runtime using predefined parameters. The merged cells are then treated as one large cell. This means that DSMC collision pairings and the BGK relaxation process are performed with all particles within the merged cell, i.e. all particles of the individual cells. The averaging then also takes place for all particles in the merged cell and all individual cells then receive the values of the merged cell in the output.
+The virtual cell merge can be enabled with the following flag:
+
+    Part-DoVirtualCellMerge             = T
+
+Currently, only merging based on the number of particles within the cell is implemented. The minimum number of particles below which the cell is merged is defined with the following parameter:
+
+    Part-MinPartNumCellMerge            = 3
+
+Furthermore, the spread or aggressiveness of the merge algorithm can be changed, i.e. how deep the merge extends into the mesh starting from each cell. 0 is the least aggressive merge, 2 the most aggressive merge.
+
+  Part-CellMergeSpread                  = 0
 

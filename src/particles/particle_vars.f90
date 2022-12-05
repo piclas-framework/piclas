@@ -277,6 +277,18 @@ TYPE tVariableTimeStep
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
 
+LOGICAL                                :: DoVirtualCellMerge
+INTEGER                                :: MinPartNumCellMerge
+INTEGER                                :: VirtualCellMergeSpread
+TYPE tVirtualCellMerge
+  INTEGER, ALLOCATABLE                 :: MergedCellID(:)
+  INTEGER                              :: NumOfMergedCells
+  INTEGER                              :: MasterCell
+  LOGICAL                              :: isMerged
+  REAL                                 :: MergedVolume
+END TYPE
+TYPE (tVirtualCellMerge),ALLOCATABLE   :: VirtMergedCells(:)
+
 LOGICAL               :: UseRotRefFrame           ! flag for rotational frame of reference
 INTEGER               :: RotRefFrameAxis          ! axis of rotational frame of reference (x=1, y=2, z=3)
 REAL                  :: RotRefFrameFreq          ! frequency of rotational frame of reference

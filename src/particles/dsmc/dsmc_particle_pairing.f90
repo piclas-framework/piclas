@@ -52,7 +52,7 @@ SUBROUTINE DSMC_pairing_standard(iElem)
 !> collision procedure is performed.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PEM
+USE MOD_Particle_Vars         ,ONLY: PEM, VirtMergedCells, DoVirtualCellMerge
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
@@ -66,26 +66,58 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart
+INTEGER                       :: iPart, iLoop, nPart, nPartMerged, iMergeElem, iLoopLoc, locElem, nPartLoc
 INTEGER, ALLOCATABLE          :: iPartIndx(:)                 !< List of particles in the cell required for pairing
+REAL                          :: elemVolume
 !===================================================================================================================================
 
 nPart = PEM%pNumber(iElem)
+IF (DoVirtualCellMerge) THEN
+  ! 1.) Create particle index list for pairing in the case of virtually merged cells. So, all particles from the merged cells are
+  !   used for the pairing and the collisions.
+  IF(VirtMergedCells(iElem)%isMerged) RETURN
+  IF(VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
+    nPartMerged = nPart
+    DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+      nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
+    END DO
+    ALLOCATE(iPartIndx(nPartMerged))
+    iPart = PEM%pStart(iElem)
+    iLoopLoc = 0
+    DO iLoop = 1, nPart
+      iLoopLoc = iLoopLoc + 1
+      iPartIndx(iLoopLoc) = iPart
+      iPart = PEM%pNext(iPart)
+    END DO
+    DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+      locElem = VirtMergedCells(iElem)%MergedCellID(iMergeElem)
+      nPartLoc = PEM%pNumber(locElem)
+      iPart = PEM%pStart(locElem)
+      DO iLoop = 1, nPartLoc
+        iLoopLoc = iLoopLoc + 1
+        iPartIndx(iLoopLoc) = iPart
+        iPart = PEM%pNext(iPart)
+      END DO
+    END DO
+  END IF
+  elemVolume = VirtMergedCells(iELem)%MergedVolume
+ELSE
+  ALLOCATE(iPartIndx(nPart))
+  iPartIndx = 0
+  ! 1.) Create particle index list for pairing
+  !     Using PEM%pStart to get the first particle index based on the element index and PEM%pNext to get the next particle index based
+  !     on the previous particle index. This mapping is done in the UpdateNextFreePosition routine.
+  iPart = PEM%pStart(iElem)
+  DO iLoop = 1, nPart
+    iPartIndx(iLoop) = iPart
+    ! Choose next particle in the element
+    iPart = PEM%pNext(iPart)
+  END DO
+  elemVolume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+END IF  
 
-ALLOCATE(iPartIndx(nPart))
-iPartIndx = 0
-
-! 1.) Create particle index list for pairing
-!     Using PEM%pStart to get the first particle index based on the element index and PEM%pNext to get the next particle index based
-!     on the previous particle index. This mapping is done in the UpdateNextFreePosition routine.
-iPart = PEM%pStart(iElem)
-DO iLoop = 1, nPart
-  iPartIndx(iLoop) = iPart
-  ! Choose next particle in the element
-  iPart = PEM%pNext(iPart)
-END DO
 ! 2.) Perform pairing (random pairing or nearest neighbour pairing) and collision (including the decision for a reaction/relaxation)
-CALL PerformPairingAndCollision(iPartIndx, nPart, iElem , ElemVolume_Shared(GetCNElemID(iElem+offSetElem)))
+CALL PerformPairingAndCollision(iPartIndx, nPart, iElem , elemVolume)
 DEALLOCATE(iPartIndx)
 
 END SUBROUTINE DSMC_pairing_standard
@@ -101,7 +133,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
-USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies,PartPosRef,LastPartPos
+USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies,PartPosRef,LastPartPos, VirtMergedCells, DoVirtualCellMerge
 USE MOD_Particle_Tracking_vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -117,67 +149,104 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart, CNElemID
+INTEGER                       :: iPart, iLoop, nPart, CNElemID, nPartMerged, nPartLoc, locElem, iLoopLoc, iMergeElem
 REAL                          :: SpecPartNum(nSpecies)
 TYPE(tTreeNode), POINTER      :: TreeNode
 REAL                          :: elemVolume
+LOGICAL                       :: DoMergedCell
 !===================================================================================================================================
 
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
-CNElemID = GetCNElemID(iElem+offSetElem)
-
-NULLIFY(TreeNode)
-
-ALLOCATE(TreeNode)
-ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
-TreeNode%iPartIndx_Node(1:nPart) = 0
-
-! 1.) Create particle index list for pairing
-!     Using PEM%pStart to get the first particle index based on the element index and PEM%pNext to get the next particle index based
-!     on the previous particle index. This mapping is done in the UpdateNextFreePosition routine.
-iPart = PEM%pStart(iElem)
-DO iLoop = 1, nPart
-  TreeNode%iPartIndx_Node(iLoop) = iPart
-  iPart = PEM%pNext(iPart)
-  ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
-  SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) = &
-            SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + GetParticleWeight(TreeNode%iPartIndx_Node(iLoop))
-END DO
-
-elemVolume=ElemVolume_Shared(CNElemID)
-
-! 2.) Octree cell refinement algorithm
-DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
-! Octree can only performed if nPart is greater than the defined value (default = 28 for 2D/axisymmetric or = 50 for 3D)
-IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
-  ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default = 40  for 2D/axisymmetric or = 80 for 3D)
-  ! or the mean free path is less than the side length of a cube (approximation) with same volume as the actual cell
-  IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(CNElemID)) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
-    ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
-    TreeNode%PNum_Node = nPart
-    iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-    IF (TrackingMethod.EQ.REFMAPPING) THEN
-      DO iLoop = 1, nPart
-        TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,iPart)
+DoMergedCell = .FALSE.
+IF (DoVirtualCellMerge) THEN
+  IF(VirtMergedCells(iElem)%isMerged) RETURN
+  IF(VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
+    nPartMerged = nPart
+    DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+      nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
+    END DO
+    NULLIFY(TreeNode)
+    ALLOCATE(TreeNode)
+    ALLOCATE(TreeNode%iPartIndx_Node(nPartMerged))
+    iPart = PEM%pStart(iElem)
+    iLoopLoc = 0
+    DO iLoop = 1, nPart
+      iLoopLoc = iLoopLoc + 1
+      TreeNode%iPartIndx_Node(iLoopLoc) = iPart
+      iPart = PEM%pNext(iPart)
+    END DO
+    DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+      locElem = VirtMergedCells(iElem)%MergedCellID(iMergeElem)
+      nPartLoc = PEM%pNumber(locElem)
+      iPart = PEM%pStart(locElem)
+      DO iLoop = 1, nPartLoc
+        iLoopLoc = iLoopLoc + 1
+        TreeNode%iPartIndx_Node(iLoopLoc) = iPart
         iPart = PEM%pNext(iPart)
       END DO
-    ELSE ! position in reference space [-1,1] has to be computed
-      DO iLoop = 1, nPart
-        ! Attention: LastPartPos is the reference position here
-        TreeNode%MappedPartStates(1:3,iLoop) = LastPartPos(1:3,iPart)
-        iPart = PEM%pNext(iPart)
-      END DO
-    END IF ! TrackingMethod.EQ.REFMAPPING
-    TreeNode%NodeDepth = 1
-    TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
-    CALL AddOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
-    DEALLOCATE(TreeNode%MappedPartStates)
+    END DO
+    DoMergedCell = .TRUE.
+  END IF
+END IF  
+
+IF (DoMergedCell) THEN
+  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPartMerged, iElem, VirtMergedCells(iELem)%MergedVolume)
+ELSE
+  CNElemID = GetCNElemID(iElem+offSetElem)
+
+  NULLIFY(TreeNode)
+
+  ALLOCATE(TreeNode)
+  ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
+  TreeNode%iPartIndx_Node(1:nPart) = 0
+
+  ! 1.) Create particle index list for pairing
+  !     Using PEM%pStart to get the first particle index based on the element index and PEM%pNext to get the next particle index based
+  !     on the previous particle index. This mapping is done in the UpdateNextFreePosition routine.
+  iPart = PEM%pStart(iElem)
+  DO iLoop = 1, nPart
+    TreeNode%iPartIndx_Node(iLoop) = iPart
+    iPart = PEM%pNext(iPart)
+    ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
+    SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) = &
+              SpecPartNum(PartSpecies(TreeNode%iPartIndx_Node(iLoop))) + GetParticleWeight(TreeNode%iPartIndx_Node(iLoop))
+  END DO
+
+  elemVolume=ElemVolume_Shared(CNElemID)
+
+  ! 2.) Octree cell refinement algorithm
+  DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), elemVolume)
+  ! Octree can only performed if nPart is greater than the defined value (default = 28 for 2D/axisymmetric or = 50 for 3D)
+  IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
+    ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default = 40  for 2D/axisymmetric or = 80 for 3D)
+    ! or the mean free path is less than the side length of a cube (approximation) with same volume as the actual cell
+    IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(CNElemID)) .OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+      ALLOCATE(TreeNode%MappedPartStates(1:3,1:nPart))
+      TreeNode%PNum_Node = nPart
+      iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+      IF (TrackingMethod.EQ.REFMAPPING) THEN
+        DO iLoop = 1, nPart
+          TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,iPart)
+          iPart = PEM%pNext(iPart)
+        END DO
+      ELSE ! position in reference space [-1,1] has to be computed
+        DO iLoop = 1, nPart
+          ! Attention: LastPartPos is the reference position here
+          TreeNode%MappedPartStates(1:3,iLoop) = LastPartPos(1:3,iPart)
+          iPart = PEM%pNext(iPart)
+        END DO
+      END IF ! TrackingMethod.EQ.REFMAPPING
+      TreeNode%NodeDepth = 1
+      TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
+      CALL AddOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
+      DEALLOCATE(TreeNode%MappedPartStates)
+    ELSE
+      CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(CNElemID))
+    END IF
   ELSE
     CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(CNElemID))
   END IF
-ELSE
-  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, ElemVolume_Shared(CNElemID))
 END IF
 
 DEALLOCATE(TreeNode%iPartIndx_Node)
@@ -697,7 +766,7 @@ SUBROUTINE DSMC_pairing_quadtree(iElem)
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
-USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies, LastPartPos
+USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies, LastPartPos,VirtMergedCells, DoVirtualCellMerge
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
@@ -711,55 +780,91 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart, CNElemID
+INTEGER                       :: iPart, iLoop, nPart, CNElemID, nPartMerged, nPartLoc, locElem, iLoopLoc, iMergeElem
 REAL                          :: SpecPartNum(nSpecies), Volume
 TYPE(tTreeNode), POINTER      :: TreeNode
+LOGICAL                       :: DoMergedCell
 !===================================================================================================================================
 
 CNElemID = GetCNElemID(iElem+offSetElem)
 Volume = ElemVolume_Shared(CNElemID)
 SpecPartNum = 0.
-
-NULLIFY(TreeNode)
 nPart = PEM%pNumber(iElem)
-
-ALLOCATE(TreeNode)
-ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
-TreeNode%iPartIndx_Node(1:nPart) = 0
-
-iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
-
-DO iLoop = 1, nPart
-  TreeNode%iPartIndx_Node(iLoop) = iPart
-  ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
-  SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
-  iPart = PEM%pNext(iPart)
-END DO
-
-DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), Volume)
-
-! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
-IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
-  ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
-  ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-  IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(CNElemID)).OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
-    ALLOCATE(TreeNode%MappedPartStates(1:2,1:nPart))
-    TreeNode%PNum_Node = nPart
-    iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+DoMergedCell = .FALSE.
+IF (DoVirtualCellMerge) THEN
+  IF(VirtMergedCells(iElem)%isMerged) RETURN
+  IF(VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
+    nPartMerged = nPart
+    DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+      nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
+    END DO
+    NULLIFY(TreeNode)
+    ALLOCATE(TreeNode)
+    ALLOCATE(TreeNode%iPartIndx_Node(nPartMerged))
+    iPart = PEM%pStart(iElem)
+    iLoopLoc = 0
     DO iLoop = 1, nPart
-      ! Attention: LastPartPos is the reference position here
-      TreeNode%MappedPartStates(1:2,iLoop) = LastPartPos(1:2,iPart)
+      iLoopLoc = iLoopLoc + 1
+      TreeNode%iPartIndx_Node(iLoopLoc) = iPart
       iPart = PEM%pNext(iPart)
     END DO
-    TreeNode%NodeDepth = 1
-    TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
-    CALL AddQuadTreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
-    DEALLOCATE(TreeNode%MappedPartStates)
+    DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+      locElem = VirtMergedCells(iElem)%MergedCellID(iMergeElem)
+      nPartLoc = PEM%pNumber(locElem)
+      iPart = PEM%pStart(locElem)
+      DO iLoop = 1, nPartLoc
+        iLoopLoc = iLoopLoc + 1
+        TreeNode%iPartIndx_Node(iLoopLoc) = iPart
+        iPart = PEM%pNext(iPart)
+      END DO
+    END DO
+    DoMergedCell = .TRUE.
+  END IF
+END IF 
+
+IF (DoMergedCell) THEN
+  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPartMerged, iElem, VirtMergedCells(iELem)%MergedVolume)
+ELSE
+
+  NULLIFY(TreeNode)
+  ALLOCATE(TreeNode)
+  ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell neccessary for stat pairing
+  TreeNode%iPartIndx_Node(1:nPart) = 0
+
+  iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+
+  DO iLoop = 1, nPart
+    TreeNode%iPartIndx_Node(iLoop) = iPart
+    ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
+    SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
+    iPart = PEM%pNext(iPart)
+  END DO
+
+  DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum, SUM(SpecPartNum), Volume)
+
+  ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
+  IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
+    ! Additional check afterwards if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
+    ! the side length of a cube (approximation) with same volume as the actual cell -> octree
+    IF((DSMC%MeanFreePath.LT.ElemCharLength_Shared(CNElemID)).OR.(nPart.GT.DSMC%PartNumOctreeNode)) THEN
+      ALLOCATE(TreeNode%MappedPartStates(1:2,1:nPart))
+      TreeNode%PNum_Node = nPart
+      iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
+      DO iLoop = 1, nPart
+        ! Attention: LastPartPos is the reference position here
+        TreeNode%MappedPartStates(1:2,iLoop) = LastPartPos(1:2,iPart)
+        iPart = PEM%pNext(iPart)
+      END DO
+      TreeNode%NodeDepth = 1
+      TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
+      CALL AddQuadTreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
+      DEALLOCATE(TreeNode%MappedPartStates)
+    ELSE
+      CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
+    END IF
   ELSE
     CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
   END IF
-ELSE
-  CALL PerformPairingAndCollision(TreeNode%iPartIndx_Node, nPart, iElem, Volume)
 END IF
 
 DEALLOCATE(TreeNode%iPartIndx_Node)
