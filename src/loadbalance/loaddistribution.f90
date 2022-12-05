@@ -1244,6 +1244,9 @@ USE MOD_MPI_Shared_Vars  ,ONLY: NbrOfPhysicalNodes,nLeaderGroupProcs
 #endif /*! (CORE_SPLIT==0)*/
 #endif /*USE_MPI*/
 USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI_Vars          ,ONLY: MPIW8TimeMM,MPIW8CountMM
+#endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1298,6 +1301,10 @@ REAL                       :: ProcMemoryUsed    ! Used memory on a single proc
 REAL                       :: NodeMemoryUsed    ! Sum of used memory across one compute node
 #endif /*USE_MPI*/
 REAL                       :: MemUsagePercent
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart,CounterEnd
+REAL(KIND=8)                  :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
 ! Get process memory info
@@ -1305,6 +1312,9 @@ CALL ProcessMemUsage(memory(1),memory(2),memory(3)) ! memUsed,memAvail,memTotal
 
 ! only CN roots communicate available and total memory info (count once per node)
 #if USE_MPI
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 IF(nProcessors.GT.1)THEN
   ! Collect data on node roots
   ProcMemoryUsed = memory(1)
@@ -1324,6 +1334,11 @@ IF(nProcessors.GT.1)THEN
     END IF ! myLeaderGroupRank.EQ.0
   END IF ! myComputeNodeRank.EQ.0
 END IF ! nProcessors.EQ.1
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimeMM  = MPIW8TimeMM + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountMM = MPIW8CountMM + 1_8
+#endif /*defined(MEASURE_MPI_WAIT)*/
 #endif /*USE_MPI*/
 
 ! --------------------------------------------------
