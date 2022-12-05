@@ -56,7 +56,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                           :: Time                              ! Used to track computation time
 CHARACTER(LEN=255)             :: NodeTypeVisuOut, InputStateFile, MeshFile, File_Type, DGSolutionDataset
-INTEGER                        :: NVisu, iArgs, iArgsStart, TimeStampLength, iExt, iField
+INTEGER                        :: NVisu, iArgs, iArgsStart, TimeStampLength, iExt
 LOGICAL                        :: CmdLineMode, NVisuDefault         ! In command line mode only NVisu is specified directly,
                                                                     ! otherwise a parameter file is needed
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
