@@ -52,7 +52,7 @@ WRITE(UNIT_stdOut,'(A)') ' INIT EquationDMD ...'
 !check if Varnames in HDF5 file are conservatives
 ! TODO: also generate mapping in case conservatives are there but not in the correct order
 countCons=0
-WRITE (*,*) "nVar_State =", nVar_State
+!WRITE (*,*) "nVar_State =", nVar_State
 IF(nVar_State.GE.PP_nVar)THEN
   DO iVar=1,PP_nVar
     !IF (STRICMP(VarNames_State(iVar), DepNames(iVar))) THEN
@@ -109,8 +109,8 @@ REAL,ALLOCATABLE   :: DMDData_tmp2(:,:)
 REAL,ALLOCATABLE   :: DMDData_tmp3(:,:)
 !INTEGER            :: OutputVarsIndex(MAXVAL(mapVisu))
 !===================================================================================================================================
-WRITE(UNIT_stdOut,'(132("-"))')
-WRITE(UNIT_stdOut,'(A)')" CONVERT DERIVED QUANTITIES..."
+!WRITE(UNIT_stdOut,'(132("-"))')
+WRITE(UNIT_stdOut,'(A)', ADVANCE='NO')" CONVERT DERIVED QUANTITIES..."
 ! CALCULATE DERIVED QUATITIES -----------------------------------------------------------------------------------------------------!
 maskCalc=1
 nVal=(/N_State+1,N_State+1,N_StateZ+1,nElems_State/)
@@ -160,7 +160,7 @@ DMDData_out(:)=RESHAPE(TRANSPOSE(DMDData_tmp3(:,:)), (/nDoFs*nVarDMD/))
 DEALLOCATE(UCalc)
 DEALLOCATE(DMDData_tmp)
 
-WRITE(UNIT_stdOut,'(A)')" CONVERT DERIVED QUANTITIES DONE!"
+WRITE(UNIT_stdOut,'(A)')" DONE!"
 END SUBROUTINE CalcEquationDMD
 
 

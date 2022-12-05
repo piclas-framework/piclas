@@ -68,6 +68,8 @@ LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
 #ifdef PARTICLES
 INTEGER                        :: iElem, iNode
 #endif /*PARTICLES*/
+INTEGER                        :: iMode,iErrorReturn,dmdSingleModeOutput,dmdMaximumModeOutput
+CHARACTER(LEN=16)              :: hilf
 !===================================================================================================================================
 CALL SetStackSizeUnlimited()
 CALL InitMPI()
@@ -75,15 +77,15 @@ CALL ParseCommandlineArguments()
 !CALL DefineParametersMPI()
 !CALL DefineParametersIO_HDF5()
 ! Define parameters for piclas2vtk
-CALL prms%SetSection("piclas2vtk")
-CALL prms%CreateStringOption( 'NodeTypeVisu',"Node type of the visualization basis: "//&
-                                             "VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO", 'VISU')
-CALL prms%CreateIntOption(    'NVisu',       "Number of points at which solution is sampled for visualization.")
-CALL prms%CreateLogicalOption('VisuParticles',  "Visualize particles (velocity, species, internal energy).", '.FALSE.')
-CALL prms%CreateLogicalOption('VisuAdaptiveInfo', "Visualize the sampled values utilized for the adaptive surface flux and porous BC (velocity, density, pumping speed)", '.FALSE.')
-CALL prms%CreateIntOption(    'TimeStampLength', 'Length of the floating number time stamp', '21')
-CALL prms%CreateLogicalOption( 'meshCheckWeirdElements'&
-  , 'Abort when weird elements are found: it means that part of the element is turned inside-out. ','.TRUE.')
+CALL prms%SetSection('piclas2vtk')
+CALL prms%CreateStringOption( 'NodeTypeVisu'           , 'Node type of the visualization basis: VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO', 'VISU')
+CALL prms%CreateIntOption(    'NVisu'                  , 'Number of points at which solution is sampled for visualization.')
+CALL prms%CreateLogicalOption('VisuParticles'          , 'Visualize particles (velocity, species, internal energy).', '.FALSE.')
+CALL prms%CreateLogicalOption('VisuAdaptiveInfo'       , 'Visualize the sampled values utilized for the adaptive surface flux and porous BC (velocity, density, pumping speed)', '.FALSE.')
+CALL prms%CreateIntOption(    'TimeStampLength'        , 'Length of the floating number time stamp', '21')
+CALL prms%CreateIntOption(    'dmdSingleModeOutput'    , 'Convert only a single specific DMD mode.', '0')
+CALL prms%CreateIntOption(    'dmdMaximumModeOutput'   , 'Convert all output DMD modes up to this number.', '1000')
+CALL prms%CreateLogicalOption('meshCheckWeirdElements' , 'Abort when weird elements are found: it means that part of the element is turned inside-out. ','.TRUE.')
 CALL DefineParametersIO()
 CALL DefineParametersMesh()
 CALL DefineParametersInterpolation()
@@ -191,11 +193,14 @@ VisuAdaptiveInfo    = GETLOGICAL('VisuAdaptiveInfo','.FALSE.')
 CALL InitIOHDF5()
 ! Get length of the floating number time stamp
 TimeStampLength = GETINT('TimeStampLength')
-IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(&
-    __STAMP__&
+IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(__STAMP__&
     ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
 WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
+
+! DMD Stuff
+dmdSingleModeOutput  = GETINT('dmdSingleModeOutput')
+dmdMaximumModeOutput = GETINT('dmdMaximumModeOutput')
 
 ! Measure init duration
 Time=PICLASTIME()
@@ -309,10 +314,20 @@ DO iArgs = iArgsStart,nArgs
   ! === DG_Solution (incl. BField etc.) ============================================================================================
   IF(DGSolutionExists) THEN
     IF(DMDDataExists)THEN
-      DGSolutionDataset = 'Mode_001_ElectricFieldX_Img'
-      CALL ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,File_Type,DGSolutionDataset)
+      IF(dmdSingleModeOutput.EQ.0)THEN
+        DO iMode = 1, dmdMaximumModeOutput
+          WRITE(UNIT=hilf,FMT='(I3.3)') iMode
+          DGSolutionDataset = 'Mode_'//TRIM(hilf)//'_ElectricFieldX_Img'
+          CALL ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,File_Type,DGSolutionDataset,iErrorReturn)
+          IF(iErrorReturn.NE.0) CONTINUE
+        END DO ! iMode = 1, 1000
+      ELSE
+        WRITE(UNIT=hilf,FMT='(I3.3)') dmdSingleModeOutput
+        DGSolutionDataset = 'Mode_'//TRIM(hilf)//'_ElectricFieldX_Img'
+        CALL ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,File_Type,DGSolutionDataset,iErrorReturn)
+      END IF ! dmdSingleModeOutput.EQ.0
     ELSE
-      CALL ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,File_Type,DGSolutionDataset)
+      CALL ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,File_Type,DGSolutionDataset,iErrorReturn)
     END IF ! DMDDataExists
   END IF
   ! === ElemData ===================================================================================================================
@@ -550,7 +565,7 @@ END SUBROUTINE WriteDataToVTK_PICLas
 !===================================================================================================================================
 !> Convert the output of the field solver to a VTK output format
 !===================================================================================================================================
-SUBROUTINE ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,OutputName,DGSolutionDataset)
+SUBROUTINE ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,OutputName,DGSolutionDataset,iErrorReturn)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: ProjectName
@@ -571,10 +586,11 @@ CHARACTER(LEN=*),INTENT(IN)   :: OutputName
 INTEGER,INTENT(IN)            :: NVisu
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+INTEGER,INTENT(OUT)           :: iErrorReturn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iElem, iDG, nVar_State, N_State, nElems_State, nVar_Solution, nDims, iField, nFields, Suffix
-INTEGER                         :: nDimsOffset, nVar_Source,nVar_TD, iMode
+INTEGER                         :: nDimsOffset, nVar_Source,nVar_TD
 CHARACTER(LEN=255)              :: MeshFile, NodeType_State, FileString_DG, StrVarNamesTemp(4),StrVarNamesTemp3(3),StrVarNamesTemp4
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:), StrVarNamesTemp2(:)
 REAL                            :: OutputTime
@@ -587,12 +603,22 @@ REAL,ALLOCATABLE,TARGET         :: Coords_DG(:,:,:,:,:)
 REAL,POINTER                    :: Coords_DG_p(:,:,:,:,:)
 REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             !< Vandermonde from equidistant mesh to visualization nodes
 REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  !< Vandermonde from state to visualization nodes
-LOGICAL                         :: DGSourceExists,DGTimeDerivativeExists,TimeExists,DGSourceExtExists
+LOGICAL                         :: DGSourceExists,DGTimeDerivativeExists,TimeExists,DGSourceExtExists,DMDMode,DGolutionDatasetExists
 CHARACTER(LEN=16)               :: hilf
 CHARACTER(LEN=255)              :: DMDFields(1:16), Dataset
 !===================================================================================================================================
 ! 1.) Open given file to get the number of elements, the order and the name of the mesh file
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+
+! Check if data set exists, if not return
+CALL DatasetExists(File_ID,TRIM(DGSolutionDataset),DGolutionDatasetExists)
+IF(.NOT.DGolutionDatasetExists)THEN
+  CALL CloseDataFile()
+  iErrorReturn=1
+  RETURN
+ELSE
+  iErrorReturn=0
+END IF ! .NOT.DGolutionDatasetExists
 
 ! Read-in of dimensions of the field array (might have an additional dimension, i.e., rank is 6 instead of 5)
 CALL GetDataSize(File_ID,TRIM(DGSolutionDataset),nDims,HSize)
@@ -638,7 +664,12 @@ CALL ReadAttribute(File_ID,'VarNames',nVar_Solution,StrArray=StrVarNamesTemp2)
 ! Allocate the variable names array used for the output and copy the names from the DG_Solution and DG_Source (if it exists)
 SDEALLOCATE(StrVarNames)
 ! Check if DMD modes are converted
-IF(TRIM(DGSolutionDataset(1:MIN(LEN(TRIM(DGSolutionDataset)),5))).EQ.'Mode_') nVar_State = 16
+IF(TRIM(DGSolutionDataset(1:MIN(LEN(TRIM(DGSolutionDataset)),5))).EQ.'Mode_')THEN
+  DMDMode = .TRUE.
+  nVar_State = 16
+ELSE
+  DMDMode = .FALSE.
+END IF ! TRIM(DGSolutionDataset(1:MIN(LEN(TRIM(DGSolutionDataset)),5))).EQ.'Mode_'
 ALLOCATE(StrVarNames(nVar_State))
 StrVarNames(1:nVar_Solution) = StrVarNamesTemp2
 IF(DGSourceExists)         StrVarNames(nVar_Solution+1:nVar_Source) = StrVarNamesTemp(1:4)
@@ -674,8 +705,11 @@ ASSOCIATE (&
       N_State       => INT(N_State       , IK)      , &
       nElems        => INT(nElems        , IK)      , &
       nFields       => INT(nFields       , IK)      )
-  ! Check if AMD data is to be converted
-  IF(TRIM(DGSolutionDataset(1:MIN(LEN(TRIM(DGSolutionDataset)),5))).EQ.'Mode_') THEN
+
+  ! Check if DMD data is to be converted or normal data
+  IF(DMDMode)THEN
+    !Sanity check
+    IF(LEN(TRIM(DGSolutionDataset)).LT.9) CALL abort(__STAMP__,'DGSolutionDataset name is too short: '//TRIM(DGSolutionDataset))
       DMDFields=(/'ElectricFieldX_Img ',&
                   'ElectricFieldX_Real',&
                   'ElectricFieldY_Img ',&
@@ -693,12 +727,11 @@ ASSOCIATE (&
                   'Psi_Img            ',&
                   'Psi_Real           '/)
 
-      iMode = 2
-      WRITE(UNIT=hilf,FMT='(I3.3)') iMode
       SDEALLOCATE(U)
       ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
       DO iField = 1, 16
-        Dataset='Mode_'//TRIM(hilf)//'_'//DMDFields(iField)
+        !Dataset='Mode_'//TRIM(hilf)//'_'//DMDFields(iField)
+        Dataset=TRIM(DGSolutionDataset(1:9))//DMDFields(iField)
         StrVarNames(iField) = TRIM(Dataset)
         WRITE (*,*) "Converting ... ", TRIM(Dataset)
         CALL ReadArray(TRIM(Dataset),5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
@@ -755,7 +788,9 @@ U_Visu_p    => U_Visu(:,:,:,:,1:iDG)
 DO iField = 1, nFields
 
   ! Write solution to vtk
-  IF(OutputName.EQ.'State')THEN
+  IF(DMDMode)THEN
+    FileString_DG=TRIM(ProjectName)//'_'//TRIM(OutputName)//'_'//TRIM(DGSolutionDataset(1:8))//'.vtu'
+  ELSEIF(OutputName.EQ.'State')THEN
     FileString_DG=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution',OutputTime))//'.vtu'
   ELSE
     IF(TimeExists)THEN

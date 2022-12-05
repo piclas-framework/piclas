@@ -40,6 +40,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                               :: limit,nTotalNew
+REAL                               :: StartT,EndT
 !===================================================================================================================================
 CALL SetStackSizeUnlimited()
 CALL InitMPI()
@@ -93,6 +94,7 @@ SWRITE(UNIT_stdOut,'(A)') &
 "     ~~            \/__/         ~~          "
 SWRITE(UNIT_stdOut,'(A)')
 SWRITE(UNIT_stdOut,'(132("="))')
+GETTIME(StartT)
 
 ! Initialization
 CALL InitIOHDF5()
@@ -129,7 +131,8 @@ IF(iError .NE. 0) STOP 'MPI finalize error'
 #endif
 
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A)') ' DMD TOOL FINISHED! '
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DMD TOOL FINISHED! ', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 SWRITE(UNIT_stdOut,'(132("="))')
 
 END PROGRAM DMD_standalone
