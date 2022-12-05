@@ -100,7 +100,7 @@ DO iSpec=1,nSpecies
 #if USE_MPI
       CALL MPI_ALLREDUCE(MPI_IN_PLACE,AdaptBCPartNumOut(iSpec,iSF),1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,IERROR)
 #endif
-      IF(.NOT.ALMOSTEQUAL(SF%AdaptiveMassflow,0.)) CALL AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
+      IF(.NOT.ALMOSTEQUAL(SF%AdaptiveMassflow,0.)) CALL CalcConstMassflowWeight(iSpec,iSF)
     END IF
     !Calc Particles for insertion in standard case
     IF ((.NOT.DoPoissonRounding).AND.(.NOT. DoTimeDepInflow).AND.(.NOT.RadialWeighting%DoRadialWeighting) &
@@ -304,6 +304,7 @@ DO iSpec=1,nSpecies
     ! instead of an UpdateNextfreePosition we update the particleVecLength only - enough ?!?
     PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + NbrOfParticle
     PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
+    IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL abort(__STAMP__, 'Error ParticleSurfaceflux: Maximum number of particles reached!')
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_SURFFLUX,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -1015,9 +1016,9 @@ END SUBROUTINE CalcPartInsAdaptive
 
 
 !===================================================================================================================================
-!> Routine calculates the weights of the triangles for AdaptiveType=4 to scale up the number of particles to be inserted
+!> Routine calculates the weights of the triangles for AdaptiveType=4 depending on the side-specific volume flow rate
 !===================================================================================================================================
-SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight(iSpec,iSF)
+SUBROUTINE CalcConstMassflowWeight(iSpec,iSF)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
@@ -1025,7 +1026,6 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Particle_Sampling_Vars ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCBackupVelocity
 USE MOD_Particle_Surfaces_Vars ,ONLY: SurfMeshSubSideData, BCdata_auxSF, SurfFluxSideSize
-USE MOD_TimeDisc_Vars          ,ONLY: dt, RKdtFrac
 USE MOD_Mesh_Vars              ,ONLY: SideToElem, offsetElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 #if USE_MPI
@@ -1040,21 +1040,17 @@ INTEGER, INTENT(IN)             :: iSpec, iSF
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iSide, BCSideID, ElemID, iLocSide, SideID, currentBC, PartInsSubSum, iSample, jSample
-INTEGER                         :: SampleElemID
-INTEGER, ALLOCATABLE            :: PartInsSubSidesAdapt(:,:,:)
-REAL                            :: VeloVec(1:3), vec_nIn(1:3), ElemPartDensity, VeloIC, VeloVecIC(1:3), projFak
-REAL                            :: v_thermal, a, vSF, nVFR, RandVal1, area
+INTEGER                         :: iSide, BCSideID, ElemID, SideID, currentBC, iSample, jSample, SampleElemID
+REAL                            :: VeloVec(1:3), vec_nIn(1:3), nVFRTotal, VeloIC, VeloVecIC(1:3), projFak
+REAL                            :: v_thermal, a, vSF, nVFR, area
 !===================================================================================================================================
 
 ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
 
 currentBC = SF%BC
-SDEALLOCATE(PartInsSubSidesAdapt)
-ALLOCATE(PartInsSubSidesAdapt(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2),1:BCdata_auxSF(currentBC)%SideNumber))
-PartInsSubSidesAdapt = 0
 
-PartInsSubSum = 0
+nVFRTotal = 0.
+SF%ConstMassflowWeight = 0.
 
 DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
   ! Skip sides outside of the circular inflow region
@@ -1064,8 +1060,7 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
   BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
   ElemID = SideToElem(S2E_ELEM_ID,BCSideID)
   SampleElemID = AdaptBCMapElemToSample(ElemID)
-  iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
-  SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
+  SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,SideToElem(S2E_LOC_SIDE_ID,BCSideID))
   ! Get the sampled velocity vector
   VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
   ! Determine the velocity magnitude
@@ -1089,7 +1084,6 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
   END IF
   ! Loop over the triangles
   DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-    ElemPartDensity = 0.
     ! Set the area of the side, different area for circular inflow
     IF(SF%CircularInflow) THEN
       area = SF%CircleAreaPerTriaSide(iSample,jSample,iSide)
@@ -1114,35 +1108,25 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
       vSF = v_thermal / (2.0*SQRT(PI)) * ( EXP(-(a*a)) + a*SQRT(PI)*(1+ERF(a)) ) !mean flux velocity through normal sub-face
       nVFR = area * vSF !VFR projected to inwards normal of sub-side
     CASE DEFAULT
-      CALL abort(__STAMP__,'ERROR in AdaptiveBoundary_ConstMassflow_Weight: Wrong velocity distribution!')
+      CALL abort(__STAMP__,'ERROR in CalcConstMassflowWeight: Wrong velocity distribution!')
     END SELECT
-    ! Skip the side if a negative/zero mean velocity has been determined
-    IF(vSF.LE.0.0) CYCLE
-    ! Calculate the number density depending on the sampled velocity and target mass flow
-    ElemPartDensity = SF%AdaptiveMassflow / (vSF * SF%totalAreaSF * Species(iSpec)%MassIC)
-    ! Skip the rest if the calculated number density is zero
-    IF(ElemPartDensity.EQ.0.) CYCLE
-    ! Calculate the particle number per side
-    CALL RANDOM_NUMBER(RandVal1)
-    PartInsSubSidesAdapt(iSample,jSample,iSide) = INT(ElemPartDensity/Species(iSpec)%MacroParticleFactor*dt*RKdtFrac*nVFR+RandVal1)
-    IF(PartInsSubSidesAdapt(iSample,jSample,iSide).GE.0) THEN
-      PartInsSubSum = PartInsSubSum + PartInsSubSidesAdapt(iSample,jSample,iSide)
-    ELSE
-      IPWRITE(*,*) 'AdaptBCMacroVal', AdaptBCMacroVal(1:3,SampleElemID,iSpec), 'AdaptBCBackupVelocity', AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
-      IPWRITE(*,*) 'veloNormal', vSF, 'SF%totalAreaSF', SF%totalAreaSF
-      IPWRITE(*,*) 'ElemPartDensity', ElemPartDensity, 'MacroParticleFactor', Species(iSpec)%MacroParticleFactor
-      IPWRITE(*,*) 'dt', dt, 'nVFR', nVFR, 'PartInsSubSidesAdapt', PartInsSubSidesAdapt(iSample,jSample,iSide)
-      CALL abort(__STAMP__,'ERROR in AdaptiveBoundary_ConstMassflow_Weight: Negative number of particles to be inserted!')
-    END IF
+    ! Skip the side if a negative/zero volume flow rate has been determined
+    IF(nVFR.LE.0.0) CYCLE
+    ! Calculate the volume flow rate per side
+    SF%ConstMassflowWeight(iSample,jSample,iSide) = nVFR
+    ! Calculate the total volume flow rate
+    nVFRTotal = nVFRTotal + nVFR
   END DO; END DO
 END DO
 
+! Calculate the total volume flow rate over the whole BC across all processors
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,PartInsSubSum,1,MPI_INTEGER,MPI_SUM,PartMPI%COMM,IERROR)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,nVFRTotal,1,MPI_DOUBLE,MPI_SUM,PartMPI%COMM,IERROR)
 #endif
 
-IF(PartInsSubSum.GT.0) THEN
-  SF%ConstMassflowWeight(:,:,:) = REAL(PartInsSubSidesAdapt(:,:,:)) / REAL(PartInsSubSum)
+! Determine the weight of each side compared to the total volume flow rate
+IF(nVFRTotal.GT.0.) THEN
+  SF%ConstMassflowWeight(:,:,:) = SF%ConstMassflowWeight(:,:,:) / REAL(nVFRTotal)
 ELSE
   SF%ConstMassflowWeight(:,:,:) = 0.
 END IF
@@ -1164,9 +1148,7 @@ END IF
 
 END ASSOCIATE
 
-SDEALLOCATE(PartInsSubSidesAdapt)
-
-END SUBROUTINE AdaptiveBoundary_ConstMassflow_Weight
+END SUBROUTINE CalcConstMassflowWeight
 
 
 !===================================================================================================================================
