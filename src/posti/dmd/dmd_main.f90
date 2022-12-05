@@ -197,10 +197,9 @@ ALLOCATE(Utmp (nVar_State   ,0:N_State,0:N_State,0:N_StateZ,nElems_State))
 
 
 DO iFile = 2, nFiles+1
-  WRITE(UNIT_stdOut,'(132("="))')
-  WRITE(UNIT_stdOut,'(A,I5,A,I5,A)') ' PROCESSING FILE ',iFile-1,' of ',nFiles,' FILES.'
-  WRITE(UNIT_stdOut,'(A,A,A)') ' ( "',TRIM(Args(iFile)),'" )'
-  WRITE(UNIT_stdOut,'(132("="))')
+  !WRITE(UNIT_stdOut,'(132("="))')
+  WRITE(UNIT_stdOut,'(A,I5,A,I5,A)', ADVANCE='NO') ' PROCESSING FILE ',iFile-1,' of ',nFiles,' FILES: '//TRIM(Args(iFile))
+  !WRITE(UNIT_stdOut,'(132("="))')
 
   ! Read Statefiles
   CALL OpenDataFile(Args(iFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
@@ -316,7 +315,11 @@ COMPLEX,ALLOCATABLE              :: STilde(:,:),STildeWork(:,:),eigSTilde(:),VL(
 COMPLEX,ALLOCATABLE              :: Vand(:,:),qTmp(:,:)
 COMPLEX,ALLOCATABLE              :: P(:,:),PhiTmp(:,:),alphaTmp(:)
 REAL                             :: pi = acos(-1.)
+REAL                             :: StartT,EndT
 !===================================================================================================================================
+WRITE(UNIT_stdOut,'(132("="))')
+GETTIME(StartT)
+SWRITE(UNIT_stdOut,'(A)', ADVANCE='NO')' Performing DMD ...'
 M = nDoFs*nVarDMD
 N = nFiles-1
 LDA  = M
@@ -490,16 +493,18 @@ DEALLOCATE(RGlobMat)
 
 Rglob = MAXVAL(SigmaSVD)
 
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, ' DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+
 WRITE (*,*) "norm2(K(:,1)),norm2(K(:,nFiles)) =", norm2(K(:,1)),norm2(K(:,nFiles))
 Rsnap1 = norm2(K(:,1)-REAL(MATMUL(Phi,alpha)))
 IF(norm2(K(:,1)).GT.0.) Rsnap1 = Rsnap1/norm2(K(:,1))
 Rsnap2 = norm2(K(:,nFiles)-REAL(MATMUL(Phi,(alpha*sigmaSort**(N)))))
 IF(norm2(K(:,nFiles)).GT.0) Rsnap2 = Rsnap2/norm2(K(:,nFiles))
 
-WRITE(UNIT_stdOut,'(132("="))')
-WRITE(UNIT_stdOut,'(A,F12.6)') 'Global Residual Norm:    ',RGlob
-WRITE(UNIT_stdOut,'(A,F12.6)') 'Projection error K(1):   ',Rsnap1
-WRITE(UNIT_stdOut,'(A,F12.6)') 'Projection error K(nFiles): ',Rsnap2
+WRITE(UNIT_stdOut,'(A,F18.12)') ' Global Residual Norm:       ',RGlob
+WRITE(UNIT_stdOut,'(A,F18.12)') ' Projection error K(1):      ',Rsnap1
+WRITE(UNIT_stdOut,'(A,F18.12)') ' Projection error K(nFiles): ',Rsnap2
 WRITE(UNIT_stdOut,'(132("="))')
 
 
@@ -545,7 +550,9 @@ REAL,POINTER         :: PhiGlobal_out(:,:,:,:,:)
 INTEGER              :: Fileunit_DMD
 LOGICAL              :: connected
 COMPLEX              :: Phi_out(nDofs,nVarDMD,nModes)
+REAL                 :: StartT,EndT
 !===================================================================================================================================
+GETTIME(StartT)
 SWRITE(UNIT_stdOut,'(a,a,a)',ADVANCE='NO')' WRITE DMD MODES TO HDF5 FILE "',TRIM(ProjectName),'" ...'
 
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DMD',Time_State))//'.h5'
@@ -562,11 +569,11 @@ IF(MPIRoot) CALL GenerateFileSkeleton('DMD',N_variables,StrVarNames,TRIM(MeshFil
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif
 
-write(*,*) ""
-WRITE (*,*) "TRIM(FileName) = ", TRIM(FileName)
-WRITE (*,*) "nDofs,nVarDMD,nModes =", nDofs,nVarDMD,nModes
+!write(*,*) ""
+!WRITE (*,*) "TRIM(FileName) = ", TRIM(FileName)
+!WRITE (*,*) "nDofs,nVarDMD,nModes =", nDofs,nVarDMD,nModes
 
-write(*,*) "OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE"
+!write(*,*) "OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE"
 CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
 CALL WriteAttributeToHDF5( File_ID , 'DMD Start Time' , 1 , RealScalar=Time_State    )
 CALL WriteAttributeToHDF5( File_ID , 'DMD END Time'   , 1 , RealScalar=TimeEnd_State )
@@ -577,11 +584,10 @@ DO i=1,nModes
   Phi_out(:,:,i)=TRANSPOSE(RESHAPE(Phi(:,i), (/nVarDMD,nDofs/)))
 END DO
 
-WRITE (*,*) "N_State,N_StateZ,nElems_State =", N_State,N_StateZ,nElems_State
+!WRITE (*,*) "N_State,N_StateZ,nElems_State =", N_State,N_StateZ,nElems_State
 !================= Actual data output =======================!
 ! Write DMD
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_WORLD)
-WRITE (*,*) "PlotSingleMode =", PlotSingleMode
 IF (PlotSingleMode) THEN
   k=1
   DO i = 1, nModes
@@ -590,7 +596,7 @@ IF (PlotSingleMode) THEN
     END IF
   END DO
   WRITE(iMode,'(I0.3)')1
-  WRITE(varFreq,'(F12.5)')freq(k)
+  WRITE(varFreq,'(F22.5)')freq(k)
   ! Replace spaces with 0's
   DO j=1,LEN(TRIM(varFreq))
     IF(varFreq(j:j).EQ.' ') varFreq(j:j)='0'
@@ -633,9 +639,8 @@ ELSE
       CYCLE
     END IF
 
-
     WRITE(iMode,'(I0.3)')k
-    WRITE(varFreq,'(F12.5)')freq(i)
+    WRITE(varFreq,'(F22.5)')freq(i)
     ! Replace spaces with 0's
     DO j=1,LEN(TRIM(varFreq))
       IF(varFreq(j:j).EQ.' ') varFreq(j:j)='0'
@@ -711,7 +716,8 @@ DO j=1,nModes
 END DO
 CLOSE(FILEUnit_DMD)
 
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 !!===================================================================================================================================
 
 END SUBROUTINE WriteDmdStateFile
@@ -738,7 +744,7 @@ DEALLOCATE(alpha)
 DEALLOCATE(sigmaSort)
 DEALLOCATE(K)
 DEALLOCATE(VarNameDMD)
-WRITE(UNIT_stdOut,'(A)') '  DMD FINALIZED'
+!WRITE(UNIT_stdOut,'(A)') ' DMD FINALIZED'
 END SUBROUTINE FinalizeDMD
 
 
