@@ -75,20 +75,20 @@ nPart = PEM%pNumber(iElem)
 IF (DoVirtualCellMerge) THEN
   ! 1.) Create particle index list for pairing in the case of virtually merged cells. So, all particles from the merged cells are
   !   used for the pairing and the collisions.
-  IF(VirtMergedCells(iElem)%isMerged) RETURN
+  IF(VirtMergedCells(iElem)%isMerged) RETURN  
+  nPartMerged = nPart
+  DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+    nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
+  END DO
+  ALLOCATE(iPartIndx(nPartMerged))
+  iPart = PEM%pStart(iElem)
+  iLoopLoc = 0
+  DO iLoop = 1, nPart
+    iLoopLoc = iLoopLoc + 1
+    iPartIndx(iLoopLoc) = iPart
+    iPart = PEM%pNext(iPart)
+  END DO
   IF(VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
-    nPartMerged = nPart
-    DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
-      nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
-    END DO
-    ALLOCATE(iPartIndx(nPartMerged))
-    iPart = PEM%pStart(iElem)
-    iLoopLoc = 0
-    DO iLoop = 1, nPart
-      iLoopLoc = iLoopLoc + 1
-      iPartIndx(iLoopLoc) = iPart
-      iPart = PEM%pNext(iPart)
-    END DO
     DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
       locElem = VirtMergedCells(iElem)%MergedCellID(iMergeElem)
       nPartLoc = PEM%pNumber(locElem)
@@ -99,9 +99,12 @@ IF (DoVirtualCellMerge) THEN
         iPart = PEM%pNext(iPart)
       END DO
     END DO
-  END IF
-  elemVolume = VirtMergedCells(iELem)%MergedVolume
+    elemVolume = VirtMergedCells(iELem)%MergedVolume
+  ELSE
+    elemVolume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+  END IF  
 ELSE
+  nPartMerged = nPart
   ALLOCATE(iPartIndx(nPart))
   iPartIndx = 0
   ! 1.) Create particle index list for pairing
@@ -117,7 +120,7 @@ ELSE
 END IF  
 
 ! 2.) Perform pairing (random pairing or nearest neighbour pairing) and collision (including the decision for a reaction/relaxation)
-CALL PerformPairingAndCollision(iPartIndx, nPart, iElem , elemVolume)
+CALL PerformPairingAndCollision(iPartIndx, nPartMerged, iElem , elemVolume)
 DEALLOCATE(iPartIndx)
 
 END SUBROUTINE DSMC_pairing_standard

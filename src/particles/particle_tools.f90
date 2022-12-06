@@ -1114,6 +1114,7 @@ ElemLoop: DO iElem = 1, nElems
       ELSE
         AllowBackMerge = .FALSE.
         IF (VirtMergedCells(iElem)%NumOfMergedCells.EQ.0) THEN
+          VirtMergedCells(iElem)%MergedVolume = VirtMergedCells(iElem)%MergedVolume + ElemVolume_Shared(CNElemID)
           VirtMergedCells(iElem)%NumOfMergedCells = VirtMergedCells(iElem)%NumOfMergedCells + 1
           ALLOCATE(VirtMergedCells(iElem)%MergedCellID(VirtMergedCells(iElem)%NumOfMergedCells))
           VirtMergedCells(iElem)%MergedCellID(VirtMergedCells(iElem)%NumOfMergedCells) = LocNBElem
@@ -1136,13 +1137,9 @@ ElemLoop: DO iElem = 1, nElems
           DEALLOCATE(tempCellID)
         END IF
         nPartMerged = nPartMerged + PEM%pNumber(LocNBElem)
-        IF (nPartMerged.GT.MinPartNumCellMerge) THEN
-          VirtMergedCells(iElem)%MergedVolume = VirtMergedCells(iElem)%MergedVolume + ElemVolume_Shared(CNElemID)
-          CYCLE ElemLoop
-        END IF
+        IF (nPartMerged.GT.MinPartNumCellMerge) CYCLE ElemLoop
       END IF
-    END DO NBElemLoop
-    VirtMergedCells(iElem)%MergedVolume = VirtMergedCells(iElem)%MergedVolume + ElemVolume_Shared(CNElemID)
+    END DO NBElemLoop    
   END IF
 END DO ElemLoop
 

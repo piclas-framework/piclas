@@ -224,8 +224,7 @@ ELSE ! No octree cell refinement
     END IF
 #endif
     IF (DoVirtualCellMerge) THEN
-      IF(VirtMergedCells(iElem)%isMerged) RETURN
-      IF(VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
+      IF(VirtMergedCells(iElem)%isMerged) CYCLE      
         nPartMerged = nPart
         DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
           nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
@@ -238,6 +237,7 @@ ELSE ! No octree cell refinement
           iPartIndx_Node(iLoopLoc) = iPart
           iPart = PEM%pNext(iPart)
         END DO
+      IF(VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
         DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
           locElem = VirtMergedCells(iElem)%MergedCellID(iMergeElem)
           nPartLoc = PEM%pNumber(locElem)
