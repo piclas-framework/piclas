@@ -223,20 +223,22 @@ ELSE ! No octree cell refinement
       IF (.NOT.IsExchangeElem(iELem)) CYCLE
     END IF
 #endif
+    CNElemID = GetCNElemID(iElem + offsetElem)
+    nPart = PEM%pNumber(iElem)
     IF (DoVirtualCellMerge) THEN
       IF(VirtMergedCells(iElem)%isMerged) CYCLE      
-        nPartMerged = nPart
-        DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
-          nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
-        END DO
-        ALLOCATE(iPartIndx_Node(nPartMerged))
-        iPart = PEM%pStart(iElem)
-        iLoopLoc = 0
-        DO iLoop = 1, nPart
-          iLoopLoc = iLoopLoc + 1
-          iPartIndx_Node(iLoopLoc) = iPart
-          iPart = PEM%pNext(iPart)
-        END DO
+      nPartMerged = nPart
+      DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+        nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
+      END DO
+      ALLOCATE(iPartIndx_Node(nPartMerged))
+      iPart = PEM%pStart(iElem)
+      iLoopLoc = 0
+      DO iLoop = 1, nPart
+        iLoopLoc = iLoopLoc + 1
+        iPartIndx_Node(iLoopLoc) = iPart
+        iPart = PEM%pNext(iPart)
+      END DO
       IF(VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
         DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
           locElem = VirtMergedCells(iElem)%MergedCellID(iMergeElem)
@@ -248,11 +250,12 @@ ELSE ! No octree cell refinement
             iPart = PEM%pNext(iPart)
           END DO
         END DO
-      END IF  
-      elemVolume = VirtMergedCells(iELem)%MergedVolume
-    ELSE
-      CNElemID = GetCNElemID(iElem + offsetElem)
-      nPart = PEM%pNumber(iElem)
+        elemVolume = VirtMergedCells(iELem)%MergedVolume
+      ELSE
+        elemVolume = ElemVolume_Shared(CNElemID)
+      END IF        
+    ELSE      
+      nPartMerged = nPart   
       IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
       ALLOCATE(iPartIndx_Node(nPart))
       iPart = PEM%pStart(iElem)
@@ -273,7 +276,7 @@ ELSE ! No octree cell refinement
     !       ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
     !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
     ! ELSE
-      CALL BGK_CollisionOperator(iPartIndx_Node, nPart, elemVolume)
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPartMerged, elemVolume)
     ! END IF
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN

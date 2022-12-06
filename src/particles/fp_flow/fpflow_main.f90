@@ -176,21 +176,24 @@ IF (DoBGKCellAdaptation) THEN
   END DO
 ELSE
   DO iElem = 1, nElems
+    CNElemID = GetCNElemID(iElem + offsetElem)
+    nPart = PEM%pNumber(iElem)
     IF (DoVirtualCellMerge) THEN
-      IF(VirtMergedCells(iElem)%isMerged) RETURN
+      IF(VirtMergedCells(iElem)%isMerged) CYCLE      
+      nPartMerged = nPart
+      DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+        nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
+      END DO
+      IF ((nPartMerged.EQ.0).OR.(nPartMerged.EQ.1)) CYCLE
+      ALLOCATE(iPartIndx_Node(nPartMerged))
+      iPart = PEM%pStart(iElem)
+      iLoopLoc = 0
+      DO iLoop = 1, nPart
+        iLoopLoc = iLoopLoc + 1
+        iPartIndx_Node(iLoopLoc) = iPart
+        iPart = PEM%pNext(iPart)
+      END DO
       IF(VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
-        nPartMerged = nPart
-        DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
-          nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
-        END DO
-        ALLOCATE(iPartIndx_Node(nPartMerged))
-        iPart = PEM%pStart(iElem)
-        iLoopLoc = 0
-        DO iLoop = 1, nPart
-          iLoopLoc = iLoopLoc + 1
-          iPartIndx_Node(iLoopLoc) = iPart
-          iPart = PEM%pNext(iPart)
-        END DO
         DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
           locElem = VirtMergedCells(iElem)%MergedCellID(iMergeElem)
           nPartLoc = PEM%pNumber(locElem)
@@ -201,11 +204,12 @@ ELSE
             iPart = PEM%pNext(iPart)
           END DO
         END DO
-      END IF  
-      elemVolume = VirtMergedCells(iELem)%MergedVolume
-    ELSE
-      CNElemID = GetCNElemID(iElem + offsetElem)
-      nPart = PEM%pNumber(iElem)
+        elemVolume = VirtMergedCells(iELem)%MergedVolume
+      ELSE
+        elemVolume = ElemVolume_Shared(CNElemID)
+      END IF        
+    ELSE      
+      nPartMerged = nPart   
       IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
       ALLOCATE(iPartIndx_Node(nPart))
       iPart = PEM%pStart(iElem)
@@ -220,7 +224,7 @@ ELSE
       FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
     END IF
 
-    CALL FP_CollisionOperator(iPartIndx_Node, nPart, elemVolume)
+    CALL FP_CollisionOperator(iPartIndx_Node, nPartMerged, elemVolume)
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN

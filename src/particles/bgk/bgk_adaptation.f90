@@ -119,6 +119,7 @@ END IF
 
 IF (DoMergedCell) THEN
 #if (PP_TimeDiscMethod==300)
+  IF (nPartMerged.LE.1) RETURN
   CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged, VirtMergedCells(iELem)%MergedVolume)
 #else
 !  IF (BGKMovingAverage) THEN
