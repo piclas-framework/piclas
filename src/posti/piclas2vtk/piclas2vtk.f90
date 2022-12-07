@@ -203,9 +203,9 @@ dmdSingleModeOutput  = GETINT('dmdSingleModeOutput')
 dmdMaximumModeOutput = GETINT('dmdMaximumModeOutput')
 
 ! Measure init duration
-Time=PICLASTIME()
+GETTIME(Time)
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',Time-StartTime,' sec ]'
+CALL DisplayMessageAndTime(Time-StartTime, ' INITIALIZATION DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 SWRITE(UNIT_stdOut,'(132("="))')
 
 IF(NVisuDefault) THEN
@@ -353,16 +353,13 @@ DO iArgs = iArgsStart,nArgs
 END DO ! iArgs = 2, nArgs
 
 ! Measure processing duration
-Time=PICLASTIME()
+GETTIME(Time)
 #if USE_MPI
 CALL MPI_FINALIZE(iError)
-IF(iError .NE. 0) THEN
-  CALL abort(__STAMP__,&
-    'MPI finalize error',iError)
-END IF
+IF(iError .NE. 0) CALL abort(__STAMP__,'MPI finalize error',iError)
 #endif
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' piclas2vtk FINISHED! [',Time-StartTime,' sec ]'
+CALL DisplayMessageAndTime(Time-StartTime, ' piclas2vtk FINISHED!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 SWRITE(UNIT_stdOut,'(132("="))')
 
 END PROGRAM piclas2vtk
@@ -395,7 +392,9 @@ CHARACTER(LEN=200)            :: Buffer, tmp, tmp2, VarNameString
 CHARACTER(LEN=1)              :: lf, components_string
 REAL(KIND=4)                  :: float
 INTEGER,ALLOCATABLE           :: VarNameCombine(:), VarNameCombineLen(:)
+REAL                          :: StartT,EndT ! Timer
 !===================================================================================================================================
+GETTIME(StartT)
 
 nVTKPoints=nNodes
 nVTKCells=nElems
@@ -545,8 +544,7 @@ CASE(4)
 CASE(1)
   ElemType = 2  ! VTK_VERTEX
 CASE DEFAULT
-  CALL abort(__STAMP__,&
-      'Wrong data size given to WritaDataToVTK_PICLas routine!')
+  CALL abort(__STAMP__,'Wrong data size given to WritaDataToVTK_PICLas routine!')
 END SELECT
 WRITE(ivtk) nBytes
 WRITE(ivtk) (ElemType,iElem=1,nVTKCells)
@@ -554,7 +552,8 @@ WRITE(ivtk) (ElemType,iElem=1,nVTKCells)
 Buffer=lf//'  </AppendedData>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
 CLOSE(ivtk)
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, ' DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
 SDEALLOCATE(VarNameCombine)
 SDEALLOCATE(VarNameCombineLen)
@@ -874,9 +873,7 @@ CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
 IF (FileVersionExists) THEN
   CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
 ELSE
-  CALL abort(&
-      __STAMP__&
-      ,'Error in InitRestart(): Attribute "File_Version" does not exist!')
+  CALL abort(__STAMP__,'Error in InitRestart(): Attribute "File_Version" does not exist!')
 END IF
 IF(FileVersionHDF5.LT.1.5)THEN
   SWRITE(UNIT_StdOut,'(A)')' '
