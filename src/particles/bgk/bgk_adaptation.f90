@@ -91,6 +91,7 @@ IF (DoVirtualCellMerge) THEN
     DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
       nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
     END DO
+    IF (nPartMerged.LE.1) RETURN
     NULLIFY(TreeNode)
     ALLOCATE(TreeNode)
     ALLOCATE(TreeNode%iPartIndx_Node(nPartMerged))
@@ -118,8 +119,7 @@ ELSE IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
 END IF
 
 IF (DoMergedCell) THEN
-#if (PP_TimeDiscMethod==300)
-  IF (nPartMerged.LE.1) RETURN
+#if (PP_TimeDiscMethod==300)  
   CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged, VirtMergedCells(iELem)%MergedVolume)
 #else
 !  IF (BGKMovingAverage) THEN
@@ -618,6 +618,7 @@ IF (DoVirtualCellMerge) THEN
     DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
       nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
     END DO
+    IF (nPartMerged.LE.1) RETURN
     NULLIFY(TreeNode)
     ALLOCATE(TreeNode)
     ALLOCATE(TreeNode%iPartIndx_Node(nPartMerged))
