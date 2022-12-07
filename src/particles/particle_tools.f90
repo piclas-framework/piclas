@@ -1027,7 +1027,7 @@ SUBROUTINE MergeCells()
 !> Currently, the merging is only done via the number of particles within the cells.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars,        ONLY: VirtMergedCells, PEM, MinPartNumCellMerge, VirtualCellMergeSpread
+USE MOD_Particle_Vars,        ONLY: VirtMergedCells, PEM, MinPartNumCellMerge, VirtualCellMergeSpread, MaxNumOfMergedCells
 USE MOD_Mesh_Vars,            ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Vars,   ONLY: ElemToElemMapping,ElemToElemInfo, ElemVolume_Shared
 USE MOD_Mesh_Tools,           ONLY: GetCNElemID, GetGlobalElemID
@@ -1072,6 +1072,7 @@ ElemLoop: DO iElem = 1, nElems
       IF(VirtMergedCells(LocNBElem)%isMerged.AND.AllowBackMerge) THEN
         IF(VirtualCellMergeSpread.GT.1) THEN
           MasterCellID = VirtMergedCells(LocNBElem)%MasterCell-offSetElem
+          IF(VirtMergedCells(MasterCellID)%NumOfMergedCells.GE.MaxNumOfMergedCells) CYCLE NBElemLoop
           ALLOCATE(tempCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells))
           tempCellID = VirtMergedCells(MasterCellID)%MergedCellID
           DEALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID)
@@ -1091,6 +1092,7 @@ ElemLoop: DO iElem = 1, nElems
       ELSE IF ((VirtMergedCells(LocNBElem)%NumOfMergedCells.GT.0).AND.AllowBackMerge) THEN
         IF(VirtualCellMergeSpread.GT.0) THEN
           MasterCellID = LocNBElem
+          IF(VirtMergedCells(MasterCellID)%NumOfMergedCells.GE.MaxNumOfMergedCells) CYCLE NBElemLoop
           ALLOCATE(tempCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells))
           tempCellID = VirtMergedCells(MasterCellID)%MergedCellID
           DEALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID)
@@ -1123,6 +1125,7 @@ ElemLoop: DO iElem = 1, nElems
           VirtMergedCells(LocNBElem)%MasterCell = iElem + offSetElem  
           VirtMergedCells(LocNBElem)%isMerged = .TRUE.
         ELSE
+          IF(VirtMergedCells(iElem)%NumOfMergedCells.GE.MaxNumOfMergedCells) CYCLE ElemLoop
           ALLOCATE(tempCellID(VirtMergedCells(iElem)%NumOfMergedCells))
           tempCellID = VirtMergedCells(iElem)%MergedCellID
           DEALLOCATE(VirtMergedCells(iElem)%MergedCellID)

@@ -280,6 +280,7 @@ TYPE(tVariableTimeStep)                :: VarTimeStep
 LOGICAL                                :: DoVirtualCellMerge
 INTEGER                                :: MinPartNumCellMerge
 INTEGER                                :: VirtualCellMergeSpread
+INTEGER                                :: MaxNumOfMergedCells
 TYPE tVirtualCellMerge
   INTEGER, ALLOCATABLE                 :: MergedCellID(:)
   INTEGER                              :: NumOfMergedCells

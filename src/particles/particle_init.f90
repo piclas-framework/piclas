@@ -133,6 +133,7 @@ CALL prms%CreateIntOption(      'Part-CellMergeSpread'        , 'Describes the a
                                                                 'i.e. how deep the merge extends into the mesh starting from \n'//&
                                                                 'each cell. 0 is the least aggressive merge, 2 the most \n'//&
                                                                 'aggressive merge.','0')
+CALL prms%CreateIntOption(      'Part-MaxNumbCellsMerge'       ,'Maximum number of cells to be merged.','4')                                                                
 
 CALL prms%SetSection("IMD")
 ! IMD things
@@ -712,6 +713,7 @@ IF(DoVirtualCellMerge)THEN
 DoParticleLatencyHiding = .FALSE.  
 #endif
   VirtualCellMergeSpread = GETINT('Part-CellMergeSpread')
+  MaxNumOfMergedCells = GETINT('Part-MaxNumbCellsMerge')
   IF (VirtualCellMergeSpread.GT.2) THEN
     SWRITE(*,*) 'VirtualCellMergeSpread was set to 2 (maximum value)!'
     VirtualCellMergeSpread = 2
