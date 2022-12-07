@@ -222,12 +222,13 @@ SUBROUTINE InitializeVariablesPartBoundary()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_IO_HDF5
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
-USE MOD_Particle_Vars
+USE MOD_Particle_Vars          ,ONLY: PDM, nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
 USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
@@ -236,6 +237,11 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo
+USE MOD_HDF5_input             ,ONLY: OpenDataFile, ReadArray, DatasetExists, GetDataSize, nDims, HSize, CloseDataFile
+USE MOD_SurfaceModel_Vars      ,ONLY: StickingCoefficientData
+#if defined(IMPA) || defined(ROS)
+USE MOD_Particle_Vars          ,ONLY: PartMeshHasReflectiveBCs
+#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -253,6 +259,8 @@ REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
 LOGICAL               :: DeprecatedVoltage
+CHARACTER(LEN=64)     :: dsetname
+LOGICAL               :: StickingCoefficientExists
 !===================================================================================================================================
 ! Read in boundary parameters
 dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .ini file
@@ -336,6 +344,10 @@ DoBoundaryParticleOutputHDF5=.FALSE.
 
 PartMeshHasPeriodicBCs=.FALSE.
 GEO%RotPeriodicBC =.FALSE.
+
+! TODO: REMOVE THIS CALL WHEN MERGED WITH UNIFIED SPECIES DATABASE BRANCH
+SpeciesDatabase = GETSTR('Particles-Species-Database', 'none')
+
 #if defined(IMPA) || defined(ROS)
 PartMeshHasReflectiveBCs=.FALSE.
 #endif
@@ -395,6 +407,10 @@ DO iPartBound=1,nPartBound
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
       CASE (0)
         PartBound%Reactive(iPartBound)        = .FALSE.
+      CASE (1)
+        PartBound%Reactive(iPartBound)        = .FALSE.
+        IF(TRIM(SpeciesDatabase).EQ.'none') &
+          CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: SpeciesDatabase is required for the boundary #', iPartBound)
       CASE (SEE_MODELS_ID)
         ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE.
@@ -523,6 +539,25 @@ DO iPartBound=1,nPartBound
   BCdata_auxSF(iPartBound)%GlobalArea=0.
   BCdata_auxSF(iPartBound)%LocalArea=0.
 END DO
+
+IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
+  ! Open the species database
+  CALL OpenDataFile(TRIM(SpeciesDatabase),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  ! Check if the correct dataset exists
+  StickingCoefficientExists = .FALSE.
+  dsetname = TRIM('/Surface-Chemistry/StickingCoefficient')
+  CALL DatasetExists(File_ID,TRIM(dsetname),StickingCoefficientExists)
+  IF(.NOT.StickingCoefficientExists) CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: '//  &
+                                      'No /Surface-Chemistry/StickingCoefficient dataset found in SpeciesDatabase!')
+  ! Get dimensions
+  CALL GetDataSize(File_ID,dsetname,nDims,HSize,attrib=.FALSE.)
+  ! Allocate the data array
+  ALLOCATE(StickingCoefficientData(INT(HSize(1),4),INT(HSize(2),4)))
+  StickingCoefficientData = 0.
+  ! Read-in array
+  CALL ReadArray(TRIM(dsetname),2,INT(HSize,IK),0_IK,1,RealArray=StickingCoefficientData)
+  CALL CloseDataFile()
+END IF
 
 !-- Sanity check: Deprecated voltage parameter
 IF(DeprecatedVoltage) CALL abort(__STAMP__&

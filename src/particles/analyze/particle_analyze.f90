@@ -1381,14 +1381,14 @@ REAL                :: tmpArray(1:2)
 #endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Analyze Routines that require MPI_REDUCE of other variables
-#if USE_HDG
+! Moving Average of PCoupl:
+IF(CalcCoupledPower) THEN
   ! Moving Average of PCoupl:
-  IF(CalcCoupledPower) THEN
-    ! Moving Average of PCoupl:
-    IF(ABS(Time-RestartTime).GT.0.0) PCouplAverage = PCouplAverage / (Time-RestartTime)
-    ! current PCoupl (Delta_E / Timestep)
-    PCoupl = PCoupl / dt
-  END IF
+  IF(ABS(Time-RestartTime).GT.0.0) PCouplAverage = PCouplAverage / (Time-RestartTime)
+  ! current PCoupl (Delta_E / Timestep)
+  PCoupl = PCoupl / dt
+END IF
+#if USE_HDG
 ! Calculate electric potential for special BCs BoundaryType = (/2,2/) to meet a specific input power
 IF((iter.GT.0).AND.CalcPCouplElectricPotential) CALL CalculatePCouplElectricPotential()
 #endif /*USE_HDG*/
