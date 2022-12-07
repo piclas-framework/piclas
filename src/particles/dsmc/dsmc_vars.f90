@@ -492,26 +492,6 @@ END TYPE
 
 TYPE (tElectronicDistriPart), ALLOCATABLE    :: ElectronicDistriPart(:)
 
-REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)      ! variables,p,q,sides
-REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues for Species specific surface output
-                                                                   ! (4,p,q,nSurfSides,nSpecies)
-                                                                   ! 1: Surface Collision Counter
-                                                                   ! 2: Accomodation
-                                                                   ! 3: Coverage
-                                                                   ! 4 (or 2): Impact energy trans
-                                                                   ! 5 (or 3): Impact energy rot
-                                                                   ! 6 (or 4): Impact energy vib
-
-! some variables redefined
-!TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall
-!  REAL                           :: Heatflux                !
-!  REAL                           :: Force(3)                ! x, y, z direction
-!  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter of all Species
-!  REAL                           :: CounterOut              ! Wall-Collision counter for Output
-!END TYPE
-!
-!TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)
-
 ! MacValout and MacroVolSample have to be separated due to autoinitialrestart
 INTEGER(KIND=8)                  :: iter_macvalout             ! iterations since last macro volume output
 INTEGER(KIND=8)                  :: iter_macsurfvalout         ! iterations since last macro surface output

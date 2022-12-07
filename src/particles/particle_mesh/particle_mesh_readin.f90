@@ -343,7 +343,7 @@ IF (useCurveds.OR.NGeo.EQ.1) THEN
 #endif  /*USE_MPI*/
 
 ! Reduce NodeCoords if no curved elements are to be used
-ELSE
+ELSE ! .NOT. (useCurveds.OR.NGeo.EQ.1)
   ! every proc needs to allocate the array
   ALLOCATE(NodeInfo(1:nNonUniqueGlobalNodes))
 
@@ -431,7 +431,7 @@ ELSE
 
   END ASSOCIATE
 
-END IF
+END IF ! useCurveds.OR.NGeo.EQ.1
 
 ! Update node counters
 offsetNodeID = ElemInfo_Shared(ELEM_FIRSTNODEIND,FirstElemInd) ! hdf5 array starts at 0-> -1

@@ -898,7 +898,7 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, CalcSurface
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,SampWallImpactEnergy,SampWallImpactVector
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity,SampWallImpactAngle,SampWallImpactNumber
 USE MOD_DSMC_Analyze              ,ONLY: DSMC_data_sampling, WriteDSMCToHDF5
-USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
+USE MOD_Particle_Boundary_Sampling,ONLY: CalcSurfaceValues
 USE MOD_Particle_Vars             ,ONLY: DelayTime
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,rTotalBezierNewton
