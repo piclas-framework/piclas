@@ -26,55 +26,72 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 #if defined(PARTICLES)
-PUBLIC :: ReadVariableExternalFieldFromHDF5
+PUBLIC :: ReadExternalFieldFromHDF5
 #endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 
 CONTAINS
 
 #if defined(PARTICLES)
-SUBROUTINE ReadVariableExternalFieldFromHDF5()
+SUBROUTINE ReadExternalFieldFromHDF5( DataSet, ExternalField, DeltaExternalField, FileNameExternalField, ExternalFieldDim, &
+          ExternalFieldAxisSym, ExternalFieldRadInd, ExternalFieldAxisDir, ExternalFieldMin, ExternalFieldMax, ExternalFieldN)
 !===================================================================================================================================
-!> Read-in of spatially variable external magnetic field from .h5 file
+!> Read-in of spatially variable external magnetic field or macroscopic species data (n, T, vx, vy and vz) from .h5 file
 !> Check for different fields in the file: x,y,z or x,r or y,r or z,r to determine a possible axial symmetry
-!> as well as Bx, By, Bz or Br, Bz etc.
+!> as well as 
+!> a) Bx, By, Bz or Br, Bz etc. (magnetic fields)
+!> b) vx, vy, vz or vr, vz etc. (macroscopic data)
 !===================================================================================================================================
 ! use module
 !USE MOD_IO_HDF5
 USE MOD_Globals
+#if USE_MPI
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_MPI*/
 !USE MOD_HDF5_Input            ,ONLY: DatasetExists,ReadAttribute
-USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalField,DeltaExternalField,FileNameVariableExternalField
-USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldDim,VariableExternalFieldAxisSym,VariableExternalFieldRadInd
-USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldAxisDir
-USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldMin,VariableExternalFieldMax,VariableExternalFieldN
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)     :: DataSet               !< dataset name to read from .h5
+CHARACTER(LEN=255),INTENT(IN)   :: FileNameExternalField !< data read from .h5
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
+REAL,ALLOCATABLE,INTENT(OUT)    :: ExternalField(:,:)    !< array to be read
+REAL,INTENT(OUT)                :: DeltaExternalField(3) !< dx, dy, dz
+INTEGER,INTENT(OUT)             :: ExternalFieldDim      !< Dimension of the data (1D, 2D or 3D)
+LOGICAL,INTENT(OUT)             :: ExternalFieldAxisSym  !< Flag for setting axisymmetric data
+INTEGER,INTENT(OUT)             :: ExternalFieldRadInd   !< Index of radial r-coordinate when using 2D data and axis symmetric
+INTEGER,INTENT(OUT)             :: ExternalFieldAxisDir  !< Direction that is used for the axial symmetric direction (1,2 or 3)
+REAL,INTENT(OUT)                :: ExternalFieldMin(1:3) !< Minimum values in x,y,z
+REAL,INTENT(OUT)                :: ExternalFieldMax(1:3) !< Maximum values in x,y,z
+INTEGER,INTENT(OUT)             :: ExternalFieldN(1:3)   !< Number of points in x, y and z-direction
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=64)                 :: dsetname,AttributeName
-INTEGER                           :: err
-INTEGER                           :: NbrOfRows,NbrOfColumns,iDir,j
-INTEGER(HSIZE_T), DIMENSION(2)    :: dims,sizeMax
-INTEGER(HID_T)                    :: file_id_loc                       ! File identifier
-INTEGER(HID_T)                    :: dset_id_loc                       ! Dataset identifier
-INTEGER(HID_T)                    :: filespace                          ! filespace identifier
-LOGICAL                           :: DatasetFound,AttribtueFound
-REAL                              :: delta,deltaOld
-INTEGER                           :: iDirMax
+CHARACTER(LEN=64)               :: dsetname,AttributeName
+INTEGER                         :: err
+INTEGER                         :: NbrOfRows,NbrOfColumns,iDir,j
+INTEGER(HSIZE_T), DIMENSION(2)  :: dims,sizeMax
+INTEGER(HID_T)                  :: file_id_loc                       ! File identifier
+INTEGER(HID_T)                  :: dset_id_loc                       ! Dataset identifier
+INTEGER(HID_T)                  :: filespace                         ! filespace identifier
+LOGICAL                         :: DatasetFound,AttribtueFound,NaNDetected
+REAL                            :: delta,deltaOld
+INTEGER                         :: iDirMax
 !===================================================================================================================================
+! Defaults
+ExternalFieldDim     = 1 ! default is 1D
+ExternalFieldAxisSym = .FALSE.
+
 ! Initialize FORTRAN interface.
 CALL H5OPEN_F(err)
 
 ! Open the file.
-CALL H5FOPEN_F(TRIM(FileNameVariableExternalField), H5F_ACC_RDONLY_F, file_id_loc, err)
+CALL H5FOPEN_F(TRIM(FileNameExternalField), H5F_ACC_RDONLY_F, file_id_loc, err)
 
 ! Check if the datasets exist
 DatasetFound = .FALSE.
-dsetname = TRIM('/data')
+dsetname = TRIM('/'//DataSet)
 CALL H5LEXISTS_F(file_id_loc, TRIM(dsetname), DatasetFound, err)
 IF(DatasetFound) THEN
   ! Open the dataset.
@@ -87,117 +104,130 @@ IF(DatasetFound) THEN
   NbrOfColumns = INT(dims(2)) ! this is the total number of points
   NbrOfRows    = INT(dims(1)) ! this is the number of properties x,y,z,Bx,By,Bz
   ! Read-in the data
-  ALLOCATE(VariableExternalField(1:NbrOfRows,1:NbrOfColumns))
-  VariableExternalField=0.
+  ALLOCATE(ExternalField(1:NbrOfRows,1:NbrOfColumns))
+  ExternalField=0.
   ! read data
-  CALL H5DREAD_F(dset_id_loc, H5T_NATIVE_DOUBLE, VariableExternalField(1:NbrOfRows,1:NbrOfColumns), dims, err)
+  CALL H5DREAD_F(dset_id_loc, H5T_NATIVE_DOUBLE, ExternalField(1:NbrOfRows,1:NbrOfColumns), dims, err)
 ELSE
-  CALL abort(__STAMP__,'Dataset "'//TRIM(dsetname)//'" not found in '//TRIM(FileNameVariableExternalField))
-END IF
-
-! Set spatial dimension
-IF(NbrOfRows.LT.6)THEN
-  VariableExternalFieldDim = 2
-ELSE
-  VariableExternalFieldDim = 3
+  CALL abort(__STAMP__,'Dataset "'//TRIM(dsetname)//'" not found in '//TRIM(FileNameExternalField))
 END IF
 
 ! Check for radial component
-VariableExternalFieldRadInd  = -1
-VariableExternalFieldAxisSym = .FALSE.
+ExternalFieldRadInd  = -1
+ExternalFieldAxisSym = .FALSE.
 AttributeName = 'r'
 CALL H5AEXISTS_F(file_id_loc, TRIM(AttributeName), AttribtueFound, iError)
-IF(AttribtueFound) CALL ReadAttribute(file_id_loc,AttributeName,1,IntScalar=VariableExternalFieldRadInd)
-IF(VariableExternalFieldRadInd.GT.0) VariableExternalFieldAxisSym=.TRUE.
+IF(AttribtueFound) CALL ReadAttribute(file_id_loc,AttributeName,1,IntScalar=ExternalFieldRadInd)
+IF(ExternalFieldRadInd.GT.0) ExternalFieldAxisSym=.TRUE.
+
+! Set spatial dimension
+IF(ExternalFieldAxisSym)THEN
+  ExternalFieldDim = 2
+ELSE
+  ExternalFieldDim = 3
+END IF ! ExternalFieldAxisSym
 
 ! Check if axial symmetric and 2D
-IF(VariableExternalFieldDim.EQ.2)THEN
-  IF(.NOT.VariableExternalFieldAxisSym) CALL abort(__STAMP__,'Only 2D axis symmetric variable external field imeplemented.')
+IF(ExternalFieldDim.EQ.2)THEN
+  IF(.NOT.ExternalFieldAxisSym) CALL abort(__STAMP__,'Only 2D axis symmetric external field imeplemented.')
 ELSE
   ! 3D and symmetric is not possible
-  VariableExternalFieldAxisSym = .FALSE.
-END IF ! VariableExternalFieldDim.EQ.2
+  ExternalFieldAxisSym = .FALSE.
+END IF ! ExternalFieldDim.EQ.2
 
-! Check for axial direction when using axis symmetric variable external field
-IF(VariableExternalFieldAxisSym)THEN
-  VariableExternalFieldAxisDir=-1
+! Check for axial direction when using axis symmetric external field
+IF(ExternalFieldAxisSym)THEN
+  ExternalFieldAxisDir=-1
   ! Check z-dir
   AttributeName = 'z'
   CALL H5AEXISTS_F(file_id_loc, TRIM(AttributeName), AttribtueFound, iError)
-  IF(AttribtueFound) CALL ReadAttribute(file_id_loc,AttributeName,1,IntScalar=VariableExternalFieldAxisDir)
-  IF(VariableExternalFieldAxisDir.GT.0) VariableExternalFieldAxisDir=3
+  IF(AttribtueFound) CALL ReadAttribute(file_id_loc,AttributeName,1,IntScalar=ExternalFieldAxisDir)
+  IF(ExternalFieldAxisDir.GT.0) ExternalFieldAxisDir=3
   ! Check if not axial symmetric with z-direction
-  IF(VariableExternalFieldAxisDir.NE.3) CALL abort(__STAMP__,'Only z-axis symmetric variable external field imeplemented currently.')
-END IF ! VariableExternalFieldAxisSym
+  IF(ExternalFieldAxisDir.NE.3) CALL abort(__STAMP__,'Only z-axis symmetric external field imeplemented currently.')
+END IF ! ExternalFieldAxisSym
 
 ! Calculate the deltas and make sure that they are equidistant
-DeltaExternalField          = -1.0
-VariableExternalFieldMin    = HUGE(1.)
-VariableExternalFieldMax    = -HUGE(1.)
-VariableExternalFieldN(1:3) = -1
-IF(VariableExternalFieldDim.EQ.2)THEN
+DeltaExternalField  = -1.0
+ExternalFieldMin    = HUGE(1.)
+ExternalFieldMax    = -HUGE(1.)
+ExternalFieldN(1:3) = -1
+IF(ExternalFieldDim.EQ.2)THEN
   ! 2D field
   iDirMax = 2
-  VariableExternalFieldMin(3) = 0.
-  VariableExternalFieldMax(3) = 0.
+  ExternalFieldMin(3) = 0.
+  ExternalFieldMax(3) = 0.
   DeltaExternalField(3)       = 0.
 ELSE
   ! 3D field
   iDirMax = 3
-END IF ! VariableExternalFieldDim.EQ.2
+END IF ! ExternalFieldDim.EQ.2
 
 ! Loop x, y and z-coordinate and check deltas between points
+NaNDetected=.FALSE.
 DO iDir = 1, iDirMax
+  ! Check for NaNs and nullify all properties except the coordinates of a data point
+  DO j = 1, NbrOfColumns
+    IF(ANY(ISNAN(ExternalField(ExternalFieldDim+1:NbrOfRows,j))))THEN
+      NaNDetected=.TRUE.
+      ExternalField(ExternalFieldDim+1:NbrOfRows,j) = 0.
+    END IF ! ANY(ISNAN(ExternalField(ExternalFieldDim+1:NbrOfRows,j)))
+  END DO
+
   ! Get global min/max
-  VariableExternalFieldMin(iDir) = MINVAL(VariableExternalField(iDir,:))
-  VariableExternalFieldMax(iDir) = MAXVAL(VariableExternalField(iDir,:))
+  ExternalFieldMin(iDir) = MINVAL(ExternalField(iDir,:))
+  ExternalFieldMax(iDir) = MAXVAL(ExternalField(iDir,:))
   deltaOld = -1.0
   DO j = 1, NbrOfColumns-1
-    delta = VariableExternalField(iDir,j+1)-VariableExternalField(iDir,j)
+    delta = ExternalField(iDir,j+1)-ExternalField(iDir,j)
     !write(*,*) delta
     IF((deltaOld.GT.0.).AND.(delta.GT.0.))THEN
       !WRITE (*,*) "delta,deltaOld =", iDir,j,delta,deltaOld
-      IF(.NOT.ALMOSTEQUALRELATIVE(delta,deltaOld,1e-5)) CALL abort(__STAMP__,'Variable external field: not equidistant.')
+      IF(.NOT.ALMOSTEQUALRELATIVE(delta,deltaOld,1e-5)) CALL abort(__STAMP__,'External field: not equidistant.')
     END IF ! deltaOld.GT.0.
     ! Backup old value
     IF(delta.GT.0.)THEN
       deltaOld = delta
       DeltaExternalField(iDir) = delta
     ELSEIF(delta.LT.0.)THEN
-      IF(VariableExternalFieldDim.EQ.2)THEN
-        IF(VariableExternalFieldN(1).LT.0)THEN
+      IF(ExternalFieldDim.EQ.2)THEN
+        IF(ExternalFieldN(1).LT.0)THEN
           ! z-dir
-          VariableExternalFieldN(1) = j
+          ExternalFieldN(1) = j
           ! r-dir
-          VariableExternalFieldN(2) = NbrOfColumns/VariableExternalFieldN(1)
+          ExternalFieldN(2) = NbrOfColumns/ExternalFieldN(1)
         END IF
       ELSE
-        IF(VariableExternalFieldN(iDir).LT.0)THEN
+        IF(ExternalFieldN(iDir).LT.0)THEN
           IF(iDir.EQ.1)THEN
-            VariableExternalFieldN(iDir) = j
+            ExternalFieldN(iDir) = j
           ELSE
-            VariableExternalFieldN(2) = j / VariableExternalFieldN(1)
-            VariableExternalFieldN(3) = NbrOfColumns/(VariableExternalFieldN(1)*VariableExternalFieldN(2))
+            ExternalFieldN(2) = j / ExternalFieldN(1)
+            ExternalFieldN(3) = NbrOfColumns/(ExternalFieldN(1)*ExternalFieldN(2))
           END IF
-        END IF ! VariableExternalFieldN(iDir).LT.0
-      END IF ! VariableExternalFieldDim.EQ.2
+        END IF ! ExternalFieldN(iDir).LT.0
+      END IF ! ExternalFieldDim.EQ.2
     END IF
   END DO ! j = 1, NbrOfColumns
 END DO ! iDir = 1, iDirMax
 
+IF(NaNDetected) THEN
+  LBWRITE(UNIT_stdOut,'(A)') " Detected NaNs in "//TRIM(DataSet)//" dataset ("//TRIM(FileNameExternalField)//") replaced by 0.0"
+END IF
+
 ! Sanity check
-ASSOCIATE( x => VariableExternalFieldN(1:3) )
-  IF(VariableExternalFieldDim.EQ.2)THEN
-    IF(MINVAL(DeltaExternalField(1:2)).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for variable external field.')
+ASSOCIATE( x => ExternalFieldN(1:3) )
+  IF(ExternalFieldDim.EQ.2)THEN
+    IF(MINVAL(DeltaExternalField(1:2)).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for external field.')
     ! z-dir: x(1)
     ! r-dir: x(2)
+    LBWRITE (UNIT_stdOut,'(A,2(I0,A))') " Read external field with ",x(1)," x ",x(2)," data points"
     IF(NbrOfColumns.NE.x(1)*x(2)) CALL abort(__STAMP__,'Wrong number of points in 2D')
-    SWRITE (UNIT_stdOut,'(A,2(I0,A))') " Read external field with ",x(1)," x ",x(2)," data points"
   ELSE
-    IF(MINVAL(DeltaExternalField).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for variable external field.')
+    LBWRITE (UNIT_stdOut,'(A,3(I0,A))') " Read external field with ",x(1)," x ",x(2)," x ",x(3)," data points"
+    IF(MINVAL(DeltaExternalField).LT.0.) CALL abort(__STAMP__,'Failed to calculate the deltas for external field.')
     IF(NbrOfColumns.NE.x(1)*x(2)*x(3)) CALL abort(__STAMP__,'Wrong number of points in 3D')
-    SWRITE (UNIT_stdOut,'(A,3(I0,A))') " Read external field with ",x(1)," x ",x(2)," x ",x(3)," data points"
-  END IF ! VariableExternalFieldDim.EQ.2
+  END IF ! ExternalFieldDim.EQ.2
 END ASSOCIATE
 
 ! Close the file.
@@ -205,7 +235,7 @@ CALL H5FCLOSE_F(file_id_loc, err)
 ! Close FORTRAN interface.
 CALL H5CLOSE_F(err)
 
-END SUBROUTINE ReadVariableExternalFieldFromHDF5
+END SUBROUTINE ReadExternalFieldFromHDF5
 #endif /*defined(PARTICLES)*/
 
 END MODULE MOD_HDF5_Input_Field

@@ -584,6 +584,9 @@ USE MOD_Globals         ,ONLY: abort
 #if USE_MPI
 USE MOD_Globals
 #endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -604,7 +607,7 @@ INTEGER             :: PoyntingNormalDir1,PoyntingNormalDir2
 INTEGER             :: nPoyntingIntSides    !< Sides for the calculation of the Poynting vector integral
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)') ' GET PLANES TO CALCULATE POYNTING VECTOR INTEGRAL ...'
+LBWRITE(UNIT_stdOut,'(A)') ' GET PLANES TO CALCULATE POYNTING VECTOR INTEGRAL ...'
 
 ! Initialize number of Poynting plane sides zero and set all sides to false
 nPoyntingIntSides=0
@@ -625,9 +628,7 @@ SELECT CASE (PoyntingMainDir)
     PoyntingNormalDir1=1
     PoyntingNormalDir2=2
   CASE DEFAULT
-    CALL abort(&
-    __STAMP__&
-    ,'Poynting vector itnegral currently only in x,y,z!')
+    CALL CollectiveStop(__STAMP__,'Poynting vector itnegral currently only in x,y,z!')
 END SELECT
 ALLOCATE(PosPoyntingInt(nPoyntingIntPlanes))
 ALLOCATE(SideIDToPoyntingSide(nSides))
@@ -697,8 +698,7 @@ DO iPlane = 1, nPoyntingIntPlanes
                         IPWRITE(UNIT_stdOut,*) " "
                         IPWRITE(UNIT_stdOut,*) "Found illegal Poyting plane side. SideID= ",SideID,&
                             " z-coordinate= ",PosPoyntingInt(iPlane)
-                        CALL abort(&
-                            __STAMP__&
+                        CALL abort(__STAMP__&
                             ,'GetPoyntingIntPlane: Found SideID for Poynting vector integral which is attached to an element'//&
                             ' within which the dielectric permittivity mu_r is not euqal to 1.0 everywhere. The value could be'//&
                             ' unequal to 1.0 on the interface and this is not implemented. TODO: determine mu_r on interface,'//&
@@ -753,15 +753,15 @@ sumAllFaces=nPoyntingIntSides
 #endif /*USE_MPI*/
 
 DO iPlane= 1, nPoyntingIntPlanes
-  SWRITE(UNIT_stdOut,'(A,I2,A,I10,A)') 'Processed plane no.: ',iPlane,'. Found ',sumFaces(iPlane),' surfaces.'
+  LBWRITE(UNIT_stdOut,'(A,I2,A,I10,A)') 'Processed plane no.: ',iPlane,'. Found ',sumFaces(iPlane),' surfaces.'
 END DO
-SWRITE(UNIT_stdOut,'(A,I10,A)') 'A total of',sumAllFaces, &
+LBWRITE(UNIT_stdOut,'(A,I10,A)') 'A total of',sumAllFaces, &
                         ' surfaces for the poynting vector integral calculation are found.'
 
 ALLOCATE(S    (1:3,0:PP_N,0:PP_N,1:nPoyntingIntSides) , &
          STEM     (0:PP_N,0:PP_N,1:nPoyntingIntSides)  )
 
-SWRITE(UNIT_stdOut,'(A)') ' ... POYNTING VECTOR INTEGRAL INITIALIZATION DONE.'
+LBWRITE(UNIT_stdOut,'(A)') ' ... POYNTING VECTOR INTEGRAL INITIALIZATION DONE.'
 
 END SUBROUTINE GetPoyntingIntPlane
 

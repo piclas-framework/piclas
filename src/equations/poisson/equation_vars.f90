@@ -27,6 +27,7 @@ INTEGER           :: IniExactFunc
 REAL              :: IniCenter(3)
 REAL              :: IniAmplitude
 REAL              :: IniHalfwidth
+REAL              :: WaveLength                             !> wave length
 
 ! needed for various stuff (compilation)
 REAL              :: c_corr

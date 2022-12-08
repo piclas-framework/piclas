@@ -873,6 +873,7 @@ current => prms%firstLink
 DO WHILE (associated(current))
   this%maxNameLen = MAX(this%maxNameLen, current%opt%GETNAMELEN())
   this%maxValueLen = MAX(this%maxValueLen, current%opt%GETVALUELEN())
+  this%maxValueLen = MIN(this%maxValueLen, 50)
   current => current%next
 END DO
 
@@ -2203,7 +2204,7 @@ IF(.NOT.MPIRoot)RETURN
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
   SELECT CASE(TRIM(InfoOpt))
-    CASE("INFO","PARAM","CALCUL.","OUTPUT")
+    CASE("INFO","PARAM","CALCUL.","OUTPUT","HDF5")
       RETURN
   END SELECT
 END IF
