@@ -483,7 +483,7 @@ ASSOCIATE (&
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
-  IF(OutPutSource) THEN
+  IF(OutputSource) THEN
 #if USE_HDG
     ! Add BR electron fluid density to PartSource for output to state.h5
     IF(UseBRElectronFluid) CALL AddBRElectronFluidToPartSource()
