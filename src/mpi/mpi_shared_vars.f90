@@ -39,9 +39,8 @@ INTEGER            :: nComputeNodeProcessors                !> Number of procs o
 INTEGER            :: nLeaderGroupProcs                     !> Number of nodes
 #if ! (CORE_SPLIT==0)
 ! When core-level splitting is used, it is not clear how many cores are on the same physical compute node.
-INTEGER            :: NbrOfPhysicalNodes                    !> Number of physical nodes (as opposed to virtual nodes)
+INTEGER            :: NbrOfPhysicalNodes                    !> Number of physical nodes (as opposed to virtual nodes) on which the simulation is executed
 #endif /*! (CORE_SPLIT==0)*/
-LOGICAL            :: MemoryMonitor                         !> Flag for turning RAM monitoring ON/OFF. Used for the detection of RAM overflows (e.g. due to memory leaks)
 INTEGER            :: nProcessors_Global                    !> Number of total procs
 INTEGER            :: MPI_COMM_SHARED                       !> Communicator on current compute-node
 INTEGER            :: MPI_COMM_LEADERS_SHARED               !> Communicator compute-node roots (my_rank_shared=0)
