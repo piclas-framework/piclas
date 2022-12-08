@@ -493,6 +493,8 @@ DO iSpec=1,nSpecies
        RegionOnProc=.TRUE.
     CASE ('background')
        RegionOnProc=.TRUE.
+    CASE ('EmissionDistribution')
+       RegionOnProc=.TRUE.
     CASE DEFAULT
       IPWRITE(*,*) 'ERROR: Species ', iSpec, 'of', iInit, 'is using an unknown SpaceIC!'
       CALL ABORT(__STAMP__,'ERROR: Given SpaceIC is not implemented: '//TRIM(Species(iSpec)%Init(iInit)%SpaceIC))

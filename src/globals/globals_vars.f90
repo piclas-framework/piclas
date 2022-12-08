@@ -23,7 +23,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=6),PARAMETER :: ProgramName  = 'PICLas'              !> name of this program
 INTEGER,PARAMETER          :: MajorVersion = 2                     !> FileVersion number saved in each hdf5 file with hdf5 header
-INTEGER,PARAMETER          :: MinorVersion = 8                     !> FileVersion number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: MinorVersion = 9                     !> FileVersion number saved in each hdf5 file with hdf5 header
 INTEGER,PARAMETER          :: PatchVersion = 0                     !> FileVersion number saved in each hdf5 file with hdf5 header
 REAL,PARAMETER             :: FileVersion  = REAL(MajorVersion,8)+REAL(MinorVersion,8)/10.+REAL(PatchVersion,8)/100. !> FileVersion
                                                                    !> number saved in each hdf5 file with hdf5 header
@@ -40,8 +40,8 @@ REAL                       :: CommMeshReadinWallTime               !> Shared mem
 REAL                       :: SimulationEfficiency                 !> relates the simulated time to the used CPUh (SIMULATION TIME PER
                                                                    !> CALCULATION in [s]/[CPUh])
 REAL                       :: StartT                               !> Timer start
-REAL                       :: PID                                  !> Performance index: (CalcTimeEnd-CalcTimeStart)*nProcessors/
-                                                                   !> (nGlobalElems*(PP_N+1)**3*iter_loc)
+REAL                       :: PID                                  !> Performance index: (CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
+REAL                       :: memory(1:4)                          !> RAM: used, available, total and initial (total at the beginning of the simulation)
 REAL,PARAMETER             :: PI=ACOS(-1.0)                         !> the number pi ~= 3.14
 REAL,PARAMETER             :: sPI=1.0/PI                            !> inverse of pi
 REAL,PARAMETER             :: epsMach=EPSILON(0.0)                  !> Machine accuracy

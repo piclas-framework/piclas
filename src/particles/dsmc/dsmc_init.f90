@@ -718,12 +718,17 @@ ELSE !CollisMode.GT.0
         DO iInit = 1, Species(iSpec)%NumberOfInits
           WRITE(UNIT=hilf2,FMT='(I0)') iInit
           hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
-          IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+          IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
+            SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib','300.0')
+            SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','300.0')
+          ELSEIF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
             SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib')
             SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot')
           END IF
           ! read electronic temperature
-          IF (DSMC%ElectronicModel.GT.0) THEN
+          IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
+            SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','300.0')
+          ELSEIF (DSMC%ElectronicModel.GT.0) THEN
             SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec')
           END IF ! electronic model
         END DO !Inits

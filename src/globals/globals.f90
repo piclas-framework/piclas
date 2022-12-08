@@ -46,6 +46,7 @@ INTEGER            :: MPIStatus(MPI_STATUS_SIZE)
 #else
 INTEGER,PARAMETER  :: MPI_COMM_WORLD=-1 ! DUMMY when compiling single (MPI=OFF)
 #endif
+LOGICAL            :: MemoryMonitor      !> Flag for turning RAM monitoring ON/OFF. Used for the detection of RAM overflows (e.g. due to memory leaks)
 
 INTEGER            :: doPrintHelp ! 0: no help, 1: help, 2: markdown-help
 
