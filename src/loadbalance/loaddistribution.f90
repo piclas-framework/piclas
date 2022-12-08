@@ -1238,7 +1238,7 @@ USE MOD_Globals          ,ONLY: nGlobalNbrOfParticles
 #if USE_MPI
 USE MOD_MPI_Shared_Vars  ,ONLY: myComputeNodeRank,myLeaderGroupRank
 USE MOD_Globals
-USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_SHARED,MemoryMonitor
+USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_SHARED
 #if ! (CORE_SPLIT==0)
 USE MOD_MPI_Shared_Vars  ,ONLY: NbrOfPhysicalNodes,nLeaderGroupProcs
 #endif /*! (CORE_SPLIT==0)*/
@@ -1351,15 +1351,19 @@ memory(1:3)=memory(1:3)/1048576.
 #if ! (CORE_SPLIT==0)
 ! When core-level splitting is used, it is not clear how many cores are on the same physical compute node.
 ! Therefore, the values are set to -1.
+#if USE_MPI
 IF(NbrOfPhysicalNodes.GT.0)THEN
   memory(2:3) = memory(2:3) * REAL(NbrOfPhysicalNodes) / REAL(nLeaderGroupProcs)
 ELSE
   memory(2:3) = -1.
 END IF ! NbrOfPhysicalNodes.GT.0
+#endif /*USE_MPI*/
 #endif /*! (CORE_SPLIT==0)*/
 
 ! Check for memory leaks
+#if USE_MPI
 IF(MemoryMonitor)THEN
+#endif /*USE_MPI*/
   IF(memory(4).LE.0.)THEN
     memory(4) = memory(1) ! Store total initially used memory
   ELSE
@@ -1372,7 +1376,9 @@ IF(MemoryMonitor)THEN
       CALL clear_formatting()
     END IF
   END IF ! WriteHeader
+#if USE_MPI
 END IF ! MemoryMonitor
+#endif /*USE_MPI*/
 
 ! Either create new file or add info to existing file
 !> create new file
