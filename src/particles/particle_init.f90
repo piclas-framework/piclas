@@ -714,9 +714,9 @@ DoParticleLatencyHiding = .FALSE.
 #endif
   VirtualCellMergeSpread = GETINT('Part-CellMergeSpread')
   MaxNumOfMergedCells = GETINT('Part-MaxNumbCellsMerge')
-  IF (VirtualCellMergeSpread.GT.2) THEN
-    SWRITE(*,*) 'VirtualCellMergeSpread was set to 2 (maximum value)!'
-    VirtualCellMergeSpread = 2
+  IF (VirtualCellMergeSpread.GT.3) THEN
+    SWRITE(*,*) 'VirtualCellMergeSpread was set to 3 (maximum value)!'
+    VirtualCellMergeSpread = 3
   END IF
   MinPartNumCellMerge = GETINT('Part-MinPartNumCellMerge')
   ALLOCATE(VirtMergedCells(1:nElems))

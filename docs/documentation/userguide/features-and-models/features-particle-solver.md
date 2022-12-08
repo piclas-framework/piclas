@@ -246,7 +246,7 @@ Currently, only merging based on the number of particles within the cell is impl
 
     Part-MinPartNumCellMerge            = 3
 
-Furthermore, the spread or aggressiveness of the merge algorithm can be changed, i.e. how deep the merge extends into the mesh starting from each cell. 0 is the least aggressive merge, 2 the most aggressive merge.
+Furthermore, the spread or aggressiveness of the merge algorithm can be changed, i.e. how deep the merge extends into the mesh starting from each cell. 0 is the least aggressive merge, 3 the most aggressive merge.
 
   Part-CellMergeSpread                  = 0
   

@@ -1040,7 +1040,7 @@ USE MOD_Mesh_Tools,           ONLY: GetCNElemID, GetGlobalElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: nPart, CNElemID, GlobalElemID, iNbElem, GlobNbElem, LocNBElem, nPartMerged, MasterCellID
-INTEGER                        :: CNNbElem, iElem
+INTEGER                        :: CNNbElem, iElem, iOldElem, currentCellCount
 INTEGER, ALLOCATABLE           :: tempCellID(:)
 LOGICAL                        :: AllowBackMerge
 !===================================================================================================================================
@@ -1071,41 +1071,93 @@ ElemLoop: DO iElem = 1, nElems
       IF ((LocNBElem.LT.1).OR.(LocNBElem.GT.nElems)) CYCLE
       IF(VirtMergedCells(LocNBElem)%isMerged.AND.AllowBackMerge) THEN
         IF(VirtualCellMergeSpread.GT.1) THEN
-          MasterCellID = VirtMergedCells(LocNBElem)%MasterCell-offSetElem
-          IF(VirtMergedCells(MasterCellID)%NumOfMergedCells.GE.MaxNumOfMergedCells) CYCLE NBElemLoop
-          ALLOCATE(tempCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells))
-          tempCellID = VirtMergedCells(MasterCellID)%MergedCellID
-          DEALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID)
-          VirtMergedCells(MasterCellID)%NumOfMergedCells = VirtMergedCells(MasterCellID)%NumOfMergedCells + 1
-          ALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells))
-          VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1) = &
-            tempCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1)
-          VirtMergedCells(MasterCellID)%MergedCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells) = iElem
-          VirtMergedCells(MasterCellID)%MergedVolume=VirtMergedCells(MasterCellID)%MergedVolume+ElemVolume_Shared(CNElemID) 
-          VirtMergedCells(iElem)%MasterCell = VirtMergedCells(LocNBElem)%MasterCell
-          VirtMergedCells(iElem)%isMerged = .TRUE.
-          DEALLOCATE(tempCellID)
-          CYCLE ElemLoop
+          IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
+            MasterCellID = VirtMergedCells(LocNBElem)%MasterCell-offSetElem
+            IF(VirtMergedCells(MasterCellID)%NumOfMergedCells.GE.(MaxNumOfMergedCells-1)) CYCLE NBElemLoop   
+            ALLOCATE(tempCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells))
+            tempCellID = VirtMergedCells(MasterCellID)%MergedCellID
+            DEALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID)
+            VirtMergedCells(MasterCellID)%NumOfMergedCells = VirtMergedCells(MasterCellID)%NumOfMergedCells + 1 + VirtMergedCells(iElem)%NumOfMergedCells
+            ALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells))
+            VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1-VirtMergedCells(iElem)%NumOfMergedCells) = &
+              tempCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1-VirtMergedCells(iElem)%NumOfMergedCells)
+            oldMasterElemLoop: DO iOldElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+              currentCellCount = VirtMergedCells(MasterCellID)%NumOfMergedCells-VirtMergedCells(iElem)%NumOfMergedCells -1 + iOldElem
+              VirtMergedCells(MasterCellID)%MergedCellID(currentCellCount) = VirtMergedCells(iElem)%MergedCellID(iOldElem)
+              VirtMergedCells(VirtMergedCells(iElem)%MergedCellID(iOldElem))%MasterCell = VirtMergedCells(LocNBElem)%MasterCell
+            END DO oldMasterElemLoop
+            VirtMergedCells(MasterCellID)%MergedCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells) = iElem
+            VirtMergedCells(iElem)%MasterCell = VirtMergedCells(LocNBElem)%MasterCell
+            VirtMergedCells(iElem)%isMerged = .TRUE.
+            VirtMergedCells(MasterCellID)%MergedVolume=VirtMergedCells(MasterCellID)%MergedVolume+VirtMergedCells(iElem)%MergedVolume
+            VirtMergedCells(iElem)%MergedVolume = 0.0
+            VirtMergedCells(iElem)%NumOfMergedCells = 0
+            DEALLOCATE(VirtMergedCells(iElem)%MergedCellID)
+            DEALLOCATE(tempCellID)
+            CYCLE ElemLoop
+          ELSE
+            MasterCellID = VirtMergedCells(LocNBElem)%MasterCell-offSetElem
+            IF(VirtMergedCells(MasterCellID)%NumOfMergedCells.GE.(MaxNumOfMergedCells-1)) CYCLE NBElemLoop
+            ALLOCATE(tempCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells))
+            tempCellID = VirtMergedCells(MasterCellID)%MergedCellID
+            DEALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID)
+            VirtMergedCells(MasterCellID)%NumOfMergedCells = VirtMergedCells(MasterCellID)%NumOfMergedCells + 1
+            ALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells))
+            VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1) = &
+              tempCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1)
+            VirtMergedCells(MasterCellID)%MergedCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells) = iElem
+            VirtMergedCells(MasterCellID)%MergedVolume=VirtMergedCells(MasterCellID)%MergedVolume+ElemVolume_Shared(CNElemID) 
+            VirtMergedCells(iElem)%MasterCell = VirtMergedCells(LocNBElem)%MasterCell
+            VirtMergedCells(iElem)%isMerged = .TRUE.            
+            DEALLOCATE(tempCellID)
+            CYCLE ElemLoop
+          END IF
         ELSE
           CYCLE NBElemLoop
         END IF
       ELSE IF ((VirtMergedCells(LocNBElem)%NumOfMergedCells.GT.0).AND.AllowBackMerge) THEN
         IF(VirtualCellMergeSpread.GT.0) THEN
-          MasterCellID = LocNBElem
-          IF(VirtMergedCells(MasterCellID)%NumOfMergedCells.GE.MaxNumOfMergedCells) CYCLE NBElemLoop
-          ALLOCATE(tempCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells))
-          tempCellID = VirtMergedCells(MasterCellID)%MergedCellID
-          DEALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID)
-          VirtMergedCells(MasterCellID)%NumOfMergedCells = VirtMergedCells(MasterCellID)%NumOfMergedCells + 1
-          ALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells))
-          VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1) = &
-            tempCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1)
-          VirtMergedCells(MasterCellID)%MergedCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells) = iElem
-          VirtMergedCells(MasterCellID)%MergedVolume=VirtMergedCells(MasterCellID)%MergedVolume+ElemVolume_Shared(CNElemID) 
-          VirtMergedCells(iElem)%MasterCell = MasterCellID + offSetElem
-          VirtMergedCells(iElem)%isMerged = .TRUE.
-          DEALLOCATE(tempCellID)
-          CYCLE ElemLoop
+          IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
+            MasterCellID = LocNBElem
+            IF(VirtMergedCells(MasterCellID)%NumOfMergedCells.GE.(MaxNumOfMergedCells-1)) CYCLE NBElemLoop
+            ALLOCATE(tempCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells))
+            tempCellID = VirtMergedCells(MasterCellID)%MergedCellID
+            DEALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID)
+            VirtMergedCells(MasterCellID)%NumOfMergedCells = VirtMergedCells(MasterCellID)%NumOfMergedCells + 1 + VirtMergedCells(iElem)%NumOfMergedCells
+            ALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells))
+            VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1-VirtMergedCells(iElem)%NumOfMergedCells) = &
+              tempCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1-VirtMergedCells(iElem)%NumOfMergedCells)
+            oldMasterElemLoop2: DO iOldElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
+              currentCellCount = VirtMergedCells(MasterCellID)%NumOfMergedCells-VirtMergedCells(iElem)%NumOfMergedCells -1 + iOldElem
+              VirtMergedCells(MasterCellID)%MergedCellID(currentCellCount) = VirtMergedCells(iElem)%MergedCellID(iOldElem)
+              VirtMergedCells(VirtMergedCells(iElem)%MergedCellID(iOldElem))%MasterCell = MasterCellID + offSetElem
+            END DO oldMasterElemLoop2
+            VirtMergedCells(MasterCellID)%MergedCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells) = iElem
+            VirtMergedCells(iElem)%MasterCell = MasterCellID + offSetElem
+            VirtMergedCells(iElem)%isMerged = .TRUE.
+            VirtMergedCells(MasterCellID)%MergedVolume=VirtMergedCells(MasterCellID)%MergedVolume+VirtMergedCells(iElem)%MergedVolume
+            VirtMergedCells(iElem)%MergedVolume = 0.0
+            VirtMergedCells(iElem)%NumOfMergedCells = 0
+            DEALLOCATE(VirtMergedCells(iElem)%MergedCellID)
+            DEALLOCATE(tempCellID)
+            CYCLE ElemLoop
+          ELSE
+            MasterCellID = LocNBElem
+            IF(VirtMergedCells(MasterCellID)%NumOfMergedCells.GE.(MaxNumOfMergedCells-1)) CYCLE NBElemLoop
+            ALLOCATE(tempCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells))
+            tempCellID = VirtMergedCells(MasterCellID)%MergedCellID
+            DEALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID)
+            VirtMergedCells(MasterCellID)%NumOfMergedCells = VirtMergedCells(MasterCellID)%NumOfMergedCells + 1
+            ALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells))
+            VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1) = &
+              tempCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1)
+            VirtMergedCells(MasterCellID)%MergedCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells) = iElem
+            VirtMergedCells(MasterCellID)%MergedVolume=VirtMergedCells(MasterCellID)%MergedVolume+ElemVolume_Shared(CNElemID) 
+            VirtMergedCells(iElem)%MasterCell = MasterCellID + offSetElem
+            VirtMergedCells(iElem)%isMerged = .TRUE.
+            DEALLOCATE(tempCellID)
+            CYCLE ElemLoop
+          END IF
         ELSE
           CYCLE NBElemLoop
         END IF
@@ -1114,7 +1166,7 @@ ElemLoop: DO iElem = 1, nElems
       ELSE IF ((VirtMergedCells(LocNBElem)%NumOfMergedCells.GT.0).AND.(.NOT.AllowBackMerge)) THEN
         CYCLE NBElemLoop
       ELSE
-        AllowBackMerge = .FALSE.
+        IF(VirtualCellMergeSpread.LT.3) AllowBackMerge = .FALSE.
         IF (VirtMergedCells(iElem)%NumOfMergedCells.EQ.0) THEN
           VirtMergedCells(iElem)%MergedVolume = VirtMergedCells(iElem)%MergedVolume + ElemVolume_Shared(CNElemID)
           VirtMergedCells(iElem)%NumOfMergedCells = VirtMergedCells(iElem)%NumOfMergedCells + 1
@@ -1125,7 +1177,7 @@ ElemLoop: DO iElem = 1, nElems
           VirtMergedCells(LocNBElem)%MasterCell = iElem + offSetElem  
           VirtMergedCells(LocNBElem)%isMerged = .TRUE.
         ELSE
-          IF(VirtMergedCells(iElem)%NumOfMergedCells.GE.MaxNumOfMergedCells) CYCLE ElemLoop
+          IF(VirtMergedCells(iElem)%NumOfMergedCells.GE.(MaxNumOfMergedCells-1)) CYCLE ElemLoop
           ALLOCATE(tempCellID(VirtMergedCells(iElem)%NumOfMergedCells))
           tempCellID = VirtMergedCells(iElem)%MergedCellID
           DEALLOCATE(VirtMergedCells(iElem)%MergedCellID)
