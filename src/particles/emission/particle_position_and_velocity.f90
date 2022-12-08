@@ -476,10 +476,14 @@ END IF
 END SUBROUTINE SetParticleVelocity
 
 
+!===================================================================================================================================
+!> Initialize particle position and velocity from a distribution given by .h5 file
+!> the .h5 file contains n, T, vr and vz for each species.
+!> Only the electron temperature is currently used as the temperature of all heavy species is initialized with 300K.
+!> Each processor creates all species randomly in each element using the sub-volumes defined by the Gaussian quadrature and
+!> guarantees that at least one particle is created for each sub volume (depending of course on the MPF).
+!===================================================================================================================================
 SUBROUTINE SetPartPosAndVeloEmissionDistribution(iSpec,iInit,NbrOfParticle)
-!===================================================================================================================================
-! Set particle position for processor-local particles (only in processor elements)
-!===================================================================================================================================
 ! modules
 !USE MOD_Globals
 USE MOD_PreProc
