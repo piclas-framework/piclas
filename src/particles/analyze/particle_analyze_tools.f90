@@ -896,14 +896,15 @@ PPURE SUBROUTINE CalcKineticEnergy(Ekin)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals_Vars          ,ONLY: c2, c2_inv, RelativisticLimit
-USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM
+USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, PEM
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 #if !(USE_HDG)
-USE MOD_PML_Vars              ,ONLY: DoPML,xyzPhysicalMinMax
+USE MOD_PML_Vars              ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
+USE MOD_Dielectric_Vars       ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -913,7 +914,7 @@ IMPLICIT NONE
 REAL,INTENT(OUT)                :: Ekin(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i
+INTEGER                         :: i,ElemID
 REAL(KIND=8)                    :: partV2, GammaFac
 REAL                            :: Ekin_loc
 !===================================================================================================================================
@@ -921,15 +922,17 @@ Ekin    = 0.!d0
 IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
+      ElemID = PEM%LocalElemID(i)
 #if !(USE_HDG)
       IF(DoPML)THEN
-        IF (PartState(1,i) .GE. xyzPhysicalMinMax(1) .AND. PartState(1,i) .LE. xyzPhysicalMinMax(2) .AND. &
-            PartState(2,i) .GE. xyzPhysicalMinMax(3) .AND. PartState(2,i) .LE. xyzPhysicalMinMax(4) .AND. &
-            PartState(3,i) .GE. xyzPhysicalMinMax(5) .AND. PartState(3,i) .LE. xyzPhysicalMinMax(6)) THEN
-          CYCLE
-        END IF
+        IF(isPMLElem(ElemID)) CYCLE
       ENDIF
 #endif /*USE_HDG*/
+      IF(DoDielectric)THEN
+        IF(DielectricNoParticles)THEN
+          IF(isDielectricElem(ElemID)) CYCLE
+        END IF ! DielectricNoParticles
+      ENDIF
       partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
@@ -961,15 +964,17 @@ IF (nSpecAnalyze.GT.1) THEN
 ELSE ! nSpecAnalyze = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
+      ElemID = PEM%LocalElemID(i)
 #if !(USE_HDG)
       IF(DoPML)THEN
-        IF (PartState(1,i) .GE. xyzPhysicalMinMax(1) .AND. PartState(1,i) .LE. xyzPhysicalMinMax(2) .AND. &
-            PartState(2,i) .GE. xyzPhysicalMinMax(3) .AND. PartState(2,i) .LE. xyzPhysicalMinMax(4) .AND. &
-            PartState(3,i) .GE. xyzPhysicalMinMax(5) .AND. PartState(3,i) .LE. xyzPhysicalMinMax(6)) THEN
-          CYCLE
-        END IF
+        IF(isPMLElem(ElemID)) CYCLE
       ENDIF
 #endif /*USE_HDG*/
+      IF(DoDielectric)THEN
+        IF(DielectricNoParticles)THEN
+          IF(isDielectricElem(ElemID)) CYCLE
+        END IF ! DielectricNoParticles
+      ENDIF
       partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
@@ -1004,14 +1009,15 @@ PPURE SUBROUTINE CalcKineticEnergyAndMaximum(Ekin,EkinMax)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals_Vars          ,ONLY: c2, c2_inv, RelativisticLimit
-USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpecies
+USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpecies, PEM
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze,LaserInteractionEkinMaxRadius,LaserInteractionEkinMaxZPosMin
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 #if !(USE_HDG)
-USE MOD_PML_Vars              ,ONLY: DoPML,xyzPhysicalMinMax
+USE MOD_PML_Vars              ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
+USE MOD_Dielectric_Vars       ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1022,7 +1028,7 @@ REAL,INTENT(OUT)                :: Ekin(nSpecAnalyze)
 REAL,INTENT(OUT)                :: EkinMax(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i
+INTEGER                         :: i,ElemID
 REAL(KIND=8)                    :: partV2, GammaFac
 REAL                            :: Ekin_loc
 !===================================================================================================================================
@@ -1033,15 +1039,17 @@ EkinMax = -1.
 IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
+      ElemID = PEM%LocalElemID(i)
 #if !(USE_HDG)
       IF(DoPML)THEN
-        IF (PartState(1,i) .GE. xyzPhysicalMinMax(1) .AND. PartState(1,i) .LE. xyzPhysicalMinMax(2) .AND. &
-            PartState(2,i) .GE. xyzPhysicalMinMax(3) .AND. PartState(2,i) .LE. xyzPhysicalMinMax(4) .AND. &
-            PartState(3,i) .GE. xyzPhysicalMinMax(5) .AND. PartState(3,i) .LE. xyzPhysicalMinMax(6)) THEN
-          CYCLE
-        END IF
+        IF(isPMLElem(ElemID)) CYCLE
       ENDIF
 #endif /*USE_HDG*/
+      IF(DoDielectric)THEN
+        IF(DielectricNoParticles)THEN
+          IF(isDielectricElem(ElemID)) CYCLE
+        END IF ! DielectricNoParticles
+      ENDIF
       partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
@@ -1076,15 +1084,17 @@ IF (nSpecAnalyze.GT.1) THEN
 ELSE ! nSpecAnalyze = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
+      ElemID = PEM%LocalElemID(i)
 #if !(USE_HDG)
       IF(DoPML)THEN
-        IF (PartState(1,i) .GE. xyzPhysicalMinMax(1) .AND. PartState(1,i) .LE. xyzPhysicalMinMax(2) .AND. &
-            PartState(2,i) .GE. xyzPhysicalMinMax(3) .AND. PartState(2,i) .LE. xyzPhysicalMinMax(4) .AND. &
-            PartState(3,i) .GE. xyzPhysicalMinMax(5) .AND. PartState(3,i) .LE. xyzPhysicalMinMax(6)) THEN
-          CYCLE
-        END IF
+        IF(isPMLElem(ElemID)) CYCLE
       ENDIF
 #endif /*USE_HDG*/
+      IF(DoDielectric)THEN
+        IF(DielectricNoParticles)THEN
+          IF(isDielectricElem(ElemID)) CYCLE
+        END IF ! DielectricNoParticles
+      ENDIF
       partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. RelativisticLimit) THEN ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
