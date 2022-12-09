@@ -245,7 +245,7 @@ IMPLICIT NONE
 
 SDEALLOCATE(SpecBGK)
 SDEALLOCATE(BGK_QualityFacSamp)
-CALL DeleteElemNodeAverage()
+IF(BGKMovingAverage) CALL DeleteElemNodeAverage()
 
 END SUBROUTINE FinalizeBGK
 
