@@ -1248,9 +1248,11 @@ SELECT CASE(Mode)
 CASE(1) ! Macroscopic restart (data for each element)
   v       = MacroRestartValues(iElem,iSpec,1:3)
   T       = MacroRestartValues(iElem,iSpec,4:6)
-  iSpecAD = DSMC%AmbiDiffElecSpec
-  vAD     = MacroRestartValues(iElem,iSpecAD,1:3)
-  TAD     = MacroRestartValues(iElem,iSpecAD,4:6)
+  IF(DSMC%DoAmbipolarDiff)THEN
+    iSpecAD = DSMC%AmbiDiffElecSpec
+    vAD     = MacroRestartValues(iElem,iSpecAD,1:3)
+    TAD     = MacroRestartValues(iElem,iSpecAD,4:6)
+  END IF ! DSMC%DoAmbipolarDiff
   Tvib    = MacroRestartValues(iElem,iSpec,DSMC_TVIB)
   Trot    = MacroRestartValues(iElem,iSpec,DSMC_TROT)
   Telec   = MacroRestartValues(iElem,iSpec,DSMC_TELEC)
