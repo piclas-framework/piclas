@@ -51,26 +51,23 @@ IMPLICIT NONE
 CALL prms%SetSection("Dielectric Region")
 
 CALL prms%CreateLogicalOption(  'DoDielectric'                 , 'Use dielectric regions with EpsR and MuR' , '.FALSE.')
-CALL prms%CreateLogicalOption(  'DielectricFluxNonConserving'  , 'Use non-conservative fluxes at dielectric interfaces between a'&
-                                                               //'dielectric region and vacuum' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'DielectricFluxNonConserving'  , 'Use non-conservative fluxes at dielectric interfaces between a dielectric region and vacuum' , '.FALSE.')
 CALL prms%CreateRealOption(     'DielectricEpsR'               , 'Relative permittivity' , '1.')
 CALL prms%CreateRealOption(     'DielectricMuR'                , 'Relative permeability' , '1.')
 CALL prms%CreateLogicalOption(  'DielectricNoParticles'        , 'Do not insert/emit particles into dielectric regions' , '.TRUE.')
 CALL prms%CreateStringOption(   'DielectricTestCase'           , 'Specific test cases: "FishEyeLens", "FH_lens", "Circle", "HollowCircle"' , 'default')
 CALL prms%CreateRealOption(     'DielectricRmax'               , 'Radius parameter for functions' , '1.')
-CALL prms%CreateLogicalOption(  'DielectricCheckRadius'        , 'Use additional parameter "DielectricRadiusValue" for checking'&
-                                                               //' if a DOF is within a dielectric region' ,'.FALSE.')
-CALL prms%CreateRealOption(     'DielectricRadiusValue'        , 'Additional parameter radius for checking if a DOF is'&
-                                                               //' within a dielectric region' , '-1.')
-CALL prms%CreateIntOption(     'DielectricAxis'               , 'Additional parameter spatial direction (cylinder) if a DOF is'&
-                                                               //' within a dielectric region (Default = z-axis)' , '3')
-CALL prms%CreateRealOption(     'DielectricRadiusValueB'        , '2nd radius for cutting out circular areas'&
-                                                               //' within a dielectric region' , '-1.')
-CALL prms%CreateRealArrayOption('xyzPhysicalMinMaxDielectric'  , '[xmin, xmax, ymin, ymax, zmin, zmax] vector for defining a '&
-    //'dielectric region by giving the bounding box coordinates of the PHYSICAL region', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
-CALL prms%CreateRealArrayOption('xyzDielectricMinMax'          , '[xmin, xmax, ymin, ymax, zmin, zmax] vector for defining a '&
-    //'dielectric region by giving the bounding box coordinates of the DIELECTRIC region', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
+CALL prms%CreateLogicalOption(  'DielectricCheckRadius'        , 'Use additional parameter "DielectricRadiusValue" for checking if a DOF is within a dielectric region' ,'.FALSE.')
+CALL prms%CreateRealOption(     'DielectricRadiusValue'        , 'Additional parameter radius for checking if a DOF is within a dielectric region' , '-1.')
+CALL prms%CreateIntOption(      'DielectricAxis'               , 'Additional parameter spatial direction (cylinder) if a DOF is within a dielectric region (Default = z-axis)' , '3')
+CALL prms%CreateRealOption(     'DielectricRadiusValueB'       , '2nd radius for cutting out circular areas within a dielectric region' , '-1.')
+CALL prms%CreateRealArrayOption('xyzPhysicalMinMaxDielectric'  , '[xmin, xmax, ymin, ymax, zmin, zmax] vector for defining a dielectric region by giving the bounding box coordinates of the PHYSICAL region', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
+CALL prms%CreateRealArrayOption('xyzDielectricMinMax'          , '[xmin, xmax, ymin, ymax, zmin, zmax] vector for defining a dielectric region by giving the bounding box coordinates of the DIELECTRIC region', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
 CALL prms%CreateRealOption(     'Dielectric_E_0'               , 'Electric field strength parameter for functions' , '1.')
+CALL prms%CreateIntOption(      'DielectricNbrOfZones'         , 'Number of zones (from hopr) when defining the dielectric elements via zones' , '0')
+CALL prms%CreateIntArrayOption( 'DielectricZoneID'             , 'ID for each dielectric zone (only when zones are used for defining the dielectric elements)', no=0)
+CALL prms%CreateRealArrayOption('DielectricZoneEpsR'           , 'EpsR for each zone (only when zones are used for defining the dielectric elements)', no=0)
+CALL prms%CreateRealArrayOption('DielectricZoneMuR'            , 'MuR for each zone (only when zones are used for defining the dielectric elements)', no=0)
 
 END SUBROUTINE DefineParametersDielectric
 
@@ -86,6 +83,7 @@ USE MOD_Dielectric_Vars
 USE MOD_HDF5_Output_Fields,ONLY: WriteDielectricGlobalToHDF5
 USE MOD_Globals_Vars      ,ONLY: c
 USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
+USE MOD_Mesh_Vars         ,ONLY: nElems,ElemInfo,offsetElem
 #if ! (USE_HDG)
 USE MOD_Equation_Vars     ,ONLY: c_corr
 #endif /*if not USE_HDG*/
@@ -100,6 +98,7 @@ USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER           :: iElem,iZone
 !===================================================================================================================================
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT Dielectric...'
@@ -119,9 +118,7 @@ DielectricMuR                    = GETREAL('DielectricMuR')
 DielectricTestCase               = GETSTR('DielectricTestCase')
 DielectricRmax                   = GETREAL('DielectricRmax')
 IF((DielectricEpsR.LE.0.0).OR.(DielectricMuR.LE.0.0))THEN
-  CALL abort(&
-  __STAMP__&
-  ,'Dielectric: MuR or EpsR cannot be negative or zero.')
+  CALL abort(__STAMP__,'Dielectric: MuR or EpsR cannot be negative or zero.')
 END IF
 DielectricEpsR_inv               = 1./(DielectricEpsR)                   ! 1./EpsR
 !DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)    ! 1./(EpsR*MuR)
@@ -137,47 +134,81 @@ DielectricCircleAxis             = GETINT('DielectricAxis')
 IF(DielectricRadiusValue.LE.0.0) DielectricCheckRadius=.FALSE.
 DielectricRadiusValueB           = GETREAL('DielectricRadiusValueB')
 ! determine Dielectric elements
+useDielectricMinMax = .FALSE. ! default
 xyzPhysicalMinMaxDielectric(1:6) = GETREALARRAY('xyzPhysicalMinMaxDielectric',6)
 xyzDielectricMinMax(1:6)         = GETREALARRAY('xyzDielectricMinMax',6)
-! use xyzPhysicalMinMaxDielectric before xyzDielectricMinMax:
-! 1.) check for xyzPhysicalMinMaxDielectric
-! 2.) check for xyzDielectricMinMax
-CALL SelectMinMaxRegion('Dielectric',useDielectricMinMax,&
-                        'xyzPhysicalMinMaxDielectric',xyzPhysicalMinMaxDielectric,&
-                        'xyzDielectricMinMax',xyzDielectricMinMax)
 
-! display ranges of Dielectric region depending on useDielectricMinMax
-!CALL DisplayRanges('useDielectricMinMax',useDielectricMinMax,&
-                   !'xyzDielectricMinMax',xyzDielectricMinMax(1:6),&
-           !'xyzPhysicalMinMaxDielectric',xyzPhysicalMinMaxDielectric(1:6))
+! Use ZONES (from hopr)
+DielectricNbrOfZones = GETINT('DielectricNbrOfZones')
 
-! find all elements in the Dielectric region
-IF(useDielectricMinMax)THEN ! find all elements located inside of 'xyzMinMax'
-  CALL FindElementInRegion(isDielectricElem,xyzDielectricMinMax,&
-                           ElementIsInside=.TRUE.,&
-                           DoRadius=DielectricCheckRadius,Radius=DielectricRadiusValue,&
-                           DisplayInfo=.TRUE.,&
-                           GeometryName=DielectricTestCase,&
-                           GeometryAxis=DielectricCircleAxis)
-ELSE ! find all elements located outside of 'xyzPhysicalMinMaxDielectric'
-  CALL FindElementInRegion(isDielectricElem,xyzPhysicalMinMaxDielectric,&
-                           ElementIsInside=.FALSE.,&
-                           DoRadius=DielectricCheckRadius,Radius=DielectricRadiusValue,&
-                           DisplayInfo=.TRUE.,&
-                           GeometryName=DielectricTestCase,&
-                           GeometryAxis=DielectricCircleAxis)
-END IF
+! Check whether to use a user-defined region (physical or dielectric) OR set the dielectric values by ZONES
+IF(DielectricNbrOfZones.GT.0)THEN
+  ALLOCATE(DielectricZoneID(1:DielectricNbrOfZones))
+  ALLOCATE(DielectricZoneEpsR(1:DielectricNbrOfZones))
+  ALLOCATE(DielectricZoneMuR(1:DielectricNbrOfZones))
+
+  DielectricZoneID   = GETINTARRAY( 'DielectricZoneID'   , DielectricNbrOfZones)
+  DielectricZoneEpsR = GETREALARRAY('DielectricZoneEpsR' , DielectricNbrOfZones)
+  DielectricZoneMuR  = GETREALARRAY('DielectricZoneMuR'  , DielectricNbrOfZones)
+
+  ! Set true/false flag for each element
+  ALLOCATE(isDielectricElem(1:PP_nElems))
+  isDielectricElem = .FALSE.
+
+  DO iELem = 1, nElems
+    DO iZone = 1, DielectricNbrOfZones
+      IF(ElemInfo(ELEM_ZONE,offsetElem+iElem).EQ.DielectricZoneID(iZone))THEN
+        isDielectricElem(iElem) = .TRUE.
+      END IF ! ElemInfo(ELEM_ZONE,offsetElem+iElem).EQ.DielectricZoneID(iZone)
+    END DO ! iZone = 1, DielectricNbrOfZones
+  END DO ! iELem = 1, nElems
+
+
+ELSE
+  ! use xyzPhysicalMinMaxDielectric before xyzDielectricMinMax:
+  ! 1.) check for xyzPhysicalMinMaxDielectric
+  ! 2.) check for xyzDielectricMinMax
+  CALL SelectMinMaxRegion('Dielectric'                  , useDielectricMinMax         , &
+                          'xyzPhysicalMinMaxDielectric' , xyzPhysicalMinMaxDielectric , &
+                          'xyzDielectricMinMax'         , xyzDielectricMinMax)
+
+  ! display ranges of Dielectric region depending on useDielectricMinMax
+  !CALL DisplayRanges('useDielectricMinMax',useDielectricMinMax,&
+                     !'xyzDielectricMinMax',xyzDielectricMinMax(1:6),&
+             !'xyzPhysicalMinMaxDielectric',xyzPhysicalMinMaxDielectric(1:6))
+
+  ! find all elements in the Dielectric region
+  IF(useDielectricMinMax)THEN ! find all elements located inside of 'xyzMinMax'
+    CALL FindElementInRegion(isDielectricElem, xyzDielectricMinMax,&
+                             ElementIsInside = .TRUE.,&
+                             DoRadius        = DielectricCheckRadius,&
+                             Radius          = DielectricRadiusValue,&
+                             DisplayInfo     = .TRUE.,&
+                             GeometryName    = DielectricTestCase,&
+                             GeometryAxis    = DielectricCircleAxis)
+  ELSE ! find all elements located outside of 'xyzPhysicalMinMaxDielectric'
+    CALL FindElementInRegion(isDielectricElem, xyzPhysicalMinMaxDielectric,&
+                             ElementIsInside = .FALSE.,&
+                             DoRadius        = DielectricCheckRadius,&
+                             Radius          = DielectricRadiusValue,&
+                             DisplayInfo     = .TRUE.,&
+                             GeometryName    = DielectricTestCase,&
+                             GeometryAxis    = DielectricCircleAxis)
+  END IF
+END IF ! DielectricNbrOfZones.GT.0
+
+
 
 ! find all faces in the Dielectric region
 CALL FindInterfacesInRegion(isDielectricFace,isDielectricInterFace,isDielectricElem,info_opt='find all faces in the Dielectric region')
 
 ! Get number of Dielectric Elems, Faces and Interfaces. Create Mappngs Dielectric <-> physical region
 CALL CountAndCreateMappings('Dielectric',&
-                            isDielectricElem,isDielectricFace,isDielectricInterFace,&
-                            nDielectricElems,nDielectricFaces, nDielectricInterFaces,&
-                            ElemToDielectric,DielectricToElem,& ! these two are allocated
-                            FaceToDielectric,DielectricToFace,& ! these two are allocated
-                            FaceToDielectricInter,DielectricInterToFace,& ! these two are allocated
+                            isDielectricElem      , isDielectricFace      , isDielectricInterFace       , &
+                            nDielectricElems      , nDielectricFaces      , nDielectricInterFaces       , &
+                            ElemToDielectric      , DielectricToElem      , & ! these two are allocated
+                            FaceToDielectric      , DielectricToFace      , & ! these two are allocated
+                            FaceToDielectricInter , DielectricInterToFace , & ! these two are allocated
                             DisplayInfo=.TRUE.)
 
 ! Set the dielectric profile function EpsR,MuR=f(x,y,z) in the Dielectric region: only for Maxwell + HDG
@@ -220,8 +251,8 @@ SUBROUTINE SetDielectricVolumeProfile()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars,            ONLY: N_VolMesh
-USE MOD_Dielectric_Vars,      ONLY: DielectricVol
+USE MOD_Mesh_Vars,            ONLY: N_VolMesh,ElemInfo,offsetElem
+USE MOD_Dielectric_Vars,      ONLY: DielectricVol,DielectricNbrOfZones,DielectricZoneID,DielectricZoneEpsR,DielectricZoneMuR
 USE MOD_Dielectric_Vars,      ONLY: nDielectricElems,DielectricToElem
 USE MOD_Dielectric_Vars,      ONLY: DielectricRmax,DielectricEpsR,DielectricMuR,DielectricTestCase
 USE MOD_DG_Vars,              ONLY: N_DG
@@ -233,7 +264,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: i,j,k,iDielectricElem,Nloc,iElem
+INTEGER             :: i,j,k,iDielectricElem,Nloc,iElem,iZone
 REAL                :: r
 !===================================================================================================================================
 ! Check if there are dielectric elements
@@ -249,31 +280,50 @@ DO iDielectricElem = 1, nDielectricElems
   ALLOCATE(DielectricVol(iDielectricElem)%DielectricConstant_inv(0:Nloc,0:Nloc,0:Nloc))
 END DO ! iDielectricElem = 1, nDielectricElems
 
-! Fish eye lens: half sphere filled with gradually changing dielectric medium
-IF(TRIM(DielectricTestCase).EQ.'FishEyeLens')THEN
-  ! use function with radial dependence: EpsR=n0^2 / (1 + (r/r_max)^2)^2
-  DO iDielectricElem=1,nDielectricElems
-    iElem = DielectricToElem(iDielectricElem)
-    Nloc  = N_DG(iElem)
-    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-      r = SQRT(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)**2+&
-               N_VolMesh(iElem)%Elem_xGP(2,i,j,k)**2+&
-               N_VolMesh(iElem)%Elem_xGP(3,i,j,k)**2  )
-      DielectricVol(iDielectricElem)%DielectricEps(i,j,k) = 4./((1+(r/DielectricRmax)**2)**2)
-    END DO; END DO; END DO
-    DielectricVol(iDielectricElem)%DielectricMu(0:Nloc,0:Nloc,0:Nloc) = DielectricMuR
-  END DO !iDielectricElem,k,j,i
+! Check whether to use  dielectric values by ZONES or not
+IF(DielectricNbrOfZones.GT.0)THEN
 
-ELSE ! simply set values const.
-  DO iDielectricElem=1,nDielectricElems
-    iElem = DielectricToElem(iDielectricElem)
-    Nloc  = N_DG(iElem)
-    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-      DielectricVol(iDielectricElem)%DielectricEps(i,j,k) = DielectricEpsR
-      DielectricVol(iDielectricElem)%DielectricMu( i,j,k) = DielectricMuR
-    END DO; END DO; END DO
-  END DO !iDielectricElem
-END IF
+  ! Loop over all dielectric elements
+  DO iDielectricElem = 1, nDielectricElems
+    ! Loop over all dielectric zones
+    DO iZone = 1, DielectricNbrOfZones
+    ! Check to which zone the element belongs
+      IF(ElemInfo(ELEM_ZONE,offsetElem+DielectricToElem(iDielectricElem)).EQ.DielectricZoneID(iZone))THEN
+        DielectricVol(iDielectricElem)%DielectricEps(:,:,:) = DielectricZoneEpsR(iZone)
+        DielectricVol(iDielectricElem)%DielectricMu( :,:,:) = DielectricZoneMuR(iZone)
+      END IF ! ElemInfo(ELEM_ZONE,offsetElem+DielectricToElem(iDielectricElem)).EQ.DielectricZoneID(iZone)
+    END DO ! iZone = 1, DielectricNbrOfZones
+  END DO ! iDielectricElem = 1, nDielectricElems
+
+ELSE
+
+  ! Fish eye lens: half sphere filled with gradually changing dielectric medium
+  IF(TRIM(DielectricTestCase).EQ.'FishEyeLens')THEN
+    ! use function with radial dependence: EpsR=n0^2 / (1 + (r/r_max)^2)^2
+    DO iDielectricElem=1,nDielectricElems
+      iElem = DielectricToElem(iDielectricElem)
+      Nloc  = N_DG(iElem)
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+        r = SQRT(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)**2+&
+                 N_VolMesh(iElem)%Elem_xGP(2,i,j,k)**2+&
+                 N_VolMesh(iElem)%Elem_xGP(3,i,j,k)**2  )
+        DielectricVol(iDielectricElem)%DielectricEps(i,j,k) = 4./((1+(r/DielectricRmax)**2)**2)
+      END DO; END DO; END DO
+      DielectricVol(iDielectricElem)%DielectricMu(0:Nloc,0:Nloc,0:Nloc) = DielectricMuR
+    END DO !iDielectricElem,k,j,i
+
+  ELSE ! simply set values const.
+    DO iDielectricElem=1,nDielectricElems
+      iElem = DielectricToElem(iDielectricElem)
+      Nloc  = N_DG(iElem)
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+        DielectricVol(iDielectricElem)%DielectricEps(i,j,k) = DielectricEpsR
+        DielectricVol(iDielectricElem)%DielectricMu( i,j,k) = DielectricMuR
+      END DO; END DO; END DO
+    END DO !iDielectricElem
+  END IF
+
+END IF ! DielectricNbrOfZones.GT.0
 
 ! invert the product of EpsR and MuR
 DO iDielectricElem=1,nDielectricElems
@@ -548,11 +598,7 @@ SUBROUTINE FinalizeDielectric()
 !
 !===================================================================================================================================
 ! MODULES
-USE MOD_Dielectric_Vars,            ONLY: DoDielectric
-USE MOD_Dielectric_Vars,            ONLY: ElemToDielectric,DielectricToElem,isDielectricElem
-USE MOD_Dielectric_Vars,            ONLY: FaceToDielectric,DielectricToFace,isDielectricFace
-USE MOD_Dielectric_Vars,            ONLY: FaceToDielectricInter,DielectricInterToFace,isDielectricInterFace
-USE MOD_Dielectric_Vars,            ONLY: DielectricVol, DielectricSurf
+USE MOD_Dielectric_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -575,6 +621,9 @@ SDEALLOCATE(FaceToDielectric)
 SDEALLOCATE(isDielectricElem)
 SDEALLOCATE(isDielectricFace)
 SDEALLOCATE(isDielectricInterFace)
+SDEALLOCATE(DielectricZoneID)
+SDEALLOCATE(DielectricZoneEpsR)
+SDEALLOCATE(DielectricZoneMuR)
 END SUBROUTINE FinalizeDielectric
 
 

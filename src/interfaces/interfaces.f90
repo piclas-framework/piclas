@@ -74,7 +74,8 @@ SUBROUTINE InitInterfaces
 !>   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC_NC = 6 ! for non-conservative fluxes (two fluxes)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars        ,ONLY: nSides
+USE MOD_globals
+USE MOD_Mesh_Vars        ,ONLY: nSides,N_SurfMesh,NGeo,MortarType
 #if ! (USE_HDG)
 USE MOD_PML_vars         ,ONLY: DoPML,isPMLFace
 #endif /*NOT HDG*/
@@ -102,15 +103,12 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT INTERFACES...'
 ALLOCATE(InterfaceRiemann(1:nSides))
 DO SideID=1,nSides
-  InterfaceRiemann(SideID)=-1 ! set default to invalid number: check later
+  InterfaceRiemann(SideID)=-2 ! set default to invalid number: check later
   ! 0.) Sanity: It is forbidden to connect a PML to a dielectric region because it is not implemented!
 #if !(USE_HDG) /*pure Maxwell simulations*/
   IF(DoPML.AND.DoDielectric)THEN
-    IF(isPMLFace(SideID).AND.isDielectricFace(SideID))THEN
-      CALL abort(&
-      __STAMP__&
-      ,'It is forbidden to connect a PML to a dielectric region! (Not implemented)')
-    END IF
+    IF(isPMLFace(SideID).AND.isDielectricFace(SideID)) CALL abort(__STAMP__,&
+        'It is forbidden to connect a PML to a dielectric region! (Not implemented)')
   END IF
 
   ! 1.) Check Perfectly Matched Layer
@@ -135,7 +133,11 @@ DO SideID=1,nSides
       IF(isDielectricInterFace(SideID))THEN
         ! a) physical <-> dielectric region: for Riemann solver, select A+ and A- as functions of f(Eps0,Mu0) or f(EpsR,MuR)
         ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
-        IF(ElemID.EQ.-1) CYCLE ! skip
+        IF(MortarType(1,SideID).GE.0) CALL abort(__STAMP__,'Mortars not fully implemented for dielectric <-> vacuum interfaces')
+        IF(ElemID.EQ.-1) THEN
+          InterfaceRiemann(SideID)=-1
+          CYCLE ! skip
+        END IF
         IF(isDielectricElem(ElemID))THEN
           ! a1) master is DIELECTRIC and slave PHYSICAL
           IF(DielectricFluxNonConserving)THEN ! use one flux (conserving) or two fluxes (non-conserving) at the interface
@@ -163,11 +165,25 @@ DO SideID=1,nSides
     ! d) no Dielectric, standard flux
     InterfaceRiemann(SideID)=RIEMANN_VACUUM
   END IF ! DoDielectric
+END DO ! SideID
 
-  IF(InterfaceRiemann(SideID).EQ.-1)THEN ! check if the default value remains unchanged
-    CALL abort(&
-    __STAMP__&
-    ,'Interface for Riemann solver not correctly determined (vacuum, dielectric, PML ...)')
+
+! Check if all sides have correctly been set
+DO SideID=1,nSides
+  IF(InterfaceRiemann(SideID).EQ.-2)THEN ! check if the default value remains unchanged
+#if !(USE_HDG) /*pure Maxwell simulations*/
+    IPWRITE(UNIT_StdOut,*) "DoPML                          = ", DoPML
+#endif /*NOT HDG*/
+    IPWRITE(UNIT_StdOut,*) "DoDielectric                   = ", DoDielectric
+    IPWRITE(UNIT_StdOut,*) "SideID                         = ", SideID
+    IPWRITE(UNIT_StdOut,*) "MortarType(1,SideID)           = ", MortarType(1,SideID)
+    IPWRITE(UNIT_StdOut,*) "InterfaceRiemann(SideID)       = ", InterfaceRiemann(SideID)
+    IPWRITE(UNIT_StdOut,*) "SideToElem(S2E_ELEM_ID,SideID) = ", SideToElem(S2E_ELEM_ID,SideID)
+    IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , 0    , 0) = "   , N_SurfMesh(SideID)%Face_xGP(1:3 , 0    , 0   )
+    IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , 0    , NGeo) =" , N_SurfMesh(SideID)%Face_xGP(1:3 , 0    , NGeo)
+    IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , NGeo , 0   ) =" , N_SurfMesh(SideID)%Face_xGP(1:3 , NGeo , 0   )
+    IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , NGeo , NGeo) =" , N_SurfMesh(SideID)%Face_xGP(1:3 , NGeo , NGeo)
+    CALL abort(__STAMP__,'Interface for Riemann solver not correctly determined (vacuum, dielectric, PML)')
   END IF
 END DO ! SideID
 

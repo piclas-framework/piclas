@@ -99,7 +99,10 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !==================================================================================================================================
-CALL prms%SetSection         ("MPI Shared")
+CALL prms%SetSection(     'MPI Shared')
+#if ! (CORE_SPLIT==0)
+CALL prms%CreateIntOption('NbrOfPhysicalNodes' , 'Number of physical nodes (as opposed to virtual nodes). Required for RAM monitoring when using more than one virtual compute node per physical node.', '-1')
+#endif /*! (CORE_SPLIT==0)*/
 
 END SUBROUTINE DefineParametersMPIShared
 
@@ -112,6 +115,9 @@ SUBROUTINE InitMPIShared()
 USE MOD_Globals
 USE MOD_MPI_Vars
 USE MOD_MPI_Shared_Vars
+#if ! (CORE_SPLIT==0)
+USE MOD_Readintools     ,ONLY: GETINT
+#endif /*! (CORE_SPLIT==0)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -125,6 +131,15 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT MPI SHARED COMMUNICATION ...'
 
 ! Save the global number of procs
 nProcessors_Global = nProcessors
+
+MemoryMonitor = .TRUE.
+#if ! (CORE_SPLIT==0)
+! When core-level splitting is used, it is not clear how many cores are on the same physical compute node.
+#if USE_MPI
+NbrOfPhysicalNodes =  GETINT('NbrOfPhysicalNodes')
+IF(NbrOfPhysicalNodes.LE.0) MemoryMonitor = .FALSE.
+#endif /*USE_MPI*/
+#endif /*! (CORE_SPLIT==0)*/
 
 ! Split the node communicator (shared memory) from the global communicator on physical processor or node level
 #if (CORE_SPLIT==1)

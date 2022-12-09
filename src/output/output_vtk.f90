@@ -176,7 +176,9 @@ REAL,ALLOCATABLE            :: buf(:,:,:,:), buf2(:,:,:,:,:)
 #endif /*USE_MPI*/
 INTEGER                     :: DGFV_loc
 LOGICAL                     :: nValAtLastDimension_loc
+REAL                        :: StartT,EndT ! Timer
 !===================================================================================================================================
+GETTIME(StartT)
 DGFV_loc = MERGE(DGFV, 0, PRESENT(DGFV))
 nValAtLastDimension_loc = MERGE(nValAtLastDimension, .FALSE., PRESENT(nValAtLastDimension))
 IF (dim.EQ.3) THEN
@@ -192,8 +194,7 @@ ELSE IF (dim.EQ.1) THEN
   NVisu_j = 0
   PointsPerVTKCell = 2
 ELSE
-  CALL Abort(__STAMP__, &
-      "Only 2D and 3D connectivity can be created. dim must be 1, 2 or 3.")
+  CALL Abort(__STAMP__,"Only 2D and 3D connectivity can be created. dim must be 1, 2 or 3.")
 END IF
 
 SWRITE(UNIT_stdOut,'(A,I1,A)',ADVANCE='NO')"   WRITE ",dim,"D DATA TO VTX XML BINARY (VTU) FILE "
@@ -374,7 +375,8 @@ IF(MPIROOT)THEN
   Buffer='</VTKFile>'//lf;WRITE(ivtk) TRIM(Buffer)
   CLOSE(ivtk)
 ENDIF
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES')"DONE"
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, ' DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteDataToVTK
 
 !===================================================================================================================================

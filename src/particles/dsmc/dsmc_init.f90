@@ -718,12 +718,17 @@ ELSE !CollisMode.GT.0
         DO iInit = 1, Species(iSpec)%NumberOfInits
           WRITE(UNIT=hilf2,FMT='(I0)') iInit
           hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
-          IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+          IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
+            SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib','300.0')
+            SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','300.0')
+          ELSEIF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
             SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib')
             SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot')
           END IF
           ! read electronic temperature
-          IF (DSMC%ElectronicModel.GT.0) THEN
+          IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
+            SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','300.0')
+          ELSEIF (DSMC%ElectronicModel.GT.0) THEN
             SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec')
           END IF ! electronic model
         END DO !Inits
@@ -1446,8 +1451,6 @@ SDEALLOCATE(CollInf%alphaVSS)
 SDEALLOCATE(CollInf%omega)
 SDEALLOCATE(CollInf%dref)
 SDEALLOCATE(CollInf%Tref)
-!SDEALLOCATE(SampWall)
-SDEALLOCATE(MacroSurfaceVal)
 !SDEALLOCATE(VibQuantsPar)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)
@@ -1509,47 +1512,25 @@ RECURSIVE SUBROUTINE DeleteNodeVolume(Node)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_DSMC_Vars
+USE MOD_Particle_Vars         ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
-TYPE (tNodeVolume), INTENT(IN), POINTER  :: Node
+TYPE (tNodeVolume), INTENT(INOUT)  :: Node
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER     ::  iLoop, nLoop
 !===================================================================================================================================
-IF(ASSOCIATED(Node%SubNode1)) THEN
-  CALL DeleteNodeVolume(Node%SubNode1)
-  DEALLOCATE(Node%SubNode1)
+nLoop = 2**Symmetry%Order
+IF(ASSOCIATED(Node%SubNode)) THEN 
+  DO iLoop = 1, nLoop
+    CALL DeleteNodeVolume(Node%SubNode(iLoop))
+  END DO
+  DEALLOCATE(Node%SubNode)
 END IF
-IF(ASSOCIATED(Node%SubNode2)) THEN
-  CALL DeleteNodeVolume(Node%SubNode2)
-  DEALLOCATE(Node%SubNode2)
-END IF
-IF(ASSOCIATED(Node%SubNode3)) THEN
-  CALL DeleteNodeVolume(Node%SubNode3)
-  DEALLOCATE(Node%SubNode3)
-END IF
-IF(ASSOCIATED(Node%SubNode4)) THEN
-  CALL DeleteNodeVolume(Node%SubNode4)
-  DEALLOCATE(Node%SubNode4)
-END IF
-IF(ASSOCIATED(Node%SubNode5)) THEN
-  CALL DeleteNodeVolume(Node%SubNode5)
-  DEALLOCATE(Node%SubNode5)
-END IF
-IF(ASSOCIATED(Node%SubNode6)) THEN
-  CALL DeleteNodeVolume(Node%SubNode6)
-  DEALLOCATE(Node%SubNode6)
-END IF
-IF(ASSOCIATED(Node%SubNode7)) THEN
-  CALL DeleteNodeVolume(Node%SubNode7)
-  DEALLOCATE(Node%SubNode7)
-END IF
-IF(ASSOCIATED(Node%SubNode8)) THEN
-  CALL DeleteNodeVolume(Node%SubNode8)
-  DEALLOCATE(Node%SubNode8)
-END IF
+
 END SUBROUTINE DeleteNodeVolume
 
 

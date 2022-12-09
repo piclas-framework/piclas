@@ -27,266 +27,12 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
-PUBLIC :: CalcTVib, CalcSurfaceValues, CalcGammaVib
+PUBLIC :: CalcTVib, CalcGammaVib
 PUBLIC :: CalcInstantTransTemp, SummarizeQualityFactors, DSMCMacroSampling
 PUBLIC :: SamplingRotVibRelaxProb, CalcInstantElecTempXi
 !===================================================================================================================================
 
 CONTAINS
-
-SUBROUTINE CalcSurfaceValues(during_dt_opt)
-!===================================================================================================================================
-!> Calculates macroscopic surface values from samples
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars               ,ONLY: StefanBoltzmannConst
-USE MOD_DSMC_Vars                  ,ONLY: MacroSurfaceVal,DSMC,MacroSurfaceSpecVal
-USE MOD_Mesh_Vars                  ,ONLY: MeshFile
-USE MOD_Particle_Boundary_Sampling ,ONLY: WriteSurfSampleToHDF5
-USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOnNode
-USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
-USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide, PartBound
-USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfOutputSides, BoundaryWallTemp
-USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared, AdaptWallTemp
-USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry
-USE MOD_Restart_Vars               ,ONLY: RestartTime
-USE MOD_TimeDisc_Vars              ,ONLY: TEnd
-USE MOD_Timedisc_Vars              ,ONLY: time,dt
-#if USE_MPI
-USE MOD_MPI_Shared                 ,ONLY: BARRIER_AND_SYNC
-USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
-USE MOD_Particle_Boundary_Vars     ,ONLY: SampWallPumpCapacity_Shared
-USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState_Shared,SampWallImpactNumber_Shared,SampWallImpactEnergy_Shared
-USE MOD_Particle_Boundary_vars     ,ONLY: SampWallImpactVector_Shared,SampWallImpactAngle_Shared
-USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea_Shared
-USE MOD_Particle_MPI_Boundary_Sampling,ONLY: ExchangeSurfData
-USE MOD_Particle_Boundary_Vars    ,ONLY: BoundaryWallTemp_Shared_Win
-#else
-USE MOD_Particle_Boundary_Vars     ,ONLY: SampWallPumpCapacity
-USE MOD_Particle_Boundary_vars     ,ONLY: SampWallState,SampWallImpactNumber,SampWallImpactEnergy
-USE MOD_Particle_Boundary_vars     ,ONLY: SampWallImpactVector,SampWallImpactAngle
-USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea
-#endif
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during timestep (i.e. before iter=iter+1, time=time+dt...)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                            :: iSpec,iSurfSide,p,q, nVar, nVarSpec, iPBC, nVarCount, OutputCounter
-REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum, nImpacts, IterNum
-LOGICAL                            :: during_dt
-INTEGER                            :: idx, GlobalSideID, SurfSideNb, iBC
-!===================================================================================================================================
-
-IF (PRESENT(during_dt_opt)) THEN
-  during_dt=during_dt_opt
-ELSE
-  during_dt=.FALSE.
-END IF
-IF (during_dt) THEN
-  ActualTime=time+dt
-ELSE
-  ActualTime=time
-END IF
-
-! Determine the sampling time for the calculation of fluxes
-IF (WriteMacroSurfaceValues) THEN
-  ! Elapsed time since last sampling (variable dt's possible!)
-  TimeSample = Time - MacroValSampTime
-  MacroValSampTime = Time
-ELSE IF (RestartTime.GT.(1-DSMC%TimeFracSamp)*TEnd) THEN
-  ! Sampling at the end of the simulation: When a restart is performed and the sampling starts immediately, determine the correct sampling time
-  ! (e.g. sampling is set to 20% of tend = 1s, and restart is performed at 0.9s, sample time = 0.1s)
-  TimeSample = Time - RestartTime
-ELSE
-  ! Sampling at the end of the simulation: calculated from the user given input
-  TimeSample = (Time-(1-DSMC%TimeFracSamp)*TEnd)
-END IF
-
-IF(ALMOSTZERO(TimeSample)) RETURN
-
-IF(.NOT.SurfOnNode) RETURN
-
-#if USE_MPI
-CALL ExchangeSurfData()
-
-! Only surface sampling leaders take part in the remainder of this routine
-IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) THEN
-  IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
-    CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
-  END IF
-  RETURN
-END IF
-#endif /*USE_MPI*/
-
-! Determine the number of variables
-nVar = MACROSURF_NVARS
-nVarSpec = 1
-
-! Sampling of impact energy for each species (trans, rot, vib, elec), impact vector (x,y,z), angle, number, and number per second: Add 10 to the buffer length
-IF(CalcSurfaceImpact) nVarSpec = nVarSpec + 10
-
-IF(nPorousBC.GT.0) THEN
-  nVar = nVar + nPorousBC
-END IF
-IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
-  nVar = nVar + 1
-END IF
-! Allocate the output container
-ALLOCATE(MacroSurfaceVal(1:nVar         , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfOutputSides))
-MacroSurfaceVal     = 0.
-ALLOCATE(MacroSurfaceSpecVal(1:nVarSpec , 1:nSurfSample , 1:nSurfSample , nComputeNodeSurfOutputSides , nSpecies))
-MacroSurfaceSpecVal = 0.
-
-#if USE_MPI
-ASSOCIATE(SampWallState        => SampWallState_Shared           ,&
-          SampWallImpactNumber => SampWallImpactNumber_Shared    ,&
-          SampWallImpactEnergy => SampWallImpactEnergy_Shared    ,&
-          SampWallImpactVector => SampWallImpactVector_Shared    ,&
-          SampWallImpactAngle  => SampWallImpactAngle_Shared     ,&
-          SampWallPumpCapacity => SampWallPumpCapacity_Shared    ,&
-          SurfSideArea         => SurfSideArea_Shared)
-#endif
-
-OutputCounter = 0
-! Determine the total number of iterations
-IterNum = REAL(NINT(TimeSample / dt))
-
-DO iSurfSide = 1,nComputeNodeSurfSides
-  !================== INNER BC CHECK
-  GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-  IF(SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID).GT.0) THEN
-    IF(GlobalSideID.LT.SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID)) THEN
-      SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))
-      SampWallState(:,:,:,iSurfSide) = SampWallState(:,:,:,iSurfSide) + SampWallState(:,:,:,SurfSideNb)
-    ELSE
-      CYCLE
-    END IF
-  END IF
-  !================== ROTATIONALLY PERIODIC BC CHECK
-  IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
-
-  OutputCounter = OutputCounter + 1
-
-  DO q = 1,nSurfSample
-    DO p = 1,nSurfSample
-      ! --- Total output (force per area, heat flux, simulation particle impact per iteration)
-      CounterSum = SUM(SampWallState(SAMPWALL_NVARS+1:SAMPWALL_NVARS+nSpecies,p,q,iSurfSide))
-
-      ! Correct the sample time in the case of a cell local time step with the average time step factor for each side
-      IF(VarTimeStep%UseVariableTimeStep .AND. CounterSum.GT.0.0) THEN
-        TimeSampleTemp = TimeSample * SampWallState(SAMPWALL_NVARS+nSpecies+1,p,q,iSurfSide) / CounterSum
-      ELSE
-        TimeSampleTemp = TimeSample
-      END IF
-
-      ! Force per area in x,y,z-direction
-      MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWallState(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q,iSurfSide) &
-                                             / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
-      ! Deleting the y/z-component for 1D/2D/axisymmetric simulations
-      IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,iSurfSide) = 0.
-      ! Heat flux (energy difference per second per area -> W/m2)
-      MacroSurfaceVal(4,p,q,OutputCounter) = (SampWallState(SAMPWALL_ETRANSOLD,p,q,iSurfSide)  &
-                                        + SampWallState(SAMPWALL_EROTOLD  ,p,q,iSurfSide)  &
-                                        + SampWallState(SAMPWALL_EVIBOLD  ,p,q,iSurfSide)  &
-                                        + SampWallState(SAMPWALL_EELECOLD ,p,q,iSurfSide)  &
-                                        - SampWallState(SAMPWALL_ETRANSNEW,p,q,iSurfSide)  &
-                                        - SampWallState(SAMPWALL_EROTNEW  ,p,q,iSurfSide)  &
-                                        - SampWallState(SAMPWALL_EVIBNEW  ,p,q,iSurfSide)  &
-                                        - SampWallState(SAMPWALL_EELECNEW ,p,q,iSurfSide)) &
-                                           / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
-
-      ! Number of simulation particle impacts per iteration
-      MacroSurfaceVal(5,p,q,OutputCounter) = CounterSum / IterNum
-
-      MacroSurfaceVal(6,p,q,OutputCounter) = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
-
-      ! Output of the pump capacity
-      IF(nPorousBC.GT.0) THEN
-        nVarCount = MACROSURF_NVARS
-        DO iPBC=1, nPorousBC
-          IF(MapSurfSideToPorousSide_Shared(iSurfSide).EQ.0) CYCLE
-          IF(PorousBCInfo_Shared(1,MapSurfSideToPorousSide_Shared(iSurfSide)).EQ.iPBC) THEN
-            ! Pump capacity is already in cubic meter per second (diving by the number of iterations)
-            MacroSurfaceVal(nVarCount+iPBC,p,q,OutputCounter) = SampWallPumpCapacity(iSurfSide) / IterNum
-          END IF
-        END DO
-      END IF
-      ! --- Species-specific output
-      DO iSpec=1,nSpecies
-        idx = 1
-        ! Species-specific counter of simulation particle impacts per iteration
-        MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallState(SAMPWALL_NVARS+iSpec,p,q,iSurfSide) / IterNum
-        ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
-        IF(CalcSurfaceImpact)THEN
-          nImpacts = SampWallImpactNumber(iSpec,p,q,iSurfSide)
-          IF(nImpacts.GT.0.)THEN
-            ! Add average impact energy for each species (trans, rot, vib)
-            idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactEnergy(iSpec,1,p,q,iSurfSide) / nImpacts
-            idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactEnergy(iSpec,2,p,q,iSurfSide) / nImpacts
-            idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactEnergy(iSpec,3,p,q,iSurfSide) / nImpacts
-            idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactEnergy(iSpec,4,p,q,iSurfSide) / nImpacts
-
-            ! Add average impact vector (x,y,z) for each species
-            idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactVector(iSpec,1,p,q,iSurfSide) / nImpacts
-            idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactVector(iSpec,2,p,q,iSurfSide) / nImpacts
-            idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactVector(iSpec,3,p,q,iSurfSide) / nImpacts
-
-            ! Add average impact angle for each species
-            idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = SampWallImpactAngle(iSpec,p,q,iSurfSide) / nImpacts
-
-            ! Add number of impacts
-            idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts
-
-            ! Add number of impacts per second
-            idx = idx + 1
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
-          END IF ! nImpacts.GT.0.
-        END IF ! CalcSurfaceImpact
-      END DO ! iSpec=1,nSpecies
-
-      IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
-        IF ((MacroSurfaceVal(4,p,q,OutputCounter).GT.0.0).AND.AdaptWallTemp) THEN
-          iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
-          BoundaryWallTemp(p,q,iSurfSide) = (MacroSurfaceVal(4,p,q,OutputCounter) &
-              /(StefanBoltzmannConst*PartBound%RadiativeEmissivity(iBC)))**(1./4.)
-        END IF
-        MacroSurfaceVal(nVar,p,q,OutputCounter) = BoundaryWallTemp(p,q,iSurfSide)
-      END IF
-
-    END DO ! q=1,nSurfSample
-  END DO ! p=1,nSurfSample
-END DO ! iSurfSide=1,nComputeNodeSurfSides
-
-#if USE_MPI
-END ASSOCIATE
-IF (ANY(PartBound%UseAdaptedWallTemp)) THEN
-  CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
-END IF
-#endif /*USE_MPI*/
-
-CALL WriteSurfSampleToHDF5(TRIM(MeshFile),ActualTime)
-
-DEALLOCATE(MacroSurfaceVal,MacroSurfaceSpecVal)
-
-END SUBROUTINE CalcSurfaceValues
-
 
 REAL FUNCTION CalcTVib(ChaTVib,MeanEVib,nMax)
 !===================================================================================================================================
@@ -648,7 +394,8 @@ SUBROUTINE DSMC_data_sampling()
 USE MOD_Globals
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, PartStateIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution, AmbipolElecVelo
 USE MOD_Part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species!, UseRotRefFrame, RotRefFrameOmega
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species, DoVirtualCellMerge, VirtMergedCells
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -674,6 +421,9 @@ DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     iSpec = PartSpecies(iPart)
     iElem = PEM%LocalElemID(iPart)
+    IF (DoVirtualCellMerge) THEN
+      IF (VirtMergedCells(iElem)%isMerged) iElem = VirtMergedCells(iElem)%MasterCell - offSetElem
+    END IF
     partWeight = GetParticleWeight(iPart)
     DSMC_Solution(1:3,iElem,iSpec) = DSMC_Solution(1:3,iElem,iSpec) + PartState(4:6,iPart)*partWeight
     DSMC_Solution(4:6,iElem,iSpec) = DSMC_Solution(4:6,iElem,iSpec) + PartState(4:6,iPart)**2*partWeight
@@ -723,7 +473,8 @@ USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting, BGGas
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry, VirtMergedCells
+USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge, VirtMergedCells
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 USE MOD_Restart_Vars           ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
@@ -750,6 +501,9 @@ DSMC_MacroVal = 0.0
 
 nVarCount=0
 DO iElem = 1, nElems ! element/cell main loop
+  IF (DoVirtualCellMerge) THEN
+    IF (VirtMergedCells(iElem)%isMerged) CYCLE
+  END IF
   MolecPartNum = 0.0
   HeavyPartNum = 0.0
   ! Avoid the output and calculation of total values for a single species, associate construct for Total_ points to the same
@@ -807,6 +561,16 @@ DO iElem = 1, nElems ! element/cell main loop
             END IF
           ELSE
             Macro_Density = 0.
+          END IF
+          IF (DoVirtualCellMerge) THEN
+            IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
+              IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+                ! PartNum contains the weighted particle number
+                Macro_Density = Macro_PartNum / VirtMergedCells(iElem)%MergedVolume
+              ELSE
+                Macro_Density = Macro_PartNum*Species(iSpec)%MacroParticleFactor /VirtMergedCells(iElem)%MergedVolume
+              END IF
+            END IF
           END IF
           ! Compute total values for a gas mixture (nSpecies > 1)
           IF(nSpecies.GT.1) THEN
@@ -905,6 +669,9 @@ IF (DSMC%CalcQualityFactors) THEN
     END IF
   END IF
   DO iElem=1,nElems
+    IF (DoVirtualCellMerge) THEN
+      IF (VirtMergedCells(iElem)%isMerged) CYCLE
+    END IF
     nVarCount = nVar
     IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
       DSMC_MacroVal(nVarCount+1:nVarCount+3,iElem) = DSMC%QualityFacSamp(iElem,1:3) / DSMC%QualityFacSamp(iElem,4)
@@ -918,6 +685,10 @@ IF (DSMC%CalcQualityFactors) THEN
                                                      ElemMidPoint_Shared(2,GetCNElemID(iElem + offsetElem)))
       END IF
       DSMC_MacroVal(nVarCount+1,iElem) = VarTimeStep%ElemFac(iElem)
+      nVarCount = nVarCount + 1
+    END IF
+    IF(DoVirtualCellMerge)THEN
+      DSMC_MacroVal(nVarCount+1,iElem) = VirtMergedCells(iElem)%MasterCell
       nVarCount = nVarCount + 1
     END IF
     IF(RadialWeighting%PerformCloning) THEN
@@ -997,6 +768,14 @@ IF (DSMC%CalcQualityFactors) THEN
   IF (ALLOCATED(DSMC%QualityFacSampVibSamp)) DSMC%QualityFacSampVibSamp = 0
 END IF
 
+IF (DoVirtualCellMerge) THEN
+  DO iElem = 1, nElems
+    IF (VirtMergedCells(iElem)%isMerged) THEN
+      DSMC_MacroVal(:,iElem) = DSMC_MacroVal(:,VirtMergedCells(iElem)%MasterCell-offSetElem) 
+    END IF
+  END DO
+END IF
+
 END SUBROUTINE DSMC_output_calc
 
 
@@ -1013,7 +792,7 @@ USE MOD_Globals_Vars  ,ONLY: ProjectName
 USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_Output   ,ONLY: WriteArrayToHDF5
-USE MOD_Particle_Vars ,ONLY: nSpecies, VarTimeStep
+USE MOD_Particle_Vars ,ONLY: nSpecies, VarTimeStep, DoVirtualCellMerge
 USE MOD_BGK_Vars      ,ONLY: BGKInitDone
 USE MOD_FPFlow_Vars   ,ONLY: FPInitDone
 ! IMPLICIT VARIABLE HANDLING
@@ -1053,6 +832,7 @@ END IF
 IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
   IF(VarTimeStep%UseVariableTimeStep) nVar_quality = nVar_quality + 1
+  IF(DoVirtualCellMerge) nVar_quality = nVar_quality + 1
   IF(RadialWeighting%PerformCloning) nVar_quality = nVar_quality + 2
   IF(BGKInitDone) nVar_quality = nVar_quality + 6
   IF(FPInitDone) nVar_quality = nVar_quality + 5
@@ -1125,6 +905,10 @@ IF (DSMC%CalcQualityFactors) THEN
   nVarCount=nVarCount+3
   IF(VarTimeStep%UseVariableTimeStep) THEN
     StrVarNames(nVarCount+1) ='VariableTimeStep'
+    nVarCount = nVarCount + 1
+  END IF
+  IF(DoVirtualCellMerge) THEN
+    StrVarNames(nVarCount+1) ='MergeMasterCell'
     nVarCount = nVarCount + 1
   END IF
   IF(RadialWeighting%PerformCloning) THEN
@@ -1354,11 +1138,12 @@ SUBROUTINE DSMCMacroSampling()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars             ,ONLY: DSMC
-USE MOD_Restart_Vars          ,ONLY: RestartTime
-USE MOD_Mesh_Vars             ,ONLY: MeshFile
-USE MOD_TimeDisc_Vars         ,ONLY: time, TEnd
-USE MOD_DSMC_Vars             ,ONLY: SamplingActive
+USE MOD_Particle_Boundary_Sampling  ,ONLY: CalcSurfaceValues
+USE MOD_DSMC_Vars                   ,ONLY: DSMC
+USE MOD_Restart_Vars                ,ONLY: RestartTime
+USE MOD_Mesh_Vars                   ,ONLY: MeshFile
+USE MOD_TimeDisc_Vars               ,ONLY: time, TEnd
+USE MOD_DSMC_Vars                   ,ONLY: SamplingActive
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

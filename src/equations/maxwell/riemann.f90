@@ -66,7 +66,7 @@ SUBROUTINE Riemann(Nloc,Flux_Master,Flux_Slave,U_Master,U_Slave,NormVec,SideID)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Dielectric_vars ,ONLY: DielectricSurf
-USE MOD_Globals         ,ONLY: Abort
+USE MOD_Globals         ,ONLY: abort,myrank,UNIT_StdOut
 USE MOD_PML_vars        ,ONLY: PMLnVar
 USE MOD_Interfaces_Vars ,ONLY: InterfaceRiemann
 USE MOD_DG_Vars         ,ONLY: DG_Elems_master
@@ -173,6 +173,8 @@ CASE(RIEMANN_VAC2DIELECTRIC_NC) ! use non-conserving fluxes (two different fluxe
   SDEALLOCATE(DieLoc)
   SDEALLOCATE(DieTmp)
 CASE DEFAULT
+  IPWRITE(UNIT_StdOut,*) "SideID                   = ", SideID
+  IPWRITE(UNIT_StdOut,*) "InterfaceRiemann(SideID) = ", InterfaceRiemann(SideID)
   CALL abort(__STAMP__,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
 END SELECT
 

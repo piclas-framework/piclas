@@ -169,7 +169,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
-USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Particle_Vars          ,ONLY: Symmetry, DoVirtualCellMerge
 #ifdef CODE_ANALYZE
 !USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -349,6 +349,8 @@ SELECT CASE(TRIM(DepositionType))
 END SELECT
 ! Rotational periodic BC requires the neighbourhood to add elements of the BC nodes
 IF(GEO%RotPeriodicBC) FindNeighbourElems = .TRUE.
+
+IF(DoVirtualCellMerge) FindNeighbourElems = .TRUE.
 
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)
