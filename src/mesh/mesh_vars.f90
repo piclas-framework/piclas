@@ -320,54 +320,6 @@ getNewElem%Type=0
 END FUNCTION GETNEWELEM
 
 
-SUBROUTINE createSides(Elem)
-!===================================================================================================================================
-! if element nodes already assigned, create Sides using CGNS standard
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-TYPE(tElem),POINTER :: Elem
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-!side 1
-Elem%Side(1)%sp%Node(1)%np=>Elem%Node(1)%np
-Elem%Side(1)%sp%Node(2)%np=>Elem%Node(4)%np
-Elem%Side(1)%sp%Node(3)%np=>Elem%Node(3)%np
-Elem%Side(1)%sp%Node(4)%np=>Elem%Node(2)%np
-!side 2
-Elem%Side(2)%sp%Node(1)%np=>Elem%Node(1)%np
-Elem%Side(2)%sp%Node(2)%np=>Elem%Node(2)%np
-Elem%Side(2)%sp%Node(3)%np=>Elem%Node(6)%np
-Elem%Side(2)%sp%Node(4)%np=>Elem%Node(5)%np
-!side 3
-Elem%Side(3)%sp%Node(1)%np=>Elem%Node(2)%np
-Elem%Side(3)%sp%Node(2)%np=>Elem%Node(3)%np
-Elem%Side(3)%sp%Node(3)%np=>Elem%Node(7)%np
-Elem%Side(3)%sp%Node(4)%np=>Elem%Node(6)%np
-!side 4
-Elem%Side(4)%sp%Node(1)%np=>Elem%Node(3)%np
-Elem%Side(4)%sp%Node(2)%np=>Elem%Node(4)%np
-Elem%Side(4)%sp%Node(3)%np=>Elem%Node(8)%np
-Elem%Side(4)%sp%Node(4)%np=>Elem%Node(7)%np
-!side 5
-Elem%Side(5)%sp%Node(1)%np=>Elem%Node(1)%np
-Elem%Side(5)%sp%Node(2)%np=>Elem%Node(5)%np
-Elem%Side(5)%sp%Node(3)%np=>Elem%Node(8)%np
-Elem%Side(5)%sp%Node(4)%np=>Elem%Node(4)%np
-!side 6
-Elem%Side(6)%sp%Node(1)%np=>Elem%Node(5)%np
-Elem%Side(6)%sp%Node(2)%np=>Elem%Node(6)%np
-Elem%Side(6)%sp%Node(3)%np=>Elem%Node(7)%np
-Elem%Side(6)%sp%Node(4)%np=>Elem%Node(8)%np
-END SUBROUTINE createSides
-
-
 SUBROUTINE deleteMeshPointer()
 !===================================================================================================================================
 !> Deallocates all pointers used for the mesh readin
