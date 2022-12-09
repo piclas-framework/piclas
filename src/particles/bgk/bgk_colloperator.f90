@@ -34,8 +34,7 @@ PUBLIC :: BGK_CollisionOperator, ARShakhov, CalcTEquiPoly, CalcTEqui
 
 CONTAINS
 
-SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume)
-! SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, AveragingPara, CorrectStep)
+SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, AveragingValues)
 !===================================================================================================================================
 !> Subroutine for the cell-local BGK collision operator:
 !> 1.) Moment calculation: Summing up the relative velocities and their squares
@@ -54,7 +53,7 @@ USE MOD_Globals               ,ONLY: DOTPRODUCT
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, VarTimeStep
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, RadialWeighting, CollInf
 USE MOD_TimeDisc_Vars         ,ONLY: dt
-USE MOD_BGK_Vars              ,ONLY: SpecBGK, BGKDoVibRelaxation!, BGKMovingAverageLength
+USE MOD_BGK_Vars              ,ONLY: SpecBGK, BGKDoVibRelaxation, BGKMovingAverage
 USE MOD_BGK_Vars              ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor
 USE MOD_BGK_Vars              ,ONLY: BGK_PrandtlNumber
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -68,8 +67,7 @@ IMPLICIT NONE
 REAL, INTENT(IN)                        :: NodeVolume
 INTEGER, INTENT(INOUT)                  :: nPart
 INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
-! REAL, INTENT(INOUT), OPTIONAL           :: AveragingPara(5,BGKMovingAverageLength)
-! INTEGER, INTENT(INOUT), OPTIONAL        :: CorrectStep
+REAL, INTENT(INOUT), OPTIONAL           :: AveragingValues(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -130,6 +128,9 @@ ELSE
   dens = totalWeight * Species(1)%MacroParticleFactor / NodeVolume
 END IF
 
+IF (BGKMovingAverage) THEN
+  CALL DoAveraging(dens, u2, u0ij, u2i, CellTemp, AveragingValues)
+END IF
 ! Calculation of the rotational and vibrational degrees of freedom for molecules
 nXiVibDOF=0 ! Initialize
 IF (nSpecies.EQ.1) THEN
@@ -429,6 +430,73 @@ ELSE
 END IF
 
 END SUBROUTINE CalcMoments
+
+SUBROUTINE DoAveraging(dens, u2, u0ij, u2i, CellTemp, AverageValues)
+!===================================================================================================================================
+!> Moment calculation: Summing up the relative velocities and their squares
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars         ,ONLY: Species
+USE MOD_BGK_Vars              ,ONLY: BGKCollModel, BGKMovingAverageFac
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(INOUT)           :: dens, u0ij(3,3), u2i(3), u2, CellTemp, AverageValues(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+
+!===================================================================================================================================
+IF (BGKCollModel.EQ.1) THEN
+  IF (AverageValues(1).EQ.0.0) THEN
+    AverageValues(1) = dens
+    AverageValues(2) = u2
+    AverageValues(3) = u0ij(1,1); AverageValues(4) = u0ij(2,2); AverageValues(5) = u0ij(3,3);
+    AverageValues(6) = u0ij(1,2); AverageValues(7) = u0ij(1,3); AverageValues(8) = u0ij(2,3);
+  ELSE
+    AverageValues(1) = BGKMovingAverageFac*dens + (1.-BGKMovingAverageFac)*AverageValues(1)
+    AverageValues(2) = BGKMovingAverageFac*u2 + (1.-BGKMovingAverageFac)*AverageValues(2)
+    AverageValues(3) = BGKMovingAverageFac*u0ij(1,1) + (1.-BGKMovingAverageFac)*AverageValues(3)
+    AverageValues(4) = BGKMovingAverageFac*u0ij(2,2) + (1.-BGKMovingAverageFac)*AverageValues(4)
+    AverageValues(5) = BGKMovingAverageFac*u0ij(3,3) + (1.-BGKMovingAverageFac)*AverageValues(5)
+    AverageValues(6) = BGKMovingAverageFac*u0ij(1,2) + (1.-BGKMovingAverageFac)*AverageValues(6)
+    AverageValues(7) = BGKMovingAverageFac*u0ij(1,3) + (1.-BGKMovingAverageFac)*AverageValues(7)
+    AverageValues(8) = BGKMovingAverageFac*u0ij(2,3) + (1.-BGKMovingAverageFac)*AverageValues(8)
+  END IF
+  dens = AverageValues(1)  
+  u2 = AverageValues(2)
+  u0ij(1,1)=AverageValues(3); u0ij(2,2)=AverageValues(4); u0ij(3,3)=AverageValues(5);
+  u0ij(1,2)=AverageValues(6); u0ij(1,3)=AverageValues(7); u0ij(2,3)=AverageValues(8);
+ELSE IF (BGKCollModel.EQ.2) THEN
+  IF (AverageValues(1).EQ.0.0) THEN
+    AverageValues(1) = dens
+    AverageValues(2) = u2
+    AverageValues(3:5) = u2i(1:3)
+  ELSE
+    AverageValues(1) = BGKMovingAverageFac*dens + (1.-BGKMovingAverageFac)*AverageValues(1)
+    AverageValues(2) = BGKMovingAverageFac*u2 + (1.-BGKMovingAverageFac)*AverageValues(2)
+    AverageValues(3:5) = BGKMovingAverageFac*u2i(1:3) + (1.-BGKMovingAverageFac)*AverageValues(3:5)
+  END IF
+  dens = AverageValues(1)
+  u2 = AverageValues(2)
+  u2i(1:3) = AverageValues(3:5)
+ELSE IF (BGKCollModel.EQ.3) THEN
+  IF (AverageValues(1).EQ.0.0) THEN
+    AverageValues(1) = dens
+    AverageValues(2) = u2
+  ELSE
+    AverageValues(1) = BGKMovingAverageFac*dens + (1.-BGKMovingAverageFac)*AverageValues(1)
+    AverageValues(2) = BGKMovingAverageFac*u2 + (1.-BGKMovingAverageFac)*AverageValues(2)
+  END IF
+  dens = AverageValues(1)
+  u2 = AverageValues(2)
+END IF
+ CellTemp = Species(1)%MassIC * u2 / (3.0*BoltzmannConst)
+
+END SUBROUTINE DoAveraging
 
 SUBROUTINE CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, TRotSpec, InnerDOF, Xi_VibSpec, Xi_Vib_oldSpec &
     ,Xi_RotSpec)

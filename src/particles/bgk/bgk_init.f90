@@ -68,9 +68,8 @@ CALL prms%CreateIntOption(    'Particles-BGK-MinPartsPerCell',      'Define mini
                                                                     'cell refinement')
 CALL prms%CreateLogicalOption('Particles-BGK-MovingAverage',        'Enable a moving average of variables for the calculation '//&
                                                                     'of the cell temperature for relaxation frequencies','.FALSE.')
-CALL prms%CreateIntOption(    'Particles-BGK-MovingAverageLength',  'Use the moving average with a fixed array length, where '//&
-                                                                    'the first values are dismissed and the last values updated '//&
-                                                                    'with current iteration to account for for unsteady flows','1')
+CALL prms%CreateRealOption(    'Particles-BGK-MovingAverageFac',    'Use the moving average of moments M with  '//&
+                                                                    'M^n+1=AverageFac*M+(1-AverageFac)*M^n','0.01')
 CALL prms%CreateRealOption(   'Particles-BGK-SplittingDens',        'Octree-refinement will only be performed above this number '//&
                                                                     'density', '0.0')
 CALL prms%CreateLogicalOption('Particles-BGK-DoVibRelaxation',      'Enable modelling of vibrational excitation','.TRUE.')
@@ -165,12 +164,10 @@ BGKSplittingDens = GETREAL('Particles-BGK-SplittingDens')
 ! Moving Average
 BGKMovingAverage = GETLOGICAL('Particles-BGK-MovingAverage')
 IF(BGKMovingAverage) THEN
-  CALL abort(__STAMP__,' ERROR BGK Init: Moving average is currently not implemented!')
-  BGKMovingAverageLength = GETINT('Particles-BGK-MovingAverageLength')
+  BGKMovingAverageFac= GETREAL('Particles-BGK-MovingAverageFac')
+  IF ((BGKMovingAverageFac.LE.0.0).OR.(BGKMovingAverageFac.GE.1.)) CALL abort(__STAMP__,'Particles-BGK-MovingAverageFac must be between 0 and 1!')
   CALL BGK_init_MovingAverage()
-  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-    CALL abort(__STAMP__,' ERROR BGK Init: Moving average is neither implemented with radial weighting nor variable time step!')
-  END IF
+  IF(nSpecies.GT.1) CALL abort(__STAMP__,'nSpecies >1 and molecules not implemented for BGK averaging!')
 END IF
 IF(MoleculePresent) THEN
   ! Vibrational modelling
@@ -200,7 +197,7 @@ SUBROUTINE BGK_init_MovingAverage()
 !> Initialization of the arrays for the sampling of the moving average
 !===================================================================================================================================
 ! MODULES
-USE MOD_BGK_Vars   ,ONLY: ElemNodeAveraging, BGKMovingAverageLength
+USE MOD_BGK_Vars   ,ONLY: ElemNodeAveraging, BGKCollModel
 USE MOD_Mesh_Vars  ,ONLY: nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -215,13 +212,14 @@ INTEGER                       :: iElem
 ALLOCATE(ElemNodeAveraging(nElems))
 DO iElem = 1, nElems
   ALLOCATE(ElemNodeAveraging(iElem)%Root)
-  IF (BGKMovingAverageLength.GT.1) THEN
-    ALLOCATE(ElemNodeAveraging(iElem)%Root%AverageValues(5,BGKMovingAverageLength))
-     ElemNodeAveraging(iElem)%Root%AverageValues = 0.0
-  ELSE
-    ALLOCATE(ElemNodeAveraging(iElem)%Root%AverageValues(5,1))
-    ElemNodeAveraging(iElem)%Root%AverageValues = 0.0
+  IF (BGKCollModel.EQ.1) THEN
+    ALLOCATE(ElemNodeAveraging(iElem)%Root%AverageValues(8))
+  ELSE IF (BGKCollModel.EQ.2) THEN
+    ALLOCATE(ElemNodeAveraging(iElem)%Root%AverageValues(5))
+  ELSE IF (BGKCollModel.EQ.3) THEN
+    ALLOCATE(ElemNodeAveraging(iElem)%Root%AverageValues(2))
   END IF
+  ElemNodeAveraging(iElem)%Root%AverageValues = 0.0
   ElemNodeAveraging(iElem)%Root%CorrectStep = 0
 END DO
 

@@ -45,7 +45,7 @@ USE MOD_Globals
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKDSMCSwitchDens
-! USE MOD_BGK_Vars            ,ONLY: BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength
+USE MOD_BGK_Vars            ,ONLY: BGKMovingAverage,ElemNodeAveraging
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
@@ -130,13 +130,11 @@ DO iElem = 1, nElems
       BGK_MeanRelaxFactorCounter = 0; BGK_MeanRelaxFactor = 0.; BGK_MaxRelaxFactor = 0.; BGK_MaxRotRelaxFactor = 0.
       BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.
     END IF
-    ! IF (BGKMovingAverage) THEN
-    !   CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID), &
-    !       ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
-    ! ELSE
+    IF (BGKMovingAverage) THEN
+       CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID), ElemNodeAveraging(iElem)%Root%AverageValues(:))
+    ELSE
       CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
-    ! END IF
+    END IF
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
@@ -169,7 +167,7 @@ USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry, DoVirtualCellMerge, VirtMergedCells
-USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation!, BGKMovingAverage, ElemNodeAveraging, BGKMovingAverageLength
+USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation, BGKMovingAverage, ElemNodeAveraging
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
 USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
@@ -271,13 +269,11 @@ ELSE ! No octree cell refinement
       BGK_PrandtlNumber=0.; BGK_ExpectedPrandtlNumber=0.
     END IF
 
-    ! IF (BGKMovingAverage) THEN
-    !   CALL BGK_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID), &
-    !       ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
-    ! ELSE
+    IF (BGKMovingAverage) THEN
+      CALL BGK_CollisionOperator(iPartIndx_Node, nPartMerged, elemVolume,ElemNodeAveraging(iElem)%Root%AverageValues(:))
+    ELSE
       CALL BGK_CollisionOperator(iPartIndx_Node, nPartMerged, elemVolume)
-    ! END IF
+    END IF
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
