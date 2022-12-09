@@ -122,12 +122,12 @@ IF (DoMergedCell) THEN
 #if (PP_TimeDiscMethod==300)  
   CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged, VirtMergedCells(iELem)%MergedVolume)
 #else
-!  IF (BGKMovingAverage) THEN
-!   CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged,VirtMergedCells(iELem)%MergedVolume, &
-!            ElemNodeAveraging(iElem)%Root%AverageValues(:))
-!  ELSE
+  IF (BGKMovingAverage) THEN
+    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged,VirtMergedCells(iELem)%MergedVolume, &
+            ElemNodeAveraging(iElem)%Root%AverageValues(:))
+  ELSE
     CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged, VirtMergedCells(iELem)%MergedVolume)
-!  END IF
+  END IF
 #endif
 ELSE
   GlobalElemID = iElem+offSetElem
@@ -176,23 +176,22 @@ ELSE
     ElemNodeVol(iElem)%Root%NodeDepth = 1
     ElemNodeVol(iElem)%Root%MidPoint(1:3) = (/0.0,0.0,0.0/)
     ! Start of the recursive routine, which will descend further down the octree until the aforementioned criteria are fulfilled
-    ! IF (BGKMovingAverage) THEN
-    !   CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
-    ! ELSE
+      IF (BGKMovingAverage) THEN
+        CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
+      ELSE
         CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
-    ! END IF
+      END IF
     DEALLOCATE(TreeNode%MappedPartStates)
   ELSE ! No octree refinement: Call of the respective collision operator
 #if (PP_TimeDiscMethod==300)
     CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
 #else
-    ! IF (BGKMovingAverage) THEN
-    !   CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart,ElemVolume_Shared(CNElemID), &
-    !            ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
-    ! ELSE
+    IF (BGKMovingAverage) THEN
+      CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart,ElemVolume_Shared(CNElemID), &
+                ElemNodeAveraging(iElem)%Root%AverageValues(:))
+    ELSE
       CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
-    ! END IF
+    END IF
 #endif
   END IF ! nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)
 END IF
@@ -361,11 +360,11 @@ DO iLoop = 1, 8
                    MappedPart_ChildNode(1:3,1:PartNumChildNode(iLoop),iLoop)
     TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
     ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
-    !IF (BGKMovingAverage) THEN
-    !  CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop), Averaging%SubNode(iLoop))
-    !ELSE
+    IF (BGKMovingAverage) THEN
+      CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop), Averaging%SubNode(iLoop))
+    ELSE
       CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop))
-    !END IF
+    END IF
     DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
     DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
     DEALLOCATE(TreeNode%ChildNode)
@@ -374,112 +373,57 @@ DO iLoop = 1, 8
       CALL FP_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
               PartNumChildNode(iLoop), NodeVolumeTemp(iLoop))
 #else
-    ! IF (BGKMovingAverage) THEN
-    !   SELECT CASE(iLoop)
-    !     CASE(1)
-    !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
-    !             Averaging%SubNode1%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !             CorrectStep = Averaging%SubNode1%CorrectStep)
-    !     CASE(2)
-    !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
-    !             Averaging%SubNode2%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !             CorrectStep = Averaging%SubNode2%CorrectStep)
-    !     CASE(3)
-    !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
-    !             Averaging%SubNode3%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !             CorrectStep = Averaging%SubNode3%CorrectStep)
-    !     CASE(4)
-    !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
-    !             Averaging%SubNode4%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !             CorrectStep = Averaging%SubNode4%CorrectStep)
-    !     CASE(5)
-    !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
-    !             Averaging%SubNode5%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !             CorrectStep = Averaging%SubNode5%CorrectStep)
-    !     CASE(6)
-    !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
-    !             Averaging%SubNode6%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !             CorrectStep = Averaging%SubNode6%CorrectStep)
-    !     CASE(7)
-    !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
-    !             Averaging%SubNode7%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !             CorrectStep = Averaging%SubNode7%CorrectStep)
-    !     CASE(8)
-    !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
-    !             Averaging%SubNode8%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !             CorrectStep = Averaging%SubNode8%CorrectStep)
-    !   END SELECT
-    ! ELSE
+    IF (BGKMovingAverage) THEN
+     CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+           PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), Averaging%SubNode(iLoop)%AverageValues(:))
+
+    ELSE
       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
               PartNumChildNode(iLoop), NodeVolumeTemp(iLoop))
-    ! END IF
+    END IF
 #endif
   END IF
 END DO
 
 END SUBROUTINE AddBGKOctreeNode
 
-! SUBROUTINE BGK_AllocateAveragingNode(Averaging)
-! !===================================================================================================================================
-! !> Allocation of the arrays and iteration counter required for the sampling of the moving average in the octree subnodes
-! !===================================================================================================================================
-! ! MODULES
-! USE MOD_BGK_Vars,               ONLY :tNodeAverage, BGKMovingAverageLength
-! ! IMPLICIT VARIABLE HANDLING
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT VARIABLES
-! TYPE(tNodeAverage),INTENT(INOUT), POINTER, OPTIONAL :: Averaging
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! OUTPUT VARIABLES
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES
-! !===================================================================================================================================
-! ALLOCATE(Averaging%SubNode1)
-! ALLOCATE(Averaging%SubNode2)
-! ALLOCATE(Averaging%SubNode3)
-! ALLOCATE(Averaging%SubNode4)
-! ALLOCATE(Averaging%SubNode5)
-! ALLOCATE(Averaging%SubNode6)
-! ALLOCATE(Averaging%SubNode7)
-! ALLOCATE(Averaging%SubNode8)
+SUBROUTINE BGK_AllocateAveragingNode(Averaging)
+!===================================================================================================================================
+!> Allocation of the arrays and iteration counter required for the sampling of the moving average in the octree subnodes
+!===================================================================================================================================
+! MODULES
+USE MOD_BGK_Vars,               ONLY: tNodeAverage,BGKCollModel
+USE MOD_Particle_Vars,          ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CLASS(tNodeAverage),INTENT(INOUT)    :: Averaging
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER        :: numSubNodes, iNode
+!===================================================================================================================================
+IF (Symmetry%Order.EQ.3) THEN
+  numSubNodes = 8
+ELSE IF (Symmetry%Order.EQ.2) THEN
+  numSubNodes = 4
+END IF
+ALLOCATE(Averaging%SubNode(numSubNodes))
+DO iNode =1, numSubNodes
+  IF (BGKCollModel.EQ.1) THEN
+    ALLOCATE(Averaging%SubNode(iNode)%AverageValues(10))
+  ELSE IF (BGKCollModel.EQ.2) THEN
+    ALLOCATE(Averaging%SubNode(iNode)%AverageValues(8))
+  ELSE IF (BGKCollModel.EQ.3) THEN
+    ALLOCATE(Averaging%SubNode(iNode)%AverageValues(5))
+  END IF
+  Averaging%SubNode(iNode)%CorrectStep = Averaging%CorrectStep
+  Averaging%SubNode(iNode)%AverageValues = Averaging%AverageValues
+END DO
 
-! ALLOCATE(Averaging%SubNode1%AverageValues(5,BGKMovingAverageLength))
-! ALLOCATE(Averaging%SubNode2%AverageValues(5,BGKMovingAverageLength))
-! ALLOCATE(Averaging%SubNode3%AverageValues(5,BGKMovingAverageLength))
-! ALLOCATE(Averaging%SubNode4%AverageValues(5,BGKMovingAverageLength))
-! ALLOCATE(Averaging%SubNode5%AverageValues(5,BGKMovingAverageLength))
-! ALLOCATE(Averaging%SubNode6%AverageValues(5,BGKMovingAverageLength))
-! ALLOCATE(Averaging%SubNode7%AverageValues(5,BGKMovingAverageLength))
-! ALLOCATE(Averaging%SubNode8%AverageValues(5,BGKMovingAverageLength))
-
-! Averaging%SubNode1%AverageValues = 0.0
-! Averaging%SubNode2%AverageValues = 0.0
-! Averaging%SubNode3%AverageValues = 0.0
-! Averaging%SubNode4%AverageValues = 0.0
-! Averaging%SubNode5%AverageValues = 0.0
-! Averaging%SubNode6%AverageValues = 0.0
-! Averaging%SubNode7%AverageValues = 0.0
-! Averaging%SubNode8%AverageValues = 0.0
-
-! Averaging%SubNode1%CorrectStep = 0
-! Averaging%SubNode2%CorrectStep = 0
-! Averaging%SubNode3%CorrectStep = 0
-! Averaging%SubNode4%CorrectStep = 0
-! Averaging%SubNode5%CorrectStep = 0
-! Averaging%SubNode6%CorrectStep = 0
-! Averaging%SubNode7%CorrectStep = 0
-! Averaging%SubNode8%CorrectStep = 0
-
-! END SUBROUTINE BGK_AllocateAveragingNode
+END SUBROUTINE BGK_AllocateAveragingNode
 
 SUBROUTINE BGK_quadtree_adapt(iElem)
 !===================================================================================================================================
@@ -492,7 +436,7 @@ USE MOD_DSMC_ParticlePairing    ,ONLY: GeoCoordToMap2D
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: PEM, Species,WriteMacroVolumeValues, usevMPF, VirtMergedCells, DoVirtualCellMerge
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
-USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens!,BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength
+USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens,BGKMovingAverage,ElemNodeAveraging
 USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
 USE MOD_BGK_Vars                ,ONLY: BGK_QualityFacSamp, BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
@@ -572,12 +516,12 @@ IF (DoMergedCell) THEN
 #if (PP_TimeDiscMethod==300)
   CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged, VirtMergedCells(iELem)%MergedVolume)
 #else
-!  IF (BGKMovingAverage) THEN
-!    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged,VirtMergedCells(iELem)%MergedVolume, &
-!            ElemNodeAveraging(iElem)%Root%AverageValues(:))
-!  ELSE
+  IF (BGKMovingAverage) THEN
+    CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged,VirtMergedCells(iELem)%MergedVolume, &
+            ElemNodeAveraging(iElem)%Root%AverageValues(:))
+  ELSE
     CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged, VirtMergedCells(iELem)%MergedVolume)
-!  END IF
+  END IF
 #endif
 ELSE
   CNElemID = GetCNElemID(iElem+offSetElem)
@@ -621,24 +565,22 @@ ELSE
     ElemNodeVol(iElem)%Root%NodeDepth = 1
     ElemNodeVol(iElem)%Root%MidPoint(1:3) = (/0.0,0.0,0.0/)
     ! Start of the recursive routine, which will descend further down the quadtree until the aforementioned criteria are fulfilled
-    ! IF (BGKMovingAverage) THEN
-    !   CALL AddBGKQuadtreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
-    ! ELSE
+    IF (BGKMovingAverage) THEN
+      CALL AddBGKQuadtreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
+    ELSE
       CALL AddBGKQuadtreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
-    ! END IF
+    END IF
     DEALLOCATE(TreeNode%MappedPartStates)
   ELSE ! No quadtree refinement: Call of the respective collision operator
 #if (PP_TimeDiscMethod==300)
       CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
 #else
-    ! IF (BGKMovingAverage) THEN
-    !   CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, &
-    !             ElemVolume_Shared(CNElemID), &
-    !            ElemNodeAveraging(iElem)%Root%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !            CorrectStep = ElemNodeAveraging(iElem)%Root%CorrectStep)
-    ! ELSE
+    IF (BGKMovingAverage) THEN
+      CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, &
+               ElemVolume_Shared(CNElemID), ElemNodeAveraging(iElem)%Root%AverageValues(:))
+    ELSE
       CALL BGK_CollisionOperator(TreeNode%iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
-    ! END IF
+    END IF
 #endif
   END IF ! nPart.GE.(2.*BGKMinPartPerCell).AND.(Dens.GT.BGKSplittingDens)
 END IF
@@ -672,8 +614,7 @@ DEALLOCATE(TreeNode)
 END SUBROUTINE BGK_quadtree_adapt
 
 
-! RECURSIVE SUBROUTINE AddBGKQuadtreeNode(TreeNode, iElem, NodeVol, Averaging)
-RECURSIVE SUBROUTINE AddBGKQuadtreeNode(TreeNode, iElem, NodeVol)
+RECURSIVE SUBROUTINE AddBGKQuadtreeNode(TreeNode, iElem, NodeVol, Averaging)
 !===================================================================================================================================
 !> Adds an additional quadtree node/branch until either the particle number or number density is above a user-given limit
 !> 1.) Sorting the particles into the subcells (quadtree child nodes)
@@ -686,7 +627,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: tTreeNode, tNodeVolume, ElemNodeVol
 USE MOD_BGK_CollOperator      ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes2D, QUADCUBEMIDPOINT
-USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell    !,tNodeAverage, BGKMovingAverage, BGKMovingAverageLength
+USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell,tNodeAverage, BGKMovingAverage
 USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperator
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -695,7 +636,7 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)                                 :: iElem
 TYPE(tTreeNode),INTENT(IN), POINTER                 :: TreeNode
 CLASS(tNodeVolume),INTENT(INOUT)                    :: NodeVol
-!CLASS(tNodeAverage),INTENT(INOUT), OPTIONAL         :: Averaging
+CLASS(tNodeAverage),INTENT(INOUT), OPTIONAL         :: Averaging
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -766,12 +707,11 @@ DO iLoop = 1, 4
   NodeVolumeTemp(iLoop) = NodeVol%SubNode(iLoop)%Volume
 END DO
 
-!---- NOT IMPLEMENTED YET ---
-! IF (BGKMovingAverage) THEN
-!   IF (.NOT.ASSOCIATED(Averaging%SubNode1)) THEN
-!     CALL BGK_AllocateAveragingNode(Averaging)
-!   END IF
-! END IF
+IF (BGKMovingAverage) THEN
+  IF (.NOT.ASSOCIATED(Averaging%SubNode)) THEN
+    CALL BGK_AllocateAveragingNode(Averaging)
+  END IF
+END IF
 
 ! 3.) Combine subcells together if the particle number is less than the limit (BGKMinPartPerCell). Go through the first 7 subcells
 !    and if the subcell is below the limit, add the particles and the volume to the next subcell and delete them from the original.
@@ -819,11 +759,11 @@ DO iLoop = 1, 4
           MappedPart_ChildNode(1:3,1:PartNumChildNode(iLoop),iLoop)
     TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
     ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further quadtree division)
-    !IF (BGKMovingAverage) THEN
-    !  CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop), Averaging%SubNode(iLoop))
-    !LSE
+    IF (BGKMovingAverage) THEN
+      CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop), Averaging%SubNode(iLoop))
+    ELSE
       CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop))
-    !END IF
+    END IF
     DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
     DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
     DEALLOCATE(TreeNode%ChildNode)
@@ -832,33 +772,13 @@ DO iLoop = 1, 4
       CALL FP_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
               PartNumChildNode(iLoop), NodeVolumeTemp(iLoop))
 #else
-    ! IF (BGKMovingAverage) THEN
-    !   SELECT CASE(iLoop)
-    !     CASE(1)
-    !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
-    !             Averaging%SubNode1%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !             CorrectStep = Averaging%SubNode1%CorrectStep)
-    !     CASE(2)
-    !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
-    !             Averaging%SubNode2%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !             CorrectStep = Averaging%SubNode2%CorrectStep)
-    !     CASE(3)
-    !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
-    !             Averaging%SubNode3%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !             CorrectStep = Averaging%SubNode3%CorrectStep)
-    !     CASE(4)
-    !       CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-    !             PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), &
-    !             Averaging%SubNode4%AverageValues(1:5,1:BGKMovingAverageLength), &
-    !             CorrectStep = Averaging%SubNode4%CorrectStep)
-    !   END SELECT
-    ! ELSE
-      CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-              PartNumChildNode(iLoop), NodeVolumeTemp(iLoop))
-    ! END IF
+  IF (BGKMovingAverage) THEN
+    CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+       PartNumChildNode(iLoop), NodeVolumeTemp(iLoop), Averaging%SubNode(iLoop)%AverageValues(:))
+  ELSE
+    CALL BGK_CollisionOperator(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+          PartNumChildNode(iLoop), NodeVolumeTemp(iLoop))
+  END IF
 #endif
   END IF
 END DO
