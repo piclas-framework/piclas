@@ -62,9 +62,10 @@ USE MOD_Mesh_Vars              ,ONLY: offsetElem
 ! Particles
 USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5
 USE MOD_Part_Operations        ,ONLY: RemoveAllElectrons
-USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,StoreLostParticleProperties
+USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,StoreLostParticleProperties, MergeCells
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartState,PartSpecies,PEM,PDM,usevMPF,PartMPF,PartPosRef,SpecReset,Species
+USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
 ! Restart
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
 ! HDG
@@ -807,6 +808,8 @@ IF(UseBRElectronFluid.AND.BRConvertElectronsToFluid) CALL RemoveAllElectrons()
 ! Particle Emission Parameters
 ! ------------------------------------------------
 CALL ReadEmissionVariablesFromHDF5()
+
+IF (DoVirtualCellMerge) CALL MergeCells()
 
 #if USE_HDG
   ! Create electrons from BR fluid properties

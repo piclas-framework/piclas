@@ -1514,47 +1514,25 @@ RECURSIVE SUBROUTINE DeleteNodeVolume(Node)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_DSMC_Vars
+USE MOD_Particle_Vars         ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
-TYPE (tNodeVolume), INTENT(IN), POINTER  :: Node
+TYPE (tNodeVolume), INTENT(INOUT)  :: Node
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER     ::  iLoop, nLoop
 !===================================================================================================================================
-IF(ASSOCIATED(Node%SubNode1)) THEN
-  CALL DeleteNodeVolume(Node%SubNode1)
-  DEALLOCATE(Node%SubNode1)
+nLoop = 2**Symmetry%Order
+IF(ASSOCIATED(Node%SubNode)) THEN 
+  DO iLoop = 1, nLoop
+    CALL DeleteNodeVolume(Node%SubNode(iLoop))
+  END DO
+  DEALLOCATE(Node%SubNode)
 END IF
-IF(ASSOCIATED(Node%SubNode2)) THEN
-  CALL DeleteNodeVolume(Node%SubNode2)
-  DEALLOCATE(Node%SubNode2)
-END IF
-IF(ASSOCIATED(Node%SubNode3)) THEN
-  CALL DeleteNodeVolume(Node%SubNode3)
-  DEALLOCATE(Node%SubNode3)
-END IF
-IF(ASSOCIATED(Node%SubNode4)) THEN
-  CALL DeleteNodeVolume(Node%SubNode4)
-  DEALLOCATE(Node%SubNode4)
-END IF
-IF(ASSOCIATED(Node%SubNode5)) THEN
-  CALL DeleteNodeVolume(Node%SubNode5)
-  DEALLOCATE(Node%SubNode5)
-END IF
-IF(ASSOCIATED(Node%SubNode6)) THEN
-  CALL DeleteNodeVolume(Node%SubNode6)
-  DEALLOCATE(Node%SubNode6)
-END IF
-IF(ASSOCIATED(Node%SubNode7)) THEN
-  CALL DeleteNodeVolume(Node%SubNode7)
-  DEALLOCATE(Node%SubNode7)
-END IF
-IF(ASSOCIATED(Node%SubNode8)) THEN
-  CALL DeleteNodeVolume(Node%SubNode8)
-  DEALLOCATE(Node%SubNode8)
-END IF
+
 END SUBROUTINE DeleteNodeVolume
 
 
