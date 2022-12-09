@@ -39,7 +39,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_init_octree, DSMC_pairing_quadtree, DSMC_CalcSubNodeVolumes3D
-PUBLIC :: DSMC_CalcSubNodeVolumes2D, GeoCoordToMap2D, DSMC_pairing_dotree
+PUBLIC :: DSMC_CalcSubNodeVolumes2D, GeoCoordToMap2D, DSMC_pairing_dotree, OCTANTCUBEID, QUADCUBEMIDPOINT, OCTANTCUBEMIDPOINT
 !===================================================================================================================================
 
 CONTAINS
@@ -241,7 +241,8 @@ ELSE
         END DO
       END IF ! TrackingMethod.EQ.REFMAPPING
       TreeNode%NodeDepth = 1
-      TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
+      ElemNodeVol(iElem)%Root%NodeDepth = 1
+      ElemNodeVol(iElem)%Root%MidPoint(1:3) = (/0.0,0.0,0.0/)
       CALL AddOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
       DEALLOCATE(TreeNode%MappedPartStates)
     ELSE
@@ -655,23 +656,22 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)                     :: iElem
-  TYPE(tTreeNode),INTENT(INOUT), POINTER     :: TreeNode
-  TYPE(tNodeVolume),INTENT(IN), POINTER   :: NodeVol
+  TYPE(tTreeNode),INTENT(INOUT), POINTER  :: TreeNode
+  CLASS(tNodeVolume),INTENT(INOUT)        :: NodeVol
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iPart, iLoop, iPartIndx, localDepth, SpecPartNum(nSpecies), childNodeID
+  INTEGER                       :: iPart, iLoop, iPartIndx, SpecPartNum(nSpecies), childNodeID
   INTEGER, ALLOCATABLE          :: iPartIndx_ChildNode(:,:)
   REAL, ALLOCATABLE             :: MappedPart_ChildNode(:,:,:)
   INTEGER                       :: PartNumChildNode(1:8)
-  REAL                          :: NodeVolumeTemp(1:8)
 !===================================================================================================================================
 
   ALLOCATE(iPartIndx_ChildNode(1:8,TreeNode%PNum_Node))
   ALLOCATE(MappedPart_ChildNode(1:3,TreeNode%PNum_Node,1:8))
   PartNumChildNode(:) = 0
-  IF (ABS(TreeNode%MidPoint(1)) .EQ. 1.0) THEN
+  IF (ABS(NodeVol%MidPoint(1)) .EQ. 1.0) THEN
     CALL Abort(&
         __STAMP__&
         ,'ERROR in Octree Pairing: Too many branches, machine precision reached')
@@ -691,25 +691,15 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
   ! particle to Octree ChildNode sorting
   DO iPart=1,TreeNode%PNum_Node
     iPartIndx = TreeNode%iPartIndx_Node(iPart)
-    ChildNodeID = OCTANTCUBEID(TreeNode%MidPoint(:),TreeNode%MappedPartStates(:,iPart))
+    ChildNodeID = OCTANTCUBEID(NodeVol%MidPoint(:),TreeNode%MappedPartStates(:,iPart))
     PartNumChildNode(ChildNodeID) = PartNumChildNode(ChildNodeID) + 1
     iPartIndx_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = iPartIndx
     MappedPart_ChildNode(1:3,PartNumChildNode(ChildNodeID),ChildNodeID) = TreeNode%MappedPartStates(1:3,iPart)
   END DO
 
-  IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
-    localDepth = TreeNode%NodeDepth
-    CALL DSMC_CalcSubNodeVolumes3D(iElem, localDepth, ElemNodeVol(iElem)%Root)
+  IF(.NOT.ASSOCIATED(NodeVol%SubNode)) THEN
+    CALL DSMC_CalcSubNodeVolumes3D(iElem, TreeNode%NodeDepth, ElemNodeVol(iElem)%Root)
   END IF
-
-  NodeVolumeTemp(1) = NodeVol%SubNode1%Volume
-  NodeVolumeTemp(2) = NodeVol%SubNode2%Volume
-  NodeVolumeTemp(3) = NodeVol%SubNode3%Volume
-  NodeVolumeTemp(4) = NodeVol%SubNode4%Volume
-  NodeVolumeTemp(5) = NodeVol%SubNode5%Volume
-  NodeVolumeTemp(6) = NodeVol%SubNode6%Volume
-  NodeVolumeTemp(7) = NodeVol%SubNode7%Volume
-  NodeVolumeTemp(8) = NodeVol%SubNode8%Volume
 
   DO iLoop = 1, 8
     IF (PartNumChildNode(iLoop).GT.1) THEN
@@ -719,13 +709,13 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
         SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart))) = &
           SpecPartNum(PartSpecies(iPartIndx_ChildNode(iLoop,iPart))) + 1
       END DO
-      DSMC%MeanFreePath = CalcMeanFreePath(REAL(SpecPartNum),REAL(PartNumChildNode(iLoop)),NodeVolumeTemp(iLoop))
+      DSMC%MeanFreePath = CalcMeanFreePath(REAL(SpecPartNum),REAL(PartNumChildNode(iLoop)),NodeVol%SubNode(iLoop)%Volume)
     END IF
     ! Octree can only performed if nPart is greater than the defined value (default=20), otherwise nearest neighbour pairing
     IF(PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin) THEN
       ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
       ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-      IF((DSMC%MeanFreePath.LT.(NodeVolumeTemp(iLoop)**(1./3.))) &
+      IF((DSMC%MeanFreePath.LT.(NodeVol%SubNode(iLoop)%Volume**(1./3.))) &
                                                                .OR.(PartNumChildNode(iLoop).GT.DSMC%PartNumOctreeNode)) THEN
         NULLIFY(TreeNode%ChildNode)
         ALLOCATE(TreeNode%ChildNode)
@@ -735,27 +725,19 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
         TreeNode%ChildNode%PNum_Node = PartNumChildNode(iLoop)
         TreeNode%ChildNode%MappedPartStates(1:3,1:PartNumChildNode(iLoop))= &
                        MappedPart_ChildNode(1:3,1:PartNumChildNode(iLoop),iLoop)
-        TreeNode%childNode%MidPoint(1:3) = OCTANTCUBEMIDPOINT(iLoop,TreeNode%NodeDepth,TreeNode%MidPoint(1:3))
         TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
         ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
-        IF (iLoop.EQ.1) CALL AddOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1)
-        IF (iLoop.EQ.2) CALL AddOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode2)
-        IF (iLoop.EQ.3) CALL AddOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode3)
-        IF (iLoop.EQ.4) CALL AddOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode4)
-        IF (iLoop.EQ.5) CALL AddOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode5)
-        IF (iLoop.EQ.6) CALL AddOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode6)
-        IF (iLoop.EQ.7) CALL AddOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode7)
-        IF (iLoop.EQ.8) CALL AddOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode8)
+        CALL AddOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop))
         DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
         DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
         DEALLOCATE(TreeNode%ChildNode)
       ELSE
-        CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-                PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
+          CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+                  PartNumChildNode(iLoop), iElem, NodeVol%SubNode(iLoop)%Volume)
       END IF
     ELSE IF (PartNumChildNode(iLoop).GT.1) THEN
-      CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-              PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
+        CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
+                PartNumChildNode(iLoop), iElem, NodeVol%SubNode(iLoop)%Volume)
     END IF
   END DO
 
@@ -859,7 +841,8 @@ ELSE
         iPart = PEM%pNext(iPart)
       END DO
       TreeNode%NodeDepth = 1
-      TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
+      ElemNodeVol(iElem)%Root%MidPoint(1:3) = (/0.0,0.0,0.0/)
+      ElemNodeVol(iElem)%Root%NodeDepth = 1
       CALL AddQuadTreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
       DEALLOCATE(TreeNode%MappedPartStates)
     ELSE
@@ -893,23 +876,23 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)                     :: iElem
 TYPE(tTreeNode),INTENT(IN), POINTER     :: TreeNode
-TYPE(tNodeVolume),INTENT(IN), POINTER   :: NodeVol
+CLASS(tNodeVolume),INTENT(INOUT)        :: NodeVol
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, iPartIndx, localDepth
+INTEGER                       :: iPart, iLoop, iPartIndx
 INTEGER, ALLOCATABLE          :: iPartIndx_ChildNode(:,:)
 REAL, ALLOCATABLE             :: MappedPart_ChildNode(:,:,:)
 INTEGER                       :: PartNumChildNode(1:4)
-REAL                          :: NodeVolumeTemp(1:4), FaceVolumeTemp(1:4), SpecPartNum(nSpecies,1:4), RealParts(1:4), Volume(1:4)
+REAL                          :: NodeVolumeTemp(1:4), FaceVolumeTemp(1:4), SpecPartNum(nSpecies,1:4), RealParts(1:4)
 LOGICAL                       :: ForceNearestNeigh
 !===================================================================================================================================
 ForceNearestNeigh = .FALSE.
 ALLOCATE(iPartIndx_ChildNode(1:4,TreeNode%PNum_Node))
 ALLOCATE(MappedPart_ChildNode(1:2,TreeNode%PNum_Node,1:4))
 PartNumChildNode(:) = 0
-IF (ABS(TreeNode%MidPoint(1)) .EQ. 1.0) THEN
+IF (ABS(NodeVol%MidPoint(1)) .EQ. 1.0) THEN
   CALL Abort(&
     __STAMP__,&
     'ERROR in QuadTree Pairing: Too many branches, machine precision reached')
@@ -925,16 +908,16 @@ END IF
 
 DO iPart=1,TreeNode%PNum_Node
   iPartIndx = TreeNode%iPartIndx_Node(iPart)
-  IF ((TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) &
-      .AND.(TreeNode%MappedPartStates(2,iPart).LE.TreeNode%MidPoint(2))) THEN
+  IF ((TreeNode%MappedPartStates(1,iPart).GE.NodeVol%MidPoint(1)) &
+      .AND.(TreeNode%MappedPartStates(2,iPart).LE.NodeVol%MidPoint(2))) THEN
     PartNumChildNode(1) = PartNumChildNode(1) + 1
     iPartIndx_ChildNode(1,PartNumChildNode(1)) = iPartIndx
     MappedPart_ChildNode(1:2,PartNumChildNode(1),1) = TreeNode%MappedPartStates(1:2,iPart)
-  ELSE IF(TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) THEN
+  ELSE IF(TreeNode%MappedPartStates(1,iPart).GE.NodeVol%MidPoint(1)) THEN
     PartNumChildNode(2) = PartNumChildNode(2) + 1
     iPartIndx_ChildNode(2,PartNumChildNode(2)) = iPartIndx
     MappedPart_ChildNode(1:2,PartNumChildNode(2),2) = TreeNode%MappedPartStates(1:2,iPart)
-  ELSE IF(TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) THEN
+  ELSE IF(TreeNode%MappedPartStates(2,iPart).GE.NodeVol%MidPoint(2)) THEN
     PartNumChildNode(3) = PartNumChildNode(3) + 1
     iPartIndx_ChildNode(3,PartNumChildNode(3)) = iPartIndx
     MappedPart_ChildNode(1:2,PartNumChildNode(3),3) = TreeNode%MappedPartStates(1:2,iPart)
@@ -945,21 +928,14 @@ DO iPart=1,TreeNode%PNum_Node
   END IF
 END DO
 
-IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
-  localDepth = TreeNode%NodeDepth
-  CALL DSMC_CalcSubNodeVolumes2D(iElem, localDepth, ElemNodeVol(iElem)%Root)
+IF(.NOT.ASSOCIATED(NodeVol%SubNode)) THEN
+  CALL DSMC_CalcSubNodeVolumes2D(iElem, TreeNode%NodeDepth, ElemNodeVol(iElem)%Root)
 END IF
 
-NodeVolumeTemp(1) = NodeVol%SubNode1%Volume
-NodeVolumeTemp(2) = NodeVol%SubNode2%Volume
-NodeVolumeTemp(3) = NodeVol%SubNode3%Volume
-NodeVolumeTemp(4) = NodeVol%SubNode4%Volume
-FaceVolumeTemp(1) = NodeVol%SubNode1%Area
-FaceVolumeTemp(2) = NodeVol%SubNode2%Area
-FaceVolumeTemp(3) = NodeVol%SubNode3%Area
-FaceVolumeTemp(4) = NodeVol%SubNode4%Area
-
-Volume(1:4) = NodeVolumeTemp(1:4)
+DO iLoop = 1, 4
+  NodeVolumeTemp(iLoop) = NodeVol%SubNode(iLoop)%Volume
+  FaceVolumeTemp(iLoop) = NodeVol%SubNode(iLoop)%Area
+END DO
 
 IF(DSMC%MergeSubcells) THEN
   IF (ALL(PartNumChildNode.LT.DSMC%PartNumOctreeNodeMin)) THEN
@@ -995,6 +971,8 @@ IF(DSMC%MergeSubcells) THEN
       PartNumChildNode(1) = 0
       NodeVolumeTemp(2) = NodeVolumeTemp(2) + NodeVolumeTemp(1)
       NodeVolumeTemp(1) = 0.0
+      FaceVolumeTemp(2) = FaceVolumeTemp(2) + FaceVolumeTemp(1)
+      FaceVolumeTemp(1) = 0.0
       DO iPart=1, PartNumChildNode(3)
         iPartIndx_ChildNode(4,PartNumChildNode(4)+iPart) = iPartIndx_ChildNode(3,iPart)
         MappedPart_ChildNode(1:2,PartNumChildNode(4)+iPart,4) = MappedPart_ChildNode(1:2,iPart,3)
@@ -1003,6 +981,8 @@ IF(DSMC%MergeSubcells) THEN
       PartNumChildNode(3) = 0
       NodeVolumeTemp(4) = NodeVolumeTemp(4) + NodeVolumeTemp(3)
       NodeVolumeTemp(3) = 0.0
+      FaceVolumeTemp(4) = FaceVolumeTemp(4) + FaceVolumeTemp(3)
+      FaceVolumeTemp(3) = 0.0
     END IF
   END IF
 END IF
@@ -1025,9 +1005,9 @@ DO iLoop = 1, 4
     ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> octree
     IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
-      DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), Volume(iLoop))
+      DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), NodeVolumeTemp(iLoop))
     ELSE
-      DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), Volume(iLoop))
+      DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), NodeVolumeTemp(iLoop))
     END IF
     IF((DSMC%MeanFreePath.LT.(FaceVolumeTemp(iLoop)**(1./2.))).OR.(PartNumChildNode(iLoop).GT.DSMC%PartNumOctreeNode)) THEN
       NULLIFY(TreeNode%ChildNode)
@@ -1038,30 +1018,9 @@ DO iLoop = 1, 4
       TreeNode%ChildNode%PNum_Node = PartNumChildNode(iLoop)
       TreeNode%ChildNode%MappedPartStates(1:2,1:PartNumChildNode(iLoop))= &
                      MappedPart_ChildNode(1:2,1:PartNumChildNode(iLoop),iLoop)
-      IF (iLoop.LT.3) THEN
-        TreeNode%ChildNode%MidPoint(1) = 1.0
-        IF (iLoop.EQ.1) THEN
-          TreeNode%ChildNode%MidPoint(2) = -1.0
-        ELSE
-          TreeNode%ChildNode%MidPoint(2) = 1.0
-        END IF
-      ELSE
-        TreeNode%ChildNode%MidPoint(1) = -1.0
-        IF (iLoop.EQ.3) THEN
-          TreeNode%ChildNode%MidPoint(2) = 1.0
-        ELSE
-          TreeNode%ChildNode%MidPoint(2) = -1.0
-        END IF
-      END IF
-      TreeNode%ChildNode%MidPoint(3) = 0.0
-      TreeNode%ChildNode%MidPoint(1:3) = TreeNode%MidPoint(1:3) &
-                                        + TreeNode%ChildNode%MidPoint(1:3)*2.0/(2.0**(TreeNode%NodeDepth+1.0))
       TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
       ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further quadtree division)
-      IF (iLoop.EQ.1) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1)
-      IF (iLoop.EQ.2) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode2)
-      IF (iLoop.EQ.3) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode3)
-      IF (iLoop.EQ.4) CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode4)
+      CALL AddQuadTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop))
       DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
       DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
       DEALLOCATE(TreeNode%ChildNode)
@@ -1141,7 +1100,8 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
       iPart = PEM%pNext(iPart)
     END DO
     TreeNode%NodeDepth = 1
-    TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
+    ElemNodeVol(iElem)%Root%NodeDepth = 1    
+    ElemNodeVol(iElem)%Root%MidPoint(1:3) = (/0.0,0.0,0.0/)
     CALL AddDoTreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
     DEALLOCATE(TreeNode%MappedPartStates)
   ELSE
@@ -1174,23 +1134,23 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)                     :: iElem
 TYPE(tTreeNode),INTENT(IN), POINTER     :: TreeNode
-TYPE(tNodeVolume),INTENT(IN), POINTER   :: NodeVol
+CLASS(tNodeVolume),INTENT(INOUT)        :: NodeVol
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, iPartIndx, localDepth, ChildNodeID
+INTEGER                       :: iPart, iLoop, iPartIndx, ChildNodeID
 INTEGER, ALLOCATABLE          :: iPartIndx_ChildNode(:,:)
 REAL, ALLOCATABLE             :: MappedPart_ChildNode(:,:,:)
 INTEGER                       :: PartNumChildNode(1:2)
-REAL                          :: NodeVolumeTemp(1:2), LengthVolumeTemp(1:2), SpecPartNum(nSpecies,1:2), RealParts(1:2), Volume(1:2)
+REAL                          :: SpecPartNum(nSpecies,1:2), RealParts(1:2)
 LOGICAL                       :: ForceNearestNeigh
 !===================================================================================================================================
 ForceNearestNeigh = .FALSE.
 ALLOCATE(iPartIndx_ChildNode(1:2,TreeNode%PNum_Node))
 ALLOCATE(MappedPart_ChildNode(1,TreeNode%PNum_Node,1:2))
 PartNumChildNode(:) = 0
-IF (ABS(TreeNode%MidPoint(1)) .EQ. 1.0) THEN
+IF (ABS(NodeVol%MidPoint(1)) .EQ. 1.0) THEN
   CALL Abort(&
     __STAMP__,&
     'ERROR in DoTree Pairing: Too many branches, machine precision reached')
@@ -1204,22 +1164,15 @@ END IF
 
 DO iPart=1,TreeNode%PNum_Node
   iPartIndx = TreeNode%iPartIndx_Node(iPart)
-  ChildNodeID = DOTANTCUBEID(TreeNode%MidPoint(:),TreeNode%MappedPartStates(:,iPart))
+  ChildNodeID = DOTANTCUBEID(NodeVol%MidPoint(:),TreeNode%MappedPartStates(:,iPart))
   PartNumChildNode(ChildNodeID) = PartNumChildNode(ChildNodeID) + 1
   iPartIndx_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = iPartIndx
   MappedPart_ChildNode(1,PartNumChildNode(ChildNodeID),ChildNodeID) = TreeNode%MappedPartStates(1,iPart)
 END DO
 
-IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
-  localDepth = TreeNode%NodeDepth
-  CALL AddNodeVolumes1D(localDepth, ElemNodeVol(iElem)%Root, iElem)
+IF(.NOT.ASSOCIATED(NodeVol%SubNode)) THEN
+  CALL AddNodeVolumes1D(TreeNode%NodeDepth, ElemNodeVol(iElem)%Root, iElem)
 END IF
-
-NodeVolumeTemp(1) = NodeVol%SubNode1%Volume
-NodeVolumeTemp(2) = NodeVol%SubNode2%Volume
-LengthVolumeTemp(1) = NodeVol%SubNode1%Length
-LengthVolumeTemp(2) = NodeVol%SubNode2%Length
-Volume(1:2) = NodeVolumeTemp(1:2)
 
 DO iLoop = 1, 2
 ! DoTree can only performed if nPart is greater than the defined value, otherwise nearest neighbour pairing
@@ -1238,9 +1191,9 @@ DO iLoop = 1, 2
     ! IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     !   DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), Volume(iLoop))
     ! ELSE
-      DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), Volume(iLoop))
+      DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), NodeVol%SubNode(iLoop)%Volume)
     ! END IF
-    IF((DSMC%MeanFreePath.LT.(LengthVolumeTemp(iLoop))).OR.(PartNumChildNode(iLoop).GT.DSMC%PartNumOctreeNode)) THEN
+    IF((DSMC%MeanFreePath.LT.(NodeVol%SubNode(iLoop)%Length)).OR.(PartNumChildNode(iLoop).GT.DSMC%PartNumOctreeNode)) THEN
       NULLIFY(TreeNode%ChildNode)
       ALLOCATE(TreeNode%ChildNode)
       ALLOCATE(TreeNode%ChildNode%iPartIndx_Node(PartNumChildNode(iLoop)))
@@ -1249,21 +1202,19 @@ DO iLoop = 1, 2
       TreeNode%ChildNode%PNum_Node = PartNumChildNode(iLoop)
       TreeNode%ChildNode%MappedPartStates(1,1:PartNumChildNode(iLoop))= &
                      MappedPart_ChildNode(1,1:PartNumChildNode(iLoop),iLoop)
-      TreeNode%ChildNode%MidPoint(1:3) = DOTANTCUBEMIDPOINT(iLoop,TreeNode%NodeDepth,TreeNode%MidPoint(1:3))
       TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
       ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further quadtree division)
-      IF (iLoop.EQ.1) CALL AddDoTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1)
-      IF (iLoop.EQ.2) CALL AddDoTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode2)
+      CALL AddDoTreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop))
       DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
       DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
       DEALLOCATE(TreeNode%ChildNode)
     ELSE
       CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-            PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
+            PartNumChildNode(iLoop), iElem, NodeVol%SubNode(iLoop)%Volume)
     END IF
   ELSE IF (PartNumChildNode(iLoop).GT.1) THEN
     CALL PerformPairingAndCollision(iPartIndx_ChildNode(iLoop, 1:PartNumChildNode(iLoop)), &
-          PartNumChildNode(iLoop), iElem, NodeVolumeTemp(iLoop))
+         PartNumChildNode(iLoop), iElem, NodeVol%SubNode(iLoop)%Volume)
   ELSE IF (CollInf%ProhibitDoubleColl.AND.(PartNumChildNode(iLoop).EQ.1)) THEN
     CollInf%OldCollPartner(iPartIndx_ChildNode(iLoop, 1)) = 0
   END IF
@@ -1319,15 +1270,15 @@ ALLOCATE(ElemNodeVol(nElems))
 !Calculate recursive Volumes
 DO iElem = 1, nElems
   ALLOCATE(ElemNodeVol(iElem)%Root)
-  DO NodeDepth = 1, 2
-    IF (Symmetry%Order.EQ.3) THEN
-      CALL DSMC_CalcSubNodeVolumes3D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
-    ELSE IF(Symmetry%Order.EQ.2) THEN
-      CALL DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
-    ELSE
-      CALL AddNodeVolumes1D(NodeDepth, ElemNodeVol(iElem)%Root, iElem)
-    END IF
-  END DO
+!  DO NodeDepth = 1, 2
+!    IF (Symmetry%Order.EQ.3) THEN
+!      CALL DSMC_CalcSubNodeVolumes3D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
+!    ELSE IF(Symmetry%Order.EQ.2) THEN
+!      CALL DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, ElemNodeVol(iElem)%Root)
+!    ELSE
+!      CALL AddNodeVolumes1D(NodeDepth, ElemNodeVol(iElem)%Root, iElem)
+!    END IF
+!  END DO
 END DO
 
 END SUBROUTINE DSMC_init_octree
@@ -1347,7 +1298,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)                       :: iElem
 INTEGER, INTENT(IN)                       :: NodeDepth
-TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
+CLASS(tNodeVolume), INTENT(INOUT)         :: Node
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1398,7 +1349,7 @@ SUBROUTINE DSMC_CalcSubNodeVolumes3D(iElem, NodeDepth, Node)
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)                       :: iElem
   INTEGER, INTENT(IN)                       :: NodeDepth
-  TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
+  CLASS(tNodeVolume), INTENT(INOUT)         :: Node
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1478,7 +1429,7 @@ RECURSIVE SUBROUTINE AddNodeVolumes(NodeDepth, Node, DetJac, VdmLocal, SubNodesI
 ! INPUT VARIABLES
   INTEGER, INTENT(IN)                       :: NodeDepth
   INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
-  TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
+  CLASS(tNodeVolume), INTENT(INOUT)         :: Node
   REAL, INTENT(INOUT)                       :: DetJac(1,0:2**NodeDepth-1,0:2**NodeDepth-1,0:2**NodeDepth-1)
   TYPE (tOctreeVdm), INTENT(OUT), POINTER   :: VdmLocal
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1486,7 +1437,7 @@ RECURSIVE SUBROUTINE AddNodeVolumes(NodeDepth, Node, DetJac, VdmLocal, SubNodesI
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER, ALLOCATABLE                       :: SubNodesOut(:)
-  INTEGER                                    :: OldNodeNum, NewNodeNum, j, VolPos(3)
+  INTEGER                                    :: OldNodeNum, NewNodeNum, j, VolPos(3), iNode
 !===================================================================================================================================
 IF (PRESENT(SubNodesIn)) THEN
   OldNodeNum = SIZE(SubNodesIn)
@@ -1501,56 +1452,30 @@ END IF
 
 IF (OldNodeNum.NE.NodeDepth) THEN
   IF (OldNodeNum.EQ.0) THEN
-    SubNodesOut(NewNodeNum) = 1
-    IF(.NOT.ASSOCIATED(Node%SubNode1)) ALLOCATE(Node%SubNode1)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode1, DetJac, VdmLocal, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 2
-    IF(.NOT.ASSOCIATED(Node%SubNode2)) ALLOCATE(Node%SubNode2)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode2, DetJac, VdmLocal, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 3
-    IF(.NOT.ASSOCIATED(Node%SubNode3)) ALLOCATE(Node%SubNode3)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode3, DetJac, VdmLocal, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 4
-    IF(.NOT.ASSOCIATED(Node%SubNode4)) ALLOCATE(Node%SubNode4)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode4, DetJac, VdmLocal, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 5
-    IF(.NOT.ASSOCIATED(Node%SubNode5)) ALLOCATE(Node%SubNode5)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode5, DetJac, VdmLocal, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 6
-    IF(.NOT.ASSOCIATED(Node%SubNode6)) ALLOCATE(Node%SubNode6)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode6, DetJac, VdmLocal, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 7
-    IF(.NOT.ASSOCIATED(Node%SubNode7)) ALLOCATE(Node%SubNode7)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode7, DetJac, VdmLocal, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 8
-    IF(.NOT.ASSOCIATED(Node%SubNode8)) ALLOCATE(Node%SubNode8)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode8, DetJac, VdmLocal, SubNodesOut)
+    IF(.NOT.ASSOCIATED(Node%SubNode)) THEN
+      ALLOCATE(Node%SubNode(8))
+      DO iNode = 1, 8
+        Node%SubNode(iNode)%NodeDepth = Node%NodeDepth + 1
+        Node%SubNode(iNode)%MidPoint(1:3) = OCTANTCUBEMIDPOINT(iNode,Node%NodeDepth,Node%MidPoint(1:3))
+      END DO
+    END IF
+    DO iNode = 1, 8
+      SubNodesOut(NewNodeNum) = iNode
+      CALL AddNodeVolumes(NodeDepth, Node%SubNode(iNode), DetJac, VdmLocal, SubNodesOut)
+    END DO
   ELSE
-    SubNodesOut(NewNodeNum) = 1
-    IF(.NOT.ASSOCIATED(Node%SubNode1)) ALLOCATE(Node%SubNode1)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode1, DetJac, VdmLocal%SubVdm, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 2
-    IF(.NOT.ASSOCIATED(Node%SubNode2)) ALLOCATE(Node%SubNode2)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode2, DetJac, VdmLocal%SubVdm, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 3
-    IF(.NOT.ASSOCIATED(Node%SubNode3)) ALLOCATE(Node%SubNode3)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode3, DetJac, VdmLocal%SubVdm, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 4
-    IF(.NOT.ASSOCIATED(Node%SubNode4)) ALLOCATE(Node%SubNode4)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode4, DetJac, VdmLocal%SubVdm, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 5
-    IF(.NOT.ASSOCIATED(Node%SubNode5)) ALLOCATE(Node%SubNode5)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode5, DetJac, VdmLocal%SubVdm, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 6
-    IF(.NOT.ASSOCIATED(Node%SubNode6)) ALLOCATE(Node%SubNode6)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode6, DetJac, VdmLocal%SubVdm, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 7
-    IF(.NOT.ASSOCIATED(Node%SubNode7)) ALLOCATE(Node%SubNode7)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode7, DetJac, VdmLocal%SubVdm, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 8
-    IF(.NOT.ASSOCIATED(Node%SubNode8)) ALLOCATE(Node%SubNode8)
-    CALL AddNodeVolumes(NodeDepth, Node%SubNode8, DetJac, VdmLocal%SubVdm, SubNodesOut)
-   END IF
+    IF(.NOT.ASSOCIATED(Node%SubNode)) THEN
+      ALLOCATE(Node%SubNode(8))
+      DO iNode = 1, 8
+        Node%SubNode(iNode)%NodeDepth = Node%NodeDepth + 1
+        Node%SubNode(iNode)%MidPoint(1:3) = OCTANTCUBEMIDPOINT(iNode,Node%NodeDepth,Node%MidPoint(1:3))
+      END DO
+    END IF
+    DO iNode = 1, 8
+      SubNodesOut(NewNodeNum) = iNode
+      CALL AddNodeVolumes(NodeDepth, Node%SubNode(iNode), DetJac, VdmLocal%SubVdm, SubNodesOut)
+    END DO
+  END IF
 ELSE
   VolPos(:) = 0
   DO j=1, NodeDepth
@@ -1588,7 +1513,7 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)                       :: NodeDepth
 INTEGER, INTENT(IN)                       :: iElem
 INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
-TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
+CLASS(tNodeVolume), INTENT(INOUT)         :: Node
 REAL, INTENT(INOUT)                       :: DetJac(1,0:2**NodeDepth-1,0:2**NodeDepth-1)
 REAL, INTENT(INOUT)                       :: FacexGP(2,0:2**NodeDepth-1,0:2**NodeDepth-1)
 TYPE (tOctreeVdm), INTENT(OUT), POINTER   :: VdmLocal
@@ -1597,7 +1522,7 @@ TYPE (tOctreeVdm), INTENT(OUT), POINTER   :: VdmLocal
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER, ALLOCATABLE                      :: SubNodesOut(:)
-INTEGER                                   :: OldNodeNum, NewNodeNum, j, VolPos(2), dirX, dirY, realDirX, realDirY
+INTEGER                                   :: OldNodeNum, NewNodeNum, j, VolPos(2), dirX, dirY, realDirX, realDirY, iNode
 REAL                                      :: Pos(2)
 REAL                                      :: Distance, TempDistance
 !===================================================================================================================================
@@ -1614,32 +1539,30 @@ END IF
 
 IF (OldNodeNum.NE.NodeDepth) THEN
   IF (OldNodeNum.EQ.0) THEN
-    SubNodesOut(NewNodeNum) = 1
-    IF(.NOT.ASSOCIATED(Node%SubNode1)) ALLOCATE(Node%SubNode1)
-    CALL AddNodeVolumes2D(NodeDepth, Node%SubNode1, DetJac, VdmLocal, iElem, FacexGP, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 2
-    IF(.NOT.ASSOCIATED(Node%SubNode2)) ALLOCATE(Node%SubNode2)
-    CALL AddNodeVolumes2D(NodeDepth, Node%SubNode2, DetJac, VdmLocal, iElem, FacexGP, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 3
-    IF(.NOT.ASSOCIATED(Node%SubNode3)) ALLOCATE(Node%SubNode3)
-    CALL AddNodeVolumes2D(NodeDepth, Node%SubNode3, DetJac, VdmLocal, iElem, FacexGP, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 4
-    IF(.NOT.ASSOCIATED(Node%SubNode4)) ALLOCATE(Node%SubNode4)
-    CALL AddNodeVolumes2D(NodeDepth, Node%SubNode4, DetJac, VdmLocal, iElem, FacexGP, SubNodesOut)
+    IF(.NOT.ASSOCIATED(Node%SubNode)) THEN
+      ALLOCATE(Node%SubNode(4))
+      DO iNode = 1, 4
+        Node%SubNode(iNode)%NodeDepth = Node%NodeDepth + 1
+        Node%SubNode(iNode)%MidPoint(1:3) = QUADCUBEMIDPOINT(iNode,Node%NodeDepth,Node%MidPoint(1:3))
+      END DO
+    END IF
+    DO iNode = 1, 4
+      SubNodesOut(NewNodeNum) = iNode
+      CALL AddNodeVolumes2D(NodeDepth, Node%SubNode(iNode), DetJac, VdmLocal, iElem, FacexGP, SubNodesOut)
+    END DO
   ELSE
-    SubNodesOut(NewNodeNum) = 1
-    IF(.NOT.ASSOCIATED(Node%SubNode1)) ALLOCATE(Node%SubNode1)
-    CALL AddNodeVolumes2D(NodeDepth, Node%SubNode1, DetJac, VdmLocal%SubVdm, iElem, FacexGP, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 2
-    IF(.NOT.ASSOCIATED(Node%SubNode2)) ALLOCATE(Node%SubNode2)
-    CALL AddNodeVolumes2D(NodeDepth, Node%SubNode2, DetJac, VdmLocal%SubVdm, iElem, FacexGP, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 3
-    IF(.NOT.ASSOCIATED(Node%SubNode3)) ALLOCATE(Node%SubNode3)
-    CALL AddNodeVolumes2D(NodeDepth, Node%SubNode3, DetJac, VdmLocal%SubVdm, iElem, FacexGP, SubNodesOut)
-    SubNodesOut(NewNodeNum) = 4
-    IF(.NOT.ASSOCIATED(Node%SubNode4)) ALLOCATE(Node%SubNode4)
-    CALL AddNodeVolumes2D(NodeDepth, Node%SubNode4, DetJac, VdmLocal%SubVdm, iElem, FacexGP, SubNodesOut)
-   END IF
+    IF(.NOT.ASSOCIATED(Node%SubNode)) THEN
+      ALLOCATE(Node%SubNode(4))
+      DO iNode = 1, 4
+        Node%SubNode(iNode)%NodeDepth = Node%NodeDepth + 1
+        Node%SubNode(iNode)%MidPoint(1:3) = QUADCUBEMIDPOINT(iNode,Node%NodeDepth,Node%MidPoint(1:3))
+      END DO
+    END IF
+    DO iNode = 1, 4
+      SubNodesOut(NewNodeNum) = iNode
+      CALL AddNodeVolumes2D(NodeDepth, Node%SubNode(iNode), DetJac, VdmLocal%SubVdm, iElem, FacexGP, SubNodesOut)
+    END DO
+  END IF
 ELSE
   VolPos(:) = 0
   DO j=1, NodeDepth
@@ -1810,8 +1733,45 @@ IF ((CubeID.EQ.1).OR.(CubeID.EQ.4).OR.(CubeID.EQ.5).OR.(CubeID.EQ.8)) THEN
 ELSE
   OCTANTCUBEMIDPOINT(3) = 1.0
 END IF
-OCTANTCUBEMIDPOINT(1:3) = octantCenter(1:3) + OCTANTCUBEMIDPOINT(1:3)*2.0/REAL(2.0**(octantDepth+1))
+OCTANTCUBEMIDPOINT(1:3) = octantCenter(1:3) + OCTANTCUBEMIDPOINT(1:3)*2.0/(2.0**(REAL(octantDepth)+1.))
 END FUNCTION OCTANTCUBEMIDPOINT
+
+
+PPURE FUNCTION QUADCUBEMIDPOINT(CubeID,octantDepth,octantCenter)
+!===================================================================================================================================
+!> determines the position of the center of the given cubeID of an Octant for a given 3D centerpoint and depth
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: CubeID
+INTEGER,INTENT(IN) :: octantDepth
+REAL,INTENT(IN)    :: octantCenter(1:3)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+REAL, DIMENSION(3) :: QUADCUBEMIDPOINT
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF (CubeID.LT.3) THEN
+  QUADCUBEMIDPOINT(1) = 1.0
+  IF (CubeID.EQ.1) THEN
+    QUADCUBEMIDPOINT(2) = -1.0
+  ELSE
+    QUADCUBEMIDPOINT(2) = 1.0
+  END IF
+ELSE
+  QUADCUBEMIDPOINT(1) = -1.0
+  IF (CubeID.EQ.3) THEN
+    QUADCUBEMIDPOINT(2) = 1.0
+  ELSE
+    QUADCUBEMIDPOINT(2) = -1.0
+  END IF
+END IF
+QUADCUBEMIDPOINT(1:2) = octantCenter(1:2) + QUADCUBEMIDPOINT(1:2)*2.0/(2.0**(REAL(octantDepth)+1.0))
+QUADCUBEMIDPOINT(3) = 0.0
+END FUNCTION QUADCUBEMIDPOINT
 
 
 FUNCTION Calc_F2D(xi,x,P)
@@ -2146,13 +2106,13 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)                       :: NodeDepth
 INTEGER, INTENT(IN)                       :: iElem
 INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
-TYPE (tNodeVolume), INTENT(OUT), POINTER  :: Node
+CLASS(tNodeVolume), INTENT(INOUT)         :: Node
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER, ALLOCATABLE                      :: SubNodesOut(:)
-INTEGER                                   :: OldNodeNum, NewNodeNum, iDepth
+INTEGER                                   :: OldNodeNum, NewNodeNum, iDepth, iNode
 REAL                                      :: Xmin, Xmax
 !===================================================================================================================================
 IF (PRESENT(SubNodesIn)) THEN
@@ -2167,12 +2127,17 @@ ELSE
 END IF
 
 IF (OldNodeNum.NE.NodeDepth) THEN
-  SubNodesOut(NewNodeNum) = 1
-  IF(.NOT.ASSOCIATED(Node%SubNode1)) ALLOCATE(Node%SubNode1)
-  CALL AddNodeVolumes1D(NodeDepth, Node%SubNode1, iElem, SubNodesOut)
-  SubNodesOut(NewNodeNum) = 2
-  IF(.NOT.ASSOCIATED(Node%SubNode2)) ALLOCATE(Node%SubNode2)
-  CALL AddNodeVolumes1D(NodeDepth, Node%SubNode2, iElem, SubNodesOut)
+  IF(.NOT.ASSOCIATED(Node%SubNode)) THEN
+    ALLOCATE(Node%SubNode(2))
+    DO iNode = 1, 2
+      Node%SubNode(iNode)%NodeDepth = Node%NodeDepth + 1
+      Node%SubNode(iNode)%MidPoint(1:3) = DOTANTCUBEMIDPOINT(iNode,Node%NodeDepth,Node%MidPoint(1:3))
+    END DO
+  END IF
+  DO iNode = 1, 2
+    SubNodesOut(NewNodeNum) = iNode
+    CALL AddNodeVolumes1D(NodeDepth, Node%SubNode(iNode), iElem, SubNodesOut)
+  END DO
 ELSE
   IF(Symmetry%Axisymmetric) THEN
     Xmin=GEO%XMinMax(1,iElem)

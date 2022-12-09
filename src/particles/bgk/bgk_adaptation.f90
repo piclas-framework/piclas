@@ -46,7 +46,7 @@ USE MOD_Particle_Vars           ,ONLY: PartState
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens
-! USE MOD_BGK_Vars                ,ONLY: BGKMovingAverage,ElemNodeAveraging,BGKMovingAverageLength
+USE MOD_BGK_Vars                ,ONLY: BGKMovingAverage,ElemNodeAveraging
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKInitDone,BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor
@@ -173,12 +173,13 @@ ELSE
       END DO
     END IF ! TrackingMethod.EQ.REFMAPPING
     TreeNode%NodeDepth = 1
-    TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
+    ElemNodeVol(iElem)%Root%NodeDepth = 1
+    ElemNodeVol(iElem)%Root%MidPoint(1:3) = (/0.0,0.0,0.0/)
     ! Start of the recursive routine, which will descend further down the octree until the aforementioned criteria are fulfilled
     ! IF (BGKMovingAverage) THEN
     !   CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
     ! ELSE
-      CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
+        CALL AddBGKOctreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root)
     ! END IF
     DEALLOCATE(TreeNode%MappedPartStates)
   ELSE ! No octree refinement: Call of the respective collision operator
@@ -225,8 +226,7 @@ DEALLOCATE(TreeNode)
 END SUBROUTINE BGK_octree_adapt
 
 
-RECURSIVE SUBROUTINE AddBGKOctreeNode(TreeNode, iElem, NodeVol)
-! RECURSIVE SUBROUTINE AddBGKOctreeNode(TreeNode, iElem, NodeVol, Averaging)
+RECURSIVE SUBROUTINE AddBGKOctreeNode(TreeNode, iElem, NodeVol, Averaging)
 !===================================================================================================================================
 !> Adds an additional octree node/branch until either the particle number or number density is above a user-given limit
 !> 1.) Sorting the particles into the subcells (octree child nodes)
@@ -238,8 +238,8 @@ RECURSIVE SUBROUTINE AddBGKOctreeNode(TreeNode, iElem, NodeVol)
 USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: tTreeNode, tNodeVolume, ElemNodeVol
 USE MOD_BGK_CollOperator      ,ONLY: BGK_CollisionOperator
-USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes3D
-USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell!,tNodeAverage, BGKMovingAverage, BGKMovingAverageLength
+USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes3D, OCTANTCUBEID, OCTANTCUBEMIDPOINT
+USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell,tNodeAverage, BGKMovingAverage
 USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperator
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -247,13 +247,13 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)                                 :: iElem
 TYPE(tTreeNode),INTENT(IN), POINTER                 :: TreeNode
-TYPE(tNodeVolume),INTENT(IN), POINTER               :: NodeVol
-! TYPE(tNodeAverage),INTENT(INOUT), POINTER, OPTIONAL :: Averaging
+CLASS(tNodeVolume),INTENT(INOUT)                    :: NodeVol
+CLASS(tNodeAverage),INTENT(INOUT), OPTIONAL         :: Averaging
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: iPart, iLoop, iPartIndx, localDepth, iLoop2
+INTEGER                      :: iPart, iLoop, iPartIndx, iLoop2, ChildNodeID
 INTEGER, ALLOCATABLE         :: iPartIndx_ChildNode(:,:)
 REAL, ALLOCATABLE            :: MappedPart_ChildNode(:,:,:)
 INTEGER                      :: PartNumChildNode(8)
@@ -269,7 +269,7 @@ END IF
 ALLOCATE(iPartIndx_ChildNode(8,TreeNode%PNum_Node))
 ALLOCATE(MappedPart_ChildNode(1:3,TreeNode%PNum_Node,1:8))
 PartNumChildNode(:) = 0
-IF (ABS(TreeNode%MidPoint(1)) .EQ. 1.0) THEN
+IF (ABS(NodeVol%MidPoint(1)) .EQ. 1.0) THEN
   CALL Abort(&
 __STAMP__&
 ,'ERROR in Octree Pairing: Too many branches, machine precision reached')
@@ -290,71 +290,30 @@ END IF
 !     |____|____|/
 !
 
-DO iPart=1,TreeNode%PNum_Node
-  iPartIndx = TreeNode%iPartIndx_Node(iPart)
-  IF ((TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) &
-      .AND.(TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) &
-      .AND.(TreeNode%MappedPartStates(3,iPart).LE.TreeNode%MidPoint(3))) THEN
-    PartNumChildNode(1) = PartNumChildNode(1) + 1
-    iPartIndx_ChildNode(1,PartNumChildNode(1)) = iPartIndx
-    MappedPart_ChildNode(1:3,PartNumChildNode(1),1) = TreeNode%MappedPartStates(1:3,iPart)
-  ELSE IF((TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) &
-      .AND.(TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2))) THEN
-    PartNumChildNode(2) = PartNumChildNode(2) + 1
-    iPartIndx_ChildNode(2,PartNumChildNode(2)) = iPartIndx
-    MappedPart_ChildNode(1:3,PartNumChildNode(2),2) = TreeNode%MappedPartStates(1:3,iPart)
-  ELSE IF((TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) &
-      .AND.(TreeNode%MappedPartStates(3,iPart).GE.TreeNode%MidPoint(3))) THEN
-    PartNumChildNode(3) = PartNumChildNode(3) + 1
-    iPartIndx_ChildNode(3,PartNumChildNode(3)) = iPartIndx
-    MappedPart_ChildNode(1:3,PartNumChildNode(3),3) = TreeNode%MappedPartStates(1:3,iPart)
-  ELSE IF (TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) THEN
-    PartNumChildNode(4) = PartNumChildNode(4) + 1
-    iPartIndx_ChildNode(4,PartNumChildNode(4)) = iPartIndx
-    MappedPart_ChildNode(1:3,PartNumChildNode(4),4) = TreeNode%MappedPartStates(1:3,iPart)
-  ELSE IF((TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) &
-      .AND.(TreeNode%MappedPartStates(3,iPart).LE.TreeNode%MidPoint(3))) THEN
-    PartNumChildNode(5) = PartNumChildNode(5) + 1
-    iPartIndx_ChildNode(5,PartNumChildNode(5)) = iPartIndx
-    MappedPart_ChildNode(1:3,PartNumChildNode(5),5) = TreeNode%MappedPartStates(1:3,iPart)
-  ELSE IF (TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) THEN
-    PartNumChildNode(6) = PartNumChildNode(6) + 1
-    iPartIndx_ChildNode(6,PartNumChildNode(6)) = iPartIndx
-    MappedPart_ChildNode(1:3,PartNumChildNode(6),6) = TreeNode%MappedPartStates(1:3,iPart)
-  ELSE IF (TreeNode%MappedPartStates(3,iPart).GE.TreeNode%MidPoint(3)) THEN
-    PartNumChildNode(7) = PartNumChildNode(7) + 1
-    iPartIndx_ChildNode(7,PartNumChildNode(7)) = iPartIndx
-    MappedPart_ChildNode(1:3,PartNumChildNode(7),7) = TreeNode%MappedPartStates(1:3,iPart)
-  ELSE
-    PartNumChildNode(8) = PartNumChildNode(8) + 1
-    iPartIndx_ChildNode(8,PartNumChildNode(8)) = iPartIndx
-    MappedPart_ChildNode(1:3,PartNumChildNode(8),8) = TreeNode%MappedPartStates(1:3,iPart)
-  END IF
-END DO
+  DO iPart=1,TreeNode%PNum_Node
+    iPartIndx = TreeNode%iPartIndx_Node(iPart)
+    ChildNodeID = OCTANTCUBEID(NodeVol%MidPoint(:),TreeNode%MappedPartStates(:,iPart))
+    PartNumChildNode(ChildNodeID) = PartNumChildNode(ChildNodeID) + 1
+    iPartIndx_ChildNode(ChildNodeID,PartNumChildNode(ChildNodeID)) = iPartIndx
+    MappedPart_ChildNode(1:3,PartNumChildNode(ChildNodeID),ChildNodeID) = TreeNode%MappedPartStates(1:3,iPart)
+  END DO
 
 ! Check if any of the subcells has less particles than the limit, if so perform a recombination of cells (3.)
 IF(ANY(PartNumChildNode.LT.BGKMinPartPerCell)) CombineChildNodes = .TRUE.
 
 ! 2.) Calculate the subcell volume (if necessary)
-IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
-  localDepth = TreeNode%NodeDepth
-  CALL DSMC_CalcSubNodeVolumes3D(iElem, localDepth, ElemNodeVol(iElem)%Root)
+IF(.NOT.ASSOCIATED(NodeVol%SubNode)) THEN
+  CALL DSMC_CalcSubNodeVolumes3D(iElem, TreeNode%NodeDepth, ElemNodeVol(iElem)%Root)
 END IF
 
-NodeVolumeTemp(1) = NodeVol%SubNode1%Volume
-NodeVolumeTemp(2) = NodeVol%SubNode2%Volume
-NodeVolumeTemp(3) = NodeVol%SubNode3%Volume
-NodeVolumeTemp(4) = NodeVol%SubNode4%Volume
-NodeVolumeTemp(5) = NodeVol%SubNode5%Volume
-NodeVolumeTemp(6) = NodeVol%SubNode6%Volume
-NodeVolumeTemp(7) = NodeVol%SubNode7%Volume
-NodeVolumeTemp(8) = NodeVol%SubNode8%Volume
-
-! IF (BGKMovingAverage) THEN
-!   IF (.NOT.ASSOCIATED(Averaging%SubNode1)) THEN
-!     CALL BGK_AllocateAveragingNode(Averaging)
-!   END IF
+DO iLoop = 1, 8
+  NodeVolumeTemp(iLoop) = NodeVol%SubNode(iLoop)%Volume
+END DO
+!IF (BGKMovingAverage) THEN
+! IF (.NOT.ASSOCIATED(Averaging%SubNode)) THEN
+!   CALL BGK_AllocateAveragingNode(Averaging)
 ! END IF
+!END IF
 
 ! 3.) Combine subcells together if the particle number is less than the limit (BGKMinPartPerCell). Go through the first 7 subcells
 !    and if the subcell is below the limit, add the particles and the volume to the next subcell and delete them from the original.
@@ -400,49 +359,13 @@ DO iLoop = 1, 8
     TreeNode%ChildNode%PNum_Node = PartNumChildNode(iLoop)
     TreeNode%ChildNode%MappedPartStates(1:3,1:PartNumChildNode(iLoop))= &
                    MappedPart_ChildNode(1:3,1:PartNumChildNode(iLoop),iLoop)
-    IF (iLoop.LT.5) THEN
-      TreeNode%ChildNode%MidPoint(1) = 1.0
-      IF (iLoop.LT.3) THEN
-        TreeNode%ChildNode%MidPoint(2) = 1.0
-      ELSE
-        TreeNode%ChildNode%MidPoint(2) = -1.0
-      END IF
-    ELSE
-      TreeNode%ChildNode%MidPoint(1) = -1.0
-      IF (iLoop.LT.7) THEN
-        TreeNode%ChildNode%MidPoint(2) = 1.0
-      ELSE
-        TreeNode%ChildNode%MidPoint(2) = -1.0
-      END IF
-    END IF
-    IF ((iLoop.EQ.1).OR.(iLoop.EQ.4).OR.(iLoop.EQ.5).OR.(iLoop.EQ.8)) THEN
-      TreeNode%ChildNode%MidPoint(3) = -1.0
-    ELSE
-      TreeNode%ChildNode%MidPoint(3) = 1.0
-    END IF
-    TreeNode%ChildNode%MidPoint(1:3) = TreeNode%MidPoint(1:3) &
-                                     + TreeNode%ChildNode%MidPoint(1:3)*2.0/(2.0**(TreeNode%NodeDepth+1.0))
     TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
     ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further octree division)
-    ! IF (BGKMovingAverage) THEN
-    !   IF (iLoop.EQ.1) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1, Averaging%SubNode1)
-    !   IF (iLoop.EQ.2) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode2, Averaging%SubNode2)
-    !   IF (iLoop.EQ.3) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode3, Averaging%SubNode3)
-    !   IF (iLoop.EQ.4) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode4, Averaging%SubNode4)
-    !   IF (iLoop.EQ.5) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode5, Averaging%SubNode5)
-    !   IF (iLoop.EQ.6) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode6, Averaging%SubNode6)
-    !   IF (iLoop.EQ.7) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode7, Averaging%SubNode7)
-    !   IF (iLoop.EQ.8) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode8, Averaging%SubNode8)
-    ! ELSE
-      IF (iLoop.EQ.1) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1)
-      IF (iLoop.EQ.2) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode2)
-      IF (iLoop.EQ.3) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode3)
-      IF (iLoop.EQ.4) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode4)
-      IF (iLoop.EQ.5) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode5)
-      IF (iLoop.EQ.6) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode6)
-      IF (iLoop.EQ.7) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode7)
-      IF (iLoop.EQ.8) CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode8)
-    ! END IF
+    !IF (BGKMovingAverage) THEN
+    !  CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop), Averaging%SubNode(iLoop))
+    !ELSE
+      CALL AddBGKOctreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop))
+    !END IF
     DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
     DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
     DEALLOCATE(TreeNode%ChildNode)
@@ -695,7 +618,8 @@ ELSE
       iPart = PEM%pNext(iPart)
     END DO
     TreeNode%NodeDepth = 1
-    TreeNode%MidPoint(1:3) = (/0.0,0.0,0.0/)
+    ElemNodeVol(iElem)%Root%NodeDepth = 1
+    ElemNodeVol(iElem)%Root%MidPoint(1:3) = (/0.0,0.0,0.0/)
     ! Start of the recursive routine, which will descend further down the quadtree until the aforementioned criteria are fulfilled
     ! IF (BGKMovingAverage) THEN
     !   CALL AddBGKQuadtreeNode(TreeNode, iElem, ElemNodeVol(iElem)%Root, ElemNodeAveraging(iElem)%Root)
@@ -761,7 +685,7 @@ RECURSIVE SUBROUTINE AddBGKQuadtreeNode(TreeNode, iElem, NodeVol)
 USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: tTreeNode, tNodeVolume, ElemNodeVol
 USE MOD_BGK_CollOperator      ,ONLY: BGK_CollisionOperator
-USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes2D
+USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes2D, QUADCUBEMIDPOINT
 USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell    !,tNodeAverage, BGKMovingAverage, BGKMovingAverageLength
 USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperator
 ! IMPLICIT VARIABLE HANDLING
@@ -770,8 +694,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)                                 :: iElem
 TYPE(tTreeNode),INTENT(IN), POINTER                 :: TreeNode
-TYPE(tNodeVolume),INTENT(IN), POINTER               :: NodeVol
-! TYPE(tNodeAverage),INTENT(INOUT), POINTER, OPTIONAL :: Averaging
+CLASS(tNodeVolume),INTENT(INOUT)                    :: NodeVol
+!CLASS(tNodeAverage),INTENT(INOUT), OPTIONAL         :: Averaging
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -792,7 +716,7 @@ END IF
 ALLOCATE(iPartIndx_ChildNode(4,TreeNode%PNum_Node))
 ALLOCATE(MappedPart_ChildNode(1:3,TreeNode%PNum_Node,1:4))
 PartNumChildNode(:) = 0
-IF (ABS(TreeNode%MidPoint(1)) .EQ. 1.0) THEN
+IF (ABS(NodeVol%MidPoint(1)) .EQ. 1.0) THEN
   CALL Abort(&
 __STAMP__&
 ,'ERROR in BGK/FP Quadtree Refinement: Too many branches, machine precision reached')
@@ -810,16 +734,16 @@ END IF
 
 DO iPart=1,TreeNode%PNum_Node
   iPartIndx = TreeNode%iPartIndx_Node(iPart)
-  IF ((TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) &
-      .AND.(TreeNode%MappedPartStates(2,iPart).LE.TreeNode%MidPoint(2))) THEN
+  IF ((TreeNode%MappedPartStates(1,iPart).GE.NodeVol%MidPoint(1)) &
+      .AND.(TreeNode%MappedPartStates(2,iPart).LE.NodeVol%MidPoint(2))) THEN
     PartNumChildNode(1) = PartNumChildNode(1) + 1
     iPartIndx_ChildNode(1,PartNumChildNode(1)) = iPartIndx
     MappedPart_ChildNode(1:2,PartNumChildNode(1),1) = TreeNode%MappedPartStates(1:2,iPart)
-  ELSE IF(TreeNode%MappedPartStates(1,iPart).GE.TreeNode%MidPoint(1)) THEN
+  ELSE IF(TreeNode%MappedPartStates(1,iPart).GE.NodeVol%MidPoint(1)) THEN
     PartNumChildNode(2) = PartNumChildNode(2) + 1
     iPartIndx_ChildNode(2,PartNumChildNode(2)) = iPartIndx
     MappedPart_ChildNode(1:2,PartNumChildNode(2),2) = TreeNode%MappedPartStates(1:2,iPart)
-  ELSE IF(TreeNode%MappedPartStates(2,iPart).GE.TreeNode%MidPoint(2)) THEN
+  ELSE IF(TreeNode%MappedPartStates(2,iPart).GE.NodeVol%MidPoint(2)) THEN
     PartNumChildNode(3) = PartNumChildNode(3) + 1
     iPartIndx_ChildNode(3,PartNumChildNode(3)) = iPartIndx
     MappedPart_ChildNode(1:2,PartNumChildNode(3),3) = TreeNode%MappedPartStates(1:2,iPart)
@@ -834,15 +758,13 @@ END DO
 IF(ANY(PartNumChildNode.LT.BGKMinPartPerCell)) CombineChildNodes = .TRUE.
 
 ! 2.) Calculate the subcell volume (if necessary)
-IF((.NOT.ASSOCIATED(NodeVol)).OR.(.NOT.ASSOCIATED(NodeVol%SubNode1))) THEN
-  localDepth = TreeNode%NodeDepth
-  CALL DSMC_CalcSubNodeVolumes2D(iElem, localDepth, ElemNodeVol(iElem)%Root)
+IF (.NOT.ASSOCIATED(NodeVol%SubNode)) THEN
+  CALL DSMC_CalcSubNodeVolumes2D(iElem, TreeNode%NodeDepth, ElemNodeVol(iElem)%Root)
 END IF
 
-NodeVolumeTemp(1) = NodeVol%SubNode1%Volume
-NodeVolumeTemp(2) = NodeVol%SubNode2%Volume
-NodeVolumeTemp(3) = NodeVol%SubNode3%Volume
-NodeVolumeTemp(4) = NodeVol%SubNode4%Volume
+DO iLoop = 1, 4
+  NodeVolumeTemp(iLoop) = NodeVol%SubNode(iLoop)%Volume
+END DO
 
 !---- NOT IMPLEMENTED YET ---
 ! IF (BGKMovingAverage) THEN
@@ -895,37 +817,13 @@ DO iLoop = 1, 4
     TreeNode%ChildNode%PNum_Node = PartNumChildNode(iLoop)
     TreeNode%ChildNode%MappedPartStates(1:3,1:PartNumChildNode(iLoop))= &
           MappedPart_ChildNode(1:3,1:PartNumChildNode(iLoop),iLoop)
-    IF (iLoop.LT.3) THEN
-      TreeNode%ChildNode%MidPoint(1) = 1.0
-      IF (iLoop.EQ.1) THEN
-        TreeNode%ChildNode%MidPoint(2) = -1.0
-      ELSE
-        TreeNode%ChildNode%MidPoint(2) = 1.0
-      END IF
-    ELSE
-      TreeNode%ChildNode%MidPoint(1) = -1.0
-      IF (iLoop.EQ.3) THEN
-        TreeNode%ChildNode%MidPoint(2) = 1.0
-      ELSE
-        TreeNode%ChildNode%MidPoint(2) = -1.0
-      END IF
-    END IF
-    TreeNode%ChildNode%MidPoint(3) = 0.0
-    TreeNode%ChildNode%MidPoint(1:3) = TreeNode%MidPoint(1:3) &
-                                      + TreeNode%ChildNode%MidPoint(1:3)*2.0/(2.0**(TreeNode%NodeDepth+1.0))
     TreeNode%ChildNode%NodeDepth = TreeNode%NodeDepth + 1
     ! Determination of the sub node number for the correct pointer handover (pointer acts as root for further quadtree division)
-    ! IF (BGKMovingAverage) THEN
-    !   IF (iLoop.EQ.1) CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1, Averaging%SubNode1)
-    !   IF (iLoop.EQ.2) CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode2, Averaging%SubNode2)
-    !   IF (iLoop.EQ.3) CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode3, Averaging%SubNode3)
-    !   IF (iLoop.EQ.4) CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode4, Averaging%SubNode4)
-    ! ELSE
-    IF (iLoop.EQ.1) CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode1)
-    IF (iLoop.EQ.2) CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode2)
-    IF (iLoop.EQ.3) CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode3)
-    IF (iLoop.EQ.4) CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode4)
-    ! END IF
+    !IF (BGKMovingAverage) THEN
+    !  CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop), Averaging%SubNode(iLoop))
+    !LSE
+      CALL AddBGKQuadtreeNode(TreeNode%ChildNode, iElem, NodeVol%SubNode(iLoop))
+    !END IF
     DEALLOCATE(TreeNode%ChildNode%MappedPartStates)
     DEALLOCATE(TreeNode%ChildNode%iPartIndx_Node)
     DEALLOCATE(TreeNode%ChildNode)

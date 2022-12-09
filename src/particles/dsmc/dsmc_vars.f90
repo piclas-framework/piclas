@@ -514,28 +514,21 @@ REAL,ALLOCATABLE          :: DSMC_Solution(:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evi
 TYPE tTreeNode
 !  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
   TYPE (tTreeNode), POINTER       :: ChildNode       => null()       !8 Childnodes of Octree Treenode
-  REAL                            :: MidPoint(1:3)          ! approx Middle Point of Treenode
   INTEGER                         :: PNum_Node              ! Particle Number of Treenode
   INTEGER, ALLOCATABLE            :: iPartIndx_Node(:)      ! Particle Index List of Treenode
   REAL, ALLOCATABLE               :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
-  LOGICAL, ALLOCATABLE            :: MatchedPart(:)         ! Flag signaling that mapped particle is inside of macroparticle
-  REAL                            :: NodeVolume(8)
   INTEGER                         :: NodeDepth
 END TYPE
 
 TYPE tNodeVolume
-    TYPE (tNodeVolume), POINTER             :: SubNode1 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode2 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode3 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode4 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode5 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode6 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode7 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode8 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode(:) => null()
+    REAL                                    :: VrelSimgaMax(2)
     REAL                                    :: Volume
     REAL                                    :: Area
     REAL                                    :: Length
     REAL,ALLOCATABLE                        :: PartNum(:,:)
+    REAL                                    :: MidPoint(1:3)
+    INTEGER                                 :: NodeDepth
 END TYPE
 
 TYPE tElemNodeVolumes
