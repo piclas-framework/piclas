@@ -394,7 +394,8 @@ SUBROUTINE DSMC_data_sampling()
 USE MOD_Globals
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, PartStateIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution, AmbipolElecVelo
 USE MOD_Part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species!, UseRotRefFrame, RotRefFrameOmega
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species, DoVirtualCellMerge, VirtMergedCells
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -420,6 +421,9 @@ DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     iSpec = PartSpecies(iPart)
     iElem = PEM%LocalElemID(iPart)
+    IF (DoVirtualCellMerge) THEN
+      IF (VirtMergedCells(iElem)%isMerged) iElem = VirtMergedCells(iElem)%MasterCell - offSetElem
+    END IF
     partWeight = GetParticleWeight(iPart)
     DSMC_Solution(1:3,iElem,iSpec) = DSMC_Solution(1:3,iElem,iSpec) + PartState(4:6,iPart)*partWeight
     DSMC_Solution(4:6,iElem,iSpec) = DSMC_Solution(4:6,iElem,iSpec) + PartState(4:6,iPart)**2*partWeight
@@ -469,7 +473,8 @@ USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting, BGGas
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry, VirtMergedCells
+USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge, VirtMergedCells
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 USE MOD_Restart_Vars           ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
@@ -496,6 +501,9 @@ DSMC_MacroVal = 0.0
 
 nVarCount=0
 DO iElem = 1, nElems ! element/cell main loop
+  IF (DoVirtualCellMerge) THEN
+    IF (VirtMergedCells(iElem)%isMerged) CYCLE
+  END IF
   MolecPartNum = 0.0
   HeavyPartNum = 0.0
   ! Avoid the output and calculation of total values for a single species, associate construct for Total_ points to the same
@@ -553,6 +561,16 @@ DO iElem = 1, nElems ! element/cell main loop
             END IF
           ELSE
             Macro_Density = 0.
+          END IF
+          IF (DoVirtualCellMerge) THEN
+            IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
+              IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+                ! PartNum contains the weighted particle number
+                Macro_Density = Macro_PartNum / VirtMergedCells(iElem)%MergedVolume
+              ELSE
+                Macro_Density = Macro_PartNum*Species(iSpec)%MacroParticleFactor /VirtMergedCells(iElem)%MergedVolume
+              END IF
+            END IF
           END IF
           ! Compute total values for a gas mixture (nSpecies > 1)
           IF(nSpecies.GT.1) THEN
@@ -651,6 +669,9 @@ IF (DSMC%CalcQualityFactors) THEN
     END IF
   END IF
   DO iElem=1,nElems
+    IF (DoVirtualCellMerge) THEN
+      IF (VirtMergedCells(iElem)%isMerged) CYCLE
+    END IF
     nVarCount = nVar
     IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
       DSMC_MacroVal(nVarCount+1:nVarCount+3,iElem) = DSMC%QualityFacSamp(iElem,1:3) / DSMC%QualityFacSamp(iElem,4)
@@ -664,6 +685,10 @@ IF (DSMC%CalcQualityFactors) THEN
                                                      ElemMidPoint_Shared(2,GetCNElemID(iElem + offsetElem)))
       END IF
       DSMC_MacroVal(nVarCount+1,iElem) = VarTimeStep%ElemFac(iElem)
+      nVarCount = nVarCount + 1
+    END IF
+    IF(DoVirtualCellMerge)THEN
+      DSMC_MacroVal(nVarCount+1,iElem) = VirtMergedCells(iElem)%MasterCell
       nVarCount = nVarCount + 1
     END IF
     IF(RadialWeighting%PerformCloning) THEN
@@ -743,6 +768,14 @@ IF (DSMC%CalcQualityFactors) THEN
   IF (ALLOCATED(DSMC%QualityFacSampVibSamp)) DSMC%QualityFacSampVibSamp = 0
 END IF
 
+IF (DoVirtualCellMerge) THEN
+  DO iElem = 1, nElems
+    IF (VirtMergedCells(iElem)%isMerged) THEN
+      DSMC_MacroVal(:,iElem) = DSMC_MacroVal(:,VirtMergedCells(iElem)%MasterCell-offSetElem) 
+    END IF
+  END DO
+END IF
+
 END SUBROUTINE DSMC_output_calc
 
 
@@ -759,7 +792,7 @@ USE MOD_Globals_Vars  ,ONLY: ProjectName
 USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_Output   ,ONLY: WriteArrayToHDF5
-USE MOD_Particle_Vars ,ONLY: nSpecies, VarTimeStep
+USE MOD_Particle_Vars ,ONLY: nSpecies, VarTimeStep, DoVirtualCellMerge
 USE MOD_BGK_Vars      ,ONLY: BGKInitDone
 USE MOD_FPFlow_Vars   ,ONLY: FPInitDone
 ! IMPLICIT VARIABLE HANDLING
@@ -799,6 +832,7 @@ END IF
 IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
   IF(VarTimeStep%UseVariableTimeStep) nVar_quality = nVar_quality + 1
+  IF(DoVirtualCellMerge) nVar_quality = nVar_quality + 1
   IF(RadialWeighting%PerformCloning) nVar_quality = nVar_quality + 2
   IF(BGKInitDone) nVar_quality = nVar_quality + 6
   IF(FPInitDone) nVar_quality = nVar_quality + 5
@@ -871,6 +905,10 @@ IF (DSMC%CalcQualityFactors) THEN
   nVarCount=nVarCount+3
   IF(VarTimeStep%UseVariableTimeStep) THEN
     StrVarNames(nVarCount+1) ='VariableTimeStep'
+    nVarCount = nVarCount + 1
+  END IF
+  IF(DoVirtualCellMerge) THEN
+    StrVarNames(nVarCount+1) ='MergeMasterCell'
     nVarCount = nVarCount + 1
   END IF
   IF(RadialWeighting%PerformCloning) THEN

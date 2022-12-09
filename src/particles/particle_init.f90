@@ -125,6 +125,16 @@ CALL prms%CreateIntOption(      'FieldIonizationModel'        , 'Field Ionizatio
                                                                 ' * Ammosov-Delone-Krainov (ADK) model Bruhwiler 2003\n'//&
                                                                 ' * Ammosov-Delone-Krainov (ADK) model Yu 2018')
 
+CALL prms%CreateLogicalOption(  'Part-DoVirtualCellMerge'     , 'Do virtual cell merge for given parameters.', '.FALSE.')
+CALL prms%CreateIntOption(      'Part-MinPartNumCellMerge'    , 'Minimum number of particles inside the cell. All cells \n'//&
+                                                                'with a smaller number of particles are merged with \n'//&
+                                                                'neighbouring cells.','3')
+CALL prms%CreateIntOption(      'Part-CellMergeSpread'        , 'Describes the aggressiveness of the merge algorithm, \n'//&
+                                                                'i.e. how deep the merge extends into the mesh starting from \n'//&
+                                                                'each cell. 0 is the least aggressive merge, 2 the most \n'//&
+                                                                'aggressive merge.','0')
+CALL prms%CreateIntOption(      'Part-MaxNumbCellsMerge'       ,'Maximum number of cells to be merged.','4')                                                                
+
 CALL prms%SetSection("IMD")
 ! IMD things
 CALL prms%CreateRealOption(     'IMDTimeScale'                , 'Time unit of input file.\n The default value is'//&
@@ -483,7 +493,7 @@ IF(CalcPCouplElectricPotential.AND.(.NOT.DoInterpolation)) CALL abort(__STAMP__,
 DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
 IF(DoInterpolationAnalytic) DoInterpolation = DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
-
+CALL InitializeVariablesVirtualCellMerge()
 ! Build BGM and initialize particle mesh
 CALL InitParticleMesh()
 #if USE_MPI
@@ -674,6 +684,51 @@ IF(DoFieldIonization)THEN
 END IF
 
 END SUBROUTINE InitializeVariablesIonization
+
+SUBROUTINE InitializeVariablesVirtualCellMerge()
+!===================================================================================================================================
+! Initialize the variables for the virtual cell merge
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Particle_Vars
+USE MOD_Mesh_Vars               ,ONLY: nElems
+#if USE_MPI
+USE MOD_Particle_MPI_Vars       ,ONLY: DoParticleLatencyHiding
+#endif
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER         :: iELem
+!===================================================================================================================================
+DoVirtualCellMerge = GETLOGICAL('Part-DoVirtualCellMerge')
+IF(DoVirtualCellMerge)THEN
+#if USE_MPI
+DoParticleLatencyHiding = .FALSE.  
+#endif
+  VirtualCellMergeSpread = GETINT('Part-CellMergeSpread')
+  MaxNumOfMergedCells = GETINT('Part-MaxNumbCellsMerge')
+  IF (VirtualCellMergeSpread.GT.3) THEN
+    SWRITE(*,*) 'VirtualCellMergeSpread was set to 3 (maximum value)!'
+    VirtualCellMergeSpread = 3
+  END IF
+  MinPartNumCellMerge = GETINT('Part-MinPartNumCellMerge')
+  ALLOCATE(VirtMergedCells(1:nElems))
+  DO iElem = 1, nElems
+    VirtMergedCells(iElem)%isMerged = .FALSE.
+    VirtMergedCells(iElem)%MasterCell = 0
+    VirtMergedCells(iElem)%NumOfMergedCells = 0
+    VirtMergedCells(iElem)%MergedVolume = 0.0
+  END DO
+END IF
+
+END SUBROUTINE InitializeVariablesVirtualCellMerge
 
 
 SUBROUTINE InitializeVariablesVarTimeStep()
@@ -1409,6 +1464,7 @@ SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
 SDEALLOCATE(PartPosLandmark)
 SDEALLOCATE(RotRefFramRegion)
+SDEALLOCATE(VirtMergedCells)
 #if USE_MPI
 SDEALLOCATE(SendElemShapeID)
 SDEALLOCATE(ShapeMapping)
