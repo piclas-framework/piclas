@@ -38,9 +38,9 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Globals                ,ONLY: abort, CROSS
 USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
 USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, RotRefFrameOmega
-USE MOD_Particle_Vars          ,ONLY: VarTimeStep, Symmetry, DoVirtualCellMerge
+USE MOD_Particle_Vars          ,ONLY: VarTimeStep, Symmetry
 USE MOD_DSMC_Vars              ,ONLY: DSMC, CollisMode
-USE MOD_part_tools             ,ONLY: UpdateNextFreePosition, MergeCells
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
@@ -48,7 +48,6 @@ USE MOD_Particle_Tracking_vars ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_part_RHS               ,ONLY: CalcPartRHSRotRefFrame
 USE MOD_Part_Tools             ,ONLY: InRotRefFrameCheck
-USE MOD_Restart_Vars           ,ONLY: DoRestart
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
@@ -71,9 +70,7 @@ REAL                  :: RandVal, dtVar, NewYPart, NewYVelo, Pt_local(1:3), RotR
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
-IF (DoVirtualCellMerge) THEN
-  IF ((iter.EQ.0).AND.DoRestart) CALL MergeCells()
-END IF
+
 IF (DoSurfaceFlux) THEN
   CALL ParticleSurfaceflux()
 END IF
