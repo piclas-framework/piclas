@@ -93,7 +93,7 @@ USE MOD_ReadInTools
 USE MOD_BGK_Vars
 USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
-USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, VarTimeStep, DoVirtualCellMerge
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
@@ -144,6 +144,9 @@ ESBGKModel = GETINT('Particles-ESBGK-Model')         ! 1: Approximative, 2: Exac
 ! Coupled BGK with DSMC, use a number density as limit above which BGK is used, and below which DSMC is used
 CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
 IF(CoupledBGKDSMC) THEN
+  IF (DoVirtualCellMerge) THEN  
+    CALL abort(__STAMP__,' Virtual cell merge not implemented for coupled DSMC-BGK simulations!')
+  END IF
   BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
 ELSE
   IF(RadialWeighting%DoRadialWeighting) RadialWeighting%PerformCloning = .TRUE.

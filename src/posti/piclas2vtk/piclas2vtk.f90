@@ -89,6 +89,9 @@ CALL prms%CreateLogicalOption('meshCheckWeirdElements' , 'Abort when weird eleme
 CALL DefineParametersIO()
 CALL DefineParametersMesh()
 CALL DefineParametersInterpolation()
+#if USE_MPI
+CALL DefineParametersMPIShared()
+#endif /*USE_MPI*/
 
 NVisuDefault = .FALSE.
 

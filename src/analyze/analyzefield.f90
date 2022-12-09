@@ -583,6 +583,8 @@ USE MOD_Dielectric_Vars ,ONLY: isDielectricFace,PoyntingUseMuR_Inv
 USE MOD_Globals         ,ONLY: abort
 #if USE_MPI
 USE MOD_Globals
+#else
+USE MOD_Globals         ,ONLY: CollectiveStop
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance

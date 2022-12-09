@@ -135,8 +135,10 @@ nProcessors_Global = nProcessors
 MemoryMonitor = .TRUE.
 #if ! (CORE_SPLIT==0)
 ! When core-level splitting is used, it is not clear how many cores are on the same physical compute node.
+#if USE_MPI
 NbrOfPhysicalNodes =  GETINT('NbrOfPhysicalNodes')
 IF(NbrOfPhysicalNodes.LE.0) MemoryMonitor = .FALSE.
+#endif /*USE_MPI*/
 #endif /*! (CORE_SPLIT==0)*/
 
 ! Split the node communicator (shared memory) from the global communicator on physical processor or node level

@@ -1383,7 +1383,7 @@ CASE(2) ! y
 CASE(3) ! z
   InterFaceRegion(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),ExactFluxPosition/)
 CASE DEFAULT
-  CALL CollectiveStop(__STAMP__,' Unknown exact flux direction: ExactFluxDir=',ExactFluxDir)
+  CALL CollectiveStop(__STAMP__,' Unknown exact flux direction: ExactFluxDir=',IntInfo=ExactFluxDir)
 END SELECT
 
 ! set all elements lower/higher than the ExactFluxPosition to True/False for interface determination
