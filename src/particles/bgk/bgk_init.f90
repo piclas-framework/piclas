@@ -244,9 +244,67 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 SDEALLOCATE(SpecBGK)
-SDEALLOCATE(ElemNodeAveraging)
 SDEALLOCATE(BGK_QualityFacSamp)
+CALL DeleteElemNodeAverage()
 
 END SUBROUTINE FinalizeBGK
+
+SUBROUTINE DeleteElemNodeAverage()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Delete the pointer tree ElemNodeVol
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_BGK_Vars
+USE MOD_DSMC_Vars              ,ONLY: DSMC
+USE MOD_Mesh_Vars              ,ONLY: nElems
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: iElem
+!===================================================================================================================================
+IF(.NOT.DSMC%UseOctree) RETURN
+DO iElem=1,nElems
+  CALL DeleteNodeAverage(ElemNodeAveraging(iElem)%Root)
+  DEALLOCATE(ElemNodeAveraging(iElem)%Root)
+END DO
+DEALLOCATE(ElemNodeAveraging)
+END SUBROUTINE DeleteElemNodeAverage
+
+
+RECURSIVE SUBROUTINE DeleteNodeAverage(NodeAverage)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Check if the Node has subnodes and delete them
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_BGK_Vars
+USE MOD_DSMC_Vars             ,ONLY: DSMC
+USE MOD_Particle_Vars         ,ONLY: Symmetry
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES
+TYPE (tNodeAverage), INTENT(INOUT)  :: NodeAverage
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER     ::  iLoop, nLoop
+!===================================================================================================================================
+nLoop = 2**Symmetry%Order
+IF(ASSOCIATED(NodeAverage%SubNode)) THEN 
+  DO iLoop = 1, nLoop
+    CALL DeleteNodeAverage(NodeAverage%SubNode(iLoop))
+  END DO
+  DEALLOCATE(NodeAverage%SubNode)
+END IF
+
+END SUBROUTINE DeleteNodeAverage
 
 END MODULE MOD_BGK_Init
