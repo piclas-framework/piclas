@@ -459,7 +459,7 @@ CALL VecDuplicate(lambda_petsc,RHS_petsc,ierr)
 ! Create scatter context to access local values from global petsc vector
 CALL VecCreateSeq(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,lambda_local_petsc,ierr);PetscCall(ierr)
 CALL ISCreateStride(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,0,1,idx_local_petsc,ierr);PetscCall(ierr)
-CALL ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(:)),PETSC_COPY_VALUES,idx_global_petsc,ierr);PetscCall(ierr)
+CALL ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr);PetscCall(ierr)
 CALL VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr);PetscCall(ierr)
 #endif
 
@@ -2059,7 +2059,6 @@ CALL DPOTRS('U',dimA,nRHS,A,dimA,X,dimA,lapack_info)
 !  STOP 'LAPACK ERROR IN SOLVE CHOLESKY!'
 !END IF
 END SUBROUTINE solveSPD
-
 
 
 !===================================================================================================================================
