@@ -571,6 +571,12 @@ NIG_poisson:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_poisson/ ; fi
 
+NIG_poisson_PETSC:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_poisson_PETSC/ ; fi
+
 NIG_maxwell_RK4:
   <<: *defaults_nightly
   stage: reggie_nightly
