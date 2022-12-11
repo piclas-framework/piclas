@@ -277,31 +277,31 @@ build_maxwell:
       #    - cp -r ../build_poisson_release/reggie .
       #    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
 
-build_poisson_petsc:
-  tags:
-    - withmodules-concurrent
-  artifacts:
-    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
-    expire_in: 1 day
-    when: on_failure
-    paths:
-      - build_poisson_petsc_release
-      - build_poisson_petsc_debug
-  cache:
-    key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
-    paths:
-      - build_poisson_petsc_release
-      - build_poisson_petsc_debug
-    policy: push
-  stage: build
-  script:
-    - mkdir -p build_poisson_petsc_release ; cd build_poisson_petsc_release
-    - git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
-    - cd ..
-    - mkdir -p build_poisson_petsc_debug ; cd build_poisson_petsc_debug
-    - cp -r ../build_poisson_petsc_release/reggie .
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+      #build_poisson_petsc:
+      #  tags:
+      #    - withmodules-concurrent
+      #  artifacts:
+      #    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+      #    expire_in: 1 day
+      #    when: on_failure
+      #    paths:
+      #      - build_poisson_petsc_release
+      #      - build_poisson_petsc_debug
+      #  cache:
+      #    key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
+      #    paths:
+      #      - build_poisson_petsc_release
+      #      - build_poisson_petsc_debug
+      #    policy: push
+      #  stage: build
+      #  script:
+      #    - mkdir -p build_poisson_petsc_release ; cd build_poisson_petsc_release
+      #    - git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie
+      #    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+      #    - cd ..
+      #    - mkdir -p build_poisson_petsc_debug ; cd build_poisson_petsc_debug
+      #    - cp -r ../build_poisson_petsc_release/reggie .
+      #    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
 
 build_hopr:
   tags:
