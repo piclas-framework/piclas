@@ -73,9 +73,9 @@ INTEGER,PARAMETER   :: N_variables=2
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
 REAL                :: StartT,EndT
-REAL                :: OutputTime!,FutureTime
+REAL                :: OutputTime
 INTEGER             :: iElem, Nloc
-REAL, ALLOCATABLE   :: DummyElem(:,:,:,:)
+REAL, ALLOCATABLE   :: DielectricVolTmp(:,:,:,:)
 !===================================================================================================================================
 #if USE_LOADBALANCE
 IF(PerformLoadBalance) RETURN
@@ -94,18 +94,17 @@ DO iElem=1,PP_nElems
       DielectricGlobal(1,:,:,:,iElem)=DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)
       DielectricGlobal(2,:,:,:,iElem)=DielectricVol(ElemToDielectric(iElem))%DielectricMu( :,:,:)
     ELSE
-      ALLOCATE(DummyElem(2,0:Nloc,0:Nloc,0:Nloc))
-      DummyElem(1,0:Nloc,0:Nloc,0:Nloc)= DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)
-      DummyElem(2,0:Nloc,0:Nloc,0:Nloc)= DielectricVol(ElemToDielectric(iElem))%DielectricMu(:,:,:)
-      CALL ChangeBasis3D(2,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, DummyElem(:,:,:,:),DielectricGlobal(1:2,:,:,:,iElem))
-      DEALLOCATE(DummyElem)
+      ALLOCATE(DielectricVolTmp(2,0:Nloc,0:Nloc,0:Nloc))
+      DielectricVolTmp(1,0:Nloc,0:Nloc,0:Nloc)= DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)
+      DielectricVolTmp(2,0:Nloc,0:Nloc,0:Nloc)= DielectricVol(ElemToDielectric(iElem))%DielectricMu(:,:,:)
+      CALL ChangeBasis3D(2,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, DielectricVolTmp(:,:,:,:),DielectricGlobal(1:2,:,:,:,iElem))
+      DEALLOCATE(DielectricVolTmp)
     END IF  
   END IF
 END DO!iElem
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DielectricGlobal TO HDF5 FILE...'
 GETTIME(StartT)
 OutputTime=0.0
-!FutureTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DielectricGlobal',OutputTime))//'.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('DielectricGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)
@@ -242,7 +241,7 @@ INTEGER,PARAMETER   :: N_variables=3
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
 REAL                :: StartT,EndT
-REAL                :: OutputTime!,FutureTime
+REAL                :: OutputTime
 INTEGER             :: iElem
 !===================================================================================================================================
 #if USE_LOADBALANCE
@@ -268,7 +267,6 @@ END DO!iElem
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PMLZetaGlobal TO HDF5 FILE...'
 GETTIME(StartT)
 OutputTime=0.0
-!FutureTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PMLZetaGlobal',OutputTime))//'.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('PMLZetaGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)

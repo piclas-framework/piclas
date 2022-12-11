@@ -1,17 +1,19 @@
-!=================================================================================================================================
-! Copyright (c) 2010-2021  Prof. Claus-Dieter Munz
-! This file is part of FLEXI, a high-order accurate framework for numerically solving PDEs with discontinuous Galerkin methods.
-! For more information see https://www.flexi-project.org and https://nrg.iag.uni-stuttgart.de/
+!==================================================================================================================================
+! Copyright (c) 2010 - 2022 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! FLEXI is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License
-! as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
 !
-! FLEXI is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
 ! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
 !
-! You should have received a copy of the GNU General Public License along with FLEXI. If not, see <http://www.gnu.org/licenses/>.
-!=================================================================================================================================
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
 #include "piclas.h"
+#if USE_PETSC
+#include "petsc/finclude/petsc.h"
+#endif
 
 !===================================================================================================================================
 !> Module contains the routines for load balancing
@@ -78,7 +80,10 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_HDG_Vars               ,ONLY: lambdaLB
 #endif /*defined(PARTICLES)*/
 #endif /*USE_LOADBALANCE*/
-!USE MOD_HDG                    ,ONLY: HDG
+#if USE_PETSC
+USE PETSc
+USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
+#endif
 #else /*USE_HDG*/
 ! Non-HDG stuff
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
@@ -115,6 +120,10 @@ INTEGER                            :: NonUniqueGlobalSideID
 #endif /*defined(PARTICLES)*/
 !INTEGER           :: checkRank
 #endif /*USE_LOADBALANCE*/
+#if USE_PETSC
+INTEGER                            :: PETScLocalID
+PetscErrorCode                     :: ierr
+#endif
 #else /*USE_HDG*/
 INTEGER                            :: iElem
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
@@ -226,6 +235,15 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif /*USE_MPI*/
 
+#if USE_PETSC
+  DO PETScLocalID=1,nPETScUniqueSides
+    SideID=PETScLocalToSideID(PETScLocalID)
+    CALL VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr);PetscCall(ierr)
+  END DO
+  CALL VecAssemblyBegin(lambda_petsc,ierr);PetscCall(ierr)
+  CALL VecAssemblyEnd(lambda_petsc,ierr);PetscCall(ierr)
+#endif
+
   CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
 
 #else
@@ -314,72 +332,65 @@ ELSE ! normal restart
         MinGlobalSideID = MERGE(ABS(GlobalUniqueSideID(iSide)) , MinGlobalSideID , ABS(GlobalUniqueSideID(iSide)).LT.MinGlobalSideID)
       END DO
 
-      ASSOCIATE( &
-            ExtendedOffsetSide => INT(MinGlobalSideID-1,IK)                 ,&
-            ExtendednSides     => INT(MaxGlobalSideID-MinGlobalSideID+1,IK) ,&
-            nGP_face           => INT(nGP_face,IK)                           )
-        !ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,MinGlobalSideID:MaxGlobalSideID))
-        ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,1:ExtendednSides))
-        ExtendedLambda = HUGE(1.)
-        lambda = HUGE(1.)
-        ! WARGNING: Data read in overlapping mode, therefore ReadNonOverlap_opt=F
-        CALL ReadArray('DG_SolutionLambda',3,(/PP_nVar,nGP_face,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda&
+        ASSOCIATE( &
+              ExtendedOffsetSide => INT(MinGlobalSideID-1,IK)                 ,&
+              ExtendednSides     => INT(MaxGlobalSideID-MinGlobalSideID+1,IK) ,&
+              nGP_face           => INT(nGP_face,IK)                           )
+          !ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,MinGlobalSideID:MaxGlobalSideID))
+          ALLOCATE(ExtendedLambda(PP_nVar,nGP_face,1:ExtendednSides))
+          ExtendedLambda = HUGE(1.)
+          lambda = HUGE(1.)
+          ! WARGNING: Data read in overlapping mode, therefore ReadNonOverlap_opt=F
+          CALL ReadArray('DG_SolutionLambda',3,(/PP_nVarTmp,nGP_face,ExtendednSides/),ExtendedOffsetSide,3,RealArray=ExtendedLambda&
 #if USE_MPI
-            ,ReadNonOverlap_opt=.FALSE.&
+              ,ReadNonOverlap_opt=.FALSE.&
 #endif /*USE_MPI*/
-            )
+              )
 
-        DO iSide = 1, nSides
-          IF(iSide.LE.lastMPISide_MINE)THEN
-            iLocSide        = SideToElem(S2E_LOC_SIDE_ID    , iSide)
-            iLocSide_master = SideToElem(S2E_LOC_SIDE_ID    , iSide)
-            iLocSide_NB     = SideToElem(S2E_NB_LOC_SIDE_ID , iSide)
+          ! Loop over all sides and map the solution via the non-unique global side ID to the SideID (1 to nSides)
+          DO iSide = 1, nSides
+            IF(iSide.LE.lastMPISide_MINE)THEN
+              iLocSide        = SideToElem(S2E_LOC_SIDE_ID    , iSide)
+              iLocSide_master = SideToElem(S2E_LOC_SIDE_ID    , iSide)
+              iLocSide_NB     = SideToElem(S2E_NB_LOC_SIDE_ID , iSide)
 
-            ! Check real small mortar side (when the same proc has both the big an one or more small side connected elements)
-            ! blue side with orange also on same proc
-            !IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.NE.-1) iLocSide_master = iLocSide_NB
-            ! blue side found orange side
+              ! Small virtual mortar master side (blue) is encountered with MortarType(1,iSide) = 0
+              ! Blue (small mortar master) side writes as yellow (big mortar master) for consistency (you spin me right round baby right round)
+              IF(MortarType(1,iSide).EQ.0)THEN
+                ! check all my big mortar sides and find the one to which the small virtual is connected
+                ! check all yellow (big mortar) sides
+                Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+                  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+                  ! loop over all blue sides (small mortar master)
+                  DO iMortar=1,nMortars
+                    SideID = MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
+                    ! check if for "21,22,23" and find the "3"
+                    ! iSide=21,22,23 is blue
+                    ! SideID=3 is yellow
+                    IF(iSide.EQ.SideID)THEN
+                      iLocSide_master = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
+                      IF(iLocSide_master.EQ.-1)THEN
+                        CALL abort(__STAMP__,'This big mortar side must be master')
+                      END IF !iLocSide.NE.-1
+                      EXIT Check1
+                    END IF ! iSide.EQ.SideID
+                  END DO !iMortar
+                END DO Check1 !MortarSideID
+              END IF ! MortarType(1,iSide).EQ.0
 
-            ! is small virtual mortar side is encountered and no NB iLocSide_master is given
-            ! blue but no orange side on same proc
-            ! find iLocSide of yellow (big mortar) and assign to blue
-            ! you spin me right round baby right round
-            !IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
-            IF(MortarType(1,iSide).EQ.0)THEN!.AND.iLocSide_NB.EQ.-1)THEN
-              ! check all my big mortar sides and find the one to which the small virtual is connected
-              ! check all yellow (big mortar) sides
-              Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
-                nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-                ! loop over all blue sides (small mortar master)
-                DO iMortar=1,nMortars
-                  SideID = MortarInfo(MI_SIDEID,iMortar,MortarType(2,MortarSideID)) !small SideID
-                  ! check if for "21,22,23" and find the "3"
-                  ! iSide=21,22,23 is blue
-                  ! SideID=3 is yellow
-                  IF(iSide.EQ.SideID)THEN
-                    iLocSide_master = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
-                    IF(iLocSide_master.EQ.-1)THEN
-                      CALL abort(__STAMP__,'This big mortar side must be master')
-                    END IF !iLocSide.NE.-1
-                    EXIT Check1
-                  END IF ! iSide.EQ.SideID
-                END DO !iMortar
-              END DO Check1 !MortarSideID
-            END IF ! MortarType(1,iSide).EQ.0
-
-            DO q=0,PP_N
-              DO p=0,PP_N
-                pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_master)
-                r  = q    *(PP_N+1)+p    +1
-                rr = pq(2)*(PP_N+1)+pq(1)+1
-                lambda(:,r:r,iSide) = ExtendedLambda(:,rr:rr,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
-              END DO
-            END DO !p,q
-            !IPWRITE(UNIT_StdOut,*) "iSide,SUM(lambda(:,r:r,iSide)) =", iSide,SUM(lambda(:,r:r,iSide))
-          END IF ! iSide.LE.lastMPISide_MINE
-        END DO
-        DEALLOCATE(ExtendedLambda)
-      END ASSOCIATE
+              DO q=0,PP_N
+                DO p=0,PP_N
+                  pq = CGNS_SideToVol2(PP_N,p,q,iLocSide_master)
+                  r  = q    *(PP_N+1)+p    +1
+                  rr = pq(2)*(PP_N+1)+pq(1)+1
+                  lambda(:,r:r,iSide) = ExtendedLambda(:,rr:rr,GlobalUniqueSideID(iSide)-ExtendedOffsetSide)
+                END DO
+              END DO !p,q
+              !IPWRITE(UNIT_StdOut,*) "iSide,SUM(lambda(:,r:r,iSide)) =", iSide,SUM(lambda(:,r:r,iSide))
+            END IF ! iSide.LE.lastMPISide_MINE
+          END DO
+          DEALLOCATE(ExtendedLambda)
+        END ASSOCIATE
 
 #if USE_MPI
       ! Exchange lambda MINE -> YOUR direction (as only the master sides have read the solution until now)
@@ -388,7 +399,16 @@ ELSE ! normal restart
       CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif /*USE_MPI*/
 
-      CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
+#if USE_PETSC
+        DO PETScLocalID=1,nPETScUniqueSides
+          SideID=PETScLocalToSideID(PETScLocalID)
+          CALL VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr);PetscCall(ierr)
+        END DO
+        CALL VecAssemblyBegin(lambda_petsc,ierr);PetscCall(ierr)
+        CALL VecAssemblyEnd(lambda_petsc,ierr);PetscCall(ierr)
+#endif
+
+        CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
 
     ELSE
       lambda=0.

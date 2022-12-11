@@ -62,7 +62,7 @@ LOGICAL                        :: CmdLineMode, NVisuDefault         ! In command
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
 LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists, VisuParticles, PartDataExists, DMDDataExists
-LOGICAL                        :: BGFieldExists
+LOGICAL                        :: BGFieldExists, ExcitationDataExists
 LOGICAL                        :: VisuAdaptiveInfo, AdaptiveInfoExists
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
 #ifdef PARTICLES
@@ -251,6 +251,7 @@ DO iArgs = iArgsStart,nArgs
   CALL DatasetExists(File_ID , 'DG_Solution'  , DGSolutionExists)
   IF(TRIM(File_Type).EQ.'PartStateBoundary') DGSolutionExists = .FALSE.
   CALL DatasetExists(File_ID , 'ElemData'     , ElemDataExists)
+  CALL DatasetExists(File_ID , 'ExcitationData', ExcitationDataExists)
   CALL DatasetExists(File_ID , 'AdaptiveInfo' , AdaptiveInfoExists)
   CALL DatasetExists(File_ID , 'SurfaceData'  , SurfaceDataExists)
   CALL DatasetExists(File_ID , 'PartData'     , PartDataExists)
@@ -336,6 +337,10 @@ DO iArgs = iArgsStart,nArgs
   ! === ElemData ===================================================================================================================
   IF(ElemDataExists) THEN
     CALL ConvertElemData(InputStateFile,'ElemData','VarNamesAdd')
+  END IF
+  ! === ElemData ===================================================================================================================
+  IF(ExcitationDataExists) THEN
+    CALL ConvertElemData(InputStateFile,'ExcitationData','VarNamesExci')
   END IF
   ! === SurfaceData ================================================================================================================
   IF(SurfaceDataExists) THEN
@@ -1000,6 +1005,7 @@ IF (nVarAdd.GT.0) THEN
   SELECT CASE(TRIM(File_Type))
     CASE('DSMCState','DSMCHOState')
       FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuDSMC',OutputTime))//'.vtu'
+      IF(TRIM(ArrayName).EQ.'ExcitationData') FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuExcitationData',OutputTime))//'.vtu'
   END SELECT
   ! TODO: This is probably borked for NGeo>1 because then NodeCoords are not the corner nodes
   CALL WriteDataToVTK_PICLas(8,FileString,nVarAdd,VarNamesAdd(1:nVarAdd),nUniqueNodes,NodeCoords_Connect(1:3,1:nUniqueNodes),nElems,&

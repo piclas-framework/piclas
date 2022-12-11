@@ -292,7 +292,7 @@ USE MOD_DSMC_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, VarTimeStep, usevMPF
-USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
+USE MOD_Particle_Vars          ,ONLY: DoFieldIonization,SampleElecExcitation
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly
@@ -342,6 +342,8 @@ ELSE
 END IF
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
+IF(SampleElecExcitation.AND.(DSMC%ElectronicModel.NE.3)) CALL CollectiveStop(__STAMP__,&
+    'Part-SampElectronicExcitation = T requires Particles-DSMC-ElectronicModel = 3')
 IF (DSMC%ElectronicModel.GT.0) THEN
   ! Allocate internal energy array WITH electronic energy
   ALLOCATE(PartStateIntEn(1:3,PDM%maxParticleNumber))

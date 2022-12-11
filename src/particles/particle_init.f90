@@ -189,9 +189,7 @@ CALL prms%SetSection("Particle Sampling")
 CALL prms%CreateLogicalOption(  'Part-WriteMacroValues'&
   , 'Set [T] to activate ITERATION DEPENDANT h5 output of macroscopic values sampled every [Part-IterationForMacroVal] iterat'//&
   'ions from particles. Sampling starts from simulation start. Can not be enabled together with Part-TimeFracForSampling.\n'//&
-  'If Part-WriteMacroValues is true, WriteMacroVolumeValues and WriteMacroSurfaceValues are forced to be true.\n'//&
-  '(HALOWIKI:)Write macro values (e.g. rotational Temperature).'&
-  , '.FALSE.')
+  'If Part-WriteMacroValues is true, WriteMacroVolumeValues and WriteMacroSurfaceValues are forced to be true.', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-WriteMacroVolumeValues'&
   , 'Similar to Part-WriteMacroValues. Set [T] to activate iteration dependant sampling and h5 output for each element.'//&
   ' Is automatically set true if Part-WriteMacroValues is true.\n'//&
@@ -214,6 +212,9 @@ CALL prms%CreateIntOption(      'Particles-NumberForDSMCOutputs'&
 CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
   , 'Set [T] to activate sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
   ' have to be enabled as well.', '.FALSE.')
+
+CALL prms%CreateLogicalOption(  'Part-SampElectronicExcitation'&
+  , 'Set [T] to activate sampling of electronic energy excitation', '.FALSE.')
 
 ! === Rotational frame of reference
 CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate rotational frame of reference', '.FALSE.')
@@ -867,9 +868,11 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! Include surface values in the macroscopic output
-DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal','.FALSE.')
+DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
+! Include electronic energy excitation in the macroscopic output
+SampleElecExcitation = GETLOGICAL('Part-SampElectronicExcitation')
 ! Sampling for and output every given number of iterations (sample is reset after an output)
-WriteMacroValues = GETLOGICAL('Part-WriteMacroValues','.FALSE.')
+WriteMacroValues = GETLOGICAL('Part-WriteMacroValues')
 IF(WriteMacroValues)THEN
   WriteMacroVolumeValues = GETLOGICAL('Part-WriteMacroVolumeValues','.TRUE.')
   WriteMacroSurfaceValues = GETLOGICAL('Part-WriteMacroSurfaceValues','.TRUE.')
@@ -1480,6 +1483,8 @@ SDEALLOCATE(BRAverageElemToElem)
 #endif /*USE_HDG*/
 SDEALLOCATE(isNeutralizationElem)
 SDEALLOCATE(NeutralizationBalanceElem)
+SDEALLOCATE(ExcitationLevelMapping)
+SDEALLOCATE(ExcitationSampleData)
 END SUBROUTINE FinalizeParticles
 
 

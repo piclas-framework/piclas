@@ -172,7 +172,7 @@ CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., Display
 END SUBROUTINE WriteTimeAverage
 
 
-SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FutureTime,FileNameIn,WriteUserblockIn)
+SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FileNameIn,WriteUserblockIn)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
@@ -203,7 +203,6 @@ INTEGER,INTENT(IN)                   :: nVar
 CHARACTER(LEN=255)                   :: StrVarNames(nVar)
 CHARACTER(LEN=*),INTENT(IN)          :: MeshFileName
 REAL,INTENT(IN)                      :: OutputTime
-REAL,INTENT(IN),OPTIONAL             :: FutureTime
 LOGICAL,INTENT(IN),OPTIONAL          :: WriteUserblockIn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -211,7 +210,7 @@ LOGICAL,INTENT(IN),OPTIONAL          :: WriteUserblockIn
 ! LOCAL VARIABLES
 INTEGER(HID_T)                               :: DSet_ID,FileSpace,HDF5DataType
 INTEGER(HSIZE_T)                             :: Dimsf(5)
-CHARACTER(LEN=255)                           :: FileName,MeshFile255
+CHARACTER(LEN=255)                           :: FileName
 #ifdef PARTICLES
 CHARACTER(LEN=255), DIMENSION(1:3),PARAMETER :: TrackingString = (/'refmapping  ', 'tracing     ', 'triatracking'/)
 #endif /*PARTICLES*/
@@ -242,10 +241,6 @@ CALL H5SCLOSE_F(FileSpace, iError)
 CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=PP_N)
 CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
 CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
-IF(PRESENT(FutureTime))THEN
-  MeshFile255=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),FutureTime))//'.h5'
-  CALL WriteAttributeToHDF5(File_ID,'NextFile',1,StrScalar=(/MeshFile255/))
-END IF
 CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
 CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
 
