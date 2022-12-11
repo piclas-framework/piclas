@@ -77,8 +77,6 @@ USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #if USE_PETSC
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
-USE MOD_Mesh_Vars          ,ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_Mesh_Vars          ,ONLY: MortarType,MortarInfo
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -106,7 +104,7 @@ INTEGER              :: iSideID,jSideID
 INTEGER              :: ElemID, BCsideID
 INTEGER              :: iBCSide,locBCSideID
 INTEGER              :: iPETScGlobal, jPETScGlobal
-INTEGER              :: iMortar,iSide,locSideID,MortarSideID,nMortars
+INTEGER              :: iSide,locSideID
 REAL                 :: intMat(nGP_face, nGP_face)
 #endif
 !===================================================================================================================================
@@ -435,14 +433,15 @@ SUBROUTINE BuildPrecond()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_HDG_Vars
-USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR
-USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
 #if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
 #if USE_PETSC
 USE PETSc
+#else
+USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR
+USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -452,12 +451,13 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER          :: ElemID, locSideID, SideID, igf
-INTEGER           :: lapack_info
 #if USE_PETSC
-PetscErrorCode    :: ierr
-PC                :: pc
-PetscInt          :: lens(nPETScUniqueSides)
+PetscErrorCode   :: ierr
+PC               :: pc
+PetscInt         :: lens(nPETScUniqueSides)
+#else
+INTEGER          :: ElemID, locSideID, SideID, igf
+INTEGER          :: lapack_info
 #endif
 !===================================================================================================================================
 

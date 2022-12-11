@@ -590,7 +590,7 @@ USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PEM, WriteMacroVolumeValues
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
 USE MOD_Particle_Vars         ,ONLY: Species, usevMPF, SampleElecExcitation, ExcitationSampleData, ExcitationLevelMapping
-USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting, SamplingActive
+USE MOD_DSMC_Vars             ,ONLY: RadialWeighting, SamplingActive
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
