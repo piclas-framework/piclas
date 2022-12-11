@@ -120,17 +120,17 @@ USE MOD_Restart_Vars          ,ONLY: DoRestart
 #endif /*defined(PARTICLES)*/
 #if USE_PETSC
 USE PETSc
-USE MOD_Mesh_Vars        ,ONLY: nMPISides_YOUR
+USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
 #if USE_MPI
-USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_WORLD
-USE MOD_MPI               ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
+USE MOD_MPI_Shared_Vars       ,ONLY: MPI_COMM_WORLD
+USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 USE MOD_MPI_Vars
 #endif /*USE_MPI*/
-USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
-USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
+USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 #endif /*USE_PETSC*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -459,7 +459,7 @@ CALL VecDuplicate(lambda_petsc,RHS_petsc,ierr)
 ! Create scatter context to access local values from global petsc vector
 CALL VecCreateSeq(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,lambda_local_petsc,ierr);PetscCall(ierr)
 CALL ISCreateStride(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,0,1,idx_local_petsc,ierr);PetscCall(ierr)
-CALL ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(:)),PETSC_COPY_VALUES,idx_global_petsc,ierr);PetscCall(ierr)
+CALL ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr);PetscCall(ierr)
 CALL VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr);PetscCall(ierr)
 #endif
 
@@ -696,32 +696,32 @@ SUBROUTINE HDGLinear(time,U_out)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_Equation               ,ONLY: CalcSourceHDG,ExactFunc
-USE MOD_Equation_Vars          ,ONLY: IniExactFunc
-USE MOD_Equation_Vars          ,ONLY: chitens_face
-USE MOD_Mesh_Vars              ,ONLY: Face_xGP,BoundaryType,nSides,BC
-USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
-USE MOD_Interpolation_Vars     ,ONLY: wGP
-USE MOD_Elem_Mat               ,ONLY: PostProcessGradient
-USE MOD_FillMortar_HDG         ,ONLY: SmallToBigMortar_HDG
+USE MOD_Equation           ,ONLY: CalcSourceHDG,ExactFunc
+USE MOD_Equation_Vars      ,ONLY: IniExactFunc
+USE MOD_Equation_Vars      ,ONLY: chitens_face
+USE MOD_Mesh_Vars          ,ONLY: Face_xGP,BoundaryType,nSides,BC
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide,NormVec,SurfElem
+USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Elem_Mat           ,ONLY: PostProcessGradient
+USE MOD_FillMortar_HDG     ,ONLY: SmallToBigMortar_HDG
 #if (PP_nVar==1)
-USE MOD_Equation_Vars          ,ONLY: E
+USE MOD_Equation_Vars      ,ONLY: E
 #elif (PP_nVar==3)
-USE MOD_Equation_Vars          ,ONLY: B
+USE MOD_Equation_Vars      ,ONLY: B
 #else
-USE MOD_Equation_Vars          ,ONLY: B, E
+USE MOD_Equation_Vars      ,ONLY: B, E
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
 USE PETSc
-USE MOD_Mesh_Vars        ,ONLY: SideToElem
+USE MOD_Mesh_Vars          ,ONLY: SideToElem
 #if USE_MPI
-USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_MPI_Vars
 #endif
-USE MOD_FillMortar_HDG         ,ONLY: BigToSmallMortar_HDG
+USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG
 #endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1560,7 +1560,7 @@ IF(converged) THEN !converged
 !  SWRITE(UNIT_StdOut,'(132("-"))')
     TimeEndCG=PICLASTIME()
     iteration = 0
-    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, Norm_R2)
+    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, SQRT(Norm_R2))
   RETURN
 END IF !converged
 AbortCrit2=EpsCG**2
@@ -1620,7 +1620,7 @@ DO iteration=1,MaxIterCG
     TimeEndCG=PICLASTIME()
     CALL EvalResidual(RHS,lambda,R)
     CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V (function contains ALLREDUCE)
-    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, Norm_R2)
+    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, SQRT(Norm_R2))
     RETURN
   END IF !converged
 
@@ -1657,7 +1657,7 @@ END SUBROUTINE CG_solver
 !===================================================================================================================================
 !> Set the global convergence properties of the HDG (CG) Solver and print then to StdOut)
 !===================================================================================================================================
-SUBROUTINE DisplayConvergence(ElapsedTime, iteration, Norm_R2)
+SUBROUTINE DisplayConvergence(ElapsedTime, iteration, Norm)
 ! MODULES
 USE MOD_HDG_Vars      ,ONLY: HDGDisplayConvergence,HDGNorm,RunTime,RunTimePerIteration,iterationTotal,RunTimeTotal
 USE MOD_Globals       ,ONLY: UNIT_StdOut
@@ -1667,7 +1667,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)     :: ElapsedTime
 INTEGER,INTENT(IN)  :: iteration
-REAL,INTENT(IN)     :: Norm_R2
+REAL,INTENT(IN)     :: Norm
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -1679,7 +1679,7 @@ IF(iteration.GT.0)THEN
 ELSE
   RunTimePerIteration = 0.
 END IF ! iteration.GT.0
-HDGNorm = SQRT(Norm_R2)
+HDGNorm = Norm
 
 IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
   WRITE(UNIT_StdOut,'(A,1X,I0,A,I0,A)')                '#iterations          :    ',iteration,' (',iterationTotal,' total)'
@@ -2059,7 +2059,6 @@ CALL DPOTRS('U',dimA,nRHS,A,dimA,X,dimA,lapack_info)
 !  STOP 'LAPACK ERROR IN SOLVE CHOLESKY!'
 !END IF
 END SUBROUTINE solveSPD
-
 
 
 !===================================================================================================================================

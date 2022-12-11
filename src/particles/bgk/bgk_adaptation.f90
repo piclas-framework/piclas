@@ -641,7 +641,7 @@ CLASS(tNodeAverage),INTENT(INOUT), OPTIONAL         :: Averaging
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: iPart, iLoop, iPartIndx, localDepth, iLoop2
+INTEGER                      :: iPart, iLoop, iPartIndx, iLoop2
 INTEGER, ALLOCATABLE         :: iPartIndx_ChildNode(:,:)
 REAL, ALLOCATABLE            :: MappedPart_ChildNode(:,:,:)
 INTEGER                      :: PartNumChildNode(1:4)

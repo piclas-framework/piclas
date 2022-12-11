@@ -784,11 +784,11 @@ SUBROUTINE CalcMacroElecExcitation(MacroElecExcitation)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime
+USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues,MacroValSampTime
 USE MOD_Particle_Vars         ,ONLY: ExcitationSampleData,ExcitationLevelCounter
 USE MOD_Restart_Vars          ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
-USE MOD_Timedisc_Vars         ,ONLY: time,dt
+USE MOD_Timedisc_Vars         ,ONLY: time
 USE MOD_DSMC_Vars             ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -852,7 +852,7 @@ CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255)             :: SpecID, LevelID
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNamesElecExci(:)
-INTEGER                        :: nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec, nVarRelax, nSpecOut, nVarExci, iCase, iLevel
+INTEGER                        :: nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec, nVarRelax, nSpecOut, iCase, iLevel
 INTEGER                        :: jSpec
 REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:), MacroElecExcitation(:,:)
 REAL                           :: StartT,EndT

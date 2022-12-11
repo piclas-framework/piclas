@@ -1241,7 +1241,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iElem, NodeDepth
+INTEGER                       :: iElem!, NodeDepth
 !===================================================================================================================================
 
 ! If number of particles is greater than OctreePartNumNode, cell is going to be divided for performance of nearest neighbour

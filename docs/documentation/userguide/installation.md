@@ -334,7 +334,7 @@ export PETSC_DIR=/zhome/academic/HLRS/irs/iagcopp/petsc-3.17.0
 export PETSC_ARCH=arch-linux
 ````
 
-(sec:optaining-the-source)=
+(sec:obtaining-the-source)=
 ## Obtaining the source
 
 The **PICLas** repository is available at GitHub. To obtain the most recent version you have two possibilities:
