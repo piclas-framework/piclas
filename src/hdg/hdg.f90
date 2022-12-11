@@ -1560,7 +1560,7 @@ IF(converged) THEN !converged
 !  SWRITE(UNIT_StdOut,'(132("-"))')
     TimeEndCG=PICLASTIME()
     iteration = 0
-    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, Norm_R2)
+    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, SQRT(Norm_R2))
   RETURN
 END IF !converged
 AbortCrit2=EpsCG**2
@@ -1620,7 +1620,7 @@ DO iteration=1,MaxIterCG
     TimeEndCG=PICLASTIME()
     CALL EvalResidual(RHS,lambda,R)
     CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V (function contains ALLREDUCE)
-    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, Norm_R2)
+    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, SQRT(Norm_R2))
     RETURN
   END IF !converged
 
@@ -1657,7 +1657,7 @@ END SUBROUTINE CG_solver
 !===================================================================================================================================
 !> Set the global convergence properties of the HDG (CG) Solver and print then to StdOut)
 !===================================================================================================================================
-SUBROUTINE DisplayConvergence(ElapsedTime, iteration, Norm_R2)
+SUBROUTINE DisplayConvergence(ElapsedTime, iteration, Norm)
 ! MODULES
 USE MOD_HDG_Vars      ,ONLY: HDGDisplayConvergence,HDGNorm,RunTime,RunTimePerIteration,iterationTotal,RunTimeTotal
 USE MOD_Globals       ,ONLY: UNIT_StdOut
@@ -1667,7 +1667,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)     :: ElapsedTime
 INTEGER,INTENT(IN)  :: iteration
-REAL,INTENT(IN)     :: Norm_R2
+REAL,INTENT(IN)     :: Norm
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -1679,7 +1679,7 @@ IF(iteration.GT.0)THEN
 ELSE
   RunTimePerIteration = 0.
 END IF ! iteration.GT.0
-HDGNorm = SQRT(Norm_R2)
+HDGNorm = Norm
 
 IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
   WRITE(UNIT_StdOut,'(A,1X,I0,A,I0,A)')                '#iterations          :    ',iteration,' (',iterationTotal,' total)'
