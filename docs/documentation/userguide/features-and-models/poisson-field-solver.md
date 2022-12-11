@@ -59,9 +59,7 @@ where the following options are possible
 |       `1`       |      iterative      |  Krylov subspace |
 |       `2`       |      iterative      |  Krylov subspace |
 |       `3`       |      iterative      |  Krylov subspace |
-|       `4`       |      iterative      |  Krylov subspace |
 |       `10`      |        direct       |                  |
-|       `11`      |        direct       |                  |
 
 Note that the same parameter setting for `epsCG` will result in a smaller residual with PETSc as compared with the default CG solver
 without using the PETSc library.
