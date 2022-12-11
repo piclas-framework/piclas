@@ -9,7 +9,8 @@ Wikipedia: https://en.wikipedia.org/wiki/Regression_testing
 ## Reggie2.0 Tool
 
 PICLas is continuously tested by utilizing a Python based regression testing environment, which is
-run by gitlab-runners. Therefore, the tool *reggie2.0* is used, which is found here: https://gitlab.com/reggie2.0/reggie2.0
+run by gitlab-runners. Therefore, the tool *reggie2.0* is used, which is found under
+[https://github.com/piclas-framework/reggie2.0](https://github.com/piclas-framework/reggie2.0)
 
 Additionally, the different analysis methods that can be applied and the general structure of a 
 regression test is described there.
@@ -183,7 +184,7 @@ Latest tests on
     ```
     sudo gitlab-runner restart
     ```
-5. create ssh keys for normal user and set up password free access to gitlab (https://piclas.boltzplatz.eu) and gitlab.com (reggie)
+5. create ssh keys for normal user and set up password free access to gitlab (https://piclas.boltzplatz.eu)
     ```
     ssh-keygen -t ecdsa -b 521
     ```
