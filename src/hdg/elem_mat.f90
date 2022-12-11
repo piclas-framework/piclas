@@ -76,9 +76,9 @@ USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
 #if USE_PETSC
 USE PETSc
-USE MOD_Mesh_Vars        ,ONLY: SideToElem, nSides
-USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
+USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
+USE MOD_Mesh_Vars          ,ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars          ,ONLY: MortarType,MortarInfo
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -101,13 +101,13 @@ REAL                 :: Stmp1(nGP_vol,nGP_face), Stmp2(nGP_face,nGP_face)
 INTEGER              :: idx(3),jdx(3),gdx(3)
 REAL                 :: time0, time
 #if USE_PETSC
-PetscErrorCode    :: ierr
-INTEGER           :: iSideID,jSideID
-INTEGER           :: ElemID, BCsideID
-INTEGER           :: iBCSide,locBCSideID
-INTEGER           :: iPETScGlobal, jPETScGlobal
-INTEGER           :: iMortar,iSide,locSideID,MortarSideID,nMortars
-REAL              :: intMat(nGP_face, nGP_face)
+PetscErrorCode       :: ierr
+INTEGER              :: iSideID,jSideID
+INTEGER              :: ElemID, BCsideID
+INTEGER              :: iBCSide,locBCSideID
+INTEGER              :: iPETScGlobal, jPETScGlobal
+INTEGER              :: iMortar,iSide,locSideID,MortarSideID,nMortars
+REAL                 :: intMat(nGP_face, nGP_face)
 #endif
 !===================================================================================================================================
 

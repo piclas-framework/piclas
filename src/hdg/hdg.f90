@@ -120,17 +120,17 @@ USE MOD_Restart_Vars          ,ONLY: DoRestart
 #endif /*defined(PARTICLES)*/
 #if USE_PETSC
 USE PETSc
-USE MOD_Mesh_Vars        ,ONLY: nMPISides_YOUR
+USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
 #if USE_MPI
-USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_WORLD
-USE MOD_MPI               ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
+USE MOD_MPI_Shared_Vars       ,ONLY: MPI_COMM_WORLD
+USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 USE MOD_MPI_Vars
 #endif /*USE_MPI*/
-USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
-USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
+USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 #endif /*USE_PETSC*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -696,32 +696,32 @@ SUBROUTINE HDGLinear(time,U_out)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_Equation               ,ONLY: CalcSourceHDG,ExactFunc
-USE MOD_Equation_Vars          ,ONLY: IniExactFunc
-USE MOD_Equation_Vars          ,ONLY: chitens_face
-USE MOD_Mesh_Vars              ,ONLY: Face_xGP,BoundaryType,nSides,BC
-USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
-USE MOD_Interpolation_Vars     ,ONLY: wGP
-USE MOD_Elem_Mat               ,ONLY: PostProcessGradient
-USE MOD_FillMortar_HDG         ,ONLY: SmallToBigMortar_HDG
+USE MOD_Equation           ,ONLY: CalcSourceHDG,ExactFunc
+USE MOD_Equation_Vars      ,ONLY: IniExactFunc
+USE MOD_Equation_Vars      ,ONLY: chitens_face
+USE MOD_Mesh_Vars          ,ONLY: Face_xGP,BoundaryType,nSides,BC
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide,NormVec,SurfElem
+USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Elem_Mat           ,ONLY: PostProcessGradient
+USE MOD_FillMortar_HDG     ,ONLY: SmallToBigMortar_HDG
 #if (PP_nVar==1)
-USE MOD_Equation_Vars          ,ONLY: E
+USE MOD_Equation_Vars      ,ONLY: E
 #elif (PP_nVar==3)
-USE MOD_Equation_Vars          ,ONLY: B
+USE MOD_Equation_Vars      ,ONLY: B
 #else
-USE MOD_Equation_Vars          ,ONLY: B, E
+USE MOD_Equation_Vars      ,ONLY: B, E
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
 USE PETSc
-USE MOD_Mesh_Vars        ,ONLY: SideToElem
+USE MOD_Mesh_Vars          ,ONLY: SideToElem
 #if USE_MPI
-USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_MPI_Vars
 #endif
-USE MOD_FillMortar_HDG         ,ONLY: BigToSmallMortar_HDG
+USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG
 #endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
