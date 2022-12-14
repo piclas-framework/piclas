@@ -179,7 +179,6 @@ DO i = 1, iMax
   ELSE
     ! Generate skeleton for the file with all relevant data on a single processor (MPIRoot)
     ! Write field to separate file for debugging purposes
-    !FutureTime=0.0 ! not required
     FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_NodeSourceExtGlobal',OutputTime))//'.h5'
     IF(MPIRoot) CALL GenerateFileSkeleton('NodeSourceExtGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)
 #if USE_MPI

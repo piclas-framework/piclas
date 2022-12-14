@@ -146,6 +146,27 @@ stages:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
+.template: &defaults_poisson_petsc
+  tags:
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_poisson_petsc_release
+      - build_poisson_petsc_debug
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
+    paths:
+      - build_poisson_petsc_release
+      - build_poisson_petsc_debug
+    policy: pull
+  allow_failure: true
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
 .template: &defaults_poisson_nightly
   tags:
     - withmodules-concurrent
@@ -161,6 +182,26 @@ stages:
     paths:
       - build_poisson_release
       - build_poisson_debug
+    policy: pull
+  allow_failure: true
+  rules:
+    - if: '$DO_NIGHTLY'
+
+.template: &defaults_poisson_petsc_nightly
+  tags:
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_poisson_petsc_release
+      - build_poisson_petsc_debug
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
+    paths:
+      - build_poisson_petsc_release
+      - build_poisson_petsc_debug
     policy: pull
   allow_failure: true
   rules:
@@ -236,6 +277,32 @@ build_poisson:
     - cp -r ../build_poisson_release/reggie .
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
 
+build_poisson_petsc:
+  tags:
+    - withmodules-concurrent
+  artifacts:
+    name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - build_poisson_petsc_release
+      - build_poisson_petsc_debug
+  cache:
+    key: "${CI_COMMIT_REF_SLUG}-POI-PETSC"
+    paths:
+      - build_poisson_petsc_release
+      - build_poisson_petsc_debug
+    policy: push
+  stage: build
+  script:
+    - mkdir -p build_poisson_petsc_release ; cd build_poisson_petsc_release
+    - git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cd ..
+    - mkdir -p build_poisson_petsc_debug ; cd build_poisson_petsc_debug
+    - cp -r ../build_poisson_petsc_release/reggie .
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+
 build_hopr:
   tags:
     - withmodules-concurrent
@@ -310,6 +377,19 @@ poisson_debug:
   stage: reggie_checkin
   script:
     - cd build_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
+
+poisson_petsc_release:
+  <<: *defaults_poisson_petsc
+  stage: reggie_checkin
+  script:
+    - cd build_poisson_petsc_release ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
+
+poisson_petsc_debug:
+  <<: *defaults_poisson_petsc
+  stage: reggie_checkin
+  script:
+    - cd build_poisson_petsc_debug ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
+
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
@@ -491,6 +571,12 @@ NIG_poisson:
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_poisson/ ; fi
 
+NIG_poisson_PETSC:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build ; python ./reggie/reggie.py ../regressioncheck/NIG_poisson_PETSC/ ; fi
+
 NIG_maxwell_RK4:
   <<: *defaults_nightly
   stage: reggie_nightly
@@ -564,6 +650,20 @@ NIG_Photoionization_debug:
   stage: reggie_nightly
   script:
     - if [ -n "${DO_NIGHTLY}" ]; then cd build_poisson_debug ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas ; fi
+
+NIG_Photoionization_petsc_release:
+  <<: *defaults_poisson_petsc_nightly
+  stage: reggie_nightly
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_poisson_petsc_release ; fi
+    - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas ; fi
+
+NIG_Photoionization_petsc_debug:
+  <<: *defaults_poisson_petsc_nightly
+  stage: reggie_nightly
+  script:
+    - if [ -n "${DO_NIGHTLY}" ]; then cd build_poisson_petsc_debug ; fi
     - if [ -n "${DO_NIGHTLY}" ]; then python ./reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas ; fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------

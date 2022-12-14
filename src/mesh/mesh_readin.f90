@@ -211,7 +211,7 @@ USE MOD_Mesh_Vars            ,ONLY: useCurveds
 USE MOD_Mesh_Vars            ,ONLY: BoundaryType
 USE MOD_Mesh_Vars            ,ONLY: MeshInitIsDone
 USE MOD_Mesh_Vars            ,ONLY: Elems!,Nodes
-USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE!,createSides
+USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE
 USE MOD_Mesh_Vars            ,ONLY: ElemInfo,SideInfo
 USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
 #if USE_MPI
@@ -603,8 +603,7 @@ DO iElem=FirstElemInd,LastElemInd
           aSide%connection%Elem=>GETNEWELEM()
           aSide%NbProc = ELEMIPROC(elemID)
 #else
-          CALL abort(__STAMP__, &
-            ' ElemID of neighbor not in global Elem list ')
+          CALL abort(__STAMP__, ' ElemID of neighbor not in global Elem list ')
 #endif
         END IF
       END IF
