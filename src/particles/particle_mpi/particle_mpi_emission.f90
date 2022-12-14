@@ -343,18 +343,24 @@ DO iSpec=1,nSpecies
       xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
     CASE('cuboid','photon_rectangle','photon_SEE_rectangle')
-      ASSOCIATE( O => Species(iSpec)%Init(iInit)%BasePointIC ,&
+      ASSOCIATE( O => Species(iSpec)%Init(iInit)%BasePointIC   ,&
                 v2 => Species(iSpec)%Init(iInit)%BaseVector1IC ,&
-                v3 => Species(iSpec)%Init(iInit)%BaseVector2IC)
-        lineVector(1) = v2(2) * v3(3) - v2(3) * v3(2)
-        lineVector(2) = v2(3) * v3(1) - v2(1) * v3(3)
-        lineVector(3) = v2(1) * v3(2) - v2(2) * v3(1)
-        IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-           CALL ABORT(__STAMP__,'BaseVectors are parallel!')
+                v3 => Species(iSpec)%Init(iInit)%BaseVector2IC ,&
+                normal => Species(iSpec)%Init(iInit)%NormalIC)
+
+        ! Use NormalIC if it is non-zero. Else, use the cross-product calculated 3rd vector to span the coordinate space
+        ! The first choice results in a non-rectangular 3rd coordinate vector
+        IF(VECNORM(normal).LE.0.)THEN
+          lineVector(1) = v2(2) * v3(3) - v2(3) * v3(2)
+          lineVector(2) = v2(3) * v3(1) - v2(1) * v3(3)
+          lineVector(3) = v2(1) * v3(2) - v2(2) * v3(1)
+          lineVector = UNITVECTOR(lineVector)
+          IF(VECNORM(lineVector).LE.0.) CALL ABORT(__STAMP__,'BaseVectors are parallel!')
         ELSE
-          lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
-            lineVector(3) * lineVector(3))
-        END IF
+          ! Normalize the vector even though it is probably already normalized for safety reasons
+          lineVector = UNITVECTOR(normal)
+        END IF ! VECNORM(lineVector).LE.0.
+
         xCoords(1:3,1)=O
         xCoords(1:3,2)=O+v2
         xCoords(1:3,3)=O+v3
@@ -1152,10 +1158,12 @@ SDEALLOCATE(EmissionSendBuf)
 END SUBROUTINE SendEmissionParticlesToProcs
 
 
+!===================================================================================================================================
+!> Check if bounding box is on processor. The bounding box is built from the min/max extents of the input nodes.
+!> The number of input nodes is nNodes can be any integer number > 1.
+!> The bounding box is compared with the GEO%xmin, GEO%xmax, ... etc. of each processor.
+!===================================================================================================================================
 PURE FUNCTION BoxInProc(CartNodes,nNodes)
-!===================================================================================================================================
-! check if bounding box is on proc
-!===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Mesh_Vars,       ONLY:GEO
 ! IMPLICIT VARIABLE HANDLING

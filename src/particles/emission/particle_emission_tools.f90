@@ -1329,18 +1329,15 @@ REAL                    :: Particle_pos(3), RandVal(3), lineVector(3), radius
 INTEGER                 :: i, chunkSize2
 LOGICAL                 :: insideExcludeRegion
 !===================================================================================================================================
-  lineVector(1) = Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3) - &
-    Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2)
-  lineVector(2) = Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1) - &
-    Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3)
-  lineVector(3) = Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2) - &
-    Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1)
-  IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-    CALL abort(__STAMP__,'BaseVectors are parallel!')
-  ELSE
-    lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
-      lineVector(3) * lineVector(3))
-  END IF
+  ! Calculate the cross-product vector from the two base vectors to get the perpendicular direction
+  ASSOCIATE(v2 => Species(FractNbr)%Init(iInit)%BaseVector1IC ,&
+            v3 => Species(FractNbr)%Init(iInit)%BaseVector2IC )
+    lineVector(1) = v2(2) * v3(3) - v2(3) * v3(2)
+    lineVector(2) = v2(3) * v3(1) - v2(1) * v3(3)
+    lineVector(3) = v2(1) * v3(2) - v2(2) * v3(1)
+    lineVector = UNITVECTOR(lineVector)
+    IF(VECNORM(lineVector).LE.0.) CALL ABORT(__STAMP__,'BaseVectors are parallel!')
+  END ASSOCIATE
   i=1
   chunkSize2=0
   DO WHILE (i .LE. chunkSize)
