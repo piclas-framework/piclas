@@ -591,9 +591,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 
           ! Check rot periodic Elems and if iSide is on rot periodic BC
           IF(MeshHasRotPeriodic) THEN
-!            DO iPeriodicDir = 1,2
             DO iPartBound = 1, nPartBound
-!              ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
               ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) )
                 SELECT CASE(GEO%RotPeriodicAxi)
                   CASE(1) ! x-rotation axis
@@ -855,8 +853,6 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 
       ! Check rot periodic Elems and if iSide is on rot periodic BC
       IF(MeshHasRotPeriodic) THEN
-!        DO iPeriodicDir = 1,2
-!          ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
         DO iPartBound = 1, nPartBound
           ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) )
             SELECT CASE(GEO%RotPeriodicAxi)

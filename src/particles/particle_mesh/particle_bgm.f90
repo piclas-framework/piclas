@@ -1811,8 +1811,7 @@ LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM i
 INTEGER                        :: iElem,firstElem,lastElem
 REAL                           :: RotBoundsOfElemCenter(3)
 REAL                           :: BoundsOfElemCenter(1:4),LocalBoundsOfElemCenter(1:4)
-INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
-INTEGER                        :: iPeriodicDir,iLocElem,iPartBound
+INTEGER                        :: iLocElem,iPartBound
 !===================================================================================================================================
 
 firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
@@ -1850,8 +1849,6 @@ DO iElem = firstElem ,lastElem
                                              BoundsOfElem_Shared(2  ,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
     !   3. Rotate the global element and check the distance of all compute-node elements to
     !      this element and flag it with halo flag 3 if the element can be reached by a particle
-!    DO iPeriodicDir = 1,2
-!      ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
     DO iPartBound = 1, nPartBound
       ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) )
         SELECT CASE(GEO%RotPeriodicAxi)

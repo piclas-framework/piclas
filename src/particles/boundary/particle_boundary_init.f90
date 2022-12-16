@@ -42,6 +42,7 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle Boundaries")
 
+CALL prms%CreateIntOption(      'Part-RotPeriodicAxi' , 'Axis of rotational periodicity: x = 1, y = 2, z = 3')
 CALL prms%CreateIntOption(      'Part-nBounds', 'Number of particle boundaries.', '1')
 CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName', &
                                   'No Default. Source Name of Boundary[i]. Has to be selected for all'//&
@@ -133,6 +134,7 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 '10: SEE-I when Ar+ bombards copper by J.G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation", 2021 (originates from Phelps1999)\n'// &
                                 '11: SEE-E when e- bombard quartz (SiO2) by A. Dunaevsky, "Secondary electron emission from dielectric materials of a Hall thruster with segmented electrodes", 2003'&
                                 , '0', numberedmulti=.TRUE.)
+CALL prms%SetSection('Particle Boundaries: Species Swap')
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Number of Species to be changed at wall.', '0', numberedmulti=.TRUE.)
@@ -490,9 +492,9 @@ AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
 IF(GEO%RotPeriodicBC) THEN
   GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')
-! Check whether two corresponding RotPeriodi BCs are always set
+! Check whether two corresponding RotPeriodic BCs are always set
   IF(MOD(GEO%nRotPeriodicBCs,2).NE.0) THEN
-    CALL abort(__STAMP__,'Check whether two corresponding RotPeriodi BCs are set!')
+    CALL abort(__STAMP__,'ERROR: Uneven number of rot_periodic BCs. Check whether two corresponding RotPeriodic BCs are set!')
   END IF
 END IF
 

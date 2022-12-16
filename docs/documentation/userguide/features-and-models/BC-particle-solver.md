@@ -106,7 +106,8 @@ It should be noted that the the adaptation should be performed multiple times to
 The rotational periodic boundary condition can be used in order to reduce the computational effort in case of an existing
 rotational periodicity. In contrast to symmetric boundary conditions, a macroscopic flow velocity in azimuthal direction can be
 simulated (e.g. circular flow around a rotating cylinder). Exactly two corresponding boundaries must be defined by setting
-`rot_periodic` as BC condition and the rotating angle for each BCs.
+`rot_periodic` as BC condition and the rotating angle for each BC. Multiple pairs of boundary conditions with different angles
+can be defined.
 
     Part-Boundary1-SourceName=BC_Rot_Peri_plus
     Part-Boundary1-Condition=rot_periodic
