@@ -255,7 +255,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis
+INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs
 INTEGER               :: ALLOCSTAT, dummy_int
 REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf , hilf2
@@ -346,7 +346,7 @@ DoBoundaryParticleOutputHDF5=.FALSE.
 
 PartMeshHasPeriodicBCs=.FALSE.
 GEO%RotPeriodicBC =.FALSE.
-GEO%nRotPeriodicBCs  = 0
+nRotPeriodicBCs  = 0
 ! TODO: REMOVE THIS CALL WHEN MERGED WITH UNIFIED SPECIES DATABASE BRANCH
 SpeciesDatabase = GETSTR('Particles-Species-Database', 'none')
 
@@ -466,7 +466,7 @@ DO iPartBound=1,nPartBound
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('rot_periodic')
     GEO%RotPeriodicBC = .TRUE.
-    GEO%nRotPeriodicBCs  = GEO%nRotPeriodicBCs + 1
+    nRotPeriodicBCs  = nRotPeriodicBCs + 1
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicBC
     PartBound%RotPeriodicAngle(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicAngle')
     IF(ALMOSTZERO(PartBound%RotPeriodicAngle(iPartBound))) THEN
@@ -493,7 +493,7 @@ AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 IF(GEO%RotPeriodicBC) THEN
   GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')
 ! Check whether two corresponding RotPeriodic BCs are always set
-  IF(MOD(GEO%nRotPeriodicBCs,2).NE.0) THEN
+  IF(MOD(nRotPeriodicBCs,2).NE.0) THEN
     CALL abort(__STAMP__,'ERROR: Uneven number of rot_periodic BCs. Check whether two corresponding RotPeriodic BCs are set!')
   END IF
 END IF
