@@ -46,19 +46,26 @@ checklist has to be completed before a merge request should be approved. For bug
 while for features and improvements the complete list has to be completed. The **Feature** merge request template considers the
 following bullet points
 
-* [ ] Style Guide
-* [ ] Maximum of 10 compile warnings via *./tools/test_max_warnings.sh*. How many warning were found?
-* [ ] Descriptions for new/changed routines
-  * [ ] Short header description (do not just spell out the name of the subroutine, units for important variables if applicable)
-  * [ ] Workflow
-    * [ ] Short summary in the header
-    * [ ] Inside the routine at the appropriate positions
-* [ ] Reggie
-  * [ ] Add small test setup
-  * [ ] Add entry in REGGIE.md table
-  * [ ] Check automatic restart functionality of reggie example via Load Balance (checks correct allocation and deallocation for the test case)
-* [ ] New feature description in appropriate documentation (user/developer guide)
-* [ ] Check that no large files were added to the repository
+    ## Related Issue
+
+    Closes #number
+
+    ## Merge Request Checklist
+
+    * [ ] Style Guide
+    * [ ] Maximum of 10 compile warnings via *./tools/test_max_warnings.sh*. How many warning were found?
+    * [ ] No large files via *./tools/test_max_file_size.sh*. What is the largest file?
+    * [ ] Descriptions for new/changed routines
+      * [ ] Short header description (do not just spell out the name of the subroutine, units for important variables if applicable)
+      * [ ] Workflow
+        * [ ] Short summary in the header
+        * [ ] Inside the routine at the appropriate positions
+    * [ ] Reggie
+      * [ ] Add small test setup
+      * [ ] Add entry in REGGIE.md table
+      * [ ] Check automatic restart functionality of reggie example via Load Balance (checks correct allocation and deallocation for the test case)
+    * [ ] New feature description in appropriate documentation (user/developer guide)
+    * [ ] Check that no large files were added to the repository
 
 For this purpose, the developer can select the respective template for his merge request (**Bug**: only first two to-do's or **Feature**:
 all to-do's, Improvements can utilize either depending on the nature of the improvement). The appropriate checklist will then

@@ -587,9 +587,11 @@ IF(BPO%NPartBoundaries.EQ.0.OR.BPO%NSpecies.EQ.0) CALL abort(__STAMP__,'BPO-NPar
 ALLOCATE(BPO%RealPartOut(1:BPO%NPartBoundaries,1:BPO%NSpecies))
 BPO%RealPartOut = 0.
 
-ALLOCATE(BPO%SpecIDToBPOSpecID(1:nSPecies))
+ALLOCATE(BPO%SpecIDToBPOSpecID(1:nSpecies))
 BPO%SpecIDToBPOSpecID = -1
 DO iSpec = 1, BPO%NSpecies
+  ! Sanity check
+  IF(BPO%Species(iSpec).GT.nSpecies) CALL abort(__STAMP__,'BPO-Species contains a wrong species ID, which is greater than nSpecies')
   BPO%SpecIDToBPOSpecID(BPO%Species(iSpec)) = iSpec
 END DO ! iSpec = 1, BPO%NSpecies
 

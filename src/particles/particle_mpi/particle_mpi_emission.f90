@@ -493,6 +493,8 @@ DO iSpec=1,nSpecies
        RegionOnProc=.TRUE.
     CASE ('background')
        RegionOnProc=.TRUE.
+    CASE ('EmissionDistribution')
+       RegionOnProc=.TRUE.
     CASE DEFAULT
       IPWRITE(*,*) 'ERROR: Species ', iSpec, 'of', iInit, 'is using an unknown SpaceIC!'
       CALL ABORT(__STAMP__,'ERROR: Given SpaceIC is not implemented: '//TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
@@ -579,7 +581,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: EmissionSendBuf,EmissionRecvBuf
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,Species
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart
+USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -829,7 +831,8 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-MPIW8TimePart(5) = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! recvPartPos holds particles from ALL procs
@@ -981,7 +984,8 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-MPIW8TimePart(5) = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
@@ -1042,7 +1046,8 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-MPIW8TimePart(5) = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 !--- 8/10 Try to locate received non-located particles
@@ -1094,7 +1099,8 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-MPIW8TimePart(5) = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 !--- 10/10 Write located particles

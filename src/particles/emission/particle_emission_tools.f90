@@ -262,9 +262,7 @@ DO i=1, NbrOfParticle
   IF (PositionNbr .NE. 0) THEN
     PartSpecies(PositionNbr) = FractNbr
   ELSE
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+    CALL abort(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
   END IF
 END DO
 
@@ -952,9 +950,7 @@ INTEGER                          :: CNElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (UseExactPartNum) THEN
     IF(chunkSize.GE.PDM%maxParticleNumber) THEN
-      CALL abort(&
-__STAMP__,&
-'ERROR in SetCellLocalParticlePosition: Maximum particle number reached! max. particles needed: ',chunksize)
+      CALL abort(__STAMP__,'SetCellLocalParticlePosition: Maximum particle number reached! max. particles needed: ',chunksize)
     END IF
     CellChunkSize(:)=0
     ASSOCIATE( start => GetCNElemID(1+offsetElem),&
@@ -1027,8 +1023,7 @@ __STAMP__,&
           IPWRITE(UNIT_stdOut,*) "ERROR:"
           IPWRITE(UNIT_stdOut,*) "                iPart :", iPart
           IPWRITE(UNIT_stdOut,*) "PDM%maxParticleNumber :", PDM%maxParticleNumber
-          CALL abort(&
-              __STAMP__&
+          CALL abort(__STAMP__&
               ,'ERROR in SetCellLocalParticlePosition: Maximum particle number reached during inserting! --> ParticleIndexNbr.EQ.0')
         END IF
       END DO

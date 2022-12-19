@@ -36,6 +36,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime,ProjectName
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze
+USE MOD_TimeDisc_Vars          ,ONLY: time_start
 #if USE_LOADBALANCE
 USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
 #if defined(PARTICLES)
@@ -89,7 +90,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEMFieldOutput
 USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
 #endif /*PARTICLES*/
 #ifdef PARTICLES
-USE MOD_PICDepo                ,ONLY: Deposition
+!USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_Particle_Vars          ,ONLY: DoImportIMDFile
 #if USE_MPI
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
@@ -215,7 +216,6 @@ IF((.NOT.DoRestart).OR.FlushInitialState.OR.(.NOT.FILEEXISTS(TRIM(TIMESTAMP(TRIM
 #if defined(PARTICLES)
   CALL FillParticleData() ! Fill the SFC-ordered particle arrays
 #endif /*defined(PARTICLES)*/
-
   CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze) ! Write initial state to file
 END IF
 
@@ -237,6 +237,7 @@ IF(ALMOSTEQUALRELATIVE(time,tEnd,1e-10))RETURN
 !-----------------------------------------------------------------------------------------------------------------------------------
 SWRITE(UNIT_StdOut,*)'CALCULATION RUNNING...'
 WallTimeStart=PICLASTIME()
+CALL CPU_TIME(time_start)
 
 DO !iter_t=0,MaxIter
 
@@ -348,8 +349,8 @@ DO !iter_t=0,MaxIter
   !IF ((dt.EQ.dt_Min(DT_ANALYZE)).OR.(dt.EQ.dt_Min(DT_END))) THEN   ! timestep is equal to time to analyze or end
 #if USE_LOADBALANCE
   ! For automatic initial restart, check if the number of sampling steps has been achieved and force a load balance step, but skip
-  ! this procedure in the final iteration after which the simulation if finished
-  !      DoInitialAutoRestart: user-activated load balance restart in first time step (could already be a restart)
+  ! this procedure in the final iteration after which the simulation is finished
+  !      DoInitialAutoRestart: user-activated load balance restart in first time step (could also be during a normal restart)
   ! iter.GE.LoadBalanceSample: as soon as the number of time steps for sampling is reached, perform the load balance restart
   !                 finalIter: prevent removal of last state file even though no load balance restart was performed
   IF(DoInitialAutoRestart.AND.(iter.GE.LoadBalanceSample).AND.(.NOT.finalIter)) ForceInitialLoadBalance=.TRUE.
@@ -366,7 +367,7 @@ DO !iter_t=0,MaxIter
       PID                  = (WallTimeEnd-WallTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_PID)
     END IF
 #if defined(MEASURE_MPI_WAIT)
-    MPIW8TimeSim   = MPIW8TimeSim + (WallTimeEnd-WallTimeStart)
+    MPIW8TimeSim = MPIW8TimeSim + (WallTimeEnd-WallTimeStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 #if USE_MPI
@@ -404,7 +405,9 @@ DO !iter_t=0,MaxIter
     ! finalIter=T: last iteration of the simulation is reached, hence, always perform analysis and output to hdf5
 #if USE_LOADBALANCE
     ! PerformLoadBalance.AND.UseH5IOLoadBalance: Load balance step will be performed and load balance restart via hdf5 IO active
-    IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. (PerformLoadBalance.AND.UseH5IOLoadBalance) .OR. finalIter)THEN
+    ! .NOT.(DoInitialAutoRestart.AND.(.NOT.UseH5IOLoadBalance)): Skip I/O for initial LB because MOD might give 0
+    IF( ((.NOT.(DoInitialAutoRestart.AND.(.NOT.UseH5IOLoadBalance))).AND.MOD(iAnalyze,nSkipAnalyze).EQ.0)&
+        .OR. (PerformLoadBalance.AND.UseH5IOLoadBalance) .OR. finalIter )THEN
 #else
     IF(MOD(iAnalyze,nSkipAnalyze).EQ.0 .OR. finalIter)THEN
 #endif /*USE_LOADBALANCE*/
@@ -413,7 +416,7 @@ DO !iter_t=0,MaxIter
       ! write information out to std-out of console
       CALL WriteInfoStdOut()
 #if defined(PARTICLES)
-      CALL FillParticleData() ! Fill the SFC-ordered particle arrays
+      CALL FillParticleData() ! Fill the SFC-ordered particle arrays for LB or I/O
 #endif /*defined(PARTICLES)*/
       ! Write state to file
       CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
@@ -423,6 +426,10 @@ DO !iter_t=0,MaxIter
       tPreviousAnalyze        = tAnalyze
       tPreviousAverageAnalyze = tAnalyze
       SWRITE(UNIT_StdOut,'(132("-"))')
+#if USE_LOADBALANCE && defined(PARTICLES)
+    ELSEIF(PerformLoadBalance) THEN
+      CALL FillParticleData() ! Fill the SFC-ordered particle arrays for LB
+#endif /*USE_LOADBALANCE && defined(PARTICLES)*/
     END IF ! actual analyze is done
 
     iter_PID=0

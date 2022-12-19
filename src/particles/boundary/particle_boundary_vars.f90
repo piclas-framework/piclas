@@ -26,6 +26,8 @@ SAVE
 
 LOGICAL                                 :: SurfOnNode
 INTEGER                                 :: SurfSampSize                  !> Energy + Force + nSpecies
+INTEGER                                 :: SurfOutputSize                !> Energy + Force + nSpecies
+INTEGER                                 :: SurfSpecOutputSize            !> Energy + Force + nSpecies
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: SurfSideArea                  !> Area of supersampled surface side
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: BoundaryWallTemp              !> Wall Temperature for Adaptive Case
 ! ====================================================================
@@ -47,6 +49,21 @@ REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:)   :: SampWallImpactEnergy
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:)   :: SampWallImpactVector
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SampWallImpactAngle
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SampWallImpactNumber
+
+! SampWallState indices for optional variables (defined in InitParticleBoundarySampling)
+INTEGER                                 :: SWIVarTimeStep
+INTEGER                                 :: SWIStickingCoefficient
+
+! Output container
+REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)           !> variables,p,q,sides
+REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)     !> Macrovalues for Species specific surface output
+                                                                        !> (4,p,q,nSurfSides,nSpecies)
+                                                                        !> 1: Surface Collision Counter
+                                                                        !> 2: Accommodation
+                                                                        !> 3: Coverage
+                                                                        !> 4 (or 2): Impact energy trans
+                                                                        !> 5 (or 3): Impact energy rot
+                                                                        !> 6 (or 4): Impact energy vib
 
 ! ====================================================================
 ! MPI3 shared variables
@@ -249,7 +266,7 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: Voltage(:)
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
   REAL    , ALLOCATABLE                  :: RotOmega(:,:)                 ! Angular velocity
-  INTEGER , ALLOCATABLE                  :: RotPeriodicDir(:)             ! Direction of rotation
+  REAL    , ALLOCATABLE                  :: RotPeriodicAngle(:)           ! Angle and Direction of rotation
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          ! Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         ! Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           ! Species to be changed at wall (in, out), out=0: delete

@@ -74,7 +74,7 @@ USE MOD_CalcTimeStep            ,ONLY: CalcTimeStep
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars           ,ONLY: nRKStages,RK_c
 #endif
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,nPartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: IsExchangeElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
@@ -117,15 +117,15 @@ INTEGER                        :: nNonSymmetricExchangeProcs,nNonSymmetricExchan
 INTEGER                        :: nExchangeProcessorsGlobal, nSendShapeElems, CNElemID, exElem, exProc, jProc, ProcID
 REAL                           :: RotBoundsOfElemCenter(1:3)
 LOGICAL                        :: SideIsRotPeriodic
-INTEGER                        :: BCindex
+INTEGER                        :: BCindex,iPartBound
 REAL                           :: StartT,EndT
+CHARACTER(LEN=255)             :: hilf
 !=================================================================================================================================
 
-IF(MPIRoot)THEN
-  LBWRITE(UNIT_StdOut,'(132("-"))')
-  LBWRITE(UNIT_stdOut,'(A)') ' IDENTIFYING Particle Exchange Processors ...'
-  StartT=MPI_WTIME()
-END IF ! MPIRoot
+WRITE(hilf,'(A)') 'IDENTIFYING Particle Exchange Processors ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' '//TRIM(hilf)
+GETTIME(StartT)
 
 ! Allocate arrays
 ALLOCATE(GlobalProcToExchangeProc(EXCHANGE_PROC_SIZE,0:nProcessors_Global-1))
@@ -145,8 +145,8 @@ GlobalProcToRecvProc = .FALSE.
 ! Identify all procs with elements in range. This includes checking the procs on the compute-node as they might lie far apart
 IF (nProcessors.EQ.1) THEN
   SWRITE(UNIT_stdOut,'(A)') ' | Running on one processor. Particle exchange communication disabled.'
-  SWRITE(UNIT_stdOut,'(A)') ' IDENTIFYING Particle Exchange Processors DONE!'
-  SWRITE(UNIT_StdOut,'(132("-"))')
+  GETTIME(EndT)
+  CALL DisplayMessageAndTime(EndT-StartT, TRIM(hilf)//' DONE!', DisplayDespiteLB=.TRUE.)
   IF(TRIM(DepositionType).EQ.'cell_volweight_mean')THEN
     ALLOCATE(FlagShapeElem(1:nComputeNodeTotalElems))
     FlagShapeElem = .FALSE.
@@ -591,8 +591,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 
           ! Check rot periodic Elems and if iSide is on rot periodic BC
           IF(MeshHasRotPeriodic) THEN
-            DO iPeriodicDir = 1,2
-              ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
+            DO iPartBound = 1, nPartBound
+              ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) )
                 SELECT CASE(GEO%RotPeriodicAxi)
                   CASE(1) ! x-rotation axis
                     RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
@@ -617,7 +617,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                 IsExchangeElem(localElem) = .TRUE.
                 CYCLE ElemLoop
               END IF
-            END DO
+            END DO ! nPartBound
             ! End check rot periodic Elems and if iSide is on rot periodic BC
           END IF ! GEO%RotPeriodicBC
 
@@ -853,8 +853,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 
       ! Check rot periodic Elems and if iSide is on rot periodic BC
       IF(MeshHasRotPeriodic) THEN
-        DO iPeriodicDir = 1,2
-          ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
+        DO iPartBound = 1, nPartBound
+          ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) )
             SELECT CASE(GEO%RotPeriodicAxi)
               CASE(1) ! x-rotation axis
                 RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
@@ -885,7 +885,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             nExchangeProcessors = nExchangeProcessors + 1
             CYCLE ElemLoop
           END IF
-        END DO
+        END DO ! nPartBound
         ! End check rot periodic Elems and if iSide is on rot periodic BC
       END IF ! GEO%RotPeriodicBC
 
@@ -1484,11 +1484,8 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   ADEALLOCATE(ShapeElemProcSend_Shared)
 END IF
 
-IF(MPIRoot)THEN
-  EndT=MPI_WTIME()
-  LBWRITE(UNIT_stdOut,'(A,F0.3,A)') ' IDENTIFYING Particle Exchange Processors DONE  [',EndT-StartT,'s]'
-  LBWRITE(UNIT_StdOut,'(132("-"))')
-END IF ! MPIRoot
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, TRIM(hilf)//' DONE!')
 
 END SUBROUTINE IdentifyPartExchangeProcs
 
