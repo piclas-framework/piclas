@@ -463,8 +463,7 @@ IF(LIBS_BUILD_HOPR)
     # Let CMake take care of download, configure and build
     EXTERNALPROJECT_ADD(HOPR
     GIT_REPOSITORY ${HOPR_DOWNLOAD}
-    # TODO: Set hopr tag, when one is available
-    GIT_TAG master
+    GIT_TAG v1.0.0
     GIT_PROGRESS FALSE
     ${${GITSHALLOW}}
     PREFIX ${LIBS_HOPR_DIR}
