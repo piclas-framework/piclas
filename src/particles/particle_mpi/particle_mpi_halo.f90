@@ -74,7 +74,7 @@ USE MOD_CalcTimeStep            ,ONLY: CalcTimeStep
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars           ,ONLY: nRKStages,RK_c
 #endif
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,nPartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: IsExchangeElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
@@ -117,7 +117,7 @@ INTEGER                        :: nNonSymmetricExchangeProcs,nNonSymmetricExchan
 INTEGER                        :: nExchangeProcessorsGlobal, nSendShapeElems, CNElemID, exElem, exProc, jProc, ProcID
 REAL                           :: RotBoundsOfElemCenter(1:3)
 LOGICAL                        :: SideIsRotPeriodic
-INTEGER                        :: BCindex
+INTEGER                        :: BCindex,iPartBound
 REAL                           :: StartT,EndT
 CHARACTER(LEN=255)             :: hilf
 !=================================================================================================================================
@@ -591,8 +591,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 
           ! Check rot periodic Elems and if iSide is on rot periodic BC
           IF(MeshHasRotPeriodic) THEN
-            DO iPeriodicDir = 1,2
-              ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
+            DO iPartBound = 1, nPartBound
+              ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) )
                 SELECT CASE(GEO%RotPeriodicAxi)
                   CASE(1) ! x-rotation axis
                     RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
@@ -617,7 +617,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                 IsExchangeElem(localElem) = .TRUE.
                 CYCLE ElemLoop
               END IF
-            END DO
+            END DO ! nPartBound
             ! End check rot periodic Elems and if iSide is on rot periodic BC
           END IF ! GEO%RotPeriodicBC
 
@@ -853,8 +853,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 
       ! Check rot periodic Elems and if iSide is on rot periodic BC
       IF(MeshHasRotPeriodic) THEN
-        DO iPeriodicDir = 1,2
-          ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
+        DO iPartBound = 1, nPartBound
+          ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) )
             SELECT CASE(GEO%RotPeriodicAxi)
               CASE(1) ! x-rotation axis
                 RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
@@ -885,7 +885,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             nExchangeProcessors = nExchangeProcessors + 1
             CYCLE ElemLoop
           END IF
-        END DO
+        END DO ! nPartBound
         ! End check rot periodic Elems and if iSide is on rot periodic BC
       END IF ! GEO%RotPeriodicBC
 

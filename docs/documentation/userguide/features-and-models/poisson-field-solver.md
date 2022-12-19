@@ -1,6 +1,6 @@
 (sec:poisson)=
-# Poisson Equation Field Solver
-To numerically solve electrostatic problems, PCILas offers a solver for Poisson's equation
+# Field Solver - Poisson Equation
+To numerically solve electrostatic problems, PICLas offers a solver for Poisson's equation
 
 $$\nabla \cdot \textbf{E} = \frac{\rho}{\varepsilon_{0}}$$
 
@@ -43,7 +43,7 @@ Furthermore, the residual can be either set absolute (default) or relative via
 
 ## PETSc Solver
 A multitude of different numerical methods to solve the resulting system of linear equations is given by the implemented PETSc
-library. For detailed installation steps of PETSc within PICLas, see Section {ref}`sec:petsc-installation`.
+library {cite}`petsc-web-page`, {cite}`petsc-user-ref`, {cite}`petsc-efficient`. For detailed installation steps of PETSc within PICLas, see Section {ref}`sec:petsc-installation`.
 To use PETSc, another flag must be set during the compilation of PICLas
 
     PICLAS_PETSC = ON

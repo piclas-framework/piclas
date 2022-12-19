@@ -192,14 +192,15 @@ Convergence tests (temporally by varying the time step) for integrating the path
 
 Testing more complex DSMC routines: [Link CMAKE-CONFIG](regressioncheck/NIG_DSMC/builds.ini).
 
-| **No.** |       **Case**        | **CMAKE-CONFIG** |             **Feature**             |   **Execution**    |                 **Comparing**                 |                            **Readme**                            |
-| :-----: | :-------------------: | :--------------: | :---------------------------------: | :----------------: | :-------------------------------------------: | :--------------------------------------------------------------: |
-|    1    |  2D_VTS_Distribution  |      Release     |                                     |    nProcs=1,2,4    |              h5diff PartTimeStep              |  [Link](regressioncheck/NIG_DSMC/2D_VTS_Distribution/readme.md)  |
-|    2    |  Ambipolar_Diffusion  |      Release     |                                     |      nProcs=6      |                PartAnalyze.csv                |  [Link](regressioncheck/NIG_DSMC/Ambipolar_Diffusion/readme.md)  |
-|    3    |  Macroscopic_Restart  |      Release     |                                     |      nProcs=6      |                PartAnalyze.csv                |  [Link](regressioncheck/NIG_DSMC/Macroscopic_Restart/readme.md)  |
-|    4    |     RotPeriodicBC     |      Release     |                                     | nProcs=1,2,7,15,25 | h5 bounds check PartData and PartAnalyze.csv  |     [Link](regressioncheck/NIG_DSMC/RotPeriodicBC/readme.md)     |
-|    5    |   VirtualCellMerge    |      Release     |  Merge cells for collision operator |      nProcs=4      | DSMCState: Number density with absolute value |   [Link](regressioncheck/NIG_DSMC/VirtualCellMerge/readme.md)    |
-|    6    | VSS_VHS_SelfDiffusion |  Release + Debug | Testing the VHS/VSS collision model |      nProcs=6      |                Number Density                 | [Link](regressioncheck/NIG_DSMC/VSS_VHS_SelfDiffusion/readme.md) |
+| **No.** |         **Case**           | **CMAKE-CONFIG** |             **Feature**             |   **Execution**    |                 **Comparing**                 |                            **Readme**                                 |
+| :-----: | :------------------------: | :--------------: | :---------------------------------: | :----------------: | :-------------------------------------------: | :-------------------------------------------------------------------: |
+|    1    |  2D_VTS_Distribution       |      Release     |                                     |    nProcs=1,2,4    |              h5diff PartTimeStep              | [Link](regressioncheck/NIG_DSMC/2D_VTS_Distribution/readme.md)        |
+|    2    |  Ambipolar_Diffusion       |      Release     |                                     |      nProcs=6      |                PartAnalyze.csv                | [Link](regressioncheck/NIG_DSMC/Ambipolar_Diffusion/readme.md)        |
+|    3    |  Macroscopic_Restart       |      Release     |                                     |      nProcs=6      |                PartAnalyze.csv                | [Link](regressioncheck/NIG_DSMC/Macroscopic_Restart/readme.md)        |
+|    4    |     RotPeriodicBC          |      Release     |                                     | nProcs=1,2,7,15,25 | h5 bounds check PartData and PartAnalyze.csv  | [Link](regressioncheck/NIG_DSMC/RotPeriodicBC/readme.md)              |
+|    5    |   VirtualCellMerge         |      Release     |  Merge cells for collision operator |      nProcs=4      | DSMCState: Number density with absolute value | [Link](regressioncheck/NIG_DSMC/VirtualCellMerge/readme.md)           |
+|    6    | VSS_VHS_SelfDiffusion      |  Release + Debug | Testing the VHS/VSS collision model |      nProcs=6      |                Number Density                 | [Link](regressioncheck/NIG_DSMC/VSS_VHS_SelfDiffusion/readme.md)      |
+|    7    | BC_MultiRotationalPeriodic |      Release     |                                     | nProcs=1,2,7,15,25 | h5 bounds check PartData and PartAnalyze.csv  | [Link](regressioncheck/NIG_DSMC/BC_MultiRotationalPeriodic/readme.md) |
 
 
 ### NIG_Dielectric

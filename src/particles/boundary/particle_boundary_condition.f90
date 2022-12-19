@@ -443,7 +443,7 @@ IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) Velo_oldAmbi(1:3) = AmbipolElecVelo(PartID)%ElecVelo(1:3)
 END IF
 ! (1) perform the rotational periodic movement and adjust velocity vector
-ASSOCIATE( rot_alpha => REAL(PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))))*GEO%RotPeriodicAngle)
+ASSOCIATE(rot_alpha => PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))))
   SELECT CASE(GEO%RotPeriodicAxi)
     CASE(1) ! x-rotation axis: LastPartPos(1,PartID) = LastPartPos_old(1,PartID)
       LastPartPos(2,PartID) = COS(rot_alpha)*LastPartPos_old(2) - SIN(rot_alpha)*LastPartPos_old(3)
