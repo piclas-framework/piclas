@@ -111,6 +111,8 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-RotAxis'  &
                                 , 'Definition of rotation axis, only major axis: x=1,y=2,z=3.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicAngle' , 'Angle and Direction of rotation periodicity, either + or - '//&
                                 'Note: Rotation direction based on right-hand rule!', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicMin' , 'Minimum coordinate at rotational axis for this segment', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicMax' , 'Maximum coordinate at rotational axis for this segment', numberedmulti=.TRUE.)
 !CALL prms%CreateLogicalOption(  'Part-RotPeriodicReBuild', 'Force re-creation of rotational periodic mapping (which might already exist in the mesh file).', '.FALSE.')
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp2'  &
                                 , 'Second wall temperature (in [K]) of reflective particle boundary for a temperature gradient.' &
@@ -301,6 +303,10 @@ ALLOCATE(PartBound%RotOmega(       1:3,1:nPartBound))
 PartBound%RotOmega = 0.
 ALLOCATE(PartBound%RotPeriodicAngle(  1:nPartBound))
 PartBound%RotPeriodicAngle = 0
+ALLOCATE(PartBound%RotPeriodicMin(  1:nPartBound))
+PartBound%RotPeriodicMin = -HUGE(1.)
+ALLOCATE(PartBound%RotPeriodicMax(  1:nPartBound))
+PartBound%RotPeriodicMax = HUGE(1.)
 ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
 PartBound%TempGradStart = 0.
 ALLOCATE(PartBound%TempGradEnd(  1:3,1:nPartBound))
@@ -495,6 +501,17 @@ IF(GEO%RotPeriodicBC) THEN
 ! Check whether two corresponding RotPeriodic BCs are always set
   IF(MOD(nRotPeriodicBCs,2).NE.0) THEN
     CALL abort(__STAMP__,'ERROR: Uneven number of rot_periodic BCs. Check whether two corresponding RotPeriodic BCs are set!')
+  ELSE IF(nRotPeriodicBCs.NE.2) THEN
+    DO iPartBound=1,nPartBound
+      WRITE(UNIT=hilf,FMT='(I0)') iPartBound
+      IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC) THEN
+        PartBound%RotPeriodicMin(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicMin')
+        PartBound%RotPeriodicMax(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicMax')
+        IF(PartBound%RotPeriodicMin(iPartBound).GE.PartBound%RotPeriodicMax(iPartBound)) THEN
+          CALL abort(__STAMP__,'ERROR: Minimum coordinate at rotational axis is higher than maximum coordinate at rotational axis')
+        END IF
+      END IF
+    END DO
   END IF
 END IF
 
@@ -1466,6 +1483,8 @@ SDEALLOCATE(PartBound%WallVelo)
 SDEALLOCATE(PartBound%RotVelo)
 SDEALLOCATE(PartBound%RotOmega)
 SDEALLOCATE(PartBound%RotPeriodicAngle)
+SDEALLOCATE(PartBound%RotPeriodicMin)
+SDEALLOCATE(PartBound%RotPeriodicMax)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
