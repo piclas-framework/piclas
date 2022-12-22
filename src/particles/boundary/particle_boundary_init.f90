@@ -479,7 +479,7 @@ DO iPartBound=1,nPartBound
       CALL abort(__STAMP__,'Angle for rotational periodicity can not be zero (using the right-hand rule!)')
     END IF
    ! Rotate the particle slightly inside the domain
-    PartBound%RotPeriodicAngle(iPartBound) = PartBound%RotPeriodicAngle(iPartBound) / 180. * PI * 0.99999
+    PartBound%RotPeriodicAngle(iPartBound) = PartBound%RotPeriodicAngle(iPartBound) / 180. * PI
   CASE DEFAULT
     SWRITE(*,*) ' Boundary does not exist: ', TRIM(tmpString)
     CALL abort(__STAMP__,'Particle Boundary Condition does not exist')
