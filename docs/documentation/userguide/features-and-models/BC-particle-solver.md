@@ -125,7 +125,7 @@ defined separately, and the right-hand rule.
 
 The usage of rotational periodic boundary conditions is limited to cases, where the rotational periodic axis is one of the three
 Cartesian coordinate axis (x, y, z) with its origin at (0, 0, 0).
-It is also possible to define several segments with different rotation angles. Exactly two corresponding BCs must be defined for each segment. In addition, the minimum and maximum coordinates along the rotation axis must be chosen for each BC to define the position of the segment. In the following example we have two segments. Once between BCs 1 and 2 and once between BCs 4 and 5
+It is also possible to define several segments with different rotation angles. Exactly two corresponding BCs must be defined for each segment. In addition, the minimum and maximum coordinates along the rotation axis must be chosen for each BC to define the position of the segment. In the following example we have two segments. One between BCs 1 and 2 and one between BCs 4 and 5
 
     Part-Boundary1-RotPeriodicMin=-1.
     Part-Boundary1-RotPeriodicMin=1
