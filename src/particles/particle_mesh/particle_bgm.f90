@@ -789,6 +789,7 @@ ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
           ! Element not previously flagged
           IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).LT.1) THEN
             ASSOCIATE(posElem => (ElemID-1)*ELEMINFOSIZE + (ELEM_HALOFLAG-1))
+              ! Attention: This can produce ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 4 when Mortar interfaces are present
               CALL MPI_FETCH_AND_OP(haloChange,dummyInt,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_REPLACE,ElemInfo_Shared_Win,iError)
               CALL MPI_WIN_FLUSH(0,ElemInfo_Shared_Win,iError)
             END ASSOCIATE
