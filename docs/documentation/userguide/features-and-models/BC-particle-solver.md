@@ -106,38 +106,39 @@ It should be noted that the the adaptation should be performed multiple times to
 The rotational periodic boundary condition can be used in order to reduce the computational effort in case of an existing
 rotational periodicity. In contrast to symmetric boundary conditions, a macroscopic flow velocity in azimuthal direction can be
 simulated (e.g. circular flow around a rotating cylinder). Exactly two corresponding boundaries must be defined by setting
-`rot_periodic` as BC condition and the rotating angle for each BC. Multiple pairs of boundary conditions with different angles
+`rot_periodic` as the BC condition and the rotating angle for each BC. Multiple pairs of boundary conditions with different angles
 can be defined.
 
-    Part-Boundary1-SourceName=BC_Rot_Peri_plus
-    Part-Boundary1-Condition=rot_periodic
-    Part-Boundary1-RotPeriodicAngle=90
+    Part-Boundary1-SourceName       = BC_Rot_Peri_plus
+    Part-Boundary1-Condition        = rot_periodic
+    Part-Boundary1-RotPeriodicAngle = 90.
 
-    Part-Boundary2-SourceName=BC_Rot_Peri_minus
-    Part-Boundary2-Condition=rot_periodic
-    Part-Boundary2-RotPeriodicAngle=-90
+    Part-Boundary2-SourceName       = BC_Rot_Peri_minus
+    Part-Boundary2-Condition        = rot_periodic
+    Part-Boundary2-RotPeriodicAngle = -90.
 
 CAUTION! The correct sign for the rotating angle must be determined. The position of particles that cross one rotational 
-periodic boundary is tranformed according this angle, which is defined by the rotation axis `Part-RotPeriodicAxi` that must be 
-defined separately, and the right-hand rule.
+periodic boundary is tranformed according to this angle, which is defined by the right-hand rule and the rotation axis:
 
-    Part-RotPeriodicAxi=1    ! (x=1, y=2, z=3)
+    Part-RotPeriodicAxi = 1    ! (x = 1, y = 2, z = 3)
 
 The usage of rotational periodic boundary conditions is limited to cases, where the rotational periodic axis is one of the three
 Cartesian coordinate axis (x, y, z) with its origin at (0, 0, 0).
-It is also possible to define several segments with different rotation angles. Exactly two corresponding BCs must be defined for each segment. In addition, the minimum and maximum coordinates along the rotation axis must be chosen for each BC to define the position of the segment. In the following example we have two segments. One between BCs 1 and 2 and one between BCs 4 and 5
+It is also possible to define several segments with different rotation angles. Exactly two corresponding BCs must be defined for each segment.
+In addition, the minimum and maximum coordinates along the rotation axis must be chosen for each BC to define the position of the segment.
+In the following example we have two segments. One between BCs 1 and 2 and one between BCs 4 and 5
 
     Part-Boundary1-RotPeriodicMin=-1.
-    Part-Boundary1-RotPeriodicMin=1
+    Part-Boundary1-RotPeriodicMax=1.
 
     Part-Boundary2-RotPeriodicMin=-1.
-    Part-Boundary2-RotPeriodicMin=1
+    Part-Boundary2-RotPeriodicMax=1.
 
     Part-Boundary4-RotPeriodicMin=1.
-    Part-Boundary4-RotPeriodicMin=3
+    Part-Boundary4-RotPeriodicMax=3.
 
     Part-Boundary5-RotPeriodicMin=1.
-    Part-Boundary5-RotPeriodicMin=3
+    Part-Boundary5-RotPeriodicMax=3.
 
 ## Porous Wall / Pump
 
