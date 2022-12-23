@@ -169,7 +169,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
-USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Particle_Vars          ,ONLY: Symmetry, DoVirtualCellMerge
 #ifdef CODE_ANALYZE
 !USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -349,6 +349,8 @@ SELECT CASE(TRIM(DepositionType))
 END SELECT
 ! Rotational periodic BC requires the neighbourhood to add elements of the BC nodes
 IF(GEO%RotPeriodicBC) FindNeighbourElems = .TRUE.
+
+IF(DoVirtualCellMerge) FindNeighbourElems = .TRUE.
 
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)
@@ -784,10 +786,12 @@ IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #if USE_LOADBALANCE
-  IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
+  !IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
+  ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
+  IF(.NOT.(PerformLoadBalance.AND.DoDielectricSurfaceCharge))THEN
 #endif /*USE_LOADBALANCE*/
-  ! From InitElemNodeIDs
-  CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
+    ! From InitElemNodeIDs
+    CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
 #if USE_LOADBALANCE
   END IF ! .NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge)
 #endif /*USE_LOADBALANCE*/
@@ -806,9 +810,11 @@ IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
-  IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
+  !IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
+  ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
+  IF(.NOT.(PerformLoadBalance.AND.DoDielectricSurfaceCharge))THEN
 #endif /*USE_LOADBALANCE*/
-    ADEALLOCATE(ElemNodeID_Shared)
+      ADEALLOCATE(ElemNodeID_Shared)
 #if USE_LOADBALANCE
   END IF ! .NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge)
 #endif /*USE_LOADBALANCE*/

@@ -12,6 +12,7 @@ numbered:
 git_workflow.md
 building_guide.md
 styleguide.md
+code_extension.md
 functions_and_subroutines.md
 mpi.md
 reggie.md
@@ -31,6 +32,7 @@ the simulation code's features from a developer's point of view.
   such as how the header of functions and subroutines look like.
 * Chapter {ref}`developerguide/building_guide:Documentation` describes how to build the html/pdf files
   locally before committing changes to the repository and pointers on writing documentation.
+* Chapter {ref}`developerguide/code_extension:Code Extension` describes how to extend standardized code blocks, e.g. add a new variable to the output.
 * Chapter {ref}`developerguide/functions_and_subroutines:Useful Functions` contains a summary of useful functions
   and subroutines that might be re-used in the future.
 * Chapter {ref}`developerguide/mpi:MPI Implementation` describes how PICLas subroutines and functions are parallelized.

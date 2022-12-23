@@ -42,6 +42,7 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle Boundaries")
 
+CALL prms%CreateIntOption(      'Part-RotPeriodicAxi' , 'Axis of rotational periodicity: x = 1, y = 2, z = 3')
 CALL prms%CreateIntOption(      'Part-nBounds', 'Number of particle boundaries.', '1')
 CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName', &
                                   'No Default. Source Name of Boundary[i]. Has to be selected for all'//&
@@ -108,8 +109,10 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RotFreq'  &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-RotAxis'  &
                                 , 'Definition of rotation axis, only major axis: x=1,y=2,z=3.' , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-RotPeriodicDir' , 'Direction of rotation periodicity, either 1 or -1. '//&
+CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicAngle' , 'Angle and Direction of rotation periodicity, either + or - '//&
                                 'Note: Rotation direction based on right-hand rule!', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicMin' , 'Minimum coordinate at rotational axis for this segment', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicMax' , 'Maximum coordinate at rotational axis for this segment', numberedmulti=.TRUE.)
 !CALL prms%CreateLogicalOption(  'Part-RotPeriodicReBuild', 'Force re-creation of rotational periodic mapping (which might already exist in the mesh file).', '.FALSE.')
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp2'  &
                                 , 'Second wall temperature (in [K]) of reflective particle boundary for a temperature gradient.' &
@@ -133,6 +136,7 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 '10: SEE-I when Ar+ bombards copper by J.G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation", 2021 (originates from Phelps1999)\n'// &
                                 '11: SEE-E when e- bombard quartz (SiO2) by A. Dunaevsky, "Secondary electron emission from dielectric materials of a Hall thruster with segmented electrodes", 2003'&
                                 , '0', numberedmulti=.TRUE.)
+CALL prms%SetSection('Particle Boundaries: Species Swap')
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Number of Species to be changed at wall.', '0', numberedmulti=.TRUE.)
@@ -222,12 +226,13 @@ SUBROUTINE InitializeVariablesPartBoundary()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_IO_HDF5
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
-USE MOD_Particle_Vars
+USE MOD_Particle_Vars          ,ONLY: PDM, nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
 USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
@@ -236,6 +241,11 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo
+USE MOD_HDF5_input             ,ONLY: OpenDataFile, ReadArray, DatasetExists, GetDataSize, nDims, HSize, CloseDataFile
+USE MOD_SurfaceModel_Vars      ,ONLY: StickingCoefficientData
+#if defined(IMPA) || defined(ROS)
+USE MOD_Particle_Vars          ,ONLY: PartMeshHasReflectiveBCs
+#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -247,12 +257,14 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis
+INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs
 INTEGER               :: ALLOCSTAT, dummy_int
 REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
 LOGICAL               :: DeprecatedVoltage
+CHARACTER(LEN=64)     :: dsetname
+LOGICAL               :: StickingCoefficientExists
 !===================================================================================================================================
 ! Read in boundary parameters
 dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .ini file
@@ -289,8 +301,12 @@ ALLOCATE(PartBound%RotVelo(          1:nPartBound))
 PartBound%RotVelo = .FALSE.
 ALLOCATE(PartBound%RotOmega(       1:3,1:nPartBound))
 PartBound%RotOmega = 0.
-ALLOCATE(PartBound%RotPeriodicDir(  1:nPartBound))
-PartBound%RotPeriodicDir = 0
+ALLOCATE(PartBound%RotPeriodicAngle(  1:nPartBound))
+PartBound%RotPeriodicAngle = 0
+ALLOCATE(PartBound%RotPeriodicMin(  1:nPartBound))
+PartBound%RotPeriodicMin = -HUGE(1.)
+ALLOCATE(PartBound%RotPeriodicMax(  1:nPartBound))
+PartBound%RotPeriodicMax = HUGE(1.)
 ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
 PartBound%TempGradStart = 0.
 ALLOCATE(PartBound%TempGradEnd(  1:3,1:nPartBound))
@@ -336,6 +352,10 @@ DoBoundaryParticleOutputHDF5=.FALSE.
 
 PartMeshHasPeriodicBCs=.FALSE.
 GEO%RotPeriodicBC =.FALSE.
+nRotPeriodicBCs  = 0
+! TODO: REMOVE THIS CALL WHEN MERGED WITH UNIFIED SPECIES DATABASE BRANCH
+SpeciesDatabase = GETSTR('Particles-Species-Database', 'none')
+
 #if defined(IMPA) || defined(ROS)
 PartMeshHasReflectiveBCs=.FALSE.
 #endif
@@ -395,6 +415,10 @@ DO iPartBound=1,nPartBound
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
       CASE (0)
         PartBound%Reactive(iPartBound)        = .FALSE.
+      CASE (1)
+        PartBound%Reactive(iPartBound)        = .FALSE.
+        IF(TRIM(SpeciesDatabase).EQ.'none') &
+          CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: SpeciesDatabase is required for the boundary #', iPartBound)
       CASE (SEE_MODELS_ID)
         ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE.
@@ -448,11 +472,14 @@ DO iPartBound=1,nPartBound
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('rot_periodic')
     GEO%RotPeriodicBC = .TRUE.
+    nRotPeriodicBCs  = nRotPeriodicBCs + 1
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicBC
-    PartBound%RotPeriodicDir(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-RotPeriodicDir')
-    IF(ABS(PartBound%RotPeriodicDir(iPartBound)).NE.1) THEN
-      CALL abort(__STAMP__,'Direction for rotational periodicity must be 1 or -1, using the right-hand rule!')
+    PartBound%RotPeriodicAngle(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicAngle')
+    IF(ALMOSTZERO(PartBound%RotPeriodicAngle(iPartBound))) THEN
+      CALL abort(__STAMP__,'Angle for rotational periodicity can not be zero (using the right-hand rule!)')
     END IF
+   ! Rotate the particle slightly inside the domain
+    PartBound%RotPeriodicAngle(iPartBound) = PartBound%RotPeriodicAngle(iPartBound) / 180. * PI
   CASE DEFAULT
     SWRITE(*,*) ' Boundary does not exist: ', TRIM(tmpString)
     CALL abort(__STAMP__,'Particle Boundary Condition does not exist')
@@ -471,12 +498,21 @@ AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
 IF(GEO%RotPeriodicBC) THEN
   GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')
-  GEO%RotPeriodicAngle = GETREAL('Part-RotPeriodicAngle')
-  IF(ALMOSTZERO(GEO%RotPeriodicAngle)) THEN
-    CALL abort(__STAMP__,'Angle for for rotational periodicity must not be zero!')
+! Check whether two corresponding RotPeriodic BCs are always set
+  IF(MOD(nRotPeriodicBCs,2).NE.0) THEN
+    CALL abort(__STAMP__,'ERROR: Uneven number of rot_periodic BCs. Check whether two corresponding RotPeriodic BCs are set!')
+  ELSE IF(nRotPeriodicBCs.NE.2) THEN
+    DO iPartBound=1,nPartBound
+      WRITE(UNIT=hilf,FMT='(I0)') iPartBound
+      IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC) THEN
+        PartBound%RotPeriodicMin(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicMin')
+        PartBound%RotPeriodicMax(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicMax')
+        IF(PartBound%RotPeriodicMin(iPartBound).GE.PartBound%RotPeriodicMax(iPartBound)) THEN
+          CALL abort(__STAMP__,'ERROR: Minimum coordinate at rotational axis is higher than maximum coordinate at rotational axis')
+        END IF
+      END IF
+    END DO
   END IF
-  ! Rotate the particle slightly inside the domain
-  GEO%RotPeriodicAngle = GEO%RotPeriodicAngle / 180. * PI * 0.99999
 END IF
 
 ! Surface particle output to .h5
@@ -506,7 +542,7 @@ DO iPBC=1,nPartBound
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
-      LBWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
+      LBWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound", iBC,",i.e.:",TRIM(BoundaryName(iBC))
     END IF
   END DO
 END DO
@@ -523,6 +559,25 @@ DO iPartBound=1,nPartBound
   BCdata_auxSF(iPartBound)%GlobalArea=0.
   BCdata_auxSF(iPartBound)%LocalArea=0.
 END DO
+
+IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
+  ! Open the species database
+  CALL OpenDataFile(TRIM(SpeciesDatabase),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  ! Check if the correct dataset exists
+  StickingCoefficientExists = .FALSE.
+  dsetname = TRIM('/Surface-Chemistry/StickingCoefficient')
+  CALL DatasetExists(File_ID,TRIM(dsetname),StickingCoefficientExists)
+  IF(.NOT.StickingCoefficientExists) CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: '//  &
+                                      'No /Surface-Chemistry/StickingCoefficient dataset found in SpeciesDatabase!')
+  ! Get dimensions
+  CALL GetDataSize(File_ID,dsetname,nDims,HSize,attrib=.FALSE.)
+  ! Allocate the data array
+  ALLOCATE(StickingCoefficientData(INT(HSize(1),4),INT(HSize(2),4)))
+  StickingCoefficientData = 0.
+  ! Read-in array
+  CALL ReadArray(TRIM(dsetname),2,INT(HSize,IK),0_IK,1,RealArray=StickingCoefficientData)
+  CALL CloseDataFile()
+END IF
 
 !-- Sanity check: Deprecated voltage parameter
 IF(DeprecatedVoltage) CALL abort(__STAMP__&
@@ -602,10 +657,8 @@ IF(notMappedTotal.GT.0)THEN
   !LBWRITE(Unit_StdOut,'(A)')" | If the file does not exist, it can be re-created with RotPeriodicReBuild=T"
 END IF ! notMappedTotal.GT.0
 
-
 GETTIME(EndT)
-LBWRITE(UNIT_stdOut,'(A,F0.3,A)') ' INIT ROTATIONAL PERIODIC BOUNDARY DONE! [',EndT-StartT,'s]'
-LBWRITE(UNIT_StdOut,'(132("-"))')
+CALL DisplayMessageAndTime(EndT-StartT, 'INIT ROTATIONAL PERIODIC BOUNDARY DONE!')
 
 END SUBROUTINE InitParticleBoundaryRotPeriodic
 
@@ -824,8 +877,8 @@ iSideLoop: DO iSide = firstSide, lastSide
     FoundConnection = .FALSE.
 
     ! Check if both sides are on the same boundary, i.e., they cannot be connected
-    IF(PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ. &
-        PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2)))) CYCLE jSideLoop
+    IF(PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ. &
+        PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2)))) CYCLE jSideLoop
 
     ! Check if jSide is assigned to the proc
     mySide = (jSide.GE.firstSide).AND.(jSide.LE.lastSide)
@@ -1429,7 +1482,9 @@ SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
 SDEALLOCATE(PartBound%RotVelo)
 SDEALLOCATE(PartBound%RotOmega)
-SDEALLOCATE(PartBound%RotPeriodicDir)
+SDEALLOCATE(PartBound%RotPeriodicAngle)
+SDEALLOCATE(PartBound%RotPeriodicMin)
+SDEALLOCATE(PartBound%RotPeriodicMax)
 SDEALLOCATE(PartBound%Voltage)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)

@@ -79,15 +79,8 @@ CHARACTER(LEN=2)               :: strhelp
 
 nVarAvg  = CountOption('VarNameAvg')
 nVarFluc = CountOption('VarNameFluc')
-IF((nVarAvg.EQ.0).AND.(nVarFluc.EQ.0))THEN
-  CALL CollectiveStop(__STAMP__, &
-    'No quantities for time averaging have been specified. Please specify quantities or disable time averaging!')
-#if FV_ENABLED
-ELSE
-  CALL CollectiveStop(__STAMP__, &
-    'Timeaveraging has not been implemented for FV yet!')
-#endif
-END IF
+IF((nVarAvg.EQ.0).AND.(nVarFluc.EQ.0)) CALL CollectiveStop(__STAMP__,&
+    'No quantities for time averaging specified. Please specify quantities or disable time averaging!')
 nSkipAvg=GETINT('nSkipAvg','1')
 
 ! Define variables to be averaged

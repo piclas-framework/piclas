@@ -218,8 +218,10 @@ Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
 CellTemp = Species(1)%MassIC * u2/(3.0*BoltzmannConst)
 TEqui = CellTemp
 nu= 1.-3./(2.*Prandtl)
-Theta = BoltzmannConst*CellTemp/Species(1)%MassIC
-nu= MAX(nu,-Theta/(W(3)-Theta))
+IF (FPCollModel.EQ.2) THEN
+  Theta = BoltzmannConst*CellTemp/Species(1)%MassIC
+  nu= MAX(nu,-Theta/(W(3)-Theta))
+END IF
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   ! totalWeight contains the weighted particle number
