@@ -438,6 +438,54 @@ ELSE()
   ENDIF()
 ENDIF()
 
+# =========================================================================
+# HOPR pre-processor
+# =========================================================================
+IF(LIBS_BUILD_HOPR)
+  SET (HOPRDOWNLOAD "https://github.com/hopr-framework/hopr.git")
+  SET (HOPR_DOWNLOAD ${HOPRDOWNLOAD} CACHE STRING "HOPR Download-link")
+  MESSAGE (STATUS "HOPR download link: ${HOPRDOWNLOAD}")
+  MARK_AS_ADVANCED(FORCE HOPR_DOWNLOAD)
+  
+  IF (NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/bin/hopr")
+    SET(HOPR_FOUND FALSE)
+    MESSAGE(STATUS "HOPR executable not found in: ${CMAKE_CURRENT_BINARY_DIR}. HOPR will be built and/or installed.")
+  ELSE()
+    SET(HOPR_FOUND TRUE)
+    MESSAGE(STATUS "HOPR has already been built.")
+  ENDIF()
+  # Set HOPR build dir
+  SET(LIBS_HOPR_DIR  ${LIBS_EXTERNAL_LIB_DIR}/hopr/build)
+  MESSAGE(STATUS "HOPR directory: ${LIBS_HOPR_DIR}")
+  # Check if HOPR was already built and the executable is in the piclas/build/bin folder
+  IF (NOT HOPR_FOUND)
+    SET(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY TRUE)
+    # Let CMake take care of download, configure and build
+    EXTERNALPROJECT_ADD(HOPR
+    GIT_REPOSITORY ${HOPR_DOWNLOAD}
+    GIT_TAG v1.0.0
+    GIT_PROGRESS FALSE
+    ${${GITSHALLOW}}
+    PREFIX ${LIBS_HOPR_DIR}
+    # Avoids rebuilding during PICLas recompilation if HOPR has already been built in share folder
+    UPDATE_DISCONNECTED true
+    # Avoid output
+    LOG_CONFIGURE ON
+    LOG_INSTALL ON
+    LOG_BUILD ON
+    LOG_OUTPUT_ON_FAILURE ON
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR} -DLIBS_BUILD_HDF5=OFF -DLIBS_BUILD_CGNS=ON -DLIBS_USE_MPI=OFF -DCMAKE_BUILD_TYPE=Release
+    # BUILD_BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/bin/hopr
+    )
+    # HDF5 has to be built before HOPR
+    IF(LIBS_BUILD_HDF5)
+      ExternalProject_Add_StepDependencies(HOPR build HDF5)
+    ENDIF()
+    # Make sure that the hopr binary is in the piclas/build/bin/ folder after piclas was build
+    ExternalProject_Add_StepDependencies(HOPR install piclas)
+    SET(HOPR_FOUND TRUE)
+  ENDIF()
+ENDIF()
 
 #  # =========================================================================
 #  # PAPI library

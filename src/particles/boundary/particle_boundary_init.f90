@@ -542,7 +542,7 @@ DO iPBC=1,nPartBound
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
-      LBWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
+      LBWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound", iBC,",i.e.:",TRIM(BoundaryName(iBC))
     END IF
   END DO
 END DO
