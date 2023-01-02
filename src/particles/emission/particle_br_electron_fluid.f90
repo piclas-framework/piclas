@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2019 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -48,25 +48,18 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-CALL prms%CreateIntOption(      'BRNbrOfRegions'        , 'Number of regions to be mapped to Elements', '0')
-
-CALL prms%CreateStringOption(   'BRVariableElectronTemp', 'Variable electron reference temperature when using Boltzmann relation'//&
-                                                          ' electron model (default is using a constant temperature)','constant')
-CALL prms%CreateRealArrayOption('BRRegionBounds[$]'     , 'BRRegionBounds ((xmin,xmax,ymin,...)|1:BRNbrOfRegions)'&
-                                                        , '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'   , 'rho_ref, phi_ref, and Te[eV] for Region#'&
-                                                              , '0. , 0. , 1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-RegionElectronRef[$]-PhiMax'   , 'max. expected phi for Region#\n'//&
-                                                                '(linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'BRConvertElectronsToFluid'   , 'Remove all electrons when using BR electron fluid', '.FALSE.')
-CALL prms%CreateLogicalOption(  'BRConvertFluidToElectrons'   , 'Create electrons from BR electron fluid (requires'//&
-                                                                ' ElectronDensityCell ElectronTemperatureCell from .h5 state file)'&
-                                                              , '.FALSE.')
-CALL prms%CreateRealOption(     'BRConvertFluidToElectronsTime', "Time when BR fluid electrons are to be converted to kinetic particles", '-1.0')
-CALL prms%CreateRealOption(     'BRConvertElectronsToFluidTime', "Time when kinetic electrons should be converted to BR fluid electrons", '-1.0')
-CALL prms%CreateLogicalOption(  'BRConvertModelRepeatedly'     , 'Repeat the switch between BR and kinetic multiple times', '.FALSE.')
-CALL prms%CreateRealOption(     'BRTimeStepMultiplier'         , "Factor that is multiplied with the ManualTimeStep when using BR model", '1.0')
-CALL prms%CreateLogicalOption(  'BRAutomaticElectronRef'       , 'Automatically obtain the reference parameters (from a fully kinetic simulation)', '.FALSE.')
+CALL prms%CreateIntOption(      'BRNbrOfRegions'                   , 'Number of regions to be mapped to Elements', '0')
+CALL prms%CreateStringOption(   'BRVariableElectronTemp'           , 'Variable electron reference temperature when using Boltzmann relation electron model (default is using a constant temperature)','constant')
+CALL prms%CreateRealArrayOption('BRRegionBounds[$]'                , 'BRRegionBounds ((xmin,xmax,ymin,...)|1:BRNbrOfRegions)', '0. , 0. , 0. , 0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-RegionElectronRef[$]'        , 'rho_ref, phi_ref, and Te[eV] for Region#', '0. , 0. , 1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-RegionElectronRef[$]-PhiMax' , 'max. expected phi for Region#\n (linear approx. above! def.: phi_ref)', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'BRConvertElectronsToFluid'        , 'Remove all electrons when using BR electron fluid', '.FALSE.')
+CALL prms%CreateLogicalOption(  'BRConvertFluidToElectrons'        , 'Create electrons from BR electron fluid (requires ElectronDensityCell ElectronTemperatureCell from .h5 state file)', '.FALSE.')
+CALL prms%CreateRealOption(     'BRConvertFluidToElectronsTime'    , "Time when BR fluid electrons are to be converted to kinetic particles", '-1.0')
+CALL prms%CreateRealOption(     'BRConvertElectronsToFluidTime'    , "Time when kinetic electrons should be converted to BR fluid electrons", '-1.0')
+CALL prms%CreateLogicalOption(  'BRConvertModelRepeatedly'         , 'Repeat the switch between BR and kinetic multiple times', '.FALSE.')
+CALL prms%CreateRealOption(     'BRTimeStepMultiplier'             , "Factor that is multiplied with the ManualTimeStep when using BR model", '1.0')
+CALL prms%CreateLogicalOption(  'BRAutomaticElectronRef'           , 'Automatically obtain the reference parameters (from a fully kinetic simulation)', '.FALSE.')
 END SUBROUTINE DefineParametersBR
 
 
@@ -257,7 +250,8 @@ IF(BRNbrOfRegions.GT.0)THEN
         CALL DatasetExists(File_ID,'RegionElectronRef',RegionElectronRefExists)
         IF(RegionElectronRefExists)THEN
           CALL ReadArray('RegionElectronRef',2,(/1_IK,3_IK/),0_IK,2,RealArray=RegionElectronRefHDF5)
-          WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read RegionElectronRef from restart file ["//TRIM(RestartFile)//"] rho0[C/m^3]: ",RegionElectronRefHDF5(1),", phi0[V]: ",RegionElectronRefHDF5(2),", Te[eV]: ",RegionElectronRefHDF5(3)
+          WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read RegionElectronRef from restart file ["//TRIM(RestartFile)//"] rho0[C/m^3]: ",&
+              RegionElectronRefHDF5(1),", phi0[V]: ",RegionElectronRefHDF5(2),", Te[eV]: ",RegionElectronRefHDF5(3)
         END IF ! RegionElectronRefExists
         CALL CloseDataFile()
       END IF ! MPIRoot
@@ -1001,9 +995,7 @@ DO iSpec = 1, nSpecies
     EXIT
   END IF
 END DO
-IF (ElecSpecIndx.LE.0) CALL abort(&
-  __STAMP__&
-  ,'Electron species not found. Cannot create electrons without the defined species!')
+IF (ElecSpecIndx.LE.0) CALL abort(__STAMP__,'Electron species not found. Cannot create electrons without the defined species!')
 
 WRITE(UNIT=hilf,FMT='(I0)') iSpec
 SWRITE(UNIT_stdOut,'(A)')'  Using iSpec='//TRIM(hilf)//' as electron species index from BR fluid conversion.'
@@ -1034,14 +1026,12 @@ DO iElem=1,PP_nElems
     PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
     ParticleIndexNbr            = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
     IF (ParticleIndexNbr.EQ.0) THEN
-      CALL Abort(&
-      __STAMP__&
-      ,'ERROR in CreateElectronsFromBRFluid(): New Particle Number greater max Part Num!')
+      CALL abort(__STAMP__,'ERROR in CreateElectronsFromBRFluid(): New Particle Number greater max Part Num!')
     END IF
     PDM%ParticleVecLength       = PDM%ParticleVecLength + 1
 
     !Set new SpeciesID of new particle (electron)
-    PDM%ParticleInside(ParticleIndexNbr) = .true.
+    PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
     PartSpecies(ParticleIndexNbr) = ElecSpecIndx
 
     ! Place the electron randomly in the reference cell
@@ -1060,7 +1050,8 @@ DO iElem=1,PP_nElems
     END IF
 
     ! Set the element ID of the electron to the current element ID
-    PEM%GlobalElemID(ParticleIndexNbr) = iElem + offsetElem
+    PEM%GlobalElemID(ParticleIndexNbr)     = iElem + offsetElem
+    PEM%LastGlobalElemID(ParticleIndexNbr) = PEM%GlobalElemID(ParticleIndexNbr)
 
     ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
     IF(CreateFromRestartFile)THEN

@@ -90,12 +90,11 @@ INCLUDE(GNUInstallDirs)
 IF ("${CMAKE_HOSTNAME}" MATCHES "login")
   MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
 
-  # HAWK and SuperMUC name their login nodes identically, so use OS distribution to identify
-  FIND_PROGRAM(LSB_RELEASE_EXEC lsb_release)
-  EXECUTE_PROCESS(COMMAND ${LSB_RELEASE_EXEC} -is OUTPUT_VARIABLE LSB_RELEASE_ID_SHORT OUTPUT_STRIP_TRAILING_WHITESPACE)
-  MARK_AS_ADVANCED(FORCE LSB_RELEASE_EXEC)
+  # HAWK and SuperMUC name their login nodes identically, so use the Fully Qualified Domain Name (FQDN) to identify
+  CMAKE_HOST_SYSTEM_INFORMATION(RESULT FQDN QUERY FQDN)
+  MARK_AS_ADVANCED(FORCE FQDN)
   # HLRS HAWK
-  IF (LSB_RELEASE_ID_SHORT MATCHES "CentOS")
+  IF (FQDN MATCHES "hawk.hww.hlrs.de")
     MESSAGE(STATUS "Compiling on Hawk")
     # Overwrite compiler target architecture
     IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
@@ -106,7 +105,7 @@ IF ("${CMAKE_HOSTNAME}" MATCHES "login")
     # Use AMD Optimized Lapack/BLAS
     # SET(BLA_VENDOR "FLAME")
   # SuperMUC
-  ELSEIF (LSB_RELEASE_ID_SHORT MATCHES "SUSE")
+  ELSEIF (FQDN MATCHES "sng.lrz.de")
     MESSAGE(STATUS "Compiling on SuperMUC")
     # Overwrite compiler target architecture
     IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
@@ -161,6 +160,32 @@ ELSE()
   ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
     SET(PICLAS_INSTRUCTION "-xHost")
   ENDIF()
+ENDIF()
+
+# =========================================================================
+# CHECK SUPPORT FOR VARIOUS FORTRAN (2003,2008) FEATURES
+# =========================================================================
+INCLUDE(CheckFortranSourceCompiles)
+CHECK_FORTRAN_SOURCE_COMPILES(
+"MODULE F03MOD
+IMPLICIT NONE
+PRIVATE
+CONTAINS
+! Check for MOVE_ALLOC feature
+SUBROUTINE F03_MOVE_ALLOC()
+REAL,ALLOCATABLE::a(:,:),b(:,:)
+ALLOCATE(a(3,3))
+CALL MOVE_ALLOC(a,b)
+END SUBROUTINE F03_MOVE_ALLOC
+END MODULE F03MOD
+
+PROGRAM F03PROG
+END"
+Fortran2003Check
+SRC_EXT F90)
+
+IF(NOT Fortran2003Check)
+  MESSAGE(FATAL_ERROR "Failed to compile basic Fortran2003 programm! Please ensure your compiler is up-to-date!")
 ENDIF()
 
 MESSAGE(STATUS "Compiling with [${CMAKE_Fortran_COMPILER_ID}] (v${CMAKE_Fortran_COMPILER_VERSION}) fortran compiler using [${PICLAS_INSTRUCTION}] instruction")

@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -192,6 +192,7 @@ REAL                           :: halo_eps
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
 REAL                           :: StartT,EndT ! Timer
+CHARACTER(LEN=255)             :: hilf
 !===================================================================================================================================
 
 ! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -230,8 +231,8 @@ CALL Allocate_Shared((/6  ,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
 CALL Allocate_Shared((/2,3,nGlobalElems/),BoundsOfElem_Shared_Win,BoundsOfElem_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win  ,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,BoundsOfElem_Shared_Win,IERROR)
-firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
 ! Periodic Sides
 MeshHasPeriodic    = MERGE(.TRUE.,.FALSE.,GEO%nPeriodicVectors.GT.0)
 MeshHasRotPeriodic = GEO%RotPeriodicBC
@@ -446,12 +447,9 @@ DO iElem = firstElem, lastElem
 END DO
 ! >> Communicate global maximum
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxCellRadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
-LBWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', for building halo BGM ...'
-#if USE_MPI
-StartT=MPI_WTIME()
-#else
-CALL CPU_TIME(StartT)
-#endif /*USE_MPI*/
+WRITE(hilf,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', for building halo BGM ...'
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') TRIM(hilf)
+GETTIME(StartT)
 
 ! Check, whether the BGM must be enlarged. Periodic sides plus EITHER of the following
 ! 1. RefMapping
@@ -642,8 +640,8 @@ ELSE
 
   ! Distribute nHaloElements evenly on compute-node procs
   IF (nHaloElems.GT.nComputeNodeProcessors) THEN
-    firstHaloElem = INT(REAL( myComputeNodeRank   *nHaloElems)/REAL(nComputeNodeProcessors))+1
-    lastHaloElem  = INT(REAL((myComputeNodeRank+1)*nHaloElems)/REAL(nComputeNodeProcessors))
+    firstHaloElem = INT(REAL( myComputeNodeRank   )*REAL(nHaloElems)/REAL(nComputeNodeProcessors))+1
+    lastHaloElem  = INT(REAL((myComputeNodeRank+1))*REAL(nHaloElems)/REAL(nComputeNodeProcessors))
   ELSE
     firstHaloElem = myComputeNodeRank + 1
     IF (myComputeNodeRank.LT.nHaloElems) THEN
@@ -720,8 +718,8 @@ ELSE
   nMPIProcHalo = COUNT(MPIProcHalo)
 
   IF (nMPIProcHalo.GT.nComputeNodeProcessors) THEN
-    firstProcHalo = INT(REAL( myComputeNodeRank   *nMPIProcHalo)/REAL(nComputeNodeProcessors))+1
-    lastProcHalo  = INT(REAL((myComputeNodeRank+1)*nMPIProcHalo)/REAL(nComputeNodeProcessors))
+    firstProcHalo = INT(REAL( myComputeNodeRank   )*REAL(nMPIProcHalo)/REAL(nComputeNodeProcessors))+1
+    lastProcHalo  = INT(REAL((myComputeNodeRank+1))*REAL(nMPIProcHalo)/REAL(nComputeNodeProcessors))
   ELSE
     firstProcHalo = myComputeNodeRank + 1
     IF (myComputeNodeRank.LT.nMPIProcHalo) THEN
@@ -791,6 +789,7 @@ ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
           ! Element not previously flagged
           IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).LT.1) THEN
             ASSOCIATE(posElem => (ElemID-1)*ELEMINFOSIZE + (ELEM_HALOFLAG-1))
+              ! Attention: This can produce ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 4 when Mortar interfaces are present
               CALL MPI_FETCH_AND_OP(haloChange,dummyInt,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_REPLACE,ElemInfo_Shared_Win,iError)
               CALL MPI_WIN_FLUSH(0,ElemInfo_Shared_Win,iError)
             END ASSOCIATE
@@ -959,8 +958,8 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
   END DO ! iElem = firstHaloElem, lastHaloElem
 
   IF (EnlargeBGM) THEN
-    firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
-    lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
+    firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+    lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
     DO ElemID = firstElem, lastElem
       ! Only add peri halo elems
       IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.3) CYCLE
@@ -1122,17 +1121,18 @@ IF (MPIRoot) THEN
                                         ' |'  ,NumberOfElements(iProc*3+2), &
                                         ' |'  ,NumberOfElements(iProc*3+3), ' |'
     END DO
+    WRITE(Unit_StdOut,'(A)') ' '
 #if USE_LOADBALANCE
   END IF ! .NOT.PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 END IF
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#else
+hilf=' '
 #endif /*CODE_ANALYZE*/
 
-EndT = PICLASTIME()
-LBWRITE(UNIT_stdOut,'(A,E15.7,A,F0.3,A)') ' | Found max. cell radius as',maxCellRadius,', for building halo BGM ... DONE! ['&
-,EndT-StartT,'s]'
-LBWRITE(UNIT_StdOut,'(132("-"))')
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, TRIM(hilf)//'DONE!')
 
 ! ONLY IF HALO_EPS .LT. GLOBAL_DIAG
 ! ONLY IF EMISSION .EQ. 1 .OR. 2
@@ -1160,12 +1160,12 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 !===================================================================================================================================
 #endif /*USE_MPI*/
 
-LBWRITE(UNIT_stdOut,'(A)')' BUILDING FIBGM ELEMENT MAPPING ...'
+LBWRITE(UNIT_stdOut,'(A)', ADVANCE='NO')' BUILDING FIBGM ELEMENT MAPPING ...'
 GETTIME(StartT)
 
 #if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
 
 ! Flag each FIBGM element proc positive
 BGMiglobDelta = BGMimaxglob - BGMiminglob
@@ -1338,9 +1338,8 @@ CALL BARRIER_AND_SYNC(FIBGMProcs_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(FIBGMToProc_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
-EndT = PICLASTIME()
-LBWRITE(UNIT_stdOut,'(A,F0.3,A)')' BUILDING FIBGM ELEMENT MAPPING DONE! [',EndT-StartT,'s]'
-LBWRITE(UNIT_StdOut,'(132("-"))')
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
 
 #if USE_MPI
 ASSOCIATE(FIBGM_nElems => FIBGM_nTotalElems)
@@ -1432,7 +1431,7 @@ USE MOD_Particle_Mesh_Vars
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_MPI_Shared_Vars    ,ONLY: GlobalElem2CNTotalElem
-USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
+!USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
 #endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1484,8 +1483,10 @@ CALL FinalizeHaloInfo()
 
 #if USE_LOADBALANCE
 ! This will be deallocated in FinalizeDeposition() when using load balance
-IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition) )THEN
-  SDEALLOCATE(GlobalElem2CNTotalElem)
+!IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)).AND.DoDeposition) )THEN
+! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
+IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
+    SDEALLOCATE(GlobalElem2CNTotalElem)
 END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
 #endif /*USE_LOADBALANCE*/
 
@@ -1623,8 +1624,8 @@ INTEGER                        :: iPeriodicVector,jPeriodicVector
 REAL                           :: BoundsOfElemCenter(1:4),LocalBoundsOfElemCenter(1:4)
 !===================================================================================================================================
 
-firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
 
 ! The code below changes ElemInfo_Shared, identification of periodic elements must complete before
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
@@ -1798,6 +1799,7 @@ USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems,GEO
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1810,12 +1812,11 @@ LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM i
 INTEGER                        :: iElem,firstElem,lastElem
 REAL                           :: RotBoundsOfElemCenter(3)
 REAL                           :: BoundsOfElemCenter(1:4),LocalBoundsOfElemCenter(1:4)
-INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
-INTEGER                        :: iPeriodicDir,iLocElem
+INTEGER                        :: iLocElem,iPartBound
 !===================================================================================================================================
 
-firstElem = INT(REAL( myComputeNodeRank   *nGlobalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
 
 ! The code below changes ElemInfo_Shared, identification of periodic elements must complete before
 CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
@@ -1849,18 +1850,43 @@ DO iElem = firstElem ,lastElem
                                              BoundsOfElem_Shared(2  ,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
     !   3. Rotate the global element and check the distance of all compute-node elements to
     !      this element and flag it with halo flag 3 if the element can be reached by a particle
-    DO iPeriodicDir = 1,2
-      ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
+    DO iPartBound = 1, nPartBound
+      IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
+      ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) )
         SELECT CASE(GEO%RotPeriodicAxi)
           CASE(1) ! x-rotation axis
+            IF( (BoundsOfElemCenter(1).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                (BoundsOfElemCenter(1).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                CYCLE
+            END IF
+            IF( (LocalBoundsOfElemCenter(1).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                (LocalBoundsOfElemCenter(1).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                CYCLE
+            END IF
             RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
             RotBoundsOfElemCenter(2) = COS(alpha)*BoundsOfElemCenter(2) - SIN(alpha)*BoundsOfElemCenter(3)
             RotBoundsOfElemCenter(3) = SIN(alpha)*BoundsOfElemCenter(2) + COS(alpha)*BoundsOfElemCenter(3)
           CASE(2) ! y-rotation axis
+            IF( (BoundsOfElemCenter(2).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                (BoundsOfElemCenter(2).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                CYCLE
+            END IF
+            IF( (LocalBoundsOfElemCenter(2).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                (LocalBoundsOfElemCenter(2).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                CYCLE
+            END IF
             RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) + SIN(alpha)*BoundsOfElemCenter(3)
             RotBoundsOfElemCenter(2) = BoundsOfElemCenter(2)
             RotBoundsOfElemCenter(3) =-SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(3)
           CASE(3) ! z-rotation axis
+            IF( (BoundsOfElemCenter(3).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                (BoundsOfElemCenter(3).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                CYCLE
+            END IF
+            IF( (LocalBoundsOfElemCenter(3).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                (LocalBoundsOfElemCenter(3).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                CYCLE
+            END IF
             RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) - SIN(alpha)*BoundsOfElemCenter(2)
             RotBoundsOfElemCenter(2) = SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(2)
             RotBoundsOfElemCenter(3) = BoundsOfElemCenter(3)
@@ -1874,7 +1900,7 @@ DO iElem = firstElem ,lastElem
         ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
         IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
       END IF ! VECNORM( ...
-    END DO ! iPeriodicDir = 1,2
+    END DO ! nPartBound
   END DO ! iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
 END DO ! firstElem,lastElem
 

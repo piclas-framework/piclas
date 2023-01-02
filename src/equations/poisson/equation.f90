@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -59,8 +59,7 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Equation")
-CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Define exact function necessary for linear scalar advection')
+CALL prms%CreateIntOption(      'IniExactFunc'     , 'Define exact function necessary for linear scalar advection')
 CALL prms%CreateRealArrayOption('RefState'         , 'State(s) for electric potential (amplitude, frequency and phase shift).', multiple=.TRUE., no=3)
 CALL prms%CreateRealArrayOption('IniWavenumber'    , 'TODO-DEFINE-PARAMETER' , '1. , 1. , 1.')
 CALL prms%CreateRealArrayOption('IniCenter'        , 'TODO-DEFINE-PARAMETER' , '0. , 0. , 0.')
@@ -76,12 +75,20 @@ CALL prms%CreateRealOption(     'r_cutoff'         , 'TODO-DEFINE-PARAMETER\n'//
                                                      'Modified for curved and shape-function influence (c*dt*SafetyFactor+r_cutoff)' , '1.0')
 
 ! Special BC with linear potential ramp (constant in time)
-CALL prms%CreateRealArrayOption('LinPhiBasePoint'  , 'Origin of coordinate system for linear potential ramp for BoundaryType = (/2,1/)'       , no=3 )
-CALL prms%CreateRealArrayOption('LinPhiNormal'     , 'Normal vector of coordinate system for linear potential ramp for BoundaryType = (/2,1/)', no=3 )
-CALL prms%CreateRealOption(     'LinPhiHeight'     , 'Interval for ramping from 0 to LinPhi potential ramp for BoundaryType = (/2,1/)' )
-CALL prms%CreateRealOption(     'LinPhi'           , 'Target potential value for ramping from 0 for BoundaryType = (/2,1/)' )
+CALL prms%CreateRealArrayOption('LinPhiBasePoint'  , 'Origin(s) of coordinate system for linear potential ramp for BoundaryType = (/7,1/)'       , multiple=.TRUE. , no=3 )
+CALL prms%CreateRealArrayOption('LinPhiNormal'     , 'Normal(s) vector of coordinate system for linear potential ramp for BoundaryType = (/7,1/)', multiple=.TRUE. , no=3 )
+CALL prms%CreateRealOption(     'LinPhiHeight'     , 'Interval(s) for ramping from 0 to LinPhi potential ramp for BoundaryType = (/7,1/)'        , multiple=.TRUE.        )
+CALL prms%CreateRealOption(     'LinPhi'           , 'Potential(s) for ramping from 0 for BoundaryType = (/7,1/)'                                , multiple=.TRUE.        )
+
+#if defined(PARTICLES)
+! Special BC with floating potential that is defined by the absorbed power of the charged particles
+CALL prms%CreateRealArrayOption('CoupledPowerPotential' , 'Controlled power input: Supply vector of form (/min, start, max/) for the minimum, start (t=0) and maximum electric potential that is applied at BoundaryType = (/2,2/).', no=3 )
+CALL prms%CreateRealOption(     'CoupledPowerTarget'    , 'Controlled power input: Target input power to which the electric potential is adjusted for BoundaryType = (/2,2/)' )
+CALL prms%CreateRealOption(     'CoupledPowerRelaxFac'    , 'Relaxation factor for calculation of new electric potential due to defined Target input power. Default = 0.05 (5%)', '0.05' )
+#endif /*defined(PARTICLES)*/
 
 END SUBROUTINE DefineParametersEquation
+
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================
@@ -100,6 +107,11 @@ USE MOD_Mesh_Vars          ,ONLY: nSides
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if defined(PARTICLES)
+USE MOD_IO_HDF5            ,ONLY: OpenDataFile,CloseDataFile,File_ID
+USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartFile
+USE MOD_HDF5_Input         ,ONLY: DatasetExists,ReadArray
+#endif /*defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -114,6 +126,13 @@ INTEGER            :: iState                     ! i-th RefState
 INTEGER            :: i,BCType,BCState
 CHARACTER(LEN=255) :: BCName
 INTEGER            :: nRefStateMax
+INTEGER            :: nLinState,nLinStateMax
+LOGICAL            :: PCouplAlreadySet
+#if defined(PARTICLES)
+CHARACTER(255)     :: ContainerName
+LOGICAL            :: CoupledPowerPotentialExists
+REAL               :: TmpArray2(3),CoupledPowerPotentialHDF5(3)
+#endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    LBWRITE(*,*) "InitPoisson not ready to be called or already called."
@@ -127,6 +146,15 @@ IniExactFunc = GETINT('IniExactFunc')
 
 ! Sanity Check BCs
 nRefStateMax = 0
+nLinStateMax = 0
+! Defaults
+#if defined(PARTICLES)
+#if USE_LOADBALANCE
+IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+    CalcPCouplElectricPotential=.FALSE.
+#endif /*defined(PARTICLES)*/
+PCouplAlreadySet=.FALSE.
 DO i=1,nBCs
   BCType  = BoundaryType(i,BC_TYPE)
   BCState = BoundaryType(i,BC_STATE)
@@ -140,25 +168,90 @@ DO i=1,nBCs
     CALL abort(__STAMP__,'BCState is <= 0 for BCType=5 is not allowed! Set a positive integer for the n-th RefState')
   ELSEIF(BCType.EQ.5.AND.BCState.GT.0)THEN
     nRefStateMax = MAX(nRefStateMax,BCState)
+  ELSEIF(BCType.EQ.7.AND.BCState.GT.0)THEN
+    nLinStateMax = MAX(nLinStateMax,BCState)
   ELSEIF(BCType.EQ.2)THEN
-    ! Special BC with linear potential ramp (constant in time)
-    ! Only for BoundaryType = (/2,1/)
-    IF(BCState.EQ.1)THEN
-      ! Read linear potential parameters
-      LinPhiBasePoint = GETREALARRAY('LinPhiBasePoint',3)
-      LinPhiNormal    = GETREALARRAY('LinPhiNormal',3)
-      LinPhiNormal    = UNITVECTOR(LinPhiNormal)
-      LinPhiHeight    = GETREAL('LinPhiHeight')
-      LinPhi          = GETREAL('LinPhi')
+
+#if defined(PARTICLES)
+    ! Special BC with that adjusts a floating potential in order to meet a user-specified power input
+    ! Only for BoundaryType = (/2,2/)
+    IF(BCState.EQ.2)THEN
+#if USE_LOADBALANCE
+      ! Do not set during load balance in order to keep the old value
+      IF(PerformLoadBalance) CYCLE
+#endif /*USE_LOADBALANCE*/
+      ! Do not set twice
+      IF(PCouplAlreadySet) CYCLE
+      PCouplAlreadySet=.TRUE.
+
+      ! Electric potential (/min, start, max/) Note that start is only required at t=0 and is used for the BC potential
+      CoupledPowerPotential = GETREALARRAY('CoupledPowerPotential',3)
+
+      ! Restart: Only root reads state file to prevent access with a large number of processors
+      IF(DoRestart)THEN
+        ! Only root reads the values and distributes them via MPI Broadcast
+        IF(MPIRoot)THEN
+          CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+          ! Check old parameter name
+          ContainerName='CoupledPowerPotential'
+          CALL DatasetExists(File_ID,TRIM(ContainerName),CoupledPowerPotentialExists)
+          ! Check for new parameter name
+          IF(CoupledPowerPotentialExists)THEN
+            CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , 3_IK/) , 0_IK , 1 , RealArray=TmpArray2)
+            CoupledPowerPotentialHDF5 = TmpArray2
+            WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read CoupledPowerPotential from restart file ["//TRIM(RestartFile)//"] min[V]: ",&
+                CoupledPowerPotentialHDF5(1),", current[V]: ",CoupledPowerPotentialHDF5(2),", max[V]: ",CoupledPowerPotentialHDF5(3)
+          END IF ! CoupledPowerPotentialExists
+          CALL CloseDataFile()
+        END IF ! MPIRoot
+#if USE_MPI
+        ! Broadcast from root to other processors
+        CALL MPI_BCAST(CoupledPowerPotentialHDF5,3, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
+#endif /*USE_MPI*/
+      END IF ! DoRestart
+
+      ! Over-write during restart with values from hdf5 state file
+      IF(DoRestart) CoupledPowerPotential = CoupledPowerPotentialHDF5
+
+      CoupledPowerTarget = GETREAL('CoupledPowerTarget')
+      IF(CoupledPowerTarget.LE.0.) CALL abort(__STAMP__,'CoupledPowerTarget must be > 0.')
+      CalcPCouplElectricPotential = .TRUE.
+      CoupledPowerRelaxFac = GETREAL('CoupledPowerRelaxFac')
     END IF ! BCState.EQ.1
+#endif /*defined(PARTICLES)*/
   END IF
 END DO
+
+! Read linear potential boundaries
+nLinState = CountOption('LinPhi')
+IF(nLinStateMax.GT.nLinState)THEN
+  SWRITE(*,'(A,I0)') "nLinStateMax: ",nLinStateMax
+  SWRITE(*,'(A,I0,A)') "   nLinState: ",nLinState," (number of times LinPhi = X occurrences in the parameter file)"
+  CALL abort(__STAMP__&
+      ,'nLinStateMax > nLinState: The given LinState number for boundary type 7 is larger than the supplied LinPhi values. '//&
+       'Define the correct number of LinPhi via, e.g., \n\n  LinPhi = 120.0 ! LinPhi Nbr 1: Voltage\n  LinPhi = 500.0 '//&
+       '! LinPhi Nbr 2: Voltage\n and the corresponding LinPhiBasePoint, LinPhiNormal and LinPhiHeight parameters')
+END IF ! nLinStateMax.GT.nLinState
+IF(nLinState .GT. 0)THEN
+  ALLOCATE(LinPhiBasePoint(3,nLinState))
+  ALLOCATE(LinPhiNormal(3,nLinState))
+  ALLOCATE(LinPhiHeight(nLinState))
+  ALLOCATE(LinPhi(nLinState))
+  DO iState=1,nLinState
+    ! Read linear potential parameters
+    LinPhiBasePoint(1:3,iState) = GETREALARRAY('LinPhiBasePoint',3)
+    LinPhiNormal(1:3,iState)    = GETREALARRAY('LinPhiNormal',3)
+    LinPhiNormal(1:3,iState)    = UNITVECTOR(LinPhiNormal(1:3,iState))
+    LinPhiHeight(iState)        = GETREAL('LinPhiHeight')
+    LinPhi(iState)              = GETREAL('LinPhi')
+  END DO
+END IF
 
 ! Read Boundary information / RefStates / perform sanity check
 nRefState=CountOption('RefState')
 IF(nRefStateMax.GT.nRefState)THEN
   SWRITE(*,'(A,I0)') "nRefStateMax: ",nRefStateMax
-  SWRITE(*,'(A,I0,A)') "   nRefState: ",nRefState," (number of times RefState = (/x,x,x/) occurs in the parameter file)"
+  SWRITE(*,'(A,I0,A)') "   nRefState: ",nRefState," (number of times RefState = (/x,x,x/) occurrences in the parameter file)"
   CALL abort(__STAMP__&
       ,'nRefStateMax > nRefState: The given RefState number for boundary type 5 is larger than the supplied RefStates. '//&
        'Define the correct number of RefStates via, e.g., \n\n  RefState = (/100.0 , 13.56E6 , -1.57079632679/) '//&
@@ -219,7 +312,7 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 
-SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState)
+SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState,iLinState)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -227,6 +320,9 @@ SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState)
 USE MOD_Globals         ,ONLY: Abort,mpiroot
 USE MOD_Globals_Vars    ,ONLY: PI
 USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinPhi,LinPhiHeight,LinPhiNormal,LinPhiBasePoint
+#if defined(PARTICLES)
+USE MOD_Equation_Vars   ,ONLY: CoupledPowerPotential
+#endif /*defined(PARTICLES)*/
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
 USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
 ! IMPLICIT VARIABLE HANDLING
@@ -237,15 +333,32 @@ REAL,INTENT(IN)                 :: x(3)
 INTEGER,INTENT(IN)              :: ExactFunction    ! determines the exact function
 INTEGER,INTENT(IN),OPTIONAL     :: ElemID           ! ElemID
 REAL,INTENT(IN),OPTIONAl        :: t                ! time
-INTEGER,INTENT(IN),OPTIONAL     :: iRefState        ! ElemID
+INTEGER,INTENT(IN),OPTIONAL     :: iRefState        ! i-th reference state
+INTEGER,INTENT(IN),OPTIONAL     :: iLinState        ! i-th linear potential state
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: Omega,r1,r2,r_2D,r_3D,r_bary,cos_theta,eps1,eps2,xi
+REAL                            :: Omega,r1,r2,r_2D,r_3D,r_bary,cos_theta,eps1,eps2,xi,a(3),b(3)
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
+CASE(-3) ! linear function with base point, normal vector and heigh: Requires BoundaryType = (/7,X/)
+  ASSOCIATE( height => LinPhiHeight(iLinState)    ,&
+             phi    => LinPhi(iLinState)          )
+    a = x(1:3) - LinPhiBasePoint(1:3,iLinState)
+    b = LinPhiNormal(1:3,iLinState)
+    xi = DOT_PRODUCT(a,b)
+    IF(xi.GT.0.)THEN
+      IF(xi.GT.height)THEN
+        Resu(:)=phi
+      ELSE
+        Resu(:)=phi*xi/height
+      END IF ! x(3)
+    ELSE
+      Resu(:)=0.0
+    END IF ! xi.GT.0
+  END ASSOCIATE
 CASE(-2) ! Signal without zero-crossing (always positive or negative), otherwise  like CASE(-1):
          ! Amplitude, Frequency and Phase Shift supplied by RefState
   ! RefState(1,iRefState): amplitude
@@ -262,24 +375,10 @@ CASE(-1) ! Signal with zero-crossing: Amplitude, Frequency and Phase Shift suppl
   Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
 CASE(0) ! constant 0.
     Resu(:)=0.
-CASE(1) ! linear function with base point, normal vector and heigh: Requires BoundaryType = (/2,1/)
-  ASSOCIATE( origin => LinPhiBasePoint ,&
-             normal => LinPhiNormal    ,&
-             height => LinPhiHeight    ,&
-             phi    => LinPhi          )
-    ASSOCIATE( xVec => x(1:3) - origin(1:3) )
-      xi = DOT_PRODUCT(xVec,normal)
-      IF(xi.GT.0.)THEN
-        IF(xi.GT.height)THEN
-          Resu(:)=phi
-        ELSE
-          Resu(:)=phi*xi/height
-        END IF ! x(3)
-      ELSE
-        Resu(:)=0.0
-      END IF ! xi.GT.0
-    END ASSOCIATE
-  END ASSOCIATE
+#if defined(PARTICLES)
+CASE(2) ! Floating voltage that depends on the coupled power. User-specified power input as target value sets the potential.
+  Resu(:) = CoupledPowerPotential(2)
+#endif /*defined(PARTICLES)*/
 CASE(1001) ! linear in y-z
     Resu(:)=x(2)*2340 + x(3)*2340
 CASE(102) !linear: z=-1: 0, z=1, 1000
@@ -331,9 +430,7 @@ CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from bo
     END IF
     SWRITE(*,*) "x(1),x(2),x(3)        ",x(1),x(2),x(3)
     SWRITE(*,*) "DielectricRadiusValue ",DielectricRadiusValue
-    CALL abort(&
-    __STAMP__&
-    ,'Dielectric sphere. Invalid radius for exact function!')
+    CALL abort(__STAMP__,'Dielectric sphere. Invalid radius for exact function!')
   END IF
 
   ! varphi = ATAN2(x(2),x(1)) ! only needed for the electric field
@@ -389,9 +486,7 @@ CASE(300) ! Dielectric Slab in z-direction of half width R in constant electric 
     SWRITE(*,*) "x(1),x(2),x(3)        ",x(1),x(2),x(3)
     SWRITE(*,*) "ElemBaryNGeo(1:3)     ",ElemBaryNGeo(1,ElemID),ElemBaryNGeo(2,ElemID),ElemBaryNGeo(3,ElemID)
     SWRITE(*,*) "DielectricRadiusValue ",DielectricRadiusValue
-    CALL abort(&
-    __STAMP__&
-    ,'Dielectric sphere. Invalid radius for exact function!')
+    CALL abort(__STAMP__,'Dielectric sphere. Invalid radius for exact function!')
   END IF
 CASE(301) ! like CASE=300, but only in positive z-direction the dielectric region is assumed
   ! R = DielectricRadiusValue
@@ -417,9 +512,7 @@ CASE(301) ! like CASE=300, but only in positive z-direction the dielectric regio
     SWRITE(*,*) "x(1),x(2),x(3)        ",x(1),x(2),x(3)
     SWRITE(*,*) "ElemBaryNGeo(1:3)     ",ElemBaryNGeo(1,ElemID),ElemBaryNGeo(2,ElemID),ElemBaryNGeo(3,ElemID)
     SWRITE(*,*) "DielectricRadiusValue ",DielectricRadiusValue
-    CALL abort(&
-    __STAMP__&
-    ,'Dielectric sphere. Invalid radius for exact function!')
+    CALL abort(__STAMP__,'Dielectric sphere. Invalid radius for exact function!')
   END IF
 
 CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum)
@@ -443,9 +536,7 @@ CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum
     IF((r1.LE.0.0).OR.(r2.LE.0.0))THEN
       SWRITE(*,*) "r1=",r1
       SWRITE(*,*) "r2=",r2
-      CALL abort(&
-          __STAMP__&
-          ,'ExactFunc=400: Point source in dielectric region. Cannot evaluate the exact function at the singularity!')
+      CALL abort(__STAMP__,'ExactFunc=400: Point source in dielectric region. Cannot evaluate the exact function at the singularity!')
     END IF
     resu(1:PP_nVar) = (1./eps1)*(&
                                    1./r1 + ((eps1-eps2)/(eps1+eps2))*&
@@ -453,15 +544,13 @@ CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum
   ELSE
     IF(r1.LE.0.0)THEN
       SWRITE(*,*) "r1=",r1
-      CALL abort(&
-          __STAMP__&
-          ,'Point source in dielectric region: Cannot evaluate the exact function at the singularity!')
+      CALL abort(__STAMP__,'Point source in dielectric region: Cannot evaluate the exact function at the singularity!')
     END IF
     resu(1:PP_nVar) = (2./(eps2+eps1)) * 1./r1 /(4*PI)
   END IF
 
 CASE DEFAULT
-  CALL abort(__STAMP__,'Exactfunction not specified!')
+  CALL abort(__STAMP__,'Exactfunction not specified!', IntInfoOpt=ExactFunction)
 END SELECT ! ExactFunction
 
 END SUBROUTINE ExactFunc
@@ -589,8 +678,8 @@ INTEGER, INTENT(IN)             :: i, j, k,iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(PP_nVar)    ! state in conservative variables
-LOGICAL,INTENT(OUT),OPTIONAL  :: warning_linear
-REAL,INTENT(OUT),OPTIONAL     :: warning_linear_phi
+LOGICAL,INTENT(OUT),OPTIONAL    :: warning_linear
+REAL,INTENT(OUT),OPTIONAL       :: warning_linear_phi
 REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -712,6 +801,10 @@ SDEALLOCATE(chitens_face)
 SDEALLOCATE(E)
 SDEALLOCATE(Et)
 SDEALLOCATE(RefState)
+SDEALLOCATE(LinPhiBasePoint)
+SDEALLOCATE(LinPhiNormal)
+SDEALLOCATE(LinPhiHeight)
+SDEALLOCATE(LinPhi)
 END SUBROUTINE FinalizeEquation
 
 END MODULE MOD_Equation

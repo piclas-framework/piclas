@@ -2,13 +2,8 @@
 
 Unit tests are used to test individual key units of the source code. Currently these key routines include:
 
-* Calculation of node positions and integration weights.
-* Calculation of Vandermonde matrices.
-* Calculation of derivative matrices.
-* Algorithms to interpolate data from one set of nodes to another.
-* Algorithm to prolong volume data to sides.
-* Algorithm to perform a surface integral.
 * Functionality of Read-In tools.
+* Functionality of matrix inversion via external library
 
 ## Integration of unit test with CTest
 
@@ -16,24 +11,15 @@ These unit tests are integrated into the **PICLas** build process using the [CTe
 build **PICLas** and give you an overview on the exit status of each test that looks something like this:
 
 ~~~~
-Run unit tests
-Test project /home/PICLAS/build
-    Start 1: NodesAndWeights
-1/6 Test #1: NodesAndWeights ..............   Passed    0.01 sec
-    Start 2: Vandermonde
-2/6 Test #2: Vandermonde ..................   Passed    0.01 sec
-    Start 3: DerivativeMatrix
-3/6 Test #3: DerivativeMatrix .............   Passed    0.00 sec
-    Start 4: ChangeBasis
-4/6 Test #4: ChangeBasis ..................   Passed    0.00 sec
-    Start 5: SurfInt
-5/6 Test #5: SurfInt ......................   Passed    0.00 sec
-    Start 6: ProlongToFace
-6/6 Test #6: ProlongToFace ................   Passed    0.00 sec
+Test project /home/piclas/build_
+    Start 1: ReadInTools
+1/2 Test #1: ReadInTools ......................   Passed    0.12 sec
+    Start 2: MatrixInverse
+2/2 Test #2: MatrixInverse ....................   Passed    0.12 sec
 
-100% tests passed, 0 tests failed out of 6
+100% tests passed, 0 tests failed out of 2
 
-Total Test time (real) =   0.05 sec
+Total Test time (real) =   0.24 sec
 ~~~~
 
 To manually run the tests after a build use the CTest command

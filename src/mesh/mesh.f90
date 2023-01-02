@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -57,6 +57,7 @@ SUBROUTINE DefineParametersMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools ,ONLY: prms
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Mesh")
@@ -136,6 +137,7 @@ USE MOD_Particle_Vars          ,ONLY: usevMPF
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_Mesh_Tools             ,ONLY: BuildSideToNonUniqueGlobalSide
 #endif /*USE_HDG && USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -203,7 +205,7 @@ IF(.NOT.validMesh) &
 
 useCurveds=GETLOGICAL('useCurveds')
 #if USE_LOADBALANCE
-IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
+IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. (.NOT.DoWriteStateToHDF5) .AND. UseH5IOLoadBalance) THEN
   DoWriteStateToHDF5=.TRUE.
   CALL PrintOption('Loadbalancing or InitialAutoRestart enabled: DoWriteStateToHDF5','INFO',LogOpt=DoWriteStateToHDF5)
 END IF
@@ -414,7 +416,8 @@ END IF
 #if USE_HDG && USE_LOADBALANCE
 IF (meshMode.GT.0) CALL BuildSideToNonUniqueGlobalSide() ! requires ElemInfo
 #endif /*USE_HDG && USE_LOADBALANCE*/
-DEALLOCATE(ElemInfo,SideInfo)
+!DEALLOCATE(ElemInfo,SideInfo)
+DEALLOCATE(SideInfo)
 
 MeshInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -1024,6 +1027,7 @@ IMPLICIT NONE
 !local variables
 !============================================================================================================================
 ! Deallocate global variables, needs to go somewhere else later
+SDEALLOCATE(ElemInfo)
 ! geometry information and VDMS
 SDEALLOCATE(Xi_NGeo)
 SDEALLOCATE(DCL_N)

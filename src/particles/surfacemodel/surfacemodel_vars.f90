@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2015 - 2019 Wladimir Reschke
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -46,5 +46,17 @@ TYPE tPorousBC
 END TYPE
 TYPE(tPorousBC), ALLOCATABLE     :: PorousBC(:)                     ! Container for the porous BC, allocated with nPorousBC
 
+! === SEE BC ====================================================================================================================
+REAL                             :: BulkElectronTempSEE             ! Bulk electron temperature for SEE model by Morozov2004
+                                                                    ! read-in in Kelvin (when using the SEE mode), but is directly
+                                                                    ! converted to eV for usage in the code
+LOGICAL                          :: SurfModSEEelectronTempAutoamtic ! BulkElectronTempSEE = BulkElectronTemp, which is calculated
+                                                                    ! automatically for the first species ID for electrons
+
+! === Sticking coefficient from simple models/interpolation
+REAL, ALLOCATABLE                :: StickingCoefficientData(:,:)    ! Data for the model using non-bounce and condensation probability
+                                                                    ! [:,1]: Maximum impact angle for model parameters
+                                                                    ! [:,2]: Cut-off angle for non-bounce probability
+                                                                    ! [:,3:4]: Temperature limits for linear interpolation of condensation probability
 !===================================================================================================================================
 END MODULE MOD_SurfaceModel_Vars

@@ -38,7 +38,7 @@
 #define MPIW8SIZEPART 0
 #endif
 ! Combination
-#define MPIW8SIZE (1+MPIW8SIZEFIELD+MPIW8SIZEPART)
+#define MPIW8SIZE (2+MPIW8SIZEFIELD+MPIW8SIZEPART)
 #endif
 
 ! Deactivate PURE subroutines/functions when using DEBUG
@@ -300,6 +300,8 @@
 #define SAMPWALL_DELTA_MOMENTUMZ  11
 
 #define SAMPWALL_NVARS            11
+
+#define MACROSURF_NVARS           6
 
 ! Tracking method
 #define REFMAPPING    1

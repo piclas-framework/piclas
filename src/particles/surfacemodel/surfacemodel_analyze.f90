@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2015 - 2019 Wladimir Reschke
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -587,9 +587,11 @@ IF(BPO%NPartBoundaries.EQ.0.OR.BPO%NSpecies.EQ.0) CALL abort(__STAMP__,'BPO-NPar
 ALLOCATE(BPO%RealPartOut(1:BPO%NPartBoundaries,1:BPO%NSpecies))
 BPO%RealPartOut = 0.
 
-ALLOCATE(BPO%SpecIDToBPOSpecID(1:nSPecies))
+ALLOCATE(BPO%SpecIDToBPOSpecID(1:nSpecies))
 BPO%SpecIDToBPOSpecID = -1
 DO iSpec = 1, BPO%NSpecies
+  ! Sanity check
+  IF(BPO%Species(iSpec).GT.nSpecies) CALL abort(__STAMP__,'BPO-Species contains a wrong species ID, which is greater than nSpecies')
   BPO%SpecIDToBPOSpecID(BPO%Species(iSpec)) = iSpec
 END DO ! iSpec = 1, BPO%NSpecies
 

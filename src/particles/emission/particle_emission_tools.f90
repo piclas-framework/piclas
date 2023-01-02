@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2019 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -262,9 +262,7 @@ DO i=1, NbrOfParticle
   IF (PositionNbr .NE. 0) THEN
     PartSpecies(PositionNbr) = FractNbr
   ELSE
-    CALL abort(&
-    __STAMP__&
-    ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+    CALL abort(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
   END IF
 END DO
 
@@ -952,9 +950,7 @@ INTEGER                          :: CNElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (UseExactPartNum) THEN
     IF(chunkSize.GE.PDM%maxParticleNumber) THEN
-      CALL abort(&
-__STAMP__,&
-'ERROR in SetCellLocalParticlePosition: Maximum particle number reached! max. particles needed: ',chunksize)
+      CALL abort(__STAMP__,'SetCellLocalParticlePosition: Maximum particle number reached! max. particles needed: ',chunksize)
     END IF
     CellChunkSize(:)=0
     ASSOCIATE( start => GetCNElemID(1+offsetElem),&
@@ -1027,8 +1023,7 @@ __STAMP__,&
           IPWRITE(UNIT_stdOut,*) "ERROR:"
           IPWRITE(UNIT_stdOut,*) "                iPart :", iPart
           IPWRITE(UNIT_stdOut,*) "PDM%maxParticleNumber :", PDM%maxParticleNumber
-          CALL abort(&
-              __STAMP__&
+          CALL abort(__STAMP__&
               ,'ERROR in SetCellLocalParticlePosition: Maximum particle number reached during inserting! --> ParticleIndexNbr.EQ.0')
         END IF
       END DO
@@ -1334,18 +1329,15 @@ REAL                    :: Particle_pos(3), RandVal(3), lineVector(3), radius
 INTEGER                 :: i, chunkSize2
 LOGICAL                 :: insideExcludeRegion
 !===================================================================================================================================
-  lineVector(1) = Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3) - &
-    Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2)
-  lineVector(2) = Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1) - &
-    Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3)
-  lineVector(3) = Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2) - &
-    Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1)
-  IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-    CALL abort(__STAMP__,'BaseVectors are parallel!')
-  ELSE
-    lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
-      lineVector(3) * lineVector(3))
-  END IF
+  ! Calculate the cross-product vector from the two base vectors to get the perpendicular direction
+  ASSOCIATE(v2 => Species(FractNbr)%Init(iInit)%BaseVector1IC ,&
+            v3 => Species(FractNbr)%Init(iInit)%BaseVector2IC )
+    lineVector(1) = v2(2) * v3(3) - v2(3) * v3(2)
+    lineVector(2) = v2(3) * v3(1) - v2(1) * v3(3)
+    lineVector(3) = v2(1) * v3(2) - v2(2) * v3(1)
+    lineVector = UNITVECTOR(lineVector)
+    IF(VECNORM(lineVector).LE.0.) CALL ABORT(__STAMP__,'BaseVectors are parallel!')
+  END ASSOCIATE
   i=1
   chunkSize2=0
   DO WHILE (i .LE. chunkSize)

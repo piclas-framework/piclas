@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -86,9 +86,8 @@ USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Interpolation          ,ONLY: GetVandermonde
-USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary,NodeType,NodeTypeVISU
-USE MOD_Mesh_Vars              ,ONLY: nElems,sJ,Vdm_EQ_N
+USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary
+USE MOD_Mesh_Vars              ,ONLY: nElems,sJ
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes
 USE MOD_PICDepo_Vars
@@ -483,12 +482,6 @@ CASE('cell_volweight_mean')
   END DO
 #endif /*USE_MPI*/
 
-  IF(DoDielectricSurfaceCharge)THEN
-    ! Allocate and determine Vandermonde mapping from equidistant (visu) to NodeType node set
-    ALLOCATE(Vdm_EQ_N(0:PP_N,0:1))
-    CALL GetVandermonde(1, NodeTypeVISU, PP_N, NodeType, Vdm_EQ_N, modal=.FALSE.)
-  END IF ! DoDielectricSurfaceCharge
-
 CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 #if USE_MPI
   ALLOCATE(RecvRequest(nShapeExchangeProcs),SendRequest(nShapeExchangeProcs))
@@ -602,10 +595,8 @@ END SELECT
 WRITE(UNIT=hilf3,FMT='(G0)') SFAdaptiveDOFDefault
 SFAdaptiveDOF = GETREAL('PIC-shapefunction-adaptive-DOF',TRIM(hilf3))
 
-IF(SFAdaptiveDOF.GT.DOFMax)THEN
   SWRITE(UNIT_StdOut,'(A,F10.2)') "         PIC-shapefunction-adaptive-DOF =", SFAdaptiveDOF
   SWRITE(UNIT_StdOut,'(A,A19,A,F10.2)') " Maximum allowed is ",TRIM(hilf2)," =", DOFMax
-  SWRITE(UNIT_StdOut,*) "Reduce the number of DOF/SF in order to have no DOF outside of the deposition range (neighbour elems)"
   SWRITE(UNIT_StdOut,*) "Set a value lower or equal to than the maximum for a given polynomial degree N\n"
   SWRITE(UNIT_StdOut,*) "              N:     1      2      3      4      5       6       7"
   SWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
@@ -613,6 +604,8 @@ IF(SFAdaptiveDOF.GT.DOFMax)THEN
   SWRITE(UNIT_StdOut,*) "  Max. DOF | 2D:    12     28     50     78    113     153     201"
   SWRITE(UNIT_StdOut,*) "           | 3D:    33    113    268    523    904    1436    2144"
   SWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
+IF(SFAdaptiveDOF.GT.DOFMax)THEN
+  SWRITE(UNIT_StdOut,*) "Reduce the number of DOF/SF in order to have no DOF outside of the deposition range (neighbour elems)"
   CALL abort(__STAMP__,'PIC-shapefunction-adaptive-DOF > '//TRIM(hilf2)//' is not allowed')
 ELSE
   ! Check which shape function dimension is used
@@ -627,8 +620,8 @@ ELSE
 END IF
 
 #if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 
 CALL Allocate_Shared((/2,nComputeNodeTotalElems/),SFElemr2_Shared_Win,SFElemr2_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SFElemr2_Shared_Win,IERROR)
@@ -945,7 +938,7 @@ USE MOD_PICDepo_Vars       ,ONLY: nNodeRecvExchangeProcs
 USE MOD_PICDepo_Vars       ,ONLY: NodeRecvDepoRankToGlobalRank
 #endif  /*USE_MPI*/
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart
+USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1007,7 +1000,8 @@ DO iProc = 1, nNodeRecvExchangeProcs
 END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-MPIW8TimePart(6) = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8TimePart(6)  = MPIW8TimePart(6) + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountPart(6) = MPIW8CountPart(6) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! 3) Extract messages
@@ -1130,12 +1124,16 @@ SELECT CASE(TRIM(DepositionType))
 END SELECT
 
 #if USE_LOADBALANCE
-IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition) THEN
-  SDEALLOCATE(PartSourceLB)
-  ALLOCATE(PartSourceLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
-  PartSourceLB = PartSource
+IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
+
+  IF(DoDeposition)THEN
+    SDEALLOCATE(PartSourceLB)
+    ALLOCATE(PartSourceLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
+    PartSourceLB = PartSource
+  END IF ! DoDeposition
+
   IF(DoDielectricSurfaceCharge)THEN
-    CALL ExchangeNodeSourceExtTmp()
+    IF(DoDeposition) CALL ExchangeNodeSourceExtTmp()
     !SDEALLOCATE(NodeSourceExtEquiLB)
     !ALLOCATE(NodeSourceExtEquiLB(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
     ALLOCATE(NodeSourceExtEquiLB(1:N_variables,0:1,0:1,0:1,nElems))

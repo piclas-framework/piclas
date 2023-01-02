@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -30,6 +30,7 @@ SUBROUTINE InitDefineParameters()
 USE MOD_Globals                    ,ONLY: UNIT_stdOut
 #if USE_MPI
 USE MOD_Globals                    ,ONLY: MPIRoot
+USE MOD_MPI_Shared                 ,ONLY: DefineParametersMPIShared
 #endif /*USE_MPI*/
 USE MOD_Globals_Init               ,ONLY: DefineParametersGlobals
 USE MOD_ReadInTools                ,ONLY: prms
@@ -81,7 +82,7 @@ USE MOD_DSMC_Symmetry              ,ONLY: DefineParametersParticleSymmetry
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
 #if USE_MPI
 USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
-#endif /* USE_MPI */
+#endif
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
@@ -97,6 +98,9 @@ SWRITE(UNIT_stdOut,'(A)') ' DEFINING PARAMETERS ...'
 SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL DefineParametersMPI()
+#if USE_MPI
+CALL DefineParametersMPIShared()
+#endif /*USE_MPI*/
 CALL DefineParametersIO()
 CALL DefineParametersGlobals()
 CALL DefineParametersLoadBalance()

@@ -24,16 +24,16 @@ IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   MESSAGE(STATUS "Checking git origin: " ${GIT_ORIGIN})
 ENDIF()
 
-IF("${GIT_ORIGIN}" MATCHES "gitlab.com")
+IF("${GIT_ORIGIN}" MATCHES "piclas.boltzplatz.eu")
   # Checked out using SSH
   IF("${GIT_ORIGIN}" MATCHES "^git@")
-    SET(LIBS_DLPATH "git@gitlab.com:piclas/")
+    SET(LIBS_DLPATH "git@piclas.boltzplatz.eu:piclas/")
   # Checked out using HTTPS
   # IF("${GIT_ORIGIN}" MATCHES "^https@")
   ELSEIF("${GIT_ORIGIN}" MATCHES "^ssh:")
-    SET(LIBS_DLPATH "git@gitlab.com:piclas/")
+    SET(LIBS_DLPATH "git@piclas.boltzplatz.eu:piclas/")
   ELSE()
-    SET(LIBS_DLPATH "https://gitlab.com/piclas/")
+    SET(LIBS_DLPATH "https://piclas.boltzplatz.eu/piclas/")
   ENDIF()
 ELSE()
   # Select each lib separately
@@ -144,14 +144,18 @@ IF(NOT LIBS_BUILD_HDF5)
   # Build HDF5 in PICLas
 ELSE()
   # Origin pointing to Github
-  IF("${GIT_ORIGIN}" MATCHES "")
+  IF("${GIT_ORIGIN}" STREQUAL "")
+    # Use https://github.com/HDFGroup/hdf5.git when using piclas without git
     SET (HDF5DOWNLOAD "https://github.com/HDFGroup/hdf5.git")
   ELSEIF("${GIT_ORIGIN}" MATCHES ".github.com")
+    # Use https://github.com/HDFGroup/hdf5.git when using piclas from github.com
     SET (HDF5DOWNLOAD "https://github.com/HDFGroup/hdf5.git")
   ELSE()
     IF("${GIT_ORIGIN}" MATCHES "https://gitlab-ci-token")
+      # Use https://piclas.boltzplatz.eu/piclas/hdf5.git when gitlab runner needs to download libs
       STRING(REGEX REPLACE "/piclas.git" "/hdf5.git" HDF5DOWNLOAD ${GIT_ORIGIN})
     ELSE()
+      # Use https://piclas.boltzplatz.eu/piclas/hdf5.git when using piclas from piclas.boltzplatz.eu
       SET (HDF5DOWNLOAD ${LIBS_DLPATH}hdf5.git )
     ENDIF()
   ENDIF()
@@ -291,7 +295,7 @@ IF(NOT LIBS_BUILD_MATH_LIB)
   ENDIF()
 
   # Use Lapack/Blas for GNU
-  FIND_PACKAGE(LAPACK QUIET)
+  FIND_PACKAGE(LAPACK REQUIRED)
   IF (LAPACK_FOUND)
     LIST(APPEND linkedlibs ${LAPACK_LIBRARIES})
     MESSAGE(STATUS "Compiling with system [BLAS/Lapack]")
@@ -312,14 +316,18 @@ ELSE()
   # Build LAPACK
   IF (LIBS_BUILD_MATH_LIB_VENDOR MATCHES "LAPACK")
     # Origin pointing to Github
-    IF("${GIT_ORIGIN}" MATCHES "")
+    IF("${GIT_ORIGIN}" STREQUAL "")
+      # Use https://github.com/Reference-LAPACK/lapack.git when using piclas without git
       SET (MATHLIB_DOWNLOAD "https://github.com/Reference-LAPACK/lapack.git")
     ELSEIF("${GIT_ORIGIN}" MATCHES ".github.com")
+      # Use https://github.com/Reference-LAPACK/lapack.git when using piclas from github.com
       SET (MATHLIB_DOWNLOAD "https://github.com/Reference-LAPACK/lapack.git")
     ELSE()
       IF("${GIT_ORIGIN}" MATCHES "https://gitlab-ci-token")
+        # Use https://piclas.boltzplatz.eu/piclas/lapack.git when gitlab runner needs to download libs
         STRING(REGEX REPLACE "/piclas.git" "/lapack.git" MATHLIB_DOWNLOAD ${GIT_ORIGIN})
       ELSE()
+        # Use https://piclas.boltzplatz.eu/piclas/lapack.git when using piclas from piclas.boltzplatz.eu
         SET (MATHLIB_DOWNLOAD ${LIBS_DLPATH}lapack.git )
       ENDIF()
     ENDIF()
@@ -330,14 +338,18 @@ ELSE()
     MARK_AS_ADVANCED(FORCE MATH_LIB_TAG)
   # Build OpenBLAS
   ELSEIF (LIBS_BUILD_MATH_LIB_VENDOR MATCHES "OpenBLAS")
-    IF("${GIT_ORIGIN}" MATCHES "")
+    IF("${GIT_ORIGIN}" STREQUAL "")
+      # Use https://github.com/xianyi/OpenBLAS when using piclas without git
       SET (MATHLIB_DOWNLOAD "https://github.com/xianyi/OpenBLAS.git")
     ELSEIF("${GIT_ORIGIN}" MATCHES ".github.com")
+      # Use https://github.com/xianyi/OpenBLAS when using piclas from github.com
       SET (MATHLIB_DOWNLOAD "https://github.com/xianyi/OpenBLAS.git")
     ELSE()
       IF("${GIT_ORIGIN}" MATCHES "https://gitlab-ci-token")
+        # Use https://piclas.boltzplatz.eu/piclas/OpenBLAS.git when gitlab runner needs to download libs
         STRING(REGEX REPLACE "/piclas.git" "/OpenBLAS.git" MATHLIB_DOWNLOAD ${GIT_ORIGIN})
       ELSE()
+        # Use https://piclas.boltzplatz.eu/piclas/OpenBLAS.git when using piclas from piclas.boltzplatz.eu
         SET (MATHLIB_DOWNLOAD ${LIBS_DLPATH}OpenBLAS.git )
       ENDIF()
     ENDIF()
@@ -426,6 +438,54 @@ ELSE()
   ENDIF()
 ENDIF()
 
+# =========================================================================
+# HOPR pre-processor
+# =========================================================================
+IF(LIBS_BUILD_HOPR)
+  SET (HOPRDOWNLOAD "https://github.com/hopr-framework/hopr.git")
+  SET (HOPR_DOWNLOAD ${HOPRDOWNLOAD} CACHE STRING "HOPR Download-link")
+  MESSAGE (STATUS "HOPR download link: ${HOPRDOWNLOAD}")
+  MARK_AS_ADVANCED(FORCE HOPR_DOWNLOAD)
+  
+  IF (NOT EXISTS "${CMAKE_CURRENT_BINARY_DIR}/bin/hopr")
+    SET(HOPR_FOUND FALSE)
+    MESSAGE(STATUS "HOPR executable not found in: ${CMAKE_CURRENT_BINARY_DIR}. HOPR will be built and/or installed.")
+  ELSE()
+    SET(HOPR_FOUND TRUE)
+    MESSAGE(STATUS "HOPR has already been built.")
+  ENDIF()
+  # Set HOPR build dir
+  SET(LIBS_HOPR_DIR  ${LIBS_EXTERNAL_LIB_DIR}/hopr/build)
+  MESSAGE(STATUS "HOPR directory: ${LIBS_HOPR_DIR}")
+  # Check if HOPR was already built and the executable is in the piclas/build/bin folder
+  IF (NOT HOPR_FOUND)
+    SET(CMAKE_SKIP_INSTALL_ALL_DEPENDENCY TRUE)
+    # Let CMake take care of download, configure and build
+    EXTERNALPROJECT_ADD(HOPR
+    GIT_REPOSITORY ${HOPR_DOWNLOAD}
+    GIT_TAG v1.0.0
+    GIT_PROGRESS FALSE
+    ${${GITSHALLOW}}
+    PREFIX ${LIBS_HOPR_DIR}
+    # Avoids rebuilding during PICLas recompilation if HOPR has already been built in share folder
+    UPDATE_DISCONNECTED true
+    # Avoid output
+    LOG_CONFIGURE ON
+    LOG_INSTALL ON
+    LOG_BUILD ON
+    LOG_OUTPUT_ON_FAILURE ON
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR} -DLIBS_BUILD_HDF5=OFF -DLIBS_BUILD_CGNS=ON -DLIBS_USE_MPI=OFF -DCMAKE_BUILD_TYPE=Release
+    # BUILD_BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/bin/hopr
+    )
+    # HDF5 has to be built before HOPR
+    IF(LIBS_BUILD_HDF5)
+      ExternalProject_Add_StepDependencies(HOPR build HDF5)
+    ENDIF()
+    # Make sure that the hopr binary is in the piclas/build/bin/ folder after piclas was build
+    ExternalProject_Add_StepDependencies(HOPR install piclas)
+    SET(HOPR_FOUND TRUE)
+  ENDIF()
+ENDIF()
 
 #  # =========================================================================
 #  # PAPI library
@@ -458,3 +518,48 @@ ENDIF()
 #  ELSE()
 #    ADD_DEFINITIONS(-DUSE_OPENMP=0)
 #  ENDIF()
+
+#=========================================================================
+# PETSc
+#=========================================================================
+OPTION(PICLAS_PETSC "Use the PETSc library" OFF)
+IF(PICLAS_PETSC)
+  ADD_DEFINITIONS(-DUSE_PETSC=1)
+  if(NOT DEFINED PETSC_DIR)
+    set(PETSC_DIR $ENV{PETSC_DIR})
+  endif()
+  if(NOT DEFINED PETSC_ARCH)
+    set(PETSC_ARCH $ENV{PETSC_ARCH})
+  endif()
+
+  if(EXISTS "${PETSC_DIR}/include" AND
+    EXISTS "${PETSC_DIR}/${PETSC_ARCH}/include")
+    set(PETSC_INC "${PETSC_DIR}/include" "${PETSC_DIR}/${PETSC_ARCH}/include")
+  else()
+    message(SEND_ERROR "PETSc includes not found")
+  endif()
+
+  if(EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.so")
+    set(PETSC_LIB "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.so")
+  elseif(EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.a")
+    set(PETSC_LIB "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.a")
+  else()
+    message(SEND_ERROR "PETSc library not found")
+  endif()
+
+  if(EXISTS ${PETSC_DIR}/${PETSC_ARCH}/conf/petscvariables)
+    file(STRINGS ${PETSC_DIR}/${PETSC_ARCH}/conf/petscvariables
+      PETSC_VARIABLES NEWLINE_CONSUME)
+  elseif(EXISTS ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables)
+    file(STRINGS ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables
+      PETSC_VARIABLES NEWLINE_CONSUME)
+  else()
+    message(SEND_ERROR "PETSc variables not found")
+  endif()
+
+  INCLUDE_DIRECTORIES(${PETSC_INC})
+  LIST(APPEND linkedlibs ${PETSC_LIB})
+ELSE()
+  ADD_DEFINITIONS(-DUSE_PETSC=0)
+ENDIF(PICLAS_PETSC)
+

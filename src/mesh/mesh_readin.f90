@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -211,7 +211,7 @@ USE MOD_Mesh_Vars            ,ONLY: useCurveds
 USE MOD_Mesh_Vars            ,ONLY: BoundaryType
 USE MOD_Mesh_Vars            ,ONLY: MeshInitIsDone
 USE MOD_Mesh_Vars            ,ONLY: Elems!,Nodes
-USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE!,createSides
+USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE
 USE MOD_Mesh_Vars            ,ONLY: ElemInfo,SideInfo
 USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
 #if USE_MPI
@@ -278,11 +278,7 @@ IF (.NOT.PerformLoadBalance) THEN
   END IF
   SWRITE(UNIT_stdOut,'(132("-"))')
   SWRITE(UNIT_stdOut,'(A)',ADVANCE="NO")' READ MESH FROM DATA FILE "'//TRIM(FileString)//'" ...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#else
-  CALL CPU_TIME(StartT)
-#endif
+  GETTIME(StartT)
 
   ! Get ElemInfo from Mesh file
   CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
@@ -299,9 +295,9 @@ IF (.NOT.PerformLoadBalance) THEN
   DEALLOCATE(HSize)
   IF(MPIRoot.AND.(nGlobalElems.LT.nProcessors))CALL abort(__STAMP__&
       ,' Number of elements < number of processors',nGlobalElems,REAL(nProcessors))
-  EndT=PICLASTIME()
+  GETTIME(EndT)
   ReadMeshWallTime=EndT-StartT
-  SWRITE(UNIT_stdOut,'(A,F0.3,A)')' DONE  [',ReadMeshWallTime,'s]'
+  CALL DisplayMessageAndTime(ReadMeshWallTime, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 #if defined(PARTICLES) && USE_LOADBALANCE
 END IF
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
@@ -607,8 +603,7 @@ DO iElem=FirstElemInd,LastElemInd
           aSide%connection%Elem=>GETNEWELEM()
           aSide%NbProc = ELEMIPROC(elemID)
 #else
-          CALL abort(__STAMP__, &
-            ' ElemID of neighbor not in global Elem list ')
+          CALL abort(__STAMP__, ' ElemID of neighbor not in global Elem list ')
 #endif
         END IF
       END IF

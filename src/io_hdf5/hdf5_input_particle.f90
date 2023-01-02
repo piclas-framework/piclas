@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -49,8 +49,8 @@ USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Mesh_Vars              ,ONLY: Vdm_N_EQ,offsetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared!,nUniqueGlobalNodes,NodeToElemMapping,NodeToElemInfo
-USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,NodeVolume
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes!,NodeToElemMapping,NodeToElemInfo
+USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
 USE MOD_Restart_Vars           ,ONLY: N_Restart
 !#if USE_MPI
 !USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
@@ -67,12 +67,19 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                               :: U_local(1,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems)
 LOGICAL                            :: DG_SourceExtExists
-REAL                               :: NodeSourceExtEqui(1,0:1,0:1,0:1)
+REAL                               :: NodeSourceExtEqui(1,0:1,0:1,0:1),NodeVol(1:8)
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp,N_RestartTmp
 INTEGER                            :: iElem!,CNElemID
 INTEGER                            :: NodeID(1:8)!,firstNode,lastNode,firstGlobalElemID(1:8),iNode
 !===================================================================================================================================
 IF(.NOT.DoDielectric) RETURN
+
+! This array is not allocated when DoDeposition=F, however, the previously calculated surface charge might still be required in the
+! future, when DoDeposition is activated again. Therefore, read the old data and store in the new state file.
+IF(.NOT.DoDeposition) THEN
+  ALLOCATE(NodeSourceExt(1:nUniqueGlobalNodes))
+  NodeSourceExt = 0.
+END IF
 
 ! Temp. vars for integer KIND=8 possibility
 OffsetElemTmp = INT(OffsetElem,IK)
@@ -92,12 +99,13 @@ IF(DG_SourceExtExists)THEN
   CALL GetVandermonde(N_Restart, NodeType, 1, NodeTypeVISU, Vdm_N_EQ, modal=.FALSE.)
 
 !  #if USE_MPI
-!    firstNode = INT(REAL( myComputeNodeRank   *nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
-!    lastNode  = INT(REAL((myComputeNodeRank+1)*nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
+!    firstNode = INT(REAL( myComputeNodeRank   )*REAL(nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
+!    lastNode  = INT(REAL((myComputeNodeRank+1))*REAL(nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
 !  #else
 !    firstNode = 1
 !    lastNode = nUniqueGlobalNodes
 !  #endif
+  NodeVol = 1. ! default
   DO iElem =1, PP_nElems
     ! Map G/GL (current node type) to equidistant distribution
     CALL ChangeBasis3D(1, N_Restart, 1, Vdm_N_EQ, U_local(:,:,:,:,iElem),NodeSourceExtEqui(:,:,:,:))
@@ -144,14 +152,15 @@ IF(DG_SourceExtExists)THEN
     !IF(iElem+OffsetElem.EQ.firstGlobalElemID(8)) NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
 
     ! method 4: all nodes are local (removed shared memory)
-    NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
-    NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
-    NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
-    NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
-    NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
-    NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
-    NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
-    NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
+    IF(DoDeposition) NodeVol = NodeVolume(NodeID(1:8)) ! this is only required when deposition is activated
+    NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVol(1)
+    NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVol(2)
+    NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVol(3)
+    NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVol(4)
+    NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVol(5)
+    NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVol(6)
+    NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVol(7)
+    NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVol(8)
   END DO
 
 !#if USE_MPI

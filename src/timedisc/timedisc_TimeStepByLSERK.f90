@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -53,6 +53,8 @@ USE MOD_Equation_Vars          ,ONLY: Phi,Phit,nTotalPhi
 USE MOD_TimeDisc_Vars          ,ONLY: Phit_temp
 #endif /*PP_POIS*/
 #ifdef PARTICLES
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcCoupledPowerPart
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,MeasureTrackTime
 USE MOD_PICDepo                ,ONLY: Deposition
@@ -97,6 +99,9 @@ REAL                          :: tLBStart ! load balance
 ! RK coefficients
 b_dt = RK_b*dt
 
+#if defined(PARTICLES)
+IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
+#endif /*defined(PARTICLES)*/
 DO iStage = 1,nRKStages
   IF (iStage.EQ.1) THEN
     tStage = time
@@ -109,7 +114,7 @@ DO iStage = 1,nRKStages
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
-  CALL IRecvNbofParticles()
+  IF(time.GE.DelayTime) CALL IRecvNbofParticles()
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
@@ -125,12 +130,9 @@ DO iStage = 1,nRKStages
 
   CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB. Also done for state output of PartsPerElem
 
-  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-    ! Forces on particle
-    IF (time.GE.DelayTime) CALL InterpolateFieldToParticle()
-  END IF
-
+  ! Forces on particle
   IF (time.GE.DelayTime) THEN
+    CALL InterpolateFieldToParticle()
     IF(DoFieldIonization) CALL FieldIonization()
     IF(DoInterpolation)   CALL CalcPartRHS()
   END IF
@@ -156,8 +158,10 @@ DO iStage = 1,nRKStages
           PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart)*b_dt(iStage)
           ! Don't push the velocity component of neutral particles!
           IF (isPushParticle(iPart)) THEN
+            IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
             Pt_temp(  4:6,iPart) = Pt(       1:3,iPart)
             PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart)*b_dt(iStage)
+            IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
           END IF
         END IF ! PDM%ParticleInside(iPart)
       END DO ! iPart=1,PDM%ParticleVecLength
@@ -168,8 +172,10 @@ DO iStage = 1,nRKStages
           PartState(1:3,iPart) = PartState(1:3,iPart) + Pt_temp(1:3,iPart)*b_dt(iStage)
           ! Don't push the velocity component of neutral particles!
           IF (isPushParticle(iPart)) THEN
+            IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
             Pt_temp(  4:6,iPart) =        Pt(1:3,iPart) - RK_a(iStage) * Pt_temp(4:6,iPart)
             PartState(4:6,iPart) = PartState(4:6,iPart) + Pt_temp(4:6,iPart)*b_dt(iStage)
+            IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
           END IF
         END IF ! PDM%ParticleInside(iPart)
       END DO ! iPart=1,PDM%ParticleVecLength
@@ -182,7 +188,7 @@ DO iStage = 1,nRKStages
   CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 
-  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
+  IF (time.GE.DelayTime) THEN
     IF(MeasureTrackTime) CALL CPU_TIME(TimeStart)
     CALL PerformTracking()
 #ifdef EXTRAE

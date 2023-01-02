@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2015 - 2019 Wladimir Reschke
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -49,7 +49,7 @@ USE MOD_Globals                   ,ONLY: myrank
 #endif /*USE_MPI*/
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
-USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide, dXiEQ_SurfSample, PartBound
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
@@ -62,6 +62,7 @@ USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
 USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
+USE MOD_PICDepo_Vars              ,ONLY: DoDeposition
 USE MOD_part_operations           ,ONLY: RemoveParticle
 USE MOD_part_tools                ,ONLY: CalcRadWeightMPF
 ! IMPLICIT VARIABLE HANDLING
@@ -149,7 +150,8 @@ END IF
 IF(.NOT.PDM%ParticleInside(PartID)) THEN
   ! Increase the counter for deleted/absorbed/adsorbed particles
   IF(CalcSurfCollCounter) SurfAnalyzeNumOfAds(PartSpecImpact) = SurfAnalyzeNumOfAds(PartSpecImpact) + 1
-  IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
+  IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) &
+      CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
   RETURN
 END IF
 !===================================================================================================================================
@@ -160,6 +162,10 @@ SELECT CASE(PartBound%SurfaceModel(locBCID))
 CASE (0) ! Maxwellian scattering (diffuse/specular reflection)
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL MaxwellScattering(PartID,SideID,n_Loc,SpecularReflectionOnly)
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE (1)  ! Sticking coefficient model using tabulated, empirical values
+!-----------------------------------------------------------------------------------------------------------------------------------
+  CALL StickingCoefficientModel(PartID,SideID,n_Loc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (SEE_MODELS_ID)
   ! 5: SEE by Levko2015
@@ -182,7 +188,7 @@ CASE (SEE_MODELS_ID)
   IF (ProductSpec(2).GT.0) THEN
     CALL SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobalElemID,PartPosImpact(1:3))
     ! Deposit opposite charge of SEE on node
-    IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN
+    IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN
       ! Get MPF
       IF (usevMPF) THEN
         IF (RadialWeighting%DoRadialWeighting) THEN
@@ -208,7 +214,7 @@ END SELECT
 !===================================================================================================================================
 ! 4.) PIC ONLY: Deposit charges on dielectric surface (when activated), if these were removed/changed in SurfaceModel
 !===================================================================================================================================
-IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charging active + dielectric surface contact
+IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charging active + dielectric surface contact
   IF(.NOT.PDM%ParticleInside(PartID))THEN
     ! Particle was deleted on surface contact: deposit impacting charge
     CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
@@ -249,8 +255,8 @@ END IF
 ! Sampling
 IF(DoSample) THEN
   ! Sample momentum, heatflux and collision counter on surface (only the original impacting particle, not the newly created parts
-  ! through SurfaceModel_ParticleEmission)
-  CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
+  ! through SurfaceModel_ParticleEmission), checking if the particle was deleted/absorbed/adsorbed at the wall
+  IF(PDM%ParticleInside(PartID)) CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
 END IF
 
 END SUBROUTINE SurfaceModel
@@ -359,7 +365,7 @@ END IF !IsAuxBC
 POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 
 !IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
-!  CALL CalcRotWallVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)),POI_vec,WallVelo)
+!  WallVelo(1:3) = CalcRotWallVelo(locBCID,POI_vec)
 !END IF
 
 IF(SUM(ABS(WallVelo)).GT.0.)THEN
@@ -497,7 +503,7 @@ USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec, VECNORM, DOTPRODUCT
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature, CalcRotWallVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry,UseRotRefFrame
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac, useElectronTimeStep, skipNonElectrons, ManualTimeStep, ManualTimeStepElectrons, dt_Min
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -506,6 +512,7 @@ USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
 USE MOD_SurfaceModel_Tools      ,ONLY: CalcPostWallCollVelo, SurfaceModel_EnergyAccommodation
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
+
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -524,7 +531,7 @@ REAL                              :: POI_fak, TildTrajectory(3), adaptTimeStep
 LOGICAL                           :: IsAuxBC
 ! Symmetry
 REAL                              :: rotVelY, rotVelZ, rotPosY
-REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:3), Vector2(1:3)
+REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:3), Vector2(1:3), OldVelo(1:3)
 REAL                              :: dtVar
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN
@@ -558,7 +565,18 @@ SpecID = PartSpecies(PartID)
 POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 
 IF(PartBound%RotVelo(locBCID)) THEN
-  CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
+  WallVelo(1:3) = CalcRotWallVelo(locBCID,POI_vec)
+END IF
+
+IF(UseRotRefFrame) THEN ! In case of RotRefFrame OldVelo must be reconstructed 
+  IF (VarTimeStep%UseVariableTimeStep) THEN
+    adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
+  ELSE
+    adaptTimeStep = 1.
+  END IF
+  OldVelo = (PartState(1:3,PartID) - LastPartPos(1:3,PartID))/(dt*RKdtFrac*adaptTimeStep)
+ELSE
+  OldVelo = PartState(4:6,PartID)
 END IF
 
 ! 2.) Get the tangential vectors
@@ -596,7 +614,6 @@ END IF
 
 ! 3.) Calculate new velocity vector (Extended Maxwellian Model)
 VeloC(1:3) = CalcPostWallCollVelo(SpecID,DOTPRODUCT(PartState(4:6,PartID)),WallTemp,TransACC)
-
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
     VeloCAmbi(1:3) = CalcPostWallCollVelo(DSMC%AmbiDiffElecSpec,DOTPRODUCT(AmbipolElecVelo(PartID)%ElecVelo(1:3)),WallTemp,TransACC)
@@ -841,5 +858,114 @@ END DO
 
 END SUBROUTINE SurfaceFluxBasedBoundaryTreatment
 
+
+SUBROUTINE StickingCoefficientModel(PartID,SideID,n_Loc)
+!===================================================================================================================================
+!> Empirical sticking coefficient model using the product of a non-bounce probability (angle dependence with a cut-off angle) and
+!> condensation probability (linear temperature dependence, using different temperature limits). Particle sticking to the wall
+!> will be simply deleted, transfering the complete energy to the wall heat flux
+!> Assumed data input is [upper impact angle limit (deg), alpha_B (deg), T_1 (K), T_2 (K)]
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: PI
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, SampWallState, GlobalSide2SurfSide, SWIStickingCoefficient
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_part_operations         ,ONLY: RemoveParticle
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
+USE MOD_SurfaceModel_Vars       ,ONLY: StickingCoefficientData
+USE MOD_DSMC_Vars               ,ONLY: DSMC, SamplingActive
+USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
+USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                 :: n_loc(1:3)
+INTEGER,INTENT(IN)              :: PartID, SideID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iVal, SubP, SubQ, locBCID, SurfSideID
+REAL                            :: ImpactAngle, NonBounceProb, Prob, alpha_B, LowerTemp, UpperTemp, RanNum, WallTemp
+LOGICAL                         :: CalcStickCoeff, ParticleSticks
+!===================================================================================================================================
+
+CalcStickCoeff = .TRUE.
+ParticleSticks = .FALSE.
+Prob = 0.
+locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+! Get the wall temperature
+WallTemp = GetWallTemperature(PartID,locBCID,SideID)
+! Determine impact angle of particle
+ImpactAngle = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(TrackInfo%PartTrajectory,n_loc))))
+! Select the appropriate temperature coefficients and bounce angle
+IF(UBOUND(StickingCoefficientData,dim=2).GE.2) THEN
+  ! More than 1 row of coefficients
+  DO iVal = 1, UBOUND(StickingCoefficientData,dim=2)
+    IF(ImpactAngle.LE.StickingCoefficientData(1,iVal)) THEN
+      alpha_B   = StickingCoefficientData(2,iVal)
+      LowerTemp = StickingCoefficientData(3,iVal)
+      UpperTemp = StickingCoefficientData(4,iVal)
+      CalcStickCoeff = .TRUE.
+      EXIT
+    ELSE
+      ! Impact angle is outside coefficient data range
+      CalcStickCoeff = .FALSE.
+    END IF
+  END DO
+ELSE
+  ! 1 row of coefficients
+  IF(ImpactAngle.LE.StickingCoefficientData(1,1)) THEN
+    alpha_B   = StickingCoefficientData(2,1)
+    LowerTemp = StickingCoefficientData(3,1)
+    UpperTemp = StickingCoefficientData(4,1)
+  ELSE
+    ! Impact angle is outside coefficient data range
+    CalcStickCoeff = .FALSE.
+  END IF
+END IF
+
+! Calculate the sticking coefficient and compare with random number
+IF(CalcStickCoeff) THEN
+  ! Calculate the non-bounce probability
+  IF(ImpactAngle.GE.alpha_B) THEN
+    NonBounceProb = (90.-ImpactAngle) / (90.-alpha_B)
+  ELSE
+    NonBounceProb = 1.
+  END IF
+  ! Calculate the sticking probability, using the wall temperature
+  IF(WallTemp.LT.LowerTemp) THEN
+    Prob = NonBounceProb
+  ELSE IF(WallTemp.GT.UpperTemp) THEN
+    Prob = 0.
+  ELSE
+    Prob = NonBounceProb * (UpperTemp - WallTemp) / (UpperTemp - LowerTemp)
+  END IF
+  ! Determine whether the particles sticks to the boundary
+  IF(Prob.GT.0.) THEN
+    CALL RANDOM_NUMBER(RanNum)
+    IF(Prob.GT.RanNum) ParticleSticks = .TRUE.
+  END IF
+END IF
+
+IF(ParticleSticks) THEN
+  ! Remove the particle from the simulation (total energy was added to the sampled heat flux before the interaction)
+  CALL RemoveParticle(PartID)
+ELSE
+  ! Perform regular Maxwell scattering
+  CALL MaxwellScattering(PartID,SideID,n_Loc)
+END IF
+
+! Sampling the sticking coefficient
+IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+  SubP = TrackInfo%p
+  SubQ = TrackInfo%q
+  SampWallState(SWIStickingCoefficient,SubP,SubQ,SurfSideID) = SampWallState(SWIStickingCoefficient,SubP,SubQ,SurfSideID) + Prob
+END IF
+
+END SUBROUTINE StickingCoefficientModel
 
 END MODULE MOD_SurfaceModel

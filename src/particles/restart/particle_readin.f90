@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -69,9 +69,12 @@ USE MOD_LoadBalance_Vars       ,ONLY: PartSourceLB,NodeSourceExtEquiLB
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_Particle_Vars          ,ONLY: DelayTime
+USE MOD_PICDepo_Vars           ,ONLY: PartSource
+USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize
@@ -123,6 +126,7 @@ REAL,ALLOCATABLE                   :: AD_DataTmp(:,:)
 INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
+CHARACTER(LEN=32)                  :: hilf
 !===================================================================================================================================
 
 FirstElemInd = offsetElem+1
@@ -135,7 +139,9 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! ------------------------------------------------
   ! PartSource
   ! ------------------------------------------------
-  IF (DoDeposition .AND. RelaxDeposition) THEN
+  ! 1.) relax deposition
+  ! 2.) particle delay time active
+  IF (DoDeposition .AND. (RelaxDeposition.OR.(time.LT.DelayTime))) THEN
     ALLOCATE(PartSource_HDF5(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
     ASSOCIATE (&
             counts_send  => INT(MPInElemSend     ) ,&
@@ -153,23 +159,45 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     END ASSOCIATE
     DEALLOCATE(PartSourceLB)
 
-    DO iElem =1,PP_nElems
-      DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+    ! 1.) relax deposition
+    IF(RelaxDeposition)THEN
+      DO iElem =1,PP_nElems
+        DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
 #if ((USE_HDG) && (PP_nVar==1))
-        PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
-        PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+          PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+          PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
 #else
-        PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
-        PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+          PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+          PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
 #endif
-      END DO; END DO; END DO
-    END DO
+        END DO; END DO; END DO
+      END DO
+    END IF ! RelaxDeposition
+
+    ! 2.) particle delay time active
+    IF(time.LT.DelayTime)THEN
+      DO iElem =1,PP_nElems
+        DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+#if ((USE_HDG) && (PP_nVar==1))
+          PartSource(1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+#else
+          PartSource(1:4,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+#endif
+        END DO; END DO; END DO
+      END DO
+    END IF ! time.LE.DelayTime
   END IF ! (DoDeposition .AND. RelaxDeposition)
 
   ! ------------------------------------------------
   ! NodeSourceExt (external/additional charge source terms)
   ! ------------------------------------------------
-  IF(DoDeposition.AND.DoDielectricSurfaceCharge)THEN
+  IF(DoDielectricSurfaceCharge)THEN
+    ! This array is not allocated when DoDeposition=F, however, the previously calculated surface charge might still be required in
+    ! the future, when DoDeposition is activated again. Therefore, read the old data and store in the new state file.
+    IF(.NOT.DoDeposition) THEN
+      ALLOCATE(NodeSourceExt(1:nUniqueGlobalNodes))
+      NodeSourceExt = 0.
+    END IF
     ALLOCATE(NodeSourceExtEquiLBTmp(1:N_variables,0:1,0:1,0:1,nElems))
     ASSOCIATE (&
             counts_send  => INT(MPInElemSend     ) ,&
@@ -282,11 +310,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   DO iProc = 2,nProcessors
     MPIoffsetPartRecv(iProc) = SUM(MPInPartRecv(1:iProc-1))
   END DO
-
-  DEALLOCATE(PartInt)
-  ALLOCATE(PartInt(PartIntSize,FirstElemInd:LastElemInd))
-  PartInt = PartIntTmp
-  DEALLOCATE(PartIntTmp)
+  CALL MOVE_ALLOC(PartIntTmp,PartInt)
   PartIntExists = .TRUE.
 
   locnPart    = PartInt(ELEM_LastPartInd,LastElemInd)-PartInt(ELEM_FirstPartInd,FirstElemInd)
@@ -308,12 +332,8 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     ! Communicate PartData over MPI
     CALL MPI_ALLTOALLV(PartData,counts_send,disp_send,MPI_STRUCT,PartDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
   END ASSOCIATE
-
-  DEALLOCATE(PartData)
-  ALLOCATE(PartData(PartDataSize,offsetnPart+1_IK:offsetnPart+locnPart))
-  PartData = PartDataTmp
-  DEALLOCATE(PartDataTmp)
-  PartDataExists = .TRUE.
+  CALL MOVE_ALLOC(PartDataTmp,PartData)
+  PartDataExists   = .TRUE.
 
   ! ------------------------------------------------
   ! DSMC-specific arrays
@@ -337,11 +357,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
         ! Communicate VibQuantData over MPI
         CALL MPI_ALLTOALLV(VibQuantData,counts_send,disp_send,MPI_STRUCT,VibQuantDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
       END ASSOCIATE
-
-      DEALLOCATE(VibQuantData)
-      ALLOCATE(VibQuantData(MaxQuantNum,offsetnPart+1_IK:offsetnPart+locnPart))
-      VibQuantData = VibQuantDataTmp
-      DEALLOCATE(VibQuantDataTmp)
+      CALL MOVE_ALLOC(VibQuantDataTmp,VibQuantData)
     END IF
 
     ! Electronic
@@ -363,11 +379,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
         ! Communicate ElecDistriData over MPI
         CALL MPI_ALLTOALLV(ElecDistriData,counts_send,disp_send,MPI_STRUCT,ElecDistriDataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
       END ASSOCIATE
-
-      DEALLOCATE(ElecDistriData)
-      ALLOCATE(ElecDistriData(MaxElecQuant,offsetnPart+1_IK:offsetnPart+locnPart))
-      ElecDistriData = ElecDistriDataTmp
-      DEALLOCATE(ElecDistriDataTmp)
+      CALL MOVE_ALLOC(ElecDistriDataTmp,ElecDistriData)
     END IF
 
     ! Ambipolar Diffusion
@@ -389,11 +401,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
         ! Communicate AD_Data over MPI
         CALL MPI_ALLTOALLV(AD_Data,counts_send,disp_send,MPI_STRUCT,AD_DataTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
       END ASSOCIATE
-
-      DEALLOCATE(AD_Data)
-      ALLOCATE(AD_Data(3,offsetnPart+1_IK:offsetnPart+locnPart))
-      AD_Data = AD_DataTmp
-      DEALLOCATE(AD_DataTmp)
+      CALL MOVE_ALLOC(AD_DataTmp,AD_Data)
     END IF
   END IF ! useDSMC
 
@@ -604,11 +612,13 @@ ELSE
         DO iVar=1,PartDataSize
           IF (.NOT.readVarFromState(iVar)) THEN
             IF (TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational') THEN
-              SWRITE(*,*) 'WARNING: The following VarNamesParticles will be set to zero: '//TRIM(StrVarNames(iVar))
+              WRITE(UNIT=hilf,FMT='(I0)') iVar
+              SWRITE(*,*) 'WARNING: The following VarNamesParticles(iVar='//TRIM(hilf)//') will be set to zero: '//TRIM(StrVarNames(iVar))
             ELSE IF(TRIM(StrVarNames(iVar)).EQ.'MPF') THEN
               SWRITE(*,*) 'WARNING: The particle weighting factor will be initialized with the given global weighting factor!'
             ELSE
-              CALL Abort(__STAMP__,"not associated VarNamesParticles to be reset!")
+              CALL Abort(__STAMP__,"not associated VarNamesParticles to be reset! StrVarNames(iVar)="//TRIM(StrVarNames(iVar))//&
+              '. Note that initializing electronic DOF and vibrational molecular species with zero ist not imeplemted.')
             END IF ! TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational'
           END IF ! .NOT.readVarFromState(iVar)
         END DO ! iVar=1,PartDataSize

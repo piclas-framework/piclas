@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2015 - 2019 Wladimir Reschke
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -77,7 +77,7 @@ WallTemp   = PartBound%WallTemp(locBCID)
 WallVelo   = PartBound%WallVelo(1:3,locBCID)
 
 IF(PartBound%RotVelo(locBCID)) THEN
-  CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
+  WallVelo(1:3) = CalcRotWallVelo(locBCID,POI_vec)
 END IF
 
 CALL OrthoNormVec(n_loc,tang1,tang2)
@@ -331,44 +331,43 @@ CalcPostWallCollVelo(3)  = Cmr * VeloCz
 END FUNCTION CalcPostWallCollVelo
 
 
-SUBROUTINE CalcRotWallVelo(locBCID,POI,WallVelo)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Calculation of additional velocity through the rotating wall. The velocity is equal to circumferential speed at
-! the point of intersection (POI):
-! The direction is perpendicular to the rotational axis (vec_axi) AND the distance vector (vec_axi -> POI).
-! Rotation direction based on Right-hand rule.
-! The magnitude of the velocity depends on radius and rotation frequency.
-!----------------------------------------------------------------------------------------------------------------------------------!
+PPURE FUNCTION CalcRotWallVelo(locBCID,POI)
+!===================================================================================================================================
+!> Calculation of additional velocity through the rotating wall. The velocity is equal to circumferential speed at
+!> the point of intersection (POI):
+!> The direction is perpendicular to the rotational axis (vec_axi) AND the distance vector (vec_axi -> POI).
+!> Rotation direction based on Right-hand rule. The magnitude of the velocity depends on radius and rotation frequency.
+!> Currently implemented: simplified version assuming that the rotational axis is one of the major axis x,y or z.
+!===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals                 ,ONLY: CROSSNORM,VECNORM
+USE MOD_Globals                 ,ONLY: CROSS
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Globals_Vars            ,ONLY: PI
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
+! INPUT VARIABLES
 INTEGER,INTENT(IN)    :: locBCID
 REAL,INTENT(IN)       :: POI(3)
-REAL,INTENT(INOUT)    :: WallVelo(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                  :: CalcRotWallVelo(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                  :: vec_r(1:3),vec_a(1:3), vec_t(1:3), vec_OrgPOI(1:3),vec_axi_norm(1:3)
-REAL                  :: radius, circ_speed
 !===================================================================================================================================
 
-ASSOCIATE ( vec_org  => PartBound%RotOrg(1:3,locBCID) ,&
-            RotFreq  => PartBound%RotFreq(locBCID)    ,&
-            vec_axi  => PartBound%RotAxi(1:3,locBCID)   )
-  vec_OrgPOI(1:3) = POI(1:3) - vec_org(1:3)
-  vec_axi_norm = vec_axi / VECNORM(vec_axi)
-  vec_a(1:3) = DOT_PRODUCT(vec_axi_norm,vec_OrgPOI) * vec_axi_norm(1:3)
-  vec_r(1:3) = vec_OrgPOI(1:3) - vec_a(1:3)
-  radius = SQRT( vec_r(1)*vec_r(1) + vec_r(2)*vec_r(2) + vec_r(3)*vec_r(3) )
-  circ_speed = 2.0 * PI * radius * RotFreq
-  vec_t = CROSSNORM(vec_axi_norm,vec_r)
-  WallVelo(1:3) = circ_speed * vec_t(1:3)
-END ASSOCIATE
+! Case: rotational axis is NOT one of the major axis (x,y,z)
+! vec_OrgPOI(1:3) = POI(1:3) - PartBound%RotOrg(1:3,locBCID)
+! vec_axi_norm = PartBound%RotAxis(1:3,locBCID) / VECNORM(PartBound%RotAxis(1:3,locBCID))
+! vec_a(1:3) = DOT_PRODUCT(vec_axi_norm,vec_OrgPOI) * vec_axi_norm(1:3)
+! vec_r(1:3) = vec_OrgPOI(1:3) - vec_a(1:3)
+! radius = SQRT( vec_r(1)*vec_r(1) + vec_r(2)*vec_r(2) + vec_r(3)*vec_r(3) )
+! circ_speed = 2.0 * PI * radius * PartBound%RotFreq(locBCID)
+! vec_t = CROSSNORM(vec_axi_norm,vec_r)
+! WallVelo(1:3) = circ_speed * vec_t(1:3)
 
-END SUBROUTINE CalcRotWallVelo
+! Case: rotational is one of the major axis (x,y,z)
+CalcRotWallVelo(1:3) = CROSS(PartBound%RotOmega(1:3,locBCID),POI(1:3))
+
+END FUNCTION CalcRotWallVelo
 
 
 END MODULE MOD_SurfaceModel_Tools

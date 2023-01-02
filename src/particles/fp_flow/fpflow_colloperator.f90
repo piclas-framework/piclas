@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2018 - 2019 Marcel Pfeiffer
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -218,8 +218,10 @@ Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
 CellTemp = Species(1)%MassIC * u2/(3.0*BoltzmannConst)
 TEqui = CellTemp
 nu= 1.-3./(2.*Prandtl)
-Theta = BoltzmannConst*CellTemp/Species(1)%MassIC
-nu= MAX(nu,-Theta/(W(3)-Theta))
+IF (FPCollModel.EQ.2) THEN
+  Theta = BoltzmannConst*CellTemp/Species(1)%MassIC
+  nu= MAX(nu,-Theta/(W(3)-Theta))
+END IF
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   ! totalWeight contains the weighted particle number

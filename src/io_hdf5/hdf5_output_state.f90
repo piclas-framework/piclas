@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -101,6 +101,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronIonDensity,CalcElectronTempera
 USE MOD_Particle_Analyze_Tools ,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 USE MOD_HDF5_Output_Particles  ,ONLY: AddBRElectronFluidToPartSource
+USE MOD_Equation_Vars          ,ONLY: CoupledPowerPotential,CalcPCouplElectricPotential
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
@@ -129,6 +130,9 @@ INTEGER(KIND=IK)               :: nVar
 #ifdef PARTICLES
 REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
+#if USE_HDG
+REAL                           :: TmpArray2(3,1)
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
@@ -197,12 +201,8 @@ END IF ! .NOT.DoWriteStateToHDF5
 ! Check if state file creation should be skipped
 IF(.NOT.DoWriteStateToHDF5) RETURN
 
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
-#if USE_MPI
-StartT=MPI_WTIME()
-#else
-CALL CPU_TIME(StartT)
-#endif
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
+GETTIME(StartT)
 
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
@@ -331,7 +331,7 @@ ASSOCIATE (&
     END DO ! SendID = 1, 2
 
     CALL GetMasteriLocSides()
-    
+
   END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 
@@ -483,7 +483,7 @@ ASSOCIATE (&
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
-  IF(OutPutSource) THEN
+  IF(OutputSource) THEN
 #if USE_HDG
     ! Add BR electron fluid density to PartSource for output to state.h5
     IF(UseBRElectronFluid) CALL AddBRElectronFluidToPartSource()
@@ -561,12 +561,24 @@ IF(CalcBulkElectronTemp.AND.MPIRoot)THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   TmpArray(1,1) = BulkElectronTemp
   CALL WriteArrayToHDF5( DataSetName = 'BulkElectronTemp' , rank = 2 , &
-                         nValGlobal  = (/1_IK , 1_IK/)     , &
-                         nVal        = (/1_IK , 1_IK/)     , &
-                         offset      = (/0_IK , 0_IK/)     , &
+                         nValGlobal  = (/1_IK , 1_IK/)               , &
+                         nVal        = (/1_IK , 1_IK/)               , &
+                         offset      = (/0_IK , 0_IK/)               , &
                          collective  = .FALSE., RealArray = TmpArray(1,1))
   CALL CloseDataFile()
 END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#if USE_HDG
+IF(CalcPCouplElectricPotential.AND.MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  TmpArray2(1:3,1) = CoupledPowerPotential(1:3)
+  CALL WriteArrayToHDF5( DataSetName = 'CoupledPowerPotential' , rank = 2 , &
+                         nValGlobal  = (/1_IK , 3_IK/)                    , &
+                         nVal        = (/1_IK , 3_IK/)                    , &
+                         offset      = (/0_IK , 0_IK/)                    , &
+                         collective  = .FALSE., RealArray = TmpArray2(1:3,1))
+  CALL CloseDataFile()
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
 #if USE_LOADBALANCE
@@ -626,8 +638,9 @@ IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
 CALL WriteEmissionVariablesToHDF5(FileName)
 #endif /*PARTICLES*/
 
-EndT=PICLASTIME()
-SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+
 #if defined(PARTICLES)
 CALL DisplayNumberOfParticles(1)
 #endif /*defined(PARTICLES)*/

@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2015 - 2019 Wladimir Reschke
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -44,7 +44,7 @@ USE MOD_Particle_Vars
 USE MOD_Globals                   ,ONLY: abort,DOTPRODUCT
 USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC,useDSMC,PartStateIntEn,RadialWeighting
 USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC,AmbipolElecVelo
-USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact,SWIVarTimeStep
 USE MOD_part_tools                ,ONLY: GetParticleWeight
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
@@ -124,7 +124,7 @@ CASE ('old')
   END IF
   ! Sample the time step for the correct determination of the heat flux
   IF (VarTimeStep%UseVariableTimeStep) THEN
-    SampWallState(SAMPWALL_NVARS+nSpecies+1,SubP,SubQ,SurfSideID) = SampWallState(SAMPWALL_NVARS+nSpecies+1,SubP,SubQ,SurfSideID) &
+    SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) = SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) &
                                                               + VarTimeStep%ParticleTimeStep(PartID)
   END IF
 CASE ('new')
@@ -140,9 +140,7 @@ CASE ('new')
     END IF
   END IF
 CASE DEFAULT
-  CALL abort(&
-    __STAMP__&
-    ,'ERROR in CalcWallSample: wrong SampleType specified. Possible types -> ( old , new )')
+  CALL abort(__STAMP__,'ERROR in CalcWallSample: wrong SampleType specified. Possible types -> ( old , new )')
 END SELECT
 !----  Sampling force at walls (correct sign is set above)
 SampWallState(SAMPWALL_DELTA_MOMENTUMX,SubP,SubQ,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMX,SubP,SubQ,SurfSideID) + MomArray(1)

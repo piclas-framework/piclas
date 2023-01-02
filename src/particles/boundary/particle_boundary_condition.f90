@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -449,11 +449,12 @@ IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(PartSpecies(PartID))%ChargeIC.GT.0.0) Velo_oldAmbi(1:3) = AmbipolElecVelo(PartID)%ElecVelo(1:3)
 END IF
 ! (1) perform the rotational periodic movement and adjust velocity vector
-ASSOCIATE( rot_alpha => REAL(PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))))*GEO%RotPeriodicAngle)
+ASSOCIATE(rot_alpha => PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))), &
+          rot_alpha_delta => PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))) * 0.9999999)
   SELECT CASE(GEO%RotPeriodicAxi)
     CASE(1) ! x-rotation axis: LastPartPos(1,PartID) = LastPartPos_old(1,PartID)
-      LastPartPos(2,PartID) = COS(rot_alpha)*LastPartPos_old(2) - SIN(rot_alpha)*LastPartPos_old(3)
-      LastPartPos(3,PartID) = SIN(rot_alpha)*LastPartPos_old(2) + COS(rot_alpha)*LastPartPos_old(3)
+      LastPartPos(2,PartID) = COS(rot_alpha_delta)*LastPartPos_old(2) - SIN(rot_alpha_delta)*LastPartPos_old(3)
+      LastPartPos(3,PartID) = SIN(rot_alpha_delta)*LastPartPos_old(2) + COS(rot_alpha_delta)*LastPartPos_old(3)
       PartState(5,PartID) = COS(rot_alpha)*Velo_old(2) - SIN(rot_alpha)*Velo_old(3)
       PartState(6,PartID) = SIN(rot_alpha)*Velo_old(2) + COS(rot_alpha)*Velo_old(3)
       IF (DSMC%DoAmbipolarDiff) THEN
@@ -462,9 +463,9 @@ ASSOCIATE( rot_alpha => REAL(PartBound%RotPeriodicDir(PartBound%MapToPartBC(Side
           AmbipolElecVelo(PartID)%ElecVelo(6) = SIN(rot_alpha)*Velo_oldAmbi(2) + COS(rot_alpha)*Velo_oldAmbi(3)
         END IF
       END IF
-    CASE(2) ! x-rotation axis: LastPartPos(2,PartID) = LastPartPos_old(2,PartID)
-      LastPartPos(1,PartID) = COS(rot_alpha)*LastPartPos_old(1) + SIN(rot_alpha)*LastPartPos_old(3)
-      LastPartPos(3,PartID) =-SIN(rot_alpha)*LastPartPos_old(1) + COS(rot_alpha)*LastPartPos_old(3)
+    CASE(2) ! y-rotation axis: LastPartPos(2,PartID) = LastPartPos_old(2,PartID)
+      LastPartPos(1,PartID) = COS(rot_alpha_delta)*LastPartPos_old(1) + SIN(rot_alpha_delta)*LastPartPos_old(3)
+      LastPartPos(3,PartID) =-SIN(rot_alpha_delta)*LastPartPos_old(1) + COS(rot_alpha_delta)*LastPartPos_old(3)
       PartState(4,PartID) = COS(rot_alpha)*Velo_old(1) + SIN(rot_alpha)*Velo_old(3)
       PartState(6,PartID) =-SIN(rot_alpha)*Velo_old(1) + COS(rot_alpha)*Velo_old(3)
       IF (DSMC%DoAmbipolarDiff) THEN
@@ -473,9 +474,9 @@ ASSOCIATE( rot_alpha => REAL(PartBound%RotPeriodicDir(PartBound%MapToPartBC(Side
           AmbipolElecVelo(PartID)%ElecVelo(6) = -SIN(rot_alpha)*Velo_oldAmbi(1) + COS(rot_alpha)*Velo_oldAmbi(3)
         END IF
       END IF
-    CASE(3) ! x-rotation axis: LastPartPos(3,PartID) = LastPartPos_old(3,PartID)
-      LastPartPos(1,PartID) = COS(rot_alpha)*LastPartPos_old(1) - SIN(rot_alpha)*LastPartPos_old(2)
-      LastPartPos(2,PartID) = SIN(rot_alpha)*LastPartPos_old(1) + COS(rot_alpha)*LastPartPos_old(2)
+    CASE(3) ! z-rotation axis: LastPartPos(3,PartID) = LastPartPos_old(3,PartID)
+      LastPartPos(1,PartID) = COS(rot_alpha_delta)*LastPartPos_old(1) - SIN(rot_alpha_delta)*LastPartPos_old(2)
+      LastPartPos(2,PartID) = SIN(rot_alpha_delta)*LastPartPos_old(1) + COS(rot_alpha_delta)*LastPartPos_old(2)
       PartState(4,PartID) = COS(rot_alpha)*Velo_old(1) - SIN(rot_alpha)*Velo_old(2)
       PartState(5,PartID) = SIN(rot_alpha)*Velo_old(1) + COS(rot_alpha)*Velo_old(2)
       IF (DSMC%DoAmbipolarDiff) THEN
@@ -521,7 +522,7 @@ END DO
 IF(.NOT.FoundInElem) THEN
   ! Particle appears to have not crossed any of the checked sides. Deleted!
   IF(DisplayLostParticles)THEN
-    IPWRITE(*,*) 'Error in Particle TriaTracking! Particle Number',PartID,'lost. Element:', ElemID,'(species:',PartSpecies(PartID),')'
+    IPWRITE(*,*) 'Error in RotPeriodicBC! Particle Number',PartID,'lost. Element:', ElemID,'(species:',PartSpecies(PartID),')'
     IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,PartID)
     IPWRITE(*,*) 'Pos:     ', PartState(1:3,PartID)
     IPWRITE(*,*) 'Velo:    ', PartState(4:6,PartID)

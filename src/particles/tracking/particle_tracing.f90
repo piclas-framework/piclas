@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -819,7 +819,6 @@ USE MOD_Mesh_Vars                   ,ONLY: NGeo
 USE MOD_Particle_Localization       ,ONLY: SinglePointToElement
 USE MOD_Particle_Surfaces_Vars      ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars          ,ONLY: ElemBaryNGeo
-USE MOD_Particle_Vars               ,ONLY: PartState
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
@@ -900,12 +899,6 @@ ELSE
   ! update particle element
   ! check if the side is a big mortar side
   NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
-
-#ifdef CODE_ANALYZE
-  WRITE(UNIT_stdout,'(30("-"))')
-  WRITE(UNIT_stdout,*) 'ElemID:',ElemID,'PartID',PartID,'SideID:',SideID,'Move rel. to Side:',DOT_PRODUCT(n_loc,PartTrajectory),'NbElemID:',NbElemID, 'PartElem (w/o refl.)', SinglePointToElement(PartState(1:3,PartID),doHalo=.TRUE.)
-  WRITE(UNIT_stdout,*) 'PartPos',PartState(1:3,PartID), 'PartVel:',PartState(4:6,PartID)
-#endif /* CODE_ANALYZE */
 
   IF (NbElemID.LT.0) THEN ! Mortar side
   nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)

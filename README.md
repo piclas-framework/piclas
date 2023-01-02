@@ -10,7 +10,7 @@ support the project by citing our publications given in [REFERENCE.md](REFERENCE
 ## Documentation and Installation
 
 The documentation of PICLas can be found in the [User Guide](https://piclas.readthedocs.io/), where the installation procedure is
-described in [Chapter 2](https://piclas.readthedocs.io/en/latest/installation.html).
+described in [Chapter 2](https://piclas.readthedocs.io/en/latest/userguide/installation.html).
 
 ## Regression Testing
 
@@ -25,6 +25,7 @@ PICLas uses several external libraries as well as auxiliary functions from open 
 * [LAPACK](http://www.netlib.org/lapack/)
 * [MPI](https://www.open-mpi.org/)
 * [HDF5](https://www.hdfgroup.org/)
+* [PETSc](https://petsc.org/)
 
 ## I need help or further information:
 
@@ -32,6 +33,5 @@ For bug fixes, code development and application questions, feel free to open an 
 
 * Academic
   * [Numerical Modelling and Simulation Group, Institute of Space Systems, University of Stuttgart](https://www.irs.uni-stuttgart.de/en/research/space-transport-technology/numerical-modeling-and-simulations/)
-  * [Numerics Research Group, Institute of Aerodynamics and Gas Dynamics, University of Stuttgart](https://www.iag.uni-stuttgart.de/en/working-groups/numerical-methods/)
 * Simulation service & training
   * [boltzplatz - numerical plasma dynamics GmbH](https://boltzplatz.eu)

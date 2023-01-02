@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2019 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -56,7 +56,7 @@ USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_ReadInTools            ,ONLY: PrintOption
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart
+USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -343,7 +343,8 @@ DO i=1,nSpecies
       CALL MPI_WAIT(PartMPI%InitGroup(InitGroup)%Request, MPI_STATUS_IGNORE, iError)
 #if defined(MEASURE_MPI_WAIT)
       CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-      MPIW8TimePart(5) = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+      MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
+      MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
       IF(PartMPI%InitGroup(InitGroup)%MPIRoot) THEN

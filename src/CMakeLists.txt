@@ -358,6 +358,28 @@ ELSE()
 ENDIF()
 
 # =========================================================================
+# Unit test at end of compilation
+# =========================================================================
+# Check is unit tests can be activated
+IF(BUILD_TYPE_LC MATCHES "sanitize" AND LIBS_USE_MPI)
+  SET(ACTIVATE_UNIT_TEST OFF)
+  # Check if unit tests were previously activated
+  IF(PICLAS_UNITTESTS)
+    MESSAGE(WARNING "Unit tests automatically disabled (PICLAS_UNITTESTS=OFF) with\n CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}\n LIBS_USE_MPI = ${LIBS_USE_MPI}\nas the tests will always fail due to memory errors returned from the MPI library.")
+    SET(PICLAS_UNITTESTS OFF)
+  ENDIF()
+ELSE()
+  SET(ACTIVATE_UNIT_TEST ON)
+ENDIF()
+
+# Enable unit testing only when ACTIVATE_UNIT_TEST=ON
+CMAKE_DEPENDENT_OPTION(PICLAS_UNITTESTS "Enable unit tests after build" ON "ACTIVATE_UNIT_TEST" OFF)
+
+IF(PICLAS_UNITTESTS)
+  INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/unitTests/CMakeLists.txt)
+ENDIF()
+
+# =========================================================================
 # PICLas sources & targets
 # =========================================================================
 FUNCTION(add_exec target)
@@ -408,7 +430,9 @@ FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
                             ./src/readintools/*.f90
                             ./src/recordpoints/*.f90
                             ./src/restart/*.f90
-                            ./src/utils/*.f90 )
+                            ./src/utils/*.f90
+                            ./unitTests/unittest.f90
+                            ./unitTests/unittest_vars.f90)
 
 LIST(APPEND timediscF90 ${timediscF90}
                         ./src/timedisc/timedisc.f90

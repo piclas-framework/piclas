@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -141,6 +141,7 @@ TYPE tSpecies                                                                ! P
 END TYPE
 
 INTEGER                                  :: nSpecies                         ! number of species
+CHARACTER(LEN=256)                       :: SpeciesDatabase                  ! Name of the species database
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
 LOGICAL                                  :: PartMeshHasPeriodicBCs
@@ -188,12 +189,13 @@ TYPE tParticleDataManagement
   INTEGER                                :: CurrentNextFreePosition           ! Index of nextfree index in nextFreePosition-Array
   INTEGER                                :: maxParticleNumber                 ! Maximum Number of all Particles
   INTEGER                                :: ParticleVecLength                 ! Vector Length for Particle Push Calculation
-  INTEGER                                :: ParticleVecLengthOld                 ! Vector Length for Particle Push Calculation
+  INTEGER                                :: ParticleVecLengthOld              ! Vector Length for Particle Push Calculation
   INTEGER , ALLOCATABLE                  :: PartInit(:)                       ! (1:NParts), initial emission condition number
                                                                               ! the calculation area
-  INTEGER ,ALLOCATABLE                   :: nextFreePosition(:)  !  =>NULL()  ! next_free_Position(1:max_Particle_Number)
+  INTEGER ,ALLOCATABLE                   :: nextFreePosition(:)  !  =>NULL()  ! next_free_Position(1:maxParticleNumber)
                                                                               ! List of free Positon
-  LOGICAL ,ALLOCATABLE                   :: ParticleInside(:)    !  =>NULL()  ! Particle_inside(1:Particle_Number)
+  LOGICAL ,ALLOCATABLE                   :: ParticleInside(:)                 ! Particle_inside (1:maxParticleNumber)
+  LOGICAL ,ALLOCATABLE                   :: InRotRefFrame(:)                  ! Check for RotRefFrame (1:maxParticleNumber)
   LOGICAL ,ALLOCATABLE                   :: dtFracPush(:)                     ! Push random fraction only
   LOGICAL ,ALLOCATABLE                   :: IsNewPart(:)                      ! Reconstruct RK-scheme in next stage
 END TYPE
@@ -209,6 +211,10 @@ LOGICAL                                  :: WriteMacroVolumeValues =.FALSE.   ! 
 LOGICAL                                  :: WriteMacroSurfaceValues=.FALSE.   ! Output of macroscopic values on surface
 INTEGER                                  :: MacroValSamplIterNum              ! Number of iterations for sampling
                                                                               ! macroscopic values
+LOGICAL                                  :: SampleElecExcitation              ! Sampling the electronic excitation rate per species
+INTEGER                                  :: ExcitationLevelCounter            ! 
+REAL, ALLOCATABLE                        :: ExcitationSampleData(:,:)         ! 
+INTEGER, ALLOCATABLE                     :: ExcitationLevelMapping(:,:)       ! 
 
 INTEGER, ALLOCATABLE                     :: vMPFMergeThreshold(:)             ! Max particle number per cell and (iSpec)
 INTEGER, ALLOCATABLE                     :: vMPFSplitThreshold(:)             ! Min particle number per cell and (iSpec)
@@ -275,5 +281,25 @@ TYPE tVariableTimeStep
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
 
+LOGICAL                                :: DoVirtualCellMerge
+INTEGER                                :: MinPartNumCellMerge
+INTEGER                                :: VirtualCellMergeSpread
+INTEGER                                :: MaxNumOfMergedCells
+TYPE tVirtualCellMerge
+  INTEGER, ALLOCATABLE                 :: MergedCellID(:)
+  INTEGER                              :: NumOfMergedCells
+  INTEGER                              :: MasterCell
+  LOGICAL                              :: isMerged
+  REAL                                 :: MergedVolume
+END TYPE
+TYPE (tVirtualCellMerge),ALLOCATABLE   :: VirtMergedCells(:)
+
+LOGICAL               :: UseRotRefFrame           ! flag for rotational frame of reference
+INTEGER               :: RotRefFrameAxis          ! axis of rotational frame of reference (x=1, y=2, z=3)
+REAL                  :: RotRefFrameFreq          ! frequency of rotational frame of reference
+REAL                  :: RotRefFrameOmega(3)      ! angular velocity of rotational frame of reference
+INTEGER               :: nRefFrameRegions         ! number of rotational frame of reference regions
+REAL, ALLOCATABLE     :: RotRefFramRegion(:,:)    ! MIN/MAX defintion for multiple rotational frame of reference region     
+                                                  ! (i,RegionNumber), MIN:i=1, MAX:i=2
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

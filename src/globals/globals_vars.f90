@@ -1,6 +1,6 @@
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -23,7 +23,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=6),PARAMETER :: ProgramName  = 'PICLas'              !> name of this program
 INTEGER,PARAMETER          :: MajorVersion = 2                     !> FileVersion number saved in each hdf5 file with hdf5 header
-INTEGER,PARAMETER          :: MinorVersion = 8                     !> FileVersion number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: MinorVersion = 9                     !> FileVersion number saved in each hdf5 file with hdf5 header
 INTEGER,PARAMETER          :: PatchVersion = 0                     !> FileVersion number saved in each hdf5 file with hdf5 header
 REAL,PARAMETER             :: FileVersion  = REAL(MajorVersion,8)+REAL(MinorVersion,8)/10.+REAL(PatchVersion,8)/100. !> FileVersion
                                                                    !> number saved in each hdf5 file with hdf5 header
@@ -40,8 +40,8 @@ REAL                       :: CommMeshReadinWallTime               !> Shared mem
 REAL                       :: SimulationEfficiency                 !> relates the simulated time to the used CPUh (SIMULATION TIME PER
                                                                    !> CALCULATION in [s]/[CPUh])
 REAL                       :: StartT                               !> Timer start
-REAL                       :: PID                                  !> Performance index: (CalcTimeEnd-CalcTimeStart)*nProcessors/
-                                                                   !> (nGlobalElems*(PP_N+1)**3*iter_loc)
+REAL                       :: PID                                  !> Performance index: (CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
+REAL                       :: memory(1:4)                          !> RAM: used, available, total and initial (total at the beginning of the simulation)
 REAL,PARAMETER             :: PI=ACOS(-1.0)                         !> the number pi ~= 3.14
 REAL,PARAMETER             :: sPI=1.0/PI                            !> inverse of pi
 REAL,PARAMETER             :: epsMach=EPSILON(0.0)                  !> Machine accuracy

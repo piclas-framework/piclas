@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2021 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -550,7 +550,7 @@ DO iSpec=1,nSpecies
       IF(TrackingMethod.EQ.REFMAPPING) THEN
         CALL abort(__STAMP__,'ERROR: Adaptive surface flux boundary conditions are not implemented with RefMapping!')
       END IF
-      IF((Symmetry%Order.LE.2).OR.VarTimeStep%UseVariableTimeStep) THEN
+      IF((Symmetry%Order.LE.2).OR.(VarTimeStep%UseVariableTimeStep.AND..NOT.VarTimeStep%UseDistribution)) THEN
         CALL abort(__STAMP__&
             ,'ERROR: Adaptive surface flux boundary conditions are not implemented with 2D/axisymmetric or variable time step!')
       END IF
@@ -565,6 +565,9 @@ DO iSpec=1,nSpecies
         SF%PartDensity       = SF%AdaptivePressure / (BoltzmannConst * SF%MWTemperatureIC)
       CASE(3,4)
         SF%AdaptiveMassflow  = GETREAL('Part-Species'//TRIM(hilf2)//'-Adaptive-Massflow')
+        IF(ALMOSTEQUAL(SF%AdaptiveMassflow,0.).AND.SF%AdaptiveMassflow.NE.0.) THEN
+          CALL abort(__STAMP__,'ERROR in adaptive inlet: given mass flow is within machine tolerance!')
+        END IF
         IF(SF%VeloIC.LE.0.0) THEN
           CALL abort(__STAMP__,'ERROR in adaptive inlet: positive initial guess of velocity for Type 3/Type 4 condition required!')
         END IF

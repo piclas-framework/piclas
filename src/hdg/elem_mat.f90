@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -11,10 +11,15 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
-MODULE MOD_Elem_Mat
+#if USE_PETSC
+#include "petsc/finclude/petsc.h"
+#endif
+
+
 !===================================================================================================================================
 ! Module for the HDG element matrices
 !===================================================================================================================================
+MODULE MOD_Elem_Mat
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -69,6 +74,10 @@ USE MOD_Basis              ,ONLY: getSPDInverse
 #if defined(PARTICLES)
 USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
+#if USE_PETSC
+USE PETSc
+USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -89,6 +98,15 @@ REAL                 :: Ktilde(3,3)
 REAL                 :: Stmp1(nGP_vol,nGP_face), Stmp2(nGP_face,nGP_face)
 INTEGER              :: idx(3),jdx(3),gdx(3)
 REAL                 :: time0, time
+#if USE_PETSC
+PetscErrorCode       :: ierr
+INTEGER              :: iSideID,jSideID
+INTEGER              :: ElemID, BCsideID
+INTEGER              :: iBCSide,locBCSideID
+INTEGER              :: iPETScGlobal, jPETScGlobal
+INTEGER              :: iSide,locSideID
+REAL                 :: intMat(nGP_face, nGP_face)
+#endif
 !===================================================================================================================================
 
 #if defined(IMPA) || defined(ROS)
@@ -309,8 +327,62 @@ InvDhat(:,:,iElem)=-getSPDInverse(nGP_vol,-Dhat)
       Smat(:,:,jLocSide,iLocSide,iElem) = Smat(:,:,jLocSide,iLocSide,iElem) + TRANSPOSE(Stmp2)
     END DO !iLocSide
   END DO !jLocSide
-
 END DO !iElem
+
+#if USE_PETSC
+! Fill Smat Petsc, TODO do this without filling Smat
+
+! Change Smat for all small mortar sides to account for the interpolation from big to small side
+DO iSide=1,nSides
+  IF (SmallMortarInfo(iSide).NE.0) THEN
+    locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
+    iElem    = SideToElem(S2E_NB_ELEM_ID,iSide)
+    IF (iElem.LT.0) CYCLE
+  ELSE
+    CYCLE
+  END IF
+  intMat = IntMatMortar(:,:,SmallMortarType(2,iSide),SmallMortarType(1,iSide))
+  DO iLocSide=1,6
+    Smat(:,:,iLocSide,locSideID,iElem) = MATMUL(Smat(:,:,iLocSide,locSideID,iElem),intMat)
+    Smat(:,:,locSideID,iLocSide,iElem) = MATMUL(TRANSPOSE(intMat),Smat(:,:,locSideID,iLocSide,iElem))
+  END DO
+END DO
+
+! Fill Dirichlet BC Smat
+DO iBCSide=1,nDirichletBCSides
+  BCSideID=DirichletBC(iBCSide)
+  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+  ElemID    = SideToElem(S2E_ELEM_ID,BCSideID)
+  DO iLocSide=1,6
+    Smat_BC(:,:,iLocSide,iBCSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
+  END DO
+END DO
+! Fill ZeroPotentialSide Smat
+IF (ZeroPotentialSideID.GT.0) THEN
+  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,ZeroPotentialSideID)
+  ElemID    = SideToElem(S2E_ELEM_ID,ZeroPotentialSideID)
+  DO iLocSide=1,6
+    Smat_zeroPotential(:,:,iLocSide) = Smat(:,:,iLocSide,locBCSideID,ElemID)
+  END DO
+END IF
+! Fill Smat for PETSc with remaining DOFs
+DO iElem=1,PP_nElems
+  DO iLocSide=1,6
+    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+    IF (PETScGlobal(iSideID).EQ.-1) CYCLE
+    DO jLocSide=1,6
+      jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
+      iPETScGlobal=PETScGlobal(iSideID)
+      jPETScGlobal=PETScGlobal(jSideID)
+      IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
+      CALL MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal, &
+                                Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr);PetscCall(ierr)
+    END DO
+  END DO
+END DO
+CALL MatAssemblyBegin(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);PetscCall(ierr)
+CALL MatAssemblyEnd(Smat_petsc,MAT_FINAL_ASSEMBLY,ierr);PetscCall(ierr)
+#endif
 
 
 #if defined(IMPA) || defined(ROS)
@@ -361,12 +433,16 @@ SUBROUTINE BuildPrecond()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_HDG_Vars
-USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR
-USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
 #if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
+#if USE_PETSC
+USE PETSc
+#else
+USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR
+USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -375,11 +451,38 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_PETSC
+PetscErrorCode   :: ierr
+PC               :: pc
+PetscInt         :: lens(nPETScUniqueSides)
+#else
 INTEGER          :: ElemID, locSideID, SideID, igf
-INTEGER           :: lapack_info
+INTEGER          :: lapack_info
+#endif
 !===================================================================================================================================
 
-
+#if USE_PETSC
+CALL KSPGetPC(ksp,pc,ierr);PetscCall(ierr)
+SELECT CASE(PrecondType)
+CASE(0)
+  CALL PCSetType(pc,PCNONE,ierr);PetscCall(ierr)
+CASE(1)
+  CALL PCSetType(pc,PCJACOBI,ierr);PetscCall(ierr)
+CASE(2)
+  CALL PCHYPRESetType(pc,PCILU,ierr);PetscCall(ierr)
+CASE(3)
+  CALL PCHYPRESetType(pc,PCSPAI,ierr);PetscCall(ierr)
+CASE(4)
+  lens=nGP_Face
+  CALL PCSetType(pc,PCBJACOBI,ierr);PetscCall(ierr)
+  CALL PCBJacobiSetLocalBlocks(pc,nPETScUniqueSides,lens,ierr);PetscCall(ierr)
+  CALL KSPSetUp(ksp,ierr)
+case(10)
+  CALL PCSetType(pc,PCCHOLESKY,ierr);PetscCall(ierr)
+case(11)
+  CALL PCSetType(pc,PCLU,ierr);PetscCall(ierr)
+END SELECT
+#else
 SELECT CASE(PrecondType)
 CASE(0)
 ! do nothing
@@ -450,6 +553,7 @@ CASE(2)
     END IF
   END DO !1,nSides-nMPIsides_YOUR
 END SELECT
+#endif
 END SUBROUTINE BuildPrecond
 
 
