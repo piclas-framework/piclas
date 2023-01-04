@@ -1247,8 +1247,7 @@ SUBROUTINE CalcSurfaceFluxInfo()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals
-USE MOD_TimeDisc_Vars           ,ONLY: iter
-USE MOD_Particle_Analyze_Vars   ,ONLY: PartAnalyzeStep
+USE MOD_TimeDisc_Vars           ,ONLY: dt, iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: FlowRateSurfFlux, PressureAdaptiveBC
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,usevMPF
@@ -1267,25 +1266,14 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iSpec, iSF, ElemID, SampleElemID, SurfSideID, iSide, iSample, jSample, currentBC, iterNum
-REAL                :: MacroParticleFactor, dtVar
+INTEGER             :: iSpec, iSF, ElemID, SampleElemID, SurfSideID, iSide, iSample, jSample, currentBC
+REAL                :: MacroParticleFactor
 #if USE_MPI
 INTEGER             :: MaxSurfaceFluxBCs
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
 IF(iter.EQ.0) RETURN
-
-! Consider Part-AnalyzeStep as SampledMassFlow is only nullified here
-IF(PartAnalyzeStep.GT.1) THEN
-  IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
-    iterNum = INT(iter,4)
-  ELSE
-    iterNum = MIN(INT(PartAnalyzeStep,4),INT(iter,4))
-  END IF
-ELSE
-  iterNum = 1
-END IF
 
 IF(UseAdaptive) PressureAdaptiveBC = 0.
 ! 1) Calculate the processor-local mass flow rate and sum-up the area weighted pressure
@@ -1299,11 +1287,9 @@ DO iSpec = 1, nSpecies
   DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
     ! SampledMassFlow contains the weighted particle number balance (in - out)
     IF(Species(iSpec)%Surfaceflux(iSF)%UseEmissionCurrent) THEN
-      FlowRateSurfFlux(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow*ABS(Species(iSpec)%ChargeIC) &
-                                      * MacroParticleFactor / (dtVar*iterNum)
+      FlowRateSurfFlux(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow*ABS(Species(iSpec)%ChargeIC)*MacroParticleFactor/dt
     ELSE
-      FlowRateSurfFlux(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow*Species(iSpec)%MassIC*MacroParticleFactor &
-                                      / (dtVar*iterNum)
+      FlowRateSurfFlux(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow*Species(iSpec)%MassIC*MacroParticleFactor/dt
     END IF
     ! Reset the mass flow rate
     Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
@@ -1329,7 +1315,6 @@ DO iSpec = 1, nSpecies
   END DO
 END DO
 
-
 ! 2) Get the sum of the mass flow rate (final output value) and the sum of the area-weighted area pressures
 #if USE_MPI
 MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
@@ -1347,7 +1332,6 @@ END IF
 #endif /*USE_MPI*/
 
 ! 3) Determine the average pressure
-
 IF (PartMPI%MPIRoot) THEN
   IF(UseAdaptive) THEN
     DO iSpec = 1, nSpecies

@@ -94,9 +94,7 @@ REAL, DIMENSION(3)         :: v_minus, v_plus, v_prime, t_vec, v_minus_old, v_n1
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
-IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-  CALL Deposition()
-END IF
+IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition()
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
