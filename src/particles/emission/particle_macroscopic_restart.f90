@@ -40,8 +40,8 @@ USE MOD_Globals_Vars            ,ONLY: Pi
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, DSMC
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF,InitializeParticleMaxwell
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmetry, VarTimeStep
+USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmetry, UseVarTimeStep
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
@@ -84,8 +84,8 @@ DO iElem = 1, nElems
             MaxPosTemp = Bounds(1,2) + (Bounds(2,2) - Bounds(1,2))/ yPartitions *iHeight
             TempVol =  (MaxPosTemp-MinPosTemp)*(Bounds(2,1)-Bounds(1,1)) * Pi * (MaxPosTemp+MinPosTemp)
             TempMPF = CalcRadWeightMPF((MaxPosTemp+MinPosTemp)*0.5,iSpec)
-            IF(VarTimeStep%UseVariableTimeStep) THEN
-              TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (MaxPosTemp+MinPosTemp)*0.5, iElem)
+            IF(UseVarTimeStep) THEN
+              TempMPF = TempMPF * GetParticleTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (MaxPosTemp+MinPosTemp)*0.5, iElem, iSpec)
             END IF
             CALL RANDOM_NUMBER(iRan)
             nPart = INT(PartDens / TempMPF  * TempVol + iRan)
@@ -111,8 +111,8 @@ DO iElem = 1, nElems
           END IF
           CALL RANDOM_NUMBER(iRan)
           TempMPF = Species(iSpec)%MacroParticleFactor
-          IF(VarTimeStep%UseVariableTimeStep) THEN
-            TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem)
+          IF(UseVarTimeStep) THEN
+            TempMPF = TempMPF * GetParticleTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem, iSpec)
           END IF
           nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * ElemVolume_Shared(GlobalElemID) + iRan)
           DO iPart = 1, nPart
@@ -138,8 +138,8 @@ DO iElem = 1, nElems
         END IF
         CALL RANDOM_NUMBER(iRan)
         TempMPF = Species(iSpec)%MacroParticleFactor
-        IF(VarTimeStep%UseVariableTimeStep) THEN
-          TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem)
+        IF(UseVarTimeStep) THEN
+          TempMPF = TempMPF * GetParticleTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem, iSpec)
         END IF
         nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * Volume + iRan)
         DO iPart = 1, nPart
@@ -163,8 +163,8 @@ DO iElem = 1, nElems
         END IF
         CALL RANDOM_NUMBER(iRan)
         TempMPF = Species(iSpec)%MacroParticleFactor
-        IF(VarTimeStep%UseVariableTimeStep) THEN
-          TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem)
+        IF(UseVarTimeStep) THEN
+          TempMPF = TempMPF * GetParticleTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (Bounds(2,2)+Bounds(1,2))*0.5, iElem, iSpec)
         END IF
         nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * Volume + iRan)
         DO iPart = 1, nPart
@@ -190,8 +190,8 @@ DO iElem = 1, nElems
         END IF
         CALL RANDOM_NUMBER(iRan)
         TempMPF = Species(iSpec)%MacroParticleFactor
-        IF(VarTimeStep%UseVariableTimeStep) THEN
-          TempMPF = TempMPF * CalcVarTimeStep(iElem=iElem)
+        IF(UseVarTimeStep) THEN
+          TempMPF = TempMPF * GetParticleTimeStep(iElem=iElem, iSpec=iSpec)
         END IF
         nPart = INT(MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / TempMPF * Volume + iRan)
         DO iPart = 1, nPart

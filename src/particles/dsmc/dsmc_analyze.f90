@@ -470,9 +470,10 @@ USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting, BGGas
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry, VirtMergedCells
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, Symmetry
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge, VirtMergedCells
-USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
 USE MOD_Restart_Vars           ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
@@ -645,7 +646,7 @@ DO iElem = 1, nElems ! element/cell main loop
       END IF
     END IF
     ! Radial weighting, vMPF, variable timestep: Getting the actual number of simulation particles without weighting factors
-    IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+    IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
       Total_PartNum = 0.0
       DO iSpec = 1, nSpecies
         IF(DSMC%SampNum.GT.0) DSMC_MacroVal(nVarLoc*(iSpec-1)+11,iElem) = DSMC_Solution(11,iElem, iSpec) / REAL(DSMC%SampNum)
@@ -674,11 +675,11 @@ IF (DSMC%CalcQualityFactors) THEN
       DSMC_MacroVal(nVarCount+1:nVarCount+3,iElem) = DSMC%QualityFacSamp(iElem,1:3) / DSMC%QualityFacSamp(iElem,4)
     END IF
     nVarCount = nVar + 3
-    IF(VarTimeStep%UseVariableTimeStep) THEN
+    IF(UseVarTimeStep) THEN
       IF(VarTimeStep%UseLinearScaling.AND.(Symmetry%Order.EQ.2)) THEN
         ! 2D/Axisymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
         ! midpoint is used to calculate the time step
-        VarTimeStep%ElemFac(iElem) = CalcVarTimeStep(ElemMidPoint_Shared(1,GetCNElemID(iElem + offsetElem)), &
+        VarTimeStep%ElemFac(iElem) = GetParticleTimeStep(ElemMidPoint_Shared(1,GetCNElemID(iElem + offsetElem)), &
                                                      ElemMidPoint_Shared(2,GetCNElemID(iElem + offsetElem)))
       END IF
       DSMC_MacroVal(nVarCount+1,iElem) = VarTimeStep%ElemFac(iElem)
@@ -835,7 +836,7 @@ USE MOD_Globals_Vars  ,ONLY: ProjectName, ElementaryCharge
 USE MOD_Mesh_Vars     ,ONLY: offsetElem,nGlobalElems, nElems
 USE MOD_io_HDF5
 USE MOD_HDF5_Output   ,ONLY: WriteAttributeToHDF5, WriteHDF5Header, WriteArrayToHDF5
-USE MOD_Particle_Vars ,ONLY: nSpecies, VarTimeStep, SampleElecExcitation, ExcitationLevelCounter, DoVirtualCellMerge
+USE MOD_Particle_Vars ,ONLY: nSpecies, UseVarTimeStep, SampleElecExcitation, ExcitationLevelCounter, DoVirtualCellMerge
 USE MOD_BGK_Vars      ,ONLY: BGKInitDone
 USE MOD_FPFlow_Vars   ,ONLY: FPInitDone
 ! IMPLICIT VARIABLE HANDLING
@@ -878,7 +879,7 @@ nVar=(nVarloc+nVarRelax)*nSpecOut
 
 IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
-  IF(VarTimeStep%UseVariableTimeStep) nVar_quality = nVar_quality + 1
+  IF(UseVarTimeStep) nVar_quality = nVar_quality + 1
   IF(DoVirtualCellMerge) nVar_quality = nVar_quality + 1
   IF(RadialWeighting%PerformCloning) nVar_quality = nVar_quality + 2
   IF(BGKInitDone) nVar_quality = nVar_quality + 6
@@ -950,7 +951,7 @@ IF (DSMC%CalcQualityFactors) THEN
   StrVarNames(nVarCount+2) ='DSMC_MeanCollProb'
   StrVarNames(nVarCount+3) ='DSMC_MCS_over_MFP'
   nVarCount=nVarCount+3
-  IF(VarTimeStep%UseVariableTimeStep) THEN
+  IF(UseVarTimeStep) THEN
     StrVarNames(nVarCount+1) ='VariableTimeStep'
     nVarCount = nVarCount + 1
   END IF

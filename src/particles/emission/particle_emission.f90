@@ -305,7 +305,7 @@ DO i=1,nSpecies
     CALL SetParticleVelocity(i,iInit,NbrOfParticle)
     CALL SetParticleChargeAndMass(i,NbrOfParticle)
     IF (usevMPF) CALL SetParticleMPF(i,iInit,NbrOfParticle)
-    IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
+    IF (UseVarTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
     ! define molecule stuff
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN
       iPart = 1

@@ -504,8 +504,8 @@ USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature, CalcRotWallVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry,UseRotRefFrame
-USE MOD_Particle_Vars           ,ONLY: VarTimeStep
-USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac, useElectronTimeStep, skipNonElectrons, ManualTimeStep, ManualTimeStepElectrons, dt_Min
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
+USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 #if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
@@ -569,8 +569,8 @@ IF(PartBound%RotVelo(locBCID)) THEN
 END IF
 
 IF(UseRotRefFrame) THEN ! In case of RotRefFrame OldVelo must be reconstructed 
-  IF (VarTimeStep%UseVariableTimeStep) THEN
-    adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
+  IF (UseVarTimeStep) THEN
+    adaptTimeStep = PartTimeStep(PartID)
   ELSE
     adaptTimeStep = 1.
   END IF
@@ -655,17 +655,11 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
 ! 6.) Determine the new particle position after the reflection
   LastPartPos(1:3,PartID) = POI_vec(1:3)
 
-  IF (VarTimeStep%UseVariableTimeStep) THEN
-    adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
+  IF (UseVarTimeStep) THEN
+    adaptTimeStep = PartTimeStep(PartID)
   ELSE
     adaptTimeStep = 1.
-  END IF ! VarTimeStep%UseVariableTimeStep
-  ! Electron time step
-  IF(useElectronTimeStep.AND.PARTISELECTRON(PartID)) THEN
-    dtVar = ManualTimeStepElectrons
-  ELSE
-    dtVar = dt
-  END IF
+  END IF ! UseVarTimeStep
   ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
   !TildPos       =PartState(1:3,PartID)-dt*RKdtFrac*PartState(4:6,PartID)
   TildTrajectory=dtVar*RKdtFrac*PartState(4:6,PartID)*adaptTimeStep
@@ -677,7 +671,7 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
   ELSE
     IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
   END IF ! IsAuxBC
-  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar*RKdtFrac * NewVelo(1:3) * adaptTimeStep
+  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt * RKdtFrac * NewVelo(1:3) * adaptTimeStep
 
 ! 7.) Axisymmetric simulation: Rotate the vector back into the symmetry plane
   IF(Symmetry%Axisymmetric) THEN

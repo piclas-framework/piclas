@@ -133,8 +133,8 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, TriaSurfaceFlux
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
+USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
-USE MOD_TimeDisc_Vars          ,ONLY: useElectronTimeStep, ManualTimeStep, ManualTimeStepElectrons
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 USE MOD_DSMC_Vars              ,ONLY: AmbiPolarSFMapping, DSMC, useDSMC
 #if USE_MPI
@@ -302,8 +302,9 @@ IF(DoRestart) THEN
       ELSE
         VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total               !proc local total
       END IF
-      IF(useElectronTimeStep.AND.SPECIESISELECTRON(iSpec)) THEN
-        RestartTimeVar = RestartTime / NINT(ManualTimeStep / ManualTimeStepElectrons)
+      ! Species-specific time step
+      IF(VarTimeStep%UseSpeciesSpecific) THEN
+        RestartTimeVar = RestartTime * Species(iSpec)%TimestepFactor
       ELSE
         RestartTimeVar = RestartTime
       END IF
@@ -380,7 +381,7 @@ SUBROUTINE ReadInAndPrepareSurfaceFlux(MaxSurfacefluxBCs, nDataBC)
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, VarTimeStep, DoPoissonRounding, DoTimeDepInflow
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, UseVarTimeStep, VarTimeStep, DoPoissonRounding, DoTimeDepInflow
 USE MOD_Particle_Vars          ,ONLY: Symmetry, UseCircularInflow
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
@@ -550,7 +551,7 @@ DO iSpec=1,nSpecies
       IF(TrackingMethod.EQ.REFMAPPING) THEN
         CALL abort(__STAMP__,'ERROR: Adaptive surface flux boundary conditions are not implemented with RefMapping!')
       END IF
-      IF((Symmetry%Order.LE.2).OR.(VarTimeStep%UseVariableTimeStep.AND..NOT.VarTimeStep%UseDistribution)) THEN
+      IF((Symmetry%Order.LE.2).OR.(UseVarTimeStep.AND..NOT.VarTimeStep%UseDistribution)) THEN
         CALL abort(__STAMP__&
             ,'ERROR: Adaptive surface flux boundary conditions are not implemented with 2D/axisymmetric or variable time step!')
       END IF

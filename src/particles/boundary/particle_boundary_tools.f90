@@ -123,9 +123,9 @@ CASE ('old')
     END IF
   END IF
   ! Sample the time step for the correct determination of the heat flux
-  IF (VarTimeStep%UseVariableTimeStep) THEN
+  IF (UseVarTimeStep) THEN
     SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) = SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) &
-                                                              + VarTimeStep%ParticleTimeStep(PartID)
+                                                              + PartTimeStep(PartID)
   END IF
 CASE ('new')
   ! must be old_velocity-new_velocity

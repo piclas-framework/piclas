@@ -71,7 +71,8 @@ SUBROUTINE InitMCC()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
-USE MOD_PARTICLE_Vars ,ONLY: nSpecies, SampleElecExcitation, ExcitationLevelCounter, ExcitationSampleData, ExcitationLevelMapping
+USE MOD_Particle_Vars ,ONLY: nSpecies, SampleElecExcitation, ExcitationLevelCounter, ExcitationSampleData, ExcitationLevelMapping
+USE MOD_Particle_Vars ,ONLY: VarTimeStep
 USE MOD_Mesh_Vars     ,ONLY: nElems
 USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC, ChemReac, CollisMode
 USE MOD_MCC_Vars      ,ONLY: UseMCC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
@@ -141,6 +142,9 @@ END IF
 ! MCC and variable vibrational relaxation probability is not supported
 IF(UseMCC.AND.(DSMC%VibRelaxProb.EQ.2.0)) CALL abort(__STAMP__&
       ,'ERROR: Monte Carlo Collisions and variable vibrational relaxation probability (DSMC-based) are not compatible!')
+
+IF(.NOT.UseMCC.AND.VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__,&
+      'ERROR: Only MCC is implemented with a species-specific time step!')
 
 ! Leave the routine
 IF(.NOT.UseMCC) RETURN

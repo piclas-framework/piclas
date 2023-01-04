@@ -194,7 +194,7 @@ Testing more complex DSMC routines: [Link CMAKE-CONFIG](regressioncheck/NIG_DSMC
 
 | **No.** |          **Case**          | **CMAKE-CONFIG** |             **Feature**             |    **Execution**   |                 **Comparing**                 |                               **Readme**                              |
 | :-----: | :------------------------: | :--------------: | :---------------------------------: | :----------------: | :-------------------------------------------: | :-------------------------------------------------------------------: |
-|    1    |     2D_VTS_Distribution    |      Release     |                                     |    nProcs=1,2,4    |              h5diff PartTimeStep              |     [Link](regressioncheck/NIG_DSMC/2D_VTS_Distribution/readme.md)    |
+|    1    |     2D_VTS_Distribution    |      Release     |                                     |    nProcs=1,2,4    |              h5diff ElemTimeStep              |     [Link](regressioncheck/NIG_DSMC/2D_VTS_Distribution/readme.md)    |
 |    2    |     Ambipolar_Diffusion    |      Release     |                                     |      nProcs=6      |                PartAnalyze.csv                |     [Link](regressioncheck/NIG_DSMC/Ambipolar_Diffusion/readme.md)    |
 |    3    |     Macroscopic_Restart    |      Release     |                                     |      nProcs=6      |                PartAnalyze.csv                |     [Link](regressioncheck/NIG_DSMC/Macroscopic_Restart/readme.md)    |
 |    4    |        RotPeriodicBC       |      Release     |      one rot-periodic BC angle      | nProcs=1,2,7,15,25 |  h5 bounds check PartData and PartAnalyze.csv |        [Link](regressioncheck/NIG_DSMC/RotPeriodicBC/readme.md)       |

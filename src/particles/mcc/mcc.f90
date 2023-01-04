@@ -53,7 +53,7 @@ USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, C
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMCSumOfFormedParticles, PolyatomMolDSMC, VibQuantsPar
 USE MOD_MCC_Vars                ,ONLY: SpecXSec, XSec_NullCollision
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
-USE MOD_Particle_Vars           ,ONLY: VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
@@ -299,7 +299,7 @@ DO iSpec = 1, nSpecies
               PDM%dtFracPush(PartIndex)       = .FALSE.
               ! Set particle weights
               PartMPF(PartIndex)              = PartMPFSplit
-              IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(PartIndex) = PartTimeStepSplit
+              IF(UseVarTimeStep) PartTimeStep(PartIndex) = PartTimeStepSplit
               ! Add new particle to the index list
               PEM%pNext(PEM%pEnd(iElem)) = PartIndex
               PEM%pEnd(iElem) = PartIndex
@@ -335,7 +335,7 @@ DO iSpec = 1, nSpecies
               END IF ! SpecDSMC(iSpec)%PolyatomicMol
               IF(DSMC%ElectronicModel.GT.0) PartStateIntSplit(3) = PartStateIntEn(3,PartIndex)
             END IF ! CollisMode.GT.1
-            IF(VarTimeStep%UseVariableTimeStep) PartTimeStepSplit = VarTimeStep%ParticleTimeStep(PartIndex)
+            IF(UseVarTimeStep) PartTimeStepSplit = PartTimeStep(PartIndex)
             ! Set the new MPF based on the actual number of split particles
             PartMPFSplit          = PartMPF(PartIndex) / REAL(SplitPartNum+1)
             PartMPF(PartIndex)    = PartMPFSplit

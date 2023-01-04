@@ -25,15 +25,8 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL             :: time_start                        !< start time of the timedisc
 REAL             :: ManualTimeStep                    !> Manual TimeStep
-REAL             :: ManualTimeStepElectrons           !> Manual TimeStep
 LOGICAL          :: useManualTimeStep                 !> Logical Flag for manual timestep. For consistency
                                                       !> with IAG programming style
-LOGICAL          :: useElectronTimeStep               !> Logical Flag for electron timestep
-INTEGER          :: electronIterationNum
-INTEGER          :: electronSkipIter
-LOGICAL          :: electronSubcycling
-LOGICAL          :: skipNonElectrons
-LOGICAL          :: skipElectrons
 REAL             :: TEnd                              !> simulation end time
 REAL             :: TAnalyze                          !> time for next analyze
 REAL             :: Time                              !> Simulation Time

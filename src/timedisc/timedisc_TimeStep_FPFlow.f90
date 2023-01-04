@@ -69,8 +69,8 @@ END IF
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
   ! Variable time step: getting the right time step for the particle (can be constant across an element)
-  IF (VarTimeStep%UseVariableTimeStep) THEN
-    dtVar = dt * VarTimeStep%ParticleTimeStep(iPart)
+  IF (UseVarTimeStep) THEN
+    dtVar = dt * PartTimeStep(iPart)
   ELSE
     dtVar = dt
   END IF

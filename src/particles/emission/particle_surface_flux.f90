@@ -46,8 +46,8 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata_auxSF
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt, useElectronTimeStep, skipNonElectrons, ManualTimeStep, ManualTimeStepElectrons, skipElectrons, electronSkipIter
+USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
+USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetSFElectronVelo
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
@@ -85,14 +85,6 @@ DO iSpec=1,nSpecies
   IF(useDSMC) THEN
     IF (DSMC%DoAmbipolarDiff) THEN
       IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
-    END IF
-  END IF
-  IF(useElectronTimeStep) THEN
-    IF(electronSkipIter.GT.0) THEN
-      ! Skip particles which are not electrons (electron subcycling)
-      IF(.NOT.SPECIESISELECTRON(iSpec).AND.skipNonElectrons) CYCLE
-      ! Skip electrons (electron skip)
-      IF(SPECIESISELECTRON(iSpec).AND.skipElectrons) CYCLE
     END IF
   END IF
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
@@ -247,9 +239,9 @@ DO iSpec=1,nSpecies
             PEM%GlobalElemID(ParticleIndexNbr) = globElemId
             PEM%LastGlobalElemID(ParticleIndexNbr) = globElemId !needed when ParticlePush is not executed, e.g. "delay"
             iPartTotal = iPartTotal + 1
-            IF (VarTimeStep%UseVariableTimeStep) THEN
-              VarTimeStep%ParticleTimeStep(ParticleIndexNbr) &
-                = CalcVarTimeStep(PartState(1,ParticleIndexNbr),PartState(2,ParticleIndexNbr),PEM%LocalElemID(ParticleIndexNbr))
+            IF (UseVarTimeStep) THEN
+              PartTimeStep(ParticleIndexNbr) = GetParticleTimeStep(PartState(1,ParticleIndexNbr),PartState(2,ParticleIndexNbr), &
+                                                                PEM%LocalElemID(ParticleIndexNbr), iSpec)
             END IF
             IF (RadialWeighting%DoRadialWeighting) THEN
               PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
@@ -334,8 +326,8 @@ END SUBROUTINE ParticleSurfaceflux
 SUBROUTINE CalcPartInsSubSidesStandardCase(iSpec, iSF, PartInsSubSides)
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_TimeDisc_Vars           ,ONLY: dt, RKdtFrac, RKdtFracTotal, Time, useElectronTimeStep, ManualTimeStepElectrons, ManualTimeStep
+USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
+USE MOD_TimeDisc_Vars           ,ONLY: dt, RKdtFrac, RKdtFracTotal, Time
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, BCdata_auxSF
 USE MOD_Part_Emission_Tools     ,ONLY: IntegerDivide, SamplePoissonDistri
 #if USE_MPI
@@ -357,12 +349,12 @@ REAL                   :: VFR_total, PartIns, RandVal1, dtVar, TimeVar
 INTEGER, ALLOCATABLE   :: PartInsProc(:)
 !===================================================================================================================================
 
-IF(useElectronTimeStep.AND.SPECIESISELECTRON(iSpec)) THEN
-  dtVar = ManualTimeStepElectrons
-  TimeVar = Time / NINT(ManualTimeStep / ManualTimeStepElectrons)
+IF(VarTimeStep%UseSpeciesSpecific) THEN
+  dtVar = dt * Species(iSpec)%TimestepFactor
+  TimeVar = Time * Species(iSpec)%TimestepFactor
 ELSE
-  TimeVar = Time
   dtVar = dt
+  TimeVar = Time
 END IF
 
 ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
@@ -379,9 +371,9 @@ IF (.NOT.SF%ReduceNoise .OR. MPIroot) THEN !ReduceNoise: root only
   ELSE
     VFR_total = SF%VFR_total               !proc local total
   END IF
-  PartIns = SF%PartDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac * VFR_total
+  PartIns = SF%PartDensity / Species(iSpec)%MacroParticleFactor * dtVar*RKdtFrac * VFR_total
   inserted_Particle_iter = INT(PartIns,8)
-  PartIns = SF%PartDensity / Species(iSpec)%MacroParticleFactor * (Time + dt*RKdtFracTotal) * VFR_total
+  PartIns = SF%PartDensity / Species(iSpec)%MacroParticleFactor * (TimeVar + dtVar*RKdtFracTotal) * VFR_total
   !-- random-round the inserted_Particle_time for preventing periodicity
   IF (inserted_Particle_iter.GE.1) THEN
     CALL RANDOM_NUMBER(RandVal1)
@@ -1464,8 +1456,8 @@ USE MOD_Globals
 USE MOD_PreProc
 ! VARIABLES
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi, ElementaryCharge, eps0
-USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac, useElectronTimeStep, ManualTimeStepElectrons
-USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
+USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
 USE MOD_Equation_Vars           ,ONLY: E
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 ! ROUTINES
@@ -1483,8 +1475,8 @@ REAL                        :: EFieldFace(1:3,0:PP_N,0:PP_N), EFaceMag, CurrentD
 !===================================================================================================================================
 ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
 
-IF(useElectronTimeStep.AND.SPECIESISELECTRON(iSpec)) THEN
-  dtVar = ManualTimeStepElectrons
+IF(VarTimeStep%UseSpeciesSpecific) THEN
+  dtVar = dt * Species(iSpec)%TimestepFactor
 ELSE
   dtVar = dt
 END IF

@@ -36,9 +36,6 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("TimeDisc")
 CALL prms%CreateRealOption('ManualTimeStep'  , 'Manual timestep [sec].'                                                , '-1.0')
-CALL prms%CreateRealOption('ManualTimeStep-Electrons'  , 'Manual timestep [sec] for electrons.'                        , '-1.0')
-CALL prms%CreateIntOption( 'ElectronSkipIteration' , 'Only treat electron every Nth iteration'                       , '0')
-CALL prms%CreateIntOption( 'ElectronSubcyclingIteration' , 'Enable subcycling of electrons for N iterations','1')
 CALL prms%CreateRealOption('TEnd'            , "End time of the simulation (mandatory).")
 CALL prms%CreateRealOption('CFLScale'        , "Scaling factor for the theoretical CFL number; typical range 0.1..1.0" , '1.0')
 CALL prms%CreateIntOption( 'maxIter'         , "Stop simulation when specified number of timesteps has been performed.", '-1')
@@ -102,7 +99,6 @@ USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStepUser
 USE MOD_TimeDisc_Vars ,ONLY: CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal,dtWeight
 USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStep,DoDisplayIter
 USE MOD_TimeDisc_Vars ,ONLY: ManualTimeStep,useManualTimestep
-USE MOD_TimeDisc_Vars ,ONLY: electronSkipIter,ManualTimeStepElectrons,useElectronTimeStep,ElectronIterationNum,electronSubcycling
 #ifdef IMPA
 USE MOD_TimeDisc_Vars ,ONLY: RK_c, RK_inc,RK_inflow,nRKStages
 #endif
@@ -143,20 +139,6 @@ CALL FillCFL_DFL()
 useManualTimeStep = .FALSE.
 ManualTimeStep = GETREAL('ManualTimeStep')
 IF (ManualTimeStep.GT.0.0) useManualTimeStep=.True.
-
-!--- Read-in of separate electron timestep
-ManualTimeStepElectrons = GETREAL('ManualTimeStep-Electrons')
-IF (ManualTimeStepElectrons.GT.0.0) THEN
-  useElectronTimeStep =.TRUE.
-  electronSkipIter = GETINT('ElectronSkipIteration')
-  electronIterationNum = GETINT('ElectronSubcyclingIteration')
-  ! ManualTimeStepElectrons = ManualTimeStep / REAL(electronIterationNum)
-ELSE
-  useElectronTimeStep = .FALSE.
-  electronIterationNum = 1
-  electronSkipIter = 0
-  electronSubcycling =.FALSE.
-END IF
 
 ! Read the maximum number of time steps MaxIter and the end time TEnd from ini file
 TEnd=GetReal('TEnd') ! must be read in here due to DSMC_init

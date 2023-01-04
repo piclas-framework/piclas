@@ -57,7 +57,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, maxEXP
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, VarTimeStep, usevMPF
+USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, UseVarTimeStep, usevMPF
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTVibPoly, CalcTelec
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_GetAnalyticRate
@@ -151,7 +151,7 @@ IF(ProductReac(4).NE.0) THEN
   SumWeightProd = SumWeightProd + Weight(4)
 END IF
 
-IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
+IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
   ReducedMass = (Species(EductReac(1))%MassIC *Weight(1)  * Species(EductReac(2))%MassIC * Weight(2)) &
     / (Species(EductReac(1))%MassIC * Weight(1)+ Species(EductReac(2))%MassIC * Weight(2))
   ReducedMassUnweighted = ReducedMass * 2./(Weight(1)+Weight(2))
@@ -357,7 +357,8 @@ USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC, DSMCS
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas, ElecRelaxPart
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, newElecRelaxParts, iPartIndx_NodeNewElecRelax
 USE MOD_DSMC_Vars              ,ONLY: iPartIndx_NodeElecRelaxChem, nElecRelaxChemParts
-USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
+USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, usevMPF
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
 USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiTotalEqui
@@ -484,7 +485,7 @@ END IF
 IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon'))THEN
   MassRed = 0.
 ELSE
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
+  IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
     MassRed = Species(EductReac(1))%MassIC*Weight(1) * Species(EductReac(2))%MassIC*Weight(2) &
                 / (Species(EductReac(1))%MassIC*Weight(1) + Species(EductReac(2))%MassIC*Weight(2))
   ELSE
@@ -516,7 +517,7 @@ IF(EductReac(3).EQ.0) THEN
     PEM%GlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(1))
     PEM%LastGlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(3))
     IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
-    IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(3)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
+    IF(UseVarTimeStep) PartTimeStep(ReactInx(3)) = PartTimeStep(ReactInx(1))
     IF (DSMC%DoAmbipolarDiff) THEN
       newAmbiParts = newAmbiParts + 1
       iPartIndx_NodeNewAmbi(newAmbiParts) = ReactInx(3)
@@ -556,7 +557,7 @@ IF(ProductReac(4).NE.0) THEN
   PEM%GlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(1))
   PEM%LastGlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(4))
   IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) PartMPF(ReactInx(4)) = PartMPF(ReactInx(1))
-  IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(4)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
+  IF(UseVarTimeStep) PartTimeStep(ReactInx(4)) = PartTimeStep(ReactInx(1))
   IF (DSMC%DoAmbipolarDiff) THEN
     newAmbiParts = newAmbiParts + 1
     iPartIndx_NodeNewAmbi(newAmbiParts) = ReactInx(4)
@@ -1545,7 +1546,8 @@ USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfForm
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_MCC_Vars                ,ONLY: ReacToPhotoReac,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
-USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, VarTimeStep, usevMPF
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, usevMPF
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_part_tools              ,ONLY: GetParticleWeight, DiceUnitVector, CalcERot_particle, CalcEVib_particle, CalcEElec_particle
@@ -1631,7 +1633,7 @@ IF(EductReac(3).EQ.0) THEN
     PEM%GlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(1))
     PEM%LastGlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(3))
     IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
-    IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(3)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
+    IF(UseVarTimeStep) PartTimeStep(ReactInx(3)) = PartTimeStep(ReactInx(1))
     Weight(3) = Weight(1)
     NumProd = 3
     SumWeightProd = SumWeightProd + Weight(3)
@@ -1662,7 +1664,7 @@ IF(ProductReac(4).NE.0) THEN
   PEM%GlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(1))
   PEM%LastGlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(4))
   IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) PartMPF(ReactInx(4)) = PartMPF(ReactInx(1))
-  IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(ReactInx(4)) = VarTimeStep%ParticleTimeStep(ReactInx(1))
+  IF(UseVarTimeStep) PartTimeStep(ReactInx(4)) = PartTimeStep(ReactInx(1))
   Weight(4) = Weight(1)
   NumProd = 4
   SumWeightProd = SumWeightProd + Weight(4)

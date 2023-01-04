@@ -98,7 +98,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_Particle_Vars           ,ONLY: nSpecies,VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: nSpecies,UseVarTimeStep
 USE MOD_Particle_Vars           ,ONLY: Symmetry
 USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
 #if USE_MPI
@@ -424,7 +424,7 @@ SurfSampSize = SAMPWALL_NVARS+nSpecies
 SurfOutputSize = MACROSURF_NVARS
 ! Optional variables (number of sampling and output variables can differ)
 ! Variable time step (required for correct heat flux calculation)
-IF(VarTimeStep%UseVariableTimeStep) THEN
+IF(UseVarTimeStep) THEN
   SurfSampSize = SurfSampSize + 1
   SWIVarTimeStep = SurfSampSize
 END IF
@@ -726,7 +726,7 @@ USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorou
 USE MOD_Particle_Boundary_vars     ,ONLY: SurfOutputSize, SWIVarTimeStep, SWIStickingCoefficient
 USE MOD_Particle_Boundary_Vars     ,ONLY: MacroSurfaceVal, MacroSurfaceSpecVal
 USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep,Symmetry
+USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,UseVarTimeStep,Symmetry
 USE MOD_Restart_Vars               ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
@@ -837,7 +837,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       CounterSum = SUM(SampWallState(SAMPWALL_NVARS+1:SAMPWALL_NVARS+nSpecies,p,q,iSurfSide))
 
       ! Correct the sample time in the case of a cell local time step with the average time step factor for each side
-      IF(VarTimeStep%UseVariableTimeStep .AND. CounterSum.GT.0.0) THEN
+      IF(UseVarTimeStep .AND. CounterSum.GT.0.0) THEN
         TimeSampleTemp = TimeSample * SampWallState(SWIVarTimeStep,p,q,iSurfSide) / CounterSum
       ELSE
         TimeSampleTemp = TimeSample

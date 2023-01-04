@@ -1247,7 +1247,7 @@ SUBROUTINE CalcSurfaceFluxInfo()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 USE MOD_Globals
-USE MOD_TimeDisc_Vars           ,ONLY: dt, iter
+USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: PartAnalyzeStep
 USE MOD_Particle_Analyze_Vars   ,ONLY: FlowRateSurfFlux, PressureAdaptiveBC
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
@@ -1256,7 +1256,6 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshS
 USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptive, AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCAreaSurfaceFlux
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
-USE MOD_Timedisc_Vars           ,ONLY: useElectronTimeStep, ManualTimeStepElectrons, electronIterationNum
 #if USE_MPI
 USE MOD_Particle_Analyze_Vars   ,ONLY: nSpecAnalyze
 #endif /*USE_MPI*/
@@ -1280,9 +1279,9 @@ IF(iter.EQ.0) RETURN
 ! Consider Part-AnalyzeStep as SampledMassFlow is only nullified here
 IF(PartAnalyzeStep.GT.1) THEN
   IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
-    iterNum = iter
+    iterNum = INT(iter,4)
   ELSE
-    iterNum = MIN(PartAnalyzeStep,iter)
+    iterNum = MIN(INT(PartAnalyzeStep,4),INT(iter,4))
   END IF
 ELSE
   iterNum = 1
@@ -1296,13 +1295,6 @@ DO iSpec = 1, nSpecies
     MacroParticleFactor = 1.
   ELSE
     MacroParticleFactor = Species(iSpec)%MacroParticleFactor
-  END IF
-  ! Electron time step
-  IF(useElectronTimeStep.AND.SPECIESISELECTRON(iSpec)) THEN
-    ! If electrons are subcycled, the SampledMassflow counter is not reset
-    dtVar = ManualTimeStepElectrons * electronIterationNum
-  ELSE
-    dtVar = dt
   END IF
   DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
     ! SampledMassFlow contains the weighted particle number balance (in - out)

@@ -69,7 +69,6 @@ USE MOD_part_tools                  ,ONLY: ParticleOnProc
 USE MOD_Mesh_Vars                   ,ONLY: offsetElem
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime, LBElemSplitTime, LBElemPauseTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_TimeDisc_Vars               ,ONLY: useElectronTimeStep, skipNonElectrons, skipElectrons, electronSkipIter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -120,14 +119,6 @@ DO i = 1,PDM%ParticleVecLength
   IF(DoParticle)THEN
 #else
   IF (PDM%ParticleInside(i)) THEN
-    IF(useElectronTimeStep) THEN
-      IF(electronSkipIter.GT.0) THEN
-        ! Skip particles which are not electrons
-        IF(.NOT.PARTISELECTRON(i).AND.skipNonElectrons) CYCLE
-        ! Skip electrons
-        IF(PARTISELECTRON(i).AND.skipElectrons) CYCLE
-      END IF
-    END IF
 #endif /*IMPA*/
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
