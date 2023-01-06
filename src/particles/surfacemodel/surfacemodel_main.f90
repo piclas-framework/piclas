@@ -527,12 +527,11 @@ INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 INTEGER                           :: LocSideID, CNElemID, locBCID, SpecID
 REAL                              :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC, ElecACC
 REAL                              :: tang1(1:3), tang2(1:3), NewVelo(3), POI_vec(1:3), NewVeloAmbi(3), VeloC(1:3), VeloCAmbi(1:3)
-REAL                              :: POI_fak, TildTrajectory(3), adaptTimeStep
+REAL                              :: POI_fak, TildTrajectory(3), dtVar
 LOGICAL                           :: IsAuxBC
 ! Symmetry
 REAL                              :: rotVelY, rotVelZ, rotPosY
 REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:3), Vector2(1:3), OldVelo(1:3)
-REAL                              :: dtVar
 !===================================================================================================================================
 IF (PRESENT(AuxBCIdx)) THEN
   IsAuxBC=.TRUE.
@@ -568,13 +567,15 @@ IF(PartBound%RotVelo(locBCID)) THEN
   WallVelo(1:3) = CalcRotWallVelo(locBCID,POI_vec)
 END IF
 
+! Set the time step, considering whether a variable particle time step or Runge-Kutta time discretization is used
+IF (UseVarTimeStep) THEN
+  dtVar = dt*RKdtFrac*PartTimeStep(PartID)
+ELSE
+  dtVar = dt*RKdtFrac
+END IF
+
 IF(UseRotRefFrame) THEN ! In case of RotRefFrame OldVelo must be reconstructed 
-  IF (UseVarTimeStep) THEN
-    adaptTimeStep = PartTimeStep(PartID)
-  ELSE
-    adaptTimeStep = 1.
-  END IF
-  OldVelo = (PartState(1:3,PartID) - LastPartPos(1:3,PartID))/(dt*RKdtFrac*adaptTimeStep)
+  OldVelo = (PartState(1:3,PartID) - LastPartPos(1:3,PartID)) / dtVar
 ELSE
   OldVelo = PartState(4:6,PartID)
 END IF
@@ -655,14 +656,9 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
 ! 6.) Determine the new particle position after the reflection
   LastPartPos(1:3,PartID) = POI_vec(1:3)
 
-  IF (UseVarTimeStep) THEN
-    adaptTimeStep = PartTimeStep(PartID)
-  ELSE
-    adaptTimeStep = 1.
-  END IF ! UseVarTimeStep
   ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
   !TildPos       =PartState(1:3,PartID)-dt*RKdtFrac*PartState(4:6,PartID)
-  TildTrajectory=dtVar*RKdtFrac*PartState(4:6,PartID)*adaptTimeStep
+  TildTrajectory = PartState(4:6,PartID) * dtVar
   POI_fak=1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
   ! travel rest of particle vector
   !PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
@@ -671,7 +667,7 @@ IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
   ELSE
     IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
   END IF ! IsAuxBC
-  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt * RKdtFrac * NewVelo(1:3) * adaptTimeStep
+  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVelo(1:3)
 
 ! 7.) Axisymmetric simulation: Rotate the vector back into the symmetry plane
   IF(Symmetry%Axisymmetric) THEN
