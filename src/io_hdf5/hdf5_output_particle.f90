@@ -1811,7 +1811,6 @@ USE MOD_Particle_Vars          ,ONLY: PartDataSize
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartSpecies,nSpecies
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData
 USE MOD_Particle_Vars          ,ONLY: locnPart,offsetnPart
-USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,DSMC,PolyatomMolDSMC,SpecDSMC
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data,MaxQuantNum,MaxElecQuant
 USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PartMPF, usevMPF, nSpecies, Species
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
@@ -1911,8 +1910,7 @@ IF (.NOT.(useDSMC.OR.usevMPF)) THEN
   ALLOCATE(PEM%pStart(1:PP_nElems)           , &
            PEM%pNumber(1:PP_nElems)          , &
            PEM%pNext(1:PDM%maxParticleNumber), &
-           PEM%pEnd(1:PP_nElems) )!            , &
-           !PDM%nextUsedPosition(PDM%maxParticleNumber)  )
+           PEM%pEnd(1:PP_nElems) )
   useDSMC=.TRUE.
 END IF
 CALL UpdateNextFreePosition()
@@ -2103,8 +2101,7 @@ IF (.NOT.(useDSMC.OR.usevMPF)) THEN
   DEALLOCATE(PEM%pStart , &
              PEM%pNumber, &
              PEM%pNext  , &
-             PEM%pEnd   )!, &
-             !PDM%nextUsedPosition  )
+             PEM%pEnd   )
 END IF
 !!! Ende kleiner Hack von JN (Teil 2/2)
 
