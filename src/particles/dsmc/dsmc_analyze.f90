@@ -676,14 +676,16 @@ IF (DSMC%CalcQualityFactors) THEN
     END IF
     nVarCount = nVar + 3
     IF(UseVarTimeStep) THEN
-      IF(VarTimeStep%UseLinearScaling.AND.(Symmetry%Order.EQ.2)) THEN
-        ! 2D/Axisymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
-        ! midpoint is used to calculate the time step
-        VarTimeStep%ElemFac(iElem) = GetParticleTimeStep(ElemMidPoint_Shared(1,GetCNElemID(iElem + offsetElem)), &
-                                                     ElemMidPoint_Shared(2,GetCNElemID(iElem + offsetElem)))
+      IF(VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution) THEN
+        IF(VarTimeStep%UseLinearScaling.AND.(Symmetry%Order.EQ.2)) THEN
+          ! 2D/Axisymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
+          ! midpoint is used to calculate the time step
+          VarTimeStep%ElemFac(iElem) = GetParticleTimeStep(ElemMidPoint_Shared(1,GetCNElemID(iElem + offsetElem)), &
+                                                      ElemMidPoint_Shared(2,GetCNElemID(iElem + offsetElem)))
+        END IF
+        DSMC_MacroVal(nVarCount+1,iElem) = VarTimeStep%ElemFac(iElem)
+        nVarCount = nVarCount + 1
       END IF
-      DSMC_MacroVal(nVarCount+1,iElem) = VarTimeStep%ElemFac(iElem)
-      nVarCount = nVarCount + 1
     END IF
     IF(DoVirtualCellMerge)THEN
       DSMC_MacroVal(nVarCount+1,iElem) = VirtMergedCells(iElem)%MasterCell
