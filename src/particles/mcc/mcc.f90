@@ -53,7 +53,7 @@ USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, C
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMCSumOfFormedParticles, PolyatomMolDSMC, VibQuantsPar
 USE MOD_MCC_Vars                ,ONLY: SpecXSec, XSec_NullCollision
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
-USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
@@ -91,7 +91,7 @@ LOGICAL                       :: SplitInProgress, GetInternalEnergy
 REAL                          :: CollCaseNum, CollProb, VeloBGGPart(1:3), CRela2, CollEnergy, GammaFac, SumVibCrossSection
 REAL                          :: PartStateSplit(1:6), PartPosRefSplit(1:3), PartStateIntSplit(1:3), PartTimeStepSplit, PartMPFSplit
 INTEGER, ALLOCATABLE          :: VibQuantsParSplit(:), PartIndexCase(:)
-REAL                          :: ProbNull
+REAL                          :: ProbNull, dtVar
 !===================================================================================================================================
 
 ! Skip elements outside of any background gas regions
@@ -377,6 +377,13 @@ DO iSpec = 1, nSpecies
         CollEnergy = (GammaFac-1.) * CollInf%MassRed(iCase) * c2
       END IF
 
+      ! Set the time step in case of species-specific time stepping
+      IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
+        dtVar = dt * Species(iSpec)%TimeStepFactor
+      ELSE
+        dtVar = dt
+      END IF
+
       IF(SpecXSec(iCase)%UseCollXSec) THEN
         ! ==========================================================================================
         ! XSec
@@ -384,7 +391,7 @@ DO iSpec = 1, nSpecies
         ! Interpolate cross-section at the collision energy
         SpecXSec(iCase)%CrossSection = InterpolateCrossSection(SpecXSec(iCase)%CollXSecData,CollEnergy)
         ! Calculate the collision probability
-        CollProb = (1. - EXP(-SQRT(CRela2) * SpecXSec(iCase)%CrossSection * BGGasNumDens * dt))
+        CollProb = (1. - EXP(-SQRT(CRela2) * SpecXSec(iCase)%CrossSection * BGGasNumDens * dtVar))
         ! Correct the collision probability in the case of the second species being a background species as the number of pairs
         ! is either determined based on the null collision probability or on the species fraction
         IF(XSec_NullCollision) THEN
@@ -397,7 +404,7 @@ DO iSpec = 1, nSpecies
         ! DSMC
         ! ==========================================================================================
         CollProb = CollInf%Coll_SpecPartNum(iSpec)*BGGasNumDens/(1+CollInf%KronDelta(iCase))*CollInf%Cab(iCase) &
-                  / CollCaseNum * CRela2 ** (0.5-CollInf%omega(iSpec,jSpec)) * dt
+                  / CollCaseNum * CRela2 ** (0.5-CollInf%omega(iSpec,jSpec)) * dtVar
         IF(CollisMode.EQ.3) THEN
           ! Chemical reaction with cross-section based probability
           IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
@@ -425,7 +432,7 @@ DO iSpec = 1, nSpecies
             SumVibCrossSection = SumVibCrossSection + InterpolateCrossSection(SpecXSec(iCase)%VibMode(iLevel)%XSecData,CollEnergy)
           END DO
           ! Calculate the total vibrational relaxation probability
-          SpecXSec(iCase)%VibProb = 1. - EXP(-SQRT(CRela2) * SumVibCrossSection * BGGasNumDens * dt)
+          SpecXSec(iCase)%VibProb = 1. - EXP(-SQRT(CRela2) * SumVibCrossSection * BGGasNumDens * dtVar)
           ! Correct the collision probability in the case of the second species being a background species as the number of pairs
           ! is determined based on the species fraction
           SpecXSec(iCase)%VibProb = SpecXSec(iCase)%VibProb / BGGasFraction
@@ -440,7 +447,7 @@ DO iSpec = 1, nSpecies
               SpecXSec(iCase)%ElecLevel(iLevel)%Prob = InterpolateCrossSection(SpecXSec(iCase)%ElecLevel(iLevel)%XSecData,CollEnergy)
               ! Calculate the electronic excitation probability
               SpecXSec(iCase)%ElecLevel(iLevel)%Prob = 1. - EXP(-SQRT(CRela2) * SpecXSec(iCase)%ElecLevel(iLevel)%Prob &
-                                                            * BGGasNumDens * dt)
+                                                            * BGGasNumDens * dtVar)
               ! Correct the collision probability in the case of the second species being a background species as the number of pairs
               ! is determined based on the species fraction
               SpecXSec(iCase)%ElecLevel(iLevel)%Prob = SpecXSec(iCase)%ElecLevel(iLevel)%Prob / BGGasFraction
@@ -596,6 +603,7 @@ END SUBROUTINE MonteCarloCollision
 !===================================================================================================================================
 SUBROUTINE MCC_CalcReactionProb(iCase,bgSpec,CRela2,CollEnergy_in,PartIndex,bggPartIndex,iElem)
 ! MODULES
+USE MOD_Particle_Vars         ,ONLY: Species, PartSpecies, VarTimeStep
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, BGGas, ChemReac, DSMC, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_TimeDisc_Vars         ,ONLY: dt
@@ -611,12 +619,19 @@ REAL,INTENT(IN)               :: CRela2, CollEnergy_in
 INTEGER                       :: jSpec, iPath, ReacTest, EductReac(1:3), ProductReac(1:4), iProd
 INTEGER                       :: NumWeightProd
 REAL                          :: EZeroPoint_Educt, EZeroPoint_Prod, CollEnergy
-REAL                          :: CrossSection
+REAL                          :: CrossSection, dtVar
 REAL                          :: Temp_Rot, Temp_Vib, Temp_Elec, BGGasNumDens, BGGasFraction
 !===================================================================================================================================
 NumWeightProd = 2
 
 jSpec = BGGas%MapBGSpecToSpec(bgSpec)
+
+! Set the time step in case of species-specific time stepping
+IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
+  dtVar = dt * Species(PartSpecies(PartIndex))%TimeStepFactor
+ELSE
+  dtVar = dt
+END IF
 
 DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
   ReacTest = ChemReac%CollCaseInfo(iCase)%ReactionIndex(iPath)
@@ -685,7 +700,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
             BGGasNumDens  = BGGas%NumberDensity(bgSpec)
             BGGasFraction = BGGas%SpeciesFraction(bgSpec)
           END IF
-          ReactionProb = 1. - EXP(-SQRT(CRela2) * dt * BGGasNumDens * CrossSection)
+          ReactionProb = 1. - EXP(-SQRT(CRela2) * dtVar * BGGasNumDens * CrossSection)
           ! Correct the reaction probability in the case of the second species being a background species as the number of pairs
           ! is based on the species fraction
           ReactionProb = ReactionProb / BGGasFraction

@@ -154,8 +154,16 @@ IF(.NOT.UseMCC) RETURN
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Read-in of the cross-section database
 XSec_Database = GETSTR('Particles-CollXSec-Database')
-! Null collision method only works with a background gas
-IF(BGGas%NumberOfSpecies.GT.0) XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
+! Checks/read-in depending on background gas
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  ! Null collision method only works with a background gas
+  XSec_NullCollision = GETLOGICAL('Particles-CollXSec-NullCollision')
+  ! Disable variable time step for MCC but keep it for the push (parameter is defined in DefineParametersVariableTimeStep)
+  IF(VarTimeStep%UseSpeciesSpecific) VarTimeStep%DisableForMCC = GETLOGICAL('Part-VariableTimeStep-DisableForMCC')
+ELSE
+  ! Variable time step is only implemented with a background gas
+  IF(VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__,'ERROR: Only MCC is implemented with a species-specific time step!')
+END IF
 
 ALLOCATE(SpecXSec(CollInf%NumCase))
 SpecXSec(:)%UseCollXSec = .FALSE.
@@ -439,7 +447,7 @@ SUBROUTINE DetermineNullCollProb(iCase,iSpec,jSpec)
 USE MOD_ReadInTools
 USE MOD_Globals_Vars          ,ONLY: Pi
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: Species
+USE MOD_Particle_Vars         ,ONLY: Species, VarTimeStep
 USE MOD_TimeDisc_Vars         ,ONLY: ManualTimeStep
 USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
@@ -452,9 +460,16 @@ INTEGER,INTENT(IN)            :: jSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: MaxDOF, bggSpec,iElem
-REAL                          :: MaxCollFreq, MaxCollFreqElem, Mass
+REAL                          :: MaxCollFreq, MaxCollFreqElem, Mass, dtVar
 REAL,ALLOCATABLE              :: Velocity(:)
 !===================================================================================================================================
+
+! Set the correct time step
+IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
+  dtVar = ManualTimeStep * Species(iSpec)%TimeStepFactor
+ELSE
+  dtVar = ManualTimeStep
+END IF
 
 ! Select the background species as the target cloud and use the mass of particle species
 IF(BGGas%BackgroundSpecies(iSpec)) THEN

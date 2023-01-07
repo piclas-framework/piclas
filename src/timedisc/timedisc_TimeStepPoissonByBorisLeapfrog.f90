@@ -37,19 +37,19 @@ SUBROUTINE TimeStepPoissonByBorisLeapfrog()
 USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM, PARTISELECTRON, MPIroot
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time,dt_Min
+USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
 USE MOD_Globals_Vars           ,ONLY: c2_inv
 !#if (PP_TimeDiscMethod==509)
 !USE MOD_TimeDisc_Vars          ,ONLY: dt_old
 !#endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_HDG                    ,ONLY: HDG
-USE MOD_HDG_Vars               ,ONLY: HDGSkip
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcCoupledPowerPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
 !#if (PP_TimeDiscMethod==509)

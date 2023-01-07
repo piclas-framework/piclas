@@ -249,8 +249,11 @@ DO iSpec = 1, nSpecies
   END IF ! (iSpec.GT.1).AND.UseDSMC.AND.(.NOT.UsevMPF)
   MPFOld = Species(iSpec)%MacroParticleFactor
   ! Species-specific time step
-  Species(iSpec)%TimestepFactor              = GETREAL('Part-Species'//TRIM(hilf)//'-TimeStepFactor')
-  IF(Species(iSpec)%TimestepFactor.NE.1.) VarTimeStep%UseSpeciesSpecific = .TRUE.
+  Species(iSpec)%TimeStepFactor              = GETREAL('Part-Species'//TRIM(hilf)//'-TimeStepFactor')
+  IF(Species(iSpec)%TimeStepFactor.NE.1.) THEN
+    UseVarTimeStep = .TRUE.
+    VarTimeStep%UseSpeciesSpecific = .TRUE.
+  END IF
 #if defined(IMPA)
   Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsImplicit')
 #endif
@@ -376,10 +379,14 @@ DO iSpec = 1, nSpecies
     END IF
     ! 2D simulation/variable time step only with cell_local and/or surface flux
     IF((Symmetry%Order.EQ.2).OR.UseVarTimeStep) THEN
-      IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local') THEN
+      SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+      ! Do nothing
+      CASE('cell_local','background')
+      ! Abort for every other SpaceIC
+      CASE DEFAULT
         CALL CollectiveStop(__STAMP__,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
-            'cell_local-SpaceIC and/or surface flux!')
-      END IF
+            'cell_local/background-SpaceIC and/or surface flux!')
+      END SELECT
     END IF
     ! 1D Simulation with cuboid-SpaceIC
     IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').AND.Symmetry%Order.EQ.1) THEN

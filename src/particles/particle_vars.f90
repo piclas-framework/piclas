@@ -264,6 +264,7 @@ TYPE tVariableTimeStep
   LOGICAL                              :: UseDistribution
   LOGICAL                              :: UseSpeciesSpecific
   LOGICAL                              :: OnlyDecreaseDt
+  LOGICAL                              :: DisableForMCC
   REAL, ALLOCATABLE                    :: ElemFac(:)
   REAL, ALLOCATABLE                    :: ElemWeight(:)
   REAL                                 :: StartPoint(3)

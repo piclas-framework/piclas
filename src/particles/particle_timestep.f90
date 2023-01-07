@@ -12,7 +12,7 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_Particle_TimeStep   
+MODULE MOD_Particle_TimeStep
 !===================================================================================================================================
 ! Add comments please!
 !===================================================================================================================================
@@ -91,6 +91,10 @@ CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DFront', &
                               'FRONT: Time step decreases towards the stagnation point')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DBack', &
                               'BACK: Time step increases away from the stagnation points')
+! === Species-specific time step
+CALL prms%CreateLogicalOption('Part-VariableTimeStep-DisableForMCC', &
+                              'Disable the variable time step for the MCC routines to perform collisions at the regular '//&
+                              'time step', '.FALSE.')
 
 END SUBROUTINE DefineParametersVariableTimeStep
 
@@ -452,7 +456,7 @@ ELSE IF(VarTimeStep%UseDistribution) THEN
     'ERROR: Element number is required in the call of GetParticleTimeStep for distribution!')
   GetParticleTimeStep = VarTimeStep%ElemFac(iElem)
 ELSE IF(VarTimeStep%UseSpeciesSpecific) THEN
-  GetParticleTimeStep = Species(iSpec)%TimestepFactor
+  GetParticleTimeStep = Species(iSpec)%TimeStepFactor
 ELSE
   CALL abort(__STAMP__,'ERROR: GetParticleTimeStep should not be utilized without LinearScaling/Distribution flag or species-specific time steps!')
 END IF

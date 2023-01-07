@@ -345,17 +345,9 @@ INTEGER, INTENT(OUT), ALLOCATABLE   :: PartInsSubSides(:,:,:)
 ! LOCAL VARIABLES
 INTEGER(KIND=8)        :: inserted_Particle_iter,inserted_Particle_time,inserted_Particle_diff
 INTEGER                :: currentBC, PartInsSF, IntSample
-REAL                   :: VFR_total, PartIns, RandVal1, dtVar, TimeVar
+REAL                   :: VFR_total, PartIns, RandVal1
 INTEGER, ALLOCATABLE   :: PartInsProc(:)
 !===================================================================================================================================
-
-IF(VarTimeStep%UseSpeciesSpecific) THEN
-  dtVar = dt * Species(iSpec)%TimestepFactor
-  TimeVar = Time * Species(iSpec)%TimestepFactor
-ELSE
-  dtVar = dt
-  TimeVar = Time
-END IF
 
 ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
 !--- Noise reduction (both ReduceNoise=T (with comm.) and F (proc local), but not for DoPoissonRounding)
@@ -371,9 +363,9 @@ IF (.NOT.SF%ReduceNoise .OR. MPIroot) THEN !ReduceNoise: root only
   ELSE
     VFR_total = SF%VFR_total               !proc local total
   END IF
-  PartIns = SF%PartDensity / Species(iSpec)%MacroParticleFactor * dtVar*RKdtFrac * VFR_total
+  PartIns = SF%PartDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac * VFR_total
   inserted_Particle_iter = INT(PartIns,8)
-  PartIns = SF%PartDensity / Species(iSpec)%MacroParticleFactor * (TimeVar + dtVar*RKdtFracTotal) * VFR_total
+  PartIns = SF%PartDensity / Species(iSpec)%MacroParticleFactor * (Time + dt*RKdtFracTotal) * VFR_total
   !-- random-round the inserted_Particle_time for preventing periodicity
   IF (inserted_Particle_iter.GE.1) THEN
     CALL RANDOM_NUMBER(RandVal1)
@@ -1471,15 +1463,9 @@ INTEGER, INTENT(OUT)        :: PartInsSubSide
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                        :: EFieldFace(1:3,0:PP_N,0:PP_N), EFaceMag, CurrentDensity, WallTemp, WorkFunction, RandVal1, dtVar
+REAL                        :: EFieldFace(1:3,0:PP_N,0:PP_N), EFaceMag, CurrentDensity, WallTemp, WorkFunction, RandVal1
 !===================================================================================================================================
 ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
-
-IF(VarTimeStep%UseSpeciesSpecific) THEN
-  dtVar = dt * Species(iSpec)%TimestepFactor
-ELSE
-  dtVar = dt
-END IF
 
 ! 1) Determine the electric field at the surface
 CALL ProlongToFace_Elementlocal(nVar=3,locSideID=iLocSide,Uvol=E(:,:,:,:,ElemID),Uface=EFieldFace)
@@ -1497,7 +1483,7 @@ CurrentDensity = CurrentDensity / ABS(Species(iSpec)%ChargeIC)
 
 ! 4) Determine the number of particles per side
 CALL RANDOM_NUMBER(RandVal1)
-PartInsSubSide = INT(CurrentDensity / Species(iSpec)%MacroParticleFactor * dtVar*RKdtFrac &
+PartInsSubSide = INT(CurrentDensity / Species(iSpec)%MacroParticleFactor * dt*RKdtFrac &
                      * SF%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR + RandVal1)
 
 END ASSOCIATE

@@ -304,7 +304,7 @@ IF(DoRestart) THEN
       END IF
       ! Species-specific time step
       IF(VarTimeStep%UseSpeciesSpecific) THEN
-        RestartTimeVar = RestartTime * Species(iSpec)%TimestepFactor
+        RestartTimeVar = RestartTime * Species(iSpec)%TimeStepFactor
       ELSE
         RestartTimeVar = RestartTime
       END IF
