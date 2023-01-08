@@ -244,8 +244,6 @@ END IF
 #endif /*USE_LOADBALANCE*/
 
 IF(DoRestart .AND. (N_Restart .NE. PP_N))THEN
-  BuildNewMesh       =.TRUE.
-  WriteNewMesh       =.TRUE.
   InterpolateSolution=.TRUE.
 END IF
 
