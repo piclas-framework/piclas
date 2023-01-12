@@ -293,7 +293,7 @@ USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
 USE MOD_Particle_Mesh_Vars         ,ONLY: GEO
 USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
-USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp
+USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp, InitRotPeriodicInterPlane
 USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
@@ -360,7 +360,11 @@ END IF
 ! (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
 IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.GEO%RotPeriodicBC) THEN
   CALL InitParticleBoundarySampling()
-  IF(GEO%RotPeriodicBC) CALL InitParticleBoundaryRotPeriodic()
+  IF(GEO%RotPeriodicBC) THEN
+    CALL InitParticleBoundaryRotPeriodic()
+!    IF(nRotPeriodicBCs.NE.2) CALL InitRotPeriodicInterPlane
+    CALL InitRotPeriodicInterPlane
+  END IF
   CALL InitAdaptiveWallTemp()
 END IF
 

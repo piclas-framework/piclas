@@ -176,6 +176,9 @@ ASSOCIATE( iBC => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)) )
       END IF ! PDM%ParticleInside(iPart).AND.(isDielectricElem(PEM%LocalElemID(iPart)))
     END IF ! DoDdielectric
   !-----------------------------------------------------------------------------------------------------------------------------------
+  CASE(7) ! PartBound%RotPeriodicInterPlaneBC
+!!!!    CALL RotPeriodicBC(iPart,SideID,ElemID)
+  !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(10,11) ! PartBound%SymmetryBC
   !-----------------------------------------------------------------------------------------------------------------------------------
     CALL PerfectReflection(iPart,SideID,n_loc,opt_Symmetry=.TRUE.)

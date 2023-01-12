@@ -225,8 +225,9 @@ DO iSide = firstSide,lastSide
 #endif /*USE_MPI*/
 
   ! count number of reflective and rotationally periodic BC sides
-  IF ( (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
-       (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicBC) ) THEN
+  IF ((PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%ReflectiveBC) .OR. &
+      (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicBC).OR. &
+      (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%RotPeriodicInterPlaneBC))THEN
     nSurfSidesProc = nSurfSidesProc + 1
     ! check if element for this side is on the current compute-node
     ! IF ((SideInfo_Shared(SIDE_ID,iSide).GT.ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetComputeNodeElem+1))                  .AND. &
@@ -388,6 +389,8 @@ IF (myComputeNodeRank.EQ.0) THEN
     END IF
     ! Skip rotationally periodic boundary sides for the output
     IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
+    ! Skip intermediate planes BCs for the output
+    IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicInterPlaneBC) CYCLE
     ! Count the number of output sides
     nComputeNodeSurfOutputSides = nComputeNodeSurfOutputSides + 1
   END DO

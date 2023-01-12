@@ -127,6 +127,10 @@ INTEGER                                 :: SampWallImpactNumber_Shared_Win
 INTEGER,ALLOCPOINT,DIMENSION(:)   :: NumRotPeriodicNeigh       ! Number of adjacent Neigbours sites in rotational periodic BC
 INTEGER,ALLOCPOINT,DIMENSION(:,:) :: RotPeriodicSideMapping    ! Mapping between rotational periodic sides.
 INTEGER,ALLOCPOINT,DIMENSION(:)   :: SurfSide2RotPeriodicSide  ! Mapping between surf side and periodic sides.
+! ====================================================================
+! Intermediate plane for multi rotational periodic sides
+INTEGER,ALLOCPOINT,DIMENSION(:,:) :: InterPlaneSideMapping    ! Mapping between inter plane BC_ID and SideID.
+! ====================================================================
 #if USE_MPI
 INTEGER,POINTER,DIMENSION(:)    :: SurfSide2RotPeriodicSide_Shared
 INTEGER                         :: SurfSide2RotPeriodicSide_Shared_Win
@@ -248,13 +252,17 @@ TYPE tPartBoundary
   INTEGER                                :: SimpleAnodeBC           = 4      ! = 4 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SimpleCathodeBC         = 5      ! = 5 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: RotPeriodicBC           = 6      ! = 6 (s.u.) Boundary Condition Integer Definition
+  INTEGER                                :: RotPeriodicInterPlaneBC = 7      ! = 7 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SymmetryBC              = 10     ! = 10 (s.u.) Boundary Condition Integer Definition
   INTEGER                                :: SymmetryAxis            = 11     ! = 10 (s.u.) Boundary Condition Integer Definition
-  CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)          ! Link part 1 for mapping PICLas BCs to Particle BC
-  INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)          ! Link part 2 for mapping PICLas BCs to Particle BC
+  CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)           ! Link part 1 for mapping PICLas BCs to Particle BC
+  INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)           ! Link part 2 for mapping PICLas BCs to Particle BC
 !  INTEGER              , ALLOCATABLE     :: Map(:)                      ! Map from PICLas BCindex to Particle BC
-  INTEGER              , ALLOCATABLE     :: MapToPartBC(:)              ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
-  !!INTEGER              , ALLOCATABLE     :: SideBCType(:)            ! list with boundary condition for each side
+  INTEGER              , ALLOCATABLE     :: MapToPartBC(:)               ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
+  !!INTEGER              , ALLOCATABLE     :: SideBCType(:)              ! list with boundary condition for each side
+  INTEGER , ALLOCATABLE                  :: AssociatedPlane(:)           ! Link between both coressponding intermediate planes
+  INTEGER , ALLOCATABLE                  :: nSidesOnInterPlane(:)        ! Number of Sides on intermediate plane
+  REAL    , ALLOCATABLE                  :: AngleRatioOfInterPlanes(:)   ! Ratio of rotation angles for the intermediate planes
   REAL    , ALLOCATABLE                  :: MomentumACC(:)
   REAL    , ALLOCATABLE                  :: WallTemp(:), WallTemp2(:), WallTempDelta(:)
   REAL    , ALLOCATABLE                  :: TempGradStart(:,:), TempGradEnd(:,:), TempGradVec(:,:)
