@@ -262,6 +262,9 @@ TYPE tPartBoundary
   !!INTEGER              , ALLOCATABLE     :: SideBCType(:)              ! list with boundary condition for each side
   INTEGER , ALLOCATABLE                  :: AssociatedPlane(:)           ! Link between both coressponding intermediate planes
   INTEGER , ALLOCATABLE                  :: nSidesOnInterPlane(:)        ! Number of Sides on intermediate plane
+  REAL    , ALLOCATABLE                  :: NormalizedRadiusDir(:,:)     ! Normalized vector in radius direction that is use to
+                                                                         ! calculate a random position on same radius within the 
+                                                                         ! rot periodic segment
   REAL    , ALLOCATABLE                  :: AngleRatioOfInterPlanes(:)   ! Ratio of rotation angles for the intermediate planes
   REAL    , ALLOCATABLE                  :: MomentumACC(:)
   REAL    , ALLOCATABLE                  :: WallTemp(:), WallTemp2(:), WallTempDelta(:)

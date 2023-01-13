@@ -303,6 +303,8 @@ ALLOCATE(PartBound%RotVelo(          1:nPartBound))
 PartBound%RotVelo = .FALSE.
 ALLOCATE(PartBound%RotOmega(       1:3,1:nPartBound))
 PartBound%RotOmega = 0.
+ALLOCATE(PartBound%NormalizedRadiusDir(1:2, 1:nPartBound))
+PartBound%NormalizedRadiusDir = 0
 ALLOCATE(PartBound%RotPeriodicAngle(  1:nPartBound))
 PartBound%RotPeriodicAngle = 0
 ALLOCATE(PartBound%RotPeriodicMin(  1:nPartBound))
@@ -491,10 +493,6 @@ DO iPartBound=1,nPartBound
   CASE('rot_periodic_inter_plane')
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicInterPlaneBC
     PartBound%AssociatedPlane(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-AssociatedPlane')
-    PartBound%RotPeriodicAngle(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicAngle')
-    IF(ALMOSTZERO(PartBound%RotPeriodicAngle(iPartBound))) THEN
-      CALL abort(__STAMP__,'Angle for rotational periodicity must also be defined for corresponding intermediate plane')
-    END IF
   CASE DEFAULT
     SWRITE(*,*) ' Boundary does not exist: ', TRIM(tmpString)
     CALL abort(__STAMP__,'Particle Boundary Condition does not exist')
@@ -524,12 +522,6 @@ IF(GEO%RotPeriodicBC) THEN
         IF(PartBound%RotPeriodicMin(iPartBound).GE.PartBound%RotPeriodicMax(iPartBound)) THEN
           CALL abort(__STAMP__,'ERROR: Minimum coordinate at rotational axis is higher than maximum coordinate at rotational axis')
         END IF
-      END IF
-! soll später noch raus!!!!!!!!!!!!!!
-      IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicInterPlaneBC) THEN
-        PartBound%AngleRatioOfInterPlanes(iPartBound) = PartBound%RotPeriodicAngle(PartBound%AssociatedPlane(iPartBound)) &
-                                                      / PartBound%RotPeriodicAngle(iPartBound)
-
       END IF
     END DO
   END IF
@@ -1130,20 +1122,25 @@ SUBROUTINE InitRotPeriodicInterPlane()
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfTotalSides, SurfSide2GlobalSide
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound,nPartBound,InterPlaneSideMapping
-USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, GEO, ElemInfo_Shared, ElemSideNodeID_Shared,NodeCoords_Shared
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: iPartBound,firstSide,lastSide,MaxNumInterPlaneSide, iSide, SideID
+INTEGER                           :: iPartBound,firstSide,lastSide,MaxNumInterPlaneSide, iSide, SideID, ElemID
+INTEGER                           :: InterLocSideID, RotSideID, CNElemID, ilocSide,InterPlaneLocalSideNum, InterSideID
+INTEGER                           :: k,m,l
+INTEGER                           :: iNode,jNode
+REAL                              :: InterNode_1,RotNode_1,InterNode_2,RotNode_2
 INTEGER,ALLOCATABLE               :: SideCounter(:)
 !===================================================================================================================================
 
 ! First loop: calculating the number of sides per inter plane and finds the maximum number
 iBCLoop1: DO iPartBound=1,nPartBound
   PartBound%nSidesOnInterPlane(iPartBound) = 0
-  IF (PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE
+  IF (PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE iBCLoop1
   firstSide = 1
   lastSide  = nSurfTotalSides
   iSideLoop1: DO iSide = firstSide, lastSide
@@ -1162,24 +1159,80 @@ ALLOCATE(InterPlaneSideMapping(nPartBound,MaxNumInterPlaneSide))
 ALLOCATE(SideCounter(nPartBound))
 SideCounter = 1
 iBCLoop2: DO iPartBound=1,nPartBound
-  IF (PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE
+  IF (PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE iBCLoop2
   firstSide = 1
   lastSide  = nSurfTotalSides
   iSideLoop2: DO iSide = firstSide, lastSide
     SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
-    IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.iPartBound) THEN
+    IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.iPartBound) THEN
       InterPlaneSideMapping(iPartBound,SideCounter(iPartBound)) = SideID
       SideCounter(iPartBound) = SideCounter(iPartBound) + 1
     END IF
   END DO iSideLoop2 ! iSide = firstSide, lastSide
 END DO iBCLoop2 ! iBC=1, nBCs
 
-! Find the r_o vector for the random positioning calculation
-! .....
-! Save rotating angle
-! .....
-! Save angleRatioOfInterPlanes
-! .....
+! Third loop: Find the r_o vector for the random positioning calculation
+! InterSideID = GlobalSideID on intermediate plane side
+! RotSideID   = GlobalSideID on rot periodic side
+SELECT CASE(GEO%RotPeriodicAxi)
+  CASE(1) ! x-rotation axis
+    k = 1
+    l = 2
+    m = 3
+  CASE(2) ! y-rotation axis
+    k = 2
+    l = 3
+    m = 1
+  CASE(3) ! z-rotation axis
+    k = 3
+    l = 1
+    m = 2
+END SELECT
+iBCLoop3: DO iPartBound=1,nPartBound
+  IF (PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE iBCLoop3
+  firstSide = 1
+  lastSide  = PartBound%nSidesOnInterPlane(iPartBound)
+  interSideLoop: DO iSide = firstSide, lastSide
+    InterSideID = InterPlaneSideMapping(iPartBound,iSide)  ! GlobalSideID!
+    ElemID = SideInfo_Shared(SIDE_ELEMID,InterSideID)
+    InterPlaneLocalSideNum = SideInfo_Shared(SIDE_LOCALID,InterSideID) ! 1-6 of the elemt local sides
+    CNElemID  = GetCNElemID(ElemID)
+    LocSideLoop: DO ilocSide = 1, 6
+      RotSideID=ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+ilocSide
+      IF(RotSideID.EQ.InterSideID) CYCLE LocSideLoop
+      IF(SideInfo_Shared(SIDE_BCID,RotSideID).EQ.0) CYCLE LocSideLoop
+      IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,RotSideID))).EQ.PartBound%RotPeriodicBC) THEN
+        PartBound%RotPeriodicAngle(iPartBound) = PartBound%RotPeriodicAngle( &
+                                                 PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,RotSideID)))
+        iNodeLoop: DO iNode=1, 4
+          InterNode_1 = NodeCoords_Shared(l,ElemSideNodeID_Shared(iNode,InterPlaneLocalSideNum,CNElemID)+1)
+          InterNode_2 = NodeCoords_Shared(m,ElemSideNodeID_Shared(iNode,InterPlaneLocalSideNum,CNElemID)+1)
+          IF( (ALMOSTZERO(InterNode_1)).AND.(ALMOSTZERO(InterNode_2)) ) CYCLE iNodeLoop ! Node is on rotation axis (radius = 0)
+          jNodeLoop: DO jNode=1, 4
+            RotNode_1   = NodeCoords_Shared(l,ElemSideNodeID_Shared(jNode,ilocSide,CNElemID)+1)
+            IF(InterNode_1.EQ.RotNode_1) THEN
+              RotNode_2   = NodeCoords_Shared(m,ElemSideNodeID_Shared(jNode,ilocSide,CNElemID)+1)
+              IF(InterNode_2.EQ.RotNode_2) THEN
+                ! iNode/jNode is on both BCs
+                PartBound%NormalizedRadiusDir(1,iPartBound) = InterNode_1 / (SQRT(InterNode_1**2 + InterNode_2**2))
+                PartBound%NormalizedRadiusDir(2,iPartBound) = InterNode_2 / (SQRT(InterNode_1**2 + InterNode_2**2)) 
+                EXIT iNodeLoop
+              END IF
+            END IF
+          END DO jNodeLoop
+        END DO iNodeLoop
+        EXIT interSideLoop
+      END IF
+    END DO LocSideLoop
+  END DO interSideLoop ! iSide = firstSide, lastSide
+END DO iBCLoop3 ! iBC=1, nBCs
+
+! Fourth loop: Save angleRatioOfInterPlanes
+iBCLoop4: DO iPartBound=1,nPartBound
+  IF (PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE iBCLoop4
+  PartBound%AngleRatioOfInterPlanes(iPartBound) = ABS( PartBound%RotPeriodicAngle(PartBound%AssociatedPlane(iPartBound)) &
+                                                / PartBound%RotPeriodicAngle(iPartBound) )
+END DO iBCLoop4 ! iBC=1, nBCs
 
 DEALLOCATE(SideCounter)
 
@@ -1564,6 +1617,7 @@ SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
 SDEALLOCATE(PartBound%RotVelo)
 SDEALLOCATE(PartBound%RotOmega)
+SDEALLOCATE(PartBound%NormalizedRadiusDir)
 SDEALLOCATE(PartBound%RotPeriodicAngle)
 SDEALLOCATE(PartBound%RotPeriodicMin)
 SDEALLOCATE(PartBound%RotPeriodicMax)
