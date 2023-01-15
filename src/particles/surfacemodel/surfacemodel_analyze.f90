@@ -599,9 +599,9 @@ ALLOCATE(BPO%BCIDToBPOBCID(1:nPartBound))
 BPO%BCIDToBPOBCID     = -1
 DO iPartBound = 1, BPO%NPartBoundaries
   BPO%BCIDToBPOBCID(BPO%PartBoundaries(iPartBound)) = iPartBound
-  ! Sanity check BC types: BPO%PartBoundaries(iPartBound) = 1 (open)
+  ! Sanity check BC types: BPO%PartBoundaries(iPartBound) = 1 (open) or 2 (ReflectiveBC)
   ! Add more BCs to the vector if required
-  IF(.NOT.ANY(PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)).EQ.(/1/)))THEN
+  IF(.NOT.ANY(PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)).EQ.(/1,2/)))THEN
     SWRITE(UNIT_stdOut,'(A)')'\nError for CalcBoundaryParticleOutput=T\n'
     SWRITE(UNIT_stdOut,'(A,I0)')'  iPartBound = ',BPO%PartBoundaries(iPartBound)
     SWRITE(UNIT_stdOut,'(A,A)') '  SourceName = ',TRIM(PartBound%SourceBoundName(BPO%PartBoundaries(iPartBound)))
