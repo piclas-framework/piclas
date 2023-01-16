@@ -47,7 +47,7 @@ USE MOD_part_tools              ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
 USE MOD_Globals                 ,ONLY: Abort
 USE MOD_Globals                 ,ONLY: unit_stdout,myrank
-USE MOD_Particle_Vars           ,ONLY: Symmetry
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 #if (PP_TimeDiscMethod==42)
 USE MOD_DSMC_Vars               ,ONLY: DSMC
