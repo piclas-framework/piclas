@@ -57,7 +57,9 @@ SUBROUTINE Init_Symmetry()
 ! MODULES
 USE MOD_Globals
 USE MOD_Symmetry_Vars    ,ONLY: Symmetry
+#if defined(PARTICLES)
 USE MOD_DSMC_Vars        ,ONLY: RadialWeighting
+#endif /*defined(PARTICLES)*/
 USE MOD_ReadInTools      ,ONLY: GETLOGICAL,GETINT
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
@@ -92,12 +94,14 @@ IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
   ,'ERROR: Axisymmetric simulations only for 1D or 2D')
 IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.1))CALL ABORT(__STAMP__&
   ,'ERROR: Axisymmetric simulations are only implemented for Particles-Symmetry-Order=2 !')
+#if defined(PARTICLES)
 IF(Symmetry%Axisymmetric) THEN
   RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
 ELSE
   RadialWeighting%DoRadialWeighting = .FALSE.
   RadialWeighting%PerformCloning = .FALSE.
 END IF
+#endif /*defined(PARTICLES)*/
 
 END SUBROUTINE Init_Symmetry
 

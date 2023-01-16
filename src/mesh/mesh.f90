@@ -120,6 +120,7 @@ USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
@@ -132,7 +133,6 @@ USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Particle_Mesh_Vars     ,ONLY: meshScale
 USE MOD_Particle_Vars          ,ONLY: usevMPF
-USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #endif
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_Mesh_Tools             ,ONLY: BuildSideToNonUniqueGlobalSide
