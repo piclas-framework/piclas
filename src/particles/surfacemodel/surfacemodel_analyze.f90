@@ -84,6 +84,7 @@ USE MOD_SurfaceModel_Analyze_Vars
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Restart_Vars              ,ONLY: DoRestart,RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -97,6 +98,13 @@ IF(SurfModelAnalyzeInitIsDone)THEN
 END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE MODEL ANALYZE...'
+
+! Initialize with restart time or zero
+IF(DoRestart)THEN
+  SurfModelAnalyzeSampleTime = RestartTime
+ELSE
+  SurfModelAnalyzeSampleTime = 0.
+END IF ! DoRestart
 
 SurfaceAnalyzeStep = GETINT('Surface-AnalyzeStep')
 IF(SurfaceAnalyzeStep.EQ.0) SurfaceAnalyzeStep = HUGE(1)
@@ -177,6 +185,7 @@ INTEGER             :: iPartBound,iSpec
 !===================================================================================================================================
 IF((nComputeNodeSurfSides.EQ.0).AND.(.NOT.CalcBoundaryParticleOutput).AND.(.NOT.UseNeutralization).AND.(.NOT.CalcElectronSEE)) RETURN
 IF(.NOT.DoSurfModelAnalyze) RETURN
+SurfModelAnalyzeSampleTime = Time - SurfModelAnalyzeSampleTime ! Set SurfModelAnalyzeSampleTime=Time at the end of this routine
 OutputCounter = 2
 unit_index = 636
 #if USE_MPI
@@ -210,7 +219,7 @@ IF(PartMPI%MPIRoot)THEN
         DO iPartBound = 1, BPO%NPartBoundaries
           DO iSpec = 1, BPO%NSpecies
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A19,I3.3,A1,A)',ADVANCE='NO') OutputCounter,'-nRealPartOut-Spec-', BPO%Species(iSpec),'-',&
+            WRITE(unit_index,'(I3.3,A,I3.3,A1,A)',ADVANCE='NO') OutputCounter,'-Flux-Spec-', BPO%Species(iSpec),'-',&
                 TRIM(PartBound%SourceBoundName(BPO%PartBoundaries(iPartBound)))
             OutputCounter = OutputCounter + 1
           END DO
@@ -223,7 +232,7 @@ IF(PartMPI%MPIRoot)THEN
       IF(CalcElectronSEE)THEN
         DO iPartBound = 1, SEE%NPartBoundaries
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-nRealElectronsEmmited-'//&
+          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-ElectricCurrentSEE-'//&
               TRIM(PartBound%SourceBoundName(SEE%PartBoundaries(iPartBound)))
           OutputCounter = OutputCounter + 1
         END DO ! iPartBound = 1, SEE%NPartBoundaries
@@ -263,7 +272,11 @@ IF(PartMPI%MPIRoot)THEN
   IF(CalcBoundaryParticleOutput)THEN
     DO iPartBound = 1, BPO%NPartBoundaries
       DO iSpec = 1, BPO%NSpecies
-        CALL WriteDataInfo(unit_index,1,RealArray=(/BPO%RealPartOut(iPartBound,iSpec)/))
+        IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
+          CALL WriteDataInfo(unit_index,1,RealArray=(/0.0/))
+        ELSE
+          CALL WriteDataInfo(unit_index,1,RealArray=(/BPO%RealPartOut(iPartBound,iSpec)/SurfModelAnalyzeSampleTime/))
+        END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
         ! Reset PartMPI%MPIRoot counters after writing the data to the file,
         ! non-PartMPI%MPIRoot are reset in SyncBoundaryParticleOutput()
         BPO%RealPartOut(iPartBound,iSpec) = 0.
@@ -273,7 +286,11 @@ IF(PartMPI%MPIRoot)THEN
   IF(UseNeutralization) CALL WriteDataInfo(unit_index,1,RealArray=(/REAL(NeutralizationBalanceGlobal)/))
   IF(CalcElectronSEE)THEN
     DO iPartBound = 1, SEE%NPartBoundaries
-      CALL WriteDataInfo(unit_index,1,RealArray=(/SEE%RealElectronOut(iPartBound)/))
+      IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
+        CALL WriteDataInfo(unit_index,1,RealArray=(/0.0/))
+      ELSE
+        CALL WriteDataInfo(unit_index,1,RealArray=(/SEE%RealElectronOut(iPartBound)/SurfModelAnalyzeSampleTime/))
+      END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
         ! Reset PartMPI%MPIRoot counters after writing the data to the file,
         ! non-PartMPI%MPIRoot are reset in SyncBoundaryParticleOutput()
         SEE%RealElectronOut(iPartBound) = 0.
@@ -284,6 +301,7 @@ IF(PartMPI%MPIRoot)THEN
 END IF
 #endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
+SurfModelAnalyzeSampleTime = Time ! Backup "old" time value for next output
 END SUBROUTINE AnalyzeSurface
 
 

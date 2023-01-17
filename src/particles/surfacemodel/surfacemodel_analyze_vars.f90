@@ -23,6 +23,7 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: SurfModelAnalyzeInitIsDone = .FALSE.
+REAL                          :: SurfModelAnalyzeSampleTime  !< Accumulated simulation time between two outputs to SurfaceAnalyze.csv
 INTEGER(KIND=8)               :: SurfaceAnalyzeStep       ! Analyze of surface is performed each Nth time step
 ! Output flags
 LOGICAL                       :: CalcSurfCollCounter      ! Calculate the number of surface collision and number of
