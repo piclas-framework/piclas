@@ -338,8 +338,51 @@ impact angle of $0^{\circ}$), number of real particle impacts over the sampling 
 per area per second.
 
 ## Integral Variables
+This analysis measures integral values from the field- and/or particle-solver data and writes different .csv files.
 
-WIP, PartAnalyze/FieldAnalyze
+### FieldAnalyze.csv
+**WIP**
+
+### PartAnalyze.csv
+**WIP**
+
+### SurfaceAnalyze.csv
+
+The output for different measurements involving particles and surfaces is written to *SurfaceAnalyze.csv*.
+If this analysis is not required in each time step, the parameter `Surface-AnalyzeStep` (default is 1) can be set to an integer
+greater or equal 1. Some values are sampled only during one time step and others are accumulated over the number of time steps
+defined by `Surface-AnalyzeStep`.
+The number of time steps over which the values are calculated is controlled with `Surface-AnalyzeStep` (default is 1).
+
+|           Parameter          |                                   Parameter                                  |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+|       `CalcElectronSEE`      |  Secondary electron emission current for each `Part-Boundary` with SEE model |
+| `CalcBoundaryParticleOutput` |    Particle flux for each user-defined `Part-Boundary` and `Part-Species`    |
+
+**Secondary Electron Emission**
+When `CalcElectronSEE=T` is activated, the secondary electron emission current (on all surfaces where such a model is used) is
+calculated and written to *SurfaceAnalyze.csv*. Note that all secondary electrons between two outputs are accumulated and divided by
+the time difference between these outputs. Hence, the averaging time can be adjusted using `Surface-AnalyzeStep`.
+The output in the .csv file will be similar to this example: `012-ElectricCurrentSEE-BC_WALL`
+
+**BoundaryParticleOutput (BPO)** The flux of particles crossing boundaries where they are removed can be calculated by setting
+`CalcBoundaryParticleOutput = T`. Additionally, the boundaries and species IDs must be supplied for which the output is to be
+created. This is done by setting
+
+    CalcBoundaryParticleOutput = T        ! Activate the analysis
+    BPO-NPartBoundaries        = 1        ! Nbr of boundaries
+    BPO-PartBoundaries         = (/4,8/)  ! only consider Part-Boundary4 and Part-Boundary8
+    BPO-NSpecies               = 2        ! Nbr of species
+    BPO-Species                = (/2,3/)  ! Species IDs which should be measured
+
+where the number of boundaries and species as well as the corresponding IDs are defined. The other boundaries and species IDs will
+be ignored. Note that this feature is currently only implemented for boundaries of type `Part-BoundaryX-Condition = open` and
+`Part-BoundaryX-Condition = reflective`. The reflective BC must also use either species swap via `Part-BoundaryX-NbrOfSpeciesSwaps`
+or a secondary electron emission surface model vie `Part-BoundaryX-SurfaceModel`.
+The output in the .csv file will be similar to this example: `004-Flux-Spec-002-BC_CATHODE`
+Additionally, the total electric current will be calculated if any species that is selected via `BPO-Species` carries a charge
+unequal to zero. For the total electric current, the secondary electron emission current is automatically added.
+The output in the .csv file will be similar to this example: `008-TotalElectricCurrent-BC_ANODE`
 
 ## Dynamic Mode Decomposition
 The dynamic mode decomposition is an algorithm that divides a temporal series into a set of modes which are associated with a
