@@ -54,6 +54,8 @@ TYPE tBoundaryParticleOutput
   INTEGER                       :: NSpecies                 !< Total number of species which are considered for counting
   INTEGER,ALLOCATABLE           :: Species(:)               !< Species IDs which are considered for counting
   INTEGER,ALLOCATABLE           :: SpecIDToBPOSpecID(:)     !< Mapping SpecID to BPOSpecID (1:BpoNSpecies)
+
+  LOGICAL                       :: OutputTotalElectricCurrent !< calculate the sum of all charged particle currents and SEE
 END TYPE
 
 TYPE(tBoundaryParticleOutput)   :: BPO
