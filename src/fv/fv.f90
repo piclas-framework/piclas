@@ -64,6 +64,8 @@ CALL prms%SetSection("Finite Volumes")
 
 CALL prms%CreateLogicalOption('FV-Reconstruction' , 'Use reconstruction for finite volumes', '.TRUE.')
 CALL prms%CreateIntOption('FV-LimiterType',"Type of slope limiter of second order reconstruction", '1')
+CALL prms%CreateRealArrayOption('FV-PeriodicBoxMin', "Minimum coordinates of the periodic box", "(/-Inf, -Inf, -Inf/)")
+CALL prms%CreateRealArrayOption('FV-PeriodicBoxMax', "Maximum coordinates of the periodic box", "(/Inf, Inf, Inf/)")
 
 END SUBROUTINE DefineParametersFV
 
@@ -75,7 +77,7 @@ SUBROUTINE InitFV()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_ReadInTools        ,ONLY: GETLOGICAL, GETINT
+USE MOD_ReadInTools        ,ONLY: GETLOGICAL, GETINT, GETREALARRAY
 USE MOD_FV_Vars
 USE MOD_FV_Metrics         ,ONLY: InitFV_Metrics
 USE MOD_FV_Limiter         ,ONLY: InitFV_Limiter
@@ -83,6 +85,7 @@ USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 USE MOD_Mesh_Vars          ,ONLY: nSides, Face_xGP, NormVec
 USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
+USE MOD_FillMortar         ,ONLY: L_Mortar
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #if !(USE_HDG)
@@ -102,7 +105,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if USE_MPI
-REAL                      :: Geotemp(6,1:nSides), dx_slave_temp(PP_nVar+1,1:nSides)
+REAL                      :: Geotemp(6,1:nSides), dx_slave_temp(PP_nVar+1,1:nSides), dx_master_temp(PP_nVar+1,1:nSides)
 #endif /*USE_MPI*/
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitIsDone).OR.FVInitIsDone) CALL abort(__STAMP__,&
@@ -111,6 +114,9 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT FV...'
 
 doFVReconstruction=GETLOGICAL('FV-Reconstruction')
+FV_PerBoxMin(:)=GETREALARRAY('FV-PeriodicBoxMin',3)
+FV_PerBoxMax(:)=GETREALARRAY('FV-PeriodicBoxMax',3)
+
 
 #if USE_LOADBALANCE && !(USE_HDG)
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
@@ -185,22 +191,26 @@ IF (doFVReconstruction) THEN
 
   ! distances for MPI sides - send direction
   CALL StartReceiveMPIData(PP_nVar+1,dx_slave_temp,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
-  CALL InitFV_Metrics(dx_slave_temp,doMPISides=.TRUE.)
+  CALL InitFV_Metrics(dx_master_temp,dx_slave_temp,doMPISides=.TRUE.)
+  CALL L_Mortar(dx_master_temp,dx_slave_temp,doMPISides=.TRUE.)
   CALL StartSendMPIData(PP_nVar+1,dx_slave_temp,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 #endif /*USE_MPI*/
   ! distances for BCSides, InnerSides and MPI sides - receive direction
-  CALL InitFV_Metrics(dx_slave_temp,doMPISides=.FALSE.)
+  CALL InitFV_Metrics(dx_master_temp,dx_slave_temp,doMPISides=.FALSE.)
+  CALL L_Mortar(dx_master_temp,dx_slave_temp,doMPISides=.FALSE.)
 #if USE_MPI
   CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
 #endif /*USE_MPI*/
+  FV_dx_master(:)=dx_master_temp(PP_nVar+1,:)
   FV_dx_slave(:)=dx_slave_temp(PP_nVar+1,:)
 #if (PP_TimeDiscMethod==600)
+  DVMtraj_master(1:PP_nVar,:)=dx_master_temp(1:PP_nVar,:)
   DVMtraj_slave(1:PP_nVar,:)=dx_slave_temp(1:PP_nVar,:)
 #endif
 END IF
 
 FVInitIsDone=.TRUE.
-LBWRITE(UNIT_stdOut,'(A)')' INIT DG DONE!'
+LBWRITE(UNIT_stdOut,'(A)')' INIT FV DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitFV
 
@@ -263,7 +273,7 @@ CALL StartReceiveMPIData(PP_nVar,U_slave,1,nSides,RecRequest_U,SendID=2) ! Recei
 CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 CALL ProlongToFace(U,U_master,U_slave,doMPISides=.TRUE.)
-CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.) !mortars not yet implemented
+CALL U_Mortar(U_master,U_slave,doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -498,6 +508,7 @@ SDEALLOCATE(FLUX_Slave)
 IF (doFVReconstruction) THEN
   SDEALLOCATE(FV_dx_slave)
   SDEALLOCATE(FV_dx_master)
+  SDEALLOCATE(FV_gradU)
 END IF
 
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors

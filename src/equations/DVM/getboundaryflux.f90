@@ -120,8 +120,8 @@ USE MOD_PreProc
 USE MOD_Globals      ,ONLY: Abort
 USE MOD_Mesh_Vars    ,ONLY: BoundaryType,BC
 USE MOD_Equation    ,ONLY: ExactFunc
-USE MOD_DistFunc     ,ONLY: MaxwellDistribution, MaxwellScattering, MacroValuesFromDistribution
-USE MOD_Equation_Vars,ONLY: IniExactFunc, RefState, DVMSpeciesData
+USE MOD_DistFunc     ,ONLY: MaxwellDistribution, ShakhovDistribution, MaxwellScattering, MacroValuesFromDistribution
+USE MOD_Equation_Vars,ONLY: IniExactFunc, RefState, DVMSpeciesData, DVMBGKModel
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -166,13 +166,14 @@ CASE(4) ! maxwell scattering
   MacroVal(:) = RefState(:,BCState)
   DO q=0,Nloc; DO p=0,Nloc
     CALL MaxwellDistribution(MacroVal,UPrim_boundary(:,p,q))
-    ! CALL MaxwellScattering(UPrim_boundary(:,p,q),UPrim_master(:,p,q),NormVec(:,p,q),1,t) ! t=tDeriv here
+    CALL MaxwellScattering(UPrim_boundary(:,p,q),UPrim_master(:,p,q),NormVec(:,p,q),1,t) ! t=tDeriv here
   END DO; END DO
 
-CASE(5) !nflow
+CASE(5) !constant static pressure+temperature inlet
   DO q=0,Nloc; DO p=0,Nloc
     CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q),t,tau,1)
-    MacroVal(1:8)=RefState(1:8,BCState)
+    MacroVal(1)=RefState(1,BCState)
+    MacroVal(5)=RefState(5,BCState)
     CALL MaxwellDistribution(MacroVal,UPrim_boundary(:,p,q))
   END DO; END DO
 
@@ -181,6 +182,19 @@ CASE(6) !constant static pressure outlet
     CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q),t,tau,1)
     MacroVal(5)=RefState(5,BCState)*RefState(1,BCState)/MacroVal(1) !to get the pressure given by refstate
     CALL MaxwellDistribution(MacroVal,UPrim_boundary(:,p,q))
+  END DO; END DO
+
+CASE(7) !open outlet
+  DO q=0,Nloc; DO p=0,Nloc
+    CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q),t,tau,1)
+    SELECT CASE (DVMBGKModel)
+      CASE(1)
+        CALL MaxwellDistribution(MacroVal,UPrim_boundary(:,p,q))
+      CASE(2)
+        CALL ShakhovDistribution(MacroVal,UPrim_boundary(:,p,q))
+      CASE DEFAULT
+        CALL abort(__STAMP__,'DVM BGK Model not implemented.',999,999.)
+    END SELECT
   END DO; END DO
 
 CASE DEFAULT ! unknown BCType
@@ -254,7 +268,7 @@ DO iBC=1,nBCs
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
 
-  CASE(4,5,6) ! diffusive or constant static pressure in/outlet
+  CASE(4,5,6,7) ! diffusive or in/outlet
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       CALL GetBoundaryState(SideID,dt/2.,PP_N,UPrim_boundary,UPrim_master(:,:,:,SideID),NormVec(:,:,:,SideID) &

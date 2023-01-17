@@ -46,6 +46,7 @@ REAL,ALLOCATABLE                      :: FV_dx_master(:)
 REAL,ALLOCATABLE                      :: DVMtraj_slave(:,:)
 REAL,ALLOCATABLE                      :: DVMtraj_master(:,:)
 #endif
+REAL                                  :: FV_PerBoxMin(3),FV_PerBoxMax(3)
 
 REAL,ALLOCATABLE                      :: FV_gradU(:,:,:,:)
 

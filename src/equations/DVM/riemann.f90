@@ -83,8 +83,8 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
         Velo= n_loc(1)*DVMVelos(iVel,1) + n_loc(2)*DVMVelos(jVel,2) + n_loc(3)*DVMVelos(kVel,3)
         F(upos,Count_1,Count_2)=0.5*((Velo+abs(Velo))*Utemp_L(upos)+(Velo-abs(Velo))*Utemp_R(upos))
         IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-          F(NINT(PP_nVar/2.)+upos,Count_1,Count_2) = &
-            0.5*((Velo+abs(Velo))*Utemp_L(NINT(PP_nVar/2.)+upos)+(Velo-abs(Velo))*Utemp_R(NINT(PP_nVar/2.)+upos))
+          F(PP_nVar/2+upos,Count_1,Count_2) = &
+            0.5*((Velo+abs(Velo))*Utemp_L(PP_nVar/2+upos)+(Velo-abs(Velo))*Utemp_R(PP_nVar/2+upos))
         END IF
       END DO; END DO; END DO;
     END DO

@@ -64,7 +64,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   rhoU(2) = rhoU(2) + weight*DVMVelos(jVel,2)*U(upos)
   rhoU(3) = rhoU(3) + weight*DVMVelos(kVel,3)*U(upos)
   IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-    rhoE = rhoE + weight*0.5*((DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)*U(upos)+U(NINT(PP_nVar/2.)+upos))
+    rhoE = rhoE + weight*0.5*((DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)*U(upos)+U(PP_nVar/2+upos))
   ELSE
     rhoE = rhoE + weight*0.5*(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)*U(upos)
   END IF
@@ -82,9 +82,9 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   cVel(3) = DVMVelos(kVel,3) - uVelo(3)
   cMag = cVel(1)*cVel(1) + cVel(2)*cVel(2)+ cVel(3)*cVel(3)
   IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-    Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag+U(NINT(PP_nVar/2.)+upos))
-    Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag+U(NINT(PP_nVar/2.)+upos))
-    Heatflux(3) = Heatflux(3) + weight*0.5*cVel(3)*(U(upos)*cMag+U(NINT(PP_nVar/2.)+upos))
+    Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag+U(PP_nVar/2+upos))
+    Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag+U(PP_nVar/2+upos))
+    Heatflux(3) = Heatflux(3) + weight*0.5*cVel(3)*(U(upos)*cMag+U(PP_nVar/2+upos))
   ELSE
     Heatflux(1) = Heatflux(1) + weight*0.5*cVel(1)*(U(upos)*cMag)
     Heatflux(2) = Heatflux(2) + weight*0.5*cVel(2)*(U(upos)*cMag)
@@ -107,6 +107,8 @@ ELSE
     CASE(1) ! heat flux from f~
       MacroVal(6:8) = Heatflux(1:3)*(1.-EXP(-tDeriv*DVMSpeciesData%Prandtl/tau))/(tDeriv*DVMSpeciesData%Prandtl/tau)
     CASE(2) ! heat flux from f^
+      ! MacroVal(6:8) = Heatflux(1:3)*(1.-EXP(-DVMSpeciesData%Prandtl*tDeriv/tau)) &
+      !                            /(EXP(-DVMSpeciesData%Prandtl*tDeriv/tau)*tDeriv*DVMSpeciesData%Prandtl/tau)
       MacroVal(6:8) = 0. !will get copied from earlier f~ macroval
   END SELECT
 END IF
@@ -146,7 +148,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   gM = rho/((2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))*exp(-cMag/(2.*DVMSpeciesData%R_S*Temp))
   fMaxwell(upos)= gM
   IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-    fMaxwell(NINT(PP_nVar/2.)+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF
+    fMaxwell(PP_nVar/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF
   END IF
 END DO; END DO; END DO
 
@@ -190,7 +192,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   ShakhFac2 = cMag/(DVMSpeciesData%R_S*Temp)
   fShakhov(upos) = gm*(1.+(1.-Prandtl)*ShakhFac1*(ShakhFac2-2.-DVMDim))
   IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-    fShakhov(NINT(PP_nVar/2.)+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF*(1. &
+    fShakhov(PP_nVar/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF*(1. &
         +(1.-Prandtl)*ShakhFac1*((ShakhFac2-DVMDim)-2.*(DVMSpeciesData%Internal_DOF-3.+DVMDim)))
   END IF
 END DO; END DO; END DO
@@ -233,7 +235,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   ShakhFac2 = cMag/(DVMSpeciesData%R_S*Temp)
   fGrad(upos) = gm*(1.+ShakhFac1*(ShakhFac2-2.-DVMDim))
   IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-    fGrad(NINT(PP_nVar/2.)+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF*(1. &
+    fGrad(PP_nVar/2+upos) = gM*DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF*(1. &
         +ShakhFac1*((ShakhFac2-DVMDim)-2.*(DVMSpeciesData%Internal_DOF-3.+DVMDim)))
   END IF
 END DO; END DO; END DO
@@ -269,8 +271,8 @@ SELECT CASE(tilde)
   CASE(1)
     prefac = tau*(1.-EXP(-tDeriv/tau))/tDeriv ! f from f2~
   CASE(2)
-    CALL abort(__STAMP__,'Maxwell scattering density scaling not possible from f_hat',999,999.)
-    ! prefac = 1.!tau*(EXP(tDeriv/tau)-1.)/tDeriv ! f from f2^
+    !CALL abort(__STAMP__,'Maxwell scattering density scaling not possible from f_hat',999,999.)
+    prefac = 1 !tau*(EXP(tDeriv/tau)-1.)/tDeriv ! f from f2^ (currently f=f2^: no relaxation to f in the boundary grad calculation)
 END SELECT
 END IF
 SELECT CASE (DVMBGKModel)

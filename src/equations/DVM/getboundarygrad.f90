@@ -46,9 +46,9 @@ USE MOD_PreProc
 USE MOD_Globals       ,ONLY: Abort
 USE MOD_Mesh_Vars     ,ONLY: BoundaryType,BC
 USE MOD_Equation     ,ONLY: ExactFunc
-USE MOD_Equation_Vars ,ONLY: IniExactFunc, RefState
+USE MOD_Equation_Vars ,ONLY: IniExactFunc, RefState, DVMBGKModel
 USE MOD_TimeDisc_Vars, ONLY : dt, time
-USE MOD_DistFunc      ,ONLY: MaxwellDistribution, MacroValuesFromDistribution, MaxwellScattering
+USE MOD_DistFunc      ,ONLY: MaxwellDistribution, ShakhovDistribution, MacroValuesFromDistribution, MaxwellScattering
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
@@ -92,7 +92,6 @@ CASE(4) ! diffusive
   CALL MaxwellScattering(UPrim_boundary,UPrim_master,NormVec,2,dt/2.)
   gradU = (UPrim_master - UPrim_boundary) /dx_Face
 
-
 CASE(5) !constant static pressure+temperature inlet
   CALL MacroValuesFromDistribution(MacroVal,UPrim_master,dt/2.,tau,2)
   MacroVal(1)=RefState(1,BCState)
@@ -100,13 +99,23 @@ CASE(5) !constant static pressure+temperature inlet
   CALL MaxwellDistribution(MacroVal,UPrim_boundary)
   gradU = (UPrim_master - UPrim_boundary) /dx_Face
 
-
 CASE(6) !constant static pressure outlet
   CALL MacroValuesFromDistribution(MacroVal,UPrim_master,dt/2.,tau,2)
   MacroVal(5)=RefState(5,BCState)*RefState(1,BCState)/MacroVal(1)
   CALL MaxwellDistribution(MacroVal,UPrim_boundary)
   gradU = (UPrim_master - UPrim_boundary) /dx_Face
 
+CASE(7) !open outlet
+  CALL MacroValuesFromDistribution(MacroVal,UPrim_master,dt/2.,tau,2)
+  SELECT CASE (DVMBGKModel)
+    CASE(1)
+      CALL MaxwellDistribution(MacroVal,UPrim_boundary)
+    CASE(2)
+      CALL ShakhovDistribution(MacroVal,UPrim_boundary)
+    CASE DEFAULT
+      CALL abort(__STAMP__,'DVM BGK Model not implemented.',999,999.)
+  END SELECT
+  gradU = (UPrim_master - UPrim_boundary) /dx_Face
 
 CASE DEFAULT ! unknown BCType
   CALL abort(__STAMP__,&

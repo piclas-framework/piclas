@@ -206,6 +206,7 @@ SUBROUTINE ExactFunc(ExactFunction,tIn,tDeriv,x,resu)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
+USE MOD_Globals_Vars,  ONLY: PI
 USE MOD_DistFunc,      ONLY: MaxwellDistribution, MacroValuesFromDistribution, GradDistribution
 USE MOD_Equation_Vars, ONLY: DVMSpeciesData, RefState
 IMPLICIT NONE
@@ -229,7 +230,7 @@ SELECT CASE (ExactFunction)
 CASE(0)
   Resu=0.
 
-CASE(1,4) !Grad 13 uniform init (only heat flux for now)
+CASE(1,4) !Grad 13 uniform init (only heat flux for now); 4 = heat flux relaxation test case
   MacroVal(:) = RefState(:,1)
   CALL GradDistribution(MacroVal,Resu(:))
 
@@ -270,6 +271,13 @@ CASE(3) !sod shock
   ! ELSE
   !   CALL MaxwellDistribution(SodMacro_R,Resu(:))
   ! END IF
+
+CASE(5) !Taylor-Green vortex
+  MacroVal(:) = RefState(:,1)
+  MacroVal(2) = MacroVal(2)*SIN(2*PI*x(1))*COS(2*PI*x(2))*COS(2*PI*x(3))
+  MacroVal(3) = -MacroVal(3)*COS(2*PI*x(1))*SIN(2*PI*x(2))*COS(2*PI*x(3))
+  MacroVal(4) = 0.
+  CALL MaxwellDistribution(MacroVal,Resu(:))
 
 CASE DEFAULT
   CALL abort(__STAMP__,&

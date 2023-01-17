@@ -84,9 +84,9 @@ DO k=0,PP_N
         g(upos,i,j,k) = DVMVelos(jVel,2) * UTemp(upos)
         h(upos,i,j,k) = DVMVelos(kVel,3) * UTemp(upos)
         IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
-          f(NINT(PP_nVar/2.)+upos,i,j,k) = DVMVelos(iVel,1) * UTemp(NINT(PP_nVar/2.)+upos)
-          g(NINT(PP_nVar/2.)+upos,i,j,k) = DVMVelos(jVel,2) * UTemp(NINT(PP_nVar/2.)+upos)
-          h(NINT(PP_nVar/2.)+upos,i,j,k) = DVMVelos(kVel,3) * UTemp(NINT(PP_nVar/2.)+upos)
+          f(PP_nVar/2+upos,i,j,k) = DVMVelos(iVel,1) * UTemp(PP_nVar/2+upos)
+          g(PP_nVar/2+upos,i,j,k) = DVMVelos(jVel,2) * UTemp(PP_nVar/2+upos)
+          h(PP_nVar/2+upos,i,j,k) = DVMVelos(kVel,3) * UTemp(PP_nVar/2+upos)
         END IF
       END DO; END DO; END DO;
     END DO ! i
