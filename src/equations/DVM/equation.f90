@@ -58,14 +58,15 @@ CALL prms%CreateRealOption(     'DVM-T_Ref',        "Blabla.")
 CALL prms%CreateRealOption(     'DVM-d_Ref',        "Blabla.")
 CALL prms%CreateRealOption(     'DVM-Internal_DOF',        "Blabla.")
 CALL prms%CreateRealOption(     'DVM-Mass',        "Blabla.")
-CALL prms%CreateIntOption(     'DVM-BGKModel',        "Blabla.")
-CALL prms%CreateIntOption(     'DVM-VeloDiscretization',        "Blabla.")
+CALL prms%CreateIntOption(     'DVM-BGKModel',        "1: Maxwell, 2: Shakhov", "2")
+CALL prms%CreateIntOption(     'DVM-Method',        "1: Exponential differencing, 2: DUGKS", "1")
+CALL prms%CreateIntOption(     'DVM-VeloDiscretization',        "1: don't use, 2: Gauss-Hermite, 3: Newton-Cotes", "2")
 CALL prms%CreateRealArrayOption(     'DVM-GaussHermiteTemp',        "Blabla.","(/273.,273.,273./)")
-CALL prms%CreateRealArrayOption(     'DVM-VeloMin',        "Blabla.", "(/-1.,-1.,-1./)")
-CALL prms%CreateRealArrayOption(     'DVM-VeloMax',        "Blabla.", "(/1.,1.,1./)")
+CALL prms%CreateRealArrayOption(     'DVM-VeloMin',        "Only for Newton-Cotes velocity quadrature", "(/-1.,-1.,-1./)")
+CALL prms%CreateRealArrayOption(     'DVM-VeloMax',        "Only for Newton-Cotes velocity quadrature", "(/1.,1.,1./)")
 CALL prms%CreateIntOption(     'DVM-Dimension',        "Blabla.", "3")
 CALL prms%CreateIntOption( 'DVM-nVelo' , "Number of velocity discretization points", '15')
-CALL prms%CreateIntArrayOption(     'DVM-NewtonCotesDegree',        "Blabla.", "(/1,1,1/)")
+CALL prms%CreateIntArrayOption(     'DVM-NewtonCotesDegree',        "Degree of the subquadrature for composite quadrature", "(/1,1,1/)")
 CALL prms%CreateIntOption(      'IniRefState',  "Refstate required for initialization.")
 CALL prms%CreateRealArrayOption('RefState',     "State(s) in primitive variables (density, velx, vely, velz, pressure).",&
                                                 multiple=.TRUE., no=8 )
@@ -97,7 +98,7 @@ IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
     "InitLinearScalarAdvection not ready to be called or already called.")
 END IF
 SWRITE(UNIT_stdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT EIDV...'
+SWRITE(UNIT_stdOut,'(A)') ' INIT DVM...'
 
 Pi=ACOS(-1.)
 IniExactFunc = GETINT('IniExactFunc')
@@ -107,7 +108,8 @@ DVMSpeciesData%T_Ref = GETREAL('DVM-T_Ref')
 DVMSpeciesData%d_Ref = GETREAL('DVM-d_Ref')
 DVMSpeciesData%Internal_DOF = GETREAL('DVM-Internal_DOF')
 DVMSpeciesData%Mass = GETREAL('DVM-Mass')
-DVMBGKModel = GETINT('DVM-BGKModel','1')
+DVMBGKModel = GETINT('DVM-BGKModel')
+DVMMethod = GETINT('DVM-Method')
 DVMVeloDisc = GETINT('DVM-VeloDiscretization')
 DVMSpeciesData%mu_Ref = 30.*SQRT(DVMSpeciesData%Mass*BoltzmannConst*DVMSpeciesData%T_Ref/Pi) &
                       /(4.*(4.-2.*DVMSpeciesData%omegaVHS)*(6.-2.*DVMSpeciesData%omegaVHS) &
@@ -126,7 +128,6 @@ ELSE
   DVMnVelos(:) = GETINT('DVM-nVelo')
   PP_nVar = (DVMnVelos(1)**3)
 END IF
-SWRITE(UNIT_stdOut,*)'DVM uses ', DVMnVelos(1), 'x', DVMnVelos(2), 'x', DVMnVelos(3),' velocities!'
 
 ALLOCATE(DVMVelos(MAXVAL(DVMnVelos),3), DVMWeights(MAXVAL(DVMnVelos),3))
 DVMVelos(:,:)=0.
@@ -164,9 +165,6 @@ ELSE
              'Undefined velocity space discretization')
 END IF ! DVMVeloDisc
 
-! SWRITE(UNIT_stdOut,*) DVMVelos
-! SWRITE(UNIT_stdOut,*) DVMWeights
-
 ! Read Boundary information / RefStates / perform sanity check
 IniRefState = GETINT('IniRefState')
 nRefState=CountOption('RefState')
@@ -184,17 +182,23 @@ END IF
 
 DVMForce = GETREALARRAY('DVM-Accel',3)
 
-! Call initialization of exactfunc
-! CALL InitExactFunc()
-
 ALLOCATE(DVMMomentSave(3,nElems))
 DVMMomentSave = 0.
 
 ! Always set docalcsource true, set false by calcsource itself on first run if not needed
 doCalcSource=.TRUE.
 
+SWRITE(UNIT_stdOut,*)'DVM uses ', DVMnVelos(1), 'x', DVMnVelos(2), 'x', DVMnVelos(3),' velocities!'
+SELECT CASE (DVMMethod)
+CASE(1)
+  SWRITE(UNIT_stdOut,*)'Method: Exponential Differencing DVM'
+CASE(2)
+  SWRITE(UNIT_stdOut,*)'Method: DUGKS'
+END SELECT
+
+
 EquationInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT EIDV DONE!'
+SWRITE(UNIT_stdOut,'(A)')' INIT DVM DONE!'
 SWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 

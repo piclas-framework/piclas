@@ -35,7 +35,7 @@ SUBROUTINE MacroValuesFromDistribution(MacroVal,U,tDeriv,tau,tilde)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars         ,ONLY: DVMnVelos, DVMVelos, DVMWeights, DVMSpeciesData
+USE MOD_Equation_Vars         ,ONLY: DVMnVelos, DVMVelos, DVMWeights, DVMSpeciesData, DVMMethod
 USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -105,7 +105,12 @@ IF (tDeriv.EQ.0.) THEN
 ELSE
   SELECT CASE (tilde)
     CASE(1) ! heat flux from f~
-      MacroVal(6:8) = Heatflux(1:3)*(1.-EXP(-tDeriv*DVMSpeciesData%Prandtl/tau))/(tDeriv*DVMSpeciesData%Prandtl/tau)
+      SELECT CASE(DVMMethod)
+      CASE(1)
+        MacroVal(6:8) = Heatflux(1:3)*(1.-EXP(-tDeriv*DVMSpeciesData%Prandtl/tau))/(tDeriv*DVMSpeciesData%Prandtl/tau)
+      CASE(2)
+        MacroVal(6:8) = 2.*tau/(2.*tau+tDeriv*DVMSpeciesData%Prandtl)*Heatflux(1:3)
+      END SELECT
     CASE(2) ! heat flux from f^
       ! MacroVal(6:8) = Heatflux(1:3)*(1.-EXP(-DVMSpeciesData%Prandtl*tDeriv/tau)) &
       !                            /(EXP(-DVMSpeciesData%Prandtl*tDeriv/tau)*tDeriv*DVMSpeciesData%Prandtl/tau)
@@ -247,7 +252,7 @@ SUBROUTINE MaxwellScattering(fBoundary,U,NormVec,tilde,tDeriv)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars         ,ONLY: DVMnVelos, DVMVelos, DVMWeights, DVMBGKModel
+USE MOD_Equation_Vars         ,ONLY: DVMnVelos, DVMVelos, DVMWeights, DVMBGKModel, DVMMethod
 USE MOD_PreProc
 USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
@@ -269,10 +274,19 @@ IF (tDeriv.EQ.0.) THEN
 ELSE
 SELECT CASE(tilde)
   CASE(1)
-    prefac = tau*(1.-EXP(-tDeriv/tau))/tDeriv ! f from f2~
+    SELECT CASE(DVMMethod)
+    CASE(1)
+      prefac = tau*(1.-EXP(-tDeriv/tau))/tDeriv ! f from f2~
+    CASE(2)
+      prefac = 2.*tau/(2.*tau+tDeriv)
+    END SELECT
   CASE(2)
-    !CALL abort(__STAMP__,'Maxwell scattering density scaling not possible from f_hat',999,999.)
-    prefac = 1 !tau*(EXP(tDeriv/tau)-1.)/tDeriv ! f from f2^ (currently f=f2^: no relaxation to f in the boundary grad calculation)
+    SELECT CASE(DVMMethod)
+    CASE(1)
+      prefac = 1 !tau*(EXP(tDeriv/tau)-1.)/tDeriv ! f from f2^ (currently f=f2^: no relaxation to f in the boundary grad calculation)
+    CASE(2)
+      prefac = 2.*tau/(2.*tau-tDeriv)
+    END SELECT
 END SELECT
 END IF
 SELECT CASE (DVMBGKModel)
@@ -310,7 +324,7 @@ SUBROUTINE RescaleU(tilde,tDeriv)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars,  ONLY : DVMBGKModel, DVMMomentSave
+USE MOD_Equation_Vars,  ONLY : DVMBGKModel, DVMMomentSave, DVMMethod
 USE MOD_Globals,        ONLY :abort
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
@@ -334,10 +348,20 @@ DO iElem =1, nElems
     SELECT CASE (tilde)
       CASE(1) ! f~  -----> f2^    (tDeriv=dt)
         DVMMomentSave(1:3,iElem) = MacroVal(6:8)
-        prefac = (EXP(-tDeriv/tau/2.)-EXP(-3.*tDeriv/tau/2.))/(1.-EXP(-tDeriv/tau/2.))/2.
+        SELECT CASE(DVMMethod)
+        CASE(1)
+          prefac = (EXP(-tDeriv/tau/2.)-EXP(-3.*tDeriv/tau/2.))/(1.-EXP(-tDeriv/tau/2.))/2.
+        CASE(2)
+          prefac = (2.*tau-tDeriv/2.)/(2.*tau+tDeriv)
+        END SELECT
       CASE(2) ! f2^ -----> f^     (tDeriv=dt/2)
         MacroVal(6:8) = DVMMomentSave(1:3,iElem)
-        prefac = 2.*(EXP(-tDeriv/tau)-EXP(-2.*tDeriv/tau))/(1.-EXP(-2.*tDeriv/tau))
+        SELECT CASE(DVMMethod)
+        CASE(1)
+          prefac = 2.*(EXP(-tDeriv/tau)-EXP(-2.*tDeriv/tau))/(1.-EXP(-2.*tDeriv/tau))
+        CASE(2)
+          prefac = (4./3.)-(1./3.)*(2.*tau+2.*tDeriv)/(2.*tau-tDeriv)
+        END SELECT
     END SELECT
     ! IF (MacroVal(5).LE.0) print*, iElem, i,j,k
     SELECT CASE (DVMBGKModel)
@@ -358,7 +382,7 @@ SUBROUTINE RescaleInit(tDeriv)
 ! Initial rescale for initialization with non equilibrium flow
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars,  ONLY: DVMBGKModel
+USE MOD_Equation_Vars,  ONLY: DVMBGKModel, DVMMethod
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
@@ -387,7 +411,12 @@ DO iElem =1, nElems
       CASE DEFAULT
         CALL abort(__STAMP__,'DVM BGK Model not implemented.',999,999.)
     END SELECT
-    prefac = (tDeriv/tau)/(1. - (EXP(-tDeriv/tau)))
+    SELECT CASE (DVMMethod)
+    CASE(1)
+      prefac = (tDeriv/tau)/(1. - (EXP(-tDeriv/tau)))
+    CASE(2)
+      prefac = (2.*tau+tDeriv)/(2.*tau)
+    END SELECT
     U(:,i,j,k,iElem) = U(:,i,j,k,iElem)*prefac + fTarget(:)*(1.-prefac)
   END DO; END DO; END DO
 END DO

@@ -39,6 +39,7 @@ INTEGER,ALLOCATABLE  :: BCSideID(:,:)         !< SideIDs for BC types
 
 INTEGER              :: DVMnVelos(3)
 INTEGER              :: DVMBGKModel
+INTEGER              :: DVMMethod
 INTEGER              :: DVMVeloDisc
 REAL                 :: DVMGHTemp(3)
 INTEGER              :: DVMNewtDeg(3)
@@ -67,15 +68,7 @@ END TYPE tSpeciesData
 
 TYPE(tSpeciesData) :: DVMSpeciesData
 
-CHARACTER(LEN=255),DIMENSION(9),PARAMETER :: StrVarNames = (/ CHARACTER(LEN=255) :: 'Density', &
-                                                                                    'VeloX', &
-                                                                                    'VeloY', &
-                                                                                    'VeloZ', &
-                                                                                    'Temp', &
-                                                                                    'HeatfluxX', &
-                                                                                    'HeatfluxY', &
-                                                                                    'HeatfluxZ', &
-                                                                                    'RelaxFact'/)
+CHARACTER(LEN=255),DIMENSION(1),PARAMETER :: StrVarNames = (/ CHARACTER(LEN=255) :: 'NothingToSeeHere'/)
 
 LOGICAL              :: EquationInitIsDone=.FALSE.!< Init switch
 LOGICAL              :: DoExactFlux

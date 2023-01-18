@@ -44,7 +44,7 @@ USE MOD_PreProc
 USE MOD_Globals      ,ONLY: Abort
 USE MOD_TimeDisc_Vars,ONLY : dt
 USE MOD_FV_Vars      ,ONLY: U
-USE MOD_Equation_Vars,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMBGKModel
+USE MOD_Equation_Vars,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMBGKModel, DVMMethod
 USE MOD_DistFunc     ,ONLY: MacroValuesFromDistribution, MaxwellDistribution, ShakhovDistribution
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -73,7 +73,12 @@ DO k=0,PP_N
           CALL abort(__STAMP__,'DVM BGK Model not implemented')
       END SELECT
       IF (dt.GT.0.) THEN
-        gamma = 2.*tau*(1.-EXP(-dt/2./tau))/dt
+        SELECT CASE (DVMMethod)
+        CASE(1)
+          gamma = 2.*tau*(1.-EXP(-dt/2./tau))/dt
+        CASE(2)
+          gamma = 2.*tau/(2.*tau+dt)
+        END SELECT
         UTemp = gamma*UTemp + (1.-gamma)*fTarget
       ELSE
         UTemp = 0.
