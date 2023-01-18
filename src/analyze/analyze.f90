@@ -925,6 +925,9 @@ USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars              ,ONLY: DoDeposition, RelaxDeposition
 #endif /*PARTICLES*/
+#if (PP_TimeDiscMethod==600) /*DVM*/
+USE MOD_Analyze_DVM               ,ONLY: AnalyzeDVM
+#endif /*DVM*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1132,6 +1135,13 @@ END IF
 
 ! end the analyzes for all Runge-Kutta based time-discs
 #endif /* LSERK && IMPA && ROS && USE_HDG*/
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! Discrete Velocity Method
+!----------------------------------------------------------------------------------------------------------------------------------
+#if (PP_TimeDiscMethod==600) /*DVM*/
+CALL AnalyzeDVM()
+#endif /*DVM*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! PIC, DSMC and other Particle-based Solvers

@@ -96,7 +96,7 @@ MacroVal(1) = rho
 MacroVal(2:4) = uVelo
 MacroVal(5) = (rhoE - 0.5*(rhoU(1)*rhoU(1)+rhoU(2)*rhoU(2)+rhoU(3)*rhoU(3))/rho)/cV
 pressure = DVMSpeciesData%R_S*MacroVal(1)*MacroVal(5)
-IF (MacroVal(5).LE.0) print*, MacroVal(5)
+! IF (MacroVal(5).LE.0) print*, MacroVal(5)
 mu = DVMSpeciesData%mu_Ref*(MacroVal(5)/DVMSpeciesData%T_Ref)**DVMSpeciesData%omegaVHS
 tau = 0.
 tau = mu/pressure
@@ -339,7 +339,7 @@ DO iElem =1, nElems
         MacroVal(6:8) = DVMMomentSave(1:3,iElem)
         prefac = 2.*(EXP(-tDeriv/tau)-EXP(-2.*tDeriv/tau))/(1.-EXP(-2.*tDeriv/tau))
     END SELECT
-    IF (MacroVal(5).LE.0) print*, iElem, i,j,k
+    ! IF (MacroVal(5).LE.0) print*, iElem, i,j,k
     SELECT CASE (DVMBGKModel)
       CASE(1)
         CALL MaxwellDistribution(MacroVal,fTarget)

@@ -81,9 +81,10 @@ USE MOD_ReadInTools        ,ONLY: GETLOGICAL, GETINT, GETREALARRAY
 USE MOD_FV_Vars
 USE MOD_FV_Metrics         ,ONLY: InitFV_Metrics
 USE MOD_FV_Limiter         ,ONLY: InitFV_Limiter
+USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
 USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
-USE MOD_Mesh_Vars          ,ONLY: nSides, Face_xGP, NormVec
+USE MOD_Mesh_Vars          ,ONLY: nSides, nElems, Face_xGP, NormVec
 USE MOD_Mesh_Vars          ,ONLY: MeshInitIsDone
 USE MOD_FillMortar         ,ONLY: L_Mortar
 #if USE_LOADBALANCE
@@ -104,8 +105,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL                      :: dx_slave_temp(PP_nVar+1,1:nSides), dx_master_temp(PP_nVar+1,1:nSides)
 #if USE_MPI
-REAL                      :: Geotemp(6,1:nSides), dx_slave_temp(PP_nVar+1,1:nSides), dx_master_temp(PP_nVar+1,1:nSides)
+REAL                      :: Geotemp(6,1:nSides)
 #endif /*USE_MPI*/
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitIsDone).OR.FVInitIsDone) CALL abort(__STAMP__,&
@@ -163,6 +165,30 @@ ALLOCATE(Flux_Slave (1:PP_nVar,0:PP_N,0:PP_N,1:nSides))
 ! ALLOCATE(Flux_loc   (1:PP_nVar,0:PP_N,0:PP_N))
 Flux_Master=0.
 Flux_Slave=0.
+
+#if (PP_TimeDiscMethod==600) /*DVM*/
+ALLOCATE(DVM_ElemData1(1:nElems))
+ALLOCATE(DVM_ElemData2(1:nElems))
+ALLOCATE(DVM_ElemData3(1:nElems))
+ALLOCATE(DVM_ElemData4(1:nElems))
+ALLOCATE(DVM_ElemData5(1:nElems))
+ALLOCATE(DVM_ElemData6(1:nElems))
+ALLOCATE(DVM_ElemData7(1:nElems))
+ALLOCATE(DVM_ElemData8(1:nElems))
+ALLOCATE(DVM_ElemData9(1:nElems))
+CALL AddToElemData(ElementOut,'DVM_Density',RealArray=DVM_ElemData1(:))
+CALL AddToElemData(ElementOut,'DVM_VeloX',RealArray=DVM_ElemData2(:))
+CALL AddToElemData(ElementOut,'DVM_VeloY',RealArray=DVM_ElemData3(:))
+CALL AddToElemData(ElementOut,'DVM_VeloZ',RealArray=DVM_ElemData4(:))
+CALL AddToElemData(ElementOut,'DVM_Temperature',RealArray=DVM_ElemData5(:))
+CALL AddToElemData(ElementOut,'DVM_HeatFluxX',RealArray=DVM_ElemData6(:))
+CALL AddToElemData(ElementOut,'DVM_HeatFluxY',RealArray=DVM_ElemData7(:))
+CALL AddToElemData(ElementOut,'DVM_HeatFluxZ',RealArray=DVM_ElemData8(:))
+CALL AddToElemData(ElementOut,'DVM_RelaxFac',RealArray=DVM_ElemData9(:))
+#elif
+CALL AddToElemData(ElementOut,'FV_ElemData',RealArray=U(1,0,0,0,:))
+#endif /*DVM*/
+
 
 IF (doFVReconstruction) THEN
   LimiterType = GETINT('FV-LimiterType')
@@ -505,11 +531,27 @@ SDEALLOCATE(FLUX_Slave)
 ! SDEALLOCATE(U_Master_loc)
 ! SDEALLOCATE(U_Slave_loc)
 ! SDEALLOCATE(Flux_loc)
+#if (PP_TimeDiscMethod==600) /*DVM*/
+SDEALLOCATE(DVM_ElemData1)
+SDEALLOCATE(DVM_ElemData2)
+SDEALLOCATE(DVM_ElemData3)
+SDEALLOCATE(DVM_ElemData4)
+SDEALLOCATE(DVM_ElemData5)
+SDEALLOCATE(DVM_ElemData6)
+SDEALLOCATE(DVM_ElemData7)
+SDEALLOCATE(DVM_ElemData8)
+SDEALLOCATE(DVM_ElemData9)
+#endif
 IF (doFVReconstruction) THEN
   SDEALLOCATE(FV_dx_slave)
   SDEALLOCATE(FV_dx_master)
   SDEALLOCATE(FV_gradU)
+#if (PP_TimeDiscMethod==600) /*DVM*/
+  SDEALLOCATE(DVMtraj_slave)
+  SDEALLOCATE(DVMtraj_master)
+#endif
 END IF
+
 
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE && !(USE_HDG)

@@ -45,7 +45,18 @@ REAL,ALLOCATABLE                      :: FV_dx_master(:)
 #if (PP_TimeDiscMethod==600)
 REAL,ALLOCATABLE                      :: DVMtraj_slave(:,:)
 REAL,ALLOCATABLE                      :: DVMtraj_master(:,:)
+! Output
+REAL,ALLOCATABLE                      :: DVM_ElemData1(:)
+REAL,ALLOCATABLE                      :: DVM_ElemData2(:)
+REAL,ALLOCATABLE                      :: DVM_ElemData3(:)
+REAL,ALLOCATABLE                      :: DVM_ElemData4(:)
+REAL,ALLOCATABLE                      :: DVM_ElemData5(:)
+REAL,ALLOCATABLE                      :: DVM_ElemData6(:)
+REAL,ALLOCATABLE                      :: DVM_ElemData7(:)
+REAL,ALLOCATABLE                      :: DVM_ElemData8(:)
+REAL,ALLOCATABLE                      :: DVM_ElemData9(:)
 #endif
+
 REAL                                  :: FV_PerBoxMin(3),FV_PerBoxMax(3)
 
 REAL,ALLOCATABLE                      :: FV_gradU(:,:,:,:)
