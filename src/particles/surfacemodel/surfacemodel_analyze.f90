@@ -85,7 +85,6 @@ USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_Restart_Vars              ,ONLY: DoRestart,RestartTime
-USE MOD_ReadInTools               ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -142,13 +141,7 @@ CalcBoundaryParticleOutput = GETLOGICAL('CalcBoundaryParticleOutput')
 IF(CalcBoundaryParticleOutput) CALL InitBoundaryParticleOutput()
 
 !-- Electron SEE emission counter
-IF(CalcBoundaryParticleOutput)THEN
-  CalcElectronSEE = .TRUE.
-  CALL PrintOption('Activating SEE current measurement: CalcElectronSEE','INFO',LogOpt=CalcElectronSEE)
-ELSE
-  CalcElectronSEE = GETLOGICAL('CalcElectronSEE','.FALSE.')
-END IF ! CalcBoundaryParticleOutput
-IF(CalcElectronSEE) CALL InitCalcElectronSEE()
+CALL InitCalcElectronSEE() ! This routine calls GETLOGICAL('CalcElectronSEE','.FALSE.')
 
 SurfModelAnalyzeInitIsDone=.TRUE.
 
@@ -310,8 +303,10 @@ IF(PartMPI%MPIRoot)THEN
             ! Impacting charged particles: positive number for positive ions (+) and negative number for electrons (-)
             IF(ABS(charge).GT.0.0) TotalElectricCharge = TotalElectricCharge + BPO%RealPartOut(iPartBound,iSpec)*charge
             ! Released secondary electrons (always a positive number). SEE%BCIDToSEEBCID(iPartBound) yields the iSEEBCIndex
-            IF(SEE%BCIDToSEEBCID(iPartBound).GT.0) TotalElectricCharge = TotalElectricCharge &
-                + SEE%RealElectronOut(SEE%BCIDToSEEBCID(iPartBound))
+            IF(CalcElectronSEE)THEN
+              IF(SEE%BCIDToSEEBCID(iPartBound).GT.0) TotalElectricCharge = TotalElectricCharge &
+                  + SEE%RealElectronOut(SEE%BCIDToSEEBCID(iPartBound))
+            END IF ! CalcElectronSEE
           END DO
           CALL WriteDataInfo(unit_index,1,RealArray=(/TotalElectricCharge/SurfModelAnalyzeSampleTime/))
         END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
@@ -720,8 +715,10 @@ SUBROUTINE InitCalcElectronSEE()
 ! MODULES
 USE MOD_Globals                   ,ONLY: abort!,UNIT_stdOut,MPIRoot
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcBoundaryParticleOutput,CalcElectronSEE
 USE MOD_Particle_Boundary_Vars    ,ONLY: nPartBound,PartBound
+USE MOD_ReadInTools               ,ONLY: GETLOGICAL
+USE MOD_ReadInTools               ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -730,8 +727,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER :: iPartBound
 !===================================================================================================================================
-DoSurfModelAnalyze = .TRUE.
 
+! Check if secondary electron emission occurs
 ! Count number of different SEE boundaries
 SEE%NPartBoundaries = 0
 DO iPartBound=1,nPartBound
@@ -742,8 +739,20 @@ DO iPartBound=1,nPartBound
   END SELECT
 END DO ! iPartBound=1,nPartBound
 
-! Sanity check
-IF(SEE%NPartBoundaries.EQ.0) CALL abort(__STAMP__,'No SEE boundaries found for counting the emitted electrons')
+  ! If not SEE boundaries exist, no measurement of the current can be performed
+IF(SEE%NPartBoundaries.EQ.0) RETURN
+
+! Automatically activate when CalcBoundaryParticleOutput=T
+IF(CalcBoundaryParticleOutput)THEN
+  CalcElectronSEE = .TRUE.
+  CALL PrintOption('Activating SEE current measurement because CalcBoundaryParticleOutput=T: CalcElectronSEE','INFO',&
+      LogOpt=CalcElectronSEE)
+ELSE
+  CalcElectronSEE = GETLOGICAL('CalcElectronSEE','.FALSE.')
+END IF ! CalcBoundaryParticleOutput
+
+! Automatically activate surface model analyze flag
+DoSurfModelAnalyze = .TRUE.
 
 ! Create Mapping
 ALLOCATE(SEE%PartBoundaries(SEE%NPartBoundaries))
