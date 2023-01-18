@@ -632,7 +632,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iPartBound,iSpec
+INTEGER           :: iPartBound,iSpec,iBPO
 !===================================================================================================================================
 DoSurfModelAnalyze = .TRUE.
 BPO%NPartBoundaries = GETINT('BPO-NPartBoundaries')
@@ -672,7 +672,7 @@ DO iPartBound = 1, BPO%NPartBoundaries
       SWRITE(UNIT_stdOut,'(A,A)') '  SourceName = ',TRIM(PartBound%SourceBoundName(BPO%PartBoundaries(iPartBound)))
       SWRITE(UNIT_stdOut,'(A,I0)')'   Condition = ',PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound))
       SWRITE(UNIT_stdOut,'(A)')'\n  Conditions are'//&
-          '  OpenBC          = 1  \n'//&
+                          '  OpenBC          = 1  \n'//&
           '                  ReflectiveBC    = 2  \n'//&
           '                  PeriodicBC      = 3  \n'//&
           '                  SimpleAnodeBC   = 4  \n'//&
@@ -692,14 +692,20 @@ DO iPartBound = 1, BPO%NPartBoundaries
     IF(PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0)THEN
       ! nothing to do for now
     ELSE
-      ! Check the surface model
-      SELECT CASE(PartBound%SurfaceModel(iPartBound))
-      CASE(SEE_MODELS_ID)
-        ! all secondary electron models
-      CASE DEFAULT
-        CALL abort(__STAMP__,'CalcBoundaryParticleOutput not implemented for  PartBound%SurfaceModel(iPartBound) = ',&
-            IntInfoOpt=PartBound%SurfaceModel(iPartBound))
-      END SELECT
+      ! Loop over all user-defined particle boundaries
+      DO iBPO = 1, BPO%NPartBoundaries
+        ! Test only particle boundaries that are in the list of BPO%PartBoundaries
+        IF(BPO%PartBoundaries(iBPO).EQ.iPartBound)THEN
+          ! Check the surface model
+          SELECT CASE(PartBound%SurfaceModel(iPartBound))
+          CASE(SEE_MODELS_ID)
+            ! all secondary electron models
+          CASE DEFAULT
+            CALL abort(__STAMP__,'CalcBoundaryParticleOutput not implemented for PartBound%SurfaceModel(iPartBound) = ',&
+                IntInfoOpt=PartBound%SurfaceModel(iPartBound))
+          END SELECT
+        END IF ! BPO%PartBoundaries(iBPO).EQ.iPartBound
+      END DO ! iBPO = 1, BPO%NPartBoundaries
     END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0
   END IF ! PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound).EQ.2
 END DO ! iPartBound = 1, BPO%NPartBoundaries
@@ -710,36 +716,54 @@ END SUBROUTINE InitBoundaryParticleOutput
 !===================================================================================================================================
 !> Allocate the required arrays (mappings and containers) for secondary electron emission analysis, which tracks the number of
 !> electrons that are emitted from a surface
+!>
+!> 1) Check if secondary electron emission occurs
+!> 1.1) Count number of different SEE boundaries via reflective particle BC
+!> 1.2) Count number of different photon SEE boundaries
+!> 2.) Create Mapping from SEE BC index to particle BC index
+!> 2.1) Create mapping for reactive surface SEE (non-photon impacts)
+!> 2.2) Create mapping for photon-surface SEE
 !===================================================================================================================================
 SUBROUTINE InitCalcElectronSEE()
 ! MODULES
-USE MOD_Globals                   ,ONLY: abort!,UNIT_stdOut,MPIRoot
+USE MOD_Globals
+USE MOD_Globals                   ,ONLY: abort,StringBeginsWith
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcBoundaryParticleOutput,CalcElectronSEE
 USE MOD_Particle_Boundary_Vars    ,ONLY: nPartBound,PartBound
-USE MOD_ReadInTools               ,ONLY: GETLOGICAL
-USE MOD_ReadInTools               ,ONLY: PrintOption
+USE MOD_ReadInTools               ,ONLY: GETLOGICAL,PrintOption
+USE MOD_Particle_Vars             ,ONLY: Species,nSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iPartBound
+INTEGER           :: iPartBound,NPartBoundariesReflectiveSEE,NPartBoundariesPhotonSEE,iInit,iSpec
 !===================================================================================================================================
 
-! Check if secondary electron emission occurs
-! Count number of different SEE boundaries
+! 1) Check if secondary electron emission occurs
+! 1.1) Count number of different SEE boundaries via reflective particle BC
 SEE%NPartBoundaries = 0
 DO iPartBound=1,nPartBound
   IF(.NOT.PartBound%Reactive(iPartBound)) CYCLE
   SELECT CASE(PartBound%SurfaceModel(iPartBound))
   CASE(SEE_MODELS_ID)
-    SEE%NPartBoundaries = SEE%NPartBoundaries +1
+    SEE%NPartBoundaries = SEE%NPartBoundaries + 1
   END SELECT
 END DO ! iPartBound=1,nPartBound
+NPartBoundariesReflectiveSEE = SEE%NPartBoundaries
 
-  ! If not SEE boundaries exist, no measurement of the current can be performed
+! 1.2) Count number of different photon SEE boundaries
+SpecLoop: DO iSpec=1,nSpecies                                                                                                                                                                                                                                                                                                                                       
+  DO iInit=1, Species(iSpec)%NumberOfInits                                                                                                                                                                                                                                                                                                                
+    IF(Species(iSpec)%Init(iInit)%PartBCIndex.LE.0) CYCLE SpecLoop
+    IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')) SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+  END DO
+END DO SpecLoop
+NPartBoundariesPhotonSEE = SEE%NPartBoundaries - NPartBoundariesReflectiveSEE
+
+! If not SEE boundaries exist, no measurement of the current can be performed
 IF(SEE%NPartBoundaries.EQ.0) RETURN
 
 ! Automatically activate when CalcBoundaryParticleOutput=T
@@ -751,26 +775,40 @@ ELSE
   CalcElectronSEE = GETLOGICAL('CalcElectronSEE','.FALSE.')
 END IF ! CalcBoundaryParticleOutput
 
+! Check if analysis has been activated
+IF(.NOT.CalcElectronSEE) RETURN
+
 ! Automatically activate surface model analyze flag
 DoSurfModelAnalyze = .TRUE.
 
-! Create Mapping
+! 2.) Create Mapping from SEE BC index to particle BC index
+! 2.1) Create mapping for reactive surface SEE (non-photon impacts)
 ALLOCATE(SEE%PartBoundaries(SEE%NPartBoundaries))
 SEE%NPartBoundaries = 0
 DO iPartBound=1,nPartBound
   IF(.NOT.PartBound%Reactive(iPartBound)) CYCLE
   SELECT CASE(PartBound%SurfaceModel(iPartBound))
   CASE(SEE_MODELS_ID)
-    SEE%NPartBoundaries = SEE%NPartBoundaries +1
+    SEE%NPartBoundaries = SEE%NPartBoundaries + 1
     SEE%PartBoundaries(SEE%NPartBoundaries) = iPartBound
   END SELECT
 END DO ! iPartBound=1,nPartBound
+! 2.2) Create mapping for photon-surface SEE
+SpecLoopII: DO iSpec=1,nSpecies                                                                                                                                                                                                                                                                                                                                       
+  DO iInit=1, Species(iSpec)%NumberOfInits                                                                                                                                                                                                                                                                                                                
+    IF(Species(iSpec)%Init(iInit)%PartBCIndex.LE.0) CYCLE SpecLoopII
+    IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE'))THEN
+      SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+      SEE%PartBoundaries(SEE%NPartBoundaries) = Species(iSpec)%Init(iInit)%PartBCIndex
+    END IF
+  END DO
+END DO SpecLoopII
 
 ! Allocate the container
 ALLOCATE(SEE%RealElectronOut(1:SEE%NPartBoundaries))
 SEE%RealElectronOut = 0.
 
-! Create Mapping
+! Create Mapping from particle BC index to SEE BC index
 ALLOCATE(SEE%BCIDToSEEBCID(1:nPartBound))
 SEE%BCIDToSEEBCID     = -1
 DO iPartBound = 1, SEE%NPartBoundaries
