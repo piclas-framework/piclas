@@ -338,7 +338,7 @@ impact angle of $0^{\circ}$), number of real particle impacts over the sampling 
 per area per second.
 
 ## Integral Variables
-This analysis measures integral values from the field- and/or particle-solver data and writes different .csv files.
+This analysis measures integral values from the field- and/or particle-solver data over time and writes different .csv files.
 
 ### FieldAnalyze.csv
 **WIP**
