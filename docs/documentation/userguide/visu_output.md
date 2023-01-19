@@ -340,13 +340,13 @@ per area per second.
 ## Integral Variables
 This analysis measures integral values from the field- and/or particle-solver data over time and writes different .csv files.
 
-### FieldAnalyze.csv
+### Field Variables
 **WIP**
 
-### PartAnalyze.csv
+### Particle Variables
 **WIP**
 
-### SurfaceAnalyze.csv
+### Surface Variables
 
 The output for different measurements involving particles and surfaces is written to *SurfaceAnalyze.csv*.
 If this analysis is not required in each time step, the parameter `Surface-AnalyzeStep` (default is 1) can be set to an integer
@@ -378,7 +378,7 @@ created. This is done by setting
 where the number of boundaries and species as well as the corresponding IDs are defined. The other boundaries and species IDs will
 be ignored. Note that this feature is currently only implemented for boundaries of type `Part-BoundaryX-Condition = open` and
 `Part-BoundaryX-Condition = reflective`. The reflective BC must also use either species swap via `Part-BoundaryX-NbrOfSpeciesSwaps`
-or a secondary electron emission surface model vie `Part-BoundaryX-SurfaceModel`.
+or a secondary electron emission surface model via `Part-BoundaryX-SurfaceModel`.
 The output in the .csv file will be similar to this example: `004-Flux-Spec-002-BC_CATHODE`
 Additionally, the total electric current will be calculated if any species that is selected via `BPO-Species` carries a charge
 unequal to zero. For the total electric current, the secondary electron emission current is automatically added.
