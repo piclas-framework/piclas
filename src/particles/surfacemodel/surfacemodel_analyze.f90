@@ -744,6 +744,9 @@ IMPLICIT NONE
 INTEGER           :: iPartBound,NPartBoundariesReflectiveSEE,NPartBoundariesPhotonSEE,iInit,iSpec
 !===================================================================================================================================
 
+! Initialize
+CalcElectronSEE = .FALSE.
+
 ! 1) Check if secondary electron emission occurs
 ! 1.1) Count number of different SEE boundaries via reflective particle BC
 SEE%NPartBoundaries = 0
