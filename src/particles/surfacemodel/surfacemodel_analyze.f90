@@ -617,7 +617,7 @@ END SUBROUTINE SyncElectronSEE
 !===================================================================================================================================
 SUBROUTINE InitBoundaryParticleOutput()
 ! MODULES
-USE MOD_Globals                   ,ONLY: abort,UNIT_stdOut
+USE MOD_Globals                   ,ONLY: CollectiveStop,UNIT_stdOut
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: BPO
 USE MOD_Particle_Boundary_Vars    ,ONLY: nPartBound,PartBound
 USE MOD_ReadInTools               ,ONLY: GETLOGICAL,GETINT,GETINTARRAY
@@ -639,7 +639,7 @@ BPO%NPartBoundaries = GETINT('BPO-NPartBoundaries')
 BPO%PartBoundaries  = GETINTARRAY('BPO-PartBoundaries',BPO%NPartBoundaries)
 BPO%NSpecies        = GETINT('BPO-NSpecies')
 BPO%Species         = GETINTARRAY('BPO-Species',BPO%NSpecies)
-IF(BPO%NPartBoundaries.EQ.0.OR.BPO%NSpecies.EQ.0) CALL abort(__STAMP__,'BPO-NPartBoundaries or BPO-NSpecies is zero.')
+IF(BPO%NPartBoundaries.EQ.0.OR.BPO%NSpecies.EQ.0) CALL CollectiveStop(__STAMP__,'BPO-NPartBoundaries or BPO-NSpecies is zero.')
 ALLOCATE(BPO%RealPartOut(1:BPO%NPartBoundaries,1:BPO%NSpecies))
 BPO%RealPartOut = 0.
 
@@ -650,7 +650,8 @@ ALLOCATE(BPO%SpecIDToBPOSpecID(1:nSpecies))
 BPO%SpecIDToBPOSpecID = -1
 DO iSpec = 1, BPO%NSpecies
   ! Sanity check
-  IF(BPO%Species(iSpec).GT.nSpecies) CALL abort(__STAMP__,'BPO-Species contains a wrong species ID, which is greater than nSpecies')
+  IF(BPO%Species(iSpec).GT.nSpecies) CALL CollectiveStop(__STAMP__,&
+      'BPO-Species contains a wrong species ID, which is greater than nSpecies')
   BPO%SpecIDToBPOSpecID(BPO%Species(iSpec)) = iSpec
   ! Activate output of total electric current when at least one species has a charge unequal to zero
   IF(ABS(Species(BPO%Species(iSpec))%ChargeIC).GT.0.0) BPO%OutputTotalElectricCurrent = .TRUE.
@@ -680,9 +681,9 @@ DO iPartBound = 1, BPO%NPartBoundaries
           '                  RotPeriodicBC   = 6  \n'//&
           '                  SymmetryBC      = 10 \n'//&
           '                  SymmetryAxis    = 11 '
-      CALL abort(__STAMP__&
+      CALL CollectiveStop(__STAMP__&
           ,'PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)) is not implemented for CalcBoundaryParticleOutput',&
-          IntInfoOpt=PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)))
+          IntInfo=PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)))
     END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0
   END IF ! .NOT.ANY(PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)).EQ. ...
 
@@ -701,8 +702,9 @@ DO iPartBound = 1, BPO%NPartBoundaries
           CASE(SEE_MODELS_ID)
             ! all secondary electron models
           CASE DEFAULT
-            CALL abort(__STAMP__,'CalcBoundaryParticleOutput not implemented for PartBound%SurfaceModel(iPartBound) = ',&
-                IntInfoOpt=PartBound%SurfaceModel(iPartBound))
+            CALL CollectiveStop(__STAMP__,'CalcBoundaryParticleOutput not implemented for this '//&
+            'PartBound%SurfaceModel(iPartBound). Either select different surface model or activate NbrOfSpeciesSwaps',&
+                IntInfo=PartBound%SurfaceModel(iPartBound))
           END SELECT
         END IF ! BPO%PartBoundaries(iBPO).EQ.iPartBound
       END DO ! iBPO = 1, BPO%NPartBoundaries
@@ -755,8 +757,8 @@ END DO ! iPartBound=1,nPartBound
 NPartBoundariesReflectiveSEE = SEE%NPartBoundaries
 
 ! 1.2) Count number of different photon SEE boundaries
-SpecLoop: DO iSpec=1,nSpecies                                                                                                                                                                                                                                                                                                                                       
-  DO iInit=1, Species(iSpec)%NumberOfInits                                                                                                                                                                                                                                                                                                                
+SpecLoop: DO iSpec=1,nSpecies
+  DO iInit=1, Species(iSpec)%NumberOfInits
     IF(Species(iSpec)%Init(iInit)%PartBCIndex.LE.0) CYCLE SpecLoop
     IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')) SEE%NPartBoundaries = SEE%NPartBoundaries + 1
   END DO
@@ -794,8 +796,8 @@ DO iPartBound=1,nPartBound
   END SELECT
 END DO ! iPartBound=1,nPartBound
 ! 2.2) Create mapping for photon-surface SEE
-SpecLoopII: DO iSpec=1,nSpecies                                                                                                                                                                                                                                                                                                                                       
-  DO iInit=1, Species(iSpec)%NumberOfInits                                                                                                                                                                                                                                                                                                                
+SpecLoopII: DO iSpec=1,nSpecies
+  DO iInit=1, Species(iSpec)%NumberOfInits
     IF(Species(iSpec)%Init(iInit)%PartBCIndex.LE.0) CYCLE SpecLoopII
     IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE'))THEN
       SEE%NPartBoundaries = SEE%NPartBoundaries + 1

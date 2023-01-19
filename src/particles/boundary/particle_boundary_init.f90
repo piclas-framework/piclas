@@ -266,7 +266,6 @@ LOGICAL               :: DeprecatedVoltage
 CHARACTER(LEN=64)     :: dsetname
 LOGICAL               :: StickingCoefficientExists,FoundPartBoundSEE
 INTEGER               :: iInit,iSpec
-CHARACTER(LEN=50)     :: testname
 !===================================================================================================================================
 ! Read in boundary parameters
 dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .ini file
@@ -495,14 +494,12 @@ END DO
 
 ! Check if there is an particle init with photon SEE
 FoundPartBoundSEE=.FALSE.
-SpecLoop: DO iSpec=1,nSpecies                                                                                                                                                                                                                                                                                                                                       
-  DO iInit=1, Species(iSpec)%NumberOfInits                                                                                                                                                                                                                                                                                                                
-    testname = TRIM(Species(iSpec)%Init(iInit)%SpaceIC(1:MIN(10,LEN(TRIM(Species(iSpec)%Init(iInit)%SpaceIC)))))
-    SELECT CASE(TRIM(testname))                                                                                                                                                                                                                                                                                                 
-    CASE('photon_SEE')
+SpecLoop: DO iSpec=1,nSpecies
+  DO iInit=1, Species(iSpec)%NumberOfInits
+    IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE'))THEN
       FoundPartBoundSEE = .TRUE.
       EXIT SpecLoop
-    END SELECT
+    END IF ! StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')
   END DO
 END DO SpecLoop
 
