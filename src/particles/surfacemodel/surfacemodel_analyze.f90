@@ -302,12 +302,12 @@ IF(PartMPI%MPIRoot)THEN
             charge = Species(BPO%Species(iSpec))%ChargeIC
             ! Impacting charged particles: positive number for positive ions (+) and negative number for electrons (-)
             IF(ABS(charge).GT.0.0) TotalElectricCharge = TotalElectricCharge + BPO%RealPartOut(iPartBound,iSpec)*charge
-            ! Released secondary electrons (always a positive number). SEE%BCIDToSEEBCID(iPartBound) yields the iSEEBCIndex
-            IF(CalcElectronSEE)THEN
-              IF(SEE%BCIDToSEEBCID(iPartBound).GT.0) TotalElectricCharge = TotalElectricCharge &
-                  + SEE%RealElectronOut(SEE%BCIDToSEEBCID(iPartBound))
-            END IF ! CalcElectronSEE
           END DO
+          ! Released secondary electrons (always a positive number). SEE%BCIDToSEEBCID(iPartBound) yields the iSEEBCIndex
+          IF(CalcElectronSEE)THEN
+            IF(SEE%BCIDToSEEBCID(iPartBound).GT.0) TotalElectricCharge = TotalElectricCharge &
+                + SEE%RealElectronOut(SEE%BCIDToSEEBCID(iPartBound))
+          END IF ! CalcElectronSEE
           CALL WriteDataInfo(unit_index,1,RealArray=(/TotalElectricCharge/SurfModelAnalyzeSampleTime/))
         END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
       END DO
