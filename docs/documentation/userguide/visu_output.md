@@ -370,10 +370,10 @@ The output in the .csv file will be similar to this example: `012-ElectricCurren
 created. This is done by setting
 
     CalcBoundaryParticleOutput = T        ! Activate the analysis
-    BPO-NPartBoundaries        = 1        ! Nbr of boundaries
-    BPO-PartBoundaries         = (/4,8/)  ! only consider Part-Boundary4 and Part-Boundary8
-    BPO-NSpecies               = 2        ! Nbr of species
-    BPO-Species                = (/2,3/)  ! Species IDs which should be measured
+    BPO-NPartBoundaries        = 2        ! Nbr of particle boundaries where the flux and current are measured
+    BPO-PartBoundaries         = (/4,8/)  ! Only measure the flux and current on Part-Boundary4 and Part-Boundary8
+    BPO-NSpecies               = 2        ! Nbr of species that are considered for Part-Boundary4 and Part-Boundary8
+    BPO-Species                = (/2,3/)  ! Species IDs which should be included
 
 where the number of boundaries and species as well as the corresponding IDs are defined. The other boundaries and species IDs will
 be ignored. Note that this feature is currently only implemented for boundaries of type `Part-BoundaryX-Condition = open` and
