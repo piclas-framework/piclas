@@ -1123,6 +1123,7 @@ USE MOD_Globals
 USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfTotalSides, SurfSide2GlobalSide
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound,nPartBound,InterPlaneSideMapping
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, GEO, ElemInfo_Shared, ElemSideNodeID_Shared,NodeCoords_Shared
+USE MOD_Particle_Vars             ,ONLY: InterPlanePartIndx, PDM
 USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1135,8 +1136,11 @@ INTEGER                           :: k,m,l
 INTEGER                           :: iNode,jNode
 REAL                              :: InterNode_1,RotNode_1,InterNode_2,RotNode_2
 INTEGER,ALLOCATABLE               :: SideCounter(:)
+INTEGER                           :: ALLOCSTAT
 !===================================================================================================================================
 
+ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_init.f90: Cannot allocate InterPlanePartIndx array!')
 ! First loop: calculating the number of sides per inter plane and finds the maximum number
 iBCLoop1: DO iPartBound=1,nPartBound
   PartBound%nSidesOnInterPlane(iPartBound) = 0
@@ -1174,6 +1178,8 @@ END DO iBCLoop2 ! iBC=1, nBCs
 ! Third loop: Find the r_o vector for the random positioning calculation
 ! InterSideID = GlobalSideID on intermediate plane side
 ! RotSideID   = GlobalSideID on rot periodic side
+! Find the node that is on both the inter plane and the rot peri side. The coords of this node can be used to
+! define a nomalized vector in radius direction at the border of the inter plane.
 SELECT CASE(GEO%RotPeriodicAxi)
   CASE(1) ! x-rotation axis
     k = 1
@@ -1215,7 +1221,7 @@ iBCLoop3: DO iPartBound=1,nPartBound
               IF(InterNode_2.EQ.RotNode_2) THEN
                 ! iNode/jNode is on both BCs
                 PartBound%NormalizedRadiusDir(1,iPartBound) = InterNode_1 / (SQRT(InterNode_1**2 + InterNode_2**2))
-                PartBound%NormalizedRadiusDir(2,iPartBound) = InterNode_2 / (SQRT(InterNode_1**2 + InterNode_2**2)) 
+                PartBound%NormalizedRadiusDir(2,iPartBound) = InterNode_2 / (SQRT(InterNode_1**2 + InterNode_2**2))
                 EXIT iNodeLoop
               END IF
             END IF

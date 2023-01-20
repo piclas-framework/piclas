@@ -121,6 +121,10 @@ REAL    , ALLOCATABLE :: LastPartPos(:,:)                                    ! 1
 !                                                                            ! 2nd index: 1:NParts with 2nd index
 INTEGER , ALLOCATABLE :: PartSpecies(:)                                      ! (1:NParts)
 REAL    , ALLOCATABLE :: PartMPF(:)                                          ! (1:NParts) MacroParticleFactor by variable MPF
+INTEGER , ALLOCATABLE :: InterPlanePartIndx(:)                               ! Index list of Particles that are created
+                                                                             ! at rot periodic inter plane
+INTEGER               :: InterPlanePartNumber                                ! Number of Particles that are created
+                                                                             ! at rot periodic inter plane
 INTEGER               :: PartLorentzType
 CHARACTER(LEN=256)    :: ParticlePushMethod                                  ! Type of PP-Method
 INTEGER               :: nrSeeds                                             ! Number of Seeds for Random Number Generator
