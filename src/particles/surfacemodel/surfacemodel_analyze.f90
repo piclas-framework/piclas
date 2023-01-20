@@ -760,12 +760,13 @@ END DO ! iPartBound=1,nPartBound
 NPartBoundariesReflectiveSEE = SEE%NPartBoundaries
 
 ! 1.2) Count number of different photon SEE boundaries
-SpecLoop: DO iSpec=1,nSpecies
+DO iSpec=1,nSpecies
   DO iInit=1, Species(iSpec)%NumberOfInits
-    IF(Species(iSpec)%Init(iInit)%PartBCIndex.LE.0) CYCLE SpecLoop
-    IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')) SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+    IF(Species(iSpec)%Init(iInit)%PartBCIndex.GT.0)THEN
+      IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')) SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+    END IF
   END DO
-END DO SpecLoop
+END DO
 NPartBoundariesPhotonSEE = SEE%NPartBoundaries - NPartBoundariesReflectiveSEE
 
 ! If not SEE boundaries exist, no measurement of the current can be performed
@@ -799,15 +800,16 @@ DO iPartBound=1,nPartBound
   END SELECT
 END DO ! iPartBound=1,nPartBound
 ! 2.2) Create mapping for photon-surface SEE
-SpecLoopII: DO iSpec=1,nSpecies
+DO iSpec=1,nSpecies
   DO iInit=1, Species(iSpec)%NumberOfInits
-    IF(Species(iSpec)%Init(iInit)%PartBCIndex.LE.0) CYCLE SpecLoopII
-    IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE'))THEN
-      SEE%NPartBoundaries = SEE%NPartBoundaries + 1
-      SEE%PartBoundaries(SEE%NPartBoundaries) = Species(iSpec)%Init(iInit)%PartBCIndex
+    IF(Species(iSpec)%Init(iInit)%PartBCIndex.GT.0)THEN
+      IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE'))THEN
+        SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+        SEE%PartBoundaries(SEE%NPartBoundaries) = Species(iSpec)%Init(iInit)%PartBCIndex
+      END IF
     END IF
   END DO
-END DO SpecLoopII
+END DO
 
 ! Allocate the container
 ALLOCATE(SEE%RealElectronOut(1:SEE%NPartBoundaries))
