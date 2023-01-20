@@ -381,8 +381,11 @@ be ignored. Note that this feature is currently only implemented for boundaries 
 or a secondary electron emission surface model via `Part-BoundaryX-SurfaceModel`.
 The output in the .csv file will be similar to this example: `004-Flux-Spec-002-BC_CATHODE`
 Additionally, the total electric current will be calculated if any species that is selected via `BPO-Species` carries a charge
-unequal to zero. For the total electric current, the secondary electron emission current is automatically added.
-The output in the .csv file will be similar to this example: `008-TotalElectricCurrent-BC_ANODE`
+unequal to zero.
+Note that only species defined via `BPO-Species` will be considered in the calculation of the total electric current.
+Furthermore, the secondary electron emission current is automatically added to the total electric current if
+`CalcBoundaryParticleOutput = T`.
+The output of the total electric current in the .csv file will be similar to this example: `008-TotalElectricCurrent-BC_ANODE`
 
 ## Dynamic Mode Decomposition
 The dynamic mode decomposition is an algorithm that divides a temporal series into a set of modes which are associated with a
