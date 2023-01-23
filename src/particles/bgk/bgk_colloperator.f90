@@ -56,7 +56,7 @@ USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMol
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_BGK_Vars              ,ONLY: SpecBGK, BGKDoVibRelaxation!, BGKMovingAverageLength
 USE MOD_BGK_Vars              ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCounter, BGK_MaxRelaxFactor, BGK_MaxRotRelaxFactor
-USE MOD_BGK_Vars              ,ONLY: BGK_PrandtlNumber
+USE MOD_BGK_Vars              ,ONLY: BGK_PrandtlNumber, BGK_Viscosity, BGK_ThermalConductivity
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: abort,unit_stdout,myrank
@@ -76,6 +76,7 @@ INTEGER, INTENT(INOUT)                  :: iPartIndx_Node(:)
 ! LOCAL VARIABLES
 REAL                  :: vBulk(3), u0ij(3,3), u2, V_rel(3), dtCell
 REAL                  :: alpha, alphaRot(nSpecies), CellTemp, dens, InnerDOF, NewEn, OldEn, Prandtl, relaxfreq, TEqui
+REAL                  :: dynamicvis, thermalcond
 INTEGER, ALLOCATABLE  :: iPartIndx_NodeRelax(:),iPartIndx_NodeRelaxTemp(:),iPartIndx_NodeRelaxRot(:),iPartIndx_NodeRelaxVib(:)
 INTEGER               :: iLoop, iPart, nRelax, iPolyatMole, nXiVibDOF
 REAL, ALLOCATABLE     :: Xi_vib_DOF(:), VibEnergyDOF(:,:)
@@ -117,7 +118,7 @@ IF(nPart.LE.2) RETURN
 CALL CalcMoments(nPart, iPartIndx_Node, nSpec, vBulkAll, totalWeight, totalWeightSpec, TotalMass,  u2, u2Spec, u0ij, &
                  u2i, OldEn, EVibSpec, ERotSpec, CellTemp, SpecTemp, dtCell)
 
-IF((CellTemp.LE.0).OR.(MAXVAL(nSpec(:)).EQ.1).OR.(totalWeight.LE.0.0)) RETURN
+IF((CellTemp.LE.0.0).OR.(MAXVAL(nSpec(:)).EQ.1).OR.(totalWeight.LE.0.0)) RETURN
 
 IF(VarTimeStep%UseVariableTimeStep) THEN
   dtCell = dt * dtCell / totalWeight
@@ -150,13 +151,15 @@ CALL CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, TRotSpe
 
 ! 2.) Calculation of the relaxation frequency of the distribution function towards the target distribution function
 CALL CalcGasProperties(nSpec, dens, InnerDOF, totalWeightSpec, totalWeight, TotalMass, u2Spec, u0ij, u2, SpecTemp, CellTemp, &
-    Xi_VibSpec, Xi_RotSpec, Prandtl, relaxfreq)
+    Xi_VibSpec, Xi_RotSpec, Prandtl, relaxfreq, dynamicvis, thermalcond)
 
 IF(DSMC%CalcQualityFactors) THEN
   BGK_MeanRelaxFactor         = BGK_MeanRelaxFactor + relaxfreq * dtCell
   BGK_MeanRelaxFactorCounter  = BGK_MeanRelaxFactorCounter + 1
   BGK_MaxRelaxFactor          = MAX(BGK_MaxRelaxFactor,relaxfreq*dtCell)
   BGK_PrandtlNumber           = BGK_PrandtlNumber + Prandtl
+  BGK_Viscosity               = BGK_Viscosity + dynamicvis
+  BGK_ThermalConductivity     = BGK_ThermalConductivity + thermalcond
 END IF
 
 ! 3.) Treatment of molecules: determination of the rotational and vibrational relaxation frequency using the collision frequency,
@@ -355,6 +358,7 @@ REAL, INTENT(OUT)             :: vBulkAll(3), totalWeight, TotalMass, dtCell
 INTEGER                       :: iLoop, iPart, iSpec, fillMa1, fillMa2
 REAL                          :: V_rel(1:3), vmag2, partWeight, EnerTotal, totalWeightSpec2(nSpecies), vBulkSpec(3,nSpecies)
 REAL                          :: tempweight, tempweight2, tempmass, vBulkTemp(3), totalWeight2, totalWeight3
+LOGICAL                       :: validSpec(nSpecies)
 !===================================================================================================================================
 totalWeightSpec = 0.0; totalWeightSpec2=0.0; vBulkAll=0.0; TotalMass=0.0; vBulkSpec=0.0; nSpec=0; dtCell=0.0
 ! Loop over all simulation particles to sum up bulk velocities
@@ -374,8 +378,6 @@ DO iLoop = 1, nPart
 END DO
 totalWeight = SUM(totalWeightSpec)
 totalWeight2 = SUM(totalWeightSpec2)
-
-IF ((MAXVAL(nSpec(:)).EQ.1).OR.(totalWeight.LE.0.0)) RETURN
 
 ! Calculate bulk velocities
 vBulkAll(1:3) = vBulkAll(1:3) / TotalMass
@@ -429,11 +431,13 @@ END IF
 
 ! Calculation of cell temperature and bulk velocity (squared)
 IF (nSpecies.GT.1) THEN ! mixture
+  validSpec = .FALSE.
   SpecTemp = 0.0
   EnerTotal = 0.0
   tempweight = 0.0; tempweight2 = 0.0; tempmass = 0.0; vBulkTemp = 0.0
   DO iSpec = 1, nSpecies
     IF ((nSpec(iSpec).GE.2).AND.(.NOT.ALMOSTZERO(u2Spec(iSpec)))) THEN
+      validSpec = .TRUE.
       SpecTemp(iSpec) = Species(iSpec)%MassIC * u2Spec(iSpec) &
           /(3.0*BoltzmannConst*(totalWeightSpec(iSpec) - totalWeightSpec2(iSpec)/totalWeightSpec(iSpec)))
       EnerTotal =  EnerTotal + 3./2.*BoltzmannConst*SpecTemp(iSpec) * totalWeightSpec(iSpec) ! thermal energy
@@ -445,11 +449,16 @@ IF (nSpecies.GT.1) THEN ! mixture
       vBulkTemp(1:3) = vBulkTemp(1:3) + vBulkSpec(1:3,iSpec)*totalWeightSpec(iSpec) * Species(iSpec)%MassIC
     END IF
   END DO
-  vBulkTemp(1:3) = vBulkTemp(1:3) / tempmass
-  vmag2 = DOTPRODUCT(vBulkTemp(1:3))
-  EnerTotal = EnerTotal -  tempmass / 2. * vmag2
-  CellTemp = 2. * EnerTotal / (3.*tempweight*BoltzmannConst)
-  u2 = 3. * CellTemp * BoltzmannConst * (tempweight - tempweight2/tempweight) / tempmass
+  IF (ANY(validSpec)) THEN
+    vBulkTemp(1:3) = vBulkTemp(1:3) / tempmass
+    vmag2 = DOTPRODUCT(vBulkTemp(1:3))
+    EnerTotal = EnerTotal - tempmass / 2. * vmag2
+    CellTemp = 2. * EnerTotal / (3.*tempweight*BoltzmannConst)
+    u2 = 3. * CellTemp * BoltzmannConst * (tempweight - tempweight2/tempweight) / tempmass
+  ELSE ! only one part per species or cloned species with u2spec = 0 because PartState(4:6) = vBulkAll
+    u2 = OldEn / (TotalMass*(1. - totalWeight2/totalWeight**2)) * 2. ! variance-free
+    CellTemp = TotalMass/totalWeight * u2 / (3.0*BoltzmannConst)
+  END IF
 ELSE ! single species gas
   u2 = u2Spec(1) / (totalWeight - totalWeight2/totalWeight)
   CellTemp = Species(1)%MassIC * u2 / (3.0*BoltzmannConst)
@@ -527,7 +536,7 @@ END DO
 END SUBROUTINE CalcInnerDOFs
 
 SUBROUTINE CalcGasProperties(nSpec, dens, InnerDOF, totalWeightSpec, totalWeight, TotalMass, u2Spec, u0ij, u2, SpecTemp, CellTemp, &
-    Xi_VibSpec, Xi_RotSpec, Prandtl, relaxfreq)
+    Xi_VibSpec, Xi_RotSpec, Prandtl, relaxfreq, dynamicvis, thermalcond)
 !===================================================================================================================================
 !> Calculate the reference dynamic viscosity, Prandtl number and the resulting relaxation frequency of the distribution function
 !===================================================================================================================================
@@ -545,13 +554,13 @@ REAL, INTENT(IN)              :: totalWeightSpec(nSpecies), totalWeight, TotalMa
 REAL, INTENT(IN)              :: u0ij(3,3), u2, Xi_VibSpec(nSpecies), Xi_RotSpec(nSpecies), dens, InnerDOF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: Prandtl, relaxfreq
+REAL, INTENT(OUT)             :: Prandtl, relaxfreq, dynamicvis, thermalcond
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, jSpec, INFO
 REAL                          :: MolarFraction(1:nSpecies), MassFraction(1:nSpecies), MassIC_Mixture
 REAL                          :: PrandtlCorrection, dynamicvisSpec(nSpecies), thermalcondSpec(nSpecies), Phi(nSpecies)
-REAL                          :: dynamicvis, thermalcond, C_P, nu, A(3,3), W(3), Theta, CellTempSpec(nSpecies+1), Work(100)
+REAL                          :: C_P, nu, A(3,3), W(3), Theta, CellTempSpec(nSpecies+1), Work(100)
 !===================================================================================================================================
 IF (nSpecies.GT.1) THEN ! gas mixture
   MolarFraction(1:nSpecies) = totalWeightSpec(1:nSpecies) / totalWeight
@@ -563,7 +572,7 @@ IF (nSpecies.GT.1) THEN ! gas mixture
   DO iSpec = 1, nSpecies
     IF (nSpec(iSpec).EQ.0) CYCLE
     ! Correction of Pr for calculation of relaxation frequency, see alpha - Pfeiffer et. al., Physics of Fluids 33, 036106 (2021),
-    ! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar–Gross–Krook method for monatomic gas species"
+    ! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method for monatomic gas species"
     PrandtlCorrection = PrandtlCorrection + MolarFraction(iSpec)*MassIC_Mixture/Species(iSpec)%MassIC
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN ! molecules
       C_P = C_P + ((5. + (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec)))/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec)
@@ -574,7 +583,7 @@ IF (nSpecies.GT.1) THEN ! gas mixture
 
   SELECT CASE(BGKMixtureModel)
   ! Both cases are described in Pfeiffer et. al., Physics of Fluids 33, 036106 (2021),
-  ! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar–Gross–Krook method for monatomic gas species"
+  ! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method for monatomic gas species"
 
   CASE (1)  ! Wilke's mixing rules
     DO iSpec = 1, nSpecies
@@ -1743,7 +1752,7 @@ DO iSpec = 1, nSpecies
       ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 160
       ViscSpec(iSpec) = (5./8.)*(BoltzmannConst*CellTemp(iSpec))/Sigma_22
       ThermalCondSpec(iSpec) = (25./16.)*(cv*BoltzmannConst*CellTemp(iSpec))/Sigma_22
-      !ThermalCondSpec(iSpec) = (15./4.)*BoltzmannConst/(2.*Mass)*ViscSpec(iSpec)
+      ! results in in same as ThermalCondSpec(iSpec) = (15./4.)*BoltzmannConst/(2.*Mass)*ViscSpec(iSpec)
       ! Additional calculation of Sigma_11VHS and the diffusion coefficient for molecular species
       IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
         CALL CalcSigma_11VHS(CellTemp(nSpecies+1),InteractDiam,Mass,TVHS, omegaVHS, Sigma_11)
@@ -1756,7 +1765,7 @@ DO iSpec = 1, nSpecies
       CALL CalcSigma_11VHS(CellTemp(nSpecies+1),InteractDiam,Mass,TVHS, omegaVHS, Sigma_11)
       ! Parameters for calculation of contribution of species to mixture transport coefficients
       ! Pfeiffer et. al., Physics of Fluids 33, 036106 (2021),
-      ! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar–Gross–Krook method for monatomic gas species"
+      ! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method for monatomic gas species"
       B_12(iSpec,jSpec) = (5.*GAMMA(4.-omegaVHS)-GAMMA(5.-omegaVHS))/(5.*GAMMA(3.-omegaVHS))
       B_12(jSpec,iSpec) = B_12(iSpec,jSpec)
       A_12(iSpec,jSpec) = Sigma_22 / (5.*Sigma_11)
@@ -1783,42 +1792,50 @@ END DO
 
 ! Calculate mixture viscosity by solving a system of linear equations with matrices
 ! Pfeiffer et. al., Physics of Fluids 33, 036106 (2021),
-! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar–Gross–Krook method for monatomic gas species"
+! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method for monatomic gas species"
 ViscMat = 0.0
 DO iSpec = 1, nSpecies
-  IF (Xi(iSpec).LE.0.0) CYCLE
+  IF (Xi(iSpec).LE.0.0) THEN
+    ViscMat(iSpec,iSpec) = 1. ! Ensure invertibility of ViscMat
+    CYCLE
+  END IF
   DO jSpec = 1, nSpecies
     IF (Xi(jSpec).LE.0.0) CYCLE
     IF (iSpec.EQ.jSpec) THEN
-      ViscMat(iSpec, jSpec) = ViscMat(iSpec, jSpec) + Xi(iSpec)/ViscSpec(iSpec)
+      ViscMat(iSpec, jSpec) = Xi(iSpec)/ViscSpec(iSpec)
       DO kSpec = 1, nSpecies
-        IF(kSpec.EQ.iSpec) CYCLE
+        IF (Xi(kSpec).LE.0.0) CYCLE
+        IF (kSpec.EQ.iSpec) CYCLE
         ViscMat(iSpec, jSpec) = ViscMat(iSpec, jSpec) + 3.*Xi(kSpec) / ((Species(iSpec)%MassIC*dens &
-        + Species(kSpec)%MassIC*dens)*DiffCoef(iSpec,kSpec))*(2./3.+Species(kSpec)%MassIC/Species(iSpec)%MassIC*A_12(iSpec,kSpec))
+          + Species(kSpec)%MassIC*dens)*DiffCoef(iSpec,kSpec))*(2./3.+Species(kSpec)%MassIC/Species(iSpec)%MassIC*A_12(iSpec,kSpec))
       END DO
     ELSE
-      ViscMat(iSpec, jSpec) = ViscMat(iSpec, jSpec) -  Xi(iSpec)*3. / ((Species(iSpec)%MassIC*dens &
+      ViscMat(iSpec, jSpec) = -Xi(iSpec)*3. / ((Species(iSpec)%MassIC*dens &
         + Species(jSpec)%MassIC*dens)*DiffCoef(iSpec,jSpec))*(2./3.-A_12(iSpec,jSpec))
     END IF
   END DO
-  RHSSolve(iSpec) = Xi(iSpec)
 END DO
+RHSSolve(:) = Xi(:)
 CALL DGESV(nSpecies, 1, ViscMat, nSpecies, IPIV, RHSSolve, nSpecies, info_dgesv)
 Visc = SUM(RHSSolve)
 
 ! Calculate mixture thermal conductivity by solving a system of linear equations with matrices
 ! Pfeiffer et. al., Physics of Fluids 33, 036106 (2021),
-! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar–Gross–Krook method for monatomic gas species"
+! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method for monatomic gas species"
 pressure = BoltzmannConst*dens*CellTemp(nSpecies+1)
 ViscMat = 0.0
 DO iSpec = 1, nSpecies
-  IF (Xi(iSpec).LE.0.0) CYCLE
+  IF (Xi(iSpec).LE.0.0) THEN
+    ViscMat(iSpec,iSpec) = 1. ! Ensure invertibility of ViscMat
+    CYCLE
+  END IF
   DO jSpec = 1, nSpecies
     IF (Xi(jSpec).LE.0.0) CYCLE
     IF (iSpec.EQ.jSpec) THEN
-      ViscMat(iSpec, jSpec) = ViscMat(iSpec, jSpec) + Xi(iSpec)/ThermalCondSpec(iSpec)
+      ViscMat(iSpec, jSpec) = Xi(iSpec)/ThermalCondSpec(iSpec)
       DO kSpec = 1, nSpecies
-        IF(kSpec.EQ.iSpec) CYCLE
+        IF (Xi(kSpec).LE.0.0) CYCLE
+        IF (kSpec.EQ.iSpec) CYCLE
         m0 = Species(iSpec)%MassIC+Species(kSpec)%MassIC
         ViscMat(iSpec, jSpec) = ViscMat(iSpec, jSpec) + CellTemp(nSpecies+1)*Xi(kSpec)/(5.*pressure*DiffCoef(iSpec,kSpec)) &
           * (6.*Species(iSpec)%MassIC**2./m0**2.+(5.-4.*B_12(iSpec,kSpec))*Species(kSpec)%MassIC**2./m0**2. &
@@ -1826,13 +1843,12 @@ DO iSpec = 1, nSpecies
       END DO
     ELSE
       m0 = Species(iSpec)%MassIC+Species(jSpec)%MassIC
-      ViscMat(iSpec, jSpec) = ViscMat(iSpec, jSpec) - Xi(iSpec)*CellTemp(nSpecies+1) &
-        *(Species(iSpec)%MassIC*Species(jSpec)%MassIC/m0**2.)/(5.*pressure*DiffCoef(iSpec,jSpec)) &
-        *(11.-4.*B_12(iSpec,jSpec)-8.*A_12(iSpec,jSpec))
+      ViscMat(iSpec, jSpec) = -Xi(iSpec)*CellTemp(nSpecies+1) * (Species(iSpec)%MassIC*Species(jSpec)%MassIC/m0**2.) &
+        /(5.*pressure*DiffCoef(iSpec,jSpec)) *(11.-4.*B_12(iSpec,jSpec)-8.*A_12(iSpec,jSpec))
     END IF
   END DO
-  RHSSolve(iSpec) = Xi(iSpec)
 END DO
+RHSSolve(:) = Xi(:)
 CALL DGESV(nSpecies, 1, ViscMat, nSpecies, IPIV, RHSSolve, nSpecies, info_dgesv)
 ! Thermal conductivity from translation, rotation and vibration
 ThermalCond = SUM(RHSSolve) + SUM(ThermalCondSpec_Rot) + SUM(ThermalCondSpec_Vib)

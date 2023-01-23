@@ -110,7 +110,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iSpec2
-REAL                  :: delta_ij
 LOGICAL               :: MoleculePresent
 !===================================================================================================================================
 LBWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
@@ -178,8 +177,8 @@ IF(MoleculePresent) THEN
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN
-  ALLOCATE(BGK_QualityFacSamp(1:7,nElems))
-  BGK_QualityFacSamp(1:7,1:nElems) = 0.0
+  ALLOCATE(BGK_QualityFacSamp(1:9,nElems))
+  BGK_QualityFacSamp(1:9,1:nElems) = 0.0
 END IF
 
 BGKInitDone = .TRUE.
