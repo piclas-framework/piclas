@@ -358,7 +358,7 @@ USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC,
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, newElecRelaxParts, iPartIndx_NodeNewElecRelax
 USE MOD_DSMC_Vars              ,ONLY: iPartIndx_NodeElecRelaxChem, nElecRelaxChemParts
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, usevMPF
-USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
 USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiTotalEqui
@@ -391,7 +391,7 @@ REAL                          :: ERel_React1_React2, ERel_React1_React3, ERel_Re
 REAL                          :: Xi_elec(1:4), EZeroTempToExec(1:4)
 REAL, ALLOCATABLE             :: XiVibPart(:,:)
 REAL                          :: Weight(1:4), SumWeightProd
-REAL                          :: cRelaNew(3)
+REAL                          :: cRelaNew(3), TempVelo(3)
 #ifdef CODE_ANALYZE
 REAL,PARAMETER                :: RelMomTol=5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
 REAL,PARAMETER                :: RelEneTol=2e-12 ! Relative tolerance applied to conservation of energy before/after reaction
@@ -451,6 +451,17 @@ IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
 ELSE
   ReactInx(2) = Coll_pData(iPair)%iPart_p1
   ReactInx(1) = Coll_pData(iPair)%iPart_p2
+END IF
+
+! Species-specific time step: store the velocity of species at the lower time step
+IF(VarTimeStep%UseSpeciesSpecific) THEN
+  IF(VarTimeStep%DisableForMCC) THEN
+    IF(Species(PartSpecies(ReactInx(1)))%TimeStepFactor.LT.1.) THEN
+      TempVelo(1:3) = PartState(4:6,ReactInx(1))
+    ELSE IF(Species(PartSpecies(ReactInx(2)))%TimeStepFactor.LT.1.) THEN
+      TempVelo(1:3) = PartState(4:6,ReactInx(2))
+    END IF
+  END IF
 END IF
 
 IF(EductReac(3).NE.0) THEN
@@ -1088,8 +1099,9 @@ IF(ChemReac%NumDeleteProducts.GT.0) THEN
       IF(ProductReac(iProd).EQ.SpecToDelete) THEN
         ! Remove the respective particle
         CALL RemoveParticle(ReactInx(iProd))
-        ! Remove the newly created particle from chemistry counter
-        IF(iProd.EQ.3) DSMCSumOfFormedParticles = DSMCSumOfFormedParticles - 1
+        ! Remove the newly created particles from chemistry counter
+        IF((iProd.EQ.3).AND.(EductReac(3).EQ.0)) DSMCSumOfFormedParticles = DSMCSumOfFormedParticles - 1
+        IF(iProd.EQ.4) DSMCSumOfFormedParticles = DSMCSumOfFormedParticles - 1
       END IF
     END DO
   END DO
@@ -1100,6 +1112,27 @@ IF(CalcPartBalance) THEN
     nPartIn(ProductReac(iPart))=nPartIn(ProductReac(iPart)) + 1
     PartEkinIn(ProductReac(iPart))=PartEkinIn(ProductReac(iPart))+CalcEkinPart(ReactInx(iPart))
   END DO
+END IF
+
+! Species-specific time step: check whether the product species with the lower time step is retained or deleted and the velocity
+! vector of the reactant restored
+IF(VarTimeStep%UseSpeciesSpecific) THEN
+  IF(VarTimeStep%DisableForMCC) THEN
+    DO iProd = 3, NumProd
+      iSpec = ProductReac(iProd)
+      IF(Species(iSpec)%TimeStepFactor.LT.1.) THEN
+        CALL RANDOM_NUMBER(iRan)
+        IF(iRan.GT.Species(iSpec)%TimeStepFactor) THEN
+          CALL RemoveParticle(ReactInx(iProd))
+          IF(Species(PartSpecies(ReactInx(1)))%TimeStepFactor.LT.1.) THEN
+            PartState(4:6,ReactInx(1)) = TempVelo(1:3)
+          ELSE IF(Species(PartSpecies(ReactInx(2)))%TimeStepFactor.LT.1.) THEN
+            PartState(4:6,ReactInx(2)) = TempVelo(1:3)
+          END IF
+        END IF
+      END IF
+    END DO
+  END IF
 END IF
 
 #ifdef CODE_ANALYZE

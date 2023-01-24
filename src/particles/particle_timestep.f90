@@ -26,7 +26,8 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DefineParametersVariableTimeStep
-PUBLIC :: InitPartTimeStep, GetParticleTimeStep, VarTimeStep_CalcElemFacs, VarTimeStep_InitDistribution
+PUBLIC :: InitPartTimeStep, GetParticleTimeStep, GetSpeciesTimeStep, VarTimeStep_CalcElemFacs, VarTimeStep_InitDistribution
+
 !===================================================================================================================================
 
 CONTAINS
@@ -91,10 +92,10 @@ CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DFront', &
                               'FRONT: Time step decreases towards the stagnation point')
 CALL prms%CreateRealOption(   'Part-VariableTimeStep-ScaleFactor2DBack', &
                               'BACK: Time step increases away from the stagnation points')
-! === Species-specific time step
+! === Species-specific time step (activated through e.g. Species1-TimeStepFactor = 0.1)
 CALL prms%CreateLogicalOption('Part-VariableTimeStep-DisableForMCC', &
-                              'Disable the variable time step for the MCC routines to perform collisions at the regular '//&
-                              'time step', '.FALSE.')
+                              'Disable the variable time step for the MCC routines to perform collisions at the manual '//&
+                              'time step (e.g. to accelerate convergence to thermal/chemical equilibrium)', '.FALSE.')
 
 END SUBROUTINE DefineParametersVariableTimeStep
 
@@ -401,23 +402,22 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE VarTimeStep_InitDistribution
 
 
-REAL FUNCTION GetParticleTimeStep(xPos, yPos, iElem, iSpec)
+REAL FUNCTION GetParticleTimeStep(xPos, yPos, iElem)
 !===================================================================================================================================
 !> Calculates/determines the time step 
 !> a) at a position x/y (only in 2D/Axi) [VarTimeStep%UseLinearScaling]
 !> b) of the given element number (3D and VTS distribution) [VarTimeStep%UseDistribution]
-!> c) depending on the particle species [VarTimeStep%UseSpeciesSpecific]
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: VarTimeStep, Symmetry, Species
+USE MOD_Particle_Vars           ,ONLY: VarTimeStep, Symmetry
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL, INTENT(IN), OPTIONAL      :: xPos, yPos
-INTEGER, INTENT(IN), OPTIONAL   :: iElem, iSpec
+INTEGER, INTENT(IN), OPTIONAL   :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -455,15 +455,54 @@ ELSE IF(VarTimeStep%UseDistribution) THEN
   IF(.NOT.PRESENT(iElem)) CALL abort(__STAMP__,&
     'ERROR: Element number is required in the call of GetParticleTimeStep for distribution!')
   GetParticleTimeStep = VarTimeStep%ElemFac(iElem)
-ELSE IF(VarTimeStep%UseSpeciesSpecific) THEN
-  GetParticleTimeStep = Species(iSpec)%TimeStepFactor
 ELSE
-  CALL abort(__STAMP__,'ERROR: GetParticleTimeStep should not be utilized without LinearScaling/Distribution flag or species-specific time steps!')
+  CALL abort(__STAMP__,'ERROR: GetParticleTimeStep should not be utilized without LinearScaling/Distribution flag!')
 END IF
 
 RETURN
 
 END FUNCTION GetParticleTimeStep
+
+
+PURE REAL FUNCTION GetSpeciesTimeStep(iCase)
+!===================================================================================================================================
+!> Determines the species-specific time step from the collision case
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars           ,ONLY: VarTimeStep, Species
+USE MOD_DSMC_Vars               ,ONLY: CollInf
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)   :: iCase
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER               :: iSpec, jSpec, SpecID
+!===================================================================================================================================
+
+GetSpeciesTimeStep = 1.
+
+! ManualTimeStep has been utilized for the collisions
+IF(VarTimeStep%DisableForMCC) RETURN
+
+! Determine the particle species (one will be the background species with a TimeStepFactor of 1)
+iSpec = CollInf%collidingSpecies(iCase,1)
+jSpec = CollInf%collidingSpecies(iCase,2)
+IF(Species(iSpec)%TimeStepFactor.LT.1.) THEN
+  SpecID = iSpec
+ELSE IF(Species(jSpec)%TimeStepFactor.LT.1.) THEN
+  SpecID = jSpec
+END IF
+GetSpeciesTimeStep = Species(SpecID)%TimeStepFactor
+
+RETURN
+
+END FUNCTION GetSpeciesTimeStep
 
 
 SUBROUTINE VarTimeStep_CalcElemFacs()

@@ -1228,7 +1228,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 USE MOD_Globals                 ,ONLY: Abort
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, ChemReac, RadialWeighting
 USE MOD_MCC_Vars                ,ONLY: SpecXSec
-USE MOD_Particle_Vars           ,ONLY: Species, PartSpecies, PEM, UseVarTimeStep, usevMPF
+USE MOD_Particle_Vars           ,ONLY: Species, PartSpecies, PEM, UseVarTimeStep, usevMPF, VarTimeStep
 USE MOD_DSMC_ChemReact          ,ONLY: CalcReactionProb, DSMC_Chemistry
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
@@ -1248,7 +1248,7 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart1, iPart2, nPartNode, nPair, iCase, ReacTest, iPath, ReacCounter
+INTEGER                       :: iPart1, iPart2, nPartNode, nPair, iCase, ReacTest, iPath, ReacCounter, iSpec
 REAL                          :: Volume, NumDens, ReactionProb, iRan, ReactionProbSum
 REAL, ALLOCATABLE             :: ReactionProbArray(:)
 LOGICAL,ALLOCATABLE           :: PerformReaction(:)
@@ -1373,6 +1373,19 @@ IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
     SpecXSec(iCase)%CrossSection = SpecXSec(iCase)%CrossSection - SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
   ELSE
     Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob - SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
+  END IF
+END IF
+
+! Species-specific time step: considering the probability that the particle with the lower time step might not have undergone the
+! collision, disabling the following collision process. This works with a constant background gas as the change of the background
+! gas particle is not tracked anyway.
+IF(VarTimeStep%UseSpeciesSpecific) THEN
+  IF(VarTimeStep%DisableForMCC) THEN
+      iSpec = PartSpecies(iPart1)
+      IF(Species(iSpec)%TimeStepFactor.LT.1.) THEN
+        CALL RANDOM_NUMBER(iRan)
+        IF(iRan.GT.Species(iSpec)%TimeStepFactor) RelaxToDo = .FALSE.
+      END IF
   END IF
 END IF
 

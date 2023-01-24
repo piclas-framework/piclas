@@ -161,7 +161,7 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
         PEM%pNumber(ElemID)   = PEM%pNumber(ElemID) + 1
         PDM%ParticleVecLength = i
 
-        IF(UseVarTimeStep) PartTimeStep(i) = GetParticleTimeStep(PartState(1,i),PartState(2,i),ElemID,PartSpecies(i))
+        IF(UseVarTimeStep) PartTimeStep(i) = GetParticleTimeStep(PartState(1,i),PartState(2,i),ElemID)
 
         IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
       END IF
@@ -181,7 +181,7 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
       PEM%pNumber(ElemID)   = PEM%pNumber(ElemID) + 1
       PDM%ParticleVecLength = i
 
-      IF(UseVarTimeStep) PartTimeStep(i) = GetParticleTimeStep(PartState(1,i),PartState(2,i),ElemID,PartSpecies(i))
+      IF(UseVarTimeStep) PartTimeStep(i) = GetParticleTimeStep(PartState(1,i),PartState(2,i),ElemID)
 
       IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
     END IF
@@ -1313,7 +1313,7 @@ PDM%ParticleInside(iPart) = .TRUE.
 
 ! 4) Set particle time step and weights (if required)
 IF (UseVarTimeStep) THEN
-  PartTimeStep(iPart) = GetParticleTimeStep(PartState(1,iPart),PartState(2,iPart),iElem,iSpec)
+  PartTimeStep(iPart) = GetParticleTimeStep(PartState(1,iPart),PartState(2,iPart),iElem)
 END IF
 IF (RadialWeighting%DoRadialWeighting) THEN
   PartMPF(iPart) = CalcRadWeightMPF(PartState(2,iPart),iSpec,iPart)

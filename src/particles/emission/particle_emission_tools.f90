@@ -214,7 +214,7 @@ SUBROUTINE SetParticleTimeStep(NbrOfParticle)
 !> the particle vector, loops over the total number of particles and the indices in the nextFreePosition array.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars           ,ONLY: PDM, PartTimeStep, PEM, PartState, PartSpecies
+USE MOD_Particle_Vars           ,ONLY: PDM, PartTimeStep, PEM, PartState
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -230,8 +230,7 @@ INTEGER                         :: iPart, PositionNbr
 !===================================================================================================================================
 DO iPart=1, NbrOfParticle
   PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-  PartTimeStep(PositionNbr) = &
-      GetParticleTimeStep(PartState(1,PositionNbr), PartState(2,PositionNbr),PEM%LocalElemID(PositionNbr),PartSpecies(PositionNbr))
+  PartTimeStep(PositionNbr) = GetParticleTimeStep(PartState(1,PositionNbr), PartState(2,PositionNbr),PEM%LocalElemID(PositionNbr))
 END DO
 
 END SUBROUTINE SetParticleTimeStep
@@ -982,7 +981,7 @@ INTEGER                          :: CNElemID
         END IF
         CALL RANDOM_NUMBER(iRan)
         IF(UseVarTimeStep) THEN
-          adaptTimestep = GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem, iSpec)
+          adaptTimestep = GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem)
           nPart = INT(PartDens / adaptTimestep * ElemVolume_Shared(CNElemID) + iRan)
         ELSE
           nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
@@ -1013,7 +1012,7 @@ INTEGER                          :: CNElemID
           ichunkSize = ichunkSize + 1
           IF (UseVarTimeStep) THEN
             PartTimeStep(ParticleIndexNbr) = &
-              GetParticleTimeStep(PartState(1,ParticleIndexNbr), PartState(2,ParticleIndexNbr),iElem, iSpec)
+              GetParticleTimeStep(PartState(1,ParticleIndexNbr), PartState(2,ParticleIndexNbr),iElem)
           END IF
           IF(RadialWeighting%DoRadialWeighting) THEN
             PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),iSpec,ParticleIndexNbr)

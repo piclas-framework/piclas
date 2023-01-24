@@ -442,6 +442,7 @@ END SUBROUTINE InitMCC
 SUBROUTINE DetermineNullCollProb(iCase,iSpec,jSpec)
 !===================================================================================================================================
 !> Routine for the MCC method: calculates the maximal collision frequency for a given species and the collision probability
+!> Utilizing the ManualTimeStep as dt is not yet defined.
 !===================================================================================================================================
 ! MODULES
 USE MOD_ReadInTools
@@ -494,13 +495,13 @@ IF(BGGas%UseDistribution) THEN
     ! Calculate the maximal collision frequency: Step 2
     MaxCollFreqElem = MaxCollFreq * BGGas%Distribution(bggSpec,7,iElem)
     ! Determine the collision probability
-    SpecXSec(iCase)%ProbNullElem(iElem) = 1. - EXP(-MaxCollFreqElem*ManualTimeStep)
+    SpecXSec(iCase)%ProbNullElem(iElem) = 1. - EXP(-MaxCollFreqElem*dtVar)
   END DO ! iElem = 1, nElems
 ELSE
   ! Calculate the maximal collision frequency: Step 2
   MaxCollFreq = MaxCollFreq * BGGas%NumberDensity(bggSpec)
   ! Determine the collision probability
-  SpecXSec(iCase)%ProbNull = 1. - EXP(-MaxCollFreq*ManualTimeStep)
+  SpecXSec(iCase)%ProbNull = 1. - EXP(-MaxCollFreq*dtVar)
 END IF
 
 DEALLOCATE(Velocity)

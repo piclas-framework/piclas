@@ -1291,7 +1291,7 @@ DO iProc=0,nExchangeProcessors-1
         ! Number of Particles in Element
         PEM%pNumber(ElemID) = PEM%pNumber(ElemID) + 1
         IF (UseVarTimeStep) THEN
-          PartTimeStep(PartID) = GetParticleTimeStep(PartState(1,PartID),PartState(2,PartID),ElemID, PartSpecies(PartID))
+          PartTimeStep(PartID) = GetParticleTimeStep(PartState(1,PartID),PartState(2,PartID),ElemID)
         END IF
         IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(PartID)) = vMPF_SpecNumElem(ElemID,PartSpecies(PartID)) + 1
       END IF

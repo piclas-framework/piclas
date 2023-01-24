@@ -100,7 +100,7 @@ PEM%LastGlobalElemID(newParticleID) = GlobElemID
 
 ! Set particle time step and weight (if required)
 IF (UseVarTimeStep) THEN
-  PartTimeStep(newParticleID) = GetParticleTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%LocalElemID(newParticleID),SpecID)
+  PartTimeStep(newParticleID) = GetParticleTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%LocalElemID(newParticleID))
 END IF
 
 ! Set new particle MPF

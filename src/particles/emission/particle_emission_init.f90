@@ -251,7 +251,6 @@ DO iSpec = 1, nSpecies
   ! Species-specific time step
   Species(iSpec)%TimeStepFactor              = GETREAL('Part-Species'//TRIM(hilf)//'-TimeStepFactor')
   IF(Species(iSpec)%TimeStepFactor.NE.1.) THEN
-    UseVarTimeStep = .TRUE.
     VarTimeStep%UseSpeciesSpecific = .TRUE.
   END IF
 #if defined(IMPA)

@@ -39,9 +39,6 @@ USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
 USE MOD_Globals_Vars           ,ONLY: c2_inv
-!#if (PP_TimeDiscMethod==509)
-!USE MOD_TimeDisc_Vars          ,ONLY: dt_old
-!#endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_HDG                    ,ONLY: HDG
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
@@ -49,12 +46,10 @@ USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, doParticleMerge, DelayTime
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies
-USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcCoupledPowerPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
-!#if (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
-!#endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_part_RHS               ,ONLY: CalcPartRHS, CalcPartRHSSingleParticle
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_part_emission          ,ONLY: ParticleInserting
@@ -136,6 +131,7 @@ IF (time.GE.DelayTime) THEN
       ELSE
         dtVar = dt
       END IF
+      IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(iPart))%TimeStepFactor
       ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoSurfaceFlux for compiler-optimization if .FALSE.
         CALL RANDOM_NUMBER(RandVal)

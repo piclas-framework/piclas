@@ -302,12 +302,12 @@ IF(DoRestart) THEN
       ELSE
         VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total               !proc local total
       END IF
-      ! ! Species-specific time step
-      ! IF(VarTimeStep%UseSpeciesSpecific) THEN
-      !   RestartTimeVar = RestartTime * Species(iSpec)%TimeStepFactor
-      ! ELSE
-      !   RestartTimeVar = RestartTime
-      ! END IF
+      ! Species-specific time step
+      IF(VarTimeStep%UseSpeciesSpecific) THEN
+        RestartTimeVar = RestartTime * Species(iSpec)%TimeStepFactor
+      ELSE
+        RestartTimeVar = RestartTime
+      END IF
       Species(iSpec)%Surfaceflux(iSF)%InsertedParticle = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity * RestartTime &
         / Species(iSpec)%MacroParticleFactor * VFR_total,8)
     END DO

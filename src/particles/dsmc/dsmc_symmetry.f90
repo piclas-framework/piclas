@@ -623,7 +623,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
   IF (UseVarTimeStep) THEN
-    PartTimeStep(PositionNbr) = GetParticleTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID,PartSpecies(PositionNbr))
+    PartTimeStep(PositionNbr) = GetParticleTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID)
   END IF
   ! Counting the number of clones per cell
   IF(SamplingActive.OR.WriteMacroVolumeValues) THEN

@@ -39,7 +39,7 @@ USE MOD_Globals                  ,ONLY: abort, CROSS
 USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
 USE MOD_Particle_Vars            ,ONLY: UseRotRefFrame, RotRefFrameOmega
 USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, Species, PartSpecies
-USE MOD_Particle_Vars            ,ONLY: UseVarTimeStep, PartTimeStep
+USE MOD_Particle_Vars            ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_Particle_Vars            ,ONLY: UseSplitAndMerge
 USE MOD_DSMC_Vars                ,ONLY: DSMC, CollisMode, AmbipolElecVelo
 USE MOD_DSMC                     ,ONLY: DSMC_main
@@ -98,6 +98,7 @@ DO iPart=1,PDM%ParticleVecLength
     ELSE
       dtVar = dt
     END IF
+    IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(iPart))%TimeStepFactor
     IF (PDM%dtFracPush(iPart)) THEN
       ! Surface flux (dtFracPush): previously inserted particles are pushed a random distance between 0 and v*dt
       !                            LastPartPos and LastElem already set!
