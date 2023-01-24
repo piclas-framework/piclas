@@ -253,6 +253,7 @@ DO iSpec=1,nSpecies
             CALL AnalyzePartPos(ParticleIndexNbr)
 #endif /*CODE_ANALYZE*/
           ELSE
+            IPWRITE(*,*) 'Total number of particles emitted: ', PartsEmitted, ' Current number of particles: ', PartInsSubSide
             CALL abort(__STAMP__,'ERROR in ParticleSurfaceflux: ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
           END IF
         END DO

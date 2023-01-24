@@ -293,8 +293,14 @@ SDEALLOCATE(BCdata_auxSFTemp)
 ! Setting variables required after a restart
 IF(DoRestart) THEN
   DO iSpec=1,nSpecies
+    ! Species-specific time step
+    IF(VarTimeStep%UseSpeciesSpecific) THEN
+      RestartTimeVar = RestartTime * Species(iSpec)%TimeStepFactor
+    ELSE
+      RestartTimeVar = RestartTime
+    END IF
     DO iSF = 1, Species(iSpec)%NumberOfInits
-      Species(iSpec)%Init(iSF)%InsertedParticle = INT(Species(iSpec)%Init(iSF)%ParticleNumber * RestartTime,8)
+      Species(iSpec)%Init(iSF)%InsertedParticle = INT(Species(iSpec)%Init(iSF)%ParticleNumber * RestartTimeVar,8)
     END DO
     DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
       IF (Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN
@@ -302,13 +308,8 @@ IF(DoRestart) THEN
       ELSE
         VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total               !proc local total
       END IF
-      ! Species-specific time step
-      IF(VarTimeStep%UseSpeciesSpecific) THEN
-        RestartTimeVar = RestartTime * Species(iSpec)%TimeStepFactor
-      ELSE
-        RestartTimeVar = RestartTime
-      END IF
-      Species(iSpec)%Surfaceflux(iSF)%InsertedParticle = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity * RestartTime &
+
+      Species(iSpec)%Surfaceflux(iSF)%InsertedParticle = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity * RestartTimeVar &
         / Species(iSpec)%MacroParticleFactor * VFR_total,8)
     END DO
   END DO
