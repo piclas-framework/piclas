@@ -126,11 +126,13 @@ IF (time.GE.DelayTime) THEN
   IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
+      ! Set the particle time step
       IF (UseVarTimeStep) THEN
         dtVar = dt * PartTimeStep(iPart)
       ELSE
         dtVar = dt
       END IF
+      ! Set the species-specific time step
       IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(iPart))%TimeStepFactor
       ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoSurfaceFlux for compiler-optimization if .FALSE.

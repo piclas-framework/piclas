@@ -377,14 +377,14 @@ DO iSpec = 1, nSpecies
       END IF
     END IF
     ! 2D simulation/variable time step only with cell_local and/or surface flux
-    IF((Symmetry%Order.EQ.2).OR.UseVarTimeStep) THEN
+    IF((Symmetry%Order.EQ.2).OR.UseVarTimeStep.OR.VarTimeStep%UseSpeciesSpecific) THEN
       SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
       ! Do nothing
       CASE('cell_local','background')
       ! Abort for every other SpaceIC
       CASE DEFAULT
-        CALL CollectiveStop(__STAMP__,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
-            'cell_local/background-SpaceIC and/or surface flux!')
+        CALL CollectiveStop(__STAMP__,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step '//&
+            'only possible with cell_local/background-SpaceIC and/or surface flux!')
       END SELECT
     END IF
     ! 1D Simulation with cuboid-SpaceIC

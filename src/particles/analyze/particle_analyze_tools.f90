@@ -2118,7 +2118,7 @@ IF(PartMPI%MPIRoot)THEN
   DSMC%NumColl(CollInf%NumCase + 1) = SUM(DSMC%NumColl(1:CollInf%NumCase))
   DO iCase=1, CollInf%NumCase
     ! Species-specific time step
-    IF(VarTimeStep%UseSpeciesSpecific) THEN
+    IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
       dtVar = dt * GetSpeciesTimeStep(iCase)
     ELSE
       dtVar = dt
@@ -2196,7 +2196,7 @@ IF(PartMPI%MPIRoot)THEN
         MPF_2 = Species(jSpec)%MacroParticleFactor
         iCase = CollInf%Coll_Case(iSpec,jSpec)
         ! Species-specific time step
-        IF(VarTimeStep%UseSpeciesSpecific) THEN
+        IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
           dtVar = dt * GetSpeciesTimeStep(iCase)
         ELSE
           dtVar = dt
@@ -2274,7 +2274,7 @@ IF(PartMPI%MPIRoot)THEN
   DO iCase=1, CollInf%NumCase
     IF(SpecXSec(iCase)%UseElecXSec) THEN
       ! Species-specific time step
-      IF(VarTimeStep%UseSpeciesSpecific) THEN
+      IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
         dtVar = dt * GetSpeciesTimeStep(iCase)
       ELSE
         dtVar = dt
@@ -2345,7 +2345,7 @@ IF(PartMPI%MPIRoot)THEN
   DO iReac=1, ChemReac%NumOfReact
     iCase = ChemReac%ReactCase(iReac)
     ! Species-specific time step
-    IF(VarTimeStep%UseSpeciesSpecific) THEN
+    IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
       dtVar = dt * GetSpeciesTimeStep(iCase)
     ELSE
       dtVar = dt

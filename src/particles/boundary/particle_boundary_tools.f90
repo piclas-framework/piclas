@@ -126,6 +126,9 @@ CASE ('old')
   IF (UseVarTimeStep) THEN
     SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) = SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) &
                                                               + PartTimeStep(PartID)
+  ELSE IF(VarTimeStep%UseSpeciesSpecific) THEN
+    SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) = SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) &
+                                                              + Species(SpecID)%TimeStepFactor
   END IF
 CASE ('new')
   ! must be old_velocity-new_velocity
