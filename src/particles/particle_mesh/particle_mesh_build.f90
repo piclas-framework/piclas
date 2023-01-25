@@ -314,7 +314,7 @@ REAL                           :: StartT,EndT
 
 IF(MPIRoot)THEN
   LBWRITE(UNIT_StdOut,'(132("-"))')
-  LBWRITE(UNIT_StdOut,'(A)',ADVANCE='NO') ' Building EpsOneCell for all elements ...'
+  LBWRITE(UNIT_StdOut,'(A)') ' Building EpsOneCell for all elements ...'
   GETTIME(StartT)
 END IF ! MPIRoot
 
@@ -417,7 +417,8 @@ CALL BARRIER_AND_SYNC(ElemEpsOneCell_Shared_Win,MPI_COMM_SHARED)
 !END IF
 IF(MPIRoot)THEN
   GETTIME(EndT)
-  CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
+  LBWRITE(UNIT_stdOut,'(A,F0.3,A)') ' Building EpsOneCell for all elements ... DONE  [',EndT-StartT,'s]'
+  LBWRITE(UNIT_StdOut,'(132("-"))')
 END IF ! MPIRoot
 
 END SUBROUTINE BuildEpsOneCell
@@ -1567,7 +1568,7 @@ REAL                           :: crossVec(3)
 !===================================================================================================================================
 
 LBWRITE(UNIT_StdOut,'(132("-"))')
-LBWRITE(UNIT_stdOut,'(A)', ADVANCE='NO') ' GET LINEAR SIDE BASEVECTORS...'
+LBWRITE(UNIT_stdOut,'(A)') ' GET LINEAR SIDE BASEVECTORS...'
 #if USE_MPI
 CALL Allocate_Shared((/3,nNonUniqueGlobalSides/),BaseVectors0_Shared_Win,BaseVectors0_Shared)
 CALL MPI_WIN_LOCK_ALL(0,BaseVectors0_Shared_Win,IERROR)
@@ -1634,7 +1635,7 @@ CALL BARRIER_AND_SYNC(BaseVectors3_Shared_Win    ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(BaseVectorsScale_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI */
 
-LBWRITE(UNIT_stdOut,'(A)')' DONE!'
+LBWRITE(UNIT_stdOut,'(A)')' GET LINEAR SIDE BASEVECTORS DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE BuildLinearSideBaseVectors
 

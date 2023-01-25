@@ -39,11 +39,11 @@ SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,Ele
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef, VarTimeStep, usevMPF, PartMPF
 USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, RadialWeighting, VarWeighting
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
 USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -113,6 +113,9 @@ IF (usevMPF) THEN
     ! Check if vMPF (and radial weighting is used) to determine the MPF of the new particle
     IF (RadialWeighting%DoRadialWeighting) THEN
       PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID),SpecID,newParticleID)
+    ! Variable weighting in 3D
+    ELSE IF (VarWeighting%DoVariableWeighting) THEN
+      PartMPF(newParticleID) = CalcVarWeightMPF(PartState(:,newParticleID),SpecID,newParticleID)
     ELSE
       PartMPF(newParticleID) = Species(SpecID)%MacroParticleFactor
     END IF

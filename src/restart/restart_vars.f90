@@ -22,7 +22,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL,ALLOCATABLE   :: Vdm_GaussNRestart_GaussN(:,:)! for interpolation from restart grid to computation grid
+REAL,ALLOCATABLE   :: Vdm_GaussNRestart_GaussN(:,:)! for interpolaion from restart grid to computation grid
 INTEGER            :: nVar_Restart
 INTEGER            :: N_Restart = 0
 INTEGER            :: nElems_Restart

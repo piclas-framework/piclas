@@ -72,9 +72,6 @@ USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
-USE MOD_Particle_Vars          ,ONLY: DelayTime
-USE MOD_PICDepo_Vars           ,ONLY: PartSource
-USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize
@@ -126,7 +123,6 @@ REAL,ALLOCATABLE                   :: AD_DataTmp(:,:)
 INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
-CHARACTER(LEN=32)                  :: hilf
 !===================================================================================================================================
 
 FirstElemInd = offsetElem+1
@@ -139,9 +135,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! ------------------------------------------------
   ! PartSource
   ! ------------------------------------------------
-  ! 1.) relax deposition
-  ! 2.) particle delay time active
-  IF (DoDeposition .AND. (RelaxDeposition.OR.(time.LT.DelayTime))) THEN
+  IF (DoDeposition .AND. RelaxDeposition) THEN
     ALLOCATE(PartSource_HDF5(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
     ASSOCIATE (&
             counts_send  => INT(MPInElemSend     ) ,&
@@ -159,33 +153,17 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     END ASSOCIATE
     DEALLOCATE(PartSourceLB)
 
-    ! 1.) relax deposition
-    IF(RelaxDeposition)THEN
-      DO iElem =1,PP_nElems
-        DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+    DO iElem =1,PP_nElems
+      DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
 #if ((USE_HDG) && (PP_nVar==1))
-          PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
-          PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+        PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+        PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
 #else
-          PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
-          PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+        PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+        PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
 #endif
-        END DO; END DO; END DO
-      END DO
-    END IF ! RelaxDeposition
-
-    ! 2.) particle delay time active
-    IF(time.LT.DelayTime)THEN
-      DO iElem =1,PP_nElems
-        DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
-#if ((USE_HDG) && (PP_nVar==1))
-          PartSource(1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
-#else
-          PartSource(1:4,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
-#endif
-        END DO; END DO; END DO
-      END DO
-    END IF ! time.LE.DelayTime
+      END DO; END DO; END DO
+    END DO
   END IF ! (DoDeposition .AND. RelaxDeposition)
 
   ! ------------------------------------------------
@@ -612,13 +590,11 @@ ELSE
         DO iVar=1,PartDataSize
           IF (.NOT.readVarFromState(iVar)) THEN
             IF (TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational') THEN
-              WRITE(UNIT=hilf,FMT='(I0)') iVar
-              SWRITE(*,*) 'WARNING: The following VarNamesParticles(iVar='//TRIM(hilf)//') will be set to zero: '//TRIM(StrVarNames(iVar))
+              SWRITE(*,*) 'WARNING: The following VarNamesParticles will be set to zero: '//TRIM(StrVarNames(iVar))
             ELSE IF(TRIM(StrVarNames(iVar)).EQ.'MPF') THEN
               SWRITE(*,*) 'WARNING: The particle weighting factor will be initialized with the given global weighting factor!'
             ELSE
-              CALL Abort(__STAMP__,"not associated VarNamesParticles to be reset! StrVarNames(iVar)="//TRIM(StrVarNames(iVar))//&
-              '. Note that initializing electronic DOF and vibrational molecular species with zero ist not imeplemted.')
+              CALL Abort(__STAMP__,"not associated VarNamesParticles to be reset!")
             END IF ! TRIM(StrVarNames(iVar)).EQ.'Vibrational' .OR. TRIM(StrVarNames(iVar)).EQ.'Rotational'
           END IF ! .NOT.readVarFromState(iVar)
         END DO ! iVar=1,PartDataSize

@@ -70,7 +70,6 @@ REAL                  :: RandVal, dtVar, NewYPart, NewYVelo, Pt_local(1:3), RotR
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
-
 IF (DoSurfaceFlux) THEN
   CALL ParticleSurfaceflux()
 END IF

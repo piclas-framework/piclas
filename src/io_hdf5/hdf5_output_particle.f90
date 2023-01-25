@@ -179,6 +179,7 @@ DO i = 1, iMax
   ELSE
     ! Generate skeleton for the file with all relevant data on a single processor (MPIRoot)
     ! Write field to separate file for debugging purposes
+    !FutureTime=0.0 ! not required
     FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_NodeSourceExtGlobal',OutputTime))//'.h5'
     IF(MPIRoot) CALL GenerateFileSkeleton('NodeSourceExtGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)
 #if USE_MPI
@@ -1291,7 +1292,7 @@ SUBROUTINE WriteClonesToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_DSMC_Vars     ,ONLY: UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
-USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, ClonedParticles
+USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, VarWeighting, ClonedParticles
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies, usevMPF, Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1305,7 +1306,7 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 !INTEGER(HID_T)                 :: Dset_ID
 !INTEGER                        :: nVal
-INTEGER                        :: pcount, iDelay, iElem_glob
+INTEGER                        :: pcount, iDelay, iElem_glob, ClonePartNumber
 LOGICAL                        :: withDSMC=.FALSE.
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart,globnPart(6)
@@ -1357,19 +1358,35 @@ END IF
 
 locnPart =   0
 
-SELECT CASE(RadialWeighting%CloneMode)
-CASE(1)
-  tempDelay = RadialWeighting%CloneInputDelay - 1
-CASE(2)
-  tempDelay = RadialWeighting%CloneInputDelay
-CASE DEFAULT
-  CALL abort(__STAMP__,&
-              'RadialWeighting: CloneMode is not supported!')
-END SELECT
+IF (VarWeighting%DoVariableWeighting) THEN
+  SELECT CASE(VarWeighting%CloneMode)
+  CASE(1)
+    tempDelay = VarWeighting%CloneInputDelay - 1
+  CASE(2)
+    tempDelay = VarWeighting%CloneInputDelay
+  CASE DEFAULT
+    CALL abort(__STAMP__,&
+                'VarWeighting: CloneMode is not supported!')
+  END SELECT
+  
+  DO pcount = 0,tempDelay
+    locnPart = locnPart + VarWeighting%ClonePartNum(pcount)
+  END DO
+ELSE ! RadialWeighting
+  SELECT CASE(RadialWeighting%CloneMode)
+  CASE(1)
+    tempDelay = RadialWeighting%CloneInputDelay - 1
+  CASE(2)
+    tempDelay = RadialWeighting%CloneInputDelay
+  CASE DEFAULT
+    CALL abort(__STAMP__,&
+                'RadialWeighting: CloneMode is not supported!')
+  END SELECT
 
-DO pcount = 0,tempDelay
+  DO pcount = 0,tempDelay
     locnPart = locnPart + RadialWeighting%ClonePartNum(pcount)
-END DO
+  END DO
+END IF
 
 ! Communicate the total number and offset
 CALL GetOffsetAndGlobalNumberOfParts('WriteClonesToHDF5',offsetnPart,globnPart,locnPart,.FALSE.)
@@ -1393,7 +1410,12 @@ IF (withDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
 END IF
 iPart=offsetnPart
 DO iDelay=0,tempDelay
-  DO pcount = 1, RadialWeighting%ClonePartNum(iDelay)
+  IF (VarWeighting%DoVariableWeighting) THEN
+    ClonePartNumber = VarWeighting%ClonePartNum(iDelay)
+  ELSE 
+    ClonePartNumber = RadialWeighting%ClonePartNum(iDelay)
+  END IF
+  DO pcount = 1, ClonePartNumber
     iElem_glob = ClonedParticles(pcount,iDelay)%Element
     iPart = iPart + 1
     PartData(1,iPart)=ClonedParticles(pcount,iDelay)%PartState(1)
@@ -1566,11 +1588,15 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVal
 INTEGER,PARAMETER              :: outputVars=6
 REAL,ALLOCATABLE               :: outputArray(:,:,:,:,:)
+#if USE_MPI
 REAL                           :: StartT,EndT
+#endif /*USE_MPI*/
 INTEGER                        :: iElem,i,j,k
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE PIC EM-FIELD TO HDF5 FILE...'
-GETTIME(StartT)
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PIC EM-FIELD TO HDF5 FILE...'
+#if USE_MPI
+  StartT=MPI_WTIME()
+#endif /*USE_MPI*/
 
 ALLOCATE(outputArray(1:outputVars,0:PP_N,0:PP_N,0:PP_N,1:nElems))
 DO iElem=1,PP_nElems
@@ -1640,8 +1666,14 @@ CALL CloseDataFile()
 DEALLOCATE(StrVarNames)
 DEALLOCATE(outputArray)
 
-GETTIME(EndT)
-CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+#if USE_MPI
+IF(MPIROOT)THEN
+  EndT=MPI_WTIME()
+  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
+END IF
+#else
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
+#endif /*USE_MPI*/
 
 END SUBROUTINE WriteElectroMagneticPICFieldToHDF5
 
@@ -1813,7 +1845,7 @@ USE MOD_Particle_Vars          ,ONLY: PartInt,PartData
 USE MOD_Particle_Vars          ,ONLY: locnPart,offsetnPart
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,DSMC,PolyatomMolDSMC,SpecDSMC
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data,MaxQuantNum,MaxElecQuant
-USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PartMPF, usevMPF, nSpecies, Species
+USE MOD_Particle_Vars          ,ONLY: PDM, PartState, PartSpecies, PartMPF, usevMPF, nSpecies, Species
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
@@ -2089,7 +2121,9 @@ IF(withDSMC.AND.DSMC%DoAmbipolarDiff)THEN
       END DO
       iPart = PartInt(2,iElem_glob)
     ELSE
-      CALL abort(__STAMP__, " Particle HDF5-Output method not supported! PEM%pNumber not associated")
+      CALL abort(&
+      __STAMP__&
+      , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
     END IF
     PartInt(2,iElem_glob)=iPart
   END DO

@@ -501,7 +501,10 @@ ASSOCIATE(&
       y => Pos(2) ,&
       z => Pos(3)  &
       )
-  r = SQRT(x*x + y*y)
+  r = SQRT(x**2+y**2)
+  iPos = INT((r-VariableExternalField(1,1))/DeltaExternalField(1)) + 1
+  jPos = INT((z-VariableExternalField(2,1))/DeltaExternalField(2)) + 1
+
 
   IF(r.GT.VariableExternalFieldMax(1))THEN
     InterpolateVariableExternalField2D = 0.
@@ -512,28 +515,14 @@ ASSOCIATE(&
   ELSEIF(z.LT.VariableExternalFieldMin(2))THEN
     InterpolateVariableExternalField2D = 0.
   ELSE
-
-    ! Get index in r and z
-    iPos = INT((r-VariableExternalField(1,1))/DeltaExternalField(1)) + 1 ! dr = DeltaExternalField(1)
-    jPos = INT((z-VariableExternalField(2,1))/DeltaExternalField(2)) + 1 ! dz = DeltaExternalField(2)
-
-    ! Catch problem when r or z are exactly at the upper boundary and INT() does not round to the lower integer (do not add +1 in
-    ! this case)
-    iPos = MIN(iPos, VariableExternalFieldN(2) - 1 )
-    jPos = MIN(jPos, VariableExternalFieldN(1) - 1 )
-
-
-    ! Shift all points by Nz = EmissionDistributionNum(1)
-    ASSOCIATE( Nz => VariableExternalFieldN(1) )
-      ! 1.1
-      idx1 = (iPos-1)*Nz + jPos
-      ! 2.1
-      idx2 = (iPos-1)*Nz + jPos + 1
-      ! 1.2
-      idx3 = iPos*Nz + jPos
-      ! 2.2
-      idx4 = iPos*Nz + jPos + 1
-    END ASSOCIATE
+    ! 1.1
+    idx1 = (iPos-1)*VariableExternalFieldN(1) + jPos
+    ! 2.1
+    idx2 = (iPos-1)*VariableExternalFieldN(1) + jPos + 1
+    ! 1.2
+    idx3 = iPos*VariableExternalFieldN(1) + jPos
+    ! 2.2
+    idx4 = iPos*VariableExternalFieldN(1) + jPos + 1
 
     ! Interpolate
     delta = DeltaExternalField(1)*DeltaExternalField(2)
@@ -615,6 +604,10 @@ ASSOCIATE(&
       Ny => VariableExternalFieldN(2)  ,&
       Nz => VariableExternalFieldN(3)   &
       )
+  iPos = INT((x-VariableExternalField(1,1))/DeltaExternalField(1)) ! 0 to Nx-1
+  jPos = INT((y-VariableExternalField(2,1))/DeltaExternalField(2)) ! 0 to Ny-1
+  kPos = INT((z-VariableExternalField(3,1))/DeltaExternalField(3)) ! 0 to Nz-1
+  Nxy  = Nx*Ny
 
   ! Magnetic field outside of interpolation domain results in B=0
   IF(x.GT.VariableExternalFieldMax(1))THEN
@@ -630,18 +623,6 @@ ASSOCIATE(&
   ELSEIF(z.LT.VariableExternalFieldMin(3))THEN
     InterpolateVariableExternalField3D = 0.
   ELSE
-
-    ! Get index in x, y and z
-    iPos = INT((x-VariableExternalField(1,1))/DeltaExternalField(1)) ! 0 to Nx-1
-    jPos = INT((y-VariableExternalField(2,1))/DeltaExternalField(2)) ! 0 to Ny-1
-    kPos = INT((z-VariableExternalField(3,1))/DeltaExternalField(3)) ! 0 to Nz-1
-    ! Catch problem when coordinates are exactly at the upper boundary and INT() does not round to the lower integer
-    ! e.g. when x.EQ.VariableExternalFieldMax(1) or y.EQ.VariableExternalFieldMax(2) or z.EQ.VariableExternalFieldMax(3)
-    IF(iPos.EQ.Nx) iPos = Nx-1
-    IF(jPos.EQ.Ny) jPos = Ny-1
-    IF(kPos.EQ.Nz) kPos = Nz-1
-    Nxy  = Nx*Ny
-
     ! Get corner node indices
     ! 1.1.1
     idx1 = iPos + jPos*Ny + kPos*Nxy + 1

@@ -35,7 +35,7 @@ INTEGER                                        :: ESBGKModel                    
 INTEGER                                        :: BGKMixtureModel                    ! 1 Approx; 2 Exact Solution A; 3 Metropolis
 INTEGER                                        :: BGKMinPartPerCell
 LOGICAL                                        :: BGKMovingAverage
-REAL                                           :: BGKMovingAverageFac
+INTEGER                                        :: BGKMovingAverageLength
 LOGICAL                                        :: BGKUseQuantVibEn
 LOGICAL                                        :: BGKDoVibRelaxation
 REAL                                           :: BGKSplittingDens
@@ -54,8 +54,15 @@ TYPE tElemNodeAveraging
 END TYPE
 
 TYPE tNodeAverage
-    TYPE (tNodeAverage), POINTER               :: SubNode(:) => null()
-    REAL, ALLOCATABLE                          :: AverageValues(:)
+    TYPE (tNodeAverage), POINTER               :: SubNode1 => null()
+    TYPE (tNodeAverage), POINTER               :: SubNode2 => null()
+    TYPE (tNodeAverage), POINTER               :: SubNode3 => null()
+    TYPE (tNodeAverage), POINTER               :: SubNode4 => null()
+    TYPE (tNodeAverage), POINTER               :: SubNode5 => null()
+    TYPE (tNodeAverage), POINTER               :: SubNode6 => null()
+    TYPE (tNodeAverage), POINTER               :: SubNode7 => null()
+    TYPE (tNodeAverage), POINTER               :: SubNode8 => null()
+    REAL, ALLOCATABLE                          :: AverageValues(:,:)
     INTEGER                                    :: CorrectStep
 END TYPE
 

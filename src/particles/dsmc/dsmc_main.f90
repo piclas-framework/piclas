@@ -41,10 +41,12 @@ SUBROUTINE DSMC_main(DoElement)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath
+USE MOD_DSMC_Analyze          ,ONLY: DSMC_data_sampling,CalcSurfaceValues, CalcGammaVib,SamplingRotVibRelaxProb
 USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, BGGas_DeleteParticles
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode, ElecRelaxPart
-USE MOD_DSMC_Analyze          ,ONLY: SummarizeQualityFactors, DSMCMacroSampling
+USE MOD_DSMC_Analyze          ,ONLY: CalcMeanFreePath, SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Relaxation       ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Symmetry
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree, DSMC_pairing_dotree
@@ -52,8 +54,8 @@ USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
+USE MOD_MCC                   ,ONLY: MCC
 USE MOD_MCC_Vars              ,ONLY: UseMCC
-USE MOD_MCC                   ,ONLY: MonteCarloCollision
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -97,7 +99,7 @@ DO iElem = 1, nElems ! element/cell main loop
     IF(BGGas%NumberOfSpecies.GT.0) THEN
       ! Decide between MCC and DSMC-based background gas
       IF(UseMCC) THEN
-        CALL MonteCarloCollision(iElem)
+        CALL MCC(iElem)
       ELSE
         CALL DSMC_pairing_bggas(iElem)
       END IF

@@ -58,11 +58,13 @@ CALL prms%SetSection("Particle Initialization (Inits)")
 
 CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-SpaceIC'             , 'Keyword for particle space condition of species [$] in case of multiple inits' , 'cuboid', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-velocityDistribution', 'Keyword for velocity distribution', 'constant', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-CellLocMaxPos'       ,'Max position for the cell local insert', '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-CellLocMinPos'       ,'Min position for the cell local insert', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-InflowRiseTime'      , 'Time to ramp the number of inflow particles linearly from zero to unity', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusIC'            , 'Radius for IC circle'                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-Radius2IC'           , 'Radius2 for IC cylinder (ring)' , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusICGyro'        ,'Radius for Gyrotron gyro radius','1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-NormalIC'            ,'Normal / Orientation of circle', '0. , 0. , 0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-NormalIC'            ,'Normal / Orientation of circle', '0. , 0. , 1.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-BasePointIC'         ,'Base point for IC cuboid and IC sphere ', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-BaseVector1IC'       ,'First base vector for IC cuboid', '1. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-BaseVector2IC'       ,'Second base vector for IC cuboid', '0. , 1. , 0.', numberedmulti=.TRUE.)
@@ -146,7 +148,9 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-ExcludeRegion[$]-Cylind
                                   'Height of excluded cylinder, if'//&
                                   ' Part-Species[$]-Init[$]-ExcludeRegion[$]-SpaceIC=cylinder (set 0 for flat circle),'//&
                                   'negative value = opposite direction ', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-NeutralizationSource'  , 'Name of the boundary used for calculating the charged particle balance used for thruster neutralization (no default).' ,numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'Part-Species[$]-Init[$]-NeutralizationSource'  &
+                                , 'Name of the boundary used for calculating the charged particle balance used for thruster'//&
+                                  ' neutralization (no default).' ,numberedmulti=.TRUE.)
 ! ====================================== photoionization =================================================================
 CALL prms%CreateLogicalOption('Part-Species[$]-Init[$]-FirstQuadrantOnly','Only insert particles in the first quadrant that is'//&
                               ' spanned by the vectors x=BaseVector1IC and y=BaseVector2IC in the interval x,y in [0,R]',  '.FALSE.', numberedmulti=.TRUE.)
@@ -167,10 +171,6 @@ CALL prms%CreateLogicalOption('Part-Species[$]-Init[$]-TraceSpecies','Flag backg
                               ' Different weighting factor can be used',  '.FALSE.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption( 'Part-Species[$]-Init[$]-PartBCIndex','Associated particle boundary ID','-1',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption('Part-Species[$]-Init[$]-MacroParticleFactor', 'Emission-specific particle weighting factor: number of simulation particles per real particle',numberedmulti=.TRUE.)
-! ====================================== emission distribution =================================================================
-CALL prms%CreateStringOption( 'Part-Species[$]-Init[$]-EmissionDistributionName' , 'Name of the species, e.g., "electron" or "ArIon" used for initial emission via interpolation of n, T and v from equidistant field data (no default).' ,numberedmulti=.TRUE.)
-CALL prms%CreateStringOption( 'Part-EmissionDistributionFileName'                , 'H5 or CSV file containing the data for initial emission via interpolation of n, T and v from equidistant field data', 'none')
-CALL prms%CreateIntOption(    'Part-EmissionDistributionN'                       , 'Polynomial degree for particle emission in each element. The default value is 2(N+1) with N being the polynomial degree of the solution.')
 END SUBROUTINE DefineParametersParticleEmission
 
 
@@ -180,16 +180,14 @@ SUBROUTINE InitializeVariablesSpeciesInits()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_DSMC_Vars        ,ONLY: useDSMC, BGGas
-USE MOD_DSMC_BGGas       ,ONLY: BGGas_Initialize
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
+USE MOD_DSMC_BGGas             ,ONLY: BGGas_Initialize
 #if USE_MPI
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_MPI*/
-USE MOD_Restart_Vars     ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -199,13 +197,11 @@ USE MOD_Restart_Vars     ,ONLY: DoRestart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iInit
-CHARACTER(32)         :: hilf, hilf2, DefStr
-REAL                  :: MPFOld
+CHARACTER(32)         :: hilf, hilf2
 !===================================================================================================================================
 ALLOCATE(SpecReset(1:nSpecies))
 SpecReset=.FALSE.
 UseNeutralization = .FALSE.
-UseEmissionDistribution = .FALSE.
 ! Background gas
 BGGas%NumberOfSpecies = 0
 ALLOCATE(BGGas%BackgroundSpecies(nSpecies))
@@ -216,7 +212,7 @@ BGGas%TraceSpecies = .FALSE.
 BGGas%UseDistribution = GETLOGICAL('Particles-BGGas-UseDistribution')
 BGGas%nRegions = GETINT('Particles-BGGas-nRegions')
 IF(BGGas%UseDistribution.AND.(BGGas%nRegions.GT.0)) THEN
-  CALL CollectiveStop(__STAMP__,'ERORR: Background gas can either be used with a distribution OR regions!')
+  CALL abort(__STAMP__,'ERORR: Background gas can either be used with a distribution OR regions!')
 ELSEIF (BGGas%UseDistribution) THEN
   ALLOCATE(BGGas%DistributionSpeciesIndex(nSpecies))
 ELSEIF (BGGas%nRegions.GT.0) THEN
@@ -240,11 +236,6 @@ DO iSpec = 1, nSpecies
   Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
   Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
   Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf)//'-MacroParticleFactor')
-  IF((iSpec.GT.1).AND.UseDSMC.AND.(.NOT.UsevMPF))THEN
-    IF(.NOT.ALMOSTEQUALRELATIVE(Species(iSpec)%MacroParticleFactor,MPFOld,1e-5)) CALL CollectiveStop(__STAMP__,&
-        'Different MPFs only allowed when using Part-vMPF=T')
-  END IF ! (iSpec.GT.1).AND.UseDSMC.AND.(.NOT.UsevMPF)
-  MPFOld = Species(iSpec)%MacroParticleFactor
 #if defined(IMPA)
   Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsImplicit')
 #endif
@@ -273,13 +264,16 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%RadiusIC               = GETREAL('Part-Species'//TRIM(hilf2)//'-RadiusIC')
       Species(iSpec)%Init(iInit)%Radius2IC              = GETREAL('Part-Species'//TRIM(hilf2)//'-Radius2IC')
       Species(iSpec)%Init(iInit)%CylinderHeightIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-CylinderHeightIC')
-      IF(Species(iSpec)%Init(iInit)%Radius2IC.GE.Species(iSpec)%Init(iInit)%RadiusIC) CALL CollectiveStop(__STAMP__,&
+      IF(Species(iSpec)%Init(iInit)%Radius2IC.GE.Species(iSpec)%Init(iInit)%RadiusIC) CALL abort(__STAMP__,&
           'For this emission type RadiusIC must be greater than Radius2IC!')
     CASE('cuboid','photon_rectangle')
       Species(iSpec)%Init(iInit)%CuboidHeightIC = GETREAL('Part-Species'//TRIM(hilf2)//'-CuboidHeightIC')
+    CASE('subcell')
+      Species(iSpec)%Init(iInit)%CellLocMaxPos          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-CellLocMaxPos',3)
+      Species(iSpec)%Init(iInit)%CellLocMinPos          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-CellLocMinPos',3)
     END SELECT
     ! Space-ICs requiring basic geometry information and other options (all excluding cell_local and background)
-    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local').AND. &
+    IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local').AND.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'subcell').AND. &
        (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'background')) THEN
       Species(iSpec)%Init(iInit)%NormalIC               = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-NormalIC',3)
       Species(iSpec)%Init(iInit)%BasePointIC            = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BasePointIC',3)
@@ -290,7 +284,7 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%BaseVector2IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector2IC',3)
       Species(iSpec)%Init(iInit)%NormalVector2IC        = UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC)
       !--- Normalize NormalIC (and BaseVector 1 & 3 IC for cylinder/sphere) for Inits
-      Species(iSpec)%Init(iInit)%NormalIC = UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)
+      Species(iSpec)%Init(iInit)%NormalIC = Species(iSpec)%Init(iInit)%NormalIC / VECNORM(Species(iSpec)%Init(iInit)%NormalIC)
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
         Species(iSpec)%Init(iInit)%BaseVector1IC = Species(iSpec)%Init(iInit)%RadiusIC * Species(iSpec)%Init(iInit)%BaseVector1IC &
                                                     / VECNORM(Species(iSpec)%Init(iInit)%BaseVector1IC)
@@ -365,16 +359,17 @@ DO iSpec = 1, nSpecies
     ! Check if number density and particle number have been defined
     IF ((Species(iSpec)%Init(iInit)%PartDensity.GT.0.)) THEN
       IF (Species(iSpec)%Init(iInit)%ParticleNumber.GT.0) THEN
-        CALL CollectiveStop(__STAMP__, 'Either ParticleNumber or PartDensity can be defined for selected parameters, not both!')
+        CALL abort(__STAMP__, 'Either ParticleNumber or PartDensity can be defined for selected parameters, not both!')
       END IF
     END IF
-    ! 2D simulation/variable time step only with cell_local and/or surface flux
-    IF((Symmetry%Order.EQ.2).OR.VarTimeStep%UseVariableTimeStep) THEN
-      IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local') THEN
-        CALL CollectiveStop(__STAMP__,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
-            'cell_local-SpaceIC and/or surface flux!')
-      END IF
-    END IF
+    ! 2D simulation/variable time step only with cell_local/cuboid and/or surface flux
+     IF((Symmetry%Order.EQ.2).OR.VarTimeStep%UseVariableTimeStep) THEN
+       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local').AND.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'subcell')) THEN
+         CALL abort(__STAMP__&
+           ,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
+             'cell_local-/subcell-SpaceIC and/or surface flux!')
+       END IF
+     END IF
     ! 1D Simulation with cuboid-SpaceIC
     IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').AND.Symmetry%Order.EQ.1) THEN
       IF(Species(iSpec)%Init(iInit)%BasePointIC(2).NE.-0.5.AND.Species(iSpec)%Init(iInit)%BasePointIC(3).NE.-0.5 &
@@ -386,13 +381,13 @@ DO iSpec = 1, nSpecies
         SWRITE(*,*) 'Part-Species[$]-Init[$]-BaseVector1IC=(/0.,1.,0/)'
         SWRITE(*,*) 'Part-Species[$]-Init[$]-BaseVector2IC=(/0.,0.,1/)'
         SWRITE(*,*) 'Part-Species[$]-Init[$]-CuboidHeightIC is the extension of the insertion region and has to be positive'
-        CALL CollectiveStop(__STAMP__,'See above')
+        CALL abort(__STAMP__,'See above')
       END IF
     END IF
     !--- integer check for ParticleEmissionType 2
     IF((Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.2).AND. &
          (ABS(Species(iSpec)%Init(iInit)%ParticleNumber-INT(Species(iSpec)%Init(iInit)%ParticleNumber,8)).GT.0.0)) THEN
-      CALL CollectiveStop(__STAMP__,' If ParticleEmissionType = 2 (parts per iteration), ParticleNumber has to be an integer number')
+      CALL abort(__STAMP__,' If ParticleEmissionType = 2 (parts per iteration), ParticleNumber has to be an integer number')
     END IF
     !--- ExcludeRegions
     IF (Species(iSpec)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
@@ -402,7 +397,7 @@ DO iSpec = 1, nSpecies
     IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'background') THEN
       IF(BGGas%BackgroundSpecies(iSpec)) THEN
         ! Only regions allows multiple background inits (additionally, avoid counting the same species multiple times)
-        IF(.NOT.BGGas%UseRegions) CALL CollectiveStop(__STAMP__, 'ERROR: Only one background definition per species is allowed!')
+        IF(.NOT.BGGas%UseRegions) CALL abort(__STAMP__, 'ERROR: Only one background definition per species is allowed!')
       ELSE
         ! Count each species only once
         BGGas%NumberOfSpecies = BGGas%NumberOfSpecies + 1
@@ -416,7 +411,7 @@ DO iSpec = 1, nSpecies
       ELSE IF(BGGas%UseRegions) THEN
         Species(iSpec)%Init(iInit)%BGGRegion = GETINT('Part-Species'//TRIM(hilf2)//'-BGG-Region')
         IF(Species(iSpec)%Init(iInit)%BGGRegion.GT.BGGas%nRegions) THEN
-          CALL CollectiveStop(__STAMP__, 'ERROR: Given background gas region number is greater than the defined number of regions!')
+          CALL abort(__STAMP__, 'ERROR: Given background gas region number is greater than the defined number of regions!')
         END IF
       ELSE
         BGGas%NumberDensity(iSpec) = Species(iSpec)%Init(iInit)%PartDensity
@@ -427,13 +422,6 @@ DO iSpec = 1, nSpecies
       IF(.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow)  CALL CollectiveStop(__STAMP__, &
         ' Linearly ramping of inflow-number-of-particles is only possible with PoissonRounding or DoTimeDepInflow!')
     END IF
-    !--- Emission distribution
-    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
-      UseEmissionDistribution                             = .TRUE.
-      Species(iSpec)%Init(iInit)%EmissionDistributionName = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-EmissionDistributionName'))
-      Species(iSpec)%Init(iInit)%ParticleEmissionType     = 0 ! initial particle insert
-      Species(iSpec)%Init(iInit)%ParticleNumber           = 0  ! force 0
-    END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution'
   END DO ! iInit
 END DO ! iSpec
 IF(nSpecies.GT.0)THEN
@@ -452,19 +440,7 @@ IF (useDSMC) THEN
       DEALLOCATE(BGGas%NumberDensity)
     END IF
   END IF ! BGGas%NumberOfSpecies.GT.0
-ELSE
-  IF((BGGas%NumberOfSpecies.GT.0).OR.BGGas%UseDistribution) CALL CollectiveStop(__STAMP__,'BGG requires UseDSMC=T')
 END IF !useDSMC
-
-!-- Read Emission Distribution stuff
-IF(UseEmissionDistribution.AND.(.NOT.DoRestart)) THEN
-  EmissionDistributionFileName = GETSTR('Part-EmissionDistributionFileName')
-  WRITE(DefStr,'(i4)') 2*(PP_N+1)
-  EmissionDistributionN   = GETINT('Part-EmissionDistributionN', DefStr)
-  CALL ReadUseEmissionDistribution()
-END IF
-!SWRITE (*,*) "BARRIER ="
-!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 END SUBROUTINE InitializeVariablesSpeciesInits
 
@@ -479,7 +455,7 @@ USE MOD_ReadInTools
 USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
-USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity,SetPartPosAndVeloEmissionDistribution
+USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetInitElectronVelo
 USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, VarTimeStep
@@ -512,18 +488,12 @@ DO iSpec = 1,nSpecies
   DO iInit = 1, Species(iSpec)%NumberOfInits
     IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) THEN
       IF(Species(iSpec)%Init(iInit)%ParticleNumber.GT.HUGE(1)) CALL abort(__STAMP__,&
-          ' Integer of initial particle number larger than max integer size: ',IntInfoOpt=HUGE(1))
-      ! Set particle position and velocity
-      SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
-      CASE('EmissionDistribution')
-        CALL SetPartPosAndVeloEmissionDistribution(iSpec,iInit,NbrOfParticle)
-      CASE DEFAULT
-        NbrOfParticle = INT(Species(iSpec)%Init(iInit)%ParticleNumber,4)
-        LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',iSpec,' ... '
-        CALL SetParticlePosition(iSpec,iInit,NbrOfParticle)
-        LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',iSpec,' ... '
-        CALL SetParticleVelocity(iSpec,iInit,NbrOfParticle)
-      END SELECT
+        ' Integer of initial particle number larger than max integer size: ',HUGE(1))
+      NbrOfParticle = INT(Species(iSpec)%Init(iInit)%ParticleNumber,4)
+      LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle position for species ',iSpec,' ... '
+      CALL SetParticlePosition(iSpec,iInit,NbrOfParticle)
+      LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle velocities for species ',iSpec,' ... '
+      CALL SetParticleVelocity(iSpec,iInit,NbrOfParticle)
       LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',iSpec,' ... '
       CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
       IF (usevMPF) CALL SetParticleMPF(iSpec,iInit,NbrOfParticle)
@@ -535,13 +505,12 @@ DO iSpec = 1,nSpecies
           IF (PositionNbr .NE. 0) THEN
             PDM%PartInit(PositionNbr) = iInit
           ELSE
-            CALL abort(__STAMP__,'ERROR in InitialParticleInserting: No free particle index - maximum nbr of particles reached?')
+            CALL abort(__STAMP__,&
+              'ERROR in InitialParticleInserting: No free particle index - maximum nbr of particles reached?')
           END IF
         END DO
       END IF
-      ! Add new particles to particle vector length
       PDM%ParticleVecLength = PDM%ParticleVecLength + NbrOfParticle
-      ! Update
       CALL UpdateNextFreePosition()
     END IF  ! Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0
   END DO    ! Species(iSpec)%NumberOfInits
@@ -861,7 +830,7 @@ USE MOD_Particle_MPI_Vars   ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Globals_Vars        ,ONLY: PI
-USE MOD_DSMC_Vars           ,ONLY: RadialWeighting, DSMC
+USE MOD_DSMC_Vars           ,ONLY: RadialWeighting, VarWeighting, DSMC
 USE MOD_Particle_Mesh_Vars  ,ONLY: LocalVolume
 USE MOD_Particle_Vars       ,ONLY: PDM,Species,nSpecies,SpecReset,Symmetry
 USE MOD_ReadInTools
@@ -874,9 +843,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iSpec, iInit
+INTEGER                     :: iSpec, iInit, iCoord
 INTEGER(KIND=8)             :: insertParticles
-REAL                        :: A_ins
+REAL                        :: A_ins, Vol_ins
 !===================================================================================================================================
 
 ! Do sanity check of max. particle number compared to the number that is to be inserted for certain insertion types
@@ -901,7 +870,7 @@ DO iSpec=1,nSpecies
             !---calculation of initial (macro)particle number
             IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid') THEN
               Species(iSpec)%Init(iInit)%ParticleNumber = INT(Species(iSpec)%Init(iInit)%PartDensity &
-                / Species(iSpec)%MacroParticleFactor * Species(iSpec)%Init(iInit)%CuboidHeightIC * SQRT(A_ins))
+                / Species(iSpec)%MacroParticleFactor * Species(iSpec)%Init(iInit)%CuboidHeightIC * SQRT(A_ins),8)
             ELSE IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder') THEN
               Species(iSpec)%Init(iInit)%ParticleNumber = INT(Species(iSpec)%Init(iInit)%PartDensity &
                 / Species(iSpec)%MacroParticleFactor * Species(iSpec)%Init(iInit)%CylinderHeightIC &
@@ -911,10 +880,12 @@ DO iSpec=1,nSpecies
                 / Species(iSpec)%MacroParticleFactor * (Species(iSpec)%Init(iInit)%RadiusIC**3 * 4./3. * PI))
             END IF
           ELSE
-            CALL abort(__STAMP__,'BaseVectors are parallel or zero!')
+            CALL abort(__STAMP__, &
+              'BaseVectors are parallel or zero!')
           END IF
         CASE DEFAULT
-          CALL abort(__STAMP__,'Given velocity distribution is not supported with the SpaceIC cuboid/sphere/cylinder!')
+          CALL abort(__STAMP__, &
+            'Given velocity distribution is not supported with the SpaceIC cuboid/sphere/cylinder!')
         END SELECT ! Species(iSpec)%Init(iInit)%SpaceIC
       CASE('cell_local')
         SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution))
@@ -928,6 +899,23 @@ DO iSpec=1,nSpecies
         CASE DEFAULT
           CALL abort(__STAMP__,'Given velocity distribution is not supported with the SpaceIC cell_local!')
         END SELECT  ! Species(iSpec)%Init(iInit)%velocityDistribution
+       CASE('subcell')
+        SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%velocityDistribution))
+        CASE('constant','maxwell','maxwell_lpn','taylorgreenvortex')
+          Vol_ins = 1.
+          ! Determine the volume of the subcell
+          DO iCoord=1,3
+            Vol_ins = Vol_ins*(Species(iSpec)%Init(iInit)%CellLocMaxPos(iCoord)-Species(iSpec)%Init(iInit)%CellLocMinPos(iCoord))
+          END DO
+          IF (Vol_ins.GT.0.) THEN
+            Species(iSpec)%Init(iInit)%ParticleNumber = NINT(Species(iSpec)%Init(iInit)%PartDensity &
+                                                                / Species(iSpec)%MacroParticleFactor * Vol_ins)
+          ELSE
+            CALL abort(__STAMP__,'Volume of defined insertion region is zero!')
+          END IF
+        CASE DEFAULT
+          CALL abort(__STAMP__,'Given velocity distribution is not supported with the SpaceIC cell_local!')
+        END SELECT  ! Species(iSpec)%Init(iInit)%velocityDistribution
       CASE('background')
         ! do nothing
       CASE DEFAULT
@@ -936,7 +924,11 @@ DO iSpec=1,nSpecies
       END SELECT    ! Species(iSpec)%Init(iInit)%SpaceIC
     END IF
     ! Sum-up the number of particles to be inserted
-    IF(Symmetry%Order.LE.2) THEN
+    IF(VarWeighting%DoVariableWeighting) THEN
+      Species(iSpec)%Init(iInit)%ParticleNumber=INT(Species(iSpec)%MacroParticleFactor*Species(iSpec)%Init(iInit)%ParticleNumber&
+                                                  /(VarWeighting%AverageScaleFactor),8)
+    END IF
+    IF(Symmetry%Order.LE.2) THEN 
       ! The radial scaling of the weighting factor has to be considered
       IF(RadialWeighting%DoRadialWeighting) Species(iSpec)%Init(iInit)%ParticleNumber = &
                                   INT(Species(iSpec)%Init(iInit)%ParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
@@ -946,8 +938,10 @@ DO iSpec=1,nSpecies
 #else
     insertParticles = insertParticles + INT(Species(iSpec)%Init(iInit)%ParticleNumber,8)
 #endif
-  END DO ! iInit = 1, Species(iSpec)%NumberOfInits
-END DO ! iSpec=1,nSpecies
+  END DO
+END DO
+
+IPWRITE(UNIT_stdOut,*)' To be inserted particles: ',INT(insertParticles,4)
 
 IF (insertParticles.GT.PDM%maxParticleNumber) THEN
   IPWRITE(UNIT_stdOut,*)' Maximum particle number : ',PDM%maxParticleNumber
@@ -1023,68 +1017,5 @@ DO iSpec = 1, nSpecies
 END DO ! iSpec = 1, nSpecies
 
 END SUBROUTINE InitializeEmissionSpecificMPF
-
-
-SUBROUTINE ReadUseEmissionDistribution()
-!===================================================================================================================================
-! ATTENTION: The fields (density, temperature and velocity) need to be defined on equidistant data-points as either .csv or .h5 file
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionFileName
-USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim,EmissionDistributionAxisSym
-USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDelta,EmissionDistributionDim
-USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMin
-USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMax,EmissionDistributionNum
-USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionRadInd,EmissionDistributionAxisDir
-USE MOD_HDF5_Input_Field       ,ONLY: ReadExternalFieldFromHDF5
-USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER,PARAMETER     :: lenmin=4
-INTEGER               :: lenstr
-INTEGER               :: iSpec,iInit
-!===================================================================================================================================
-LBWRITE(UNIT_stdOut,'(A,3X,A,65X,A)') ' INITIALIZATION OF EMISSION DISTRIBUTION FOR PARTICLES '
-
-! Check if file exists
-IF(.NOT.FILEEXISTS(EmissionDistributionFileName)) CALL abort(__STAMP__,"File not found: "//TRIM(EmissionDistributionFileName))
-
-! Check length of file name
-lenstr=LEN(TRIM(EmissionDistributionFileName))
-IF(lenstr.LT.lenmin) CALL abort(__STAMP__,"File name too short: "//TRIM(EmissionDistributionFileName))
-
-! Check file ending, either .csv or .h5
-IF(TRIM(EmissionDistributionFileName(lenstr-lenmin+2:lenstr)).EQ.'.h5')THEN
-  DO iSpec = 1,nSpecies
-    DO iInit = 1, Species(iSpec)%NumberOfInits
-      IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
-        CALL ReadExternalFieldFromHDF5(TRIM(Species(iSpec)%Init(iInit)%EmissionDistributionName)                                ,&
-                                            Species(iSpec)%Init(iInit)%EmissionDistribution        , EmissionDistributionDelta  ,&
-            EmissionDistributionFileName , EmissionDistributionDim , EmissionDistributionAxisSym   , EmissionDistributionRadInd ,&
-            EmissionDistributionAxisDir  , EmissionDistributionMin , EmissionDistributionMax       , EmissionDistributionNum     )
-        IF(.NOT.ALLOCATED(Species(iSpec)%Init(iInit)%EmissionDistribution)) CALL abort(__STAMP__,&
-            "Failed to load data from: "//TRIM(EmissionDistributionFileName))
-      END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution'
-    END DO ! iInit = 1, Species(iSpec)%NumberOfInits
-  END DO ! iSpec = 1,nSpecies
-ELSEIF(TRIM(EmissionDistributionFileName(lenstr-lenmin+1:lenstr)).EQ.'.csv')THEN
-  CALL abort(__STAMP__,'ReadUseEmissionDistribution(): Read-in from .csv is not implemented')
-ELSE
-  CALL abort(__STAMP__,"Unrecognised file format for : "//TRIM(EmissionDistributionFileName))
-END IF
-
-LBWRITE(UNIT_stdOut,'(A)')' ...EMISSION DISTRIBUTION INITIALIZATION DONE'
-END SUBROUTINE ReadUseEmissionDistribution
-
 
 END MODULE MOD_Particle_Emission_Init

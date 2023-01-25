@@ -246,7 +246,8 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi, NewPart, XSec_Level)
 !===================================================================================================================================
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, ElementaryCharge
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData, DSMC, ElectronicDistriPart, CollInf
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PartStateIntEn, Coll_pData, DSMC, ElectronicDistriPart, CollInf
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, VarTimeStep, usevMPF, nSpecies
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec
@@ -269,7 +270,7 @@ iSpec = PartSpecies(iPart1)
 
 SELECT CASE(DSMC%ElectronicModel)
 CASE(1)
-  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     CollisionEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart1)
   ELSE
     CollisionEnergy = Coll_pData(iPair)%Ec
@@ -322,7 +323,7 @@ CASE(2)
   Eold=  PartStateIntEn(3,iPart1)
   DistriOld(:) = ElectronicDistriPart(iPart1)%DistriFunc(:)
   ETraRel = Coll_pData(iPair)%Ec
-  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
     ETraRel = ETraRel / GetParticleWeight(iPart1)
   END IF
   TransElec = DSMC%InstantTransTemp(nSpecies + 1)
@@ -404,7 +405,7 @@ SUBROUTINE LT_ElectronicEnergyExchange(iPartIndx_Node, nPart, NodeVolume)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, VarTimeStep
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting, CollInf, ElecRelaxPart
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting, VarWeighting, CollInf, ElecRelaxPart
 USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_part_tools              ,ONLY: GetParticleWeight, CalcXiElec
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
@@ -443,7 +444,7 @@ ELSE
   dtCell = dt
 END IF
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
   ! totalWeight contains the weighted particle number
   dens = totalWeight / NodeVolume
 ELSE

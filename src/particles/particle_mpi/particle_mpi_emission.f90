@@ -343,24 +343,18 @@ DO iSpec=1,nSpecies
       xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
     CASE('cuboid','photon_rectangle','photon_SEE_rectangle')
-      ASSOCIATE( O => Species(iSpec)%Init(iInit)%BasePointIC   ,&
+      ASSOCIATE( O => Species(iSpec)%Init(iInit)%BasePointIC ,&
                 v2 => Species(iSpec)%Init(iInit)%BaseVector1IC ,&
-                v3 => Species(iSpec)%Init(iInit)%BaseVector2IC ,&
-                normal => Species(iSpec)%Init(iInit)%NormalIC)
-
-        ! Use NormalIC if it is non-zero. Else, use the cross-product calculated 3rd vector to span the coordinate space
-        ! The first choice results in a non-rectangular 3rd coordinate vector
-        IF(VECNORM(normal).LE.0.)THEN
-          lineVector(1) = v2(2) * v3(3) - v2(3) * v3(2)
-          lineVector(2) = v2(3) * v3(1) - v2(1) * v3(3)
-          lineVector(3) = v2(1) * v3(2) - v2(2) * v3(1)
-          lineVector = UNITVECTOR(lineVector)
-          IF(VECNORM(lineVector).LE.0.) CALL ABORT(__STAMP__,'BaseVectors are parallel!')
+                v3 => Species(iSpec)%Init(iInit)%BaseVector2IC)
+        lineVector(1) = v2(2) * v3(3) - v2(3) * v3(2)
+        lineVector(2) = v2(3) * v3(1) - v2(1) * v3(3)
+        lineVector(3) = v2(1) * v3(2) - v2(2) * v3(1)
+        IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
+           CALL ABORT(__STAMP__,'BaseVectors are parallel!')
         ELSE
-          ! Normalize the vector even though it is probably already normalized for safety reasons
-          lineVector = UNITVECTOR(normal)
-        END IF ! VECNORM(lineVector).LE.0.
-
+          lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
+            lineVector(3) * lineVector(3))
+        END IF
         xCoords(1:3,1)=O
         xCoords(1:3,2)=O+v2
         xCoords(1:3,3)=O+v3
@@ -418,6 +412,25 @@ DO iSpec=1,nSpecies
       END ASSOCIATE
     CASE('cell_local')
       RegionOnProc=.TRUE.
+    CASE('subcell')
+      RegionOnProc=.TRUE. 
+
+       xlen = abs(Species(iSpec)%Init(iInit)%CellLocMaxPos(1) - Species(iSpec)%Init(iInit)%CellLocMinPos(1))
+       ylen = abs(Species(iSpec)%Init(iInit)%CellLocMaxPos(2) - Species(iSpec)%Init(iInit)%CellLocMinPos(2))
+       zlen = abs(Species(iSpec)%Init(iInit)%CellLocMaxPos(3) - Species(iSpec)%Init(iInit)%CellLocMinPos(3))
+
+       DO iNode=1,8
+        xCoords(1:3,iNode) = Species(iSpec)%Init(iInit)%CellLocMinPos(1:3)
+       END DO
+       xCoords(1:3,2) = xCoords(1:3,1) + (/xlen,0.,0./)
+       xCoords(1:3,3) = xCoords(1:3,1) + (/0.,ylen,0./)
+       xCoords(1:3,4) = xCoords(1:3,1) + (/xlen,ylen,0./)
+       xCoords(1:3,5) = xCoords(1:3,1) + (/0.,0.,zlen/)
+       xCoords(1:3,6) = xCoords(1:3,5) + (/xlen,0.,0./)
+       xCoords(1:3,7) = xCoords(1:3,5) + (/0.,ylen,0./)
+       xCoords(1:3,8) = xCoords(1:3,5) + (/xlen,ylen,0./)
+       RegionOnProc=BoxInProc(xCoords,8)
+
     CASE('cuboid_equal')
        xlen = SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)**2 &
             + Species(iSpec)%Init(iInit)%BaseVector1IC(2)**2 &
@@ -498,8 +511,6 @@ DO iSpec=1,nSpecies
     CASE ('IMD')
        RegionOnProc=.TRUE.
     CASE ('background')
-       RegionOnProc=.TRUE.
-    CASE ('EmissionDistribution')
        RegionOnProc=.TRUE.
     CASE DEFAULT
       IPWRITE(*,*) 'ERROR: Species ', iSpec, 'of', iInit, 'is using an unknown SpaceIC!'
@@ -587,7 +598,7 @@ USE MOD_Particle_MPI_Vars      ,ONLY: EmissionSendBuf,EmissionRecvBuf
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,Species
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
+USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -837,8 +848,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
+MPIW8TimePart(5) = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! recvPartPos holds particles from ALL procs
@@ -990,8 +1000,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
+MPIW8TimePart(5) = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
@@ -1052,8 +1061,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
+MPIW8TimePart(5) = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 !--- 8/10 Try to locate received non-located particles
@@ -1105,8 +1113,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
 END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
-MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
+MPIW8TimePart(5) = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 !--- 10/10 Write located particles
@@ -1158,12 +1165,10 @@ SDEALLOCATE(EmissionSendBuf)
 END SUBROUTINE SendEmissionParticlesToProcs
 
 
-!===================================================================================================================================
-!> Check if bounding box is on processor. The bounding box is built from the min/max extents of the input nodes.
-!> The number of input nodes is nNodes can be any integer number > 1.
-!> The bounding box is compared with the GEO%xmin, GEO%xmax, ... etc. of each processor.
-!===================================================================================================================================
 PURE FUNCTION BoxInProc(CartNodes,nNodes)
+!===================================================================================================================================
+! check if bounding box is on proc
+!===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Mesh_Vars,       ONLY:GEO
 ! IMPLICIT VARIABLE HANDLING

@@ -51,7 +51,7 @@ USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetr
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_FPFlow_Vars         ,ONLY: FPDSMCSwitchDens, FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting
+USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting, VarWeighting
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_DSMC                ,ONLY: DSMC_main
@@ -84,7 +84,7 @@ DO iElem = 1, nElems
     iPart = PEM%pNext(iPart)
   END DO
 
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
     dens = totalWeight / ElemVolume_Shared(CNElemID)
   ELSE
     dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
@@ -143,7 +143,7 @@ SUBROUTINE FPFlow_main()
 USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
-USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry, DoVirtualCellMerge, VirtMergedCells
+USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_DSMC_Vars           ,ONLY: DSMC
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
@@ -161,9 +161,8 @@ USE MOD_DSMC_Analyze        ,ONLY: DSMCMacroSampling
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iElem, nPart, iPart, iLoop, CNElemID, nPartMerged, iMergeElem, iLoopLoc, locElem, nPartLoc
+INTEGER                     :: iElem, nPart, iPart, iLoop, CNElemID
 INTEGER, ALLOCATABLE        :: iPartIndx_Node(:)
-REAL                        :: elemVolume
 !===================================================================================================================================
 
 IF (DoBGKCellAdaptation) THEN
@@ -178,53 +177,19 @@ ELSE
   DO iElem = 1, nElems
     CNElemID = GetCNElemID(iElem + offsetElem)
     nPart = PEM%pNumber(iElem)
-    IF (DoVirtualCellMerge) THEN
-      IF(VirtMergedCells(iElem)%isMerged) CYCLE      
-      nPartMerged = nPart
-      DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
-        nPartMerged = nPartMerged + PEM%pNumber(VirtMergedCells(iElem)%MergedCellID(iMergeElem))
-      END DO
-      IF ((nPartMerged.EQ.0).OR.(nPartMerged.EQ.1)) CYCLE
-      ALLOCATE(iPartIndx_Node(nPartMerged))
-      iPart = PEM%pStart(iElem)
-      iLoopLoc = 0
-      DO iLoop = 1, nPart
-        iLoopLoc = iLoopLoc + 1
-        iPartIndx_Node(iLoopLoc) = iPart
-        iPart = PEM%pNext(iPart)
-      END DO
-      IF(VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
-        DO iMergeElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
-          locElem = VirtMergedCells(iElem)%MergedCellID(iMergeElem)
-          nPartLoc = PEM%pNumber(locElem)
-          iPart = PEM%pStart(locElem)
-          DO iLoop = 1, nPartLoc
-            iLoopLoc = iLoopLoc + 1
-            iPartIndx_Node(iLoopLoc) = iPart
-            iPart = PEM%pNext(iPart)
-          END DO
-        END DO
-        elemVolume = VirtMergedCells(iELem)%MergedVolume
-      ELSE
-        elemVolume = ElemVolume_Shared(CNElemID)
-      END IF        
-    ELSE      
-      nPartMerged = nPart   
-      IF ((nPart.EQ.0).OR.(nPart.EQ.1)) CYCLE
-      ALLOCATE(iPartIndx_Node(nPart))
-      iPart = PEM%pStart(iElem)
-      DO iLoop = 1, nPart
-        iPartIndx_Node(iLoop) = iPart
-        iPart = PEM%pNext(iPart)
-      END DO
-      elemVolume = ElemVolume_Shared(CNElemID)
-    END IF
+    IF (nPart.LT.3) CYCLE
+    ALLOCATE(iPartIndx_Node(nPart))
+    iPart = PEM%pStart(iElem)
+    DO iLoop = 1, nPart
+      iPartIndx_Node(iLoop) = iPart
+      iPart = PEM%pNext(iPart)
+    END DO
 
     IF(DSMC%CalcQualityFactors) THEN
       FP_MeanRelaxFactorCounter=0; FP_MeanRelaxFactor=0.; FP_MaxRelaxFactor=0.; FP_MaxRotRelaxFactor=0.; FP_PrandtlNumber=0.
     END IF
 
-    CALL FP_CollisionOperator(iPartIndx_Node, nPartMerged, elemVolume)
+    CALL FP_CollisionOperator(iPartIndx_Node, nPart, ElemVolume_Shared(CNElemID))
     DEALLOCATE(iPartIndx_Node)
     IF(DSMC%CalcQualityFactors) THEN
       IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN

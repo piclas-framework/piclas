@@ -75,7 +75,7 @@ IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) MacroValSampTime = Time
 #endif /*PARTICLES*/
 iAnalyze=1
 ! Determine the first analyze time
-tAnalyze=MIN(RestartTime+Analyze_dt,tEnd)
+tAnalyze=MIN(RestartTime+REAL(iAnalyze)*Analyze_dt,tEnd)
 
 ! fill initial analyze stuff
 dt_Min(DT_ANALYZE) = tAnalyze-Time ! Time to next analysis, put in extra variable so number does not change due to numerical errors

@@ -62,8 +62,9 @@ USE MOD_Part_Tools                  ,ONLY: StoreLostParticleProperties
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound
 USE MOD_Particle_Intersection       ,ONLY: IntersectionWithWall
 USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteraction
-USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting, VarWeighting
 USE MOD_DSMC_Symmetry               ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
+USE MOD_DSMC_Symmetry               ,ONLY: DSMC_VariableWeighting, DSMC_SetInClones
 USE MOD_part_tools                  ,ONLY: ParticleOnProc
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars                   ,ONLY: offsetElem
@@ -107,6 +108,7 @@ IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
 
 IF(RadialWeighting%PerformCloning) CALL DSMC_2D_SetInClones()
+IF(VarWeighting%PerformCloning) CALL DSMC_SetInClones()
 
 ! 1) Loop over all particles that are still inside
 DO i = 1,PDM%ParticleVecLength
@@ -388,6 +390,11 @@ DO i = 1,PDM%ParticleVecLength
   IF(RadialWeighting%PerformCloning) THEN
     IF(PDM%ParticleInside(i).AND.(ParticleOnProc(i))) THEN
       CALL DSMC_2D_RadialWeighting(i,PEM%GlobalElemID(i))
+    END IF
+  ! Particle treatment for variable weights (cloning/deleting particles)
+  ELSE IF(VarWeighting%PerformCloning) THEN
+    IF(PDM%ParticleInside(i).AND.(ParticleOnProc(i))) THEN
+      CALL DSMC_VariableWeighting(i,PEM%GlobalElemID(i))
     END IF
   END IF
 END DO ! i = 1,PDM%ParticleVecLength

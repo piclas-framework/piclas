@@ -417,8 +417,8 @@ END IF
 LBWRITE (*,'(A,ES18.10E3,A,I0,A,ES13.5E3)') " Smallest scaled Jacobian in reference system: ",SmallestscaledJacRef,&
     " (",nGlobalElems," global elements). Abort threshold is set to:", scaledJacRefTol
 
-GETTIME(EndT)
-CALL DisplayMessageAndTime(EndT-StartT, 'Calculation of metrics took!', DisplayLine=.FALSE.)
+endt=PICLASTIME()
+LBWRITE(UNIT_stdOut,'(A,F8.3,A)',ADVANCE='YES')' Calculation of metrics took               [',EndT-StartT,'s]'
 
 END SUBROUTINE CalcMetrics
 

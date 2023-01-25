@@ -82,6 +82,43 @@ END TYPE tRadialWeighting
 
 TYPE(tRadialWeighting)        :: RadialWeighting
 
+TYPE tVarWeighting
+  REAL                        :: AverageScaleFactor
+  INTEGER                     :: NextClone
+  INTEGER                     :: CloneDelayDiff
+  LOGICAL                     :: DoVariableWeighting        ! Logical to enable variable weighting in 3D
+  LOGICAL                     :: PerformCloning             ! Flag whether the cloning/deletion routine should be performed,
+                                                            ! when using radial weighting (e.g. no cloning for the BGK/FP methods)
+  INTEGER                     :: CloneMode                  ! 1 = Clone Delay
+                                                            ! 2 = Clone Random Delay
+  INTEGER, ALLOCATABLE        :: ClonePartNum(:)
+  INTEGER                     :: CloneInputDelay
+  LOGICAL                     :: CellLocalWeighting
+  INTEGER                     :: nSubSides
+  INTEGER                     :: nScalePoints               ! Number of sub-cell divisions for the scaling of the weighting factor
+                                                            ! Default = 2 (borders of the simulation domain along one axis)
+  INTEGER                     :: ScaleAxis                  ! Direction of the increase in the variable weight 
+                                                            ! 1: x-axis, 2: y-axis, 3: z-axis 
+  REAL                        :: ScalingVector(3)           ! Direction of the increase in the variable weight
+                                                            ! For a scaling not along the coordinate axes
+  REAL                        :: StartPointScaling(1:3)     ! Start point for the scaling domain not defined by the coordinate axes
+  REAL                        :: EndPointScaling(1:3)       ! End point for the scaling domain not defined by the coordinate axes
+  REAL, ALLOCATABLE           :: ScalePoint(:)              ! Points along the defined scaling vector on which the MPF is changed(%)
+  REAL, ALLOCATABLE           :: VarMPF(:)                  ! Desired MPF at the respective scaling points     
+  ! Automatic adaption of the particle weight
+  LOGICAL                     :: AdaptMPF                   ! Enables an automatic adaption of the MPF in each cell
+  !REAL                        :: TargetMCSoverMFP
+  REAL, ALLOCATABLE           :: ReferencePartNum(:)
+  REAL, ALLOCATABLE           :: ReferenceDensity(:)
+  REAL, ALLOCATABLE           :: DesiredMPF(:)
+  REAL                        :: MinPartNum                 ! Target minimum number of simulation particles per sub-cell
+  REAL                        :: MaxPartNum                 ! Target maximum number of simulation particles per sub-cell
+  REAL                        :: MaxPartWeight
+  REAL                        :: MinPartWeight
+END TYPE tVarWeighting
+
+TYPE(tVarWeighting)            :: VarWeighting
+
 TYPE tClonedParticles
   ! Clone Delay: Clones are inserted at the next time step
   INTEGER                     :: Species
@@ -214,6 +251,8 @@ TYPE tDSMC
   INTEGER                       :: CollSepCount             ! counter of actual collision pairs
   REAL                          :: CollSepDist              ! Summation of mean collision separation distance
   LOGICAL                       :: CalcQualityFactors       ! Enables/disables the calculation and output of flow-field variables
+  LOGICAL                       :: CalcCellMPF              ! Calculate the desired MPF in each cell for the radial/variable weighting
+  REAL, ALLOCATABLE             :: CellMPFSamp(:)           ! Sampling of the sub-cell MPF
   REAL, ALLOCATABLE             :: QualityFacSamp(:,:)      ! Sampling of quality factors
                                                             !     1: Maximal collision prob
                                                             !     2: Time-averaged mean collision prob
@@ -492,6 +531,26 @@ END TYPE
 
 TYPE (tElectronicDistriPart), ALLOCATABLE    :: ElectronicDistriPart(:)
 
+REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)      ! variables,p,q,sides
+REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues for Species specific surface output
+                                                                   ! (4,p,q,nSurfSides,nSpecies)
+                                                                   ! 1: Surface Collision Counter
+                                                                   ! 2: Accomodation
+                                                                   ! 3: Coverage
+                                                                   ! 4 (or 2): Impact energy trans
+                                                                   ! 5 (or 3): Impact energy rot
+                                                                   ! 6 (or 4): Impact energy vib
+
+! some variables redefined
+!TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall
+!  REAL                           :: Heatflux                !
+!  REAL                           :: Force(3)                ! x, y, z direction
+!  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter of all Species
+!  REAL                           :: CounterOut              ! Wall-Collision counter for Output
+!END TYPE
+!
+!TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)
+
 ! MacValout and MacroVolSample have to be separated due to autoinitialrestart
 INTEGER(KIND=8)                  :: iter_macvalout             ! iterations since last macro volume output
 INTEGER(KIND=8)                  :: iter_macsurfvalout         ! iterations since last macro surface output
@@ -514,21 +573,28 @@ REAL,ALLOCATABLE          :: DSMC_Solution(:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evi
 TYPE tTreeNode
 !  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
   TYPE (tTreeNode), POINTER       :: ChildNode       => null()       !8 Childnodes of Octree Treenode
+  REAL                            :: MidPoint(1:3)          ! approx Middle Point of Treenode
   INTEGER                         :: PNum_Node              ! Particle Number of Treenode
   INTEGER, ALLOCATABLE            :: iPartIndx_Node(:)      ! Particle Index List of Treenode
   REAL, ALLOCATABLE               :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
+  LOGICAL, ALLOCATABLE            :: MatchedPart(:)         ! Flag signaling that mapped particle is inside of macroparticle
+  REAL                            :: NodeVolume(8)
   INTEGER                         :: NodeDepth
 END TYPE
 
 TYPE tNodeVolume
-    TYPE (tNodeVolume), POINTER             :: SubNode(:) => null()
-    REAL                                    :: VrelSimgaMax(2)
+    TYPE (tNodeVolume), POINTER             :: SubNode1 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode2 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode3 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode4 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode5 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode6 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode7 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode8 => null()
     REAL                                    :: Volume
     REAL                                    :: Area
     REAL                                    :: Length
     REAL,ALLOCATABLE                        :: PartNum(:,:)
-    REAL                                    :: MidPoint(1:3)
-    INTEGER                                 :: NodeDepth
 END TYPE
 
 TYPE tElemNodeVolumes

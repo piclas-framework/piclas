@@ -166,7 +166,9 @@ USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,PrintOption,GETIN
 USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage           ,ONLY: InitTimeAverage
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+#ifdef maxwell
 USE MOD_Equation_vars         ,ONLY: Wavelength
+#endif /* maxwell */
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
 #if USE_MPI && defined(PARTICLES)
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
@@ -299,8 +301,11 @@ IF(CalcPointsPerWavelength)THEN
   PPWCell=0.0
   CALL AddToElemData(ElementOut,'PPWCell',RealArray=PPWCell(1:PP_nElems))
   ! Calculate PPW for each cell
-  IF(WaveLength.LT.0.) WaveLength = GETREAL('WaveLength','1.')
+#ifdef maxwell
   CALL PrintOption('Wavelength for PPWCell','OUTPUT',RealOpt=Wavelength)
+#else
+  CALL PrintOption('Wavelength for PPWCell (fixed to 1.0)','OUTPUT',RealOpt=1.0)
+#endif /* maxwell */
   PPWCellMin=HUGE(1.)
   PPWCellMax=-HUGE(1.)
   DO iElem = 1, nElems
@@ -310,9 +315,13 @@ IF(CalcPointsPerWavelength)THEN
 #else
     CNElemID = iElem
 #endif /*USE_MPI && defined(PARTICLES)*/
-    PPWCell(iElem) = (REAL(PP_N)+1.)*Wavelength/ElemCharLength_Shared(CNElemID)
-    PPWCellMin     = MIN(PPWCellMin,PPWCell(iElem))
-    PPWCellMax     = MAX(PPWCellMax,PPWCell(iElem))
+#ifdef maxwell
+    PPWCell(iElem)     = (REAL(PP_N)+1.)*Wavelength/ElemCharLength_Shared(CNElemID)
+#else
+    PPWCell(iElem)     = (REAL(PP_N)+1.)/ElemCharLength_Shared(CNElemID)
+#endif /* maxwell */
+    PPWCellMin=MIN(PPWCellMin,PPWCell(iElem))
+    PPWCellMax=MAX(PPWCellMax,PPWCell(iElem))
   END DO ! iElem = 1, nElems
 #if USE_MPI
   IF(MPIroot)THEN
@@ -870,8 +879,7 @@ USE MOD_Globals_Vars              ,ONLY: ProjectName
 USE MOD_AnalyzeField              ,ONLY: AnalyzeField
 #ifdef PARTICLES
 USE MOD_Mesh_Vars                 ,ONLY: MeshFile
-USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,ExcitationSampleData
-USE MOD_Particle_Vars             ,ONLY: SampleElecExcitation
+USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Tools    ,ONLY: CalculatePartElemData
 USE MOD_Particle_Analyze_Output   ,ONLY: WriteParticleTrackingData
@@ -889,7 +897,7 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, CalcSurface
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,SampWallImpactEnergy,SampWallImpactVector
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity,SampWallImpactAngle,SampWallImpactNumber
 USE MOD_DSMC_Analyze              ,ONLY: DSMC_data_sampling, WriteDSMCToHDF5
-USE MOD_Particle_Boundary_Sampling,ONLY: CalcSurfaceValues
+USE MOD_DSMC_Analyze              ,ONLY: CalcSurfaceValues
 USE MOD_Particle_Vars             ,ONLY: DelayTime
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Surfaces_Vars    ,ONLY: rTotalBBChecks,rTotalBezierClips,rTotalBezierNewton
@@ -912,7 +920,6 @@ USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars              ,ONLY: DoDeposition, RelaxDeposition
 #endif /*PARTICLES*/
-USE MOD_TimeDisc_Vars             ,ONLY: time
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -969,7 +976,7 @@ CALL extrae_eventandcounters(int(9000001), int8(6))
 #endif /*EXTRAE*/
 
 ! Create .csv file for performance analysis and load balance: write header line
-CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter_opt=iter,time_opt=time)
+CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter_opt=iter)
 
 ! check if final/last iteration iteration
 LastIter=.FALSE.
@@ -1153,7 +1160,6 @@ IF ((WriteMacroVolumeValues).AND.(.NOT.OutputHDF5))THEN
     iter_macvalout = 0
     DSMC%SampNum = 0
     DSMC_Solution = 0.0
-    IF(SampleElecExcitation) ExcitationSampleData = 0.0
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%QualityFacSamp(:,:) = 0.
       IF(BGKInitDone) BGK_QualityFacSamp(:,:) = 0.
@@ -1290,7 +1296,8 @@ IF(DoPerformErrorCalc)THEN
     END IF ! DoMeasureAnalyzeTime
     IF (OutputTime.GT.0.) THEN
       WRITE(UNIT_StdOut,'(132("."))')
-      CALL DisplayMessageAndTime(StartAnalyzeTime-StartTime, 'PICLAS RUNNING '//TRIM(ProjectName)//'... ', DisplayDespiteLB=.TRUE.)
+      WRITE(UNIT_stdOut,'(A,A,A,F14.2,A)') ' PICLAS RUNNING ',TRIM(ProjectName),'... [',StartAnalyzeTime-StartTime,' sec ]'
+      WRITE(UNIT_StdOut,'(132("-"))')
     ELSE
       WRITE(UNIT_StdOut,'(132("="))')
     END IF

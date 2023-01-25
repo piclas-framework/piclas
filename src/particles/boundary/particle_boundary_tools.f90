@@ -42,9 +42,9 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,SampleType,SurfaceNormal_opt)
 ! MODULES
 USE MOD_Particle_Vars
 USE MOD_Globals                   ,ONLY: abort,DOTPRODUCT
-USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC,useDSMC,PartStateIntEn,RadialWeighting
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC,useDSMC,PartStateIntEn,RadialWeighting, VarWeighting
 USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC,AmbipolElecVelo
-USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact,SWIVarTimeStep
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact
 USE MOD_part_tools                ,ONLY: GetParticleWeight
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
@@ -71,7 +71,7 @@ SubQ = TrackInfo%q
 
 SpecID = PartSpecies(PartID)
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
   MPF = GetParticleWeight(PartID)
 ELSE
   MPF = GetParticleWeight(PartID)*Species(SpecID)%MacroParticleFactor
@@ -124,7 +124,7 @@ CASE ('old')
   END IF
   ! Sample the time step for the correct determination of the heat flux
   IF (VarTimeStep%UseVariableTimeStep) THEN
-    SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) = SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) &
+    SampWallState(SAMPWALL_NVARS+nSpecies+1,SubP,SubQ,SurfSideID) = SampWallState(SAMPWALL_NVARS+nSpecies+1,SubP,SubQ,SurfSideID) &
                                                               + VarTimeStep%ParticleTimeStep(PartID)
   END IF
 CASE ('new')
@@ -140,7 +140,9 @@ CASE ('new')
     END IF
   END IF
 CASE DEFAULT
-  CALL abort(__STAMP__,'ERROR in CalcWallSample: wrong SampleType specified. Possible types -> ( old , new )')
+  CALL abort(&
+    __STAMP__&
+    ,'ERROR in CalcWallSample: wrong SampleType specified. Possible types -> ( old , new )')
 END SELECT
 !----  Sampling force at walls (correct sign is set above)
 SampWallState(SAMPWALL_DELTA_MOMENTUMX,SubP,SubQ,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMX,SubP,SubQ,SurfSideID) + MomArray(1)

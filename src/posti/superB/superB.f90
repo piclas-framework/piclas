@@ -46,7 +46,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: SystemTime
-CHARACTER(32)           :: hilf
 !===================================================================================================================================
 ! Initialize
 !CALL InitializePiclas()
@@ -76,8 +75,6 @@ SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')"superB version 1.0.0"
 SWRITE(UNIT_stdOut,'(132("="))')
 
-GETTIME(StartTime)
-
 CALL ParseCommandlineArguments()
 
 
@@ -97,9 +94,6 @@ CALL DefineParametersOutput()
 CALL DefineParametersMesh()
 CALL DefineParametersEquation()
 CALL DefineParametersSuperB()
-#if USE_MPI
-CALL DefineParametersMPIShared()
-#endif /*USE_MPI*/
 ! check for command line argument --help or --markdown
 IF (doPrintHelp.GT.0) THEN
   CALL PrintDefaultParameterFile(doPrintHelp.EQ.2, Args(1))
@@ -108,13 +102,13 @@ END IF
 
 ParameterFile = Args(1)
 
+StartTime=PICLASTIME()
 CALL prms%read_options(ParameterFile)
 ! Measure init duration
-GETTIME(SystemTime)
+SystemTime=PICLASTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
-WRITE(UNIT=hilf,FMT='(I0)') prms%count_setentries()
-CALL DisplayMessageAndTime(SystemTime-StartTime, ' READING INI DONE! NOW '//TRIM(hilf)//' PARAMETERS ARE SET',&
-DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING INI DONE! [',SystemTime-StartTime,' sec ] NOW '&
+,prms%count_setentries(),' PARAMETERS ARE SET'
 SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL InitOutput()
@@ -146,9 +140,9 @@ SDEALLOCATE(BGFieldAnalytic)
 CALL FinalizeSuperB()
 CALL FinalizeMesh()
 
-GETTIME(SystemTime)
+SystemTime=PICLASTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
-CALL DisplayMessageAndTime(SystemTime-StartTime, ' SuperB finished!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' SuperB finished! [',SystemTime-StartTime,' sec ] '
 SWRITE(UNIT_stdOut,'(132("="))')
 ! MPI
 #if USE_MPI

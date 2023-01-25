@@ -47,6 +47,12 @@ TYPE tSpeciesXSec
   REAL,ALLOCATABLE                  :: CollXSecData(:,:)    ! Collision cross-section as read-in from the database
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
+  REAL,ALLOCATABLE                  :: VibXSecData(:,:)     ! Vibrational cross-section at the same intervals as the effective collision cross-section
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: Cross-section at the respective energy level [m^2]
+  REAL,ALLOCATABLE                  :: ElecXSecData(:,:)    ! Electronic cross-section at the same intervals as the effective collision cross-section
+                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
+                                                            ! 2: Cross-section at the respective energy level [m^2]
   REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
                                                             ! null collision method of MCC
   REAL,ALLOCATABLE                  :: ProbNullElem(:)      ! Collision probability at the maximal collision frequency for the

@@ -33,7 +33,7 @@ LOGICAL                 :: useBGField                    !< Flag for background 
 LOGICAL                 :: CalcBField                    !< Calculate the background field BGField from parameters defined in the
                                                          !< input file
 
-CHARACTER(LEN=255)      :: FileNameVariableExternalField !< Filename containing the external field csv table
+CHARACTER(LEN=256)      :: FileNameVariableExternalField !< Filename containing the external field csv table
 LOGICAL                 :: useVariableExternalField      !< Use given external field. Only for Bz variation in z
 LOGICAL                 :: useAlgebraicExternalField     !< Use given algebraic expression for the external e and B field
 INTEGER                 :: AlgebraicExternalField        !< External E and B field from algebraic expression that is

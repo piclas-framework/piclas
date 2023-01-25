@@ -423,7 +423,7 @@ SUBROUTINE PorousBoundaryRemovalProb_Pressure()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars                   ,ONLY: DSMC, RadialWeighting
+USE MOD_DSMC_Vars                   ,ONLY: DSMC, RadialWeighting, VarWeighting
 USE MOD_Mesh_Vars                   ,ONLY: nElems,offsetElem
 USE MOD_Particle_Boundary_Vars      ,ONLY: SurfOnNode, SurfSide2GlobalSide
 USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC
@@ -454,7 +454,7 @@ REAL                          :: SumPartImpinged(nPorousBC)
 
 IF (.NOT.SurfOnNode) RETURN
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
   partWeight = 1.
 ELSE
   partWeight = Species(1)%MacroParticleFactor

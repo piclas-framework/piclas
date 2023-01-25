@@ -46,7 +46,6 @@ INTEGER            :: MPIStatus(MPI_STATUS_SIZE)
 #else
 INTEGER,PARAMETER  :: MPI_COMM_WORLD=-1 ! DUMMY when compiling single (MPI=OFF)
 #endif
-LOGICAL            :: MemoryMonitor      !> Flag for turning RAM monitoring ON/OFF. Used for the detection of RAM overflows (e.g. due to memory leaks)
 
 INTEGER            :: doPrintHelp ! 0: no help, 1: help, 2: markdown-help
 
@@ -1114,8 +1113,7 @@ REAL,INTENT(IN)             :: Time, StartTime !< Current simulation time and be
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL              :: SimulationTime,mins,secs,hours,days
-CHARACTER(LEN=60) :: hilf
+REAL :: SimulationTime,mins,secs,hours,days
 !===================================================================================================================================
 ! Return with all procs except root if not called during abort
 IF(.NOT.MPIRoot.AND.(Message.NE.'ABORTED')) RETURN
@@ -1140,91 +1138,9 @@ days = SimulationTime
 
 ! Output message with all procs, as root might not be the calling process during abort
 IF(MPIRoot.AND.(Message.NE.'ABORTED')) WRITE(UNIT_stdOut,'(132("="))')
-WRITE(hilf,'(F16.2)') Time-StartTime
-WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [ '//TRIM(ADJUSTL(hilf))//' sec ]'
-WRITE(UNIT_stdOut,'(A3,I0,A1,I0.2,A1,I0.2,A1,I0.2,A2)') ' [ ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),' ]'
+WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [',Time-StartTime,' sec ]'
+WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
 END SUBROUTINE DisplaySimulationTime
-
-
-!===================================================================================================================================
-! Output message to UNIT_stdOut and an elapsed time is seconds as well as min/hour/day format
-!===================================================================================================================================
-SUBROUTINE DisplayMessageAndTime(ElapsedTimeIn, Message, DisplayDespiteLB, DisplayLine, rank)
-! MODULES
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN) :: Message          !< Output message
-REAL,INTENT(IN)             :: ElapsedTimeIn !< Time difference
-LOGICAL,INTENT(IN),OPTIONAL :: DisplayDespiteLB !< Display output even though LB is performed (default is FALSE)
-LOGICAL,INTENT(IN),OPTIONAL :: DisplayLine      !< Display 132*"-" (default is TRUE)
-INTEGER,INTENT(IN),OPTIONAL :: rank             !< if 0, some kind of root is assumed, every other processor return this routine
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL              :: ElapsedTime,mins,secs,hours,days
-LOGICAL           :: DisplayDespiteLBLoc, DisplayLineLoc, LocalRoot
-CHARACTER(LEN=60) :: hilf
-#if !USE_LOADBALANCE
-LOGICAL           :: PerformLoadBalance
-#endif /*!USE_LOADBALANCE*/
-!===================================================================================================================================
-#if !USE_LOADBALANCE
-PerformLoadBalance = .FALSE.
-#endif /*!USE_LOADBALANCE*/
-
-! Define who returns and who does the output (default is MPIRoot)
-LocalRoot = .FALSE. ! default
-IF(PRESENT(rank))THEN
-  IF(rank.EQ.0) LocalRoot = .TRUE.
-ELSE
-  IF(MPIRoot) LocalRoot = .TRUE.
-END IF ! PRESENT(rank)
-
-! Return with all procs except LocalRoot
-IF(.NOT.LocalRoot) RETURN
-
-! Check if output should be performed during LB restarts
-IF(PRESENT(DisplayDespiteLB))THEN
-  DisplayDespiteLBLoc = DisplayDespiteLB
-ELSE
-  DisplayDespiteLBLoc = .FALSE.
-END IF ! PRESENT(DisplayDespiteLB)
-
-! Check if 132*"-" is required
-IF(PRESENT(DisplayLine))THEN
-  DisplayLineLoc = DisplayLine
-ELSE
-  DisplayLineLoc = .TRUE.
-END IF ! PRESENT(DisplayLine)
-
-! Aux variable
-ElapsedTime=ElapsedTimeIn
-
-! Get secs, mins, hours and days
-secs = MOD(ElapsedTime,60.)
-ElapsedTime = ElapsedTime / 60.
-mins = MOD(ElapsedTime,60.)
-ElapsedTime = ElapsedTime / 60.
-hours = MOD(ElapsedTime,24.)
-ElapsedTime = ElapsedTime / 24.
-!days = MOD(ElapsedTime,365.) ! Use this if years are also to be displayed
-days = ElapsedTime
-
-! Output message
-IF(LocalRoot.AND.((.NOT.PerformLoadBalance).OR.DisplayDespiteLBLoc))THEN
-  WRITE(hilf,'(F16.2)')  ElapsedTimeIn
-  WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' '//TRIM(Message)//' [ '//TRIM(ADJUSTL(hilf))//' sec ]'
-  WRITE(UNIT_stdOut,'(A3,I0,A1,I0.2,A1,I0.2,A1,I0.2,A2)') ' [ ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),' ]'
-  IF(DisplayLineLoc) WRITE(UNIT_StdOut,'(132("-"))')
-END IF ! LocalRoot.AND.((.NOT.PerformLoadBalance).OR.DisplayDespiteLBLoc)
-
-END SUBROUTINE DisplayMessageAndTime
 
 
 PPURE LOGICAL FUNCTION StringBeginsWith(MainString,SubString)

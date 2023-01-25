@@ -23,7 +23,6 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL             :: time_start                        !< start time of the timedisc
 REAL             :: ManualTimeStep                    !> Manual TimeStep
 LOGICAL          :: useManualTimeStep                 !> Logical Flag for manual timestep. For consistency
                                                       !> with IAG programming style

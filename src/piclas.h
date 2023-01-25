@@ -38,7 +38,7 @@
 #define MPIW8SIZEPART 0
 #endif
 ! Combination
-#define MPIW8SIZE (2+MPIW8SIZEFIELD+MPIW8SIZEPART)
+#define MPIW8SIZE (1+MPIW8SIZEFIELD+MPIW8SIZEPART)
 #endif
 
 ! Deactivate PURE subroutines/functions when using DEBUG

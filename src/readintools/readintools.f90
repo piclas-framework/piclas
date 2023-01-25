@@ -873,7 +873,6 @@ current => prms%firstLink
 DO WHILE (associated(current))
   this%maxNameLen = MAX(this%maxNameLen, current%opt%GETNAMELEN())
   this%maxValueLen = MAX(this%maxValueLen, current%opt%GETVALUELEN())
-  this%maxValueLen = MIN(this%maxValueLen, 50)
   current => current%next
 END DO
 
@@ -1580,7 +1579,7 @@ DO WHILE (associated(current))
                     ALLOCATE(logicalopt)
                     ! remove trailing comma
                     tmpValue(len(TRIM(tmpValue)):len(TRIM(tmpValue))) = ' '
-                    WRITE(tmpValue,'(*(L1))') (multi%value(j), ",",j=1,no)
+                    WRITE(tmpValue,'(*(L))') (multi%value(j), ",",j=1,no)
                     CALL prms%CreateOption(logicalopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
                   END SELECT
               END SELECT
@@ -2204,7 +2203,7 @@ IF(.NOT.MPIRoot)RETURN
 #if USE_LOADBALANCE
 IF (PerformLoadBalance) THEN
   SELECT CASE(TRIM(InfoOpt))
-    CASE("INFO","PARAM","CALCUL.","OUTPUT","HDF5")
+    CASE("INFO","PARAM","CALCUL.","OUTPUT")
       RETURN
   END SELECT
 END IF

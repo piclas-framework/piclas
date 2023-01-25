@@ -46,7 +46,7 @@ USE MOD_Particle_Readin
 USE MOD_Particle_Restart_Vars
 ! DSMC
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartStateIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC,RadialWeighting
-USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
+USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo, VarWeighting
 ! Localization
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
@@ -62,10 +62,9 @@ USE MOD_Mesh_Vars              ,ONLY: offsetElem
 ! Particles
 USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5
 USE MOD_Part_Operations        ,ONLY: RemoveAllElectrons
-USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,StoreLostParticleProperties, MergeCells
+USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,StoreLostParticleProperties
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartState,PartSpecies,PEM,PDM,usevMPF,PartMPF,PartPosRef,SpecReset,Species
-USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
 ! Restart
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
 ! HDG
@@ -786,7 +785,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
     CALL UpdateNextFreePosition()
 
     ! Read-in the stored cloned particles
-    IF (RadialWeighting%PerformCloning) CALL RestartClones()
+    IF (RadialWeighting%PerformCloning.OR.VarWeighting%PerformCloning) CALL RestartClones()
   ELSE ! not PartIntExists
     SWRITE(UNIT_stdOut,*)'PartInt does not exists in restart file'
   END IF ! PartIntExists
@@ -809,8 +808,6 @@ IF(UseBRElectronFluid.AND.BRConvertElectronsToFluid) CALL RemoveAllElectrons()
 ! ------------------------------------------------
 CALL ReadEmissionVariablesFromHDF5()
 
-IF (DoVirtualCellMerge) CALL MergeCells()
-
 #if USE_HDG
   ! Create electrons from BR fluid properties
   IF(BRConvertFluidToElectrons) CALL CreateElectronsFromBRFluid(.TRUE.)
@@ -829,7 +826,7 @@ USE MOD_HDF5_input
 USE MOD_io_hdf5
 USE MOD_Mesh_Vars         ,ONLY: offsetElem, nElems
 USE MOD_DSMC_Vars         ,ONLY: useDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
-USE MOD_DSMC_Vars         ,ONLY: RadialWeighting, ClonedParticles
+USE MOD_DSMC_Vars         ,ONLY: RadialWeighting, VarWeighting ,ClonedParticles
 USE MOD_Particle_Vars     ,ONLY: nSpecies, usevMPF, Species
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
@@ -859,6 +856,11 @@ IF(.NOT.CloneExists) THEN
   ELSEIF (RadialWeighting%CloneMode.EQ.2) THEN
     RadialWeighting%CloneDelayDiff = 0
   END IF ! RadialWeighting%CloneMode.EQ.1
+  IF(VarWeighting%CloneMode.EQ.1) THEN
+    VarWeighting%CloneDelayDiff = 1
+  ELSEIF (VarWeighting%CloneMode.EQ.2) THEN
+    VarWeighting%CloneDelayDiff = 0
+  END IF ! VarWeighting%CloneMode.EQ.1
   RETURN
 END IF ! CloneExists
 
@@ -877,26 +879,44 @@ IF(ClonePartNum.GT.0) THEN
   LBWRITE(*,*) 'Read-in of cloned particles complete. Total clone number: ', ClonePartNum
   ! Determing the old clone delay
   maxDelay = INT(MAXVAL(CloneData(9,:)))
-  IF(RadialWeighting%CloneMode.EQ.1) THEN
+  IF((RadialWeighting%CloneMode.EQ.1).OR.(VarWeighting%CloneMode.EQ.1)) THEN
     ! Array is allocated from 0 to maxDelay
     compareDelay = maxDelay + 1
   ELSE
     compareDelay = maxDelay
   END IF
-  IF(compareDelay.GT.RadialWeighting%CloneInputDelay) THEN
-    LBWRITE(*,*) 'Old clone delay is greater than the new delay. Old delay:', compareDelay
-    RadialWeighting%CloneDelayDiff = RadialWeighting%CloneInputDelay + 1
-  ELSEIF(compareDelay.EQ.RadialWeighting%CloneInputDelay) THEN
-    LBWRITE(*,*) 'The clone delay has not been changed.'
-    RadialWeighting%CloneDelayDiff = RadialWeighting%CloneInputDelay + 1
-  ELSE
-    LBWRITE(*,*) 'New clone delay is greater than the old delay. Old delay:', compareDelay
-    RadialWeighting%CloneDelayDiff = compareDelay + 1
-  END IF
-  IF(RadialWeighting%CloneMode.EQ.1) THEN
-    tempDelay = RadialWeighting%CloneInputDelay - 1
-  ELSE
-    tempDelay = RadialWeighting%CloneInputDelay
+  IF (RadialWeighting%DoRadialWeighting) THEN
+    IF(compareDelay.GT.RadialWeighting%CloneInputDelay) THEN
+      LBWRITE(*,*) 'Old clone delay is greater than the new delay. Old delay:', compareDelay
+      RadialWeighting%CloneDelayDiff = RadialWeighting%CloneInputDelay + 1
+    ELSEIF(compareDelay.EQ.RadialWeighting%CloneInputDelay) THEN
+      LBWRITE(*,*) 'The clone delay has not been changed.'
+      RadialWeighting%CloneDelayDiff = RadialWeighting%CloneInputDelay + 1
+    ELSE
+      LBWRITE(*,*) 'New clone delay is greater than the old delay. Old delay:', compareDelay
+      RadialWeighting%CloneDelayDiff = compareDelay + 1
+    END IF
+    IF(RadialWeighting%CloneMode.EQ.1) THEN
+      tempDelay = RadialWeighting%CloneInputDelay - 1
+    ELSE
+      tempDelay = RadialWeighting%CloneInputDelay
+    END IF
+  ELSE IF (VarWeighting%DoVariableWeighting) THEN
+    IF(compareDelay.GT.VarWeighting%CloneInputDelay) THEN
+      LBWRITE(*,*) 'Old clone delay is greater than the new delay. Old delay:', compareDelay
+      VarWeighting%CloneDelayDiff = VarWeighting%CloneInputDelay + 1
+    ELSE IF(compareDelay.EQ.VarWeighting%CloneInputDelay) THEN
+      LBWRITE(*,*) 'The clone delay has not been changed.'
+      VarWeighting%CloneDelayDiff = VarWeighting%CloneInputDelay + 1
+    ELSE
+      LBWRITE(*,*) 'New clone delay is greater than the old delay. Old delay:', compareDelay
+      VarWeighting%CloneDelayDiff = compareDelay + 1
+    END IF
+    IF(VarWeighting%CloneMode.EQ.1) THEN
+      tempDelay = VarWeighting%CloneInputDelay - 1
+    ELSE
+      tempDelay = VarWeighting%CloneInputDelay
+    END IF
   END IF
   ALLOCATE(pcount(0:tempDelay))
   pcount(0:tempDelay) = 0
@@ -939,7 +959,11 @@ IF(ClonePartNum.GT.0) THEN
     IF((iElem.LE.nElems).AND.(iElem.GT.0)) THEN
       IF(iDelay.LE.tempDelay) THEN
         pcount(iDelay) = pcount(iDelay) + 1
-        RadialWeighting%ClonePartNum(iDelay) = pcount(iDelay)
+        IF (RadialWeighting%DoRadialWeighting) THEN
+          RadialWeighting%ClonePartNum(iDelay) = pcount(iDelay)
+        ELSE IF (VarWeighting%DoVariableWeighting) THEN
+          VarWeighting%ClonePartNum(iDelay) = pcount(iDelay)
+        END IF
         ClonedParticles(pcount(iDelay),iDelay)%PartState(1) = CloneData(1,iPart)
         ClonedParticles(pcount(iDelay),iDelay)%PartState(2) = CloneData(2,iPart)
         ClonedParticles(pcount(iDelay),iDelay)%PartState(3) = CloneData(3,iPart)
@@ -1119,7 +1143,8 @@ CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.T
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
 IF(TRIM(File_Type).NE.'DSMCState') THEN
   SWRITE(*,*) 'ERROR: The given file type is: ', TRIM(File_Type)
-  CALL abort(__STAMP__,'ERROR: Given file for the macroscopic restart is not of the type "DSMCState", please check the input file!')
+  CALL abort(__STAMP__,&
+      'ERROR: Given file for the macroscopic restart is not of the type "DSMCState", please check the input file!')
 END IF
 
 CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)

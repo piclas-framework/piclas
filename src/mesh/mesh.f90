@@ -57,7 +57,6 @@ SUBROUTINE DefineParametersMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools ,ONLY: prms
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Mesh")
@@ -130,14 +129,13 @@ USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
 USE MOD_Particle_Mesh_Vars     ,ONLY: meshScale
 USE MOD_Particle_Vars          ,ONLY: usevMPF
 #endif
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_Mesh_Tools             ,ONLY: BuildSideToNonUniqueGlobalSide
 #endif /*USE_HDG && USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -205,7 +203,7 @@ IF(.NOT.validMesh) &
 
 useCurveds=GETLOGICAL('useCurveds')
 #if USE_LOADBALANCE
-IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. (.NOT.DoWriteStateToHDF5) .AND. UseH5IOLoadBalance) THEN
+IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
   DoWriteStateToHDF5=.TRUE.
   CALL PrintOption('Loadbalancing or InitialAutoRestart enabled: DoWriteStateToHDF5','INFO',LogOpt=DoWriteStateToHDF5)
 END IF
@@ -393,7 +391,7 @@ IF (meshMode.GT.1) THEN
 
   IF(meshMode.NE.3)THEN
 #ifdef PARTICLES
-    IF(RadialWeighting%DoRadialWeighting) THEN
+    IF(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
       usevMPF = .TRUE.
     ELSE
       usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
@@ -416,8 +414,7 @@ END IF
 #if USE_HDG && USE_LOADBALANCE
 IF (meshMode.GT.0) CALL BuildSideToNonUniqueGlobalSide() ! requires ElemInfo
 #endif /*USE_HDG && USE_LOADBALANCE*/
-!DEALLOCATE(ElemInfo,SideInfo)
-DEALLOCATE(SideInfo)
+DEALLOCATE(ElemInfo,SideInfo)
 
 MeshInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -1027,7 +1024,6 @@ IMPLICIT NONE
 !local variables
 !============================================================================================================================
 ! Deallocate global variables, needs to go somewhere else later
-SDEALLOCATE(ElemInfo)
 ! geometry information and VDMS
 SDEALLOCATE(Xi_NGeo)
 SDEALLOCATE(DCL_N)

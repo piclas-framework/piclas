@@ -292,7 +292,7 @@ USE MOD_DSMC_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, VarTimeStep, usevMPF
-USE MOD_Particle_Vars          ,ONLY: DoFieldIonization,SampleElecExcitation
+USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly
@@ -342,8 +342,6 @@ ELSE
 END IF
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
-IF(SampleElecExcitation.AND.(DSMC%ElectronicModel.NE.3)) CALL CollectiveStop(__STAMP__,&
-    'Part-SampElectronicExcitation = T requires Particles-DSMC-ElectronicModel = 3')
 IF (DSMC%ElectronicModel.GT.0) THEN
   ! Allocate internal energy array WITH electronic energy
   ALLOCATE(PartStateIntEn(1:3,PDM%maxParticleNumber))
@@ -378,9 +376,9 @@ ELSEIF(DSMC%ElectronicModel.EQ.1.OR.DSMC%ElectronicModel.EQ.2.OR.DSMC%Electronic
 END IF
 
 DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation')
-IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
+IF(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
   IF(DSMC%DoTEVRRelaxation) THEN
-    CALL abort(__STAMP__,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
+    CALL abort(__STAMP__,'ERROR: Variable weighting or variable time step is not implemented with T-E-V-R relaxation!')
   END IF
 END IF
 
@@ -400,6 +398,7 @@ IF(DSMC%CalcQualityFactors) THEN
   ! VarNum + 1: Number of cloned particles per cell
   ! VarNum + 2: Number of identical particles (no relative velocity)
   IF(RadialWeighting%PerformCloning) VarNum = VarNum + 2
+  IF(VarWeighting%PerformCloning) VarNum = VarNum + 2
   ALLOCATE(DSMC%QualityFacSamp(nElems,VarNum))
   DSMC%QualityFacSamp(1:nElems,1:VarNum) = 0.0
 END IF
@@ -720,17 +719,12 @@ ELSE !CollisMode.GT.0
         DO iInit = 1, Species(iSpec)%NumberOfInits
           WRITE(UNIT=hilf2,FMT='(I0)') iInit
           hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
-          IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
-            SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib','300.0')
-            SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','300.0')
-          ELSEIF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+          IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
             SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib')
             SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot')
           END IF
           ! read electronic temperature
-          IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
-            SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','300.0')
-          ELSEIF (DSMC%ElectronicModel.GT.0) THEN
+          IF (DSMC%ElectronicModel.GT.0) THEN
             SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec')
           END IF ! electronic model
         END DO !Inits
@@ -892,7 +886,7 @@ ELSE !CollisMode.GT.0
     IF (useRelaxProbCorrFactor.AND.(DSMC%ElectronicModel.EQ.1)) THEN
       DO iSpec = 1, nSpecies
         ALLOCATE(SpecDSMC(iSpec)%ElecRelaxCorrectFac(nSpecies))
-      END DO
+      END DO 
     END IF
   END IF
 
@@ -937,13 +931,13 @@ ELSE !CollisMode.GT.0
       END IF
     END DO
   ELSE
-    IF(usevMPF.AND..NOT.RadialWeighting%DoRadialWeighting) &
+    IF(usevMPF.AND..NOT.(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting)) &
       CALL abort(__STAMP__,'ERROR in DSMC: Variable weighting factors are only available with a background gas!')
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate vib collision numbers and characteristic velocity, according to Abe
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ! (i) dref changed from dref = 0.5 * (dref_1+dref_2)
+  ! (i) dref changed from dref = 0.5 * (dref_1+dref_2) 
   !                  to   dref(iSpec,jSpec) which is identical to old definition (for averagedCollisionParameters=TRUE (DEFAULT))
   ! in case of averagedCollisionParameter=FALSE dref(iSpec,jSpec) contains collision specific dref see --help for details
   IF((DSMC%VibRelaxProb.EQ.2).AND.(CollisMode.GE.2)) THEN
@@ -1377,7 +1371,6 @@ SDEALLOCATE(DSMC%QualityFacSampRotSamp)
 SDEALLOCATE(DSMC%QualityFacSampVibSamp)
 SDEALLOCATE(DSMC%CalcVibProb)
 SDEALLOCATE(DSMC%CalcRotProb)
-SDEALLOCATE(DSMC%InstantTXiElec)
 SDEALLOCATE(SampDSMC)
 SDEALLOCATE(PartStateIntEn)
 SDEALLOCATE(ElecRelaxPart)
@@ -1397,6 +1390,9 @@ SDEALLOCATE(DSMC%NumColl)
 SDEALLOCATE(DSMC%InstantTransTemp)
 IF(DSMC%CalcQualityFactors) THEN
   SDEALLOCATE(DSMC%QualityFacSamp)
+END IF
+IF(DSMC%CalcCellMPF) THEN
+  SDEALLOCATE(DSMC%CellMPFSamp)
 END IF
 SDEALLOCATE(PDM%PartInit)
 SDEALLOCATE(Coll_pData)
@@ -1453,6 +1449,8 @@ SDEALLOCATE(CollInf%alphaVSS)
 SDEALLOCATE(CollInf%omega)
 SDEALLOCATE(CollInf%dref)
 SDEALLOCATE(CollInf%Tref)
+!SDEALLOCATE(SampWall)
+SDEALLOCATE(MacroSurfaceVal)
 !SDEALLOCATE(VibQuantsPar)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)
@@ -1473,6 +1471,9 @@ SDEALLOCATE(BGGas%Region)
 SDEALLOCATE(BGGas%RegionElemType)
 
 SDEALLOCATE(RadialWeighting%ClonePartNum)
+SDEALLOCATE(VarWeighting%ClonePartNum)
+SDEALLOCATE(VarWeighting%ScalePoint)
+SDEALLOCATE(VarWeighting%VarMPF)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(SymmetrySide)
 SDEALLOCATE(AmbiPolarSFMapping)
@@ -1514,25 +1515,47 @@ RECURSIVE SUBROUTINE DeleteNodeVolume(Node)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_DSMC_Vars
-USE MOD_Particle_Vars         ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
-TYPE (tNodeVolume), INTENT(INOUT)  :: Node
+TYPE (tNodeVolume), INTENT(IN), POINTER  :: Node
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER     ::  iLoop, nLoop
 !===================================================================================================================================
-nLoop = 2**Symmetry%Order
-IF(ASSOCIATED(Node%SubNode)) THEN 
-  DO iLoop = 1, nLoop
-    CALL DeleteNodeVolume(Node%SubNode(iLoop))
-  END DO
-  DEALLOCATE(Node%SubNode)
+IF(ASSOCIATED(Node%SubNode1)) THEN 
+  CALL DeleteNodeVolume(Node%SubNode1)
+  DEALLOCATE(Node%SubNode1)
 END IF
-
+IF(ASSOCIATED(Node%SubNode2)) THEN
+  CALL DeleteNodeVolume(Node%SubNode2)
+  DEALLOCATE(Node%SubNode2)
+END IF
+IF(ASSOCIATED(Node%SubNode3)) THEN
+  CALL DeleteNodeVolume(Node%SubNode3)
+  DEALLOCATE(Node%SubNode3)
+END IF
+IF(ASSOCIATED(Node%SubNode4)) THEN
+  CALL DeleteNodeVolume(Node%SubNode4)
+  DEALLOCATE(Node%SubNode4)
+END IF
+IF(ASSOCIATED(Node%SubNode5)) THEN
+  CALL DeleteNodeVolume(Node%SubNode5)
+  DEALLOCATE(Node%SubNode5)
+END IF
+IF(ASSOCIATED(Node%SubNode6)) THEN
+  CALL DeleteNodeVolume(Node%SubNode6)
+  DEALLOCATE(Node%SubNode6)
+END IF
+IF(ASSOCIATED(Node%SubNode7)) THEN
+  CALL DeleteNodeVolume(Node%SubNode7)
+  DEALLOCATE(Node%SubNode7)
+END IF
+IF(ASSOCIATED(Node%SubNode8)) THEN
+  CALL DeleteNodeVolume(Node%SubNode8)
+  DEALLOCATE(Node%SubNode8)
+END IF
 END SUBROUTINE DeleteNodeVolume
 
 

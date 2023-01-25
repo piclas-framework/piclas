@@ -28,7 +28,9 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 PUBLIC :: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
-PUBLIC :: DefineParametersParticleSymmetry, Init_Symmetry, DSMC_2D_TreatIdenticalParticles
+PUBLIC :: DefineParametersParticleSymmetry, Init_Symmetry
+PUBLIC :: DSMC_InitVarWeighting, DSMC_VariableWeighting, DSMC_SetInClones, DSMC_TreatIdenticalParticles
+PUBLIC :: DSMC_InitAdaptiveWeights, DSMC_AdaptiveWeights
 !===================================================================================================================================
 
 CONTAINS
@@ -64,6 +66,39 @@ CALL prms%CreateIntOption(    'Particles-RadialWeighting-CloneDelay', &
 CALL prms%CreateIntOption(    'Particles-RadialWeighting-SurfFluxSubSides', &
                               'Radial weighting: Split the surface flux side into the given number of subsides, reduces the '//&
                               'error in the particle distribution across the cell (visible in the number density)', '20')
+CALL prms%CreateLogicalOption('Particles-VisuMPF', 'Activates a visualization of the predefined MPF in each sub-cell', '.FALSE.')
+CALL prms%CreateLogicalOption('Part-VariableWeighting', 'Activates a variable weighting in 3D', '.FALSE.')
+CALL prms%CreateIntOption(    'Part-VarWeighting-nScalePointsMPF', &
+                              'Number of coordinates with distinct weighting factors', '2')
+CALL prms%CreateIntOption(    'Part-VarWeighting-CoordinateAxis', &
+                              '1: x-Axis, 2: y-Axis, 3: z-Axis', '0')
+CALL prms%CreateRealArrayOption('Part-VarWeighting-StartPointForScaling', &
+                              'Start coordinate for the scaling in all possible directions' , '0.0 , 0.0 , 0.0')
+CALL prms%CreateRealArrayOption('Part-VarWeighting-EndPointForScaling', &
+                              'End coordinate for the scaling in all possible directions' , '0.0 , 0.0 , 0.0')
+CALL prms%CreateRealOption(   'Part-VarWeighting-ScalePoint[$]-Coordinate', &
+                              '(Relative ) Coordinate of the respective scale point on the axis', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Part-VarWeighting-ScalePoint[$]-Factor', &
+                              'Weighting factor of the respective scale point', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption('Part-VarWeighting-CellLocalWeighting', 'Enables a cell-local variable weighting, '//&
+                              'where every particle has the same weighting factor within a cell', '.FALSE.')
+CALL prms%CreateIntOption(    'Part-VarWeighting-CloneMode',  &
+                              'Variable weighting: Select between methods for the delayed insertion of cloned particles:/n'//&
+                              '1: Chronological, 2: Random', '2')
+CALL prms%CreateIntOption(    'Part-VarWeighting-CloneDelay', &
+                              'Radial weighting:  Delay (number of iterations) before the stored cloned particles are inserted '//&
+                              'at the position they were cloned', '2') 
+CALL prms%CreateIntOption(    'Particles-VarWeighting-SurfFluxSubSides', &
+                              'Variable weighting: Split the surface flux side into the given number of subsides, reduces the '//&
+                              'error in the particle distribution across the cell (visible in the number density)', '20')
+CALL prms%CreateLogicalOption('Part-Adaptive-VarWeighting', 'Enables an automatic adaption of '//&
+                              'the particle weight within a cell, based on previous simualation result', '.FALSE.')
+! CALL prms%CreateRealOption(   'Part-VarWeighting-TargetMCSoverMFP', &
+!                               'Target mean collision separation over mean free path')
+CALL prms%CreateRealOption(   'Part-VarWeighting-MinParticleNumber', 'Target minimum simulation particle number per cell')
+CALL prms%CreateRealOption(   'Part-VarWeighting-MaxParticleNumber', 'Target maximum simulation particle number per cell')
+CALL prms%CreateRealOption(   'Part-VarWeighting-MaxMPF', 'Maximum particle weight in each cell')
+CALL prms%CreateRealOption(   'Part-VarWeighting-MinMPF', 'Minimum particle weight in each cell')
 
 END SUBROUTINE DefineParametersParticleSymmetry
 
@@ -740,7 +775,7 @@ FUNCTION DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars              ,ONLY: Pi
-USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting, VarWeighting
 USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -749,12 +784,18 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)                :: iLocSide,iElem           !> iElem is the compute-node element ID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                              :: DSMC_2D_CalcSymmetryAreaSubSides(RadialWeighting%nSubSides)
+REAL,ALLOCATABLE                  :: DSMC_2D_CalcSymmetryAreaSubSides(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                           :: iNode
 REAL                              :: P(1:2,1:4), Pmin(2), Pmax(2), MidPoint, PminTemp, PmaxTemp, Length
 !===================================================================================================================================
+
+IF(RadialWeighting%DoRadialWeighting) THEN
+  ALLOCATE(DSMC_2D_CalcSymmetryAreaSubSides(RadialWeighting%nSubSides))
+ELSE IF(VarWeighting%DoVariableWeighting) THEN
+  ALLOCATE(DSMC_2D_CalcSymmetryAreaSubSides(VarWeighting%nSubSides))
+END IF
 
 Pmin = HUGE(Pmin)
 Pmax = -HUGE(Pmax)
@@ -769,12 +810,21 @@ Pmin(1) = MINVAL(P(1,:))
 Pmin(2) = MINVAL(P(2,:))
 Length = SQRT((Pmax(1)-Pmin(1))**2 + (Pmax(2)-Pmin(2))**2)
 
-DO iNode = 1, RadialWeighting%nSubSides
-  PminTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*(iNode-1.)
-  PmaxTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*iNode
-  MidPoint = (PmaxTemp+PminTemp) / 2.
-  DSMC_2D_CalcSymmetryAreaSubSides(iNode) = Length/RadialWeighting%nSubSides * MidPoint * Pi * 2.
-END DO
+IF (RadialWeighting%DoRadialWeighting) THEN
+  DO iNode = 1, RadialWeighting%nSubSides
+    PminTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*(iNode-1.)
+    PmaxTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*iNode
+    MidPoint = (PmaxTemp+PminTemp) / 2.
+    DSMC_2D_CalcSymmetryAreaSubSides(iNode) = Length/RadialWeighting%nSubSides * MidPoint * Pi * 2.
+  END DO
+ELSE IF (VarWeighting%DoVariableWeighting) THEN
+  DO iNode = 1, VarWeighting%nSubSides
+    PminTemp = Pmin(2) + (Pmax(2) - Pmin(2))/VarWeighting%nSubSides*(iNode-1.)
+    PmaxTemp = Pmin(2) + (Pmax(2) - Pmin(2))/VarWeighting%nSubSides*iNode
+    MidPoint = (PmaxTemp+PminTemp) / 2.
+    DSMC_2D_CalcSymmetryAreaSubSides(iNode) = Length/VarWeighting%nSubSides * MidPoint * Pi * 2.
+  END DO
+END IF
 
 RETURN
 
@@ -787,11 +837,12 @@ SUBROUTINE Init_Symmetry()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars    ,ONLY: Symmetry
-USE MOD_DSMC_Vars        ,ONLY: RadialWeighting
-USE MOD_ReadInTools      ,ONLY: GETLOGICAL,GETINT
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, DSMC
+USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETINT
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -830,10 +881,360 @@ ELSE
   RadialWeighting%PerformCloning = .FALSE.
 END IF
 
+! Variable weights in 3D
+VarWeighting%DoVariableWeighting = GETLOGICAL('Part-VariableWeighting')
+
+IF (VarWeighting%DoVariableWeighting.AND.RadialWeighting%DoRadialWeighting) THEN
+  CALL ABORT(__STAMP__&
+      ,'ERROR: Variable and radial weighting cannot be enabled at the same time. ')
+END IF
+
+DSMC%CalcCellMPF = GETLOGICAL('Particles-VisuMPF')
+
 END SUBROUTINE Init_Symmetry
 
+SUBROUTINE DSMC_InitVarWeighting()
+!===================================================================================================================================
+!> Read-in and initialize the variables required for the 3D cloning procedures. Two modes with a delayed clone insertion are  
+!> available:
+!> 1: Insert the clones after the delay in the same chronological order as they were created
+!> 2: Choose a random list of particles to insert after the delay buffer is full with clones
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_ReadInTools
+USE MOD_Restart_Vars            ,ONLY: DoRestart
+USE MOD_PARTICLE_Vars           ,ONLY: PDM
+USE MOD_DSMC_Vars               ,ONLY: VarWeighting, ClonedParticles
+USE MOD_part_tools              ,ONLY: CalcAverageMPF, CalcScalePoint
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(32)                   :: hilf
+INTEGER                         :: iScale, nScalePoints
+!===================================================================================================================================
+! Linear scaling points for the variable weighting
+VarWeighting%nScalePoints = GETINT('Part-VarWeighting-nScalePointsMPF')
+VarWeighting%nSubSides    = GETINT('Particles-VarWeighting-SurfFluxSubSides')
 
-SUBROUTINE DSMC_2D_TreatIdenticalParticles(iPair, nPair, nPart, iElem, iPartIndx_Node)
+nScalePoints = VarWeighting%nScalePoints
+ALLOCATE(VarWeighting%ScalePoint(nScalePoints))
+ALLOCATE(VarWeighting%VarMPF(nScalePoints))
+
+! Variable weights with scaling along one of the coordinate axes
+VarWeighting%ScaleAxis    = GETINT('Part-VarWeighting-CoordinateAxis')
+
+! Variable weights with scaling not along a coordinate axis
+IF (VarWeighting%ScaleAxis.EQ.0) THEN
+  VarWeighting%StartPointScaling = GETREALARRAY('Part-VarWeighting-StartPointForScaling',3)
+  VarWeighting%EndPointScaling   = GETREALARRAY('Part-VarWeighting-EndPointForScaling',3)
+
+  ! Determine the vector along which the scaling is performed
+  VarWeighting%ScalingVector = VarWeighting%EndPointScaling - VarWeighting%StartPointScaling
+END IF
+
+! Read-In of the scaling points along the chosen direction and the corresponding weighting factor
+DO iScale = 1, nScalePoints
+  WRITE(UNIT=hilf,FMT='(I0)') iScale
+  VarWeighting%ScalePoint(iScale) = GETREAL('Part-VarWeighting-ScalePoint'//TRIM(hilf)//'-Coordinate')
+  VarWeighting%VarMPF(iScale)     = GETREAL('Part-VarWeighting-ScalePoint'//TRIM(hilf)//'-Factor')
+END DO
+
+! Calculation of the average particle MPF in the simulation domain
+VarWeighting%AverageScaleFactor = CalcAverageMPF()
+
+VarWeighting%CloneMode       = GETINT('Part-VarWeighting-CloneMode')
+VarWeighting%CloneInputDelay = GETINT('Part-VarWeighting-CloneDelay')
+! Cell local variable weighting (all particles have the same weighting factor within a cell)
+VarWeighting%CellLocalWeighting = GETLOGICAL('Part-VarWeighting-CellLocalWeighting')
+
+VarWeighting%NextClone = 0
+
+SELECT CASE(VarWeighting%CloneMode)
+  CASE(1)
+    IF(VarWeighting%CloneInputDelay.LT.1) THEN
+      CALL Abort(&
+          __STAMP__,&
+        'ERROR in simulation: Clone delay should be greater than 0')
+    END IF
+    ALLOCATE(VarWeighting%ClonePartNum(0:(VarWeighting%CloneInputDelay-1)))
+    ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/VarWeighting%CloneInputDelay),0:(VarWeighting%CloneInputDelay-1)))
+    VarWeighting%ClonePartNum = 0
+    IF(.NOT.DoRestart) VarWeighting%CloneDelayDiff = 1
+  CASE(2)
+    IF(VarWeighting%CloneInputDelay.LT.2) THEN
+      CALL Abort(&
+          __STAMP__,&
+        'ERROR in simulation: Clone delay should be greater than 1')
+    END IF
+    ALLOCATE(VarWeighting%ClonePartNum(0:VarWeighting%CloneInputDelay))
+    ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/VarWeighting%CloneInputDelay),0:VarWeighting%CloneInputDelay))
+    VarWeighting%ClonePartNum = 0
+    IF(.NOT.DoRestart) VarWeighting%CloneDelayDiff = 0
+  CASE DEFAULT
+    CALL Abort(&
+        __STAMP__,&
+      'ERROR in Variable Weighting: The selected cloning mode is not available! Choose between 1 and 2.'//&
+        ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
+END SELECT
+
+CALL DSMC_InitAdaptiveWeights()
+
+END SUBROUTINE DSMC_InitVarWeighting
+
+
+SUBROUTINE DSMC_VariableWeighting(iPart,iElem)
+!===================================================================================================================================
+!> Routine for the treatment of particles with enabled variable weighting 
+!> 1.) Determine the new particle weight and decide whether to clone or to delete the particle
+!> 2a.) Particle cloning, if the local weighting factor is smaller than the previous
+!> 2b.) Particle deletion, if the local weighting factor is greater than the previous 
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: VarWeighting, DSMC, PartStateIntEn, useDSMC, CollisMode, AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC, ElectronicDistriPart
+USE MOD_Particle_Vars           ,ONLY: PartMPF, PartSpecies, PartState, Species, LastPartPos
+USE MOD_TimeDisc_Vars           ,ONLY: iter
+USE MOD_part_operations         ,ONLY: RemoveParticle
+USE MOD_part_tools              ,ONLY: CalcVarWeightMPF
+USE Ziggurat
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iPart, iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: SpecID, iPolyatMole, cloneIndex, DelayCounter
+REAL                            :: DeleteProb, iRan, NewMPF, CloneProb, OldMPF
+LOGICAL                         :: DoCloning
+!===================================================================================================================================
+DoCloning = .FALSE.
+DeleteProb = 0.
+SpecID = PartSpecies(iPart)
+
+! 1.) Determine the new particle weight and decide whether to clone or to delete the particle
+! to_do
+NewMPF = CalcVarWeightMPF(PartState(:,iPart),SpecID,iPart)
+OldMPF = PartMPF(iPart)
+CloneProb = (OldMPF/NewMPF)-INT(OldMPF/NewMPF)
+CALL RANDOM_NUMBER(iRan)
+IF((CloneProb.GT.iRan).AND.(NewMPF.LT.OldMPF)) THEN
+  DoCloning = .TRUE.
+  IF(INT(OldMPF/NewMPF).GT.1) THEN
+    IPWRITE(*,*) 'New weighting factor:', NewMPF, 'Old weighting factor:', OldMPF
+    CALL Abort(&
+        __STAMP__,&
+      'ERROR in simulation: More than one clone per particle is not allowed! Reduce the time step or'//&
+        ' the variable weighting factor! Cloning probability is:',RealInfoOpt=CloneProb)
+  END IF
+END IF
+PartMPF(iPart) = NewMPF
+
+IF(DoCloning) THEN
+  ! 2a.) Particle cloning, if the local weighting factor is smaller than the previous 
+  ! Get the list number to store the clones, depending on the chosen clone mode
+  SELECT CASE(VarWeighting%CloneMode)
+  CASE(1)
+  ! ######## Clone Delay ###################################################################################################
+  ! Insertion of the clones after a defined delay, all clones are collected in a single list and inserted before boundary
+  ! treatment in the next time step at their original positions
+    DelayCounter = MOD((INT(iter,4)+VarWeighting%CloneDelayDiff-1),VarWeighting%CloneInputDelay)
+  CASE(2)
+  ! ######## Clone Random Delay #############################################################################################
+  ! A list, which is VarWeighting%CloneInputDelay + 1 long, is filled with clones to be inserted. After the list
+  ! is full, NextClone gives the empty particle list, whose clones were inserted during the last SetInClones step
+    IF((INT(iter,4)+VarWeighting%CloneDelayDiff).LE.VarWeighting%CloneInputDelay) THEN
+      DelayCounter = INT(iter,4)+VarWeighting%CloneDelayDiff
+    ELSE
+      DelayCounter = VarWeighting%NextClone
+    END IF
+  END SELECT
+  ! Storing the particle information
+  VarWeighting%ClonePartNum(DelayCounter) = VarWeighting%ClonePartNum(DelayCounter) + 1
+  cloneIndex = VarWeighting%ClonePartNum(DelayCounter)
+  ClonedParticles(cloneIndex,DelayCounter)%PartState(1:6)= PartState(1:6,iPart)
+  IF (useDSMC.AND.(CollisMode.GT.1)) THEN
+    ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(1:2) = PartStateIntEn(1:2,iPart)
+    IF(DSMC%ElectronicModel.GT.0) THEN
+      ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(3,iPart)
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized))) THEN
+        IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)) &
+          DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)
+        ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant))
+        ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(:) = ElectronicDistriPart(iPart)%DistriFunc(:)
+      END IF
+    END IF
+    IF ((DSMC%DoAmbipolarDiff).AND.(Species(SpecID)%ChargeIC.GT.0.0)) THEN
+      IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo)) &
+        DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo)
+      ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo(1:3))
+      ClonedParticles(cloneIndex,DelayCounter)%AmbiPolVelo(1:3) = AmbipolElecVelo(iPart)%ElecVelo(1:3)
+    END IF
+    IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
+      iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
+      IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%VibQuants)) &
+        DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%VibQuants)
+      ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%VibQuants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+      ClonedParticles(cloneIndex,DelayCounter)%VibQuants(:) = VibQuantsPar(iPart)%Quants(:)
+    END IF
+  END IF
+  ClonedParticles(cloneIndex,DelayCounter)%Species = SpecID
+  ClonedParticles(cloneIndex,DelayCounter)%Element = iElem
+  ClonedParticles(cloneIndex,DelayCounter)%LastPartPos(1:3) = LastPartPos(1:3,iPart)
+  ClonedParticles(cloneIndex,DelayCounter)%WeightingFactor = PartMPF(iPart)
+ELSE
+! ######## Particle Delete #######################################################################################################
+! 2b.) Particle deletion, if the local weighting factor is greater than the previous (particle travelling upwards)
+  IF(NewMPF.GT.OldMPF) THEN
+    ! Start deleting particles after the clone delay has passed and particles are also inserted
+    IF((INT(iter,4)+VarWeighting%CloneDelayDiff).LE.VarWeighting%CloneInputDelay) RETURN
+    DeleteProb = 1. - CloneProb
+    IF (DeleteProb.GT.0.5) THEN
+      IPWRITE(*,*) 'New weighting factor:', NewMPF, 'Old weighting factor:', OldMPF
+      CALL abort(__STAMP__,&
+        'ERROR in Variable Weighting: The deletion probability is higher than 0.5! Reduce the time step or'//&
+        ' the variable weighting factor! Deletion probability is:',RealInfoOpt=DeleteProb)
+    END IF
+    CALL RANDOM_NUMBER(iRan)
+    IF(DeleteProb.GT.iRan) THEN
+      CALL RemoveParticle(iPart)
+    END IF
+  END IF
+END IF
+
+END SUBROUTINE DSMC_VariableWeighting
+
+
+SUBROUTINE DSMC_SetInClones()
+!===================================================================================================================================
+!> Insertion of cloned particles during the previous time steps. Clones insertion is delayed by at least one time step to avoid the
+!> avalanche phenomenon (identical particles travelling on the same path, not colliding due to zero relative velocity).
+!> 1.) Chose which list to insert depending on the clone mode
+!> 2.) Insert the clones at the position they were created
+!> 3.) Reset the list
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, VarWeighting
+USE MOD_DSMC_Vars               ,ONLY: AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive, ElectronicDistriPart
+USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_TimeDisc_Vars           ,ONLY: iter
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iPart, PositionNbr, iPolyatMole, DelayCounter, locElemID
+REAL                            :: iRan
+!===================================================================================================================================
+
+! 1.) Chose which list to insert depending on the clone mode
+SELECT CASE(VarWeighting%CloneMode)
+CASE(1)
+  ! During the first iterations the delay counter refers to the empty clone array (which is filled during the following tracking)
+  ! Afterwards, the MODULUS counts up from zero to CloneInputDelay-1
+  DelayCounter = MOD((INT(iter,4)+VarWeighting%CloneDelayDiff-1),VarWeighting%CloneInputDelay)
+CASE(2)
+  ! During the first iterations, check if number of iterations is less than the input delay and leave routine. Afterwards, a
+  ! random clone list from the previous time steps is chosen.
+  IF((INT(iter,4)+VarWeighting%CloneDelayDiff).GT.VarWeighting%CloneInputDelay) THEN
+    CALL RANDOM_NUMBER(iRan)
+    ! Choosing random clone between 0 and CloneInputDelay
+    DelayCounter = INT((VarWeighting%CloneInputDelay+1)*iRan)
+    DO WHILE (DelayCounter.EQ.VarWeighting%NextClone)
+      CALL RANDOM_NUMBER(iRan)
+      DelayCounter = INT((VarWeighting%CloneInputDelay+1)*iRan)
+    END DO
+    ! Save the chosen list as the next available list to store clones in the next time step
+    VarWeighting%NextClone = DelayCounter
+  ELSE
+    RETURN
+  END IF
+END SELECT
+
+IF(VarWeighting%ClonePartNum(DelayCounter).EQ.0) RETURN
+
+! 2.) Insert the clones at the position they were created
+DO iPart = 1, VarWeighting%ClonePartNum(DelayCounter)
+  PDM%ParticleVecLength = PDM%ParticleVecLength + 1
+  PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+  PositionNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+  IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
+    CALL Abort(&
+       __STAMP__,&
+      'ERROR in simulation: New Particle Number greater max Part Num!')
+  END IF
+  ! Copy particle parameters
+  PDM%ParticleInside(PositionNbr) = .TRUE.
+  PDM%IsNewPart(PositionNbr) = .TRUE.
+  PDM%dtFracPush(PositionNbr) = .FALSE.
+  PartState(1:6,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartState(1:6)
+  IF (useDSMC.AND.(CollisMode.GT.1)) THEN
+    PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
+    IF(DSMC%ElectronicModel.GT.0) THEN
+      PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) & 
+          .OR.SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%FullyIonized))) THEN
+        IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
+        ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))
+        ElectronicDistriPart(PositionNbr)%DistriFunc(:) = ClonedParticles(iPart,DelayCounter)%DistriFunc(:)
+      END IF
+    END IF
+    IF ((DSMC%DoAmbipolarDiff).AND.(Species(ClonedParticles(iPart,DelayCounter)%Species)%ChargeIC.GT.0.0)) THEN
+      IF(ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
+      ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(1:3))
+      AmbipolElecVelo(PositionNbr)%ElecVelo(1:2) = ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(1:2)
+      AmbipolElecVelo(PositionNbr)%ElecVelo(3) = -ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(3)
+    END IF
+    IF(SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%PolyatomicMol) THEN
+      iPolyatMole = SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%SpecToPolyArray
+      IF(ALLOCATED(VibQuantsPar(PositionNbr)%Quants)) DEALLOCATE(VibQuantsPar(PositionNbr)%Quants)
+      ALLOCATE(VibQuantsPar(PositionNbr)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+      VibQuantsPar(PositionNbr)%Quants(:) = ClonedParticles(iPart,DelayCounter)%VibQuants(:)
+    END IF
+  END IF
+  PartSpecies(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Species
+  ! Set the global element number with the offset
+  PEM%GlobalElemID(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
+  PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PositionNbr)
+  locElemID = PEM%LocalElemID(PositionNbr)
+  LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
+  PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
+  IF (VarTimeStep%UseVariableTimeStep) THEN
+    VarTimeStep%ParticleTimeStep(PositionNbr) = CalcVarTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID)
+  END IF
+  ! Counting the number of clones per cell
+  IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
+    IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(locElemID,5) = DSMC%QualityFacSamp(locElemID,5) + 1
+  END IF
+  IF(CalcPartBalance) THEN
+    nPartIn(PartSpecies(PositionNbr))=nPartIn(PartSpecies(PositionNbr)) + 1
+  END IF ! CalcPartBalance
+END DO
+
+! 3.) Reset the list
+VarWeighting%ClonePartNum(DelayCounter) = 0
+
+END SUBROUTINE DSMC_SetInClones
+
+
+SUBROUTINE DSMC_TreatIdenticalParticles(iPair, nPair, nPart, iElem, iPartIndx_Node)
 !===================================================================================================================================
 !> Check if particle pairs have a zero relative velocity (and thus a collision probability of zero), if they do, break up the pair
 !> and use either a left-over particle (uneven number of particles in a cell) or swap the collision partners with the next pair in
@@ -955,6 +1356,144 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
   END IF  ! nPart.EQ.1/iPair.LT.nPair
 END IF    ! Coll_pData(iPair)%CRela2.EQ.0.0
 
-END SUBROUTINE DSMC_2D_TreatIdenticalParticles
+END SUBROUTINE DSMC_TreatIdenticalParticles
+
+SUBROUTINE DSMC_InitAdaptiveWeights()
+  !===================================================================================================================================
+  !> Initialization of the adaptive particle weights
+  !===================================================================================================================================
+  ! MODULES
+  USE MOD_Globals
+  USE MOD_ReadInTools
+  USE MOD_PreProc
+  USE MOD_io_hdf5
+  USE MOD_Globals_Vars            ,ONLY: Pi
+  USE MOD_DSMC_Vars               ,ONLY: VarWeighting
+  USE MOD_part_tools              ,ONLY: CalcVarWeightMPF
+  USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
+  USE MOD_HDF5_Input              ,ONLY: OpenDataFile, CloseDataFile, ReadArray, ReadAttribute, GetDataProps
+  USE MOD_HDF5_Input              ,ONLY: GetDataSize, nDims, HSize, File_ID
+  USE MOD_Restart_Vars            ,ONLY: DoRestart, RestartFile, DoMacroscopicRestart, MacroRestartFileName
+  USE MOD_StringTools             ,ONLY: STRICMP
+  ! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! INPUT VARIABLES
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! OUTPUT VARIABLES
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! LOCAL VARIABLES
+  INTEGER                             :: nVar_HDF5, N_HDF5, iVar
+  INTEGER                             :: nVar_MCSoverMFP, nVar_TotalPartNum, nVar_TotalDens
+  REAL, ALLOCATABLE                   :: ElemData_HDF5(:,:)!, DSMCQualityFactors(:,:)
+  CHARACTER(LEN=255),ALLOCATABLE      :: VarNames_tmp(:)
+  !===================================================================================================================================
+  SWRITE(UNIT_StdOut,'(132("-"))')
+  SWRITE(UNIT_stdOut,'(A)') ' INIT ADAPTIVE PARTICLE WEIGHTS...'
+
+  IF(DoMacroscopicRestart) THEN
+
+    VarWeighting%AdaptMPF = GETLOGICAL('Part-Adaptive-Varweighting')
+
+    IF (VarWeighting%AdaptMPF) THEN
+      ! Read-in of the DSMC state file and calculate the most fitting MPF for each cell
+      ! VarWeighting%TargetMCSoverMFP = GETREAL('Part-VarWeighting-TargetMCSoverMFP')
+      VarWeighting%MinPartNum       = GETREAL('Part-VarWeighting-MinParticleNumber')
+      VarWeighting%MaxPartNum       = GETREAL('Part-VarWeighting-MaxParticleNumber')
+      VarWeighting%MaxPartWeight    = GETREAL('Part-VarWeighting-MaxMPF')
+      VarWeighting%MinPartWeight    = GETREAL('Part-VarWeighting-MinMPF')
+    END IF
+
+    ! Open DSMC state file
+    CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+    CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nGlobalElems)
+    
+    IF(nVar_HDF5.LE.0) THEN
+      SWRITE(*,*) 'ERROR: Something is wrong with our MacroscopicRestart file:', TRIM(RestartFile)
+      CALL abort(__STAMP__,&
+      'ERROR: Number of variables in the ElemData array appears to be zero!')
+    END IF
+    
+    ! Get the variable names from the DSMC state and find the position of required quality factors
+    ALLOCATE(VarNames_tmp(1:nVar_HDF5))
+    CALL ReadAttribute(File_ID,'VarNamesAdd',nVar_HDF5,StrArray=VarNames_tmp(1:nVar_HDF5))
+    
+    DO iVar=1,nVar_HDF5
+      ! IF (STRICMP(VarNames_tmp(iVar),"DSMC_MCS_over_MFP")) THEN
+      !   nVar_MCSoverMFP = iVar
+      ! END IF
+      IF (STRICMP(VarNames_tmp(iVar),"Total_SimPartNum")) THEN
+        nVar_TotalPartNum = iVar
+      END IF
+      IF (STRICMP(VarNames_tmp(iVar),"Total_NumberDensity")) THEN
+        nVar_TotalDens = iVar
+      END IF
+    END DO
+    
+    ALLOCATE(ElemData_HDF5(1:nVar_HDF5,1:nGlobalElems))
+    ! Associate construct for integer KIND=8 possibility
+    ASSOCIATE (nVar_HDF5    => INT(nVar_HDF5,IK) ,&
+                nGlobalElems => INT(nGlobalElems,IK))
+      CALL ReadArray('ElemData',2,(/nVar_HDF5,nGlobalElems/),0_IK,2,RealArray=ElemData_HDF5(:,:))
+    END ASSOCIATE
+  
+    !ALLOCATE(DSMCQualityFactors(nGlobalElems,1:2))
+    ALLOCATE(VarWeighting%ReferencePartNum(nGlobalElems))
+    ALLOCATE(VarWeighting%ReferenceDensity(nGlobalElems))
+    ALLOCATE(VarWeighting%DesiredMPF(nGlobalElems))
+    !DSMCQualityFactors(:,2) = ElemData_HDF5(nVar_MCSoverMFP,:)
+    VarWeighting%ReferencePartNum(:) = ElemData_HDF5(nVar_TotalPartNum,:)
+    VarWeighting%ReferenceDensity(:) = ElemData_HDF5(nVar_TotalDens,:)
+    VarWeighting%DesiredMPF(:) = 0.
+
+    CALL CloseDataFile()
+    !SDEALLOCATE(DSMCQualityFactors)
+    
+    CALL DSMC_AdaptiveWeights()
+
+  ELSE 
+    ! Do not initialize the desired MPF
+  END IF ! DoRestart
+
+  SWRITE(UNIT_StdOut,'(132("-"))')
+
+  END SUBROUTINE DSMC_InitAdaptiveWeights
+  
+  
+  SUBROUTINE DSMC_AdaptiveWeights()
+  !===================================================================================================================================
+  !> Routine for the automatic adaption of the particles weights in each simulation cell based on the read-in of the particle
+  !> number density and simulation particle number from a previous simulation
+  !===================================================================================================================================
+  ! MODULES
+  USE MOD_Globals
+  USE MOD_Mesh_Vars               ,ONLY: nGlobalElems, offSetElem
+  USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+  USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
+  USE MOD_DSMC_Vars               ,ONLY: VarWeighting
+  USE MOD_part_tools              ,ONLY: CalcVarWeightMPF
+  !----------------------------------------------------------------------------------------------------------------------------------!
+  IMPLICIT NONE
+  ! INPUT / OUTPUT VARIABLES
+  !----------------------------------------------------------------------------------------------------------------------------------!
+  ! LOCAL VARIABLES
+  INTEGER                           :: iElem, iGlobalElem, CNElemID
+  !===================================================================================================================================
+    DO iElem = 1, nGlobalElems
+      iGlobalElem = iElem + offsetElem
+      CNElemID = GetCNElemID(iGlobalElem)
+      IF(VarWeighting%ReferencePartNum(iElem).LT.VarWeighting%MinPartNum) THEN
+        ! Increase number 
+      ELSE IF(VarWeighting%ReferencePartNum(iElem).GT.VarWeighting%MaxPartNum) THEN
+        ! Reduce number
+      ELSE
+        ! Particle number should stay the same
+      END IF
+      VarWeighting%DesiredMPF(iElem) = VarWeighting%ReferenceDensity(iElem)*ElemVolume_Shared(CNElemID)/1000.
+    END DO
+
+    SDEALLOCATE(VarWeighting%ReferencePartNum)
+    
+  END SUBROUTINE DSMC_AdaptiveWeights
 
 END MODULE MOD_DSMC_Symmetry

@@ -172,7 +172,7 @@ CALL InitDepositionMethod()
 
 CALL InitMesh(2)
 #if USE_MPI
-CALL InitMPIvars()
+CALL InitMPIVars()
 #endif /*USE_MPI*/
 CALL InitEquation()
 CALL InitBC()

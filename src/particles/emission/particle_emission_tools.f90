@@ -111,6 +111,7 @@ PUBLIC :: SetParticlePositionLandmarkNeutralization
 PUBLIC :: SetParticlePositionLiu2010Neutralization
 PUBLIC :: SetParticlePositionLiu2010SzaboNeutralization
 PUBLIC :: SetParticlePositionLiu2010Neutralization3D
+PUBLIC :: SetSubcellParticlePosition
 #ifdef CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
@@ -262,7 +263,9 @@ DO i=1, NbrOfParticle
   IF (PositionNbr .NE. 0) THEN
     PartSpecies(PositionNbr) = FractNbr
   ELSE
-    CALL abort(__STAMP__,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
+    CALL abort(&
+    __STAMP__&
+    ,'ERROR in SetParticlePosition:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
   END IF
 END DO
 
@@ -276,8 +279,8 @@ SUBROUTINE SetParticleMPF(FractNbr,iInit,NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars ,ONLY: PDM, PartMPF, Species, PartState
-USE MOD_DSMC_Vars     ,ONLY: RadialWeighting
-USE MOD_part_tools    ,ONLY: CalcRadWeightMPF
+USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, VarWeighting
+USE MOD_part_tools    ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
 !===================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -298,6 +301,8 @@ DO WHILE (i .le. NbrOfParticle)
   IF (PositionNbr .NE. 0) THEN
     IF(RadialWeighting%DoRadialWeighting) THEN
       PartMPF(PositionNbr) = CalcRadWeightMPF(PartState(2,PositionNbr),FractNbr,PositionNbr)
+    ELSE IF(VarWeighting%DoVariableWeighting) THEN
+      PartMPF(PositionNbr) = CalcVarWeightMPF(PartState(:,PositionNbr),FractNbr,PositionNbr)
     ELSE
       IF(iInit.EQ.-1)THEN
         PartMPF(PositionNbr) = Species(FractNbr)%MacroParticleFactor
@@ -914,8 +919,8 @@ SUBROUTINE SetCellLocalParticlePosition(chunkSize,iSpec,iInit,UseExactPartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, VarWeighting
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
@@ -950,7 +955,9 @@ INTEGER                          :: CNElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
   IF (UseExactPartNum) THEN
     IF(chunkSize.GE.PDM%maxParticleNumber) THEN
-      CALL abort(__STAMP__,'SetCellLocalParticlePosition: Maximum particle number reached! max. particles needed: ',chunksize)
+      CALL abort(&
+__STAMP__,&
+'ERROR in SetCellLocalParticlePosition: Maximum particle number reached! max. particles needed: ',chunksize)
     END IF
     CellChunkSize(:)=0
     ASSOCIATE( start => GetCNElemID(1+offsetElem),&
@@ -959,7 +966,12 @@ INTEGER                          :: CNElemID
     END ASSOCIATE
   ELSE
     PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
-    IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
+    IF(RadialWeighting%DoRadialWeighting) THEN
+      PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
+    ! Scale factor for the variable weighting includes the MPF
+    ELSE IF(VarWeighting%DoVariableWeighting) THEN
+      PartDens =  Species(iSpec)%Init(iInit)%PartDensity / (VarWeighting%AverageScaleFactor)
+    END IF
     chunkSize_tmp = INT(PartDens * LocalVolume)
     IF(chunkSize_tmp.GE.PDM%maxParticleNumber) THEN
       CALL abort(__STAMP__,&
@@ -979,6 +991,8 @@ INTEGER                          :: CNElemID
       ELSE
         IF(RadialWeighting%DoRadialWeighting) THEN
           PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
+        ELSE IF(VarWeighting%DoVariableWeighting) THEN
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iSpec)
         END IF
         CALL RANDOM_NUMBER(iRan)
         IF(VarTimeStep%UseVariableTimeStep) THEN
@@ -1017,13 +1031,16 @@ INTEGER                          :: CNElemID
           END IF
           IF(RadialWeighting%DoRadialWeighting) THEN
             PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),iSpec,ParticleIndexNbr)
+          ELSE IF(VarWeighting%DoVariableWeighting) THEN
+            PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr),iSpec,ParticleIndexNbr)
           END IF
         ELSE
           WRITE(UNIT_stdOut,*) ""
           IPWRITE(UNIT_stdOut,*) "ERROR:"
           IPWRITE(UNIT_stdOut,*) "                iPart :", iPart
           IPWRITE(UNIT_stdOut,*) "PDM%maxParticleNumber :", PDM%maxParticleNumber
-          CALL abort(__STAMP__&
+          CALL abort(&
+              __STAMP__&
               ,'ERROR in SetCellLocalParticlePosition: Maximum particle number reached during inserting! --> ParticleIndexNbr.EQ.0')
         END IF
       END DO
@@ -1032,6 +1049,133 @@ INTEGER                          :: CNElemID
   chunkSize = ichunkSize - 1
 
 END SUBROUTINE SetCellLocalParticlePosition
+
+
+SUBROUTINE SetSubcellParticlePosition(chunkSize,iSpec,iInit)
+!===================================================================================================================================
+!> routine for inserting particles positions locally inside a defined subcell
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, VarWeighting
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
+USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
+USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, Symmetry, PartMPF
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)              :: iSpec
+INTEGER, INTENT(IN)              :: iInit
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INOUTPUT VARIABLES
+INTEGER, INTENT(INOUT)           :: chunkSize
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: iElem, ichunkSize, iGlobalElem
+INTEGER                          :: iPart,  nPart, iCoord
+INTEGER                          :: CNElemID
+INTEGER                          :: ParticleIndexNbr
+REAL                             :: iRan, RandomPos(3)
+REAL                             :: PartDens
+LOGICAL                          :: InsideFlag, InsertFlag, AbortFlag
+REAL                             :: MinVec(3), MaxVec(3)
+REAL                             :: printVol, printPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+  ichunkSize = 1
+  ParticleIndexNbr = 1
+
+  printPart = 0.
+  printVol = 0.
+
+  ! Definition of the insertion region
+  MinVec = Species(iSpec)%Init(iInit)%CellLocMinPos
+  MaxVec = Species(iSpec)%Init(iInit)%CellLocMaxPos
+
+  DO iElem = 1, nElems
+    iGlobalElem = iElem + offsetElem
+    CNElemID = GetCNElemID(iGlobalElem)
+
+    ! Check if the element is inside the defined insertion region
+    DO iCoord=1,3
+      IF ((ElemMidPoint_Shared(iCoord,CNElemID).GE.MinVec(iCoord)).AND. &
+          (ElemMidPoint_Shared(iCoord,CNElemID).LE.MaxVec(iCoord))) THEN
+        InsertFlag = .TRUE.
+      ELSE
+        InsertFlag = .FALSE.
+        EXIT
+      END IF
+    END DO
+
+    IF (InsertFlag) THEN
+      ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,iGlobalElem) ) ! 1-2: Min, Max value; 1-3: x,y,z
+        IF(RadialWeighting%DoRadialWeighting) THEN
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
+        ELSE IF(VarWeighting%DoVariableWeighting) THEN
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iSpec)
+        ELSE
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor 
+        END IF
+        CALL RANDOM_NUMBER(iRan)
+        nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
+        printVol = printVol + ElemVolume_Shared(CNElemID)
+        printPart = printPart + REAL(nPart)
+        DO iPart = 1, nPart
+          ParticleIndexNbr = PDM%nextFreePosition(iChunksize + PDM%CurrentNextFreePosition)
+          IF (ParticleIndexNbr .ne. 0) THEN
+            InsideFlag=.FALSE.
+            DO WHILE(.NOT.InsideFlag)
+              CALL RANDOM_NUMBER(RandomPos)
+              IF(Symmetry%Axisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+                ! Treatment of axisymmetry without weighting
+                RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
+                RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
+              ELSE
+                RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
+              END IF
+              IF(Symmetry%Order.LE.2) RandomPos(3) = 0.
+              IF(Symmetry%Order.LE.1) RandomPos(2) = 0.
+              InsideFlag = ParticleInsideCheck(RandomPos,iPart,iGlobalElem)
+            END DO
+            PartState(1:3,ParticleIndexNbr) = RandomPos(1:3)
+            PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
+            PDM%IsNewPart(ParticleIndexNbr)=.TRUE.
+            PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
+            PEM%GlobalElemID(ParticleIndexNbr) = iGlobalElem
+            ichunkSize = ichunkSize + 1
+            IF(RadialWeighting%DoRadialWeighting) THEN
+              PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),iSpec,ParticleIndexNbr)
+            ELSE IF(VarWeighting%DoVariableWeighting) THEN
+              PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr),iSpec,ParticleIndexNbr)
+            END IF
+            AbortFlag = .FALSE.
+          ELSE
+            AbortFlag = .TRUE.
+          END IF
+        END DO
+      END ASSOCIATE
+    END IF
+  END DO
+  chunkSize = ichunkSize - 1
+
+  IPWRITE(UNIT_stdOut,*) "printPart :", printPart
+  IPWRITE(UNIT_stdOut,*) "Fraction :", printPart/(6.0*10**6)
+  IPWRITE(UNIT_stdOut,*) "printVol :", printVol
+
+  IF(AbortFlag) THEN
+    CALL abort(&
+        __STAMP__&
+        ,'ERROR in SetCellLocalParticlePosition: Maximum particle number reached during inserting! --> ParticleIndexNbr.EQ.0')
+  END IF
+
+END SUBROUTINE SetSubcellParticlePosition
 
 
 SUBROUTINE SetParticlePositionPoint(FractNbr,iInit,chunkSize,particle_positions)
@@ -1329,15 +1473,18 @@ REAL                    :: Particle_pos(3), RandVal(3), lineVector(3), radius
 INTEGER                 :: i, chunkSize2
 LOGICAL                 :: insideExcludeRegion
 !===================================================================================================================================
-  ! Calculate the cross-product vector from the two base vectors to get the perpendicular direction
-  ASSOCIATE(v2 => Species(FractNbr)%Init(iInit)%BaseVector1IC ,&
-            v3 => Species(FractNbr)%Init(iInit)%BaseVector2IC )
-    lineVector(1) = v2(2) * v3(3) - v2(3) * v3(2)
-    lineVector(2) = v2(3) * v3(1) - v2(1) * v3(3)
-    lineVector(3) = v2(1) * v3(2) - v2(2) * v3(1)
-    lineVector = UNITVECTOR(lineVector)
-    IF(VECNORM(lineVector).LE.0.) CALL ABORT(__STAMP__,'BaseVectors are parallel!')
-  END ASSOCIATE
+  lineVector(1) = Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3) - &
+    Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2)
+  lineVector(2) = Species(FractNbr)%Init(iInit)%BaseVector1IC(3) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1) - &
+    Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(3)
+  lineVector(3) = Species(FractNbr)%Init(iInit)%BaseVector1IC(1) * Species(FractNbr)%Init(iInit)%BaseVector2IC(2) - &
+    Species(FractNbr)%Init(iInit)%BaseVector1IC(2) * Species(FractNbr)%Init(iInit)%BaseVector2IC(1)
+  IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
+    CALL abort(__STAMP__,'BaseVectors are parallel!')
+  ELSE
+    lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
+      lineVector(3) * lineVector(3))
+  END IF
   i=1
   chunkSize2=0
   DO WHILE (i .LE. chunkSize)
@@ -1375,6 +1522,8 @@ LOGICAL                 :: insideExcludeRegion
     chunkSize2=chunkSize2+1
   END DO
   chunkSize = chunkSize2
+
+
 END SUBROUTINE SetParticlePositionCuboidCylinder
 
 

@@ -144,10 +144,10 @@ ELSE IF (STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
   RestartFile = Args(1)
 END IF
 
-GETTIME(StartTime)
+StartTime=PICLASTIME()
 CALL prms%read_options(ParameterFile)
 ! Measure init duration
-GETTIME(SystemTime)
+SystemTime=PICLASTIME()
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING INI DONE! [',SystemTime-StartTime,' sec ] NOW '&
 ,prms%count_setentries(),' PARAMETERS ARE SET'
@@ -157,7 +157,7 @@ IF(nArgs.GE.2)THEN
   IF(STRICMP(GetFileExtension(ParameterDSMCFile), "ini")) THEN
     CALL prms%read_options(ParameterDSMCFile,furtherini=.TRUE.)
     ! Measure init duration
-    GETTIME(SystemTime)
+    SystemTime=PICLASTIME()
     SWRITE(UNIT_stdOut,'(132("="))')
     SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING FURTHER INI DONE! [',SystemTime-StartTime,' sec ] NOW '&
     ,prms%count_setentries(),' PARAMETERS ARE SET'
@@ -186,13 +186,17 @@ CALL InitPiclas(IsLoadBalance=.FALSE.)
 ! Do SwapMesh
 IF(DoSwapMesh)THEN
   ! Measure init duration
-  GETTIME(SystemTime)
+  SystemTime=PICLASTIME()
   IF(MPIroot)THEN
     Call SwapMesh()
-    CALL DisplayMessageAndTime(SystemTime-StartTime, 'SWAPMESH DONE! PICLAS DONE', DisplayDespiteLB=.TRUE.)
+    SWRITE(UNIT_stdOut,'(132("="))')
+    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' SWAPMESH DONE! PICLAS DONE! [',SystemTime-StartTime,' sec ]'
+    SWRITE(UNIT_stdOut,'(132("="))')
     STOP
   ELSE
-    CALL abort(__STAMP__,'DO NOT CALL SWAPMESH WITH MORE THAN 1 Procs!',iError,999.)
+  CALL abort(&
+  __STAMP__&
+  ,'DO NOT CALL SWAPMESH WITH MORE THAN 1 Procs!',iError,999.)
   END IF
 END IF
 LOGWRITE_BARRIER
@@ -209,10 +213,10 @@ IF(DoInitialIonization) CALL InitialIonization()
 #endif /*PARTICLES*/
 
 ! Measure init duration
-GETTIME(SystemTime)
+SystemTime=PICLASTIME()
 InitializationWallTime=SystemTime-StartTime
 SWRITE(UNIT_stdOut,'(132("="))')
-CALL DisplayMessageAndTime(InitializationWallTime, 'INITIALIZATION DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
 SWRITE(UNIT_stdOut,'(132("="))')
 
 #ifdef EXTRAE

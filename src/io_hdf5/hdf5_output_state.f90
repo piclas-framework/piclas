@@ -53,7 +53,7 @@ USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems,nGlobalUniqueSides
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
 USE MOD_Restart_Vars           ,ONLY: RestartFile,DoInitialAutoRestart
 #ifdef PARTICLES
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
@@ -128,11 +128,8 @@ CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
 #endif /*defined(PARTICLES)*/
 #ifdef PARTICLES
-REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
+REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1),TmpArray2(3,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
-#if USE_HDG
-REAL                           :: TmpArray2(3,1)
-#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
@@ -201,8 +198,12 @@ END IF ! .NOT.DoWriteStateToHDF5
 ! Check if state file creation should be skipped
 IF(.NOT.DoWriteStateToHDF5) RETURN
 
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
-GETTIME(StartT)
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
+#if USE_MPI
+StartT=MPI_WTIME()
+#else
+CALL CPU_TIME(StartT)
+#endif
 
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
@@ -483,7 +484,7 @@ ASSOCIATE (&
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
-  IF(OutputSource) THEN
+  IF(OutPutSource) THEN
 #if USE_HDG
     ! Add BR electron fluid density to PartSource for output to state.h5
     IF(UseBRElectronFluid) CALL AddBRElectronFluidToPartSource()
@@ -551,6 +552,7 @@ END IF
 IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
 IF(RadialWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
+IF(VarWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
 IF (ANY(PartBound%UseAdaptedWallTemp)) CALL WriteAdaptiveWallTempToHDF5(FileName)
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
@@ -638,9 +640,8 @@ IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
 CALL WriteEmissionVariablesToHDF5(FileName)
 #endif /*PARTICLES*/
 
-GETTIME(EndT)
-CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
-
+EndT=PICLASTIME()
+SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
 #if defined(PARTICLES)
 CALL DisplayNumberOfParticles(1)
 #endif /*defined(PARTICLES)*/

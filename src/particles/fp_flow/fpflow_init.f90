@@ -72,7 +72,7 @@ USE MOD_Globals_Vars          ,ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
-USE MOD_PARTICLE_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
+USE MOD_PARTICLE_Vars         ,ONLY: nSpecies, Species
 USE MOD_FPFlow_Vars
 USE MOD_BGK_Vars              ,ONLY: DoBGKCellAdaptation, BGKMinPartPerCell
 #if USE_LOADBALANCE
@@ -123,12 +123,7 @@ END IF
 FPDoVibRelaxation = GETLOGICAL('Particles-FP-DoVibRelaxation')
 FPUseQuantVibEn = GETLOGICAL('Particles-FP-UseQuantVibEn')
 CoupledFPDSMC = GETLOGICAL('Particles-CoupledFPDSMC')
-IF(CoupledFPDSMC) THEN
-  IF (DoVirtualCellMerge) THEN  
-    CALL abort(__STAMP__,' Virtual cell merge not implemented for coupled DSMC-FP simulations!')
-  END IF
-  FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens')
-END IF
+IF(CoupledFPDSMC) FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens')
 
 FPInitDone = .TRUE.
 LBWRITE(UNIT_stdOut,'(A)') ' INIT FP-FLOW DONE!'

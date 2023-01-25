@@ -57,10 +57,6 @@ INTERFACE StoreLostParticleProperties
   MODULE PROCEDURE StoreLostParticleProperties
 END INTERFACE
 
-INTERFACE InterpolateEmissionDistribution2D
-  MODULE PROCEDURE InterpolateEmissionDistribution2D
-END INTERFACE
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -69,9 +65,9 @@ END INTERFACE
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
 PUBLIC :: CalcXiElec,ParticleOnProc,  CalcERot_particle, CalcEVib_particle, CalcEElec_particle, CalcVelocity_maxwell_particle
-PUBLIC :: InitializeParticleMaxwell
-PUBLIC :: InterpolateEmissionDistribution2D
-PUBLIC :: MergeCells,InRotRefFrameCheck
+PUBLIC :: InRotRefFrameCheck
+PUBLIC :: CalcVarWeightMPF, CalcAverageMPF
+PUBLIC :: CalcScalePoint
 !===================================================================================================================================
 
 CONTAINS
@@ -489,14 +485,14 @@ PPURE REAL FUNCTION GetParticleWeight(iPart)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Particle_Vars           ,ONLY: usevMPF, VarTimeStep, PartMPF
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, VarWeighting
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)             :: iPart
 !===================================================================================================================================
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
   IF (VarTimeStep%UseVariableTimeStep) THEN
     GetParticleWeight = PartMPF(iPart) * VarTimeStep%ParticleTimeStep(iPart)
   ELSE
@@ -549,6 +545,146 @@ RETURN
 
 END FUNCTION CalcRadWeightMPF
 
+REAL FUNCTION CalcVarWeightMPF(Pos, iSpec, iPart)
+!===================================================================================================================================
+!> Determination of the weighting factor for a 3D test case.
+!> Linear increase in the scaling region along the specified vector
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: VarWeighting
+USE MOD_Particle_Vars           ,ONLY: Species, PEM
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES  
+REAL, OPTIONAL                  :: Pos(3)
+INTEGER, INTENT(IN)             :: iSpec
+INTEGER, OPTIONAL,INTENT(IN)    :: iPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL                 :: PosIn, RelPos
+REAL                 :: PosMax, PosMin, MaxWeight, MinWeight
+INTEGER              :: iScale
+!===================================================================================================================================
+! Linear scaling in all possible directions
+IF (VarWeighting%ScaleAxis.EQ.0) THEN
+  PosIn = CalcScalePoint(Pos, iSpec, iPart)
+! Linear scaling along the coordinate axis
+ELSE IF (VarWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
+  PosIn = ElemMidPoint_Shared(VarWeighting%ScaleAxis,PEM%CNElemID(iPart))
+ELSE
+  PosIn = Pos(VarWeighting%ScaleAxis)
+END IF
+
+! Loop over the division cells
+DO iScale=1, (VarWeighting%nScalePoints-1)
+  ! Test if the particle is inside the cell
+  IF ((PosIn.GE.VarWeighting%ScalePoint(iScale)).AND.(PosIn.LE.VarWeighting%ScalePoint(iScale+1))) THEN
+    PosMax = VarWeighting%ScalePoint(iScale+1)
+    MaxWeight = VarWeighting%VarMPF(iScale+1)
+    PosMin = VarWeighting%ScalePoint(iScale)
+    MinWeight = VarWeighting%VarMPF(iScale)
+
+    ! Determine the weighting factor by the relative position in the cell
+    RelPos = (PosIn-PosMin)/(PosMax-PosMin)
+    CalcVarWeightMPF = (1. - RelPos)*MinWeight + RelPos*MaxWeight
+    EXIT
+
+  ELSE IF (PosIn.GE.VarWeighting%ScalePoint(VarWeighting%nScalePoints)) THEN
+    CalcVarWeightMPF = VarWeighting%VarMPF(VarWeighting%nScalePoints)
+    EXIT
+  ELSE 
+    CalcVarWeightMPF = VarWeighting%VarMPF(1)
+  END IF
+END DO
+
+RETURN
+
+END FUNCTION CalcVarWeightMPF
+
+REAL FUNCTION CalcAverageMPF()
+!===================================================================================================================================
+!> Determination of the average weighting factor in the simulation domain
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: VarWeighting
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES  
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iScale
+REAL                            :: SubWeight
+REAL, ALLOCATABLE               :: MPF(:), Coord(:) 
+!-----------------------------------------------------------------------------------------------------------------------------------
+!===================================================================================================================================
+CalcAverageMPF = 0.
+ALLOCATE(MPF(VarWeighting%nScalePoints))
+MPF = VarWeighting%VarMPF
+ALLOCATE(Coord(VarWeighting%nScalePoints))
+Coord = VarWeighting%ScalePoint
+
+! Average MPF for each sub-cell, scaled by the size of the cell
+DO iScale=1, (VarWeighting%nScalePoints-1)
+  SubWeight = (MPF(iScale+1)+MPF(iScale))/2. * ((Coord(iScale+1)-Coord(iScale))/(MAXVAL(Coord(:))-MINVAL(Coord(:))))
+  CalcAverageMPF = CalcAverageMPF + SubWeight
+END DO
+
+DEALLOCATE(MPF)
+DEALLOCATE(Coord)
+
+RETURN
+
+END FUNCTION CalcAverageMPF
+
+REAL FUNCTION CalcScalePoint(Pos, iSpec, iPart)
+!===================================================================================================================================
+!> Determine the relative position of the point to the scaling vector
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: VarWeighting
+USE MOD_Particle_Vars           ,ONLY: Species, PEM
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES  
+REAL, OPTIONAL                  :: Pos(3)
+INTEGER, INTENT(IN)             :: iSpec
+INTEGER, OPTIONAL,INTENT(IN)    :: iPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL                 :: PosIn(3), ScalingVector(3), ScalePoint(3)
+!===================================================================================================================================
+ScalingVector = VarWeighting%ScalingVector 
+
+IF(VarWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
+  PosIn = ElemMidPoint_Shared(:,PEM%CNElemID(iPart))
+ELSE
+  PosIn = Pos
+END IF 
+
+ScalePoint = VarWeighting%StartPointScaling - PosIn
+
+! Find the point on the scaling vector with the closest distance to the point 
+CalcScalePoint = -dot_product(ScalePoint,ScalingVector)/dot_product(ScalingVector,ScalingVector)
+
+RETURN
+
+END FUNCTION CalcScalePoint
 
 PPURE FUNCTION isChargedParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1026,414 +1162,5 @@ RETURN
 
 END FUNCTION CalcEElec_particle
 
-
-SUBROUTINE MergeCells()
-!===================================================================================================================================
-!> Routine for virtual merging of neighbouring cells. 
-!> Currently, the merging is only done via the number of particles within the cells.
-!===================================================================================================================================
-! MODULES
-USE MOD_Particle_Vars,        ONLY: VirtMergedCells, PEM, MinPartNumCellMerge, VirtualCellMergeSpread, MaxNumOfMergedCells
-USE MOD_Mesh_Vars,            ONLY: nElems,offsetElem
-USE MOD_Particle_Mesh_Vars,   ONLY: ElemToElemMapping,ElemToElemInfo, ElemVolume_Shared
-USE MOD_Mesh_Tools,           ONLY: GetCNElemID, GetGlobalElemID
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                        :: nPart, CNElemID, GlobalElemID, iNbElem, GlobNbElem, LocNBElem, nPartMerged, MasterCellID
-INTEGER                        :: CNNbElem, iElem, iOldElem, currentCellCount
-INTEGER, ALLOCATABLE           :: tempCellID(:)
-LOGICAL                        :: AllowBackMerge
-!===================================================================================================================================
-!Nullify every value
-DO iElem = 1, nElems
-  VirtMergedCells(iElem)%isMerged = .FALSE.
-  VirtMergedCells(iElem)%MasterCell = 0  
-  VirtMergedCells(iElem)%MergedVolume = 0.0
-  IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
-    DEALLOCATE(VirtMergedCells(iElem)%MergedCellID)
-    VirtMergedCells(iElem)%NumOfMergedCells=0
-  END IF
-END DO
-
-!Loop over all cells and neighbouring cells to merge them
-ElemLoop: DO iElem = 1, nElems
-  IF(VirtMergedCells(iElem)%isMerged) CYCLE
-  nPart = PEM%pNumber(iElem)
-  IF (nPart.LE.MinPartNumCellMerge) THEN
-    GlobalElemID = iElem + offSetElem
-    CNElemID = GetCNElemID(GlobalElemID)
-    nPartMerged = nPart
-    AllowBackMerge = .TRUE.
-    NBElemLoop: DO iNbElem = 1,ElemToElemMapping(2,CNElemID)
-      GlobNbElem = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,CNElemID)+iNbElem))
-      LocNBElem = GlobNbElem-offSetElem
-      CNNbElem = GetCNElemID(GlobNbElem)
-      IF ((LocNBElem.LT.1).OR.(LocNBElem.GT.nElems)) CYCLE
-      IF(VirtMergedCells(LocNBElem)%isMerged.AND.AllowBackMerge) THEN
-        IF(VirtualCellMergeSpread.GT.1) THEN
-          IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
-            MasterCellID = VirtMergedCells(LocNBElem)%MasterCell-offSetElem
-            IF(VirtMergedCells(MasterCellID)%NumOfMergedCells.GE.(MaxNumOfMergedCells-1)) CYCLE NBElemLoop   
-            ALLOCATE(tempCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells))
-            tempCellID = VirtMergedCells(MasterCellID)%MergedCellID
-            DEALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID)
-            VirtMergedCells(MasterCellID)%NumOfMergedCells = VirtMergedCells(MasterCellID)%NumOfMergedCells + 1 + VirtMergedCells(iElem)%NumOfMergedCells
-            ALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells))
-            VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1-VirtMergedCells(iElem)%NumOfMergedCells) = &
-              tempCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1-VirtMergedCells(iElem)%NumOfMergedCells)
-            oldMasterElemLoop: DO iOldElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
-              currentCellCount = VirtMergedCells(MasterCellID)%NumOfMergedCells-VirtMergedCells(iElem)%NumOfMergedCells -1 + iOldElem
-              VirtMergedCells(MasterCellID)%MergedCellID(currentCellCount) = VirtMergedCells(iElem)%MergedCellID(iOldElem)
-              VirtMergedCells(VirtMergedCells(iElem)%MergedCellID(iOldElem))%MasterCell = VirtMergedCells(LocNBElem)%MasterCell
-            END DO oldMasterElemLoop
-            VirtMergedCells(MasterCellID)%MergedCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells) = iElem
-            VirtMergedCells(iElem)%MasterCell = VirtMergedCells(LocNBElem)%MasterCell
-            VirtMergedCells(iElem)%isMerged = .TRUE.
-            VirtMergedCells(MasterCellID)%MergedVolume=VirtMergedCells(MasterCellID)%MergedVolume+VirtMergedCells(iElem)%MergedVolume
-            VirtMergedCells(iElem)%MergedVolume = 0.0
-            VirtMergedCells(iElem)%NumOfMergedCells = 0
-            DEALLOCATE(VirtMergedCells(iElem)%MergedCellID)
-            DEALLOCATE(tempCellID)
-            CYCLE ElemLoop
-          ELSE
-            MasterCellID = VirtMergedCells(LocNBElem)%MasterCell-offSetElem
-            IF(VirtMergedCells(MasterCellID)%NumOfMergedCells.GE.(MaxNumOfMergedCells-1)) CYCLE NBElemLoop
-            ALLOCATE(tempCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells))
-            tempCellID = VirtMergedCells(MasterCellID)%MergedCellID
-            DEALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID)
-            VirtMergedCells(MasterCellID)%NumOfMergedCells = VirtMergedCells(MasterCellID)%NumOfMergedCells + 1
-            ALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells))
-            VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1) = &
-              tempCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1)
-            VirtMergedCells(MasterCellID)%MergedCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells) = iElem
-            VirtMergedCells(MasterCellID)%MergedVolume=VirtMergedCells(MasterCellID)%MergedVolume+ElemVolume_Shared(CNElemID) 
-            VirtMergedCells(iElem)%MasterCell = VirtMergedCells(LocNBElem)%MasterCell
-            VirtMergedCells(iElem)%isMerged = .TRUE.            
-            DEALLOCATE(tempCellID)
-            CYCLE ElemLoop
-          END IF
-        ELSE
-          CYCLE NBElemLoop
-        END IF
-      ELSE IF ((VirtMergedCells(LocNBElem)%NumOfMergedCells.GT.0).AND.AllowBackMerge) THEN
-        IF(VirtualCellMergeSpread.GT.0) THEN
-          IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
-            MasterCellID = LocNBElem
-            IF(VirtMergedCells(MasterCellID)%NumOfMergedCells.GE.(MaxNumOfMergedCells-1)) CYCLE NBElemLoop
-            ALLOCATE(tempCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells))
-            tempCellID = VirtMergedCells(MasterCellID)%MergedCellID
-            DEALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID)
-            VirtMergedCells(MasterCellID)%NumOfMergedCells = VirtMergedCells(MasterCellID)%NumOfMergedCells + 1 + VirtMergedCells(iElem)%NumOfMergedCells
-            ALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells))
-            VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1-VirtMergedCells(iElem)%NumOfMergedCells) = &
-              tempCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1-VirtMergedCells(iElem)%NumOfMergedCells)
-            oldMasterElemLoop2: DO iOldElem = 1, VirtMergedCells(iElem)%NumOfMergedCells
-              currentCellCount = VirtMergedCells(MasterCellID)%NumOfMergedCells-VirtMergedCells(iElem)%NumOfMergedCells -1 + iOldElem
-              VirtMergedCells(MasterCellID)%MergedCellID(currentCellCount) = VirtMergedCells(iElem)%MergedCellID(iOldElem)
-              VirtMergedCells(VirtMergedCells(iElem)%MergedCellID(iOldElem))%MasterCell = MasterCellID + offSetElem
-            END DO oldMasterElemLoop2
-            VirtMergedCells(MasterCellID)%MergedCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells) = iElem
-            VirtMergedCells(iElem)%MasterCell = MasterCellID + offSetElem
-            VirtMergedCells(iElem)%isMerged = .TRUE.
-            VirtMergedCells(MasterCellID)%MergedVolume=VirtMergedCells(MasterCellID)%MergedVolume+VirtMergedCells(iElem)%MergedVolume
-            VirtMergedCells(iElem)%MergedVolume = 0.0
-            VirtMergedCells(iElem)%NumOfMergedCells = 0
-            DEALLOCATE(VirtMergedCells(iElem)%MergedCellID)
-            DEALLOCATE(tempCellID)
-            CYCLE ElemLoop
-          ELSE
-            MasterCellID = LocNBElem
-            IF(VirtMergedCells(MasterCellID)%NumOfMergedCells.GE.(MaxNumOfMergedCells-1)) CYCLE NBElemLoop
-            ALLOCATE(tempCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells))
-            tempCellID = VirtMergedCells(MasterCellID)%MergedCellID
-            DEALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID)
-            VirtMergedCells(MasterCellID)%NumOfMergedCells = VirtMergedCells(MasterCellID)%NumOfMergedCells + 1
-            ALLOCATE(VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells))
-            VirtMergedCells(MasterCellID)%MergedCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1) = &
-              tempCellID(1:VirtMergedCells(MasterCellID)%NumOfMergedCells-1)
-            VirtMergedCells(MasterCellID)%MergedCellID(VirtMergedCells(MasterCellID)%NumOfMergedCells) = iElem
-            VirtMergedCells(MasterCellID)%MergedVolume=VirtMergedCells(MasterCellID)%MergedVolume+ElemVolume_Shared(CNElemID) 
-            VirtMergedCells(iElem)%MasterCell = MasterCellID + offSetElem
-            VirtMergedCells(iElem)%isMerged = .TRUE.
-            DEALLOCATE(tempCellID)
-            CYCLE ElemLoop
-          END IF
-        ELSE
-          CYCLE NBElemLoop
-        END IF
-      ELSE IF (VirtMergedCells(LocNBElem)%isMerged.AND.(.NOT.AllowBackMerge)) THEN
-        CYCLE NBElemLoop
-      ELSE IF ((VirtMergedCells(LocNBElem)%NumOfMergedCells.GT.0).AND.(.NOT.AllowBackMerge)) THEN
-        CYCLE NBElemLoop
-      ELSE
-        IF(VirtualCellMergeSpread.LT.3) AllowBackMerge = .FALSE.
-        IF (VirtMergedCells(iElem)%NumOfMergedCells.EQ.0) THEN
-          VirtMergedCells(iElem)%MergedVolume = VirtMergedCells(iElem)%MergedVolume + ElemVolume_Shared(CNElemID)
-          VirtMergedCells(iElem)%NumOfMergedCells = VirtMergedCells(iElem)%NumOfMergedCells + 1
-          ALLOCATE(VirtMergedCells(iElem)%MergedCellID(VirtMergedCells(iElem)%NumOfMergedCells))
-          VirtMergedCells(iElem)%MergedCellID(VirtMergedCells(iElem)%NumOfMergedCells) = LocNBElem
-          VirtMergedCells(iElem)%MergedVolume = VirtMergedCells(iElem)%MergedVolume + ElemVolume_Shared(CNNbElem)
-          VirtMergedCells(iElem)%MasterCell = iElem + offSetElem  
-          VirtMergedCells(LocNBElem)%MasterCell = iElem + offSetElem  
-          VirtMergedCells(LocNBElem)%isMerged = .TRUE.
-        ELSE
-          IF(VirtMergedCells(iElem)%NumOfMergedCells.GE.(MaxNumOfMergedCells-1)) CYCLE ElemLoop
-          ALLOCATE(tempCellID(VirtMergedCells(iElem)%NumOfMergedCells))
-          tempCellID = VirtMergedCells(iElem)%MergedCellID
-          DEALLOCATE(VirtMergedCells(iElem)%MergedCellID)
-          VirtMergedCells(iElem)%NumOfMergedCells = VirtMergedCells(iElem)%NumOfMergedCells + 1
-          ALLOCATE(VirtMergedCells(iElem)%MergedCellID(VirtMergedCells(iElem)%NumOfMergedCells))
-          VirtMergedCells(iElem)%MergedCellID(1:VirtMergedCells(iElem)%NumOfMergedCells-1) = &
-            tempCellID(1:VirtMergedCells(iElem)%NumOfMergedCells-1)
-          VirtMergedCells(iElem)%MergedCellID(VirtMergedCells(iElem)%NumOfMergedCells) = LocNBElem
-          VirtMergedCells(iElem)%MergedVolume = VirtMergedCells(iElem)%MergedVolume + ElemVolume_Shared(CNNbElem)
-          VirtMergedCells(LocNBElem)%MasterCell = iElem + offSetElem  
-          VirtMergedCells(LocNBElem)%isMerged = .TRUE.
-          DEALLOCATE(tempCellID)
-        END IF
-        nPartMerged = nPartMerged + PEM%pNumber(LocNBElem)
-        IF (nPartMerged.GT.MinPartNumCellMerge) CYCLE ElemLoop
-      END IF
-    END DO NBElemLoop    
-  END IF
-END DO ElemLoop
-
-END SUBROUTINE MergeCells
-
-
-
-SUBROUTINE InitializeParticleMaxwell(iPart,iSpec,iElem,Mode,iInit)
-!===================================================================================================================================
-!> Initialize a particle from a given macroscopic result, requires the macroscopic velocity, translational and internal temperatures
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Mesh_Vars               ,ONLY: offSetElem
-USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, VarTimeStep, PartMPF, Species
-USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC, RadialWeighting, AmbipolElecVelo
-USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
-USE MOD_Particle_Emission_Vars  ,ONLY: EmissionDistributionDim
-!USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcEElec_particle, CalcEVib_particle, CalcERot_particle
-!USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
-!-----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: iPart, iSpec, iElem
-INTEGER, INTENT(IN)             :: Mode                  !< 1: Macroscopic restart (data for each element)
-                                                         !< 2: Emission distribution (equidistant data from .h5 file)
-INTEGER, INTENT(IN), OPTIONAL   :: iInit                 !< particle emission initialization ID
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(LEN=100) :: hilf        !< auxiliary variable fr error output
-INTEGER            :: iSpecAD     !< ambipolar diffusion species ID
-REAL               :: v(3),vAD(3) !< velocity vector (vAD corresponds to ambipolar diffusion)
-REAL               :: T(3),TAD(3) !< temperature vector (TAD corresponds to ambipolar diffusion)
-REAL               :: Tvib        !< vibrational temperature
-REAL               :: Trot        !< rotational temperature
-REAL               :: Telec       !< electronic temperature
-!===================================================================================================================================
-
-SELECT CASE(Mode)
-CASE(1) ! Macroscopic restart (data for each element)
-  v       = MacroRestartValues(iElem,iSpec,1:3)
-  T       = MacroRestartValues(iElem,iSpec,4:6)
-  IF(DSMC%DoAmbipolarDiff)THEN
-    iSpecAD = DSMC%AmbiDiffElecSpec
-    vAD     = MacroRestartValues(iElem,iSpecAD,1:3)
-    TAD     = MacroRestartValues(iElem,iSpecAD,4:6)
-  END IF ! DSMC%DoAmbipolarDiff
-  Tvib    = MacroRestartValues(iElem,iSpec,DSMC_TVIB)
-  Trot    = MacroRestartValues(iElem,iSpec,DSMC_TROT)
-  Telec   = MacroRestartValues(iElem,iSpec,DSMC_TELEC)
-CASE(2) ! Emission distribution (equidistant data from .h5 file)
-  ! Sanity check
-  hilf=' is not implemented in InitializeParticleMaxwell() in combination with EmissionDistribution yet!'
-  IF(DSMC%DoAmbipolarDiff) CALL abort(__STAMP__,'DSMC%DoAmbipolarDiff=T'//TRIM(hilf))
-  IF(VarTimeStep%UseVariableTimeStep) CALL abort(__STAMP__,'VarTimeStep%UseVariableTimeStep=T'//TRIM(hilf))
-  IF(RadialWeighting%DoRadialWeighting) CALL abort(__STAMP__,'RadialWeighting%DoRadialWeighting=T'//TRIM(hilf))
-  ! Check dimensionality of data
-  SELECT CASE(EmissionDistributionDim)
-  CASE(1)
-    CALL abort(__STAMP__,'EmissionDistributionDim=1 is not implemented')
-  CASE(2)
-    ! Density field from .h5 file that is interpolated to the element origin (bilinear interpolation)
-    T(1:3) = InterpolateEmissionDistribution2D(iSpec,iInit,PartState(1:3,iPart),dimLower=4,dimUpper=4,transformation=.FALSE.)
-    v(1:3) = InterpolateEmissionDistribution2D(iSpec,iInit,PartState(1:3,iPart),dimLower=5,dimUpper=6,transformation=.TRUE.)
-  CASE(3)
-    CALL abort(__STAMP__,'EmissionDistributionDim=3 is not implemented')
-  END SELECT
-  Tvib    = T(1)
-  Trot    = T(1)
-  Telec   = T(1)
-CASE DEFAULT
-  CALL abort(__STAMP__,'InitializeParticleMaxwell: Mode option is unknown. Mode=',IntInfoOpt=Mode)
-END SELECT
-
-! 1) Set particle velocity from macroscopic bulk velocity and translational temperature in the cell
-PartState(4:6,iPart) = CalcVelocity_maxwell_particle(iSpec,T(1:3)) + v(1:3)
-
-IF (DSMC%DoAmbipolarDiff) THEN
-  IF(Species(iSpec)%ChargeIC.GT.0.0) THEN
-    IF (ALLOCATED(AmbipolElecVelo(iPart)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(iPart)%ElecVelo)
-    ALLOCATE(AmbipolElecVelo(iPart)%ElecVelo(3))
-    AmbipolElecVelo(iPart)%ElecVelo(1:3) = CalcVelocity_maxwell_particle(iSpecAD, TAD(1:3) ) + vAD(1:3)
-  END IF
-END IF
-! 2) Set internal energies (rotational, vibrational, electronic)
-IF(CollisMode.GT.1) THEN
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,Tvib,iPart)
-    PartStateIntEn(2,iPart) = CalcERot_particle(iSpec,Trot)
-  ELSE
-    PartStateIntEn(1:2,iPart) = 0.0
-  END IF
-  IF(DSMC%ElectronicModel.GT.0) THEN
-    IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-      PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,Telec,iPart)
-    ELSE
-      PartStateIntEn(3,iPart) = 0.0
-    END IF
-  END IF
-END IF
-
-! 3) Set the species and element number
-PartSpecies(iPart) = iSpec
-PEM%GlobalElemID(iPart) = iElem+offSetElem
-PEM%LastGlobalElemID(iPart) = iElem+offSetElem
-PDM%ParticleInside(iPart) = .TRUE.
-
-! 4) Set particle weights (if required)
-IF (VarTimeStep%UseVariableTimeStep) THEN
-  VarTimeStep%ParticleTimeStep(iPart) = CalcVarTimeStep(PartState(1,iPart),PartState(2,iPart),iElem)
-END IF
-IF (RadialWeighting%DoRadialWeighting) THEN
-  PartMPF(iPart) = CalcRadWeightMPF(PartState(2,iPart),iSpec,iPart)
-END IF
-
-END SUBROUTINE InitializeParticleMaxwell
-
-
-PPURE FUNCTION InterpolateEmissionDistribution2D(iSpec,iInit,Pos,dimLower,dimUpper,transformation)
-!===================================================================================================================================
-!> This function returns a scalar property or a vector property (transformation from cylindrical coordinates to Cartesian required!)
-!> Interpolates the variable external field to the r- and z-position via bilinear interpolation
-!>
-!>   1.2 --------- 2.2
-!>    |             |
-!>  r |             |
-!>    |             |
-!>   1.1 --------- 2.1
-!>           z
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species
-!USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistribution !< data in 2D cylindrical coordinates
-USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDelta
-USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMin
-USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionMax,EmissionDistributionNum
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)       :: iSpec, iInit
-REAL,INTENT(IN)          :: Pos(1:3)       !< coordinate
-LOGICAL,INTENT(IN)       :: transformation !< transform from f(r,z) to f(x,y,z)
-INTEGER,INTENT(IN)       :: dimLower,dimUpper !< lower and upper dimension of variables in EmissionDistribution
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL                     :: InterpolateEmissionDistribution2D(dimLower:dimLower+2)  !< 3D Cartesian vector
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                  :: iPos,jPos                                !< index in array (equidistant subdivision assumed)
-REAL                     :: f(dimLower:dimUpper)
-REAL                     :: r,delta,mat(2,2),dx(1:2),dy(1:2),vec(1:2)
-INTEGER                  :: idx1,idx2,idx3,idx4,i
-!===================================================================================================================================
-ASSOCIATE(&
-      x => Pos(1) ,&
-      y => Pos(2) ,&
-      z => Pos(3) ,&
-      EmissionDistribution => Species(iSpec)%Init(iInit)%EmissionDistribution&
-      )
-  r = SQRT(x*x + y*y)
-
-  IF(r.GT.EmissionDistributionMax(1))THEN
-    InterpolateEmissionDistribution2D = 0.
-  ELSEIF(r.LT.EmissionDistributionMin(1))THEN
-    InterpolateEmissionDistribution2D = 0.
-  ELSEIF(z.GT.EmissionDistributionMax(2))THEN
-    InterpolateEmissionDistribution2D = 0.
-  ELSEIF(z.LT.EmissionDistributionMin(2))THEN
-    InterpolateEmissionDistribution2D = 0.
-  ELSE
-
-    ! Get index in r and z
-    iPos = INT((r-EmissionDistribution(1,1))/EmissionDistributionDelta(1)) + 1 ! dr = EmissionDistributionDelta(1)
-    jPos = INT((z-EmissionDistribution(2,1))/EmissionDistributionDelta(2)) + 1 ! dz = EmissionDistributionDelta(2)
-    ! Catch problem when r or z are exactly at the upper boundary and INT() does not round to the lower integer (do not add +1 in
-    ! this case)
-    iPos = MIN(iPos, EmissionDistributionNum(2) - 1 )
-    jPos = MIN(jPos, EmissionDistributionNum(1) - 1 )
-
-    ! Shift all points by Nz = EmissionDistributionNum(1)
-    ASSOCIATE( Nz => EmissionDistributionNum(1) )
-      ! 1.1
-      idx1 = (iPos-1)*Nz + jPos
-      ! 2.1
-      idx2 = (iPos-1)*Nz + jPos + 1
-      ! 1.2
-      idx3 = iPos*Nz + jPos
-      ! 2.2
-      idx4 = iPos*Nz + jPos + 1
-    END ASSOCIATE
-
-    ! Interpolate
-    delta = EmissionDistributionDelta(1)*EmissionDistributionDelta(2)
-    delta = 1./delta
-
-    dx(1) = EmissionDistribution(1,idx4)-r
-    dx(2) = EmissionDistributionDelta(1) - dx(1)
-
-    dy(1) = EmissionDistribution(2,idx4)-z
-    dy(2) = EmissionDistributionDelta(2) - dy(1)
-
-    DO i = dimLower, dimUpper
-      mat(1,1) = EmissionDistribution(i,idx1)
-      mat(2,1) = EmissionDistribution(i,idx2)
-      mat(1,2) = EmissionDistribution(i,idx3)
-      mat(2,2) = EmissionDistribution(i,idx4)
-
-      vec(1) = dx(1)
-      vec(2) = dx(2)
-      f(i) = delta * DOT_PRODUCT( vec, MATMUL(mat, (/dy(1),dy(2)/) ) )
-    END DO ! i =  dimLower, dimUpper
-
-    ! Transform from Br, Bz to Bx, By, Bz
-    IF(transformation)THEN
-      r=1./r
-      InterpolateEmissionDistribution2D(dimLower)   = f(dimLower)*x*r
-      InterpolateEmissionDistribution2D(dimLower+1) = f(dimLower)*y*r
-      InterpolateEmissionDistribution2D(dimLower+2) = f(dimUpper)
-    ELSE
-      InterpolateEmissionDistribution2D(dimLower:dimUpper) = f(dimLower:dimUpper)
-      InterpolateEmissionDistribution2D(dimLower+1) = InterpolateEmissionDistribution2D(dimLower)
-      InterpolateEmissionDistribution2D(dimLower+2) = InterpolateEmissionDistribution2D(dimLower)
-    END IF ! transformation
-  END IF ! r.GT.EmissionDistributionMax(1)
-END ASSOCIATE
-
-END FUNCTION InterpolateEmissionDistribution2D
 
 END MODULE MOD_part_tools
