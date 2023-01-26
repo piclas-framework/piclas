@@ -217,7 +217,7 @@ The following list contains the **recommended/working library versions** for PET
 | PICLas Version |    3.18   |    3.17   |
 | :------------: | :-------: | :-------: |
 |      3.0.0     |    yes    |    yes    |
-|      2.9.0     |    yes    |     no    |
+|      2.9.0     |    no     |    yes    |
 
 #### Local machine
 Download PETSc from the git repository
