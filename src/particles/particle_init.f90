@@ -106,9 +106,6 @@ CALL prms%CreateLogicalOption(  'Particles-DoTimeDepInflow'   , 'Insertion and S
                                                                 ' simple random rounding. Linearly ramping of'//&
                                                                 ' inflow-number-of-particles is only possible with'//&
                                                                 ' PoissonRounding or DoTimeDepInflow', '.FALSE.')
-CALL prms%CreateIntOption(      'Part-RotPeriodicAxi'         , 'Axis of rotational periodicity:'//&
-                                                                   'x=1, y=2, z=3')
-CALL prms%CreateRealOption(     'Part-RotPeriodicAngle'       , 'Angle for rotational periodicity [deg]')
 CALL prms%CreateIntOption(      'Part-nPeriodicVectors'       , 'Number of the periodic vectors j=1,...,n.'//&
                                                                    ' Value has to be the same as defined in preprog.ini', '0')
 
@@ -285,7 +282,7 @@ USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
 USE MOD_SurfaceModel_Porous        ,ONLY: InitPorousBoundaryCondition
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
-USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
@@ -330,8 +327,9 @@ END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLES ...'
 
-! Initialize bulk temperature (might be set in surface model OR later in part analyze routine)
-BulkElectronTemp = 0.
+! Initialize bulk temperatures (might be set in surface model OR later in part analyze routine)
+BulkElectronTemp    = 0.
+BulkElectronTempSEE = 0.
 
 IF(TrackingMethod.NE.TRIATRACKING) THEN
   CALL InitParticleSurfaces()

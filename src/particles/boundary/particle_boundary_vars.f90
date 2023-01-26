@@ -266,7 +266,9 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: Voltage(:)
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
   REAL    , ALLOCATABLE                  :: RotOmega(:,:)                 ! Angular velocity
-  INTEGER , ALLOCATABLE                  :: RotPeriodicDir(:)             ! Direction of rotation
+  REAL    , ALLOCATABLE                  :: RotPeriodicAngle(:)           ! Angle and Direction of rotation
+  REAL    , ALLOCATABLE                  :: RotPeriodicMin(:)             ! Min rot axi value
+  REAL    , ALLOCATABLE                  :: RotPeriodicMax(:)             ! Max rot axi value
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          ! Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         ! Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           ! Species to be changed at wall (in, out), out=0: delete

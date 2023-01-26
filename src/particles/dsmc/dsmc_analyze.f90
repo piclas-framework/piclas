@@ -1015,7 +1015,7 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
   CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
   ! Standard variable names 
-  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar,StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar+nVar_quality,StrArray=StrVarNames)
   ! Additional variable names: electronic excitation rate output
   IF(SampleElecExcitation) CALL WriteAttributeToHDF5(File_ID,'VarNamesExci',ExcitationLevelCounter,StrArray=StrVarNamesElecExci)
   CALL CloseDataFile()

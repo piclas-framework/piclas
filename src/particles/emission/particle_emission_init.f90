@@ -62,7 +62,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-InflowRiseTime'      , 
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusIC'            , 'Radius for IC circle'                 , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-Radius2IC'           , 'Radius2 for IC cylinder (ring)' , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-Init[$]-RadiusICGyro'        ,'Radius for Gyrotron gyro radius','1.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-NormalIC'            ,'Normal / Orientation of circle', '0. , 0. , 1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-NormalIC'            ,'Normal / Orientation of circle', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-BasePointIC'         ,'Base point for IC cuboid and IC sphere ', '0. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-BaseVector1IC'       ,'First base vector for IC cuboid', '1. , 0. , 0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Part-Species[$]-Init[$]-BaseVector2IC'       ,'Second base vector for IC cuboid', '0. , 1. , 0.', numberedmulti=.TRUE.)
@@ -290,7 +290,7 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%BaseVector2IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector2IC',3)
       Species(iSpec)%Init(iInit)%NormalVector2IC        = UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC)
       !--- Normalize NormalIC (and BaseVector 1 & 3 IC for cylinder/sphere) for Inits
-      Species(iSpec)%Init(iInit)%NormalIC = Species(iSpec)%Init(iInit)%NormalIC / VECNORM(Species(iSpec)%Init(iInit)%NormalIC)
+      Species(iSpec)%Init(iInit)%NormalIC = UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
         Species(iSpec)%Init(iInit)%BaseVector1IC = Species(iSpec)%Init(iInit)%RadiusIC * Species(iSpec)%Init(iInit)%BaseVector1IC &
                                                     / VECNORM(Species(iSpec)%Init(iInit)%BaseVector1IC)
@@ -309,6 +309,7 @@ DO iSpec = 1, nSpecies
     END IF
     ! Specifically for photon SEE on rectangle
     IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_rectangle')THEN
+      ! Calculate the height using the base vectors. Use the length of the smaller one.
       Species(iSpec)%Init(iInit)%CuboidHeightIC = &
           MIN(VECNORM(Species(iSpec)%Init(iInit)%BaseVector1IC),VECNORM(Species(iSpec)%Init(iInit)%BaseVector2IC))
     END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'gyrotron_circle'
@@ -681,12 +682,12 @@ ASSOCIATE( n1 => UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)      ,&
            n3 => UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC) ,&
            v2 => Species(iSpec)%Init(iInit)%BaseVector1IC             ,&
            v3 => Species(iSpec)%Init(iInit)%BaseVector2IC             )
-  IF(DOT_PRODUCT(n1,n2).GT.1e-4) CALL abort(__STAMP__&
-      ,'NormalIC and BaseVector1IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n1,n2))
-  IF(DOT_PRODUCT(n1,n3).GT.1e-4) CALL abort(__STAMP__&
-      ,'NormalIC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n1,n3))
+  !IF(DOT_PRODUCT(n1,n2).GT.1e-4) CALL abort(__STAMP__&
+      !,TRIM(hilf2)//': NormalIC and BaseVector1IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n1,n2))
+  !IF(DOT_PRODUCT(n1,n3).GT.1e-4) CALL abort(__STAMP__&
+      !,TRIM(hilf2)//': NormalIC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n1,n3))
   IF(DOT_PRODUCT(n2,n3).GT.1e-4) CALL abort(__STAMP__&
-      ,'BaseVector1IC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n2,n3))
+      ,TRIM(hilf2)//': BaseVector1IC and BaseVector2IC are not perpendicular! Their dot product yields ',RealInfoOpt=DOT_PRODUCT(n2,n3))
   ! Settings only for rectangle emission
   SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
   CASE('photon_SEE_rectangle','photon_rectangle')
