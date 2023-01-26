@@ -142,7 +142,7 @@ REAL,INTENT(IN)       :: WallTemp
 ! LOCAL VARIABLES
 INTEGER               :: SpecID, vibQuant, vibQuantNew, VibQuantWall
 REAL                  :: RanNum
-REAL                  :: TransACC, VibACC, RotACC, ElecACC
+REAL                  :: VibACC, RotACC, ElecACC
 REAL                  :: ErotNew, ErotWall, EVibNew
 ! Polyatomic Molecules
 REAL                  :: NormProb, VibQuantNewR
@@ -151,7 +151,6 @@ INTEGER               :: iPolyatMole, iDOF
 INTEGER, ALLOCATABLE  :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 SpecID    = PartSpecies(PartID)
-TransACC  = PartBound%TransACC(locBCID)
 VibACC    = PartBound%VibACC(locBCID)
 RotACC    = PartBound%RotACC(locBCID)
 ElecACC   = PartBound%ElecACC(locBCID)

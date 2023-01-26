@@ -95,7 +95,6 @@ USE MOD_Particle_Vars          ,ONLY: DoImportIMDFile
 #if USE_MPI
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*USE_MPI*/
-USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 #if (USE_MPI) && (USE_LOADBALANCE) && defined(PARTICLES)
@@ -240,12 +239,6 @@ WallTimeStart=PICLASTIME()
 CALL CPU_TIME(time_start)
 
 DO !iter_t=0,MaxIter
-
-#ifdef PARTICLES
-  IF(enableParticleMerge) THEN
-    IF ((iter.GT.0).AND.(MOD(iter,INT(vMPFMergeParticleIter,8)).EQ.0)) doParticleMerge=.true.
-  END IF
-#endif /*PARTICLES*/
 
 #if defined(PARTICLES) && USE_HDG
   ! Check if BR<->kin switch is active

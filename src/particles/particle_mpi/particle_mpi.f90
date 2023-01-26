@@ -888,8 +888,7 @@ USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf!,PartMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, VarTimeStep
-USE MOD_Particle_Vars          ,ONLY: doParticleMerge, vMPF_SpecNumElem, LastPartPos
+USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, VarTimeStep, LastPartPos
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
 USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc,DoParticleLatencyHiding
@@ -1280,7 +1279,7 @@ DO iProc=0,nExchangeProcessors-1
       IF (useDSMC) THEN
         CALL GetPositionInRefElem(PartState(1:3,PartID),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID))
       END IF
-      IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
+      IF (useDSMC.OR.usevMPF) THEN
         IF (PEM%pNumber(ElemID).EQ.0) THEN
           PEM%pStart(ElemID) = PartID                    ! Start of Linked List for Particles in Elem
         ELSE
@@ -1292,7 +1291,6 @@ DO iProc=0,nExchangeProcessors-1
         IF (VarTimeStep%UseVariableTimeStep) THEN
           VarTimeStep%ParticleTimeStep(PartID) = CalcVarTimeStep(PartState(1,PartID),PartState(2,PartID),ElemID)
         END IF
-        IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(PartID)) = vMPF_SpecNumElem(ElemID,PartSpecies(PartID)) + 1
       END IF
     END IF
   END DO

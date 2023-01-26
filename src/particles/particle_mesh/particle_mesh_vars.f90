@@ -256,10 +256,6 @@ INTEGER,ALLOCATABLE                      :: ElemHaloID(:)
 ! periodic case
 INTEGER,ALLOCATABLE                      :: PeriodicSFCaseMatrix(:,:)   ! matrix to compute periodic cases
 INTEGER                                  :: NbrOfPeriodicSFCases        ! Number of periodic cases
-! Still required for PIC depo, should be remove later
-!! ====================================================================
-LOGICAL,ALLOCATABLE :: ElemHasAuxBCs(:,:)
-! Still required for PIC depo, should be remove later
 ! ====================================================================
 INTEGER                                 :: RefMappingGuess    ! select guess for mapping into reference
                                                               ! element
