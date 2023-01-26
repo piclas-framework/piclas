@@ -200,7 +200,7 @@ iter_PID = 0
 ! fill recordpoints buffer (first iteration)
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.)
 
-CALL PrintStatusLine(time,dt,tStart,tEnd)
+CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
 #if defined(PARTICLES) && defined(CODE_ANALYZE)
 ! Set specific particle position and velocity (calculated from an analytical expression)
@@ -269,7 +269,7 @@ DO !iter_t=0,MaxIter
   END IF ! MPIroot
 #endif /*NOT USE_HDG*/
 
-  CALL PrintStatusLine(time,dt,tStart,tEnd)
+  CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
@@ -414,6 +414,7 @@ DO !iter_t=0,MaxIter
       ! Analyze for output
       CALL PerformAnalyze(time, FirstOrLastIter=finalIter, OutPutHDF5=.TRUE.) ! analyze routines are not called here in last iter
       ! write information out to std-out of console
+      CALL PrintStatusLine(time,dt,tStart,tEnd,2)
       CALL WriteInfoStdOut()
 #if defined(PARTICLES)
       CALL FillParticleData() ! Fill the SFC-ordered particle arrays for LB or I/O
