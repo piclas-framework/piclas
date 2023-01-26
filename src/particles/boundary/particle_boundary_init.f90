@@ -232,7 +232,7 @@ USE MOD_ReadInTools
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
-USE MOD_Particle_Vars          ,ONLY: PDM, nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase
+USE MOD_Particle_Vars          ,ONLY: PDM, nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
 USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
@@ -264,7 +264,8 @@ CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
 LOGICAL               :: DeprecatedVoltage
 CHARACTER(LEN=64)     :: dsetname
-LOGICAL               :: StickingCoefficientExists
+LOGICAL               :: StickingCoefficientExists,FoundPartBoundSEE
+INTEGER               :: iInit,iSpec
 !===================================================================================================================================
 ! Read in boundary parameters
 dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .ini file
@@ -491,8 +492,19 @@ DO iPartBound=1,nPartBound
   IF(PartBound%BoundaryParticleOutputHDF5(iPartBound)) DoBoundaryParticleOutputHDF5=.TRUE.
 END DO
 
+! Check if there is an particle init with photon SEE
+FoundPartBoundSEE=.FALSE.
+SpecLoop: DO iSpec=1,nSpecies
+  DO iInit=1, Species(iSpec)%NumberOfInits
+    IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE'))THEN
+      FoundPartBoundSEE = .TRUE.
+      EXIT SpecLoop
+    END IF ! StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')
+  END DO
+END DO SpecLoop
+
 ! Connect emission inits to particle boundaries for output
-IF(DoBoundaryParticleOutputHDF5) CALL InitializeVariablesSpeciesBoundary()
+IF(DoBoundaryParticleOutputHDF5.OR.FoundPartBoundSEE) CALL InitializeVariablesSpeciesBoundary()
 
 AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 

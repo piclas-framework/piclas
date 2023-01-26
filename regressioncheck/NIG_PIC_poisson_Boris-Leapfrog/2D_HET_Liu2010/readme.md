@@ -22,7 +22,7 @@
       Part-SurfaceModel-SEE-Te-automatic  = T ! Instead of using a fixed bulk electron temperature, determine the global temperature of the defined species (default is False). Note that Part-SurfaceModel-SEE-Te is used as initial value.
       Part-SurfaceModel-SEE-Te-Spec       = 2 ! For automatic bulk Te determination, state the species ID of the electrons
 
-- Neutralization emission BC via keeping the exiting charge at the right BC zero over time (averged)
+- Neutralization emission BC via keeping the exiting charge at the right BC zero over time (averaged)
 
     Part-Species2-Init2-SpaceIC = 2D_Liu2010_neutralization
 
@@ -30,3 +30,11 @@
   elements
 
     Part-Species2-Init2-SpaceIC = 2D_Liu2010_neutralization_Szabo
+
+- Output of particle flux, total electric current and emitted SEE over time into SurfaceAnalyze.csv for particle boundaries 1,2 and 3via
+
+    CalcBoundaryParticleOutput = T
+    BPO-NPartBoundaries        = 3         ! Nbr of boundaries
+    BPO-PartBoundaries         = (/1,2,3/) ! Part-Boundary1 to Part-Boundary3
+    BPO-NSpecies               = 2         ! Nbr of species
+    BPO-Species                = (/2,3/)   ! electrons, Xe+

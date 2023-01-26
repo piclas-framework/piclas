@@ -180,7 +180,7 @@ CASE (SEE_MODELS_ID)
   CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy)
   ! Decide the fate of the impacting particle
   IF (ProductSpec(1).LE.0) THEN
-    CALL RemoveParticle(PartID)
+    CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
   ELSE
     CALL MaxwellScattering(PartID,SideID,n_Loc)
   END IF
