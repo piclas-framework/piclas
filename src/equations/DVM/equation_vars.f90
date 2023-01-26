@@ -39,6 +39,7 @@ INTEGER,ALLOCATABLE  :: BCSideID(:,:)         !< SideIDs for BC types
 
 INTEGER              :: DVMnVelos(3)
 INTEGER              :: DVMBGKModel
+INTEGER              :: DVMMethod
 INTEGER              :: DVMVeloDisc
 REAL                 :: DVMGHTemp(3)
 INTEGER              :: DVMNewtDeg(3)
