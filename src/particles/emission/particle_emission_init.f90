@@ -252,6 +252,13 @@ DO iSpec = 1, nSpecies
   Species(iSpec)%TimeStepFactor              = GETREAL('Part-Species'//TRIM(hilf)//'-TimeStepFactor')
   IF(Species(iSpec)%TimeStepFactor.NE.1.) THEN
     VarTimeStep%UseSpeciesSpecific = .TRUE.
+    IF(Species(iSpec)%TimeStepFactor.GT.1.) CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step only allows factors below 1!')
+#if (USE_HDG) && !(PP_TimeDiscMethod==508)
+    CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with Boris-Leapfrog time discretization!')
+#endif /*(USE_HDG)*/
+#if !(USE_HDG) && !(PP_TimeDiscMethod==4)
+    CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with HDG and/or DSMC')
+#endif /*!(USE_HDG) && !(PP_TimeDiscMethod==4)*/
   END IF
 #if defined(IMPA)
   Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsImplicit')

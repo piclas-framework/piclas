@@ -134,7 +134,6 @@ IF (time.GE.DelayTime) THEN
       END IF
       ! Set the species-specific time step
       IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(iPart))%TimeStepFactor
-      ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoSurfaceFlux for compiler-optimization if .FALSE.
         CALL RANDOM_NUMBER(RandVal)
         dtFrac = dtVar * RandVal
@@ -155,6 +154,7 @@ IF (time.GE.DelayTime) THEN
           PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
         END IF
       END IF
+      ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
       IF(isPushParticle(iPart).AND.DoInterpolation)THEN ! Don't push the velocity component of neutral particles!
         !-- v(n-0.5) => v(n+0.5) by a(n):
@@ -235,6 +235,14 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
     IF(DoInterpolation) CALL CalcPartRHS()
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
+        ! Set the particle time step
+        IF (UseVarTimeStep) THEN
+          dtVar = dt * PartTimeStep(iPart)
+        ELSE
+          dtVar = dt
+        END IF
+        ! Set the species-specific time step
+        IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(iPart))%TimeStepFactor
         !-- v(n+0.5) => v(n+1) by a(n+1):
         velocityAtTime(1:3,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dtVar*0.5
       END IF
