@@ -317,7 +317,7 @@ INTEGER,INTENT(OUT) :: MPIRequest(nNbProcs)                                   !<
 DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
     nRecVal = PP_nVar*DataSizeSideRec(iNbProc,SendID)
-    CALL MPI_IRECV(DGExchange(iNbProc)%FaceData(:,:),nRecVal,MPI_DOUBLE_PRECISION,  &
+    CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecv(:,1:DataSizeSideRec(iNbProc,SendID)),nRecVal,MPI_DOUBLE_PRECISION,  &
                     nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
   ELSE
     MPIRequest(iNbProc)=MPI_REQUEST_NULL
@@ -394,7 +394,7 @@ DO iNbProc=1,nNbProcs
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
           DO q = 0, N_slave
-            DGExchange(iNbProc)%FaceData(1:PP_nVar,i) = U_Surf_N(iSide)%U_Slave(1:PP_nVar,p,q)
+            DGExchange(iNbProc)%FaceDataSend(1:PP_nVar,i) = U_Surf_N(iSide)%U_Slave(1:PP_nVar,p,q)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
@@ -404,14 +404,14 @@ DO iNbProc=1,nNbProcs
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
           DO q = 0, N_slave
-            DGExchange(iNbProc)%FaceData(1:PP_nVar,i) = U_Surf_N(iSide)%Flux_Slave(1:PP_nVar,p,q)
+            DGExchange(iNbProc)%FaceDataSend(1:PP_nVar,i) = U_Surf_N(iSide)%Flux_Slave(1:PP_nVar,p,q)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
       END DO ! iSide = SideID_start, SideID_end
     END IF ! SendID.EQ.2
 
-    CALL MPI_ISEND(DGExchange(iNbProc)%FaceData(:,:),nSendVal,MPI_DOUBLE_PRECISION,  &
+    CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSend(:,1:DataSizeSideSend(iNbProc,SendID)),nSendVal,MPI_DOUBLE_PRECISION,  &
                     nbProc(iNbProc),0,MPI_COMM_WORLD,MPIRequest(iNbProc),iError)
   ELSE
     MPIRequest(iNbProc)=MPI_REQUEST_NULL
@@ -658,11 +658,11 @@ DO iNbProc=1,nNbProcs
 
     i = 1
     IF(SendID.EQ.2)THEN
-      DO iSide = SideID_start, SideID_end
+      DO iSide = SideID_start, SideID_end       
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
           DO q = 0, N_slave
-            U_Surf_N(iSide)%U_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceData(1:PP_nVar,i)
+            U_Surf_N(iSide)%U_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceDataRecv(1:PP_nVar,i)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
@@ -672,7 +672,7 @@ DO iNbProc=1,nNbProcs
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
           DO q = 0, N_slave
-            U_Surf_N(iSide)%Flux_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceData(1:PP_nVar,i)
+            U_Surf_N(iSide)%Flux_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceDataRecv(1:PP_nVar,i)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave

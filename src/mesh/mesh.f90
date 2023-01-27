@@ -512,6 +512,7 @@ END SUBROUTINE InitpAdaption
 !==================================================================================================================================
 SUBROUTINE DG_ProlongDGElemsToFace()
 ! MODULES
+USE MOD_GLobals
 USE MOD_DG_Vars   ,ONLY: N_DG,DG_Elems_master,DG_Elems_slave
 USE MOD_Mesh_Vars ,ONLY: SideToElem,nSides,nBCSides
 #if USE_MPI
@@ -579,7 +580,13 @@ END DO ! iNbProc = 1, nNbProcs
 ! Create unrolled arrays
 ALLOCATE(DGExchange(nNbProcs))
 DO iNbProc=1,nNbProcs
-  ALLOCATE(DGExchange(iNbProc)%FaceData(PP_nVar, DataSizeSideRec(iNbProc,1)))
+  ALLOCATE(DGExchange(iNbProc)%FaceDataRecv(PP_nVar, MAXVAL(DataSizeSideRec(iNbProc,:))))
+  ALLOCATE(DGExchange(iNbProc)%FaceDataSend(PP_nVar, MAXVAL(DataSizeSideSend(iNbProc,:))))
+  IPWRITE(*,*)'send1',DataSizeSideSend(:,1)
+  IPWRITE(*,*)'send2',DataSizeSideSend(:,2)
+
+  IPWRITE(*,*)'recv1',DataSizeSideRec(:,1)
+  IPWRITE(*,*)'recv2',DataSizeSideRec(:,2)
 END DO !iProc=1,nNBProcs
 #endif /*USE_MPI*/
 END SUBROUTINE DG_ProlongDGElemsToFace

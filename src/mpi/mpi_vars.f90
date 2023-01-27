@@ -47,7 +47,8 @@ INTEGER,ALLOCATABLE   :: OffsetMPISides_send(:,:),OffsetMPISides_rec(:,:)
 INTEGER,ALLOCATABLE   :: DataSizeSideSend(:,:),DataSizeSideRec(:,:)
 
 TYPE tExchangeData
-  REAL,ALLOCATABLE      :: FaceData(:,:)
+  REAL,ALLOCATABLE      :: FaceDataSend(:,:)
+  REAL,ALLOCATABLE      :: FaceDataRecv(:,:)
 END TYPE tExchangeData
 
 TYPE(tExchangeData), ALLOCATABLE :: DGExchange(:)
