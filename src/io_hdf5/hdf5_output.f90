@@ -432,7 +432,7 @@ SUBROUTINE WriteHDF5Header(FileType_in,File_ID)
 ! Subroutine to write a distinct file header to each HDF5 file
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars ,ONLY: ProgramName,FileVersion,ProjectName,PiclasVersionStr
+USE MOD_Globals_Vars ,ONLY: ProgramName,FileVersionReal,FileVersionInt,ProjectName,PiclasVersionStr
 USE MOD_Globals_Vars ,ONLY: MajorVersion,MinorVersion,PatchVersion
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -459,10 +459,11 @@ tmp255=TRIM(FileType_in)
 CALL WriteAttributeToHDF5(File_ID,'File_Type'   ,1,StrScalar=(/tmp255/))
 tmp255=TRIM(ProjectName)
 CALL WriteAttributeToHDF5(File_ID,'Project_Name',1,StrScalar=(/tmp255/))
-CALL WriteAttributeToHDF5(File_ID,'File_Version',1,RealScalar=FileVersion)
+CALL WriteAttributeToHDF5(File_ID,'File_Version',1,RealScalar=FileVersionReal)
 WRITE(UNIT=PiclasVersionStr,FMT='(I0,A1,I0,A1,I0)') MajorVersion,".",MinorVersion,".",PatchVersion
 tmp255=TRIM(PiclasVersionStr)
 CALL WriteAttributeToHDF5(File_ID,'Piclas_Version',1,StrScalar=(/tmp255/))
+CALL WriteAttributeToHDF5(File_ID,'Piclas_VersionInt',1,IntegerScalar=FileVersionInt)
 END SUBROUTINE WriteHDF5Header
 
 

@@ -101,7 +101,8 @@ CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
 LOGICAL                            :: VibQuantDataExists,changedVars,DGSourceExists
 LOGICAL                            :: ElecDistriDataExists,AD_DataExists,implemented
 LOGICAL                            :: FileVersionExists
-REAL                               :: FileVersionHDF5
+REAL                               :: FileVersionHDF5Real
+INTEGER                            :: FileVersionHDF5Int
 INTEGER                            :: PartDataSize_HDF5              ! number of entries in each line of PartData
 REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
 ! Temporary arrays
@@ -549,29 +550,35 @@ ELSE
     ! Check file version
     CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
     IF(FileVersionExists)THEN
-      CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
+      CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5Real)
+
+      ! Associate construct for integer KIND=8 possibility
+      ASSOCIATE (&
+            PP_nElems   => INT(PP_nElems,IK)   ,&
+            PartIntSize => INT(PartIntSize,IK) ,&
+            offsetElem  => INT(offsetElem,IK)   )
+        ! Depending on the file version, PartInt may have switched dimensions
+        IF(FileVersionHDF5Real.LT.2.8)THEN
+          ALLOCATE(PartIntTmp(FirstElemInd:LastElemInd,PartIntSize))
+          CALL ReadArray('PartInt',2,(/PP_nElems,PartIntSize/),offsetElem,1,IntegerArray=PartIntTmp)
+          ! Switch dimensions
+          DO iElem = FirstElemInd, LastElemInd
+            PartInt(:,iElem) = PartIntTmp(iElem,:)
+          END DO ! iElem = FirstElemInd, LastElemInd
+          DEALLOCATE(PartIntTmp)
+        ELSE
+          CALL ReadArray('PartInt',2,(/PartIntSize,PP_nElems/),offsetElem,2,IntegerArray=PartInt)
+        END IF ! FileVersionHDF5Real.LT.2.7
+      END ASSOCIATE
     ELSE
-      CALL abort(__STAMP__,'Error in ParticleRestart(): Attribute "File_Version" does not exist!')
+      CALL DatasetExists(File_ID,'Piclas_VersionInt',FileVersionExists,attrib=.TRUE.)
+      IF (FileVersionExists) THEN
+        CALL ReadAttribute(File_ID,'Piclas_VersionInt',1,IntScalar=FileVersionHDF5Int)
+      ELSE
+        CALL abort(__STAMP__,'Error in ParticleRestart(): Attribute "Piclas_VersionInt" does not exist!')
+      END IF
     ENDIF
 
-    ! Associate construct for integer KIND=8 possibility
-    ASSOCIATE (&
-          PP_nElems   => INT(PP_nElems,IK)   ,&
-          PartIntSize => INT(PartIntSize,IK) ,&
-          offsetElem  => INT(offsetElem,IK)   )
-      ! Depending on the file version, PartInt may have switched dimensions
-      IF(FileVersionHDF5.LT.2.8)THEN
-        ALLOCATE(PartIntTmp(FirstElemInd:LastElemInd,PartIntSize))
-        CALL ReadArray('PartInt',2,(/PP_nElems,PartIntSize/),offsetElem,1,IntegerArray=PartIntTmp)
-        ! Switch dimensions
-        DO iElem = FirstElemInd, LastElemInd
-          PartInt(:,iElem) = PartIntTmp(iElem,:)
-        END DO ! iElem = FirstElemInd, LastElemInd
-        DEALLOCATE(PartIntTmp)
-      ELSE
-        CALL ReadArray('PartInt',2,(/PartIntSize,PP_nElems/),offsetElem,2,IntegerArray=PartInt)
-      END IF ! FileVersionHDF5.LT.2.7
-    END ASSOCIATE
 
     ! ------------------------------------------------
     ! PartData

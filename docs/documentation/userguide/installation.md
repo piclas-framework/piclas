@@ -212,11 +212,18 @@ For convenience, you can add these lines to your `.bashrc`.
 (sec:petsc-installation)=
 ### Installing PETSc
 
+The following list contains the **recommended/working library versions** for PETSc and PICLas
+
+| PICLas Version |    3.18   |    3.17   |
+| :------------: | :-------: | :-------: |
+|      3.0.0     |    yes    |    yes    |
+|      2.9.0     |    no     |    yes    |
+
 #### Local machine
 Download PETSc from the git repository
 
 ````
-git clone -b main https://gitlab.com/petsc/petsc.git petsc
+git clone -b release-3.17 https://gitlab.com/petsc/petsc.git petsc
 ````
 
 Configure and install PETSc (MPI and BLAS/LAPACK have to be installed)

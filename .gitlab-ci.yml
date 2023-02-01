@@ -373,25 +373,25 @@ poisson_release:
   <<: *defaults_poisson
   stage: reggie_checkin
   script:
-    - cd build_poisson_release ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
+    - cd build_poisson_release ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
 
 poisson_debug:
   <<: *defaults_poisson
   stage: reggie_checkin
   script:
-    - cd build_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
+    - cd build_poisson_debug ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
 
 poisson_petsc_release:
   <<: *defaults_poisson_petsc
   stage: reggie_checkin
   script:
-    - cd build_poisson_petsc_release ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
+    - cd build_poisson_petsc_release ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
 
 poisson_petsc_debug:
   <<: *defaults_poisson_petsc
   stage: reggie_checkin
   script:
-    - cd build_poisson_petsc_debug ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson/poisson -e ./bin/piclas
+    - cd build_poisson_petsc_debug ; python ./reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
 
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------

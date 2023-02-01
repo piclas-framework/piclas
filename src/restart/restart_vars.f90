@@ -32,8 +32,7 @@ LOGICAl            :: FlushInitialState   = .FALSE. !< During restart delete the
 LOGICAl            :: DoInitialAutoRestart= .FALSE.
 LOGICAl            :: InitialAutoRestartPartWeight= .FALSE.
 INTEGER            :: InitialAutoRestartSample
-LOGICAl            :: BuildNewMesh        = .TRUE.
-LOGICAl            :: WriteNewMesh        = .TRUE.
+!LOGICAL            :: InterpolateSolution =.FALSE.
 CHARACTER(LEN=300) :: RestartFile = ""
 CHARACTER(LEN=255) :: NodeType_Restart
 REAL               :: RestartTime
