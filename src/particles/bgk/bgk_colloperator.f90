@@ -176,6 +176,8 @@ IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
       ! Sum up collision frequencies of species i with itself and the other species
       ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 87f
       ! For SpecBGK(iSpec)%CollFreqPreFactor(jSpec) see bgk_init.f90
+      ! VHS according to M. Pfeiffer, "Extending the particle ellipsoidal statistical Bhatnagar-Gross-Krook method to diatomic
+      ! molecules including quantized vibrational energies", Phys. Fluids 30, 116103 (2018), Eq. (18)
       collisionfreqSpec(iSpec) = collisionfreqSpec(iSpec) + SpecBGK(iSpec)%CollFreqPreFactor(jSpec) * totalWeightSpec(jSpec) &
               * (Dens / totalWeight) *CellTemptmp**(-CollInf%omega(iSpec,jSpec) +0.5)
     END DO
@@ -384,8 +386,8 @@ REAL, INTENT(OUT)             :: vBulkAll(3), totalWeight, TotalMass, dtCell
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iLoop, iPart, iSpec, fillMa1, fillMa2
-REAL                          :: V_rel(1:3), vmag2, partWeight, EnerTotal, totalWeightSpec2(nSpecies), vBulkSpec(3,nSpecies)
-REAL                          :: tempweight, tempweight2, tempmass, vBulkTemp(3), totalWeight2, totalWeight3
+REAL                          :: V_rel(1:3), vmag2, EnerTotal, ThermEner, totalWeightSpec2(nSpecies), vBulkSpec(3,nSpecies)
+REAL                          :: partWeight, tempweight, tempweight2, tempmass, vBulkTemp(3), totalWeight2, totalWeight3
 LOGICAL                       :: validSpec(nSpecies)
 !===================================================================================================================================
 totalWeightSpec = 0.0; totalWeightSpec2=0.0; vBulkAll=0.0; TotalMass=0.0; vBulkSpec=0.0; nSpec=0; dtCell=0.0
@@ -441,7 +443,7 @@ DO iLoop = 1, nPart
     totalWeight3 = totalWeight3 + partWeight*partWeight*partWeight
   END IF
 
-  ! Sum up old energy of thermal velocities and sum up internal energies
+  ! Sum up old energy of thermal velocities and sum up internal energies --> E_T
   OldEn = OldEn + 0.5*Species(iSpec)%MassIC * vmag2*partWeight
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     IF(BGKDoVibRelaxation) THEN
@@ -453,9 +455,11 @@ DO iLoop = 1, nPart
 END DO
 
 IF (BGKCollModel.EQ.1)  THEN ! ESBGK
+  ! Pressure tensor
   u0ij = u0ij* totalWeight / (TotalMass*(totalWeight - totalWeight2/totalWeight))
 END IF
 IF (BGKCollModel.EQ.2)  THEN ! Shakhov
+  ! Heatflux
   u2i = u2i*totalWeight**3/(TotalMass*(totalWeight**3-3.*totalWeight*totalWeight2+2.*totalWeight3))
 END IF
 
@@ -469,7 +473,7 @@ IF (nSpecies.GT.1) THEN ! mixture
     ! At least two particles and non-zero squared thermal velocity needed for a valid species
     IF ((nSpec(iSpec).GE.2).AND.(.NOT.ALMOSTZERO(u2Spec(iSpec)))) THEN
       validSpec = .TRUE.
-      ! Calculation of the species temperature
+      ! Calculation of the species temperature --> translational temperatures of the different species
       SpecTemp(iSpec) = Species(iSpec)%MassIC * u2Spec(iSpec) &
           /(3.0*BoltzmannConst*(totalWeightSpec(iSpec) - totalWeightSpec2(iSpec)/totalWeightSpec(iSpec)))
       ! Thermal energy
@@ -485,11 +489,13 @@ IF (nSpecies.GT.1) THEN ! mixture
   END DO
   IF (ANY(validSpec)) THEN
     vBulkTemp(1:3) = vBulkTemp(1:3) / tempmass
+    ! Squared bulk velocity of the mixture
     vmag2 = DOTPRODUCT(vBulkTemp(1:3))
     ! EnerTotal = kinetic energy (tempmass / 2. * vmag2) + thermal energy (3. * tempweight * BoltzmannConst * CellTemp / 2)
-    EnerTotal = EnerTotal - tempmass / 2. * vmag2
-    ! Calculation of the cell temperature from the thermal energy
-    CellTemp = 2. * EnerTotal / (3.*tempweight*BoltzmannConst)
+    ThermEner = EnerTotal - tempmass / 2. * vmag2
+    ! Calculation of the cell temperature from the thermal energy --> translational temperature of the mixture
+    CellTemp = 2. * ThermEner / (3.*tempweight*BoltzmannConst)
+    ! Mean squared thermal velocity c^2 of a particle, calculated with the cell temperature and the density-averaged mass
     u2 = 3. * CellTemp * BoltzmannConst * (tempweight - tempweight2/tempweight) / tempmass
   ELSE ! only one part per species or cloned species with u2spec = 0 because PartState(4:6) = vBulkAll
     u2 = OldEn / (TotalMass*(1. - totalWeight2/totalWeight**2)) * 2. ! variance-free
@@ -789,7 +795,7 @@ DO iLoop = 1, nPart
         nVibRelax = nVibRelax + 1
         nVibRelaxSpec(iSpec) = nVibRelaxSpec(iSpec) + 1
         iPartIndx_NodeRelaxVib(nVibRelax) = iPart
-        ! Sum up total vibrational energy, considering zero-point energy
+        ! Sum up total vibrational energy of all relaxing particles, considering zero-point energy, and add to translational energy
         OldEn = OldEn + (PartStateIntEn(1,iPartIndx_NodeRelaxVib(nVibRelax)) - SpecDSMC(iSpec)%EZeroPoint) * partWeight
       END IF
     END IF
@@ -980,7 +986,6 @@ IF (nRelax.GT.0) THEN
     END IF
 
   CASE (2)  ! Shakov BGK
-!    CALL MetropolisShakhov(nRelax, iRanPart, u2/3., u2i, Prandtl)
     ! Acceptance-rejection method
     CALL ARShakhov(nRelax, iRanPart, u2/3., u2i, Prandtl)
 
@@ -1000,7 +1005,7 @@ IF (nRelax.GT.0) THEN
       tempVelo(1:3) = SQRT(BoltzmannConst*CellTemp/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
       PartState(4:6,iPart) = vBulkAll(1:3) + MATMUL(SMat,tempVelo)
     ELSE
-      ! New thermal velocity of particles is sqrt(k_B*T/m) multiplied by normal distributed random vector
+      ! New thermal velocity (in x,y,z) of particle is sqrt(k_B*T/m) multiplied by normal distributed random vector
       PartState(4:6,iPart) = vBulkAll(1:3) + SQRT(BoltzmannConst*CellTemp/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
     END IF
     partWeight = GetParticleWeight(iPart)
@@ -1062,7 +1067,7 @@ IF(BGKDoVibRelaxation) THEN
         iPart = iPartIndx_NodeRelaxVib(iLoop)
         partWeight = GetParticleWeight(iPart)
         iSpec = PartSpecies(iPart)
-        ! Polyatomic ------------------------------------ TBC, noch nicht mit verschiedenen alpha pro Spezies
+        ! Polyatomic molecules
         IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
           PartStateIntEn(1,iPart) = 0.0
           iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
@@ -1161,142 +1166,6 @@ IF(BGKDoVibRelaxation) THEN
 END IF ! BGKDoVibRelaxation
 
 END SUBROUTINE EnergyConsVib
-
-
-#ifdef WIP
-SUBROUTINE ARGrads13(nPart, iRanPart, Vtherm, HeatVec, PressTens)
-!===================================================================================================================================
-!> description
-!===================================================================================================================================
-! MODULES
-USE Ziggurat
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: nPart
-REAL, INTENT(IN)              :: HeatVec(3), Vtherm, PressTens(3,3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: iRanPart(:,:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                           :: Vheat, V2, iRan, OldProb, Envelope, Envelope2, cMat, KronDelta
-INTEGER                        :: iPart, fillMa1, fillMa2
-!===================================================================================================================================
-Envelope = MAX(ABS(HeatVec(1)),ABS(HeatVec(2)),ABS(HeatVec(3)))/Vtherm**(3./2.)
-Envelope2 = MAX(ABS(PressTens(1,2)),ABS(PressTens(1,3)),ABS(PressTens(2,3)))/Vtherm
-Envelope =  1.+3.*MAX(Envelope, Envelope2)
-
-DO iPart = 1, nPart
-  iRanPart(1,iPart) = rnor()
-  iRanPart(2,iPart) = rnor()
-  iRanPart(3,iPart) = rnor()
-  cMat = 0.0
-  DO fillMa1 =1, 3
-    DO fillMa2 =1, 3
-      IF (fillMa1.EQ.fillMa2) THEN
-        KronDelta = 1.0
-      ELSE
-        KronDelta = 0.0
-      END IF
-      cMat = cMat + iRanPart(fillMa1,iPart)*iRanPart(fillMa2,iPart)*(PressTens(fillMa1,fillMa2)-KronDelta*Vtherm)
-    END DO
-  END DO
-!  cMat=cMat + iRanPart(1,iPart)*iRanPart(2,iPart)*PressTens(1,2)
-!  cMat=cMat + iRanPart(1,iPart)*iRanPart(3,iPart)*PressTens(1,3)
-!  cMat=cMat + iRanPart(2,iPart)*iRanPart(3,iPart)*PressTens(2,3)
-  V2 = iRanPart(1,iPart)*iRanPart(1,iPart) + iRanPart(2,iPart)*iRanPart(2,iPart) + iRanPart(3,iPart)*iRanPart(3,iPart)
-  Vheat = iRanPart(1,iPart)*HeatVec(1) + iRanPart(2,iPart)*HeatVec(2) + iRanPart(3,iPart)*HeatVec(3)
-  OldProb =  (1. + cMat/(2.*Vtherm) + VHeat/(Vtherm**(3./2.))*(V2/5.-1.))
-  CALL RANDOM_NUMBER(iRan)
-  DO WHILE (Envelope*iRan.GT.OldProb)
-    iRanPart(1,iPart) = rnor()
-    iRanPart(2,iPart) = rnor()
-    iRanPart(3,iPart) = rnor()
-    cMat = 0.0
-    DO fillMa1 =1, 3
-      DO fillMa2 =1, 3
-        IF (fillMa1.EQ.fillMa2) THEN
-          KronDelta = 1.0
-        ELSE
-          KronDelta = 0.0
-        END IF
-        cMat = cMat + iRanPart(fillMa1,iPart)*iRanPart(fillMa2,iPart)*(PressTens(fillMa1,fillMa2)-KronDelta*Vtherm)
-      END DO
-    END DO
-!    cMat=cMat + iRanPart(1,iPart)*iRanPart(2,iPart)*PressTens(1,2)
-!    cMat=cMat + iRanPart(1,iPart)*iRanPart(3,iPart)*PressTens(1,3)
-!    cMat=cMat + iRanPart(2,iPart)*iRanPart(3,iPart)*PressTens(2,3)
-    V2 = iRanPart(1,iPart)*iRanPart(1,iPart) + iRanPart(2,iPart)*iRanPart(2,iPart) + iRanPart(3,iPart)*iRanPart(3,iPart)
-    Vheat = iRanPart(1,iPart)*HeatVec(1) + iRanPart(2,iPart)*HeatVec(2) + iRanPart(3,iPart)*HeatVec(3)
-    OldProb =  (1. + cMat/(2.*Vtherm) + VHeat/(Vtherm**(3./2.))*(V2/5.-1.))
-    CALL RANDOM_NUMBER(iRan)
-  END DO
-END DO
-
-END SUBROUTINE ARGrads13
-
-
-SUBROUTINE ARChapEnsk(nPart, iRanPart, Vtherm, HeatVec, PressTens)
-!===================================================================================================================================
-!> description
-!===================================================================================================================================
-! MODULES
-USE Ziggurat
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: nPart
-REAL, INTENT(IN)              :: HeatVec(3), Vtherm, PressTens(3,3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: iRanPart(:,:)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                           :: Vheat, V2, iRan, OldProb, Envelope, Envelope2, cMat, cPress
-INTEGER                        :: iPart
-!===================================================================================================================================
-Envelope = MAX(ABS(HeatVec(1)),ABS(HeatVec(2)),ABS(HeatVec(3)))/Vtherm**(3./2.)
-Envelope2 = MAX(ABS(PressTens(1,2)),ABS(PressTens(1,3)),ABS(PressTens(2,3)))/Vtherm
-Envelope =  1.+4.*MAX(Envelope, Envelope2)
-
-DO iPart = 1, nPart
-  iRanPart(1,iPart) = rnor()
-  iRanPart(2,iPart) = rnor()
-  iRanPart(3,iPart) = rnor()
-  cMat = 0.0
-  cPress = 0.0
-  cMat=cMat + iRanPart(1,iPart)*iRanPart(2,iPart)*PressTens(1,2)
-  cMat=cMat + iRanPart(1,iPart)*iRanPart(3,iPart)*PressTens(1,3)
-  cMat=cMat + iRanPart(2,iPart)*iRanPart(3,iPart)*PressTens(2,3)
-  cPress=cPress + (PressTens(1,1)-Vtherm)*(iRanPart(1,iPart)*iRanPart(1,iPart)-iRanPart(3,iPart)*iRanPart(3,iPart))
-  cPress=cPress + (PressTens(2,2)-Vtherm)*(iRanPart(2,iPart)*iRanPart(2,iPart)-iRanPart(3,iPart)*iRanPart(3,iPart))
-  V2 = iRanPart(1,iPart)*iRanPart(1,iPart) + iRanPart(2,iPart)*iRanPart(2,iPart) + iRanPart(3,iPart)*iRanPart(3,iPart)
-  Vheat = iRanPart(1,iPart)*HeatVec(1) + iRanPart(2,iPart)*HeatVec(2) + iRanPart(3,iPart)*HeatVec(3)
-  OldProb =  (1. + cMat/Vtherm + cPress/(2.*Vtherm) + VHeat/(2.*Vtherm**(3./2.))*(V2/5.-1.))
-  CALL RANDOM_NUMBER(iRan)
-  DO WHILE (Envelope*iRan.GT.OldProb)
-    iRanPart(1,iPart) = rnor()
-    iRanPart(2,iPart) = rnor()
-    iRanPart(3,iPart) = rnor()
-    cMat = 0.0
-    cPress = 0.0
-    cMat=cMat + iRanPart(1,iPart)*iRanPart(2,iPart)*PressTens(1,2)
-    cMat=cMat + iRanPart(1,iPart)*iRanPart(3,iPart)*PressTens(1,3)
-    cMat=cMat + iRanPart(2,iPart)*iRanPart(3,iPart)*PressTens(2,3)
-    cPress=cPress + (PressTens(1,1)-Vtherm)*(iRanPart(1,iPart)*iRanPart(1,iPart)-iRanPart(3,iPart)*iRanPart(3,iPart))
-    cPress=cPress + (PressTens(2,2)-Vtherm)*(iRanPart(2,iPart)*iRanPart(2,iPart)-iRanPart(3,iPart)*iRanPart(3,iPart))
-    V2 = iRanPart(1,iPart)*iRanPart(1,iPart) + iRanPart(2,iPart)*iRanPart(2,iPart) + iRanPart(3,iPart)*iRanPart(3,iPart)
-    Vheat = iRanPart(1,iPart)*HeatVec(1) + iRanPart(2,iPart)*HeatVec(2) + iRanPart(3,iPart)*HeatVec(3)
-    OldProb =  (1. + cMat/Vtherm + cPress/(2.*Vtherm) + VHeat/(2.*Vtherm**(3./2.))*(V2/5.-1.))
-    CALL RANDOM_NUMBER(iRan)
-  END DO
-END DO
-
-END SUBROUTINE ARChapEnsk
-#endif /*WIP*/
 
 
 SUBROUTINE MetropolisES(nPart, iRanPart, A)
