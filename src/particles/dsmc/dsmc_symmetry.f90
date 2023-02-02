@@ -1479,6 +1479,8 @@ SUBROUTINE DSMC_InitAdaptiveWeights()
       UpperBoundMPF(iSpec) = 1./((SQRT(2.)*SpecDSMC(iSpec)%dref**2*MAXVAL(AdaptMPF%ReferenceDensity(:))**(2./3.))**3)
     END DO
   
+    AdaptMPF%MaxPartWeight = MAXVAL(UpperBoundMPF(:))
+   
     ! Determine the MPF based on the particle number from the reference simulation
     DO iElem = 1, nGlobalElems
       iGlobalElem = iElem + offsetElem
