@@ -105,19 +105,25 @@ TYPE tVarWeighting
   REAL                        :: EndPointScaling(1:3)       ! End point for the scaling domain not defined by the coordinate axes
   REAL, ALLOCATABLE           :: ScalePoint(:)              ! Points along the defined scaling vector on which the MPF is changed(%)
   REAL, ALLOCATABLE           :: VarMPF(:)                  ! Desired MPF at the respective scaling points     
-  ! Automatic adaption of the particle weight
-  LOGICAL                     :: AdaptMPF                   ! Enables an automatic adaption of the MPF in each cell
-  !REAL                        :: TargetMCSoverMFP
-  REAL, ALLOCATABLE           :: ReferencePartNum(:)
-  REAL, ALLOCATABLE           :: ReferenceDensity(:)
-  REAL, ALLOCATABLE           :: DesiredMPF(:)
-  REAL                        :: MinPartNum                 ! Target minimum number of simulation particles per sub-cell
-  REAL                        :: MaxPartNum                 ! Target maximum number of simulation particles per sub-cell
-  REAL                        :: MaxPartWeight
-  REAL                        :: MinPartWeight
 END TYPE tVarWeighting
 
 TYPE(tVarWeighting)            :: VarWeighting
+
+! Automatic adaption of the particle weight
+TYPE tAdaptMPF
+  LOGICAL                     :: DoAdaptMPF                  ! Enables an automatic adaption of the MPF in each cell
+  LOGICAL                     :: UseOptMPF                   ! Changes between the CalcVarMPF, CalcAdaptMPF routine
+  REAL, ALLOCATABLE           :: ReferencePartNum(:)         ! Particle number per cell in the reference simulation 
+  REAL, ALLOCATABLE           :: ReferenceDensity(:)         ! Particle number density per cell in the reference simulation
+  REAL, ALLOCATABLE           :: OptimalMPF(:)               ! Theoretical value for the optimal MPF in each cell, used for the visualization
+  REAL, ALLOCATABLE           :: ScaleFactorAdapt(:)         ! Comparison of new and old MPF
+  REAL                        :: MinPartNum                  ! Target minimum number of simulation particles per sub-cell
+  REAL                        :: MaxPartNum                  ! Target maximum number of simulation particles per sub-cell
+  REAL                        :: MaxPartWeight               ! Upper bound of the particle weights
+  REAL                        :: MinPartWeight               ! Lower bound of the particle weights
+END TYPE tAdaptMPF
+
+TYPE(tAdaptMPF)               :: AdaptMPF
 
 TYPE tClonedParticles
   ! Clone Delay: Clones are inserted at the next time step

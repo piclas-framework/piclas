@@ -47,7 +47,7 @@ USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
 #if USE_MPI
 USE MOD_Globals                   ,ONLY: myrank
 #endif /*USE_MPI*/
-USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
+USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF,PEM
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide, dXiEQ_SurfSample, PartBound
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
@@ -92,6 +92,7 @@ REAL               :: ChargeRefl                      !< Charge of reflected par
 REAL               :: MPF                             !< macro-particle factor
 REAL               :: ChargeHole                      !< Charge of SEE electrons holes
 INTEGER            :: i
+INTEGER            :: iElem
 !===================================================================================================================================
 iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 
@@ -190,7 +191,8 @@ CASE (SEE_MODELS_ID)
         IF (RadialWeighting%DoRadialWeighting) THEN
           MPF = CalcRadWeightMPF(PartPosImpact(2),ProductSpec(2))
         ELSE IF (VarWeighting%DoVariableWeighting) THEN
-          MPF = CalcVarWeightMPF(PartPosImpact(:),ProductSpec(2))
+          iElem = PEM%LocalElemID(PartID)
+          MPF = CalcVarWeightMPF(PartPosImpact(:),ProductSpec(2),iElem)
         ELSE
           MPF = Species(ProductSpec(2))%MacroParticleFactor
         END IF

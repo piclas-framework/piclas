@@ -824,19 +824,19 @@ DO iBC=1,countDataBC
               ! Surfaces that are NOT parallel to the YZ-plane
               IF(VarWeighting%CellLocalWeighting) THEN
                 ! Cell local weighting
-                BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iSpec)
+                BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iSpec,ElemID)
               ELSE
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1.
                 DO iSub = 1, VarWeighting%nSubSides
                   yMinTemp = ymin + (iSub-1) * (ymax - ymin) / VarWeighting%nSubSides
                   yMaxTemp = ymin + iSub * (ymax - ymin) / VarWeighting%nSubSides
                   yAvTemp = (yMaxTemp + yMinTemp)/2.
-                  BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,iSub) = CalcVarWeightMPF((/0.0,yAvTemp,0.0/), iSpec)
+                  BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,iSub) = CalcVarWeightMPF((/0.0,yAvTemp,0.0/),iSpec,ElemID)
                 END DO
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(iCount,:) = DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,CNElemID)
               END IF
             ELSE ! surfaces parallel to the x-axis (ymax = ymin)
-              BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF((/0.0,ymax,0.0/), iSpec)
+              BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF((/0.0,ymax,0.0/),iSpec,ElemID)
             END IF
           END IF ! variable weighting
         ELSE
@@ -849,7 +849,7 @@ DO iBC=1,countDataBC
         GlobalElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
         CNElemID     = GetCNElemID(GlobalElemID)
         iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
-        BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iSpec)
+        BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iSpec,ElemID)
       END IF
       !----- symmetry specific area calculation end
       IF (TrackingMethod.NE.TRIATRACKING) THEN !check that all sides are planar if TriaSurfaceFlux is used for tracing or refmapping

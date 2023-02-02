@@ -66,8 +66,7 @@ PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParti
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
 PUBLIC :: CalcXiElec,ParticleOnProc,  CalcERot_particle, CalcEVib_particle, CalcEElec_particle, CalcVelocity_maxwell_particle
 PUBLIC :: InRotRefFrameCheck
-PUBLIC :: CalcVarWeightMPF, CalcAverageMPF
-PUBLIC :: CalcScalePoint
+PUBLIC :: CalcVarWeightMPF, CalcAverageMPF, CalcScalePoint
 !===================================================================================================================================
 
 CONTAINS
@@ -545,15 +544,15 @@ RETURN
 
 END FUNCTION CalcRadWeightMPF
 
-REAL FUNCTION CalcVarWeightMPF(Pos, iSpec, iPart)
+REAL FUNCTION CalcVarWeightMPF(Pos, iSpec, iElem, iPart)
 !===================================================================================================================================
 !> Determination of the weighting factor for a 3D test case.
 !> Linear increase in the scaling region along the specified vector
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: VarWeighting
-USE MOD_Particle_Vars           ,ONLY: Species, PEM
+USE MOD_DSMC_Vars               ,ONLY: VarWeighting, AdaptMPF
+USE MOD_Particle_Vars           ,ONLY: PEM
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -561,7 +560,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES  
 REAL, OPTIONAL                  :: Pos(3)
 INTEGER, INTENT(IN)             :: iSpec
-INTEGER, OPTIONAL,INTENT(IN)    :: iPart
+INTEGER, OPTIONAL,INTENT(IN)    :: iPart, iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -571,37 +570,44 @@ REAL                 :: PosIn, RelPos
 REAL                 :: PosMax, PosMin, MaxWeight, MinWeight
 INTEGER              :: iScale
 !===================================================================================================================================
-! Linear scaling in all possible directions
-IF (VarWeighting%ScaleAxis.EQ.0) THEN
-  PosIn = CalcScalePoint(Pos, iSpec, iPart)
-! Linear scaling along the coordinate axis
-ELSE IF (VarWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
-  PosIn = ElemMidPoint_Shared(VarWeighting%ScaleAxis,PEM%CNElemID(iPart))
-ELSE
-  PosIn = Pos(VarWeighting%ScaleAxis)
-END IF
+IF (AdaptMPF%UseOptMPF) THEN
+  ! determine the adaptive MPF
+  CalcVarWeightMPF = AdaptMPF%OptimalMPF(iElem)
 
-! Loop over the division cells
-DO iScale=1, (VarWeighting%nScalePoints-1)
-  ! Test if the particle is inside the cell
-  IF ((PosIn.GE.VarWeighting%ScalePoint(iScale)).AND.(PosIn.LE.VarWeighting%ScalePoint(iScale+1))) THEN
-    PosMax = VarWeighting%ScalePoint(iScale+1)
-    MaxWeight = VarWeighting%VarMPF(iScale+1)
-    PosMin = VarWeighting%ScalePoint(iScale)
-    MinWeight = VarWeighting%VarMPF(iScale)
-
-    ! Determine the weighting factor by the relative position in the cell
-    RelPos = (PosIn-PosMin)/(PosMax-PosMin)
-    CalcVarWeightMPF = (1. - RelPos)*MinWeight + RelPos*MaxWeight
-    EXIT
-
-  ELSE IF (PosIn.GE.VarWeighting%ScalePoint(VarWeighting%nScalePoints)) THEN
-    CalcVarWeightMPF = VarWeighting%VarMPF(VarWeighting%nScalePoints)
-    EXIT
-  ELSE 
-    CalcVarWeightMPF = VarWeighting%VarMPF(1)
+ELSE ! regular routine with variable weights
+  ! Linear scaling in all possible directions
+  IF (VarWeighting%ScaleAxis.EQ.0) THEN
+    PosIn = CalcScalePoint(Pos, iSpec, iPart)
+  ! Linear scaling along the coordinate axis
+  ELSE IF (VarWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
+    PosIn = ElemMidPoint_Shared(VarWeighting%ScaleAxis,PEM%CNElemID(iPart))
+  ELSE
+    PosIn = Pos(VarWeighting%ScaleAxis)
   END IF
-END DO
+
+  ! Loop over the number of scaling points
+  DO iScale=1, (VarWeighting%nScalePoints-1)
+    ! Test if the particle is inside the cell
+    IF ((PosIn.GE.VarWeighting%ScalePoint(iScale)).AND.(PosIn.LE.VarWeighting%ScalePoint(iScale+1))) THEN
+      PosMax = VarWeighting%ScalePoint(iScale+1)
+      MaxWeight = VarWeighting%VarMPF(iScale+1)
+      PosMin = VarWeighting%ScalePoint(iScale)
+      MinWeight = VarWeighting%VarMPF(iScale)
+
+      ! Determine the weighting factor by the relative position in the cell
+      RelPos = (PosIn-PosMin)/(PosMax-PosMin)
+      CalcVarWeightMPF = (1. - RelPos)*MinWeight + RelPos*MaxWeight
+      EXIT
+
+    ! Input position is outside of the scaling domain
+    ELSE IF (PosIn.GE.VarWeighting%ScalePoint(VarWeighting%nScalePoints)) THEN
+      CalcVarWeightMPF = VarWeighting%VarMPF(VarWeighting%nScalePoints)
+      EXIT
+    ELSE 
+      CalcVarWeightMPF = VarWeighting%VarMPF(1)
+    END IF
+  END DO
+END IF
 
 RETURN
 
@@ -653,7 +659,7 @@ REAL FUNCTION CalcScalePoint(Pos, iSpec, iPart)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: VarWeighting
-USE MOD_Particle_Vars           ,ONLY: Species, PEM
+USE MOD_Particle_Vars           ,ONLY: PEM
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -677,6 +683,7 @@ ELSE
   PosIn = Pos
 END IF 
 
+! Relative position to the start point for the variable weighting
 ScalePoint = VarWeighting%StartPointScaling - PosIn
 
 ! Find the point on the scaling vector with the closest distance to the point 

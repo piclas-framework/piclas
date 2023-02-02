@@ -718,7 +718,8 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF, CalcRadWeightMPF
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
-USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting, VarWeighting, BGGas
+USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, BGGas
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry
@@ -739,7 +740,7 @@ REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality+nVarMPF+nVarAdaptMP
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iElem, iSpec, nVarCount, nSpecTemp, nVarCountRelax, bgSpec
+INTEGER                 :: iElem, CNElemID, iSpec, nVarCount, nSpecTemp, nVarCountRelax, bgSpec
 REAL                    :: TVib_TempFac, iter_loc
 REAL                    :: MolecPartNum, HeavyPartNum
 !===================================================================================================================================
@@ -1005,6 +1006,11 @@ IF (DSMC%CalcCellMPF) THEN
   ALLOCATE(DSMC%CellMPFSamp(nElems))
   DSMC%CellMPFSamp(1:nElems) = 0.0
 
+  ! Enable the calculation of the reference variable weighting factor
+  IF (AdaptMPF%DoAdaptMPF) THEN
+    AdaptMPF%UseOptMPF = .FALSE.
+  END IF
+
   DO iElem=1,nElems
     IF (VarWeighting%DoVariableWeighting) THEN
       DSMC%CellMPFSamp(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,GetCNElemID(iElem + offsetElem)), 1)
@@ -1020,12 +1026,30 @@ IF (DSMC%CalcCellMPF) THEN
 END IF
 
 ! Visualization for the optimal MPF in the adaptive routine for each sub-cell
-IF (VarWeighting%AdaptMPF) THEN
+IF (AdaptMPF%DoAdaptMPF) THEN
+  ALLOCATE(AdaptMPF%ScaleFactorAdapt(nElems))
+    AdaptMPF%ScaleFactorAdapt(1:nElems) = 0.0
+
+    ! Enable the calculation of the reference variable weighting factor
+    AdaptMPF%UseOptMPF = .FALSE.
+
   DO iElem=1,nElems
-    DSMC_MacroVal(nVarCount+1,iElem) = VarWeighting%DesiredMPF(iElem)
+    CNElemID = GetCNElemID(iElem + offsetElem)
+    DSMC_MacroVal(nVarCount+1,iElem) = AdaptMPF%OptimalMPF(iElem)
+
+    IF (VarWeighting%DoVariableWeighting) THEN
+      AdaptMPF%ScaleFactorAdapt(iElem) = AdaptMPF%OptimalMPF(iElem)/CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),1)
+    ELSE IF (RadialWeighting%DoRadialWeighting) THEN
+      AdaptMPF%ScaleFactorAdapt(iElem) = AdaptMPF%OptimalMPF(iElem)/CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID),1)
+    ELSE 
+      AdaptMPF%ScaleFactorAdapt(iElem) = AdaptMPF%OptimalMPF(iElem)/Species(1)%MacroParticleFactor
+    END IF
+    DSMC_MacroVal(nVarCount+2,iElem) = AdaptMPF%ScaleFactorAdapt(iElem)
   END DO
-  nVarCount = nVarCount + 1
-  DEALLOCATE(VarWeighting%DesiredMPF)
+  nVarCount = nVarCount + 2
+
+  DEALLOCATE(AdaptMPF%OptimalMPF)
+  DEALLOCATE(AdaptMPF%ScaleFactorAdapt)
 END IF
 
 END SUBROUTINE DSMC_output_calc
@@ -1037,7 +1061,7 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime,FutureTime)
 !> Is used for postprocessing and for restart
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: DSMC, RadialWeighting, VarWeighting, CollisMode
+USE MOD_DSMC_Vars     ,ONLY: DSMC, RadialWeighting, VarWeighting, AdaptMPF, CollisMode
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: ProjectName
@@ -1102,8 +1126,8 @@ ELSE
   nVarMPF = 0
 END IF
 
-IF(VarWeighting%AdaptMPF) THEN
-  nVarAdaptMPF = 1
+IF(AdaptMPF%DoAdaptMPF) THEN
+  nVarAdaptMPF = 2
 ELSE
   nVarAdaptMPF = 0
 END IF
@@ -1212,10 +1236,11 @@ ELSE
   nVarMPF = 0
 END IF
 
-IF(VarWeighting%AdaptMPF) THEN
+IF(AdaptMPF%DoAdaptMPF) THEN
   StrVarNames(nVarCount+1) = 'OptimalAdaptMPF'
-  nVarCount=nVarCount+1
-  nVarAdaptMPF = 1
+  StrVarNames(nVarCount+2) = 'ScaleFactorAdaptMPF'
+  nVarCount=nVarCount+2
+  nVarAdaptMPF = 2
 ELSE
   nVarAdaptMPF = 0
 END IF

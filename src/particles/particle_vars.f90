@@ -171,7 +171,7 @@ TYPE tParticleElementMapping
   INTEGER                , ALLOCATABLE    :: pNumber(:)        !     =>NULL()  ! Number of Particles in Element
                                                                !               ! pStart(1:PIC%nElem)
   INTEGER                , ALLOCATABLE    :: pEnd(:)           !     =>NULL()  ! End of Linked List for Particles in Element
-                                                               !               ! pEnd(1:PIC%nElem)
+                                                              !               ! pEnd(1:PIC%nElem)
   INTEGER                , ALLOCATABLE    :: pNext(:)          !     =>NULL()  ! Next Particle in same Element (Linked List)
                                                                                ! pStart(1:PIC%maxParticleNumber)
 END TYPE

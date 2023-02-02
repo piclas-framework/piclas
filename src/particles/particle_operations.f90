@@ -59,7 +59,7 @@ INTEGER, INTENT(OUT),OPTIONAL :: NewPartID     !< ID of newly created particle
 REAL, INTENT(IN),OPTIONAL     :: NewMPF        !< MPF of newly created particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER :: newParticleID
+INTEGER :: newParticleID, iElem
 !===================================================================================================================================
 
 ! Do not increase the ParticleVecLength for Phantom particles!
@@ -115,7 +115,8 @@ IF (usevMPF) THEN
       PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID),SpecID,newParticleID)
     ! Variable weighting in 3D
     ELSE IF (VarWeighting%DoVariableWeighting) THEN
-      PartMPF(newParticleID) = CalcVarWeightMPF(PartState(:,newParticleID),SpecID,newParticleID)
+      iElem = PEM%LocalElemID(newParticleID)
+      PartMPF(newParticleID) = CalcVarWeightMPF(PartState(:,newParticleID),SpecID,iElem,newParticleID)
     ELSE
       PartMPF(newParticleID) = Species(SpecID)%MacroParticleFactor
     END IF

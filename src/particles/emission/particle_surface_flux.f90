@@ -255,8 +255,7 @@ __STAMP__&
             IF (RadialWeighting%DoRadialWeighting) THEN
               PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr), iSpec,ParticleIndexNbr)
             ELSE IF(VarWeighting%DoVariableWeighting) THEN
-              ! to_do
-              PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr), iSpec,ParticleIndexNbr)
+              PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr), iSpec,ElemID,ParticleIndexNbr)
             END IF
             IF(CalcSurfFluxInfo) THEN
               Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow &

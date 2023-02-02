@@ -37,7 +37,7 @@ SUBROUTINE MacroRestart_InsertParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, VarWeighting, DSMC
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, VarWeighting, DSMC, AdaptMPF
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
@@ -46,6 +46,7 @@ USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmet
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared,ElemMidPoint_Shared
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
+USE MOD_DSMC_Symmetry           ,ONLY: DSMC_InitAdaptiveWeights
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -68,6 +69,8 @@ SWRITE(UNIT_stdOut,*) 'PERFORMING MACROSCOPIC RESTART...'
 
 locnPart = 1
 
+CALL DSMC_InitAdaptiveWeights()
+
 DO iElem = 1, nElems
   GlobalElemID = iElem + offsetElem
   ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
@@ -89,7 +92,7 @@ DO iElem = 1, nElems
               TempMPF = CalcRadWeightMPF((MaxPosTemp+MinPosTemp)*0.5,iSpec)
             ELSE
               Pos_Var = (/0.0,(MaxPosTemp+MinPosTemp)*0.5,0.0/)
-              TempMPF = CalcVarWeightMPF(Pos_Var,iSpec)
+              TempMPF = CalcVarWeightMPF(Pos_Var,iSpec,iElem)
             END IF
             IF(VarTimeStep%UseVariableTimeStep) THEN
               TempMPF = TempMPF * CalcVarTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (MaxPosTemp+MinPosTemp)*0.5, iElem)
@@ -196,14 +199,15 @@ DO iElem = 1, nElems
           IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
         END IF
         CALL RANDOM_NUMBER(iRan)
+        ! Initialize the clones for the variable weighting in 3D
         IF (VarWeighting%DoVariableWeighting) THEN
           IF(VarWeighting%CloneMode.EQ.1) THEN
             VarWeighting%CloneDelayDiff = 1
           ELSEIF (VarWeighting%CloneMode.EQ.2) THEN
             VarWeighting%CloneDelayDiff = 0
-          END IF ! VarWeighting%CloneMode.EQ.1
+          END IF 
           CNElemID = GetCNElemID(GlobalElemID)
-          TempMPF = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iSpec)
+          TempMPF = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iSpec,iElem)
         ELSE
           TempMPF = Species(iSpec)%MacroParticleFactor
         END IF
@@ -260,6 +264,7 @@ INTEGER, INTENT(IN)             :: iPart, iSpec, iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                         :: GlobalElemID, CNElemID
 !===================================================================================================================================
 
 ! 1) Set particle velocity from macroscopic bulk velocity and translational temperature in the cell
@@ -304,7 +309,7 @@ END IF
 IF (RadialWeighting%DoRadialWeighting) THEN
   PartMPF(iPart) = CalcRadWeightMPF(PartState(2,iPart),iSpec,iPart)
 ELSE IF (VarWeighting%DoVariableWeighting) THEN
-  PartMPF(iPart) = CalcVarWeightMPF(PartState(:,iPart),iSpec,iPart)
+  PartMPF(iPart) = CalcVarWeightMPF(PartState(:,iPart),iSpec,iElem,iPart)
 END IF
 
 END SUBROUTINE MacroRestart_InitializeParticle_Maxwell

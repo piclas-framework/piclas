@@ -278,7 +278,7 @@ SUBROUTINE SetParticleMPF(FractNbr,iInit,NbrOfParticle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars ,ONLY: PDM, PartMPF, Species, PartState
+USE MOD_Particle_Vars ,ONLY: PDM, PartMPF, Species, PartState, PEM
 USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, VarWeighting
 USE MOD_part_tools    ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
 !===================================================================================================================================
@@ -293,7 +293,7 @@ INTEGER,INTENT(IN)        :: iInit
 INTEGER,INTENT(INOUT)     :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                   :: i,PositionNbr
+INTEGER                   :: i,PositionNbr,iElem
 !===================================================================================================================================
 i = 1
 DO WHILE (i .le. NbrOfParticle)
@@ -302,7 +302,8 @@ DO WHILE (i .le. NbrOfParticle)
     IF(RadialWeighting%DoRadialWeighting) THEN
       PartMPF(PositionNbr) = CalcRadWeightMPF(PartState(2,PositionNbr),FractNbr,PositionNbr)
     ELSE IF(VarWeighting%DoVariableWeighting) THEN
-      PartMPF(PositionNbr) = CalcVarWeightMPF(PartState(:,PositionNbr),FractNbr,PositionNbr)
+      iElem = PEM%LocalElemID(PositionNbr)
+      PartMPF(PositionNbr) = CalcVarWeightMPF(PartState(:,PositionNbr),FractNbr,iElem,PositionNbr)
     ELSE
       IF(iInit.EQ.-1)THEN
         PartMPF(PositionNbr) = Species(FractNbr)%MacroParticleFactor
@@ -992,7 +993,7 @@ __STAMP__,&
         IF(RadialWeighting%DoRadialWeighting) THEN
           PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
         ELSE IF(VarWeighting%DoVariableWeighting) THEN
-          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iSpec)
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iSpec,iElem)
         END IF
         CALL RANDOM_NUMBER(iRan)
         IF(VarTimeStep%UseVariableTimeStep) THEN
@@ -1032,7 +1033,7 @@ __STAMP__,&
           IF(RadialWeighting%DoRadialWeighting) THEN
             PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),iSpec,ParticleIndexNbr)
           ELSE IF(VarWeighting%DoVariableWeighting) THEN
-            PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr),iSpec,ParticleIndexNbr)
+            PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr),iSpec,iElem,ParticleIndexNbr)
           END IF
         ELSE
           WRITE(UNIT_stdOut,*) ""
@@ -1061,7 +1062,6 @@ USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, VarWeighting
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
-USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
@@ -1119,7 +1119,7 @@ REAL                             :: printVol, printPart
         IF(RadialWeighting%DoRadialWeighting) THEN
           PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
         ELSE IF(VarWeighting%DoVariableWeighting) THEN
-          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iSpec)
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iSpec,iElem)
         ELSE
           PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor 
         END IF
@@ -1153,7 +1153,7 @@ REAL                             :: printVol, printPart
             IF(RadialWeighting%DoRadialWeighting) THEN
               PartMPF(ParticleIndexNbr) = CalcRadWeightMPF(PartState(2,ParticleIndexNbr),iSpec,ParticleIndexNbr)
             ELSE IF(VarWeighting%DoVariableWeighting) THEN
-              PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr),iSpec,ParticleIndexNbr)
+              PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr),iSpec,iElem,ParticleIndexNbr)
             END IF
             AbortFlag = .FALSE.
           ELSE
@@ -1164,10 +1164,6 @@ REAL                             :: printVol, printPart
     END IF
   END DO
   chunkSize = ichunkSize - 1
-
-  IPWRITE(UNIT_stdOut,*) "printPart :", printPart
-  IPWRITE(UNIT_stdOut,*) "Fraction :", printPart/(6.0*10**6)
-  IPWRITE(UNIT_stdOut,*) "printVol :", printVol
 
   IF(AbortFlag) THEN
     CALL abort(&

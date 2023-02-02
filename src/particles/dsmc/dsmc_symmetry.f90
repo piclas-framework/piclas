@@ -91,14 +91,10 @@ CALL prms%CreateIntOption(    'Part-VarWeighting-CloneDelay', &
 CALL prms%CreateIntOption(    'Particles-VarWeighting-SurfFluxSubSides', &
                               'Variable weighting: Split the surface flux side into the given number of subsides, reduces the '//&
                               'error in the particle distribution across the cell (visible in the number density)', '20')
-CALL prms%CreateLogicalOption('Part-Adaptive-VarWeighting', 'Enables an automatic adaption of '//&
+CALL prms%CreateLogicalOption('Part-Adaptive-Weighting', 'Enables an automatic adaption of '//&
                               'the particle weight within a cell, based on previous simualation result', '.FALSE.')
-! CALL prms%CreateRealOption(   'Part-VarWeighting-TargetMCSoverMFP', &
-!                               'Target mean collision separation over mean free path')
-CALL prms%CreateRealOption(   'Part-VarWeighting-MinParticleNumber', 'Target minimum simulation particle number per cell')
-CALL prms%CreateRealOption(   'Part-VarWeighting-MaxParticleNumber', 'Target maximum simulation particle number per cell')
-CALL prms%CreateRealOption(   'Part-VarWeighting-MaxMPF', 'Maximum particle weight in each cell')
-CALL prms%CreateRealOption(   'Part-VarWeighting-MinMPF', 'Minimum particle weight in each cell')
+CALL prms%CreateRealOption(   'Part-AdaptMPF-MinParticleNumber', 'Target minimum simulation particle number per cell')
+CALL prms%CreateRealOption(   'Part-AdaptMPF-MaxParticleNumber', 'Target maximum simulation particle number per cell')
 
 END SUBROUTINE DefineParametersParticleSymmetry
 
@@ -905,7 +901,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Restart_Vars            ,ONLY: DoRestart
 USE MOD_PARTICLE_Vars           ,ONLY: PDM
-USE MOD_DSMC_Vars               ,ONLY: VarWeighting, ClonedParticles
+USE MOD_DSMC_Vars               ,ONLY: VarWeighting, ClonedParticles, AdaptMPF
 USE MOD_part_tools              ,ONLY: CalcAverageMPF, CalcScalePoint
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -983,7 +979,8 @@ SELECT CASE(VarWeighting%CloneMode)
         ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
 END SELECT
 
-CALL DSMC_InitAdaptiveWeights()
+! Enable the CalcVarMPF routine
+AdaptMPF%UseOptMPF = .FALSE.
 
 END SUBROUTINE DSMC_InitVarWeighting
 
@@ -1022,8 +1019,7 @@ DeleteProb = 0.
 SpecID = PartSpecies(iPart)
 
 ! 1.) Determine the new particle weight and decide whether to clone or to delete the particle
-! to_do
-NewMPF = CalcVarWeightMPF(PartState(:,iPart),SpecID,iPart)
+NewMPF = CalcVarWeightMPF(PartState(:,iPart),SpecID,iElem,iPart)
 OldMPF = PartMPF(iPart)
 CloneProb = (OldMPF/NewMPF)-INT(OldMPF/NewMPF)
 CALL RANDOM_NUMBER(iRan)
@@ -1367,13 +1363,11 @@ SUBROUTINE DSMC_InitAdaptiveWeights()
   USE MOD_ReadInTools
   USE MOD_PreProc
   USE MOD_io_hdf5
-  USE MOD_Globals_Vars            ,ONLY: Pi
-  USE MOD_DSMC_Vars               ,ONLY: VarWeighting
-  USE MOD_part_tools              ,ONLY: CalcVarWeightMPF
+  USE MOD_DSMC_Vars               ,ONLY: AdaptMPF, VarWeighting
   USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
   USE MOD_HDF5_Input              ,ONLY: OpenDataFile, CloseDataFile, ReadArray, ReadAttribute, GetDataProps
   USE MOD_HDF5_Input              ,ONLY: GetDataSize, nDims, HSize, File_ID
-  USE MOD_Restart_Vars            ,ONLY: DoRestart, RestartFile, DoMacroscopicRestart, MacroRestartFileName
+  USE MOD_Restart_Vars            ,ONLY: DoMacroscopicRestart, MacroRestartFileName
   USE MOD_StringTools             ,ONLY: STRICMP
   ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -1384,8 +1378,8 @@ SUBROUTINE DSMC_InitAdaptiveWeights()
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! LOCAL VARIABLES
   INTEGER                             :: nVar_HDF5, N_HDF5, iVar
-  INTEGER                             :: nVar_MCSoverMFP, nVar_TotalPartNum, nVar_TotalDens
-  REAL, ALLOCATABLE                   :: ElemData_HDF5(:,:)!, DSMCQualityFactors(:,:)
+  INTEGER                             :: nVar_TotalPartNum, nVar_TotalDens
+  REAL, ALLOCATABLE                   :: ElemData_HDF5(:,:)
   CHARACTER(LEN=255),ALLOCATABLE      :: VarNames_tmp(:)
   !===================================================================================================================================
   SWRITE(UNIT_StdOut,'(132("-"))')
@@ -1393,15 +1387,17 @@ SUBROUTINE DSMC_InitAdaptiveWeights()
 
   IF(DoMacroscopicRestart) THEN
 
-    VarWeighting%AdaptMPF = GETLOGICAL('Part-Adaptive-Varweighting')
+    AdaptMPF%DoAdaptMPF = GETLOGICAL('Part-Adaptive-weighting')
 
-    IF (VarWeighting%AdaptMPF) THEN
-      ! Read-in of the DSMC state file and calculate the most fitting MPF for each cell
-      ! VarWeighting%TargetMCSoverMFP = GETREAL('Part-VarWeighting-TargetMCSoverMFP')
-      VarWeighting%MinPartNum       = GETREAL('Part-VarWeighting-MinParticleNumber')
-      VarWeighting%MaxPartNum       = GETREAL('Part-VarWeighting-MaxParticleNumber')
-      VarWeighting%MaxPartWeight    = GETREAL('Part-VarWeighting-MaxMPF')
-      VarWeighting%MinPartWeight    = GETREAL('Part-VarWeighting-MinMPF')
+    IF (AdaptMPF%DoAdaptMPF) THEN
+      ! Check if the variable MPF is already initialized
+      IF (.NOT.(VarWeighting%DoVariableWeighting)) THEN
+        CALL DSMC_InitVarWeighting
+      END IF
+
+      ! Read-in of the parameter boundaries
+      AdaptMPF%MinPartNum       = GETREAL('Part-AdaptMPF-MinParticleNumber')
+      AdaptMPF%MaxPartNum       = GETREAL('Part-AdaptMPF-MaxParticleNumber')
     END IF
 
     ! Open DSMC state file
@@ -1409,7 +1405,7 @@ SUBROUTINE DSMC_InitAdaptiveWeights()
     CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nGlobalElems)
     
     IF(nVar_HDF5.LE.0) THEN
-      SWRITE(*,*) 'ERROR: Something is wrong with our MacroscopicRestart file:', TRIM(RestartFile)
+      SWRITE(*,*) 'ERROR: Something is wrong with our MacroscopicRestart file:', TRIM(MacroRestartFileName)
       CALL abort(__STAMP__,&
       'ERROR: Number of variables in the ElemData array appears to be zero!')
     END IF
@@ -1419,9 +1415,6 @@ SUBROUTINE DSMC_InitAdaptiveWeights()
     CALL ReadAttribute(File_ID,'VarNamesAdd',nVar_HDF5,StrArray=VarNames_tmp(1:nVar_HDF5))
     
     DO iVar=1,nVar_HDF5
-      ! IF (STRICMP(VarNames_tmp(iVar),"DSMC_MCS_over_MFP")) THEN
-      !   nVar_MCSoverMFP = iVar
-      ! END IF
       IF (STRICMP(VarNames_tmp(iVar),"Total_SimPartNum")) THEN
         nVar_TotalPartNum = iVar
       END IF
@@ -1437,22 +1430,19 @@ SUBROUTINE DSMC_InitAdaptiveWeights()
       CALL ReadArray('ElemData',2,(/nVar_HDF5,nGlobalElems/),0_IK,2,RealArray=ElemData_HDF5(:,:))
     END ASSOCIATE
   
-    !ALLOCATE(DSMCQualityFactors(nGlobalElems,1:2))
-    ALLOCATE(VarWeighting%ReferencePartNum(nGlobalElems))
-    ALLOCATE(VarWeighting%ReferenceDensity(nGlobalElems))
-    ALLOCATE(VarWeighting%DesiredMPF(nGlobalElems))
-    !DSMCQualityFactors(:,2) = ElemData_HDF5(nVar_MCSoverMFP,:)
-    VarWeighting%ReferencePartNum(:) = ElemData_HDF5(nVar_TotalPartNum,:)
-    VarWeighting%ReferenceDensity(:) = ElemData_HDF5(nVar_TotalDens,:)
-    VarWeighting%DesiredMPF(:) = 0.
+    ALLOCATE(AdaptMPF%ReferencePartNum(nGlobalElems))
+    ALLOCATE(AdaptMPF%ReferenceDensity(nGlobalElems))
+    ALLOCATE(AdaptMPF%OptimalMPF(nGlobalElems))
+
+    AdaptMPF%ReferencePartNum(:) = ElemData_HDF5(nVar_TotalPartNum,:)
+    AdaptMPF%ReferenceDensity(:) = ElemData_HDF5(nVar_TotalDens,:)
+    AdaptMPF%OptimalMPF(:) = 0.
 
     CALL CloseDataFile()
-    !SDEALLOCATE(DSMCQualityFactors)
     
     CALL DSMC_AdaptiveWeights()
-
   ELSE 
-    ! Do not initialize the desired MPF
+    ! Do not initialize the visualization of the desired MPF
   END IF ! DoRestart
 
   SWRITE(UNIT_StdOut,'(132("-"))')
@@ -1469,30 +1459,58 @@ SUBROUTINE DSMC_InitAdaptiveWeights()
   USE MOD_Globals
   USE MOD_Mesh_Vars               ,ONLY: nGlobalElems, offSetElem
   USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-  USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
-  USE MOD_DSMC_Vars               ,ONLY: VarWeighting
-  USE MOD_part_tools              ,ONLY: CalcVarWeightMPF
+  USE MOD_Particle_Vars           ,ONLY: Species, nSpecies
+  USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared, ElemMidPoint_Shared
+  USE MOD_DSMC_Vars               ,ONLY: AdaptMPF, VarWeighting, RadialWeighting, SpecDSMC
+  USE MOD_part_tools              ,ONLY: CalcVarWeightMPF, CalcRadWeightMPF
   !----------------------------------------------------------------------------------------------------------------------------------!
   IMPLICIT NONE
   ! INPUT / OUTPUT VARIABLES
   !----------------------------------------------------------------------------------------------------------------------------------!
   ! LOCAL VARIABLES
   INTEGER                           :: iElem, iGlobalElem, CNElemID
+  INTEGER                           :: iSpec
+  REAL, ALLOCATABLE                 :: UpperBoundMPF(:)
   !===================================================================================================================================
+    ALLOCATE(UpperBoundMPF(nSpecies))
+
+    ! Calculate the upper bound for the MPF based on the reference DSMC quality factors
+    DO iSpec = 1, nSpecies
+      UpperBoundMPF(iSpec) = 1./((SQRT(2.)*SpecDSMC(iSpec)%dref**2*MAXVAL(AdaptMPF%ReferenceDensity(:))**(2./3.))**3)
+    END DO
+  
+    ! Determine the MPF based on the particle number from the reference simulation
     DO iElem = 1, nGlobalElems
       iGlobalElem = iElem + offsetElem
       CNElemID = GetCNElemID(iGlobalElem)
-      IF(VarWeighting%ReferencePartNum(iElem).LT.VarWeighting%MinPartNum) THEN
+      IF(AdaptMPF%ReferencePartNum(iElem).LT.AdaptMPF%MinPartNum) THEN
         ! Increase number 
-      ELSE IF(VarWeighting%ReferencePartNum(iElem).GT.VarWeighting%MaxPartNum) THEN
+        AdaptMPF%OptimalMPF(iElem) = AdaptMPF%ReferenceDensity(iElem)*ElemVolume_Shared(CNElemID)/AdaptMPF%MinPartNum
+
+      ELSE IF(AdaptMPF%ReferencePartNum(iElem).GT.AdaptMPF%MaxPartNum) THEN
         ! Reduce number
+        AdaptMPF%OptimalMPF(iElem) = AdaptMPF%ReferenceDensity(iElem)*ElemVolume_Shared(CNElemID)/AdaptMPF%MaxPartNum
+
       ELSE
         ! Particle number should stay the same
+        IF (VarWeighting%DoVariableWeighting) THEN
+          AdaptMPF%OptimalMPF(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), 1)
+        ELSE IF (RadialWeighting%DoRadialWeighting) THEN
+          AdaptMPF%OptimalMPF(iElem) = CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), 1)
+        ELSE 
+          AdaptMPF%OptimalMPF(iElem) = Species(1)%MacroParticleFactor
+        END IF
+
+        IF (AdaptMPF%OptimalMPF(iElem).GT.AdaptMPF%MaxPartWeight) THEN
+          AdaptMPF%OptimalMPF(iElem) = AdaptMPF%MaxPartWeight
+        END IF
       END IF
-      VarWeighting%DesiredMPF(iElem) = VarWeighting%ReferenceDensity(iElem)*ElemVolume_Shared(CNElemID)/1000.
     END DO
 
-    SDEALLOCATE(VarWeighting%ReferencePartNum)
+    ! Enable the calculation based on the adaptive MPF for the later steps
+    AdaptMPF%UseOptMPF = .TRUE.
+
+    SDEALLOCATE(AdaptMPF%ReferencePartNum)
     
   END SUBROUTINE DSMC_AdaptiveWeights
 
