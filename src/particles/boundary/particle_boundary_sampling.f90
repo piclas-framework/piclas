@@ -831,6 +831,8 @@ DO iSurfSide = 1,nComputeNodeSurfSides
   END IF
   !================== ROTATIONALLY PERIODIC BC CHECK
   IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicBC) CYCLE
+  !================== INTER PLANE BC CHECK
+  IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))).EQ.PartBound%RotPeriodicInterPlaneBC) CYCLE
 
   OutputCounter = OutputCounter + 1
 
