@@ -559,6 +559,9 @@ USE MOD_MPI_Shared
 #else
 USE MOD_Mesh_Vars                   ,ONLY: nElems
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars            ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -595,15 +598,16 @@ END SELECT
 WRITE(UNIT=hilf3,FMT='(G0)') SFAdaptiveDOFDefault
 SFAdaptiveDOF = GETREAL('PIC-shapefunction-adaptive-DOF',TRIM(hilf3))
 
-  SWRITE(UNIT_StdOut,'(A,F10.2)') "         PIC-shapefunction-adaptive-DOF =", SFAdaptiveDOF
-  SWRITE(UNIT_StdOut,'(A,A19,A,F10.2)') " Maximum allowed is ",TRIM(hilf2)," =", DOFMax
-  SWRITE(UNIT_StdOut,*) "Set a value lower or equal to than the maximum for a given polynomial degree N\n"
-  SWRITE(UNIT_StdOut,*) "              N:     1      2      3      4      5       6       7"
-  SWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
-  SWRITE(UNIT_StdOut,*) "           | 1D:     4      6      8     10     12      14      16"
-  SWRITE(UNIT_StdOut,*) "  Max. DOF | 2D:    12     28     50     78    113     153     201"
-  SWRITE(UNIT_StdOut,*) "           | 3D:    33    113    268    523    904    1436    2144"
-  SWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
+LBWRITE(UNIT_StdOut,'(A,F10.2)') "         PIC-shapefunction-adaptive-DOF =", SFAdaptiveDOF
+LBWRITE(UNIT_StdOut,'(A,A19,A,F10.2)') " Maximum allowed is ",TRIM(hilf2)," =", DOFMax
+LBWRITE(UNIT_StdOut,*) "Set a value lower or equal to than the maximum for a given polynomial degree N\n"
+LBWRITE(UNIT_StdOut,*) "              N:     1      2      3      4      5       6       7"
+LBWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
+LBWRITE(UNIT_StdOut,*) "           | 1D:     4      6      8     10     12      14      16"
+LBWRITE(UNIT_StdOut,*) "  Max. DOF | 2D:    12     28     50     78    113     153     201"
+LBWRITE(UNIT_StdOut,*) "           | 3D:    33    113    268    523    904    1436    2144"
+LBWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
+
 IF(SFAdaptiveDOF.GT.DOFMax)THEN
   SWRITE(UNIT_StdOut,*) "Reduce the number of DOF/SF in order to have no DOF outside of the deposition range (neighbour elems)"
   CALL abort(__STAMP__,'PIC-shapefunction-adaptive-DOF > '//TRIM(hilf2)//' is not allowed')

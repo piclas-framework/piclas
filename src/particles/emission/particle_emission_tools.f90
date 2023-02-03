@@ -1937,7 +1937,7 @@ ASSOCIATE( O => Species(FractNbr)%Init(iInit)%BasePointIC         ,&
     Particle_pos(1:3) = RandVal(1)*v2 + RandVal(2)*v3
     particle_positions(i*3-2) = O(1) + Particle_pos(1)
     particle_positions(i*3-1) = O(2) + Particle_pos(2)
-    particle_positions(i*3  ) = O(3)
+    particle_positions(i*3  ) = O(3) + Particle_pos(3)
   END DO
 END ASSOCIATE
 END SUBROUTINE SetParticlePositionPhotonSEERectangle
