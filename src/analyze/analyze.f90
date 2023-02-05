@@ -194,9 +194,7 @@ INTEGER             :: iElem,CNElemID
 REAL                :: PPWCellMax,PPWCellMin
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
-  CALL abort(&
-      __STAMP__&
-      ,'InitAnalyse not ready to be called or already called.')
+  CALL abort(__STAMP__,'InitAnalyse not ready to be called or already called.')
   RETURN
 END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -967,6 +965,7 @@ REAL                          :: CurrentTime
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(6))
 #endif /*EXTRAE*/
+EndAnalyzeTime = -1.0 ! initialize
 
 ! Create .csv file for performance analysis and load balance: write header line
 CALL WriteElemTimeStatistics(WriteHeader=.TRUE.,iter_opt=iter,time_opt=time)
@@ -1279,7 +1278,7 @@ IF(DoPerformErrorCalc)THEN
     END IF
   END IF
 #endif /* PARTICLES */
-  IF(.NOT.DoMeasureAnalyzeTime) StartAnalyzeTime=PICLASTIME()
+  IF(EndAnalyzeTime.LT.0.0) EndAnalyzeTime=PICLASTIME()
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
     WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',OutputTime
@@ -1290,7 +1289,7 @@ IF(DoPerformErrorCalc)THEN
     END IF ! DoMeasureAnalyzeTime
     IF (OutputTime.GT.0.) THEN
       WRITE(UNIT_StdOut,'(132("."))')
-      CALL DisplayMessageAndTime(StartAnalyzeTime-StartTime, 'PICLAS RUNNING '//TRIM(ProjectName)//'... ', DisplayDespiteLB=.TRUE.)
+      CALL DisplayMessageAndTime(EndAnalyzeTime-StartTime, 'PICLAS RUNNING '//TRIM(ProjectName)//'... ', DisplayDespiteLB=.TRUE.)
     ELSE
       WRITE(UNIT_StdOut,'(132("="))')
     END IF

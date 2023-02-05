@@ -95,7 +95,6 @@ USE MOD_Particle_Vars          ,ONLY: DoImportIMDFile
 #if USE_MPI
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*USE_MPI*/
-USE MOD_Particle_Vars          ,ONLY: doParticleMerge, enableParticleMerge, vMPFMergeParticleIter
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,tLocalization,nTracks,MeasureTrackTime
 #if (USE_MPI) && (USE_LOADBALANCE) && defined(PARTICLES)
@@ -200,7 +199,7 @@ iter_PID = 0
 ! fill recordpoints buffer (first iteration)
 !IF(RP_onProc) CALL RecordPoints(iter,t,forceSampling=.TRUE.)
 
-CALL PrintStatusLine(time,dt,tStart,tEnd)
+CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
 #if defined(PARTICLES) && defined(CODE_ANALYZE)
 ! Set specific particle position and velocity (calculated from an analytical expression)
@@ -241,12 +240,6 @@ CALL CPU_TIME(time_start)
 
 DO !iter_t=0,MaxIter
 
-#ifdef PARTICLES
-  IF(enableParticleMerge) THEN
-    IF ((iter.GT.0).AND.(MOD(iter,INT(vMPFMergeParticleIter,8)).EQ.0)) doParticleMerge=.true.
-  END IF
-#endif /*PARTICLES*/
-
 #if defined(PARTICLES) && USE_HDG
   ! Check if BR<->kin switch is active
   IF(BRConvertMode.NE.0) CALL SwitchBRElectronModel()
@@ -269,7 +262,7 @@ DO !iter_t=0,MaxIter
   END IF ! MPIroot
 #endif /*NOT USE_HDG*/
 
-  CALL PrintStatusLine(time,dt,tStart,tEnd)
+  CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
 #if (PP_TimeDiscMethod==1)
@@ -414,6 +407,7 @@ DO !iter_t=0,MaxIter
       ! Analyze for output
       CALL PerformAnalyze(time, FirstOrLastIter=finalIter, OutPutHDF5=.TRUE.) ! analyze routines are not called here in last iter
       ! write information out to std-out of console
+      CALL PrintStatusLine(time,dt,tStart,tEnd,2)
       CALL WriteInfoStdOut()
 #if defined(PARTICLES)
       CALL FillParticleData() ! Fill the SFC-ordered particle arrays for LB or I/O

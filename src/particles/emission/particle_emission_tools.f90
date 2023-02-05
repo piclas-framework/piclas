@@ -66,10 +66,6 @@ INTERFACE SetCellLocalParticlePosition
   MODULE PROCEDURE SetCellLocalParticlePosition
 END INTERFACE
 
-INTERFACE InsideExcludeRegionCheck
-  MODULE PROCEDURE InsideExcludeRegionCheck
-END INTERFACE
-
 INTERFACE CalcNbrOfPhotons
   MODULE PROCEDURE CalcNbrOfPhotons
 END INTERFACE
@@ -96,7 +92,7 @@ END INTERFACE
 PUBLIC :: CalcVelocity_taylorgreenvortex, CalcVelocity_gyrotroncircle
 PUBLIC :: IntegerDivide,SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn,SamplePoissonDistri
 PUBLIC :: BessK,DEVI,SYNGE,QUASIREL
-PUBLIC :: SetCellLocalParticlePosition,InsideExcludeRegionCheck
+PUBLIC :: SetCellLocalParticlePosition
 PUBLIC :: SetParticlePositionPoint, SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
 PUBLIC :: SetParticlePositionCircle, SetParticlePositionGyrotronCircle, SetParticlePositionCuboidCylinder
 PUBLIC :: SetParticlePositionSphere, SetParticlePositionSinDeviation, SetParticleTimeStep
@@ -1327,7 +1323,6 @@ REAL, INTENT(OUT)       :: particle_positions(:)
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), RandVal(3), lineVector(3), radius
 INTEGER                 :: i, chunkSize2
-LOGICAL                 :: insideExcludeRegion
 !===================================================================================================================================
   ! Calculate the cross-product vector from the two base vectors to get the perpendicular direction
   ASSOCIATE(v2 => Species(FractNbr)%Init(iInit)%BaseVector1IC ,&
@@ -1361,13 +1356,6 @@ LOGICAL                 :: insideExcludeRegion
       Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BasePointIC
       Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal(3)
     END SELECT
-    IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
-      CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
-      IF (insideExcludeRegion) THEN
-        i=i+1
-        CYCLE !particle is in excluded region
-      END IF
-    END IF
     particle_positions((chunkSize2+1)*3-2) = Particle_pos(1)
     particle_positions((chunkSize2+1)*3-1) = Particle_pos(2)
     particle_positions((chunkSize2+1)*3  ) = Particle_pos(3)
@@ -1399,7 +1387,6 @@ REAL, INTENT(OUT)       :: particle_positions(:)
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), iRan, radius
 INTEGER                 :: i, chunkSize2
-LOGICAL                 :: insideExcludeRegion
 !===================================================================================================================================
   i=1
   chunkSize2=0
@@ -1407,13 +1394,6 @@ LOGICAL                 :: insideExcludeRegion
     CALL RANDOM_NUMBER(iRan)
     radius = Species(FractNbr)%Init(iInit)%RadiusIC*iRan**(1./3.)
     Particle_pos = DICEUNITVECTOR()*radius + Species(FractNbr)%Init(iInit)%BasePointIC
-    IF (Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions.GT.0) THEN
-      CALL InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
-      IF (insideExcludeRegion) THEN
-        i=i+1
-        CYCLE !particle is in excluded region
-      END IF
-    END IF
     particle_positions((chunkSize2+1)*3-2) = Particle_pos(1)
     particle_positions((chunkSize2+1)*3-1) = Particle_pos(2)
     particle_positions((chunkSize2+1)*3  ) = Particle_pos(3)
@@ -1477,99 +1457,6 @@ INTEGER                 :: i, iPart, j, k
     END DO
   END DO
 END SUBROUTINE SetParticlePositionSinDeviation
-
-
-SUBROUTINE InsideExcludeRegionCheck(FractNbr, iInit, Particle_pos, insideExcludeRegion)
-!===================================================================================================================================
-! Subroutine for checking if calculated particle position would be inside user-defined ExcludeRegion (cuboid or cylinder)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals,                ONLY : abort
-USE MOD_Particle_Vars,          ONLY : Species
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)               :: FractNbr, iInit
-REAL,INTENT(IN)                  :: Particle_pos(3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL,INTENT(OUT)              :: insideExcludeRegion
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                             :: VecExclude(3), DistExclude
-INTEGER                          :: iExclude
-!===================================================================================================================================
-
-insideExcludeRegion=.FALSE.
-DO iExclude=1,Species(FractNbr)%Init(iInit)%NumberOfExcludeRegions
-  VecExclude = Particle_pos - Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%BasePointIC
-  SELECT CASE (TRIM(Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%SpaceIC))
-  CASE ('cuboid')
-    !--check normal direction
-    DistExclude = VecExclude(1)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1) &
-      + VecExclude(2)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(2) &
-      + VecExclude(3)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(3)
-    IF ( (DistExclude .LE. Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%CuboidHeightIC) &
-      .AND. (DistExclude .GE. 0.) ) THEN
-      insideExcludeRegion = .TRUE.
-    ELSE
-      insideExcludeRegion = .FALSE.
-      CYCLE
-    END IF
-    !--check BV1 direction
-    DistExclude = VecExclude(1)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(1) &
-      + VecExclude(2)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(2) &
-      + VecExclude(3)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector1IC(3)
-    IF ( (DistExclude .LE. Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%ExcludeBV_lenghts(1)**2) &
-      .AND. (DistExclude .GE. 0.) ) THEN
-      insideExcludeRegion = .TRUE.
-    ELSE
-      insideExcludeRegion = .FALSE.
-      CYCLE
-    END IF
-    !--check BV2 direction
-    DistExclude = VecExclude(1)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(1) &
-      + VecExclude(2)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(2) &
-      + VecExclude(3)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%BaseVector2IC(3)
-    IF ( (DistExclude .LE. Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%ExcludeBV_lenghts(2)**2) &
-      .AND. (DistExclude .GE. 0.) ) THEN
-      insideExcludeRegion = .TRUE.
-      RETURN !particle is inside current ExcludeRegion based an all dimensions
-    ELSE
-      insideExcludeRegion = .FALSE.
-      CYCLE
-    END IF
-  CASE ('cylinder')
-    !--check normal direction
-    DistExclude = VecExclude(1)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(1) &
-      + VecExclude(2)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(2) &
-      + VecExclude(3)*Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%NormalIC(3)
-    IF ( (DistExclude .LE. Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%CylinderHeightIC) &
-      .AND. (DistExclude .GE. 0.) ) THEN
-      insideExcludeRegion = .TRUE.
-    ELSE
-      insideExcludeRegion = .FALSE.
-      CYCLE
-    END IF
-    !--check radial direction
-    DistExclude = SQRT( VecExclude(1)**2 + VecExclude(2)**2 + VecExclude(3)**2 - DistExclude**2 )
-    IF ( (DistExclude .LE. Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%RadiusIC) &
-      .AND. (DistExclude .GE. Species(FractNbr)%Init(iInit)%ExcludeRegion(iExclude)%Radius2IC) ) THEN
-      insideExcludeRegion = .TRUE.
-      RETURN !particle is inside current ExcludeRegion based an all dimensions
-    ELSE
-      insideExcludeRegion = .FALSE.
-      CYCLE
-    END IF
-  CASE DEFAULT
-    CALL abort(&
-__STAMP__&
-,'wrong SpaceIC for ExcludeRegion!')
-  END SELECT
-END DO
-
-END SUBROUTINE InsideExcludeRegionCheck
 
 
 #ifdef CODE_ANALYZE
@@ -1938,7 +1825,7 @@ ASSOCIATE( O => Species(FractNbr)%Init(iInit)%BasePointIC         ,&
     Particle_pos(1:3) = RandVal(1)*v2 + RandVal(2)*v3
     particle_positions(i*3-2) = O(1) + Particle_pos(1)
     particle_positions(i*3-1) = O(2) + Particle_pos(2)
-    particle_positions(i*3  ) = O(3)
+    particle_positions(i*3  ) = O(3) + Particle_pos(3)
   END DO
 END ASSOCIATE
 END SUBROUTINE SetParticlePositionPhotonSEERectangle

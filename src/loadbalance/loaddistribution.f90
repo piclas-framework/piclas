@@ -191,7 +191,8 @@ INTEGER                        :: iElem,iProc
 LOGICAL                        :: PartIntExists
 REAL                           :: timeWeight(1:nGlobalElems)
 LOGICAL                        :: FileVersionExists
-REAL                           :: FileVersionHDF5
+REAL                           :: FileVersionHDF5Real
+INTEGER                        :: FileVersionHDF5Int
 INTEGER(KIND=IK),ALLOCATABLE   :: PartIntGlob(:,:)
 INTEGER                        :: ElemPerProc(0:nProcessors-1)
 #endif /*PARTICLES*/
@@ -227,25 +228,31 @@ ELSE
       !check file version
       CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
       IF(FileVersionExists)THEN
-        CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5)
+        CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5Real)
+
+        ! Depending on the file version, PartInt may have switched dimensions
+        IF(FileVersionHDF5Real.LT.2.8)THEN
+          ALLOCATE(PartIntTmp(1:nGlobalElems,PartIntSize))
+          ! Check integer KIND=8 possibility
+          CALL ReadArray('PartInt',2,(/INT(nGlobalElems,IK),INT(PartIntSize,IK)/),0_IK,1,IntegerArray=PartIntTmp)
+          ! Switch dimensions
+          DO iElem = 1, nGlobalElems
+            PartIntGlob(:,iElem) = PartIntTmp(iElem,:)
+          END DO ! iElem = FirstElemInd, LastElemInd
+          DEALLOCATE(PartIntTmp)
+        ELSE
+          ! Check integer KIND=8 possibility
+          CALL ReadArray('PartInt',2,(/INT(PartIntSize,IK),INT(nGlobalElems,IK)/),0_IK,2,IntegerArray=PartIntGlob)
+        END IF ! FileVersionHDF5Real.LT.2.7
       ELSE
-        CALL abort(__STAMP__,'Error in ApplyWeightDistributionMethod(): Attribute "File_Version" does not exist!')
+        CALL DatasetExists(File_ID,'Piclas_VersionInt',FileVersionExists,attrib=.TRUE.)
+        IF (FileVersionExists) THEN
+          CALL ReadAttribute(File_ID,'Piclas_VersionInt',1,IntScalar=FileVersionHDF5Int)
+        ELSE
+          CALL abort(__STAMP__,'Error in ApplyWeightDistributionMethod(): Attribute "Piclas_VersionInt" does not exist!')
+        END IF
       ENDIF
 
-      ! Depending on the file version, PartInt may have switched dimensions
-      IF(FileVersionHDF5.LT.2.8)THEN
-        ALLOCATE(PartIntTmp(1:nGlobalElems,PartIntSize))
-        ! Check integer KIND=8 possibility
-        CALL ReadArray('PartInt',2,(/INT(nGlobalElems,IK),INT(PartIntSize,IK)/),0_IK,1,IntegerArray=PartIntTmp)
-        ! Switch dimensions
-        DO iElem = 1, nGlobalElems
-          PartIntGlob(:,iElem) = PartIntTmp(iElem,:)
-        END DO ! iElem = FirstElemInd, LastElemInd
-        DEALLOCATE(PartIntTmp)
-      ELSE
-        ! Check integer KIND=8 possibility
-        CALL ReadArray('PartInt',2,(/INT(PartIntSize,IK),INT(nGlobalElems,IK)/),0_IK,2,IntegerArray=PartIntGlob)
-      END IF ! FileVersionHDF5.LT.2.7
     END IF
     CALL CloseDataFile()
 

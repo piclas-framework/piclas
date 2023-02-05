@@ -1291,6 +1291,8 @@ DO iSpec = 1, nSpecies
     ELSE
       FlowRateSurfFlux(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow*Species(iSpec)%MassIC*MacroParticleFactor/dt
     END IF
+    ! Reset the mass flow rate
+    Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
     IF(UseAdaptive) THEN
       ! Calculate the average pressure
       currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
