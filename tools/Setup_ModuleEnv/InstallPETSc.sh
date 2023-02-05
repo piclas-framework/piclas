@@ -121,6 +121,7 @@ WHICHMPI=openmpi
 
 # DOWNLOAD and INSTALL PETSc (example PETSc-3.17.0)
 PETSCVERSION=3.17.0
+PETSCVERSION=3.18.4
 
 # --------------------------------------------------------------------------------------------------
 # Check pre-requisites

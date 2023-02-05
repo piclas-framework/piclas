@@ -375,8 +375,7 @@ DO iElem=1,PP_nElems
       iPETScGlobal=PETScGlobal(iSideID)
       jPETScGlobal=PETScGlobal(jSideID)
       IF (iPETScGlobal.GT.jPETScGlobal) CYCLE
-      PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,\
-                            Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
+      PetscCallA(MatSetValuesBlocked(Smat_petsc,1,iPETScGlobal,1,jPETScGlobal,Smat(:,:,jLocSide,iLocSide,iElem),ADD_VALUES,ierr))
     END DO
   END DO
 END DO
