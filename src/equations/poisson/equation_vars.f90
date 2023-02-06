@@ -49,7 +49,7 @@ REAL,ALLOCATABLE  :: E(:,:,:,:,:)
 REAL,ALLOCATABLE  :: Et(:,:,:,:,:) ! temporal derivative of E
 ! Boundary condition arrays
 REAL,ALLOCATABLE     :: BCData(:,:,:,:)
-INTEGER,ALLOCATABLE  :: nBCByType(:)
+INTEGER,ALLOCATABLE  :: nBCByType(:) ! Count number of sides of each boundary
 INTEGER,ALLOCATABLE  :: BCSideID(:,:)
 ! can specify BC state
 CHARACTER(LEN=255):: BCStateFile

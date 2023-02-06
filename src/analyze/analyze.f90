@@ -128,17 +128,17 @@ CALL prms%CreateLogicalOption( 'CalcAverageElectricPotential',"Calculate the ave
 CALL prms%CreateRealOption('AvgPotential-Plane-x-coord', 'x-coordinate of the averaged electric potential')
 CALL prms%CreateRealOption('AvgPotential-Plane-Tolerance', 'Absolute tolerance for checking the averaged electric potential plane '&
                                                          , '1E-5')
-CALL prms%CreateLogicalOption( 'CalcElectricTimeDerivative',"Calculate the time derivative of E and output to h5",".FALSE.")
+CALL prms%CreateLogicalOption( 'CalcElectricTimeDerivative' ,"Calculate the time derivative of the electric displacement field D=eps*E and output to .h5 and .csv files.",".FALSE.")
 #endif /*USE_HDG*/
 !-- TimeAverage
-CALL prms%CreateLogicalOption('CalcTimeAverage'     , 'Flag if time averaging should be performed','.FALSE.')
-CALL prms%CreateIntOption(    'nSkipAvg'            , 'Iter every which CalcTimeAverage is performed')
-CALL prms%CreateStringOption( 'VarNameAvg'          , 'Count of time average variables',multiple=.TRUE.)
-CALL prms%CreateStringOption( 'VarNameFluc'         , 'Count of fluctuation variables',multiple=.TRUE.)
+CALL prms%CreateLogicalOption( 'CalcTimeAverage'            , 'Flag if time averaging should be performed','.FALSE.')
+CALL prms%CreateIntOption(     'nSkipAvg'                   , 'Iter every which CalcTimeAverage is performed')
+CALL prms%CreateStringOption(  'VarNameAvg'                 , 'Count of time average variables',multiple=.TRUE.)
+CALL prms%CreateStringOption(  'VarNameFluc'                , 'Count of fluctuation variables',multiple=.TRUE.)
 
 !-- Code Analyze
 #ifdef CODE_ANALYZE
-CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput' , 'print code analyze info to CodeAnalyze.csv','.TRUE.')
+CALL prms%CreateLogicalOption( 'DoCodeAnalyzeOutput'        , 'print code analyze info to CodeAnalyze.csv','.TRUE.')
 #endif /* CODE_ANALYZE */
 END SUBROUTINE DefineParametersAnalyze
 
@@ -175,7 +175,6 @@ USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 #if USE_HDG
 USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential,PosAverageElectricPotential,CalcElectricTimeDerivative
 USE MOD_AnalyzeField          ,ONLY: GetAverageElectricPotentialPlane
-USE MOD_Equation_Vars         ,ONLY: Et
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 #endif /*PARTICLES*/
@@ -265,10 +264,12 @@ IF(CalcAverageElectricPotential)THEN
   DoFieldAnalyze = .TRUE.
   CALL GetAverageElectricPotentialPlane()
 END IF
-!Calculate the time derivative of E and output to h5
+
+!-- Electric displacement current
+! Calculate the time derivative of D=eps0*E and output to h5
 CalcElectricTimeDerivative = GETLOGICAL('CalcElectricTimeDerivative')
-! Allocate temporal derivative for E: No need to nullify as is it overwritten with E the first time it is used
-IF(CalcElectricTimeDerivative) ALLOCATE(Et(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+CALL InitCalcElectricTimeDerivativeSurface()
+
 #endif /*USE_HDG*/
 
 !-- BoundaryParticleOutput (after mapping of PartBound on FieldBound and determination of PartBound types = open, reflective etc.)
@@ -801,15 +802,16 @@ SUBROUTINE FinalizeAnalyze()
 !===================================================================================================================================
 ! MODULES
 #if PP_nVar>=6
-USE MOD_Analyze_Vars,     ONLY: CalcPoyntingInt
-USE MOD_AnalyzeField,     ONLY: FinalizePoyntingInt
+USE MOD_Analyze_Vars     ,ONLY: CalcPoyntingInt
+USE MOD_AnalyzeField     ,ONLY: FinalizePoyntingInt
 #endif /*PP_nVar>=6*/
-USE MOD_Analyze_Vars,     ONLY: PPWCell,AnalyzeInitIsDone
-USE MOD_TimeAverage_Vars, ONLY: doCalcTimeAverage
-USE MOD_TimeAverage,      ONLY: FinalizeTimeAverage
+USE MOD_Analyze_Vars     ,ONLY: PPWCell,AnalyzeInitIsDone
+USE MOD_TimeAverage_Vars ,ONLY: doCalcTimeAverage
+USE MOD_TimeAverage      ,ONLY: FinalizeTimeAverage
 #if USE_HDG
-USE MOD_Analyze_Vars,     ONLY: CalcAverageElectricPotential
-USE MOD_AnalyzeField,     ONLY: FinalizeAverageElectricPotential
+USE MOD_Analyze_Vars     ,ONLY: CalcAverageElectricPotential,EDC
+USE MOD_AnalyzeField     ,ONLY: FinalizeAverageElectricPotential
+USE MOD_Analyze_Vars     ,ONLY: CalcElectricTimeDerivative
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
@@ -823,6 +825,15 @@ IF(CalcPoyntingInt) CALL FinalizePoyntingInt()
 #endif /*PP_nVar>=6*/
 #if USE_HDG
 IF(CalcAverageElectricPotential) CALL FinalizeAverageElectricPotential()
+! Electric displacement current
+IF(CalcElectricTimeDerivative)THEN
+  SDEALLOCATE(EDC%Current)
+  SDEALLOCATE(EDC%FieldBoundaries)
+  SDEALLOCATE(EDC%BCIDToEDCBCID)
+#if USE_MPI
+  SDEALLOCATE(EDC%COMM)
+#endif /*USE_MPI*/
+END IF ! CalcElectricTimeDerivative
 #endif /*USE_HDG*/
 IF(doCalcTimeAverage) CALL FinalizeTimeAverage
 SDEALLOCATE(PPWCell)
@@ -1415,5 +1426,118 @@ rPerformBezierNewton=0.
 END SUBROUTINE CodeAnalyzeOutput
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
+
+#if USE_HDG
+!===================================================================================================================================
+!> Create containers and communicators for each boundary on which the electric displacement current is calculated and agglomerated
+!> This is done for all normal BCs except periodic BCs.
+!===================================================================================================================================
+SUBROUTINE InitCalcElectricTimeDerivativeSurface()
+! MODULES
+USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_WORLD
+USE MOD_Preproc
+USE MOD_Mesh_Vars        ,ONLY: nBCs,BoundaryType,BoundaryName,nBCSides,BC
+USE MOD_Analyze_Vars     ,ONLY: DoSurfModelAnalyze,CalcElectricTimeDerivative,EDC
+USE MOD_Equation_Vars    ,ONLY: Et
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iBC,iEDCBC,SideID,color
+LOGICAL,ALLOCATABLE :: BConProc(:)
+!===================================================================================================================================
+IF(.NOT.CalcElectricTimeDerivative) RETURN ! Read-in parameter that is set in  InitAnalyze() in analyze.f90
+
+! Allocate temporal derivative for E: No need to nullify as is it overwritten with E the first time it is used
+ALLOCATE(Et(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+Et = 0.
+
+! Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that contribute to
+! the total electric displacement current. If yes, then this processor is part of the communicator
+EDC%NBoundaries = 0
+DO iBC=1,nBCs
+  IF(BoundaryType(iBC,BC_ALPHA).NE.0) CYCLE
+  EDC%NBoundaries = EDC%NBoundaries + 1
+END DO
+
+! If not electric displacement current boundaries exist, no measurement of the current can be performed
+IF(EDC%NBoundaries.EQ.0) RETURN
+
+! Automatically activate surface model analyze flag
+DoSurfModelAnalyze = .TRUE.
+
+! 2.) Create Mapping from electric displacement current BC index to field BC index
+ALLOCATE(EDC%FieldBoundaries(EDC%NBoundaries))
+EDC%NBoundaries = 0
+DO iBC=1,nBCs
+  IF(BoundaryType(iBC,BC_ALPHA).NE.0) CYCLE
+  EDC%NBoundaries = EDC%NBoundaries + 1
+  EDC%FieldBoundaries(EDC%NBoundaries) = iBC
+END DO
+
+! Allocate the container
+ALLOCATE(EDC%Current(1:EDC%NBoundaries))
+EDC%Current = 0.
+
+! 3.) Create Mapping from field BC index to electric displacement current BC index
+ALLOCATE(EDC%BCIDToEDCBCID(nBCs))
+EDC%BCIDToEDCBCID = -1
+DO iEDCBC = 1, EDC%NBoundaries
+  iBC = EDC%FieldBoundaries(iEDCBC)
+  EDC%BCIDToEDCBCID(iBC) = iEDCBC
+END DO ! iEDCBC = 1, EDC%NBoundaries
+
+#if USE_MPI
+! 4.) Check if field BC is on current proc (or MPI root)
+ALLOCATE(BConProc(EDC%NBoundaries))
+BConProc = .FALSE.
+IF(MPIRoot)THEN
+  BConProc = .TRUE.
+ELSE
+  DO SideID=1,nBCSides
+    IF(BoundaryType(BC(SideID),BC_ALPHA).NE.0) CYCLE
+    iBC     = BC(SideID)
+    iEDCBC  = EDC%BCIDToEDCBCID(iBC)
+    BConProc(iEDCBC) = .TRUE.
+  END DO ! SideID=1,nBCSides
+END IF ! MPIRoot
+
+! Create the sub-communicators
+ALLOCATE(EDC%COMM(EDC%NBoundaries))
+DO iEDCBC = 1, EDC%NBoundaries
+  ! create new communicator
+  color = MERGE(iEDCBC, MPI_UNDEFINED, BConProc(iEDCBC))
+
+  ! set communicator id
+  EDC%COMM(iEDCBC)%ID=iEDCBC
+
+  ! create new emission communicator for electric displacement current communication. Pass MPI_INFO_NULL as rank to follow the original ordering
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, EDC%COMM(iEDCBC)%UNICATOR, iError)
+
+  ! Find my rank on the shared communicator, comm size and proc name
+  IF(BConProc(iEDCBC))THEN
+    CALL MPI_COMM_RANK(EDC%COMM(iEDCBC)%UNICATOR, EDC%COMM(iEDCBC)%MyRank, iError)
+    CALL MPI_COMM_SIZE(EDC%COMM(iEDCBC)%UNICATOR, EDC%COMM(iEDCBC)%nProcs, iError)
+
+    ! inform about size of emission communicator
+    IF (EDC%COMM(iEDCBC)%MyRank.EQ.0) THEN
+#if USE_LOADBALANCE
+      IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+          WRITE(UNIT_StdOut,'(A,I0,A,I0,A)') ' Electric displacement current: Emission-Communicator ',iEDCBC,' on ',&
+              EDC%COMM(iEDCBC)%nProcs,' procs for '//TRIM(BoundaryName(EDC%FieldBoundaries(iEDCBC)))
+    END IF
+  END IF ! BConProc(iEDCBC)
+END DO ! iEDCBC = 1, EDC%NBoundaries
+#endif /*USE_MPI*/
+
+DEALLOCATE(BConProc)
+
+END SUBROUTINE InitCalcElectricTimeDerivativeSurface
+#endif /*USE_HDG*/
 
 END MODULE MOD_Analyze

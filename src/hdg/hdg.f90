@@ -607,10 +607,14 @@ USE MOD_HDG_Vars
 USE MOD_TimeDisc_Vars ,ONLY: iStage
 #endif
 #if (USE_HDG && (PP_nVar==1))
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+USE MOD_TimeDisc_Vars ,ONLY: iStage,nRKStages
+#endif
 USE MOD_TimeDisc_Vars ,ONLY: dt,dt_Min
 USE MOD_Equation_Vars ,ONLY: E,Et
 USE MOD_Globals_Vars  ,ONLY: eps0
 USE MOD_Analyze_Vars  ,ONLY: CalcElectricTimeDerivative
+USE MOD_Analyze_Vars  ,ONLY: FieldAnalyzeStep
 #endif /*(USE_HDG && (PP_nVar==1))*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -635,11 +639,18 @@ CALL extrae_eventandcounters(int(9000001), int8(4))
 
 ! Calculate temporal derivate of E in last iteration before Analyze_dt is reached: Store E^n here
 #if (USE_HDG && (PP_nVar==1))
-IF(CalcElectricTimeDerivative)THEN
-  IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
-    Et(:,:,:,:,:) = E(:,:,:,:,:)
-  END IF
-END IF ! CalcElectricTimeDerivative
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+  IF (iStage.EQ.1) THEN
+#endif
+  IF(CalcElectricTimeDerivative)THEN
+    ! iter is incremented after this function and then checked in analyze routine with iter+1
+    IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(iter+1,FieldAnalyzeStep).EQ.0))THEN
+      Et(:,:,:,:,:) = E(:,:,:,:,:)
+    END IF
+  END IF ! CalcElectricTimeDerivative
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+END IF
+#endif
 #endif /*(USE_HDG && (PP_nVar==1))*/
 
 ! Check whether the solver should be skipped in this iteration
@@ -675,11 +686,18 @@ END IF
 
 ! Calculate temporal derivate of E in last iteration before Analyze_dt is reached: Store E^n+1 here and calculate the derivative
 #if (USE_HDG && (PP_nVar==1))
-IF(CalcElectricTimeDerivative)THEN
-  IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
-    Et(:,:,:,:,:) = eps0*(E(:,:,:,:,:)-Et(:,:,:,:,:)) / dt
-  END IF
-END IF ! CalcElectricTimeDerivative
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+  IF (iStage.EQ.nRKStages) THEN
+#endif
+  IF(CalcElectricTimeDerivative)THEN
+    ! iter is incremented after this function and then checked in analyze routine with iter+1
+    IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(iter+1,FieldAnalyzeStep).EQ.0))THEN
+      Et(:,:,:,:,:) = eps0*(E(:,:,:,:,:)-Et(:,:,:,:,:)) / dt
+    END IF
+  END IF ! CalcElectricTimeDerivative
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+END IF
+#endif
 #endif /*(USE_HDG && (PP_nVar==1))*/
 
 #ifdef EXTRAE

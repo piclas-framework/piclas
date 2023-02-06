@@ -518,9 +518,9 @@ ASSOCIATE (&
   IF(CalcElectricTimeDerivative) THEN
     nVar=3_IK
     ALLOCATE(LocalStrVarNames(1:nVar))
-    LocalStrVarNames(1)='TimeDerivativeElectricFieldX'
-    LocalStrVarNames(2)='TimeDerivativeElectricFieldY'
-    LocalStrVarNames(3)='TimeDerivativeElectricFieldZ'
+    LocalStrVarNames(1)='TimeDerivativeElecDisplacementX'
+    LocalStrVarNames(2)='TimeDerivativeElecDisplacementY'
+    LocalStrVarNames(3)='TimeDerivativeElecDisplacementZ'
     IF(MPIRoot)THEN
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
       CALL WriteAttributeToHDF5(File_ID,'VarNamesTimeDerivative',INT(nVar,4),StrArray=LocalStrVarnames)

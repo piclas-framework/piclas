@@ -74,7 +74,8 @@ USE MOD_Restart_Vars          ,ONLY: DoRestart
 USE MOD_Dielectric_Vars       ,ONLY: DoDielectric
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: HDGNorm,iterationTotal,RunTimeTotal
-USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential,CalcAverageElectricPotential
+USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential,CalcAverageElectricPotential,EDC,CalcElectricTimeDerivative
+USE MOD_Mesh_Vars             ,ONLY: BoundaryName
 #endif /*USE_HDG*/
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolation
@@ -103,6 +104,7 @@ INTEGER,PARAMETER  :: helpInt=0
 #endif /*PP_nVar=8*/
 #if USE_HDG
 INTEGER,PARAMETER  :: helpInt2=4
+INTEGER            :: iEDCBC
 #else
 INTEGER,PARAMETER  :: helpInt2=0
 #endif /*USE_HDG*/
@@ -157,7 +159,10 @@ IF(MPIROOT)THEN
       nOutputVarTotal = nOutputVar
 #endif /*PP_nVar>=6*/
 #if USE_HDG
+      ! Add averaged electric field (integrated and averaged along y-z-direction)
       IF(CalcAverageElectricPotential) nOutputVarTotal = nOutputVarTotal + 1
+      !-- Electric displacement current
+      IF(CalcElectricTimeDerivative) nOutputVarTotal = nOutputVarTotal + EDC%NBoundaries
 #endif /*USE_HDG*/
 #if (PP_nVar==8)
       IF(.NOT.CalcEpot) nOutputVarTotal = nOutputVarTotal - 5
@@ -197,6 +202,15 @@ IF(MPIROOT)THEN
         nOutputVarTotal = nOutputVarTotal + 1
         WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-AverageElectricPotential"'
       END IF ! CalcAverageElectricPotential
+
+      !-- Electric displacement current
+      IF(CalcElectricTimeDerivative)THEN
+        DO iEDCBC = 1, EDC%NBoundaries
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3,A)') 'ElecDisplCurrent-',iEDCBC,'-'//TRIM(BoundaryName(EDC%FieldBoundaries(iEDCBC)))
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+        END DO ! iEDCBC = 1, EDC%NBoundaries
+      END IF
 #endif /*USE_HDG*/
 
       ! Add BoundaryFieldOutput for each boundary that is required
@@ -259,6 +273,9 @@ IF(.NOT.DoInterpolation)THEN
 #ifdef PARTICLES
 END IF ! .NOT.DoInterpolation
 #endif /*PARTICLES*/
+#if USE_HDG
+IF(CalcElectricTimeDerivative) CALL CalculateElectricDisplacementCurrentSurface()
+#endif /*USE_HDG*/
 
 IF(MPIROOT)THEN
   WRITE(unit_index,'(E23.16E3)',ADVANCE='NO') Time
@@ -294,6 +311,13 @@ IF(MPIROOT)THEN
   IF(CalcAverageElectricPotential)THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',AverageElectricPotential
   END IF ! CalcAverageElectricPotential
+
+  !-- Electric displacement current
+  IF(CalcElectricTimeDerivative)THEN
+    DO iEDCBC = 1, EDC%NBoundaries
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',EDC%Current(iEDCBC)
+    END DO ! iEDCBC = 1, EDC%NBoundaries
+  END IF
 #endif /*USE_HDG*/
   ! ! Add BoundaryFieldOutput for each boundary that is required
   IF(CalcBoundaryFieldOutput)THEN
@@ -1283,7 +1307,7 @@ END SUBROUTINE SetDielectricFaceProfileForPoynting
 #if USE_HDG
 SUBROUTINE CalculateAverageElectricPotential()
 !===================================================================================================================================
-! Calculation of the average electric potential with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is 
+! Calculation of the average electric potential with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is
 ! missing ... ups
 !===================================================================================================================================
 ! MODULES
@@ -1527,8 +1551,7 @@ IF(MPIRoot)THEN
 #endif /*USE_MPI*/
   IF(AverageElectricPotentialFaces.EQ.0)THEN
     SWRITE(UNIT_stdOut,*) 'ERROR with: PosAverageElectricPotential = ',PosAverageElectricPotential
-    CALL abort(&
-    __STAMP__&
+    CALL abort(__STAMP__&
     ,'Found zero faces for averaging the electric potential. Please make sure \nthat the x-coordinate coincides with element'//&
     ' interfaces. Planes cutting through elements in currently not implemented.')
   END IF ! AverageElectricPotentialFaces.EQ.0
@@ -1557,6 +1580,158 @@ IMPLICIT NONE
 ! DEALLOCATE ALL
 SDEALLOCATE(isAverageElecPotSide)
 END SUBROUTINE FinalizeAverageElectricPotential
+
+
+SUBROUTINE CalculateElectricDisplacementCurrentSurface()
+!===================================================================================================================================
+! Calculation of the average electric potential with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is
+! missing ... ups
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars          ,ONLY: SurfElem,SideToElem,nBCSides,NormVec,BC
+USE MOD_Analyze_Vars       ,ONLY: EDC
+USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus,wGPSurf
+USE MOD_Equation_Vars      ,ONLY: Et
+#if USE_MPI
+USE MOD_Globals
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER          :: ElemID,SideID,ilocSide
+INTEGER          :: p,q,l
+REAL             :: Uface(PP_nVar,0:PP_N,0:PP_N)
+INTEGER          :: iBC,iEDCBC
+!REAL             :: SIP(0:PP_N,0:PP_N)
+!REAL             :: AverageElectricPotentialProc
+!REAL             :: area_loc,integral_loc
+!===================================================================================================================================
+!AverageElectricPotentialProc = 0.
+EDC%Current = 0.
+
+DO SideID=1,nBCSides
+  ElemID   = SideToElem(S2E_ELEM_ID,SideID)
+  ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
+#if (PP_NodeType==1) /* for Gauss-points*/
+  SELECT CASE(ilocSide)
+  CASE(XI_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,q,p)=DOT_PRODUCT(Et(:,0,p,q,ElemID),NormVec(1:3,p,q,SideID))*L_Minus(0)
+        DO l=1,PP_N
+          ! switch to right hand system
+          Uface(:,q,p)=Uface(:,q,p)+DOT_PRODUCT(Et(:,l,p,q,ElemID),NormVec(1:3,p,q,SideID))*L_Minus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ETA_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,p,q)=DOT_PRODUCT(Et(:,p,0,q,ElemID),NormVec(1:3,p,q,SideID))*L_Minus(0)
+        DO l=1,PP_N
+          Uface(:,p,q)=Uface(:,p,q)+DOT_PRODUCT(Et(:,p,l,q,ElemID),NormVec(1:3,p,q,SideID))*L_Minus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ZETA_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,q,p)=DOT_PRODUCT(Et(:,p,q,0,ElemID),NormVec(1:3,p,q,SideID))*L_Minus(0)
+        DO l=1,PP_N
+          ! switch to right hand system
+          Uface(:,q,p)=Uface(:,q,p)+DOT_PRODUCT(Et(:,p,q,l,ElemID),NormVec(1:3,p,q,SideID))*L_Minus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! qfirst stuff
+  CASE(XI_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,p,q)=DOT_PRODUCT(Et(:,0,p,q,ElemID),NormVec(1:3,p,q,SideID))*L_Plus(0)
+        DO l=1,PP_N
+          Uface(:,p,q)=Uface(:,p,q)+DOT_PRODUCT(Et(:,l,p,q,ElemID),NormVec(1:3,p,q,SideID))*L_Plus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ETA_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,PP_N-p,q)=DOT_PRODUCT(Et(:,p,0,q,ElemID),NormVec(1:3,p,q,SideID))*L_Plus(0)
+        DO l=1,PP_N
+          ! switch to right hand system
+          Uface(:,PP_N-p,q)=Uface(:,PP_N-p,q)+DOT_PRODUCT(Et(:,p,l,q,ElemID),NormVec(1:3,p,q,SideID))*L_Plus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ZETA_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,p,q)=DOT_PRODUCT(Et(:,p,q,0,ElemID),NormVec(1:3,p,q,SideID))*L_Plus(0)
+        DO l=1,PP_N
+          Uface(:,p,q)=Uface(:,p,q)+DOT_PRODUCT(Et(:,p,q,l,ElemID),NormVec(1:3,p,q,SideID))*L_Plus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  END SELECT
+#else /* for Gauss-Lobatto-points*/
+  SELECT CASE(ilocSide)
+  CASE(XI_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,q,p)=DOT_PRODUCT(Et(:,0,p,q,ElemID),NormVec(1:3,p,q,SideID))
+      END DO ! p
+    END DO ! q
+  CASE(ETA_MINUS)
+    Uface(:,:,:)=DOT_PRODUCT(Et(:,:,0,:,ElemID),NormVec(1:3,p,q,SideID))
+  CASE(ZETA_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,q,p)=DOT_PRODUCT(Et(:,p,q,0,ElemID),NormVec(1:3,p,q,SideID))
+      END DO ! p
+    END DO ! q
+  CASE(XI_PLUS)
+    Uface(:,:,:)=DOT_PRODUCT(Et(:,PP_N,:,:,ElemID),NormVec(1:3,p,q,SideID))
+  CASE(ETA_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,PP_N-p,q)=DOT_PRODUCT(Et(:,p,PP_N,q,ElemID),NormVec(1:3,p,q,SideID))
+      END DO ! p
+    END DO ! q
+  CASE(ZETA_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,p,q)=DOT_PRODUCT(Et(:,p,q,PP_N,ElemID),NormVec(1:3,p,q,SideID))
+      END DO ! p
+    END DO ! q
+  END SELECT
+#endif
+
+  ! Get BC index and EDC index
+  iBC     = BC(SideID)
+  iEDCBC  = EDC%BCIDToEDCBCID(iBC)
+  EDC%Current(iEDCBC) = EDC%Current(iEDCBC) + SUM(Uface(1,:,:) * SurfElem(:,:,SideID) * wGPSurf(:,:))
+
+END DO
+
+#if USE_MPI
+DO iEDCBC = 1, EDC%NBoundaries
+  IF(EDC%COMM(iEDCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+    ASSOCIATE( Current => EDC%Current(1:EDC%NBoundaries), NBC => EDC%NBoundaries, COMM => EDC%COMM(iEDCBC)%UNICATOR)
+      IF(MPIroot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE , Current , NBC , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , COMM , IERROR)
+      ELSE
+        CALL MPI_REDUCE(Current      , 0       , NBC , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , COMM , IERROR)
+      END IF ! myLeaderGroupRank.EQ.0
+    END ASSOCIATE
+  END IF ! EDC%COMM(iEDCBC)%UNICATOR.NE.MPI_COMM_NULL
+END DO ! iEDCBC = 1, EDC%NBoundaries
+#endif /*USE_MPI*/
+
+END SUBROUTINE CalculateElectricDisplacementCurrentSurface
 #endif /*USE_HDG*/
 
 !===================================================================================================================================
