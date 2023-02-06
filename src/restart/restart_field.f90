@@ -231,10 +231,10 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 #if USE_PETSC
   DO PETScLocalID=1,nPETScUniqueSides
     SideID=PETScLocalToSideID(PETScLocalID)
-    CALL VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr);PetscCall(ierr)
+    PetscCallA(VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
   END DO
-  CALL VecAssemblyBegin(lambda_petsc,ierr);PetscCall(ierr)
-  CALL VecAssemblyEnd(lambda_petsc,ierr);PetscCall(ierr)
+  PetscCallA(VecAssemblyBegin(lambda_petsc,ierr))
+  PetscCallA(VecAssemblyEnd(lambda_petsc,ierr))
 #endif
 
   CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
@@ -387,10 +387,10 @@ ELSE ! normal restart
 #if USE_PETSC
         DO PETScLocalID=1,nPETScUniqueSides
           SideID=PETScLocalToSideID(PETScLocalID)
-          CALL VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr);PetscCall(ierr)
+          PetscCallA(VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
         END DO
-        CALL VecAssemblyBegin(lambda_petsc,ierr);PetscCall(ierr)
-        CALL VecAssemblyEnd(lambda_petsc,ierr);PetscCall(ierr)
+        PetscCallA(VecAssemblyBegin(lambda_petsc,ierr))
+        PetscCallA(VecAssemblyEnd(lambda_petsc,ierr))
 #endif
 
         CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
