@@ -360,11 +360,8 @@ END IF
 ! (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
 IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.GEO%RotPeriodicBC) THEN
   CALL InitParticleBoundarySampling()
-  IF(GEO%RotPeriodicBC) THEN
-    CALL InitParticleBoundaryRotPeriodic()
-!    IF(nRotPeriodicBCs.NE.2) CALL InitRotPeriodicInterPlane
-    CALL InitRotPeriodicInterPlane
-  END IF
+  IF(GEO%RotPeriodicBC) CALL InitParticleBoundaryRotPeriodic()
+  IF(GEO%RotPeriodicBC) CALL InitRotPeriodicInterPlane
   CALL InitAdaptiveWallTemp()
 END IF
 

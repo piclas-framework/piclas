@@ -246,6 +246,8 @@ INTEGER         :: ElemCharLengthZ_Shared_Win
 
 ! periodic sides
 LOGICAL         :: MeshHasPeriodic,MeshHasRotPeriodic
+! intermediate planes
+LOGICAL         :: MeshHasInterPlanes
 #endif
 
 ! ElemID for WriteHaloInfo
@@ -289,6 +291,7 @@ INTEGER                                  :: FIBGMCellPadding(1:3)
 ! ====================================================================
 TYPE tGeometry
   LOGICAL                                :: RotPeriodicBC            ! Flag for rotational periodicity
+  LOGICAL                                :: InterPlaneBC             ! Flag for inter planes exist
   INTEGER                                :: RotPeriodicAxi           ! Axis of rotational periodicity
   REAL                                   :: CNxmin                   ! minimum x coord of all compute-node nodes
   REAL                                   :: CNxmax                   ! minimum y coord of all compute-node nodes

@@ -120,6 +120,9 @@ LOGICAL                        :: SideIsRotPeriodic
 INTEGER                        :: BCindex,iPartBound
 REAL                           :: StartT,EndT
 CHARACTER(LEN=255)             :: hilf
+INTEGER                        :: k,iLocElem
+LOGICAL                        :: InInterPlaneRegion
+REAL                           :: InterPlaneDistance
 !=================================================================================================================================
 
 WRITE(hilf,'(A)') 'IDENTIFYING Particle Exchange Processors ...'
@@ -994,6 +997,54 @@ ExchangeLoop: DO iElem = offsetElemMPI(iProc)+1,offsetElemMPI(iProc+1)
     nExchangeProcessors = nExchangeProcessors - 1
   END IF
 END DO ! iProc = 1,nExchangeProcessors
+
+IF(GEO%InterPlaneBC) THEN
+  k = GEO%RotPeriodicAxi ! Direction of rotation axis == norm vec for all inter planes
+  DO iPartBound = 1,nPartBound
+    ! ignore non-Inter-Plane-BCs
+    IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicInterPlaneBC) CYCLE
+    InInterPlaneRegion = .FALSE.
+! (1) Loop over all proc local elements in order to identify if any of own element is within halo_eps of the inter plane
+    DO iLocElem = offsetElem+1,offsetElem+nElems
+      BoundsOfElemCenter(1:3) = (/    SUM(BoundsOfElem_Shared(1:2,1,iLocElem)),                                     &
+                                      SUM(BoundsOfElem_Shared(1:2,2,iLocElem)),                                     &
+                                      SUM(BoundsOfElem_Shared(1:2,3,iLocElem)) /) / 2.
+      BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem), &
+                                          BoundsOfElem_Shared(2,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),      &
+                                          BoundsOfElem_Shared(2,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
+      InterPlaneDistance = ABS(PartBound%RotAxisPosition(iPartBound) - BoundsOfElemCenter(k))
+      IF(InterPlaneDistance.LE.halo_eps+BoundsOfElemCenter(4)) THEN
+        InInterPlaneRegion = .TRUE.
+        EXIT
+      END IF
+    END DO
+    IF(InInterPlaneRegion) THEN
+! (2) Loop over all elements on the compute node and add the procs as halo_procs if they are within the corresponding 
+!     InterplaneRegion
+      DO iElem = 1,nComputeNodeTotalElems
+        ElemID   = GetGlobalElemID(iElem)
+        HaloProc = ElemInfo_Shared(ELEM_RANK,ElemID)
+        ! Skip elements on same rank
+        IF (HaloProc.EQ.myRank) CYCLE
+        ! Ignore procs that are already flagged or not requesting communication
+        IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).GT.0) CYCLE
+        BoundsOfElemCenter(1:3) = (/    SUM(BoundsOfElem_Shared(1:2,1,ElemID)),                                     &
+                                        SUM(BoundsOfElem_Shared(1:2,2,ElemID)),                                     &
+                                        SUM(BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+        BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                            BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID),      &
+                                            BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+        InterPlaneDistance = ABS(PartBound%RotAxisPosition(iPartBound) - BoundsOfElemCenter(k))
+        IF(InterPlaneDistance.LE.halo_eps+BoundsOfElemCenter(4)) THEN
+          ! flag the proc as exchange proc (in halo region)
+          GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
+          GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
+          nExchangeProcessors = nExchangeProcessors + 1
+        END IF
+      END DO
+    END IF
+  END DO
+END IF
 
 ! Notify every proc if it was identified by the local proc
 IF(CheckExchangeProcs)THEN
