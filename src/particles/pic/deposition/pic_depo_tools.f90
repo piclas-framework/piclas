@@ -160,7 +160,6 @@ USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
 USE MOD_PICDepo_Vars       ,ONLY: NodeVolume
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemsJ, ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared
-USE MOD_Mesh_Vars          ,ONLY: sJ
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -236,14 +235,14 @@ DO iElem = firstElem, lastElem
     ! NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + DetJac(1,0,1,1)
 
     DO j=0,PP_N;DO k=0,PP_N;DO l=0,PP_N
-      NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + 1/sJ(j,k,l,iElem)*((1.-xGP(j))*(1.-xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-      NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + 1/sJ(j,k,l,iElem)*((1.+xGP(j))*(1.-xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-      NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + 1/sJ(j,k,l,iElem)*((1.+xGP(j))*(1.+xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-      NodeVolume(NodeID(4)) = NodeVolume(NodeID(4)) + 1/sJ(j,k,l,iElem)*((1.-xGP(j))*(1.+xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-      NodeVolume(NodeID(5)) = NodeVolume(NodeID(5)) + 1/sJ(j,k,l,iElem)*((1.-xGP(j))*(1.-xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-      NodeVolume(NodeID(6)) = NodeVolume(NodeID(6)) + 1/sJ(j,k,l,iElem)*((1.+xGP(j))*(1.-xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-      NodeVolume(NodeID(7)) = NodeVolume(NodeID(7)) + 1/sJ(j,k,l,iElem)*((1.+xGP(j))*(1.+xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-      NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + 1/sJ(j,k,l,iElem)*((1.-xGP(j))*(1.+xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + 1/ElemsJ(j,k,l,iElem)*((1.-xGP(j))*(1.-xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + 1/ElemsJ(j,k,l,iElem)*((1.+xGP(j))*(1.-xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + 1/ElemsJ(j,k,l,iElem)*((1.+xGP(j))*(1.+xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(4)) = NodeVolume(NodeID(4)) + 1/ElemsJ(j,k,l,iElem)*((1.-xGP(j))*(1.+xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(5)) = NodeVolume(NodeID(5)) + 1/ElemsJ(j,k,l,iElem)*((1.-xGP(j))*(1.-xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(6)) = NodeVolume(NodeID(6)) + 1/ElemsJ(j,k,l,iElem)*((1.+xGP(j))*(1.-xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(7)) = NodeVolume(NodeID(7)) + 1/ElemsJ(j,k,l,iElem)*((1.+xGP(j))*(1.+xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + 1/ElemsJ(j,k,l,iElem)*((1.-xGP(j))*(1.+xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
     END DO; END DO; END DO
 #if USE_MPI
   END ASSOCIATE
