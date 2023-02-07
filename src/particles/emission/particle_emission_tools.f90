@@ -965,6 +965,10 @@ __STAMP__,&
   ELSE
     PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
     IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
+    IF(INT(PartDens * LocalVolume,8).GT.INT(HUGE(1_4),8)) THEN
+      IPWRITE(*,'(I0,3(A,ES25.14E3))') ' Particle number as INT KIND=8: ', REAL(INT(PartDens * LocalVolume,8)), ' Weighted particle density: ', PartDens, ' Local core volume: ', LocalVolume
+      CALL abort(__STAMP__,'ERROR in SetCellLocalParticlePosition: Particle number per core is greater than INT KIND=4 limit!')
+    END IF
     chunkSize_tmp = INT(PartDens * LocalVolume)
     IF(chunkSize_tmp.GE.PDM%maxParticleNumber) THEN
       CALL abort(__STAMP__,&
@@ -1027,6 +1031,7 @@ __STAMP__,&
           WRITE(UNIT_stdOut,*) ""
           IPWRITE(UNIT_stdOut,*) "ERROR:"
           IPWRITE(UNIT_stdOut,*) "                iPart :", iPart
+          IPWRITE(UNIT_stdOut,*) "            chunkSize :", ichunkSize
           IPWRITE(UNIT_stdOut,*) "PDM%maxParticleNumber :", PDM%maxParticleNumber
           CALL abort(&
               __STAMP__&
