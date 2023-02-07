@@ -410,8 +410,8 @@ END SELECT
   END IF  
   CALL BARRIER_AND_SYNC(Radiation_Absorption_Spec_Shared_Win ,MPI_COMM_SHARED)
   IF (RadObservationPointMethod.EQ.2) CALL BARRIER_AND_SYNC(RadObservationPOI_Shared_Win ,MPI_COMM_SHARED)
-  print*, 'AHAAAA', SUM(RadObservationPOI(7,:))
-  read*
+  !print*, 'AHAAAA', SUM(RadObservationPOI(7,:))
+  !read*
 #endif
   RadTrans%GlobalRadiationPower = 0.0
   RadTrans%ScaledGlobalRadiationPower = 0.0

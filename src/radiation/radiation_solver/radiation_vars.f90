@@ -47,6 +47,8 @@ TYPE tRadiationParameter           ! Radiation Wavelength Parameter
   REAL                  :: MaxWaveLen                       ! maximum spectral wavelength
   INTEGER               :: WaveLenDiscr                     ! number of points in calculated spectrum
   INTEGER               :: WaveLenDiscrCoarse               ! number of points in calculated spectrum
+  INTEGER               :: WaveLenDiscrOutput               ! number of points in calculated spectrum
+  INTEGER               :: WaveLenReductionFactorOutput     ! number of points in calculated spectrum
   INTEGER               :: WaveLenReductionFactor
   REAL                  :: WaveLenIncr                      ! wavelength increments
   REAL                  :: WaveLenIncrCoarse

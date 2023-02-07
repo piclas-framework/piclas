@@ -71,6 +71,7 @@ CALL prms%CreateRealOption(   'Radiation-MinWaveLen',                  'Lower wa
 CALL prms%CreateRealOption(   'Radiation-MaxWaveLen',                  'Upper wavelength limit for radiation calculation','1000.0')
 CALL prms%CreateIntOption(    'Radiation-WaveLenDiscr',                'Number of discretization points', '10000')
 CALL prms%CreateIntOption(    'Radiation-WaveLenReductionFactor',      'Number of discretization points', '1')
+CALL prms%CreateIntOption(    'Radiation-WaveLenReductionFactorOutput',      'Number of discretization points', '1')
 CALL prms%CreateIntOption(    'Radiation-RadType',                     'Select radiation type:\n'//&
                                                                        '1: particle radiation\n'//&
                                                                        '2: black body radiation\n'//&
@@ -168,6 +169,7 @@ RadiationParameter%MaxWaveLen   = GETREAL('Radiation-MaxWaveLen')
 RadiationParameter%MaxWaveLen   = RadiationParameter%MaxWaveLen*1.E-9
 RadiationParameter%WaveLenDiscr = GETINT('Radiation-WaveLenDiscr')
 RadiationParameter%WaveLenReductionFactor = GETINT('Radiation-WaveLenReductionFactor')
+RadiationParameter%WaveLenReductionFactorOutput = GETINT('Radiation-WaveLenReductionFactorOutput')
 IF((RadiationSwitches%RadType.EQ.3) .AND. (nGlobalElems.EQ.1)) RadiationParameter%WaveLenReductionFactor = 1
 IF(RadiationSwitches%RadType.EQ.2) RadiationParameter%WaveLenReductionFactor = 1
 IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
@@ -178,6 +180,13 @@ IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
   RadiationParameter%WaveLenCoarse = 0.0
 ELSE
   RadiationParameter%WaveLenDiscrCoarse = RadiationParameter%WaveLenDiscr
+END IF
+IF (RadiationParameter%WaveLenReductionFactorOutput.GT.1) THEN
+  RadiationParameter%WaveLenDiscrOutput = NINT(REAL(RadiationParameter%WaveLenDiscr)/ REAL(RadiationParameter%WaveLenReductionFactorOutput))
+  RadiationParameter%WaveLenReductionFactorOutput = INT(RadiationParameter%WaveLenDiscr/RadiationParameter%WaveLenDiscrOutput)
+  SWRITE(UNIT_stdOut,'(A)') 'Corrected WaveLenReductionFactorOutput is ', RadiationParameter%WaveLenReductionFactorOutput
+ELSE
+  RadiationParameter%WaveLenDiscrOutput = RadiationParameter%WaveLenDiscr
 END IF
 IF(RadiationParameter%MinWaveLen.GE.RadiationParameter%MaxWaveLen) THEN
   CALL abort(&
@@ -372,6 +381,7 @@ SUBROUTINE MacroscopicRadiationInput()
         MacroRadInputParameters(CNElemID,iSpec,2) = MAX(0.,ElemData_HDF5(iVar+ 7,iElem)) !T_vib
         MacroRadInputParameters(CNElemID,iSpec,3) = MAX(0.,ElemData_HDF5(iVar+ 8,iElem)) !T_rot
         MacroRadInputParameters(CNElemID,iSpec,4) = MAX(0.,ElemData_HDF5(iVar+ 9,iElem)) !T_elec
+        !IF((iSpec.EQ.12) .OR. (iSpec.EQ.13)) MacroRadInputParameters(CNElemID,iSpec,4)=MacroRadInputParameters(CNElemID,iSpec,4)*1.1 !Fe Fe+ +-10percent
         MacroRadInputParameters(CNElemID,iSpec,5) = MAX(0.,ElemData_HDF5(iVar+11,iElem)) !T_mean
       END DO
       iVar = iVar + DSMC_NVARS

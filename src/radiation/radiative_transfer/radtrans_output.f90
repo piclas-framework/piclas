@@ -68,7 +68,8 @@ SUBROUTINE WriteRadiationToHDF5()
   INTEGER                             :: nVal, iElem, nVar, iSpec, nVarCount, nVarSpec, CNElemID, iWave
   REAL, ALLOCATABLE                   :: TempOutput(:,:)
   CHARACTER(LEN=255), ALLOCATABLE     :: StrVarNames(:)
-  REAL                                :: AbsTotal,tempSpecAbs
+  REAL                                :: AbsTotal,tempSpecAbs, tmpPartNum, tmpEmission(2)
+  INTEGER                             :: iWavetmp(2)
 !===================================================================================================================================
   SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
   FileString=TRIM(ProjectName)//'_RadiationState.h5'
@@ -211,13 +212,33 @@ SUBROUTINE WriteRadiationToHDF5()
         WRITE(20,*) 'x,y1,y2,y3'
         IF (RadObservationPointMethod.EQ.1) THEN    
           IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
-            DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+            DO iWave=1, RadiationParameter%WaveLenDiscrCoarse            
               WRITE(20,*) RadiationParameter%WaveLenCoarse(iWave)*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave),',',RadObservation_Emission_Conv(iWave)/RadObservationPoint%Area
             END DO
           ELSE
-            DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
-              WRITE(20,*) RadiationParameter%WaveLen(iWave)*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave),',',RadObservation_Emission_Conv(iWave)/RadObservationPoint%Area
-            END DO
+            IF (RadiationParameter%WaveLenReductionFactorOutput.GT.1) THEN
+	            tmpPartNum=0.; tmpEmission=0.; iWavetmp(1)=0; iWavetmp(2)=1
+              DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+              	IF (MOD(iWave,RadiationParameter%WaveLenReductionFactorOutput).EQ.0) THEN
+                	iWavetmp(1) = iWavetmp(1) + 1
+              	  tmpPartNum = tmpPartNum + RadObservation_EmissionPart(iWave)
+              	  tmpEmission(1) = tmpEmission(1) +  RadObservation_Emission(iWave)
+        	        tmpEmission(2) = tmpEmission(2) +  RadObservation_Emission_Conv(iWave)
+                  WRITE(20,*) (RadiationParameter%WaveLen(iWavetmp(2))+RadiationParameter%WaveLen(iWavetmp(2)+iWavetmp(1)-1))/2.*1.E10,',',tmpEmission(1)/RadObservationPoint%Area,',',tmpPartNum,',',tmpEmission(2)/RadObservationPoint%Area
+                  tmpPartNum = 0.; tmpEmission= 0.
+                  iWavetmp(1)=0; iWavetmp(2)=iWave
+              	ELSE
+                	iWavetmp(1) = iWavetmp(1) + 1
+              	  tmpPartNum = tmpPartNum + RadObservation_EmissionPart(iWave)
+              	  tmpEmission(1) = tmpEmission(1) +  RadObservation_Emission(iWave)
+        	        tmpEmission(2) = tmpEmission(2) +  RadObservation_Emission_Conv(iWave)
+              	END IF
+              END DO
+            ELSE
+              DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+                WRITE(20,*) RadiationParameter%WaveLen(iWave)*1.E10,',',RadObservation_Emission(iWave)/RadObservationPoint%Area,',',RadObservation_EmissionPart(iWave),',',RadObservation_Emission_Conv(iWave)/RadObservationPoint%Area
+              END DO
+            END IF
           END IF
         ELSEIF (RadObservationPointMethod.EQ.2) THEN
           IF (RadiationParameter%WaveLenReductionFactor.NE.1) THEN
@@ -225,9 +246,29 @@ SUBROUTINE WriteRadiationToHDF5()
               WRITE(20,*) RadiationParameter%WaveLenCoarse(iWave)*1.E10,',',RadObservation_Emission(iWave),',',RadObservation_EmissionPart(iWave),',',RadObservation_Emission_Conv(iWave)
             END DO
           ELSE
-            DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
-              WRITE(20,*) RadiationParameter%WaveLen(iWave)*1.E10,',',RadObservation_Emission(iWave),',',RadObservation_EmissionPart(iWave),',',RadObservation_Emission_Conv(iWave)
-            END DO
+            IF (RadiationParameter%WaveLenReductionFactorOutput.GT.1) THEN
+              tmpPartNum=0.; tmpEmission=0.; iWavetmp(1)=0; iWavetmp(2)=1
+              DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+              	IF (MOD(iWave,RadiationParameter%WaveLenReductionFactorOutput).EQ.0) THEN
+                	iWavetmp(1) = iWavetmp(1) + 1
+              	  tmpPartNum = tmpPartNum + RadObservation_EmissionPart(iWave)
+              	  tmpEmission(1) = tmpEmission(1) +  RadObservation_Emission(iWave)
+        	        tmpEmission(2) = tmpEmission(2) +  RadObservation_Emission_Conv(iWave)
+                  WRITE(20,*) (RadiationParameter%WaveLen(iWavetmp(2))+RadiationParameter%WaveLen(iWavetmp(2)+iWavetmp(1)-1))/2.*1.E10,',',tmpEmission(1),',',tmpPartNum,',',tmpEmission(2)
+                  tmpPartNum = 0.; tmpEmission= 0.
+                  iWavetmp(1)=0; iWavetmp(2)=iWave
+              	ELSE
+                	iWavetmp(1) = iWavetmp(1) + 1
+              	  tmpPartNum = tmpPartNum + RadObservation_EmissionPart(iWave)
+              	  tmpEmission(1) = tmpEmission(1) +  RadObservation_Emission(iWave)
+        	        tmpEmission(2) = tmpEmission(2) +  RadObservation_Emission_Conv(iWave)
+              	END IF
+              END DO
+            ELSE
+              DO iWave=1, RadiationParameter%WaveLenDiscrCoarse
+                WRITE(20,*) RadiationParameter%WaveLen(iWave)*1.E10,',',RadObservation_Emission(iWave),',',RadObservation_EmissionPart(iWave),',',RadObservation_Emission_Conv(iWave)
+              END DO
+            END IF
           END IF
         END IF
         CLOSE(unit=20)
