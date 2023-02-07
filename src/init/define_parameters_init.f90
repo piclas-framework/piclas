@@ -30,6 +30,7 @@ SUBROUTINE InitDefineParameters()
 USE MOD_Globals                    ,ONLY: UNIT_stdOut
 #if USE_MPI
 USE MOD_Globals                    ,ONLY: MPIRoot
+USE MOD_MPI_Shared                 ,ONLY: DefineParametersMPIShared
 #endif /*USE_MPI*/
 USE MOD_Symmetry                   ,ONLY: DefineParametersSymmetry
 USE MOD_Globals_Init               ,ONLY: DefineParametersGlobals
@@ -82,7 +83,7 @@ USE MOD_DSMC_Symmetry              ,ONLY: DefineParametersParticleSymmetry
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
 #if USE_MPI
 USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
-#endif /* USE_MPI */
+#endif
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Insert modules here
@@ -98,6 +99,9 @@ SWRITE(UNIT_stdOut,'(A)') ' DEFINING PARAMETERS ...'
 SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL DefineParametersMPI()
+#if USE_MPI
+CALL DefineParametersMPIShared()
+#endif /*USE_MPI*/
 CALL DefineParametersIO()
 CALL DefineParametersGlobals()
 CALL DefineParametersSymmetry()

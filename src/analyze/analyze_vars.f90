@@ -33,7 +33,7 @@ REAL              :: OutputTimeFixed             !< fixed time for writing state
 LOGICAL           :: CalcMeshInfo                !< Output myrank, ElemID and tracking info to ElemData
 LOGICAL           :: CalcHaloInfo                !< Output halo element information to ElemData
 INTEGER           :: AnalyzeCount                !< number of analyzes (for info)
-REAL              :: AnalyzeTime                 !< accumulated time of analyzes (for info)
+REAL              :: AnalyzeTime                 !< Accumulated wall time of analyzes (for info)
 REAL,ALLOCATABLE  :: S(:,:,:,:), STEM(:,:,:)     !< vector, abs for TEM waves
 LOGICAL           :: DoFieldAnalyze              !< perform analyze
 LOGICAL           :: DoMeasureAnalyzeTime        !< measure time that is spent in analyze routines and count the number of analysis

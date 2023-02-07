@@ -359,17 +359,18 @@ DO iPart=1,PDM%ParticleVecLength
   ! Particle on local proc, do nothing
   IF (ProcID.EQ.myRank) CYCLE
 
-  ! Sanity check (fails here if halo region is too small)
+  ! Sanity check (fails here if halo region is too small or particle is over speed of light because the time step is too large)
   IF(GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0)THEN
     IPWRITE (*,*) "GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) =", GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
     IPWRITE (*,*) "ProcID                                              =", ProcID
+    IPWRITE (*,*) "global ElemID                                       =", ElemID
+    IPWRITE(UNIT_StdOut,'(I12,A,3(ES25.14E3))') " PartState(1:3,iPart)          =", PartState(1:3,iPart)
     IPWRITE(UNIT_StdOut,'(I12,A,3(ES25.14E3))') " PartState(4:6,iPart)          =", PartState(4:6,iPart)
     IPWRITE(UNIT_StdOut,'(I12,A,ES25.14E3)')    " VECNORM(PartState(4:6,iPart)) =", VECNORM(PartState(4:6,iPart))
     IPWRITE(UNIT_StdOut,'(I12,A,ES25.14E3)')    " halo_eps_velo                 =", halo_eps_velo
-    CALL abort(&
-    __STAMP__&
-    ,'Error: GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) is negative. '//&
-     'The halo region might be too small. Try increasing Particles-HaloEpsVelo!')
+    CALL abort(__STAMP__,'Error: GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) is negative. '//&
+                         'The halo region might be too small. Try increasing Particles-HaloEpsVelo! '//&
+                         'If this does not help, then maybe the time step is too big. Try reducing ManualTimeStep!')
   END IF ! GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0
 
   ! Add particle to target proc count
@@ -457,7 +458,7 @@ USE MOD_Particle_Vars,           ONLY:PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart
+USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -768,8 +769,10 @@ DO iProc=0,nExchangeProcessors-1
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
-  MPIW8TimePart(1) = MPIW8TimePart(1) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
-  MPIW8TimePart(2) = MPIW8TimePart(2) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+  MPIW8TimePart(1)  = MPIW8TimePart(1) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
+  MPIW8CountPart(1) = MPIW8CountPart(1) + 1_8
+  MPIW8TimePart(2)  = MPIW8TimePart(2) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+  MPIW8CountPart(2) = MPIW8CountPart(2) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 END DO ! iProc
 
@@ -885,8 +888,7 @@ USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf!,PartMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, VarTimeStep
-USE MOD_Particle_Vars          ,ONLY: doParticleMerge, vMPF_SpecNumElem, LastPartPos
+USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, VarTimeStep, LastPartPos
 USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
 USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc,DoParticleLatencyHiding
@@ -915,7 +917,7 @@ USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_RadialWeighting
 USE MOD_part_tools             ,ONLY: ParticleOnProc
 !USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart
+USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -961,6 +963,7 @@ DO iProc=0,nExchangeProcessors-1
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(1), count_rate=Rate(1))
   MPIW8TimePart(3) = MPIW8TimePart(3) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
+  MPIW8CountPart(3) = MPIW8CountPart(3) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 END DO ! iProc
 
@@ -1009,6 +1012,7 @@ DO iProc=0,nExchangeProcessors-1
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
   MPIW8TimePart(4) = MPIW8TimePart(4) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+  MPIW8CountPart(4) = MPIW8CountPart(4) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
   ! place particle information in correct arrays
@@ -1275,7 +1279,7 @@ DO iProc=0,nExchangeProcessors-1
       IF (useDSMC) THEN
         CALL GetPositionInRefElem(PartState(1:3,PartID),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID))
       END IF
-      IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
+      IF (useDSMC.OR.usevMPF) THEN
         IF (PEM%pNumber(ElemID).EQ.0) THEN
           PEM%pStart(ElemID) = PartID                    ! Start of Linked List for Particles in Elem
         ELSE
@@ -1287,7 +1291,6 @@ DO iProc=0,nExchangeProcessors-1
         IF (VarTimeStep%UseVariableTimeStep) THEN
           VarTimeStep%ParticleTimeStep(PartID) = CalcVarTimeStep(PartState(1,PartID),PartState(2,PartID),ElemID)
         END IF
-        IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(PartID)) = vMPF_SpecNumElem(ElemID,PartSpecies(PartID)) + 1
       END IF
     END IF
   END DO

@@ -49,7 +49,7 @@ USE MOD_Globals                   ,ONLY: myrank
 #endif /*USE_MPI*/
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
-USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide, dXiEQ_SurfSample, PartBound
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
@@ -62,6 +62,7 @@ USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
 USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
+USE MOD_PICDepo_Vars              ,ONLY: DoDeposition
 USE MOD_part_operations           ,ONLY: RemoveParticle
 USE MOD_part_tools                ,ONLY: CalcRadWeightMPF
 ! IMPLICIT VARIABLE HANDLING
@@ -149,7 +150,8 @@ END IF
 IF(.NOT.PDM%ParticleInside(PartID)) THEN
   ! Increase the counter for deleted/absorbed/adsorbed particles
   IF(CalcSurfCollCounter) SurfAnalyzeNumOfAds(PartSpecImpact) = SurfAnalyzeNumOfAds(PartSpecImpact) + 1
-  IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
+  IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) &
+      CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
   RETURN
 END IF
 !===================================================================================================================================
@@ -160,6 +162,10 @@ SELECT CASE(PartBound%SurfaceModel(locBCID))
 CASE (0) ! Maxwellian scattering (diffuse/specular reflection)
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL MaxwellScattering(PartID,SideID,n_Loc,SpecularReflectionOnly)
+!-----------------------------------------------------------------------------------------------------------------------------------
+CASE (1)  ! Sticking coefficient model using tabulated, empirical values
+!-----------------------------------------------------------------------------------------------------------------------------------
+  CALL StickingCoefficientModel(PartID,SideID,n_Loc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (SEE_MODELS_ID)
   ! 5: SEE by Levko2015
@@ -174,7 +180,7 @@ CASE (SEE_MODELS_ID)
   CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy)
   ! Decide the fate of the impacting particle
   IF (ProductSpec(1).LE.0) THEN
-    CALL RemoveParticle(PartID)
+    CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
   ELSE
     CALL MaxwellScattering(PartID,SideID,n_Loc)
   END IF
@@ -182,7 +188,7 @@ CASE (SEE_MODELS_ID)
   IF (ProductSpec(2).GT.0) THEN
     CALL SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobalElemID,PartPosImpact(1:3))
     ! Deposit opposite charge of SEE on node
-    IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN
+    IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN
       ! Get MPF
       IF (usevMPF) THEN
         IF (RadialWeighting%DoRadialWeighting) THEN
@@ -208,7 +214,7 @@ END SELECT
 !===================================================================================================================================
 ! 4.) PIC ONLY: Deposit charges on dielectric surface (when activated), if these were removed/changed in SurfaceModel
 !===================================================================================================================================
-IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charging active + dielectric surface contact
+IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC)) THEN ! Surface charging active + dielectric surface contact
   IF(.NOT.PDM%ParticleInside(PartID))THEN
     ! Particle was deleted on surface contact: deposit impacting charge
     CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
@@ -249,8 +255,8 @@ END IF
 ! Sampling
 IF(DoSample) THEN
   ! Sample momentum, heatflux and collision counter on surface (only the original impacting particle, not the newly created parts
-  ! through SurfaceModel_ParticleEmission)
-  CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
+  ! through SurfaceModel_ParticleEmission), checking if the particle was deleted/absorbed/adsorbed at the wall
+  IF(PDM%ParticleInside(PartID)) CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
 END IF
 
 END SUBROUTINE SurfaceModel
@@ -299,14 +305,14 @@ END ASSOCIATE
 END SUBROUTINE MaxwellScattering
 
 
-SUBROUTINE PerfectReflection(PartID,SideID,n_Loc,opt_Symmetry,AuxBCIdx)
+SUBROUTINE PerfectReflection(PartID,SideID,n_Loc,opt_Symmetry)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the perfect reflection in 3D
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,PartSpecies,Species,PartLorentzType
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_Globals_Vars            ,ONLY: c2_inv
@@ -328,7 +334,6 @@ IMPLICIT NONE
 REAL,INTENT(IN)                   :: n_loc(1:3)
 INTEGER,INTENT(IN)                :: PartID, SideID !,ElemID
 LOGICAL,INTENT(IN),OPTIONAL       :: opt_Symmetry
-INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -336,30 +341,23 @@ INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 REAL                                 :: v_old(1:3),WallVelo(3), v_old_Ambi(1:3)
 REAL                                 :: LorentzFac, LorentzFacInv
 INTEGER                              :: locBCID
-LOGICAL                              :: Symmetry, IsAuxBC
+LOGICAL                              :: Symmetry
 REAL                                 :: POI_vec(1:3)
 REAL                                 :: adaptTimeStep
 !===================================================================================================================================
 ! Initialize
 adaptTimeStep = 1.0
-IsAuxBC=.FALSE.
 Symmetry = .FALSE.
 
-IF (PRESENT(AuxBCIdx)) IsAuxBC=.TRUE.
-
-IF (IsAuxBC) THEN
-  WallVelo = PartAuxBC%WallVelo(1:3,AuxBCIdx)
-ELSE
-  WallVelo = PartBound%WallVelo(1:3,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-  locBCID  = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
-  IF(PRESENT(opt_Symmetry)) Symmetry = opt_Symmetry
-END IF !IsAuxBC
+WallVelo = PartBound%WallVelo(1:3,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+locBCID  = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+IF(PRESENT(opt_Symmetry)) Symmetry = opt_Symmetry
 
 ! Get Point Of Intersection
 POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 
 !IF(PartBound%RotVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
-!  CALL CalcRotWallVelo(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)),POI_vec,WallVelo)
+!  WallVelo(1:3) = CalcRotWallVelo(locBCID,POI_vec)
 !END IF
 
 IF(SUM(ABS(WallVelo)).GT.0.)THEN
@@ -477,7 +475,7 @@ PEM%NormVec(1:3,PartID)=n_loc
 END SUBROUTINE PerfectReflection
 
 
-SUBROUTINE DiffuseReflection(PartID,SideID,n_loc,AuxBCIdx)
+SUBROUTINE DiffuseReflection(PartID,SideID,n_loc)
 !----------------------------------------------------------------------------------------------------------------------------------!
 !> Computes the new particle state (position, velocity, and energy) after a diffuse reflection
 !> 1.) Get the wall velocity, temperature and accommodation coefficients
@@ -496,8 +494,8 @@ USE MOD_Particle_Mesh_Vars
 USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec, VECNORM, DOTPRODUCT
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature, CalcRotWallVelo
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,UseRotRefFrame
 USE MOD_Particle_Vars           ,ONLY: VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -507,13 +505,13 @@ USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
 USE MOD_SurfaceModel_Tools      ,ONLY: CalcPostWallCollVelo, SurfaceModel_EnergyAccommodation
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
+
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
 REAL,INTENT(IN)                   :: n_loc(1:3)
 INTEGER,INTENT(IN)                :: PartID, SideID
-INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -522,43 +520,37 @@ INTEGER                           :: LocSideID, CNElemID, locBCID, SpecID
 REAL                              :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC, ElecACC
 REAL                              :: tang1(1:3), tang2(1:3), NewVelo(3), POI_vec(1:3), NewVeloAmbi(3), VeloC(1:3), VeloCAmbi(1:3)
 REAL                              :: POI_fak, TildTrajectory(3), adaptTimeStep
-LOGICAL                           :: IsAuxBC
 ! Symmetry
 REAL                              :: rotVelY, rotVelZ, rotPosY
-REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:3), Vector2(1:3)
+REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:3), Vector2(1:3),OldVelo(1:3)
 !===================================================================================================================================
-IF (PRESENT(AuxBCIdx)) THEN
-  IsAuxBC=.TRUE.
-ELSE
-  IsAuxBC=.FALSE.
-END IF
-
 ! 1.) Get the wall velocity, temperature and accommodation coefficients
-IF (IsAuxBC) THEN
-  WallVelo   = PartAuxBC%WallVelo(1:3,AuxBCIdx)
-  WallTemp   = PartAuxBC%WallTemp(AuxBCIdx)
-  TransACC   = PartAuxBC%TransACC(AuxBCIdx)
-  VibACC     = PartAuxBC%VibACC(AuxBCIdx)
-  RotACC     = PartAuxBC%RotACC(AuxBCIdx)
-  ElecACC    = PartAuxBC%ElecACC(AuxBCIdx)
-ELSE
-  ! additional states
-  locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
-  ! get BC values
-  WallVelo   = PartBound%WallVelo(1:3,locBCID)
-  WallTemp   = GetWallTemperature(PartID,locBCID,SideID)
-  TransACC   = PartBound%TransACC(locBCID)
-  VibACC     = PartBound%VibACC(locBCID)
-  RotACC     = PartBound%RotACC(locBCID)
-  ElecACC    = PartBound%ElecACC(locBCID)
-END IF !IsAuxBC
+locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+! get BC values
+WallVelo   = PartBound%WallVelo(1:3,locBCID)
+WallTemp   = GetWallTemperature(PartID,locBCID,SideID)
+TransACC   = PartBound%TransACC(locBCID)
+VibACC     = PartBound%VibACC(locBCID)
+RotACC     = PartBound%RotACC(locBCID)
+ElecACC    = PartBound%ElecACC(locBCID)
 
 SpecID = PartSpecies(PartID)
 
 POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 
 IF(PartBound%RotVelo(locBCID)) THEN
-  CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
+  WallVelo(1:3) = CalcRotWallVelo(locBCID,POI_vec)
+END IF
+
+IF(UseRotRefFrame) THEN ! In case of RotRefFrame OldVelo must be reconstructed 
+  IF (VarTimeStep%UseVariableTimeStep) THEN
+    adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
+  ELSE
+    adaptTimeStep = 1.
+  END IF
+  OldVelo = (PartState(1:3,PartID) - LastPartPos(1:3,PartID))/(dt*RKdtFrac*adaptTimeStep)
+ELSE
+  OldVelo = PartState(4:6,PartID)
 END IF
 
 ! 2.) Get the tangential vectors
@@ -596,7 +588,6 @@ END IF
 
 ! 3.) Calculate new velocity vector (Extended Maxwellian Model)
 VeloC(1:3) = CalcPostWallCollVelo(SpecID,DOTPRODUCT(PartState(4:6,PartID)),WallTemp,TransACC)
-
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
     VeloCAmbi(1:3) = CalcPostWallCollVelo(DSMC%AmbiDiffElecSpec,DOTPRODUCT(AmbipolElecVelo(PartID)%ElecVelo(1:3)),WallTemp,TransACC)
@@ -631,63 +622,58 @@ IF (DSMC%DoAmbipolarDiff) THEN
 END IF
 
 ! 5.) Perform internal energy accommodation at the wall
-IF (.NOT.IsAuxBC) THEN !so far no internal DOF stuff for AuxBC!!!
-  CALL SurfaceModel_EnergyAccommodation(PartID,locBCID,WallTemp)
+CALL SurfaceModel_EnergyAccommodation(PartID,locBCID,WallTemp)
 
 
 ! 6.) Determine the new particle position after the reflection
-  LastPartPos(1:3,PartID) = POI_vec(1:3)
+LastPartPos(1:3,PartID) = POI_vec(1:3)
 
-  IF (VarTimeStep%UseVariableTimeStep) THEN
-    adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
-  ELSE
-    adaptTimeStep = 1.
-  END IF ! VarTimeStep%UseVariableTimeStep
-  ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
-  !TildPos       =PartState(1:3,PartID)-dt*RKdtFrac*PartState(4:6,PartID)
-  TildTrajectory=dt*RKdtFrac*PartState(4:6,PartID)*adaptTimeStep
-  POI_fak=1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
-  ! travel rest of particle vector
-  !PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
-  IF (IsAuxBC) THEN
-    IF (PartAuxBC%Resample(AuxBCIdx)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
-  ELSE
-    IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
-  END IF ! IsAuxBC
-  PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3) * adaptTimeStep
+IF (VarTimeStep%UseVariableTimeStep) THEN
+  adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
+ELSE
+  adaptTimeStep = 1.
+END IF ! VarTimeStep%UseVariableTimeStep
+! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
+!TildPos       =PartState(1:3,PartID)-dt*RKdtFrac*PartState(4:6,PartID)
+TildTrajectory=dt*RKdtFrac*OldVelo*adaptTimeStep
+POI_fak=1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
+! travel rest of particle vector
+!PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
+IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
+
+PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dt*RKdtFrac * NewVelo(1:3) * adaptTimeStep
 
 ! 7.) Axisymmetric simulation: Rotate the vector back into the symmetry plane
-  IF(Symmetry%Axisymmetric) THEN
-    ! Symmetry considerations --------------------------------------------------------
-    rotPosY = SQRT(PartState(2,PartID)**2 + (PartState(3,PartID))**2)
-    ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
-    !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
-    ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
-    ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
-    IF (DSMC%DoAmbipolarDiff) THEN
-      IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
-        rotVelY = (NewVeloAmbi(2)*(PartState(2,PartID))+NewVeloAmbi(3)*PartState(3,PartID))/rotPosY
-        rotVelZ = (-NewVeloAmbi(2)*PartState(3,PartID)+NewVeloAmbi(3)*(PartState(2,PartID)))/rotPosY
+IF(Symmetry%Axisymmetric) THEN
+  ! Symmetry considerations --------------------------------------------------------
+  rotPosY = SQRT(PartState(2,PartID)**2 + (PartState(3,PartID))**2)
+  ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
+  !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
+  ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
+  ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
+  IF (DSMC%DoAmbipolarDiff) THEN
+    IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
+      rotVelY = (NewVeloAmbi(2)*(PartState(2,PartID))+NewVeloAmbi(3)*PartState(3,PartID))/rotPosY
+      rotVelZ = (-NewVeloAmbi(2)*PartState(3,PartID)+NewVeloAmbi(3)*(PartState(2,PartID)))/rotPosY
 
-        NewVeloAmbi(2) = rotVelY
-        NewVeloAmbi(3) = rotVelZ
-      END IF
+      NewVeloAmbi(2) = rotVelY
+      NewVeloAmbi(3) = rotVelZ
     END IF
-    rotVelY = (NewVelo(2)*(PartState(2,PartID))+NewVelo(3)*PartState(3,PartID))/rotPosY
-    rotVelZ = (-NewVelo(2)*PartState(3,PartID)+NewVelo(3)*(PartState(2,PartID)))/rotPosY
-
-    PartState(2,PartID) = rotPosY
-    PartState(3,PartID) = 0.0
-    NewVelo(2) = rotVelY
-    NewVelo(3) = rotVelZ
-  END IF ! Symmetry%Axisymmetric
-
-  IF(Symmetry%Order.LT.3) THEN
-    ! y/z-variable is set to zero for the different symmetry cases
-    LastPartPos(Symmetry%Order+1:3,PartID) = 0.0
-    PartState(Symmetry%Order+1:3,PartID) = 0.0
   END IF
-END IF !.NOT.IsAuxBC
+  rotVelY = (NewVelo(2)*(PartState(2,PartID))+NewVelo(3)*PartState(3,PartID))/rotPosY
+  rotVelZ = (-NewVelo(2)*PartState(3,PartID)+NewVelo(3)*(PartState(2,PartID)))/rotPosY
+
+  PartState(2,PartID) = rotPosY
+  PartState(3,PartID) = 0.0
+  NewVelo(2) = rotVelY
+  NewVelo(3) = rotVelZ
+END IF ! Symmetry%Axisymmetric
+
+IF(Symmetry%Order.LT.3) THEN
+  ! y/z-variable is set to zero for the different symmetry cases
+  LastPartPos(Symmetry%Order+1:3,PartID) = 0.0
+  PartState(Symmetry%Order+1:3,PartID) = 0.0
+END IF
 
 ! 8.) Saving new particle velocity and recompute the trajectory based on new and old particle position
 PartState(4:6,PartID)   = NewVelo(1:3)
@@ -713,14 +699,14 @@ PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 END SUBROUTINE DiffuseReflection
 
 
-SUBROUTINE SpeciesSwap(PartID,SideID,AuxBCIdx,targetSpecies_IN)
+SUBROUTINE SpeciesSwap(PartID,SideID,targetSpecies_IN)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Computes the Species Swap on ReflectiveBC
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                 ,ONLY: abort,VECNORM
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,PartAuxBC
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars           ,ONLY: PartSpecies
 USE MOD_part_operations         ,ONLY: RemoveParticle
@@ -729,7 +715,6 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                :: PartID, SideID
-INTEGER,INTENT(IN),OPTIONAL       :: AuxBCIdx
 INTEGER,INTENT(IN),OPTIONAL       :: targetSpecies_IN
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -740,55 +725,27 @@ REAL                              :: RanNum
 INTEGER                           :: locBCID
 !===================================================================================================================================
 
-! Check if Aux BC or normal BC
-IF (MERGE(.TRUE.,.FALSE.,PRESENT(AuxBCIdx))) THEN
-
-  ! Aux BC
-  CALL RANDOM_NUMBER(RanNum)
-  IF(RanNum.LE.PartAuxBC%ProbOfSpeciesSwaps(AuxBCIdx)) THEN
-    targetSpecies=-1 ! Dummy initialization value
-    IF(PRESENT(targetSpecies_IN))THEN
-      targetSpecies = targetSpecies_IN
-    ELSE ! Normal swap routine
-      DO iSwaps=1,PartAuxBC%NbrOfSpeciesSwaps(AuxBCIdx)
-        IF (PartSpecies(PartID).eq.PartAuxBC%SpeciesSwaps(1,iSwaps,AuxBCIdx)) &
-            targetSpecies = PartAuxBC%SpeciesSwaps(2,iSwaps,AuxBCIdx)
-      END DO
-    END IF ! PRESENT(targetSpecies_IN)
-    !swap species
-    IF (targetSpecies.eq.0) THEN !delete particle -> same as PartAuxBC%OpenBC
-      CALL RemoveParticle(PartID)
-    ELSEIF (targetSpecies.gt.0) THEN !swap species
-      PartSpecies(PartID)=targetSpecies
-    END IF
-  END IF !RanNum.LE.PartAuxBC%ProbOfSpeciesSwaps
-
-ELSE
-
-  ! Non-Aux BC
-  locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
-  CALL RANDOM_NUMBER(RanNum)
-  IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
-    targetSpecies=-1 ! Dummy initialization value
-    IF(PRESENT(targetSpecies_IN))THEN
-      targetSpecies = targetSpecies_IN
-    ELSE ! Normal swap routine
-      DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-        IF (PartSpecies(PartID).eq.PartBound%SpeciesSwaps(1,iSwaps,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) &
-            targetSpecies = PartBound%SpeciesSwaps(2,iSwaps,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-      END DO
-    END IF ! PRESENT(targetSpecies_IN)
-    !swap species
-    IF (targetSpecies.eq.0) THEN
-      ! Delete particle -> same as PartBound%OpenBC
-      CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-    ELSE IF (targetSpecies.gt.0) THEN
-      ! Swap species
-      PartSpecies(PartID)=targetSpecies
-    END IF ! targetSpecies.eq.0
-  END IF ! RanNum.LE.PartBound%ProbOfSpeciesSwaps
-
-END IF ! MERGE(.TRUE.,.FALSE.,PRESENT(AuxBCIdx))
+locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+CALL RANDOM_NUMBER(RanNum)
+IF(RanNum.LE.PartBound%ProbOfSpeciesSwaps(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) THEN
+  targetSpecies=-1 ! Dummy initialization value
+  IF(PRESENT(targetSpecies_IN))THEN
+    targetSpecies = targetSpecies_IN
+  ELSE ! Normal swap routine
+    DO iSwaps=1,PartBound%NbrOfSpeciesSwaps(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+      IF (PartSpecies(PartID).eq.PartBound%SpeciesSwaps(1,iSwaps,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))) &
+          targetSpecies = PartBound%SpeciesSwaps(2,iSwaps,PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+    END DO
+  END IF ! PRESENT(targetSpecies_IN)
+  !swap species
+  IF (targetSpecies.eq.0) THEN
+    ! Delete particle -> same as PartBound%OpenBC
+    CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+  ELSE IF (targetSpecies.gt.0) THEN
+    ! Swap species
+    PartSpecies(PartID)=targetSpecies
+  END IF ! targetSpecies.eq.0
+END IF ! RanNum.LE.PartBound%ProbOfSpeciesSwaps
 
 END SUBROUTINE SpeciesSwap
 
@@ -835,5 +792,114 @@ END DO
 
 END SUBROUTINE SurfaceFluxBasedBoundaryTreatment
 
+
+SUBROUTINE StickingCoefficientModel(PartID,SideID,n_Loc)
+!===================================================================================================================================
+!> Empirical sticking coefficient model using the product of a non-bounce probability (angle dependence with a cut-off angle) and
+!> condensation probability (linear temperature dependence, using different temperature limits). Particle sticking to the wall
+!> will be simply deleted, transfering the complete energy to the wall heat flux
+!> Assumed data input is [upper impact angle limit (deg), alpha_B (deg), T_1 (K), T_2 (K)]
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: PI
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, SampWallState, GlobalSide2SurfSide, SWIStickingCoefficient
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_part_operations         ,ONLY: RemoveParticle
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
+USE MOD_SurfaceModel_Vars       ,ONLY: StickingCoefficientData
+USE MOD_DSMC_Vars               ,ONLY: DSMC, SamplingActive
+USE MOD_Particle_Vars           ,ONLY: WriteMacroSurfaceValues
+USE MOD_SurfaceModel_Tools      ,ONLY: GetWallTemperature
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                 :: n_loc(1:3)
+INTEGER,INTENT(IN)              :: PartID, SideID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iVal, SubP, SubQ, locBCID, SurfSideID
+REAL                            :: ImpactAngle, NonBounceProb, Prob, alpha_B, LowerTemp, UpperTemp, RanNum, WallTemp
+LOGICAL                         :: CalcStickCoeff, ParticleSticks
+!===================================================================================================================================
+
+CalcStickCoeff = .TRUE.
+ParticleSticks = .FALSE.
+Prob = 0.
+locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+! Get the wall temperature
+WallTemp = GetWallTemperature(PartID,locBCID,SideID)
+! Determine impact angle of particle
+ImpactAngle = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(TrackInfo%PartTrajectory,n_loc))))
+! Select the appropriate temperature coefficients and bounce angle
+IF(UBOUND(StickingCoefficientData,dim=2).GE.2) THEN
+  ! More than 1 row of coefficients
+  DO iVal = 1, UBOUND(StickingCoefficientData,dim=2)
+    IF(ImpactAngle.LE.StickingCoefficientData(1,iVal)) THEN
+      alpha_B   = StickingCoefficientData(2,iVal)
+      LowerTemp = StickingCoefficientData(3,iVal)
+      UpperTemp = StickingCoefficientData(4,iVal)
+      CalcStickCoeff = .TRUE.
+      EXIT
+    ELSE
+      ! Impact angle is outside coefficient data range
+      CalcStickCoeff = .FALSE.
+    END IF
+  END DO
+ELSE
+  ! 1 row of coefficients
+  IF(ImpactAngle.LE.StickingCoefficientData(1,1)) THEN
+    alpha_B   = StickingCoefficientData(2,1)
+    LowerTemp = StickingCoefficientData(3,1)
+    UpperTemp = StickingCoefficientData(4,1)
+  ELSE
+    ! Impact angle is outside coefficient data range
+    CalcStickCoeff = .FALSE.
+  END IF
+END IF
+
+! Calculate the sticking coefficient and compare with random number
+IF(CalcStickCoeff) THEN
+  ! Calculate the non-bounce probability
+  IF(ImpactAngle.GE.alpha_B) THEN
+    NonBounceProb = (90.-ImpactAngle) / (90.-alpha_B)
+  ELSE
+    NonBounceProb = 1.
+  END IF
+  ! Calculate the sticking probability, using the wall temperature
+  IF(WallTemp.LT.LowerTemp) THEN
+    Prob = NonBounceProb
+  ELSE IF(WallTemp.GT.UpperTemp) THEN
+    Prob = 0.
+  ELSE
+    Prob = NonBounceProb * (UpperTemp - WallTemp) / (UpperTemp - LowerTemp)
+  END IF
+  ! Determine whether the particles sticks to the boundary
+  IF(Prob.GT.0.) THEN
+    CALL RANDOM_NUMBER(RanNum)
+    IF(Prob.GT.RanNum) ParticleSticks = .TRUE.
+  END IF
+END IF
+
+IF(ParticleSticks) THEN
+  ! Remove the particle from the simulation (total energy was added to the sampled heat flux before the interaction)
+  CALL RemoveParticle(PartID)
+ELSE
+  ! Perform regular Maxwell scattering
+  CALL MaxwellScattering(PartID,SideID,n_Loc)
+END IF
+
+! Sampling the sticking coefficient
+IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) THEN
+  SubP = TrackInfo%p
+  SubQ = TrackInfo%q
+  SampWallState(SWIStickingCoefficient,SubP,SubQ,SurfSideID) = SampWallState(SWIStickingCoefficient,SubP,SubQ,SurfSideID) + Prob
+END IF
+
+END SUBROUTINE StickingCoefficientModel
 
 END MODULE MOD_SurfaceModel

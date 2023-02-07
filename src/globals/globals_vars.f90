@@ -22,13 +22,16 @@ IMPLICIT NONE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=6),PARAMETER :: ProgramName  = 'PICLas'              !> name of this program
-INTEGER,PARAMETER          :: MajorVersion = 2                     !> FileVersion number saved in each hdf5 file with hdf5 header
-INTEGER,PARAMETER          :: MinorVersion = 8                     !> FileVersion number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: MajorVersion = 3                     !> FileVersion number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: MinorVersion = 0                     !> FileVersion number saved in each hdf5 file with hdf5 header
 INTEGER,PARAMETER          :: PatchVersion = 0                     !> FileVersion number saved in each hdf5 file with hdf5 header
-REAL,PARAMETER             :: FileVersion  = REAL(MajorVersion,8)+REAL(MinorVersion,8)/10.+REAL(PatchVersion,8)/100. !> FileVersion
-                                                                   !> number saved in each hdf5 file with hdf5 header
+REAL,PARAMETER             :: FileVersionReal  = REAL(MajorVersion,8)+REAL(MinorVersion,8)/10.+REAL(PatchVersion,8)/100.
+                                                                   !> OLD number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: FileVersionInt = PatchVersion+MinorVersion*100+MajorVersion*10000
+                                                                   !>  NEWnumber saved in each hdf5 file with hdf5 header
 CHARACTER(LEN=10)          :: PiclasVersionStr                     !> PiclasVersionStrnumber saved in each hdf5 file with hdf5 header
-REAL                       :: FileVersionHDF5                      !> FileVersion number read from hdf5 restart file
+REAL                       :: FileVersionHDF5Real                  !> OLD FileVersion number read from hdf5 restart file
+REAL                       :: FileVersionHDF5Int                   !> NEW FileVersion number read from hdf5 restart file
 REAL                       :: WallTime                             !> Wall time needed by a simulation (is not reset by
                                                                    !> performing a load balance step, only by user restart)
 REAL                       :: InitializationWallTime               !> Wall time needed to initialize a simulation (or
@@ -40,8 +43,8 @@ REAL                       :: CommMeshReadinWallTime               !> Shared mem
 REAL                       :: SimulationEfficiency                 !> relates the simulated time to the used CPUh (SIMULATION TIME PER
                                                                    !> CALCULATION in [s]/[CPUh])
 REAL                       :: StartT                               !> Timer start
-REAL                       :: PID                                  !> Performance index: (CalcTimeEnd-CalcTimeStart)*nProcessors/
-                                                                   !> (nGlobalElems*(PP_N+1)**3*iter_loc)
+REAL                       :: PID                                  !> Performance index: (CalcTimeEnd-CalcTimeStart)*nProcessors/(nGlobalElems*(PP_N+1)**3*iter_loc)
+REAL                       :: memory(1:4)                          !> RAM: used, available, total and initial (total at the beginning of the simulation)
 REAL,PARAMETER             :: PI=ACOS(-1.0)                         !> the number pi ~= 3.14
 REAL,PARAMETER             :: sPI=1.0/PI                            !> inverse of pi
 REAL,PARAMETER             :: epsMach=EPSILON(0.0)                  !> Machine accuracy

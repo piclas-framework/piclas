@@ -193,7 +193,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   echo " "
   echo -e "This will install HOPR version ${GREEN}${HOPRVERSION}${NC} from ${HOPRDOWNLOAD} \nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
   if [[ ${RERUNMODE} -eq 0 ]]; then
-    read -p "Have the correct modules been loaded? If yes, press [Enter] to continue or [Crtl+c] to abort!"
+    read -p "Have the correct modules been loaded? If yes, press [Enter] to continue or [Crtl+c] to abort! Note that hopr will be installed via cmake with -DLIBS_USE_MPI=OFF"
   fi
 
   # Install destination
@@ -261,7 +261,7 @@ if [ ! -e "${MODULEFILE}" ]; then
 
   # CMAKE COMPILE FLAGS
   cmake -DCMAKE_BUILD_TYPE=Release \
-        -DLIBS_USE_MPI=ON \
+        -DLIBS_USE_MPI=OFF \
         -DLIBS_BUILD_HDF5=OFF \
         ${CLONEDIR}
 

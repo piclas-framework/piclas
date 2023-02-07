@@ -1,17 +1,19 @@
-!=================================================================================================================================
-! Copyright (c) 2010-2021  Prof. Claus-Dieter Munz
-! This file is part of FLEXI, a high-order accurate framework for numerically solving PDEs with discontinuous Galerkin methods.
-! For more information see https://www.flexi-project.org and https://nrg.iag.uni-stuttgart.de/
+!==================================================================================================================================
+! Copyright (c) 2010 - 2022 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! FLEXI is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License
-! as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
 !
-! FLEXI is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
 ! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
 !
-! You should have received a copy of the GNU General Public License along with FLEXI. If not, see <http://www.gnu.org/licenses/>.
-!=================================================================================================================================
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
 #include "piclas.h"
+#if USE_PETSC
+#include "petsc/finclude/petsc.h"
+#endif
 
 !===================================================================================================================================
 !> Module contains the routines for load balancing
@@ -45,7 +47,6 @@ USE MOD_PreProc
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_IO_HDF5
-USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 USE MOD_Restart_Vars           ,ONLY: N_Restart,RestartFile,InterpolateSolution,RestartNullifySolution
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
@@ -71,19 +72,26 @@ USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide
-USE MOD_HDG_Vars               ,ONLY: lambdaLB
+#if defined(PARTICLES)
+! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
+USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide,nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInSideSend,MPInSideRecv,MPIoffsetSideSend,MPIoffsetSideRecv
-USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
+USE MOD_HDG_Vars               ,ONLY: lambdaLB
+#endif /*defined(PARTICLES)*/
 #endif /*USE_LOADBALANCE*/
-!USE MOD_HDG                    ,ONLY: HDG
+#if USE_PETSC
+USE PETSc
+USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
+#endif
 #else /*USE_HDG*/
+! Non-HDG stuff
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 #endif /*USE_HDG*/
+USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -100,10 +108,17 @@ INTEGER                            :: p,q,r,rr,pq(1:2)
 INTEGER                            :: iLocSide,iLocSide_NB,iLocSide_master
 INTEGER                            :: iMortar,MortarSideID,nMortars
 #if USE_LOADBALANCE
+#if defined(PARTICLES)
+! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 REAL,ALLOCATABLE                   :: lambdaLBTmp(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
 INTEGER                            :: NonUniqueGlobalSideID
+#endif /*defined(PARTICLES)*/
 !INTEGER           :: checkRank
 #endif /*USE_LOADBALANCE*/
+#if USE_PETSC
+INTEGER                            :: PETScLocalID
+PetscErrorCode                     :: ierr
+#endif
 #else /*USE_HDG*/
 INTEGER                            :: iElem
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
@@ -113,9 +128,12 @@ INTEGER                            :: iPML
 INTEGER(KIND=IK)                   :: PMLnVarTmp
 #endif /*USE_HDG*/
 #if USE_LOADBALANCE
+#if defined(PARTICLES) || !(USE_HDG)
+! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 ! Custom data type
 INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
+#endif /*defined(PARTICLES) || !(USE_HDG)*/
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
@@ -210,6 +228,15 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif /*USE_MPI*/
 
+#if USE_PETSC
+  DO PETScLocalID=1,nPETScUniqueSides
+    SideID=PETScLocalToSideID(PETScLocalID)
+    PetscCallA(VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
+  END DO
+  PetscCallA(VecAssemblyBegin(lambda_petsc,ierr))
+  PetscCallA(VecAssemblyEnd(lambda_petsc,ierr))
+#endif
+
   CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
 
 #else
@@ -217,7 +244,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   lambda=0.
 #endif /*defined(PARTICLES)*/
 
-#else
+#else /*USE_HDG*/
   ! Only required for time discs where U is allocated
   IF(ALLOCATED(U))THEN
     ALLOCATE(UTmp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
@@ -234,11 +261,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
       CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
       CALL MPI_ALLTOALLV(U,counts_send,disp_send,MPI_STRUCT,UTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
     END ASSOCIATE
-
-    DEALLOCATE(U)
-    ALLOCATE(U(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
-    U = UTmp
-    DEALLOCATE(UTmp)
+    CALL MOVE_ALLOC(UTmp,U)
   END IF ! ALLOCATED(U)
 #endif /*USE_HDG*/
 
@@ -308,33 +331,17 @@ ELSE ! normal restart
               ,ReadNonOverlap_opt=.FALSE.&
 #endif /*USE_MPI*/
               )
-          !  IPWRITE(UNIT_StdOut,*) "nSides,lastMPISide_MINE,MinGlobalSideID,MaxGlobalSideID,ExtendedOffsetSide =",&
-          !                          nSides,lastMPISide_MINE,MinGlobalSideID,MaxGlobalSideID,ExtendedOffsetSide
-          !  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-          !  IF(myrank.eq.2)THEN
-          !    DO p = 1, ExtendednSides
-          !      IPWRITE(UNIT_StdOut,*) "ExtendedLambda(1,1,:) =", p,ExtendedLambda(:,:,p),SUM(ExtendedLambda(:,:,p))
-          !    END DO ! p = 1, ExtendednSides
-          !  END IF ! myrank.eq.2
-          !  IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
+          ! Loop over all sides and map the solution via the non-unique global side ID to the SideID (1 to nSides)
           DO iSide = 1, nSides
             IF(iSide.LE.lastMPISide_MINE)THEN
               iLocSide        = SideToElem(S2E_LOC_SIDE_ID    , iSide)
               iLocSide_master = SideToElem(S2E_LOC_SIDE_ID    , iSide)
               iLocSide_NB     = SideToElem(S2E_NB_LOC_SIDE_ID , iSide)
 
-              ! Check real small mortar side (when the same proc has both the big an one or more small side connected elements)
-              ! blue side with orange also on same proc
-              !IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.NE.-1) iLocSide_master = iLocSide_NB
-              ! blue side found orange side
-
-              ! is small virtual mortar side is encountered and no NB iLocSide_master is given
-              ! blue but no orange side on same proc
-              ! find iLocSide of yellow (big mortar) and assign to blue
-              ! you spin me right round baby right round
-              !IF(MortarType(1,iSide).EQ.0.AND.iLocSide_NB.EQ.-1)THEN
-              IF(MortarType(1,iSide).EQ.0)THEN!.AND.iLocSide_NB.EQ.-1)THEN
+              ! Small virtual mortar master side (blue) is encountered with MortarType(1,iSide) = 0
+              ! Blue (small mortar master) side writes as yellow (big mortar master) for consistency (you spin me right round baby right round)
+              IF(MortarType(1,iSide).EQ.0)THEN
                 ! check all my big mortar sides and find the one to which the small virtual is connected
                 ! check all yellow (big mortar) sides
                 Check1: DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
@@ -376,6 +383,15 @@ ELSE ! normal restart
         CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
         CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif /*USE_MPI*/
+
+#if USE_PETSC
+        DO PETScLocalID=1,nPETScUniqueSides
+          SideID=PETScLocalToSideID(PETScLocalID)
+          PetscCallA(VecSetValuesBlocked(lambda_petsc,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
+        END DO
+        PetscCallA(VecAssemblyBegin(lambda_petsc,ierr))
+        PetscCallA(VecAssemblyEnd(lambda_petsc,ierr))
+#endif
 
         CALL RestartHDG(U) ! calls PostProcessGradient for calculate the derivative, e.g., the electric field E
 

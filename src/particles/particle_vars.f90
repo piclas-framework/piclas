@@ -135,6 +135,7 @@ TYPE tSpecies                                                                ! P
 END TYPE
 
 INTEGER                                  :: nSpecies                         ! number of species
+CHARACTER(LEN=256)                       :: SpeciesDatabase                  ! Name of the species database
 TYPE(tSpecies), ALLOCATABLE              :: Species(:)  !           => NULL() ! Species Data Vector
 
 LOGICAL                                  :: PartMeshHasPeriodicBCs
@@ -182,12 +183,13 @@ TYPE tParticleDataManagement
   INTEGER                                :: CurrentNextFreePosition           ! Index of nextfree index in nextFreePosition-Array
   INTEGER                                :: maxParticleNumber                 ! Maximum Number of all Particles
   INTEGER                                :: ParticleVecLength                 ! Vector Length for Particle Push Calculation
-  INTEGER                                :: ParticleVecLengthOld                 ! Vector Length for Particle Push Calculation
+  INTEGER                                :: ParticleVecLengthOld              ! Vector Length for Particle Push Calculation
   INTEGER , ALLOCATABLE                  :: PartInit(:)                       ! (1:NParts), initial emission condition number
                                                                               ! the calculation area
-  INTEGER ,ALLOCATABLE                   :: nextFreePosition(:)  !  =>NULL()  ! next_free_Position(1:max_Particle_Number)
+  INTEGER ,ALLOCATABLE                   :: nextFreePosition(:)  !  =>NULL()  ! next_free_Position(1:maxParticleNumber)
                                                                               ! List of free Positon
-  LOGICAL ,ALLOCATABLE                   :: ParticleInside(:)    !  =>NULL()  ! Particle_inside(1:Particle_Number)
+  LOGICAL ,ALLOCATABLE                   :: ParticleInside(:)                 ! Particle_inside (1:maxParticleNumber)
+  LOGICAL ,ALLOCATABLE                   :: InRotRefFrame(:)                  ! Check for RotRefFrame (1:maxParticleNumber)
   LOGICAL ,ALLOCATABLE                   :: dtFracPush(:)                     ! Push random fraction only
   LOGICAL ,ALLOCATABLE                   :: IsNewPart(:)                      ! Reconstruct RK-scheme in next stage
 END TYPE
@@ -203,6 +205,10 @@ LOGICAL                                  :: WriteMacroVolumeValues =.FALSE.   ! 
 LOGICAL                                  :: WriteMacroSurfaceValues=.FALSE.   ! Output of macroscopic values on surface
 INTEGER                                  :: MacroValSamplIterNum              ! Number of iterations for sampling
                                                                               ! macroscopic values
+LOGICAL                                  :: SampleElecExcitation              ! Sampling the electronic excitation rate per species
+INTEGER                                  :: ExcitationLevelCounter            ! 
+REAL, ALLOCATABLE                        :: ExcitationSampleData(:,:)         ! 
+INTEGER, ALLOCATABLE                     :: ExcitationLevelMapping(:,:)       ! 
 
 INTEGER, ALLOCATABLE                     :: vMPFMergeThreshold(:)             ! Max particle number per cell and (iSpec)
 INTEGER, ALLOCATABLE                     :: vMPFSplitThreshold(:)             ! Min particle number per cell and (iSpec)
@@ -212,32 +218,6 @@ REAL, ALLOCATABLE                        :: CellEelec_vMPF(:,:)
 REAL, ALLOCATABLE                        :: CellEvib_vMPF(:,:)
 REAL                                     :: MacroValSampTime                  ! Sampling time for WriteMacroVal. (e.g., for td201)
 LOGICAL                                  :: usevMPF                           ! use the vMPF per particle
-LOGICAL                                  :: enableParticleMerge               ! enables the particle merge routines
-LOGICAL                                  :: doParticleMerge=.false.           ! flag for particle merge
-INTEGER                                  :: vMPFMergeParticleTarget           ! number of particles wanted after merge
-INTEGER                                  :: vMPFSplitParticleTarget           ! number of particles wanted after split
-INTEGER                                  :: vMPFMergeParticleIter             ! iterations between particle merges
-INTEGER                                  :: vMPFMergePolyOrder                ! order of polynom for vMPF merge
-INTEGER                                  :: vMPFMergeCellSplitOrder           ! order of cell splitting (vMPF)
-INTEGER, ALLOCATABLE                     :: vMPF_OrderVec(:,:)                ! Vec of vMPF poynom orders
-INTEGER, ALLOCATABLE                     :: vMPF_SplitVec(:,:)                ! Vec of vMPF cell split orders
-INTEGER, ALLOCATABLE                     :: vMPF_SplitVecBack(:,:,:)          ! Vec of vMPF cell split orders backward
-REAL, ALLOCATABLE                        :: PartStateMap(:,:)                 ! part pos mapped on the -1,1 cube
-INTEGER, ALLOCATABLE                     :: PartStatevMPFSpec(:)              ! part state indx of spec to merge
-REAL, ALLOCATABLE                        :: vMPFPolyPoint(:,:)                ! Points of Polynom in LM
-REAL, ALLOCATABLE                        :: vMPFPolySol(:)                    ! Solution of Polynom in LM
-REAL                                     :: vMPF_oldMPFSum                    ! Sum of all old MPF in cell
-REAL                                     :: vMPF_oldEngSum                    ! Sum of all old energies in cell
-REAL                                     :: vMPF_oldMomSum(3)                 ! Sum of all old momentums in cell
-REAL, ALLOCATABLE                        :: vMPFOldVelo(:,:)                  ! Old Particle Velo for Polynom
-REAL, ALLOCATABLE                        :: vMPFOldBrownVelo(:,:)             ! Old brownian Velo
-REAL, ALLOCATABLE                        :: vMPFOldPos(:,:)                   ! Old Particle Pos for Polynom
-REAL, ALLOCATABLE                        :: vMPFOldMPF(:)                     ! Old Particle MPF
-INTEGER, ALLOCATABLE                     :: vMPFNewPosNum(:)
-INTEGER, ALLOCATABLE                     :: vMPF_SpecNumElem(:,:)             ! number of particles of spec (:,i) in element (j,:)
-CHARACTER(30)                            :: vMPF_velocityDistribution         ! specifying keyword for velocity distribution
-REAL, ALLOCATABLE                        :: vMPF_NewPosRefElem(:,:)          ! new positions in ref elem
-LOGICAL                                  :: vMPF_relativistic
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding
@@ -269,5 +249,25 @@ TYPE tVariableTimeStep
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
 
+LOGICAL                                :: DoVirtualCellMerge
+INTEGER                                :: MinPartNumCellMerge
+INTEGER                                :: VirtualCellMergeSpread
+INTEGER                                :: MaxNumOfMergedCells
+TYPE tVirtualCellMerge
+  INTEGER, ALLOCATABLE                 :: MergedCellID(:)
+  INTEGER                              :: NumOfMergedCells
+  INTEGER                              :: MasterCell
+  LOGICAL                              :: isMerged
+  REAL                                 :: MergedVolume
+END TYPE
+TYPE (tVirtualCellMerge),ALLOCATABLE   :: VirtMergedCells(:)
+
+LOGICAL               :: UseRotRefFrame           ! flag for rotational frame of reference
+INTEGER               :: RotRefFrameAxis          ! axis of rotational frame of reference (x=1, y=2, z=3)
+REAL                  :: RotRefFrameFreq          ! frequency of rotational frame of reference
+REAL                  :: RotRefFrameOmega(3)      ! angular velocity of rotational frame of reference
+INTEGER               :: nRefFrameRegions         ! number of rotational frame of reference regions
+REAL, ALLOCATABLE     :: RotRefFramRegion(:,:)    ! MIN/MAX defintion for multiple rotational frame of reference region     
+                                                  ! (i,RegionNumber), MIN:i=1, MAX:i=2
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

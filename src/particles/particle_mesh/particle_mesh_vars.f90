@@ -256,10 +256,6 @@ INTEGER,ALLOCATABLE                      :: ElemHaloID(:)
 ! periodic case
 INTEGER,ALLOCATABLE                      :: PeriodicSFCaseMatrix(:,:)   ! matrix to compute periodic cases
 INTEGER                                  :: NbrOfPeriodicSFCases        ! Number of periodic cases
-! Still required for PIC depo, should be remove later
-!! ====================================================================
-LOGICAL,ALLOCATABLE :: ElemHasAuxBCs(:,:)
-! Still required for PIC depo, should be remove later
 ! ====================================================================
 INTEGER                                 :: RefMappingGuess    ! select guess for mapping into reference
                                                               ! element
@@ -290,7 +286,6 @@ INTEGER                                  :: FIBGMCellPadding(1:3)
 TYPE tGeometry
   LOGICAL                                :: RotPeriodicBC            ! Flag for rotational periodicity
   INTEGER                                :: RotPeriodicAxi           ! Axis of rotational periodicity
-  REAL                                   :: RotPeriodicAngle         ! Angle of rotational periodicity
   REAL                                   :: CNxmin                   ! minimum x coord of all compute-node nodes
   REAL                                   :: CNxmax                   ! minimum y coord of all compute-node nodes
   REAL                                   :: CNymin                   ! minimum z coord of all compute-node nodes
@@ -359,7 +354,7 @@ INTEGER                                  :: WeirdElems                        ! 
                                                                               ! into themselves)
 LOGICAL                                  :: meshCheckWeirdElements            ! Flag for checking if elements are turned inside out
 !                                                                             ! (default=F)
-LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! Flag defining if mapping for neighbour elements
+LOGICAL                                  :: FindNeighbourElems                ! Flag defining if mapping for neighbour elements
 
 REAL,ALLOCATABLE                         :: ElemTolerance(:)
 INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id is built via nodes

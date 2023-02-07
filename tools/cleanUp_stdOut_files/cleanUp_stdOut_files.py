@@ -114,6 +114,10 @@ def CleanSingleLines(stdfile,args):
                 #[ Iterations:            1]
                 #[ Norm:   0.0000000000000000]
                 changedLines+=1
+            elif any(substring in line for substring in ('to mpool ucp_requests','UCX  WARN','mpool.c:','ucp_requests')):
+                # remove UCX warnings (e.g. on hawk)
+                #[[1669126882.059241] [r34c2t5n4:1727877:0]           mpool.c:54   UCX  WARN  object 0x1dce980 {flags:0x20040 recv length 16 host memory} was not returned to mpool ucp_requests]
+                changedLines+=1
             else:
                 # Write the line to the new (clean) file
                 output_new.write(line)

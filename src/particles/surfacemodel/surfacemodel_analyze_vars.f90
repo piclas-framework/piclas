@@ -23,6 +23,7 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: SurfModelAnalyzeInitIsDone = .FALSE.
+REAL                          :: SurfModelAnalyzeSampleTime  !< Accumulated simulation time between two outputs to SurfaceAnalyze.csv
 INTEGER(KIND=8)               :: SurfaceAnalyzeStep       ! Analyze of surface is performed each Nth time step
 ! Output flags
 LOGICAL                       :: CalcSurfCollCounter      ! Calculate the number of surface collision and number of
@@ -53,6 +54,8 @@ TYPE tBoundaryParticleOutput
   INTEGER                       :: NSpecies                 !< Total number of species which are considered for counting
   INTEGER,ALLOCATABLE           :: Species(:)               !< Species IDs which are considered for counting
   INTEGER,ALLOCATABLE           :: SpecIDToBPOSpecID(:)     !< Mapping SpecID to BPOSpecID (1:BpoNSpecies)
+
+  LOGICAL                       :: OutputTotalElectricCurrent !< calculate the sum of all charged particle currents and SEE
 END TYPE
 
 TYPE(tBoundaryParticleOutput)   :: BPO

@@ -492,26 +492,6 @@ END TYPE
 
 TYPE (tElectronicDistriPart), ALLOCATABLE    :: ElectronicDistriPart(:)
 
-REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)      ! variables,p,q,sides
-REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues for Species specific surface output
-                                                                   ! (4,p,q,nSurfSides,nSpecies)
-                                                                   ! 1: Surface Collision Counter
-                                                                   ! 2: Accomodation
-                                                                   ! 3: Coverage
-                                                                   ! 4 (or 2): Impact energy trans
-                                                                   ! 5 (or 3): Impact energy rot
-                                                                   ! 6 (or 4): Impact energy vib
-
-! some variables redefined
-!TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall
-!  REAL                           :: Heatflux                !
-!  REAL                           :: Force(3)                ! x, y, z direction
-!  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter of all Species
-!  REAL                           :: CounterOut              ! Wall-Collision counter for Output
-!END TYPE
-!
-!TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)
-
 ! MacValout and MacroVolSample have to be separated due to autoinitialrestart
 INTEGER(KIND=8)                  :: iter_macvalout             ! iterations since last macro volume output
 INTEGER(KIND=8)                  :: iter_macsurfvalout         ! iterations since last macro surface output
@@ -533,28 +513,21 @@ REAL,ALLOCATABLE          :: DSMC_Solution(:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evi
 TYPE tTreeNode
 !  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
   TYPE (tTreeNode), POINTER       :: ChildNode       => null()       !8 Childnodes of Octree Treenode
-  REAL                            :: MidPoint(1:3)          ! approx Middle Point of Treenode
   INTEGER                         :: PNum_Node              ! Particle Number of Treenode
   INTEGER, ALLOCATABLE            :: iPartIndx_Node(:)      ! Particle Index List of Treenode
   REAL, ALLOCATABLE               :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
-  LOGICAL, ALLOCATABLE            :: MatchedPart(:)         ! Flag signaling that mapped particle is inside of macroparticle
-  REAL                            :: NodeVolume(8)
   INTEGER                         :: NodeDepth
 END TYPE
 
 TYPE tNodeVolume
-    TYPE (tNodeVolume), POINTER             :: SubNode1 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode2 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode3 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode4 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode5 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode6 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode7 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode8 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode(:) => null()
+    REAL                                    :: VrelSimgaMax(2)
     REAL                                    :: Volume
     REAL                                    :: Area
     REAL                                    :: Length
     REAL,ALLOCATABLE                        :: PartNum(:,:)
+    REAL                                    :: MidPoint(1:3)
+    INTEGER                                 :: NodeDepth
 END TYPE
 
 TYPE tElemNodeVolumes

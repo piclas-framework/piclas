@@ -84,6 +84,7 @@ USE MOD_SurfaceModel_Analyze_Vars
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Restart_Vars              ,ONLY: DoRestart,RestartTime
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -97,6 +98,13 @@ IF(SurfModelAnalyzeInitIsDone)THEN
 END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE MODEL ANALYZE...'
+
+! Initialize with restart time or zero
+IF(DoRestart)THEN
+  SurfModelAnalyzeSampleTime = RestartTime
+ELSE
+  SurfModelAnalyzeSampleTime = 0.
+END IF ! DoRestart
 
 SurfaceAnalyzeStep = GETINT('Surface-AnalyzeStep')
 IF(SurfaceAnalyzeStep.EQ.0) SurfaceAnalyzeStep = HUGE(1)
@@ -133,8 +141,7 @@ CalcBoundaryParticleOutput = GETLOGICAL('CalcBoundaryParticleOutput')
 IF(CalcBoundaryParticleOutput) CALL InitBoundaryParticleOutput()
 
 !-- Electron SEE emission counter
-CalcElectronSEE = GETLOGICAL('CalcElectronSEE','.FALSE.')
-IF(CalcElectronSEE) CALL InitCalcElectronSEE()
+CALL InitCalcElectronSEE() ! This routine calls GETLOGICAL('CalcElectronSEE','.FALSE.')
 
 SurfModelAnalyzeInitIsDone=.TRUE.
 
@@ -159,7 +166,7 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfSides,PartBound
 USE MOD_Particle_MPI_Vars         ,ONLY: PartMPI
 #endif /*USE_MPI*/
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
-USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,NeutralizationBalanceGlobal
+USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,NeutralizationBalanceGlobal,Species
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -174,9 +181,11 @@ CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter
 INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
 INTEGER             :: iPartBound,iSpec
+REAL                :: charge,TotalElectricCharge
 !===================================================================================================================================
 IF((nComputeNodeSurfSides.EQ.0).AND.(.NOT.CalcBoundaryParticleOutput).AND.(.NOT.UseNeutralization).AND.(.NOT.CalcElectronSEE)) RETURN
 IF(.NOT.DoSurfModelAnalyze) RETURN
+SurfModelAnalyzeSampleTime = Time - SurfModelAnalyzeSampleTime ! Set SurfModelAnalyzeSampleTime=Time at the end of this routine
 OutputCounter = 2
 unit_index = 636
 #if USE_MPI
@@ -207,14 +216,24 @@ IF(PartMPI%MPIRoot)THEN
         CALL WriteDataHeaderInfo(unit_index,'Pressure-PorousBC',OutputCounter,nPorousBC)
       END IF
       IF(CalcBoundaryParticleOutput)THEN
+        ! Output of particle fluxes
         DO iPartBound = 1, BPO%NPartBoundaries
           DO iSpec = 1, BPO%NSpecies
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A19,I3.3,A1,A)',ADVANCE='NO') OutputCounter,'-nRealPartOut-Spec-', BPO%Species(iSpec),'-',&
+            WRITE(unit_index,'(I3.3,A,I3.3,A1,A)',ADVANCE='NO') OutputCounter,'-Flux-Spec-', BPO%Species(iSpec),'-',&
                 TRIM(PartBound%SourceBoundName(BPO%PartBoundaries(iPartBound)))
             OutputCounter = OutputCounter + 1
           END DO
         END DO
+        ! Output of total electric current
+        IF(BPO%OutputTotalElectricCurrent)THEN
+          DO iPartBound = 1, BPO%NPartBoundaries
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-TotalElectricCurrent-'//&
+                TRIM(PartBound%SourceBoundName(BPO%PartBoundaries(iPartBound)))
+            OutputCounter = OutputCounter + 1
+          END DO
+        END IF ! BPO%OutputTotalElectricCurrent
       END IF
       IF(UseNeutralization)THEN ! Ion thruster neutralization current (virtual cathode electrons)
         WRITE(unit_index,'(A1,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-NeutralizationParticles'
@@ -223,7 +242,7 @@ IF(PartMPI%MPIRoot)THEN
       IF(CalcElectronSEE)THEN
         DO iPartBound = 1, SEE%NPartBoundaries
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-nRealElectronsEmmited-'//&
+          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-ElectricCurrentSEE-'//&
               TRIM(PartBound%SourceBoundName(SEE%PartBoundaries(iPartBound)))
           OutputCounter = OutputCounter + 1
         END DO ! iPartBound = 1, SEE%NPartBoundaries
@@ -261,9 +280,41 @@ IF(PartMPI%MPIRoot)THEN
     CALL WriteDataInfo(unit_index,nPorousBC,RealArray=PorousBCOutput(5,:))
   END IF
   IF(CalcBoundaryParticleOutput)THEN
+    ! Output of particle fluxes
     DO iPartBound = 1, BPO%NPartBoundaries
       DO iSpec = 1, BPO%NSpecies
-        CALL WriteDataInfo(unit_index,1,RealArray=(/BPO%RealPartOut(iPartBound,iSpec)/))
+        IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
+          CALL WriteDataInfo(unit_index,1,RealArray=(/0.0/))
+        ELSE
+          CALL WriteDataInfo(unit_index,1,RealArray=(/BPO%RealPartOut(iPartBound,iSpec)/SurfModelAnalyzeSampleTime/))
+        END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
+      END DO
+    END DO
+    ! Output of total electric current
+    IF(BPO%OutputTotalElectricCurrent)THEN
+      DO iPartBound = 1, BPO%NPartBoundaries
+        TotalElectricCharge = 0. ! initialize
+        IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
+          CALL WriteDataInfo(unit_index,1,RealArray=(/0.0/))
+        ELSE
+          ! Sum over all fluxes (only if the species has a charge)
+          DO iSpec = 1, BPO%NSpecies
+            charge = Species(BPO%Species(iSpec))%ChargeIC
+            ! Impacting charged particles: positive number for positive ions (+) and negative number for electrons (-)
+            IF(ABS(charge).GT.0.0) TotalElectricCharge = TotalElectricCharge + BPO%RealPartOut(iPartBound,iSpec)*charge
+          END DO
+          ! Released secondary electrons (always a positive number). SEE%BCIDToSEEBCID(iPartBound) yields the iSEEBCIndex
+          IF(CalcElectronSEE)THEN
+            IF(SEE%BCIDToSEEBCID(iPartBound).GT.0) TotalElectricCharge = TotalElectricCharge &
+                + SEE%RealElectronOut(SEE%BCIDToSEEBCID(iPartBound))
+          END IF ! CalcElectronSEE
+          CALL WriteDataInfo(unit_index,1,RealArray=(/TotalElectricCharge/SurfModelAnalyzeSampleTime/))
+        END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
+      END DO
+    END IF ! BPO%OutputTotalElectricCurrent
+    ! Reset
+    DO iPartBound = 1, BPO%NPartBoundaries
+      DO iSpec = 1, BPO%NSpecies
         ! Reset PartMPI%MPIRoot counters after writing the data to the file,
         ! non-PartMPI%MPIRoot are reset in SyncBoundaryParticleOutput()
         BPO%RealPartOut(iPartBound,iSpec) = 0.
@@ -273,7 +324,11 @@ IF(PartMPI%MPIRoot)THEN
   IF(UseNeutralization) CALL WriteDataInfo(unit_index,1,RealArray=(/REAL(NeutralizationBalanceGlobal)/))
   IF(CalcElectronSEE)THEN
     DO iPartBound = 1, SEE%NPartBoundaries
-      CALL WriteDataInfo(unit_index,1,RealArray=(/SEE%RealElectronOut(iPartBound)/))
+      IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
+        CALL WriteDataInfo(unit_index,1,RealArray=(/0.0/))
+      ELSE
+        CALL WriteDataInfo(unit_index,1,RealArray=(/SEE%RealElectronOut(iPartBound)/SurfModelAnalyzeSampleTime/))
+      END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
         ! Reset PartMPI%MPIRoot counters after writing the data to the file,
         ! non-PartMPI%MPIRoot are reset in SyncBoundaryParticleOutput()
         SEE%RealElectronOut(iPartBound) = 0.
@@ -284,6 +339,7 @@ IF(PartMPI%MPIRoot)THEN
 END IF
 #endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
+SurfModelAnalyzeSampleTime = Time ! Backup "old" time value for next output
 END SUBROUTINE AnalyzeSurface
 
 
@@ -561,12 +617,12 @@ END SUBROUTINE SyncElectronSEE
 !===================================================================================================================================
 SUBROUTINE InitBoundaryParticleOutput()
 ! MODULES
-USE MOD_Globals                   ,ONLY: abort,UNIT_stdOut
+USE MOD_Globals                   ,ONLY: CollectiveStop,UNIT_stdOut
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: BPO
 USE MOD_Particle_Boundary_Vars    ,ONLY: nPartBound,PartBound
 USE MOD_ReadInTools               ,ONLY: GETLOGICAL,GETINT,GETINTARRAY
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
-USE MOD_Particle_Vars             ,ONLY: nSpecies
+USE MOD_Particle_Vars             ,ONLY: nSpecies,Species
 #if USE_MPI
 USE MOD_Globals                   ,ONLY: MPIRoot
 #endif /*USE_MPI*/
@@ -576,47 +632,84 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iPartBound,iSpec
+INTEGER           :: iPartBound,iSpec,iBPO
 !===================================================================================================================================
 DoSurfModelAnalyze = .TRUE.
 BPO%NPartBoundaries = GETINT('BPO-NPartBoundaries')
 BPO%PartBoundaries  = GETINTARRAY('BPO-PartBoundaries',BPO%NPartBoundaries)
 BPO%NSpecies        = GETINT('BPO-NSpecies')
 BPO%Species         = GETINTARRAY('BPO-Species',BPO%NSpecies)
-IF(BPO%NPartBoundaries.EQ.0.OR.BPO%NSpecies.EQ.0) CALL abort(__STAMP__,'BPO-NPartBoundaries or BPO-NSpecies is zero.')
+IF(BPO%NPartBoundaries.EQ.0.OR.BPO%NSpecies.EQ.0) CALL CollectiveStop(__STAMP__,'BPO-NPartBoundaries or BPO-NSpecies is zero.')
 ALLOCATE(BPO%RealPartOut(1:BPO%NPartBoundaries,1:BPO%NSpecies))
 BPO%RealPartOut = 0.
 
-ALLOCATE(BPO%SpecIDToBPOSpecID(1:nSPecies))
+! Initialize
+BPO%OutputTotalElectricCurrent = .FALSE.
+
+ALLOCATE(BPO%SpecIDToBPOSpecID(1:nSpecies))
 BPO%SpecIDToBPOSpecID = -1
 DO iSpec = 1, BPO%NSpecies
+  ! Sanity check
+  IF(BPO%Species(iSpec).GT.nSpecies) CALL CollectiveStop(__STAMP__,&
+      'BPO-Species contains a wrong species ID, which is greater than nSpecies')
   BPO%SpecIDToBPOSpecID(BPO%Species(iSpec)) = iSpec
+  ! Activate output of total electric current when at least one species has a charge unequal to zero
+  IF(ABS(Species(BPO%Species(iSpec))%ChargeIC).GT.0.0) BPO%OutputTotalElectricCurrent = .TRUE.
 END DO ! iSpec = 1, BPO%NSpecies
 
 ALLOCATE(BPO%BCIDToBPOBCID(1:nPartBound))
 BPO%BCIDToBPOBCID     = -1
 DO iPartBound = 1, BPO%NPartBoundaries
   BPO%BCIDToBPOBCID(BPO%PartBoundaries(iPartBound)) = iPartBound
-  ! Sanity check BC types: BPO%PartBoundaries(iPartBound) = 1 (open)
+  ! Sanity check BC types: BPO%PartBoundaries(iPartBound) = 1 (open) or 2 (ReflectiveBC)
   ! Add more BCs to the vector if required
-  IF(.NOT.ANY(PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)).EQ.(/1/)))THEN
-    SWRITE(UNIT_stdOut,'(A)')'\nError for CalcBoundaryParticleOutput=T\n'
-    SWRITE(UNIT_stdOut,'(A,I0)')'  iPartBound = ',BPO%PartBoundaries(iPartBound)
-    SWRITE(UNIT_stdOut,'(A,A)') '  SourceName = ',TRIM(PartBound%SourceBoundName(BPO%PartBoundaries(iPartBound)))
-    SWRITE(UNIT_stdOut,'(A,I0)')'   Condition = ',PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound))
-    SWRITE(UNIT_stdOut,'(A)')'\n  Conditions are'//&
-        '  OpenBC          = 1  \n'//&
-        '                  ReflectiveBC    = 2  \n'//&
-        '                  PeriodicBC      = 3  \n'//&
-        '                  SimpleAnodeBC   = 4  \n'//&
-        '                  SimpleCathodeBC = 5  \n'//&
-        '                  RotPeriodicBC   = 6  \n'//&
-        '                  SymmetryBC      = 10 \n'//&
-        '                  SymmetryAxis    = 11 '
-    CALL abort(__STAMP__&
-        ,'PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)) is not implemented for CalcBoundaryParticleOutput',&
-        IntInfoOpt=PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)))
+  IF(.NOT.ANY(PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)).EQ.(/1,2/)))THEN
+    ! Check if species swap is used
+    IF(PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0)THEN
+      ! nothing to do for now
+    ELSE
+      SWRITE(UNIT_stdOut,'(A)')'\nError for CalcBoundaryParticleOutput=T\n'
+      SWRITE(UNIT_stdOut,'(A,I0)')'  iPartBound = ',BPO%PartBoundaries(iPartBound)
+      SWRITE(UNIT_stdOut,'(A,A)') '  SourceName = ',TRIM(PartBound%SourceBoundName(BPO%PartBoundaries(iPartBound)))
+      SWRITE(UNIT_stdOut,'(A,I0)')'   Condition = ',PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound))
+      SWRITE(UNIT_stdOut,'(A)')'\n  Conditions are'//&
+                          '  OpenBC          = 1  \n'//&
+          '                  ReflectiveBC    = 2  \n'//&
+          '                  PeriodicBC      = 3  \n'//&
+          '                  SimpleAnodeBC   = 4  \n'//&
+          '                  SimpleCathodeBC = 5  \n'//&
+          '                  RotPeriodicBC   = 6  \n'//&
+          '                  SymmetryBC      = 10 \n'//&
+          '                  SymmetryAxis    = 11 '
+      CALL CollectiveStop(__STAMP__&
+          ,'PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)) is not implemented for CalcBoundaryParticleOutput',&
+          IntInfo=PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)))
+    END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0
   END IF ! .NOT.ANY(PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)).EQ. ...
+
+  ! Check reflective BCs with or without species swap activated
+  IF(PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound)).EQ.2)THEN
+    ! Check if species swap is used
+    IF(PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0)THEN
+      ! nothing to do for now
+    ELSE
+      ! Loop over all user-defined particle boundaries
+      DO iBPO = 1, BPO%NPartBoundaries
+        ! Test only particle boundaries that are in the list of BPO%PartBoundaries
+        IF(BPO%PartBoundaries(iBPO).EQ.iPartBound)THEN
+          ! Check the surface model
+          SELECT CASE(PartBound%SurfaceModel(iPartBound))
+          CASE(SEE_MODELS_ID)
+            ! all secondary electron models
+          CASE DEFAULT
+            CALL CollectiveStop(__STAMP__,'CalcBoundaryParticleOutput not implemented for this '//&
+            'PartBound%SurfaceModel(iPartBound). Either select different surface model or activate NbrOfSpeciesSwaps',&
+                IntInfo=PartBound%SurfaceModel(iPartBound))
+          END SELECT
+        END IF ! BPO%PartBoundaries(iBPO).EQ.iPartBound
+      END DO ! iBPO = 1, BPO%NPartBoundaries
+    END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0
+  END IF ! PartBound%TargetBoundCond(BPO%PartBoundaries(iPartBound).EQ.2
 END DO ! iPartBound = 1, BPO%NPartBoundaries
 
 END SUBROUTINE InitBoundaryParticleOutput
@@ -625,53 +718,104 @@ END SUBROUTINE InitBoundaryParticleOutput
 !===================================================================================================================================
 !> Allocate the required arrays (mappings and containers) for secondary electron emission analysis, which tracks the number of
 !> electrons that are emitted from a surface
+!>
+!> 1) Check if secondary electron emission occurs
+!> 1.1) Count number of different SEE boundaries via reflective particle BC
+!> 1.2) Count number of different photon SEE boundaries
+!> 2.) Create Mapping from SEE BC index to particle BC index
+!> 2.1) Create mapping for reactive surface SEE (non-photon impacts)
+!> 2.2) Create mapping for photon-surface SEE
 !===================================================================================================================================
 SUBROUTINE InitCalcElectronSEE()
 ! MODULES
-USE MOD_Globals                   ,ONLY: abort!,UNIT_stdOut,MPIRoot
+USE MOD_Globals
+USE MOD_Globals                   ,ONLY: abort,StringBeginsWith
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcBoundaryParticleOutput,CalcElectronSEE
 USE MOD_Particle_Boundary_Vars    ,ONLY: nPartBound,PartBound
+USE MOD_ReadInTools               ,ONLY: GETLOGICAL,PrintOption
+USE MOD_Particle_Vars             ,ONLY: Species,nSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iPartBound
+INTEGER           :: iPartBound,NPartBoundariesReflectiveSEE,NPartBoundariesPhotonSEE,iInit,iSpec
 !===================================================================================================================================
-DoSurfModelAnalyze = .TRUE.
 
-! Count number of different SEE boundaries
+! Initialize
+CalcElectronSEE = .FALSE.
+
+! 1) Check if secondary electron emission occurs
+! 1.1) Count number of different SEE boundaries via reflective particle BC
 SEE%NPartBoundaries = 0
 DO iPartBound=1,nPartBound
   IF(.NOT.PartBound%Reactive(iPartBound)) CYCLE
   SELECT CASE(PartBound%SurfaceModel(iPartBound))
   CASE(SEE_MODELS_ID)
-    SEE%NPartBoundaries = SEE%NPartBoundaries +1
+    SEE%NPartBoundaries = SEE%NPartBoundaries + 1
   END SELECT
 END DO ! iPartBound=1,nPartBound
+NPartBoundariesReflectiveSEE = SEE%NPartBoundaries
 
-! Sanity check
-IF(SEE%NPartBoundaries.EQ.0) CALL abort(__STAMP__,'No SEE boundaries found for counting the emitted electrons')
+! 1.2) Count number of different photon SEE boundaries
+DO iSpec=1,nSpecies
+  DO iInit=1, Species(iSpec)%NumberOfInits
+    IF(Species(iSpec)%Init(iInit)%PartBCIndex.GT.0)THEN
+      IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')) SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+    END IF
+  END DO
+END DO
+NPartBoundariesPhotonSEE = SEE%NPartBoundaries - NPartBoundariesReflectiveSEE
 
-! Create Mapping
+! If not SEE boundaries exist, no measurement of the current can be performed
+IF(SEE%NPartBoundaries.EQ.0) RETURN
+
+! Automatically activate when CalcBoundaryParticleOutput=T
+IF(CalcBoundaryParticleOutput)THEN
+  CalcElectronSEE = .TRUE.
+  CALL PrintOption('Activating SEE current measurement because CalcBoundaryParticleOutput=T: CalcElectronSEE','INFO',&
+      LogOpt=CalcElectronSEE)
+ELSE
+  CalcElectronSEE = GETLOGICAL('CalcElectronSEE','.FALSE.')
+END IF ! CalcBoundaryParticleOutput
+
+! Check if analysis has been activated
+IF(.NOT.CalcElectronSEE) RETURN
+
+! Automatically activate surface model analyze flag
+DoSurfModelAnalyze = .TRUE.
+
+! 2.) Create Mapping from SEE BC index to particle BC index
+! 2.1) Create mapping for reactive surface SEE (non-photon impacts)
 ALLOCATE(SEE%PartBoundaries(SEE%NPartBoundaries))
 SEE%NPartBoundaries = 0
 DO iPartBound=1,nPartBound
   IF(.NOT.PartBound%Reactive(iPartBound)) CYCLE
   SELECT CASE(PartBound%SurfaceModel(iPartBound))
   CASE(SEE_MODELS_ID)
-    SEE%NPartBoundaries = SEE%NPartBoundaries +1
+    SEE%NPartBoundaries = SEE%NPartBoundaries + 1
     SEE%PartBoundaries(SEE%NPartBoundaries) = iPartBound
   END SELECT
 END DO ! iPartBound=1,nPartBound
+! 2.2) Create mapping for photon-surface SEE
+DO iSpec=1,nSpecies
+  DO iInit=1, Species(iSpec)%NumberOfInits
+    IF(Species(iSpec)%Init(iInit)%PartBCIndex.GT.0)THEN
+      IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE'))THEN
+        SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+        SEE%PartBoundaries(SEE%NPartBoundaries) = Species(iSpec)%Init(iInit)%PartBCIndex
+      END IF
+    END IF
+  END DO
+END DO
 
 ! Allocate the container
 ALLOCATE(SEE%RealElectronOut(1:SEE%NPartBoundaries))
 SEE%RealElectronOut = 0.
 
-! Create Mapping
+! Create Mapping from particle BC index to SEE BC index
 ALLOCATE(SEE%BCIDToSEEBCID(1:nPartBound))
 SEE%BCIDToSEEBCID     = -1
 DO iPartBound = 1, SEE%NPartBoundaries

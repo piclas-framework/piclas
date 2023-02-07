@@ -80,16 +80,15 @@ relaxation factors are below unity. The `BGK_DSMC_Ratio` gives the percentage of
 utilized. In a couple BGK-DSMC simulation this variable indicates the boundary between BGK and DSMC. However, a value below 1 can
 occur for pure BGK simulations due to low particle numbers, when an element is skipped.
 
-<!-- An option is available to utilize a moving average for the variables used in the calculation of the relaxation frequency:
+An option is available to utilize a moving average for the variables used in the calculation of the relaxation frequency:
 
     Particles-BGK-MovingAverage = T
 
-The purpose is to increase the sample size for steady gas flows. An extension of this feature to account for unsteady flows is to
-limit the moving average to the last $N$ number of iterations, where the first value of the array is deleted and the most current
-value is added at the end of the list:
+The purpose is to increase the sample size and reduce the noise for steady gas flows. For this, a factor 
+0 < Particles-BGK-MovingAverageFac < 1 must be defined with which the old $$M^n$$ and newly sampled moments $$M$$ are weighted 
+to define the moments for the next time step $$M^{n+1}$$:
 
-    Particles-BGK-MovingAverageLength = 100
+$$ M^{n+1}=Particles-BGK-MovingAverageFac*M+(1-Particles-BGK-MovingAverageFac)*M^n$$
 
-Although this feature was tested with a hypersonic flow around a $70^\circ$ blunted cone and a nozzle expansion, a clear advantage
-could not be observed, however, it might reduce the statistical noise for other application cases. -->
+    Particles-BGK-MovingAverageFac = 0.01
 

@@ -338,6 +338,132 @@ impact angle of $0^{\circ}$), number of real particle impacts over the sampling 
 per area per second.
 
 ## Integral Variables
+This analysis measures integral values from the field- and/or particle-solver data over time and writes different .csv files.
 
-WIP, PartAnalyze/FieldAnalyze
+### Field Variables
+**WIP**
+
+### Particle Variables
+**WIP**
+
+### Surface Variables
+
+The output for different measurements involving particles and surfaces is written to *SurfaceAnalyze.csv*.
+If this analysis is not required in each time step, the parameter `Surface-AnalyzeStep` (default is 1) can be set to an integer
+greater or equal 1. Some values are sampled only during one time step and others are accumulated over the number of time steps
+defined by `Surface-AnalyzeStep`.
+The number of time steps over which the values are calculated is controlled with `Surface-AnalyzeStep` (default is 1).
+
+|           Parameter          |                                   Parameter                                  |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+|       `CalcElectronSEE`      |  Secondary electron emission current for each `Part-Boundary` with SEE model |
+| `CalcBoundaryParticleOutput` |    Particle flux for each user-defined `Part-Boundary` and `Part-Species`    |
+
+**Secondary Electron Emission**
+When `CalcElectronSEE=T` is activated, the secondary electron emission current (on all surfaces where such a model is used) is
+calculated and written to *SurfaceAnalyze.csv*. Note that all secondary electrons between two outputs are accumulated and divided by
+the time difference between these outputs. Hence, the averaging time can be adjusted using `Surface-AnalyzeStep`.
+The output in the .csv file will be similar to this example: `012-ElectricCurrentSEE-BC_WALL`
+
+**BoundaryParticleOutput (BPO)** The flux of particles crossing boundaries where they are removed can be calculated by setting
+`CalcBoundaryParticleOutput = T`. Additionally, the boundaries and species IDs must be supplied for which the output is to be
+created. This is done by setting
+
+    CalcBoundaryParticleOutput = T        ! Activate the analysis
+    BPO-NPartBoundaries        = 2        ! Nbr of particle boundaries where the flux and current are measured
+    BPO-PartBoundaries         = (/4,8/)  ! Only measure the flux and current on Part-Boundary4 and Part-Boundary8
+    BPO-NSpecies               = 2        ! Nbr of species that are considered for Part-Boundary4 and Part-Boundary8
+    BPO-Species                = (/2,3/)  ! Species IDs which should be included
+
+where the number of boundaries and species as well as the corresponding IDs are defined. The other boundaries and species IDs will
+be ignored. Note that this feature is currently only implemented for boundaries of type `Part-BoundaryX-Condition = open` and
+`Part-BoundaryX-Condition = reflective`. The reflective BC must also use either species swap via `Part-BoundaryX-NbrOfSpeciesSwaps`
+or a secondary electron emission surface model via `Part-BoundaryX-SurfaceModel`.
+The output in the .csv file will be similar to this example: `004-Flux-Spec-002-BC_CATHODE`
+Additionally, the total electric current will be calculated if any species that is selected via `BPO-Species` carries a charge
+unequal to zero.
+Note that only species defined via `BPO-Species` will be considered in the calculation of the total electric current.
+Furthermore, the secondary electron emission current is automatically added to the total electric current if
+`CalcBoundaryParticleOutput = T`.
+The output of the total electric current in the .csv file will be similar to this example: `008-TotalElectricCurrent-BC_ANODE`
+
+## Dynamic Mode Decomposition
+The dynamic mode decomposition is an algorithm that divides a temporal series into a set of modes which are associated with a
+frequency and grow/decay rate.
+The dynamic mode decomposition (DMD) is implemented according to Schmid et al. {cite}`Schmid2009`.
+To use the DMD tool, it needs to be compiled first. In cmake, set the flag
+
+    POSTI_BUILD_DMD = ON (default is OFF)
+
+which creates the executable `./bin/dmd`.
+The input for the DMD tool is provided by a series of state files with a high temporal resolution between each output file in order
+to capture the relevant frequencies that are to be visualized.
+To analyze a specific frequency, multiple state files should be created within one period of the oscillation.
+
+Run the DMD executable with the help command to see the available options
+
+    ./dmd --help
+
+To execute the DMD after a simulation, with e.g. the Maxwell solver, run the command
+
+    dmd dmd.ini coaxial_State_000.00*
+
+with an exemplary `dmd.ini` file
+
+    N            = 4
+    SvdThreshold = 1e-8 ! Define relative lower bound of singular values
+
+where `N=4` is the polynomial degree of the solution and `SvdThreshold = 1e-8` is used to filter singular values of the DMD.
+
+Depending on the available memory one might have to decrease the number of input state files.
+After the execution two additional files **coaxial_DMD.h5** and **coaxial_DMD_Spec.dat** will be created.
+The first file contains the field representation of the different modes and the second file contains the Ritz spectrum of the modes.
+
+### Ritz spectrum (coaxial_DMD_Spec.dat)
+
+With the python script *plot_RitzSpectrum.py* the Ritz spectrum of the DMD can be plotted.
+The script is placed in the tools folder of **piclas**.
+To plot the spectrum execute:
+
+    python [PICLAS_DIRECTORY]/tools/plot_RitzSpectrum.py -d coaxial_DMD_Spec.dat
+
+The result is a Ritz spectrum depicting all the calculated modes and their growth rate.
+On the *x-axis* the frequency of the modes and on the *y-axis* the growth/decay factor is plotted, whereat modes with $\omega_r<0$
+are damped.
+The modes placed directly on the x-axis are the global, the first, the second harmonic mode and so on.
+The color and size of the plotted modes represent the Euclidian norm of the mode which can be interpreted as an energy norm of the mode.
+
+### Mode visualization (coaxial_DMD.h5)
+To visualize the field run the following command:
+
+    piclas2vtk [posti.ini] coaxial_DMD.h5
+
+The new file **coaxial_DMD_000.00000000000000000.vtu** now contains multiple modes to visualize.
+Two additional input parameters are used to control the output of `piclas2vtk` by placing them in the `posti.ini` file
+
+    dmdSingleModeOutput  = 2  ! only extract mode 002
+    dmdMaximumModeOutput = 10 ! only extract modes 001-010
+
+The parameter `dmdSingleModeOutput` is used to convert only a single specific mode to `.vtu` ignoring all other modes and
+`dmdMaximumModeOutput` can be used to dump all output modes up to this number.
+Note that each mode is written to a separate output file because a single might can become quite large very quickly and is then too
+large to visualize.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 

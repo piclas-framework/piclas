@@ -1039,6 +1039,9 @@ USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Mesh_Vars          ,ONLY: nGlobalElems
 USE MOD_PICDepo_Tools      ,ONLY: beta
 USE MOD_Symmetry_Vars      ,ONLY: Symmetry
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1125,7 +1128,7 @@ SELECT CASE (dim_sf)
     ! set the two perpendicular directions used for deposition
     dim_sf_dir1 = MERGE(1,2,dim_sf_dir.EQ.2)
     dim_sf_dir2 = MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3)
-    SWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' Shape function 2D with const. distribution in dir ',dim_sf_dir,&
+    LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' Shape function 2D with const. distribution in dir ',dim_sf_dir,&
         ' and variable distrbution in ',dim_sf_dir1,' and ',dim_sf_dir2,' (1: x, 2: y and 3: z)'
 
     ! Set shape function length (3D volume)
@@ -1142,11 +1145,11 @@ SELECT CASE (dim_sf)
     CALL abort(__STAMP__,'Shape function dimension must be 1, 2 or 3')
 END SELECT
 
-SWRITE(UNIT_stdOut,'(A)') ' The complete charge is '//TRIM(hilf_geo)//' distributed (via '//TRIM(hilf_dim)//'D shape function)'
+LBWRITE(UNIT_stdOut,'(A)') ' The complete charge is '//TRIM(hilf_geo)//' distributed (via '//TRIM(hilf_dim)//'D shape function)'
 
 IF(.NOT.sfDepo3D)THEN
-  SWRITE(UNIT_stdOut,'(A)') ' Note that the integral of the charge density over the mesh volume is larger than the complete charge'
-  SWRITE(UNIT_stdOut,'(A)') ' because the charge is spread out over either a line (1D shape function) or an area (2D shape function)!'
+  LBWRITE(UNIT_stdOut,'(A)') ' Note that the integral of the charge density over the mesh volume is larger than the complete charge'
+  LBWRITE(UNIT_stdOut,'(A)') ' because the charge is spread out over either a line (1D shape function) or an area (2D shape function)!'
 END IF
 
 ! 3. Output info regarding charge distribution and points per shape function resolution
