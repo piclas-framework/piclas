@@ -126,7 +126,7 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
 #endif /*USE_HDG*/
     /)
 CHARACTER(LEN=255),ALLOCATABLE :: tmpStr(:) ! needed because PerformAnalyze is called multiple times at the beginning
-CHARACTER(LEN=1000)            :: tmpStr2
+CHARACTER(LEN=5000)            :: tmpStr2
 CHARACTER(LEN=1),PARAMETER     :: delimiter=","
 INTEGER                        :: I,iBoundary
 CHARACTER(LEN=255) :: StrVarNameTmp
