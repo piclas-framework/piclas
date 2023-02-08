@@ -1256,7 +1256,7 @@ USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptive, AdaptBCMacroVal, AdaptBCMapE
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
 #if USE_MPI
-USE MOD_Particle_Analyze_Vars   ,ONLY: nSpecAnalyze
+USE MOD_Particle_Analyze_Vars   ,ONLY: nSpecAnalyze, PartAnalyzeStep
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -1315,7 +1315,7 @@ DO iSpec = 1, nSpecies
   END DO
 END DO
 
-! 2) Get the sum of the mass flow rate (final output value) and the sum of the area-weighted area pressures
+! 2) Get the sum of the mass flow rate and the sum of the area-weighted area pressures
 #if USE_MPI
 MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
 IF (PartMPI%MPIRoot) THEN
@@ -1331,9 +1331,15 @@ ELSE ! no Root
 END IF
 #endif /*USE_MPI*/
 
-! 3) Determine the average pressure
-
+! 3) Consider Part-AnalyzeStep for FlowRateSurfFlux and determine the average pressure (value does not depend on the Part-AnalyzeStep)
 IF (PartMPI%MPIRoot) THEN
+  IF(PartAnalyzeStep.GT.1)THEN
+    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
+      FlowRateSurfFlux = FlowRateSurfFlux / iter
+    ELSE
+      FlowRateSurfFlux = FlowRateSurfFlux / MIN(PartAnalyzeStep,iter)
+    END IF
+  END IF
   IF(UseAdaptive) THEN
     DO iSpec = 1, nSpecies
       DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
