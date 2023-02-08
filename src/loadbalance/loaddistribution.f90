@@ -280,7 +280,7 @@ IF(MPIRoot)THEN
     END DO
   END IF ! PartIntExists
 
-  DEALLOCATE(PartIntGlob)
+  SDEALLOCATE(PartIntGlob)
 END IF ! MPIRoot
 #endif /*PARTICLES*/
 
