@@ -76,12 +76,17 @@ LOADMODULES=1
 for ARG in "$@"
 do
 
+  BLAS_SUPPORT=''
   if [ ${ARG} == "--help" ] || [ ${ARG} == "-h" ]; then
     echo "Input arguments:"
     echo "--help/-h            print help information"
     echo "--modules/-m         use modules defined in this script by the user."
     echo "                     Otherwise, find modules automatically."
+    echo "--blas/-b            Install with BLAS (FBLASLAPACK) by running configure command with --download-fblaslapack=1"
     exit
+  elif [ ${ARG} == "--blas" ] || [ ${ARG} == "-b" ]; then
+    echo "BLAS (FBLASLAPACK) will be installed via --download-fblaslapack=1"
+    BLAS_SUPPORT=' --download-fblaslapack=1 '
   fi
 
   if [ ${ARG} == "--modules" ] || [ ${ARG} == "-m" ]; then
@@ -270,7 +275,8 @@ if [ ! -e "${MODULEFILE}" ]; then
 	      FOPTFLAGS='-O3 -march=native -mtune=native' \
 	      --download-hypre \
 	      --download-mumps \
-	      --download-scalapack
+	      --download-scalapack \
+        ${BLAS_SUPPORT}
 
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
@@ -283,7 +289,8 @@ if [ ! -e "${MODULEFILE}" ]; then
 	      FOPTFLAGS='-O3 -march=native -mtune=native' \
 	      --download-hypre \
 	      --download-mumps \
-	      --download-scalapack]$NC"
+	      --download-scalapack \
+        ${BLAS_SUPPORT}]$NC"
     exit
   else
     # Compile source files with NBROFCORES threads
