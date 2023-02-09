@@ -93,8 +93,6 @@ DO iSpec=1,nSpecies
     currentBC = SF%BC
     NbrOfParticle = 0 ! calculated within (sub)side-Loops!
     iPartTotal=0
-    ! Reset the mass flow rate counter for the next time step
-    IF(CalcSurfFluxInfo) SF%SampledMassflow = 0.
     ! Adaptive BC, Type = 4 (Const. massflow): Sum-up the global number of particles exiting through BC and calculate new weights
     IF(SF%AdaptiveType.EQ.4) THEN
 #if USE_MPI

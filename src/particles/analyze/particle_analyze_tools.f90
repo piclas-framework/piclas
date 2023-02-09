@@ -1248,7 +1248,7 @@ SUBROUTINE CalcSurfaceFluxInfo()
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_TimeDisc_Vars           ,ONLY: dt, iter
-USE MOD_Particle_Analyze_Vars   ,ONLY: FlowRateSurfFlux, PressureAdaptiveBC
+USE MOD_Particle_Analyze_Vars   ,ONLY: FlowRateSurfFlux,PressureAdaptiveBC,PartAnalyzeStep
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,usevMPF,VarTimeStep
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
@@ -1321,7 +1321,7 @@ DO iSpec = 1, nSpecies
   END DO
 END DO
 
-! 2) Get the sum of the mass flow rate (final output value) and the sum of the area-weighted area pressures
+! 2) Get the sum of the mass flow rate and the sum of the area-weighted area pressures
 #if USE_MPI
 MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
 IF (PartMPI%MPIRoot) THEN
@@ -1337,8 +1337,15 @@ ELSE ! no Root
 END IF
 #endif /*USE_MPI*/
 
-! 3) Determine the average pressure
+! 3) Consider Part-AnalyzeStep for FlowRateSurfFlux and determine the average pressure (value does not depend on the Part-AnalyzeStep)
 IF (PartMPI%MPIRoot) THEN
+  IF(PartAnalyzeStep.GT.1)THEN
+    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
+      FlowRateSurfFlux = FlowRateSurfFlux / iter
+    ELSE
+      FlowRateSurfFlux = FlowRateSurfFlux / MIN(PartAnalyzeStep,iter)
+    END IF
+  END IF
   IF(UseAdaptive) THEN
     DO iSpec = 1, nSpecies
       DO iSF = 1, Species(iSpec)%nSurfacefluxBCs

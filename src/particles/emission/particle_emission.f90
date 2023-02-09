@@ -58,6 +58,7 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -67,8 +68,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! Local variable declaration
-INTEGER                          :: i , iPart, PositionNbr, iInit, IntSample
-INTEGER                          :: NbrOfParticle
+INTEGER                          :: i, iPart, PositionNbr, iInit, IntSample
+INTEGER                          :: NbrOfParticle,iSEEBC
 INTEGER(KIND=8)                  :: inserted_Particle_iter,inserted_Particle_time
 INTEGER(KIND=8)                  :: inserted_Particle_diff
 REAL                             :: PartIns, RandVal1
@@ -303,13 +304,22 @@ DO i=1,nSpecies
         NbrOfParticle = 0
     END SELECT
 
+    ! Create particles by setting their position in space and checking if a host cell can be found
+    ! Warning: this routine returns the emitted number of particles for each processor and changes the value of NbrOfParticle here
     CALL SetParticlePosition(i,iInit,NbrOfParticle)
+
     ! Pairing of "electrons" with the background species and performing the reaction
     SELECT CASE(TRIM(Species(i)%Init(iInit)%SpaceIC))
     CASE('photon_cylinder','photon_honeycomb','photon_rectangle')
       CALL BGGas_PhotoIonization(i,iInit,NbrOfParticle)
       CYCLE
     END SELECT
+    ! Check if photon SEE electric current is to be measured
+    IF(StringBeginsWith(Species(i)%Init(iInit)%SpaceIC,'photon_SEE').AND.CalcElectronSEE.AND.(NbrOfParticle.GT.0))THEN
+      ! Note that the negative value of the charge -q is used below
+      iSEEBC = SEE%BCIDToSEEBCID(Species(i)%Init(iInit)%PartBCIndex)
+      SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) - MPF*NbrOfParticle*Species(i)%ChargeIC
+    END IF
 
     CALL SetParticleVelocity(i,iInit,NbrOfParticle)
     CALL SetParticleChargeAndMass(i,NbrOfParticle)

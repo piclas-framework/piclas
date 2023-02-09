@@ -226,32 +226,6 @@ REAL, ALLOCATABLE                        :: CellEelec_vMPF(:,:)
 REAL, ALLOCATABLE                        :: CellEvib_vMPF(:,:)
 REAL                                     :: MacroValSampTime                  ! Sampling time for WriteMacroVal. (e.g., for td201)
 LOGICAL                                  :: usevMPF                           ! use the vMPF per particle
-LOGICAL                                  :: enableParticleMerge               ! enables the particle merge routines
-LOGICAL                                  :: doParticleMerge=.false.           ! flag for particle merge
-INTEGER                                  :: vMPFMergeParticleTarget           ! number of particles wanted after merge
-INTEGER                                  :: vMPFSplitParticleTarget           ! number of particles wanted after split
-INTEGER                                  :: vMPFMergeParticleIter             ! iterations between particle merges
-INTEGER                                  :: vMPFMergePolyOrder                ! order of polynom for vMPF merge
-INTEGER                                  :: vMPFMergeCellSplitOrder           ! order of cell splitting (vMPF)
-INTEGER, ALLOCATABLE                     :: vMPF_OrderVec(:,:)                ! Vec of vMPF poynom orders
-INTEGER, ALLOCATABLE                     :: vMPF_SplitVec(:,:)                ! Vec of vMPF cell split orders
-INTEGER, ALLOCATABLE                     :: vMPF_SplitVecBack(:,:,:)          ! Vec of vMPF cell split orders backward
-REAL, ALLOCATABLE                        :: PartStateMap(:,:)                 ! part pos mapped on the -1,1 cube
-INTEGER, ALLOCATABLE                     :: PartStatevMPFSpec(:)              ! part state indx of spec to merge
-REAL, ALLOCATABLE                        :: vMPFPolyPoint(:,:)                ! Points of Polynom in LM
-REAL, ALLOCATABLE                        :: vMPFPolySol(:)                    ! Solution of Polynom in LM
-REAL                                     :: vMPF_oldMPFSum                    ! Sum of all old MPF in cell
-REAL                                     :: vMPF_oldEngSum                    ! Sum of all old energies in cell
-REAL                                     :: vMPF_oldMomSum(3)                 ! Sum of all old momentums in cell
-REAL, ALLOCATABLE                        :: vMPFOldVelo(:,:)                  ! Old Particle Velo for Polynom
-REAL, ALLOCATABLE                        :: vMPFOldBrownVelo(:,:)             ! Old brownian Velo
-REAL, ALLOCATABLE                        :: vMPFOldPos(:,:)                   ! Old Particle Pos for Polynom
-REAL, ALLOCATABLE                        :: vMPFOldMPF(:)                     ! Old Particle MPF
-INTEGER, ALLOCATABLE                     :: vMPFNewPosNum(:)
-INTEGER, ALLOCATABLE                     :: vMPF_SpecNumElem(:,:)             ! number of particles of spec (:,i) in element (j,:)
-CHARACTER(30)                            :: vMPF_velocityDistribution         ! specifying keyword for velocity distribution
-REAL, ALLOCATABLE                        :: vMPF_NewPosRefElem(:,:)          ! new positions in ref elem
-LOGICAL                                  :: vMPF_relativistic
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs
 LOGICAL                                  :: DoPoissonRounding                 ! Perform Poisson sampling instead of random rounding
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding

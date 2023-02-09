@@ -83,7 +83,7 @@ SUBROUTINE UpdateNextFreePosition(WithOutMPIParts)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars            ,ONLY: useDSMC,CollInf
-USE MOD_Particle_Vars        ,ONLY: PDM,PEM,PartSpecies,doParticleMerge,vMPF_SpecNumElem
+USE MOD_Particle_Vars        ,ONLY: PDM,PEM,PartSpecies
 USE MOD_Particle_Vars        ,ONLY: PartState,PartTimeStep,usevMPF,UseVarTimeStep
 USE MOD_Particle_TimeStep    ,ONLY: GetParticleTimeStep
 #if USE_LOADBALANCE
@@ -113,7 +113,7 @@ CALL LBStartTime(tLBStart)
 
 IF(PDM%maxParticleNumber.EQ.0) RETURN
 
-IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
+IF (useDSMC.OR.usevMPF) THEN
   PEM%pNumber(:) = 0
 END IF
 
@@ -132,9 +132,7 @@ IF(usevMPF)THEN
   END IF ! PDM%ParticleVecLengthOld.GT.SIZE(PDM%ParticleInside)
 END IF ! usevMPF
 
-IF (doParticleMerge) vMPF_SpecNumElem = 0
-
-IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
+IF (useDSMC.OR.usevMPF) THEN
   DO i = 1,PDM%ParticleVecLengthOld
     IF (.NOT.PDM%ParticleInside(i)) THEN
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
@@ -160,10 +158,7 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
         PEM%pEnd(   ElemID)   = i
         PEM%pNumber(ElemID)   = PEM%pNumber(ElemID) + 1
         PDM%ParticleVecLength = i
-
         IF(UseVarTimeStep) PartTimeStep(i) = GetParticleTimeStep(PartState(1,i),PartState(2,i),ElemID)
-
-        IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
       END IF
 #endif
     ELSE
@@ -180,10 +175,7 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
       PEM%pEnd(   ElemID)   = i
       PEM%pNumber(ElemID)   = PEM%pNumber(ElemID) + 1
       PDM%ParticleVecLength = i
-
       IF(UseVarTimeStep) PartTimeStep(i) = GetParticleTimeStep(PartState(1,i),PartState(2,i),ElemID)
-
-      IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
     END IF
   END DO
 ! no DSMC

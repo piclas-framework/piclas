@@ -28,8 +28,6 @@ PRIVATE
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: GetBoundaryInteraction
-PUBLIC :: GetBoundaryInteractionAuxBC
-!PUBLIC :: PartSwitchElement
 !===================================================================================================================================
 
 CONTAINS
@@ -187,116 +185,6 @@ END ASSOCIATE
 END SUBROUTINE GetBoundaryInteraction
 
 
-SUBROUTINE GetBoundaryInteractionAuxBC(iPart,AuxBCIdx,crossedBC)
-!===================================================================================================================================
-! Computes the post boundary state of a particle that interacts with an auxBC
-!  OpenBC                  = 1
-!  ReflectiveBC            = 2
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals                ,ONLY: abort,UNITVECTOR
-USE MOD_SurfaceModel           ,ONLY: PerfectReflection, DiffuseReflection, SpeciesSwap
-USE MOD_Particle_Vars          ,ONLY: PDM
-USE MOD_Particle_Boundary_Vars ,ONLY: PartAuxBC
-USE MOD_Particle_Boundary_Vars ,ONLY: AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
-USE MOD_Particle_Vars          ,ONLY: LastPartPos
-USE MOD_part_operations        ,ONLY: RemoveParticle
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                   :: iPart,AuxBCIdx
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL,INTENT(OUT)                  :: crossedBC
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                                 :: RanNum
-REAL                                 :: n_loc(1:3)
-REAL                                 :: intersec(3),r_vec(3),axis(3),cos2inv!,v_2(1:3),v_aux(1:3)
-!===================================================================================================================================
-
-crossedBC    =.FALSE.
-SELECT CASE (TRIM(AuxBCType(AuxBCIdx)))
-CASE ('plane')
-  n_loc = AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
-CASE ('cylinder')
-  intersec = LastPartPos(1:3,iPart) + TrackInfo%alpha*TrackInfo%PartTrajectory
-  r_vec = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
-  axis  = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
-  n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) ) )
-  IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
-CASE ('cone')
-  intersec = LastPartPos(1:3,iPart) + TrackInfo%alpha*TrackInfo%PartTrajectory
-  r_vec = AuxBC_cone(AuxBCMap(AuxBCIdx))%r_vec
-  axis  = AuxBC_cone(AuxBCMap(AuxBCIdx))%axis
-  cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle)**2
-  n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis)*cos2inv ) )
-  IF (.NOT.AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
-CASE ('parabol')
-  intersec = LastPartPos(1:3,iPart) + TrackInfo%alpha*TrackInfo%PartTrajectory
-  r_vec = AuxBC_parabol(AuxBCMap(AuxBCIdx))%r_vec
-  axis  = AuxBC_parabol(AuxBCMap(AuxBCIdx))%axis
-  n_loc = UNITVECTOR( intersec - ( r_vec + axis*(DOT_PRODUCT(intersec-r_vec,axis)+0.5*AuxBC_parabol(AuxBCMap(AuxBCIdx))%zfac) ) )
-  IF (.NOT.AuxBC_parabol(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
-CASE DEFAULT
-  CALL abort(__STAMP__,'AuxBC does not exist')
-END SELECT
-IF(DOT_PRODUCT(n_loc,TrackInfo%PartTrajectory).LT.0.)  THEN
-  crossedBC=.FALSE.
-  !RETURN
-  CALL abort(__STAMP__,'Error in GetBoundaryInteractionAuxBC: Particle coming from outside!')
-ELSE IF(DOT_PRODUCT(n_loc,TrackInfo%PartTrajectory).GT.0.)  THEN
-  crossedBC=.TRUE.
-ELSE
-  CALL abort(__STAMP__,'Error in GetBoundaryInteractionAuxBC: n_vec is perpendicular to PartTrajectory for AuxBC',AuxBCIdx)
-END IF
-! Select the corresponding boundary condition and calculate particle treatment
-SELECT CASE(PartAuxBC%TargetBoundCond(AuxBCIdx))
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE(1) !PartAuxBC%OpenBC
-!-----------------------------------------------------------------------------------------------------------------------------------
-  CALL RemoveParticle(iPart)
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE(2) !PartAuxBC%ReflectiveBC)
-!-----------------------------------------------------------------------------------------------------------------------------------
-  !---- swap species?
-!print*,'*********************'
-!print*,AuxBCIdx
-!print*,iPart,alpha,PartState(4:6,iPart)
-!print*,iPart,alpha,LastPartPos(1:3,iPart),PartState(4:6,iPart)
-  IF (PartAuxBC%NbrOfSpeciesSwaps(AuxBCIdx).gt.0) THEN
-#ifndef IMPA
-    CALL SpeciesSwap(PartID=iPart,SideID=-1,AuxBCIdx=AuxBCIdx)
-#else
-    CALL SpeciesSwap(PartID=iPart,SideID=-1)
-#endif /*NOT IMPA*/
-  END IF
-  IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
-    ! simple reflection (previously used wall interaction model, maxwellian scattering)
-      CALL RANDOM_NUMBER(RanNum)
-      IF(RanNum.GE.PartAuxBC%MomentumACC(AuxBCIdx)) THEN
-        ! perfectly reflecting, specular re-emission
-        CALL PerfectReflection(PartID=iPart,SideID=-1,n_loc=n_loc,AuxBCIdx=AuxBCIdx)
-      ELSE
-        CALL DiffuseReflection(PartID=iPart,SideID=-1,n_loc=n_loc,AuxBCIdx=AuxBCIdx)
-      END IF
-  END IF
-!print*,iPart,alpha,LastPartPos(1:3,iPart),PartState(1:3,iPart)
-!print*,iPart,alpha,PartState(4:6,iPart)
-!print*,'*********************'
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE DEFAULT
-  CALL abort(__STAMP__,' ERROR: AuxBC bound not associated!. (unknown case)',999,999.)
-END SELECT
-
-! compiler warnings
-RETURN
-WRITE(*,*) 'AuxBCIdx', AuxBCIdx
-
-END SUBROUTINE GetBoundaryInteractionAuxBC
 
 
 SUBROUTINE PeriodicBC(PartID,SideID,ElemID)

@@ -158,7 +158,7 @@ IF(NbrOfPhysicalNodes.LE.0) MemoryMonitor = .FALSE.
     color = myRank
   ELSE
     ! Group procs so that every CORE_SPLIT procs are in the same group
-    color = INT(REAL(myrank*CORE_SPLIT)/REAL(nProcessors_Global))+1
+    color = INT(REAL(myRank)/REAL(CORE_SPLIT))
   END IF ! (CORE_SPLIT.GE.nProcessors_Global).OR.(MOD().GT.0)
   CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,0,MPI_COMM_SHARED,iError)
 #endif
