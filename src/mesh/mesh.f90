@@ -510,11 +510,11 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iSide,ElemID,nbElemID
+INTEGER                      :: iSide,ElemID,nbElemID
 #if USE_MPI
-INTEGER :: iNbProc,Nloc
-#endif /*USE_MPI*/
+INTEGER                      :: iNbProc,Nloc
 INTEGER, DIMENSION(nNbProcs) :: RecRequest_U,SendRequest_U,RecRequest_U2,SendRequest_U2
+#endif /*USE_MPI*/
 !==================================================================================================================================
 ! set information which polynomial degree elements adjacent to a side have
 DO iSide = 1,nSides
