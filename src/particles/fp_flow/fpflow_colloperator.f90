@@ -45,7 +45,7 @@ USE MOD_Globals                 ,ONLY: abort,unit_stdout,myrank
 USE MOD_Globals_Vars            ,ONLY: Pi, BoltzmannConst
 USE MOD_FPFlow_Vars             ,ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuantVibEn, FPDoVibRelaxation, FP_PrandtlNumber
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_Particle_Vars           ,ONLY: Species, PartState, VarTimeStep, usevMPF
+USE MOD_Particle_Vars           ,ONLY: Species, PartState, UseVarTimeStep, PartTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: CollInf, RadialWeighting
@@ -149,12 +149,12 @@ DO iLoop2 = 1, nPart
     ERot = ERot + PartStateIntEn(2,iPartIndx_Node(iLoop2)) * partWeight
   END IF
   OldEn = OldEn + 0.5*Species(1)%MassIC * vmag2 * partWeight
-  IF(VarTimeStep%UseVariableTimeStep) THEN
-    dtCell = dtCell + VarTimeStep%ParticleTimeStep(iPartIndx_Node(iLoop2))
+  IF(UseVarTimeStep) THEN
+    dtCell = dtCell + PartTimeStep(iPartIndx_Node(iLoop2))
   END IF
 END DO
 
-IF(VarTimeStep%UseVariableTimeStep) THEN
+IF(UseVarTimeStep) THEN
   dtCell = dt * dtCell / nPart
 ELSE
   dtCell = dt

@@ -84,8 +84,8 @@ USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC
-USE MOD_Particle_Vars        ,ONLY: VarTimeStep
-USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_Init
+USE MOD_Particle_Vars        ,ONLY: UseVarTimeStep, VarTimeStep
+USE MOD_Particle_TimeStep    ,ONLY: InitPartTimeStep
 USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
@@ -157,10 +157,10 @@ END IF
 VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling')
 VarTimeStep%UseDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution')
 IF (VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution)  THEN
-  VarTimeStep%UseVariableTimeStep = .TRUE.
-  IF(.NOT.IsLoadBalance) CALL VarTimeStep_Init()
+  UseVarTimeStep = .TRUE.
+  IF(.NOT.IsLoadBalance) CALL InitPartTimeStep()
 ELSE
-  VarTimeStep%UseVariableTimeStep = .FALSE.
+  UseVarTimeStep = .FALSE.
 END IF
 CALL InitParticleGlobals()
 CALL InitDepositionMethod()
