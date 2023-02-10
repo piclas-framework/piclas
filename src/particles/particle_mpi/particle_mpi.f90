@@ -888,8 +888,9 @@ USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf!,PartMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, VarTimeStep, LastPartPos
-USE MOD_Particle_VarTimeStep   ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, LastPartPos
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
+USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
 USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc,DoParticleLatencyHiding
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
@@ -1286,10 +1287,10 @@ DO iProc=0,nExchangeProcessors-1
           PEM%pNext(PEM%pEnd(ElemID)) = PartID            ! Next Particle of same Elem (Linked List)
         END IF
         PEM%pEnd(ElemID) = PartID
-        PEM%pNumber(ElemID) = &                      ! Number of Particles in Element
-            PEM%pNumber(ElemID) + 1
-        IF (VarTimeStep%UseVariableTimeStep) THEN
-          VarTimeStep%ParticleTimeStep(PartID) = CalcVarTimeStep(PartState(1,PartID),PartState(2,PartID),ElemID)
+        ! Number of Particles in Element
+        PEM%pNumber(ElemID) = PEM%pNumber(ElemID) + 1
+        IF (UseVarTimeStep) THEN
+          PartTimeStep(PartID) = GetParticleTimeStep(PartState(1,PartID),PartState(2,PartID),ElemID)
         END IF
       END IF
     END IF

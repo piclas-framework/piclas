@@ -430,7 +430,7 @@ SUBROUTINE XSec_CalcCollisionProb(iPair,iElem,SpecNum1,SpecNum2,CollCaseNum,Macr
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
 USE MOD_MCC_Vars              ,ONLY: SpecXSec, XSec_NullCollision
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -455,7 +455,7 @@ IF(SpecXSec(iCase)%UseCollXSec) THEN
   END IF
   Weight1 = GetParticleWeight(iPart_p1)
   Weight2 = GetParticleWeight(iPart_p2)
-  IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
+  IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
     ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
       / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
     ReducedMassUnweighted = ReducedMass * 2. / (Weight1 + Weight2)
@@ -509,7 +509,7 @@ SUBROUTINE XSec_CalcVibRelaxProb(iPair,iElem,SpecNum1,SpecNum2,MacroParticleFact
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -531,7 +531,7 @@ Weight2 = GetParticleWeight(iPart_p2)
 SpecXSec(iCase)%VibProb = 0.
 SumVibCrossSection = 0.
 
-IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
+IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
   ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
     / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
   ReducedMassUnweighted = ReducedMass * 2./(Weight1 + Weight2)
@@ -685,7 +685,7 @@ SUBROUTINE XSec_CalcElecRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Vo
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -706,7 +706,7 @@ Weight1 = GetParticleWeight(iPart_p1)
 Weight2 = GetParticleWeight(iPart_p2)
 SpecXSec(iCase)%ElecLevel(:)%Prob = 0.
 
-IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
+IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
   ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
     / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
   ReducedMassUnweighted = ReducedMass * 2./(Weight1 + Weight2)
@@ -1138,7 +1138,7 @@ USE MOD_Globals_Vars
 USE MOD_Globals               ,ONLY: abort
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, VarTimeStep, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF, PartTimeStep
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 IMPLICIT NONE
@@ -1180,7 +1180,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(2))%EZeroPoint * Weight(2)
     END IF
 
-    IF (RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
+    IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
       ReducedMass = (Species(EductReac(1))%MassIC *Weight(1) * Species(EductReac(2))%MassIC * Weight(2)) &
         / (Species(EductReac(1))%MassIC * Weight(1) + Species(EductReac(2))%MassIC * Weight(2))
       ReducedMassUnweighted = ReducedMass * 2./(Weight(1)+Weight(2))
@@ -1205,8 +1205,8 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       END IF
     END DO
 
-    IF (VarTimeStep%UseVariableTimeStep) THEN
-      dtCell = dt * (VarTimeStep%ParticleTimeStep(ReactInx(1)) + VarTimeStep%ParticleTimeStep(ReactInx(2)))*0.5
+    IF (UseVarTimeStep) THEN
+      dtCell = dt * (PartTimeStep(ReactInx(1)) + PartTimeStep(ReactInx(2)))*0.5
     ELSE
       dtCell = dt
     END IF

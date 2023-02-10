@@ -34,14 +34,11 @@ SUBROUTINE TimeStepPoissonByBorisLeapfrog()
 ! Boris-Leapfrog (508) -push with HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM
+USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM, PARTISELECTRON, MPIroot
 USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
 USE MOD_Globals_Vars           ,ONLY: c2_inv
-!#if (PP_TimeDiscMethod==509)
-!USE MOD_TimeDisc_Vars          ,ONLY: dt_old
-!#endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_HDG                    ,ONLY: HDG
 #ifdef PARTICLES
 USE MOD_PICDepo                ,ONLY: Deposition
@@ -49,11 +46,10 @@ USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, DelayTime
 USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcCoupledPowerPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
-!#if (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars          ,ONLY: velocityAtTime, velocityOutputAtTime
-!#endif /*(PP_TimeDiscMethod==509)*/
 USE MOD_part_RHS               ,ONLY: CalcPartRHS, CalcPartRHSSingleParticle
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_part_emission          ,ONLY: ParticleInserting
@@ -79,7 +75,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                    :: iPart
-REAL                       :: RandVal, dtFrac, gamma, gamma_minus
+REAL                       :: RandVal, dtFrac, gamma, gamma_minus, dtVar
 #if USE_LOADBALANCE
 REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
@@ -129,27 +125,35 @@ IF (time.GE.DelayTime) THEN
   IF (CalcCoupledPower) PCoupl = 0. ! if output of coupled power is active: reset PCoupl
   DO iPart=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(iPart)) THEN
-      ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
+      ! Set the particle time step
+      IF (UseVarTimeStep) THEN
+        dtVar = dt * PartTimeStep(iPart)
+      ELSE
+        dtVar = dt
+      END IF
+      ! Set the species-specific time step
+      IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(iPart))%TimeStepFactor
       IF (DoSurfaceFlux .AND. PDM%dtFracPush(iPart)) THEN !DoSurfaceFlux for compiler-optimization if .FALSE.
         CALL RANDOM_NUMBER(RandVal)
-        dtFrac = dt * RandVal
+        dtFrac = dtVar * RandVal
         PDM%IsNewPart(iPart)=.FALSE. !no IsNewPart-treatment for surffluxparts
         PDM%dtFracPush(iPart) = .FALSE.
       ELSE
-        dtFrac = dt
+        dtFrac = dtVar
         IF (PDM%IsNewPart(iPart)) THEN
           ! Don't push the velocity component of neutral particles!
           IF(isPushParticle(iPart).AND.DoInterpolation)THEN
-              !-- Shift particle velocity back in time by half a time step dt/2.
+              !-- Shift particle velocity back in time by half a time step dtVar/2.
               !-- get Pt(1:3,iPart) = a(x(n))
               CALL CalcPartRHSSingleParticle(iPart)
 
               !-- v(n) => v(n-0.5) by a(n):
-              PartState(4:6,iPart) = PartState(4:6,iPart) - Pt(1:3,iPart) * dt*0.5
+              PartState(4:6,iPart) = PartState(4:6,iPart) - Pt(1:3,iPart) * dtVar*0.5
           END IF
           PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
         END IF
       END IF
+      ! If coupled power output is active and particle carries charge, determine its kinetic energy and store in EDiff
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'before')
       IF(isPushParticle(iPart).AND.DoInterpolation)THEN ! Don't push the velocity component of neutral particles!
         !-- v(n-0.5) => v(n+0.5) by a(n):
@@ -230,8 +234,16 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
     IF(DoInterpolation) CALL CalcPartRHS()
     DO iPart=1,PDM%ParticleVecLength
       IF (PDM%ParticleInside(iPart)) THEN
+        ! Set the particle time step
+        IF (UseVarTimeStep) THEN
+          dtVar = dt * PartTimeStep(iPart)
+        ELSE
+          dtVar = dt
+        END IF
+        ! Set the species-specific time step
+        IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(iPart))%TimeStepFactor
         !-- v(n+0.5) => v(n+1) by a(n+1):
-        velocityAtTime(1:3,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dt*0.5
+        velocityAtTime(1:3,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dtVar*0.5
       END IF
     END DO
 #ifdef EXTRAE
