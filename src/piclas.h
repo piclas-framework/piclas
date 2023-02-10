@@ -2,6 +2,11 @@
 ! Here, preprocessor variables for different equation systems and abbreviations for specific expressions are defined
 !===================================================================================================================================
 
+! From include/petsc/finclude/petscsys.h: #define PetscCallA(func) call func; CHKERRA(ierr)
+#if USE_PETSC_FIX317
+#define PetscCallA(a) CALL a; PetscCall(ierr)
+#endif
+
 ! Abbrevations
 #ifndef __FILENAME__
 #define __FILENAME__ __FILE__

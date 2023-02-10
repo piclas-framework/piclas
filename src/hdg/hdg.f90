@@ -176,7 +176,7 @@ HDGNonLinSolver = -1 ! init
 
 #if USE_PETSC
 ! initialize PETSc stuff!
-CALL PetscInitialize(PETSC_NULL_CHARACTER,ierr);!PetscCall(ierr)
+PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr))
 #endif
 
 #if defined(PARTICLES)
@@ -404,14 +404,14 @@ IF(ZeroPotentialSideID.GT.0) THEN
   Smat_zeroPotential = 0.
 END IF
 
-CALL MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr);PetscCall(ierr)
-CALL MatSetBlockSize(Smat_petsc,nGP_face,ierr);PetscCall(ierr)
-CALL MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,nPETScUniqueSidesGlobal*nGP_Face,ierr);PetscCall(ierr)
-CALL MatSetType(Smat_petsc,MATSBAIJ,ierr);PetscCall(ierr) ! Symmetric sparse (mpi) matrix
+PetscCallA(MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr))
+PetscCallA(MatSetBlockSize(Smat_petsc,nGP_face,ierr))
+PetscCallA(MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,nPETScUniqueSidesGlobal*nGP_Face,ierr))
+PetscCallA(MatSetType(Smat_petsc,MATSBAIJ,ierr)) ! Symmetric sparse (mpi) matrix
 ! 1 Big mortar side is affected by 6 + 4*4 = 22 other sides...
-CALL MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
-CALL MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,21,PETSC_NULL_INTEGER,ierr);PetscCall(ierr)
-CALL MatZeroEntries(Smat_petsc,ierr);PetscCall(ierr)
+PetscCallA(MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,21,PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatZeroEntries(Smat_petsc,ierr))
 #endif
 
 !stabilization parameter
@@ -425,18 +425,18 @@ IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as on
 END IF
 
 #if USE_PETSC
-CALL KSPCreate(PETSC_COMM_WORLD,ksp,ierr);PetscCall(ierr)
-CALL KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr);PetscCall(ierr)
+PetscCallA(KSPCreate(PETSC_COMM_WORLD,ksp,ierr))
+PetscCallA(KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr))
 
 IF(PrecondType.GE.10) THEN
-  CALL KSPSetType(ksp,KSPPREONLY,ierr);PetscCall(ierr) ! Exact solver
+  PetscCallA(KSPSetType(ksp,KSPPREONLY,ierr)) ! Exact solver
 ELSE
-  CALL KSPSetType(ksp,KSPCG,ierr);PetscCall(ierr) ! CG solver for sparse symmetric positive definite matrix
+  PetscCallA(KSPSetType(ksp,KSPCG,ierr)) ! CG solver for sparse symmetric positive definite matrix
 
-  CALL KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr);PetscCall(ierr)
+  PetscCallA(KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr))
   
-  CALL KSPSetNormType(ksp, KSP_NORM_UNPRECONDITIONED, ierr);PetscCall(ierr)
-  CALL KSPSetTolerances(ksp,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr);PetscCall(ierr)
+  PetscCallA(KSPSetNormType(ksp, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(ksp,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
 END IF
 #endif
 
@@ -449,18 +449,18 @@ RHS_vol=0.
 
 #if USE_PETSC
 ! allocate RHS & lambda vectors
-CALL VecCreate(PETSC_COMM_WORLD,lambda_petsc,ierr);PetscCall(ierr)
-CALL VecSetBlockSize(lambda_petsc,nGP_face,ierr);PetscCall(ierr)
-CALL VecSetSizes(lambda_petsc,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,ierr);PetscCall(ierr)
-CALL VecSetType(lambda_petsc,VECSTANDARD,ierr);PetscCall(ierr)
-CALL VecSetUp(lambda_petsc,ierr);PetscCall(ierr)
-CALL VecDuplicate(lambda_petsc,RHS_petsc,ierr)
+PetscCallA(VecCreate(PETSC_COMM_WORLD,lambda_petsc,ierr))
+PetscCallA(VecSetBlockSize(lambda_petsc,nGP_face,ierr))
+PetscCallA(VecSetSizes(lambda_petsc,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,ierr))
+PetscCallA(VecSetType(lambda_petsc,VECSTANDARD,ierr))
+PetscCallA(VecSetUp(lambda_petsc,ierr))
+PetscCallA(VecDuplicate(lambda_petsc,RHS_petsc,ierr))
 
 ! Create scatter context to access local values from global petsc vector
-CALL VecCreateSeq(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,lambda_local_petsc,ierr);PetscCall(ierr)
-CALL ISCreateStride(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,0,1,idx_local_petsc,ierr);PetscCall(ierr)
-CALL ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr);PetscCall(ierr)
-CALL VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr);PetscCall(ierr)
+PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,lambda_local_petsc,ierr))
+PetscCallA(ISCreateStride(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,0,1,idx_local_petsc,ierr))
+PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr))
+PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr))
 #endif
 
 HDGInitIsDone = .TRUE.
@@ -943,38 +943,38 @@ DO iVar=1, PP_nVar
 
 #if USE_PETSC
   ! Fill right hand side
-  !CALL VecZeroEntries(RHS_petsc,ierr);PetscCall(ierr)
+  !PetscCallA(VecZeroEntries(RHS_petsc,ierr))
   TimeStartPiclas=PICLASTIME()
   DO PETScLocalID=1,nPETScUniqueSides
     SideID=PETScLocalToSideID(PETScLocalID)
     !VecSetValuesBlockedLocal somehow not working...
-    CALL VecSetValuesBlocked(RHS_petsc,1,PETScGlobal(SideID),RHS_face(1,:,SideID),INSERT_VALUES,ierr);PetscCall(ierr)
+    PetscCallA(VecSetValuesBlocked(RHS_petsc,1,PETScGlobal(SideID),RHS_face(1,:,SideID),INSERT_VALUES,ierr))
   END DO
-  CALL VecAssemblyBegin(RHS_petsc,ierr);PetscCall(ierr)
-  CALL VecAssemblyEnd(RHS_petsc,ierr);PetscCall(ierr)
+  PetscCallA(VecAssemblyBegin(RHS_petsc,ierr))
+  PetscCallA(VecAssemblyEnd(RHS_petsc,ierr))
   
   ! Calculate lambda
-  CALL KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr);PetscCall(ierr)
+  PetscCallA(KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr))
   TimeEndPiclas=PICLASTIME()
-  CALL KSPGetIterationNumber(ksp,iterations,ierr);PetscCall(ierr)
-  CALL KSPGetConvergedReason(ksp,reason,ierr);PetscCall(ierr)
-  CALL KSPGetResidualNorm(ksp,petscnorm,ierr);PetscCall(ierr)
+  PetscCallA(KSPGetIterationNumber(ksp,iterations,ierr))
+  PetscCallA(KSPGetConvergedReason(ksp,reason,ierr))
+  PetscCallA(KSPGetResidualNorm(ksp,petscnorm,ierr))
   IF(reason.LT.0)THEN
     SWRITE(*,*) 'Attention: PETSc not converged! Reason: ', reason 
   END IF
   IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, petscnorm)
 
   ! Fill element local lambda for post processing
-  CALL VecScatterBegin(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr);PetscCall(ierr)
-  CALL VecScatterEnd(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr);PetscCall(ierr)
-  CALL VecGetArrayReadF90(lambda_local_petsc,lambda_pointer,ierr);PetscCall(ierr)
+  PetscCallA(VecScatterBegin(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
+  PetscCallA(VecScatterEnd(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
+  PetscCallA(VecGetArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
   DO PETScLocalID=1,nPETScUniqueSides
     SideID=PETScLocalToSideID(PETScLocalID)
     PETScID_start=1+(PETScLocalID-1)*nGP_face
     PETScID_stop=PETScLocalID*nGP_face
     lambda(1,:,SideID) = lambda_pointer(PETScID_start:PETScID_stop)
   END DO 
-  CALL VecRestoreArrayReadF90(lambda_local_petsc,lambda_pointer,ierr);PetscCall(ierr)
+  PetscCallA(VecRestoreArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
   ! PETSc Calculate lambda at small mortars from big mortars
   CALL BigToSmallMortar_HDG(1,lambda)
 #if USE_MPI
@@ -2151,11 +2151,11 @@ INTEGER             :: iSide
 !===================================================================================================================================
 HDGInitIsDone = .FALSE.
 #if USE_PETSC
-CALL KSPDestroy(ksp,ierr); PetscCall(ierr)
-CALL MatDestroy(Smat_petsc,ierr); PetscCall(ierr)
-CALL VecDestroy(lambda_petsc,ierr); PetscCall(ierr)
-CALL VecDestroy(RHS_petsc,ierr); PetscCall(ierr)
-CALL PetscFinalize(ierr)
+PetscCallA(KSPDestroy(ksp,ierr))
+PetscCallA(MatDestroy(Smat_petsc,ierr))
+PetscCallA(VecDestroy(lambda_petsc,ierr))
+PetscCallA(VecDestroy(RHS_petsc,ierr))
+PetscCallA(PetscFinalize(ierr))
 SDEALLOCATE(PETScGlobal)
 SDEALLOCATE(PETScLocalToSideID)
 SDEALLOCATE(Smat_BC)
