@@ -234,6 +234,8 @@ USE MOD_Particle_Mesh_Vars   ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_S
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance,offsetElemMPIOld
 #endif /*USE_LOADBALANCE*/
+! Axisymmetric HDG
+USE MOD_Symmetry_Vars        ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -486,6 +488,20 @@ DO iElem=FirstElemInd,LastElemInd
     ! ALLOCATE MORTAR
     ElemID=SideInfo(SIDE_NBELEMID,iSide) !IF nbElemID <0, this marks a mortar master side.
                                          ! The number (-1,-2,-3) is the Type of mortar
+
+    ! AXISYMMETRIC HDG
+    IF(Symmetry%Axisymmetric) THEN
+      ! In 2D check that there is only one layer of elements in z-direction
+      IF ((iLocSide.EQ.1).OR.(iLocSide.EQ.6)) THEN
+        BCindex = SideInfo(SIDE_BCID,iSide)
+        IF ((iElem.NE.ElemID).AND.(BCindex.LE.0)) THEN
+          CALL Abort(__STAMP__, &
+              "Mesh not oriented in z-direction or more than one layer of elements in z-direction! " // &
+              "Please set 'orientZ = T' or change number of element in z-direction in HOPR parameter file.")
+        END IF
+      END IF
+    END IF
+
     IF(ElemID.LT.0)THEN ! mortar Sides attached!
       aSide%MortarType=ABS(ElemID)
       SELECT CASE(aSide%MortarType)
