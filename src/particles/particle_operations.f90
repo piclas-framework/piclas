@@ -63,8 +63,10 @@ INTEGER :: newParticleID
 !===================================================================================================================================
 
 ! Do not increase the ParticleVecLength for Phantom particles!
-PDM%ParticleVecLength = PDM%ParticleVecLength + 1 ! Increase particle vector length
-newParticleID = PDM%ParticleVecLength
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+IF(newParticleID.GT.PDM%ParticleVecLength) PDM%ParticleVecLength = PDM%ParticleVecLength + 1
+
 IF(newParticleID.GT.PDM%MaxParticleNumber)THEN
   CALL abort(__STAMP__,'CreateParticle: newParticleID.GT.PDM%MaxParticleNumber. '//&
                        'Increase Part-maxParticleNumber or use more processors. newParticleID=',IntInfoOpt=newParticleID)
