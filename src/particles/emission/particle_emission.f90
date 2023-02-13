@@ -74,6 +74,7 @@ INTEGER(KIND=8)                  :: inserted_Particle_iter,inserted_Particle_tim
 INTEGER(KIND=8)                  :: inserted_Particle_diff
 REAL                             :: PartIns, RandVal1
 REAL                             :: RiseFactor, RiseTime,NbrOfPhotons
+REAL                             :: dtVar, TimeVar
 #if USE_MPI
 INTEGER                          :: InitGroup
 #endif
@@ -86,6 +87,14 @@ REAL(KIND=8)                     :: Rate
 
 !---  Emission at time step
 DO i=1,nSpecies
+  ! Species-specific time step
+  IF(VarTimeStep%UseSpeciesSpecific) THEN
+    dtVar = dt * Species(i)%TimeStepFactor
+    TimeVar = Time * Species(i)%TimeStepFactor
+  ELSE
+    dtVar = dt
+    TimeVar = Time
+  END IF
   DO iInit = 1, Species(i)%NumberOfInits
     ! Reset the number of particles per species AND init region
     NbrOfParticle = 0
@@ -95,9 +104,9 @@ DO i=1,nSpecies
     SELECT CASE(Species(i)%Init(iInit)%ParticleEmissionType)
       CASE(1) ! Emission Type: Particles per !!!!!SECOND!!!!!!!! (not per ns)
         IF (.NOT.DoPoissonRounding .AND. .NOT.DoTimeDepInflow) THEN
-          PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac  ! emitted particles during time-slab
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * dtVar*RKdtFrac  ! emitted particles during time-slab
           inserted_Particle_iter = INT(PartIns,8)                                     ! number of particles to be inserted
-          PartIns=Species(i)%Init(iInit)%ParticleNumber * (time + dt*RKdtFracTotal) ! total number of emitted particle over
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * (TimeVar + dtVar*RKdtFracTotal) ! total number of emitted particle over
                                                                                       ! simulation
           !-- random-round the inserted_Particle_time for preventing periodicity
           ! PO & SC: why, sometimes we do not want this add, TB is bad!
@@ -138,7 +147,7 @@ DO i=1,nSpecies
           ELSE
             RiseFactor=1.
           EnD IF
-          PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac * RiseFactor  ! emitted particles during time-slab
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * dtVar*RKdtFrac * RiseFactor  ! emitted particles during time-slab
           CALL RANDOM_NUMBER(RandVal1)
           IF (EXP(-PartIns).LE.TINY(PartIns)) THEN
             IPWRITE(*,*)'WARNING: target is too large for poisson sampling: switching now to Random rounding...'
@@ -160,7 +169,7 @@ DO i=1,nSpecies
             RiseFactor=1.
           EnD IF
           ! emitted particles during time-slab
-          PartIns=Species(i)%Init(iInit)%ParticleNumber * dt*RKdtFrac * RiseFactor &
+          PartIns=Species(i)%Init(iInit)%ParticleNumber * dtVar*RKdtFrac * RiseFactor &
                   + Species(i)%Init(iInit)%InsertedParticleMisMatch
           CALL RANDOM_NUMBER(RandVal1)
           NbrOfParticle = INT(PartIns + RandVal1)
@@ -315,7 +324,7 @@ DO i=1,nSpecies
     CALL SetParticleVelocity(i,iInit,NbrOfParticle)
     CALL SetParticleChargeAndMass(i,NbrOfParticle)
     IF (usevMPF) CALL SetParticleMPF(i,iInit,NbrOfParticle)
-    IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
+    IF (UseVarTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
     ! define molecule stuff
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN
       iPart = 1
