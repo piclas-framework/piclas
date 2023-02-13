@@ -1799,7 +1799,7 @@ USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems,GEO
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,RotPeriodicTol
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1852,7 +1852,7 @@ DO iElem = firstElem ,lastElem
     !      this element and flag it with halo flag 3 if the element can be reached by a particle
     DO iPartBound = 1, nPartBound
       IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
-      ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) )
+      ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) * RotPeriodicTol)
         SELECT CASE(GEO%RotPeriodicAxi)
           CASE(1) ! x-rotation axis
             IF( (BoundsOfElemCenter(1).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &

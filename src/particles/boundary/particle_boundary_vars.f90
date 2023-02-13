@@ -286,8 +286,9 @@ TYPE tPartBoundary
 !                                                                         ! PartDataBoundary container for writing to .h5 later
 END TYPE
 
-INTEGER                                  :: nPartBound                       ! number of particle boundaries
-TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
+INTEGER                                  :: nPartBound                    ! number of particle boundaries
+TYPE(tPartBoundary)                      :: PartBound                     ! Boundary Data for Particles
+REAL, PARAMETER                          :: RotPeriodicTol = 0.99999      ! Tolerance for rotationally periodic BC
 
 LOGICAL                                  :: AdaptWallTemp
 
