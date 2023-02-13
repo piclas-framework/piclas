@@ -267,7 +267,7 @@ SUBROUTINE MaxwellScattering(PartID,SideID,n_loc,SpecularReflectionOnly_opt)
 !> SurfaceModel = 0, classic DSMC gas-surface interaction model choosing between a perfect specular and a complete diffuse
 !> reflection by comparing the given momentum accommodation coefficient (MomentumACC) with a random number
 !===================================================================================================================================
-USE MOD_Particle_Boundary_Vars  ,ONLY: Partbound
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
