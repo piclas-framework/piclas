@@ -45,6 +45,7 @@ USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Particle_Tracking_vars ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Restart_Vars           ,ONLY: DoRestart
+USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
@@ -90,30 +91,18 @@ DO iPart=1,PDM%ParticleVecLength
   PartState(2,iPart) = PartState(2,iPart) + PartState(5,iPart) * dtVar
   PartState(3,iPart) = PartState(3,iPart) + PartState(6,iPart) * dtVar
   ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-  IF(Symmetry%Axisymmetric) THEN
-    IF (PartState(2,iPart).LT.0.0) THEN
-      NewYPart = -SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
-    ELSE
-      NewYPart = SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
-    END IF
-    ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
-    !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
-    ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
-    ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
-    NewYVelo = (PartState(5,iPart)*(PartState(2,iPart))+PartState(6,iPart)*PartState(3,iPart))/NewYPart
-    PartState(6,iPart) = (-PartState(5,iPart)*PartState(3,iPart)+PartState(6,iPart)*(PartState(2,iPart)))/NewYPart
-    PartState(2,iPart) = NewYPart
-    PartState(3,iPart) = 0.0
-    PartState(5,iPart) = NewYVelo
-    END IF
+  IF(DSMC%DoAmbipolarDiff.AND.(Species(PartSpecies(iPart))%ChargeIC.GT.0.0)) THEN
+    CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart),AmbipolElecVelo(iPart)%ElecVelo)
+  ELSE
+    CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
   END IF
 END DO
 
 ! Resetting the particle positions in the second/third dimension for the 1D/2D/axisymmetric case
-IF(Symmetry%Order.LT.3) THEN
-  LastPartPos(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
-  PartState(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
-END IF
+! IF(Symmetry%Order.LT.3) THEN
+!   LastPartPos(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
+!   PartState(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
+! END IF
 
 #if USE_MPI
 ! open receive buffer for number of particles
