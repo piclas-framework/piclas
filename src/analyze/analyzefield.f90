@@ -1605,7 +1605,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER          :: ElemID,SideID,ilocSide
 INTEGER          :: p,q,l
-REAL             :: Uface(PP_nVar,0:PP_N,0:PP_N)
+REAL             :: Uface(1:3,0:PP_N,0:PP_N)
 INTEGER          :: iBC,iEDCBC
 !REAL             :: SIP(0:PP_N,0:PP_N)
 !REAL             :: AverageElectricPotentialProc
@@ -1622,57 +1622,57 @@ DO SideID=1,nBCSides
   CASE(XI_MINUS)
     DO q=0,PP_N
       DO p=0,PP_N
-        Uface(:,q,p)=DOT_PRODUCT(Et(:,0,p,q,ElemID),NormVec(1:3,p,q,SideID))*L_Minus(0)
+        Uface(:,q,p)=Et(:,0,p,q,ElemID)*L_Minus(0)
         DO l=1,PP_N
           ! switch to right hand system
-          Uface(:,q,p)=Uface(:,q,p)+DOT_PRODUCT(Et(:,l,p,q,ElemID),NormVec(1:3,p,q,SideID))*L_Minus(l)
+          Uface(:,q,p)=Uface(:,q,p)+Et(:,l,p,q,ElemID)*L_Minus(l)
         END DO ! l
       END DO ! p
     END DO ! q
   CASE(ETA_MINUS)
     DO q=0,PP_N
       DO p=0,PP_N
-        Uface(:,p,q)=DOT_PRODUCT(Et(:,p,0,q,ElemID),NormVec(1:3,p,q,SideID))*L_Minus(0)
+        Uface(:,p,q)=Et(:,p,0,q,ElemID)*L_Minus(0)
         DO l=1,PP_N
-          Uface(:,p,q)=Uface(:,p,q)+DOT_PRODUCT(Et(:,p,l,q,ElemID),NormVec(1:3,p,q,SideID))*L_Minus(l)
+          Uface(:,p,q)=Uface(:,p,q)+Et(:,p,l,q,ElemID)*L_Minus(l)
         END DO ! l
       END DO ! p
     END DO ! q
   CASE(ZETA_MINUS)
     DO q=0,PP_N
       DO p=0,PP_N
-        Uface(:,q,p)=DOT_PRODUCT(Et(:,p,q,0,ElemID),NormVec(1:3,p,q,SideID))*L_Minus(0)
+        Uface(:,q,p)=Et(:,p,q,0,ElemID)*L_Minus(0)
         DO l=1,PP_N
           ! switch to right hand system
-          Uface(:,q,p)=Uface(:,q,p)+DOT_PRODUCT(Et(:,p,q,l,ElemID),NormVec(1:3,p,q,SideID))*L_Minus(l)
+          Uface(:,q,p)=Uface(:,q,p)+Et(:,p,q,l,ElemID)*L_Minus(l)
         END DO ! l
       END DO ! p
     END DO ! qfirst stuff
   CASE(XI_PLUS)
     DO q=0,PP_N
       DO p=0,PP_N
-        Uface(:,p,q)=DOT_PRODUCT(Et(:,0,p,q,ElemID),NormVec(1:3,p,q,SideID))*L_Plus(0)
+        Uface(:,p,q)=Et(:,0,p,q,ElemID)*L_Plus(0)
         DO l=1,PP_N
-          Uface(:,p,q)=Uface(:,p,q)+DOT_PRODUCT(Et(:,l,p,q,ElemID),NormVec(1:3,p,q,SideID))*L_Plus(l)
+          Uface(:,p,q)=Uface(:,p,q)+Et(:,l,p,q,ElemID)*L_Plus(l)
         END DO ! l
       END DO ! p
     END DO ! q
   CASE(ETA_PLUS)
     DO q=0,PP_N
       DO p=0,PP_N
-        Uface(:,PP_N-p,q)=DOT_PRODUCT(Et(:,p,0,q,ElemID),NormVec(1:3,p,q,SideID))*L_Plus(0)
+        Uface(:,PP_N-p,q)=Et(:,p,0,q,ElemID)*L_Plus(0)
         DO l=1,PP_N
           ! switch to right hand system
-          Uface(:,PP_N-p,q)=Uface(:,PP_N-p,q)+DOT_PRODUCT(Et(:,p,l,q,ElemID),NormVec(1:3,p,q,SideID))*L_Plus(l)
+          Uface(:,PP_N-p,q)=Uface(:,PP_N-p,q)+Et(:,p,l,q,ElemID)*L_Plus(l)
         END DO ! l
       END DO ! p
     END DO ! q
   CASE(ZETA_PLUS)
     DO q=0,PP_N
       DO p=0,PP_N
-        Uface(:,p,q)=DOT_PRODUCT(Et(:,p,q,0,ElemID),NormVec(1:3,p,q,SideID))*L_Plus(0)
+        Uface(:,p,q)=Et(:,p,q,0,ElemID)*L_Plus(0)
         DO l=1,PP_N
-          Uface(:,p,q)=Uface(:,p,q)+DOT_PRODUCT(Et(:,p,q,l,ElemID),NormVec(1:3,p,q,SideID))*L_Plus(l)
+          Uface(:,p,q)=Uface(:,p,q)+Et(:,p,q,l,ElemID)*L_Plus(l)
         END DO ! l
       END DO ! p
     END DO ! q
@@ -1682,37 +1682,44 @@ DO SideID=1,nBCSides
   CASE(XI_MINUS)
     DO q=0,PP_N
       DO p=0,PP_N
-        Uface(:,q,p)=DOT_PRODUCT(Et(:,0,p,q,ElemID),NormVec(1:3,p,q,SideID))
+        Uface(:,q,p)=Et(:,0,p,q,ElemID)
       END DO ! p
     END DO ! q
   CASE(ETA_MINUS)
-    Uface(:,:,:)=DOT_PRODUCT(Et(:,:,0,:,ElemID),NormVec(1:3,p,q,SideID))
+    Uface(:,:,:)=Et(:,:,0,:,ElemID)
   CASE(ZETA_MINUS)
     DO q=0,PP_N
       DO p=0,PP_N
-        Uface(:,q,p)=DOT_PRODUCT(Et(:,p,q,0,ElemID),NormVec(1:3,p,q,SideID))
+        Uface(:,q,p)=Et(:,p,q,0,ElemID)
       END DO ! p
     END DO ! q
   CASE(XI_PLUS)
-    Uface(:,:,:)=DOT_PRODUCT(Et(:,PP_N,:,:,ElemID),NormVec(1:3,p,q,SideID))
+    Uface(:,:,:)=Et(:,PP_N,:,:,ElemID)
   CASE(ETA_PLUS)
     DO q=0,PP_N
       DO p=0,PP_N
-        Uface(:,PP_N-p,q)=DOT_PRODUCT(Et(:,p,PP_N,q,ElemID),NormVec(1:3,p,q,SideID))
+        Uface(:,PP_N-p,q)=Et(:,p,PP_N,q,ElemID)
       END DO ! p
     END DO ! q
   CASE(ZETA_PLUS)
     DO q=0,PP_N
       DO p=0,PP_N
-        Uface(:,p,q)=DOT_PRODUCT(Et(:,p,q,PP_N,ElemID),NormVec(1:3,p,q,SideID))
+        Uface(:,p,q)=Et(:,p,q,PP_N,ElemID)
       END DO ! p
     END DO ! q
   END SELECT
 #endif
 
+
+  ! Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
+  ! Store result of dot product in first array index
+  Uface(1,:,:) =   Uface(1,:,:) * NormVec(1,:,:,SideID) &
+                 + Uface(2,:,:) * NormVec(2,:,:,SideID) &
+                 + Uface(3,:,:) * NormVec(3,:,:,SideID)
+
   ! Get BC index and EDC index
-  iBC     = BC(SideID)
-  iEDCBC  = EDC%BCIDToEDCBCID(iBC)
+  iBC    = BC(SideID)
+  iEDCBC = EDC%BCIDToEDCBCID(iBC)
   EDC%Current(iEDCBC) = EDC%Current(iEDCBC) + SUM(Uface(1,:,:) * SurfElem(:,:,SideID) * wGPSurf(:,:))
 
 END DO
