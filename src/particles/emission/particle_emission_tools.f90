@@ -1307,7 +1307,9 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species, Symmetry, PDM
+USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1320,7 +1322,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), RandVal(3), lineVector(3), radius
+REAL                    :: Particle_pos(3), RandVal(3), lineVector(3), radius, RadWeightMPF, iRan
 INTEGER                 :: i, chunkSize2
 !===================================================================================================================================
   ! Calculate the cross-product vector from the two base vectors to get the perpendicular direction
@@ -1355,6 +1357,31 @@ INTEGER                 :: i, chunkSize2
       Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BasePointIC
       Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal(3)
     END SELECT
+    IF(Symmetry%Order.NE.3) THEN
+      ! Get symmetry position of the calulcated position
+      CALL CalcPartSymmetryPos(Particle_pos)
+      IF(Symmetry%Axisymmetric.AND.Particle_pos(2).LT.0) Particle_pos(2) = -Particle_pos(2)
+      ! Reject some particles do to variable MPF considerations
+      IF(RadialWeighting%DoRadialWeighting) THEN
+        IF(Symmetry%Order.EQ.2) THEN
+          RadWeightMPF = CalcRadWeightMPF(Particle_pos(2), FractNbr)
+        ELSE IF(Symmetry%Order.EQ.1) THEN
+          RadWeightMPF = CalcRadWeightMPF(Particle_pos(1), FractNbr)
+        END IF
+        ! WRITE(*,*) "Ratio ",Species(FractNbr)%MacroParticleFactor/RadWeightMPF,iRan
+        CALL RANDOM_NUMBER(iRan)
+        IF(Species(FractNbr)%MacroParticleFactor/RadWeightMPF.LT.iRan) THEN
+          ! WRITE(*,*) "Withdrawn"
+          i=i+1
+          CYCLE
+        ELSE IF(chunkSize2.GT.PDM%maxParticleNumber) THEN
+          IPWRITE(UNIT_stdOut,*)'Inserted percentage of particles',REAL(i)/REAL(chunkSize)*100
+          CALL CollectiveStop(__STAMP__,&
+            'Number of to be inserted particles per init-proc exceeds max. particle number! ')
+        END IF
+        ! WRITE(*,*) "Accepted"
+      END IF
+    END IF
     particle_positions((chunkSize2+1)*3-2) = Particle_pos(1)
     particle_positions((chunkSize2+1)*3-1) = Particle_pos(2)
     particle_positions((chunkSize2+1)*3  ) = Particle_pos(3)
@@ -1370,8 +1397,10 @@ SUBROUTINE SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions
 ! Set particle position
 !===================================================================================================================================
 ! modules
-USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR
+USE MOD_Globals
+USE MOD_Particle_Vars          ,ONLY: Species, Symmetry, PDM
+USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR, CalcPartSymmetryPos, CalcRadWeightMPF
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1384,7 +1413,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), iRan, radius
+REAL                    :: Particle_pos(3), iRan, radius, RadWeightMPF
 INTEGER                 :: i, chunkSize2
 !===================================================================================================================================
   i=1
@@ -1393,6 +1422,31 @@ INTEGER                 :: i, chunkSize2
     CALL RANDOM_NUMBER(iRan)
     radius = Species(FractNbr)%Init(iInit)%RadiusIC*iRan**(1./3.)
     Particle_pos = DICEUNITVECTOR()*radius + Species(FractNbr)%Init(iInit)%BasePointIC
+    IF(Symmetry%Order.NE.3) THEN
+      ! Get symmetry position of the calulcated position
+      CALL CalcPartSymmetryPos(Particle_pos)
+      IF(Symmetry%Axisymmetric.AND.Particle_pos(2).LT.0) Particle_pos(2) = -Particle_pos(2)
+      ! Reject some particles do to variable MPF considerations
+      IF(RadialWeighting%DoRadialWeighting) THEN
+        IF(Symmetry%Order.EQ.2) THEN
+          RadWeightMPF = CalcRadWeightMPF(Particle_pos(2), FractNbr)
+        ELSE IF(Symmetry%Order.EQ.1) THEN
+          RadWeightMPF = CalcRadWeightMPF(Particle_pos(1), FractNbr)
+        END IF
+        ! WRITE(*,*) "Ratio ",Species(FractNbr)%MacroParticleFactor/RadWeightMPF,iRan
+        CALL RANDOM_NUMBER(iRan)
+        IF(Species(FractNbr)%MacroParticleFactor/RadWeightMPF.LT.iRan) THEN
+          ! WRITE(*,*) "Withdrawn"
+          i=i+1
+          CYCLE
+        ELSE IF(chunkSize2.GT.PDM%maxParticleNumber) THEN
+          IPWRITE(UNIT_stdOut,*)'Inserted percentage of particles',REAL(i)/REAL(chunkSize)*100
+          CALL CollectiveStop(__STAMP__,&
+            'Number of to be inserted particles per init-proc exceeds max. particle number! ')
+        END IF
+        ! WRITE(*,*) "Accepted"
+      END IF
+    END IF
     particle_positions((chunkSize2+1)*3-2) = Particle_pos(1)
     particle_positions((chunkSize2+1)*3-1) = Particle_pos(2)
     particle_positions((chunkSize2+1)*3  ) = Particle_pos(3)

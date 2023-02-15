@@ -517,6 +517,7 @@ USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: Species, PEM
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
+USE MOD_Particle_Vars           ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -533,12 +534,24 @@ REAL                 :: yPosIn
 !===================================================================================================================================
 
 IF(RadialWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
-  yPosIn = ElemMidPoint_Shared(2,PEM%CNElemID(iPart))
+  IF(Symmetry%Order.EQ.2) THEN
+    yPosIn = ElemMidPoint_Shared(2,PEM%CNElemID(iPart))
+  ELSE
+    yPosIn = ElemMidPoint_Shared(1,PEM%CNElemID(iPart))
+  END IF
 ELSE
   yPosIn = yPos
 END IF
 
-CalcRadWeightMPF = (1. + yPosIn/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
+IF(Symmetry%Order.EQ.2) THEN
+  CalcRadWeightMPF = (1. + yPosIn/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
+ELSE
+  ! IF(Symmetry%Axisymmetric) THEN
+    CalcRadWeightMPF = (1. + yPosIn/GEO%xmaxglob*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
+  ! ELSE IF(Symmetry%SphericalSymmetric) THEN
+  !   CalcRadWeightMPF = (1. + (yPosIn/GEO%xmaxglob)**2*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
+  ! END IF
+END IF
 
 RETURN
 
@@ -1447,7 +1460,7 @@ REAL,INTENT(INOUT)          :: Pos(3)
 REAL,INTENT(INOUT),OPTIONAL :: Velo(3),ElectronVelo(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL               :: NewYPart, NewXVelo, NewYVelo, NewZVelo, n_rot(3), cosa, sina
+REAL               :: NewYPart, NewYVelo!, NewXVelo, NewZVelo, n_rot(3), cosa, sina
 !===================================================================================================================================
 ! Axisymmetric treatment of particles: rotation of the position and velocity vector
 IF(Symmetry%Axisymmetric) THEN

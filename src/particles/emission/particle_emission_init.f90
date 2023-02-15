@@ -256,11 +256,21 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%NormalIC               = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-NormalIC',3)
       Species(iSpec)%Init(iInit)%BasePointIC            = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BasePointIC',3)
       !--- Get BaseVector1IC and normalize it
-      Species(iSpec)%Init(iInit)%BaseVector1IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector1IC',3)
-      Species(iSpec)%Init(iInit)%NormalVector1IC        = UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC)
+      IF(Symmetry%Order.GE.2) THEN
+        Species(iSpec)%Init(iInit)%BaseVector1IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector1IC',3)
+        Species(iSpec)%Init(iInit)%NormalVector1IC        = UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector1IC)
+      ELSE
+        Species(iSpec)%Init(iInit)%BaseVector1IC          = (/0.,1.,0./)
+        Species(iSpec)%Init(iInit)%NormalVector1IC        = (/0.,1.,0./)
+      END IF
       !--- Get BaseVector2IC and normalize it
-      Species(iSpec)%Init(iInit)%BaseVector2IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector2IC',3)
-      Species(iSpec)%Init(iInit)%NormalVector2IC        = UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC)
+      IF(Symmetry%Order.GE.3) THEN
+        Species(iSpec)%Init(iInit)%BaseVector2IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector2IC',3)
+        Species(iSpec)%Init(iInit)%NormalVector2IC        = UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC)
+      ELSE
+        Species(iSpec)%Init(iInit)%BaseVector2IC          = (/0.,0.,1./)
+        Species(iSpec)%Init(iInit)%NormalVector2IC        = (/0.,0.,1./)
+      END IF
       !--- Normalize NormalIC (and BaseVector 1 & 3 IC for cylinder/sphere) for Inits
       Species(iSpec)%Init(iInit)%NormalIC = UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
@@ -339,13 +349,13 @@ DO iSpec = 1, nSpecies
       END IF
     END IF
     ! 2D simulation/variable time step only with cell_local and/or surface flux
-    IF((Symmetry%Order.EQ.2).OR.UseVarTimeStep.OR.VarTimeStep%UseSpeciesSpecific) THEN
+    IF(UseVarTimeStep.OR.VarTimeStep%UseSpeciesSpecific) THEN
       SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
       ! Do nothing
       CASE('cell_local','background')
       ! Abort for every other SpaceIC
       CASE DEFAULT
-        CALL CollectiveStop(__STAMP__,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step '//&
+        CALL CollectiveStop(__STAMP__,'ERROR: Particle insertion/emission for variable time step '//&
             'only possible with cell_local/background-SpaceIC and/or surface flux!')
       END SELECT
     END IF
@@ -357,8 +367,6 @@ DO iSpec = 1, nSpecies
          .AND.Species(iSpec)%Init(iInit)%BaseVector1IC(1).NE.0 .AND.Species(iSpec)%Init(iInit)%BaseVector2IC(3).NE.1 ) THEN
         SWRITE(*,*) 'For 1D simulations with SpaceIC=cuboid, the vectors have to be defined in the following form:'
         SWRITE(*,*) 'Part-Species[$]-Init[$]-BasePointIC=(/x,-0.5,-0.5/), with x as the basepoint in x direction'
-        SWRITE(*,*) 'Part-Species[$]-Init[$]-BaseVector1IC=(/0.,1.,0/)'
-        SWRITE(*,*) 'Part-Species[$]-Init[$]-BaseVector2IC=(/0.,0.,1/)'
         SWRITE(*,*) 'Part-Species[$]-Init[$]-CuboidHeightIC is the extension of the insertion region and has to be positive'
         CALL CollectiveStop(__STAMP__,'See above')
       END IF
@@ -818,19 +826,24 @@ DO iSpec=1,nSpecies
         CASE DEFAULT
           CALL abort(__STAMP__,'Given velocity distribution is not supported with the SpaceIC cell_local!')
         END SELECT  ! Species(iSpec)%Init(iInit)%velocityDistribution
+        IF(Symmetry%Order.LE.2) THEN
+          ! The radial scaling of the weighting factor has to be considered
+          IF(RadialWeighting%DoRadialWeighting) Species(iSpec)%Init(iInit)%ParticleNumber = &
+                                      INT(Species(iSpec)%Init(iInit)%ParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
+        END IF
       CASE('background')
         ! do nothing
+        IF(Symmetry%Order.LE.2) THEN
+          ! The radial scaling of the weighting factor has to be considered
+          IF(RadialWeighting%DoRadialWeighting) Species(iSpec)%Init(iInit)%ParticleNumber = &
+                                      INT(Species(iSpec)%Init(iInit)%ParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
+        END IF
       CASE DEFAULT
         SWRITE(*,*) 'SpaceIC is: ', TRIM(Species(iSpec)%Init(iInit)%SpaceIC)
         CALL abort(__STAMP__,'ERROR: Unknown SpaceIC for species: ', iSpec)
       END SELECT    ! Species(iSpec)%Init(iInit)%SpaceIC
     END IF
     ! Sum-up the number of particles to be inserted
-    IF(Symmetry%Order.LE.2) THEN
-      ! The radial scaling of the weighting factor has to be considered
-      IF(RadialWeighting%DoRadialWeighting) Species(iSpec)%Init(iInit)%ParticleNumber = &
-                                  INT(Species(iSpec)%Init(iInit)%ParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
-    END IF
 #if USE_MPI
     insertParticles = insertParticles + INT(REAL(Species(iSpec)%Init(iInit)%ParticleNumber)/REAL(PartMPI%nProcs),8)
 #else
@@ -839,10 +852,12 @@ DO iSpec=1,nSpecies
   END DO ! iInit = 1, Species(iSpec)%NumberOfInits
 END DO ! iSpec=1,nSpecies
 
-IF (insertParticles.GT.PDM%maxParticleNumber) THEN
-  IPWRITE(UNIT_stdOut,*)' Maximum particle number : ',PDM%maxParticleNumber
-  IPWRITE(UNIT_stdOut,*)' To be inserted particles: ',INT(insertParticles,4)
-  CALL abort(__STAMP__,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
+IF(.NOT.RadialWeighting%DoRadialWeighting) THEN
+  IF (insertParticles.GT.PDM%maxParticleNumber) THEN
+    IPWRITE(UNIT_stdOut,*)' Maximum particle number : ',PDM%maxParticleNumber
+    IPWRITE(UNIT_stdOut,*)' To be inserted particles: ',INT(insertParticles,4)
+    CALL abort(__STAMP__,'Number of to be inserted particles per init-proc exceeds max. particle number! ')
+  END IF
 END IF
 
 END SUBROUTINE DetermineInitialParticleNumber
