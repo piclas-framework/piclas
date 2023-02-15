@@ -46,6 +46,7 @@ CONTAINS
 
 !===================================================================================================================================
 !> Deposit surface charge of positive charges (electron holes) due to SEE from a surface
+!> Check if the current iBC is connected to a dielectric region (surface charge currently only for dielectrics)
 !===================================================================================================================================
 SUBROUTINE DepositPhotonSEEHoles(iBC,NbrOfParticle)
 ! MODULES

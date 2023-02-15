@@ -1584,8 +1584,15 @@ END SUBROUTINE FinalizeAverageElectricPotential
 
 SUBROUTINE CalculateElectricDisplacementCurrentSurface()
 !===================================================================================================================================
-! Calculation of the average electric potential with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is
-! missing ... ups
+!> Calculation of the average electric potential with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is
+!> missing ... ups
+!>
+!> 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
+!      interpolate the vector field Et = (/Etx, Ety, Etz/) to the boundary face
+!> 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
+!      Store result of dot product in first array index
+!> 3.) Get BC index and EDC index and the mapping of the SideID boundary to the EDC boundary ID and store the integrated current
+!> 4.) Communicate the integrated current values on each boundary to the MPI root process (the root outputs the values to .csv)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Mesh_Vars          ,ONLY: SurfElem,SideToElem,nBCSides,NormVec,BC
@@ -1611,9 +1618,11 @@ INTEGER          :: iBC,iEDCBC
 !REAL             :: AverageElectricPotentialProc
 !REAL             :: area_loc,integral_loc
 !===================================================================================================================================
-!AverageElectricPotentialProc = 0.
+! Nullify
 EDC%Current = 0.
 
+! 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
+!     interpolate the vector field Et = (/Etx, Ety, Etz/) to the boundary face
 DO SideID=1,nBCSides
   ElemID   = SideToElem(S2E_ELEM_ID,SideID)
   ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
@@ -1711,13 +1720,13 @@ DO SideID=1,nBCSides
 #endif
 
 
-  ! Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
-  ! Store result of dot product in first array index
+  ! 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
+  !     Store result of dot product in first array index
   Uface(1,:,:) =   Uface(1,:,:) * NormVec(1,:,:,SideID) &
                  + Uface(2,:,:) * NormVec(2,:,:,SideID) &
                  + Uface(3,:,:) * NormVec(3,:,:,SideID)
 
-  ! Get BC index and EDC index
+  ! 3.) Get BC index and EDC index and the mapping of the SideID boundary to the EDC boundary ID and store the integrated current
   iBC    = BC(SideID)
   iEDCBC = EDC%BCIDToEDCBCID(iBC)
   EDC%Current(iEDCBC) = EDC%Current(iEDCBC) + SUM(Uface(1,:,:) * SurfElem(:,:,SideID) * wGPSurf(:,:))
@@ -1725,6 +1734,7 @@ DO SideID=1,nBCSides
 END DO
 
 #if USE_MPI
+! 4.) Communicate the integrated current values on each boundary to the MPI root process (the root outputs the values to .csv)
 DO iEDCBC = 1, EDC%NBoundaries
   IF(EDC%COMM(iEDCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
     ASSOCIATE( Current => EDC%Current(1:EDC%NBoundaries), NBC => EDC%NBoundaries, COMM => EDC%COMM(iEDCBC)%UNICATOR)

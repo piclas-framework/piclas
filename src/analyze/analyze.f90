@@ -1431,6 +1431,14 @@ END SUBROUTINE CodeAnalyzeOutput
 !===================================================================================================================================
 !> Create containers and communicators for each boundary on which the electric displacement current is calculated and agglomerated
 !> This is done for all normal BCs except periodic BCs.
+!>
+!
+!> 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
+!>     contribute to the total electric displacement current. If yes, then this processor is part of the communicator
+!> 2.) Create Mapping from electric displacement current BC index to field BC index
+!> 3.) Create Mapping from field BC index to electric displacement current BC index
+!> 4.) Check if field BC is on current proc (or MPI root)
+!> 5.) Create MPI sub-communicators
 !===================================================================================================================================
 SUBROUTINE InitCalcElectricTimeDerivativeSurface()
 ! MODULES
@@ -1456,8 +1464,8 @@ IF(.NOT.CalcElectricTimeDerivative) RETURN ! Read-in parameter that is set in  I
 ALLOCATE(Et(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 Et = 0.
 
-! Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that contribute to
-! the total electric displacement current. If yes, then this processor is part of the communicator
+! 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
+! contribute to the total electric displacement current. If yes, then this processor is part of the communicator
 EDC%NBoundaries = 0
 DO iBC=1,nBCs
   IF(BoundaryType(iBC,BC_ALPHA).NE.0) CYCLE
@@ -1506,7 +1514,7 @@ ELSE
   END DO ! SideID=1,nBCSides
 END IF ! MPIRoot
 
-! Create the sub-communicators
+! 5.) Create MPI sub-communicators
 ALLOCATE(EDC%COMM(EDC%NBoundaries))
 DO iEDCBC = 1, EDC%NBoundaries
   ! create new communicator
