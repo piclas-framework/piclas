@@ -46,7 +46,7 @@ INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff
 REAL,ALLOCATABLE  :: E(:,:,:,:,:)
-REAL,ALLOCATABLE  :: Et(:,:,:,:,:) ! temporal derivative of E
+REAL,ALLOCATABLE  :: Et(:,:,:,:,:) ! temporal derivative dD/dt of the electric displacement field D = epsR*eps0*E(x,y,z)
 ! Boundary condition arrays
 REAL,ALLOCATABLE     :: BCData(:,:,:,:)
 INTEGER,ALLOCATABLE  :: nBCByType(:) ! Count number of sides of each boundary
