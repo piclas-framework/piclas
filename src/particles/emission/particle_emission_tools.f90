@@ -1368,10 +1368,8 @@ INTEGER                 :: i, chunkSize2
         ELSE IF(Symmetry%Order.EQ.1) THEN
           RadWeightMPF = CalcRadWeightMPF(Particle_pos(1), FractNbr)
         END IF
-        ! WRITE(*,*) "Ratio ",Species(FractNbr)%MacroParticleFactor/RadWeightMPF,iRan
         CALL RANDOM_NUMBER(iRan)
         IF(Species(FractNbr)%MacroParticleFactor/RadWeightMPF.LT.iRan) THEN
-          ! WRITE(*,*) "Withdrawn"
           i=i+1
           CYCLE
         ELSE IF(chunkSize2.GT.PDM%maxParticleNumber) THEN
@@ -1379,7 +1377,6 @@ INTEGER                 :: i, chunkSize2
           CALL CollectiveStop(__STAMP__,&
             'Number of to be inserted particles per init-proc exceeds max. particle number! ')
         END IF
-        ! WRITE(*,*) "Accepted"
       END IF
     END IF
     particle_positions((chunkSize2+1)*3-2) = Particle_pos(1)
@@ -1433,10 +1430,8 @@ INTEGER                 :: i, chunkSize2
         ELSE IF(Symmetry%Order.EQ.1) THEN
           RadWeightMPF = CalcRadWeightMPF(Particle_pos(1), FractNbr)
         END IF
-        ! WRITE(*,*) "Ratio ",Species(FractNbr)%MacroParticleFactor/RadWeightMPF,iRan
         CALL RANDOM_NUMBER(iRan)
         IF(Species(FractNbr)%MacroParticleFactor/RadWeightMPF.LT.iRan) THEN
-          ! WRITE(*,*) "Withdrawn"
           i=i+1
           CYCLE
         ELSE IF(chunkSize2.GT.PDM%maxParticleNumber) THEN
@@ -1444,7 +1439,6 @@ INTEGER                 :: i, chunkSize2
           CALL CollectiveStop(__STAMP__,&
             'Number of to be inserted particles per init-proc exceeds max. particle number! ')
         END IF
-        ! WRITE(*,*) "Accepted"
       END IF
     END IF
     particle_positions((chunkSize2+1)*3-2) = Particle_pos(1)
