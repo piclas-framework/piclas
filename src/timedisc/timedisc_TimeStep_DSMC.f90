@@ -69,7 +69,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: timeEnd, timeStart, dtVar, RandVal, NewYPart, NewYVelo, Pt_local(1:3), RotRefVelo(1:3)
+REAL                       :: timeEnd, timeStart, dtVar, RandVal, Pt_local(1:3), RotRefVelo(1:3)
 INTEGER                    :: iPart
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
