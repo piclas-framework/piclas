@@ -49,7 +49,9 @@ TYPE tBoundaryParticleOutput
 
   INTEGER                       :: NPartBoundaries          !< Total number of boundaries where the particles are counted
   INTEGER,ALLOCATABLE           :: PartBoundaries(:)        !< Part-boundary number on which the particles are counted
-  INTEGER,ALLOCATABLE           :: BCIDToBPOBCID(:)         !< Mapping BCID to BPOBCID (1:nPartBound)
+                                                            !< Mapping iBPO to BCID: BPO%PartBoundaries(1:BPO%NPartBoundaries)  = 1:nPartBound
+  INTEGER,ALLOCATABLE           :: FieldBoundaries(:)       !< Mapping iBPO to iBC : BPO%FieldBoundaries(1:BPO%NPartBoundaries) = 1:nBC
+  INTEGER,ALLOCATABLE           :: BCIDToBPOBCID(:)         !< Mapping BCID to iBPO: BPO%BCIDToBPOBCID(1:nPartBound)            = 1:BPO%NPartBoundaries
 
   INTEGER                       :: NSpecies                 !< Total number of species which are considered for counting
   INTEGER,ALLOCATABLE           :: Species(:)               !< Species IDs which are considered for counting
@@ -68,7 +70,7 @@ TYPE tSEE
 
   INTEGER             :: NPartBoundaries    !< Total number of boundaries where the particles are counted
   INTEGER,ALLOCATABLE :: PartBoundaries(:)  !< Part-boundary number on which the particles are counted
-  INTEGER,ALLOCATABLE :: BCIDToSEEBCID(:)   !< Mapping BCID to SEEBCID (1:nPartBound)
+  INTEGER,ALLOCATABLE :: BCIDToSEEBCID(:)   !< Mapping BCID to iSEE (1:nPartBound)
 END TYPE
 
 TYPE(tSEE)   :: SEE
