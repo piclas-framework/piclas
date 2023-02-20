@@ -36,7 +36,7 @@ SUBROUTINE TimeStep_FPFlow()
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Globals                ,ONLY: abort
-USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues, Symmetry
+USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_DSMC_Vars              ,ONLY: DSMC, CollisMode
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
@@ -61,7 +61,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
-REAL                  :: RandVal, dtVar, NewYPart, NewYVelo
+REAL                  :: RandVal, dtVar
 !===================================================================================================================================
 IF (DoSurfaceFlux) THEN
   CALL ParticleSurfaceflux()
@@ -92,6 +92,7 @@ DO iPart=1,PDM%ParticleVecLength
   PartState(3,iPart) = PartState(3,iPart) + PartState(6,iPart) * dtVar
   ! Axisymmetric treatment of particles: rotation of the position and velocity vector
   CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
+  END IF
 END DO
 
 ! Resetting the particle positions in the second/third dimension for the 1D/2D/axisymmetric case

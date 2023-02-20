@@ -66,7 +66,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
-REAL                  :: RandVal, dtVar, NewYPart, NewYVelo, Pt_local(1:3), RotRefVelo(1:3)
+REAL                  :: RandVal, dtVar, Pt_local(1:3), RotRefVelo(1:3)
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))
@@ -107,6 +107,7 @@ DO iPart=1,PDM%ParticleVecLength
   END IF
   ! Axisymmetric treatment of particles: rotation of the position and velocity vector
   CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
+  END IF
 END DO
 
 ! Resetting the particle positions in the second/third dimension for the 1D/2D/axisymmetric case
