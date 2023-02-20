@@ -325,6 +325,7 @@ USE MOD_Equation_Vars   ,ONLY: CoupledPowerPotential
 #endif /*defined(PARTICLES)*/
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
 USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
+USE MOD_HDG_Vars        ,ONLY: FPC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -340,7 +341,7 @@ INTEGER,INTENT(IN),OPTIONAL     :: iLinState        ! i-th linear potential stat
 REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: Omega,r1,r2,r_2D,r_3D,r_bary,cos_theta,eps1,eps2,xi,a(3),b(3)
+REAL                            :: Omega,r1,r2,r_2D,r_3D,r_bary,cos_theta,eps1,eps2,xi,a(3),b(3),Q
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
 CASE(-3) ! linear function with base point, normal vector and heigh: Requires BoundaryType = (/7,X/)
@@ -550,7 +551,9 @@ CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum
   END IF
 CASE(500) ! Coaxial capacitor with Floating Boundary Condition (FPC) with from
   ! Chen 2020 "A hybridizable discontinuous Galerkin method for simulation of electrostatic problems with floating potential conductors".
-  r_2D   = SQRT(x(1)**2+x(2)**2)
+  r_2D = SQRT(x(1)**2+x(2)**2)
+  Q = 0. ! Initialize
+  IF(ALLOCATED(FPC%Charge)) Q = FPC%Charge(1) ! [C] - accumulated charge on iUniqueFPCBC = 1
   ASSOCIATE( &
         V0  => 0                  ,& ! [V]
         V1  => 10.0               ,& ! [V]
@@ -558,7 +561,6 @@ CASE(500) ! Coaxial capacitor with Floating Boundary Condition (FPC) with from
         r1  => 2.0e-2             ,& ! [m]
         r2  => 0.8e-2             ,& ! [m]
         r3  => 1.2e-2             ,& ! [m]
-        Q   => 0*ElementaryCharge ,& ! [e]
         eps => ElementaryCharge    & ! [e]
         )
     ASSOCIATE( C20 => LOG(r2/r0) , C31 => LOG(r3/r1) )

@@ -235,7 +235,6 @@ CALL InitMortar_HDG()
 !boundary conditions
 nDirichletBCsides = 0
 nNeumannBCsides   = 0
-nFPCBCsides       = 0
 DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
@@ -245,11 +244,14 @@ DO SideID=1,nBCSides
   CASE(10,11) ! Neumann
     nNeumannBCsides=nNeumannBCsides+1
   CASE(20) ! Floating Boundary Condition (FPCC)
-    nFPCBCsides=nFPCBCsides+1
+    ! do nothing
   CASE DEFAULT ! unknown BCType
-    CALL abort(__STAMP__,' unknown BC Type in hdg.f90!',IntInfoOpt=BCType)
+    CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
 END DO
+
+! Initialize floating boundary condition
+CALL InitFPC()
 
 ! Check if zero potential must be set on a boundary (or periodic side)
 CALL InitZeroPotential()
@@ -278,7 +280,7 @@ DO SideID=1,nBCSides
   CASE(20) ! Floating Boundary Condition (FPCC)
     ! Nothing to do
   CASE DEFAULT ! unknown BCType
-    CALL abort(__STAMP__,' unknown BC Type in hdg.f90!',IntInfoOpt=BCType)
+    CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
 END DO
 
@@ -521,7 +523,7 @@ DO iBC=1,nBCs
   CASE(10,11) ! Neumann
     ! do nothing
   CASE DEFAULT ! unknown BCType
-    CALL abort(__STAMP__,' unknown BC Type in hdg.f90!',IntInfoOpt=BCType)
+    CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
 END DO
 
@@ -594,6 +596,148 @@ IF(ZeroPotentialSideID.EQ.-1)THEN
 END IF ! ZeroPotentialSideID.EQ.0
 
 END SUBROUTINE InitZeroPotential
+
+
+!===================================================================================================================================
+!> Create containers and communicators for each floating boundary condition where impacting charges are accumulated.
+!>
+!
+!> 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
+!>     contribute to the total floating boundary condition. If yes, then this processor is part of the communicator
+!> 2.) Create Mapping from floating boundary condition BC index to field BC index
+!> 3.) Create Mapping from field BC index to floating boundary condition BC index
+!> 4.) Check if field BC is on current proc (or MPI root)
+!> 5.) Create MPI sub-communicators
+!===================================================================================================================================
+SUBROUTINE InitFPC()
+! MODULES
+USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_WORLD
+USE MOD_Preproc
+USE MOD_Mesh_Vars        ,ONLY: nBCs,BoundaryType,nBCSides,BC
+USE MOD_Analyze_Vars     ,ONLY: DoFieldAnalyze
+USE MOD_HDG_Vars         ,ONLY: FPC
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: BCType,BCState,iUniqueFPCBC
+INTEGER             :: iBC,SideID,color
+LOGICAL,ALLOCATABLE :: BConProc(:)
+CHARACTER(5)        :: hilf,hilf2
+!===================================================================================================================================
+
+! Get global number of FPC boundaries
+FPC%nFPCBounds = 0
+DO iBC=1,nBCs
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
+  BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
+  FPC%nFPCBounds=FPC%nFPCBounds+1
+  IF(BCState.LE.0) CALL CollectiveStop(__STAMP__,' BCState for FPC must be >0! BCState=',IntInfo=BCState)
+END DO
+
+IF(FPC%nFPCBounds.EQ.0) RETURN ! Already determined in HDG initialization
+
+ALLOCATE(FPC%Group(1:FPC%nFPCBounds,2))
+FPC%Group = 0 ! Initialize
+
+! 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
+! contribute to the total floating boundary condition. If yes, then this processor is part of the communicator
+FPC%nUniqueFPCBounds = 0
+DO iBC=1,nBCs
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
+  BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
+  WRITE(UNIT=hilf,FMT='(I0)') BCState
+  WRITE(UNIT=hilf2,FMT='(I0)') FPC%nFPCBounds
+  IF(BCState.GT.FPC%nFPCBounds) CALL CollectiveStop(__STAMP__,&
+      'BCState='//TRIM(hilf)//' must be smaller or equal than the total number of '//TRIM(hilf2)//' FPC boundaries!')
+  FPC%Group(BCState,1) = FPC%Group(BCState,1) + 1
+  IF(FPC%Group(BCState,1).EQ.1) THEN
+    FPC%nUniqueFPCBounds = FPC%nUniqueFPCBounds +1 ! Only count once
+    FPC%Group(BCState,2) = FPC%nUniqueFPCBounds
+  END IF
+END DO
+
+! Automatically activate surface model analyze flag
+DoFieldAnalyze = .TRUE.
+
+! 2.) Create Mapping from floating boundary condition BC index to BCState
+ALLOCATE(FPC%BCState(FPC%nUniqueFPCBounds))
+FPC%BCState = 0
+DO iBC=1,nBCs
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(BCType.NE.20) CYCLE
+  BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
+  iUniqueFPCBC = FPC%Group(BCState,2)
+  FPC%BCState(iUniqueFPCBC) = BCState
+END DO
+
+! Allocate the container
+ALLOCATE(FPC%Charge(1:FPC%nUniqueFPCBounds))
+FPC%Charge = 0.
+
+!! 3.) Create Mapping from field BC index to floating boundary condition BC index
+!ALLOCATE(FPC%BCIDToFPCBCID(nBCs))
+!FPC%BCIDToFPCBCID = -1
+!DO iFPCBC = 1, FPC%NBoundaries
+!  iBC = EDC%FieldBoundaries(iEDCBC)
+!  EDC%BCIDToEDCBCID(iBC) = iEDCBC
+!END DO ! iEDCBC = 1, EDC%NBoundaries
+
+#if USE_MPI
+! 4.) Check if field BC is on current proc (or MPI root)
+ALLOCATE(BConProc(FPC%nUniqueFPCBounds))
+BConProc = .FALSE.
+IF(MPIRoot)THEN
+  BConProc = .TRUE.
+ELSE
+  DO SideID=1,nBCSides
+    iBC    = BC(SideID)
+    BCType = BoundaryType(iBC,BC_TYPE)
+    IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
+    BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
+    iUniqueFPCBC = FPC%Group(BCState,2)
+    BConProc(iUniqueFPCBC) = .TRUE.
+  END DO ! SideID=1,nBCSides
+END IF ! MPIRoot
+
+! 5.) Create MPI sub-communicators
+ALLOCATE(FPC%COMM(FPC%nUniqueFPCBounds))
+DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+  ! create new communicator
+  color = MERGE(iUniqueFPCBC, MPI_UNDEFINED, BConProc(iUniqueFPCBC))
+
+  ! set communicator id
+  FPC%COMM(iUniqueFPCBC)%ID=iUniqueFPCBC
+
+  ! create new emission communicator for floating boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, FPC%COMM(iUniqueFPCBC)%UNICATOR, iError)
+
+  ! Find my rank on the shared communicator, comm size and proc name
+  IF(BConProc(iUniqueFPCBC))THEN
+    CALL MPI_COMM_RANK(FPC%COMM(iUniqueFPCBC)%UNICATOR, FPC%COMM(iUniqueFPCBC)%MyRank, iError)
+    CALL MPI_COMM_SIZE(FPC%COMM(iUniqueFPCBC)%UNICATOR, FPC%COMM(iUniqueFPCBC)%nProcs, iError)
+
+    ! inform about size of emission communicator
+    IF (FPC%COMM(iUniqueFPCBC)%MyRank.EQ.0) THEN
+#if USE_LOADBALANCE
+      IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+          WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0)') ' Floating boundary condition: Emission-Communicator ',iUniqueFPCBC,' on ',&
+              FPC%COMM(iUniqueFPCBC)%nProcs,' procs for BCState ',FPC%BCState(iUniqueFPCBC)
+    END IF
+  END IF ! BConProc(iUniqueFPCBC)
+END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+#endif /*USE_MPI*/
+
+DEALLOCATE(BConProc)
+
+END SUBROUTINE InitFPC
 
 
 !===================================================================================================================================
@@ -684,8 +828,8 @@ IF(UseBRElectronFluid) THEN
     ForceCGSolverIteration_loc = MERGE(ForceCGSolverIteration_opt, .FALSE., PRESENT(ForceCGSolverIteration_opt))
     CALL HDGNewton(t, U_out, iter, ForceCGSolverIteration_loc)
   ELSE
-    CALL abort(__STAMP__,'Defined HDGNonLinSolver not implemented (HDGFixPoint has been removed!) HDGNonLinSolver = ',&
-    IntInfoOpt=HDGNonLinSolver)
+    CALL CollectiveStop(__STAMP__,'Defined HDGNonLinSolver not implemented (HDGFixPoint has been removed!) HDGNonLinSolver = ',&
+    IntInfo=HDGNonLinSolver)
   END IF
 ELSE
 #endif /*defined(PARTICLES)*/
@@ -1145,7 +1289,7 @@ REAL    :: tLBStart
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 #if (PP_nVar!=1)
-  CALL abort(__STAMP__,'Nonlinear Newton solver only available with EQ-system Poisson!')
+  CALL CollectiveStop(__STAMP__,'Nonlinear Newton solver only available with EQ-system Poisson!')
 #endif
 Norm_r2=0.
 
@@ -1413,9 +1557,7 @@ ELSE
       IPWRITE(UNIT_StdOut,*) "Norm_r2       =", Norm_r2
       IPWRITE(UNIT_StdOut,*) "iter          =", iter
       IPWRITE(UNIT_StdOut,*) "MaxIterNewton =", MaxIterNewton
-      CALL abort(&
-        __STAMP__&
-        ,'HDGNewton: Newton Iteration has NOT converged!')
+      CALL abort(__STAMP__,'HDGNewton: Newton Iteration has NOT converged!')
     END IF
 
     CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))

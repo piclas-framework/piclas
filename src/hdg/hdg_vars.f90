@@ -73,7 +73,6 @@ INTEGER             :: HDGZeroPotentialDir    !< Direction in which a Dirichlet 
                                               !< conditions. Default chooses the direction automatically when no other Dirichlet
                                               !< boundary conditions are defined.
 INTEGER             :: nNeumannBCsides
-INTEGER             :: nFPCBCsides            !< Floating Boundary Condition (FPC)
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)
 LOGICAL             :: HDGnonlinear           !< Use non-linear sources for HDG? (e.g. Boltzmann electrons)
@@ -151,6 +150,38 @@ REAL                  :: DeltaTimeBRWindow             !< Time length when BR is
 LOGICAL               :: BRNullCollisionDefault        !< Flag (backup of read-in parameter) whether null collision method
                                                        !< (determining number of pairs based on maximum relaxation frequency) is used
 #endif /*defined(PARTICLES)*/
+!===================================================================================================================================
+!-- Floating boundary condition
+
+#if USE_MPI
+TYPE tMPIGROUP
+  INTEGER                     :: ID                  !< MPI communicator ID
+  INTEGER                     :: UNICATOR            !< MPI communicator for floating boundary condition
+  INTEGER                     :: Request             !< MPI request for asynchronous communication
+  INTEGER                     :: nProcs              !< number of MPI processes for particles
+  INTEGER                     :: MyRank              !< MyRank of PartMPIVAR%COMM
+  LOGICAL                     :: MPIRoot             !< Root, MPIRank=0
+  INTEGER,ALLOCATABLE         :: GroupToComm(:)      !< list containing the rank in PartMPI%COMM
+  INTEGER,ALLOCATABLE         :: CommToGroup(:)      !< list containing the rank in PartMPI%COMM
+END TYPE
+#endif /*USE_MPI*/
+
+TYPE tFPC
+  REAL,ALLOCATABLE            :: Charge(:)          !< Accumulated charge on floating boundary condition for each (required) BC index
+#if USE_MPI
+  TYPE(tMPIGROUP),ALLOCATABLE :: COMM(:)             !< communicator and ID for parallel execution
+#endif /*USE_MPI*/
+  !INTEGER                     :: NBoundaries         !< Total number of boundaries where the floating boundary condition is evaluated
+  INTEGER                     :: nFPCBounds         !< Total number of BC sides that are FPC
+  INTEGER                     :: nUniqueFPCBounds   !< Number of independent FPC after grouping certain BC sides together (electrically connected)
+  INTEGER,ALLOCATABLE         :: BCState(:)          !< BCState of the i-th FPC index
+  !INTEGER,ALLOCATABLE         :: BCIDToFPCBCID(:)    !< Mapping BCID to FPC BCID (1:nPartBound)
+  INTEGER,ALLOCATABLE         :: Group(:,:)          !< FPC%Group(1:FPC%nFPCBounds,2)
+                                                     !< 1: BCState
+                                                     !< 2: iUniqueFPC (i-th FPC group ID)
+END TYPE
+
+TYPE(tFPC)   :: FPC
 !===================================================================================================================================
 
 

@@ -96,7 +96,7 @@ TYPE(tBoundaryFieldOutput)   :: BFO
 TYPE tMPIGROUP
   INTEGER                     :: ID                  !< MPI communicator ID
   INTEGER                     :: UNICATOR            !< MPI communicator for electric displacement current
-  INTEGER                     :: Request             !<  MPI request for asynchronous communication
+  INTEGER                     :: Request             !< MPI request for asynchronous communication
   INTEGER                     :: nProcs              !< number of MPI processes for particles
   INTEGER                     :: MyRank              !< MyRank of PartMPIVAR%COMM
   LOGICAL                     :: MPIRoot             !< Root, MPIRank=0

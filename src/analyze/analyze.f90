@@ -1459,10 +1459,10 @@ END SUBROUTINE CodeAnalyzeOutput
 !===================================================================================================================================
 SUBROUTINE InitCalcElectricTimeDerivativeSurface()
 ! MODULES
-USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_WORLD
+USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars        ,ONLY: nBCs,BoundaryType,BoundaryName,nBCSides,BC
-USE MOD_Analyze_Vars     ,ONLY: DoSurfModelAnalyze,CalcElectricTimeDerivative,EDC
+USE MOD_Analyze_Vars     ,ONLY: DoFieldAnalyze,CalcElectricTimeDerivative,EDC
 USE MOD_Equation_Vars    ,ONLY: Et
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
@@ -1493,7 +1493,7 @@ END DO
 IF(EDC%NBoundaries.EQ.0) RETURN
 
 ! Automatically activate surface model analyze flag
-DoSurfModelAnalyze = .TRUE.
+DoFieldAnalyze = .TRUE.
 
 ! 2.) Create Mapping from electric displacement current BC index to field BC index
 ALLOCATE(EDC%FieldBoundaries(EDC%NBoundaries))
