@@ -106,11 +106,7 @@ DO iPart=1,PDM%ParticleVecLength
     PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
   END IF
   ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-  IF(DSMC%DoAmbipolarDiff.AND.(Species(PartSpecies(iPart))%ChargeIC.GT.0.0)) THEN
-    CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart),AmbipolElecVelo(iPart)%ElecVelo)
-  ELSE
-    CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
-  END IF
+  CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
 END DO
 
 ! Resetting the particle positions in the second/third dimension for the 1D/2D/axisymmetric case
