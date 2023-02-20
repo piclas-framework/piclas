@@ -16,6 +16,13 @@ ENDMACRO()
 SUBDIRLIST(EQNSYSTEMS ${CMAKE_CURRENT_SOURCE_DIR}/src/equations/)
 
 OPTION(PICLAS_PARTICLES "Particles" ON)
+OPTION(PICLAS_2D "FV2D" OFF)
+IF(PICLAS_2D)
+  ADD_DEFINITIONS(-DPP_dim=2)
+ELSE()
+  ADD_DEFINITIONS(-DPP_dim=3)
+ENDIF()
+
 # =========================================================================
 # Time discretization
 # =========================================================================
@@ -158,6 +165,7 @@ ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic_poisson")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "DVM")
   SET(PICLAS_HDG OFF)
   SET(PICLAS_FV ON)
+
 ELSE()
    MESSAGE(SEND_ERROR "Unknown equation system.")
 ENDIF()
