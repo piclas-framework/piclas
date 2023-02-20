@@ -318,7 +318,7 @@ SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState,iLinState)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals         ,ONLY: Abort,mpiroot
-USE MOD_Globals_Vars    ,ONLY: PI
+USE MOD_Globals_Vars    ,ONLY: PI,ElementaryCharge
 USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinPhi,LinPhiHeight,LinPhiNormal,LinPhiBasePoint
 #if defined(PARTICLES)
 USE MOD_Equation_Vars   ,ONLY: CoupledPowerPotential
@@ -517,7 +517,7 @@ CASE(301) ! like CASE=300, but only in positive z-direction the dielectric regio
 
 CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum)
   !                                                epsR_2 != 1 for x > 0 (dielectric region)
-  ! DielectricRadiusValue is used as distance between dielectric interface and position of chargeed point particle
+  ! DielectricRadiusValue is used as distance between dielectric interface and position of charged point particle
   ! set radius and angle for DOF position x(1:3)
   ! Limitations:
   ! only valid for eps_2 = 1
@@ -548,6 +548,34 @@ CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum
     END IF
     resu(1:PP_nVar) = (2./(eps2+eps1)) * 1./r1 /(4*PI)
   END IF
+CASE(500) ! Coaxial capacitor with Floating Boundary Condition (FPC) with from
+  ! Chen 2020 "A hybridizable discontinuous Galerkin method for simulation of electrostatic problems with floating potential conductors".
+  r_2D   = SQRT(x(1)**2+x(2)**2)
+  ASSOCIATE( &
+        V0  => 0                  ,& ! [V]
+        V1  => 10.0               ,& ! [V]
+        r0  => 0.1e-2             ,& ! [m]
+        r1  => 2.0e-2             ,& ! [m]
+        r2  => 0.8e-2             ,& ! [m]
+        r3  => 1.2e-2             ,& ! [m]
+        Q   => 0*ElementaryCharge ,& ! [e]
+        eps => ElementaryCharge    & ! [e]
+        )
+    ASSOCIATE( C20 => LOG(r2/r0) , C31 => LOG(r3/r1) )
+      ASSOCIATE( b1 => (V1 - V0 - C20*Q/(2*PI*eps))/(C20-C31) )
+        ASSOCIATE( b0 => b1+Q/(2*PI*eps) )
+          ASSOCIATE( a0 => V0-b0*LOG(r0) , a1 => V1-b1*LOG(r1) )
+            ! Check if point is located in first or second region
+            IF(r_2D.LT.(r2+r3)/2.0)THEN
+              resu = a0 + b0 * LOG(r_2D)
+            ELSE
+              resu = a1 + b1 * LOG(r_2D)
+            END IF ! r.LT.(r2+r3)/2.0
+          END ASSOCIATE
+        END ASSOCIATE
+      END ASSOCIATE
+    END ASSOCIATE
+  END ASSOCIATE
 
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!', IntInfoOpt=ExactFunction)

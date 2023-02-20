@@ -21,9 +21,9 @@ USE MOD_io_HDF5
 USE MOD_HDF5_output
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
+! Private Part ---------------------------------------------------------------------------------------------------------------------
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
 INTERFACE WriteStateToHDF5
@@ -112,6 +112,8 @@ USE MOD_HDF5_Output_Fields     ,ONLY: WritePMLDataToHDF5
 #endif
 USE MOD_HDF5_Output_ElemData   ,ONLY: WriteAdditionalElemData
 ! IMPLICIT VARIABLE HANDLING
+USE MOD_Analyze_Vars           ,ONLY: OutputErrorNormsToH5
+USE MOD_HDF5_Output_Fields     ,ONLY: WriteErrorNormsToHDF5
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -640,6 +642,8 @@ CALL WriteEmissionVariablesToHDF5(FileName)
 
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+
+IF(OutputErrorNormsToH5) CALL WriteErrorNormsToHDF5(OutputTime_loc)
 
 #if defined(PARTICLES)
 CALL DisplayNumberOfParticles(1)

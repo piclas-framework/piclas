@@ -40,6 +40,7 @@ LOGICAL           :: DoMeasureAnalyzeTime        !< measure time that is spent i
                                                  !< calls (to std out stream)
 INTEGER(KIND=8)   :: FieldAnalyzeStep            !< Analyze is performed each Nth time step
 LOGICAL           :: DoCalcErrorNorms            !< perform L2, LInf error calculation
+LOGICAL           :: OutputErrorNormsToH5        !< Set true to write the analytical solution, the L2 and LInf error norms at analyze step to .h5 state file. Default = F
 LOGICAL           :: DoSurfModelAnalyze          !< perform analyze for SurfaceModel
 LOGICAL           :: CalcEpot                    !< Computation of the energy stored in the electric and
 REAL              :: Wel                         !< energy of the electric field

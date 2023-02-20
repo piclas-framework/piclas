@@ -233,8 +233,9 @@ END IF !mortarMesh
 CALL InitMortar_HDG()
 
 !boundary conditions
-nDirichletBCsides=0
-nNeumannBCsides  =0
+nDirichletBCsides = 0
+nNeumannBCsides   = 0
+nFPCBCsides       = 0
 DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
@@ -243,6 +244,8 @@ DO SideID=1,nBCSides
     nDirichletBCsides=nDirichletBCsides+1
   CASE(10,11) ! Neumann
     nNeumannBCsides=nNeumannBCsides+1
+  CASE(20) ! Floating Boundary Condition (FPCC)
+    nFPCBCsides=nFPCBCsides+1
   CASE DEFAULT ! unknown BCType
     CALL abort(__STAMP__,' unknown BC Type in hdg.f90!',IntInfoOpt=BCType)
   END SELECT ! BCType
@@ -272,6 +275,8 @@ DO SideID=1,nBCSides
   CASE(10,11) !Neumann,
     nNeumannBCsides=nNeumannBCsides+1
     NeumannBC(nNeumannBCsides)=SideID
+  CASE(20) ! Floating Boundary Condition (FPCC)
+    ! Nothing to do
   CASE DEFAULT ! unknown BCType
     CALL abort(__STAMP__,' unknown BC Type in hdg.f90!',IntInfoOpt=BCType)
   END SELECT ! BCType

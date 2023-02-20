@@ -73,6 +73,7 @@ INTEGER             :: HDGZeroPotentialDir    !< Direction in which a Dirichlet 
                                               !< conditions. Default chooses the direction automatically when no other Dirichlet
                                               !< boundary conditions are defined.
 INTEGER             :: nNeumannBCsides
+INTEGER             :: nFPCBCsides            !< Floating Boundary Condition (FPC)
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)
 LOGICAL             :: HDGnonlinear           !< Use non-linear sources for HDG? (e.g. Boltzmann electrons)
