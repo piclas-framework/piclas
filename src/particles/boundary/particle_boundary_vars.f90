@@ -254,6 +254,7 @@ TYPE tPartBoundary
   INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)          ! Link part 2 for mapping PICLas BCs to Particle BC
 !  INTEGER              , ALLOCATABLE     :: Map(:)                      ! Map from PICLas BCindex to Particle BC
   INTEGER              , ALLOCATABLE     :: MapToPartBC(:)              ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
+  INTEGER              , ALLOCATABLE     :: MapToFieldBC(:)             ! Map from Particle BC (NOT TO TYPE!) to PICLas BCindex
   !!INTEGER              , ALLOCATABLE     :: SideBCType(:)            ! list with boundary condition for each side
   REAL    , ALLOCATABLE                  :: MomentumACC(:)
   REAL    , ALLOCATABLE                  :: WallTemp(:), WallTemp2(:), WallTempDelta(:)

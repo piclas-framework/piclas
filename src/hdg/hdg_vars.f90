@@ -167,7 +167,8 @@ END TYPE
 #endif /*USE_MPI*/
 
 TYPE tFPC
-  REAL,ALLOCATABLE            :: Charge(:)          !< Accumulated charge on floating boundary condition for each (required) BC index
+  REAL,ALLOCATABLE            :: Charge(:)          !< Accumulated charge on floating boundary condition for each (required) BC index over all processors
+  REAL,ALLOCATABLE            :: ChargeProc(:)      !< Accumulated charge on floating boundary condition for each (required) BC index for a single processor
 #if USE_MPI
   TYPE(tMPIGROUP),ALLOCATABLE :: COMM(:)             !< communicator and ID for parallel execution
 #endif /*USE_MPI*/

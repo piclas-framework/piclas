@@ -683,6 +683,8 @@ END DO
 ! Allocate the container
 ALLOCATE(FPC%Charge(1:FPC%nUniqueFPCBounds))
 FPC%Charge = 0.
+ALLOCATE(FPC%ChargeProc(1:FPC%nUniqueFPCBounds))
+FPC%ChargeProc = 0.
 
 !! 3.) Create Mapping from field BC index to floating boundary condition BC index
 !ALLOCATE(FPC%BCIDToFPCBCID(nBCs))
@@ -940,6 +942,9 @@ INTEGER              :: ElemID,iBCSide,locBCSideID, PETScLocalID
 INTEGER              :: PETScID_start, PETScID_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
 #endif
+#if defined(PARTICLES) && USE_MPI
+INTEGER              :: iUniqueFPCBC
+#endif /*defined(PARTICLES) && USE_MPI*/
 !===================================================================================================================================
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
@@ -1018,6 +1023,29 @@ DO iVar = 1, PP_nVar
     END DO !BCsideID=1,nDirichletBCSides
   END IF
 #endif
+
+  ! Floating boundary BCs
+#if defined(PARTICLES)
+  IF(FPC%nFPCBounds.GT.0)THEN
+#if USE_MPI
+    ! Communicate the accumulated charged on each BC to all processors on the communicator
+    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR)
+        IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+          ASSOCIATE( Charge => FPC%Charge(iUniqueFPCBC), ChargeProc => FPC%ChargeProc(iUniqueFPCBC) )
+            CALL MPI_ALLREDUCE(Charge,ChargeProc, 1, MPI_DOUBLE_PRECISION, MPI_SUM, COMM, IERROR)
+          END ASSOCIATE
+        END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
+      END ASSOCIATE
+    END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+#else
+  FPC%Charge = FPC%Charge + FPC%ChargeProc
+#endif /*USE_MPI*/
+  FPC%ChargeProc = 0.
+  ! Apply charge to RHS
+
+  END IF ! FPC%nFPCBounds.GT.0
+#endif /*defined(PARTICLES)*/
 
   ! Check if zero potential sides are present
   IF(ZeroPotentialSideID.GT.0) lambda(iVar,:,ZeroPotentialSideID) = ZeroPotentialValue
@@ -2370,6 +2398,12 @@ SDEALLOCATE(InvPrecondDiag)
 SDEALLOCATE(MaskedSide)
 SDEALLOCATE(SmallMortarInfo)
 SDEALLOCATE(IntMatMortar)
+
+SDEALLOCATE(FPC%Group)
+SDEALLOCATE(FPC%BCState)
+SDEALLOCATE(FPC%Charge)
+SDEALLOCATE(FPC%ChargeProc)
+SDEALLOCATE(FPC%COMM)
 
 #if USE_LOADBALANCE
 IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN

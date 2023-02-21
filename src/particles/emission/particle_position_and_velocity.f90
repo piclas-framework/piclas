@@ -456,7 +456,7 @@ CASE('photon_SEE_energy')
           END IF ! usevMPF
           CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
                UNITVECTOR(PartState(4:6,PositionNbr)),Species(FractNbr)%Init(iInit)%NormalIC,&
-               iBC=Species(FractNbr)%Init(iInit)%PartBCIndex,mode=2,MPF_optIN=MPF)
+               iPartBound=Species(FractNbr)%Init(iInit)%PartBCIndex,mode=2,MPF_optIN=MPF)
         END IF ! DoBoundaryParticleOutputHDF5
     END IF
   END DO

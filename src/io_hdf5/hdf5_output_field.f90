@@ -614,7 +614,6 @@ USE MOD_io_HDF5
 USE MOD_HDF5_output        ,ONLY: WriteArrayToHDF5,copy_userblock
 USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Interpolation_Vars ,ONLY: Uex,NAnalyze,NodeTypeGL
-USE MOD_Restart_Vars       ,ONLY: RestartTime
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
