@@ -625,8 +625,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: BCType,BCState,iUniqueFPCBC
-INTEGER             :: iBC,SideID,color
+INTEGER             :: iBC
+#if USE_MPI
+INTEGER             :: SideID,color
 LOGICAL,ALLOCATABLE :: BConProc(:)
+#endif /*USE_MPI*/
 CHARACTER(5)        :: hilf,hilf2
 !===================================================================================================================================
 
@@ -733,9 +736,9 @@ DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
     END IF
   END IF ! BConProc(iUniqueFPCBC)
 END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+DEALLOCATE(BConProc)
 #endif /*USE_MPI*/
 
-DEALLOCATE(BConProc)
 
 END SUBROUTINE InitFPC
 
