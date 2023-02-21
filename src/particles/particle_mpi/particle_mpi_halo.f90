@@ -74,7 +74,7 @@ USE MOD_CalcTimeStep            ,ONLY: CalcTimeStep
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars           ,ONLY: nRKStages,RK_c
 #endif
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,nPartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,nPartBound,RotPeriodicTol
 USE MOD_Particle_Mesh_Vars      ,ONLY: IsExchangeElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
@@ -593,7 +593,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           IF(MeshHasRotPeriodic) THEN
             DO iPartBound = 1, nPartBound
               IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
-              ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) )
+              ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) * RotPeriodicTol)
                 SELECT CASE(GEO%RotPeriodicAxi)
                   CASE(1) ! x-rotation axis
                     IF( (BoundsOfElemCenter(1).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
@@ -879,7 +879,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
       ! Check rot periodic Elems and if iSide is on rot periodic BC
       IF(MeshHasRotPeriodic) THEN
         DO iPartBound = 1, nPartBound
-          ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) )
+          ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) * RotPeriodicTol)
             SELECT CASE(GEO%RotPeriodicAxi)
               CASE(1) ! x-rotation axis
                 RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
