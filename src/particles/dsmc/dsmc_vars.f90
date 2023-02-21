@@ -10,14 +10,13 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
+#include "piclas.h"
+
 MODULE MOD_DSMC_Vars
 !===================================================================================================================================
 ! Contains the DSMC variables
 !===================================================================================================================================
 ! MODULES
-#if USE_MPI
-USE MOD_Particle_MPI_Vars, ONLY: tPartMPIConnect
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -113,17 +112,18 @@ TYPE(tVarWeighting)            :: VarWeighting
 TYPE tAdaptMPF
   LOGICAL                     :: DoAdaptMPF                  ! Enables an automatic adaption of the MPF in each cell
   LOGICAL                     :: UseOptMPF                   ! Changes between the CalcVarMPF, CalcAdaptMPF routine
-  REAL, ALLOCATABLE           :: ReferencePartNum(:)         ! Particle number per cell in the reference simulation 
-  REAL, ALLOCATABLE           :: ReferenceDensity(:)         ! Particle number density per cell in the reference simulation
-  REAL, ALLOCATABLE           :: OptimalMPF(:)               ! Theoretical value for the optimal MPF in each cell, used for the visualization
+  LOGICAL                     :: UseMedianFilter             ! Applies median filter to the distribution of the optimal MPF
+  LOGICAL                     :: RestartTimeCounter          ! Start the simulation from t = 0s
   REAL, ALLOCATABLE           :: ScaleFactorAdapt(:)         ! Comparison of new and old MPF
   REAL                        :: MinPartNum                  ! Target minimum number of simulation particles per sub-cell
   REAL                        :: MaxPartNum                  ! Target maximum number of simulation particles per sub-cell
-  REAL                        :: MaxPartWeight               ! Upper bound of the particle weights
-  REAL                        :: MinPartWeight               ! Lower bound of the particle weights
+  REAL                        :: MaxRatio                    ! Maximum deviation between the particle weights of two neighbouring cells
 END TYPE tAdaptMPF
 
 TYPE(tAdaptMPF)               :: AdaptMPF
+
+REAL,ALLOCPOINT,DIMENSION(:,:) :: AdaptMPFInfo_Shared
+REAL,ALLOCPOINT,DIMENSION(:)   :: OptimalMPF_Shared
 
 TYPE tClonedParticles
   ! Clone Delay: Clones are inserted at the next time step
@@ -617,5 +617,10 @@ TYPE tOctreeVdm
 END TYPE
 
 TYPE (tOctreeVdm), POINTER                  :: OctreeVdm => null()
+
+#if USE_MPI
+INTEGER                                   :: AdaptMPFInfo_Shared_Win
+INTEGER                                   :: OptimalMPF_Shared_Win
+#endif
 !===================================================================================================================================
 END MODULE MOD_DSMC_Vars

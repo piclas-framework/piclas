@@ -1087,13 +1087,9 @@ REAL                             :: iRan, RandomPos(3)
 REAL                             :: PartDens
 LOGICAL                          :: InsideFlag, InsertFlag, AbortFlag
 REAL                             :: MinVec(3), MaxVec(3)
-REAL                             :: printVol, printPart
 !-----------------------------------------------------------------------------------------------------------------------------------
   ichunkSize = 1
   ParticleIndexNbr = 1
-
-  printPart = 0.
-  printVol = 0.
 
   ! Definition of the insertion region
   MinVec = Species(iSpec)%Init(iInit)%CellLocMinPos
@@ -1125,8 +1121,6 @@ REAL                             :: printVol, printPart
         END IF
         CALL RANDOM_NUMBER(iRan)
         nPart = INT(PartDens * ElemVolume_Shared(CNElemID) + iRan)
-        printVol = printVol + ElemVolume_Shared(CNElemID)
-        printPart = printPart + REAL(nPart)
         DO iPart = 1, nPart
           ParticleIndexNbr = PDM%nextFreePosition(iChunksize + PDM%CurrentNextFreePosition)
           IF (ParticleIndexNbr .ne. 0) THEN

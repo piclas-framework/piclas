@@ -400,7 +400,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_InitVarWeighting
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesInits
@@ -483,6 +483,8 @@ IF(CalcPCouplElectricPotential.AND.(.NOT.DoInterpolation)) CALL abort(__STAMP__,
 DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
 IF(DoInterpolationAnalytic) DoInterpolation = DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
+
+AdaptMPF%UseMedianFilter = GETLOGICAL('Part-AdaptMPF-ApplyMedianFilter')
 
 ! Build BGM and initialize particle mesh
 CALL InitParticleMesh()

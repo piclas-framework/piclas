@@ -41,6 +41,7 @@ CALL prms%CreateRealOption('CFLScale'        , "Scaling factor for the theoretic
 CALL prms%CreateIntOption( 'maxIter'         , "Stop simulation when specified number of timesteps has been performed.", '-1')
 CALL prms%CreateIntOption( 'NCalcTimeStepMax', "Compute dt at least after every Nth timestep."                         , '1')
 CALL prms%CreateIntOption( 'IterDisplayStep' , "Step size of iteration that are displayed."                            , '1')
+CALL prms%CreateLogicalOption('Part-RestartTimeCounter', 'Restart the simulation from t=0s with the adapted MPF', '.FALSE.')
 END SUBROUTINE DefineParametersTimeDisc
 
 
@@ -50,10 +51,11 @@ END SUBROUTINE DefineParametersTimeDisc
 SUBROUTINE InitTime()
 ! MODULES
 USE MOD_Globals
+USE MOD_ReadInTools
 USE MOD_TimeDisc_Vars          ,ONLY: Time,TEnd,tAnalyze,dt_Min
 USE MOD_Restart_Vars           ,ONLY: RestartTime
 #ifdef PARTICLES
-USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout
+USE MOD_DSMC_Vars              ,ONLY: Iter_macvalout,Iter_macsurfvalout, AdaptMPF
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSampTime
 #endif /*PARTICLES*/
 USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze
@@ -67,7 +69,14 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! Setting the time variable, RestartTime is either zero or the actual restart time
-Time=RestartTime
+AdaptMPF%RestartTimeCounter = GETLOGICAL('Part-RestartTimeCounter')
+
+IF (AdaptMPF%RestartTimeCounter) THEN
+  Time = 0.
+ELSE
+  Time=RestartTime
+END IF
+
 #ifdef PARTICLES
 iter_macvalout=0
 iter_macsurfvalout=0

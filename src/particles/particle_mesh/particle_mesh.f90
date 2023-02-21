@@ -191,7 +191,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_PICDepo_Shapefunction_Tools, ONLY:InitShapeFunctionDimensionalty
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars              ,ONLY: nElems
-!USE MOD_DSMC_Vars              ,ONLY: DSMC
+USE MOD_DSMC_Vars              ,ONLY: AdaptMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -342,6 +342,11 @@ END IF
 
 ! Set logical for building node neighbourhood
 FindNeighbourElems = .FALSE.
+
+IF (AdaptMPF%UseMedianFilter) THEN
+  FindNeighbourElems = .TRUE.
+END IF
+
 ! PIC deposition types require the neighbourhood
 SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean','shape_function_adaptive')

@@ -715,11 +715,12 @@ SUBROUTINE DSMC_output_calc(nVar,nVar_quality,nVarloc,nVarMPF,nVarAdaptMPF,DSMC_
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
+USE MOD_MPI_Shared    
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF, CalcRadWeightMPF
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, BGGas
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF, OptimalMPF_Shared, OptimalMPF_Shared_Win
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry
@@ -740,7 +741,7 @@ REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality+nVarMPF+nVarAdaptMP
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iElem, CNElemID, iSpec, nVarCount, nSpecTemp, nVarCountRelax, bgSpec
+INTEGER                 :: iElem, iGlobalElem, CNElemID, iSpec, nVarCount, nSpecTemp, nVarCountRelax, bgSpec
 REAL                    :: TVib_TempFac, iter_loc
 REAL                    :: MolecPartNum, HeavyPartNum
 !===================================================================================================================================
@@ -1012,10 +1013,11 @@ IF (DSMC%CalcCellMPF) THEN
   END IF
 
   DO iElem=1,nElems
+    CNElemID = GetCNElemID(iElem + offsetElem)
     IF (VarWeighting%DoVariableWeighting) THEN
-      DSMC%CellMPFSamp(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,GetCNElemID(iElem + offsetElem)), 1)
+      DSMC%CellMPFSamp(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), 1)
     ELSE IF (RadialWeighting%DoRadialWeighting) THEN
-      DSMC%CellMPFSamp(iElem) = CalcRadWeightMPF(ElemMidPoint_Shared(2,GetCNElemID(iElem + offsetElem)), 1)
+      DSMC%CellMPFSamp(iElem) = CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), 1)
     ELSE 
       DSMC%CellMPFSamp(iElem) = Species(1)%MacroParticleFactor
     END IF
@@ -1028,28 +1030,32 @@ END IF
 ! Visualization for the optimal MPF in the adaptive routine for each sub-cell
 IF (AdaptMPF%DoAdaptMPF) THEN
   ALLOCATE(AdaptMPF%ScaleFactorAdapt(nElems))
-    AdaptMPF%ScaleFactorAdapt(1:nElems) = 0.0
+  AdaptMPF%ScaleFactorAdapt(1:nElems) = 0.0
 
-    ! Enable the calculation of the reference variable weighting factor
-    AdaptMPF%UseOptMPF = .FALSE.
+  ! Enable the calculation of the reference variable weighting factor
+  AdaptMPF%UseOptMPF = .FALSE.
 
   DO iElem=1,nElems
     CNElemID = GetCNElemID(iElem + offsetElem)
-    DSMC_MacroVal(nVarCount+1,iElem) = AdaptMPF%OptimalMPF(iElem)
+    DSMC_MacroVal(nVarCount+1,iElem) = OptimalMPF_Shared(CNElemID)
 
     IF (VarWeighting%DoVariableWeighting) THEN
-      AdaptMPF%ScaleFactorAdapt(iElem) = AdaptMPF%OptimalMPF(iElem)/CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),1)
+      AdaptMPF%ScaleFactorAdapt(iElem) = OptimalMPF_Shared(CNElemID)/CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),1)
     ELSE IF (RadialWeighting%DoRadialWeighting) THEN
-      AdaptMPF%ScaleFactorAdapt(iElem) = AdaptMPF%OptimalMPF(iElem)/CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID),1)
+      AdaptMPF%ScaleFactorAdapt(iElem) = OptimalMPF_Shared(CNElemID)/CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID),1)
     ELSE 
-      AdaptMPF%ScaleFactorAdapt(iElem) = AdaptMPF%OptimalMPF(iElem)/Species(1)%MacroParticleFactor
+      AdaptMPF%ScaleFactorAdapt(iElem) = OptimalMPF_Shared(CNElemID)/Species(1)%MacroParticleFactor
     END IF
     DSMC_MacroVal(nVarCount+2,iElem) = AdaptMPF%ScaleFactorAdapt(iElem)
   END DO
   nVarCount = nVarCount + 2
 
-  DEALLOCATE(AdaptMPF%OptimalMPF)
   DEALLOCATE(AdaptMPF%ScaleFactorAdapt)
+#if USE_MPI
+CALL UNLOCK_AND_FREE(OptimalMPF_Shared_Win)
+#endif
+ADEALLOCATE(OptimalMPF_Shared)
+
 END IF
 
 END SUBROUTINE DSMC_output_calc

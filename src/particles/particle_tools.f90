@@ -551,9 +551,11 @@ REAL FUNCTION CalcVarWeightMPF(Pos, iSpec, iElem, iPart)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: VarWeighting, AdaptMPF
+USE MOD_DSMC_Vars               
 USE MOD_Particle_Vars           ,ONLY: PEM
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -568,11 +570,12 @@ INTEGER, OPTIONAL,INTENT(IN)    :: iPart, iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                 :: PosIn, RelPos
 REAL                 :: PosMax, PosMin, MaxWeight, MinWeight
-INTEGER              :: iScale
+INTEGER              :: iScale, CNElemID
 !===================================================================================================================================
 IF (AdaptMPF%UseOptMPF) THEN
   ! determine the adaptive MPF
-  CalcVarWeightMPF = AdaptMPF%OptimalMPF(iElem)
+  CNElemID = GetCNElemID(iElem)
+  CalcVarWeightMPF = OptimalMPF_Shared(CNElemID)
 
 ELSE ! regular routine with variable weights
   ! Linear scaling in all possible directions

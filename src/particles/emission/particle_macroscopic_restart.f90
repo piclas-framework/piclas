@@ -37,7 +37,7 @@ SUBROUTINE MacroRestart_InsertParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, VarWeighting, DSMC, AdaptMPF
+USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, VarWeighting, DSMC
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
@@ -264,7 +264,6 @@ INTEGER, INTENT(IN)             :: iPart, iSpec, iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: GlobalElemID, CNElemID
 !===================================================================================================================================
 
 ! 1) Set particle velocity from macroscopic bulk velocity and translational temperature in the cell
