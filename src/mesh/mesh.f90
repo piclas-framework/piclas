@@ -232,8 +232,10 @@ PP_nElems=nElems
 Coords=>NodeCoords
 nElemsLoc=nElems
 
-! scale and deform mesh if desired (warning: no mesh output!)
-IF(ABS(meshScale-1.).GT.1e-14) Coords = Coords*meshScale
+! scale and deform mesh only if not already done in ReadMeshNodes()
+IF(.NOT.ReadNodes)THEN
+  IF(ABS(meshScale-1.).GT.1e-14) Coords = Coords*meshScale
+END IF ! .NOT.ReadNodes
 
 IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
   DO iElem=1,nElems

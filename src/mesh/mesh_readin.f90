@@ -657,7 +657,7 @@ ELSE
     NodeCoords(:,0,0,1,:) = NodeCoordsTmp(: , 0       , 0       , NGeoOld , :)
     NodeCoords(:,1,0,1,:) = NodeCoordsTmp(: , NGeoOld , 0       , NGeoOld , :)
     NodeCoords(:,0,1,1,:) = NodeCoordsTmp(: , 0       , NGeoOld , NGeoOld , :)
-    NodeCoords(:,1,1,1,:) = NodeCoordsTmp(: , NGeoOld , NGeoOld , NGeo    , :)
+    NodeCoords(:,1,1,1,:) = NodeCoordsTmp(: , NGeoOld , NGeoOld , NGeoOld , :)
     DEALLOCATE(NodeCoordsTmp)
   END IF ! useCurveds
 #if defined(PARTICLES) && USE_LOADBALANCE
