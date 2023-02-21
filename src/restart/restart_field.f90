@@ -45,7 +45,9 @@ SUBROUTINE FieldRestart()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars                ,ONLY: U_N
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 USE MOD_IO_HDF5
 USE MOD_Restart_Vars           ,ONLY: N_Restart,RestartFile,RestartNullifySolution
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
@@ -88,8 +90,10 @@ USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideI
 ! Non-HDG stuff
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
+#if USE_LOADBALANCE
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
+#endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
 USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 USE MOD_DG_Vars, ONLY: N_DG
@@ -126,7 +130,9 @@ PetscErrorCode                     :: ierr
 #endif
 #else /*USE_HDG*/
 INTEGER                            :: iElem
+#if USE_LOADBALANCE
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
+#endif /*USE_LOADBALANCE*/
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
@@ -138,8 +144,8 @@ INTEGER(KIND=IK)                   :: PMLnVarTmp
 ! Custom data type
 INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
-#endif /*defined(PARTICLES) || !(USE_HDG)*/
 #endif /*USE_LOADBALANCE*/
+#endif /*defined(PARTICLES) || !(USE_HDG)*/
 REAL,ALLOCATABLE                   :: U(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: Uloc(:,:,:,:)
 !===================================================================================================================================

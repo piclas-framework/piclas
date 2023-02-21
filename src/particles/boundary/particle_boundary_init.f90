@@ -65,8 +65,6 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Defin
                               'boundary [$] are to be stored in an additional .h5 file for post-processing analysis [.TRUE.] '//&
                               'or not [.FALSE.].'&
                               , '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage', &
-                                  'Deprecated parameter, do not utilize!', '1.0e20', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseAdaptedWallTemp', &
                                 'Use an adapted wall temperature, calculated if Part-AdaptWallTemp = T, otherwise read-in '//&
                                 'from the restart file','.FALSE.', numberedmulti=.TRUE.)
@@ -194,7 +192,6 @@ INTEGER               :: ALLOCSTAT, dummy_int
 REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
-LOGICAL               :: DeprecatedVoltage
 CHARACTER(LEN=64)     :: dsetname
 LOGICAL               :: StickingCoefficientExists,FoundPartBoundSEE
 INTEGER               :: iInit,iSpec
@@ -250,9 +247,6 @@ ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
 PartBound%SurfaceModel = 0
 ALLOCATE(PartBound%Reactive(         1:nPartBound))
 PartBound%Reactive = .FALSE.
-ALLOCATE(PartBound%Voltage(1:nPartBound))
-PartBound%Voltage = 0.
-DeprecatedVoltage = .FALSE.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
 PartBound%NbrOfSpeciesSwaps = 0
 ALLOCATE(PartBound%UseAdaptedWallTemp(1:nPartBound))
@@ -299,8 +293,6 @@ DO iPartBound=1,nPartBound
   SELECT CASE (TRIM(tmpString))
   CASE('open')
     PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
-    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
-    IF(ABS(PartBound%Voltage(iPartBound)).LT.1e20) DeprecatedVoltage=.TRUE.
   CASE('reflective')
 #if defined(IMPA) || defined(ROS)
     PartMeshHasReflectiveBCs=.TRUE.
@@ -332,8 +324,6 @@ DO iPartBound=1,nPartBound
     END IF
     PartBound%UseAdaptedWallTemp(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseAdaptedWallTemp')
     PartBound%RadiativeEmissivity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RadiativeEmissivity')
-    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
-    IF(ABS(PartBound%Voltage(iPartBound)).LT.1e20) DeprecatedVoltage=.TRUE.
     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
     PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
     IF(PartBound%WallTemp2(iPartBound).GT.0.) THEN
@@ -522,10 +512,6 @@ IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   CALL ReadArray(TRIM(dsetname),2,INT(HSize,IK),0_IK,1,RealArray=StickingCoefficientData)
   CALL CloseDataFile()
 END IF
-
-!-- Sanity check: Deprecated voltage parameter
-IF(DeprecatedVoltage) CALL abort(__STAMP__&
-  ,'Part-Boundary-Voltage is no longer supported. Use corresponding RefState parameter as described in the user guide.')
 
 END SUBROUTINE InitializeVariablesPartBoundary
 

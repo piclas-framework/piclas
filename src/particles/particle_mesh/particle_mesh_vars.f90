@@ -94,6 +94,7 @@ INTEGER,ALLOCPOINT,DIMENSION(:)          :: FIBGMProcs
 ! Shared arrays containing information for complete mesh
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: ElemInfo_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: SideInfo_Shared
+INTEGER,ALLOCATABLE                      :: SideInfo_Shared_tmp(:)
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeInfo_Shared !> Contains the 8 corner nodes of an element (global "unique node IDs")
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: NodeCoords_Shared
 
