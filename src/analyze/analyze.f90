@@ -1455,8 +1455,11 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iBC,iEDCBC,SideID,color
+INTEGER             :: iBC,iEDCBC
+#if USE_MPI
 LOGICAL,ALLOCATABLE :: BConProc(:)
+INTEGER             :: SideID,color
+#endif /*USE_MPI*/
 !===================================================================================================================================
 IF(.NOT.CalcElectricTimeDerivative) RETURN ! Read-in parameter that is set in  InitAnalyze() in analyze.f90
 
@@ -1541,9 +1544,9 @@ DO iEDCBC = 1, EDC%NBoundaries
     END IF
   END IF ! BConProc(iEDCBC)
 END DO ! iEDCBC = 1, EDC%NBoundaries
+DEALLOCATE(BConProc)
 #endif /*USE_MPI*/
 
-DEALLOCATE(BConProc)
 
 END SUBROUTINE InitCalcElectricTimeDerivativeSurface
 #endif /*USE_HDG*/
