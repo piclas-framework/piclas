@@ -398,7 +398,6 @@ ELSE ! normal restart
       UTmp=0.
       CALL ReadArray('DVM_Solution',5,(/9,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Utmp)
       DO iElem=1,nElems
-        print*, Utmp(:,:,:,:,iElem)
         CALL GradDistribution(Utmp(1:8,0,0,0,iElem),U(1:PP_nVar,0,0,0,iElem))
       END DO
       DEALLOCATE(UTmp)
