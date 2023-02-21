@@ -322,6 +322,21 @@ build_hopr:
   rules:
     - if: '$DO_WEEKLY'
 
+build_hopr_in_piclas:
+  tags:
+    - withmodules-concurrent
+  stage: build
+  script:
+    - mkdir -p build_hopr_lib ; cd build_hopr_lib
+    - git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie
+    - python ./reggie/reggie.py ../regressioncheck/WEK_HOPR
+  rules:
+    - if: '$DO_WEEKLY'
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+
 build_no_git:
   tags:
     - withmodules-concurrent

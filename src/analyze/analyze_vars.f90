@@ -89,5 +89,32 @@ END TYPE
 
 TYPE(tBoundaryFieldOutput)   :: BFO
 !===================================================================================================================================
+!-- Electric displacement current
+
+#if USE_MPI
+TYPE tMPIGROUP
+  INTEGER                     :: ID                  !< MPI communicator ID
+  INTEGER                     :: UNICATOR            !< MPI communicator for electric displacement current
+  INTEGER                     :: Request             !<  MPI request for asynchronous communication
+  INTEGER                     :: nProcs              !< number of MPI processes for particles
+  INTEGER                     :: MyRank              !< MyRank of PartMPIVAR%COMM
+  LOGICAL                     :: MPIRoot             !< Root, MPIRank=0
+  INTEGER,ALLOCATABLE         :: GroupToComm(:)      !< list containing the rank in PartMPI%COMM
+  INTEGER,ALLOCATABLE         :: CommToGroup(:)      !< list containing the rank in PartMPI%COMM
+END TYPE
+#endif /*USE_MPI*/
+
+TYPE tEDC
+  REAL,ALLOCATABLE            :: Current(:)          !< Electric displacement current for each (required) BC index
+#if USE_MPI
+  TYPE(tMPIGROUP),ALLOCATABLE :: COMM(:)             !< communicator and ID for parallel execution
+#endif /*USE_MPI*/
+  INTEGER                     :: NBoundaries         !< Total number of boundaries where the electric displacement current is evaluated
+  INTEGER,ALLOCATABLE         :: FieldBoundaries(:)  !< Field-boundary number on which the particles are counted
+  INTEGER,ALLOCATABLE         :: BCIDToEDCBCID(:)    !< Mapping BCID to EDC BCID (1:nPartBound)
+END TYPE
+
+TYPE(tEDC)   :: EDC
+!===================================================================================================================================
 LOGICAL           :: AnalyzeInitIsDone = .FALSE.
 END MODULE MOD_Analyze_Vars

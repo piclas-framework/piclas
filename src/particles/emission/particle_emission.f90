@@ -50,6 +50,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri,SetParticleTimeStep,CalcNbrOfPhotons
 USE MOD_part_emission_tools    ,ONLY: CountNeutralizationParticles
+USE MOD_PICDepo_Tools          ,ONLY: DepositPhotonSEEHoles
 USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_PhotoIonization
 USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
@@ -324,6 +325,9 @@ DO i=1,nSpecies
     CALL SetParticleVelocity(i,iInit,NbrOfParticle)
     CALL SetParticleChargeAndMass(i,NbrOfParticle)
     IF (usevMPF) CALL SetParticleMPF(i,iInit,NbrOfParticle)
+    ! Check if photon SEE is to be considered in the surface charging
+    IF(StringBeginsWith(Species(i)%Init(iInit)%SpaceIC,'photon_SEE').AND.(NbrOfParticle.GT.0)) CALL DepositPhotonSEEHoles(&
+        Species(i)%Init(iInit)%PartBCIndex,NbrOfParticle)
     IF (UseVarTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
     ! define molecule stuff
     IF (useDSMC.AND.(CollisMode.GT.1)) THEN

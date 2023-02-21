@@ -604,13 +604,18 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-USE MOD_TimeDisc_Vars ,ONLY: iStage
+USE MOD_TimeDisc_Vars   ,ONLY: iStage
 #endif
 #if (USE_HDG && (PP_nVar==1))
-USE MOD_TimeDisc_Vars ,ONLY: dt,dt_Min
-USE MOD_Equation_Vars ,ONLY: E,Et
-USE MOD_Globals_Vars  ,ONLY: eps0
-USE MOD_Analyze_Vars  ,ONLY: CalcElectricTimeDerivative
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+USE MOD_TimeDisc_Vars   ,ONLY: iStage,nRKStages
+#endif
+USE MOD_TimeDisc_Vars   ,ONLY: dt,dt_Min
+USE MOD_Equation_Vars   ,ONLY: E,Et
+USE MOD_Globals_Vars    ,ONLY: eps0
+USE MOD_Analyze_Vars    ,ONLY: CalcElectricTimeDerivative
+USE MOD_Analyze_Vars    ,ONLY: FieldAnalyzeStep
+USE MOD_Dielectric_vars ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps
 #endif /*(USE_HDG && (PP_nVar==1))*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -628,18 +633,29 @@ REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 #if defined(PARTICLES)
 LOGICAL :: ForceCGSolverIteration_loc
 #endif /*defined(PARTICLES)*/
+#if (USE_HDG && (PP_nVar==1))
+INTEGER           :: iDir,iElem
+#endif /*(USE_HDG && (PP_nVar==1))*/
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(4))
 #endif /*EXTRAE*/
 
-! Calculate temporal derivate of E in last iteration before Analyze_dt is reached: Store E^n here
+! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Store E^n here
 #if (USE_HDG && (PP_nVar==1))
-IF(CalcElectricTimeDerivative)THEN
-  IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
-    Et(:,:,:,:,:) = E(:,:,:,:,:)
-  END IF
-END IF ! CalcElectricTimeDerivative
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+  IF (iStage.EQ.1) THEN
+#endif
+  IF(CalcElectricTimeDerivative)THEN
+    ! iter is incremented after this function and then checked in analyze routine with iter+1
+    IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(iter+1,FieldAnalyzeStep).EQ.0))THEN
+      ! Store old E-field
+      Et(:,:,:,:,:) = E(:,:,:,:,:)
+    END IF
+  END IF ! CalcElectricTimeDerivative
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+END IF
+#endif
 #endif /*(USE_HDG && (PP_nVar==1))*/
 
 ! Check whether the solver should be skipped in this iteration
@@ -673,13 +689,32 @@ ELSE
 END IF
 #endif /*defined(PARTICLES)*/
 
-! Calculate temporal derivate of E in last iteration before Analyze_dt is reached: Store E^n+1 here and calculate the derivative
+! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Use E^n+1 here and calculate the derivative dD/dt
 #if (USE_HDG && (PP_nVar==1))
-IF(CalcElectricTimeDerivative)THEN
-  IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
-    Et(:,:,:,:,:) = eps0*(E(:,:,:,:,:)-Et(:,:,:,:,:)) / dt
-  END IF
-END IF ! CalcElectricTimeDerivative
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+IF (iStage.EQ.nRKStages) THEN
+#endif
+  IF(CalcElectricTimeDerivative)THEN
+    ! iter is incremented after this function and then checked in analyze routine with iter+1
+    IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(iter+1,FieldAnalyzeStep).EQ.0))THEN
+      IF(DoDielectric)THEN
+        DO iElem=1,PP_nElems
+          IF(isDielectricElem(iElem)) THEN
+            DO iDir = 1, 3
+              Et(iDir,:,:,:,iElem) = DielectricEps(:,:,:,ElemToDielectric(iElem))*eps0*(E(iDir,:,:,:,iElem)-Et(iDir,:,:,:,iElem)) / dt
+            END DO ! iDir = 1, 3
+          ELSE
+            Et(:,:,:,:,iElem) = eps0*(E(:,:,:,:,iElem)-Et(:,:,:,:,iElem)) / dt
+          END IF ! isDielectricElem(iElem)
+        END DO ! iElem=1,PP_nElems
+      ELSE
+        Et(:,:,:,:,:) = eps0*(E(:,:,:,:,:)-Et(:,:,:,:,:)) / dt
+      END IF ! DoDielectric
+    END IF
+  END IF ! CalcElectricTimeDerivative
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+END IF
+#endif
 #endif /*(USE_HDG && (PP_nVar==1))*/
 
 #ifdef EXTRAE
