@@ -586,6 +586,7 @@ REAL                                 :: RanNum, RadiusPOI,rot_alpha_POIold,Alpha
 REAL                                 :: RadiusInterPlane(1:2)
 INTEGER                              :: iPartBound,k,l,m,NewPartID,NewPartNumber,iNewPart
 REAL                                 :: DeletOrCloneProb,VibEnergy,RotEnergy,ElecEnergy
+REAL                                 :: VecAngle
 !===================================================================================================================================
 
 #ifdef CODE_ANALYZE
@@ -710,9 +711,18 @@ ASSOCIATE(rot_alpha => RanNum*PartBound%RotPeriodicAngle(PartBound%AssociatedPla
 
 ! (3) Change velocity accordingly
 ! (3.a) calc alpha between POI_old and PartBound%NormalizedRadiusDir
-  rot_alpha_POIold = ACOS( (LastPartPos_old(l) * PartBound%NormalizedRadiusDir(1,PartBound%AssociatedPlane(iPartBound))   &
-                         +  LastPartPos_old(m) * PartBound%NormalizedRadiusDir(2,PartBound%AssociatedPlane(iPartBound)) ) &
-                         /RadiusPOI )
+  VecAngle = (LastPartPos_old(l) * PartBound%NormalizedRadiusDir(1,PartBound%AssociatedPlane(iPartBound))   &
+           +  LastPartPos_old(m) * PartBound%NormalizedRadiusDir(2,PartBound%AssociatedPlane(iPartBound)) ) &
+           / RadiusPOI
+  IF(ABS(VecAngle) - 1.0.LE. 1.0E-6) THEN
+    IF(VecAngle.GT.0.0) THEN
+      rot_alpha_POIold = 0.0
+    ELSE
+      rot_alpha_POIold = ACOS(-1.0)  ! PI()
+    END IF
+  ELSE
+    rot_alpha_POIold = ACOS( VecAngle )
+  END IF
 ! (3.b) calc difference between alpha to POI_old and rot_alpha to get the rotating angle from
 !       POI_old to POI_new (including sign)
   AlphaDelta = rot_alpha_POIold - ABS(rot_alpha)
