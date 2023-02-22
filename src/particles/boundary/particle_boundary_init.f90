@@ -109,8 +109,6 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-RotAxis'  &
                                 , 'Definition of rotation axis, only major axis: x=1,y=2,z=3.' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicAngle' , 'Angle and Direction of rotation periodicity, either + or - '//&
                                 'Note: Rotation direction based on right-hand rule!', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicMin' , 'Minimum coordinate at rotational axis for this segment', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicMax' , 'Maximum coordinate at rotational axis for this segment', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-AssociatedPlane'  &
                                 , 'Coressponding intermediate planes in case of multi rot peri BCs' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(      'Part-Boundary[$]-RotAxisPosition'  &
@@ -172,7 +170,8 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOut
 USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, nNonUniqueGlobalSides
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo
 USE MOD_HDF5_input             ,ONLY: OpenDataFile, ReadArray, DatasetExists, GetDataSize, nDims, HSize, CloseDataFile
@@ -191,9 +190,9 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs
+INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs, ElemID, iSide
 INTEGER               :: ALLOCSTAT, dummy_int
-REAL                  :: omegaTemp, RotFreq
+REAL                  :: omegaTemp, RotFreq, Pmax, Pmin
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
 CHARACTER(LEN=64)     :: dsetname
@@ -242,9 +241,9 @@ PartBound%RotAxisPosition = 0
 ALLOCATE(PartBound%RotPeriodicAngle(  1:nPartBound))
 PartBound%RotPeriodicAngle = 0
 ALLOCATE(PartBound%RotPeriodicMin(  1:nPartBound))
-PartBound%RotPeriodicMin = -HUGE(1.)
+PartBound%RotPeriodicMin = HUGE(1.)
 ALLOCATE(PartBound%RotPeriodicMax(  1:nPartBound))
-PartBound%RotPeriodicMax = HUGE(1.)
+PartBound%RotPeriodicMax = -HUGE(1.)
 ALLOCATE(PartBound%AssociatedPlane(  1:nPartBound))
 PartBound%AssociatedPlane = -1
 ALLOCATE(PartBound%AngleRatioOfInterPlanes(  1:nPartBound))
@@ -449,25 +448,6 @@ IF(DoBoundaryParticleOutputHDF5.OR.FoundPartBoundSEE) CALL InitializeVariablesSp
 
 AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
-IF(GEO%RotPeriodicBC) THEN
-  GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')
-! Check whether two corresponding RotPeriodic BCs are always set
-  IF(MOD(nRotPeriodicBCs,2).NE.0) THEN
-    CALL abort(__STAMP__,'ERROR: Uneven number of rot_periodic BCs. Check whether two corresponding RotPeriodic BCs are set!')
-  ELSE IF(nRotPeriodicBCs.NE.2) THEN
-    DO iPartBound=1,nPartBound
-      WRITE(UNIT=hilf,FMT='(I0)') iPartBound
-      IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC) THEN
-        PartBound%RotPeriodicMin(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicMin')
-        PartBound%RotPeriodicMax(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicMax')
-        IF(PartBound%RotPeriodicMin(iPartBound).GE.PartBound%RotPeriodicMax(iPartBound)) THEN
-          CALL abort(__STAMP__,'ERROR: Minimum coordinate at rotational axis is higher than maximum coordinate at rotational axis')
-        END IF
-      END IF
-    END DO
-  END IF
-END IF
-
 ! Surface particle output to .h5
 IF(DoBoundaryParticleOutputHDF5)THEN
   ! This array is not de-allocated during load balance as it is only written to .h5 during WriteStateToHDF5()
@@ -504,6 +484,39 @@ END DO
 DO iBC = 1,nBCs
   IF (PartBound%MapToPartBC(iBC).EQ.-10) CALL abort(__STAMP__,' PartBound%MapToPartBC for Boundary is not set. iBC: :',iBC)
 END DO
+
+IF(GEO%RotPeriodicBC) THEN
+  GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')
+! Check whether two corresponding RotPeriodic BCs are always set
+  IF(MOD(nRotPeriodicBCs,2).NE.0) THEN
+    CALL abort(__STAMP__,'ERROR: Uneven number of rot_periodic BCs. Check whether two corresponding RotPeriodic BCs are set!')
+  ELSE IF(nRotPeriodicBCs.NE.2) THEN
+    ! Loop over all sides
+    DO iSide = 1,nNonUniqueGlobalSides
+      ! Ignore non-BC sides
+      IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+      iPartBound = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))
+      ! Consider only rotationally periodic BC sides
+      IF (PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC)THEN
+        ElemID = SideInfo_Shared(SIDE_ELEMID,iSide)
+        ! Get the minimum and maximum coordinate of the ELEMENT, assumes that its perpendicular to the BCs (ie. non-BC sides are not above it)
+        Pmax = MAXVAL(NodeCoords_Shared(GEO%RotPeriodicAxi,ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+1:ElemInfo_Shared(ELEM_LASTNODEIND,ElemID)))
+        Pmin = MINVAL(NodeCoords_Shared(GEO%RotPeriodicAxi,ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+1:ElemInfo_Shared(ELEM_LASTNODEIND,ElemID)))
+        PartBound%RotPeriodicMax(iPartBound) = MAX(Pmax,PartBound%RotPeriodicMax(iPartBound))
+        PartBound%RotPeriodicMin(iPartBound) = MIN(Pmin,PartBound%RotPeriodicMin(iPartBound))
+      END IF
+    END DO
+
+    DO iPartBound=1,nPartBound
+      WRITE(UNIT=hilf,FMT='(I0)') iPartBound
+      IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC) THEN
+        IF(PartBound%RotPeriodicMin(iPartBound).GE.PartBound%RotPeriodicMax(iPartBound)) THEN
+          CALL abort(__STAMP__,'ERROR: Minimum coordinate at rotational axis is higher than maximum coordinate at rotational axis')
+        END IF
+      END IF
+    END DO
+  END IF
+END IF
 
 !-- Floating Potential
 ALLOCATE(BCdata_auxSF(1:nPartBound))
