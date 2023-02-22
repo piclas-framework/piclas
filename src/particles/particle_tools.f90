@@ -83,9 +83,9 @@ SUBROUTINE UpdateNextFreePosition(WithOutMPIParts)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars            ,ONLY: useDSMC,CollInf
-USE MOD_Particle_Vars        ,ONLY: PDM,PEM,PartSpecies,doParticleMerge,vMPF_SpecNumElem
-USE MOD_Particle_Vars        ,ONLY: PartState,VarTimeStep,usevMPF
-USE MOD_Particle_VarTimeStep ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Vars        ,ONLY: PDM,PEM,PartSpecies
+USE MOD_Particle_Vars        ,ONLY: PartState,PartTimeStep,usevMPF,UseVarTimeStep
+USE MOD_Particle_TimeStep    ,ONLY: GetParticleTimeStep
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers   ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -113,7 +113,7 @@ CALL LBStartTime(tLBStart)
 
 IF(PDM%maxParticleNumber.EQ.0) RETURN
 
-IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
+IF (useDSMC.OR.usevMPF) THEN
   PEM%pNumber(:) = 0
 END IF
 
@@ -132,9 +132,7 @@ IF(usevMPF)THEN
   END IF ! PDM%ParticleVecLengthOld.GT.SIZE(PDM%ParticleInside)
 END IF ! usevMPF
 
-IF (doParticleMerge) vMPF_SpecNumElem = 0
-
-IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
+IF (useDSMC.OR.usevMPF) THEN
   DO i = 1,PDM%ParticleVecLengthOld
     IF (.NOT.PDM%ParticleInside(i)) THEN
       IF (CollInf%ProhibitDoubleColl) CollInf%OldCollPartner(i) = 0
@@ -160,11 +158,7 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
         PEM%pEnd(   ElemID)   = i
         PEM%pNumber(ElemID)   = PEM%pNumber(ElemID) + 1
         PDM%ParticleVecLength = i
-
-        IF (VarTimeStep%UseVariableTimeStep) &
-          VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),ElemID)
-
-        IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
+        IF(UseVarTimeStep) PartTimeStep(i) = GetParticleTimeStep(PartState(1,i),PartState(2,i),ElemID)
       END IF
 #endif
     ELSE
@@ -181,11 +175,7 @@ IF (useDSMC.OR.doParticleMerge.OR.usevMPF) THEN
       PEM%pEnd(   ElemID)   = i
       PEM%pNumber(ElemID)   = PEM%pNumber(ElemID) + 1
       PDM%ParticleVecLength = i
-
-      IF (VarTimeStep%UseVariableTimeStep) &
-        VarTimeStep%ParticleTimeStep(i) = CalcVarTimeStep(PartState(1,i),PartState(2,i),ElemID)
-
-      IF(doParticleMerge) vMPF_SpecNumElem(ElemID,PartSpecies(i)) = vMPF_SpecNumElem(ElemID,PartSpecies(i)) + 1
+      IF(UseVarTimeStep) PartTimeStep(i) = GetParticleTimeStep(PartState(1,i),PartState(2,i),ElemID)
     END IF
   END DO
 ! no DSMC
@@ -488,7 +478,7 @@ PPURE REAL FUNCTION GetParticleWeight(iPart)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
-USE MOD_Particle_Vars           ,ONLY: usevMPF, VarTimeStep, PartMPF
+USE MOD_Particle_Vars           ,ONLY: usevMPF, UseVarTimeStep, PartTimeStep, PartMPF
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -497,13 +487,13 @@ INTEGER, INTENT(IN)             :: iPart
 !===================================================================================================================================
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-  IF (VarTimeStep%UseVariableTimeStep) THEN
-    GetParticleWeight = PartMPF(iPart) * VarTimeStep%ParticleTimeStep(iPart)
+  IF (UseVarTimeStep) THEN
+    GetParticleWeight = PartMPF(iPart) * PartTimeStep(iPart)
   ELSE
     GetParticleWeight = PartMPF(iPart)
   END IF
-ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
-  GetParticleWeight = VarTimeStep%ParticleTimeStep(iPart)
+ELSE IF (UseVarTimeStep) THEN
+  GetParticleWeight = PartTimeStep(iPart)
 ELSE
   GetParticleWeight = 1.
 END IF
@@ -1215,10 +1205,10 @@ SUBROUTINE InitializeParticleMaxwell(iPart,iSpec,iElem,Mode,iInit)
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
-USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, VarTimeStep, PartMPF, Species
+USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, UseVarTimeStep, PartTimeStep, PartMPF, Species
 USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC, RadialWeighting, AmbipolElecVelo
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_Particle_Emission_Vars  ,ONLY: EmissionDistributionDim
 !USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcEElec_particle, CalcEVib_particle, CalcERot_particle
 !USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
@@ -1260,7 +1250,7 @@ CASE(2) ! Emission distribution (equidistant data from .h5 file)
   ! Sanity check
   hilf=' is not implemented in InitializeParticleMaxwell() in combination with EmissionDistribution yet!'
   IF(DSMC%DoAmbipolarDiff) CALL abort(__STAMP__,'DSMC%DoAmbipolarDiff=T'//TRIM(hilf))
-  IF(VarTimeStep%UseVariableTimeStep) CALL abort(__STAMP__,'VarTimeStep%UseVariableTimeStep=T'//TRIM(hilf))
+  IF(UseVarTimeStep) CALL abort(__STAMP__,'UseVarTimeStep=T'//TRIM(hilf))
   IF(RadialWeighting%DoRadialWeighting) CALL abort(__STAMP__,'RadialWeighting%DoRadialWeighting=T'//TRIM(hilf))
   ! Check dimensionality of data
   SELECT CASE(EmissionDistributionDim)
@@ -1313,9 +1303,9 @@ PEM%GlobalElemID(iPart) = iElem+offSetElem
 PEM%LastGlobalElemID(iPart) = iElem+offSetElem
 PDM%ParticleInside(iPart) = .TRUE.
 
-! 4) Set particle weights (if required)
-IF (VarTimeStep%UseVariableTimeStep) THEN
-  VarTimeStep%ParticleTimeStep(iPart) = CalcVarTimeStep(PartState(1,iPart),PartState(2,iPart),iElem)
+! 4) Set particle time step and weights (if required)
+IF (UseVarTimeStep) THEN
+  PartTimeStep(iPart) = GetParticleTimeStep(PartState(1,iPart),PartState(2,iPart),iElem)
 END IF
 IF (RadialWeighting%DoRadialWeighting) THEN
   PartMPF(iPart) = CalcRadWeightMPF(PartState(2,iPart),iSpec,iPart)

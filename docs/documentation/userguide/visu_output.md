@@ -39,25 +39,36 @@ The following table summarizes the available fields in connection with Poisson's
 solver to be active) that can be stored to the state file (`*_State_*.h5`) file at every `Analyze_dt` as well as at the start and
 end of the simulation
 
-|         **Option**         | **Default** |                                        **Description**                                       |
-|         :--------:         | :---------: |                                          :---------:                                         |
-|      PIC-OutputSource      |      F      |                             charge $\rho$ and current density $j$                            |
-| CalcElectricTimeDerivative |      F      | time derivative $\frac{\partial D}{\partial t}=\varepsilon_{0}\frac{\partial E}{\partial t}$ |
+|         **Option**         | **Default** |                                                 **Description**                                                 |   Poisson  |   Maxwell  |
+|         :--------:         | :---------: | :-------------------------------------------------------------------------------------------------------------: | :--------: | :--------: |
+|      PIC-OutputSource      |      F      |                                      charge $\rho$ and current density $j$                                      |     yes    |     yes    |
+| CalcElectricTimeDerivative |      F      |   time derivative $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$   |     yes    |     no     |
+|     CalcPotentialEnergy    |      F      |                                      potential field energy of the EM field                                     |     yes    |     yes    |
 
-When running a PIC simulation, the particle-grid deposited properties, such as charge and current densities (in each direction `x,
+**Charge and current density**: When running a PIC simulation, the particle-grid deposited properties, such as charge and current densities (in each direction `x,
 y,`and `z`) can be output by enabling
 
     PIC-OutputSource = T
 
 that stores the data in the same format as the solution polynomial of degree $N$, i.e., $(N+1)^{3}$ data points for each cell.
 
-The temporal change of the electric displacement field $\frac{\partial D}{\partial t}=\varepsilon_{0}\frac{\partial E}{\partial t}$
+**Displacement current:** The temporal change of the electric displacement field $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$
 can be stored for Poisson's equation (`PICLAS_EQNSYSNAME=poisson`) by setting
 
     CalcElectricTimeDerivative = T
 
 Again, the data in the same format as the solution polynomial of degree $N$, i.e., $(N+1)^{3}$ data points for each cell in the
 container `DG_TimeDerivative` in the `*_State_*.h5` file and can be converted to `.vtk` format with `piclas2vtk`.
+Furthermore, the integrated displacement current that traverses each field boundary (except periodic BCs) can be analyzed over time
+and is written to FieldAnalyze.csv, for details see Section {ref}`sec:integral-field-variables`.
+
+**Potential field energy:** The global energy that is stored within the electric and the magnetic field can be analyzed over time by
+setting
+
+    CalcPotentialEnergy = T
+
+and is written to FieldAnalyze.csv, for details see Section {ref}`sec:integral-field-variables`.
+
 
 ### Element-polynomial field properties
 In general, the data is the same format as the solution polynomial of degree $N$, i.e., $(N+1)^{3}$ data points for each cell in the
@@ -338,8 +349,83 @@ impact angle of $0^{\circ}$), number of real particle impacts over the sampling 
 per area per second.
 
 ## Integral Variables
+This analysis measures integral values from the field- and/or particle-solver data over time and writes different .csv files.
 
-WIP, PartAnalyze/FieldAnalyze
+(sec:integral-field-variables)=
+### Field Variables
+The output of properties regarding Maxwell's or Poisson's field solver are written to *FieldAnalyze.csv*.
+If this analysis is not required in each time step, the parameter `Field-AnalyzeStep` (default is 1) can be set to an integer
+greater or equal 1.
+
+|         **Option**         | **Default** |                                                 **Description**                                                 |   Poisson  |   Maxwell  |
+|         :--------:         | :---------: | :-------------------------------------------------------------------------------------------------------------: | :--------: | :--------: |
+| CalcElectricTimeDerivative |      F      |   time derivative $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$   |     yes    |     no     |
+|     CalcPotentialEnergy    |      F      |                                      potential field energy of the EM field                                     |     yes    |     yes    |
+
+
+**Displacement current:** The temporal change of the electric displacement field $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$
+can be stored for Poisson's equation (`PICLAS_EQNSYSNAME=poisson`) by setting
+
+    CalcElectricTimeDerivative = T
+
+The integrated displacement current that traverses each field boundary (except periodic BCs) can be analyzed over time
+and is written to FieldAnalyze.csv for each boundary separately, e.g. "007-ElecDisplCurrent-001-BC_left".
+The electric displacement current is also considered when the total electric current on specific surfaces is calculated, for details
+see BoundaryParticleOutput (BPO) in Section {ref}`sec:integral-surface-variables`.
+
+**Potential field energy:** The global energy that is stored within the electric and the magnetic field can be analyzed over time
+by setting
+
+    CalcPotentialEnergy = T
+
+and is written to FieldAnalyze.csv, e.g. "002-E-El" and "003-E-Mag" (magnetic energy is only calculated for Maxwell's equations').
+Additionally, but only when solving Maxwell's equations, the energy stored in the divergence correction fields "004-E-phi" and
+"005-E-psi" as well as the total potential energy "006-E-pot", respectively, can be analyzed.
+
+### Particle Variables
+**WIP**
+
+(sec:integral-surface-variables)=
+### Surface Variables
+
+The output for different measurements involving particles and surfaces is written to *SurfaceAnalyze.csv*.
+If this analysis is not required in each time step, the parameter `Surface-AnalyzeStep` (default is 1) can be set to an integer
+greater or equal 1. Some values are sampled only during one time step and others are accumulated over the number of time steps
+defined by `Surface-AnalyzeStep`.
+
+|           Parameter          |                                   Parameter                                  |
+| ---------------------------- | ---------------------------------------------------------------------------- |
+|       `CalcElectronSEE`      |  Secondary electron emission current for each `Part-Boundary` with SEE model |
+| `CalcBoundaryParticleOutput` |    Particle flux for each user-defined `Part-Boundary` and `Part-Species`    |
+
+**Secondary Electron Emission**
+When `CalcElectronSEE=T` is activated, the secondary electron emission current (on all surfaces where such a model is used) is
+calculated and written to *SurfaceAnalyze.csv*. Note that all secondary electrons between two outputs are accumulated and divided by
+the time difference between these outputs. Hence, the averaging time can be adjusted using `Surface-AnalyzeStep`.
+The output in the .csv file will be similar to this example: `012-ElectricCurrentSEE-BC_WALL`
+
+**BoundaryParticleOutput (BPO):** The flux of particles crossing boundaries where they are removed can be calculated by setting
+`CalcBoundaryParticleOutput = T`. Additionally, the boundaries and species IDs must be supplied for which the output is to be
+created. This is done by setting
+
+    CalcBoundaryParticleOutput = T        ! Activate the analysis
+    BPO-NPartBoundaries        = 2        ! Nbr of particle boundaries where the flux and current are measured
+    BPO-PartBoundaries         = (/4,8/)  ! Only measure the flux and current on Part-Boundary4 and Part-Boundary8
+    BPO-NSpecies               = 2        ! Nbr of species that are considered for Part-Boundary4 and Part-Boundary8
+    BPO-Species                = (/2,3/)  ! Species IDs which should be included
+
+where the number of boundaries and species as well as the corresponding IDs are defined. The other boundaries and species IDs will
+be ignored. Note that this feature is currently only implemented for boundaries of type `Part-BoundaryX-Condition = open` and
+`Part-BoundaryX-Condition = reflective`. The reflective BC must also use either species swap via `Part-BoundaryX-NbrOfSpeciesSwaps`
+or a secondary electron emission surface model via `Part-BoundaryX-SurfaceModel`.
+The output in the .csv file will be similar to this example: `004-Flux-Spec-002-BC_CATHODE`
+Additionally, the total electric current will be calculated if any species that is selected via `BPO-Species` carries a charge
+unequal to zero.
+Note that only species defined via `BPO-Species` will be considered in the calculation of the total electric current.
+Furthermore, the secondary electron emission current is automatically added to the total electric current if
+`CalcBoundaryParticleOutput = T`.
+If the electric displacement current is calculated, it also will be added to the total current, if `CalcElectricTimeDerivative = T`.
+The output of the total electric current in the .csv file will be similar to this example: `008-TotalElectricCurrent-BC_ANODE`
 
 ## Dynamic Mode Decomposition
 The dynamic mode decomposition is an algorithm that divides a temporal series into a set of modes which are associated with a

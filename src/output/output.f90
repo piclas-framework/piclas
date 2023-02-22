@@ -164,7 +164,7 @@ END SUBROUTINE InitOutput
 !==================================================================================================================================
 !> Displays the actual status of the simulation
 !==================================================================================================================================
-SUBROUTINE PrintStatusLine(t,dt,tStart,tEnd)
+SUBROUTINE PrintStatusLine(t,dt,tStart,tEnd,mode)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! description
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -178,22 +178,33 @@ USE MOD_TimeDisc_Vars,ONLY: time_start
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-REAL,INTENT(IN) :: t      !< current simulation time
-REAL,INTENT(IN) :: dt     !< current time step
-REAL,INTENT(IN) :: tStart !< start time of simulation
-REAL,INTENT(IN) :: tEnd   !< end time of simulation
+REAL,INTENT(IN)    :: t      ! < current simulation time
+REAL,INTENT(IN)    :: dt     ! < current time step
+REAL,INTENT(IN)    :: tStart ! < start time of simulation
+REAL,INTENT(IN)    :: tEnd   ! < end time of simulation
+INTEGER,INTENT(IN) :: mode   ! < mode: 1: only print when doPrintStatusLine=T, 2: print during dt_analyze
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL    :: percent,time_remaining,mins,secs,hours,days
+REAL               :: percent,time_remaining,mins,secs,hours,days
+CHARACTER(LEN=60)  :: hilf
 !==================================================================================================================================
 
-IF(.NOT.doPrintStatusLine) RETURN
+IF(mode.EQ.1)THEN
+  IF(.NOT.doPrintStatusLine) RETURN
+  hilf = ACHAR(13) ! ACHAR(13) is carriage return
+ELSEIF(mode.EQ.2)THEn
+  IF(doPrintStatusLine) RETURN
+  IF(ALMOSTEQUALRELATIVE(t,tEnd,1e-5)) RETURN
+  hilf = ACHAR(10) ! ACHAR(10) is Line feed (newline)
+ELSE
+  CALL abort(__STAMP__,'wrong mode = ',IntInfoOpt=mode)
+END IF ! mode.EQ.1
 
 IF(MPIroot)THEN
 #ifdef INTEL
   OPEN(UNIT_stdOut,CARRIAGECONTROL='fortran')
 #endif
-  percent = (t-tStart) / (tend-tStart)
+  percent = (t-tStart) / (tEnd-tStart)
   CALL CPU_TIME(time_remaining)
   time_remaining = time_remaining - time_start
   IF (percent.GT.0.0) time_remaining = time_remaining/percent - time_remaining
@@ -209,13 +220,11 @@ IF(MPIroot)THEN
 #if USE_COFFEE
   WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A3,F6.2,A3,A1)',ADVANCE='NO') &
       '  Time = ', t,'  dt = ', dt, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
-      REPEAT('☕',CEILING(percent/2)),REPEAT(' ',INT((100-percent)/2)),'| [',percent,'%] ',&
-      ACHAR(13) ! ACHAR(13) is carriage return
+      REPEAT('☕',CEILING(percent/2)),REPEAT(' ',INT((100-percent)/2)),'| [',percent,'%] ', TRIM(hilf)
 #else
   WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A1,A,A3,F6.2,A3,A1)',ADVANCE='NO') &
       '  Time = ', t,'  dt = ', dt, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
-      REPEAT('=',MAX(CEILING(percent/2)-1,0)),'>',REPEAT(' ',INT((100-percent)/2)),'| [',percent,'%] ',&
-      ACHAR(13) ! ACHAR(13) is carriage return
+      REPEAT('=',MAX(CEILING(percent/2)-1,0)),'>',REPEAT(' ',INT((100-percent)/2)),'| [',percent,'%] ', TRIM(hilf)
 #endif /*USE_COFFEE*/
 #ifdef INTEL
   CLOSE(UNIT_stdOut)

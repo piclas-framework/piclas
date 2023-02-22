@@ -432,7 +432,7 @@ SUBROUTINE WriteHDF5Header(FileType_in,File_ID)
 ! Subroutine to write a distinct file header to each HDF5 file
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals_Vars ,ONLY: ProgramName,FileVersion,ProjectName,PiclasVersionStr
+USE MOD_Globals_Vars ,ONLY: ProgramName,FileVersionReal,FileVersionInt,ProjectName,PiclasVersionStr
 USE MOD_Globals_Vars ,ONLY: MajorVersion,MinorVersion,PatchVersion
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -459,10 +459,11 @@ tmp255=TRIM(FileType_in)
 CALL WriteAttributeToHDF5(File_ID,'File_Type'   ,1,StrScalar=(/tmp255/))
 tmp255=TRIM(ProjectName)
 CALL WriteAttributeToHDF5(File_ID,'Project_Name',1,StrScalar=(/tmp255/))
-CALL WriteAttributeToHDF5(File_ID,'File_Version',1,RealScalar=FileVersion)
+CALL WriteAttributeToHDF5(File_ID,'File_Version',1,RealScalar=FileVersionReal)
 WRITE(UNIT=PiclasVersionStr,FMT='(I0,A1,I0,A1,I0)') MajorVersion,".",MinorVersion,".",PatchVersion
 tmp255=TRIM(PiclasVersionStr)
 CALL WriteAttributeToHDF5(File_ID,'Piclas_Version',1,StrScalar=(/tmp255/))
+CALL WriteAttributeToHDF5(File_ID,'Piclas_VersionInt',1,IntegerScalar=FileVersionInt)
 END SUBROUTINE WriteHDF5Header
 
 
@@ -500,8 +501,26 @@ INTEGER(HSIZE_T)               :: Dimsf(Rank),OffsetHDF(Rank),nValMax(Rank)
 INTEGER(SIZE_T)                :: SizeSet=255
 LOGICAL                        :: chunky
 TYPE(C_PTR)                    :: buf
+#if !defined(INTKIND8)
+INTEGER(KIND=8)                :: Nbr8
+INTEGER                        :: irank
+#endif /*!defined(INTKIND8)*/
 !===================================================================================================================================
 LOGWRITE(*,'(A,I1.1,A,A,A)')' WRITE ',Rank,'D ARRAY "',TRIM(DataSetName),'" TO HDF5 FILE...'
+
+#if !defined(INTKIND8)
+! Sanity check: Determine the total number of elements that are written to .h5 vs. maximum of INT4
+IF(MPIRoot)THEN
+  Nbr8 = 1
+  DO irank = 1, rank
+    Nbr8 = Nbr8 * INT(nValGlobal(irank),8)
+  END DO ! i = 1, rank
+  IF(Nbr8.GT.INT(HUGE(1_4),8))THEN
+    WRITE (UNIT_stdOut,'(A,I0,A,I0,A1)',ADVANCE='NO') "WARNING: Number of entries in "//TRIM(DataSetName)//" ",Nbr8,&
+        " is larger than ",HUGE(1_4)," "
+  END IF ! Nbr8.GT.INT(HUGE(1_4),9)
+END IF ! MPIRoot
+#endif /*!defined(INTKIND8)*/
 
 ! specify chunk size if desired
 nValMax=nValGlobal
@@ -514,10 +533,7 @@ IF(PRESENT(chunkSize))THEN
 END IF
 ! make array extendable in case you want to append something
 IF(PRESENT(resizeDim))THEN
-  IF(.NOT.PRESENT(chunkSize))&
-    CALL abort(&
-    __STAMP__&
-    ,'Chunk size has to be specified when using resizable arrays.')
+  IF(.NOT.PRESENT(chunkSize)) CALL abort(__STAMP__,'Chunk size has to be specified when using resizable arrays.')
   nValMax = MERGE(H5S_UNLIMITED_F,nValMax,resizeDim)
 END IF
 

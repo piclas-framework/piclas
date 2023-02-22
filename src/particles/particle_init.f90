@@ -151,9 +151,8 @@ CALL prms%CreateIntOption(      'IMDnSpecies'                 , 'Count of IMD sp
 CALL prms%CreateStringOption(   'IMDInputFile'                , 'Laser data file name containing '//&
                                                                 'PartState(1:6) ' &
                                                               , 'no file found')
-CALL prms%SetSection("VMPF")
-
-! vmpf stuff
+! Variable particle weighting factor
+CALL prms%SetSection("vMPF")
 CALL prms%CreateLogicalOption(  'Part-vMPF'                   , 'Flag to use variable Macro Particle Factor.'    , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-BGGasSplit'             , 'Flag to use variable vMPF splitting for BGGas.' , '.FALSE.')
 CALL prms%CreateIntOption(      'Part-Species[$]-vMPFMergeThreshold', 'Particle number threshold for merge routines' //&
@@ -161,24 +160,6 @@ CALL prms%CreateIntOption(      'Part-Species[$]-vMPFMergeThreshold', 'Particle 
 CALL prms%CreateIntOption(      'Part-Species[$]-vMPFSplitThreshold', 'Particle number threshold for split routines' //&
                                                                       'per cell and species.', '0',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-vMPFSplitLimit'         , 'Do not split particles below this MPF threshold', '1.0')
-CALL prms%CreateLogicalOption(  'Part-vMPFPartMerge'          , 'DEPRECATED: DELETE THIS\nEnable Particle Merge routines.', '.FALSE.')
-! CALL prms%CreateIntOption(      'Part-vMPFMergePolOrder'      , 'TODO-DEFINE-PARAMETER\n'//&
-!                                                                 'Polynomial degree for vMPF particle merge.'&
-!                                                               , '2')
-! CALL prms%CreateIntOption(      'Part-vMPFCellSplitOrder'     , 'TODO-DEFINE-PARAMETER\n'//&
-!                                                                 'Order for cell splitting of variable MPF'&
-!                                                               , '15')
-! CALL prms%CreateIntOption(      'Part-vMPFMergeParticleTarget', 'TODO-DEFINE-PARAMETER\n'//&
-!                                                                 'Count of particles wanted after merge.', '0')
-! CALL prms%CreateIntOption(      'Part-vMPFSplitParticleTarget', 'TODO-DEFINE-PARAMETER\n'//&
-!                                                                 'Number of particles wanted after split.','0')
-! CALL prms%CreateIntOption(      'Part-vMPFMergeParticleIter'  , 'TODO-DEFINE-PARAMETER\n'//&
-!                                                                 'Number of iterations between particle '//&
-!                                                                 'merges.', '100')
-! CALL prms%CreateStringOption(   'Part-vMPFvelocityDistribution','TODO-DEFINE-PARAMETER\n'//&
-!                                                                 'Velocity distribution for variable '//&
-!                                                                 'MPF.' , 'OVDR')
-! CALL prms%CreateLogicalOption(  'Part-vMPFrelativistic'              , 'TODO-DEFINE-PARAMETER', '.FALSE.')
 
 
 ! Output of macroscopic values
@@ -414,7 +395,7 @@ USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesInits
-USE MOD_Particle_Boundary_Init ,ONLY: InitializeVariablesPartBoundary, InitializeVariablesAuxBC
+USE MOD_Particle_Boundary_Init ,ONLY: InitializeVariablesPartBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 USE MOD_PICInit                ,ONLY: InitPIC
@@ -468,9 +449,6 @@ CALL InitializeVariablesSpeciesInits()
 ! Which Lorentz boost method should be used?
 CALL InitPartRHS()
 CALL InitializeVariablesPartBoundary()
-
-!-- AuxBCs
-CALL InitializeVariablesAuxBC()
 
 !-- Get PIC deposition (skip DSMC, FP-Flow and BGS-Flow related timediscs)
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
@@ -628,7 +606,6 @@ IF (useDSMC) THEN
            PEM%pNumber(1:nElems)                        , &
            PEM%pEnd(1:nElems)                           , &
            PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT)
-           !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
 
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
@@ -638,7 +615,6 @@ __STAMP__&
 END IF
 IF (useDSMC) THEN
   ALLOCATE(PDM%PartInit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-           !PDM%nextUsedPosition(1:PDM%maxParticleNumber)
   IF (ALLOCSTAT.NE.0) THEN
     CALL abort(&
 __STAMP__&
@@ -733,7 +709,7 @@ END SUBROUTINE InitializeVariablesVirtualCellMerge
 
 SUBROUTINE InitializeVariablesVarTimeStep()
 !===================================================================================================================================
-! Initialize the variables first
+! Initialize the variables for the variable time step (per particle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -741,7 +717,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_Particle_VarTimeStep    ,ONLY: VarTimeStep_CalcElemFacs
+USE MOD_Particle_TimeStep       ,ONLY: VarTimeStep_CalcElemFacs
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -752,14 +728,12 @@ USE MOD_Particle_VarTimeStep    ,ONLY: VarTimeStep_CalcElemFacs
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! ------- Variable Time Step Initialization (parts requiring completed particle_init and readMesh)
-IF(VarTimeStep%UseVariableTimeStep) THEN
+IF(UseVarTimeStep) THEN
   ! Initializing the particle time step array used during calculation for the distribution (after maxParticleNumber was read-in)
-  ALLOCATE(VarTimeStep%ParticleTimeStep(1:PDM%maxParticleNumber))
-  VarTimeStep%ParticleTimeStep = 1.
+  ALLOCATE(PartTimeStep(1:PDM%maxParticleNumber))
+  PartTimeStep = 1.
   IF(TrackingMethod.NE.TRIATRACKING) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'ERROR: Variable time step is only supported with TrackingMethod = triatracking')
+    CALL abort(__STAMP__,'ERROR: Variable time step is only supported with TrackingMethod = triatracking')
   END IF
   IF(VarTimeStep%UseLinearScaling) THEN
     IF(Symmetry%Order.LE.2) THEN
@@ -772,9 +746,6 @@ IF(VarTimeStep%UseVariableTimeStep) THEN
     END IF
   END IF
   IF(VarTimeStep%UseDistribution) THEN
-    ! ! Apply a min-mean filter combo if the distribution was adapted
-    ! ! (is performed here to have the element neighbours already defined)
-    ! IF(VarTimeStep%AdaptDistribution) CALL VarTimeStep_SmoothDistribution()
     ! Disable AdaptDistribution to avoid adapting during a load balance restart
     IF(VarTimeStep%AdaptDistribution) VarTimeStep%AdaptDistribution = .FALSE.
   END IF
@@ -929,7 +900,6 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_Part_MPFtools          ,ONLY: DefinePolyVec, DefineSplitVec
 USE MOD_Particle_Emission_Init ,ONLY: InitializeEmissionSpecificMPF
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -973,25 +943,6 @@ IF (usevMPF) THEN
   ! --- Emission-specific MPF
   CAll InitializeEmissionSpecificMPF()
 
-  ! --- Old vMPF stuff
-  enableParticleMerge = GETLOGICAL('Part-vMPFPartMerge','.FALSE.')
-  IF (enableParticleMerge) THEN
-    vMPFMergePolyOrder = GETINT('Part-vMPFMergePolOrder','2')
-    vMPFMergeCellSplitOrder = GETINT('Part-vMPFCellSplitOrder','15')
-    vMPFMergeParticleTarget = GETINT('Part-vMPFMergeParticleTarget','0')
-    IF (vMPFMergeParticleTarget.EQ.0) WRITE(*,*) 'vMPFMergeParticleTarget equals zero: no merging is performed!'
-    vMPFSplitParticleTarget = GETINT('Part-vMPFSplitParticleTarget','0')
-    IF (vMPFSplitParticleTarget.EQ.0) WRITE(*,*) 'vMPFSplitParticleTarget equals zero: no split is performed!'
-    vMPFMergeParticleIter = GETINT('Part-vMPFMergeParticleIter','100')
-    vMPF_velocityDistribution = TRIM(GETSTR('Part-vMPFvelocityDistribution','OVDR'))
-    vMPF_relativistic = GETLOGICAL('Part-vMPFrelativistic','.FALSE.')
-    IF(vMPF_relativistic.AND.(vMPF_velocityDistribution.EQ.'MBDR')) THEN
-      CALL abort(__STAMP__,'Relativistic handling of vMPF is not possible using MBDR velocity distribution!')
-    END IF
-    ALLOCATE(vMPF_SpecNumElem(1:nElems,1:nSpecies))
-    CALL DefinePolyVec(vMPFMergePolyOrder)
-    CALL DefineSplitVec(vMPFMergeCellSplitOrder)
-  END IF
   ALLOCATE(PartMPF(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 END IF
@@ -1446,7 +1397,6 @@ SDEALLOCATE(PDM%dtFracPush)
 SDEALLOCATE(PDM%IsNewPart)
 SDEALLOCATE(vMPFMergeThreshold)
 SDEALLOCATE(vMPFSplitThreshold)
-SDEALLOCATE(vMPF_SpecNumElem)
 SDEALLOCATE(CellEelec_vMPF)
 SDEALLOCATE(CellEvib_vMPF)
 SDEALLOCATE(PartMPF)
@@ -1455,7 +1405,7 @@ SDEALLOCATE(Species)
 SDEALLOCATE(SpecReset)
 SDEALLOCATE(IMDSpeciesID)
 SDEALLOCATE(IMDSpeciesCharge)
-SDEALLOCATE(VarTimeStep%ParticleTimeStep)
+SDEALLOCATE(PartTimeStep)
 SDEALLOCATE(VarTimeStep%ElemFac)
 SDEALLOCATE(VarTimeStep%ElemWeight)
 SDEALLOCATE(PEM%GlobalElemID)

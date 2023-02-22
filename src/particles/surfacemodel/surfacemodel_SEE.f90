@@ -366,8 +366,9 @@ IF(ProductSpecNbr.GT.0)THEN
         ! MPF of produced species
         MPF = Species(ProductSpec(2))%MacroParticleFactor
       END IF
-      ! Consider the number of produced electrons ProductSpecNbr
-      SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) + MPF*ProductSpecNbr
+      ! Consider the number of produced electrons ProductSpecNbr and their charge q=Species(ProductSpec(2))%ChargeIC
+      ! Note that the negative value of the charge -q is used below
+      SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) - MPF*ProductSpecNbr*Species(ProductSpec(2))%ChargeIC
     END ASSOCIATE
   END IF ! CalcElectronSEE
 END IF ! ProductSpecNbr.GT.0

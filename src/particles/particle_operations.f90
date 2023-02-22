@@ -37,14 +37,14 @@ SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,Velocity,RotEnergy,VibEnergy,Ele
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef, VarTimeStep, usevMPF, PartMPF
-USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef, Species, usevMPF, PartMPF
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -63,8 +63,10 @@ INTEGER :: newParticleID
 !===================================================================================================================================
 
 ! Do not increase the ParticleVecLength for Phantom particles!
-PDM%ParticleVecLength = PDM%ParticleVecLength + 1 ! Increase particle vector length
-newParticleID = PDM%ParticleVecLength
+PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
+newParticleID = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
+IF(newParticleID.GT.PDM%ParticleVecLength) PDM%ParticleVecLength = PDM%ParticleVecLength + 1
+
 IF(newParticleID.GT.PDM%MaxParticleNumber)THEN
   CALL abort(__STAMP__,'CreateParticle: newParticleID.GT.PDM%MaxParticleNumber. '//&
                        'Increase Part-maxParticleNumber or use more processors. newParticleID=',IntInfoOpt=newParticleID)
@@ -99,9 +101,8 @@ PEM%GlobalElemID(newParticleID)     = GlobElemID
 PEM%LastGlobalElemID(newParticleID) = GlobElemID
 
 ! Set particle time step and weight (if required)
-IF (VarTimeStep%UseVariableTimeStep) THEN
-  VarTimeStep%ParticleTimeStep(newParticleID) = &
-    CalcVarTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%LocalElemID(newParticleID))
+IF (UseVarTimeStep) THEN
+  PartTimeStep(newParticleID) = GetParticleTimeStep(PartState(1,newParticleID),PartState(2,newParticleID),PEM%LocalElemID(newParticleID))
 END IF
 
 ! Set new particle MPF
