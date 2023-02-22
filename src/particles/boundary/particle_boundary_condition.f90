@@ -447,7 +447,7 @@ USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, InterPlaneSideMapping
 USE MOD_TImeDisc_Vars          ,ONLY: dt,RKdtFrac
-USE MOD_Particle_Vars          ,ONLY: VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_part_tools             ,ONLY: StoreLostParticleProperties
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles, TrackInfo, CountNbrOfLostParts,DisplayLostParticles
@@ -560,8 +560,8 @@ IF(DoCreateParticles) THEN
 ! (1.b.III) IF(DeletOrCloneProb.EQ.1.0) -> continue normally
 END IF
 
-IF (VarTimeStep%UseVariableTimeStep) THEN
-  adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
+IF (UseVarTimeStep) THEN
+  adaptTimeStep = PartTimeStep(PartID)
 ELSE
   adaptTimeStep = 1.0
 END IF
