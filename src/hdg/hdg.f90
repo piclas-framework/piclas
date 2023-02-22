@@ -606,19 +606,29 @@ END SUBROUTINE InitZeroPotential
 !>     contribute to the total floating boundary condition. If yes, then this processor is part of the communicator
 !> 2.) Create Mapping from floating boundary condition BC index to field BC index
 !> 3.) Create Mapping from field BC index to floating boundary condition BC index
-!> 4.) Check if field BC is on current proc (or MPI root)
+!> 4.0) Check if field BC is on current proc (or MPI root)
+!> 4.1.) Each processor loops over all of his elements
+!> 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
 !> 5.) Create MPI sub-communicators
 !===================================================================================================================================
 SUBROUTINE InitFPC()
 ! MODULES
 USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_WORLD
 USE MOD_Preproc
-USE MOD_Mesh_Vars        ,ONLY: nBCs,BoundaryType,nBCSides,BC
-USE MOD_Analyze_Vars     ,ONLY: DoFieldAnalyze
-USE MOD_HDG_Vars         ,ONLY: FPC
+USE MOD_Mesh_Vars          ,ONLY: nBCs,BoundaryType,nBCSides,BC
+USE MOD_Analyze_Vars       ,ONLY: DoFieldAnalyze
+USE MOD_HDG_Vars           ,ONLY: FPC
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI && defined(PARTICLES)
+USE MOD_Globals            ,ONLY: ElementOnProc
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems,SideInfo_Shared
+USE MOD_MPI_Vars           ,ONLY: offsetElemMPI
+USE MOD_MPI_Shared_Vars    ,ONLY: ComputeNodeRootRank
+USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps
+USE MOD_Mesh_Vars          ,ONLY: nElems, offsetElem
+#endif /*USE_MPI && defined(PARTICLES)*/
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -629,6 +639,12 @@ INTEGER             :: iBC
 #if USE_MPI
 INTEGER             :: SideID,color
 LOGICAL,ALLOCATABLE :: BConProc(:)
+#if defined(PARTICLES)
+INTEGER             :: iElem
+REAL                :: iElemCenter(1:3),iGlobElemCenter(1:3)
+REAL                :: iElemRadius,iGlobElemRadius
+INTEGER             :: iGlobElem,BCIndex,iSide
+#endif /*defined(PARTICLES)*/
 #endif /*USE_MPI*/
 CHARACTER(5)        :: hilf,hilf2
 !===================================================================================================================================
@@ -695,20 +711,80 @@ FPC%ChargeProc = 0.
 !END DO ! iEDCBC = 1, EDC%NBoundaries
 
 #if USE_MPI
-! 4.) Check if field BC is on current proc (or MPI root)
+! 4.0) Check if field BC is on current proc (or MPI root)
 ALLOCATE(BConProc(FPC%nUniqueFPCBounds))
 BConProc = .FALSE.
 IF(MPIRoot)THEN
   BConProc = .TRUE.
 ELSE
+
+  ! Check local sides
   DO SideID=1,nBCSides
     iBC    = BC(SideID)
     BCType = BoundaryType(iBC,BC_TYPE)
     IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
-    BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
+    BCState = BoundaryType(iBC,BC_STATE) ! BCState corresponds to iFPC
     iUniqueFPCBC = FPC%Group(BCState,2)
     BConProc(iUniqueFPCBC) = .TRUE.
   END DO ! SideID=1,nBCSides
+
+#if defined(PARTICLES)
+  ! Particles might impact the FPC on another proc/node. Therefore check if a particle can travel from a local element to an
+  ! element that has at least one side, which is an FPC
+  ! 4.1.) Each processor loops over all of his elements
+  DO iElem = 1+offsetElem, nElems+offsetElem
+
+    iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
+                          SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
+                          SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+    iElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
+                              BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
+                              BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+
+    ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
+    ! Loop ALL compute-node elements (use global element index)
+    iGlobElemLoop: DO iGlobElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
+
+      ! Skip my own elements as they have already been tested when the local sides are checked
+      IF(ElementOnProc(iGlobElem)) CYCLE iGlobElemLoop
+
+      ! Check if one of the six sides of the compute-node element is a FPC
+      ! Note that iSide is in the range of 1:nNonUniqueGlobalSides
+      DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+        ! Get BC index of the global side index
+        BCIndex = SideInfo_Shared(SIDE_BCID,iSide)
+        ! Only check BC sides with BC index > 0
+        IF(BCIndex.GT.0)THEN
+          ! Get boundary type
+          BCType = BoundaryType(BCIndex,BC_TYPE)
+          ! Check if FPC has been found
+          IF(BCType.EQ.20)THEN
+
+            ! Check if the BC can be reached
+            iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
+                                      SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
+                                      SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
+            iGlobElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
+                                          BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
+                                          BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
+
+            ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
+            IF (VECNORM( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
+              BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iFPC
+              IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
+              iUniqueFPCBC = FPC%Group(BCState,2)
+              ! Flag the i-th FPC
+              BConProc(iUniqueFPCBC) = .TRUE.
+              ! Go to next element
+              CYCLE iGlobElemLoop
+            END IF ! VECNORM( ...
+          END IF ! BCType.EQ.20
+        END IF ! BCIndex.GT.0
+      END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+    END DO iGlobElemLoop ! iGlobElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
+  END DO ! iElem = 1, nElems
+#endif /*defined(PARTICLES)*/
+
 END IF ! MPIRoot
 
 ! 5.) Create MPI sub-communicators
@@ -1032,17 +1108,16 @@ DO iVar = 1, PP_nVar
     DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
       ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR)
         IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
-          ASSOCIATE( Charge => FPC%Charge(iUniqueFPCBC), ChargeProc => FPC%ChargeProc(iUniqueFPCBC) )
-            CALL MPI_ALLREDUCE(Charge,ChargeProc, 1, MPI_DOUBLE_PRECISION, MPI_SUM, COMM, IERROR)
-          END ASSOCIATE
+          CALL MPI_ALLREDUCE(MPI_IN_PLACE, FPC%ChargeProc(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, MPI_SUM, COMM, IERROR)
+          FPC%Charge(iUniqueFPCBC) = FPC%Charge(iUniqueFPCBC) + FPC%ChargeProc(iUniqueFPCBC)
         END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
       END ASSOCIATE
     END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
 #else
-  FPC%Charge = FPC%Charge + FPC%ChargeProc
+    FPC%Charge = FPC%Charge + FPC%ChargeProc
 #endif /*USE_MPI*/
-  FPC%ChargeProc = 0.
-  ! Apply charge to RHS
+    FPC%ChargeProc = 0.
+    ! Apply charge to RHS
 
   END IF ! FPC%nFPCBounds.GT.0
 #endif /*defined(PARTICLES)*/
