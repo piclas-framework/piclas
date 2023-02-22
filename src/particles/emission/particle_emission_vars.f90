@@ -25,23 +25,6 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 
-TYPE tExcludeRegion
-  CHARACTER(40)                          :: SpaceIC                          ! specifying Keyword for Particle Space condition
-  REAL                                   :: RadiusIC                         ! Radius for IC circle
-  REAL                                   :: Radius2IC                        ! Radius2 for IC cylinder (ring)
-  REAL                                   :: NormalIC(3)                      ! Normal / Orientation of cylinder (altern. to BV1/2)
-  REAL                                   :: BasePointIC(3)                   ! base point for IC cuboid and IC sphere
-  REAL                                   :: BaseVector1IC(3)                 ! first base vector for IC cuboid
-  REAL                                   :: BaseVector2IC(3)                 ! second base vector for IC cuboid
-  REAL                                   :: CuboidHeightIC                   ! third measure of cuboid
-                                                                             ! (set 0 for flat rectangle),
-                                                                             ! negative value = opposite direction
-  REAL                                   :: CylinderHeightIC                 ! third measure of cylinder
-                                                                             ! (set 0 for flat circle),
-                                                                             ! negative value = opposite direction
-  REAL                                   :: ExcludeBV_lenghts(2)                    ! lenghts of BV1/2 (to be calculated)
-END TYPE
-
 TYPE tInit                                                                   ! Particle Data for each init emission for each species
   !Specific Emission/Init values
   CHARACTER(40)                      :: SpaceIC                          ! specifying Keyword for Particle Space condition
@@ -81,8 +64,6 @@ TYPE tInit                                                                   ! P
   INTEGER(KIND=8)                    :: InsertedParticle                 ! Number of all already inserted Particles
   INTEGER(KIND=8)                    :: InsertedParticleSurplus          ! accumulated "negative" number of inserted Particles
   INTEGER(KIND=4)                    :: InsertedParticleMisMatch=0       ! error in number of inserted particles of last step
-  INTEGER                            :: NumberOfExcludeRegions           ! Number of different regions to be excluded
-  TYPE(tExcludeRegion), ALLOCATABLE  :: ExcludeRegion(:)
 #if USE_MPI
   INTEGER                            :: InitComm                         ! number of init-communicator
 #endif /*USE_MPI*/

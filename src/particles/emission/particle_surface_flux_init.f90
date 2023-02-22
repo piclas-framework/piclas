@@ -133,6 +133,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, TriaSurfaceFlux
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
+USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 USE MOD_DSMC_Vars              ,ONLY: AmbiPolarSFMapping, DSMC, useDSMC
@@ -160,7 +161,7 @@ INTEGER               :: iCopy1, iCopy2, iCopy3, MaxSurfacefluxBCs,nDataBC
 REAL                  :: tmp_SubSideDmax(SurfFluxSideSize(1),SurfFluxSideSize(2))
 REAL                  :: tmp_SubSideAreas(SurfFluxSideSize(1),SurfFluxSideSize(2))
 REAL                  :: tmp_BezierControlPoints2D(2,0:NGeo,0:NGeo,SurfFluxSideSize(1),SurfFluxSideSize(2))
-REAL                  :: VFR_total
+REAL                  :: VFR_total, RestartTimeVar
 TYPE(tBCdata_auxSFRadWeight),ALLOCATABLE          :: BCdata_auxSFTemp(:)
 #if USE_MPI
 REAL                  :: totalAreaSF_global
@@ -292,8 +293,14 @@ SDEALLOCATE(BCdata_auxSFTemp)
 ! Setting variables required after a restart
 IF(DoRestart) THEN
   DO iSpec=1,nSpecies
+    ! Species-specific time step
+    IF(VarTimeStep%UseSpeciesSpecific) THEN
+      RestartTimeVar = RestartTime * Species(iSpec)%TimeStepFactor
+    ELSE
+      RestartTimeVar = RestartTime
+    END IF
     DO iSF = 1, Species(iSpec)%NumberOfInits
-      Species(iSpec)%Init(iSF)%InsertedParticle = INT(Species(iSpec)%Init(iSF)%ParticleNumber * RestartTime,8)
+      Species(iSpec)%Init(iSF)%InsertedParticle = INT(Species(iSpec)%Init(iSF)%ParticleNumber * RestartTimeVar,8)
     END DO
     DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
       IF (Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) THEN
@@ -301,7 +308,8 @@ IF(DoRestart) THEN
       ELSE
         VFR_total = Species(iSpec)%Surfaceflux(iSF)%VFR_total               !proc local total
       END IF
-      Species(iSpec)%Surfaceflux(iSF)%InsertedParticle = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity * RestartTime &
+
+      Species(iSpec)%Surfaceflux(iSF)%InsertedParticle = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity * RestartTimeVar &
         / Species(iSpec)%MacroParticleFactor * VFR_total,8)
     END DO
   END DO
@@ -374,7 +382,7 @@ SUBROUTINE ReadInAndPrepareSurfaceFlux(MaxSurfacefluxBCs, nDataBC)
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, VarTimeStep, DoPoissonRounding, DoTimeDepInflow
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, UseVarTimeStep, VarTimeStep, DoPoissonRounding, DoTimeDepInflow
 USE MOD_Particle_Vars          ,ONLY: Symmetry, UseCircularInflow
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
@@ -479,6 +487,7 @@ DO iSpec=1,nSpecies
     SF%PartDensity           = GETREAL('Part-Species'//TRIM(hilf2)//'-PartDensity')
     SF%EmissionCurrent       = GETREAL('Part-Species'//TRIM(hilf2)//'-EmissionCurrent')
     SF%Massflow              = GETREAL('Part-Species'//TRIM(hilf2)//'-Massflow')
+    SF%SampledMassflow       = 0.
     ! === Sanity checks & compatibility
     IF(SF%PartDensity.GT.0.) THEN
       IF(SF%EmissionCurrent.GT.0..OR.SF%Massflow.GT.0.) THEN
@@ -543,7 +552,7 @@ DO iSpec=1,nSpecies
       IF(TrackingMethod.EQ.REFMAPPING) THEN
         CALL abort(__STAMP__,'ERROR: Adaptive surface flux boundary conditions are not implemented with RefMapping!')
       END IF
-      IF((Symmetry%Order.LE.2).OR.(VarTimeStep%UseVariableTimeStep.AND..NOT.VarTimeStep%UseDistribution)) THEN
+      IF((Symmetry%Order.LE.2).OR.(UseVarTimeStep.AND..NOT.VarTimeStep%UseDistribution)) THEN
         CALL abort(__STAMP__&
             ,'ERROR: Adaptive surface flux boundary conditions are not implemented with 2D/axisymmetric or variable time step!')
       END IF

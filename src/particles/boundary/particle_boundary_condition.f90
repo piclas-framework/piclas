@@ -28,8 +28,6 @@ PRIVATE
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: GetBoundaryInteraction
-PUBLIC :: GetBoundaryInteractionAuxBC
-!PUBLIC :: PartSwitchElement
 !===================================================================================================================================
 
 CONTAINS
@@ -195,116 +193,6 @@ END ASSOCIATE
 END SUBROUTINE GetBoundaryInteraction
 
 
-SUBROUTINE GetBoundaryInteractionAuxBC(iPart,AuxBCIdx,crossedBC)
-!===================================================================================================================================
-! Computes the post boundary state of a particle that interacts with an auxBC
-!  OpenBC                  = 1
-!  ReflectiveBC            = 2
-!===================================================================================================================================
-! MODULES
-USE MOD_PreProc
-USE MOD_Globals                ,ONLY: abort,UNITVECTOR
-USE MOD_SurfaceModel           ,ONLY: PerfectReflection, DiffuseReflection, SpeciesSwap
-USE MOD_Particle_Vars          ,ONLY: PDM
-USE MOD_Particle_Boundary_Vars ,ONLY: PartAuxBC
-USE MOD_Particle_Boundary_Vars ,ONLY: AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol
-USE MOD_Particle_Vars          ,ONLY: LastPartPos
-USE MOD_part_operations        ,ONLY: RemoveParticle
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                   :: iPart,AuxBCIdx
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL,INTENT(OUT)                  :: crossedBC
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                                 :: RanNum
-REAL                                 :: n_loc(1:3)
-REAL                                 :: intersec(3),r_vec(3),axis(3),cos2inv!,v_2(1:3),v_aux(1:3)
-!===================================================================================================================================
-
-crossedBC    =.FALSE.
-SELECT CASE (TRIM(AuxBCType(AuxBCIdx)))
-CASE ('plane')
-  n_loc = AuxBC_plane(AuxBCMap(AuxBCIdx))%n_vec
-CASE ('cylinder')
-  intersec = LastPartPos(1:3,iPart) + TrackInfo%alpha*TrackInfo%PartTrajectory
-  r_vec = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%r_vec
-  axis  = AuxBC_cylinder(AuxBCMap(AuxBCIdx))%axis
-  n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis) ) )
-  IF (.NOT.AuxBC_cylinder(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
-CASE ('cone')
-  intersec = LastPartPos(1:3,iPart) + TrackInfo%alpha*TrackInfo%PartTrajectory
-  r_vec = AuxBC_cone(AuxBCMap(AuxBCIdx))%r_vec
-  axis  = AuxBC_cone(AuxBCMap(AuxBCIdx))%axis
-  cos2inv = 1./COS(AuxBC_cone(AuxBCMap(AuxBCIdx))%halfangle)**2
-  n_loc = UNITVECTOR( intersec - ( r_vec + axis*DOT_PRODUCT(intersec-r_vec,axis)*cos2inv ) )
-  IF (.NOT.AuxBC_cone(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
-CASE ('parabol')
-  intersec = LastPartPos(1:3,iPart) + TrackInfo%alpha*TrackInfo%PartTrajectory
-  r_vec = AuxBC_parabol(AuxBCMap(AuxBCIdx))%r_vec
-  axis  = AuxBC_parabol(AuxBCMap(AuxBCIdx))%axis
-  n_loc = UNITVECTOR( intersec - ( r_vec + axis*(DOT_PRODUCT(intersec-r_vec,axis)+0.5*AuxBC_parabol(AuxBCMap(AuxBCIdx))%zfac) ) )
-  IF (.NOT.AuxBC_parabol(AuxBCMap(AuxBCIdx))%inwards) n_loc=-n_loc
-CASE DEFAULT
-  CALL abort(__STAMP__,'AuxBC does not exist')
-END SELECT
-IF(DOT_PRODUCT(n_loc,TrackInfo%PartTrajectory).LT.0.)  THEN
-  crossedBC=.FALSE.
-  !RETURN
-  CALL abort(__STAMP__,'Error in GetBoundaryInteractionAuxBC: Particle coming from outside!')
-ELSE IF(DOT_PRODUCT(n_loc,TrackInfo%PartTrajectory).GT.0.)  THEN
-  crossedBC=.TRUE.
-ELSE
-  CALL abort(__STAMP__,'Error in GetBoundaryInteractionAuxBC: n_vec is perpendicular to PartTrajectory for AuxBC',AuxBCIdx)
-END IF
-! Select the corresponding boundary condition and calculate particle treatment
-SELECT CASE(PartAuxBC%TargetBoundCond(AuxBCIdx))
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE(1) !PartAuxBC%OpenBC
-!-----------------------------------------------------------------------------------------------------------------------------------
-  CALL RemoveParticle(iPart)
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE(2) !PartAuxBC%ReflectiveBC)
-!-----------------------------------------------------------------------------------------------------------------------------------
-  !---- swap species?
-!print*,'*********************'
-!print*,AuxBCIdx
-!print*,iPart,alpha,PartState(4:6,iPart)
-!print*,iPart,alpha,LastPartPos(1:3,iPart),PartState(4:6,iPart)
-  IF (PartAuxBC%NbrOfSpeciesSwaps(AuxBCIdx).gt.0) THEN
-#ifndef IMPA
-    CALL SpeciesSwap(PartID=iPart,SideID=-1,AuxBCIdx=AuxBCIdx)
-#else
-    CALL SpeciesSwap(PartID=iPart,SideID=-1)
-#endif /*NOT IMPA*/
-  END IF
-  IF (PDM%ParticleInside(iPart)) THEN ! particle did not Swap to species 0 !deleted particle -> particle swaped to species 0
-    ! simple reflection (previously used wall interaction model, maxwellian scattering)
-      CALL RANDOM_NUMBER(RanNum)
-      IF(RanNum.GE.PartAuxBC%MomentumACC(AuxBCIdx)) THEN
-        ! perfectly reflecting, specular re-emission
-        CALL PerfectReflection(PartID=iPart,SideID=-1,n_loc=n_loc,AuxBCIdx=AuxBCIdx)
-      ELSE
-        CALL DiffuseReflection(PartID=iPart,SideID=-1,n_loc=n_loc,AuxBCIdx=AuxBCIdx)
-      END IF
-  END IF
-!print*,iPart,alpha,LastPartPos(1:3,iPart),PartState(1:3,iPart)
-!print*,iPart,alpha,PartState(4:6,iPart)
-!print*,'*********************'
-!-----------------------------------------------------------------------------------------------------------------------------------
-CASE DEFAULT
-  CALL abort(__STAMP__,' ERROR: AuxBC bound not associated!. (unknown case)',999,999.)
-END SELECT
-
-! compiler warnings
-RETURN
-WRITE(*,*) 'AuxBCIdx', AuxBCIdx
-
-END SUBROUTINE GetBoundaryInteractionAuxBC
 
 
 SUBROUTINE PeriodicBC(PartID,SideID,ElemID)
@@ -399,9 +287,9 @@ USE MOD_Globals
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, RotPeriodicTol
 USE MOD_TImeDisc_Vars          ,ONLY: dt,RKdtFrac
-USE MOD_Particle_Vars          ,ONLY: VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_Particle_Boundary_Vars ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_part_operations        ,ONLY: RemoveParticle
@@ -422,7 +310,7 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: iNeigh, RotSideID, GlobalElemID
-REAL                                 :: adaptTimeStep
+REAL                                 :: dtVar
 LOGICAL                              :: FoundInElem
 REAL                                 :: LastPartPos_old(1:3),Velo_old(1:3), Velo_oldAmbi(1:3)
 !===================================================================================================================================
@@ -437,11 +325,14 @@ IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
 END IF
 #endif /*CODE_ANALYZE*/
 
-IF (VarTimeStep%UseVariableTimeStep) THEN
-  adaptTimeStep = VarTimeStep%ParticleTimeStep(PartID)
+IF (UseVarTimeStep) THEN
+  dtVar = dt*RKdtFrac*PartTimeStep(PartID)
 ELSE
-  adaptTimeStep = 1.0
+  dtVar = dt*RKdtFrac
 END IF
+
+! Species-specific time step
+IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(PartID))%TimeStepFactor
 
 ! set last particle position on face (POI)
 LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
@@ -452,7 +343,7 @@ IF (DSMC%DoAmbipolarDiff) THEN
 END IF
 ! (1) perform the rotational periodic movement and adjust velocity vector
 ASSOCIATE(rot_alpha => PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))), &
-          rot_alpha_delta => PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))) * 0.9999999)
+          rot_alpha_delta => PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))) * RotPeriodicTol)
   SELECT CASE(GEO%RotPeriodicAxi)
     CASE(1) ! x-rotation axis: LastPartPos(1,PartID) = LastPartPos_old(1,PartID)
       LastPartPos(2,PartID) = COS(rot_alpha_delta)*LastPartPos_old(2) - SIN(rot_alpha_delta)*LastPartPos_old(3)
@@ -490,8 +381,8 @@ ASSOCIATE(rot_alpha => PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo
   END SELECT
 END ASSOCIATE
 ! (2) update particle position after periodic BC
-PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory) * dt*RKdtFrac &
-                        * PartState(4:6,PartID) * adaptTimeStep
+PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory) * dtVar &
+                                                    * PartState(4:6,PartID)
 ! compute moved particle || rest of movement
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 TrackInfo%lengthPartTrajectory= VECNORM(TrackInfo%PartTrajectory)

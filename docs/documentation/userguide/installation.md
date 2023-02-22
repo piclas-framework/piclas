@@ -212,11 +212,18 @@ For convenience, you can add these lines to your `.bashrc`.
 (sec:petsc-installation)=
 ### Installing PETSc
 
+The following list contains the **recommended/working library versions** for PETSc and PICLas
+
+| PICLas Version |    3.18   |    3.17   |
+| :------------: | :-------: | :-------: |
+|      3.0.0     |    yes    |    yes    |
+|      2.9.0     |    no     |    yes    |
+
 #### Local machine
 Download PETSc from the git repository
 
 ````
-git clone -b main https://gitlab.com/petsc/petsc.git petsc
+git clone -b release-3.17 https://gitlab.com/petsc/petsc.git petsc
 ````
 
 Configure and install PETSc (MPI and BLAS/LAPACK have to be installed)
@@ -252,16 +259,16 @@ tar xf petsc-<version number>.tar.gz
 
 Load the modules on hawk (note that it was not possible to compile PETSc with mpt/2.23), only OpenMPI due to an MPI variable error
 
-THIS IS OLD:
+Configuration for the old software stack (Attention: THIS IS OLD):
 
 ````
-module load    cmake/3.16.4   aocl/2.1.0    gcc/9.2.0       hdf5/1.10.5    blis/2.1      libflame/2.1    openmpi/4.0.4
+module load  cmake/3.16.4  gcc/9.2.0  hdf5/1.10.5  blis/2.1  openmpi/4.0.4  libflame/2.1  aocl/2.1.0
 ````
 
-THIS IS NEW:
+**Configuration for the new software stack (Attention: THIS IS NEW):**
 
 ````
-module load    cmake/3.15.2                 gcc/10.2.0      hdf5/1.10.5    blis/2.1                      openmpi/4.1.4
+module load  cmake/3.15.2 gcc/10.2.0  hdf5/1.10.5  blis/2.1  openmpi/4.1.4
 ````
 
 Configure PETSc (MPI and BLAS/LAPACK have to be installed), which might fail due to the firewall that is active on hawk and prevents direct internet access.
@@ -282,19 +289,22 @@ and then the configuration can be done on hawk
 cd petsc-3.17.0
 ````
 
-THIS IS OLD:
+**Configuration for the old software stack (Attention: THIS IS OLD):**
 
+Note that gcc/9.2.0 and openmpi/4.0.4 must be loaded
 ````
 ./configure PETSC_ARCH=arch-linux --with-mpi-dir=/opt/hlrs/non-spack/mpi/openmpi/4.0.4-gcc-9.2.0/ --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack
 ````
 
-THIS IS NEW (without downloading fblaslapack):
+**Configuration for the new software stack (Attention: THIS IS NEW without installing fblaslapack):**
+
+Note that gcc/10.2.0 and openmpi/4.1.4 must be loaded
 
 ````
 ./configure PETSC_ARCH=arch-linux --with-mpi-dir=/opt/hlrs/non-spack/rev-009_2022-09-01/mpi/openmpi/4.1.4-gcc-10.2.0/ --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack --with-blas-lib=/sw/hawk-rh8/hlrs/spack/rev-009_2022-09-01/blis/2.1-gcc-10.2.0-g6f3pga5
 ````
 
-THIS IS NEW (with downloading fblaslapack):
+**Configuration for the new software stack (Attention: THIS IS NEW + includes installing fblaslapack):**
 
 ````
 ./configure PETSC_ARCH=arch-linux --with-mpi-dir=/opt/hlrs/non-spack/rev-009_2022-09-01/mpi/openmpi/4.1.4-gcc-10.2.0/ --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack --download-fblaslapack=1
