@@ -263,10 +263,10 @@ INTEGER, INTENT(IN),OPTIONAL  :: XSec_Level
 ! LOCAL VARIABLES
 INTEGER                       :: iQuaMax, MaxElecQuant, iQua, iSpec, iCase
 REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp, CollisionEnergy, ETraRel, TransElec, ElectronicPartition
-REAL                          :: Eold, DistriOld(SpecDSMC(PartSpecies(iPart1))%MaxElecQuant), Etmp, tmpExp, LocRelaxProb
+REAL                          :: Eold, Etmp, tmpExp, LocRelaxProb
+REAL,ALLOCATABLE              :: DistriOld(:)
 !===================================================================================================================================
 iSpec = PartSpecies(iPart1)
-
 SELECT CASE(DSMC%ElectronicModel)
 CASE(1)
   IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
@@ -320,7 +320,7 @@ CASE(2)
     LocRelaxProb = SpecDSMC(iSpec)%ElecRelaxProb
   END IF
   Eold=  PartStateIntEn(3,iPart1)
-  DistriOld(:) = ElectronicDistriPart(iPart1)%DistriFunc(:)
+  DistriOld = ElectronicDistriPart(iPart1)%DistriFunc
   ETraRel = Coll_pData(iPair)%Ec
   IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
     ETraRel = ETraRel / GetParticleWeight(iPart1)
@@ -369,21 +369,25 @@ CASE(2)
       PartStateIntEn(3,iPart1) = PartStateIntEn(3,iPart1) + &
           ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
     END DO
-    IF ((Coll_pData(iPair)%Ec-PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1)).LT.0.0) THEN
-      CALL abort(&
-        __STAMP__&
-        ,'Negative collision energy after electronic excitation relaxation!')
-    END IF
+    IF ((Coll_pData(iPair)%Ec-PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1)).LT.0.0) CALL abort(__STAMP__,&
+        'Negative collision energy after electronic excitation relaxation!')
   END IF
 CASE(3)
-  iCase = CollInf%Coll_Case(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2))
-  IF(XSec_Level.GT.0) THEN
-    ! Set energy according the selected level
-    PartStateIntEn(3,iPart1) = SpecXSec(iCase)%ElecLevel(XSec_Level)%Threshold
+
+  ! Set optional variable
+  IF(PRESENT(XSec_Level))THEN
+    IF(XSec_Level.GT.0) THEN
+      iCase = CollInf%Coll_Case(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2))
+      ! Set energy according the selected level
+      PartStateIntEn(3,iPart1) = SpecXSec(iCase)%ElecLevel(XSec_Level)%Threshold
+    ELSE
+      ! Reset electronic energy to ground state after a chemical reaction (XSec_Level = 0)
+      PartStateIntEn(3,iPart1) = 0.0
+    END IF
   ELSE
-    ! Reset electronic energy to ground state after a chemical reaction (XSec_Level = 0)
-    PartStateIntEn(3,iPart1) = 0.0
-  END IF
+    CALL abort(__STAMP__,'XSec_Level argument not given to ElectronicEnergyExchange()')
+  END IF ! PRESENT(XSec_Level)
+
 CASE DEFAULT
   CALL abort(__STAMP__,'ERROR: Unknown electronic relaxation model: ',IntInfoOpt=DSMC%ElectronicModel)
 END SELECT
