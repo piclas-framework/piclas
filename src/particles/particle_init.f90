@@ -342,7 +342,7 @@ END IF
 IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0).OR.GEO%RotPeriodicBC) THEN
   CALL InitParticleBoundarySampling()
   IF(GEO%RotPeriodicBC) CALL InitParticleBoundaryRotPeriodic()
-  IF(GEO%RotPeriodicBC) CALL InitRotPeriodicInterPlane
+  IF(GEO%RotPeriodicBC) CALL InitRotPeriodicInterPlane()
   CALL InitAdaptiveWallTemp()
 END IF
 

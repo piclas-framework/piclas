@@ -381,8 +381,7 @@ ASSOCIATE(rot_alpha => PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo
   END SELECT
 END ASSOCIATE
 ! (2) update particle position after periodic BC
-PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory) * dtVar &
-                                                    * PartState(4:6,PartID)
+PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory)*dtVar*PartState(4:6,PartID)
 ! compute moved particle || rest of movement
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 TrackInfo%lengthPartTrajectory= VECNORM(TrackInfo%PartTrajectory)
@@ -447,7 +446,7 @@ USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, InterPlaneSideMapping
 USE MOD_TImeDisc_Vars          ,ONLY: dt,RKdtFrac
-USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
 USE MOD_part_tools             ,ONLY: StoreLostParticleProperties
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles, TrackInfo, CountNbrOfLostParts,DisplayLostParticles
@@ -469,8 +468,8 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 LOGICAL,INTENT(IN),OPTIONAL       :: IsInterPlanePart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: iSide, InterSideID, GlobalElemID, NumInterPlaneSides,NewElemID
-REAL                                 :: adaptTimeStep
+INTEGER                              :: iSide, InterSideID, NumInterPlaneSides,NewElemID
+REAL                                 :: dtVar
 LOGICAL                              :: FoundInElem, DoCreateParticles
 REAL                                 :: LastPartPos_old(1:3),Velo_old(1:3), Velo_oldAmbi(1:3)
 REAL                                 :: RanNum, RadiusPOI,rot_alpha_POIold,AlphaDelta
@@ -561,11 +560,15 @@ IF(DoCreateParticles) THEN
 ! (1.b.III) IF(DeletOrCloneProb.EQ.1.0) -> continue normally
 END IF
 
+! Variable time step
 IF (UseVarTimeStep) THEN
-  adaptTimeStep = PartTimeStep(PartID)
+  dtVar = dt*RKdtFrac*PartTimeStep(PartID)
 ELSE
-  adaptTimeStep = 1.0
+  dtVar = dt*RKdtFrac
 END IF
+
+! Species-specific time step
+IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(PartID))%TimeStepFactor
 
 ! (2) Calc POI and calc new random POI on correspondig inter plane with random angle within the periodic segment
 ! (2.a) Calc POI
@@ -629,8 +632,7 @@ ASSOCIATE(rot_alpha => RanNum*PartBound%RotPeriodicAngle(PartBound%AssociatedPla
 END ASSOCIATE
 
 ! (4) Calc particle position after random new POI according new velo and remaining time
-PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory) * dt*RKdtFrac &
-                        * PartState(4:6,PartID) * adaptTimeStep
+PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory)*dtVar*PartState(4:6,PartID)
 ! compute moved particle || rest of movement
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 TrackInfo%lengthPartTrajectory= VECNORM(TrackInfo%PartTrajectory)
