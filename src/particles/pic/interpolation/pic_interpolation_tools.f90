@@ -482,6 +482,7 @@ USE MOD_Globals
 USE MOD_PICInterpolation_Vars ,ONLY: DeltaExternalField,VariableExternalField
 USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldN
 USE MOD_PICInterpolation_Vars ,ONLY: VariableExternalFieldMin,VariableExternalFieldMax
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -493,76 +494,88 @@ REAL                     :: InterpolateVariableExternalField2D(1:3)  !< Bz (magn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                  :: iPos,jPos                                !< index in array (equidistant subdivision assumed)
-REAL                     :: r,delta,f(1:2),mat(2,2),dx(1:2),dy(1:2),vec(1:2)
+REAL                     :: r,delta,f(1:2),mat(2,2),dx(1:2),dy(1:2),vec(1:2),x,y,z
 INTEGER                  :: idx1,idx2,idx3,idx4,i
 !===================================================================================================================================
-ASSOCIATE(&
-      x => Pos(1) ,&
-      y => Pos(2) ,&
-      z => Pos(3)  &
-      )
+
+IF(Symmetry%Axisymmetric) THEN
+  ! 2D axisymmetry requires x as the rotational axis and a positive y
+  ! Particle position has been rotated onto the symmetry plane -> z = 0 and y-coordinate is equal to the radius
+  y = Pos(2)
+  r = Pos(2)
+  z = Pos(1)
+ELSE
+  x = Pos(1)
+  y = Pos(2)
+  z = Pos(3)
   r = SQRT(x*x + y*y)
+END IF
 
-  IF(r.GT.VariableExternalFieldMax(1))THEN
-    InterpolateVariableExternalField2D = 0.
-  ELSEIF(r.LT.VariableExternalFieldMin(1))THEN
-    InterpolateVariableExternalField2D = 0.
-  ELSEIF(z.GT.VariableExternalFieldMax(2))THEN
-    InterpolateVariableExternalField2D = 0.
-  ELSEIF(z.LT.VariableExternalFieldMin(2))THEN
-    InterpolateVariableExternalField2D = 0.
+IF(r.GT.VariableExternalFieldMax(1))THEN
+  InterpolateVariableExternalField2D = 0.
+ELSEIF(r.LT.VariableExternalFieldMin(1))THEN
+  InterpolateVariableExternalField2D = 0.
+ELSEIF(z.GT.VariableExternalFieldMax(2))THEN
+  InterpolateVariableExternalField2D = 0.
+ELSEIF(z.LT.VariableExternalFieldMin(2))THEN
+  InterpolateVariableExternalField2D = 0.
+ELSE
+
+  ! Get index in r and z
+  iPos = INT((r-VariableExternalField(1,1))/DeltaExternalField(1)) + 1 ! dr = DeltaExternalField(1)
+  jPos = INT((z-VariableExternalField(2,1))/DeltaExternalField(2)) + 1 ! dz = DeltaExternalField(2)
+
+  ! Catch problem when r or z are exactly at the upper boundary and INT() does not round to the lower integer (do not add +1 in
+  ! this case)
+  iPos = MIN(iPos, VariableExternalFieldN(2) - 1 )
+  jPos = MIN(jPos, VariableExternalFieldN(1) - 1 )
+
+
+  ! Shift all points by Nz = EmissionDistributionNum(1)
+  ASSOCIATE( Nz => VariableExternalFieldN(1) )
+    ! 1.1
+    idx1 = (iPos-1)*Nz + jPos
+    ! 2.1
+    idx2 = (iPos-1)*Nz + jPos + 1
+    ! 1.2
+    idx3 = iPos*Nz + jPos
+    ! 2.2
+    idx4 = iPos*Nz + jPos + 1
+  END ASSOCIATE
+
+  ! Interpolate
+  delta = DeltaExternalField(1)*DeltaExternalField(2)
+  delta = 1./delta
+
+  dx(1) = VariableExternalField(1,idx4)-r
+  dx(2) = DeltaExternalField(1) - dx(1)
+
+  dy(1) = VariableExternalField(2,idx4)-z
+  dy(2) = DeltaExternalField(2) - dy(1)
+
+  DO i = 1, 2
+    mat(1,1) = VariableExternalField(2+i,idx1)
+    mat(2,1) = VariableExternalField(2+i,idx2)
+    mat(1,2) = VariableExternalField(2+i,idx3)
+    mat(2,2) = VariableExternalField(2+i,idx4)
+
+    vec(1) = dx(1)
+    vec(2) = dx(2)
+    f(i) = delta * DOT_PRODUCT( vec, MATMUL(mat, (/dy(1),dy(2)/) ) )
+  END DO ! i = 1, 2
+
+  ! Transform from Br, Bz to Bx, By, Bz
+  r=1./r
+  IF(Symmetry%Axisymmetric) THEN
+    InterpolateVariableExternalField2D(1) = f(2)
+    InterpolateVariableExternalField2D(2) = f(1)*y*r
+    InterpolateVariableExternalField2D(3) = 0.
   ELSE
-
-    ! Get index in r and z
-    iPos = INT((r-VariableExternalField(1,1))/DeltaExternalField(1)) + 1 ! dr = DeltaExternalField(1)
-    jPos = INT((z-VariableExternalField(2,1))/DeltaExternalField(2)) + 1 ! dz = DeltaExternalField(2)
-
-    ! Catch problem when r or z are exactly at the upper boundary and INT() does not round to the lower integer (do not add +1 in
-    ! this case)
-    iPos = MIN(iPos, VariableExternalFieldN(2) - 1 )
-    jPos = MIN(jPos, VariableExternalFieldN(1) - 1 )
-
-
-    ! Shift all points by Nz = EmissionDistributionNum(1)
-    ASSOCIATE( Nz => VariableExternalFieldN(1) )
-      ! 1.1
-      idx1 = (iPos-1)*Nz + jPos
-      ! 2.1
-      idx2 = (iPos-1)*Nz + jPos + 1
-      ! 1.2
-      idx3 = iPos*Nz + jPos
-      ! 2.2
-      idx4 = iPos*Nz + jPos + 1
-    END ASSOCIATE
-
-    ! Interpolate
-    delta = DeltaExternalField(1)*DeltaExternalField(2)
-    delta = 1./delta
-
-    dx(1) = VariableExternalField(1,idx4)-r
-    dx(2) = DeltaExternalField(1) - dx(1)
-
-    dy(1) = VariableExternalField(2,idx4)-z
-    dy(2) = DeltaExternalField(2) - dy(1)
-
-    DO i = 1, 2
-      mat(1,1) = VariableExternalField(2+i,idx1)
-      mat(2,1) = VariableExternalField(2+i,idx2)
-      mat(1,2) = VariableExternalField(2+i,idx3)
-      mat(2,2) = VariableExternalField(2+i,idx4)
-
-      vec(1) = dx(1)
-      vec(2) = dx(2)
-      f(i) = delta * DOT_PRODUCT( vec, MATMUL(mat, (/dy(1),dy(2)/) ) )
-    END DO ! i = 1, 2
-
-    ! Transform from Br, Bz to Bx, By, Bz
-    r=1./r
     InterpolateVariableExternalField2D(1) = f(1)*x*r
     InterpolateVariableExternalField2D(2) = f(1)*y*r
     InterpolateVariableExternalField2D(3) = f(2)
-  END IF ! r.GT.VariableExternalFieldMax(1)
-END ASSOCIATE
+  END IF
+END IF ! r.GT.VariableExternalFieldMax(1)
 
 END FUNCTION InterpolateVariableExternalField2D
 
