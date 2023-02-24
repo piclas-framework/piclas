@@ -38,7 +38,8 @@ USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Globals                  ,ONLY: abort, CROSS
 USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
 USE MOD_Particle_Vars            ,ONLY: UseRotRefFrame, RotRefFrameOmega
-USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, VarTimeStep, Species, PartSpecies
+USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Species, PartSpecies
+USE MOD_Particle_Vars            ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_Particle_Vars            ,ONLY: UseSplitAndMerge
 USE MOD_DSMC_Vars                ,ONLY: DSMC, CollisMode, AmbipolElecVelo
 USE MOD_DSMC                     ,ONLY: DSMC_main
@@ -93,11 +94,12 @@ CALL LBStartTime(tLBStart)
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     ! Variable time step: getting the right time step for the particle (can be constant across an element)
-    IF (VarTimeStep%UseVariableTimeStep) THEN
-      dtVar = dt * VarTimeStep%ParticleTimeStep(iPart)
+    IF (UseVarTimeStep) THEN
+      dtVar = dt * PartTimeStep(iPart)
     ELSE
       dtVar = dt
     END IF
+    IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(iPart))%TimeStepFactor
     IF (PDM%dtFracPush(iPart)) THEN
       ! Surface flux (dtFracPush): previously inserted particles are pushed a random distance between 0 and v*dt
       !                            LastPartPos and LastElem already set!

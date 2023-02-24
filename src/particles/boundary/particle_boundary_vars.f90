@@ -263,7 +263,6 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: RotACC(:)
   REAL    , ALLOCATABLE                  :: ElecACC(:)
   REAL    , ALLOCATABLE                  :: WallVelo(:,:)
-  REAL    , ALLOCATABLE                  :: Voltage(:)
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
   REAL    , ALLOCATABLE                  :: RotOmega(:,:)                 ! Angular velocity
   REAL    , ALLOCATABLE                  :: RotPeriodicAngle(:)           ! Angle and Direction of rotation
@@ -286,8 +285,9 @@ TYPE tPartBoundary
 !                                                                         ! PartDataBoundary container for writing to .h5 later
 END TYPE
 
-INTEGER                                  :: nPartBound                       ! number of particle boundaries
-TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
+INTEGER                                  :: nPartBound                    ! number of particle boundaries
+TYPE(tPartBoundary)                      :: PartBound                     ! Boundary Data for Particles
+REAL, PARAMETER                          :: RotPeriodicTol = 0.99999      ! Tolerance for rotationally periodic BC
 
 LOGICAL                                  :: AdaptWallTemp
 

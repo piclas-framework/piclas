@@ -97,7 +97,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
 USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_Particle_Vars           ,ONLY: nSpecies,VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: nSpecies,UseVarTimeStep,VarTimeStep
 USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
 USE MOD_Particle_Mesh_Tools     ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea
@@ -424,7 +424,7 @@ SurfSampSize = SAMPWALL_NVARS+nSpecies
 SurfOutputSize = MACROSURF_NVARS
 ! Optional variables (number of sampling and output variables can differ)
 ! Variable time step (required for correct heat flux calculation)
-IF(VarTimeStep%UseVariableTimeStep) THEN
+IF(UseVarTimeStep.OR.VarTimeStep%UseSpeciesSpecific) THEN
   SurfSampSize = SurfSampSize + 1
   SWIVarTimeStep = SurfSampSize
 END IF
@@ -726,8 +726,9 @@ USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorou
 USE MOD_Particle_Boundary_vars     ,ONLY: SurfOutputSize, SWIVarTimeStep, SWIStickingCoefficient
 USE MOD_Particle_Boundary_Vars     ,ONLY: MacroSurfaceVal, MacroSurfaceSpecVal
 USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,VarTimeStep
+USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,UseVarTimeStep,VarTimeStep
 USE MOD_Symmetry_Vars              ,ONLY: Symmetry
+USE MOD_Particle_Vars              ,ONLY: Species
 USE MOD_Restart_Vars               ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
@@ -837,28 +838,30 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       ! --- Default output (force per area, heat flux, simulation particle impact per iteration, boundary index)
       CounterSum = SUM(SampWallState(SAMPWALL_NVARS+1:SAMPWALL_NVARS+nSpecies,p,q,iSurfSide))
 
-      ! Correct the sample time in the case of a cell local time step with the average time step factor for each side
-      IF(VarTimeStep%UseVariableTimeStep .AND. CounterSum.GT.0.0) THEN
-        TimeSampleTemp = TimeSample * SampWallState(SWIVarTimeStep,p,q,iSurfSide) / CounterSum
-      ELSE
-        TimeSampleTemp = TimeSample
-      END IF
+      IF(CounterSum.GT.0.0) THEN
+        ! Correct the sample time in the case of a cell local time step with the average time step factor for each side
+        IF(UseVarTimeStep .OR. VarTimeStep%UseSpeciesSpecific) THEN
+          TimeSampleTemp = TimeSample * SampWallState(SWIVarTimeStep,p,q,iSurfSide) / CounterSum
+        ELSE
+          TimeSampleTemp = TimeSample
+        END IF
 
-      ! Force per area in x,y,z-direction
-      MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWallState(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q,iSurfSide) &
-                                             / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
-      ! Deleting the y/z-component for 1D/2D/axisymmetric simulations
-      IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,iSurfSide) = 0.
-      ! Heat flux (energy difference per second per area -> W/m2)
-      MacroSurfaceVal(4,p,q,OutputCounter) = (SampWallState(SAMPWALL_ETRANSOLD,p,q,iSurfSide)  &
-                                        + SampWallState(SAMPWALL_EROTOLD  ,p,q,iSurfSide)  &
-                                        + SampWallState(SAMPWALL_EVIBOLD  ,p,q,iSurfSide)  &
-                                        + SampWallState(SAMPWALL_EELECOLD ,p,q,iSurfSide)  &
-                                        - SampWallState(SAMPWALL_ETRANSNEW,p,q,iSurfSide)  &
-                                        - SampWallState(SAMPWALL_EROTNEW  ,p,q,iSurfSide)  &
-                                        - SampWallState(SAMPWALL_EVIBNEW  ,p,q,iSurfSide)  &
-                                        - SampWallState(SAMPWALL_EELECNEW ,p,q,iSurfSide)) &
-                                           / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
+        ! Force per area in x,y,z-direction
+        MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWallState(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q,iSurfSide) &
+                                              / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
+        ! Deleting the y/z-component for 1D/2D/axisymmetric simulations
+        IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,iSurfSide) = 0.
+        ! Heat flux (energy difference per second per area -> W/m2)
+        MacroSurfaceVal(4,p,q,OutputCounter) = (SampWallState(SAMPWALL_ETRANSOLD,p,q,iSurfSide)  &
+                                          + SampWallState(SAMPWALL_EROTOLD  ,p,q,iSurfSide)  &
+                                          + SampWallState(SAMPWALL_EVIBOLD  ,p,q,iSurfSide)  &
+                                          + SampWallState(SAMPWALL_EELECOLD ,p,q,iSurfSide)  &
+                                          - SampWallState(SAMPWALL_ETRANSNEW,p,q,iSurfSide)  &
+                                          - SampWallState(SAMPWALL_EROTNEW  ,p,q,iSurfSide)  &
+                                          - SampWallState(SAMPWALL_EVIBNEW  ,p,q,iSurfSide)  &
+                                          - SampWallState(SAMPWALL_EELECNEW ,p,q,iSurfSide)) &
+                                            / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
+      END IF
 
       ! Number of simulation particle impacts per iteration
       MacroSurfaceVal(5,p,q,OutputCounter) = CounterSum / IterNum
@@ -932,6 +935,11 @@ DO iSurfSide = 1,nComputeNodeSurfSides
 
             ! Add number of impacts per second
             idx = idx + 1
+            IF(VarTimeStep%UseSpeciesSpecific) THEN
+              TimeSampleTemp = TimeSample * Species(iSpec)%TimeStepFactor
+            ELSE
+              TimeSampleTemp = TimeSample
+            END IF
             MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
           END IF ! nImpacts.GT.0.
         END IF ! CalcSurfaceImpact

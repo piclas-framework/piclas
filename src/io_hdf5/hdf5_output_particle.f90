@@ -401,7 +401,7 @@ ASSOCIATE (&
   ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
     CALL DistributedWriteArray(FileName                                      , &
-                              DataSetName  = 'PartTimeStep'  , rank = 2      , &
+                              DataSetName  = 'ElemTimeStep'  , rank = 2      , &
                               nValGlobal   = (/nGlobalElems  , 1_IK/)        , &
                               nVal         = (/PP_nElems     , 1_IK/)        , &
                               offset       = (/offsetElem    , 0_IK/)        , &
@@ -417,7 +417,7 @@ ASSOCIATE (&
                         collective  = .FALSE.        , RealArray = PartData)
     ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
-    CALL WriteArrayToHDF5(DataSetName = 'PartTimeStep' , rank=2 , &
+    CALL WriteArrayToHDF5(DataSetName = 'ElemTimeStep' , rank=2 , &
                           nValGlobal  = (/nGlobalElems , 1_IK/) , &
                           nVal        = (/PP_nElems    , 1_IK/) , &
                           offset      = (/offsetElem   , 0_IK/) , &

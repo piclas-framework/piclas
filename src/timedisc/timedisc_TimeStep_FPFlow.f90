@@ -37,7 +37,7 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars          ,ONLY: VarTimeStep
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_DSMC_Vars              ,ONLY: DSMC, CollisMode
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission          ,ONLY: ParticleInserting
@@ -70,8 +70,8 @@ END IF
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
   ! Variable time step: getting the right time step for the particle (can be constant across an element)
-  IF (VarTimeStep%UseVariableTimeStep) THEN
-    dtVar = dt * VarTimeStep%ParticleTimeStep(iPart)
+  IF (UseVarTimeStep) THEN
+    dtVar = dt * PartTimeStep(iPart)
   ELSE
     dtVar = dt
   END IF

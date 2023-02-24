@@ -49,6 +49,7 @@ CALL prms%CreateLogicalOption('Part-Species[$]-Reset'   , 'Flag for resetting sp
 CALL prms%CreateRealOption(   'Part-Species[$]-ChargeIC', 'Particle charge of species [$], multiple of an elementary charge [C]' , '0.'     , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Species[$]-MassIC'  , 'Atomic mass of species [$] [kg]', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Species[$]-MacroParticleFactor' ,'Particle weighting factor: number of simulation particles per real particle for species [$]' , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Part-Species[$]-TimeStepFactor' ,'Species-specific time step factor, multiplied by the ManualTimeStep [$]' , '1.', numberedmulti=.TRUE.)
 #if defined(IMPA)
 CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  , 'Flag if specific particle species is implicit', '.FALSE.', numberedmulti=.TRUE.)
 #endif
@@ -164,6 +165,8 @@ ALLOCATE(SpecReset(1:nSpecies))
 SpecReset=.FALSE.
 UseNeutralization = .FALSE.
 UseEmissionDistribution = .FALSE.
+! Species-specific time step
+VarTimeStep%UseSpeciesSpecific = .FALSE.
 ! Background gas
 BGGas%NumberOfSpecies = 0
 ALLOCATE(BGGas%BackgroundSpecies(nSpecies))
@@ -203,6 +206,18 @@ DO iSpec = 1, nSpecies
         'Different MPFs only allowed when using Part-vMPF=T')
   END IF ! (iSpec.GT.1).AND.UseDSMC.AND.(.NOT.UsevMPF)
   MPFOld = Species(iSpec)%MacroParticleFactor
+  ! Species-specific time step
+  Species(iSpec)%TimeStepFactor              = GETREAL('Part-Species'//TRIM(hilf)//'-TimeStepFactor')
+  IF(Species(iSpec)%TimeStepFactor.NE.1.) THEN
+    VarTimeStep%UseSpeciesSpecific = .TRUE.
+    IF(Species(iSpec)%TimeStepFactor.GT.1.) CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step only allows factors below 1!')
+#if (USE_HDG) && !(PP_TimeDiscMethod==508)
+    CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with Boris-Leapfrog time discretization!')
+#endif /*(USE_HDG)*/
+#if !(USE_HDG) && !(PP_TimeDiscMethod==4)
+    CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with HDG and/or DSMC')
+#endif /*!(USE_HDG) && !(PP_TimeDiscMethod==4)*/
+  END IF
 #if defined(IMPA)
   Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsImplicit')
 #endif
@@ -325,11 +340,15 @@ DO iSpec = 1, nSpecies
       END IF
     END IF
     ! 2D simulation/variable time step only with cell_local and/or surface flux
-    IF(VarTimeStep%UseVariableTimeStep) THEN
-      IF (TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local') THEN
-        CALL CollectiveStop(__STAMP__,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step only possible with'//&
-            'cell_local-SpaceIC and/or surface flux!')
-      END IF
+    IF((Symmetry%Order.EQ.2).OR.UseVarTimeStep.OR.VarTimeStep%UseSpeciesSpecific) THEN
+      SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
+      ! Do nothing
+      CASE('cell_local','background')
+      ! Abort for every other SpaceIC
+      CASE DEFAULT
+        CALL CollectiveStop(__STAMP__,'ERROR: Particle insertion/emission for 2D/axisymmetric or variable time step '//&
+            'only possible with cell_local/background-SpaceIC and/or surface flux!')
+      END SELECT
     END IF
     ! 1D Simulation with cuboid-SpaceIC
     IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cuboid').AND.Symmetry%Order.EQ.1) THEN
@@ -415,8 +434,6 @@ IF(UseEmissionDistribution.AND.(.NOT.DoRestart)) THEN
   EmissionDistributionN   = GETINT('Part-EmissionDistributionN', DefStr)
   CALL ReadUseEmissionDistribution()
 END IF
-!SWRITE (*,*) "BARRIER ="
-!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 END SUBROUTINE InitializeVariablesSpeciesInits
 
@@ -434,7 +451,7 @@ USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF,S
 USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity,SetPartPosAndVeloEmissionDistribution
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetInitElectronVelo
 USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition
-USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, UseVarTimeStep
 USE MOD_Restart_Vars            ,ONLY: DoRestart
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
@@ -479,7 +496,7 @@ DO iSpec = 1,nSpecies
       LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Set particle charge and mass for species ',iSpec,' ... '
       CALL SetParticleChargeAndMass(iSpec,NbrOfParticle)
       IF (usevMPF) CALL SetParticleMPF(iSpec,iInit,NbrOfParticle)
-      IF (VarTimeStep%UseVariableTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
+      IF (UseVarTimeStep) CALL SetParticleTimeStep(NbrOfParticle)
       IF (useDSMC) THEN
         IF (DSMC%DoAmbipolarDiff) CALL AD_SetInitElectronVelo(iSpec,iInit,NbrOfParticle)
         DO iPart = 1, NbrOfParticle

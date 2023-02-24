@@ -115,6 +115,7 @@ REAL    , ALLOCATABLE :: LastPartPos(:,:)                                    ! 1
 !                                                                            ! 2nd index: 1:NParts with 2nd index
 INTEGER , ALLOCATABLE :: PartSpecies(:)                                      ! (1:NParts)
 REAL    , ALLOCATABLE :: PartMPF(:)                                          ! (1:NParts) MacroParticleFactor by variable MPF
+REAL    , ALLOCATABLE :: PartTimeStep(:)                                     ! (1:NParts) Variable time step
 INTEGER               :: PartLorentzType
 CHARACTER(LEN=256)    :: ParticlePushMethod                                  ! Type of PP-Method
 INTEGER               :: nrSeeds                                             ! Number of Seeds for Random Number Generator
@@ -126,6 +127,7 @@ TYPE tSpecies                                                                ! P
   REAL                                   :: ChargeIC                         ! Particle Charge (without MPF)
   REAL                                   :: MassIC                           ! Particle Mass (without MPF)
   REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
+  REAL                                   :: TimeStepFactor                   ! Species-specific time step factor
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
   TYPE(typeSurfaceflux),ALLOCATABLE      :: Surfaceflux(:)                   ! Particle Data for each SurfaceFlux emission
   INTEGER                                :: nSurfacefluxBCs                  ! Number of SF emissions
@@ -223,12 +225,14 @@ LOGICAL                                  :: DoPoissonRounding                 ! 
 LOGICAL                                  :: DoTimeDepInflow                   ! Insertion and SurfaceFlux w simple random rounding
 LOGICAL                                  :: DoZigguratSampling                ! Sample normal randoms with Ziggurat method
 
+! Variable time step
+LOGICAL                                :: UseVarTimeStep
 TYPE tVariableTimeStep
-  LOGICAL                              :: UseVariableTimeStep
   LOGICAL                              :: UseLinearScaling
   LOGICAL                              :: UseDistribution
+  LOGICAL                              :: UseSpeciesSpecific
   LOGICAL                              :: OnlyDecreaseDt
-  REAL, ALLOCATABLE                    :: ParticleTimeStep(:)
+  LOGICAL                              :: DisableForMCC
   REAL, ALLOCATABLE                    :: ElemFac(:)
   REAL, ALLOCATABLE                    :: ElemWeight(:)
   REAL                                 :: StartPoint(3)
@@ -249,6 +253,7 @@ TYPE tVariableTimeStep
 END TYPE
 TYPE(tVariableTimeStep)                :: VarTimeStep
 
+! Virtual cell merge
 LOGICAL                                :: DoVirtualCellMerge
 INTEGER                                :: MinPartNumCellMerge
 INTEGER                                :: VirtualCellMergeSpread
@@ -262,6 +267,7 @@ TYPE tVirtualCellMerge
 END TYPE
 TYPE (tVirtualCellMerge),ALLOCATABLE   :: VirtMergedCells(:)
 
+! Rotational frame of reference
 LOGICAL               :: UseRotRefFrame           ! flag for rotational frame of reference
 INTEGER               :: RotRefFrameAxis          ! axis of rotational frame of reference (x=1, y=2, z=3)
 REAL                  :: RotRefFrameFreq          ! frequency of rotational frame of reference

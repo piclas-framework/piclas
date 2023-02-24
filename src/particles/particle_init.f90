@@ -706,7 +706,7 @@ END SUBROUTINE InitializeVariablesVirtualCellMerge
 
 SUBROUTINE InitializeVariablesVarTimeStep()
 !===================================================================================================================================
-! Initialize the variables first
+! Initialize the variables for the variable time step (per particle)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -714,8 +714,8 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_Particle_VarTimeStep    ,ONLY: VarTimeStep_CalcElemFacs
 USE MOD_Symmetry_Vars           ,ONLY: Symmetry
+USE MOD_Particle_TimeStep       ,ONLY: VarTimeStep_CalcElemFacs
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -726,14 +726,12 @@ USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! ------- Variable Time Step Initialization (parts requiring completed particle_init and readMesh)
-IF(VarTimeStep%UseVariableTimeStep) THEN
+IF(UseVarTimeStep) THEN
   ! Initializing the particle time step array used during calculation for the distribution (after maxParticleNumber was read-in)
-  ALLOCATE(VarTimeStep%ParticleTimeStep(1:PDM%maxParticleNumber))
-  VarTimeStep%ParticleTimeStep = 1.
+  ALLOCATE(PartTimeStep(1:PDM%maxParticleNumber))
+  PartTimeStep = 1.
   IF(TrackingMethod.NE.TRIATRACKING) THEN
-    CALL abort(&
-      __STAMP__&
-      ,'ERROR: Variable time step is only supported with TrackingMethod = triatracking')
+    CALL abort(__STAMP__,'ERROR: Variable time step is only supported with TrackingMethod = triatracking')
   END IF
   IF(VarTimeStep%UseLinearScaling) THEN
     IF(Symmetry%Order.LE.2) THEN
@@ -746,9 +744,6 @@ IF(VarTimeStep%UseVariableTimeStep) THEN
     END IF
   END IF
   IF(VarTimeStep%UseDistribution) THEN
-    ! ! Apply a min-mean filter combo if the distribution was adapted
-    ! ! (is performed here to have the element neighbours already defined)
-    ! IF(VarTimeStep%AdaptDistribution) CALL VarTimeStep_SmoothDistribution()
     ! Disable AdaptDistribution to avoid adapting during a load balance restart
     IF(VarTimeStep%AdaptDistribution) VarTimeStep%AdaptDistribution = .FALSE.
   END IF
@@ -1407,7 +1402,7 @@ SDEALLOCATE(Species)
 SDEALLOCATE(SpecReset)
 SDEALLOCATE(IMDSpeciesID)
 SDEALLOCATE(IMDSpeciesCharge)
-SDEALLOCATE(VarTimeStep%ParticleTimeStep)
+SDEALLOCATE(PartTimeStep)
 SDEALLOCATE(VarTimeStep%ElemFac)
 SDEALLOCATE(VarTimeStep%ElemWeight)
 SDEALLOCATE(PEM%GlobalElemID)

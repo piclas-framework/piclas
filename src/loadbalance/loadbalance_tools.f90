@@ -57,7 +57,7 @@ USE MOD_Analyze_Vars         ,ONLY: CalcMeshInfo
 USE MOD_MPI_Vars             ,ONLY: offsetElemMPI
 USE MOD_LoadDistribution     ,ONLY: ApplyWeightDistributionMethod
 #ifdef PARTICLES
-USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_InitDistribution
+USE MOD_Particle_TimeStep    ,ONLY: VarTimeStep_InitDistribution
 USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 USE MOD_LoadBalance_Vars     ,ONLY: ElemTimePart
 #endif /*PARTICLES*/
