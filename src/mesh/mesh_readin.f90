@@ -489,6 +489,7 @@ DO iElem=FirstElemInd,LastElemInd
     ElemID=SideInfo(SIDE_NBELEMID,iSide) !IF nbElemID <0, this marks a mortar master side.
                                          ! The number (-1,-2,-3) is the Type of mortar
 
+#if USE_HDG
     ! AXISYMMETRIC HDG
     IF(Symmetry%Axisymmetric) THEN
       ! In 2D check that there is only one layer of elements in z-direction
@@ -501,6 +502,7 @@ DO iElem=FirstElemInd,LastElemInd
         END IF
       END IF
     END IF
+#endif /*USE_HDG*/
 
     IF(ElemID.LT.0)THEN ! mortar Sides attached!
       aSide%MortarType=ABS(ElemID)

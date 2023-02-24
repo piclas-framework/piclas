@@ -54,8 +54,8 @@ USE MOD_part_Emission_Tools    ,ONLY: IntegerDivide,SetCellLocalParticlePosition
 #if USE_MPI
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 USE MOD_Particle_Mesh_Vars     ,ONLY: LocalVolume
-USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #endif /*USE_MPI*/
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
