@@ -386,6 +386,7 @@ REAL                          :: Energy_old,Energy_new
 REAL                          :: Weight1, Weight2
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
+  ElecLevelRelax = 0 ! initialize
 
   iPart1 = Coll_pData(iPair)%iPart_p1
   iPart2 = Coll_pData(iPair)%iPart_p2
@@ -567,7 +568,7 @@ IF (DSMC%ReservoirSimuRate) RETURN
   IF ( DoElec1 ) THEN
     ! calculate energy for electronic relaxation of particle 1
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart1) * GetParticleWeight(iPart1)
-    CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p1,FakXi,XSec_Level=ElecLevelRelax)
+    CALL ElectronicEnergyExchange(iPair, Coll_pData(iPair)%iPart_p1, FakXi, XSec_Level=ElecLevelRelax)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart1) * GetParticleWeight(iPart1)
   END IF
 
@@ -575,7 +576,7 @@ IF (DSMC%ReservoirSimuRate) RETURN
   IF ( DoElec2 ) THEN
     ! calculate energy for electronic relaxation of particle 2
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,iPart2) * GetParticleWeight(iPart2)
-    CALL ElectronicEnergyExchange(iPair,Coll_pData(iPair)%iPart_p2,FakXi,XSec_Level=ElecLevelRelax)
+    CALL ElectronicEnergyExchange(iPair, Coll_pData(iPair)%iPart_p2, FakXi, XSec_Level=ElecLevelRelax)
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,iPart2) * GetParticleWeight(iPart2)
   END IF
 
@@ -703,9 +704,7 @@ IF (DSMC%ReservoirSimuRate) RETURN
     IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Applied tolerance      : ",1.0e-12
     IPWRITE(UNIT_StdOut,'(I0,A,I0)')           " Species 1              : ",iSpec1
     IPWRITE(UNIT_StdOut,'(I0,A,I0)')           " Species 2              : ",iSpec2
-    CALL abort(&
-        __STAMP__&
-        ,'CODE_ANALYZE: DSMC_Relaxation with SelectionProcedure = 1 is not energy conserving!')
+    CALL abort(__STAMP__,'CODE_ANALYZE: DSMC_Relaxation with SelectionProcedure = 1 is not energy conserving!')
   END IF
 #endif /* CODE_ANALYZE */
 

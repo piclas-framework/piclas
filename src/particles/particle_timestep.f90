@@ -211,14 +211,14 @@ nVar_TimeStep = 0
 IF(DoRestart) THEN
 ! Try to get the time step factor distribution directly from state file
   CALL OpenDataFile(TRIM(RestartFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
-  CALL DatasetExists(File_ID,'PartTimeStep',TimeStepExists)
+  CALL DatasetExists(File_ID,'ElemTimeStep',TimeStepExists)
   IF(TimeStepExists) THEN
     ! Allocate the array for the element-wise time step factor
     ALLOCATE(VarTimeStep%ElemFac(nGlobalElems))
     VarTimeStep%ElemFac = 1.0
     ! Read-in of the time step
     ASSOCIATE(nGlobalElems    => INT(nGlobalElems,IK))
-      CALL ReadArray('PartTimeStep',2,(/nGlobalElems, 1_IK/),0_IK,1,RealArray=VarTimeStep%ElemFac(1:nGlobalElems))
+      CALL ReadArray('ElemTimeStep',2,(/nGlobalElems, 1_IK/),0_IK,1,RealArray=VarTimeStep%ElemFac(1:nGlobalElems))
     END ASSOCIATE
     SWRITE(UNIT_stdOut,*)'Variable Time Step: Read-in of timestep distribution from state file.'
 #if USE_MPI
