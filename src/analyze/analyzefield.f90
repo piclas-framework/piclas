@@ -1737,11 +1737,11 @@ END DO
 ! 4.) Communicate the integrated current values on each boundary to the MPI root process (the root outputs the values to .csv)
 DO iEDCBC = 1, EDC%NBoundaries
   IF(EDC%COMM(iEDCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
-    ASSOCIATE( Current => EDC%Current(1:EDC%NBoundaries), NBC => EDC%NBoundaries, COMM => EDC%COMM(iEDCBC)%UNICATOR)
+    ASSOCIATE( Current => EDC%Current(iEDCBC), COMM => EDC%COMM(iEDCBC)%UNICATOR)
       IF(MPIroot)THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE , Current , NBC , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , COMM , IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE , Current , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , COMM , IERROR)
       ELSE
-        CALL MPI_REDUCE(Current      , 0       , NBC , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , COMM , IERROR)
+        CALL MPI_REDUCE(Current      , 0       , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , COMM , IERROR)
       END IF ! myLeaderGroupRank.EQ.0
     END ASSOCIATE
   END IF ! EDC%COMM(iEDCBC)%UNICATOR.NE.MPI_COMM_NULL
