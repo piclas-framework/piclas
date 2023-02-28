@@ -318,13 +318,13 @@ INTEGER(HSIZE_T)                  :: iElec                              ! Index
 LOGICAL                           :: GroupFound
 INTEGER                           :: storage, nElec, max_corder
 !===================================================================================================================================
-spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
 
 GroupFound = .FALSE.
 SpecXSec(iCase)%UseElecXSec = .FALSE.
 
 IF(SpeciesDatabase.EQ.'none') THEN
   XSecDatabaseName = TRIM(XSec_Database)
+  spec_pair = TRIM(SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
 ELSE 
   XSecDatabaseName = TRIM(SpeciesDatabase)
   spec_pair = TRIM('/Cross-Sections/'//SpecDSMC(jSpec)%Name)//'-'//TRIM(SpecDSMC(iSpec)%Name)
@@ -1146,9 +1146,9 @@ CASE DEFAULT
   CALL abort(__STAMP__,'Number of products is not supported yet! Reaction number:', IntInfoOpt=iReac)
 END SELECT
 
-IF (SpeciesDatabase.NE.'none') THEN
-  groupname = TRIM('/Cross-Sections/'//TRIM(ProductPair))
-END IF
+! IF (SpeciesDatabase.NE.'none') THEN
+!   groupname = TRIM('/Cross-Sections/'//TRIM(ProductPair))
+! END IF
 
 ReactionFound = .FALSE.
 
@@ -1316,9 +1316,9 @@ CASE DEFAULT
   CALL abort(__STAMP__,'Number of products is not supported yet! Reaction number:', IntInfoOpt=iReac)
 END SELECT
 
-IF (SpeciesDatabase.NE.'none') THEN
-  groupname = TRIM('/Cross-Sections/'//TRIM(ProductPair))
-END IF
+! IF (SpeciesDatabase.NE.'none') THEN
+!   groupname = TRIM('/Cross-Sections/'//TRIM(ProductPair))
+! END IF
 
 ReactionFound = .FALSE.
 
