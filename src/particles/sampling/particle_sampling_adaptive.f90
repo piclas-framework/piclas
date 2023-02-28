@@ -287,59 +287,59 @@ IF (DoRestart) THEN
       nVar=INT(HSize(2),4)
       nElemReadin = INT(HSize(3),4)
       DEALLOCATE(HSize)
-      ! Abort if the array size does not correspond to the current adaptive BC configuration (e.g. a new adaptive BC was added)
+      ! Skip the read-in if the array size does not correspond to the current adaptive BC configuration (e.g. a new adaptive BC was added)
       IF(AdaptBCSampleElemNumGlobal.NE.nElemReadin) THEN
-        CALL abort(__STAMP__,&
-          'AdaptiveRunningAverage: Number of read-in elements does not correspond to current number of sample elements!')
-      END IF
-      ! Treatment of different number of iterations between read-in and parameter input
-      IF(AdaptBCSampIter.EQ.nVar) THEN
-        nVarArrayStart = 1
-        nVarArrayEnd = nVar
-        SampIterArrayEnd = AdaptBCSampIter
-        IF(AdaptBCSampIterReadIn.LT.nVar.AND..NOT.PerformLoadBalance) THEN
-          SWRITE(*,*) 'AdaptiveRunningAverage: Array not filled in previous simulation run. Continuing at: ', AdaptBCSampIterReadIn + 1
-        END IF
-      ELSE IF(AdaptBCSampIter.GT.nVar) THEN
-        nVarArrayStart = 1
-        nVarArrayEnd = nVar
-        SampIterArrayEnd = nVar
-        SWRITE(*,*) 'AdaptiveRunningAverage: Smaller number of sampling iterations in state file. Continuing at: ', AdaptBCSampIterReadIn + 1
+        SWRITE(*,*) 'AdaptiveRunningAverage: Number of read-in elements does not correspond to current number of sample elements. Values initiliazed with zeros.'
       ELSE
-        nVarArrayStart = nVar - AdaptBCSampIter + 1
-        nVarArrayEnd = nVar
-        SampIterArrayEnd = AdaptBCSampIter
-        AdaptBCSampIterReadIn = AdaptBCSampIter
-        SWRITE(*,*) 'AdaptiveRunningAverage: Greater number of sampling iterations in state file. Using the last ', AdaptBCSampIterReadIn, ' sample iterations.'
-      END IF
-      ALLOCATE(ElemData2_HDF5(1:8,1:nVar,1:nElemReadin,1:nSpecies))
-      ALLOCATE(GlobalElemIndex(1:nElemReadin))
-      ! Associate construct for integer KIND=8 possibility
-      ASSOCIATE (&
-            nSpecies    => INT(nSpecies,IK) ,&
-            nElemReadin => INT(nElemReadin,IK)    ,&
-            nVar        => INT(nVar,IK)    )
-        CALL ReadArray('AdaptiveRunningAverage',4,(/8_IK, nVar, nElemReadin, nSpecies/),0_IK,3,RealArray=ElemData2_HDF5(:,:,:,:))
-        CALL ReadArray('AdaptiveRunningAverageIndex',1,(/nElemReadin/),0_IK,1,IntegerArray_i4=GlobalElemIndex(:))
-      END ASSOCIATE
-      ! Map the read-in values to the sampling array (GlobalElemID -> LocalElemID -> SampleElemID)
-      IF(AdaptBCSampleElemNum.GT.0) THEN
-        DO iElem = 1,nElemReadin
-          GlobalElemID = GlobalElemIndex(iElem)
-          ! Skip elements outside my local region
-          IF((GlobalElemID.LT.1+offsetElem).OR.(GlobalElemID.GT.nElems+offsetElem)) CYCLE
-          ! Get the sample element ID
-          SampleElemID = AdaptBCMapElemToSample(GlobalElemID-offsetElem)
-          IF(SampleElemID.GT.0) AdaptBCAverage(1:8,1:SampIterArrayEnd,SampleElemID,1:nSpecies) = ElemData2_HDF5(1:8,nVarArrayStart:nVarArrayEnd,iElem,1:nSpecies)
-        END DO
-      END IF
-      ! Calculate the macro values intially from the sample for the first iteration
-      CALL AdaptiveBCSampling(initTruncAverage_opt=.TRUE.)
-      SDEALLOCATE(ElemData2_HDF5)
-      SDEALLOCATE(GlobalElemIndex)
+        ! Treatment of different number of iterations between read-in and parameter input
+        IF(AdaptBCSampIter.EQ.nVar) THEN
+          nVarArrayStart = 1
+          nVarArrayEnd = nVar
+          SampIterArrayEnd = AdaptBCSampIter
+          IF(AdaptBCSampIterReadIn.LT.nVar.AND..NOT.PerformLoadBalance) THEN
+            SWRITE(*,*) 'AdaptiveRunningAverage: Array not filled in previous simulation run. Continuing at: ', AdaptBCSampIterReadIn + 1
+          END IF
+        ELSE IF(AdaptBCSampIter.GT.nVar) THEN
+          nVarArrayStart = 1
+          nVarArrayEnd = nVar
+          SampIterArrayEnd = nVar
+          SWRITE(*,*) 'AdaptiveRunningAverage: Smaller number of sampling iterations in state file. Continuing at: ', AdaptBCSampIterReadIn + 1
+        ELSE
+          nVarArrayStart = nVar - AdaptBCSampIter + 1
+          nVarArrayEnd = nVar
+          SampIterArrayEnd = AdaptBCSampIter
+          AdaptBCSampIterReadIn = AdaptBCSampIter
+          SWRITE(*,*) 'AdaptiveRunningAverage: Greater number of sampling iterations in state file. Using the last ', AdaptBCSampIterReadIn, ' sample iterations.'
+        END IF
+        ALLOCATE(ElemData2_HDF5(1:8,1:nVar,1:nElemReadin,1:nSpecies))
+        ALLOCATE(GlobalElemIndex(1:nElemReadin))
+        ! Associate construct for integer KIND=8 possibility
+        ASSOCIATE (&
+              nSpecies    => INT(nSpecies,IK) ,&
+              nElemReadin => INT(nElemReadin,IK)    ,&
+              nVar        => INT(nVar,IK)    )
+          CALL ReadArray('AdaptiveRunningAverage',4,(/8_IK, nVar, nElemReadin, nSpecies/),0_IK,3,RealArray=ElemData2_HDF5(:,:,:,:))
+          CALL ReadArray('AdaptiveRunningAverageIndex',1,(/nElemReadin/),0_IK,1,IntegerArray_i4=GlobalElemIndex(:))
+        END ASSOCIATE
+        ! Map the read-in values to the sampling array (GlobalElemID -> LocalElemID -> SampleElemID)
+        IF(AdaptBCSampleElemNum.GT.0) THEN
+          DO iElem = 1,nElemReadin
+            GlobalElemID = GlobalElemIndex(iElem)
+            ! Skip elements outside my local region
+            IF((GlobalElemID.LT.1+offsetElem).OR.(GlobalElemID.GT.nElems+offsetElem)) CYCLE
+            ! Get the sample element ID
+            SampleElemID = AdaptBCMapElemToSample(GlobalElemID-offsetElem)
+            IF(SampleElemID.GT.0) AdaptBCAverage(1:8,1:SampIterArrayEnd,SampleElemID,1:nSpecies) = ElemData2_HDF5(1:8,nVarArrayStart:nVarArrayEnd,iElem,1:nSpecies)
+          END DO
+        END IF
+        ! Calculate the macro values intially from the sample for the first iteration
+        CALL AdaptiveBCSampling(initTruncAverage_opt=.TRUE.)
+        SDEALLOCATE(ElemData2_HDF5)
+        SDEALLOCATE(GlobalElemIndex)
+      END IF  ! AdaptBCSampleElemNumGlobal.NE.nElemReadin
     ELSE
       SWRITE(*,*) 'AdaptiveRunningAverage: No running average values found. Values initiliazed with zeros.'
-    END IF
+    END IF    ! RunningAverageExists
   END IF
   CALL CloseDataFile()
 END IF
