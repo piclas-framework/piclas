@@ -615,9 +615,12 @@ SUBROUTINE InitFPC()
 ! MODULES
 USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_WORLD
 USE MOD_Preproc
-USE MOD_Mesh_Vars          ,ONLY: nBCs,BoundaryType,nBCSides,BC
+USE MOD_Mesh_Vars          ,ONLY: nBCs,BoundaryType
 USE MOD_Analyze_Vars       ,ONLY: DoFieldAnalyze
 USE MOD_HDG_Vars           ,ONLY: FPC
+#if USE_MPI
+USE MOD_Mesh_Vars          ,ONLY: nBCSides,BC
+#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -1704,7 +1707,10 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_HDG_Vars  ,ONLY: nGP_face
 USE MOD_HDG_Vars  ,ONLY: EpsNonLinear
-USE MOD_Mesh_Vars ,ONLY: nSides,nMPISides_YOUR
+USE MOD_Mesh_Vars ,ONLY: nSides
+#if USE_MPI
+USE MOD_Mesh_Vars ,ONLY: nMPISides_YOUR
+#endif /*USE_MPI*/
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars  ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
@@ -1767,7 +1773,10 @@ USE MOD_Preproc
 USE MOD_HDG_Vars           ,ONLY: nGP_face,HDGDisplayConvergence,iteration
 USE MOD_HDG_Vars           ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG
 USE MOD_TimeDisc_Vars      ,ONLY: iter,IterDisplayStep
-USE MOD_Mesh_Vars          ,ONLY: nSides,nMPISides_YOUR
+USE MOD_Mesh_Vars          ,ONLY: nSides
+#if USE_MPI
+USE MOD_Mesh_Vars          ,ONLY: nMPISides_YOUR
+#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -2478,7 +2487,9 @@ SDEALLOCATE(FPC%Group)
 SDEALLOCATE(FPC%BCState)
 SDEALLOCATE(FPC%Charge)
 SDEALLOCATE(FPC%ChargeProc)
+#if USE_MPI
 SDEALLOCATE(FPC%COMM)
+#endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
 IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN

@@ -45,7 +45,9 @@ SUBROUTINE FieldRestart()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars                ,ONLY: U
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 USE MOD_IO_HDF5
 USE MOD_Restart_Vars           ,ONLY: N_Restart,RestartFile,InterpolateSolution,RestartNullifySolution
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
