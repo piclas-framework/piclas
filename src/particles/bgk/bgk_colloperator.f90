@@ -1867,7 +1867,7 @@ DO iSpec = 1, nSpecies
   END DO
   IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
     ! Calculation of thermal conductivity of rotation and vibration for each molecular species
-    ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 254
+    ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 254f
     Xi_Dij_tot = SUM(Xj_Dij(iSpec,:))
     rhoSpec = dens * Species(iSpec)%MassIC * Xi(iSpec)
     ThermalCondSpec_Rot(iSpec) = (rhoSpec*cv_rot/Xi_Dij_tot)
@@ -1878,6 +1878,7 @@ END DO
 ! Calculate mixture viscosity by solving a system of linear equations with matrices
 ! Pfeiffer et. al., Physics of Fluids 33, 036106 (2021),
 ! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method for monatomic gas species"
+! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 352
 ViscMat = 0.0
 DO iSpec = 1, nSpecies
   IF (Xi(iSpec).LE.0.0) THEN
@@ -1907,6 +1908,7 @@ Visc = SUM(RHSSolve)
 ! Calculate mixture thermal conductivity by solving a system of linear equations with matrices
 ! Pfeiffer et. al., Physics of Fluids 33, 036106 (2021),
 ! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method for monatomic gas species"
+! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 350f
 pressure = BoltzmannConst*dens*CellTemp(nSpecies+1)
 ViscMat = 0.0
 DO iSpec = 1, nSpecies
