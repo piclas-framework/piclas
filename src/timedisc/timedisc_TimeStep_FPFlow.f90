@@ -69,29 +69,29 @@ END IF
 
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
-  ! Variable time step: getting the right time step for the particle (can be constant across an element)
-  IF (UseVarTimeStep) THEN
-    dtVar = dt * PartTimeStep(iPart)
-  ELSE
-    dtVar = dt
-  END IF
-  IF (PDM%dtFracPush(iPart)) THEN
-    ! Surface flux (dtFracPush): previously inserted particles are pushed a random distance between 0 and v*dt
-    !                            LastPartPos and LastElem already set!
-    CALL RANDOM_NUMBER(RandVal)
-    dtVar = dtVar * RandVal
-    PDM%dtFracPush(iPart) = .FALSE.
-  ELSE
-    LastPartPos(1,iPart)=PartState(1,iPart)
-    LastPartPos(2,iPart)=PartState(2,iPart)
-    LastPartPos(3,iPart)=PartState(3,iPart)
-    PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
-  END IF
-  PartState(1,iPart) = PartState(1,iPart) + PartState(4,iPart) * dtVar
-  PartState(2,iPart) = PartState(2,iPart) + PartState(5,iPart) * dtVar
-  PartState(3,iPart) = PartState(3,iPart) + PartState(6,iPart) * dtVar
-  ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-  CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
+    ! Variable time step: getting the right time step for the particle (can be constant across an element)
+    IF (UseVarTimeStep) THEN
+      dtVar = dt * PartTimeStep(iPart)
+    ELSE
+      dtVar = dt
+    END IF
+    IF (PDM%dtFracPush(iPart)) THEN
+      ! Surface flux (dtFracPush): previously inserted particles are pushed a random distance between 0 and v*dt
+      !                            LastPartPos and LastElem already set!
+      CALL RANDOM_NUMBER(RandVal)
+      dtVar = dtVar * RandVal
+      PDM%dtFracPush(iPart) = .FALSE.
+    ELSE
+      LastPartPos(1,iPart)=PartState(1,iPart)
+      LastPartPos(2,iPart)=PartState(2,iPart)
+      LastPartPos(3,iPart)=PartState(3,iPart)
+      PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
+    END IF
+    PartState(1,iPart) = PartState(1,iPart) + PartState(4,iPart) * dtVar
+    PartState(2,iPart) = PartState(2,iPart) + PartState(5,iPart) * dtVar
+    PartState(3,iPart) = PartState(3,iPart) + PartState(6,iPart) * dtVar
+    ! Axisymmetric treatment of particles: rotation of the position and velocity vector
+    CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
   END IF
 END DO
 
