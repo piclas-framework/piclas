@@ -572,9 +572,9 @@ REAL                 :: PosIn, RelPos
 REAL                 :: PosMax, PosMin, MaxWeight, MinWeight
 INTEGER              :: iScale, CNElemID
 !===================================================================================================================================
-IF (AdaptMPF%UseOptMPF) THEN
+IF (AdaptMPF%UseOptMPF.AND.PRESENT(iElem)) THEN
   ! determine the adaptive MPF
-  CNElemID = GetCNElemID(iElem)
+  CNElemID = GetCNElemID(iElem+offSetElem)
   CalcVarWeightMPF = OptimalMPF_Shared(CNElemID)
 
 ELSE ! regular routine with variable weights

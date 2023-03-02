@@ -213,6 +213,9 @@ CALL prms%CreateIntOption(      'Part-nRefFrameRegions','Number of rotational re
 CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MIN','Minimun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MAX','Maximun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
 
+CALL prms%CreateLogicalOption(  'Part-Adaptive-Weighting', 'Enables an automatic adaption of '//&
+                                'the particle weight within a cell, based on previous simualation result', '.FALSE.')
+
 END SUBROUTINE DefineParametersParticles
 
 
@@ -399,7 +402,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
-USE MOD_DSMC_Symmetry          ,ONLY: DSMC_InitVarWeighting
+USE MOD_DSMC_Symmetry          ,ONLY: DSMC_InitVarWeighting, DSMC_InitAdaptiveWeights
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
@@ -410,6 +413,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: InitEmissionComm
 USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
@@ -484,6 +488,7 @@ DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
 IF(DoInterpolationAnalytic) DoInterpolation = DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 
+! Initialization of the automatically adapted particle weights
 AdaptMPF%UseMedianFilter = GETLOGICAL('Part-AdaptMPF-ApplyMedianFilter')
 
 ! Build BGM and initialize particle mesh
@@ -517,6 +522,13 @@ IF(VarWeighting%DoVariableWeighting) THEN
   ! Initialization of RadialWeighting in 2D axisymmetric simulations
   VarWeighting%PerformCloning = .TRUE.
   CALL DSMC_InitVarWeighting()
+END IF
+
+! Initialization of the automatically adapted particle weights
+IF(DoMacroscopicRestart) AdaptMPF%DoAdaptMPF = GETLOGICAL('Part-Adaptive-weighting')
+
+IF (AdaptMPF%DoAdaptMPF) THEN
+  CALL DSMC_InitAdaptiveWeights()
 END IF
 
 #if USE_MPI

@@ -114,10 +114,12 @@ TYPE tAdaptMPF
   LOGICAL                     :: UseOptMPF                   ! Changes between the CalcVarMPF, CalcAdaptMPF routine
   LOGICAL                     :: UseMedianFilter             ! Applies median filter to the distribution of the optimal MPF
   LOGICAL                     :: RestartTimeCounter          ! Start the simulation from t = 0s
+  LOGICAL                     :: IncludeSecondNeighbour      ! Inclusion of a second neighbour row in the median filter routine
   REAL, ALLOCATABLE           :: ScaleFactorAdapt(:)         ! Comparison of new and old MPF
   REAL                        :: MinPartNum                  ! Target minimum number of simulation particles per sub-cell
   REAL                        :: MaxPartNum                  ! Target maximum number of simulation particles per sub-cell
   REAL                        :: MaxRatio                    ! Maximum deviation between the particle weights of two neighbouring cells
+  INTEGER                     :: nRefine                     ! Number of times the MPF filter routine is called
 END TYPE tAdaptMPF
 
 TYPE(tAdaptMPF)               :: AdaptMPF

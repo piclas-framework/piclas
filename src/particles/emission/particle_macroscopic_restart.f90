@@ -46,7 +46,6 @@ USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmet
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared,ElemMidPoint_Shared
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
-USE MOD_DSMC_Symmetry           ,ONLY: DSMC_InitAdaptiveWeights
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -68,8 +67,6 @@ LOGICAL                             :: InsideFlag
 SWRITE(UNIT_stdOut,*) 'PERFORMING MACROSCOPIC RESTART...'
 
 locnPart = 1
-
-CALL DSMC_InitAdaptiveWeights()
 
 DO iElem = 1, nElems
   GlobalElemID = iElem + offsetElem

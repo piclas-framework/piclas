@@ -91,14 +91,14 @@ CALL prms%CreateIntOption(    'Part-VarWeighting-CloneDelay', &
 CALL prms%CreateIntOption(    'Particles-VarWeighting-SurfFluxSubSides', &
                               'Variable weighting: Split the surface flux side into the given number of subsides, reduces the '//&
                               'error in the particle distribution across the cell (visible in the number density)', '20')
-CALL prms%CreateLogicalOption('Part-Adaptive-Weighting', 'Enables an automatic adaption of '//&
-                              'the particle weight within a cell, based on previous simualation result', '.FALSE.')
 CALL prms%CreateRealOption(   'Part-AdaptMPF-MinParticleNumber', 'Target minimum simulation particle number per cell')
 CALL prms%CreateRealOption(   'Part-AdaptMPF-MaxParticleNumber', 'Target maximum simulation particle number per cell')
 CALL prms%CreateLogicalOption('Part-AdaptMPF-ApplyMedianFilter', 'Applies a median filter to the distribution  '//&
                               'of the adapted optimal MPF', '.FALSE.')
 CALL prms%CreateRealOption(   'Part-AdaptMPF-MaxMPFRatio', 'Maximum deviation, after which the filtering is applied', '1.5')
-
+CALL prms%CreateIntOption(    'Part-AdaptMPF-RefinementNumber', 'Number of times the MPF filter is applied', '5')
+CALL prms%CreateLogicalOption('Part-AdaptMPF-AverageNextNeighbour', 'Inclusion of the next-neighbour row in the '//&
+                              'median filter routine', '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleSymmetry
 
@@ -998,6 +998,7 @@ SUBROUTINE DSMC_VariableWeighting(iPart,iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_DSMC_Vars               ,ONLY: VarWeighting, DSMC, PartStateIntEn, useDSMC, CollisMode, AmbipolElecVelo
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC, ElectronicDistriPart
 USE MOD_Particle_Vars           ,ONLY: PartMPF, PartSpecies, PartState, Species, LastPartPos
@@ -1023,7 +1024,7 @@ DeleteProb = 0.
 SpecID = PartSpecies(iPart)
 
 ! 1.) Determine the new particle weight and decide whether to clone or to delete the particle
-NewMPF = CalcVarWeightMPF(PartState(:,iPart),SpecID,iElem,iPart)
+NewMPF = CalcVarWeightMPF(PartState(:,iPart),SpecID,(iElem-offSetElem),iPart)
 OldMPF = PartMPF(iPart)
 CloneProb = (OldMPF/NewMPF)-INT(OldMPF/NewMPF)
 CALL RANDOM_NUMBER(iRan)
@@ -1371,7 +1372,7 @@ USE MOD_DSMC_Vars
 USE MOD_MPI_Shared    
 USE MOD_MPI_Shared_Vars     
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID, GetGlobalElemID     
-USE MOD_Mesh_Vars               ,ONLY: nElems, nGlobalElems
+USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
 USE MOD_HDF5_Input              ,ONLY: OpenDataFile, CloseDataFile, ReadArray, ReadAttribute, GetDataProps
 USE MOD_HDF5_Input              ,ONLY: GetDataSize, nDims, HSize, File_ID
 USE MOD_Restart_Vars            ,ONLY: DoMacroscopicRestart, MacroRestartFileName
@@ -1396,19 +1397,20 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT ADAPTIVE PARTICLE WEIGHTS...'
 
 IF(DoMacroscopicRestart) THEN
 
-  AdaptMPF%DoAdaptMPF = GETLOGICAL('Part-Adaptive-weighting')
-
   IF (AdaptMPF%DoAdaptMPF) THEN
     ! Check if the variable MPF is already initialized
     IF (.NOT.(VarWeighting%DoVariableWeighting)) THEN
       CALL DSMC_InitVarWeighting
     END IF
 
-      ! Read-in of the parameter boundaries
-    AdaptMPF%MinPartNum      = GETREAL('Part-AdaptMPF-MinParticleNumber')
-    AdaptMPF%MaxPartNum      = GETREAL('Part-AdaptMPF-MaxParticleNumber')
+    ! Read-in of the parameter boundaries
+    AdaptMPF%MinPartNum               = GETREAL('Part-AdaptMPF-MinParticleNumber')
+    AdaptMPF%MaxPartNum               = GETREAL('Part-AdaptMPF-MaxParticleNumber')
+    ! Parameters for the filtering subroutine
     IF (AdaptMPF%UseMedianFilter) THEN
-      AdaptMPF%MaxRatio      = GETREAL('Part-AdaptMPF-MaxMPFRatio')
+      AdaptMPF%MaxRatio               = GETREAL('Part-AdaptMPF-MaxMPFRatio')
+      AdaptMPF%nRefine                = GETINT('Part-AdaptMPF-RefinementNumber')
+      AdaptMPF%IncludeSecondNeighbour = GETLOGICAL('Part-AdaptMPF-AverageNextNeighbour')
     END IF
   END IF
 
@@ -1541,9 +1543,8 @@ USE MOD_PreProc
 USE MOD_MPI_Shared    
 USE MOD_MPI_Shared_Vars   
 USE MOD_Globals_Vars            ,ONLY: Pi
-USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID, GetGlobalElemID
-USE MOD_Particle_Vars           ,ONLY: nSpecies, Symmetry, Species
+USE MOD_Particle_Vars           ,ONLY: Symmetry, Species
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared, ElemMidPoint_Shared
 USE MOD_DSMC_Vars               
 USE MOD_part_tools              ,ONLY: CalcVarWeightMPF, CalcRadWeightMPF
@@ -1553,23 +1554,8 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                           :: iCNElem, firstElem, lastElem, offSetLocal, ReadInElems
-INTEGER                           :: iSpec, iVal
-REAL, ALLOCATABLE                 :: OptMPF(:)
-REAL                              :: EquationOptMPF
+INTEGER                           :: iRefine
 !===================================================================================================================================
-ALLOCATE(OptMPF(nSpecies))
-
-! Calculate the upper bound for the MPF based on the reference DSMC quality factors
-DO iSpec = 1, nSpecies
-  IF (Symmetry%Order.EQ.2) THEN
-    OptMPF(iSpec) = 1./((SQRT(2.)*Pi*SpecDSMC(iSpec)%dref**2*MAXVAL(AdaptMPFInfo_Shared(2,:))**(2./3.))**2)
-  ELSE
-    OptMPF(iSpec) = 1./((SQRT(2.)*Pi*SpecDSMC(iSpec)%dref**2*MAXVAL(AdaptMPFInfo_Shared(2,:))**(2./3.))**3)
-  END IF
-END DO
-
-EquationOptMPF = MAXVAL(OptMPF(:))
-
 #if USE_MPI
 firstElem = INT(REAL(myComputeNodeRank)*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem = INT(REAL(myComputeNodeRank+1)*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
@@ -1630,7 +1616,7 @@ DO iCNElem = firstElem, lastElem
 
   ! If not defined, determine the optimal MPF from the above equation
   IF (OptimalMPF_Shared(iCNElem).LE.0.) THEN
-    OptimalMPF_Shared(iCNElem) = EquationOptMPF
+    OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(6,iCNElem)
   END IF
 END DO ! iGlobalElem
 
@@ -1639,13 +1625,13 @@ CALL BARRIER_AND_SYNC(OptimalMPF_Shared_Win,MPI_COMM_SHARED)
 #endif
 
 IF (AdaptMPF%UseMedianFilter) THEN
-  DO iVal=1, 5
+  DO iRefine=1, AdaptMPF%nRefine 
     CALL AverageFilterMPF
   END DO
 END IF ! UseMedianFilter
 
 ! Enable the calculation based on the adaptive MPF for the later steps
-AdaptMPF%UseOptMPF = .TRUE.!GETLOGICAL('Part-AdaptMPF-Test')
+AdaptMPF%UseOptMPF = .TRUE.
 
 #if USE_MPI
 CALL UNLOCK_AND_FREE(AdaptMPFInfo_Shared_Win)
@@ -1673,6 +1659,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 INTEGER                           :: iCNElem, iElem, firstElem, lastElem, offSetLocal, ReadInElems, iVal, CNNbElemID
+INTEGER                           :: iVal2, CNNbElemID2, AverageCount
 LOGICAL, ALLOCATABLE              :: UseAverageMPF(:)
 REAL, ALLOCATABLE                 :: FilteredMPF(:)
 !===================================================================================================================================
@@ -1691,24 +1678,40 @@ ReadInElems = nGlobalElems
 ALLOCATE(FilteredMPF(ReadInElems))
 ALLOCATE(UseAverageMPF(ReadInElems))
 
-! ! Determine the MPF based on the particle number from the reference simulation
+! Determine the MPF based on the particle number from the reference simulation
 DO iCNElem = firstElem, lastElem
+  AverageCount = 0
   iElem = iCNElem - firstElem + 1
   FilteredMPF(iElem) = OptimalMPF_Shared(iCNElem)
   DO iVal=1, ElemToElemMapping(2,iCNElem)
 
     CNNbElemID = ElemToElemInfo(ElemToElemMapping(1,iCNElem)+iVal)
-    IF ((OptimalMPF_Shared(CNNbElemID)/OptimalMPF_Shared(iCNElem)).GT.AdaptMPF%MaxRatio) THEN
+    IF ((OptimalMPF_Shared(CNNbElemID)/OptimalMPF_Shared(iCNElem)).GE.AdaptMPF%MaxRatio) THEN
       UseAverageMPF(iElem) = .TRUE.
-    ELSE IF ((OptimalMPF_Shared(CNNbElemID)/OptimalMPF_Shared(iCNElem)).LT.(1./AdaptMPF%MaxRatio)) THEN
+    ELSE IF ((OptimalMPF_Shared(CNNbElemID)/OptimalMPF_Shared(iCNElem)).LE.(1./AdaptMPF%MaxRatio)) THEN
       UseAverageMPF(iElem) = .TRUE.
     END IF
 
     FilteredMPF(iElem) = FilteredMPF(iElem) + OptimalMPF_Shared(CNNbElemID)
 
-  END DO 
-  FilteredMPF(iElem) = FilteredMPF(iElem)/REAL(ElemToElemMapping(2,iCNElem)+1)
-END DO
+    IF (AdaptMPF%IncludeSecondNeighbour) THEN
+      AverageCount = AverageCount + ElemToElemMapping(2,CNNbElemID)
+      DO iVal2=1, ElemToElemMapping(2,CNNbElemID)
+
+        CNNbElemID2 = ElemToElemInfo(ElemToElemMapping(1,CNNbElemID)+iVal2)
+        IF ((OptimalMPF_Shared(CNNbElemID2)/OptimalMPF_Shared(CNNbElemID)).GE.AdaptMPF%MaxRatio) THEN
+          UseAverageMPF(iElem) = .TRUE.
+        ELSE IF ((OptimalMPF_Shared(CNNbElemID2)/OptimalMPF_Shared(CNNbElemID)).LE.(1./AdaptMPF%MaxRatio)) THEN
+          UseAverageMPF(iElem) = .TRUE.
+        END IF
+    
+        FilteredMPF(iElem) = FilteredMPF(iElem) + OptimalMPF_Shared(CNNbElemID)
+    
+      END DO !iVal2
+    END IF !IncludeSecondNeighbour
+  END DO !iVal
+  FilteredMPF(iElem) = FilteredMPF(iElem)/REAL(ElemToElemMapping(2,iCNElem)+1+AverageCount)
+END DO !iCNElem
 
 DO iCNElem = firstElem, LastElem
   iElem = iCNElem - firstElem +1

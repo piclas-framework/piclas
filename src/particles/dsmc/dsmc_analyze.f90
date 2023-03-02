@@ -720,7 +720,7 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF, CalcRadWeightMPF
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, BGGas
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF, OptimalMPF_Shared, OptimalMPF_Shared_Win
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF, OptimalMPF_Shared
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, VarTimeStep, Symmetry
@@ -741,7 +741,7 @@ REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality+nVarMPF+nVarAdaptMP
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iElem, iGlobalElem, CNElemID, iSpec, nVarCount, nSpecTemp, nVarCountRelax, bgSpec
+INTEGER                 :: iElem, CNElemID, iSpec, nVarCount, nSpecTemp, nVarCountRelax, bgSpec
 REAL                    :: TVib_TempFac, iter_loc
 REAL                    :: MolecPartNum, HeavyPartNum
 !===================================================================================================================================
@@ -1025,6 +1025,11 @@ IF (DSMC%CalcCellMPF) THEN
   END DO
   nVarCount = nVarCount + 1
   DEALLOCATE(DSMC%CellMPFSamp)
+  
+  IF (AdaptMPF%DoAdaptMPF) THEN
+    AdaptMPF%UseOptMPF = .TRUE.
+  END IF
+
 END IF
 
 ! Visualization for the optimal MPF in the adaptive routine for each sub-cell
@@ -1050,11 +1055,9 @@ IF (AdaptMPF%DoAdaptMPF) THEN
   END DO
   nVarCount = nVarCount + 2
 
+  AdaptMPF%UseOptMPF = .TRUE.
+
   DEALLOCATE(AdaptMPF%ScaleFactorAdapt)
-#if USE_MPI
-CALL UNLOCK_AND_FREE(OptimalMPF_Shared_Win)
-#endif
-ADEALLOCATE(OptimalMPF_Shared)
 
 END IF
 
