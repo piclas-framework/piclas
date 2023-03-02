@@ -824,11 +824,6 @@ DO iSpec=1,nSpecies
         END IF
       CASE('background')
         ! do nothing
-        IF(Symmetry%Order.LE.2) THEN
-          ! The radial scaling of the weighting factor has to be considered
-          IF(RadialWeighting%DoRadialWeighting) Species(iSpec)%Init(iInit)%ParticleNumber = &
-                                      INT(Species(iSpec)%Init(iInit)%ParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
-        END IF
       CASE DEFAULT
         SWRITE(*,*) 'SpaceIC is: ', TRIM(Species(iSpec)%Init(iInit)%SpaceIC)
         CALL abort(__STAMP__,'ERROR: Unknown SpaceIC for species: ', iSpec)
