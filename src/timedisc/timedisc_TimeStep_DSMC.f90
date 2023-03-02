@@ -134,12 +134,6 @@ END DO
 CALL LBSplitTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-! Resetting the particle positions in the second/third dimension for the 1D/2D/axisymmetric case
-! IF(Symmetry%Order.LT.3) THEN
-!   LastPartPos(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
-!   PartState(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
-! END IF
-
 #if USE_MPI
 ! open receive buffer for number of particles
 CALL IRecvNbOfParticles()
