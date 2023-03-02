@@ -147,6 +147,7 @@ USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonHoneycomb, SetPar
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLandmark,SetParticlePositionLandmarkNeutralization
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010Neutralization,SetParticlePositionLiu2010Neutralization3D
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010SzaboNeutralization
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: SendEmissionParticlesToProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
@@ -221,7 +222,15 @@ END SELECT
 IF (PartMPI%InitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
 #endif
   ! Allocate part pos buffer
-  ALLOCATE( particle_positions(1:chunkSize*DimSend), STAT=allocStat )
+  IF(RadialWeighting%DoRadialWeighting.AND.(chunkSize.GT.PDM%maxParticleNumber)) THEN
+    ALLOCATE( particle_positions(1:PDM%maxParticleNumber*DimSend), STAT=allocStat )
+    IF (allocStat .NE. 0) &
+      CALL abort(__STAMP__,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
+  ELSE
+    ALLOCATE( particle_positions(1:chunkSize*DimSend), STAT=allocStat )
+    IF (allocStat .NE. 0) &
+      CALL abort(__STAMP__,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
+  END IF
   ! Sanity check
   IF (allocStat .NE. 0) CALL abort(__STAMP__,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
 

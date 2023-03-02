@@ -48,6 +48,7 @@ USE MOD_Particle_Tracking_vars ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_part_RHS               ,ONLY: CalcPartRHSRotRefFrame
 USE MOD_Part_Tools             ,ONLY: InRotRefFrameCheck
+USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
@@ -66,7 +67,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                  :: timeEnd, timeStart
 INTEGER               :: iPart
-REAL                  :: RandVal, dtVar, NewYPart, NewYVelo, Pt_local(1:3), RotRefVelo(1:3)
+REAL                  :: RandVal, dtVar, Pt_local(1:3), RotRefVelo(1:3)
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))
@@ -106,30 +107,9 @@ DO iPart=1,PDM%ParticleVecLength
     PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
   END IF
   ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-  IF(Symmetry%Axisymmetric) THEN
-    IF (PartState(2,iPart).LT.0.0) THEN
-      NewYPart = -SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
-    ELSE
-      NewYPart = SQRT(PartState(2,iPart)**2 + (PartState(3,iPart))**2)
-    END IF
-    ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
-    !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
-    ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to
-    ! coincide (as opposed to Bird 1994, p. 391, where new positions are calculated with the velocity vector)
-    NewYVelo = (PartState(5,iPart)*(PartState(2,iPart))+PartState(6,iPart)*PartState(3,iPart))/NewYPart
-    PartState(6,iPart) = (-PartState(5,iPart)*PartState(3,iPart)+PartState(6,iPart)*(PartState(2,iPart)))/NewYPart
-    PartState(2,iPart) = NewYPart
-    PartState(3,iPart) = 0.0
-    PartState(5,iPart) = NewYVelo
-    END IF
+  CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
   END IF
 END DO
-
-! Resetting the particle positions in the second/third dimension for the 1D/2D/axisymmetric case
-IF(Symmetry%Order.LT.3) THEN
-  LastPartPos(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
-  PartState(Symmetry%Order+1:3,1:PDM%ParticleVecLength) = 0.0
-END IF
 
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
