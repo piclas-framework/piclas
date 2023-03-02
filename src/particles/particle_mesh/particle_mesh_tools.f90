@@ -2073,8 +2073,7 @@ IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
   SWRITE(*,*) 'Maximum dimension in z:', GEO%zmaxglob
   SWRITE(*,*) 'Minimum dimension in z:', GEO%zminglob
   SWRITE(*,*) 'Deviation', (ABS(GEO%zmaxglob)-ABS(GEO%zminglob))/ABS(GEO%zminglob), ' > 1e-5'
-  CALL abort(__STAMP__&
-    ,'ERROR: Please orient your mesh with one cell in z-direction around 0, |z_min| = z_max !')
+  CALL abort(__STAMP__,'ERROR: Please orient your mesh with one cell in z-direction around 0, |z_min| = z_max !')
 END IF
 
 DO BCSideID=1,nBCSides
@@ -2122,10 +2121,7 @@ DO BCSideID=1,nBCSides
   END IF
 END DO
 
-IF(.NOT.SymmetryBCExists) THEN
-  CALL abort(__STAMP__&
-    ,'At least one symmetric BC (in the xy-plane) has to be defined for 2D simulations')
-END IF
+IF(.NOT.SymmetryBCExists) CALL abort(__STAMP__,'At least one symmetric BC (in the xy-plane) has to be defined for 2D simulations')
 
 ! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
 LocalVolume = SUM(ElemVolume_Shared(FirstElem:LastElem))
