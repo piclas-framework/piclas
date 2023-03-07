@@ -345,7 +345,7 @@ IF (meshMode.GT.1) THEN
   crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
   IF(Symmetry%axisymmetric.AND..NOT.crossProductMetrics) THEN
     crossProductMetrics = .TRUE.
-    SWRITE(UNIT_stdOut,'(A)') 'WARNING: setting ""crossProductMetrics" to true for axisymmetric simulations!'
+    LBWRITE(UNIT_stdOut,'(A)') 'WARNING: setting ""crossProductMetrics" to true for axisymmetric simulations!'
   END IF
   LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
   CALL InitMeshBasis(NGeo,PP_N,xGP)
