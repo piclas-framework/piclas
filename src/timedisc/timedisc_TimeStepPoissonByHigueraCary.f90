@@ -57,6 +57,7 @@ USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
+USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -217,6 +218,8 @@ IF (time.GE.DelayTime) THEN
       ! 2nd part of the position update (also neutral particles)
       !-- x(n) => x(n+1) by v(n+0.5):
       PartState(1:3,iPart) = PartState(1:3,iPart) + 0.5 * PartState(4:6,iPart) * dtFrac
+
+      CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
 
       ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
