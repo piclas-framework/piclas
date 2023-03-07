@@ -58,6 +58,7 @@ USE MOD_DSMC                   ,ONLY: DSMC_main
 USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcCoupledPowerPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
+USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif
@@ -203,6 +204,9 @@ IF (time.GE.DelayTime) THEN
         PDM%dtFracPush(iPart) = .FALSE.
         IF (.NOT.DoForceFreeSurfaceFlux) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
       END IF !IsNewPart
+
+      CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
+
       ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
     END IF
@@ -330,6 +334,9 @@ DO iStage=2,nRKStages
           END IF
           IF (.NOT.DoForceFreeSurfaceFlux .OR. iStage.EQ.nRKStages) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
         END IF !IsNewPart
+
+        CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
+      
         ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
         IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
       END IF
