@@ -42,6 +42,10 @@ Vec                 :: lambda_local_petsc
 VecScatter          :: scatter_petsc
 IS                  :: idx_local_petsc
 IS                  :: idx_global_petsc
+Vec                 :: lambda_local_conductors_petsc
+VecScatter          :: scatter_conductors_petsc
+IS                  :: idx_local_conductors_petsc
+IS                  :: idx_global_conductors_petsc
 INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the local SideID to global PETScSideID 
 INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)  !< PETScLocalToSideID(PETScLocalSideID) maps the local PETSc side to SideID
 REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
@@ -73,6 +77,8 @@ INTEGER             :: HDGZeroPotentialDir    !< Direction in which a Dirichlet 
                                               !< conditions. Default chooses the direction automatically when no other Dirichlet
                                               !< boundary conditions are defined.
 INTEGER             :: nNeumannBCsides
+INTEGER             :: nConductorBCsides
+INTEGER,ALLOCATABLE :: ConductorBC(:)
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)
 LOGICAL             :: HDGnonlinear           !< Use non-linear sources for HDG? (e.g. Boltzmann electrons)
@@ -99,7 +105,7 @@ LOGICAL             :: UseRelativeAbortCrit
 LOGICAL             :: HDGInitIsDone=.FALSE.
 INTEGER             :: HDGSkip, HDGSkipInit
 REAL                :: HDGSkip_t0
-LOGICAL,ALLOCATABLE :: MaskedSide(:)          !< 1:nSides: all sides which are set to zero in matvec
+INTEGER,ALLOCATABLE :: MaskedSide(:)          !< 1:nSides: all sides which are set to zero in matvec
 !mortar variables
 REAL,ALLOCATABLE    :: IntMatMortar(:,:,:,:)  !< Interpolation matrix for mortar: (nGP_face,nGP_Face,1:4(iMortar),1:3(MortarType))
 INTEGER,ALLOCATABLE :: SmallMortarInfo(:)     !< 1:nSides: info on small Mortar sides:
