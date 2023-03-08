@@ -604,14 +604,16 @@ REAL, INTENT(OUT)             :: Prandtl, relaxfreq, dynamicvis, thermalcond
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, jSpec, INFO
-REAL                          :: MolarFraction(1:nSpecies), MassFraction(1:nSpecies), MassIC_Mixture
+REAL                          :: MolarFraction(1:nSpecies), MassFraction(1:nSpecies), MassIC_Mixture, DOFFraction(1:nSpecies)
 REAL                          :: PrandtlCorrection, dynamicvisSpec(nSpecies), thermalcondSpec(nSpecies), Phi(nSpecies)
-REAL                          :: C_P, nu, A(3,3), W(3), Theta, CellTempSpec(nSpecies+1), Work(100)
+REAL                          :: TotalDOFWeight, C_P, nu, A(3,3), W(3), Theta, CellTempSpec(nSpecies+1), Work(100)
 !===================================================================================================================================
 IF (nSpecies.GT.1) THEN ! gas mixture
   MolarFraction(1:nSpecies) = totalWeightSpec(1:nSpecies) / totalWeight
   MassIC_Mixture = TotalMass / totalWeight
   MassFraction(1:nSpecies) = MolarFraction(1:nSpecies) * Species(1:nSpecies)%MassIC / MassIC_Mixture
+  DOFFraction(1:nSpecies) = totalWeightSpec(1:nSpecies) * (5.+Xi_RotSpec(1:nSpecies)+Xi_VibSpec(1:nSpecies))
+  TotalDOFWeight = SUM(DOFFraction)
 
   PrandtlCorrection = 0.
   C_P = 0.0
@@ -619,12 +621,10 @@ IF (nSpecies.GT.1) THEN ! gas mixture
     IF (nSpec(iSpec).EQ.0) CYCLE
     ! Correction of Pr for calculation of relaxation frequency, see alpha - Pfeiffer et. al., Physics of Fluids 33, 036106 (2021),
     ! "Multi-species modeling in the particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method for monatomic gas species"
-    PrandtlCorrection = PrandtlCorrection + MolarFraction(iSpec)*MassIC_Mixture/Species(iSpec)%MassIC
-    IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN ! molecules
-      C_P = C_P + ((5. + (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec)))/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec)
-    ELSE ! atoms
-      C_P = C_P + (5./2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec)
-    END IF
+    ! Extension for inner degrees of freedom using S. Brull, Communications in Mathematical Sciences 19, 2177-2194, 2021,
+    ! "An Ellipsoidal Statistical Model for a monoatomic and polyatomic gas mixture"
+    PrandtlCorrection = PrandtlCorrection + DOFFraction(iSpec)*MassIC_Mixture/Species(iSpec)%MassIC/TotalDOFWeight
+    C_P = C_P + ((5. + (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec)))/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec) 
   END DO
 
   SELECT CASE(BGKMixtureModel)
