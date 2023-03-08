@@ -36,10 +36,6 @@ INTERFACE PartRHS
   PROCEDURE PartRHS
 END INTERFACE
 
-INTERFACE CalcPartRHSRotRefFrame
-  PROCEDURE CalcPartRHSRotRefFrame
-END INTERFACE
-
 !----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC :: CalcPartRHS
 PUBLIC :: PartVeloToImp
@@ -714,7 +710,7 @@ velosq=FieldAtParticle(1) ! dummy statement
 END SUBROUTINE PartRHS_CEM
 
 
-SUBROUTINE CalcPartRHSRotRefFrame(PartID,Pt_temp,RotRefVelo)
+PPURE FUNCTION CalcPartRHSRotRefFrame(PartID,RotRefVelo)
 !===================================================================================================================================
 !> 
 !===================================================================================================================================
@@ -729,15 +725,15 @@ INTEGER,INTENT(IN)       :: PartID
 REAL,INTENT(IN)          :: RotRefVelo(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)         :: Pt_temp(1:3)
+REAL                     :: CalcPartRHSRotRefFrame(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
 
-Pt_temp(1:3) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))) &
+CalcPartRHSRotRefFrame(1:3) = - CROSS(RotRefFrameOmega(1:3),CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))) &
                   - 2.*CROSS(RotRefFrameOmega(1:3),RotRefVelo(1:3))
 
-END SUBROUTINE CalcPartRHSRotRefFrame
+END FUNCTION CalcPartRHSRotRefFrame
 
 
 SUBROUTINE PartVeloToImp(VeloToImp,doParticle_In)

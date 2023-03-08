@@ -504,6 +504,9 @@ USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
 USE MOD_SurfaceModel_Tools      ,ONLY: CalcPostWallCollVelo, SurfaceModel_EnergyAccommodation
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, RotRefFrameOmega
+USE MOD_part_RHS               ,ONLY: CalcPartRHSRotRefFrame
+USE MOD_part_tools             ,ONLY: InRotRefFrameCheck
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -628,7 +631,6 @@ END IF
 ! 5.) Perform internal energy accommodation at the wall
 CALL SurfaceModel_EnergyAccommodation(PartID,locBCID,WallTemp)
 
-
 ! 6.) Determine the new particle position after the reflection
 LastPartPos(1:3,PartID) = POI_vec(1:3)
 
@@ -639,6 +641,14 @@ POI_fak=1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)/SQRT(DOT_PRODUCT(Ti
 ! travel rest of particle vector
 !PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
 IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
+
+! ! 6a.) Determine the correct velocity in case of a rotational frame of reference
+IF(UseRotRefFrame) THEN
+  IF(InRotRefFrameCheck(PartID)) THEN
+    NewVelo(1:3) = NewVelo(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
+    NewVelo(1:3) = NewVelo(1:3) + CalcPartRHSRotRefFrame(PartID,NewVelo(1:3)) * dtVar
+  END IF
+END IF
 
 PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVelo(1:3)
 

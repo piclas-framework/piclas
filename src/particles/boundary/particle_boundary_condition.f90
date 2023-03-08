@@ -299,6 +299,9 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC, AmbipolElecVelo
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, RotRefFrameOmega
+USE MOD_part_RHS               ,ONLY: CalcPartRHSRotRefFrame
+USE MOD_part_tools             ,ONLY: InRotRefFrameCheck
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -312,7 +315,7 @@ INTEGER,INTENT(INOUT),OPTIONAL    :: ElemID
 INTEGER                              :: iNeigh, RotSideID, GlobalElemID
 REAL                                 :: dtVar
 LOGICAL                              :: FoundInElem
-REAL                                 :: LastPartPos_old(1:3),Velo_old(1:3), Velo_oldAmbi(1:3)
+REAL                                 :: LastPartPos_old(1:3),Velo_old(1:3), Velo_oldAmbi(1:3), Velo_new(1:3)
 !===================================================================================================================================
 
 #ifdef CODE_ANALYZE
@@ -381,7 +384,14 @@ ASSOCIATE(rot_alpha => PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo
   END SELECT
 END ASSOCIATE
 ! (2) update particle position after periodic BC
-PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory)*dtVar*PartState(4:6,PartID)
+Velo_new(1:3) = PartState(4:6,PartID)
+IF(UseRotRefFrame) THEN
+  IF(InRotRefFrameCheck(PartID)) THEN
+    Velo_new(1:3) = Velo_new(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
+    Velo_new(1:3) = Velo_new(1:3) + CalcPartRHSRotRefFrame(PartID,Velo_new(1:3)) * dtVar
+  END IF
+END IF
+PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (1.0 - TrackInfo%alpha/TrackInfo%lengthPartTrajectory)*dtVar*Velo_new(1:3)
 ! compute moved particle || rest of movement
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 TrackInfo%lengthPartTrajectory= VECNORM(TrackInfo%PartTrajectory)
