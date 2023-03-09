@@ -525,6 +525,7 @@ REAL                              :: POI_fak, TildTrajectory(3), dtVar
 ! Symmetry
 REAL                              :: rotVelY, rotVelZ, rotPosY
 REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:3), Vector2(1:3), OldVelo(1:3)
+REAL                              :: NewVeloPush(1:3)
 !===================================================================================================================================
 ! 1.) Get the wall velocity, temperature and accommodation coefficients
 locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
@@ -556,6 +557,10 @@ IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(SpecID)%TimeStepFacto
 
 IF(UseRotRefFrame) THEN ! In case of RotRefFrame OldVelo must be reconstructed 
   OldVelo = (PartState(1:3,PartID) - LastPartPos(1:3,PartID)) / dtVar
+  ! IF(InRotRefFrameCheck(PartID)) THEN
+  !   OldVelo(1:3) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
+  !   OldVelo(1:3) = OldVelo(1:3) + CalcPartRHSRotRefFrame(PartID,OldVelo(1:3)) * dtVar
+  ! END IF
 ELSE
   OldVelo = PartState(4:6,PartID)
 END IF
@@ -643,14 +648,15 @@ POI_fak=1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)/SQRT(DOT_PRODUCT(Ti
 IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
 
 ! ! 6a.) Determine the correct velocity in case of a rotational frame of reference
-IF(UseRotRefFrame) THEN
-  IF(InRotRefFrameCheck(PartID)) THEN
-    NewVelo(1:3) = NewVelo(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
-    NewVelo(1:3) = NewVelo(1:3) + CalcPartRHSRotRefFrame(PartID,NewVelo(1:3)) * dtVar
-  END IF
-END IF
+NewVeloPush(1:3) = NewVelo(1:3)
+! IF(UseRotRefFrame) THEN
+!   IF(InRotRefFrameCheck(PartID)) THEN
+!     NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
+!     NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(PartID,NewVeloPush(1:3)) * dtVar
+!   END IF
+! END IF
 
-PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVelo(1:3)
+PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVeloPush(1:3)
 
 ! 7.) Axisymmetric simulation: Rotate the vector back into the symmetry plane
 IF(Symmetry%Axisymmetric) THEN
