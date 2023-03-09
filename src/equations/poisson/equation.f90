@@ -318,7 +318,7 @@ SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState,iLinState)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals         ,ONLY: Abort,mpiroot
-USE MOD_Globals_Vars    ,ONLY: PI,ElementaryCharge
+USE MOD_Globals_Vars    ,ONLY: PI,ElementaryCharge,eps0
 USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinPhi,LinPhiHeight,LinPhiNormal,LinPhiBasePoint
 #if defined(PARTICLES)
 USE MOD_Equation_Vars   ,ONLY: CoupledPowerPotential
@@ -561,7 +561,8 @@ CASE(500) ! Coaxial capacitor with Floating Boundary Condition (FPC) with from
         r1  => 2.0e-2             ,& ! [m]
         r2  => 0.8e-2             ,& ! [m]
         r3  => 1.2e-2             ,& ! [m]
-        eps => ElementaryCharge    & ! [e]
+        !eps => ElementaryCharge    & ! [e]
+        eps => eps0                &
         )
     ASSOCIATE( C20 => LOG(r2/r0) , C31 => LOG(r3/r1) )
       ASSOCIATE( b1 => (V1 - V0 - C20*Q/(2*PI*eps))/(C20-C31) )
