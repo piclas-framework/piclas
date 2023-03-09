@@ -151,6 +151,7 @@ INTEGER           :: PETScLocalID
 INTEGER           :: MortarSideID,iMortar
 INTEGER           :: locSide,nMortarMasterSides,nMortars
 #endif
+INTEGER           :: nConductors
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    LBWRITE(*,*) "InitHDG already called."
@@ -223,7 +224,7 @@ MaxIterCG            = GETINT('MaxIterCG')
 ExactLambda          = GETLOGICAL('ExactLambda')
 
 ALLOCATE(MaskedSide(1:nSides))
-MaskedSide=.FALSE.
+MaskedSide=0
 
 IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
   IF(nMortarMPISides.GT.0) CALL abort(__STAMP__,&
@@ -233,8 +234,9 @@ END IF !mortarMesh
 CALL InitMortar_HDG()
 
 !boundary conditions
-nDirichletBCsides = 0
-nNeumannBCsides   = 0
+nDirichletBCsides=0
+nNeumannBCsides  =0
+nConductorBCsides=0
 DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
@@ -243,14 +245,14 @@ DO SideID=1,nBCSides
     nDirichletBCsides=nDirichletBCsides+1
   CASE(10,11) ! Neumann
     nNeumannBCsides=nNeumannBCsides+1
-  CASE(20) ! Floating Boundary Condition (FPCC)
-    ! do nothing
+  CASE(20) ! Conductor: Floating Boundary Condition (FPC)
+    nConductorBCsides=nConductorBCsides+1
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
 END DO
 
-! Initialize floating boundary condition
+! Conductor: Initialize floating boundary condition
 CALL InitFPC()
 
 ! Check if zero potential must be set on a boundary (or periodic side)
@@ -261,11 +263,13 @@ IF(nNeumannBCsides  .GT.0)THEN
   ALLOCATE(NeumannBC(nNeumannBCsides))
   ALLOCATE(qn_face(PP_nVar, nGP_face,nNeumannBCsides))
 END IF
+IF(nConductorBCsides.GT.0)ALLOCATE(ConductorBC(nConductorBCsides))
 #if (PP_nVar!=1)
   IF(nDirichletBCsides.GT.0)ALLOCATE(qn_face_MagStat(PP_nVar, nGP_face,nDirichletBCsides))
 #endif
 nDirichletBCsides=0
 nNeumannBCsides  =0
+nConductorBCsides=0
 DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
@@ -273,12 +277,14 @@ DO SideID=1,nBCSides
   CASE(2,4,5,6,7) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
-    MaskedSide(SideID)=.TRUE.
+    MaskedSide(SideID)=1
   CASE(10,11) !Neumann,
     nNeumannBCsides=nNeumannBCsides+1
     NeumannBC(nNeumannBCsides)=SideID
-  CASE(20) ! Floating Boundary Condition (FPCC)
-    ! Nothing to do
+  CASE(20) ! Conductor: Floating Boundary Condition (FPC)
+    nConductorBCsides=nConductorBCsides+1
+    ConductorBC(nConductorBCsides)=SideID
+    MaskedSide(SideID)=2
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
@@ -296,13 +302,13 @@ DO SideID=1,nSides
     nMortarMasterSides = nMortarMasterSides + 1
   END IF
 END DO
-nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides
+nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides-nConductorBCsides
 IF(ZeroPotentialSideID.GT.0) nPETScUniqueSides = nPETScUniqueSides - 1
 CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
 DO iProc=1, myrank
   OffsetPETScSide = OffsetPETScSide + OffsetPETScSideMPI(iProc)
 END DO
-nPETScUniqueSidesGlobal = SUM(OffsetPETScSideMPI)
+nPETScUniqueSidesGlobal = SUM(OffsetPETScSideMPI) + 1 ! TODO nConductors=1
 #endif
 
 ALLOCATE(PETScGlobal(nSides))
@@ -311,7 +317,7 @@ PETScGlobal=-1
 PETScLocalToSideID=-1
 PETScLocalID=0 ! = nSides-nDirichletBCSides (-ZeroPotentialSide)
 DO SideID=1,nSides!-nMPISides_YOUR
-  IF(MaskedSide(SideID).OR.(SideID.EQ.ZeroPotentialSideID)) CYCLE
+  IF((MaskedSide(SideID).GT.0).OR.(SideID.EQ.ZeroPotentialSideID)) CYCLE
   PETScLocalID=PETScLocalID+1
   PETScLocalToSideID(PETScLocalID)=SideID
   PETScGlobal(SideID)=PETScLocalID+OffsetPETScSide-1 ! PETSc arrays start at 0!
@@ -415,9 +421,10 @@ PetscCallA(MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr))
 PetscCallA(MatSetBlockSize(Smat_petsc,nGP_face,ierr))
 PetscCallA(MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,nPETScUniqueSidesGlobal*nGP_Face,ierr))
 PetscCallA(MatSetType(Smat_petsc,MATSBAIJ,ierr)) ! Symmetric sparse (mpi) matrix
+! TODO Set preallocation row wise
 ! 1 Big mortar side is affected by 6 + 4*4 = 22 other sides...
-PetscCallA(MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,ierr))
-PetscCallA(MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,21,PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,nConductorBCsides*6,PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,nConductorBCsides*6,PETSC_NULL_INTEGER,nConductorBCsides*6,PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatZeroEntries(Smat_petsc,ierr))
 #endif
 
@@ -468,6 +475,13 @@ PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,lambda_local_
 PetscCallA(ISCreateStride(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,0,1,idx_local_petsc,ierr))
 PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr))
 PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr))
+
+IF(nConductorBCsides.GT.0)THEN
+  PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nGP_face,lambda_local_conductors_petsc,ierr))
+  PetscCallA(ISCreateStride(PETSC_COMM_SELF,nGP_face,0,1,idx_local_conductors_petsc,ierr))
+  PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,1,(/nPETScUniqueSidesGlobal-1/),PETSC_COPY_VALUES,idx_global_conductors_petsc,ierr))
+  PetscCallA(VecScatterCreate(lambda_petsc,idx_global_conductors_petsc,lambda_local_conductors_petsc,idx_local_conductors_petsc,scatter_conductors_petsc,ierr))
+END IF
 #endif
 
 HDGInitIsDone = .TRUE.
@@ -652,7 +666,8 @@ INTEGER             :: iGlobElem,BCIndex,iSide
 CHARACTER(5)        :: hilf,hilf2
 !===================================================================================================================================
 
-! Get global number of FPC boundaries
+! Get global number of FPC boundaries in [1:nBCs], they might belong to the same group (will be reduced to "nUniqueFPCBounds" below)
+! FPC boundaries with the same BCState will be in the same group (electrically connected)
 FPC%nFPCBounds = 0
 DO iBC=1,nBCs
   BCType = BoundaryType(iBC,BC_TYPE)
@@ -1020,6 +1035,8 @@ PetscReal            :: petscnorm
 INTEGER              :: ElemID,iBCSide,locBCSideID, PETScLocalID
 INTEGER              :: PETScID_start, PETScID_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
+INTEGER              :: iPETScGlobal
+REAL                 :: RHS_conductor(nGP_face)
 #endif
 #if defined(PARTICLES) && USE_MPI
 INTEGER              :: iUniqueFPCBC
@@ -1236,13 +1253,16 @@ DO iVar=1, PP_nVar
 
 #if USE_PETSC
   ! Fill right hand side
-  !PetscCallA(VecZeroEntries(RHS_petsc,ierr))
+  PetscCallA(VecZeroEntries(RHS_petsc,ierr))
   TimeStartPiclas=PICLASTIME()
   DO PETScLocalID=1,nPETScUniqueSides
     SideID=PETScLocalToSideID(PETScLocalID)
     !VecSetValuesBlockedLocal somehow not working...
     PetscCallA(VecSetValuesBlocked(RHS_petsc,1,PETScGlobal(SideID),RHS_face(1,:,SideID),INSERT_VALUES,ierr))
   END DO
+  RHS_conductor(:)=0.
+  RHS_conductor(1)=5.
+  PetscCallA(VecSetValuesBlocked(RHS_petsc,1,nPETScUniqueSidesGlobal-1,RHS_conductor,INSERT_VALUES,ierr))
   PetscCallA(VecAssemblyBegin(RHS_petsc,ierr))
   PetscCallA(VecAssemblyEnd(RHS_petsc,ierr))
   
@@ -1268,6 +1288,19 @@ DO iVar=1, PP_nVar
     lambda(1,:,SideID) = lambda_pointer(PETScID_start:PETScID_stop)
   END DO 
   PetscCallA(VecRestoreArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
+
+  ! Fill Conductor lambda
+  PetscCallA(VecScatterBegin(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
+  PetscCallA(VecScatterEnd(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
+  PetscCallA(VecGetArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
+  ! TODO multiple conductors
+  DO BCsideID=1,nConductorBCsides
+    SideID=ConductorBC(BCSideID)
+    DO i=1,nGP_face
+      lambda(1,:,SideID) = lambda_pointer(1)
+    END DO
+  END DO
+  PetscCallA(VecRestoreArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
   ! PETSc Calculate lambda at small mortars from big mortars
   CALL BigToSmallMortar_HDG(1,lambda)
 #if USE_MPI
@@ -2308,7 +2341,7 @@ CASE(0)
   ! do nothing, should not be called
 CASE(1) !apply side-block SPD Preconditioner matrix, already Cholesky decomposed
   DO SideID=firstSideID,lastSideID
-    IF(MaskedSide(sideID)) THEN
+    IF(MaskedSide(sideID).GT.0) THEN
       V(:,SideID)=0.
     ELSE
       ! solve the preconditioner linear system
@@ -2317,7 +2350,7 @@ CASE(1) !apply side-block SPD Preconditioner matrix, already Cholesky decomposed
   END DO ! SideID=1,nSides
 CASE(2)
   DO SideID=firstSideID,lastSideID
-    IF(MaskedSide(sideID)) THEN
+    IF(MaskedSide(sideID).GT.0) THEN
       V(:,SideID)=0.
     ELSE
       ! apply inverse of diagonal preconditioned

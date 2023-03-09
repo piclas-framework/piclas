@@ -42,6 +42,10 @@ Vec                 :: lambda_local_petsc
 VecScatter          :: scatter_petsc
 IS                  :: idx_local_petsc
 IS                  :: idx_global_petsc
+Vec                 :: lambda_local_conductors_petsc
+VecScatter          :: scatter_conductors_petsc
+IS                  :: idx_local_conductors_petsc
+IS                  :: idx_global_conductors_petsc
 INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the local SideID to global PETScSideID 
 INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)  !< PETScLocalToSideID(PETScLocalSideID) maps the local PETSc side to SideID
 REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
@@ -73,6 +77,8 @@ INTEGER             :: HDGZeroPotentialDir    !< Direction in which a Dirichlet 
                                               !< conditions. Default chooses the direction automatically when no other Dirichlet
                                               !< boundary conditions are defined.
 INTEGER             :: nNeumannBCsides
+INTEGER             :: nConductorBCsides      !< Number of processor-local sides that are conductors (FPC) in [1:nBCSides]
+INTEGER,ALLOCATABLE :: ConductorBC(:)
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)
 LOGICAL             :: HDGnonlinear           !< Use non-linear sources for HDG? (e.g. Boltzmann electrons)
@@ -99,7 +105,7 @@ LOGICAL             :: UseRelativeAbortCrit
 LOGICAL             :: HDGInitIsDone=.FALSE.
 INTEGER             :: HDGSkip, HDGSkipInit
 REAL                :: HDGSkip_t0
-LOGICAL,ALLOCATABLE :: MaskedSide(:)          !< 1:nSides: all sides which are set to zero in matvec
+INTEGER,ALLOCATABLE :: MaskedSide(:)          !< 1:nSides: all sides which are set to zero in matvec
 !mortar variables
 REAL,ALLOCATABLE    :: IntMatMortar(:,:,:,:)  !< Interpolation matrix for mortar: (nGP_face,nGP_Face,1:4(iMortar),1:3(MortarType))
 INTEGER,ALLOCATABLE :: SmallMortarInfo(:)     !< 1:nSides: info on small Mortar sides:
@@ -170,16 +176,18 @@ TYPE tFPC
   REAL,ALLOCATABLE            :: Charge(:)          !< Accumulated charge on floating boundary condition for each (required) BC index over all processors
   REAL,ALLOCATABLE            :: ChargeProc(:)      !< Accumulated charge on floating boundary condition for each (required) BC index for a single processor
 #if USE_MPI
-  TYPE(tMPIGROUP),ALLOCATABLE :: COMM(:)             !< communicator and ID for parallel execution
+  TYPE(tMPIGROUP),ALLOCATABLE :: COMM(:)            !< communicator and ID for parallel execution
 #endif /*USE_MPI*/
-  !INTEGER                     :: NBoundaries         !< Total number of boundaries where the floating boundary condition is evaluated
-  INTEGER                     :: nFPCBounds         !< Total number of BC sides that are FPC
-  INTEGER                     :: nUniqueFPCBounds   !< Number of independent FPC after grouping certain BC sides together (electrically connected)
-  INTEGER,ALLOCATABLE         :: BCState(:)          !< BCState of the i-th FPC index
-  !INTEGER,ALLOCATABLE         :: BCIDToFPCBCID(:)    !< Mapping BCID to FPC BCID (1:nPartBound)
-  INTEGER,ALLOCATABLE         :: Group(:,:)          !< FPC%Group(1:FPC%nFPCBounds,2)
-                                                     !< 1: BCState
-                                                     !< 2: iUniqueFPC (i-th FPC group ID)
+  !INTEGER                     :: NBoundaries       !< Total number of boundaries where the floating boundary condition is evaluated
+  INTEGER                     :: nFPCBounds         !< Global number of boundaries that are FPC with BCType=20 in [1:nBCs],
+!                                                   !< they might belong to the same group (electrically connected)
+  INTEGER                     :: nUniqueFPCBounds   !< Global number of independent FPC after grouping certain BC sides together
+!                                                   !< (electrically connected) with the same BCState ID
+  INTEGER,ALLOCATABLE         :: BCState(:)         !< BCState of the i-th FPC index
+  !INTEGER,ALLOCATABLE         :: BCIDToFPCBCID(:)  !< Mapping BCID to FPC BCID (1:nPartBound)
+  INTEGER,ALLOCATABLE         :: Group(:,:)         !< FPC%Group(1:FPC%nFPCBounds,2)
+                                                    !<   1: BCState
+                                                    !<   2: iUniqueFPC (i-th FPC group ID)
 END TYPE
 
 TYPE(tFPC)   :: FPC
