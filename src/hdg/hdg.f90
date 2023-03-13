@@ -1263,7 +1263,8 @@ DO iVar=1, PP_nVar
   END DO
   RHS_conductor(:)=0.
   RHS_conductor(1)=5.
-  RHS_conductor(:)=FPC%Charge(1)*1e-6/eps0
+  !RHS_conductor(:)=FPC%Charge(1)*1e-6/eps0
+  RHS_conductor(1)=0.!FPC%Charge(1)/eps0
   PetscCallA(VecSetValuesBlocked(RHS_petsc,1,nPETScUniqueSidesGlobal-1,RHS_conductor,INSERT_VALUES,ierr))
   PetscCallA(VecAssemblyBegin(RHS_petsc,ierr))
   PetscCallA(VecAssemblyEnd(RHS_petsc,ierr))
