@@ -62,6 +62,7 @@ USE MOD_Globals_Vars           ,ONLY: Kelvin2eV
 USE MOD_Particle_Vars          ,ONLY: nSpecies,Species,usevMPF
 USE MOD_ReadInTools            ,ONLY: GETINT,GETREAL,GETLOGICAL,GETSTR
 USE MOD_Particle_Boundary_Vars ,ONLY: nPartBound,PartBound
+USE MOD_SurfaceModel_Vars      ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutoamtic
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfModResultSpec,SurfModEnergyDistribution,SurfModEmissionEnergy,SurfModEmissionYield
 USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -75,7 +76,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(32)        :: hilf, hilf2, hilf3
 INTEGER              :: iSpec, iPartBound
-LOGICAL              :: SurfModelElectronTemp,SurfModSEEelectronTempAutoamtic
+LOGICAL              :: SurfModelElectronTemp
 INTEGER, ALLOCATABLE :: SumOfResultSpec(:)
 REAL                 :: MPFiSpec,MPFresultSpec
 !===================================================================================================================================
@@ -159,10 +160,13 @@ DEALLOCATE(SumOfResultSpec)
 
 ! If SEE model by Morozov is used, read the additional parameter for the electron bulk temperature
 IF(SurfModelElectronTemp)THEN
-  BulkElectronTemp = GETREAL('Part-SurfaceModel-SEE-Te') ! default is 50 eV = 5.80226250308285e5 K
-  BulkElectronTemp = BulkElectronTemp*Kelvin2eV    ! convert to eV to be used in the code
+  BulkElectronTempSEE             = GETREAL('Part-SurfaceModel-SEE-Te') ! default is 50 eV = 5.80226250308285e5 K
+  BulkElectronTempSEE             = BulkElectronTempSEE*Kelvin2eV       ! convert to eV to be used in the code
   SurfModSEEelectronTempAutoamtic = GETLOGICAL('Part-SurfaceModel-SEE-Te-automatic')
-  IF(SurfModSEEelectronTempAutoamtic) CalcBulkElectronTemp=.TRUE.
+  IF(SurfModSEEelectronTempAutoamtic)THEN
+    CalcBulkElectronTemp = .TRUE.
+    BulkElectronTemp     = BulkElectronTempSEE
+  END IF
 END IF ! SurfModelElectronTemp
 
 END SUBROUTINE InitSurfaceModel
@@ -173,7 +177,12 @@ SUBROUTINE FinalizeSurfaceModel()
 !> Deallocate surface model vars
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_SurfaceModel_Vars
+#if USE_MPI
+USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -185,8 +194,56 @@ IMPLICIT NONE
 !===================================================================================================================================
 SDEALLOCATE(SurfModResultSpec)
 SDEALLOCATE(SurfModEnergyDistribution)
+SDEALLOCATE(SurfChemReac%ReactType)
+SDEALLOCATE(SurfChemReac%CatName)
+SDEALLOCATE(SurfChemReac%Reactants)
+SDEALLOCATE(SurfChemReac%Products)
+SDEALLOCATE(SurfChemReac%Inhibition)
+SDEALLOCATE(SurfChemReac%Promotion)
+SDEALLOCATE(SurfChemReac%EReact)
+SDEALLOCATE(SurfChemReac%EScale)
+SDEALLOCATE(SurfChemReac%HeatAccommodation)
+SDEALLOCATE(SurfChemReac%BoundisChemSurf)
+SDEALLOCATE(SurfChemReac%NumOfBounds)
+SDEALLOCATE(SurfChemReac%BoundMap)
+SDEALLOCATE(SurfChemReac%PSMap)
+SDEALLOCATE(SurfChemReac%S_initial)
+SDEALLOCATE(SurfChemReac%EqConstant)
+SDEALLOCATE(SurfChemReac%DissOrder)
+SDEALLOCATE(SurfChemReac%StickCoeff)
+SDEALLOCATE(SurfChemReac%E_initial)
+SDEALLOCATE(SurfChemReac%W_interact)
+SDEALLOCATE(SurfChemReac%C_a)
+SDEALLOCATE(SurfChemReac%C_b)
+SDEALLOCATE(SurfChemReac%Rate)
+SDEALLOCATE(SurfChemReac%Prob)
+SDEALLOCATE(SurfChemReac%ArrheniusEnergy)
+SDEALLOCATE(SurfChemReac%Prefactor) 
+
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+  IF(SurfChemReac%NumOfReact.GT.0) THEN
+    CALL UNLOCK_AND_FREE(ChemWallProp_Shared_Win)
+    CALL UNLOCK_AND_FREE(ChemSampWall_Shared_Win)
+  END IF
+  ADEALLOCATE(ChemSampWall_Shared)
+  ADEALLOCATE(ChemWallProp_Shared)
+  SDEALLOCATE(ChemDesorpWall)
+  ! SDEALLOCATE(ChemCountReacWall)
+  SDEALLOCATE(ChemSampWall)
+#else
+  SDEALLOCATE(ChemDesorpWall)
+  ! SDEALLOCATE(ChemCountReacWall)
+  SDEALLOCATE(ChemSampWall)
+  SDEALLOCATE(ChemWallProp)
+#endif
+
+SNULLIFY(SurfChemReac%Surfaceflux)
+SDEALLOCATE(SurfChemReac%SFAux)
+
 SDEALLOCATE(SurfModEmissionEnergy)
 SDEALLOCATE(SurfModEmissionYield)
+SDEALLOCATE(StickingCoefficientData)
 END SUBROUTINE FinalizeSurfaceModel
 
 END MODULE MOD_SurfaceModel_Init

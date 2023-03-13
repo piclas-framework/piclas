@@ -562,11 +562,7 @@ SUBROUTINE FinalizeDielectric()
 !
 !===================================================================================================================================
 ! MODULES
-USE MOD_Dielectric_Vars,            ONLY: DoDielectric,DielectricEps,DielectricMu
-USE MOD_Dielectric_Vars,            ONLY: ElemToDielectric,DielectricToElem,isDielectricElem
-USE MOD_Dielectric_Vars,            ONLY: FaceToDielectric,DielectricToFace,isDielectricFace
-USE MOD_Dielectric_Vars,            ONLY: FaceToDielectricInter,DielectricInterToFace,isDielectricInterFace
-USE MOD_Dielectric_Vars,            ONLY: DielectricConstant_inv,Dielectric_Master,Dielectric_Slave
+USE MOD_Dielectric_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -592,6 +588,9 @@ SDEALLOCATE(isDielectricInterFace)
 SDEALLOCATE(DielectricConstant_inv)
 SDEALLOCATE(Dielectric_Master)
 SDEALLOCATE(Dielectric_Slave)
+SDEALLOCATE(DielectricZoneID)
+SDEALLOCATE(DielectricZoneEpsR)
+SDEALLOCATE(DielectricZoneMuR)
 END SUBROUTINE FinalizeDielectric
 
 

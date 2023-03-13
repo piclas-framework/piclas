@@ -57,38 +57,23 @@ SUBROUTINE DefineParametersMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools ,ONLY: prms
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Mesh")
-CALL prms%CreateLogicalOption( 'DoSwapMesh',              "Flag to swap mesh for calculation.",'.FALSE.')
-CALL prms%CreateStringOption(  'SwapMeshExePath',         "(relative) path to swap-meshfile (mandatory).")
-CALL prms%CreateIntOption(     'SwapMeshLevel',           "0: initial grid\n"//&
-                                                          "1: first swap mesh\n"//&
-                                                          "2: second swap mesh\n",'0')
-
-CALL prms%CreateStringOption(  'MeshFile',            "(relative) path to meshfile (mandatory)\n"//&
-                                                      "(HALOWIKI:) usually located in directory of project.ini")
-CALL prms%CreateLogicalOption( 'useCurveds',          "Controls usage of high-order information in mesh. Turn off to discard "//&
-                                                      "high-order data and treat curved meshes as linear meshes.", '.FALSE.')
-
-CALL prms%CreateRealOption(    'meshScale',           "Scale the mesh by this factor (shrink/enlarge).",&
-                                                      '1.0')
-CALL prms%CreateLogicalOption( 'meshdeform',          "Apply simple sine-shaped deformation on cartesion mesh (for testing).",&
-                                                      '.FALSE.')
-CALL prms%CreateLogicalOption( 'meshCheckRef',        "Flag if the mesh Jacobians should be checked in the reference system in "//&
-                                                      "addition to the computational system.",'.TRUE.')
-CALL prms%CreateLogicalOption( 'CalcMeshInfo',        'Calculate and output elem data for myrank, ElemID and tracking info to '//&
-                                                      'ElemData',&
-                                                      '.FALSE.')
-CALL prms%CreateLogicalOption( 'crossProductMetrics', "Compute mesh metrics using cross product form. Caution: in this case "//&
-                                                      "free-stream preservation is only guaranteed for N=3*NGeo.",&
-                                                      '.FALSE.')
-CALL prms%CreateStringOption(  'BoundaryName',        "Names of boundary conditions to be set (must be present in the mesh!)."//&
-                                                      "For each BoundaryName a BoundaryType needs to be specified.",&
-                                                      multiple=.TRUE.)
-CALL prms%CreateIntArrayOption('BoundaryType',        "Type of boundary conditions to be set. Format: (BC_TYPE,BC_STATE)",&
-                                                      multiple=.TRUE., no=2)
-CALL prms%CreateLogicalOption( 'writePartitionInfo',  "Write information about MPI partitions into a file.",'.FALSE.')
+CALL prms%CreateLogicalOption( 'DoSwapMesh'          , "Flag to swap mesh for calculation."                                                                                                 , '.FALSE.')
+CALL prms%CreateStringOption(  'SwapMeshExePath'     , "(relative) path to swap-meshfile (mandatory).")
+CALL prms%CreateIntOption(     'SwapMeshLevel'       , "0: initial grid\n1: first swap mesh\n2: second swap mesh\n"                                                                         , '0')
+CALL prms%CreateStringOption(  'MeshFile'            , "(relative) path to meshfile (mandatory)\n(HALOWIKI:) usually located in directory of project.ini")
+CALL prms%CreateLogicalOption( 'useCurveds'          , "Controls usage of high-order information in mesh. Turn off to discard high-order data and treat curved meshes as linear meshes."    , '.FALSE.')
+CALL prms%CreateRealOption(    'meshScale'           , "Scale the mesh by this factor (shrink/enlarge)."                                                                                    , '1.0')
+CALL prms%CreateLogicalOption( 'meshdeform'          , "Apply simple sine-shaped deformation on cartesion mesh (for testing)."                                                              , '.FALSE.')
+CALL prms%CreateLogicalOption( 'meshCheckRef'        , "Flag if the mesh Jacobians should be checked in the reference system in addition to the computational system."                      , '.TRUE.')
+CALL prms%CreateLogicalOption( 'CalcMeshInfo'        , 'Calculate and output elem data for myrank, ElemID and tracking info to ElemData'                                                    , '.FALSE.')
+CALL prms%CreateLogicalOption( 'crossProductMetrics' , "Compute mesh metrics using cross product form. Caution: in this case free-stream preservation is only guaranteed for N=3*NGeo."     , '.FALSE.')
+CALL prms%CreateStringOption(  'BoundaryName'        , "Names of boundary conditions to be set (must be present in the mesh!). For each BoundaryName a BoundaryType needs to be specified." , multiple=.TRUE.)
+CALL prms%CreateIntArrayOption('BoundaryType'        , "Type of boundary conditions to be set. Format: (BC_TYPE, BC_STATE)"                                                                 , multiple=.TRUE. , no=2)
+CALL prms%CreateLogicalOption( 'writePartitionInfo'  , "Write information about MPI partitions into a file."                                                                                , '.FALSE.')
 
 END SUBROUTINE DefineParametersMesh
 
@@ -136,6 +121,7 @@ USE MOD_Particle_Vars          ,ONLY: usevMPF
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_Mesh_Tools             ,ONLY: BuildSideToNonUniqueGlobalSide
 #endif /*USE_HDG && USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -203,7 +189,7 @@ IF(.NOT.validMesh) &
 
 useCurveds=GETLOGICAL('useCurveds')
 #if USE_LOADBALANCE
-IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. .NOT.DoWriteStateToHDF5) THEN
+IF ( (DoLoadBalance.OR.DoInitialAutoRestart) .AND. (.NOT.DoWriteStateToHDF5) .AND. UseH5IOLoadBalance) THEN
   DoWriteStateToHDF5=.TRUE.
   CALL PrintOption('Loadbalancing or InitialAutoRestart enabled: DoWriteStateToHDF5','INFO',LogOpt=DoWriteStateToHDF5)
 END IF
@@ -391,9 +377,7 @@ IF (meshMode.GT.1) THEN
 
   IF(meshMode.NE.3)THEN
 #ifdef PARTICLES
-    IF(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
-      usevMPF = .TRUE.
-    ELSE IF (AdaptMPF%DoAdaptMPF) THEN
+    IF(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.AdaptMPF%DoAdaptMPF) THEN
       usevMPF = .TRUE.
     ELSE
       usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
@@ -416,7 +400,8 @@ END IF
 #if USE_HDG && USE_LOADBALANCE
 IF (meshMode.GT.0) CALL BuildSideToNonUniqueGlobalSide() ! requires ElemInfo
 #endif /*USE_HDG && USE_LOADBALANCE*/
-DEALLOCATE(ElemInfo,SideInfo)
+!DEALLOCATE(ElemInfo,SideInfo)
+DEALLOCATE(SideInfo)
 
 MeshInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -1026,6 +1011,7 @@ IMPLICIT NONE
 !local variables
 !============================================================================================================================
 ! Deallocate global variables, needs to go somewhere else later
+SDEALLOCATE(ElemInfo)
 ! geometry information and VDMS
 SDEALLOCATE(Xi_NGeo)
 SDEALLOCATE(DCL_N)

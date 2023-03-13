@@ -23,9 +23,10 @@ USE MOD_Piclas_init       ,ONLY: FinalizePiclas
 USE MOD_TimeDisc          ,ONLY: TimeDisc
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI               ,ONLY: OutputMPIW8Time
-USE MOD_MPI_Vars          ,ONLY: MPIW8Time,MPIW8TimeSim,MPIW8TimeField,MPIW8TimeBaS
+USE MOD_MPI_Vars          ,ONLY: MPIW8Time,MPIW8TimeSim,MPIW8TimeField,MPIW8TimeBaS,MPIW8TimeMM
+USE MOD_MPI_Vars          ,ONLY: MPIW8Count,MPIW8CountField,MPIW8CountBaS,MPIW8CountMM
 #if defined(PARTICLES)
-USE MOD_Particle_MPI_Vars ,ONLY: MPIW8TimePart
+USE MOD_Particle_MPI_Vars ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(PARTICLES)*/
 #endif /*defined(MEASURE_MPI_WAIT)*/
 IMPLICIT NONE
@@ -33,13 +34,19 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 #if defined(MEASURE_MPI_WAIT)
-MPIW8TimeSim   = 0.
-MPIW8TimeBaS   = 0.
+MPIW8TimeSim  = 0.
+MPIW8TimeBaS  = 0.
+MPIW8CountBaS = 0_8
+MPIW8TimeMM  = 0.
+MPIW8CountMM = 0_8
 #if defined(PARTICLES)
-MPIW8TimePart  = 0.
+MPIW8TimePart   = 0.
+MPIW8CountPart  = 0_8
 #endif /*defined(PARTICLES)*/
-MPIW8TimeField = 0.
-MPIW8Time      = 0.
+MPIW8TimeField  = 0.
+MPIW8CountField = 0_8
+MPIW8Time       = 0.
+MPIW8Count      = 0_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! Initialize

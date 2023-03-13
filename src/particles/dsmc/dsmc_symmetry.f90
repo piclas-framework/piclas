@@ -566,9 +566,9 @@ USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: AmbipolElecVelo
 USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive, ElectronicDistriPart
-USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, VarTimeStep
-USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, Species
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
+USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
 ! IMPLICIT VARIABLE HANDLING
@@ -657,8 +657,8 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   locElemID = PEM%LocalElemID(PositionNbr)
   LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
-  IF (VarTimeStep%UseVariableTimeStep) THEN
-    VarTimeStep%ParticleTimeStep(PositionNbr) = CalcVarTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID)
+  IF (UseVarTimeStep) THEN
+    PartTimeStep(PositionNbr) = GetParticleTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID)
   END IF
   ! Counting the number of clones per cell
   IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
@@ -837,12 +837,12 @@ SUBROUTINE Init_Symmetry()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-USE MOD_Particle_Vars          ,ONLY: Symmetry
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, DSMC
-USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETINT
+USE MOD_Mesh_Tools       ,ONLY: GetCNElemID
+USE MOD_Particle_Vars    ,ONLY: Symmetry
+USE MOD_DSMC_Vars        ,ONLY: RadialWeighting, VarWeighting, DSMC
+USE MOD_ReadInTools      ,ONLY: GETLOGICAL,GETINT
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1128,9 +1128,9 @@ USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, VarWeighting
 USE MOD_DSMC_Vars               ,ONLY: AmbipolElecVelo
 USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive, ElectronicDistriPart
-USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, VarTimeStep
-USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues
+USE MOD_Particle_Vars           ,ONLY: Species, UseVarTimeStep, PartTimeStep
+USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
 ! IMPLICIT VARIABLE HANDLING
@@ -1178,14 +1178,24 @@ DO iPart = 1, VarWeighting%ClonePartNum(DelayCounter)
   PositionNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
   IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
     CALL Abort(&
-       __STAMP__,&
+        __STAMP__,&
       'ERROR in simulation: New Particle Number greater max Part Num!')
   END IF
+
+  PartSpecies(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Species
+  ! Set the global element number with the offset
+  PEM%GlobalElemID(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
+  PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PositionNbr)
+  locElemID = PEM%LocalElemID(PositionNbr)
+  LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
+  PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
+
   ! Copy particle parameters
   PDM%ParticleInside(PositionNbr) = .TRUE.
   PDM%IsNewPart(PositionNbr) = .TRUE.
   PDM%dtFracPush(PositionNbr) = .FALSE.
   PartState(1:6,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartState(1:6)
+
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
     IF(DSMC%ElectronicModel.GT.0) THEN
@@ -1197,6 +1207,7 @@ DO iPart = 1, VarWeighting%ClonePartNum(DelayCounter)
         ElectronicDistriPart(PositionNbr)%DistriFunc(:) = ClonedParticles(iPart,DelayCounter)%DistriFunc(:)
       END IF
     END IF
+
     IF ((DSMC%DoAmbipolarDiff).AND.(Species(ClonedParticles(iPart,DelayCounter)%Species)%ChargeIC.GT.0.0)) THEN
       IF(ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
       ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(1:3))
@@ -1217,8 +1228,8 @@ DO iPart = 1, VarWeighting%ClonePartNum(DelayCounter)
   locElemID = PEM%LocalElemID(PositionNbr)
   LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
-  IF (VarTimeStep%UseVariableTimeStep) THEN
-    VarTimeStep%ParticleTimeStep(PositionNbr) = CalcVarTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID)
+  IF (UseVarTimeStep) THEN
+    PartTimeStep(PositionNbr) = GetParticleTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID)
   END IF
   ! Counting the number of clones per cell
   IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
@@ -1468,8 +1479,8 @@ ReadInElems = nGlobalElems
   ALLOCATE(ElemData_HDF5(1:nVar_HDF5,1:ReadInElems))
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (nVar_HDF5     => INT(nVar_HDF5,IK) ,&
-             offSetLocal   => INT(offSetLocal,IK) ,&
-             ReadInElems   => INT(ReadInElems,IK))
+              offSetLocal   => INT(offSetLocal,IK) ,&
+              ReadInElems   => INT(ReadInElems,IK))
     CALL ReadArray('ElemData',2,(/nVar_HDF5,ReadInElems/),offSetLocal,2,RealArray=ElemData_HDF5(:,:))
   END ASSOCIATE
 
@@ -1727,5 +1738,6 @@ CALL BARRIER_AND_SYNC(OptimalMPF_Shared_Win,MPI_COMM_SHARED)
 SDEALLOCATE(UseAverageMPF)
 
 END SUBROUTINE AverageFilterMPF
+  
 
 END MODULE MOD_DSMC_Symmetry

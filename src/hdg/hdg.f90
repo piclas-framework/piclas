@@ -11,6 +11,9 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
+#if USE_PETSC
+#include "petsc/finclude/petsc.h"
+#endif
 
 !===================================================================================================================================
 !> Module for the HDG method
@@ -115,8 +118,19 @@ USE MOD_HDG_Vars              ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectro
 USE MOD_Part_BR_Elecron_Fluid ,ONLY: UpdateNonlinVolumeFac
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 #endif /*defined(PARTICLES)*/
+#if USE_PETSC
+USE PETSc
+USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
+#if USE_MPI
+USE MOD_MPI_Shared_Vars       ,ONLY: MPI_COMM_WORLD
+USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
+USE MOD_MPI_Vars
+#endif /*USE_MPI*/
+USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
+USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
+#endif /*USE_PETSC*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -128,6 +142,15 @@ IMPLICIT NONE
 INTEGER           :: i,j,k,r,iElem,SideID
 INTEGER           :: BCType,BCState
 REAL              :: D(0:PP_N,0:PP_N)
+#if USE_PETSC
+PetscErrorCode    :: ierr
+INTEGER           :: iProc
+INTEGER           :: OffsetPETScSideMPI(nProcessors)
+INTEGER           :: OffsetPETScSide
+INTEGER           :: PETScLocalID
+INTEGER           :: MortarSideID,iMortar
+INTEGER           :: locSide,nMortarMasterSides,nMortars
+#endif
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    LBWRITE(*,*) "InitHDG already called."
@@ -150,6 +173,11 @@ ELSE
 END IF
 
 HDGNonLinSolver = -1 ! init
+
+#if USE_PETSC
+! initialize PETSc stuff!
+PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr))
+#endif
 
 #if defined(PARTICLES)
 ! BR electron fluid model
@@ -181,6 +209,11 @@ END IF
 #endif /*defined(PARTICLES)*/
 
 !CG parameters
+#if USE_PETSC
+SWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: PETSc '
+#else
+SWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: CG '
+#endif /*USE_PETSC*/
 PrecondType          = GETINT('PrecondType')
 epsCG                = GETREAL('epsCG')
 OutIterCG            = GETINT('OutIterCG')
@@ -243,6 +276,54 @@ DO SideID=1,nBCSides
     CALL abort(__STAMP__,' unknown BC Type in hdg.f90!',IntInfoOpt=BCType)
   END SELECT ! BCType
 END DO
+
+#if USE_PETSC
+! Create PETSc Mappings
+OffsetPETScSide=0
+#if USE_MPI
+! Count all Mortar slave sides and remove them from PETSc vector
+! TODO How to compute those
+nMortarMasterSides = 0
+DO SideID=1,nSides
+  IF(SmallMortarInfo(SideID).EQ.1) THEN
+    nMortarMasterSides = nMortarMasterSides + 1
+  END IF
+END DO
+nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides
+IF(ZeroPotentialSideID.GT.0) nPETScUniqueSides = nPETScUniqueSides - 1
+CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
+DO iProc=1, myrank
+  OffsetPETScSide = OffsetPETScSide + OffsetPETScSideMPI(iProc)
+END DO
+nPETScUniqueSidesGlobal = SUM(OffsetPETScSideMPI)
+#endif
+
+ALLOCATE(PETScGlobal(nSides))
+ALLOCATE(PETScLocalToSideID(nPETScUniqueSides+nMPISides_YOUR))
+PETScGlobal=-1
+PETScLocalToSideID=-1
+PETScLocalID=0 ! = nSides-nDirichletBCSides (-ZeroPotentialSide)
+DO SideID=1,nSides!-nMPISides_YOUR
+  IF(MaskedSide(SideID).OR.(SideID.EQ.ZeroPotentialSideID)) CYCLE
+  PETScLocalID=PETScLocalID+1
+  PETScLocalToSideID(PETScLocalID)=SideID
+  PETScGlobal(SideID)=PETScLocalID+OffsetPETScSide-1 ! PETSc arrays start at 0!
+END DO
+! Set the Global PETSc Sides of small mortar sides equal to the big mortar side
+DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  locSide=MortarType(2,MortarSideID)
+  DO iMortar=1,nMortars
+    SideID= MortarInfo(MI_SIDEID,iMortar,locSide) !small SideID
+    PETScGlobal(SideID)=PETScGlobal(MortarSideID)
+  END DO !iMortar
+END DO
+#if USE_MPI
+CALL StartReceiveMPIDataInt(1,PETScGlobal,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+CALL StartSendMPIDataInt(   1,PETScGlobal,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+#endif
+#endif
 
 !mappings
 sideDir(  XI_MINUS)=1
@@ -315,6 +396,23 @@ ALLOCATE(Ehat(nGP_face,nGP_vol,6,PP_nElems))
 !side matrices
 ALLOCATE(Smat(nGP_face,nGP_face,6,6,PP_nElems))
 
+#if USE_PETSC
+ALLOCATE(Smat_BC(nGP_face,nGP_face,6,nDirichletBCSides))
+Smat_BC = 0.
+IF(ZeroPotentialSideID.GT.0) THEN
+  ALLOCATE(Smat_zeroPotential(nGP_face,nGP_face,6))
+  Smat_zeroPotential = 0.
+END IF
+
+PetscCallA(MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr))
+PetscCallA(MatSetBlockSize(Smat_petsc,nGP_face,ierr))
+PetscCallA(MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,nPETScUniqueSidesGlobal*nGP_Face,ierr))
+PetscCallA(MatSetType(Smat_petsc,MATSBAIJ,ierr)) ! Symmetric sparse (mpi) matrix
+! 1 Big mortar side is affected by 6 + 4*4 = 22 other sides...
+PetscCallA(MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,21,PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatZeroEntries(Smat_petsc,ierr))
+#endif
 
 !stabilization parameter
 ALLOCATE(Tau(PP_nElems))
@@ -326,6 +424,21 @@ IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as on
   CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
 END IF
 
+#if USE_PETSC
+PetscCallA(KSPCreate(PETSC_COMM_WORLD,ksp,ierr))
+PetscCallA(KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr))
+
+IF(PrecondType.GE.10) THEN
+  PetscCallA(KSPSetType(ksp,KSPPREONLY,ierr)) ! Exact solver
+ELSE
+  PetscCallA(KSPSetType(ksp,KSPCG,ierr)) ! CG solver for sparse symmetric positive definite matrix
+
+  PetscCallA(KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr))
+  
+  PetscCallA(KSPSetNormType(ksp, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(ksp,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+END IF
+#endif
 
 CALL BuildPrecond()
 
@@ -333,6 +446,22 @@ ALLOCATE(lambda(PP_nVar,nGP_face,nSides))
 lambda=0.
 ALLOCATE(RHS_vol(PP_nVar, nGP_vol,PP_nElems))
 RHS_vol=0.
+
+#if USE_PETSC
+! allocate RHS & lambda vectors
+PetscCallA(VecCreate(PETSC_COMM_WORLD,lambda_petsc,ierr))
+PetscCallA(VecSetBlockSize(lambda_petsc,nGP_face,ierr))
+PetscCallA(VecSetSizes(lambda_petsc,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,ierr))
+PetscCallA(VecSetType(lambda_petsc,VECSTANDARD,ierr))
+PetscCallA(VecSetUp(lambda_petsc,ierr))
+PetscCallA(VecDuplicate(lambda_petsc,RHS_petsc,ierr))
+
+! Create scatter context to access local values from global petsc vector
+PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,lambda_local_petsc,ierr))
+PetscCallA(ISCreateStride(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,0,1,idx_local_petsc,ierr))
+PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr))
+PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr))
+#endif
 
 HDGInitIsDone = .TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT HDG DONE!'
@@ -475,13 +604,18 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-USE MOD_TimeDisc_Vars ,ONLY: iStage
+USE MOD_TimeDisc_Vars   ,ONLY: iStage
 #endif
 #if (USE_HDG && (PP_nVar==1))
-USE MOD_TimeDisc_Vars ,ONLY: dt,dt_Min
-USE MOD_Equation_Vars ,ONLY: E,Et
-USE MOD_Globals_Vars  ,ONLY: eps0
-USE MOD_Analyze_Vars  ,ONLY: CalcElectricTimeDerivative
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+USE MOD_TimeDisc_Vars   ,ONLY: iStage,nRKStages
+#endif
+USE MOD_TimeDisc_Vars   ,ONLY: dt,dt_Min
+USE MOD_Equation_Vars   ,ONLY: E,Et
+USE MOD_Globals_Vars    ,ONLY: eps0
+USE MOD_Analyze_Vars    ,ONLY: CalcElectricTimeDerivative
+USE MOD_Analyze_Vars    ,ONLY: FieldAnalyzeStep
+USE MOD_Dielectric_vars ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps
 #endif /*(USE_HDG && (PP_nVar==1))*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -499,18 +633,29 @@ REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 #if defined(PARTICLES)
 LOGICAL :: ForceCGSolverIteration_loc
 #endif /*defined(PARTICLES)*/
+#if (USE_HDG && (PP_nVar==1))
+INTEGER           :: iDir,iElem
+#endif /*(USE_HDG && (PP_nVar==1))*/
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(4))
 #endif /*EXTRAE*/
 
-! Calculate temporal derivate of E in last iteration before Analyze_dt is reached: Store E^n here
+! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Store E^n here
 #if (USE_HDG && (PP_nVar==1))
-IF(CalcElectricTimeDerivative)THEN
-  IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
-    Et(:,:,:,:,:) = E(:,:,:,:,:)
-  END IF
-END IF ! CalcElectricTimeDerivative
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+  IF (iStage.EQ.1) THEN
+#endif
+  IF(CalcElectricTimeDerivative)THEN
+    ! iter is incremented after this function and then checked in analyze routine with iter+1
+    IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(iter+1,FieldAnalyzeStep).EQ.0))THEN
+      ! Store old E-field
+      Et(:,:,:,:,:) = E(:,:,:,:,:)
+    END IF
+  END IF ! CalcElectricTimeDerivative
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+END IF
+#endif
 #endif /*(USE_HDG && (PP_nVar==1))*/
 
 ! Check whether the solver should be skipped in this iteration
@@ -544,13 +689,32 @@ ELSE
 END IF
 #endif /*defined(PARTICLES)*/
 
-! Calculate temporal derivate of E in last iteration before Analyze_dt is reached: Store E^n+1 here and calculate the derivative
+! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Use E^n+1 here and calculate the derivative dD/dt
 #if (USE_HDG && (PP_nVar==1))
-IF(CalcElectricTimeDerivative)THEN
-  IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
-    Et(:,:,:,:,:) = eps0*(E(:,:,:,:,:)-Et(:,:,:,:,:)) / dt
-  END IF
-END IF ! CalcElectricTimeDerivative
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+IF (iStage.EQ.nRKStages) THEN
+#endif
+  IF(CalcElectricTimeDerivative)THEN
+    ! iter is incremented after this function and then checked in analyze routine with iter+1
+    IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(iter+1,FieldAnalyzeStep).EQ.0))THEN
+      IF(DoDielectric)THEN
+        DO iElem=1,PP_nElems
+          IF(isDielectricElem(iElem)) THEN
+            DO iDir = 1, 3
+              Et(iDir,:,:,:,iElem) = DielectricEps(:,:,:,ElemToDielectric(iElem))*eps0*(E(iDir,:,:,:,iElem)-Et(iDir,:,:,:,iElem)) / dt
+            END DO ! iDir = 1, 3
+          ELSE
+            Et(:,:,:,:,iElem) = eps0*(E(:,:,:,:,iElem)-Et(:,:,:,:,iElem)) / dt
+          END IF ! isDielectricElem(iElem)
+        END DO ! iElem=1,PP_nElems
+      ELSE
+        Et(:,:,:,:,:) = eps0*(E(:,:,:,:,:)-Et(:,:,:,:,:)) / dt
+      END IF ! DoDielectric
+    END IF
+  END IF ! CalcElectricTimeDerivative
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+END IF
+#endif
 #endif /*(USE_HDG && (PP_nVar==1))*/
 
 #ifdef EXTRAE
@@ -567,24 +731,33 @@ SUBROUTINE HDGLinear(time,U_out)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_Equation               ,ONLY: CalcSourceHDG,ExactFunc
-USE MOD_Equation_Vars          ,ONLY: IniExactFunc
-USE MOD_Equation_Vars          ,ONLY: chitens_face
-USE MOD_Mesh_Vars              ,ONLY: Face_xGP,BoundaryType,nSides,BC
-USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
-USE MOD_Interpolation_Vars     ,ONLY: wGP
-USE MOD_Elem_Mat               ,ONLY: PostProcessGradient
-USE MOD_FillMortar_HDG         ,ONLY: SmallToBigMortar_HDG
+USE MOD_Equation           ,ONLY: CalcSourceHDG,ExactFunc
+USE MOD_Equation_Vars      ,ONLY: IniExactFunc
+USE MOD_Equation_Vars      ,ONLY: chitens_face
+USE MOD_Mesh_Vars          ,ONLY: Face_xGP,BoundaryType,nSides,BC
+USE MOD_Mesh_Vars          ,ONLY: ElemToSide,NormVec,SurfElem
+USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Elem_Mat           ,ONLY: PostProcessGradient
+USE MOD_FillMortar_HDG     ,ONLY: SmallToBigMortar_HDG
 #if (PP_nVar==1)
-USE MOD_Equation_Vars          ,ONLY: E
+USE MOD_Equation_Vars      ,ONLY: E
 #elif (PP_nVar==3)
-USE MOD_Equation_Vars          ,ONLY: B
+USE MOD_Equation_Vars      ,ONLY: B
 #else
-USE MOD_Equation_Vars          ,ONLY: B, E
+USE MOD_Equation_Vars      ,ONLY: B, E
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
+USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
+#if USE_PETSC
+USE PETSc
+USE MOD_Mesh_Vars          ,ONLY: SideToElem
+#if USE_MPI
+USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI_Vars
+#endif
+USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG
+#endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -605,6 +778,16 @@ REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
 #if USE_LOADBALANCE
 REAL    :: tLBStart
 #endif /*USE_LOADBALANCE*/
+#if USE_PETSC
+PetscErrorCode       :: ierr
+PetscScalar, POINTER :: lambda_pointer(:)
+KSPConvergedReason   :: reason
+PetscInt             :: iterations
+PetscReal            :: petscnorm
+INTEGER              :: ElemID,iBCSide,locBCSideID, PETScLocalID
+INTEGER              :: PETScID_start, PETScID_stop
+REAL                 :: timeStartPiclas,timeEndPiclas
+#endif
 !===================================================================================================================================
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
@@ -734,6 +917,35 @@ DO BCsideID=1,nNeumannBCSides
   RHS_face(:,:,SideID)=RHS_face(:,:,SideID)+qn_face(:,:,BCSideID)
 END DO
 
+#if USE_PETSC
+! add Dirichlet contribution
+DO iBCSide=1,nDirichletBCSides
+  BCSideID=DirichletBC(iBCSide)
+  ElemID    = SideToElem(S2E_ELEM_ID,BCSideID)
+  DO iLocSide=1,6
+    SideID = ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+    IF(PETScGlobal(SideID).EQ.-1) CYCLE
+    CALL DGEMV('N',nGP_face,nGP_face,-1., &
+                          Smat_BC(:,:,iLocSide,iBCSide), nGP_face, &
+                          lambda(1,:,BCSideID),1,1.,& !add to RHS_face
+                          RHS_face(1,:,SideID),1)
+  END DO
+END DO
+!!!! add ZeroPotentialSide
+IF(ZeroPotentialSideID.GT.0)THEN
+  locBCSideID = SideToElem(S2E_LOC_SIDE_ID,ZeroPotentialSideID)
+  ElemID    = SideToElem(S2E_ELEM_ID,ZeroPotentialSideID)
+  DO iLocSide=1,6
+    SideID = ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
+    IF(PETScGlobal(SideID).EQ.-1) CYCLE
+    CALL DGEMV('N',nGP_face,nGP_face,-1., &
+                          Smat_zeroPotential(:,:,iLocSide), nGP_face, &
+                          lambda(1,:,ZeroPotentialSideID),1,1.,& !add to RHS_face
+                          RHS_face(1,:,SideID),1)
+  END DO
+END IF
+#endif
+
 #if (PP_nVar!=1)
 DO iVar = 1, PP_nVar
   IF (iVar.LT.4) THEN
@@ -764,7 +976,50 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 ! SOLVE
 DO iVar=1, PP_nVar
 
+#if USE_PETSC
+  ! Fill right hand side
+  !PetscCallA(VecZeroEntries(RHS_petsc,ierr))
+  TimeStartPiclas=PICLASTIME()
+  DO PETScLocalID=1,nPETScUniqueSides
+    SideID=PETScLocalToSideID(PETScLocalID)
+    !VecSetValuesBlockedLocal somehow not working...
+    PetscCallA(VecSetValuesBlocked(RHS_petsc,1,PETScGlobal(SideID),RHS_face(1,:,SideID),INSERT_VALUES,ierr))
+  END DO
+  PetscCallA(VecAssemblyBegin(RHS_petsc,ierr))
+  PetscCallA(VecAssemblyEnd(RHS_petsc,ierr))
+  
+  ! Calculate lambda
+  PetscCallA(KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr))
+  TimeEndPiclas=PICLASTIME()
+  PetscCallA(KSPGetIterationNumber(ksp,iterations,ierr))
+  PetscCallA(KSPGetConvergedReason(ksp,reason,ierr))
+  PetscCallA(KSPGetResidualNorm(ksp,petscnorm,ierr))
+  IF(reason.LT.0)THEN
+    SWRITE(*,*) 'Attention: PETSc not converged! Reason: ', reason 
+  END IF
+  IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, petscnorm)
+
+  ! Fill element local lambda for post processing
+  PetscCallA(VecScatterBegin(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
+  PetscCallA(VecScatterEnd(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
+  PetscCallA(VecGetArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
+  DO PETScLocalID=1,nPETScUniqueSides
+    SideID=PETScLocalToSideID(PETScLocalID)
+    PETScID_start=1+(PETScLocalID-1)*nGP_face
+    PETScID_stop=PETScLocalID*nGP_face
+    lambda(1,:,SideID) = lambda_pointer(PETScID_start:PETScID_stop)
+  END DO 
+  PetscCallA(VecRestoreArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
+  ! PETSc Calculate lambda at small mortars from big mortars
+  CALL BigToSmallMortar_HDG(1,lambda)
+#if USE_MPI
+  CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+  CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+#endif
+#else
   CALL CG_solver(RHS_face(iVar,:,:),lambda(iVar,:,:),iVar)
+#endif
   !POST PROCESSING
 
 #if USE_LOADBALANCE
@@ -1198,7 +1453,7 @@ USE MOD_HDG_Vars  ,ONLY: nGP_face
 USE MOD_HDG_Vars  ,ONLY: EpsNonLinear
 USE MOD_Mesh_Vars ,ONLY: nSides,nMPISides_YOUR
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI_Vars  ,ONLY: MPIW8TimeField
+USE MOD_MPI_Vars  ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1242,7 +1497,8 @@ REAL(KIND=8)      :: Rate
 
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(3) = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8TimeField(3)  = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8CountField(3) = MPIW8CountField(3) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 END SUBROUTINE CheckNonLinRes
 #endif /*defined(PARTICLES)*/
@@ -1263,7 +1519,7 @@ USE MOD_Mesh_Vars          ,ONLY: nSides,nMPISides_YOUR
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField
+USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1330,7 +1586,8 @@ END IF
 
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(3) = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8TimeField(3)  = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8CountField(3) = MPIW8CountField(3) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 IF(converged) THEN !converged
@@ -1338,7 +1595,7 @@ IF(converged) THEN !converged
 !  SWRITE(UNIT_StdOut,'(132("-"))')
     TimeEndCG=PICLASTIME()
     iteration = 0
-    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, Norm_R2)
+    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, SQRT(Norm_R2))
   RETURN
 END IF !converged
 AbortCrit2=EpsCG**2
@@ -1387,7 +1644,8 @@ DO iteration=1,MaxIterCG
 
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(3) = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8TimeField(3)  = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8CountField(3) = MPIW8CountField(3) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 #else
@@ -1397,7 +1655,7 @@ DO iteration=1,MaxIterCG
     TimeEndCG=PICLASTIME()
     CALL EvalResidual(RHS,lambda,R)
     CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V (function contains ALLREDUCE)
-    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, Norm_R2)
+    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, SQRT(Norm_R2))
     RETURN
   END IF !converged
 
@@ -1434,7 +1692,7 @@ END SUBROUTINE CG_solver
 !===================================================================================================================================
 !> Set the global convergence properties of the HDG (CG) Solver and print then to StdOut)
 !===================================================================================================================================
-SUBROUTINE DisplayConvergence(ElapsedTime, iteration, Norm_R2)
+SUBROUTINE DisplayConvergence(ElapsedTime, iteration, Norm)
 ! MODULES
 USE MOD_HDG_Vars      ,ONLY: HDGDisplayConvergence,HDGNorm,RunTime,RunTimePerIteration,iterationTotal,RunTimeTotal
 USE MOD_Globals       ,ONLY: UNIT_StdOut
@@ -1444,7 +1702,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)     :: ElapsedTime
 INTEGER,INTENT(IN)  :: iteration
-REAL,INTENT(IN)     :: Norm_R2
+REAL,INTENT(IN)     :: Norm
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -1456,7 +1714,7 @@ IF(iteration.GT.0)THEN
 ELSE
   RunTimePerIteration = 0.
 END IF ! iteration.GT.0
-HDGNorm = SQRT(Norm_R2)
+HDGNorm = Norm
 
 IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
   WRITE(UNIT_StdOut,'(A,1X,I0,A,I0,A)')                '#iterations          :    ',iteration,' (',iterationTotal,' total)'
@@ -1502,14 +1760,14 @@ R=RHS-mv
 #if (PP_nVar!=1)
 IF (iVar.EQ.4) THEN
 #endif
-
+! TODO direkt als RHS vorgeben! nicht erst hier für PETSC Problem NICHT mehr symmetrisch!
   ! Dirichlet BCs
   DO BCsideID=1,nDirichletBCSides
     R(:,DirichletBC(BCsideID))=0.
   END DO ! SideID=1,nSides
 
   ! Set potential to zero
-  IF(ZeroPotentialSideID.GT.0) R(:,ZeroPotentialSideID)= ZeroPotentialValue
+  IF(ZeroPotentialSideID.GT.0) R(:,ZeroPotentialSideID)= 0.
 
 #if (PP_nVar!=1)
 END IF
@@ -1674,7 +1932,7 @@ DO BCsideID=1,nDirichletBCSides
 END DO ! SideID=1,nSides
 
   ! Set potential to zero
-  IF(ZeroPotentialSideID.GT.0) mv(:,ZeroPotentialSideID) = ZeroPotentialValue
+  IF(ZeroPotentialSideID.GT.0) mv(:,ZeroPotentialSideID) = 0.
 
 #if (PP_nVar!=1)
 END IF
@@ -1704,7 +1962,7 @@ USE MOD_PreProc
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField
+USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1752,7 +2010,8 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(4) = MPIW8TimeField(4) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8TimeField(4)  = MPIW8TimeField(4) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8CountField(4) = MPIW8CountField(4) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 END SUBROUTINE VectorDotProduct
@@ -1837,7 +2096,6 @@ CALL DPOTRS('U',dimA,nRHS,A,dimA,X,dimA,lapack_info)
 END SUBROUTINE solveSPD
 
 
-
 !===================================================================================================================================
 !> During restart, recalculate the gradient of the HDG solution
 !===================================================================================================================================
@@ -1903,6 +2161,9 @@ SUBROUTINE FinalizeHDG()
 ! MODULES
 USE MOD_globals
 USE MOD_HDG_Vars
+#if USE_PETSC
+USE petsc
+#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_HDG_Vars           ,ONLY: lambda, nGP_face
@@ -1915,12 +2176,27 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_PETSC
+PetscErrorCode       :: ierr
+#endif
 #if USE_LOADBALANCE
 INTEGER             :: NonUniqueGlobalSideID
 INTEGER             :: iSide
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 HDGInitIsDone = .FALSE.
+#if USE_PETSC
+PetscCallA(KSPDestroy(ksp,ierr))
+PetscCallA(MatDestroy(Smat_petsc,ierr))
+PetscCallA(VecDestroy(lambda_petsc,ierr))
+PetscCallA(VecDestroy(RHS_petsc,ierr))
+PetscCallA(PetscFinalize(ierr))
+SDEALLOCATE(PETScGlobal)
+SDEALLOCATE(PETScLocalToSideID)
+SDEALLOCATE(Smat_BC)
+SDEALLOCATE(Smat_zeroPotential)
+SDEALLOCATE(SmallMortarType)
+#endif
 SDEALLOCATE(NonlinVolumeFac)
 SDEALLOCATE(DirichletBC)
 SDEALLOCATE(NeumannBC)

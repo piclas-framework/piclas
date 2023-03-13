@@ -22,7 +22,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL,ALLOCATABLE   :: Vdm_GaussNRestart_GaussN(:,:)! for interpolaion from restart grid to computation grid
+REAL,ALLOCATABLE   :: Vdm_GaussNRestart_GaussN(:,:)! for interpolation from restart grid to computation grid
 INTEGER            :: nVar_Restart
 INTEGER            :: N_Restart = 0
 INTEGER            :: nElems_Restart
@@ -32,8 +32,6 @@ LOGICAl            :: FlushInitialState   = .FALSE. !< During restart delete the
 LOGICAl            :: DoInitialAutoRestart= .FALSE.
 LOGICAl            :: InitialAutoRestartPartWeight= .FALSE.
 INTEGER            :: InitialAutoRestartSample
-LOGICAl            :: BuildNewMesh        = .TRUE.
-LOGICAl            :: WriteNewMesh        = .TRUE.
 LOGICAL            :: InterpolateSolution =.FALSE.
 CHARACTER(LEN=300) :: RestartFile = ""
 CHARACTER(LEN=255) :: NodeType_Restart

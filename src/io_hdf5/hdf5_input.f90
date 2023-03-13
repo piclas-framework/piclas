@@ -62,6 +62,10 @@ INTERFACE ReadAttribute
   MODULE PROCEDURE ReadAttribute
 END INTERFACE
 
+INTERFACE AttributeExists
+  MODULE PROCEDURE AttributeExists
+END INTERFACE
+
 INTERFACE GetVarnames
   MODULE PROCEDURE GetVarnames
 END INTERFACE
@@ -74,11 +78,12 @@ PUBLIC :: DatasetExists
 PUBLIC :: GetDataSize
 PUBLIC :: GetVarnames
 PUBLIC :: GetArrayAndName
+PUBLIC :: AttributeExists
 !===================================================================================================================================
 
 CONTAINS
 
-FUNCTION ISVALIDHDF5FILE(FileName,FileVersionOpt)
+FUNCTION ISVALIDHDF5FILE(FileName,FileVersionRealOpt,FileVersionIntOpt)
 !===================================================================================================================================
 ! Subroutine to check if a file is a valid PICLas HDF5 file
 !===================================================================================================================================
@@ -89,30 +94,31 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)    :: FileName
-REAL,INTENT(IN),OPTIONAL       :: FileVersionOpt
+REAL,INTENT(IN),OPTIONAL       :: FileVersionRealOpt
+INTEGER,INTENT(IN),OPTIONAL    :: FileVersionIntOpt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 LOGICAL                        :: isValidHDF5File
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                           :: FileVersion,FileVersionRef
+REAL                           :: FileVersionReal,FileVersionRealRef
+INTEGER                        :: FileVersionInt,FileVersionIntRef
 INTEGER(HID_T)                 :: Plist_ID
 CHARACTER(LEN=255)             :: ProgramName
 LOGICAL                        :: help
 !===================================================================================================================================
 isValidHDF5File=.TRUE.
 iError=0
-FileVersionRef=1.0
-IF(PRESENT(FileVersionOpt)) FileVersionRef=FileVersionOpt
+FileVersionRealRef=-1.0
+IF(PRESENT(FileVersionRealOpt)) FileVersionRealRef=FileVersionRealOpt
+FileVersionIntRef=-1
+IF(PRESENT(FileVersionRealOpt)) FileVersionIntRef=FileVersionIntOpt
 
 ! Disable error messages
 CALL H5ESET_AUTO_F(0, iError)
 ! Initialize FORTRAN predefined datatypes
 CALL H5OPEN_F(iError)
-IF(iError.NE.0)&
-  CALL Abort(&
-  __STAMP__&
-  ,'ERROR: COULD NOT OPEN FILE!')
+IF(iError.NE.0) CALL Abort(__STAMP__,'ERROR: COULD NOT OPEN FILE!')
 
 ! Open HDF5 file
 CALL H5FOPEN_F(TRIM(FileName), H5F_ACC_RDONLY_F, File_ID, iError,access_prp = Plist_ID)
@@ -130,11 +136,20 @@ IF(iError.EQ.0) THEN
 
   ! Check file version -------------------------------------------------------------------------------------------------------------
   ! Open the attribute "File_Version" of root group
-  CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersion)
-  !IF(FileVersion .LT. FileVersionRef)THEN
-  !  isValidHDF5File=.FALSE.
-  !  SWRITE(UNIT_stdOut,'(A)')' ERROR: FILE VERSION TOO OLD! FileName: '//TRIM(FileName)
-  !END IF
+  IF(FileVersionRealRef.GT.0.0)THEN
+    CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionReal)
+    !IF(FileVersionReal .LT. FileVersionRealRef)THEN
+    !  isValidHDF5File=.FALSE.
+    !  SWRITE(UNIT_stdOut,'(A)')' ERROR: FILE VERSION TOO OLD! FileName: '//TRIM(FileName)
+    !END IF
+  END IF ! FileVersionRealRef.GT.0.0
+  IF(FileVersionIntRef.GT.0)THEN
+    CALL ReadAttribute(File_ID,'Piclas_VersionInt',1,IntScalar=FileVersionInt)
+    !IF(FileVersionReal .LT. FileVersionIntRef)THEN
+    !  isValidHDF5File=.FALSE.
+    !  SWRITE(UNIT_stdOut,'(A)')' ERROR: FILE VERSION TOO OLD! FileName: '//TRIM(FileName)
+    !END IF
+  END IF ! FileVersionIntRef.GT.0.0
   ! Close the file.
   CALL H5FCLOSE_F(File_ID, iError)
   ! Close FORTRAN predefined datatypes
@@ -339,6 +354,9 @@ SUBROUTINE GetDataProps(DatasetName,nVar_HDF5,N_HDF5,nElems_HDF5,NodeType_HDF5,n
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools        ,ONLY: PrintOption
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -354,8 +372,8 @@ INTEGER                                 :: Rank,nDimsOffset_loc
 INTEGER(HID_T)                          :: Dset_ID,FileSpace
 INTEGER(HSIZE_T), DIMENSION(7)          :: Dims,DimsMax
 !==================================================================================================================================
-SWRITE(UNIT_stdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A,A)')' GET SIZE OF DATA IN HDF5 FILE... '
+LBWRITE(UNIT_stdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A,A)')' GET SIZE OF DATA IN HDF5 FILE... '
 
 ! Dimensional shift (optional) if arrays with rank > 5 are processed (e.g. DG_Solution from state files with an additional
 ! dimension that corresponds to time)
@@ -401,8 +419,8 @@ END IF
 nElems_HDF5 = INT(Dims(Rank-nDimsOffset_loc),4)
 CALL PrintOption('Number of Elements','HDF5',IntOpt=nElems_HDF5) ! 'HDF5.'
 
-SWRITE(UNIT_stdOut,'(A)')' DONE!'
-SWRITE(UNIT_stdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' DONE!'
+LBWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE GetDataProps
 
 
@@ -666,6 +684,43 @@ IF(Loc_ID.NE.Loc_ID_in)THEN
 END IF
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE ReadAttribute
+
+
+!==================================================================================================================================
+!> Subroutine to check if attributes exist in sub layer datasets.
+!==================================================================================================================================
+SUBROUTINE AttributeExists(File_ID_in,AttribName,DatasetName,AttrExists)
+! MODULES
+USE MOD_Globals
+USE,INTRINSIC :: ISO_C_BINDING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in         !< HDF5 file id of opened file
+CHARACTER(LEN=*)  ,INTENT(IN)                  :: AttribName        !< name of attribute to be read
+CHARACTER(LEN=*)  ,INTENT(IN)                  :: DatasetName       !< dataset name 
+LOGICAL           ,INTENT(OUT)                 :: AttrExists
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID
+!==================================================================================================================================
+CALL H5DOPEN_F(File_ID_in, TRIM(DatasetName),Loc_ID, iError)
+
+! Create the attribute for group Loc_ID.
+CALL H5AOPEN_F(Loc_ID, TRIM(AttribName), Attr_ID, iError)
+
+IF(iError.NE.0) THEN
+  AttrExists = .FALSE.
+ELSE 
+  AttrExists = .TRUE.
+END IF
+
+! Close the attribute.
+CALL H5ACLOSE_F(Attr_ID, iError)
+! Close the dataset and property list.
+CALL H5DCLOSE_F(Loc_ID, iError)
+
+END SUBROUTINE AttributeExists
 
 
 !===================================================================================================================================

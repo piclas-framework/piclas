@@ -26,6 +26,8 @@ SAVE
 
 LOGICAL                                 :: SurfOnNode
 INTEGER                                 :: SurfSampSize                  !> Energy + Force + nSpecies
+INTEGER                                 :: SurfOutputSize                !> Energy + Force + nSpecies
+INTEGER                                 :: SurfSpecOutputSize            !> Energy + Force + nSpecies
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: SurfSideArea                  !> Area of supersampled surface side
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: BoundaryWallTemp              !> Wall Temperature for Adaptive Case
 ! ====================================================================
@@ -47,6 +49,21 @@ REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:)   :: SampWallImpactEnergy
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:)   :: SampWallImpactVector
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SampWallImpactAngle
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SampWallImpactNumber
+
+! SampWallState indices for optional variables (defined in InitParticleBoundarySampling)
+INTEGER                                 :: SWIVarTimeStep
+INTEGER                                 :: SWIStickingCoefficient
+
+! Output container
+REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)           !> variables,p,q,sides
+REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)     !> Macrovalues for Species specific surface output
+                                                                        !> (4,p,q,nSurfSides,nSpecies)
+                                                                        !> 1: Surface Collision Counter
+                                                                        !> 2: Accommodation
+                                                                        !> 3: Coverage
+                                                                        !> 4 (or 2): Impact energy trans
+                                                                        !> 5 (or 3): Impact energy rot
+                                                                        !> 6 (or 4): Impact energy vib
 
 ! ====================================================================
 ! MPI3 shared variables
@@ -246,14 +263,21 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: RotACC(:)
   REAL    , ALLOCATABLE                  :: ElecACC(:)
   REAL    , ALLOCATABLE                  :: WallVelo(:,:)
-  REAL    , ALLOCATABLE                  :: Voltage(:)
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
   REAL    , ALLOCATABLE                  :: RotOmega(:,:)                 ! Angular velocity
-  INTEGER , ALLOCATABLE                  :: RotPeriodicDir(:)             ! Direction of rotation
+  REAL    , ALLOCATABLE                  :: RotPeriodicAngle(:)           ! Angle and Direction of rotation
+  REAL    , ALLOCATABLE                  :: RotPeriodicMin(:)             ! Min rot axi value
+  REAL    , ALLOCATABLE                  :: RotPeriodicMax(:)             ! Max rot axi value
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          ! Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         ! Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           ! Species to be changed at wall (in, out), out=0: delete
   INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction (e.g. SEE models)
+  REAL    , ALLOCATABLE                  :: TotalCoverage(:)              ! Total surface coverage
+  REAL    , ALLOCATABLE                  :: MaxTotalCoverage(:)           ! Maximum total surface coverage
+  REAL    , ALLOCATABLE                  :: LatticeVec(:)                 ! Lattice constant for a fcc crystal
+  REAL    , ALLOCATABLE                  :: MolPerUnitCell(:)             ! Molecules per unit cell
+  REAL    , ALLOCATABLE                  :: CoverageIni(:,:)               ! Initial boundary coverage
+  REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
   LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)         
@@ -267,75 +291,11 @@ TYPE tPartBoundary
 !                                                                         ! PartDataBoundary container for writing to .h5 later
 END TYPE
 
-INTEGER                                  :: nPartBound                       ! number of particle boundaries
-TYPE(tPartBoundary)                      :: PartBound                         ! Boundary Data for Particles
+INTEGER                                  :: nPartBound                    ! number of particle boundaries
+TYPE(tPartBoundary)                      :: PartBound                     ! Boundary Data for Particles
+REAL, PARAMETER                          :: RotPeriodicTol = 0.99999      ! Tolerance for rotationally periodic BC
 
 LOGICAL                                  :: AdaptWallTemp
-
-INTEGER                                  :: nAuxBCs                     ! number of aux. BCs that are checked during tracing
-LOGICAL                                  :: UseAuxBCs                     ! number of aux. BCs that are checked during tracing
-CHARACTER(LEN=200), ALLOCATABLE          :: AuxBCType(:)                ! type of BC (plane, ...)
-INTEGER           , ALLOCATABLE          :: AuxBCMap(:)                 ! index of AuxBC in respective Type
-
-TYPE tAuxBC_plane
-  REAL                                   :: r_vec(3)
-  REAL                                   :: n_vec(3)
-  REAL                                   :: radius
-END TYPE tAuxBC_plane
-TYPE(tAuxBC_plane), ALLOCATABLE          :: AuxBC_plane(:)
-
-TYPE tAuxBC_cylinder
-  REAL                                   :: r_vec(3)
-  REAL                                   :: axis(3)
-  REAL                                   :: radius
-  REAL                                   :: lmin
-  REAL                                   :: lmax
-  LOGICAL                                :: inwards
-END TYPE tAuxBC_cylinder
-TYPE(tAuxBC_cylinder), ALLOCATABLE       :: AuxBC_cylinder(:)
-
-TYPE tAuxBC_cone
-  REAL                                   :: r_vec(3)
-  REAL                                   :: axis(3)
-  REAL                                   :: halfangle
-  REAL                                   :: lmin
-  REAL                                   :: lmax
-  REAL                                   :: geomatrix(3,3)
-  !REAL                                   :: geomatrix2(3,3)
-  REAL                                   :: rotmatrix(3,3)
-  LOGICAL                                :: inwards
-END TYPE tAuxBC_cone
-TYPE(tAuxBC_cone), ALLOCATABLE       :: AuxBC_cone(:)
-
-TYPE tAuxBC_parabol
-  REAL                                   :: r_vec(3)
-  REAL                                   :: axis(3)
-  REAL                                   :: zfac
-  REAL                                   :: lmin
-  REAL                                   :: lmax
-  REAL                                   :: geomatrix4(4,4)
-  REAL                                   :: rotmatrix(3,3)
-  LOGICAL                                :: inwards
-END TYPE tAuxBC_parabol
-TYPE(tAuxBC_parabol), ALLOCATABLE       :: AuxBC_parabol(:)
-
-TYPE tPartAuxBC
-  INTEGER               :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
-  INTEGER               :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
-  INTEGER , ALLOCATABLE :: TargetBoundCond(:)
-  REAL    , ALLOCATABLE :: MomentumACC(:)
-  REAL    , ALLOCATABLE :: WallTemp(:)
-  REAL    , ALLOCATABLE :: TransACC(:)
-  REAL    , ALLOCATABLE :: VibACC(:)
-  REAL    , ALLOCATABLE :: RotACC(:)
-  REAL    , ALLOCATABLE :: ElecACC(:)
-  REAL    , ALLOCATABLE :: WallVelo(:,:)
-  INTEGER , ALLOCATABLE :: NbrOfSpeciesSwaps(:)  !Number of Species to be changed at wall
-  REAL    , ALLOCATABLE :: ProbOfSpeciesSwaps(:) !Probability of SpeciesSwaps at wall
-  INTEGER , ALLOCATABLE :: SpeciesSwaps(:,:,:)   !Species to be changed at wall (in, out), out=0: delete
-  LOGICAL , ALLOCATABLE :: Resample(:)           !Resample Equilibirum Distribution with reflection
-END TYPE
-TYPE(tPartAuxBC)        :: PartAuxBC             ! auxBC Data for Particles
 
 ! Boundary particle output
 LOGICAL              :: DoBoundaryParticleOutputHDF5   ! Flag set automatically if particles crossing specific

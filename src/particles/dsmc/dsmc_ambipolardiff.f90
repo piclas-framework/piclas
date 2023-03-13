@@ -460,9 +460,10 @@ SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, To
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                
-USE MOD_DSMC_Vars               ,ONLY: BGGas, CollisMode, DSMC, PartStateIntEn, AmbipolElecVelo, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: BGGas, CollisMode, DSMC, PartStateIntEn, AmbipolElecVelo, RadialWeighting, VarWeighting
 USE MOD_DSMC_Vars               ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi
-USE MOD_PARTICLE_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, Species, VarTimeStep, PartMPF, Symmetry, usevMPF
+USE MOD_PARTICLE_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, Species, PartMPF, Symmetry, usevMPF
+USE MOD_PARTICLE_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -531,8 +532,10 @@ __STAMP__&
     PartStateIntEn( 2,PositionNbr) = 0.
     IF (DSMC%ElectronicModel.GT.0)   PartStateIntEn( 3,PositionNbr) = 0.
   END IF
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) PartMPF(PositionNbr) = PartMPF(IonIndX(iLoop))
-  IF(VarTimeStep%UseVariableTimeStep) VarTimeStep%ParticleTimeStep(PositionNbr) = VarTimeStep%ParticleTimeStep(IonIndX(iLoop))
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+    PartMPF(PositionNbr) = PartMPF(IonIndX(iLoop))
+  END IF
+  IF(UseVarTimeStep) PartTimeStep(PositionNbr) = PartTimeStep(IonIndX(iLoop))
   iPartIndx_NodeTotalAmbi(nPart+iLoop) = PositionNbr
 END DO
 ! Output variable

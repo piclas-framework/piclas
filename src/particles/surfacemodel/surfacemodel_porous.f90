@@ -98,7 +98,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Boundary_Tools     ,ONLY: GetRadialDistance2D
 USE MOD_Particle_Mesh_Vars          ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars               ,ONLY: Symmetry
+USE MOD_Particle_Vars               ,ONLY: Symmetry, VarTimeStep
 USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound, nPorousSides, MapSurfSideToPorousSide_Shared, PorousBCSampWall
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCInfo_Shared,PorousBCProperties_Shared,PorousBCSampWall_Shared
@@ -130,6 +130,8 @@ REAL                  :: rmin, rmax
 LBWRITE(UNIT_stdOut,'(A)') ' INIT POROUS BOUNDARY CONDITION ...'
 
 IF(TrackingMethod.EQ.REFMAPPING) CALL abort(__STAMP__,'ERROR: Porous boundary conditions are not implemented with RefMapping!')
+
+IF(VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__,'ERROR: Porous boundary conditions are not implemented with a species-specific time step!')
 
 IF((Symmetry%Order.LE.2).AND.(.NOT.Symmetry%Axisymmetric)) CALL abort(__STAMP__,'ERROR: Porous boundary conditions are not implemented for 1D/2D simulations!')
 
@@ -430,9 +432,9 @@ USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC
 USE MOD_SurfaceModel_Analyze_Vars   ,ONLY: CalcPorousBCInfo, PorousBCOutput
 USE MOD_Particle_Boundary_Vars      ,ONLY: nPorousSides, PorousBCProperties_Shared, PorousBCInfo_Shared, SampWallPumpCapacity
 USE MOD_Particle_Boundary_Vars      ,ONLY: PorousBCSampWall, PorousBCSampWall_Shared
-USE MOD_Particle_Vars               ,ONLY: Species, nSpecies, usevMPF, VarTimeStep
+USE MOD_Particle_Vars               ,ONLY: Species, nSpecies, usevMPF, UseVarTimeStep
 USE MOD_Particle_Sampling_Vars      ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
-USE MOD_Particle_VarTimeStep        ,ONLY: CalcVarTimeStep
+USE MOD_Particle_TimeStep           ,ONLY: GetParticleTimeStep
 USE MOD_Timedisc_Vars               ,ONLY: dt
 USE MOD_Particle_Mesh_Vars
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
@@ -507,8 +509,8 @@ DO iPorousSide = 1, nPorousSides
   ! Skip element if number density is zero
   IF(SUM(AdaptBCMacroVal(4,SampleElemID,1:nSpecies)).EQ.0.0) CYCLE
   ! Get the correct time step of the cell
-  IF(VarTimeStep%UseVariableTimeStep) THEN
-    dtVar = dt * CalcVarTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), LocalElemID)
+  IF(UseVarTimeStep) THEN
+    dtVar = dt * GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), LocalElemID)
   ELSE
     dtVar = dt
   END IF

@@ -45,10 +45,10 @@ USE MOD_Globals                 ,ONLY: abort,unit_stdout,myrank
 USE MOD_Globals_Vars            ,ONLY: Pi, BoltzmannConst
 USE MOD_FPFlow_Vars             ,ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuantVibEn, FPDoVibRelaxation, FP_PrandtlNumber
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_Particle_Vars           ,ONLY: Species, PartState, VarTimeStep, usevMPF
+USE MOD_Particle_Vars           ,ONLY: Species, PartState, UseVarTimeStep, PartTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar
-USE MOD_DSMC_Vars               ,ONLY: CollInf, RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: CollInf, VarWeighting
 USE Ziggurat
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTVibPoly
 USE MOD_BGK_CollOperator        ,ONLY: CalcTEquiPoly, CalcTEqui
@@ -149,12 +149,12 @@ DO iLoop2 = 1, nPart
     ERot = ERot + PartStateIntEn(2,iPartIndx_Node(iLoop2)) * partWeight
   END IF
   OldEn = OldEn + 0.5*Species(1)%MassIC * vmag2 * partWeight
-  IF(VarTimeStep%UseVariableTimeStep) THEN
-    dtCell = dtCell + VarTimeStep%ParticleTimeStep(iPartIndx_Node(iLoop2))
+  IF(UseVarTimeStep) THEN
+    dtCell = dtCell + PartTimeStep(iPartIndx_Node(iLoop2))
   END IF
 END DO
 
-IF(VarTimeStep%UseVariableTimeStep) THEN
+IF(UseVarTimeStep) THEN
   dtCell = dt * dtCell / nPart
 ELSE
   dtCell = dt
@@ -218,8 +218,10 @@ Prandtl =2.*(InnerDOF + 5.)/(2.*InnerDOF + 15.)
 CellTemp = Species(1)%MassIC * u2/(3.0*BoltzmannConst)
 TEqui = CellTemp
 nu= 1.-3./(2.*Prandtl)
-Theta = BoltzmannConst*CellTemp/Species(1)%MassIC
-nu= MAX(nu,-Theta/(W(3)-Theta))
+IF (FPCollModel.EQ.2) THEN
+  Theta = BoltzmannConst*CellTemp/Species(1)%MassIC
+  nu= MAX(nu,-Theta/(W(3)-Theta))
+END IF
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
   ! totalWeight contains the weighted particle number

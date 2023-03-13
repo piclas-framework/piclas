@@ -35,7 +35,7 @@ INTERFACE FinalizeSurfCommunication
 END INTERFACE
 
 PUBLIC :: InitSurfCommunication
-PUBLIC :: ExchangeSurfData
+PUBLIC :: ExchangeSurfData, ExchangeChemSurfData
 PUBLIC :: FinalizeSurfCommunication
 !===================================================================================================================================
 
@@ -376,6 +376,333 @@ END IF
 
 
 END SUBROUTINE InitSurfCommunication
+
+
+SUBROUTINE ExchangeChemSurfData()
+!===================================================================================================================================
+! exchange the surface data
+!> 1) collect the information on the local compute-node
+!> 2) compute-node leaders with sampling sides in their halo region and the original node communicate the sampling information
+!> 3) calculation of the coverage (needed without MPI as well)
+!> 4) compute-node leaders communicate the calculated coverage to the halo sides
+!> 5) compute-node leaders ensure synchronization of shared arrays on their node
+!!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF, nComputeNodeProcessors
+USE MOD_MPI_Shared_Vars         ,ONLY: nSurfLeaders,myComputeNodeRank,mySurfRank
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOnNode, PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfMapping
+USE MOD_Particle_MPI_Vars       ,ONLY: SurfSendBuf,SurfRecvBuf
+USE MOD_Particle_Vars           ,ONLY: nSpecies
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemSampWall, ChemSampWall_Shared, ChemSampWall_Shared_Win
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp, ChemWallProp_Shared, ChemWallProp_Shared_Win
+USE MOD_Particle_Boundary_vars  ,ONLY: SurfSideArea_Shared, SurfSide2GlobalSide
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iProc,SideID, firstSide, lastSide, GlobalSideID, locBCID, iSide, iSpec
+INTEGER                         :: iPos,p,q
+INTEGER                         :: MessageSize,iSurfSide,SurfSideID
+INTEGER                         :: nValues, SurfChemVarNum, SurfChemSampSize
+INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
+!===================================================================================================================================
+! nodes without sampling surfaces do not take part in this routine
+IF (.NOT.SurfOnNode) RETURN
+
+#if USE_MPI
+SurfChemVarNum   = 2
+SurfChemSampSize = SurfChemVarNum * nSpecies
+! collect the information from the proc-local shadow arrays in the compute-node shared array
+MessageSize = SurfChemSampSize*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
+IF (myComputeNodeRank.EQ.0) THEN
+  CALL MPI_REDUCE(ChemSampWall,ChemSampWall_Shared ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+ELSE
+  CALL MPI_REDUCE(ChemSampWall,0                   ,MessageSize,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_SHARED,IERROR)
+ENDIF
+ChemSampWall = 0.
+ASSOCIATE(ChemSampWall => ChemSampWall_Shared)
+
+CALL BARRIER_AND_SYNC(ChemSampWall_Shared_Win         ,MPI_COMM_SHARED)
+firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
+
+! surf leader communication of the sampled values in ChemSampWall
+IF (myComputeNodeRank.EQ.0) THEN
+  nValues = SurfChemSampSize*nSurfSample**2
+  ! open receive buffer
+  DO iProc = 0,nSurfLeaders-1
+    ! ignore myself
+    IF (iProc.EQ.mySurfRank) CYCLE
+
+    ! Only open recv buffer if we are expecting sides from this leader node
+    IF (SurfMapping(iProc)%nRecvSurfSides.EQ.0) CYCLE
+
+    ! Message is sent on MPI_COMM_LEADERS_SURF, so rank is indeed iProc
+    MessageSize = SurfMapping(iProc)%nRecvSurfSides * nValues
+    CALL MPI_IRECV( SurfRecvBuf(iProc)%content                   &
+                  , MessageSize                                  &
+                  , MPI_DOUBLE_PRECISION                         &
+                  , iProc                                        &
+                  , 1209                                         &
+                  , MPI_COMM_LEADERS_SURF                        &
+                  , RecvRequest(iProc)                           &
+                  , IERROR)
+  END DO ! iProc
+
+  ! build message
+  DO iProc = 0,nSurfLeaders-1
+    ! Ignore myself
+    IF (iProc .EQ. mySurfRank) CYCLE
+
+    ! Only assemble message if we are expecting sides to send to this leader node
+    IF (SurfMapping(iProc)%nSendSurfSides.EQ.0) CYCLE
+
+    ! Nullify everything
+    iPos = 0
+    SurfSendBuf(iProc)%content = 0.
+
+    DO iSurfSide = 1,SurfMapping(iProc)%nSendSurfSides
+      SideID     = SurfMapping(iProc)%SendSurfGlobalID(iSurfSide)
+      SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+
+      ! Assemble message
+      DO q = 1,nSurfSample
+        DO p = 1,nSurfSample
+          DO iSpec =1, nSpecies
+            SurfSendBuf(iProc)%content(iPos+1:iPos+SurfChemVarNum) = ChemSampWall(iSpec,:,p,q,SurfSideID)
+            iPos = iPos + SurfChemVarNum
+          END DO
+        END DO ! p=0,nSurfSample
+      END DO ! q=0,nSurfSample
+
+      ChemSampWall(:,:,:,:,SurfSideID)=0.
+    END DO ! iSurfSide = 1,SurfMapping(iProc)%nSendSurfSides
+  END DO
+
+  ! send message
+  DO iProc = 0,nSurfLeaders-1
+    ! ignore myself
+    IF (iProc.EQ.mySurfRank) CYCLE
+
+    ! Only open recv buffer if we are expecting sides from this leader node
+    IF (SurfMapping(iProc)%nSendSurfSides.EQ.0) CYCLE
+
+    ! Message is sent on MPI_COMM_LEADERS_SURF, so rank is indeed iProc
+    MessageSize = SurfMapping(iProc)%nSendSurfSides * nValues
+    CALL MPI_ISEND( SurfSendBuf(iProc)%content                   &
+                  , MessageSize                                  &
+                  , MPI_DOUBLE_PRECISION                         &
+                  , iProc                                        &
+                  , 1209                                         &
+                  , MPI_COMM_LEADERS_SURF                        &
+                  , SendRequest(iProc)                           &
+                  , IERROR)
+  END DO ! iProc
+
+  ! Finish received number of sampling surfaces
+  DO iProc = 0,nSurfLeaders-1
+    ! ignore myself
+    IF (iProc.EQ.mySurfRank) CYCLE
+
+    IF (SurfMapping(iProc)%nSendSurfSides.NE.0) THEN
+      CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
+    END IF
+
+    IF (SurfMapping(iProc)%nRecvSurfSides.NE.0) THEN
+      CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
+    END IF
+  END DO ! iProc
+
+  ! add data do my list
+  DO iProc = 0,nSurfLeaders-1
+    ! ignore myself
+    IF (iProc.EQ.mySurfRank) CYCLE
+
+    ! Only open recv buffer if we are expecting sides from this leader node
+    IF (SurfMapping(iProc)%nRecvSurfSides.EQ.0) CYCLE
+
+    iPos=0
+    DO iSurfSide = 1,SurfMapping(iProc)%nRecvSurfSides
+      SideID     = SurfMapping(iProc)%RecvSurfGlobalID(iSurfSide)
+      SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+
+      DO q=1,nSurfSample
+        DO p=1,nSurfSample
+          DO iSpec =1, nSpecies
+            ChemSampWall(iSpec,:,p,q,SurfSideID) = ChemSampWall(iSpec,:,p,q,SurfSideID) &
+                                                  + SurfRecvBuf(iProc)%content(iPos+1:iPos+SurfChemVarNum)
+            iPos = iPos + SurfChemVarNum
+          END DO
+        END DO ! p = 0,nSurfSample
+      END DO ! q = 0,nSurfSample
+    END DO ! iSurfSide = 1,SurfMapping(iProc)%nRecvSurfSides
+      ! Nullify buffer
+    SurfRecvBuf(iProc)%content = 0.
+  END DO ! iProc
+END IF
+#else
+firstSide = 1
+lastSide  = nSurfTotalSides
+#endif /*USE_MPI*/
+
+! calculate the coverage from the sampled values (also required in the MPI=OFF case) and nullify the ChemSampWall array
+! in the case of MPI, ChemSampWall is associated to the _Shared variant
+DO iSide = firstSide, lastSide
+  GlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+  locBCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,GlobalSideID))
+  
+  DO iSpec =1, nSpecies
+    IF (PartBound%LatticeVec(locBCID).GT.0.) THEN
+    ! update the surface coverage (direct calculation of the number of surface atoms)
+      ChemWallProp(iSpec,1,:,:,iSide) = ChemWallProp(iSpec,1,:,:,iSide) + ChemSampWall(iSpec,1,:,:,iSide) * PartBound%LatticeVec(locBCID)* &
+                                        PartBound%LatticeVec(locBCID)/(PartBound%MolPerUnitCell(locBCID)*SurfSideArea_Shared(:,:,iSide))
+    ELSE 
+    ! update the surface coverage (calculation with a surface monolayer)
+      ChemWallProp(iSpec,1,:,:,iSide) = ChemWallProp(iSpec,1,:,:,iSide) + ChemSampWall(iSpec,1,:,:,iSide) / &
+                                        (10.**(19)*SurfSideArea_Shared(:,:,iSide))
+    END IF
+    ! calculate the heat flux on the surface subside
+    ChemWallProp(iSpec,2,:,:,iSide) = ChemWallProp(iSpec,2,:,:,iSide) + ChemSampWall(iSpec,2,:,:,iSide)
+  END DO
+  ChemSampWall(:,:,:,:,iSide) = 0.0
+END DO
+
+#if USE_MPI
+CALL BARRIER_AND_SYNC(ChemSampWall_Shared_Win         ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win         ,MPI_COMM_SHARED)
+! communication of the coverage values to the halo region of compute nodes
+! swap the receive/send array, send coverage values to the sides, where you would receive from
+IF (myComputeNodeRank.EQ.0) THEN
+  DO iProc = 0,nSurfLeaders-1
+    ! ignore myself
+    IF (iProc.EQ.mySurfRank) CYCLE
+
+    ! Only open recv buffer if we would have sent to this leader node (thus SendSurfSides)
+    IF (SurfMapping(iProc)%nSendSurfSides.EQ.0) CYCLE
+
+    ! Message is sent on MPI_COMM_LEADERS_SURF, so rank is indeed iProc
+    MessageSize = SurfMapping(iProc)%nSendSurfSides * nValues
+    CALL MPI_IRECV( SurfSendBuf(iProc)%content                   &
+                  , MessageSize                                  &
+                  , MPI_DOUBLE_PRECISION                         &
+                  , iProc                                        &
+                  , 1209                                         &
+                  , MPI_COMM_LEADERS_SURF                        &
+                  , RecvRequest(iProc)                           &
+                  , IERROR)
+  END DO ! iProc
+
+  ! build message
+  DO iProc = 0,nSurfLeaders-1
+    ! Ignore myself
+    IF (iProc .EQ. mySurfRank) CYCLE
+
+    ! Only assemble message if we would have received from this leader node
+    IF (SurfMapping(iProc)%nRecvSurfSides.EQ.0) CYCLE
+
+    ! Nullify everything
+    iPos = 0
+    SurfRecvBuf(iProc)%content = 0.
+
+    DO iSurfSide = 1,SurfMapping(iProc)%nRecvSurfSides
+      ! Get the right side id through the receive global id mapping
+      SideID     = SurfMapping(iProc)%RecvSurfGlobalID(iSurfSide)
+      SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+      ! Assemble message
+      DO q = 1,nSurfSample
+        DO p = 1,nSurfSample
+          DO iSpec =1, nSpecies
+            SurfRecvBuf(iProc)%content(iPos+1:iPos+SurfChemVarNum) = ChemWallProp_Shared(iSpec,:,p,q,SurfSideID)
+            iPos = iPos + SurfChemVarNum
+          END DO
+        END DO ! p=0,nSurfSample
+      END DO ! q=0,nSurfSample
+    END DO ! iSurfSide=1,SurfMapping(iProc)%nRecvSurfSides
+  END DO
+
+  ! send message
+  DO iProc = 0,nSurfLeaders-1
+    ! ignore myself
+    IF (iProc.EQ.mySurfRank) CYCLE
+
+    ! Only open recv buffer if we are expecting sides from this leader node
+    IF (SurfMapping(iProc)%nRecvSurfSides.EQ.0) CYCLE
+
+    ! Message is sent on MPI_COMM_LEADERS_SURF, so rank is indeed iProc
+    MessageSize = SurfMapping(iProc)%nRecvSurfSides * nValues
+    CALL MPI_ISEND( SurfRecvBuf(iProc)%content                   &
+                  , MessageSize                                  &
+                  , MPI_DOUBLE_PRECISION                         &
+                  , iProc                                        &
+                  , 1209                                         &
+                  , MPI_COMM_LEADERS_SURF                        &
+                  , SendRequest(iProc)                           &
+                  , IERROR)
+  END DO ! iProc
+
+  ! Finish received number of sampling surfaces
+  DO iProc = 0,nSurfLeaders-1
+    ! ignore myself
+    IF (iProc.EQ.mySurfRank) CYCLE
+
+    IF (SurfMapping(iProc)%nRecvSurfSides.NE.0) THEN
+      CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
+    END IF
+
+    IF (SurfMapping(iProc)%nSendSurfSides.NE.0) THEN
+      CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+      IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
+    END IF
+  END DO ! iProc
+
+  ! add data do my list
+  DO iProc = 0,nSurfLeaders-1
+    ! ignore myself
+    IF (iProc.EQ.mySurfRank) CYCLE
+
+    ! Only open recv buffer if we would have sent this leader node
+    IF (SurfMapping(iProc)%nSendSurfSides.EQ.0) CYCLE
+
+    iPos=0
+    DO iSurfSide = 1,SurfMapping(iProc)%nSendSurfSides
+      SideID     = SurfMapping(iProc)%SendSurfGlobalID(iSurfSide)
+      SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+      ! Store values in the halo regions
+      DO q = 1,nSurfSample
+        DO p = 1,nSurfSample
+          DO iSpec =1, nSpecies
+            ChemWallProp_Shared(iSpec,:,p,q,SurfSideID) = SurfSendBuf(iProc)%content(iPos+1:iPos+SurfChemVarNum)
+            iPos = iPos + SurfChemVarNum
+          END DO
+        END DO ! p=0,nSurfSample
+      END DO ! q=0,nSurfSample
+    END DO ! iSurfSide = 1,SurfMapping(iProc)%nSendSurfSides
+      ! Nullify buffer
+    SurfSendBuf(iProc)%content = 0.
+  END DO ! iProc
+END IF
+
+! ensure synchronization on compute node
+END ASSOCIATE
+CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win         ,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
+
+END SUBROUTINE ExchangeChemSurfData  
 
 
 SUBROUTINE ExchangeSurfData()

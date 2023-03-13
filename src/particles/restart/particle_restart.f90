@@ -62,9 +62,10 @@ USE MOD_Mesh_Vars              ,ONLY: offsetElem
 ! Particles
 USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5
 USE MOD_Part_Operations        ,ONLY: RemoveAllElectrons
-USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,StoreLostParticleProperties
+USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,StoreLostParticleProperties, MergeCells
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartState,PartSpecies,PEM,PDM,usevMPF,PartMPF,PartPosRef,SpecReset,Species
+USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
 ! Restart
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
 ! HDG
@@ -808,6 +809,8 @@ IF(UseBRElectronFluid.AND.BRConvertElectronsToFluid) CALL RemoveAllElectrons()
 ! ------------------------------------------------
 CALL ReadEmissionVariablesFromHDF5()
 
+IF (DoVirtualCellMerge) CALL MergeCells()
+
 #if USE_HDG
   ! Create electrons from BR fluid properties
   IF(BRConvertFluidToElectrons) CALL CreateElectronsFromBRFluid(.TRUE.)
@@ -826,7 +829,7 @@ USE MOD_HDF5_input
 USE MOD_io_hdf5
 USE MOD_Mesh_Vars         ,ONLY: offsetElem, nElems
 USE MOD_DSMC_Vars         ,ONLY: useDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
-USE MOD_DSMC_Vars         ,ONLY: RadialWeighting, VarWeighting ,ClonedParticles
+USE MOD_DSMC_Vars         ,ONLY: RadialWeighting, VarWeighting, ClonedParticles
 USE MOD_Particle_Vars     ,ONLY: nSpecies, usevMPF, Species
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
@@ -1143,8 +1146,7 @@ CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.T
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
 IF(TRIM(File_Type).NE.'DSMCState') THEN
   SWRITE(*,*) 'ERROR: The given file type is: ', TRIM(File_Type)
-  CALL abort(__STAMP__,&
-      'ERROR: Given file for the macroscopic restart is not of the type "DSMCState", please check the input file!')
+  CALL abort(__STAMP__,'ERROR: Given file for the macroscopic restart is not of the type "DSMCState", please check the input file!')
 END IF
 
 CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)

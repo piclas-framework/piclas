@@ -246,9 +246,9 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi, NewPart, XSec_Level)
 !===================================================================================================================================
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, ElementaryCharge
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PartStateIntEn, Coll_pData, DSMC, ElectronicDistriPart, CollInf
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
-USE MOD_Particle_Vars          ,ONLY: PartSpecies, VarTimeStep, usevMPF, nSpecies
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData, DSMC, ElectronicDistriPart, CollInf
+USE MOD_DSMC_Vars              ,ONLY: VarWeighting
+USE MOD_Particle_Vars          ,ONLY: PartSpecies, UseVarTimeStep, usevMPF, nSpecies
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec
 USE MOD_MCC_Vars                ,ONLY: SpecXSec
@@ -264,13 +264,13 @@ INTEGER, INTENT(IN),OPTIONAL  :: XSec_Level
 ! LOCAL VARIABLES
 INTEGER                       :: iQuaMax, MaxElecQuant, iQua, iSpec, iCase
 REAL                          :: iRan, iRan2, gmax, gtemp, PartStateTemp, CollisionEnergy, ETraRel, TransElec, ElectronicPartition
-REAL                          :: Eold, DistriOld(SpecDSMC(PartSpecies(iPart1))%MaxElecQuant), Etmp, tmpExp, LocRelaxProb
+REAL                          :: Eold, Etmp, tmpExp, LocRelaxProb
+REAL,ALLOCATABLE              :: DistriOld(:)
 !===================================================================================================================================
 iSpec = PartSpecies(iPart1)
-
 SELECT CASE(DSMC%ElectronicModel)
 CASE(1)
-  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.UseVarTimeStep) THEN
     CollisionEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart1)
   ELSE
     CollisionEnergy = Coll_pData(iPair)%Ec
@@ -321,9 +321,9 @@ CASE(2)
     LocRelaxProb = SpecDSMC(iSpec)%ElecRelaxProb
   END IF
   Eold=  PartStateIntEn(3,iPart1)
-  DistriOld(:) = ElectronicDistriPart(iPart1)%DistriFunc(:)
+  DistriOld = ElectronicDistriPart(iPart1)%DistriFunc
   ETraRel = Coll_pData(iPair)%Ec
-  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.UseVarTimeStep) THEN
     ETraRel = ETraRel / GetParticleWeight(iPart1)
   END IF
   TransElec = DSMC%InstantTransTemp(nSpecies + 1)
@@ -370,21 +370,25 @@ CASE(2)
       PartStateIntEn(3,iPart1) = PartStateIntEn(3,iPart1) + &
           ElectronicDistriPart(iPart1)%DistriFunc(iQua+1) * BoltzmannConst * SpecDSMC(iSpec)%ElectronicState(2,iQua)
     END DO
-    IF ((Coll_pData(iPair)%Ec-PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1)).LT.0.0) THEN
-      CALL abort(&
-        __STAMP__&
-        ,'Negative collision energy after electronic excitation relaxation!')
-    END IF
+    IF ((Coll_pData(iPair)%Ec-PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1)).LT.0.0) CALL abort(__STAMP__,&
+        'Negative collision energy after electronic excitation relaxation!')
   END IF
 CASE(3)
-  iCase = CollInf%Coll_Case(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2))
-  IF(XSec_Level.GT.0) THEN
-    ! Set energy according the selected level
-    PartStateIntEn(3,iPart1) = SpecXSec(iCase)%ElecLevel(XSec_Level)%Threshold
+
+  ! Set optional variable
+  IF(PRESENT(XSec_Level))THEN
+    IF(XSec_Level.GT.0) THEN
+      iCase = CollInf%Coll_Case(PartSpecies(Coll_pData(iPair)%iPart_p1),PartSpecies(Coll_pData(iPair)%iPart_p2))
+      ! Set energy according the selected level
+      PartStateIntEn(3,iPart1) = SpecXSec(iCase)%ElecLevel(XSec_Level)%Threshold
+    ELSE
+      ! Reset electronic energy to ground state after a chemical reaction (XSec_Level = 0)
+      PartStateIntEn(3,iPart1) = 0.0
+    END IF
   ELSE
-    ! Reset electronic energy to ground state after a chemical reaction (XSec_Level = 0)
-    PartStateIntEn(3,iPart1) = 0.0
-  END IF
+    CALL abort(__STAMP__,'XSec_Level argument not given to ElectronicEnergyExchange()')
+  END IF ! PRESENT(XSec_Level)
+
 CASE DEFAULT
   CALL abort(__STAMP__,'ERROR: Unknown electronic relaxation model: ',IntInfoOpt=DSMC%ElectronicModel)
 END SELECT
@@ -404,7 +408,7 @@ SUBROUTINE LT_ElectronicEnergyExchange(iPartIndx_Node, nPart, NodeVolume)
 !> 7.) Determine the new PartState
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, UseVarTimeStep
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting, VarWeighting, CollInf, ElecRelaxPart
 USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_part_tools              ,ONLY: GetParticleWeight, CalcXiElec
@@ -438,7 +442,7 @@ CALL CalcMoments_ElectronicExchange(nPart, iPartIndx_Node, nSpec, vBulkAll, tota
 NewEn = OldEn
 IF((CellTemp.LE.0).OR.(MAXVAL(nSpec(:)).EQ.1).OR.(totalWeight.LE.0.0)) RETURN
 
-IF(VarTimeStep%UseVariableTimeStep) THEN
+IF(UseVarTimeStep) THEN
   dtCell = dt * dtCell / totalWeight
 ELSE
   dtCell = dt
@@ -813,7 +817,7 @@ SUBROUTINE CalcMoments_ElectronicExchange(nPart, iPartIndx_Node, nSpec, vBulkAll
 !> Moment calculation: Summing up the relative velocities and their squares
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, UseVarTimeStep, PartTimeStep
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
@@ -846,8 +850,8 @@ DO iLoop = 1, nPart
   TotalMass = TotalMass + Species(iSpec)%MassIC*partWeight
   vBulkSpec(1:3,iSpec) = vBulkSpec(1:3,iSpec) + PartState(4:6,iPart)*partWeight
   nSpec(iSpec) = nSpec(iSpec) + 1
-  IF(VarTimeStep%UseVariableTimeStep) THEN
-    dtCell = dtCell + VarTimeStep%ParticleTimeStep(iPart)*partWeight
+  IF(UseVarTimeStep) THEN
+    dtCell = dtCell + PartTimeStep(iPart)*partWeight
   END IF
 END DO
 totalWeight = SUM(totalWeightSpec)

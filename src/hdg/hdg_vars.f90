@@ -11,11 +11,17 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
+#if USE_PETSC
+#include "petsc/finclude/petsc.h"
+#endif
 !===================================================================================================================================
 !> Contains global variables used by the HDG modules.
 !===================================================================================================================================
 MODULE MOD_HDG_Vars
 ! MODULES
+#if USE_PETSC
+USE PETSc
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -27,6 +33,23 @@ SAVE
 INTEGER             :: nGP_vol                !< =(PP_N+1)**3
 INTEGER             :: nGP_face               !< =(PP_N+1)**2
 
+#if USE_PETSC
+Mat                 :: Smat_petsc
+Vec                 :: RHS_petsc
+Vec                 :: lambda_petsc
+KSP                 :: ksp
+Vec                 :: lambda_local_petsc
+VecScatter          :: scatter_petsc
+IS                  :: idx_local_petsc
+IS                  :: idx_global_petsc
+INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the local SideID to global PETScSideID 
+INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)  !< PETScLocalToSideID(PETScLocalSideID) maps the local PETSc side to SideID
+REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
+REAL,ALLOCATABLE    :: Smat_zeroPotential(:,:,:) !< side to side matrix for zero potential Side, (ngpface,ngpface,6Sides)
+INTEGER             :: nPETScSides            !< nSides - nDirichletSides - nZeroPotentialSides
+INTEGER             :: nPETScUniqueSides      !< nPETScSides - nMPISides_YOUR
+INTEGER             :: nPETScUniqueSidesGlobal
+#endif
 LOGICAL             :: useHDG=.FALSE.
 LOGICAL             :: ExactLambda =.FALSE.   !< Flag to initialize exact function for lambda
 REAL,ALLOCATABLE    :: InvDhat(:,:,:)         !< Inverse of Dhat matrix (nGP_vol,nGP_vol,nElems)
@@ -81,6 +104,11 @@ LOGICAL,ALLOCATABLE :: MaskedSide(:)          !< 1:nSides: all sides which are s
 REAL,ALLOCATABLE    :: IntMatMortar(:,:,:,:)  !< Interpolation matrix for mortar: (nGP_face,nGP_Face,1:4(iMortar),1:3(MortarType))
 INTEGER,ALLOCATABLE :: SmallMortarInfo(:)     !< 1:nSides: info on small Mortar sides:
                                               !< -1: is neighbor small mortar , 0: not a small mortar, 1: small mortar on big side
+#if USE_PETSC
+INTEGER,ALLOCATABLE :: SmallMortarType(:,:)   !< Type of Mortar side ([1] Type, [2] Side, nSides)
+                                              !< [1] Type: mortar type this small side belongs to (1-3)
+                                              !< [2] Side: Small side number (1-4)
+#endif
 LOGICAL             :: HDGDisplayConvergence  !< Display divergence criteria: Iterations, Runtime and Residual
 REAL                :: RunTime                !< CG Solver runtime
 REAL                :: RunTimePerIteration    !< CG Solver runtime per iteration

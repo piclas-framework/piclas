@@ -192,6 +192,7 @@ REAL                           :: halo_eps
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
 REAL                           :: StartT,EndT ! Timer
+CHARACTER(LEN=255)             :: hilf
 !===================================================================================================================================
 
 ! Read parameter for FastInitBackgroundMesh (FIBGM)
@@ -446,12 +447,9 @@ DO iElem = firstElem, lastElem
 END DO
 ! >> Communicate global maximum
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxCellRadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
-LBWRITE(UNIT_stdOut,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', for building halo BGM ...'
-#if USE_MPI
-StartT=MPI_WTIME()
-#else
-CALL CPU_TIME(StartT)
-#endif /*USE_MPI*/
+WRITE(hilf,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', for building halo BGM ...'
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') TRIM(hilf)
+GETTIME(StartT)
 
 ! Check, whether the BGM must be enlarged. Periodic sides plus EITHER of the following
 ! 1. RefMapping
@@ -791,6 +789,7 @@ ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
           ! Element not previously flagged
           IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).LT.1) THEN
             ASSOCIATE(posElem => (ElemID-1)*ELEMINFOSIZE + (ELEM_HALOFLAG-1))
+              ! Attention: This can produce ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 4 when Mortar interfaces are present
               CALL MPI_FETCH_AND_OP(haloChange,dummyInt,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_REPLACE,ElemInfo_Shared_Win,iError)
               CALL MPI_WIN_FLUSH(0,ElemInfo_Shared_Win,iError)
             END ASSOCIATE
@@ -1122,17 +1121,18 @@ IF (MPIRoot) THEN
                                         ' |'  ,NumberOfElements(iProc*3+2), &
                                         ' |'  ,NumberOfElements(iProc*3+3), ' |'
     END DO
+    WRITE(Unit_StdOut,'(A)') ' '
 #if USE_LOADBALANCE
   END IF ! .NOT.PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 END IF
 CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#else
+hilf=' '
 #endif /*CODE_ANALYZE*/
 
-EndT = PICLASTIME()
-LBWRITE(UNIT_stdOut,'(A,E15.7,A,F0.3,A)') ' | Found max. cell radius as',maxCellRadius,', for building halo BGM ... DONE! ['&
-,EndT-StartT,'s]'
-LBWRITE(UNIT_StdOut,'(132("-"))')
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, TRIM(hilf)//'DONE!')
 
 ! ONLY IF HALO_EPS .LT. GLOBAL_DIAG
 ! ONLY IF EMISSION .EQ. 1 .OR. 2
@@ -1160,7 +1160,7 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 !===================================================================================================================================
 #endif /*USE_MPI*/
 
-LBWRITE(UNIT_stdOut,'(A)')' BUILDING FIBGM ELEMENT MAPPING ...'
+LBWRITE(UNIT_stdOut,'(A)', ADVANCE='NO')' BUILDING FIBGM ELEMENT MAPPING ...'
 GETTIME(StartT)
 
 #if USE_MPI
@@ -1338,9 +1338,8 @@ CALL BARRIER_AND_SYNC(FIBGMProcs_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(FIBGMToProc_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
-EndT = PICLASTIME()
-LBWRITE(UNIT_stdOut,'(A,F0.3,A)')' BUILDING FIBGM ELEMENT MAPPING DONE! [',EndT-StartT,'s]'
-LBWRITE(UNIT_StdOut,'(132("-"))')
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
 
 #if USE_MPI
 ASSOCIATE(FIBGM_nElems => FIBGM_nTotalElems)
@@ -1800,6 +1799,7 @@ USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems,GEO
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,RotPeriodicTol
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1812,8 +1812,7 @@ LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM i
 INTEGER                        :: iElem,firstElem,lastElem
 REAL                           :: RotBoundsOfElemCenter(3)
 REAL                           :: BoundsOfElemCenter(1:4),LocalBoundsOfElemCenter(1:4)
-INTEGER,DIMENSION(2)           :: DirPeriodicVector = [-1,1]
-INTEGER                        :: iPeriodicDir,iLocElem
+INTEGER                        :: iLocElem,iPartBound
 !===================================================================================================================================
 
 firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
@@ -1851,18 +1850,43 @@ DO iElem = firstElem ,lastElem
                                              BoundsOfElem_Shared(2  ,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
     !   3. Rotate the global element and check the distance of all compute-node elements to
     !      this element and flag it with halo flag 3 if the element can be reached by a particle
-    DO iPeriodicDir = 1,2
-      ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
+    DO iPartBound = 1, nPartBound
+      IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
+      ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) * RotPeriodicTol)
         SELECT CASE(GEO%RotPeriodicAxi)
           CASE(1) ! x-rotation axis
+            IF( (BoundsOfElemCenter(1).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                (BoundsOfElemCenter(1).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                CYCLE
+            END IF
+            IF( (LocalBoundsOfElemCenter(1).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                (LocalBoundsOfElemCenter(1).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                CYCLE
+            END IF
             RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
             RotBoundsOfElemCenter(2) = COS(alpha)*BoundsOfElemCenter(2) - SIN(alpha)*BoundsOfElemCenter(3)
             RotBoundsOfElemCenter(3) = SIN(alpha)*BoundsOfElemCenter(2) + COS(alpha)*BoundsOfElemCenter(3)
           CASE(2) ! y-rotation axis
+            IF( (BoundsOfElemCenter(2).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                (BoundsOfElemCenter(2).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                CYCLE
+            END IF
+            IF( (LocalBoundsOfElemCenter(2).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                (LocalBoundsOfElemCenter(2).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                CYCLE
+            END IF
             RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) + SIN(alpha)*BoundsOfElemCenter(3)
             RotBoundsOfElemCenter(2) = BoundsOfElemCenter(2)
             RotBoundsOfElemCenter(3) =-SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(3)
           CASE(3) ! z-rotation axis
+            IF( (BoundsOfElemCenter(3).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                (BoundsOfElemCenter(3).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                CYCLE
+            END IF
+            IF( (LocalBoundsOfElemCenter(3).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                (LocalBoundsOfElemCenter(3).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                CYCLE
+            END IF
             RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) - SIN(alpha)*BoundsOfElemCenter(2)
             RotBoundsOfElemCenter(2) = SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(2)
             RotBoundsOfElemCenter(3) = BoundsOfElemCenter(3)
@@ -1876,7 +1900,7 @@ DO iElem = firstElem ,lastElem
         ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
         IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
       END IF ! VECNORM( ...
-    END DO ! iPeriodicDir = 1,2
+    END DO ! nPartBound
   END DO ! iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
 END DO ! firstElem,lastElem
 

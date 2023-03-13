@@ -179,7 +179,6 @@ DO i = 1, iMax
   ELSE
     ! Generate skeleton for the file with all relevant data on a single processor (MPIRoot)
     ! Write field to separate file for debugging purposes
-    !FutureTime=0.0 ! not required
     FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_NodeSourceExtGlobal',OutputTime))//'.h5'
     IF(MPIRoot) CALL GenerateFileSkeleton('NodeSourceExtGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)
 #if USE_MPI
@@ -402,7 +401,7 @@ ASSOCIATE (&
   ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
     CALL DistributedWriteArray(FileName                                      , &
-                              DataSetName  = 'PartTimeStep'  , rank = 2      , &
+                              DataSetName  = 'ElemTimeStep'  , rank = 2      , &
                               nValGlobal   = (/nGlobalElems  , 1_IK/)        , &
                               nVal         = (/PP_nElems     , 1_IK/)        , &
                               offset       = (/offsetElem    , 0_IK/)        , &
@@ -418,7 +417,7 @@ ASSOCIATE (&
                         collective  = .FALSE.        , RealArray = PartData)
     ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
-    CALL WriteArrayToHDF5(DataSetName = 'PartTimeStep' , rank=2 , &
+    CALL WriteArrayToHDF5(DataSetName = 'ElemTimeStep' , rank=2 , &
                           nValGlobal  = (/nGlobalElems , 1_IK/) , &
                           nVal        = (/PP_nElems    , 1_IK/) , &
                           offset      = (/offsetElem   , 0_IK/) , &
@@ -1588,15 +1587,11 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVal
 INTEGER,PARAMETER              :: outputVars=6
 REAL,ALLOCATABLE               :: outputArray(:,:,:,:,:)
-#if USE_MPI
 REAL                           :: StartT,EndT
-#endif /*USE_MPI*/
 INTEGER                        :: iElem,i,j,k
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PIC EM-FIELD TO HDF5 FILE...'
-#if USE_MPI
-  StartT=MPI_WTIME()
-#endif /*USE_MPI*/
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE PIC EM-FIELD TO HDF5 FILE...'
+GETTIME(StartT)
 
 ALLOCATE(outputArray(1:outputVars,0:PP_N,0:PP_N,0:PP_N,1:nElems))
 DO iElem=1,PP_nElems
@@ -1666,14 +1661,8 @@ CALL CloseDataFile()
 DEALLOCATE(StrVarNames)
 DEALLOCATE(outputArray)
 
-#if USE_MPI
-IF(MPIROOT)THEN
-  EndT=MPI_WTIME()
-  SWRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',EndT-StartT,'s]'
-END IF
-#else
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='YES')'DONE'
-#endif /*USE_MPI*/
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
 END SUBROUTINE WriteElectroMagneticPICFieldToHDF5
 
@@ -1843,9 +1832,8 @@ USE MOD_Particle_Vars          ,ONLY: PartDataSize
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartSpecies,nSpecies
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData
 USE MOD_Particle_Vars          ,ONLY: locnPart,offsetnPart
-USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,DSMC,PolyatomMolDSMC,SpecDSMC
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data,MaxQuantNum,MaxElecQuant
-USE MOD_Particle_Vars          ,ONLY: PDM, PartState, PartSpecies, PartMPF, usevMPF, nSpecies, Species
+USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PartMPF, usevMPF, nSpecies, Species
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
@@ -1943,8 +1931,7 @@ IF (.NOT.(useDSMC.OR.usevMPF)) THEN
   ALLOCATE(PEM%pStart(1:PP_nElems)           , &
            PEM%pNumber(1:PP_nElems)          , &
            PEM%pNext(1:PDM%maxParticleNumber), &
-           PEM%pEnd(1:PP_nElems) )!            , &
-           !PDM%nextUsedPosition(PDM%maxParticleNumber)  )
+           PEM%pEnd(1:PP_nElems) )
   useDSMC=.TRUE.
 END IF
 CALL UpdateNextFreePosition()
@@ -2121,9 +2108,7 @@ IF(withDSMC.AND.DSMC%DoAmbipolarDiff)THEN
       END DO
       iPart = PartInt(2,iElem_glob)
     ELSE
-      CALL abort(&
-      __STAMP__&
-      , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
+      CALL abort(__STAMP__, " Particle HDF5-Output method not supported! PEM%pNumber not associated")
     END IF
     PartInt(2,iElem_glob)=iPart
   END DO
@@ -2137,8 +2122,7 @@ IF (.NOT.(useDSMC.OR.usevMPF)) THEN
   DEALLOCATE(PEM%pStart , &
              PEM%pNumber, &
              PEM%pNext  , &
-             PEM%pEnd   )!, &
-             !PDM%nextUsedPosition  )
+             PEM%pEnd   )
 END IF
 !!! Ende kleiner Hack von JN (Teil 2/2)
 
