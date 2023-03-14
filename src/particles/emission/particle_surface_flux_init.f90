@@ -834,6 +834,14 @@ DO iBC=1,countDataBC
       END IF
     END DO
   END DO
+
+  DO iSF=1,SurfChemReac%CatBoundNum
+    IF (TmpMapToBC(iBC).EQ.SurfChemReac%Surfaceflux(iSF)%BC) THEN !only surfacefluxes with iBC
+      ALLOCATE(SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC)))
+      ALLOCATE(SurfChemReac%SFAux(iSF)%a_nIn(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC),nSpecies))
+    END IF
+  END DO
+
   BCSideID=TmpSideStart(iBC)
   iCount=0
   DO !follow BCSideID list seq. with iCount
@@ -932,13 +940,6 @@ __STAMP__&
       BCdata_auxSF(TmpMapToBC(iBC))%LocalArea = BCdata_auxSF(TmpMapToBC(iBC))%LocalArea &
         + SurfMeshSubSideData(iSample,jSample,BCSideID)%area
     END DO; END DO
-
-    DO iSF=1,SurfChemReac%CatBoundNum
-      IF (TmpMapToBC(iBC).EQ.SurfChemReac%Surfaceflux(iSF)%BC) THEN !only surfacefluxes with iBC
-        ALLOCATE(SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC)))
-        ALLOCATE(SurfChemReac%SFAux(iSF)%a_nIn(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC),nSpecies))
-      END IF
-    END DO
 
     !-- next Side
     IF (BCSideID .EQ. TmpSideEnd(iBC)) THEN

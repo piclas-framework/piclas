@@ -327,11 +327,6 @@ END IF
 
 CALL InitializeVariables()
 
-! Insert the initial particles
-CALL InitialParticleInserting()
-! Initialize particle surface flux to be performed per iteration
-CALL InitializeParticleSurfaceflux()
-
 ! Initialize volume sampling
 IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 ! definition of DSMC sampling values
@@ -351,6 +346,12 @@ END IF
 
 ! Initialize surface reactions
 CALL SurfaceModel_Chemistry_Init()
+
+! Insert the initial particles
+CALL InitialParticleInserting()
+! Initialize particle surface flux to be performed per iteration
+
+CALL InitializeParticleSurfaceflux()
 
 ! Initialize porous boundary condition (requires BCdata_auxSF and SurfMesh from InitParticleBoundarySampling)
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()

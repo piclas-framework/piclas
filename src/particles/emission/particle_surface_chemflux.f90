@@ -24,7 +24,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ParticleSurfChemFlux, ParticleSurfDiffusion, RemoveBias
+PUBLIC :: ParticleSurfChemFlux, ParticleSurfDiffusion, RemoveBias, SetInnerEnergies
 !===================================================================================================================================
 CONTAINS
 
@@ -57,7 +57,6 @@ USE MOD_Particle_Boundary_Vars
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win,SurfChemReac, ChemWallProp, ChemDesorpWall !, ChemCountReacWall
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 USE MOD_Particle_SurfFlux       ,ONLY: SetSurfacefluxVelocities, CalcPartPosTriaSurface
-USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
 #if USE_MPI
 USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
@@ -429,12 +428,7 @@ DO iSF = 1, nSF
           CALL SetParticleMPF(iSpec,-1,NbrOfParticle)
         END IF
 
-        IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-          DO iPart = 1,NbrOfParticle
-            PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
-            IF (PositionNbr .NE. 0) CALL DSMC_SetInternalEnr_Poly(iSpec, BoundID, PositionNbr, 3)
-          END DO
-        END IF
+        IF (useDSMC.AND.(CollisMode.GT.1)) CALL SetInnerEnergies(iSpec, BoundID, NbrOfParticle)
 
         IF(CalcPartBalance) THEN
         ! Compute number of input particles and energy
@@ -469,6 +463,41 @@ END DO !iSF
 #endif
 
 END SUBROUTINE ParticleSurfChemFlux
+
+!===================================================================================================================================
+!>
+!===================================================================================================================================
+SUBROUTINE SetInnerEnergies(iSpec, iSF, NbrOfParticle)
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
+USE MOD_Particle_Vars           ,ONLY: PDM
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
+USE MOD_part_emission_tools     ,ONLY: DSMC_SetInternalEnr_LauxVFD
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)                        :: iSpec, iSF, NbrOfParticle
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: iPart, PositionNbr
+!===================================================================================================================================
+iPart = 1
+DO WHILE (iPart .le. NbrOfParticle)
+  PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+  IF (PositionNbr .ne. 0) THEN
+    IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
+      CALL DSMC_SetInternalEnr_Poly(iSpec,iSF,PositionNbr,3)
+    ELSE
+      CALL DSMC_SetInternalEnr_LauxVFD(iSpec, iSF, PositionNbr,3)
+    END IF
+  END IF
+  iPart = iPart + 1
+END DO
+END SUBROUTINE SetInnerEnergies
 
 !===================================================================================================================================
 !> Bias treatment for multiple reactions on the same surface element

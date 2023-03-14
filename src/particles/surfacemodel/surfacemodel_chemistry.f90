@@ -41,7 +41,7 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !===================================================================================================================================
 CALL prms%SetSection("Surface Chemistry")
-CALL prms%CreateIntOption(      'Surface-NumOfReactions','Number of chemical Surface reactions')
+CALL prms%CreateIntOption(      'Surface-NumOfReactions','Number of chemical Surface reactions', '0')
 CALL prms%CreateIntOption(      'Surface-Species','Bulk species of the boundary')
 CALL prms%CreateStringOption(   'Surface-Reaction[$]-Type',  &
                                 'No default, options are A (adsorption), D (desorption), ER (Eley-Rideal), LH (Langmuir-Hinshelwood), LHD', &

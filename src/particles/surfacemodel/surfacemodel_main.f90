@@ -59,6 +59,8 @@ USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos,PartState
 USE MOD_Particle_Vars             ,ONLY: UseCircularInflow
 USE MOD_Dielectric_Vars           ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive, RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars                 ,ONLY: useDSMC, CollisMode, SpecDSMC
+USE MOD_part_emission_tools       ,ONLY: DSMC_SetInternalEnr_LauxVFD
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeCount, SurfAnalyzeNumOfAds, SurfAnalyzeNumOfDes
 USE MOD_SurfaceModel_Tools        ,ONLY: SurfaceModel_ParticleEmission, GetWallTemperature, SurfaceModel_EnergyAccommodation
 USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
@@ -441,7 +443,13 @@ CASE(20)  ! Adsorption or Eley-Rideal reaction
 
         CALL CreateParticle(iProd,NewPos(1:3),GlobalElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=partWeight)
 
-        CALL DSMC_SetInternalEnr_Poly(iProd,locBCID,NewPartID,4)
+        IF (useDSMC.AND.(CollisMode.GT.1)) THEN
+          IF (SpecDSMC(iProd)%PolyatomicMol) THEN
+            CALL DSMC_SetInternalEnr_Poly(iProd,locBCID,NewPartID,4)
+          ELSE
+            CALL DSMC_SetInternalEnr_LauxVFD(iProd,locBCID,NewPartID,4)
+          END IF
+        END IF
       END IF
     END DO
 
