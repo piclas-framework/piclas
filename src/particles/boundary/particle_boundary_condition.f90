@@ -451,6 +451,7 @@ SUBROUTINE RotPeriodicInterPlaneBC(PartID,SideID,ElemID,IsInterPlanePart)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Vars          ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
@@ -622,7 +623,7 @@ ASSOCIATE(rot_alpha => RanNum*PartBound%RotPeriodicAngle(PartBound%AssociatedPla
     IF(VecAngle.GT.0.0) THEN
       rot_alpha_POIold = 0.0
     ELSE
-      rot_alpha_POIold = ACOS(-1.0)  ! PI()
+      rot_alpha_POIold = PI       !   ACOS(-1.0)
     END IF
   ELSE
     rot_alpha_POIold = ACOS( VecAngle )
@@ -654,7 +655,7 @@ END IF
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
-    IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicBC: '
+    IPWRITE(UNIT_stdout,'(I0,A)') '     RotPeriodicInterPlaneBC: '
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' ParticlePosition-pp: ',PartState(1:3,PartID)
     IPWRITE(UNIT_stdout,'(I0,A,3(1X,G0))') ' LastPartPosition-pp: ',LastPartPos(1:3,PartID)
   END IF
@@ -675,7 +676,7 @@ END DO
 IF(.NOT.FoundInElem) THEN
   ! Particle appears to have not crossed any of the checked sides. Deleted!
   IF(DisplayLostParticles)THEN
-    IPWRITE(*,*) 'Error in RotPeriodicBC! Particle Number',PartID,'lost. Element:', ElemID,'(species:',PartSpecies(PartID),')'
+    IPWRITE(*,*) 'Error in RotPeriodicInterPlaneBC! Particle Number',PartID,'lost. Element:', ElemID,'(species:',PartSpecies(PartID),')'
     IPWRITE(*,*) 'LastPos: ', LastPartPos(1:3,PartID)
     IPWRITE(*,*) 'Pos:     ', PartState(1:3,PartID)
     IPWRITE(*,*) 'Velo:    ', PartState(4:6,PartID)
