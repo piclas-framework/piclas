@@ -1268,6 +1268,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER             :: iSpec, iSF, ElemID, SampleElemID, SurfSideID, iSide, iSample, jSample, currentBC
 REAL                :: MacroParticleFactor, dtVar
+REAL                :: MacroParticleFactor, dtVar
 #if USE_MPI
 INTEGER             :: MaxSurfaceFluxBCs
 #endif /*USE_MPI*/
@@ -1289,14 +1290,24 @@ DO iSpec = 1, nSpecies
   ELSE
     dtVar = dt
   END IF
+  IF(VarTimeStep%UseSpeciesSpecific) THEN
+    dtVar = dt * Species(iSpec)%TimeStepFactor
+  ELSE
+    dtVar = dt
+  END IF
   DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
     ! SampledMassFlow contains the weighted particle number balance (in - out)
     FlowRateSurfFlux(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow * MacroParticleFactor / dtVar
+    FlowRateSurfFlux(iSpec,iSF) = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow * MacroParticleFactor / dtVar
     IF(Species(iSpec)%Surfaceflux(iSF)%UseEmissionCurrent) THEN
+      FlowRateSurfFlux(iSpec,iSF) = FlowRateSurfFlux(iSpec,iSF) * ABS(Species(iSpec)%ChargeIC)
       FlowRateSurfFlux(iSpec,iSF) = FlowRateSurfFlux(iSpec,iSF) * ABS(Species(iSpec)%ChargeIC)
     ELSE
       FlowRateSurfFlux(iSpec,iSF) = FlowRateSurfFlux(iSpec,iSF) * Species(iSpec)%MassIC
+      FlowRateSurfFlux(iSpec,iSF) = FlowRateSurfFlux(iSpec,iSF) * Species(iSpec)%MassIC
     END IF
+    ! Reset the mass flow rate
+    Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
     ! Reset the mass flow rate
     Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = 0.
     IF(UseAdaptive) THEN
@@ -1322,6 +1333,7 @@ DO iSpec = 1, nSpecies
 END DO
 
 ! 2) Get the sum of the mass flow rate and the sum of the area-weighted area pressures
+! 2) Get the sum of the mass flow rate and the sum of the area-weighted area pressures
 #if USE_MPI
 MaxSurfaceFluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
 IF (PartMPI%MPIRoot) THEN
@@ -1338,7 +1350,15 @@ END IF
 #endif /*USE_MPI*/
 
 ! 3) Consider Part-AnalyzeStep for FlowRateSurfFlux and determine the average pressure (value does not depend on the Part-AnalyzeStep)
+! 3) Consider Part-AnalyzeStep for FlowRateSurfFlux and determine the average pressure (value does not depend on the Part-AnalyzeStep)
 IF (PartMPI%MPIRoot) THEN
+  IF(PartAnalyzeStep.GT.1)THEN
+    IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
+      FlowRateSurfFlux = FlowRateSurfFlux / iter
+    ELSE
+      FlowRateSurfFlux = FlowRateSurfFlux / MIN(PartAnalyzeStep,iter)
+    END IF
+  END IF
   IF(PartAnalyzeStep.GT.1)THEN
     IF(PartAnalyzeStep.EQ.HUGE(PartAnalyzeStep))THEN
       FlowRateSurfFlux = FlowRateSurfFlux / iter
@@ -2097,8 +2117,10 @@ USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: CollInf, DSMC
 USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
 USE MOD_Particle_Vars         ,ONLY: VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: VarTimeStep
 USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
 USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2110,6 +2132,7 @@ REAL,INTENT(OUT)              :: CRate(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iCase
+REAL                          :: dtVar
 REAL                          :: dtVar
 !===================================================================================================================================
 
@@ -2131,7 +2154,17 @@ IF(PartMPI%MPIRoot)THEN
       dtVar = dt
     END IF
     CRate(iCase) =  DSMC%NumColl(iCase) / dtVar
+  DO iCase=1, CollInf%NumCase
+    ! Species-specific time step
+    IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
+      dtVar = dt * GetSpeciesTimeStep(iCase)
+    ELSE
+      dtVar = dt
+    END IF
+    CRate(iCase) =  DSMC%NumColl(iCase) / dtVar
   END DO
+  ! Total collision rate is the sum of the case-specific rates
+  CRate(CollInf%NumCase + 1) = SUM(CRate(1:CollInf%NumCase))
   ! Total collision rate is the sum of the case-specific rates
   CRate(CollInf%NumCase + 1) = SUM(CRate(1:CollInf%NumCase))
   ! Consider Part-AnalyzeStep
@@ -2161,11 +2194,13 @@ SUBROUTINE CalcRelaxRates(NumSpec,VibRelaxProbCase)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, VarTimeStep
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, CollInf
 USE MOD_MCC_Vars              ,ONLY: SpecXSec, XSec_Relaxation
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
 USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
 USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
+USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
 USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
 #if USE_MPI
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
@@ -2179,6 +2214,7 @@ REAL,INTENT(OUT)                :: VibRelaxProbCase(CollInf%NumCase)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iSpec, iCase, jSpec
+REAL                            :: MPF_1, MPF_2, dtVar
 REAL                            :: MPF_1, MPF_2, dtVar
 !===================================================================================================================================
 IF(CollisMode.LT.2) RETURN
@@ -2208,7 +2244,14 @@ IF(PartMPI%MPIRoot)THEN
         ELSE
           dtVar = dt
         END IF
+        ! Species-specific time step
+        IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
+          dtVar = dt * GetSpeciesTimeStep(iCase)
+        ELSE
+          dtVar = dt
+        END IF
         VibRelaxProbCase(iCase) = SpecXSec(iCase)%VibCount * MPF_1 * MeshVolume &
+                                  / (dtVar * MPF_1*NumSpec(iSpec) * MPF_2*NumSpec(jSpec))
                                   / (dtVar * MPF_1*NumSpec(iSpec) * MPF_2*NumSpec(jSpec))
       END DO
     END DO
@@ -2238,11 +2281,13 @@ SUBROUTINE CalcRelaxRatesElec(ElecRelaxRate)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars         ,ONLY: VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: VarTimeStep
 USE MOD_DSMC_Vars             ,ONLY: CollInf
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
 USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
+USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
 USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2254,6 +2299,7 @@ REAL,INTENT(OUT),ALLOCATABLE  :: ElecRelaxRate(:,:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iCase, iLevel, MaxLevel
+REAL                          :: dtVar
 REAL                          :: dtVar
 !===================================================================================================================================
 
@@ -2278,6 +2324,17 @@ END IF
 #endif /*USE_MPI*/
 
 IF(PartMPI%MPIRoot)THEN
+  DO iCase=1, CollInf%NumCase
+    IF(SpecXSec(iCase)%UseElecXSec) THEN
+      ! Species-specific time step
+      IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
+        dtVar = dt * GetSpeciesTimeStep(iCase)
+      ELSE
+        dtVar = dt
+      END IF
+      ElecRelaxRate(iCase,:) =  ElecRelaxRate(iCase,:) / dtVar
+    END IF
+  END DO
   DO iCase=1, CollInf%NumCase
     IF(SpecXSec(iCase)%UseElecXSec) THEN
       ! Species-specific time step
@@ -2319,9 +2376,11 @@ USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, DSMC
 USE MOD_TimeDisc_Vars         ,ONLY: dt, iter
 USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
 USE MOD_Particle_MPI_Vars     ,ONLY: PartMPI
 USE MOD_Particle_Analyze_Vars ,ONLY: PartAnalyzeStep
+USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
 USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2334,6 +2393,7 @@ REAL,INTENT(OUT)                :: RRate(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iReac, iCase
+REAL                            :: dtVar
 REAL                            :: dtVar
 #if USE_MPI
 REAL                            :: RD(1:ChemReac%NumOfReact)
@@ -2357,11 +2417,18 @@ IF(PartMPI%MPIRoot)THEN
     ELSE
       dtVar = dt
     END IF
+    ! Species-specific time step
+    IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
+      dtVar = dt * GetSpeciesTimeStep(iCase)
+    ELSE
+      dtVar = dt
+    END IF
     IF ((NumSpec(ChemReac%Reactants(iReac,1)).GT.0).AND.(NumSpec(ChemReac%Reactants(iReac,2)).GT.0)) THEN
       IF(ChemReac%Reactants(iReac,3).NE.0) THEN
         ! Recombination reactions with 3 reactants
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%Products(iReac,1))%MacroParticleFactor &
+                     * MeshVolume**2 / (dtVar &
                      * MeshVolume**2 / (dtVar &
                      * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor * NumSpec(ChemReac%Reactants(iReac,1)) &
                      * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor * NumSpec(ChemReac%Reactants(iReac,2)) &
@@ -2369,6 +2436,7 @@ IF(PartMPI%MPIRoot)THEN
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
           RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) * MeshVolume**2 &
+               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor / (dtVar * ChemReac%ReacCount(iReac)             &
                * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor / (dtVar * ChemReac%ReacCount(iReac)             &
                * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1))     &
                * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2))    &
@@ -2379,11 +2447,13 @@ IF(PartMPI%MPIRoot)THEN
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
           RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%Products(iReac,1))%MacroParticleFactor &
                        * MeshVolume / (dtVar &
+                       * MeshVolume / (dtVar &
                        * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1)) &
                        * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2)))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
           RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) &
+               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor* MeshVolume / (dtVar * ChemReac%ReacCount(iReac) &
                * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor* MeshVolume / (dtVar * ChemReac%ReacCount(iReac) &
                * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1))         &
                * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2)))

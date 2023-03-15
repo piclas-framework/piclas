@@ -633,6 +633,7 @@ IF(BGGas%UseDistribution.AND.(CalcNumDens.OR.DSMC%CalcQualityFactors.OR.CalcReac
 
 IF(CalcReacRates) THEN
   IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.UseVarTimeStep) CALL abort(__STAMP__,&
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) CALL abort(__STAMP__,&
       'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
 END IF
 
@@ -642,6 +643,7 @@ IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcSurfFl
 CalcVelos = GETLOGICAL('CalcVelos')
 IF (CalcVelos) THEN
   IF(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+  IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
     CALL abort(__STAMP__,'ERROR: CalcVelos is not supported with radial weighting or variable time step yet!')
   END IF
   DoPartAnalyze=.TRUE.

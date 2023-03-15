@@ -360,7 +360,7 @@ DO iSpec = 1, nSpecies
     IF(UseVarTimeStep.OR.VarTimeStep%UseSpeciesSpecific) THEN
       SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
       ! Do nothing
-      CASE('cell_local','background','subcell')
+      CASE('cell_local','background')
       ! Abort for every other SpaceIC
       CASE DEFAULT
         CALL CollectiveStop(__STAMP__,'ERROR: Particle insertion/emission for variable time step '//&

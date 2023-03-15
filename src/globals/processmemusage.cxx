@@ -39,20 +39,31 @@ extern"C" void processmemusage(double& memUsed, double& memAvail, double& memTot
 
    file.close();
 
+   /* /1* stat gives process totals *1/ */
+   /* ifstream stat("/proc/self/stat"); */
+
+   /* // dummy vars for leading entries in stat that we don't care about */
+   /* // */
+   /* string pid, comm, state, ppid, pgrp, session, tty_nr; */
+   /* string tpgid, flags, minflt, cminflt, majflt, cmajflt; */
+   /* string utime, stime, cutime, cstime, priority, nice; */
+   /* string O, itrealvalue, starttime, vsize; */
+
+   /* stat >> pid >> comm >> state >> ppid >> pgrp >> session >> tty_nr */
+   /*      >> tpgid >> flags >> minflt >> cminflt >> majflt >> cmajflt */
+   /*      >> utime >> stime >> cutime >> cstime >> priority >> nice */
+   /*      >> O >> itrealvalue >> starttime >> vsize >> memUsed; // don't care about the rest */
+
+   /* stat.close(); */
+
    /* stat gives process totals */
-   ifstream stat("/proc/self/stat");
+   ifstream stat("/proc/self/statm");
 
    // dummy vars for leading entries in stat that we don't care about
    //
-   string pid, comm, state, ppid, pgrp, session, tty_nr;
-   string tpgid, flags, minflt, cminflt, majflt, cmajflt;
-   string utime, stime, cutime, cstime, priority, nice;
-   string O, itrealvalue, starttime, vsize;
+   string size;
 
-   stat >> pid >> comm >> state >> ppid >> pgrp >> session >> tty_nr
-        >> tpgid >> flags >> minflt >> cminflt >> majflt >> cmajflt
-        >> utime >> stime >> cutime >> cstime >> priority >> nice
-        >> O >> itrealvalue >> starttime >> vsize >> memUsed; // don't care about the rest
+   stat >> size >> memUsed; // don't care about the rest
 
    stat.close();
 
