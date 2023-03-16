@@ -5,7 +5,7 @@ of required prerequisites, setting up MPI and HDF5. Please note that high-perfor
 where you have to load the appropriate modules instead of compiling them yourself. The module configuration for some of the clusters
 used by the research group are given in Chapter {ref}`userguide/cluster_guide:Cluster Guidelines`.
 In that case, you can jump directly to the description of the download and installation procedure of PICLas in Section
-{ref}`sec:optaining-the-source`.
+{ref}`sec:obtaining-the-source`.
 
 ## Prerequisites
 **PICLas** has been used on various Linux distributions in the past. This includes Ubuntu 16.04 LTS and 18.04 LTS, 20.04 LTS
@@ -88,6 +88,7 @@ The following list contains the **recommended library combinations** for the Int
 | :------------: | :-------: | :----: | :-----------: | :----: |
 |      2.8.0     | gcc12.2.0 | 1.12.2 | openmpi-4.1.4 | 3.24.2 |
 |  2.3.0 - 2.7.0 | gcc11.2.0 | 1.12.1 | openmpi-4.1.1 | 3.21.3 |
+|      2.0.0     | intel19.1 |  1.10  |    impi2019   |  3.17  |
 |  2.0.0 - 2.2.2 | intel19.1 |  1.10  |    impi2019   |  3.17  |
 
 and the **minimum requirements**
@@ -101,7 +102,7 @@ A full list of all previously tested combinations is found in Chapter {ref}`user
 
 If you are setting-up a fresh system for the simulation with PICLas, we recommend using a Module environment, which can be setup with the provided shell scripts in `piclas/tools/Setup_ModuleEnv`. A description is available here: `piclas/tools/Setup_ModuleEnv/README.md`. This allows you to install and switch between different compiler, MPI and HDF5 versions.
 
-### Installing/setting up GCC
+### Installing GCC
 
 You can install a specific version of the GCC compiler from scratch, if for example the compiler provided by the repositories of your operating systems is too old. If you already have a compiler installed, make sure the environment variables are set correctly as shown at the end of this section. For this purpose, download the GCC source code directly using a mirror website (detailed information and different mirrors can be found here: [GCC mirror sites](https://gcc.gnu.org/mirrors.html))
 
@@ -147,7 +148,7 @@ If you encounter any difficulties, you can submit an issue on GitHub attaching t
 For convenience, you can add these lines to your `.bashrc`.
 
 (sec:installing-mpi)=
-### Installing/setting up OpenMPI
+### Installing OpenMPI
 
 You can install a specific version of OpenMPI from scratch, using the same compiler that will be used for the code installation. If you already have OpenMPI installed, make sure the environment variables are set correctly as shown at the end of this section. First, download the OpenMPI source code either from the website [https://www.open-mpi.org/](https://www.open-mpi.org/) or directly using the following command:
 
@@ -174,7 +175,7 @@ If you encounter any difficulties, you can submit an issue on GitHub attaching t
 For convenience, you can add these lines to your `.bashrc`.
 
 (sec:hdf5-installation)=
-### Installing/setting up HDF5
+### Installing HDF5
 
 An available installation of HDF5 can be utilized with PICLas. This requires properly setup environment variables and the compilation of HDF5 during the PICLas compilation has to be turned off (`LIBS_BUILD_HDF5 = OFF`, as per default). If this option is enabled, HDF5 will be downloaded and compiled. However, this means that every time a clean compilation of PICLas is performed, HDF5 will be recompiled. It is preferred to either install HDF5 on your system locally or utilize the packages provided on your cluster.
 
@@ -208,7 +209,142 @@ If you encounter any difficulties, you can submit an issue on GitHub attaching t
 
 For convenience, you can add these lines to your `.bashrc`.
 
-(sec:optaining-the-source)=
+(sec:petsc-installation)=
+### Installing PETSc
+
+The following list contains the **recommended/working library versions** for PETSc and PICLas
+
+| PICLas Version |    3.18   |    3.17   |
+| :------------: | :-------: | :-------: |
+|      3.0.0     |    yes    |    yes    |
+|      2.9.0     |    no     |    yes    |
+
+#### Local machine
+Download PETSc from the git repository
+
+````
+git clone -b release-3.17 https://gitlab.com/petsc/petsc.git petsc
+````
+
+Configure and install PETSc (MPI and BLAS/LAPACK have to be installed)
+
+````
+./configure PETSC_ARCH=arch-linux --with-mpi-dir=/opt/openmpi/3.1.6/gcc/9.2.0/ --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack
+make all
+````
+
+Set the required environment variables
+
+````
+export PETSC_DIR=/home/user/petsc
+export PETSC_ARCH=arch-linux
+````
+
+Set the PETSc flag to ON in during cmake configuration of PICLas
+
+````
+PICLAS_PETSC   ON
+````
+
+#### Cluster (HLRS) with restricted internet access
+Download PETSc to your local PC and copy to HLRS via ssh
+
+````
+wget https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-3.17.0.tar.gz
+scp petsc-3.17.0.tar.gz hawk:~/.
+ssh hawk
+tar xf petsc-<version number>.tar.gz
+````
+
+
+Load the modules on hawk (note that it was not possible to compile PETSc with mpt/2.23), only OpenMPI due to an MPI variable error
+
+Configuration for the old software stack (Attention: THIS IS OLD):
+
+````
+module load  cmake/3.16.4  gcc/9.2.0  hdf5/1.10.5  blis/2.1  openmpi/4.0.4  libflame/2.1  aocl/2.1.0
+````
+
+**Configuration for the new software stack (Attention: THIS IS NEW):**
+
+````
+module load  cmake/3.15.2 gcc/10.2.0  hdf5/1.10.5  blis/2.1  openmpi/4.1.4
+````
+
+Configure PETSc (MPI and BLAS/LAPACK have to be installed), which might fail due to the firewall that is active on hawk and prevents direct internet access.
+Follow the hints in the error message or simply copy the required external packages from your local system to hawk.
+If you configure on a local machine, the external packages are downloaded to `petsc-3.17.0/arch-linux/externalpackages/`.
+These must be copied to hawk, e.g., via
+
+````
+cd petsc-3.17.0/arch-linux/externalpackages/
+rsync -avPe ssh git.hypre hawk:~/petsc-3.17.0/arch-linux/externalpackages/.
+rsync -avPe ssh git.mumps hawk:~/petsc-3.17.0/arch-linux/externalpackages/.
+rsync -avPe ssh git.scalapack hawk:~/petsc-3.17.0/arch-linux/externalpackages/.
+````
+
+and then the configuration can be done on hawk
+
+````
+cd petsc-3.17.0
+````
+
+**Configuration for the old software stack (Attention: THIS IS OLD):**
+
+Note that gcc/9.2.0 and openmpi/4.0.4 must be loaded
+````
+./configure PETSC_ARCH=arch-linux --with-mpi-dir=/opt/hlrs/non-spack/mpi/openmpi/4.0.4-gcc-9.2.0/ --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack
+````
+
+**Configuration for the new software stack (Attention: THIS IS NEW without installing fblaslapack):**
+
+Note that gcc/10.2.0 and openmpi/4.1.4 must be loaded
+
+````
+./configure PETSC_ARCH=arch-linux --with-mpi-dir=/opt/hlrs/non-spack/rev-009_2022-09-01/mpi/openmpi/4.1.4-gcc-10.2.0/ --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack --with-blas-lib=/sw/hawk-rh8/hlrs/spack/rev-009_2022-09-01/blis/2.1-gcc-10.2.0-g6f3pga5
+````
+
+**Configuration for the new software stack (Attention: THIS IS NEW + includes installing fblaslapack):**
+
+````
+./configure PETSC_ARCH=arch-linux --with-mpi-dir=/opt/hlrs/non-spack/rev-009_2022-09-01/mpi/openmpi/4.1.4-gcc-10.2.0/ --with-debugging=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --download-hypre --download-mumps --download-scalapack --download-fblaslapack=1
+````
+
+that requires
+
+````
+cd petsc-3.17.0/arch-linux/externalpackages/
+rsync -avPe ssh git.fblaslapack hawk:~/petsc-3.17.0/arch-linux/externalpackages/.
+````
+
+and after configuration, run make
+
+````
+make all
+````
+
+Set the environment variables
+
+````
+export PETSC_DIR=/home/user/petsc
+export PETSC_ARCH=arch-linux
+````
+
+Set the PETSc flag to ON in during cmake configuration of PICLas
+
+````
+PICLAS_PETSC   ON
+````
+
+Load the paths and modules in the submit.sh script on hawk by adding the following lines to the submit.sh script
+
+````
+module load cmake/3.16.4  gcc/9.2.0  hdf5/1.10.5  libflame/2.1  openmpi/4.0.4  aocl/2.1.0  blis/2.1
+export PETSC_DIR=/zhome/academic/HLRS/irs/iagcopp/petsc-3.17.0
+export PETSC_ARCH=arch-linux
+````
+
+(sec:obtaining-the-source)=
 ## Obtaining the source
 
 The **PICLas** repository is available at GitHub. To obtain the most recent version you have two possibilities:

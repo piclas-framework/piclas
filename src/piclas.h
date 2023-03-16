@@ -2,6 +2,11 @@
 ! Here, preprocessor variables for different equation systems and abbreviations for specific expressions are defined
 !===================================================================================================================================
 
+! From include/petsc/finclude/petscsys.h: #define PetscCallA(func) call func; CHKERRA(ierr)
+#if USE_PETSC_FIX317
+#define PetscCallA(a) CALL a; PetscCall(ierr)
+#endif
+
 ! Abbrevations
 #ifndef __FILENAME__
 #define __FILENAME__ __FILE__
@@ -38,7 +43,7 @@
 #define MPIW8SIZEPART 0
 #endif
 ! Combination
-#define MPIW8SIZE (1+MPIW8SIZEFIELD+MPIW8SIZEPART)
+#define MPIW8SIZE (2+MPIW8SIZEFIELD+MPIW8SIZEPART)
 #endif
 
 ! Deactivate PURE subroutines/functions when using DEBUG
@@ -52,8 +57,8 @@
 #define UNLOCK_AND_FREE(a)   UNLOCK_AND_FREE_DUMMY(a,'a')
 
 #ifdef GNU
-#define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  k).OR.x<-HUGE(1_  k))       CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
-#define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ k).OR.x<-HUGE(1._ k))       CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
+#define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  k).OR.x<-HUGE(1_  k))       CALL ABORT(__STAMP__,'Integer KIND=k conversion failed: out of range!')
+#define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ k).OR.x<-HUGE(1._ k))       CALL ABORT(__STAMP__,'Real KIND=k conversion failed: out of range!')
 #elif CRAY
 #define CHECKSAFEINT(x,k)
 #define CHECKSAFEREAL(x,k)

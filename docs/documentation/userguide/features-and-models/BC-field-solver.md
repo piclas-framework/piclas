@@ -25,6 +25,7 @@ include, periodic, Dirichlet, Silver-Mueller, perfectly conducting, symmetry and
 |   (/1,-1/)   | periodic  | -1: negative (opposite) direction of the 1st periodicity vector                                                           |
 |              |           |                                                                                                                           |
 |   (/2,2/)    | Dirichlet | 2: Coaxial waveguide                                                                                                      |
+|   (/2,22/)   | Dirichlet | 22: Coaxial waveguide BC (boundary condition or exact flux)                                                               |
 |   (/2,3/)    | Dirichlet | 3: Resonator                                                                                                              |
 |   (/2,4/)    | Dirichlet | 4: Electromagnetic dipole (implemented via RHS source terms and shape function deposition)                                |
 |   (/2,40/)   | Dirichlet | 40: Electromagnetic dipole without initial condition (implemented via RHS source terms and shape function deposition)     |
@@ -46,7 +47,7 @@ include, periodic, Dirichlet, Silver-Mueller, perfectly conducting, symmetry and
 |   (/6,0/)    |    SM     | 1st order absorbing BC (Silver-Mueller) - Munz et al. 2000 / Computer Physics Communication 130, 83-117 with fix          |
 |              |           | of div. correction field for low B-fields that only set the correction fields when B is significantly large compared to E |
 |              |           |                                                                                                                           |
-|   (/4,0/)    |    PEC    | Perfectly conducting surface (Munz, Omnes, Schneider 2000, pp. 97-98)                                                     |
+|   (/4,0/)    |    PEC    | Perfectly electric conducting surface (Munz, Omnes, Schneider 2000, pp. 97-98)                                            |
 |              |           |                                                                                                                           |
 |   (/10,0/)   | Symmetry  | Symmetry BC (perfect MAGNETIC conductor, PMC)                                                                             |
 |              |           |                                                                                                                           |
@@ -201,7 +202,7 @@ The dielectric module is activated by setting
 
     DoDielectric = T
 
-and specifying values for the permittivity and permeability constants
+and specifying values for the permittivity $\varepsilon_{R}$ and permeability $\mu_{R}$ constants
 
     DielectricEpsR = X
     DielectricMuR = X
@@ -255,4 +256,16 @@ setting
 
 which is set true by default, hence, removing the particles.
 
+### Dielectric Zones
+Regions or zones (corresponding to zones as defined by hopr) can also be used to define dielectrics.
+In this case, the number of zones must be supplied
 
+    DielectricNbrOfZones = 8
+
+and a vector of the same size for the corresponding zone IDs, $\varepsilon_{R}$ and $\mu_{R}$ for each zone, respectively
+
+    DielectricZoneID     = (/9   , 10  , 11  , 12  , 13  , 14  , 15  , 16/)
+    DielectricZoneEpsR   = (/2.0 , 2.0 , 2.0 , 2.0 , 2.0 , 2.0 , 2.0 , 2.0/)
+    DielectricZoneMuR    = (/1.0 , 1.0 , 1.0 , 1.0 , 1.0 , 1.0 , 1.0 , 1.0/)
+
+Note that this method cannot be used in combination with any other way of defining dielectrics.

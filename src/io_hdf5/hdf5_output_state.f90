@@ -82,11 +82,11 @@ USE MOD_Equation_Vars          ,ONLY: E,B
 #endif /*PP_nVar*/
 USE MOD_Mesh_Vars              ,ONLY: nSides
 USE MOD_Utils                  ,ONLY: QuickSortTwoArrays
-USE MOD_Mesh_Vars              ,ONLY: lastInnerSide
 USE MOD_Mappings               ,ONLY: CGNS_SideToVol2
 USE MOD_Utils                  ,ONLY: Qsort1DoubleInt1PInt
 USE MOD_Mesh_Tools             ,ONLY: LambdaSideToMaster
 #if USE_MPI
+USE MOD_Mesh_Vars              ,ONLY: lastInnerSide
 USE MOD_MPI_Vars               ,ONLY: OffsetMPISides_rec,nNbProcs,nMPISides_rec,nbProc
 USE MOD_Mesh_Tools             ,ONLY: GetMasteriLocSides
 #endif /*USE_MPI*/
@@ -128,8 +128,11 @@ CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 INTEGER(KIND=IK)               :: nVar
 #endif /*defined(PARTICLES)*/
 #ifdef PARTICLES
-REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1),TmpArray2(3,1)
+REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
+#if USE_HDG
+REAL                           :: TmpArray2(3,1)
+#endif /*USE_HDG*/
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
@@ -156,10 +159,12 @@ LOGICAL                        :: usePreviousTime_loc
 INTEGER                        :: iSide
 INTEGER                        :: iGlobSide
 INTEGER,ALLOCATABLE            :: SortedUniqueSides(:),GlobalUniqueSideID_tmp(:)
+#if USE_MPI
 LOGICAL,ALLOCATABLE            :: OutputSide(:)
+INTEGER                        :: SideID_start, SideID_end,iNbProc,SendID
+#endif /*USE_MPI*/
 REAL,ALLOCATABLE               :: SortedLambda(:,:,:)          ! lambda, ((PP_N+1)^2,nSides)
 INTEGER                        :: SortedOffset,SortedStart,SortedEnd
-INTEGER                        :: SideID_start, SideID_end,iNbProc,SendID
 #ifdef PARTICLES
 INTEGER                        :: i,j,k,iElem
 #endif /*PARTICLES*/
@@ -354,12 +359,14 @@ ASSOCIATE (&
     ! Set side ID in processor local list
     iSide = SortedUniqueSides(iGlobSide)
 
+#if USE_MPI
     ! Skip sides that are not processed by the current proc
     IF(nProcessors.GT.1)THEN
       ! Check if a side belongs to me (all BC and inner sides automatically included); at MPI interfaces the smaller rank wins and
       ! must output the data, because for these sides it is ambiguous
       IF(.NOT.OutputSide(iSide)) CYCLE
     END IF ! nProcessors.GT.1
+#endif /*USE_MPI*/
 
     CALL LambdaSideToMaster(iSide,SortedLambda(:,:,iGlobSide))
 
@@ -373,7 +380,9 @@ ASSOCIATE (&
   ! Get offset and min/max index in sorted list
   SortedStart = 1
   SortedEnd   = nSides
+  SortedOffset = 0 ! initialize
 
+#if USE_MPI
   IF(nProcessors.GT.1)THEN
     SortedOffset=HUGE(1)
     DO iSide = 1, nSides
@@ -387,9 +396,8 @@ ASSOCIATE (&
     END DO
     SortedOffset = SortedOffset-1
     DEALLOCATE(OutputSide)
-  ELSE
-    SortedOffset = 0
   END IF ! nProcessors.GT.1
+#endif /*USE_MPI*/
 
   ASSOCIATE( nOutputSides => INT(SortedEnd-SortedStart+1,IK) ,&
         SortedOffset => INT(SortedOffset,IK)            ,&
@@ -480,7 +488,7 @@ ASSOCIATE (&
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 #endif /*USE_MPI*/
-  IF(OutPutSource) THEN
+  IF(OutputSource) THEN
 #if USE_HDG
     ! Add BR electron fluid density to PartSource for output to state.h5
     IF(UseBRElectronFluid) CALL AddBRElectronFluidToPartSource()
@@ -515,9 +523,9 @@ ASSOCIATE (&
   IF(CalcElectricTimeDerivative) THEN
     nVar=3_IK
     ALLOCATE(LocalStrVarNames(1:nVar))
-    LocalStrVarNames(1)='TimeDerivativeElectricFieldX'
-    LocalStrVarNames(2)='TimeDerivativeElectricFieldY'
-    LocalStrVarNames(3)='TimeDerivativeElectricFieldZ'
+    LocalStrVarNames(1)='TimeDerivativeElecDisplacementX'
+    LocalStrVarNames(2)='TimeDerivativeElecDisplacementY'
+    LocalStrVarNames(3)='TimeDerivativeElecDisplacementZ'
     IF(MPIRoot)THEN
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
       CALL WriteAttributeToHDF5(File_ID,'VarNamesTimeDerivative',INT(nVar,4),StrArray=LocalStrVarnames)

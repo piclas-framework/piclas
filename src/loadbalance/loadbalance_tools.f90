@@ -57,7 +57,7 @@ USE MOD_Analyze_Vars         ,ONLY: CalcMeshInfo
 USE MOD_MPI_Vars             ,ONLY: offsetElemMPI
 USE MOD_LoadDistribution     ,ONLY: ApplyWeightDistributionMethod
 #ifdef PARTICLES
-USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_InitDistribution
+USE MOD_Particle_TimeStep    ,ONLY: VarTimeStep_InitDistribution
 USE MOD_Particle_Vars        ,ONLY: VarTimeStep
 USE MOD_LoadBalance_Vars     ,ONLY: ElemTimePart
 #endif /*PARTICLES*/
@@ -96,6 +96,9 @@ GETTIME(StartT)
 IF (PerformLoadBalance) THEN
   nElemsOld     = nElems
   offsetElemOld = offsetElem
+#if ! defined(PARTICLES)
+  CALL CollectiveStop(__STAMP__,'Load balance not implemented for PARTICLES=OFF')
+#endif /*defined(PARTICLES)*/
   IF (myComputeNodeRank.EQ.0) &
     ElemInfoRank_Shared  = ElemInfo_Shared(ELEM_RANK,:)
   CALL BARRIER_AND_SYNC(ElemInfoRank_Shared_Win,MPI_COMM_SHARED)

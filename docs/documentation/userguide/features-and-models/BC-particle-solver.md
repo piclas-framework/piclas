@@ -106,26 +106,39 @@ It should be noted that the the adaptation should be performed multiple times to
 The rotational periodic boundary condition can be used in order to reduce the computational effort in case of an existing
 rotational periodicity. In contrast to symmetric boundary conditions, a macroscopic flow velocity in azimuthal direction can be
 simulated (e.g. circular flow around a rotating cylinder). Exactly two corresponding boundaries must be defined by setting
-`rot_periodic` as BC condition and the rotation direction for each BCs.
+`rot_periodic` as the BC condition and the rotating angle for each BC. Multiple pairs of boundary conditions with different angles
+can be defined.
 
-    Part-Boundary1-SourceName=BC_Rot_Peri_plus
-    Part-Boundary1-Condition=rot_periodic
-    Part-Boundary1-RotPeriodicDir=1
+    Part-Boundary1-SourceName       = BC_Rot_Peri_plus
+    Part-Boundary1-Condition        = rot_periodic
+    Part-Boundary1-RotPeriodicAngle = 90.
 
-    Part-Boundary2-SourceName=BC_Rot_Peri_minus
-    Part-Boundary2-Condition=rot_periodic
-    Part-Boundary2-RotPeriodicDir=-1
+    Part-Boundary2-SourceName       = BC_Rot_Peri_minus
+    Part-Boundary2-Condition        = rot_periodic
+    Part-Boundary2-RotPeriodicAngle = -90.
 
-CAUTION! The correct sign for the direction must be determined. Here, the rotation direction is defined by the rotation axis
-`Part-RotPeriodicAxi` that must be defined separately, and the right-hand rule.
+CAUTION! The correct sign for the rotating angle must be determined. The position of particles that cross one rotational 
+periodic boundary is tranformed according to this angle, which is defined by the right-hand rule and the rotation axis:
 
-    Part-RotPeriodicAxi=1    ! (x=1, y=2, z=3)
+    Part-RotPeriodicAxi = 1    ! (x = 1, y = 2, z = 3)
 
 The usage of rotational periodic boundary conditions is limited to cases, where the rotational periodic axis is one of the three
-Cartesian coordinate axis (x, y, z) with its origin at (0, 0, 0). Finally the rotation angle `Part-RotPeriodicAngle` [°] must be
-defined.
+Cartesian coordinate axis (x, y, z) with its origin at (0, 0, 0).
+It is also possible to define several segments with different rotation angles. Exactly two corresponding BCs must be defined for each segment.
+In addition, the minimum and maximum coordinates along the rotation axis must be chosen for each BC to define the position of the segment.
+In the following example we have two segments. One between BCs 1 and 2 and one between BCs 4 and 5
 
-    Part-RotPeriodicAngle=90
+    Part-Boundary1-RotPeriodicMin=-1.
+    Part-Boundary1-RotPeriodicMax=1.
+
+    Part-Boundary2-RotPeriodicMin=-1.
+    Part-Boundary2-RotPeriodicMax=1.
+
+    Part-Boundary4-RotPeriodicMin=1.
+    Part-Boundary4-RotPeriodicMax=3.
+
+    Part-Boundary5-RotPeriodicMin=1.
+    Part-Boundary5-RotPeriodicMax=3.
 
 ## Porous Wall / Pump
 
@@ -200,6 +213,7 @@ The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the t
 |    Model    | Description                                                                                                                                                                                  |
 | :---------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0 (default) | Standard extended Maxwellian scattering                                                                                                                                                      |
+|      1      | Empirical modelling of sticking coefficient/probability                                                                                                                                                  |
 |      5      | Secondary electron emission as given by Ref. {cite}`Levko2015`.                                                                                                                              |
 |      7      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. {cite}`Pflug2014` and given by Ref. {cite}`Depla2009` with a default yield of 13 \%. |
 |      8      | Secondary electron emission due to ion impact (SEE-E with $e^{-}$ on dielectric surfaces) as used in Ref. {cite}`Liu2010` and given by Ref. {cite}`Morozov2004`.                             |
@@ -215,7 +229,45 @@ For surface sampling output, where the surface is split into, e.g., $3\times3$ s
     Particles-DSMC-CalcSurfaceVal = T
     Part-IterationForMacroVal     = 200
 
-where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over 200 iterations.
+where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over and every 200 iterations.
+
+### Empirical model for a sticking coefficient
+
+To model the sticking of gas particles on cold surfaces, an empirical model is available, which is based on experimental measurements. The sticking coefficient is modelled through the product of a non-bounce probability $B(\alpha)$ and a condensation probability $C(\alpha,T)$
+
+$$ p_s (\alpha,T) = B(\alpha) C(\alpha,T) $$
+
+The non-bounce probability introduces a linear dependency on the impact angle $\alpha$
+
+$$
+B(\alpha) = \begin{cases}
+   1 , & |\alpha| < \alpha_{\mathrm{B}} \\
+   \dfrac{90^{\circ}-|\alpha|}{90^{\circ}-|\alpha_{\mathrm{B}}|} , & \alpha_{\mathrm{B}} \leq |\alpha| \leq 90^{\circ} \\
+\end{cases}
+$$
+
+$\alpha_{\mathrm{B}}$ is a model-dependent cut-off angle. The condensation probability introduces a linear dependency on the surface temperature $T$
+
+$$
+C(\alpha, T) = \begin{cases}
+   1 , & T < T_1 \\
+   \dfrac{T_2(\alpha)-T}{T_2(\alpha)-T_1(\alpha)} , & T_1 \leq T \leq T_2 \\
+   0 , & T > T_2 \\
+\end{cases}
+$$
+
+The temperature limits $T_1$ and $T_2$ are model parameters and can be given for different impact angle ranges defined by the maximum impact angle $\alpha_{\mathrm{max}}$. These model parameters are read-in through the species database and have to be provided in the `/Surface-Chemistry/StickingCoefficient` dataset in the following format (example values):
+
+| $\alpha_{\mathrm{max}}$ [deg] | $\alpha_{\mathrm{B}}$ [deg] | $T_1$ [K] | $T_2$ [K] |
+| ----------------------------: | --------------------------: | --------: | --------: |
+|                            45 |                          80 |        50 |       100 |
+|                            90 |                          70 |        20 |        50 |
+
+In this example, within impact angles of $0°\leq\alpha\leq45°$, the model parameters of the first row will be used and for $45°<\alpha\leq90°$ the second row. The number of rows is not limited. The species database is read-in by
+
+    Particles-Species-Database = Species_Database.h5
+
+As additional output, the cell-local sticking coefficient will be added to the sampled surface output. A particle sticking to the surface will be deleted and its energy added to the heat flux sampling. This model can be combined with the linear temperature gradient and radiative equilibrium modelling as described in Section {ref}`sec:particle-boundary-conditions-reflective`.
 
 ### Secondary Electron Emission (SEE)
 

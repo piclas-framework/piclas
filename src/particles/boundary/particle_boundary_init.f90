@@ -26,14 +26,14 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, InitializeVariablesAuxBC, FinalizeParticleBoundary
+PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, FinalizeParticleBoundary
 PUBLIC :: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp
 !===================================================================================================================================
 
 CONTAINS
 
 !==================================================================================================================================
-!> Define parameters for particle boundaries and AuxBC
+!> Define parameters for particle boundaries
 !==================================================================================================================================
 SUBROUTINE DefineParametersParticleBoundary()
 ! MODULES
@@ -42,6 +42,7 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle Boundaries")
 
+CALL prms%CreateIntOption(      'Part-RotPeriodicAxi' , 'Axis of rotational periodicity: x = 1, y = 2, z = 3')
 CALL prms%CreateIntOption(      'Part-nBounds', 'Number of particle boundaries.', '1')
 CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName', &
                                   'No Default. Source Name of Boundary[i]. Has to be selected for all'//&
@@ -55,7 +56,7 @@ CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition', &
                                   '- simple_cathode.\n'//&
                                   '- rot_periodic.\n'//&
                                   'If condition=reflective (Part-Boundary[$]-=PB): PB-MomentumACC,PB-WallTemp,PB-TransACC,PB-VibACC,PB-RotACC,'//&
-                                  'PB-WallVelo,Voltage,SpeciesSwaps.\nIf condition=periodic:Part-nPeriodicVectors', 'open', numberedmulti=.TRUE.)
+                                  'PB-WallVelo,SpeciesSwaps.\nIf condition=periodic:Part-nPeriodicVectors', 'open', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption('Part-Boundary[$]-Dielectric' , 'Define if particle boundary [$] is a '//&
                               'dielectric interface, i.e. an interface between a dielectric and a non-dielectric or a between two'//&
                               ' different dielectrics [.TRUE.] or not [.FALSE.] (requires reflective BC and species swap for nSpecies)'&
@@ -64,8 +65,6 @@ CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Defin
                               'boundary [$] are to be stored in an additional .h5 file for post-processing analysis [.TRUE.] '//&
                               'or not [.FALSE.].'&
                               , '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-Voltage', &
-                                  'Deprecated parameter, do not utilize!', '1.0e20', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseAdaptedWallTemp', &
                                 'Use an adapted wall temperature, calculated if Part-AdaptWallTemp = T, otherwise read-in '//&
                                 'from the restart file','.FALSE.', numberedmulti=.TRUE.)
@@ -108,8 +107,10 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RotFreq'  &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-RotAxis'  &
                                 , 'Definition of rotation axis, only major axis: x=1,y=2,z=3.' , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-RotPeriodicDir' , 'Direction of rotation periodicity, either 1 or -1. '//&
+CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicAngle' , 'Angle and Direction of rotation periodicity, either + or - '//&
                                 'Note: Rotation direction based on right-hand rule!', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicMin' , 'Minimum coordinate at rotational axis for this segment', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicMax' , 'Maximum coordinate at rotational axis for this segment', numberedmulti=.TRUE.)
 !CALL prms%CreateLogicalOption(  'Part-RotPeriodicReBuild', 'Force re-creation of rotational periodic mapping (which might already exist in the mesh file).', '.FALSE.')
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp2'  &
                                 , 'Second wall temperature (in [K]) of reflective particle boundary for a temperature gradient.' &
@@ -133,6 +134,7 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 '10: SEE-I when Ar+ bombards copper by J.G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation", 2021 (originates from Phelps1999)\n'// &
                                 '11: SEE-E when e- bombard quartz (SiO2) by A. Dunaevsky, "Secondary electron emission from dielectric materials of a Hall thruster with segmented electrodes", 2003'&
                                 , '0', numberedmulti=.TRUE.)
+CALL prms%SetSection('Particle Boundaries: Species Swap')
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
                                   'Number of Species to be changed at wall.', '0', numberedmulti=.TRUE.)
@@ -143,74 +145,6 @@ CALL prms%CreateIntArrayOption( 'Part-Boundary[$]-SpeciesSwaps[$]'  &
                                 , 'TODO-DEFINE-PARAMETER'//&
                                   'Species to be changed at wall (out=: delete)', '0 , 0'&
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-nAuxBCs'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Number of auxillary BCs that are checked during tracing',  '0')
-CALL prms%CreateIntOption(      'Part-AuxBC[$]-NbrOfSpeciesSwaps'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Number of Species to be changed at wall.',  '0', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-AuxBC[$]-Condition'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Used auxillary boundary condition for boundary[$].'//&
-                                  '- open'//&
-                                  '- reflective'//&
-                                  '- periodic)'//&
-                                  '-> more details see also Part-Boundary[$]-Condition',  'open', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-MomentumACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Momentum accommodation',  '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-WallTemp'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Wall temperature of boundary[$]',  '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-TransACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Translation accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-VibACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Vibrational accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-RotACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Rotational accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-ElecACC'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Electronic accommodation on boundary [$]',  '0.', numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-AuxBC[$]-Resample'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Resample Equilibirum Distribution with reflection',  '.FALSE.'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-AuxBC[$]-WallVelo'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Emitted velocity on boundary [$]', '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-ProbOfSpeciesSwaps'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Probability of SpeciesSwaps at wall',  '1.', numberedmulti=.TRUE.)
-CALL prms%CreateIntArrayOption( 'Part-AuxBC[$]-SpeciesSwaps[$]'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Species to be changed at wall (out=: delete)', '0 , 0'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'Part-AuxBC[$]-Type'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Type of BC (plane, ...)',  'plane', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-AuxBC[$]-r_vec'  &
-                                , 'TODO-DEFINE-PARAMETER', '0. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-radius'  &
-                                , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.) !def. might be calculated!!!
-CALL prms%CreateRealArrayOption('Part-AuxBC[$]-n_vec'  &
-                                , 'TODO-DEFINE-PARAMETER', '1. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Part-AuxBC[$]-axis'  &
-                                , 'TODO-DEFINE-PARAMETER', '1. , 0. , 0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-lmin'  &
-                                , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.) !def. might be calculated!!!
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-lmax'  &
-                                , 'TODO-DEFINE-PARAMETER', numberedmulti=.TRUE.) !def. is calculated!!!
-CALL prms%CreateLogicalOption(  'Part-AuxBC[$]-inwards'  &
-                                , 'TODO-DEFINE-PARAMETER',  '.TRUE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-rmax'  &
-                                , 'TODO-DEFINE-PARAMETER',  '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-halfangle'  &
-                                , 'TODO-DEFINE-PARAMETER',  '45.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-AuxBC[$]-zfac'  &
-                                , 'TODO-DEFINE-PARAMETER',  '1.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp','Perform wall temperature adaptation at every macroscopic output.', '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleBoundary
@@ -222,12 +156,13 @@ SUBROUTINE InitializeVariablesPartBoundary()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_IO_HDF5
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_ReadInTools
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
-USE MOD_Particle_Vars
+USE MOD_Particle_Vars          ,ONLY: PDM, nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase, Species
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,PartStateBoundary, AdaptWallTemp
 USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
@@ -236,6 +171,11 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo
+USE MOD_HDF5_input             ,ONLY: OpenDataFile, ReadArray, DatasetExists, GetDataSize, nDims, HSize, CloseDataFile
+USE MOD_SurfaceModel_Vars      ,ONLY: StickingCoefficientData
+#if defined(IMPA) || defined(ROS)
+USE MOD_Particle_Vars          ,ONLY: PartMeshHasReflectiveBCs
+#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -247,12 +187,14 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis
+INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs
 INTEGER               :: ALLOCSTAT, dummy_int
 REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf , hilf2
 CHARACTER(200)        :: tmpString
-LOGICAL               :: DeprecatedVoltage
+CHARACTER(LEN=64)     :: dsetname
+LOGICAL               :: StickingCoefficientExists,FoundPartBoundSEE
+INTEGER               :: iInit,iSpec
 !===================================================================================================================================
 ! Read in boundary parameters
 dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .ini file
@@ -289,8 +231,12 @@ ALLOCATE(PartBound%RotVelo(          1:nPartBound))
 PartBound%RotVelo = .FALSE.
 ALLOCATE(PartBound%RotOmega(       1:3,1:nPartBound))
 PartBound%RotOmega = 0.
-ALLOCATE(PartBound%RotPeriodicDir(  1:nPartBound))
-PartBound%RotPeriodicDir = 0
+ALLOCATE(PartBound%RotPeriodicAngle(  1:nPartBound))
+PartBound%RotPeriodicAngle = 0
+ALLOCATE(PartBound%RotPeriodicMin(  1:nPartBound))
+PartBound%RotPeriodicMin = -HUGE(1.)
+ALLOCATE(PartBound%RotPeriodicMax(  1:nPartBound))
+PartBound%RotPeriodicMax = HUGE(1.)
 ALLOCATE(PartBound%TempGradStart(1:3,1:nPartBound))
 PartBound%TempGradStart = 0.
 ALLOCATE(PartBound%TempGradEnd(  1:3,1:nPartBound))
@@ -301,9 +247,6 @@ ALLOCATE(PartBound%SurfaceModel(     1:nPartBound))
 PartBound%SurfaceModel = 0
 ALLOCATE(PartBound%Reactive(         1:nPartBound))
 PartBound%Reactive = .FALSE.
-ALLOCATE(PartBound%Voltage(1:nPartBound))
-PartBound%Voltage = 0.
-DeprecatedVoltage = .FALSE.
 ALLOCATE(PartBound%NbrOfSpeciesSwaps(1:nPartBound))
 PartBound%NbrOfSpeciesSwaps = 0
 ALLOCATE(PartBound%UseAdaptedWallTemp(1:nPartBound))
@@ -336,6 +279,10 @@ DoBoundaryParticleOutputHDF5=.FALSE.
 
 PartMeshHasPeriodicBCs=.FALSE.
 GEO%RotPeriodicBC =.FALSE.
+nRotPeriodicBCs  = 0
+! TODO: REMOVE THIS CALL WHEN MERGED WITH UNIFIED SPECIES DATABASE BRANCH
+SpeciesDatabase = GETSTR('Particles-Species-Database', 'none')
+
 #if defined(IMPA) || defined(ROS)
 PartMeshHasReflectiveBCs=.FALSE.
 #endif
@@ -346,8 +293,6 @@ DO iPartBound=1,nPartBound
   SELECT CASE (TRIM(tmpString))
   CASE('open')
     PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
-    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
-    IF(ABS(PartBound%Voltage(iPartBound)).LT.1e20) DeprecatedVoltage=.TRUE.
   CASE('reflective')
 #if defined(IMPA) || defined(ROS)
     PartMeshHasReflectiveBCs=.TRUE.
@@ -379,8 +324,6 @@ DO iPartBound=1,nPartBound
     END IF
     PartBound%UseAdaptedWallTemp(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseAdaptedWallTemp')
     PartBound%RadiativeEmissivity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RadiativeEmissivity')
-    PartBound%Voltage(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-Voltage')
-    IF(ABS(PartBound%Voltage(iPartBound)).LT.1e20) DeprecatedVoltage=.TRUE.
     PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
     PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
     IF(PartBound%WallTemp2(iPartBound).GT.0.) THEN
@@ -395,6 +338,10 @@ DO iPartBound=1,nPartBound
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
       CASE (0)
         PartBound%Reactive(iPartBound)        = .FALSE.
+      CASE (1)
+        PartBound%Reactive(iPartBound)        = .FALSE.
+        IF(TRIM(SpeciesDatabase).EQ.'none') &
+          CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: SpeciesDatabase is required for the boundary #', iPartBound)
       CASE (SEE_MODELS_ID)
         ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE.
@@ -448,11 +395,14 @@ DO iPartBound=1,nPartBound
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('rot_periodic')
     GEO%RotPeriodicBC = .TRUE.
+    nRotPeriodicBCs  = nRotPeriodicBCs + 1
     PartBound%TargetBoundCond(iPartBound)  = PartBound%RotPeriodicBC
-    PartBound%RotPeriodicDir(iPartBound) = GETINT('Part-Boundary'//TRIM(hilf)//'-RotPeriodicDir')
-    IF(ABS(PartBound%RotPeriodicDir(iPartBound)).NE.1) THEN
-      CALL abort(__STAMP__,'Direction for rotational periodicity must be 1 or -1, using the right-hand rule!')
+    PartBound%RotPeriodicAngle(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicAngle')
+    IF(ALMOSTZERO(PartBound%RotPeriodicAngle(iPartBound))) THEN
+      CALL abort(__STAMP__,'Angle for rotational periodicity can not be zero (using the right-hand rule!)')
     END IF
+   ! Rotate the particle slightly inside the domain
+    PartBound%RotPeriodicAngle(iPartBound) = PartBound%RotPeriodicAngle(iPartBound) / 180. * PI
   CASE DEFAULT
     SWRITE(*,*) ' Boundary does not exist: ', TRIM(tmpString)
     CALL abort(__STAMP__,'Particle Boundary Condition does not exist')
@@ -464,19 +414,39 @@ DO iPartBound=1,nPartBound
   IF(PartBound%BoundaryParticleOutputHDF5(iPartBound)) DoBoundaryParticleOutputHDF5=.TRUE.
 END DO
 
+! Check if there is an particle init with photon SEE
+FoundPartBoundSEE=.FALSE.
+SpecLoop: DO iSpec=1,nSpecies
+  DO iInit=1, Species(iSpec)%NumberOfInits
+    IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE'))THEN
+      FoundPartBoundSEE = .TRUE.
+      EXIT SpecLoop
+    END IF ! StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')
+  END DO
+END DO SpecLoop
+
 ! Connect emission inits to particle boundaries for output
-IF(DoBoundaryParticleOutputHDF5) CALL InitializeVariablesSpeciesBoundary()
+IF(DoBoundaryParticleOutputHDF5.OR.FoundPartBoundSEE) CALL InitializeVariablesSpeciesBoundary()
 
 AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
 IF(GEO%RotPeriodicBC) THEN
   GEO%RotPeriodicAxi   = GETINT('Part-RotPeriodicAxi')
-  GEO%RotPeriodicAngle = GETREAL('Part-RotPeriodicAngle')
-  IF(ALMOSTZERO(GEO%RotPeriodicAngle)) THEN
-    CALL abort(__STAMP__,'Angle for for rotational periodicity must not be zero!')
+! Check whether two corresponding RotPeriodic BCs are always set
+  IF(MOD(nRotPeriodicBCs,2).NE.0) THEN
+    CALL abort(__STAMP__,'ERROR: Uneven number of rot_periodic BCs. Check whether two corresponding RotPeriodic BCs are set!')
+  ELSE IF(nRotPeriodicBCs.NE.2) THEN
+    DO iPartBound=1,nPartBound
+      WRITE(UNIT=hilf,FMT='(I0)') iPartBound
+      IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%RotPeriodicBC) THEN
+        PartBound%RotPeriodicMin(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicMin')
+        PartBound%RotPeriodicMax(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotPeriodicMax')
+        IF(PartBound%RotPeriodicMin(iPartBound).GE.PartBound%RotPeriodicMax(iPartBound)) THEN
+          CALL abort(__STAMP__,'ERROR: Minimum coordinate at rotational axis is higher than maximum coordinate at rotational axis')
+        END IF
+      END IF
+    END DO
   END IF
-  ! Rotate the particle slightly inside the domain
-  GEO%RotPeriodicAngle = GEO%RotPeriodicAngle / 180. * PI * 0.99999
 END IF
 
 ! Surface particle output to .h5
@@ -506,7 +476,7 @@ DO iPBC=1,nPartBound
     END IF
     IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
-      LBWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound",BoundaryType(iBC,1),",i.e.:",TRIM(BoundaryName(iBC))
+      LBWRITE(*,*)"... Mapped PartBound",iPBC,"on FieldBound", iBC,",i.e.:",TRIM(BoundaryName(iBC))
     END IF
   END DO
 END DO
@@ -524,9 +494,24 @@ DO iPartBound=1,nPartBound
   BCdata_auxSF(iPartBound)%LocalArea=0.
 END DO
 
-!-- Sanity check: Deprecated voltage parameter
-IF(DeprecatedVoltage) CALL abort(__STAMP__&
-  ,'Part-Boundary-Voltage is no longer supported. Use corresponding RefState parameter as described in the user guide.')
+IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
+  ! Open the species database
+  CALL OpenDataFile(TRIM(SpeciesDatabase),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  ! Check if the correct dataset exists
+  StickingCoefficientExists = .FALSE.
+  dsetname = TRIM('/Surface-Chemistry/StickingCoefficient')
+  CALL DatasetExists(File_ID,TRIM(dsetname),StickingCoefficientExists)
+  IF(.NOT.StickingCoefficientExists) CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: '//  &
+                                      'No /Surface-Chemistry/StickingCoefficient dataset found in SpeciesDatabase!')
+  ! Get dimensions
+  CALL GetDataSize(File_ID,dsetname,nDims,HSize,attrib=.FALSE.)
+  ! Allocate the data array
+  ALLOCATE(StickingCoefficientData(INT(HSize(1),4),INT(HSize(2),4)))
+  StickingCoefficientData = 0.
+  ! Read-in array
+  CALL ReadArray(TRIM(dsetname),2,INT(HSize,IK),0_IK,1,RealArray=StickingCoefficientData)
+  CALL CloseDataFile()
+END IF
 
 END SUBROUTINE InitializeVariablesPartBoundary
 
@@ -822,8 +807,8 @@ iSideLoop: DO iSide = firstSide, lastSide
     FoundConnection = .FALSE.
 
     ! Check if both sides are on the same boundary, i.e., they cannot be connected
-    IF(PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ. &
-        PartBound%RotPeriodicDir(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2)))) CYCLE jSideLoop
+    IF(PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ. &
+        PartBound%RotPeriodicAngle(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID2)))) CYCLE jSideLoop
 
     ! Check if jSide is assigned to the proc
     mySide = (jSide.GE.firstSide).AND.(jSide.LE.lastSide)
@@ -1107,285 +1092,6 @@ CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 END SUBROUTINE InitAdaptiveWallTemp
 
 
-SUBROUTINE InitializeVariablesAuxBC()
-!===================================================================================================================================
-! Initialize the variables first
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools
-USE MOD_Globals_Vars           ,ONLY: Pi
-USE MOD_Particle_Boundary_Vars ,ONLY: PartAuxBC
-USE MOD_Particle_Boundary_Vars ,ONLY: nAuxBCs,AuxBCType,AuxBCMap,AuxBC_plane,AuxBC_cylinder,AuxBC_cone,AuxBC_parabol,UseAuxBCs
-USE MOD_Particle_Boundary_Tools,ONLY: MarkAuxBCElems
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER               :: iPartBound, iSwaps, MaxNbrOfSpeciesSwaps
-INTEGER               :: iAuxBC, nAuxBCplanes, nAuxBCcylinders, nAuxBCcones, nAuxBCparabols
-CHARACTER(32)         :: hilf , hilf2
-CHARACTER(200)        :: tmpString
-REAL                  :: n_vec(3), cos2, rmax
-REAL, DIMENSION(3,1)  :: norm,norm1,norm2
-REAL, DIMENSION(3,3)  :: rot1, rot2
-REAL                  :: alpha1, alpha2
-!===================================================================================================================================
-nAuxBCs=GETINT('Part-nAuxBCs','0')
-IF (nAuxBCs.GT.0) THEN
-  UseAuxBCs=.TRUE.
-  ALLOCATE (AuxBCType(1:nAuxBCs) &
-            ,AuxBCMap(1:nAuxBCs) )
-  AuxBCMap=0
-  !- Read in BC parameters
-  ALLOCATE(PartAuxBC%TargetBoundCond(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%MomentumACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%WallTemp(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%TransACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%VibACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%RotACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%ElecACC(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%Resample(1:nAuxBCs))
-  ALLOCATE(PartAuxBC%WallVelo(1:3,1:nAuxBCs))
-  ALLOCATE(PartAuxBC%NbrOfSpeciesSwaps(1:nAuxBCs))
-  !--determine MaxNbrOfSpeciesSwaps for correct allocation
-  MaxNbrOfSpeciesSwaps=0
-  DO iPartBound=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iPartBound
-    PartAuxBC%NbrOfSpeciesSwaps(iPartBound)= GETINT('Part-AuxBC'//TRIM(hilf)//'-NbrOfSpeciesSwaps','0')
-    MaxNbrOfSpeciesSwaps=max(PartAuxBC%NbrOfSpeciesSwaps(iPartBound),MaxNbrOfSpeciesSwaps)
-  END DO
-  IF (MaxNbrOfSpeciesSwaps.gt.0) THEN
-    ALLOCATE(PartAuxBC%ProbOfSpeciesSwaps(1:nAuxBCs))
-    ALLOCATE(PartAuxBC%SpeciesSwaps(1:2,1:MaxNbrOfSpeciesSwaps,1:nAuxBCs))
-  END IF
-  !--
-  DO iPartBound=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iPartBound
-    tmpString = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Condition','open'))
-    SELECT CASE (TRIM(tmpString))
-    CASE('open')
-      PartAuxBC%TargetBoundCond(iPartBound) = PartAuxBC%OpenBC          ! definitions see typesdef_pic
-    CASE('reflective')
-      PartAuxBC%TargetBoundCond(iPartBound) = PartAuxBC%ReflectiveBC
-      PartAuxBC%MomentumACC(iPartBound)     = GETREAL('Part-AuxBC'//TRIM(hilf)//'-MomentumACC')
-      PartAuxBC%WallTemp(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-WallTemp')
-      PartAuxBC%TransACC(iPartBound)        = GETREAL('Part-AuxBC'//TRIM(hilf)//'-TransACC')
-      PartAuxBC%VibACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-VibACC')
-      PartAuxBC%RotACC(iPartBound)          = GETREAL('Part-AuxBC'//TRIM(hilf)//'-RotACC')
-      PartAuxBC%ElecACC(iPartBound)         = GETREAL('Part-AuxBC'//TRIM(hilf)//'-ElecACC')
-      PartAuxBC%Resample(iPartBound)        = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-Resample')
-      PartAuxBC%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-WallVelo',3)
-      IF (PartAuxBC%NbrOfSpeciesSwaps(iPartBound).gt.0) THEN
-        !read Species to be changed at wall (in, out), out=0: delete
-        PartAuxBC%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-AuxBC'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
-        DO iSwaps=1,PartAuxBC%NbrOfSpeciesSwaps(iPartBound)
-          WRITE(UNIT=hilf2,FMT='(I0)') iSwaps
-          PartAuxBC%SpeciesSwaps(1:2,iSwaps,iPartBound) = &
-            GETINTARRAY('Part-AuxBC'//TRIM(hilf)//'-SpeciesSwaps'//TRIM(hilf2),2,'0. , 0.')
-        END DO
-      END IF
-    CASE DEFAULT
-      SWRITE(*,*) ' AuxBC Condition does not exists: ', TRIM(tmpString)
-      CALL abort(__STAMP__,'AuxBC Condition does not exist')
-    END SELECT
-  END DO
-  !- read and count types
-  nAuxBCplanes = 0
-  nAuxBCcylinders = 0
-  nAuxBCcones = 0
-  nAuxBCparabols = 0
-  DO iAuxBC=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iAuxBC
-    AuxBCType(iAuxBC) = TRIM(GETSTR('Part-AuxBC'//TRIM(hilf)//'-Type','plane'))
-    SELECT CASE (TRIM(AuxBCType(iAuxBC)))
-    CASE ('plane')
-      nAuxBCplanes = nAuxBCplanes + 1
-      AuxBCMap(iAuxBC) = nAuxBCplanes
-    CASE ('cylinder')
-      nAuxBCcylinders = nAuxBCcylinders + 1
-      AuxBCMap(iAuxBC) = nAuxBCcylinders
-    CASE ('cone')
-      nAuxBCcones = nAuxBCcones + 1
-      AuxBCMap(iAuxBC) = nAuxBCcones
-    CASE ('parabol')
-      nAuxBCparabols = nAuxBCparabols + 1
-      AuxBCMap(iAuxBC) = nAuxBCparabols
-    CASE DEFAULT
-      SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
-      CALL abort(__STAMP__,'AuxBC does not exist')
-    END SELECT
-  END DO
-  !- allocate type-specifics
-  IF (nAuxBCplanes.GT.0) THEN
-    ALLOCATE (AuxBC_plane(1:nAuxBCplanes))
-  END IF
-  IF (nAuxBCcylinders.GT.0) THEN
-    ALLOCATE (AuxBC_cylinder(1:nAuxBCcylinders))
-  END IF
-  IF (nAuxBCcones.GT.0) THEN
-    ALLOCATE (AuxBC_cone(1:nAuxBCcones))
-  END IF
-  IF (nAuxBCparabols.GT.0) THEN
-    ALLOCATE (AuxBC_parabol(1:nAuxBCparabols))
-  END IF
-  !- read type-specifics
-  DO iAuxBC=1,nAuxBCs
-    WRITE(UNIT=hilf,FMT='(I0)') iAuxBC
-    SELECT CASE (TRIM(AuxBCType(iAuxBC)))
-    CASE ('plane')
-      AuxBC_plane(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
-      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_plane(AuxBCMap(iAuxBC))%radius)
-      AuxBC_plane(AuxBCMap(iAuxBC))%radius= GETREAL('Part-AuxBC'//TRIM(hilf)//'-radius',TRIM(hilf2))
-      n_vec                               = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-n_vec',3,'1. , 0. , 0.')
-      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-n_vec is zero for AuxBC',iAuxBC)
-      ELSE !scale vector
-        AuxBC_plane(AuxBCMap(iAuxBC))%n_vec = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
-      END IF
-    CASE ('cylinder')
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
-      n_vec                                  = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
-      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
-      ELSE !scale vector
-        AuxBC_cylinder(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
-      END IF
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%radius  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-radius','1.')
-      WRITE(UNIT=hilf2,FMT='(G0)') -HUGE(AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin)
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin',TRIM(hilf2))
-      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_cylinder(AuxBCMap(iAuxBC))%lmin)
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
-      AuxBC_cylinder(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
-    CASE ('cone')
-      AuxBC_cone(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
-      n_vec                              = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
-      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
-      ELSE !scale vector
-        AuxBC_cone(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
-      END IF
-      AuxBC_cone(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin','0.')
-      IF (AuxBC_cone(AuxBCMap(iAuxBC))%lmin.LT.0.) CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-lminis .lt. zero for AuxBC',iAuxBC)
-      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_cone(AuxBCMap(iAuxBC))%lmin)
-      AuxBC_cone(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
-      rmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-rmax','0.')
-      ! either define rmax at lmax or the halfangle
-      IF (rmax.EQ.0.) THEN
-        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-halfangle','45.')*PI/180.
-      ELSE
-        AuxBC_cone(AuxBCMap(iAuxBC))%halfangle  = ATAN(rmax/AuxBC_cone(AuxBCMap(iAuxBC))%lmax)
-      END IF
-      IF (AuxBC_cone(AuxBCMap(iAuxBC))%halfangle.LE.0.) CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-halfangle is .le. zero for AuxBC',iAuxBC)
-      AuxBC_cone(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
-      cos2 = COS(AuxBC_cone(AuxBCMap(iAuxBC))%halfangle)**2
-      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,1) &
-        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(1)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/cos2,0.,0./)
-      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,2) &
-        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(2)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,cos2,0./)
-      AuxBC_cone(AuxBCMap(iAuxBC))%geomatrix(:,3) &
-        = AuxBC_cone(AuxBCMap(iAuxBC))%axis(3)*AuxBC_cone(AuxBCMap(iAuxBC))%axis - (/0.,0.,cos2/)
-    CASE ('parabol')
-      AuxBC_parabol(AuxBCMap(iAuxBC))%r_vec = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-r_vec',3,'0. , 0. , 0.')
-      n_vec                              = GETREALARRAY('Part-AuxBC'//TRIM(hilf)//'-axis',3,'1. , 0. , 0.')
-      IF (DOT_PRODUCT(n_vec,n_vec).EQ.0.) THEN
-        CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-axis is zero for AuxBC',iAuxBC)
-      ELSE !scale vector
-        AuxBC_parabol(AuxBCMap(iAuxBC))%axis = n_vec/SQRT(DOT_PRODUCT(n_vec,n_vec))
-      END IF
-      AuxBC_parabol(AuxBCMap(iAuxBC))%lmin  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmin','0.')
-      IF (AuxBC_parabol(AuxBCMap(iAuxBC))%lmin.LT.0.) CALL abort(&
-          __STAMP__&
-          ,'Part-AuxBC-lmin is .lt. zero for AuxBC',iAuxBC)
-      WRITE(UNIT=hilf2,FMT='(G0)') HUGE(AuxBC_parabol(AuxBCMap(iAuxBC))%lmin)
-      AuxBC_parabol(AuxBCMap(iAuxBC))%lmax  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-lmax',TRIM(hilf2))
-      AuxBC_parabol(AuxBCMap(iAuxBC))%zfac  = GETREAL('Part-AuxBC'//TRIM(hilf)//'-zfac','1.')
-      AuxBC_parabol(AuxBCMap(iAuxBC))%inwards = GETLOGICAL('Part-AuxBC'//TRIM(hilf)//'-inwards','.TRUE.')
-
-      norm(:,1)=AuxBC_parabol(AuxBCMap(iAuxBC))%axis
-      IF (.NOT.ALMOSTZERO(SQRT(norm(1,1)**2+norm(3,1)**2))) THEN !collinear with y?
-        alpha1=ATAN2(norm(1,1),norm(3,1))
-        CALL roty(rot1,alpha1)
-        norm1=MATMUL(rot1,norm)
-      ELSE
-        alpha1=0.
-        CALL ident(rot1)
-        norm1=norm
-      END IF
-      IF (.NOT.ALMOSTZERO(SQRT(norm1(2,1)**2+norm1(3,1)**2))) THEN !collinear with x?
-        alpha2=-ATAN2(norm1(2,1),norm1(3,1))
-        CALL rotx(rot2,alpha2)
-        norm2=MATMUL(rot2,norm1)
-      ELSE
-        CALL abort(&
-          __STAMP__&
-          ,'vector is collinear with x-axis. this should not be possible... AuxBC:',iAuxBC)
-      END IF
-      AuxBC_parabol(AuxBCMap(iAuxBC))%rotmatrix(:,:)=MATMUL(rot2,rot1)
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(:,:)=0.
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(1,1)=1.
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(2,2)=1.
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(3,3)=0.
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(3,4)=-0.5*AuxBC_parabol(AuxBCMap(iAuxBC))%zfac
-      AuxBC_parabol(AuxBCMap(iAuxBC))%geomatrix4(4,3)=-0.5*AuxBC_parabol(AuxBCMap(iAuxBC))%zfac
-    CASE DEFAULT
-      SWRITE(*,*) ' AuxBC does not exist: ', TRIM(AuxBCType(iAuxBC))
-      CALL abort(__STAMP__,'AuxBC does not exist for AuxBC',iAuxBC)
-    END SELECT
-  END DO
-  CALL MarkAuxBCElems()
-ELSE
-  UseAuxBCs=.FALSE.
-END IF
-
-END SUBROUTINE InitializeVariablesAuxBC
-
-
-SUBROUTINE rotx(mat,a)
-IMPLICIT NONE
-REAL, INTENT(OUT), DIMENSION(3,3) :: mat
-REAL, INTENT(IN) :: a
-mat(:,1)=(/1.0 , 0.     , 0.  /)
-mat(:,2)=(/0.0 , COS(a) ,-SIN(a)/)
-mat(:,3)=(/0.0 , SIN(a) , COS(a)/)
-END SUBROUTINE
-
-
-SUBROUTINE roty(mat,a)
-IMPLICIT NONE
-REAL, INTENT(OUT), DIMENSION(3,3) :: mat
-REAL, INTENT(IN) :: a
-mat(:,1)=(/ COS(a) , 0., SIN(a)/)
-mat(:,2)=(/ 0.     , 1., 0.  /)
-mat(:,3)=(/-SIN(a) , 0., COS(a)/)
-END SUBROUTINE
-
-
-SUBROUTINE ident(mat)
-IMPLICIT NONE
-REAL, INTENT(OUT), DIMENSION(3,3) :: mat
-INTEGER :: j
-mat = 0.
-FORALL(j = 1:3) mat(j,j) = 1.
-END SUBROUTINE
-
-
 SUBROUTINE FinalizeParticleBoundary()
 !----------------------------------------------------------------------------------------------------------------------------------!
 !> Finalize particle boundary variables
@@ -1427,8 +1133,9 @@ SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
 SDEALLOCATE(PartBound%RotVelo)
 SDEALLOCATE(PartBound%RotOmega)
-SDEALLOCATE(PartBound%RotPeriodicDir)
-SDEALLOCATE(PartBound%Voltage)
+SDEALLOCATE(PartBound%RotPeriodicAngle)
+SDEALLOCATE(PartBound%RotPeriodicMin)
+SDEALLOCATE(PartBound%RotPeriodicMax)
 SDEALLOCATE(PartBound%NbrOfSpeciesSwaps)
 SDEALLOCATE(PartBound%ProbOfSpeciesSwaps)
 SDEALLOCATE(PartBound%SpeciesSwaps)

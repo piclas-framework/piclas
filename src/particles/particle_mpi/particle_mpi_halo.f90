@@ -74,7 +74,7 @@ USE MOD_CalcTimeStep            ,ONLY: CalcTimeStep
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars           ,ONLY: nRKStages,RK_c
 #endif
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,nPartBound,RotPeriodicTol
 USE MOD_Particle_Mesh_Vars      ,ONLY: IsExchangeElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
@@ -101,7 +101,6 @@ LOGICAL,ALLOCATABLE            :: MPISideElem(:)
 LOGICAL                        :: ProcHasExchangeElem
 ! halo_eps reconstruction
 REAL                           :: MPI_halo_eps_velo,MPI_halo_diag,vec(1:3),deltaT, MPI_halo_eps_woshape
-LOGICAL                        :: fullMesh
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 INTEGER                        :: iStage
 #endif
@@ -117,7 +116,7 @@ INTEGER                        :: nNonSymmetricExchangeProcs,nNonSymmetricExchan
 INTEGER                        :: nExchangeProcessorsGlobal, nSendShapeElems, CNElemID, exElem, exProc, jProc, ProcID
 REAL                           :: RotBoundsOfElemCenter(1:3)
 LOGICAL                        :: SideIsRotPeriodic
-INTEGER                        :: BCindex
+INTEGER                        :: BCindex,iPartBound
 REAL                           :: StartT,EndT
 CHARACTER(LEN=255)             :: hilf
 !=================================================================================================================================
@@ -367,7 +366,6 @@ END DO
 !>>> MPI-surface (local proc MPI sides)
 
 ! if running on one node, halo_eps is meaningless. Get a representative MPI_halo_eps for MPI proc identification
-fullMesh = .FALSE.
 IF (halo_eps.LE.0.) THEN
   ! reconstruct halo_eps_velo
   IF (halo_eps_velo.EQ.0.) THEN
@@ -416,12 +414,10 @@ IF (halo_eps.LE.0.) THEN
   IF (.NOT.ALMOSTZERO(MPI_halo_eps).AND.(MPI_halo_diag.GE.MPI_halo_eps)) THEN
     LBWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to ',MPI_halo_eps
   ELSEIF (.NOT.ALMOSTZERO(MPI_halo_eps).AND.(MPI_halo_diag.LT.MPI_halo_eps)) THEN
-    fullMesh = .TRUE.
     MPI_halo_eps = MPI_halo_diag
     LBWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to global diag with ',MPI_halo_eps
   ! halo_eps still at zero. Set it to global diagonal
   ELSE
-    fullMesh = .TRUE.
     MPI_halo_eps = MPI_halo_diag
     LBWRITE(UNIT_stdOUt,'(A,F11.3)') ' | No halo_eps given and could not be reconstructed. Using global diag with ',MPI_halo_eps
   END IF
@@ -431,7 +427,6 @@ ELSE
   vec(3)   = GEO%zmaxglob-GEO%zminglob
   MPI_halo_diag = VECNORM(vec)
 
-  IF (MPI_halo_diag.LE.halo_eps) fullMesh = .TRUE.
   MPI_halo_eps = halo_eps
   MPI_halo_eps_woshape = halo_eps_woshape
 END IF
@@ -591,18 +586,43 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 
           ! Check rot periodic Elems and if iSide is on rot periodic BC
           IF(MeshHasRotPeriodic) THEN
-            DO iPeriodicDir = 1,2
-              ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
+            DO iPartBound = 1, nPartBound
+              IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
+              ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) * RotPeriodicTol)
                 SELECT CASE(GEO%RotPeriodicAxi)
                   CASE(1) ! x-rotation axis
+                    IF( (BoundsOfElemCenter(1).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                        (BoundsOfElemCenter(1).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                        CYCLE
+                    END IF
+                    IF( (MPISideBoundsOfNbElemCenter(1,iSide).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                        (MPISideBoundsOfNbElemCenter(1,iSide).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                        CYCLE
+                    END IF
                     RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
                     RotBoundsOfElemCenter(2) = COS(alpha)*BoundsOfElemCenter(2) - SIN(alpha)*BoundsOfElemCenter(3)
                     RotBoundsOfElemCenter(3) = SIN(alpha)*BoundsOfElemCenter(2) + COS(alpha)*BoundsOfElemCenter(3)
                   CASE(2) ! y-rotation axis
+                    IF( (BoundsOfElemCenter(2).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                        (BoundsOfElemCenter(2).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                        CYCLE
+                    END IF
+                    IF( (MPISideBoundsOfNbElemCenter(2,iSide).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                        (MPISideBoundsOfNbElemCenter(2,iSide).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                        CYCLE
+                    END IF
                     RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) + SIN(alpha)*BoundsOfElemCenter(3)
                     RotBoundsOfElemCenter(2) = BoundsOfElemCenter(2)
                     RotBoundsOfElemCenter(3) =-SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(3)
                   CASE(3) ! z-rotation axis
+                    IF( (BoundsOfElemCenter(3).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                        (BoundsOfElemCenter(3).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                        CYCLE
+                    END IF
+                    IF( (MPISideBoundsOfNbElemCenter(3,iSide).GE.PartBound%RotPeriodicMax(iPartBound)).OR. &
+                        (MPISideBoundsOfNbElemCenter(3,iSide).LE.PartBound%RotPeriodicMin(iPartBound)) ) THEN
+                        CYCLE
+                    END IF
                     RotBoundsOfElemCenter(1) = COS(alpha)*BoundsOfElemCenter(1) - SIN(alpha)*BoundsOfElemCenter(2)
                     RotBoundsOfElemCenter(2) = SIN(alpha)*BoundsOfElemCenter(1) + COS(alpha)*BoundsOfElemCenter(2)
                     RotBoundsOfElemCenter(3) = BoundsOfElemCenter(3)
@@ -617,7 +637,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                 IsExchangeElem(localElem) = .TRUE.
                 CYCLE ElemLoop
               END IF
-            END DO
+            END DO ! nPartBound
             ! End check rot periodic Elems and if iSide is on rot periodic BC
           END IF ! GEO%RotPeriodicBC
 
@@ -853,8 +873,8 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 
       ! Check rot periodic Elems and if iSide is on rot periodic BC
       IF(MeshHasRotPeriodic) THEN
-        DO iPeriodicDir = 1,2
-          ASSOCIATE( alpha => GEO%RotPeriodicAngle * DirPeriodicVector(iPeriodicDir) )
+        DO iPartBound = 1, nPartBound
+          ASSOCIATE( alpha => PartBound%RotPeriodicAngle(iPartBound) * RotPeriodicTol)
             SELECT CASE(GEO%RotPeriodicAxi)
               CASE(1) ! x-rotation axis
                 RotBoundsOfElemCenter(1) = BoundsOfElemCenter(1)
@@ -885,7 +905,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             nExchangeProcessors = nExchangeProcessors + 1
             CYCLE ElemLoop
           END IF
-        END DO
+        END DO ! nPartBound
         ! End check rot periodic Elems and if iSide is on rot periodic BC
       END IF ! GEO%RotPeriodicBC
 

@@ -179,7 +179,6 @@ DO i = 1, iMax
   ELSE
     ! Generate skeleton for the file with all relevant data on a single processor (MPIRoot)
     ! Write field to separate file for debugging purposes
-    !FutureTime=0.0 ! not required
     FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_NodeSourceExtGlobal',OutputTime))//'.h5'
     IF(MPIRoot) CALL GenerateFileSkeleton('NodeSourceExtGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)
 #if USE_MPI
@@ -402,7 +401,7 @@ ASSOCIATE (&
   ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
     CALL DistributedWriteArray(FileName                                      , &
-                              DataSetName  = 'PartTimeStep'  , rank = 2      , &
+                              DataSetName  = 'ElemTimeStep'  , rank = 2      , &
                               nValGlobal   = (/nGlobalElems  , 1_IK/)        , &
                               nVal         = (/PP_nElems     , 1_IK/)        , &
                               offset       = (/offsetElem    , 0_IK/)        , &
@@ -418,7 +417,7 @@ ASSOCIATE (&
                         collective  = .FALSE.        , RealArray = PartData)
     ! Output of the element-wise time step as a separate container in state file
   IF(VarTimeStep%UseDistribution) THEN
-    CALL WriteArrayToHDF5(DataSetName = 'PartTimeStep' , rank=2 , &
+    CALL WriteArrayToHDF5(DataSetName = 'ElemTimeStep' , rank=2 , &
                           nValGlobal  = (/nGlobalElems , 1_IK/) , &
                           nVal        = (/PP_nElems    , 1_IK/) , &
                           offset      = (/offsetElem   , 0_IK/) , &
@@ -1812,9 +1811,8 @@ USE MOD_Particle_Vars          ,ONLY: PartDataSize
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartSpecies,nSpecies
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData
 USE MOD_Particle_Vars          ,ONLY: locnPart,offsetnPart
-USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,DSMC,PolyatomMolDSMC,SpecDSMC
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data,MaxQuantNum,MaxElecQuant
-USE MOD_Particle_Vars          ,ONLY: PDM, PartState, PartSpecies, PartMPF, usevMPF, nSpecies, Species
+USE MOD_Particle_Vars          ,ONLY: PartState, PartSpecies, PartMPF, usevMPF, nSpecies, Species
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC, CollisMode,PartStateIntEn, DSMC, PolyatomMolDSMC, SpecDSMC, VibQuantsPar
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_LoadBalance_Vars       ,ONLY: nPartsPerElem
@@ -1912,8 +1910,7 @@ IF (.NOT.(useDSMC.OR.usevMPF)) THEN
   ALLOCATE(PEM%pStart(1:PP_nElems)           , &
            PEM%pNumber(1:PP_nElems)          , &
            PEM%pNext(1:PDM%maxParticleNumber), &
-           PEM%pEnd(1:PP_nElems) )!            , &
-           !PDM%nextUsedPosition(PDM%maxParticleNumber)  )
+           PEM%pEnd(1:PP_nElems) )
   useDSMC=.TRUE.
 END IF
 CALL UpdateNextFreePosition()
@@ -2090,9 +2087,7 @@ IF(withDSMC.AND.DSMC%DoAmbipolarDiff)THEN
       END DO
       iPart = PartInt(2,iElem_glob)
     ELSE
-      CALL abort(&
-      __STAMP__&
-      , " Particle HDF5-Output method not supported! PEM%pNumber not associated")
+      CALL abort(__STAMP__, " Particle HDF5-Output method not supported! PEM%pNumber not associated")
     END IF
     PartInt(2,iElem_glob)=iPart
   END DO
@@ -2106,8 +2101,7 @@ IF (.NOT.(useDSMC.OR.usevMPF)) THEN
   DEALLOCATE(PEM%pStart , &
              PEM%pNumber, &
              PEM%pNext  , &
-             PEM%pEnd   )!, &
-             !PDM%nextUsedPosition  )
+             PEM%pEnd   )
 END IF
 !!! Ende kleiner Hack von JN (Teil 2/2)
 

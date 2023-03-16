@@ -291,8 +291,8 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, VarTimeStep, usevMPF
-USE MOD_Particle_Vars          ,ONLY: DoFieldIonization
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, PartSpecies, Symmetry, UseVarTimeStep, usevMPF
+USE MOD_Particle_Vars          ,ONLY: DoFieldIonization,SampleElecExcitation
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_SetInternalEnr_Poly
@@ -311,8 +311,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32)         :: hilf , hilf2
-INTEGER               :: iCase, iSpec, jSpec, nCase, iPart, iInit, iDOF, VarNum
-INTEGER               :: iColl, jColl, pColl, nCollision ! for collision parameter read in
+INTEGER               :: iCase, iSpec, jSpec, iPart, iInit, iDOF, VarNum
+INTEGER               :: iColl, jColl, pColl  ! for collision parameter read in
 REAL                  :: A1, A2, delta_ij     ! species constant for cross section (p. 24 Laux)
 LOGICAL               :: PostCollPointerSet
 !===================================================================================================================================
@@ -342,6 +342,8 @@ ELSE
 END IF
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
+IF(SampleElecExcitation.AND.(DSMC%ElectronicModel.NE.3)) CALL CollectiveStop(__STAMP__,&
+    'Part-SampElectronicExcitation = T requires Particles-DSMC-ElectronicModel = 3')
 IF (DSMC%ElectronicModel.GT.0) THEN
   ! Allocate internal energy array WITH electronic energy
   ALLOCATE(PartStateIntEn(1:3,PDM%maxParticleNumber))
@@ -376,7 +378,7 @@ ELSEIF(DSMC%ElectronicModel.EQ.1.OR.DSMC%ElectronicModel.EQ.2.OR.DSMC%Electronic
 END IF
 
 DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation')
-IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep.OR.usevMPF) THEN
+IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
   IF(DSMC%DoTEVRRelaxation) THEN
     CALL abort(__STAMP__,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
   END IF
@@ -442,13 +444,16 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
   END DO ! iSpec = nSpecies
 
   ! determine number of different species combinations and allocate collidingSpecies array
-  nCollision=0
-  DO iColl=1,nSpecies
-    DO jColl=iColl,nSpecies
-      nCollision=nCollision+1
-    END DO !jColl = nSpecies
-  END DO !iColl = nSpecies
-  ALLOCATE(CollInf%collidingSpecies(nCollision,2))
+  CollInf%NumCase = 0
+  ALLOCATE(CollInf%Coll_Case(nSpecies,nSpecies))
+  DO iSpec = 1, nSpecies
+    DO jSpec = iSpec, nSpecies
+      CollInf%NumCase = CollInf%NumCase + 1
+      CollInf%Coll_Case(iSpec,jSpec) = CollInf%NumCase
+      CollInf%Coll_Case(jSpec,iSpec) = CollInf%NumCase
+    END DO
+  END DO
+  ALLOCATE(CollInf%collidingSpecies(CollInf%NumCase,2))
   CollInf%collidingSpecies(:,:) = 0 ! default value to determine if collidingSpecies are all set
 
   IF(CollInf%averagedCollisionParameters) THEN ! partnerSpecies for collidingSpecies are set
@@ -461,12 +466,12 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
       END DO ! jSpec = nSpecies
     END DO ! iSpec = nSpecies
   ELSE ! .NOT. averagedCollisionParameters     : partnerSpecies for collidingSpecies per collision are read in
-    DO iColl = 1, nCollision
+    DO iColl = 1, CollInf%NumCase
       WRITE(UNIT=hilf,FMT='(I0)')  iColl
       CollInf%collidingSpecies(iColl,:) = GETINTARRAY('Part-Collision'//TRIM(hilf)//'-partnerSpecies',2,'0,0')
-    END DO ! iColl = nCollision
+    END DO ! iColl = CollInf%NumCase
   END IF ! averagedCollisionParameters
-  DO iColl = 1, nCollision ! check if any collidingSpecies pair is set multiple times
+  DO iColl = 1, CollInf%NumCase ! check if any collidingSpecies pair is set multiple times
     WRITE(UNIT=hilf,FMT='(I0)') iColl
     DO pColl = 1,2 ! collision partner
       WRITE (UNIT = hilf2,FMT = '(I0)') pColl
@@ -478,7 +483,7 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
         CALL Abort(__STAMP__,'ERROR: Partner species '//TRIM(hilf2)//' for Collision'//TRIM(hilf)//' .GT. nSpecies')
       END IF
     END DO ! pColl = 2
-    DO jColl=1, nCollision
+    DO jColl=1, CollInf%NumCase
       WRITE(UNIT=hilf2,FMT='(I0)') jColl
       IF ((CollInf%collidingSpecies(iColl,1) .EQ. CollInf%collidingSpecies(jColl,2))  .AND. &
           (CollInf%collidingSpecies(iColl,2) .EQ. CollInf%collidingSpecies(jColl,1))) THEN
@@ -498,7 +503,7 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
   ALLOCATE(CollInf%alphaVSS(nSpecies,nSpecies))
 
   ! read collision parameters in and check if all are set
-  DO iColl = 1, nCollision
+  DO iColl = 1, CollInf%NumCase
     iSpec = MINVAL (CollInf%collidingSpecies(iColl,:)) ! sorting for filling upper
     jSpec = MAXVAL (CollInf%collidingSpecies(iColl,:)) ! triangular matrix
     WRITE(UNIT=hilf,FMT='(I0)')  iColl
@@ -555,28 +560,17 @@ IF (CollisMode.EQ.0) THEN
 #endif
 ELSE !CollisMode.GT.0
   ! species and case assignment arrays
-  ALLOCATE(CollInf%Coll_Case(nSpecies,nSpecies))
-  iCase = 0
-  DO iSpec = 1, nSpecies
-    DO jSpec = iSpec, nSpecies
-      iCase = iCase + 1
-      CollInf%Coll_Case(iSpec,jSpec) = iCase
-      CollInf%Coll_Case(jSpec,iSpec) = iCase
-    END DO
-  END DO
-  nCase = iCase
-  CollInf%NumCase = nCase
-  ALLOCATE(DSMC%NumColl(nCase +1))
+  ALLOCATE(DSMC%NumColl(CollInf%NumCase +1))
   DSMC%NumColl = 0.
-  ALLOCATE(CollInf%Coll_CaseNum(nCase))
+  ALLOCATE(CollInf%Coll_CaseNum(CollInf%NumCase))
   CollInf%Coll_CaseNum = 0
   ALLOCATE(CollInf%Coll_SpecPartNum(nSpecies))
   CollInf%Coll_SpecPartNum = 0.
-  ALLOCATE(CollInf%SumPairMPF(nCase))
+  ALLOCATE(CollInf%SumPairMPF(CollInf%NumCase))
   CollInf%SumPairMPF = 0.
-  ALLOCATE(CollInf%FracMassCent(nSpecies, nCase)) ! Calculation of mx/(mx+my) and reduced mass
+  ALLOCATE(CollInf%FracMassCent(nSpecies, CollInf%NumCase)) ! Calculation of mx/(mx+my) and reduced mass
   CollInf%FracMassCent = 0
-  ALLOCATE(CollInf%MassRed(nCase))
+  ALLOCATE(CollInf%MassRed(CollInf%NumCase))
   CollInf%MassRed = 0
   DO iSpec = 1, nSpecies
     DO jSpec = iSpec, nSpecies
@@ -592,8 +586,8 @@ ELSE !CollisMode.GT.0
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Factor calculation for particle collision
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ALLOCATE(CollInf%Cab(nCase))
-  ALLOCATE(CollInf%KronDelta(nCase))
+  ALLOCATE(CollInf%Cab(CollInf%NumCase))
+  ALLOCATE(CollInf%KronDelta(CollInf%NumCase))
   CollInf%Cab = 0
   CollInf%KronDelta = 0
 
@@ -718,12 +712,17 @@ ELSE !CollisMode.GT.0
         DO iInit = 1, Species(iSpec)%NumberOfInits
           WRITE(UNIT=hilf2,FMT='(I0)') iInit
           hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
-          IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+          IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
+            SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib','300.0')
+            SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot','300.0')
+          ELSEIF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
             SpecDSMC(iSpec)%Init(iInit)%TVib      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempVib')
             SpecDSMC(iSpec)%Init(iInit)%TRot      = GETREAL('Part-Species'//TRIM(hilf2)//'-TempRot')
           END IF
           ! read electronic temperature
-          IF (DSMC%ElectronicModel.GT.0) THEN
+          IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'EmissionDistribution')THEN
+            SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec','300.0')
+          ELSEIF (DSMC%ElectronicModel.GT.0) THEN
             SpecDSMC(iSpec)%Init(iInit)%Telec   = GETREAL('Part-Species'//TRIM(hilf2)//'-TempElec')
           END IF ! electronic model
         END DO !Inits
@@ -1446,8 +1445,6 @@ SDEALLOCATE(CollInf%alphaVSS)
 SDEALLOCATE(CollInf%omega)
 SDEALLOCATE(CollInf%dref)
 SDEALLOCATE(CollInf%Tref)
-!SDEALLOCATE(SampWall)
-SDEALLOCATE(MacroSurfaceVal)
 !SDEALLOCATE(VibQuantsPar)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)
@@ -1509,47 +1506,25 @@ RECURSIVE SUBROUTINE DeleteNodeVolume(Node)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_DSMC_Vars
+USE MOD_Particle_Vars         ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
-TYPE (tNodeVolume), INTENT(IN), POINTER  :: Node
+TYPE (tNodeVolume), INTENT(INOUT)  :: Node
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER     ::  iLoop, nLoop
 !===================================================================================================================================
-IF(ASSOCIATED(Node%SubNode1)) THEN
-  CALL DeleteNodeVolume(Node%SubNode1)
-  DEALLOCATE(Node%SubNode1)
+nLoop = 2**Symmetry%Order
+IF(ASSOCIATED(Node%SubNode)) THEN 
+  DO iLoop = 1, nLoop
+    CALL DeleteNodeVolume(Node%SubNode(iLoop))
+  END DO
+  DEALLOCATE(Node%SubNode)
 END IF
-IF(ASSOCIATED(Node%SubNode2)) THEN
-  CALL DeleteNodeVolume(Node%SubNode2)
-  DEALLOCATE(Node%SubNode2)
-END IF
-IF(ASSOCIATED(Node%SubNode3)) THEN
-  CALL DeleteNodeVolume(Node%SubNode3)
-  DEALLOCATE(Node%SubNode3)
-END IF
-IF(ASSOCIATED(Node%SubNode4)) THEN
-  CALL DeleteNodeVolume(Node%SubNode4)
-  DEALLOCATE(Node%SubNode4)
-END IF
-IF(ASSOCIATED(Node%SubNode5)) THEN
-  CALL DeleteNodeVolume(Node%SubNode5)
-  DEALLOCATE(Node%SubNode5)
-END IF
-IF(ASSOCIATED(Node%SubNode6)) THEN
-  CALL DeleteNodeVolume(Node%SubNode6)
-  DEALLOCATE(Node%SubNode6)
-END IF
-IF(ASSOCIATED(Node%SubNode7)) THEN
-  CALL DeleteNodeVolume(Node%SubNode7)
-  DEALLOCATE(Node%SubNode7)
-END IF
-IF(ASSOCIATED(Node%SubNode8)) THEN
-  CALL DeleteNodeVolume(Node%SubNode8)
-  DEALLOCATE(Node%SubNode8)
-END IF
+
 END SUBROUTINE DeleteNodeVolume
 
 
