@@ -29,7 +29,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: BGK_CollisionOperator, ARShakhov, CalcTEquiPoly, CalcTEqui
+PUBLIC :: BGK_CollisionOperator, ARShakhov
 !===================================================================================================================================
 
 CONTAINS
@@ -78,8 +78,8 @@ REAL                  :: vBulk(3), u0ij(3,3), u2, V_rel(3), dtCell
 REAL                  :: alpha, alphaRot(nSpecies), CellTemp, dens, InnerDOF, NewEn, OldEn, Prandtl, relaxfreq, TEqui
 REAL                  :: dynamicvis, thermalcond
 INTEGER, ALLOCATABLE  :: iPartIndx_NodeRelax(:),iPartIndx_NodeRelaxTemp(:),iPartIndx_NodeRelaxRot(:),iPartIndx_NodeRelaxVib(:)
-INTEGER               :: iLoop, iPart, nRelax, iPolyatMole, nXiVibDOF
-REAL, ALLOCATABLE     :: Xi_vib_DOF(:), VibEnergyDOF(:,:)
+INTEGER               :: iLoop, iPart, nRelax, iPolyatMole, nXiVibDOF, nXiVibDOFSpec(nSpecies)
+REAL, ALLOCATABLE     :: Xi_vib_DOF(:,:), VibEnergyDOF(:,:)
 INTEGER               :: iSpec, nSpec(nSpecies), jSpec, nRotRelax, nVibRelax
 REAL                  :: OldEnRot, NewEnRot(nSpecies), NewEnVib(nSpecies)
 REAL                  :: TotalMass, u2Spec(nSpecies), u2i(3), vBulkAll(3)
@@ -133,18 +133,19 @@ ELSE
   dens = totalWeight * Species(1)%MacroParticleFactor / NodeVolume
 END IF
 
-! Calculation of the rotational and vibrational degrees of freedom for molecules
-nXiVibDOF=0 ! Initialize
-IF (nSpecies.EQ.1) THEN
-  IF((SpecDSMC(1)%InterID.EQ.2).OR.(SpecDSMC(1)%InterID.EQ.20)) THEN
-    IF(SpecDSMC(1)%PolyatomicMol) THEN
-      iPolyatMole = SpecDSMC(1)%SpecToPolyArray
-      nXiVibDOF   = PolyatomMolDSMC(iPolyatMole)%VibDOF
-      ALLOCATE(Xi_vib_DOF(nXiVibDOF))
-      Xi_vib_DOF(:) = 0.
+! Allocate Xi_vib_DOF
+nXiVibDOF=0.0 ! Initialize
+DO iSpec = 1, nSpecies
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+      nXiVibDOFSpec(iSpec) = PolyatomMolDSMC(iPolyatMole)%VibDOF
     END IF
   END IF
-END IF
+END DO
+nXiVibDOF = MAXVAL(nXiVibDOFSpec(:))
+ALLOCATE(Xi_vib_DOF(nSpecies,nXiVibDOF))
+Xi_vib_DOF = 0.0
 
 CALL CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, TRotSpec, InnerDOF, Xi_VibSpec, Xi_Vib_oldSpec &
     ,Xi_RotSpec)
@@ -192,15 +193,17 @@ IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
   RotExpSpec=0.; VibExpSpec=0.
 
   ! Calculation of the equilibrium temperature
-  IF(SpecDSMC(1)%PolyatomicMol) THEN ! polyatomic, NO MIXTURES POSSIBLE BY NOW
-    CALL CalcTEquiPoly(nPart, CellTemp, TRotSpec(1), TVibSpec(1), nXiVibDOF, Xi_vib_DOF, Xi_Vib_oldSpec(1), RotExpSpec(1), VibExpSpec(1), &
-                        TEqui, rotrelaxfreqSpec(1), vibrelaxfreqSpec(1), dtCell)
-    ! Corrected vibrational degrees of freedom
-    Xi_VibSpec(1) = SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
-  ELSE ! diatomic
-    CALL CalcTEquiMulti(nPart, nSpec, CellTemp, TRotSpec, TVibSpec, Xi_VibSpec, Xi_Vib_oldSpec, RotExpSpec, VibExpSpec,  &
+  CALL CalcTEquiMultiPoly(nPart, nSpec, nXiVibDOF, Xi_vib_DOF, CellTemp, TRotSpec, TVibSpec, Xi_VibSpec, Xi_Vib_oldSpec, RotExpSpec, VibExpSpec,  &
       TEqui, rotrelaxfreqSpec, vibrelaxfreqSpec, dtCell)
-  END IF
+  ! IF(SpecDSMC(1)%PolyatomicMol) THEN ! polyatomic, NO MIXTURES POSSIBLE BY NOW
+  !   CALL CalcTEquiPoly(nPart, CellTemp, TRotSpec(1), TVibSpec(1), nXiVibDOF, Xi_vib_DOF, Xi_Vib_oldSpec(1), RotExpSpec(1), VibExpSpec(1), &
+  !                       TEqui, rotrelaxfreqSpec(1), vibrelaxfreqSpec(1), dtCell)
+  !   ! Corrected vibrational degrees of freedom
+  !   Xi_VibSpec(1) = SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+  ! ELSE ! diatomic
+  !   CALL CalcTEquiMulti(nPart, nSpec, CellTemp, TRotSpec, TVibSpec, Xi_VibSpec, Xi_Vib_oldSpec, RotExpSpec, VibExpSpec,  &
+  !     TEqui, rotrelaxfreqSpec, vibrelaxfreqSpec, dtCell)
+  ! END IF
   IF(DSMC%CalcQualityFactors) THEN
     BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,MAXVAL(rotrelaxfreqSpec(:))*dtCell)
   END IF
@@ -822,7 +825,7 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: nPart,nXiVibDOF
 INTEGER, INTENT(IN)           :: nVibRelax, nRotRelax, iPartIndx_NodeRelaxVib(nPart), iPartIndx_NodeRelaxRot(nPart)
-REAL, INTENT(IN)              :: Xi_vib_DOF(nXiVibDOF), TEqui, Xi_VibSpec(nSpecies), Xi_RotSpec(nSpecies)
+REAL, INTENT(IN)              :: Xi_vib_DOF(nSpecies,nXiVibDOF), TEqui, Xi_VibSpec(nSpecies), Xi_RotSpec(nSpecies)
 REAL, INTENT(INOUT)           :: NewEnVib(nSpecies), NewEnRot(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -847,7 +850,7 @@ IF(BGKDoVibRelaxation) THEN
        ! Polyatomic Species in Hypersonic Flow around a Flat-faced Cylinder", AIP Conference Proceedings 2132, 100001 (2019)
        DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
          CALL RANDOM_NUMBER(iRan)
-         VibEnergyDOF(iLoop,iDOF) = - LOG(iRan)*Xi_vib_DOF(iDOF)/2.*TEqui*BoltzmannConst
+         VibEnergyDOF(iLoop,iDOF) = - LOG(iRan)*Xi_vib_DOF(iSpec,iDOF)/2.*TEqui*BoltzmannConst
          PartStateIntEn(1,iPart) = PartStateIntEn(1,iPart)+VibEnergyDOF(iLoop,iDOF)
        END DO
     ! ELSE: diatomic, only one vibrational DOF, calculate new vibrational energy according to M. Pfeiffer, "Extending the particle
@@ -1141,7 +1144,7 @@ IF(BGKDoVibRelaxation) THEN
           END IF
           ! Remaining OldEn for remaining particles
           OldEn = OldEn - (PartStateIntEn( 1,iPart) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
-        END IF ! SpecDSMC(1)%PolyatomicMol
+        END IF
       END DO
     ELSE ! Continuous treatment of vibrational energy
       DO iLoop = 1, nVibRelax
@@ -1326,118 +1329,13 @@ END DO
 END SUBROUTINE BGK_BuildTransGaussNums
 
 
-SUBROUTINE CalcTEqui(nPart, CellTemp, TRot, TVib, Xi_Vib, Xi_Vib_old, RotExp, VibExp,  &
-      TEqui, rotrelaxfreq, vibrelaxfreq, dtCell, DoVibRelaxIn)
+SUBROUTINE CalcTEquiMultiPoly(nPart, nSpec, nXiVibDOF, Xi_vib_DOF, CellTemp, TRotSpec, TVibSpec, Xi_Vib_Spec, Xi_Vib_oldSpec, RotExpSpec, & 
+      VibExpSpec, TEqui, rotrelaxfreqSpec, vibrelaxfreqSpec, dtCell, DoVibRelaxIn)
 !===================================================================================================================================
-! Calculation of the vibrational temperature (zero-point search) for non-polyatomic molecules for Fokker-Planck
-!===================================================================================================================================
-! MODULES
-USE MOD_DSMC_Vars,              ONLY: SpecDSMC
-USE MOD_BGK_Vars,               ONLY: BGKDoVibRelaxation
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)                :: CellTemp, TRot, TVib, Xi_Vib_old, rotrelaxfreq, vibrelaxfreq, dtCell
-INTEGER, INTENT(IN)             :: nPart
-LOGICAL, OPTIONAL, INTENT(IN)   :: DoVibRelaxIn
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)               :: Xi_vib, TEqui, RotExp, VibExp
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-REAL                            :: TEqui_Old, betaR, betaV, RotFrac, VibFrac, TEqui_Old2
-REAL                            :: eps_prec=1.0E-0
-REAL                            :: correctFac, correctFacRot, maxexp   !, Xi_rel
-LOGICAL                         :: DoVibRelax
-!===================================================================================================================================
-IF (PRESENT(DoVibRelaxIn)) THEN
-  DoVibRelax = DoVibRelaxIn
-ELSE
-  DoVibRelax = BGKDoVibRelaxation
-END IF
-maxexp = LOG(HUGE(maxexp))
-!  Xi_rel = 2.*(2. - CollInf%omega(1,1))
-!  correctFac = 1. + (2.*SpecDSMC(1)%CharaTVib / (CellTemp*(EXP(SpecDSMC(1)%CharaTVib / CellTemp)-1.)))**(2.) &
-!        * EXP(SpecDSMC(1)%CharaTVib /CellTemp) / (2.*Xi_rel)
-!  correctFacRot = 1. + 2./Xi_rel
-
-correctFac = 1.
-correctFacRot = 1.
-RotExp = exp(-rotrelaxfreq*dtCell/correctFacRot)
-RotFrac = nPart*(1.-RotExp)
-IF(DoVibRelax) THEN
-  VibExp = exp(-vibrelaxfreq*dtCell/correctFac)
-  VibFrac = nPart*(1.-VibExp)
-ELSE
-  VibExp = 0.0
-  VibFrac = 0.0
-  Xi_vib = 0.0
-END IF
-TEqui_Old = 0.0
-TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)/(3.*(nPart-1.)+2.*RotFrac+Xi_Vib_old*VibFrac)
-DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
-  IF (ABS(TRot-TEqui).LT.1E-3) THEN
-    RotExp = exp(-rotrelaxfreq*dtCell/correctFacRot)
-  ELSE
-    betaR = ((TRot-CellTemp)/(TRot-TEqui))*rotrelaxfreq*dtCell/correctFacRot
-    IF (-betaR.GT.0.0) THEN
-      RotExp = 0.
-    ELSE IF (betaR.GT.maxexp) THEN
-      RotExp = 0.
-    ELSE
-      RotExp = exp(-betaR)
-    END IF
-  END IF
-  RotFrac = nPart*(1.-RotExp)
-  IF(DoVibRelax) THEN
-    IF (ABS(TVib-TEqui).LT.1E-3) THEN
-      VibExp = exp(-vibrelaxfreq*dtCell/correctFac)
-    ELSE
-      betaV = ((TVib-CellTemp)/(TVib-TEqui))*vibrelaxfreq*dtCell/correctFac
-      IF (-betaV.GT.0.0) THEN
-        VibExp = 0.
-      ELSE IF (betaV.GT.maxexp) THEN
-        VibExp = 0.
-      ELSE
-        VibExp = exp(-betaV)
-      END IF
-    END IF
-    IF ((SpecDSMC(1)%CharaTVib/TEqui).GT.maxexp) THEN
-      Xi_Vib = 0.0
-    ELSE
-      Xi_vib = 2.*SpecDSMC(1)%CharaTVib/TEqui/(EXP(SpecDSMC(1)%CharaTVib/TEqui)-1.)
-    END IF
-    VibFrac = nPart*(1.-VibExp)
-  END IF
-  TEqui_Old = TEqui
-  TEqui_Old2 = TEqui
-  TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)/(3.*(nPart-1.)+2.*RotFrac+Xi_Vib*VibFrac)
-  IF(DoVibRelax) THEN
-    DO WHILE( ABS( TEqui - TEqui_Old2 ) .GT. eps_prec )
-      TEqui =(TEqui + TEqui_Old2)*0.5
-      IF ((SpecDSMC(1)%CharaTVib/TEqui).GT.maxexp) THEN
-        Xi_Vib = 0.0
-      ELSE
-        Xi_vib = 2.*SpecDSMC(1)%CharaTVib/TEqui/(EXP(SpecDSMC(1)%CharaTVib/TEqui)-1.)
-      END IF
-      TEqui_Old2 = TEqui
-      TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib) / (3.*(nPart-1.)+2.*RotFrac+Xi_vib*VibFrac)
-    END DO
-  END IF
-END DO
-
-END SUBROUTINE CalcTEqui
-
-
-SUBROUTINE CalcTEquiMulti(nPart, nSpec, CellTemp, TRotSpec, TVibSpec, Xi_VibSpec, Xi_Vib_oldSpec, RotExpSpec, VibExpSpec,  &
-      TEqui, rotrelaxfreqSpec, vibrelaxfreqSpec, dtCell, DoVibRelaxIn)
-!===================================================================================================================================
-! Calculation of the vibrational temperature (zero-point search) for diatomic molecule mixtures
+! Calculation of the vibrational temperature (zero-point search) for polyatomic molecule mixtures
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,              ONLY: SpecDSMC
+USE MOD_DSMC_Vars,              ONLY: SpecDSMC, PolyatomMolDSMC
 USE MOD_BGK_Vars,               ONLY: BGKDoVibRelaxation
 USE MOD_Particle_Vars,          ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
@@ -1446,51 +1344,49 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 REAL, INTENT(IN)                :: CellTemp, TRotSpec(nSpecies), TVibSpec(nSpecies), Xi_Vib_oldSpec(nSpecies)
 REAL, INTENT(IN)                :: rotrelaxfreqSpec(nSpecies), vibrelaxfreqSpec(nSpecies), dtCell
-INTEGER, INTENT(IN)             :: nPart, nSpec(nSpecies)
+INTEGER, INTENT(IN)             :: nPart, nSpec(nSpecies), nXiVibDOF
 LOGICAL, OPTIONAL, INTENT(IN)   :: DoVibRelaxIn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)               :: Xi_VibSpec(nSpecies), TEqui, RotExpSpec(nSpecies), VibExpSpec(nSpecies)
+REAL, INTENT(OUT)               :: Xi_Vib_Spec(nSpecies), TEqui, RotExpSpec(nSpecies), VibExpSpec(nSpecies)
+REAL, INTENT(OUT)               :: Xi_vib_DOF(nSpecies,nXiVibDOF)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 REAL                            :: TEqui_Old, betaR, betaV, RotFracSpec(nSpecies), VibFracSpec(nSpecies), TEqui_Old2
+REAL                            :: Xi_Rot_Spec(nSpecies)
 REAL                            :: eps_prec=1.0E-0
-REAL                            :: correctFac, correctFacRot, exparg, TEquiNumDof   !, Xi_rel,
+REAL                            :: exparg, TEquiNumDof
 LOGICAL                         :: DoVibRelax
-INTEGER                         :: iSpec
+INTEGER                         :: iSpec, iDOF, iPolyatMole
 !===================================================================================================================================
 IF (PRESENT(DoVibRelaxIn)) THEN
   DoVibRelax = DoVibRelaxIn
 ELSE
   DoVibRelax = BGKDoVibRelaxation
 END IF
-!  Xi_rel = 2.*(2. - CollInf%omega(1,1))
-!  correctFac = 1. + (2.*SpecDSMC(1)%CharaTVib / (CellTemp*(EXP(SpecDSMC(1)%CharaTVib / CellTemp)-1.)))**(2.) &
-!        * EXP(SpecDSMC(1)%CharaTVib /CellTemp) / (2.*Xi_rel)
-!  correctFacRot = 1. + 2./Xi_rel
 
-correctFac = 1.
-correctFacRot = 1.
 RotFracSpec = 0.0
 VibFracSpec = 0.0
 
 ! Loop over all molecular species --> only internal energies are relevant here
 DO iSpec=1, nSpecies
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+    ! rotational degrees of freedom of molecules
+    Xi_Rot_Spec(iSpec) = SpecDSMC(iSpec)%Xi_Rot
     ! Calculate number of rotational relaxing molecules with number of molecules * probability of relaxation
     ! P = 1 - exp(-nu*dt) with relaxation frequency nu and timestep dt
-    RotExpSpec(iSpec) = exp(-rotrelaxfreqSpec(iSpec)*dtCell/correctFacRot)
+    RotExpSpec(iSpec) = exp(-rotrelaxfreqSpec(iSpec)*dtCell)
     RotFracSpec(iSpec) = nSpec(iSpec)*(1.-RotExpSpec(iSpec))
     ! Calculate number of vibrational relaxing molecules if enabled with number of molecules * probability of relaxation
     ! P = 1 - exp(-nu*dt) with relaxation frequency nu and timestep dt
     IF(DoVibRelax) THEN
-      VibExpSpec(iSpec) = exp(-vibrelaxfreqSpec(iSpec)*dtCell/correctFac)
+      VibExpSpec(iSpec) = exp(-vibrelaxfreqSpec(iSpec)*dtCell)
       VibFracSpec(iSpec) = nSpec(iSpec)*(1.-VibExpSpec(iSpec))
     ELSE
       VibExpSpec(iSpec) = 0.0
       VibFracSpec(iSpec) = 0.0
-      Xi_VibSpec(iSpec) = 0.0
+      Xi_Vib_Spec(iSpec) = 0.0
     END IF
   END IF
 END DO
@@ -1498,13 +1394,15 @@ TEqui_Old = 0.0
 ! Calculation of equilibrium temperature
 ! M. Pfeiffer, "Extending the particle ellipsoidal statistical Bhatnagar-Gross-Krook method to diatomic molecules including
 ! quantized vibrational energies", Phys. Fluids 30, 116103 (2018), Eq. 25
+! M. Pfeiffer et. al., "Extension of Particle-based BGK Models to Polyatomic Species in Hypersonic Flow around a Flat-faced
+! Cylinder", AIP Conference Proceedings 2132, 100001 (2019)
 TEqui = 3.*(nPart-1.)*CellTemp
 TEquiNumDof = 3.*(nPart-1.)
 ! Sum up over all species
 DO iSpec=1, nSpecies
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    TEqui = TEqui + 2.*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
-    TEquiNumDof = TEquiNumDof + 2.*RotFracSpec(iSpec) + Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)
+    TEqui = TEqui + Xi_Rot_Spec(iSpec)*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
+    TEquiNumDof = TEquiNumDof + Xi_Rot_Spec(iSpec)*RotFracSpec(iSpec) + Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)
   END IF
 END DO
 TEqui = TEqui / TEquiNumDof
@@ -1516,12 +1414,12 @@ TEqui = TEqui / TEquiNumDof
 DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   DO iSpec = 1, nSpecies
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-      ! if difference too small: beta is not taken into account
+      ! if difference small: equilibrium, no beta
       IF (ABS(TRotSpec(iSpec)-TEqui).LT.1E-3) THEN
-        RotExpSpec(iSpec) = exp(-rotrelaxfreqSpec(iSpec)*dtCell/correctFacRot)
+        RotExpSpec(iSpec) = exp(-rotrelaxfreqSpec(iSpec)*dtCell)
       ELSE
         ! betaR = beta*nu*dt (= correction parameter rotation * relaxation frequency * time step)
-        betaR = ((TRotSpec(iSpec)-CellTemp)/(TRotSpec(iSpec)-TEqui))*rotrelaxfreqSpec(iSpec)*dtCell/correctFacRot
+        betaR = ((TRotSpec(iSpec)-CellTemp)/(TRotSpec(iSpec)-TEqui))*rotrelaxfreqSpec(iSpec)*dtCell
         ! negative betaR would leed to negative relaxation probability!
         IF (-betaR.GT.0.0) THEN
           RotExpSpec(iSpec) = 0.
@@ -1536,12 +1434,12 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
       RotFracSpec(iSpec) = nSpec(iSpec)*(1.-RotExpSpec(iSpec))
       
       IF(DoVibRelax) THEN
-        ! if difference too small: beta is not taken into account
+        ! if difference small: equilibrium, no beta
         IF (ABS(TVibSpec(iSpec)-TEqui).LT.1E-3) THEN
-          VibExpSpec(iSpec) = exp(-vibrelaxfreqSpec(iSpec)*dtCell/correctFac)
+          VibExpSpec(iSpec) = exp(-vibrelaxfreqSpec(iSpec)*dtCell)
         ELSE
           ! betaV = beta*nu*dt (= correction parameter vibration * relaxation frequency * time step)
-          betaV = ((TVibSpec(iSpec)-CellTemp)/(TVibSpec(iSpec)-TEqui))*vibrelaxfreqSpec(iSpec)*dtCell/correctFac
+          betaV = ((TVibSpec(iSpec)-CellTemp)/(TVibSpec(iSpec)-TEqui))*vibrelaxfreqSpec(iSpec)*dtCell
           ! negative betaV would leed to negative relaxation probability!
           IF (-betaV.GT.0.0) THEN
             VibExpSpec(iSpec) = 0.
@@ -1555,14 +1453,33 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
         ! new calculation of number of vibrational relaxing molecules
         VibFracSpec(iSpec) = nSpec(iSpec)*(1.-VibExpSpec(iSpec))
 
-        ! new calculation of the vibrational degrees of freedom
-        exparg = SpecDSMC(iSpec)%CharaTVib/TEqui
-        ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
-        IF(CHECKEXP(exparg))THEN
-          Xi_VibSpec(iSpec) = 2.*SpecDSMC(iSpec)%CharaTVib/TEqui/(EXP(exparg)-1.)
-        ELSE
-          Xi_VibSpec(iSpec) = 0.0
-        END IF ! CHECKEXP(exparg)
+        ! new calculation of the vibrational degrees of freedom per species
+        IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+          iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+          ! Loop over all vibrational degrees of freedom to calculate them using TEqui
+          DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+            exparg = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/TEqui
+            ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
+            IF(CHECKEXP(exparg))THEN
+              IF(exparg.gt.0.)THEN ! positive overflow: exp -> inf
+                Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(EXP(exparg)-1.)
+              ELSE ! negative overflow: exp -> 0
+                Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(-1.)
+              END IF ! exparg.gt.0.
+            ELSE
+              Xi_vib_DOF(iSpec,iDOF) = 0.0
+            END IF ! CHECKEXP(exparg)
+          END DO
+          Xi_Vib_Spec(iSpec) = SUM(Xi_vib_DOF(iSpec,1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+        ELSE ! diatomic
+          exparg = SpecDSMC(iSpec)%CharaTVib/TEqui
+          ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
+          IF(CHECKEXP(exparg))THEN
+            Xi_Vib_Spec(iSpec) = 2.*SpecDSMC(iSpec)%CharaTVib/TEqui/(EXP(exparg)-1.)
+          ELSE
+            Xi_Vib_Spec(iSpec) = 0.0
+          END IF ! CHECKEXP(exparg)
+        END IF
       END IF
     END IF
   END DO
@@ -1575,8 +1492,8 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   ! Sum up over all species
   DO iSpec=1, nSpecies
     IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-      TEqui = TEqui + 2.*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
-      TEquiNumDof = TEquiNumDof + 2.*RotFracSpec(iSpec) + Xi_VibSpec(iSpec)*VibFracSpec(iSpec)
+      TEqui = TEqui + Xi_Rot_Spec(iSpec)*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
+      TEquiNumDof = TEquiNumDof + Xi_Rot_Spec(iSpec)*RotFracSpec(iSpec) + Xi_Vib_Spec(iSpec)*VibFracSpec(iSpec)
     END IF
   END DO
   TEqui = TEqui / TEquiNumDof
@@ -1587,13 +1504,33 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
       TEqui =(TEqui + TEqui_Old2)*0.5
       DO iSpec=1, nSpecies
         IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-          ! new calculation of the vibrational degrees of freedom
-          exparg = SpecDSMC(iSpec)%CharaTVib/TEqui
-          IF(CHECKEXP(exparg))THEN
-            Xi_VibSpec(iSpec) = 2.*SpecDSMC(iSpec)%CharaTVib/TEqui/(EXP(exparg)-1.)
-          ELSE
-            Xi_VibSpec(iSpec) = 0.0
-          END IF ! CHECKEXP(exparg)
+          ! new calculation of the vibrational degrees of freedom per species
+          IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+            iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+            ! Loop over all vibrational degrees of freedom to calculate them using TEqui
+            DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+              exparg = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/TEqui
+              ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
+              IF(CHECKEXP(exparg))THEN
+                IF(exparg.gt.0.)THEN ! positive overflow: exp -> inf
+                  Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(EXP(exparg)-1.)
+                ELSE ! negative overflow: exp -> 0
+                  Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(-1.)
+                END IF ! exparg.gt.0.
+              ELSE
+                Xi_vib_DOF(iSpec,iDOF) = 0.0
+              END IF ! CHECKEXP(exparg)
+            END DO
+            Xi_Vib_Spec(iSpec) = SUM(Xi_vib_DOF(iSpec,1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+          ELSE ! diatomic
+            exparg = SpecDSMC(iSpec)%CharaTVib/TEqui
+            ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
+            IF(CHECKEXP(exparg))THEN
+              Xi_Vib_Spec(iSpec) = 2.*SpecDSMC(iSpec)%CharaTVib/TEqui/(EXP(exparg)-1.)
+            ELSE
+              Xi_Vib_Spec(iSpec) = 0.0
+            END IF ! CHECKEXP(exparg)
+          END IF
         END IF
       END DO
       ! new calculation of equilibrium temperature with corrected vibrational degrees of freedom in denominator
@@ -1603,182 +1540,15 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
       ! Sum up over all species
       DO iSpec=1, nSpecies
         IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-          TEqui = TEqui + 2.*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
-          TEquiNumDof = TEquiNumDof + 2.*RotFracSpec(iSpec) + Xi_VibSpec(iSpec)*VibFracSpec(iSpec)
+          TEqui = TEqui + Xi_Rot_Spec(iSpec)*RotFracSpec(iSpec)*TRotSpec(iSpec)+Xi_Vib_oldSpec(iSpec)*VibFracSpec(iSpec)*TVibSpec(iSpec)
+          TEquiNumDof = TEquiNumDof + Xi_Rot_Spec(iSpec)*RotFracSpec(iSpec) + Xi_Vib_Spec(iSpec)*VibFracSpec(iSpec)
         END IF
       END DO
       TEqui = TEqui / TEquiNumDof
     END DO
   END IF
 END DO
-END SUBROUTINE CalcTEquiMulti
-
-
-SUBROUTINE CalcTEquiPoly(nPart, CellTemp, TRot, TVib, nXiVibDOF, Xi_Vib_DOF, Xi_Vib_old, RotExp, VibExp, TEqui, rotrelaxfreq, vibrelaxfreq, &
-      dtCell, DoVibRelaxIn)
-!===================================================================================================================================
-! Calculation of the vibrational temperature (zero-point search) for polyatomic molecules
-!===================================================================================================================================
-! MODULES
-USE MOD_DSMC_Vars,              ONLY: SpecDSMC, PolyatomMolDSMC
-USE MOD_BGK_Vars,               ONLY: BGKDoVibRelaxation
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)                :: CellTemp, TRot, TVib, Xi_Vib_old, rotrelaxfreq, vibrelaxfreq
-INTEGER, INTENT(IN)             :: nPart,nXiVibDOF
-REAL, INTENT(IN)                :: dtCell
-LOGICAL, OPTIONAL, INTENT(IN)   :: DoVibRelaxIn
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)               :: Xi_vib_DOF(nXiVibDOF), TEqui, RotExp, VibExp
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-REAL                            :: TEqui_Old, betaR, betaV, RotFrac, VibFrac, Xi_Rot, TEqui_Old2, exparg
-REAL                            :: eps_prec=1.0
-REAL                            :: correctFac, correctFacRot
-INTEGER                         :: iDOF, iPolyatMole
-LOGICAL                         :: DoVibRelax
-!===================================================================================================================================
-IF (PRESENT(DoVibRelaxIn)) THEN
-  DoVibRelax = DoVibRelaxIn
-ELSE
-  DoVibRelax = BGKDoVibRelaxation
-END IF
-
-! rotational degrees of freedom of polyatomic molecule
-Xi_Rot =   SpecDSMC(1)%Xi_Rot
-iPolyatMole = SpecDSMC(1)%SpecToPolyArray
-
-!  Xi_rel = 2.*(2. - CollInf%omega(1,1))
-!  correctFac = 0.0
-!  DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-!    correctFac = correctFac &
-!        + (2.*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / (CellTemp           &
-!        *(EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / CellTemp)-1.)))**(2.)  &
-!        * EXP(PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF) / CellTemp) / 2.
-!  END DO
-!  correctFac = 1. + correctFac/Xi_rel
-!  correctFacRot = 1. + Xi_Rot/Xi_rel
-
-correctFac = 1.
-correctFacRot = 1.
-
-! Calculate number of rotational relaxing molecules with number of molecules * probability of relaxation
-! P = 1 - exp(-nu*dt) with relaxation frequency nu and timestep dt
-RotExp = exp(-rotrelaxfreq*dtCell/correctFacRot)
-RotFrac = nPart*(1.-RotExp)
-! Calculate number of vibrational relaxing molecules if enabled with number of molecules * probability of relaxation
-! P = 1 - exp(-nu*dt) with relaxation frequency nu and timestep dt
-IF(DoVibRelax) THEN
-  VibExp = exp(-vibrelaxfreq*dtCell/correctFac)
-  VibFrac = nPart*(1.-VibExp)
-ELSE
-  VibExp = 0.0
-  VibFrac = 0.0
-  Xi_vib_DOF = 0.0
-END IF
-TEqui_Old = 0.0
-! M. Pfeiffer et. al., "Extension of Particle-based BGK Models to Polyatomic Species in Hypersonic Flow around a Flat-faced
-! Cylinder", AIP Conference Proceedings 2132, 100001 (2019)
-! Solving of equation system for TEqui and betaR and betaV
-TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)/(3.*(nPart-1.)+2.*RotFrac+Xi_Vib_old*VibFrac)
-! Required condition of Landau-Teller relaxation not fulfilled --> relaxation probabilities of rotation and vibration are
-! corrected with a parameter beta for rotation and vibration as suggested by Burt:
-! J. Burt and I. Boyd, “Evaluation of a particle method for the ellipsoidal statistical Bhatnagar-Gross-Krook equation”,
-! 44th AIAA Aerospace Sciences Meeting and Exhibit (AIAA, 2006), p. 989
-! Solving of equation system until accuracy eps_prec is reached
-DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
-  ! if difference too small: beta is not taken into account
-  IF (ABS(TRot-TEqui).LT.1E-3) THEN
-    RotExp = exp(-rotrelaxfreq*dtCell/correctFacRot)
-  ELSE
-    ! betaR = beta*nu*dt (= correction parameter rotation * relaxation frequency * time step)
-    betaR = ((TRot-CellTemp)/(TRot-TEqui))*rotrelaxfreq*dtCell/correctFacRot
-    ! negative betaR would leed to negative relaxation probability!
-    IF (-betaR.GT.0.0) THEN
-      RotExp = 0.
-    ! Check if the exponent is within the range of machine precision
-    ELSE IF (CHECKEXP(betaR)) THEN
-      RotExp = exp(-betaR)
-    ELSE
-      RotExp = 0.
-    END IF
-  END IF
-  ! new calculation of number of rotational relaxing molecules
-  RotFrac = nPart*(1.-RotExp)
-  
-  IF(DoVibRelax) THEN
-    ! if difference too small: beta is not taken into account
-    IF (ABS(TVib-TEqui).LT.1E-3) THEN
-      VibExp = exp(-vibrelaxfreq*dtCell/correctFac)
-    ELSE
-      ! betaV = beta*nu*dt (= correction parameter vibration * relaxation frequency * time step)
-      betaV = ((TVib-CellTemp)/(TVib-TEqui))*vibrelaxfreq*dtCell/correctFac
-      ! negative betaV would leed to negative relaxation probability!
-      IF (-betaV.GT.0.0) THEN
-        VibExp = 0.
-      ! Check if the exponent is within the range of machine precision
-      ELSEIF(CHECKEXP(betaV))THEN
-        VibExp = exp(-betaV)
-      ELSE
-        VibExp = 0.
-      END IF
-    END IF
-    ! new calculation of number of vibrational relaxing molecules
-    VibFrac = nPart*(1.-VibExp)
-
-    ! Loop over all vibrational degrees of freedom to calculate them using TEqui
-    DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-      exparg = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/TEqui
-      ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
-      IF(CHECKEXP(exparg))THEN
-        IF(exparg.gt.0.)THEN ! positive overflow: exp -> inf
-          Xi_vib_DOF(iDOF) = 2.*exparg/(EXP(exparg)-1.)
-        ELSE ! negative overflow: exp -> 0
-          Xi_vib_DOF(iDOF) = 2.*exparg/(-1.)
-        END IF ! exparg.gt.0.
-      ELSE
-        Xi_vib_DOF(iDOF) = 0.0
-      END IF ! CHECKEXP(exparg)
-    END DO
-  END IF
-  TEqui_Old = TEqui
-  TEqui_Old2 = TEqui
-
-  ! new calculation of equilibrium temperature with new RotFrac, new VibFrac new Xi_vib_DOF(TEqui) in denominator
-  TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)  &
-          / (3.*(nPart-1.)+2.*RotFrac+SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))*VibFrac)
-  IF(DoVibRelax) THEN
-    ! accuracy eps_prec not reached yet
-    DO WHILE( ABS( TEqui - TEqui_Old2 ) .GT. eps_prec )
-      ! mean value of old and new equilibrium temperature
-      TEqui =(TEqui + TEqui_Old2)*0.5
-      ! Loop over all vibrational degrees of freedom
-      DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-        exparg = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/TEqui
-        ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
-        IF(CHECKEXP(exparg))THEN
-          IF(exparg.gt.0.)THEN ! positive overflow: exp -> inf
-            Xi_vib_DOF(iDOF) = 2.*exparg/(EXP(exparg)-1.)
-          ELSE ! negative overflow: exp -> 0
-            Xi_vib_DOF(iDOF) = 2.*exparg/(-1.)
-          END IF ! exparg.gt.0.
-        ELSE
-          Xi_vib_DOF(iDOF) = 0.0
-        END IF ! CHECKEXP(exparg)
-      END DO
-      TEqui_Old2 = TEqui
-      ! new calculation of equilibrium temperature with corrected vibrational degrees of freedom in denominator
-      TEqui = (3.*(nPart-1.)*CellTemp+2.*RotFrac*TRot+Xi_Vib_old*VibFrac*TVib)  &
-          / (3.*(nPart-1.)+2.*RotFrac+SUM(Xi_vib_DOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))*VibFrac)
-    END DO
-  END IF
-END DO
-
-END SUBROUTINE CalcTEquiPoly
+END SUBROUTINE CalcTEquiMultiPoly
 
 
 SUBROUTINE CalcViscosityThermalCondColIntVHS(CellTemp, Xi, dens, Xi_RotSpec, Xi_VibSpec, Visc, ThermalCond)
