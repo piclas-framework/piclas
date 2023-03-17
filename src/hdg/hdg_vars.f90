@@ -188,6 +188,8 @@ TYPE tFPC
   INTEGER,ALLOCATABLE         :: Group(:,:)         !< FPC%Group(1:FPC%nFPCBounds,2)
                                                     !<   1: BCState
                                                     !<   2: iUniqueFPC (i-th FPC group ID)
+                                                    !<   3: number of BCSides for each FPC group
+  INTEGER,ALLOCATABLE         :: GroupGlobal(:)     !< Sum of nSides associated with each i-th FPC boundary
 END TYPE
 
 TYPE(tFPC)   :: FPC

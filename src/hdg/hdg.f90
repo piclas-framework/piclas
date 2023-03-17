@@ -150,6 +150,7 @@ INTEGER           :: OffsetPETScSide
 INTEGER           :: PETScLocalID
 INTEGER           :: MortarSideID,iMortar
 INTEGER           :: locSide,nMortarMasterSides,nMortars
+INTEGER           :: nAffectedBlockSides
 #endif
 INTEGER           :: nConductors
 !===================================================================================================================================
@@ -308,7 +309,7 @@ CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTE
 DO iProc=1, myrank
   OffsetPETScSide = OffsetPETScSide + OffsetPETScSideMPI(iProc)
 END DO
-nPETScUniqueSidesGlobal = SUM(OffsetPETScSideMPI) + 1 ! TODO nConductors=1
+nPETScUniqueSidesGlobal = SUM(OffsetPETScSideMPI) + FPC%nUniqueFPCBounds
 #endif
 
 ALLOCATE(PETScGlobal(nSides))
@@ -423,8 +424,22 @@ PetscCallA(MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScUniqueSidesGlo
 PetscCallA(MatSetType(Smat_petsc,MATSBAIJ,ierr)) ! Symmetric sparse (mpi) matrix
 ! TODO Set preallocation row wise
 ! 1 Big mortar side is affected by 6 + 4*4 = 22 other sides...
-PetscCallA(MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,nConductorBCsides*6,PETSC_NULL_INTEGER,ierr))
-PetscCallA(MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,nConductorBCsides*6,PETSC_NULL_INTEGER,nConductorBCsides*6,PETSC_NULL_INTEGER,ierr))
+! TODO Does this require communication over all procs? Global number of sides associated with the i-th FPC
+IF(FPC%nFPCBounds.GT.0)THEN
+  ALLOCATE(FPC%GroupGlobal(1:FPC%nFPCBounds))
+  FPC%GroupGlobal(1:FPC%nFPCBounds) = FPC%Group(1:FPC%nFPCBounds,3)
+  ! TODO is this allreduce required?
+  !CALL MPI_ALLREDUCE(FPC%Group(1:FPC%nFPCBounds,3),FPC%GroupGlobal(1:FPC%nFPCBounds), FPC%nFPCBounds, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, IERROR)
+  nAffectedBlockSides = MAXVAL(FPC%GroupGlobal(:))
+  DEALLOCATE(FPC%GroupGlobal)
+  nAffectedBlockSides = MAX(22,nAffectedBlockSides*6)
+ELSE
+  nAffectedBlockSides = 22
+END IF ! FPC%nFPCBounds
+!IPWRITE(UNIT_StdOut,*) "nAffectedBlockSides =", nAffectedBlockSides
+!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+PetscCallA(MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,nAffectedBlockSides,PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,nAffectedBlockSides,PETSC_NULL_INTEGER,nAffectedBlockSides-1,PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatZeroEntries(Smat_petsc,ierr))
 #endif
 
@@ -476,7 +491,7 @@ PetscCallA(ISCreateStride(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,0,1,idx_loc
 PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr))
 PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr))
 
-IF(nConductorBCsides.GT.0)THEN
+IF(FPC%nFPCBounds.GT.0)THEN
   PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nGP_face,lambda_local_conductors_petsc,ierr))
   PetscCallA(ISCreateStride(PETSC_COMM_SELF,nGP_face,0,1,idx_local_conductors_petsc,ierr))
   PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,1,(/nPETScUniqueSidesGlobal-1/),PETSC_COPY_VALUES,idx_global_conductors_petsc,ierr))
@@ -669,6 +684,7 @@ CHARACTER(5)        :: hilf,hilf2
 ! Get global number of FPC boundaries in [1:nBCs], they might belong to the same group (will be reduced to "nUniqueFPCBounds" below)
 ! FPC boundaries with the same BCState will be in the same group (electrically connected)
 FPC%nFPCBounds = 0
+FPC%nUniqueFPCBounds = 0
 DO iBC=1,nBCs
   BCType = BoundaryType(iBC,BC_TYPE)
   IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
@@ -679,12 +695,11 @@ END DO
 
 IF(FPC%nFPCBounds.EQ.0) RETURN ! Already determined in HDG initialization
 
-ALLOCATE(FPC%Group(1:FPC%nFPCBounds,2))
+ALLOCATE(FPC%Group(1:FPC%nFPCBounds,3))
 FPC%Group = 0 ! Initialize
 
 ! 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
 ! contribute to the total floating boundary condition. If yes, then this processor is part of the communicator
-FPC%nUniqueFPCBounds = 0
 DO iBC=1,nBCs
   BCType = BoundaryType(iBC,BC_TYPE)
   IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
@@ -727,6 +742,16 @@ FPC%ChargeProc = 0.
 !  iBC = EDC%FieldBoundaries(iEDCBC)
 !  EDC%BCIDToEDCBCID(iBC) = iEDCBC
 !END DO ! iEDCBC = 1, EDC%NBoundaries
+
+! Get processor-local number of FPC sides associated with each i-th FPC boundary
+! Check local sides
+DO SideID=1,nBCSides
+  iBC    = BC(SideID)
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
+  BCState = BoundaryType(iBC,BC_STATE) ! BCState corresponds to iFPC
+  FPC%Group(BCState,3) = FPC%Group(BCState,3) + 1
+END DO ! SideID=1,nBCSides
 
 #if USE_MPI
 ! 4.0) Check if field BC is on current proc (or MPI root)
@@ -1261,14 +1286,16 @@ DO iVar=1, PP_nVar
     !VecSetValuesBlockedLocal somehow not working...
     PetscCallA(VecSetValuesBlocked(RHS_petsc,1,PETScGlobal(SideID),RHS_face(1,:,SideID),INSERT_VALUES,ierr))
   END DO
-  RHS_conductor(:)=0.
-  RHS_conductor(1)=5.
-  !RHS_conductor(:)=FPC%Charge(1)*1e-6/eps0
-  RHS_conductor(1)=0.!FPC%Charge(1)/eps0
-  PetscCallA(VecSetValuesBlocked(RHS_petsc,1,nPETScUniqueSidesGlobal-1,RHS_conductor,INSERT_VALUES,ierr))
+  IF(FPC%nFPCBounds.GT.0)THEN
+    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      RHS_conductor(:)=0.
+      RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
+      PetscCallA(VecSetValuesBlocked(RHS_petsc,1,nPETScUniqueSidesGlobal-1-FPC%nUniqueFPCBounds+iUniqueFPCBC,RHS_conductor,INSERT_VALUES,ierr))
+    END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+  END IF ! FPC%nFPCBounds
   PetscCallA(VecAssemblyBegin(RHS_petsc,ierr))
   PetscCallA(VecAssemblyEnd(RHS_petsc,ierr))
-  
+
   ! Calculate lambda
   PetscCallA(KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr))
   TimeEndPiclas=PICLASTIME()
@@ -1276,7 +1303,7 @@ DO iVar=1, PP_nVar
   PetscCallA(KSPGetConvergedReason(ksp,reason,ierr))
   PetscCallA(KSPGetResidualNorm(ksp,petscnorm,ierr))
   IF(reason.LT.0)THEN
-    SWRITE(*,*) 'Attention: PETSc not converged! Reason: ', reason 
+    SWRITE(*,*) 'Attention: PETSc not converged! Reason: ', reason
   END IF
   IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, petscnorm)
 
@@ -1289,21 +1316,24 @@ DO iVar=1, PP_nVar
     PETScID_start=1+(PETScLocalID-1)*nGP_face
     PETScID_stop=PETScLocalID*nGP_face
     lambda(1,:,SideID) = lambda_pointer(PETScID_start:PETScID_stop)
-  END DO 
+  END DO
   PetscCallA(VecRestoreArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
 
   ! Fill Conductor lambda
-  PetscCallA(VecScatterBegin(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
-  PetscCallA(VecScatterEnd(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
-  PetscCallA(VecGetArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
-  ! TODO multiple conductors
-  DO BCsideID=1,nConductorBCsides
-    SideID=ConductorBC(BCSideID)
-    DO i=1,nGP_face
-      lambda(1,:,SideID) = lambda_pointer(1)
+  IF(FPC%nFPCBounds.GT.0)THEN
+    PetscCallA(VecScatterBegin(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
+    PetscCallA(VecScatterEnd(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
+    PetscCallA(VecGetArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
+    ! TODO multiple conductors
+    DO BCsideID=1,nConductorBCsides
+      SideID=ConductorBC(BCSideID)
+      DO i=1,nGP_face
+        lambda(1,:,SideID) = lambda_pointer(1)
+      END DO
     END DO
-  END DO
-  PetscCallA(VecRestoreArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
+    PetscCallA(VecRestoreArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
+  END IF ! FPC%nFPCBounds.GT.0
+
   ! PETSc Calculate lambda at small mortars from big mortars
   CALL BigToSmallMortar_HDG(1,lambda)
 #if USE_MPI
