@@ -730,16 +730,20 @@ IF (DSMC%CalcQualityFactors) THEN
         DSMC_MacroVal(nVarCount+2,iElem) = BGK_QualityFacSamp(6,iElem) / BGK_QualityFacSamp(2,iElem)
         ! Mean expected Prandtl number
         DSMC_MacroVal(nVarCount+3,iElem) = BGK_QualityFacSamp(7,iElem) / BGK_QualityFacSamp(2,iElem)
+        ! Mean viscosity
+        DSMC_MacroVal(nVarCount+4,iElem) = BGK_QualityFacSamp(8,iElem) / BGK_QualityFacSamp(2,iElem)
+        ! Mean thermal conductivity
+        DSMC_MacroVal(nVarCount+5,iElem) = BGK_QualityFacSamp(9,iElem) / BGK_QualityFacSamp(2,iElem)
       END IF
       IF(BGK_QualityFacSamp(4,iElem).GT.0) THEN
         ! Max relaxation factor (maximal value of all octree subcells)
-        DSMC_MacroVal(nVarCount+4,iElem) = BGK_QualityFacSamp(3,iElem) / BGK_QualityFacSamp(4,iElem)
+        DSMC_MacroVal(nVarCount+6,iElem) = BGK_QualityFacSamp(3,iElem) / BGK_QualityFacSamp(4,iElem)
         ! Max rotational relaxation factor
-        DSMC_MacroVal(nVarCount+5,iElem) = BGK_QualityFacSamp(5,iElem) / BGK_QualityFacSamp(4,iElem)
+        DSMC_MacroVal(nVarCount+7,iElem) = BGK_QualityFacSamp(5,iElem) / BGK_QualityFacSamp(4,iElem)
       END IF
       ! Ratio between BGK and DSMC usage per cell
-      DSMC_MacroVal(nVarCount+6,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
-      nVarCount = nVarCount + 6
+      DSMC_MacroVal(nVarCount+8,iElem) = BGK_QualityFacSamp(4,iElem) / iter_loc
+      nVarCount = nVarCount + 8
     END IF
     ! variable rotation and vibration relaxation
     IF(Collismode.GT.1) THEN
@@ -954,7 +958,7 @@ IF (DSMC%CalcQualityFactors) THEN
   IF(DoVirtualCellMerge) nVar_quality = nVar_quality + 1
   IF(RadialWeighting%PerformCloning) nVar_quality = nVar_quality + 2
   IF(VarWeighting%PerformCloning) nVar_quality = nVar_quality + 2
-  IF(BGKInitDone) nVar_quality = nVar_quality + 6
+  IF(BGKInitDone) nVar_quality = nVar_quality + 8
   IF(FPInitDone) nVar_quality = nVar_quality + 5
 ELSE
   nVar_quality=0
@@ -1058,10 +1062,12 @@ IF (DSMC%CalcQualityFactors) THEN
     StrVarNames(nVarCount+1) ='BGK_MeanRelaxationFactor'
     StrVarNames(nVarCount+2) ='BGK_MeanPrandtlNumber'
     StrVarNames(nVarCount+3) ='BGK_ExpectedPrandtlNumber'
-    StrVarNames(nVarCount+4) ='BGK_MaxRelaxationFactor'
-    StrVarNames(nVarCount+5) ='BGK_MaxRotationRelaxFactor'
-    StrVarNames(nVarCount+6) ='BGK_DSMC_Ratio'
-    nVarCount=nVarCount+6
+    StrVarNames(nVarCount+4) ='BGK_Viscosity'
+    StrVarNames(nVarCount+5) ='BGK_ThermalConductivity'
+    StrVarNames(nVarCount+6) ='BGK_MaxRelaxationFactor'
+    StrVarNames(nVarCount+7) ='BGK_MaxRotationRelaxFactor'
+    StrVarNames(nVarCount+8) ='BGK_DSMC_Ratio'
+    nVarCount=nVarCount+8
   END IF
   IF(FPInitDone) THEN
     StrVarNames(nVarCount+1) ='FP_MeanRelaxationFactor'

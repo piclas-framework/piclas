@@ -109,7 +109,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSpec, iSpec2
-REAL                  :: delta_ij
 LOGICAL               :: MoleculePresent
 !===================================================================================================================================
 LBWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
@@ -118,20 +117,14 @@ ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
   IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) MoleculePresent = .TRUE.
   ALLOCATE(SpecBGK(iSpec)%CollFreqPreFactor(nSpecies))
+  ! Calculation of the prefacor of the collision frequency per species
+  ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 87f
   DO iSpec2=1, nSpecies
-    IF (iSpec.EQ.iSpec2) THEN
-      delta_ij = 1.0
-    ELSE
-      delta_ij = 0.0
-    END IF
-    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 4.*(2.-delta_ij)*CollInf%dref(iSpec,iSpec2)**2.0 &
+    SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 4.*CollInf%dref(iSpec,iSpec2)**2.0 &
         * SQRT(Pi*BoltzmannConst*CollInf%Tref(iSpec,iSpec2)*(Species(iSpec)%MassIC + Species(iSpec2)%MassIC) &
         /(2.*(Species(iSpec)%MassIC * Species(iSpec2)%MassIC)))/CollInf%Tref(iSpec,iSpec2)**(-CollInf%omega(iSpec,iSpec2) +0.5)
   END DO
 END DO
-IF ((nSpecies.GT.1).AND.(ANY(SpecDSMC(:)%PolyatomicMol))) THEN
-  CALL abort(__STAMP__,' ERROR Multispec not implemented with polyatomic molecules!')
-END IF
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
@@ -177,16 +170,11 @@ IF(MoleculePresent) THEN
   ! Vibrational modelling
   BGKDoVibRelaxation = GETLOGICAL('Particles-BGK-DoVibRelaxation')
   BGKUseQuantVibEn = GETLOGICAL('Particles-BGK-UseQuantVibEn')
-  IF ((nSpecies.GT.1).AND.(BGKUseQuantVibEn)) THEN
-    CALL abort(&
-      __STAMP__&
-      ,' ERROR Multispec not implemented for quantized vibrational energy!')
-  END IF
 END IF
 
 IF(DSMC%CalcQualityFactors) THEN
-  ALLOCATE(BGK_QualityFacSamp(1:7,nElems))
-  BGK_QualityFacSamp(1:7,1:nElems) = 0.0
+  ALLOCATE(BGK_QualityFacSamp(1:9,nElems))
+  BGK_QualityFacSamp(1:9,1:nElems) = 0.0
 END IF
 
 BGKInitDone = .TRUE.
