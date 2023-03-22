@@ -398,7 +398,7 @@ SUBROUTINE AdaptiveBCSampling(initSampling_opt,initTruncAverage_opt)
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_Particle_Sampling_Vars
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
 USE MOD_Mesh_Vars              ,ONLY: offsetElem, SideToElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
@@ -597,7 +597,7 @@ DO SampleElemID = 1,AdaptBCSampleElemNum
             AdaptBCMacroVal(1:3,SampleElemID,iSpec) = AdaptBCSample(1:3,SampleElemID, iSpec)
           END IF
           ! number density
-          IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+          IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
             AdaptBCMacroVal(4,SampleElemID,iSpec) = AdaptBCSample(8,SampleElemID,iSpec) / REAL(SamplingIteration) / ElemVolume_Shared(CNElemID)
           ELSE
             AdaptBCMacroVal(4,SampleElemID,iSpec) = AdaptBCSample(8,SampleElemID,iSpec) / REAL(SamplingIteration) / ElemVolume_Shared(CNElemID) &
@@ -629,7 +629,7 @@ DO SampleElemID = 1,AdaptBCSampleElemNum
                                               + RelaxationFactor*AdaptBCSample(1:3,SampleElemID, iSpec)
         END IF
         ! Calculation of the number density
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
           AdaptBCMacroVal(4,SampleElemID,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(4,SampleElemID,iSpec) &
             + RelaxationFactor*AdaptBCSample(8,SampleElemID,iSpec) / ElemVolume_Shared(CNElemID)
         ELSE

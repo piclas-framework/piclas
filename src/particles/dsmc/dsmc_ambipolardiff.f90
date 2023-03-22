@@ -536,7 +536,7 @@ __STAMP__&
     PartMPF(PositionNbr) = PartMPF(IonIndX(iLoop))
   END IF
   IF(UseVarTimeStep) PartTimeStep(PositionNbr) = PartTimeStep(IonIndX(iLoop))
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) PartMPF(PositionNbr) = PartMPF(IonIndX(iLoop))
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) PartMPF(PositionNbr) = PartMPF(IonIndX(iLoop))
   IF(UseVarTimeStep) PartTimeStep(PositionNbr) = PartTimeStep(IonIndX(iLoop))
   iPartIndx_NodeTotalAmbi(nPart+iLoop) = PositionNbr
 END DO

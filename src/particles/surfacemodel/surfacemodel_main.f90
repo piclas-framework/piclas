@@ -204,6 +204,7 @@ CASE(20)  ! Adsorption or Eley-Rideal reaction
 !-----------------------------------------------------------------------------------------------------------------------------------
 
   ! 0.) Determine the surface parameters: Coverage and number of surface molecules
+  SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
   SubP = TrackInfo%p
   SubQ = TrackInfo%q
   InteractionType = 'None'

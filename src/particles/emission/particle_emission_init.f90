@@ -864,8 +864,6 @@ DO iSpec=1,nSpecies
   END DO ! iInit = 1, Species(iSpec)%NumberOfInits
 END DO ! iSpec=1,nSpecies
 
-IPWRITE(UNIT_stdOut,*)' To be inserted particles: ',INT(insertParticles,4)
-
 IF (insertParticles.GT.PDM%maxParticleNumber) THEN
   IPWRITE(UNIT_stdOut,*)' Maximum particle number : ',PDM%maxParticleNumber
   IPWRITE(UNIT_stdOut,*)' To be inserted particles: ',INT(insertParticles,4)

@@ -41,6 +41,9 @@ LOGICAL            :: RestartNullifySolution ! set the DG solution to zero (igno
 ! Restart from sampled macroscopic variables
 LOGICAL            :: DoMacroscopicRestart
 CHARACTER(LEN=300) :: MacroRestartFileName
+LOGICAL            :: DoCatalyticRestart
+CHARACTER(LEN=300) :: CatalyticFileName
+REAL, ALLOCATABLE  :: CatRestartValues(:,:,:)
 REAL, ALLOCATABLE  :: MacroRestartValues(:,:,:)
 !===================================================================================================================================
 END MODULE MOD_Restart_Vars

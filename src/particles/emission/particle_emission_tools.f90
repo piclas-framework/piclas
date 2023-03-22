@@ -987,7 +987,7 @@ INTEGER                          :: CNElemID
         IF(RadialWeighting%DoRadialWeighting) THEN
           PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
         ELSE IF (VarWeighting%DoVariableWeighting) THEN
-          PartDens = Species(iSpec)%Init(iInit)%PartDensity / (VarWeighting%AverageScaleFactor)
+          PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iSpec, iElem)
         END IF
         CALL RANDOM_NUMBER(iRan)
         IF(UseVarTimeStep) THEN
@@ -1120,7 +1120,7 @@ DO iElem = 1, nElems
           InsideFlag=.FALSE.
           DO WHILE(.NOT.InsideFlag)
             CALL RANDOM_NUMBER(RandomPos)
-            IF(Symmetry%Axisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+            IF(Symmetry%Axisymmetric.AND.(.NOT.(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting))) THEN
               ! Treatment of axisymmetry without weighting
               RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
               RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
