@@ -150,9 +150,8 @@ INTEGER           :: OffsetPETScSide
 INTEGER           :: PETScLocalID
 INTEGER           :: MortarSideID,iMortar
 INTEGER           :: locSide,nMortarMasterSides,nMortars
-INTEGER           :: nAffectedBlockSides
+!INTEGER           :: nAffectedBlockSides
 #endif
-INTEGER           :: nConductors
 INTEGER,ALLOCATABLE :: indx(:)
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
@@ -1067,7 +1066,6 @@ PetscReal            :: petscnorm
 INTEGER              :: ElemID,iBCSide,locBCSideID, PETScLocalID
 INTEGER              :: PETScID_start, PETScID_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
-INTEGER              :: iPETScGlobal
 REAL                 :: RHS_conductor(nGP_face)
 #endif
 #if defined(PARTICLES) && USE_MPI

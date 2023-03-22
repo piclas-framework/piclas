@@ -185,7 +185,7 @@ TYPE tFPC
 !                                                   !< (electrically connected) with the same BCState ID
   INTEGER,ALLOCATABLE         :: BCState(:)         !< BCState of the i-th FPC index
   !INTEGER,ALLOCATABLE         :: BCIDToFPCBCID(:)  !< Mapping BCID to FPC BCID (1:nPartBound)
-  INTEGER,ALLOCATABLE         :: Group(:,:)         !< FPC%Group(1:FPC%nFPCBounds,2)
+  INTEGER,ALLOCATABLE         :: Group(:,:)         !< FPC%Group(1:FPC%nFPCBounds,3)
                                                     !<   1: BCState
                                                     !<   2: iUniqueFPC (i-th FPC group ID)
                                                     !<   3: number of BCSides for each FPC group
