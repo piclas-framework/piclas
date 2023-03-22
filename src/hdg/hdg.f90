@@ -652,9 +652,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars          ,ONLY: nBCs,BoundaryType
 USE MOD_Analyze_Vars       ,ONLY: DoFieldAnalyze
 USE MOD_HDG_Vars           ,ONLY: FPC
-#if USE_MPI
 USE MOD_Mesh_Vars          ,ONLY: nBCSides,BC
-#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -672,9 +670,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: BCType,BCState,iUniqueFPCBC
-INTEGER             :: iBC
+INTEGER             :: SideID,iBC
 #if USE_MPI
-INTEGER             :: SideID,color
+INTEGER             :: color
 LOGICAL,ALLOCATABLE :: BConProc(:)
 #if defined(PARTICLES)
 INTEGER             :: iElem
