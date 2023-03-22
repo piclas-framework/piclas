@@ -153,6 +153,7 @@ INTEGER           :: locSide,nMortarMasterSides,nMortars
 INTEGER           :: nAffectedBlockSides
 #endif
 INTEGER           :: nConductors
+INTEGER,ALLOCATABLE :: indx(:)
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    LBWRITE(*,*) "InitHDG already called."
@@ -422,24 +423,24 @@ PetscCallA(MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr))
 PetscCallA(MatSetBlockSize(Smat_petsc,nGP_face,ierr))
 PetscCallA(MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,nPETScUniqueSidesGlobal*nGP_Face,ierr))
 PetscCallA(MatSetType(Smat_petsc,MATSBAIJ,ierr)) ! Symmetric sparse (mpi) matrix
-! TODO Set preallocation row wise
-! 1 Big mortar side is affected by 6 + 4*4 = 22 other sides...
-! TODO Does this require communication over all procs? Global number of sides associated with the i-th FPC
-IF(FPC%nFPCBounds.GT.0)THEN
-  ALLOCATE(FPC%GroupGlobal(1:FPC%nFPCBounds))
-  FPC%GroupGlobal(1:FPC%nFPCBounds) = FPC%Group(1:FPC%nFPCBounds,3)
-  ! TODO is this allreduce required?
-  !CALL MPI_ALLREDUCE(FPC%Group(1:FPC%nFPCBounds,3),FPC%GroupGlobal(1:FPC%nFPCBounds), FPC%nFPCBounds, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, IERROR)
-  nAffectedBlockSides = MAXVAL(FPC%GroupGlobal(:))
-  DEALLOCATE(FPC%GroupGlobal)
-  nAffectedBlockSides = MAX(22,nAffectedBlockSides*6)
-ELSE
-  nAffectedBlockSides = 22
-END IF ! FPC%nFPCBounds
-!IPWRITE(UNIT_StdOut,*) "nAffectedBlockSides =", nAffectedBlockSides
-!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
-PetscCallA(MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,nAffectedBlockSides,PETSC_NULL_INTEGER,ierr))
-PetscCallA(MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,nAffectedBlockSides,PETSC_NULL_INTEGER,nAffectedBlockSides-1,PETSC_NULL_INTEGER,ierr))
+!! TODO Set preallocation row wise
+!! 1 Big mortar side is affected by 6 + 4*4 = 22 other sides...
+!! TODO Does this require communication over all procs? Global number of sides associated with the i-th FPC
+!IF(FPC%nFPCBounds.GT.0)THEN
+!  ALLOCATE(FPC%GroupGlobal(1:FPC%nFPCBounds))
+!  FPC%GroupGlobal(1:FPC%nFPCBounds) = FPC%Group(1:FPC%nFPCBounds,3)
+!  ! TODO is this allreduce required?
+!  !CALL MPI_ALLREDUCE(FPC%Group(1:FPC%nFPCBounds,3),FPC%GroupGlobal(1:FPC%nFPCBounds), FPC%nFPCBounds, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, IERROR)
+!  nAffectedBlockSides = MAXVAL(FPC%GroupGlobal(:))
+!  DEALLOCATE(FPC%GroupGlobal)
+!  nAffectedBlockSides = MAX(22,nAffectedBlockSides*6)
+!ELSE
+!  nAffectedBlockSides = 22
+!END IF ! FPC%nFPCBounds
+!!IPWRITE(UNIT_StdOut,*) "nAffectedBlockSides =", nAffectedBlockSides
+!!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+PetscCallA(MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,22-1,PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatZeroEntries(Smat_petsc,ierr))
 #endif
 
@@ -493,8 +494,13 @@ PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx
 
 IF(FPC%nFPCBounds.GT.0)THEN
   PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nGP_face,lambda_local_conductors_petsc,ierr))
-  PetscCallA(ISCreateStride(PETSC_COMM_SELF,nGP_face,0,1,idx_local_conductors_petsc,ierr))
-  PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,1,(/nPETScUniqueSidesGlobal-1/),PETSC_COPY_VALUES,idx_global_conductors_petsc,ierr))
+  PetscCallA(ISCreateStride(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,0,1,idx_local_conductors_petsc,ierr))
+  ALLOCATE(indx(FPC%nUniqueFPCBounds))
+  DO i=1,FPC%nUniqueFPCBounds
+    indx(i) = nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+i-1
+  END DO
+  PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,FPC%nUniqueFPCBounds,indx,PETSC_COPY_VALUES,idx_global_conductors_petsc,ierr))
+  DEALLOCATE(indx)
   PetscCallA(VecScatterCreate(lambda_petsc,idx_global_conductors_petsc,lambda_local_conductors_petsc,idx_local_conductors_petsc,scatter_conductors_petsc,ierr))
 END IF
 #endif
@@ -1327,8 +1333,9 @@ DO iVar=1, PP_nVar
     ! TODO multiple conductors
     DO BCsideID=1,nConductorBCsides
       SideID=ConductorBC(BCSideID)
+      BCState=BoundaryType(BC(SideID),BC_STATE)
       DO i=1,nGP_face
-        lambda(1,:,SideID) = lambda_pointer(1)
+        lambda(1,:,SideID) = lambda_pointer(1 + (FPC%Group(BCState,2) - 1) * nGP_face)
       END DO
     END DO
     PetscCallA(VecRestoreArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))

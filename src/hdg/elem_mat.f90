@@ -78,6 +78,7 @@ USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
 #endif
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -107,6 +108,7 @@ INTEGER              :: iPETScGlobal, jPETScGlobal
 INTEGER              :: iSide,locSideID
 REAL                 :: intMat(nGP_face, nGP_face)
 #endif
+INTEGER              :: BCState
 !===================================================================================================================================
 
 #if defined(IMPA) || defined(ROS)
@@ -384,7 +386,9 @@ DO BCsideID=1,nConductorBCsides
   jSideID=ConductorBC(BCsideID)
   iElem=SideToElem(S2E_ELEM_ID,jSideID)
   jLocSide=SideToElem(S2E_LOC_SIDE_ID,jSideID)
-  jPETScGlobal=nPETScUniqueSidesGlobal-1
+
+  BCState = BoundaryType(BC(jSideID),BC_STATE)
+  jPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
   DO iLocSide=1,6
     iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
     iPETScGlobal=PETScGlobal(iSideID)
@@ -398,7 +402,7 @@ DO BCsideID=1,nConductorBCsides
         Smat(1,i,jLocSide,iLocSide,iElem) = 0.
         Smat(i,i,jLocSide,iLocSide,iElem) = 1. ! Add diagonal entries for unused DOFs
       END DO
-      iPETScGlobal=nPETScUniqueSidesGlobal-1
+      iPETScGlobal=nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
     ELSEIF(iPETScGlobal.EQ.-1) THEN
       CYCLE
     END IF
