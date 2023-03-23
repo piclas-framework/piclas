@@ -579,7 +579,12 @@ CASE(500) ! Coaxial capacitor with Floating Boundary Condition (FPC) with from
       END ASSOCIATE
     END ASSOCIATE
   END ASSOCIATE
-
+CASE(600) ! 2 cubes with two different charges
+  IF(ALLOCATED(FPC%Charge))THEN
+    FPC%Charge(1)=5.0
+    FPC%Charge(2)=10.0
+    resu = 0.
+  END IF ! ALLOCATED(FPC%Charge)
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!', IntInfoOpt=ExactFunction)
 END SELECT ! ExactFunction
