@@ -1066,9 +1066,9 @@ INTEGER              :: PETScID_start, PETScID_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
 REAL                 :: RHS_conductor(nGP_face)
 #endif
-#if defined(PARTICLES) && USE_MPI
+#if USE_PETSC
 INTEGER              :: iUniqueFPCBC
-#endif /*defined(PARTICLES) && USE_MPI*/
+#endif /*USE_PETSC*/
 !===================================================================================================================================
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
@@ -1149,7 +1149,7 @@ DO iVar = 1, PP_nVar
 #endif
 
   ! Floating boundary BCs
-#if defined(PARTICLES)
+#if USE_PETSC && defined(PARTICLES)
   IF(FPC%nFPCBounds.GT.0)THEN
 #if USE_MPI
     ! Communicate the accumulated charged on each BC to all processors on the communicator
@@ -1168,7 +1168,7 @@ DO iVar = 1, PP_nVar
     ! Apply charge to RHS
 
   END IF ! FPC%nFPCBounds.GT.0
-#endif /*defined(PARTICLES)*/
+#endif /*USE_PETSC && defined(PARTICLES)*/
 
   ! Check if zero potential sides are present
   IF(ZeroPotentialSideID.GT.0) lambda(iVar,:,ZeroPotentialSideID) = ZeroPotentialValue
