@@ -724,22 +724,16 @@ DO iElem=1,nElems
   IF(PRESENT(dXCL_ngeo_out)) dXCL_Ngeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)=dXCL_Ngeo(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo)
 END DO !iElem=1,nElems
 
+! PP_1 metrics to global ones
 Face_xGP      (:,0,0,:)   = Face_xGP_PP_1      (:,0,0,:)
 NormVec       (:,0,0,:)   = NormVec_PP_1       (:,0,0,:)
 TangVec1      (:,0,0,:)   = TangVec1_PP_1      (:,0,0,:)
 TangVec2      (:,0,0,:)   = TangVec2_PP_1      (:,0,0,:)
 SurfElem      (0,0,:)     = SUM(SUM(SurfElem_PP_1(:,:,:),2),1)
 Ja_Face       (:,:,0,0,:)   = SUM(SUM(Ja_Face_PP_1(:,:,:,:,:),4),3)
-Metrics_fTilde(:,0,0,0,:) = Metrics_fTilde_PP_1(:,0,0,0,:)!SUM(SUM(SUM(Metrics_fTilde_PP_1(:,:,:,:,:),4),3),2)
-Metrics_gTilde(:,0,0,0,:) = Metrics_gTilde_PP_1(:,0,0,0,:)
-Metrics_hTilde(:,0,0,0,:) = Metrics_hTilde_PP_1(:,0,0,0,:)
-! print*, Metrics_fTilde_PP_1(:,:,:,:,:)
-! print*,'------------------'
-! print*, Metrics_gTilde_PP_1(:,:,:,:,:)
-! print*,'------------------'
-! print*, Metrics_hTilde_PP_1(:,:,:,:,:)
-! print*,'------------------'
-! read*
+Metrics_fTilde(:,0,0,0,:) = SUM(SUM(Metrics_fTilde_PP_1(:,0,:,:,:),3),2)
+Metrics_gTilde(:,0,0,0,:) = SUM(SUM(Metrics_gTilde_PP_1(:,:,0,:,:),3),2)
+Metrics_hTilde(:,0,0,0,:) = SUM(SUM(Metrics_hTilde_PP_1(:,:,:,0,:),3),2)
 
 ! Communicate smallest ref. Jacobian and display
 #if USE_MPI

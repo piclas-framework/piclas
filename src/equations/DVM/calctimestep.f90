@@ -84,6 +84,7 @@ DO iElem=1,PP_nElems
     END DO ! j
   END DO ! k
 
+  locTimeStepConv=MIN(locTimeStepConv,CFLScale/Max_Lambda1,CFLScale/Max_Lambda2,CFLScale/Max_Lambda3)
 ! VERSION 3: ---------------------------------
 !   locTimeStepConv=MIN(locTimeStepConv,CFLScale*2./(Max_Lambda1))
 ! --------------------------------------------
@@ -91,7 +92,7 @@ DO iElem=1,PP_nElems
 !  locTimeStepConv=MIN(locTimeStepConv,CFLScale*2./SQRT(Max_Lambda1**2+Max_Lambda2**2+Max_Lambda3**2))
 ! --------------------------------------------
 ! VERSION 1: linear superposition
-  locTimeStepConv=MIN(locTimeStepConv,CFLScale*2./(Max_Lambda1+Max_Lambda2+Max_Lambda3))
+!  locTimeStepConv=MIN(locTimeStepConv,CFLScale*2./(Max_Lambda1+Max_Lambda2+Max_Lambda3))
 ! --------------------------------------------
   IF(locTimeStepConv.NE.locTimeStepConv)THEN
     ERRWRITE(*,'(A,I0,A,I0,A,I0,A,I0)')'Convective timestep NaN on proc ',myRank,' at global position (iElem): ',iElem
