@@ -492,7 +492,7 @@ PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal
 PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr))
 
 IF(FPC%nFPCBounds.GT.0)THEN
-  PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nGP_face,lambda_local_conductors_petsc,ierr))
+  PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,lambda_local_conductors_petsc,ierr))
   PetscCallA(ISCreateStride(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,0,1,idx_local_conductors_petsc,ierr))
   ALLOCATE(indx(FPC%nUniqueFPCBounds))
   DO i=1,FPC%nUniqueFPCBounds
