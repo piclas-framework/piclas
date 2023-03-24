@@ -882,6 +882,8 @@ DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
       ! Calculate the sum across the sub-communicator. Only the MPI root process needs this information
       IF(MPIRoot)THEN
         CALL MPI_REDUCE(WithSides, nProcsWithSides, 1 ,MPI_INTEGER, MPI_SUM, 0, COMM, iError)
+        ! Sanity check
+        IF(nProcsWithSides.EQ.0) CALL abort(__STAMP__,'Found FPC with no processors connected to it')
       ELSE
         CALL MPI_REDUCE(WithSides, 0              , 1 ,MPI_INTEGER, MPI_SUM, 0, COMM, IError)
       END IF ! MPIRoot
