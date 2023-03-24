@@ -164,7 +164,8 @@ TYPE tMPIGROUP
   INTEGER                     :: ID                  !< MPI communicator ID
   INTEGER                     :: UNICATOR            !< MPI communicator for floating boundary condition
   INTEGER                     :: Request             !< MPI request for asynchronous communication
-  INTEGER                     :: nProcs              !< number of MPI processes for particles
+  INTEGER                     :: nProcs              !< number of MPI processes part of the FPC group
+  INTEGER                     :: nProcsWithSides     !< number of MPI processes part of the FPC group and actual FPC sides
   INTEGER                     :: MyRank              !< MyRank of PartMPIVAR%COMM
   LOGICAL                     :: MPIRoot             !< Root, MPIRank=0
   INTEGER,ALLOCATABLE         :: GroupToComm(:)      !< list containing the rank in PartMPI%COMM
@@ -173,6 +174,8 @@ END TYPE
 #endif /*USE_MPI*/
 
 TYPE tFPC
+  REAL,ALLOCATABLE            :: Voltage(:)         !< Electric potential on floating boundary condition for each (required) BC index over all processors. This is the value that is reduced to the MPI root process
+  REAL,ALLOCATABLE            :: VoltageProc(:)     !< Electric potential on floating boundary condition for each (required) BC index for a single processor. This value is non-zero only when the processor has an actual FPC side
   REAL,ALLOCATABLE            :: Charge(:)          !< Accumulated charge on floating boundary condition for each (required) BC index over all processors
   REAL,ALLOCATABLE            :: ChargeProc(:)      !< Accumulated charge on floating boundary condition for each (required) BC index for a single processor
 #if USE_MPI

@@ -164,7 +164,7 @@ IF(MPIROOT)THEN
       !-- Electric displacement current
       IF(CalcElectricTimeDerivative) nOutputVarTotal = nOutputVarTotal + EDC%NBoundaries
       !-- Floating boundary condition
-      IF(FPC%nFPCBounds.GT.0) nOutputVarTotal = nOutputVarTotal + FPC%nUniqueFPCBounds
+      IF(FPC%nFPCBounds.GT.0) nOutputVarTotal = nOutputVarTotal + 2*FPC%nUniqueFPCBounds ! Charge and Voltage on each FPC
 #endif /*USE_HDG*/
 #if (PP_nVar==8)
       IF(.NOT.CalcEpot) nOutputVarTotal = nOutputVarTotal - 5
@@ -218,7 +218,10 @@ IF(MPIROOT)THEN
       IF(FPC%nFPCBounds.GT.0)THEN
         DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
           nOutputVarTotal = nOutputVarTotal + 1
-          WRITE(StrVarNameTmp,'(A,I0.3)') 'FPC-BCState-',FPC%BCState(iUniqueFPCBC)
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'FPC-Charge-BCState-',FPC%BCState(iUniqueFPCBC)
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'FPC-Voltage-BCState-',FPC%BCState(iUniqueFPCBC)
           WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
         END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
       END IF
@@ -334,6 +337,7 @@ IF(MPIROOT)THEN
   IF(FPC%nFPCBounds.GT.0)THEN
     DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',FPC%Charge(iUniqueFPCBC)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',FPC%Voltage(iUniqueFPCBC)
     END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   END IF
 #endif /*USE_HDG*/

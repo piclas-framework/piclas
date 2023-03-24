@@ -212,9 +212,9 @@ END IF
 
 !CG parameters
 #if USE_PETSC
-SWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: PETSc '
+LBWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: PETSc '
 #else
-SWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: CG '
+LBWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: CG '
 #endif /*USE_PETSC*/
 PrecondType          = GETINT('PrecondType')
 epsCG                = GETREAL('epsCG')
@@ -672,7 +672,7 @@ IMPLICIT NONE
 INTEGER             :: BCType,BCState,iUniqueFPCBC
 INTEGER             :: SideID,iBC
 #if USE_MPI
-INTEGER             :: color
+INTEGER             :: color,WithSides
 LOGICAL,ALLOCATABLE :: BConProc(:)
 #if defined(PARTICLES)
 INTEGER             :: iElem
@@ -732,7 +732,11 @@ DO iBC=1,nBCs
   FPC%BCState(iUniqueFPCBC) = BCState
 END DO
 
-! Allocate the container
+! Allocate the containers
+ALLOCATE(FPC%Voltage(1:FPC%nUniqueFPCBounds))
+FPC%Voltage = 0.
+ALLOCATE(FPC%VoltageProc(1:FPC%nUniqueFPCBounds))
+FPC%VoltageProc = 0.
 ALLOCATE(FPC%Charge(1:FPC%nUniqueFPCBounds))
 FPC%Charge = 0.
 ALLOCATE(FPC%ChargeProc(1:FPC%nUniqueFPCBounds))
@@ -861,6 +865,29 @@ DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   END IF ! BConProc(iUniqueFPCBC)
 END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
 DEALLOCATE(BConProc)
+
+! Get the number of procs that actually have a local BC side that is an FPC (required for voltage output to .csv)
+! Procs might have zero FPC sides but are in the group because 1.) MPIRoot or 2.) the FPC is in the halo region
+! Because only the MPI root process writes the .csv data, the information regarding the voltage on each FPC must be
+! communicated with this process even though it might not be connected to each FPC boundary
+DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+  ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR, nProcsWithSides => FPC%COMM(iUniqueFPCBC)%nProcsWithSides )
+    IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+      ! Check if the current processor is actually connected to the FPC via a BC side
+      IF(FPC%Group(FPC%BCState(iUniqueFPCBC),3).EQ.0)THEN
+        WithSides = 0
+      ELSE
+        WithSides = 1
+      END IF ! FPC%Group(FPC%BCState(iUniqueFPCBC),3).EQ.0
+      ! Calculate the sum across the sub-communicator. Only the MPI root process needs this information
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(WithSides, nProcsWithSides, 1 ,MPI_INTEGER, MPI_SUM, 0, COMM, iError)
+      ELSE
+        CALL MPI_REDUCE(WithSides, 0              , 1 ,MPI_INTEGER, MPI_SUM, 0, COMM, IError)
+      END IF ! MPIRoot
+    END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
+  END ASSOCIATE
+END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
 #endif /*USE_MPI*/
 
 
@@ -1165,7 +1192,7 @@ DO iVar = 1, PP_nVar
     FPC%Charge = FPC%Charge + FPC%ChargeProc
 #endif /*USE_MPI*/
     FPC%ChargeProc = 0.
-    ! Apply charge to RHS
+    ! Apply charge to RHS, which this is done below: RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
 
   END IF ! FPC%nFPCBounds.GT.0
 #endif /*USE_PETSC && defined(PARTICLES)*/
@@ -1326,6 +1353,7 @@ DO iVar=1, PP_nVar
     PetscCallA(VecScatterBegin(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
     PetscCallA(VecScatterEnd(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
     PetscCallA(VecGetArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
+    FPC%VoltageProc = 0. ! nullify just to be safe
     ! TODO multiple conductors
     DO BCsideID=1,nConductorBCsides
       SideID=ConductorBC(BCSideID)
@@ -1333,7 +1361,40 @@ DO iVar=1, PP_nVar
       DO i=1,nGP_face
         lambda(1,:,SideID) = lambda_pointer(1 + (FPC%Group(BCState,2) - 1) * nGP_face)
       END DO
+      ! Copy the value to the FPC container for output to .csv (only mpi root does this)
+      FPC%VoltageProc(FPC%Group(BCState,2)) = lambda(1,1,SideID)
     END DO
+#if USE_MPI
+    ! Sum the voltages across each sub-group and divide by the size of the group to get the voltage. This is required if the MPI
+    ! root is not connected to every FPC (which is usually the case)
+    !
+    ! 1. Communicate the accumulated voltage (should be the same on each proc that has such a BC) on each BC to all processors on the
+    ! communicator
+    FPC%Voltage = 0.
+    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR )
+        IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+          ASSOCIATE( VoltageProc => FPC%VoltageProc(iUniqueFPCBC), Voltage => FPC%Voltage(iUniqueFPCBC) )
+            IF(MPIroot)THEN
+              CALL MPI_REDUCE(VoltageProc, Voltage, 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, iError)
+            ELSE
+              CALL MPI_REDUCE(VoltageProc, 0      , 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IError)
+            END IF ! MPIroot
+          END ASSOCIATE
+        END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
+      END ASSOCIATE
+    END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+
+    ! 2. Divide by group size (procs that have an actual FPC BC side -> FPC%COMM(iUniqueFPCBC)%nProcsWithSides).
+    !    The MPI root process definitely has the size of each group, which is at least 1.
+    IF(MPIRoot)THEN
+      DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+        FPC%Voltage(iUniqueFPCBC) = FPC%Voltage(iUniqueFPCBC) / REAL(FPC%COMM(iUniqueFPCBC)%nProcsWithSides)
+      END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+    END IF ! MPIRoot
+#else
+    FPC%Voltage = FPC%VoltageProc
+#endif /*USE_MPI*/
     PetscCallA(VecRestoreArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
   END IF ! FPC%nFPCBounds.GT.0
 
@@ -2552,8 +2613,11 @@ SDEALLOCATE(MaskedSide)
 SDEALLOCATE(SmallMortarInfo)
 SDEALLOCATE(IntMatMortar)
 
+SDEALLOCATE(ConductorBC)
 SDEALLOCATE(FPC%Group)
 SDEALLOCATE(FPC%BCState)
+SDEALLOCATE(FPC%Voltage)
+SDEALLOCATE(FPC%VoltageProc)
 SDEALLOCATE(FPC%Charge)
 SDEALLOCATE(FPC%ChargeProc)
 #if USE_MPI
