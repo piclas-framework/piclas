@@ -892,8 +892,100 @@ DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
 END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
 #endif /*USE_MPI*/
 
+! When restarting, load the deposited charge on each FPC from the .h5 state file
+CALL ReadFPCDataFromH5()
 
 END SUBROUTINE InitFPC
+
+!===================================================================================================================================
+!> Read the electric charge that resides on each FPC boundary from .h5 state file.
+!> 1. The MPI root process reads the info and checks data consistency
+!> 2. The MPI root process distributes the information among the sub-communicator processes for each FPC
+!===================================================================================================================================
+SUBROUTINE ReadFPCDataFromH5()
+! MODULES
+USE MOD_Globals            ,ONLY: myrank,MPI_COMM_WORLD
+USE MOD_io_hdf5
+USE MOD_Globals            ,ONLY: UNIT_stdOut,MPIRoot,IERROR,IK,MPI_COMM_NULL, MPI_DOUBLE_PRECISION, abort
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
+USE MOD_IO_HDF5            ,ONLY: OpenDataFile,CloseDataFile,File_ID
+USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartFile
+USE MOD_HDF5_Input         ,ONLY: DatasetExists,ReadArray,GetDataSize
+USE MOD_HDG_Vars           ,ONLY: FPC
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iUniqueFPCBC,nFPCHDF5,nDimsFPC
+CHARACTER(255)     :: ContainerName
+CHARACTER(1000)    :: TmpStr
+LOGICAL            :: FPCExists
+REAL,ALLOCATABLE   :: FPCDataHDF5(:)
+INTEGER(HSIZE_T), POINTER :: HSizeFPC(:)
+!===================================================================================================================================
+! Only required during restart
+IF(.NOT.DoRestart) RETURN
+
+#if USE_LOADBALANCE
+! Do not try to read the data from .h5 if load balance is performed without creating a .h5 restart file
+IF(PerformLoadBalance.AND.UseH5IOLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
+
+
+! 1. The MPI root process reads the info and checks data consistency
+! Only root reads the values and distributes them via MPI Broadcast
+IF(MPIRoot)THEN
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+  ! Check old parameter name
+  ContainerName='FloatingPotentialCharge'
+  CALL DatasetExists(File_ID,TRIM(ContainerName),FPCExists)
+  ! Check for new parameter name
+  IF(FPCExists)THEN
+    CALL GetDataSize(File_ID,TRIM(ContainerName),nDimsFPC,HSizeFPC)
+    CHECKSAFEINT(HSizeFPC(2),4)
+    nFPCHDF5=INT(HSizeFPC(2),4)
+    DEALLOCATE(HSizeFPC)
+    IF(nFPCHDF5.NE.FPC%nUniqueFPCBounds)THEN
+      WRITE(UNIT_StdOut,*) "nFPCHDF5 (restart file) must be equal FPC%nUniqueFPCBounds"
+      WRITE(UNIT_StdOut,*) "nFPCHDF5             =", nFPCHDF5
+      WRITE(UNIT_StdOut,*) "FPC%nUniqueFPCBounds =", FPC%nUniqueFPCBounds
+      CALL abort(__STAMP__,'Restarting with a different number of FPC boundaries, which is not implemented!')
+    END IF ! nFPCHDF5.NE.FPC%nUniqueFPCBounds
+
+    ! Allocate the containers
+    ALLOCATE(FPCDataHDF5(FPC%nUniqueFPCBounds))
+    CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , INT(FPC%nUniqueFPCBounds,IK)/) , 0_IK , 1 , RealArray=FPCDataHDF5)
+    TmpStr=''
+    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      ! Output in this format: ", 1: 1.312e2 [C]" + ", 2: 3.352e3 [C]" + ...
+      WRITE(TmpStr,'(A,I0,A,ES10.3,A)') TRIM(TmpStr)//', ',iUniqueFPCBC,': ',FPCDataHDF5(iUniqueFPCBC),' [C]'
+    END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+    TmpStr(1:1) = ' ' ! Remove first comma
+    TmpStr      = ADJUSTL(TmpStr) ! Remove leading white spaces
+    WRITE(UNIT_stdOut,'(A)') " Read floating boundary condition charges from restart file ["//TRIM(RestartFile)//"]: "//TRIM(TmpStr)
+    FPC%Charge(:) = FPCDataHDF5
+    DEALLOCATE(FPCDataHDF5)
+  END IF ! FPCExists
+  CALL CloseDataFile()
+END IF ! MPIRoot
+
+! 2. The MPI root process distributes the information among the sub-communicator processes for each FPC
+#if USE_MPI
+DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+  ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR )
+    IF(COMM.NE.MPI_COMM_NULL)THEN
+      ! Broadcast from root to other processors on the sub-communicator
+      CALL MPI_BCAST(FPC%Charge(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, 0, COMM, iERROR)
+    END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
+  END ASSOCIATE
+END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+#endif /*USE_MPI*/
+
+END SUBROUTINE ReadFPCDataFromH5
 
 
 !===================================================================================================================================

@@ -72,7 +72,7 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: nGP_face, iLocSides
+USE MOD_HDG_Vars               ,ONLY: nGP_face, iLocSides, FPC
 #if PP_nVar==1
 USE MOD_Equation_Vars          ,ONLY: E,Et
 #elif PP_nVar==3
@@ -170,6 +170,8 @@ INTEGER                        :: SortedOffset,SortedStart,SortedEnd
 #ifdef PARTICLES
 INTEGER                        :: i,j,k,iElem
 #endif /*PARTICLES*/
+REAL,ALLOCATABLE               :: FPCDataHDF5(:,:)
+INTEGER                        :: nVarFPC
 #endif /*USE_HDG*/
 !===================================================================================================================================
 #ifdef EXTRAE
@@ -587,6 +589,22 @@ IF(CalcPCouplElectricPotential.AND.MPIRoot)THEN
 END IF ! CalcBulkElectronTempi.AND.MPIRoot
 #endif /*USE_HDG*/
 #endif /*PARTICLES*/
+
+#if USE_HDG
+IF((FPC%nFPCBounds.GT.0).AND.MPIRoot)THEN
+  nVarFPC = FPC%nUniqueFPCBounds
+  ALLOCATE(FPCDataHDF5(1:nVarFPC,1))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  FPCDataHDF5(1:nVarFPC,1) = FPC%Charge(1:nVarFPC)
+  CALL WriteArrayToHDF5( DataSetName = 'FloatingPotentialCharge' , rank = 2   , &
+                         nValGlobal  = (/1_IK , INT(nVarFPC,IK)/), &
+                         nVal        = (/1_IK , INT(nVarFPC,IK)/), &
+                         offset      = (/0_IK , 0_IK/)                        , &
+                         collective  = .FALSE., RealArray = FPCDataHDF5(1:nVarFPC,1))
+  CALL CloseDataFile()
+  DEALLOCATE(FPCDataHDF5)
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#endif /*USE_HDG*/
 
 #if USE_LOADBALANCE
 ! Write 'ElemTime' to a separate container in the state.h5 file
