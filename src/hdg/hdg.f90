@@ -464,7 +464,7 @@ ELSE
   PetscCallA(KSPSetType(ksp,KSPCG,ierr)) ! CG solver for sparse symmetric positive definite matrix
 
   PetscCallA(KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr))
-  
+
   PetscCallA(KSPSetNormType(ksp, KSP_NORM_UNPRECONDITIONED, ierr))
   PetscCallA(KSPSetTolerances(ksp,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
 END IF
@@ -1451,6 +1451,18 @@ DO iVar=1, PP_nVar
   PetscCallA(KSPGetIterationNumber(ksp,iterations,ierr))
   PetscCallA(KSPGetConvergedReason(ksp,reason,ierr))
   PetscCallA(KSPGetResidualNorm(ksp,petscnorm,ierr))
+  ! reason - negative value indicates diverged, positive value converged, see KSPConvergedReason
+  !  -2: KSP_DIVERGED_NULL
+  !  -3: KSP_DIVERGED_ITS            -> Ran out of iterations before any convergence criteria was reached
+  !  -4: KSP_DIVERGED_DTOL           -> norm(r) >= dtol*norm(b)
+  !  -5: KSP_DIVERGED_BREAKDOWN      -> Breakdown in the Krylov method: the method could not continue to enlarge the Krylov space
+  !  -6: KSP_DIVERGED_BREAKDOWN_BICG -> Breakdown in the Krylov method: the method could not continue to enlarge the Krylov space
+  !  -7: KSP_DIVERGED_NONSYMMETRIC   -> It appears the operator or preconditioner is not symmetric and this Krylov method
+  !  -8: KSP_DIVERGED_INDEFINITE_PC  -> It appears the preconditioner is indefinite
+  !  -9: KSP_DIVERGED_NANORINF
+  ! -10: KSP_DIVERGED_INDEFINITE_MAT
+  ! -11: KSP_DIVERGED_PC_FAILED      -> It was not possible to build or use the requested preconditioner
+  ! -11: KSP_DIVERGED_PCSETUP_FAILED_DEPRECATED
   IF(reason.LT.0)THEN
     SWRITE(*,*) 'Attention: PETSc not converged! Reason: ', reason
   END IF

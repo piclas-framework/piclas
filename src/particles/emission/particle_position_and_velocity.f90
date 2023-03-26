@@ -365,6 +365,11 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck
 USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
+#if USE_HDG
+USE MOD_HDG_Vars                ,ONLY: FPC
+USE MOD_Mesh_Vars               ,ONLY: BoundaryType
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+#endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)              :: FractNbr,iInit
@@ -377,6 +382,9 @@ INTEGER                         :: i, PositionNbr
 CHARACTER(30)                   :: velocityDistribution
 REAL                            :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
 REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3),MPF
+#if USE_HDG
+INTEGER                         :: iBC,iUniqueFPCBC,BCState
+#endif /*USE_HDG*/
 !===================================================================================================================================
 
 IF(NbrOfParticle.LT.1) RETURN
@@ -456,17 +464,37 @@ CASE('photon_SEE_energy')
     IF (PositionNbr .NE. 0) THEN
         CALL CalcVelocity_FromWorkFuncSEE(FractNbr, Vec3D, iInit=iInit)
         PartState(4:6,PositionNbr) = Vec3D(1:3)
-        ! Store the particle information in PartStateBoundary.h5
-        IF(DoBoundaryParticleOutputHDF5) THEN
-          IF(usevMPF)THEN
-            MPF = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
-          ELSE
-            MPF = Species(FractNbr)%MacroParticleFactor ! Use species MPF
-          END IF ! usevMPF
-          CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
-               UNITVECTOR(PartState(4:6,PositionNbr)),Species(FractNbr)%Init(iInit)%NormalIC,&
-               iPartBound=Species(FractNbr)%Init(iInit)%PartBCIndex,mode=2,MPF_optIN=MPF)
-        END IF ! DoBoundaryParticleOutputHDF5
+        ASSOCIATE( PartBCIndex => Species(FractNbr)%Init(iInit)%PartBCIndex)
+
+          ! 1. Store the particle information in PartStateBoundary.h5
+          IF(DoBoundaryParticleOutputHDF5) THEN
+            IF(usevMPF)THEN
+              MPF = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
+            ELSE
+              MPF = Species(FractNbr)%MacroParticleFactor ! Use species MPF
+            END IF ! usevMPF
+            CALL StoreBoundaryParticleProperties(PositionNbr,FractNbr,PartState(1:3,PositionNbr),&
+                 UNITVECTOR(PartState(4:6,PositionNbr)),Species(FractNbr)%Init(iInit)%NormalIC,&
+                 iPartBound=PartBCIndex,mode=2,MPF_optIN=MPF)
+          END IF ! DoBoundaryParticleOutputHDF5
+
+          ! 2. Check if floating boundary conditions (FPC) are used and consider electron holes
+          IF(FPC%nFPCBounds.GT.0)THEN
+            iBC = PartBound%MapToFieldBC(PartBCIndex)
+            IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
+            IF(BoundaryType(iBC,BC_TYPE).EQ.20)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
+              IF(usevMPF)THEN
+                MPF = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
+              ELSE
+                MPF = Species(FractNbr)%MacroParticleFactor ! Use species MPF
+              END IF
+              BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
+              iUniqueFPCBC = FPC%Group(BCState,2)
+              FPC%ChargeProc(iUniqueFPCBC) = FPC%ChargeProc(iUniqueFPCBC) - Species(FractNbr)%ChargeIC * MPF ! Use negative charge!
+            END IF ! BCType.EQ.20
+          END IF ! FPC%nFPCBounds.GT.0
+
+        END ASSOCIATE
     END IF
   END DO
 CASE DEFAULT
