@@ -736,8 +736,11 @@ DO iBC=1,nBCs
 END DO
 
 ! Allocate the containers
-ALLOCATE(FPC%Voltage(1:FPC%nUniqueFPCBounds))
-FPC%Voltage = 0.
+! This container is not deallocated for MPIRoot when performing load balance (only root needs this info to write it to .csv)
+IF(.NOT.ALLOCATED(FPC%Voltage))THEN
+  ALLOCATE(FPC%Voltage(1:FPC%nUniqueFPCBounds))
+  FPC%Voltage = 0.
+END IF ! .NOT.ALLOCATED(FPC%Voltage)
 ALLOCATE(FPC%VoltageProc(1:FPC%nUniqueFPCBounds))
 FPC%VoltageProc = 0.
 ! This container is not deallocated for MPIRoot when performing load balance as this process updates the information on the new
