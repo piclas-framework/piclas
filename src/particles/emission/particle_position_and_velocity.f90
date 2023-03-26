@@ -478,6 +478,7 @@ CASE('photon_SEE_energy')
                  iPartBound=PartBCIndex,mode=2,MPF_optIN=MPF)
           END IF ! DoBoundaryParticleOutputHDF5
 
+#if USE_HDG
           ! 2. Check if floating boundary conditions (FPC) are used and consider electron holes
           IF(FPC%nFPCBounds.GT.0)THEN
             iBC = PartBound%MapToFieldBC(PartBCIndex)
@@ -493,6 +494,7 @@ CASE('photon_SEE_energy')
               FPC%ChargeProc(iUniqueFPCBC) = FPC%ChargeProc(iUniqueFPCBC) - Species(FractNbr)%ChargeIC * MPF ! Use negative charge!
             END IF ! BCType.EQ.20
           END IF ! FPC%nFPCBounds.GT.0
+#endif /*USE_HDG*/
 
         END ASSOCIATE
     END IF
