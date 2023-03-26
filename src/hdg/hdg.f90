@@ -39,6 +39,7 @@ END INTERFACE
 PUBLIC :: InitHDG,FinalizeHDG
 PUBLIC :: HDG, RestartHDG
 PUBLIC :: DefineParametersHDG
+PUBLIC :: SynchronizeChargeOnFPC
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -737,8 +738,12 @@ ALLOCATE(FPC%Voltage(1:FPC%nUniqueFPCBounds))
 FPC%Voltage = 0.
 ALLOCATE(FPC%VoltageProc(1:FPC%nUniqueFPCBounds))
 FPC%VoltageProc = 0.
-ALLOCATE(FPC%Charge(1:FPC%nUniqueFPCBounds))
-FPC%Charge = 0.
+! This container is not deallocated for MPIRoot when performing load balance as this process updates the information on the new
+! sub-communicator processes during load balance
+IF(.NOT.ALLOCATED(FPC%Charge))THEN
+  ALLOCATE(FPC%Charge(1:FPC%nUniqueFPCBounds))
+  FPC%Charge = 0.
+END IF ! .NOT.ALLOCATED(FPC%Charge)
 ALLOCATE(FPC%ChargeProc(1:FPC%nUniqueFPCBounds))
 FPC%ChargeProc = 0.
 
@@ -932,9 +937,8 @@ IF(.NOT.DoRestart) RETURN
 
 #if USE_LOADBALANCE
 ! Do not try to read the data from .h5 if load balance is performed without creating a .h5 restart file
-IF(PerformLoadBalance.AND.UseH5IOLoadBalance) RETURN
+IF(PerformLoadBalance.AND..NOT.(UseH5IOLoadBalance)) RETURN
 #endif /*USE_LOADBALANCE*/
-
 
 ! 1. The MPI root process reads the info and checks data consistency
 ! Only root reads the values and distributes them via MPI Broadcast
@@ -973,19 +977,41 @@ IF(MPIRoot)THEN
   CALL CloseDataFile()
 END IF ! MPIRoot
 
-! 2. The MPI root process distributes the information among the sub-communicator processes for each FPC
 #if USE_MPI
+! 2. The MPI root process distributes the information among the sub-communicator processes for each FPC
+CALL SynchronizeChargeOnFPC()
+#endif /*USE_MPI*/
+
+END SUBROUTINE ReadFPCDataFromH5
+
+
+#if USE_MPI
+!===================================================================================================================================
+!> The MPI root process distributes the information among the sub-communicator processes for each FPC
+!===================================================================================================================================
+SUBROUTINE SynchronizeChargeOnFPC()
+! MODULES
+USE MOD_Globals  ,ONLY: MPI_COMM_WORLD,myrank,mpiroot,UNIT_stdOut
+USE MOD_HDG_Vars ,ONLY: FPC
+USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
+! insert modules here
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iUniqueFPCBC
+!===================================================================================================================================
 DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR )
     IF(COMM.NE.MPI_COMM_NULL)THEN
       ! Broadcast from root to other processors on the sub-communicator
-      CALL MPI_BCAST(FPC%Charge(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, 0, COMM, iERROR)
+      CALL MPI_BCAST(FPC%Charge(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, 0, COMM, IERROR)
     END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
   END ASSOCIATE
 END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+END SUBROUTINE SynchronizeChargeOnFPC
 #endif /*USE_MPI*/
-
-END SUBROUTINE ReadFPCDataFromH5
 
 
 !===================================================================================================================================
@@ -2707,12 +2733,24 @@ SDEALLOCATE(MaskedSide)
 SDEALLOCATE(SmallMortarInfo)
 SDEALLOCATE(IntMatMortar)
 
+#if USE_LOADBALANCE
+! MPIRoot does not deallocate during load balance because this process sends the info to the other processors via the respective
+! sub-communicators after the new domain decomposition is performed
+IF(MPIRoot)THEN
+  IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
+#endif /*USE_LOADBALANCE*/
+    SDEALLOCATE(FPC%Charge)
+#if USE_LOADBALANCE
+  END IF ! .NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))
+ELSE
+  SDEALLOCATE(FPC%Charge)
+END IF ! MPIRoot
+#endif /*USE_LOADBALANCE*/
 SDEALLOCATE(ConductorBC)
 SDEALLOCATE(FPC%Group)
 SDEALLOCATE(FPC%BCState)
 SDEALLOCATE(FPC%Voltage)
 SDEALLOCATE(FPC%VoltageProc)
-SDEALLOCATE(FPC%Charge)
 SDEALLOCATE(FPC%ChargeProc)
 #if USE_MPI
 SDEALLOCATE(FPC%COMM)
