@@ -39,7 +39,9 @@ END INTERFACE
 PUBLIC :: InitHDG,FinalizeHDG
 PUBLIC :: HDG, RestartHDG
 PUBLIC :: DefineParametersHDG
+#if USE_MPI
 PUBLIC :: SynchronizeChargeOnFPC
+#endif /*USE_MPI*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -911,7 +913,7 @@ SUBROUTINE ReadFPCDataFromH5()
 ! MODULES
 USE MOD_Globals            ,ONLY: myrank,MPI_COMM_WORLD
 USE MOD_io_hdf5
-USE MOD_Globals            ,ONLY: UNIT_stdOut,MPIRoot,IERROR,IK,MPI_COMM_NULL, MPI_DOUBLE_PRECISION, abort
+USE MOD_Globals            ,ONLY: UNIT_stdOut,MPIRoot,IERROR,IK,abort
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
