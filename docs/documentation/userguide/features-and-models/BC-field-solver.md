@@ -91,6 +91,7 @@ as detailed in the following table.
 |              |           |                                                                                                                            |
 |   (/10,0/)   |  Neumann  | zero-gradient (dPhi/dn=0)                                                                                                  |
 |   (/11,0/)   |  Neumann  | q*n=1                                                                                                                      |
+|   (/20,1/)   |    FPC    | 1: Assign BC to FPC group nbr. 1 (different BCs can be assigned the same FPC), see {ref}`sec:floating-boundary-condition`  |
 
 ### RefState boundaries {-}
 
@@ -153,6 +154,23 @@ following example
     LinPhiNormal    = (/1. , 0. , 0./) ! 2nd LinState
     LinPhiHeight    = 1.0              ! 2nd LinState
     LinPhi          = 0.0              ! 2nd LinState
+
+(sec:floating-boundary-condition)=
+### Floating boundary condition (FPC)
+A floating boundary condition (FPC) can be used to model a perfect electric conducting surface. The surface can carry a charge $Q$,
+which might change over time. however, the requirement is that the surface yields a closed surface integral in 3D (or 2D with
+periodic/symmetric boundaries in the 3rd dimension). One or more FPCs can be set via
+
+    BoundaryName = BC_FPC_1 ! BC name in the mesh.h5 file
+    BoundaryType = (/20,1/) ! 20: activate FPC, 1: Index of the FPC group to which this BC belongs (1st group)
+
+    BoundaryName = BC_FPC_2 ! BC name in the mesh.h5 file
+    BoundaryType = (/20,2/) ! 20: activate FPC, 2: Index of the FPC group to which this BC belongs (2nd group)
+
+For this boundary condition, the charge assigned to each FPC and the resulting potential are written to *FieldAnalyze.csv*
+automatically, e.g., "007-FPC-Charge-BCState-001","008-FPC-Voltage-BCState-001", where *BCState* corresponds to the ID of the FPC.
+If the particle boundary condition is set to *open* (or *species-swap*), then each impacting charged particle that is removed there,
+will be added to the accumulated charge on that FPC.
 
 (sec:fixed-coupled-power)=
 ### Fixed coupled power (const. input power)
