@@ -156,8 +156,8 @@ REAL                  :: DeltaTimeBRWindow             !< Time length when BR is
 LOGICAL               :: BRNullCollisionDefault        !< Flag (backup of read-in parameter) whether null collision method
                                                        !< (determining number of pairs based on maximum relaxation frequency) is used
 #endif /*defined(PARTICLES)*/
-!===================================================================================================================================
-!-- Floating boundary condition
+
+! --- Sub-communicator groups
 
 #if USE_MPI
 TYPE tMPIGROUP
@@ -172,6 +172,12 @@ TYPE tMPIGROUP
   INTEGER,ALLOCATABLE         :: CommToGroup(:)      !< list containing the rank in PartMPI%COMM
 END TYPE
 #endif /*USE_MPI*/
+
+!===================================================================================================================================
+!-- Floating boundary condition
+!===================================================================================================================================
+
+LOGICAL                       :: UseFPC             !< Automatic flag when FPCs are active
 
 TYPE tFPC
   REAL,ALLOCATABLE            :: Voltage(:)         !< Electric potential on floating boundary condition for each (required) BC index over all processors. This is the value that is reduced to the MPI root process
@@ -197,7 +203,36 @@ END TYPE
 
 TYPE(tFPC)   :: FPC
 !===================================================================================================================================
+!-- Electric Potential Condition (for decharging )
+!===================================================================================================================================
 
+LOGICAL                       :: UseEPC             !< Automatic flag when EPCs are active
+
+TYPE tEPC
+  REAL,ALLOCATABLE            :: Voltage(:)         !< Electric potential on floating boundary condition for each (required) BC index over all processors. This is the value that is reduced to the MPI root process
+  REAL,ALLOCATABLE            :: VoltageProc(:)     !< Electric potential on floating boundary condition for each (required) BC index for a single processor. This value is non-zero only when the processor has an actual EPC side
+  REAL,ALLOCATABLE            :: Charge(:)          !< Accumulated charge on floating boundary condition for each (required) BC index over all processors
+  REAL,ALLOCATABLE            :: ChargeProc(:)      !< Accumulated charge on floating boundary condition for each (required) BC index for a single processor
+  REAL,ALLOCATABLE            :: Resistance(:)      !< Vector (length corresponds to the number of EPC boundaries) with the resistance for each EPC in Ohm
+#if USE_MPI
+  TYPE(tMPIGROUP),ALLOCATABLE :: COMM(:)            !< communicator and ID for parallel execution
+#endif /*USE_MPI*/
+  !INTEGER                     :: NBoundaries       !< Total number of boundaries where the floating boundary condition is evaluated
+  INTEGER                     :: nEPCBounds         !< Global number of boundaries that are EPC with BCType=20 in [1:nBCs],
+!                                                   !< they might belong to the same group (electrically connected)
+  INTEGER                     :: nUniqueEPCBounds   !< Global number of independent EPC after grouping certain BC sides together
+!                                                   !< (electrically connected) with the same BCState ID
+  INTEGER,ALLOCATABLE         :: BCState(:)         !< BCState of the i-th EPC index
+  !INTEGER,ALLOCATABLE         :: BCIDToEPCBCID(:)  !< Mapping BCID to EPC BCID (1:nPartBound)
+  INTEGER,ALLOCATABLE         :: Group(:,:)         !< EPC%Group(1:EPC%nEPCBounds,3)
+                                                    !<   1: BCState
+                                                    !<   2: iUniqueEPC (i-th EPC group ID)
+                                                    !<   3: number of BCSides for each EPC group
+  INTEGER,ALLOCATABLE         :: GroupGlobal(:)     !< Sum of nSides associated with each i-th EPC boundary
+END TYPE
+
+TYPE(tEPC)   :: EPC
+!===================================================================================================================================
 
 #if USE_MPI
 !no interface for reshape inout vector

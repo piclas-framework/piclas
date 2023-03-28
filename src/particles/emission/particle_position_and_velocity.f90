@@ -366,7 +366,7 @@ USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck
 USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #if USE_HDG
-USE MOD_HDG_Vars                ,ONLY: FPC
+USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 #endif /*USE_HDG*/
@@ -383,7 +383,7 @@ CHARACTER(30)                   :: velocityDistribution
 REAL                            :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
 REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3),MPF
 #if USE_HDG
-INTEGER                         :: iBC,iUniqueFPCBC,BCState
+INTEGER                         :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -480,7 +480,7 @@ CASE('photon_SEE_energy')
 
 #if USE_HDG
           ! 2. Check if floating boundary conditions (FPC) are used and consider electron holes
-          IF(FPC%nFPCBounds.GT.0)THEN
+          IF(UseFPC)THEN
             iBC = PartBound%MapToFieldBC(PartBCIndex)
             IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
             IF(BoundaryType(iBC,BC_TYPE).EQ.20)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
@@ -493,7 +493,23 @@ CASE('photon_SEE_energy')
               iUniqueFPCBC = FPC%Group(BCState,2)
               FPC%ChargeProc(iUniqueFPCBC) = FPC%ChargeProc(iUniqueFPCBC) - Species(FractNbr)%ChargeIC * MPF ! Use negative charge!
             END IF ! BCType.EQ.20
-          END IF ! FPC%nFPCBounds.GT.0
+          END IF ! UseFPC
+
+          ! 2. Check if electric potential condition (EPC) are used and consider electron holes
+          IF(UseEPC)THEN
+            iBC = PartBound%MapToFieldBC(PartBCIndex)
+            IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
+            IF(BoundaryType(iBC,BC_TYPE).EQ.8)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
+              IF(usevMPF)THEN
+                MPF = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
+              ELSE
+                MPF = Species(FractNbr)%MacroParticleFactor ! Use species MPF
+              END IF
+              BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
+              iUniqueEPCBC = EPC%Group(BCState,2)
+              EPC%ChargeProc(iUniqueEPCBC) = EPC%ChargeProc(iUniqueEPCBC) - Species(FractNbr)%ChargeIC * MPF ! Use negative charge!
+            END IF ! BCType.EQ.8
+          END IF ! UseEPC
 #endif /*USE_HDG*/
 
         END ASSOCIATE

@@ -148,7 +148,7 @@ USE MOD_DSMC_Vars                 ,ONLY: CollInf
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
 #if USE_HDG
 USE MOD_Globals                   ,ONLY: abort
-USE MOD_HDG_Vars                  ,ONLY: FPC
+USE MOD_HDG_Vars                  ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryType
 #endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -163,7 +163,7 @@ LOGICAL, INTENT(OUT),OPTIONAL :: crossedBC               !< optional flag is nee
 INTEGER                       :: iSpec, iSF
 REAL                          :: MPF
 #if USE_HDG
-INTEGER                       :: iBC,iUniqueFPCBC,BCState
+INTEGER                       :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -225,7 +225,7 @@ IF(PRESENT(BCID)) THEN
 
 #if USE_HDG
   ! Check if floating boundary conditions (FPC) are used
-  IF(FPC%nFPCBounds.GT.0)THEN
+  IF(UseFPC)THEN
     iBC = PartBound%MapToFieldBC(BCID)
     IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(BCID) must be >0',IntInfoOpt=iBC)
     IF(BoundaryType(iBC,BC_TYPE).EQ.20)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
@@ -238,7 +238,23 @@ IF(PRESENT(BCID)) THEN
       iUniqueFPCBC = FPC%Group(BCState,2)
       FPC%ChargeProc(iUniqueFPCBC) = FPC%ChargeProc(iUniqueFPCBC) + Species(iSpec)%ChargeIC * MPF
     END IF ! BCType.EQ.20
-  END IF ! FPC%nFPCBounds.GT.0
+  END IF ! UseFPC
+
+  ! Check if electric potential condition (EPC) is used
+  IF(UseEPC)THEN
+    iBC = PartBound%MapToFieldBC(BCID)
+    IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(BCID) must be >0',IntInfoOpt=iBC)
+    IF(BoundaryType(iBC,BC_TYPE).EQ.8)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
+      IF(usevMPF)THEN
+        MPF = PartMPF(PartID)
+      ELSE
+        MPF = Species(iSpec)%MacroParticleFactor
+      END IF
+      BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
+      iUniqueEPCBC = EPC%Group(BCState,2)
+      EPC%ChargeProc(iUniqueEPCBC) = EPC%ChargeProc(iUniqueEPCBC) + Species(iSpec)%ChargeIC * MPF
+    END IF ! BCType.EQ.8
+  END IF ! UseEPC
 #endif /*USE_HDG*/
 END IF ! PRESENT(BCID)
 

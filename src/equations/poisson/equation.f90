@@ -312,7 +312,7 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 
-SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState,iLinState)
+SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState,iLinState,BCState)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -325,7 +325,7 @@ USE MOD_Equation_Vars   ,ONLY: CoupledPowerPotential
 #endif /*defined(PARTICLES)*/
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
 USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
-USE MOD_HDG_Vars        ,ONLY: FPC
+USE MOD_HDG_Vars        ,ONLY: FPC,EPC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -336,6 +336,7 @@ INTEGER,INTENT(IN),OPTIONAL     :: ElemID           ! ElemID
 REAL,INTENT(IN),OPTIONAl        :: t                ! time
 INTEGER,INTENT(IN),OPTIONAL     :: iRefState        ! i-th reference state
 INTEGER,INTENT(IN),OPTIONAL     :: iLinState        ! i-th linear potential state
+INTEGER,INTENT(IN),OPTIONAL     :: BCState          ! BCState
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative variables
@@ -344,6 +345,8 @@ REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative va
 REAL                            :: Omega,r1,r2,r_2D,r_3D,r_bary,cos_theta,eps1,eps2,xi,a(3),b(3),Q
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
+CASE(-4) ! Electric potential condition (EPC) where charge accumulated over one time step is removed and creates a voltage
+  Resu(:) = EPC%Voltage(EPC%Group(BCState,2))
 CASE(-3) ! linear function with base point, normal vector and heigh: Requires BoundaryType = (/7,X/)
   ASSOCIATE( height => LinPhiHeight(iLinState)    ,&
              phi    => LinPhi(iLinState)          )
@@ -583,8 +586,8 @@ CASE(600) ! 2 cubes with two different charges
   IF(ALLOCATED(FPC%Charge))THEN
     FPC%Charge(1)=5.0
     FPC%Charge(2)=10.0
-    resu = 0.
   END IF ! ALLOCATED(FPC%Charge)
+  resu = 0.
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!', IntInfoOpt=ExactFunction)
 END SELECT ! ExactFunction
