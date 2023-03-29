@@ -796,7 +796,7 @@ ELSE
 
 #if defined(PARTICLES)
   ! Check if all FPCs have already been found
-  IF(.NOT.(ALL(BConProc)) )THEN
+  IF(.NOT.(ALL(BConProc)))THEN
     ! Particles might impact the FPC on another proc/node. Therefore check if a particle can travel from a local element to an
     ! element that has at least one side, which is an FPC
     ! 4.1.) Each processor loops over all of his elements
@@ -945,10 +945,10 @@ USE MOD_Mesh_Vars          ,ONLY: nBCSides,BC
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI && defined(PARTICLES)
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
 USE MOD_Globals            ,ONLY: ElementOnProc
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems,SideInfo_Shared
-USE MOD_MPI_Vars           ,ONLY: offsetElemMPI
-USE MOD_MPI_Shared_Vars    ,ONLY: ComputeNodeRootRank
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,SideInfo_Shared
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
 USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps
 USE MOD_Mesh_Vars          ,ONLY: nElems, offsetElem
 #endif /*USE_MPI && defined(PARTICLES)*/
@@ -964,7 +964,7 @@ INTEGER             :: SideID,iBC
 INTEGER             :: color,WithSides
 LOGICAL,ALLOCATABLE :: BConProc(:)
 #if defined(PARTICLES)
-INTEGER             :: iElem
+INTEGER             :: iElem,iCNElem
 REAL                :: iElemCenter(1:3),iGlobElemCenter(1:3)
 REAL                :: iElemRadius,iGlobElemRadius
 INTEGER             :: iGlobElem,BCIndex,iSide
@@ -1081,60 +1081,66 @@ ELSE
   END DO ! SideID=1,nBCSides
 
 #if defined(PARTICLES)
-  ! Particles might impact the EPC on another proc/node. Therefore check if a particle can travel from a local element to an
-  ! element that has at least one side, which is an EPC
-  ! 4.1.) Each processor loops over all of his elements
-  DO iElem = 1+offsetElem, nElems+offsetElem
+  ! Check if all FPCs have already been found
+  IF(.NOT.(ALL(BConProc)))THEN
+    ! Particles might impact the EPC on another proc/node. Therefore check if a particle can travel from a local element to an
+    ! element that has at least one side, which is an EPC
+    ! 4.1.) Each processor loops over all of his elements
+    iElemLoop: DO iElem = 1+offsetElem, nElems+offsetElem
 
-    iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
-                          SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
-                          SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-    iElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
-                              BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
-                              BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+      iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
+                            SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
+                            SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+      iElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
+                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
+                                BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
-    ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
-    ! Loop ALL compute-node elements (use global element index)
-    iGlobElemLoop: DO iGlobElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
+      ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
+      ! Loop ALL compute-node elements (use global element index)
+      iCNElemLoop: DO iCNElem = 1,nComputeNodeTotalElems
+        iGlobElem = GetGlobalElemID(iCNElem)
 
-      ! Skip my own elements as they have already been tested when the local sides are checked
-      IF(ElementOnProc(iGlobElem)) CYCLE iGlobElemLoop
+        ! Skip my own elements as they have already been tested when the local sides are checked
+        IF(ElementOnProc(iGlobElem)) CYCLE iCNElemLoop
 
-      ! Check if one of the six sides of the compute-node element is a EPC
-      ! Note that iSide is in the range of 1:nNonUniqueGlobalSides
-      DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
-        ! Get BC index of the global side index
-        BCIndex = SideInfo_Shared(SIDE_BCID,iSide)
-        ! Only check BC sides with BC index > 0
-        IF(BCIndex.GT.0)THEN
-          ! Get boundary type
-          BCType = BoundaryType(BCIndex,BC_TYPE)
-          ! Check if EPC has been found
-          IF(BCType.EQ.8)THEN
+        ! Check if one of the six sides of the compute-node element is a EPC
+        ! Note that iSide is in the range of 1:nNonUniqueGlobalSides
+        DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+          ! Get BC index of the global side index
+          BCIndex = SideInfo_Shared(SIDE_BCID,iSide)
+          ! Only check BC sides with BC index > 0
+          IF(BCIndex.GT.0)THEN
+            ! Get boundary type
+            BCType = BoundaryType(BCIndex,BC_TYPE)
+            ! Check if EPC has been found
+            IF(BCType.EQ.8)THEN
 
-            ! Check if the BC can be reached
-            iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
-                                      SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
-                                      SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
-            iGlobElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
-                                          BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
-                                          BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
+              ! Check if the BC can be reached
+              iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
+                                        SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
+                                        SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
+              iGlobElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
+                                            BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
+                                            BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
 
-            ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
-            IF (VECNORM( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
-              BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iEPC
-              IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
-              iUniqueEPCBC = EPC%Group(BCState,2)
-              ! Flag the i-th EPC
-              BConProc(iUniqueEPCBC) = .TRUE.
-              ! Go to next element
-              CYCLE iGlobElemLoop
-            END IF ! VECNORM( ...
-          END IF ! BCType.EQ.8
-        END IF ! BCIndex.GT.0
-      END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
-    END DO iGlobElemLoop ! iGlobElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
-  END DO ! iElem = 1, nElems
+              ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
+              IF (VECNORM( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
+                BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iEPC
+                IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
+                iUniqueEPCBC = EPC%Group(BCState,2)
+                ! Flag the i-th EPC
+                BConProc(iUniqueEPCBC) = .TRUE.
+                ! Check if all FPCs have been found -> exit complete loop
+                IF(ALL(BConProc)) EXIT iElemLoop
+                ! Go to next element
+                CYCLE iCNElemLoop
+              END IF ! VECNORM( ...
+            END IF ! BCType.EQ.8
+          END IF ! BCIndex.GT.0
+        END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+      END DO iCNElemLoop ! iCNElem = 1,nComputeNodeTotalElems
+    END DO iElemLoop ! iElem = 1, nElems
+  END IF ! .NOT.(ALL(BConProc))
 #endif /*defined(PARTICLES)*/
 
 END IF ! MPIRoot
@@ -1635,7 +1641,6 @@ USE MOD_MPI_Vars
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG
 #endif
 USE MOD_Globals_Vars    ,ONLY: ElementaryCharge,eps0
-USE MOD_TimeDisc_Vars          ,ONLY: iter
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
