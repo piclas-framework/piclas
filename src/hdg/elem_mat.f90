@@ -77,8 +77,8 @@ USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #if USE_PETSC
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
-#endif
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
