@@ -32,7 +32,11 @@ INTERFACE GetBoundaryGrad
   MODULE PROCEDURE GetBoundaryGrad
 END INTERFACE
 
-PUBLIC:: GetBoundaryGrad
+INTERFACE GetBoundaryGrad2
+  MODULE PROCEDURE GetBoundaryGrad2
+END INTERFACE
+
+PUBLIC:: GetBoundaryGrad, GetBoundaryGrad2
 !===================================================================================================================================
 
 CONTAINS
@@ -40,7 +44,7 @@ CONTAINS
 !==================================================================================================================================
 !> Computes the gradient at a boundary for Finite Volumes reconstruction.
 !==================================================================================================================================
-SUBROUTINE GetBoundaryGrad(SideID,gradU,UPrim_master,NormVec,TangVec1,TangVec2,Face_xGP,dx_Face)
+SUBROUTINE GetBoundaryGrad(SideID,gradU,UPrim_master,NormVec,Face_xGP,dx_Face)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals       ,ONLY: Abort
@@ -56,8 +60,6 @@ INTEGER,INTENT(IN):: SideID
 REAL,INTENT(IN)   :: UPrim_master(PP_nVar)
 REAL,INTENT(OUT)  :: gradU       (PP_nVar)
 REAL,INTENT(IN)   :: NormVec (3)
-REAL,INTENT(IN)   :: TangVec1(3)
-REAL,INTENT(IN)   :: TangVec2(3)
 REAL,INTENT(IN)   :: Face_xGP(3)
 REAL,INTENT(IN)   :: dx_Face
 
@@ -124,6 +126,69 @@ END SELECT ! BCType
 
 END SUBROUTINE GetBoundaryGrad
 
+!==================================================================================================================================
+!> Computes the gradient at a boundary for Finite Volumes reconstruction (2nd order version).
+!==================================================================================================================================
+SUBROUTINE GetBoundaryGrad2(SideID,gradU,gradUinside,UPrim_master,NormVec,Face_xGP,dx_Face)
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals       ,ONLY: Abort
+USE MOD_Mesh_Vars     ,ONLY: BoundaryType,BC
+USE MOD_Equation     ,ONLY: ExactFunc
+USE MOD_Equation_Vars ,ONLY: IniExactFunc, RefState, DVMBGKModel, DVMVelos, DVMnVelos
+USE MOD_TimeDisc_Vars, ONLY : dt, time
+USE MOD_DistFunc      ,ONLY: MaxwellDistribution, ShakhovDistribution, MacroValuesFromDistribution, MaxwellScattering
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN):: SideID
+REAL,INTENT(IN)   :: UPrim_master(PP_nVar)
+REAL,INTENT(OUT)  :: gradU       (PP_nVar)
+REAL,INTENT(IN)   :: gradUinside (PP_nVar)
+REAL,INTENT(IN)   :: NormVec (3)
+REAL,INTENT(IN)   :: Face_xGP(3)
+REAL,INTENT(IN)   :: dx_Face
 
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: BCType,BCState
+REAL    :: UPrim_boundary(1:PP_nVar), fplus(1:PP_nVar)!, f0incoming(1:PP_nVar), f0outgoing(1:PP_nVar)
+REAL    :: MacroVal(8), tau, vnormal
+INTEGER :: iVel, jVel, kVel, upos
+!==================================================================================================================================
+BCType  = Boundarytype(BC(SideID),BC_TYPE)
+BCState = Boundarytype(BC(SideID),BC_STATE)
+
+SELECT CASE(BCType)
+CASE(1) !Periodic already filled!
+
+
+CASE(4) ! diffusive
+  fplus(:)=UPrim_master(:)-dx_Face*gradUinside(:)
+  ! f0outgoing(:)=UPrim_master(:)-2*dx_Face*gradUinside(:)
+  MacroVal(:) = RefState(:,BCState)
+  CALL MaxwellDistribution(MacroVal,UPrim_boundary)
+  CALL MaxwellScattering(UPrim_boundary,fplus,NormVec,2,dt/2.)
+  ! f0incoming=2*UPrim_boundary-UPrim_master
+  DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+    upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+    vnormal = DVMVelos(iVel,1)*NormVec(1) + DVMVelos(jVel,2)*NormVec(2) + DVMVelos(kVel,3)*NormVec(3)
+    IF (vnormal.LT.0.) THEN
+      ! gradU(upos) = (UPrim_master(upos) - f0incoming(upos))/dx_Face/2.
+      gradU(upos) = (UPrim_master(upos) - UPrim_boundary(upos))/dx_Face
+    ELSE
+      ! gradU(upos) = (UPrim_master(upos) - f0outgoing(upos))/dx_Face/2.
+      gradU(upos) = gradUinside(upos)
+    END IF
+  END DO; END DO; END DO
+
+
+CASE DEFAULT ! unknown BCType
+  CALL abort(__STAMP__,&
+        'no BC defined in linearscalaradvection/getboundaryfvgradient.f90!')
+END SELECT ! BCType
+
+END SUBROUTINE GetBoundaryGrad2
+  
 END MODULE MOD_GetBoundaryGrad
 #endif /*USE_FV*/

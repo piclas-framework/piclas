@@ -65,12 +65,13 @@ SUBROUTINE CalcFVGradients(doMPISides)
 ! Compute gradients for fv reconstruction
 !===================================================================================================================================
 ! MODULES
-USE MOD_FV_Limiter               ,ONLY: FV_Limiter
+
+USE MOD_PreProc
 USE MOD_FV_Vars                  ,ONLY: U_master, U_slave, FV_dx_slave, FV_dx_master, FV_gradU
 USE MOD_Mesh_Vars                ,ONLY: NormVec,TangVec1,TangVec2,Face_xGP
-USE MOD_GetBoundaryGrad          ,ONLY: GetBoundaryGrad
+USE MOD_GetBoundaryGrad          ,ONLY: GetBoundaryGrad, GetBoundaryGrad2
 USE MOD_Mesh_Vars                ,ONLY: firstBCSide,lastBCSide,firstInnerSide, lastInnerSide
-USE MOD_Mesh_Vars                ,ONLY: firstMPISide_MINE,lastMPISide_MINE
+USE MOD_Mesh_Vars                ,ONLY: firstMPISide_MINE,lastMPISide_MINE, SideToElem, ElemToSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -80,7 +81,8 @@ LOGICAL,INTENT(IN)              :: doMPISides
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, lastSideID, firstSideID_wo_BC
+INTEGER                         :: SideID, SideID_2, lastSideID, firstSideID_wo_BC, ElemID, locSideID
+REAL                            :: gradUinside(PP_nVar)
 !===================================================================================================================================
 
 ! Set the side range according to MPI or no MPI
@@ -101,14 +103,42 @@ END DO
 ! 2. Compute the gradients at the boundary conditions: 1..nBCSides
 IF(.NOT.doMPISides)THEN
   DO SideID=firstBCSide,lastBCSide
-    ! FV_gradU(:,SideID) = myrank*1000+SideID
-    CALL GetBoundaryGrad(SideID,FV_gradU(:,0,0,SideID),&
+    ! CALL GetBoundaryGrad(SideID,FV_gradU(:,0,0,SideID),&
+    !                                     U_master(:,0,0,SideID),&
+    !                                       NormVec(:,0,0,SideID),&
+    !                                       Face_xGP(:,0,0,SideID),&
+    !                                       FV_dx_master(SideID))
+
+    ElemID     = SideToElem(S2E_ELEM_ID,SideID)  !element is always master (slave=boundary ghost cell)
+    IF (ElemID.LT.0) print*, 'aaaaaaaaaaaaaaaaaaaaaaaaaaa'
+    locSideID  = SideToElem(S2E_LOC_SIDE_ID,SideID)
+    SELECT CASE(locSideID)
+      !get opposite SideID
+      CASE(1)
+        SideID_2=ElemToSide(E2S_SIDE_ID,6,ElemID)
+      CASE(2)
+        SideID_2=ElemToSide(E2S_SIDE_ID,4,ElemID)
+      CASE(3)
+        SideID_2=ElemToSide(E2S_SIDE_ID,5,ElemID)
+      CASE(4)
+        SideID_2=ElemToSide(E2S_SIDE_ID,2,ElemID)
+      CASE(5)
+        SideID_2=ElemToSide(E2S_SIDE_ID,3,ElemID)
+      CASE(6)
+        SideID_2=ElemToSide(E2S_SIDE_ID,1,ElemID)
+    END SELECT
+    IF (SideToElem(S2E_NB_ELEM_ID,SideID_2).EQ.ElemID) THEN
+    !this element is the slave for the opposite side (master/slave case)
+      gradUinside(:)=FV_gradU(:,0,0,SideID_2)
+    ELSE
+    ! master/master case-> flip gradient
+      gradUinside(:)=-FV_gradU(:,0,0,SideID_2)
+    END IF
+    CALL GetBoundaryGrad2(SideID,FV_gradU(:,0,0,SideID),gradUinside,&
                                         U_master(:,0,0,SideID),&
-                                          NormVec(:,0,0,SideID),&
-                                          TangVec1(:,0,0,SideID),&
-                                          TangVec2(:,0,0,SideID),&
-                                          Face_xGP(:,0,0,SideID),&
-                                          FV_dx_master(SideID))
+                                        NormVec(:,0,0,SideID),&
+                                        Face_xGP(:,0,0,SideID),&
+                                        FV_dx_master(SideID))
   END DO
 END IF
 

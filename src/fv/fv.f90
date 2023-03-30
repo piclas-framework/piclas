@@ -353,6 +353,9 @@ IF (doFVReconstruction) THEN
 #endif /*USE_LOADBALANCE*/
 
   CALL StartSendMPIData(PP_nVar,FV_gradU,1,nSides,SendRequest_gradUx,SendID=1) ! Send MINE
+
+  ! Complete send / receive of gradients (before mpiFALSE gradients because bc grads need further grads)
+  CALL FinishExchangeMPIData(SendRequest_gradUx,RecRequest_gradUx,SendID=1)
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_DGCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -368,8 +371,6 @@ IF (doFVReconstruction) THEN
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  ! Complete send / receive of gradients
-  CALL FinishExchangeMPIData(SendRequest_gradUx,RecRequest_gradUx,SendID=1)
 
   CALL Flux_Mortar(FV_gradU,FV_gradU,doMPISides=.TRUE.)
 

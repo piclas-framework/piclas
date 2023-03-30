@@ -214,7 +214,7 @@ SUBROUTINE GetBoundaryFlux(t,tDeriv,Flux,UPrim_master,NormVec,TangVec1,TangVec2,
 USE MOD_PreProc
 USE MOD_Globals      ,ONLY: Abort
 USE MOD_Mesh_Vars    ,ONLY: nBCSides,nBCs,BoundaryType
-USE MOD_Equation_Vars,ONLY: nBCByType,BCSideID
+USE MOD_Equation_Vars,ONLY: nBCByType,BCSideID, DVMnVelos, DVMVelos
 USE MOD_Riemann
 USE MOD_TimeDisc_Vars,ONLY : dt
 USE MOD_DistFunc     ,ONLY: MaxwellDistribution, MacroValuesFromDistribution
@@ -237,6 +237,7 @@ INTEGER                              :: BCType,BCState,nBCLoc
 REAL                                 :: UPrim_boundary(PP_nVar,0:PP_N,0:PP_N)
 REAL                                 :: MacroVal(8), tau
 INTEGER                              :: p,q
+INTEGER                              :: i,j,k,iVel,jVel,kVel,upos, upos_sp
 !==================================================================================================================================
 DO iBC=1,nBCs
   IF(nBCByType(iBC).LE.0) CYCLE
@@ -255,20 +256,55 @@ DO iBC=1,nBCs
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
 
+  ! CASE(3) ! specular reflection
+  !   DO iSide=1,nBCLoc
+  !     SideID=BCSideID(iBC,iSide)
+  !     DO q=0,PP_N
+  !       DO p=0,PP_N
+  !         CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q,SideID),dt/2.,tau,1)
+  !         MacroVal(2:4) = MacroVal(2:4) - 2.*DOT_PRODUCT(NormVec(1:3,p,q,SideID),MacroVal(2:4))*NormVec(1:3,p,q,SideID)
+  !         CALL MaxwellDistribution(MacroVal,UPrim_boundary(:,p,q))
+  !       END DO ! p
+  !     END DO ! q
+  !     CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
+  !   END DO
+
   CASE(3) ! specular reflection
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      DO q=0,PP_N
-        DO p=0,PP_N
-          CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q,SideID),dt/2.,tau,1)
-          MacroVal(2:4) = MacroVal(2:4) - 2.*DOT_PRODUCT(NormVec(1:3,p,q,SideID),MacroVal(2:4))*NormVec(1:3,p,q,SideID)
-          CALL MaxwellDistribution(MacroVal,UPrim_boundary(:,p,q))
-        END DO ! p
-      END DO ! q
+        IF (ABS(NormVec(1,0,0,SideID)).EQ.1.) THEN !x-perpendicular boundary
+          DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+            upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+            upos_sp=(DVMnVelos(1)+1-iVel)+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+            UPrim_boundary(upos_sp,:,:)=UPrim_master(upos,:,:,SideID)
+          END DO; END DO; END DO
+        ELSE IF (ABS(NormVec(2,0,0,SideID)).EQ.1.) THEN !y-perpendicular boundary
+          DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+            upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+            upos_sp=iVel+(DVMnVelos(2)-jVel)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+            UPrim_boundary(upos_sp,:,:)=UPrim_master(upos,:,:,SideID)
+          END DO; END DO; END DO
+        ELSE IF (ABS(NormVec(3,0,0,SideID)).EQ.1.) THEN !z-perpendicular boundary
+          DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+            upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+            upos_sp=iVel+(jVel-1)*DVMnVelos(1)+(DVMnVelos(3)-kVel)*DVMnVelos(1)*DVMnVelos(2)
+            UPrim_boundary(upos_sp,:,:)=UPrim_master(upos,:,:,SideID)
+          END DO; END DO; END DO
+        ELSE
+          CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')
+        END IF
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
 
-  CASE(4,5,6,7) ! diffusive or in/outlet
+  CASE(4) ! diffusive
+    DO iSide=1,nBCLoc
+      SideID=BCSideID(iBC,iSide)
+      CALL GetBoundaryState(SideID,dt/2.,PP_N,UPrim_boundary,UPrim_master(:,:,:,SideID),NormVec(:,:,:,SideID) &
+        ,TangVec1(:,:,:,SideID),TangVec2(:,:,:,SideID),Face_xGP(:,:,:,SideID))
+      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
+    END DO
+    
+  CASE(5,6,7) ! in/outlet
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       CALL GetBoundaryState(SideID,dt/2.,PP_N,UPrim_boundary,UPrim_master(:,:,:,SideID),NormVec(:,:,:,SideID) &
