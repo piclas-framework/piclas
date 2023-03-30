@@ -526,6 +526,8 @@ ELSE
 #endif /*PARTICLES*/
   ! send WeightSum from MPI root to all other procs
   CALL MPI_BCAST(WeightSum,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+  ! Sanity check
+  IF(.NOT.ISFINITE(WeightSum)) CALL abort(__STAMP__,'Loadbalance: WeightSum is infinite!')
 
   WeightSum_loc=SUM(ElemTime)
   !IPWRITE(UNIT_StdOut,*) "SUM(ElemTime) =", SUM(ElemTime)
