@@ -1899,13 +1899,14 @@ DO iVar=1, PP_nVar
     !VecSetValuesBlockedLocal somehow not working...
     PetscCallA(VecSetValuesBlocked(RHS_petsc,1,PETScGlobal(SideID),RHS_face(1,:,SideID),INSERT_VALUES,ierr))
   END DO
-  IF(UseFPC)THEN
+  ! The MPIRoot process has charge and voltage of all FPCs, there, this process sets all conductor RHS information
+  IF(MPIRoot)THEN
     DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
       RHS_conductor(:)=0.
       RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
       PetscCallA(VecSetValuesBlocked(RHS_petsc,1,nPETScUniqueSidesGlobal-1-FPC%nUniqueFPCBounds+iUniqueFPCBC,RHS_conductor,INSERT_VALUES,ierr))
     END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-  END IF ! UseFPC
+  END IF ! MPIRoot
   PetscCallA(VecAssemblyBegin(RHS_petsc,ierr))
   PetscCallA(VecAssemblyEnd(RHS_petsc,ierr))
 
