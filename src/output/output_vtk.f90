@@ -163,6 +163,7 @@ INTEGER                     :: NVisu_elem,nVTKPoints,nVTKCells
 INTEGER                     :: nTotalElems
 INTEGER                     :: nBytes,Offset
 INTEGER                     :: INTdummy
+INTEGER,PARAMETER           :: SizeINTdummy=STORAGE_SIZE(INTdummy)/8
 REAL(KIND=4)                :: FLOATdummy
 CHARACTER(LEN=35)           :: StrOffset,TempStr1,TempStr2
 CHARACTER(LEN=200)          :: Buffer
@@ -235,7 +236,9 @@ IF(MPIROOT)THEN
   DO iVal=1,nVal
     Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNames(iVal))//'" '// &
                      'format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-    Offset=Offset+SIZEOF_F(INTdummy)+nVTKPoints*SIZEOF_F(FLOATdummy)
+    ! INTEGER KIND=4 check
+    CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+INT(nVTKPoints,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+    Offset=          Offset   +    SizeINTdummy   +    nVTKPoints   *    SIZEOF_F(FLOATdummy)
     WRITE(StrOffset,'(I16)')Offset
   END DO
   Buffer='      </PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
@@ -245,7 +248,9 @@ IF(MPIROOT)THEN
   Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
   Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended" '// &
                    'offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-  Offset=Offset+SIZEOF_F(INTdummy)+3*nVTKPoints*SIZEOF_F(FLOATdummy)
+  ! INTEGER KIND=4 check
+  CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+3_8*INT(nVTKPoints,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+  Offset=          Offset   +    SizeINTdummy   +3  *    nVTKPoints   *    SIZEOF_F(FLOATdummy)
   WRITE(StrOffset,'(I16)')Offset
   Buffer='      </Points>'//lf;WRITE(ivtk) TRIM(Buffer)
   ! Specify necessary cell data
@@ -253,12 +258,16 @@ IF(MPIROOT)THEN
   ! Connectivity
   Buffer='        <DataArray type="Int32" Name="connectivity" format="appended" '// &
                    'offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-  Offset=Offset+SIZEOF_F(INTdummy)+PointsPerVTKCell*nVTKCells*SIZEOF_F(INTdummy)
+  ! INTEGER KIND=4 check
+  CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+INT(PointsPerVTKCell,8)*INT(nVTKCells,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+  Offset=          Offset   +    SizeINTdummy   +    PointsPerVTKCell   *    nVTKCells   *    SIZEOF_F(FLOATdummy)
   WRITE(StrOffset,'(I16)')Offset
   ! Offsets
   Buffer='        <DataArray type="Int32" Name="offsets" format="appended" ' // &
                    'offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-  Offset=Offset+SIZEOF_F(INTdummy)+nVTKCells*SIZEOF_F(INTdummy)
+  ! INTEGER KIND=4 check
+  CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+INT(nVTKCells,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+  Offset=          Offset   +    SizeINTdummy   +    nVTKCells   *    SIZEOF_F(FLOATdummy)
   WRITE(StrOffset,'(I16)')Offset
   ! Elem types
   Buffer='        <DataArray type="Int32" Name="types" format="appended" '// &
@@ -349,11 +358,11 @@ END IF
 IF(MPIROOT)THEN
   CALL CreateConnectivity(NVisu,nTotalElems,nodeids,dim,DGFV_loc)
 
-  nBytes = PointsPerVTKCell*nVTKCells*SIZEOF_F(INTdummy)
+  nBytes = PointsPerVTKCell*nVTKCells*SizeINTdummy
   WRITE(ivtk) nBytes
   WRITE(ivtk) nodeids
   ! Offset
-  nBytes = nVTKCells*SIZEOF_F(INTdummy)
+  nBytes = nVTKCells*SizeINTdummy
   WRITE(ivtk) nBytes
   WRITE(ivtk) (Offset,Offset=PointsPerVTKCell,PointsPerVTKCell*nVTKCells,PointsPerVTKCell)
   ! Elem type
