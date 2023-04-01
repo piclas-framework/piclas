@@ -74,6 +74,8 @@ USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
+USE MOD_HDG                    ,ONLY: SynchronizeVoltageOnEPC
+USE MOD_HDG_Vars               ,ONLY: UseEPC
 #if defined(PARTICLES)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide,nElems
@@ -83,6 +85,10 @@ USE MOD_HDG_Vars               ,ONLY: lambdaLB
 #endif /*defined(PARTICLES)*/
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
+#if USE_LOADBALANCE
+USE MOD_HDG                    ,ONLY: SynchronizeChargeOnFPC
+USE MOD_HDG_Vars               ,ONLY: UseFPC
+#endif /*USE_LOADBALANCE*/
 USE PETSc
 USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
 #endif
@@ -150,9 +156,15 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #if USE_LOADBALANCE
 IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 #if USE_HDG
-  ! ------------------------------------------------
-  ! lambda
-  ! ------------------------------------------------
+
+#if USE_PETSC
+  ! FPC: The MPI root process distributes the information among the sub-communicator processes for each FPC
+  !      (before and after load balancing, the root process is always part of each sub-communicator group)
+  IF(UseFPC) CALL SynchronizeChargeOnFPC()
+#endif /*USE_PETSC*/
+  ! EPC: The MPI root process distributes the information among the sub-communicator processes for each EPC
+  !      (before and after load balancing, the root process is always part of each sub-communicator group)
+  IF(UseEPC) CALL SynchronizeVoltageOnEPC()
 
 #if defined(PARTICLES)
   !checkRank=MIN(3,nProcessors-1)
