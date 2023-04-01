@@ -874,7 +874,7 @@ SEE%BCIDToSEEBCID     = -1
 DO iSEE = 1, SEE%NPartBoundaries
   iPartBound = SEE%PartBoundaries(iSEE)
   SEE%BCIDToSEEBCID(iPartBound) = iSEE
-END DO ! iSEE = 1, BPO%NPartBoundaries
+END DO ! iSEE = 1, SEE%NPartBoundaries
 
 END SUBROUTINE InitCalcElectronSEE
 

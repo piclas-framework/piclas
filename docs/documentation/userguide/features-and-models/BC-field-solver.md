@@ -89,8 +89,13 @@ as detailed in the following table.
 |              |           |                                                                                                                            |
 |   (/7,1/)    | Dirichlet | 1: use LinState Nbr 1, linear function for Phi, see {ref}`sec:linear-potential`                                            |
 |              |           |                                                                                                                            |
+|   (/8,1/)    | Dirichlet | 8: Assign BC to EPC group nbr. 1 (different BCs can be assigned the same EPC), see {ref}`sec:electric-potential-condition` |
+|              |           |                                                                                                                            |
 |   (/10,0/)   |  Neumann  | zero-gradient (dPhi/dn=0)                                                                                                  |
+|              |           |                                                                                                                            |
 |   (/11,0/)   |  Neumann  | q*n=1                                                                                                                      |
+|              |           |                                                                                                                            |
+|   (/20,1/)   |    FPC    | 1: Assign BC to FPC group nbr. 1 (different BCs can be assigned the same FPC), see {ref}`sec:floating-boundary-condition`  |
 
 ### RefState boundaries {-}
 
@@ -153,6 +158,44 @@ following example
     LinPhiNormal    = (/1. , 0. , 0./) ! 2nd LinState
     LinPhiHeight    = 1.0              ! 2nd LinState
     LinPhi          = 0.0              ! 2nd LinState
+
+(sec:floating-boundary-condition)=
+### Floating boundary condition (FPC)
+A floating boundary condition (FPC) can be used to model a perfect electric conducting surface. The surface can carry a charge $Q$,
+which might change over time. however, the requirement is that the surface yields a closed surface integral in 3D (or 2D with
+periodic/symmetric boundaries in the 3rd dimension). One or more FPCs can be set via
+
+    BoundaryName = BC_FPC_1 ! BC name in the mesh.h5 file
+    BoundaryType = (/20,1/) ! 20: activate FPC, 1: Index of the FPC group to which this BC belongs (1st group)
+
+    BoundaryName = BC_FPC_2 ! BC name in the mesh.h5 file
+    BoundaryType = (/20,2/) ! 20: activate FPC, 2: Index of the FPC group to which this BC belongs (2nd group)
+
+For this boundary condition, the charge assigned to each FPC and the resulting potential are written to *FieldAnalyze.csv*
+automatically, e.g., "007-FPC-Charge-BCState-001" and "008-FPC-Voltage-BCState-001", where *BCState* corresponds to the ID of the FPC.
+If the particle boundary condition is set to *open* (or *species-swap*), then each impacting charged particle that is removed there,
+will be added to the accumulated charge on that FPC.
+
+(sec:electric-potential-condition)=
+### Electric potential condition (EPC)
+Grounded surfaces with a specific resistance between the ground and the surface can be modelled as equipotential surfaces, where
+charged particles are removed and their charge is accumulated over each time step and a voltage is calculated from from the
+resistance of the surface and the resulting electric current via
+
+$$U=RI=-R\frac{dQ}{dt}$$
+
+where $U$ is the voltage different to ground (0V), $R$ is the resistance assigned to the surface, $I$ is the electric current and
+$dQ$ the amount of charge that is removed in each time step $dt$.
+The boundary is activated by setting one or more EPC
+
+    BoundaryName = BC_EPC_1 ! BC name in the mesh.h5 file
+    BoundaryType = (/8,1/)  ! 8: activate EPC, 1: Index of the EPC group to which this BC belongs (1st group)
+
+    BoundaryName = BC_EPC_2 ! BC name in the mesh.h5 file
+    BoundaryType = (/8,2/)  ! 8: activate EPC, 2: Index of the EPC group to which this BC belongs (2nd group)
+
+The resulting current $I$ and voltage $U$ are automatically written to *FieldAnalyze.csv*, e.g., "007-EPC-Current-BCState-001" and
+"008-EPC-Voltage-BCState-001".
 
 (sec:fixed-coupled-power)=
 ### Fixed coupled power (const. input power)

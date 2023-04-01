@@ -221,7 +221,7 @@ SampWallImpactNumber(SpecID,SubP,SubQ,SurfSideID) = SampWallImpactNumber(SpecID,
 END SUBROUTINE SampleImpactProperties
 
 
-SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,iBC,mode,MPF_optIN)
+SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,iPartBound,mode,MPF_optIN)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Save particle position, velocity and species to PartDataBoundary container for writing to .h5 later
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -240,7 +240,7 @@ INTEGER,INTENT(IN) :: SpecID ! The species ID is required as it might not yet be
 REAL,INTENT(IN)    :: PartPos(1:3)
 REAL,INTENT(IN)    :: PartTrajectory(1:3)
 REAL,INTENT(IN)    :: SurfaceNormal(1:3)
-INTEGER,INTENT(IN) :: iBC  ! Part-BoundaryX on which the impact occurs
+INTEGER,INTENT(IN) :: iPartBound  ! Part-BoundaryX on which the impact occurs
 INTEGER,INTENT(IN) :: mode ! 1: particle impacts on BC (species is stored as positive value)
                            ! 2: particles is emitted from the BC into the simulation domain (species is stored as negative value)
 REAL,INTENT(IN),OPTIONAL :: MPF_optIN ! Supply the MPF in special cases
@@ -249,7 +249,7 @@ REAL,INTENT(IN),OPTIONAL :: MPF_optIN ! Supply the MPF in special cases
 REAL                 :: MPF
 INTEGER              :: dims(2)
 ! Temporary arrays
-REAL, ALLOCATABLE    :: PartStateBoundary_tmp(:,:) ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle,iBC
+REAL, ALLOCATABLE    :: PartStateBoundary_tmp(:,:) ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle,iPartBound
 !                                                  !                 2nd index: 1 to number of boundary-crossed particles
 INTEGER              :: ALLOCSTAT
 !===================================================================================================================================
@@ -304,7 +304,7 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
   PartStateBoundary(8  ,iMax) = MPF
   PartStateBoundary(9  ,iMax) = time
   PartStateBoundary(10 ,iMax) = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))))
-  PartStateBoundary(11 ,iMax) = REAL(iBC)
+  PartStateBoundary(11 ,iMax) = REAL(iPartBound)
 END ASSOCIATE
 
 END SUBROUTINE StoreBoundaryParticleProperties
