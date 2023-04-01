@@ -39,6 +39,9 @@ END INTERFACE
 PUBLIC :: InitHDG,FinalizeHDG
 PUBLIC :: HDG, RestartHDG
 PUBLIC :: DefineParametersHDG
+#if USE_MPI
+PUBLIC :: SynchronizeChargeOnFPC
+#endif /*USE_MPI*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -150,6 +153,8 @@ INTEGER           :: OffsetPETScSide
 INTEGER           :: PETScLocalID
 INTEGER           :: MortarSideID,iMortar
 INTEGER           :: locSide,nMortarMasterSides,nMortars
+!INTEGER           :: nAffectedBlockSides
+INTEGER,ALLOCATABLE :: indx(:)
 #endif
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
@@ -210,9 +215,9 @@ END IF
 
 !CG parameters
 #if USE_PETSC
-SWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: PETSc '
+LBWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: PETSc '
 #else
-SWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: CG '
+LBWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: CG '
 #endif /*USE_PETSC*/
 PrecondType          = GETINT('PrecondType')
 epsCG                = GETREAL('epsCG')
@@ -223,7 +228,7 @@ MaxIterCG            = GETINT('MaxIterCG')
 ExactLambda          = GETLOGICAL('ExactLambda')
 
 ALLOCATE(MaskedSide(1:nSides))
-MaskedSide=.FALSE.
+MaskedSide=0
 
 IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
   IF(nMortarMPISides.GT.0) CALL abort(__STAMP__,&
@@ -235,6 +240,7 @@ CALL InitMortar_HDG()
 !boundary conditions
 nDirichletBCsides=0
 nNeumannBCsides  =0
+nConductorBCsides=0
 DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
@@ -243,10 +249,15 @@ DO SideID=1,nBCSides
     nDirichletBCsides=nDirichletBCsides+1
   CASE(10,11) ! Neumann
     nNeumannBCsides=nNeumannBCsides+1
+  CASE(20) ! Conductor: Floating Boundary Condition (FPC)
+    nConductorBCsides=nConductorBCsides+1
   CASE DEFAULT ! unknown BCType
-    CALL abort(__STAMP__,' unknown BC Type in hdg.f90!',IntInfoOpt=BCType)
+    CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
 END DO
+
+! Conductor: Initialize floating boundary condition
+CALL InitFPC()
 
 ! Check if zero potential must be set on a boundary (or periodic side)
 CALL InitZeroPotential()
@@ -256,11 +267,13 @@ IF(nNeumannBCsides  .GT.0)THEN
   ALLOCATE(NeumannBC(nNeumannBCsides))
   ALLOCATE(qn_face(PP_nVar, nGP_face,nNeumannBCsides))
 END IF
+IF(nConductorBCsides.GT.0)ALLOCATE(ConductorBC(nConductorBCsides))
 #if (PP_nVar!=1)
   IF(nDirichletBCsides.GT.0)ALLOCATE(qn_face_MagStat(PP_nVar, nGP_face,nDirichletBCsides))
 #endif
 nDirichletBCsides=0
 nNeumannBCsides  =0
+nConductorBCsides=0
 DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
@@ -268,12 +281,16 @@ DO SideID=1,nBCSides
   CASE(2,4,5,6,7) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
-    MaskedSide(SideID)=.TRUE.
+    MaskedSide(SideID)=1
   CASE(10,11) !Neumann,
     nNeumannBCsides=nNeumannBCsides+1
     NeumannBC(nNeumannBCsides)=SideID
+  CASE(20) ! Conductor: Floating Boundary Condition (FPC)
+    nConductorBCsides=nConductorBCsides+1
+    ConductorBC(nConductorBCsides)=SideID
+    MaskedSide(SideID)=2
   CASE DEFAULT ! unknown BCType
-    CALL abort(__STAMP__,' unknown BC Type in hdg.f90!',IntInfoOpt=BCType)
+    CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
 END DO
 
@@ -289,13 +306,13 @@ DO SideID=1,nSides
     nMortarMasterSides = nMortarMasterSides + 1
   END IF
 END DO
-nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides
+nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides-nConductorBCsides
 IF(ZeroPotentialSideID.GT.0) nPETScUniqueSides = nPETScUniqueSides - 1
 CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_WORLD,IERROR)
 DO iProc=1, myrank
   OffsetPETScSide = OffsetPETScSide + OffsetPETScSideMPI(iProc)
 END DO
-nPETScUniqueSidesGlobal = SUM(OffsetPETScSideMPI)
+nPETScUniqueSidesGlobal = SUM(OffsetPETScSideMPI) + FPC%nUniqueFPCBounds
 #endif
 
 ALLOCATE(PETScGlobal(nSides))
@@ -304,7 +321,7 @@ PETScGlobal=-1
 PETScLocalToSideID=-1
 PETScLocalID=0 ! = nSides-nDirichletBCSides (-ZeroPotentialSide)
 DO SideID=1,nSides!-nMPISides_YOUR
-  IF(MaskedSide(SideID).OR.(SideID.EQ.ZeroPotentialSideID)) CYCLE
+  IF((MaskedSide(SideID).GT.0).OR.(SideID.EQ.ZeroPotentialSideID)) CYCLE
   PETScLocalID=PETScLocalID+1
   PETScLocalToSideID(PETScLocalID)=SideID
   PETScGlobal(SideID)=PETScLocalID+OffsetPETScSide-1 ! PETSc arrays start at 0!
@@ -408,9 +425,24 @@ PetscCallA(MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr))
 PetscCallA(MatSetBlockSize(Smat_petsc,nGP_face,ierr))
 PetscCallA(MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,nPETScUniqueSidesGlobal*nGP_Face,ierr))
 PetscCallA(MatSetType(Smat_petsc,MATSBAIJ,ierr)) ! Symmetric sparse (mpi) matrix
-! 1 Big mortar side is affected by 6 + 4*4 = 22 other sides...
+!! TODO Set preallocation row wise
+!! 1 Big mortar side is affected by 6 + 4*4 = 22 other sides...
+!! TODO Does this require communication over all procs? Global number of sides associated with the i-th FPC
+!IF(FPC%nFPCBounds.GT.0)THEN
+!  ALLOCATE(FPC%GroupGlobal(1:FPC%nFPCBounds))
+!  FPC%GroupGlobal(1:FPC%nFPCBounds) = FPC%Group(1:FPC%nFPCBounds,3)
+!  ! TODO is this allreduce required?
+!  !CALL MPI_ALLREDUCE(FPC%Group(1:FPC%nFPCBounds,3),FPC%GroupGlobal(1:FPC%nFPCBounds), FPC%nFPCBounds, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_WORLD, IERROR)
+!  nAffectedBlockSides = MAXVAL(FPC%GroupGlobal(:))
+!  DEALLOCATE(FPC%GroupGlobal)
+!  nAffectedBlockSides = MAX(22,nAffectedBlockSides*6)
+!ELSE
+!  nAffectedBlockSides = 22
+!END IF ! FPC%nFPCBounds
+!!IPWRITE(UNIT_StdOut,*) "nAffectedBlockSides =", nAffectedBlockSides
+!!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 PetscCallA(MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,ierr))
-PetscCallA(MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,21,PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,22-1,PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatZeroEntries(Smat_petsc,ierr))
 #endif
 
@@ -434,7 +466,7 @@ ELSE
   PetscCallA(KSPSetType(ksp,KSPCG,ierr)) ! CG solver for sparse symmetric positive definite matrix
 
   PetscCallA(KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr))
-  
+
   PetscCallA(KSPSetNormType(ksp, KSP_NORM_UNPRECONDITIONED, ierr))
   PetscCallA(KSPSetTolerances(ksp,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
 END IF
@@ -461,6 +493,18 @@ PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,lambda_local_
 PetscCallA(ISCreateStride(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,0,1,idx_local_petsc,ierr))
 PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr))
 PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr))
+
+IF(FPC%nFPCBounds.GT.0)THEN
+  PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,lambda_local_conductors_petsc,ierr))
+  PetscCallA(ISCreateStride(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,0,1,idx_local_conductors_petsc,ierr))
+  ALLOCATE(indx(FPC%nUniqueFPCBounds))
+  DO i=1,FPC%nUniqueFPCBounds
+    indx(i) = nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+i-1
+  END DO
+  PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,FPC%nUniqueFPCBounds,indx,PETSC_COPY_VALUES,idx_global_conductors_petsc,ierr))
+  DEALLOCATE(indx)
+  PetscCallA(VecScatterCreate(lambda_petsc,idx_global_conductors_petsc,lambda_local_conductors_petsc,idx_local_conductors_petsc,scatter_conductors_petsc,ierr))
+END IF
 #endif
 
 HDGInitIsDone = .TRUE.
@@ -516,7 +560,7 @@ DO iBC=1,nBCs
   CASE(10,11) ! Neumann
     ! do nothing
   CASE DEFAULT ! unknown BCType
-    CALL abort(__STAMP__,' unknown BC Type in hdg.f90!',IntInfoOpt=BCType)
+    CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
 END DO
 
@@ -589,6 +633,394 @@ IF(ZeroPotentialSideID.EQ.-1)THEN
 END IF ! ZeroPotentialSideID.EQ.0
 
 END SUBROUTINE InitZeroPotential
+
+
+!===================================================================================================================================
+!> Create containers and communicators for each floating boundary condition where impacting charges are accumulated.
+!>
+!
+!> 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
+!>     contribute to the total floating boundary condition. If yes, then this processor is part of the communicator
+!> 2.) Create Mapping from floating boundary condition BC index to field BC index
+!> 3.) Create Mapping from field BC index to floating boundary condition BC index
+!> 4.0) Check if field BC is on current proc (or MPI root)
+!> 4.1.) Each processor loops over all of his elements
+!> 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
+!> 5.) Create MPI sub-communicators
+!===================================================================================================================================
+SUBROUTINE InitFPC()
+! MODULES
+USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_WORLD
+USE MOD_Preproc
+USE MOD_Mesh_Vars          ,ONLY: nBCs,BoundaryType
+USE MOD_Analyze_Vars       ,ONLY: DoFieldAnalyze
+USE MOD_HDG_Vars           ,ONLY: FPC
+USE MOD_Mesh_Vars          ,ONLY: nBCSides,BC
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+#if USE_MPI && defined(PARTICLES)
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
+USE MOD_Globals            ,ONLY: ElementOnProc
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,SideInfo_Shared
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
+USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps
+USE MOD_Mesh_Vars          ,ONLY: nElems, offsetElem
+#endif /*USE_MPI && defined(PARTICLES)*/
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: BCType,BCState,iUniqueFPCBC
+INTEGER             :: SideID,iBC
+#if USE_MPI
+INTEGER             :: color,WithSides
+LOGICAL,ALLOCATABLE :: BConProc(:)
+#if defined(PARTICLES)
+INTEGER             :: iElem,iCNElem
+REAL                :: iElemCenter(1:3),iGlobElemCenter(1:3)
+REAL                :: iElemRadius,iGlobElemRadius
+INTEGER             :: iGlobElem,BCIndex,iSide
+#endif /*defined(PARTICLES)*/
+#endif /*USE_MPI*/
+CHARACTER(5)        :: hilf,hilf2
+!===================================================================================================================================
+
+! Get global number of FPC boundaries in [1:nBCs], they might belong to the same group (will be reduced to "nUniqueFPCBounds" below)
+! FPC boundaries with the same BCState will be in the same group (electrically connected)
+FPC%nFPCBounds = 0
+FPC%nUniqueFPCBounds = 0
+DO iBC=1,nBCs
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
+  BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
+  FPC%nFPCBounds=FPC%nFPCBounds+1
+  IF(BCState.LE.0) CALL CollectiveStop(__STAMP__,' BCState for FPC must be >0! BCState=',IntInfo=BCState)
+END DO
+
+IF(FPC%nFPCBounds.EQ.0) RETURN ! Already determined in HDG initialization
+
+ALLOCATE(FPC%Group(1:FPC%nFPCBounds,3))
+FPC%Group = 0 ! Initialize
+
+! 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
+! contribute to the total floating boundary condition. If yes, then this processor is part of the communicator
+DO iBC=1,nBCs
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
+  BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
+  WRITE(UNIT=hilf,FMT='(I0)') BCState
+  WRITE(UNIT=hilf2,FMT='(I0)') FPC%nFPCBounds
+  IF(BCState.GT.FPC%nFPCBounds) CALL CollectiveStop(__STAMP__,&
+      'BCState='//TRIM(hilf)//' must be smaller or equal than the total number of '//TRIM(hilf2)//' FPC boundaries!')
+  FPC%Group(BCState,1) = FPC%Group(BCState,1) + 1
+  IF(FPC%Group(BCState,1).EQ.1) THEN
+    FPC%nUniqueFPCBounds = FPC%nUniqueFPCBounds +1 ! Only count once
+    FPC%Group(BCState,2) = FPC%nUniqueFPCBounds
+  END IF
+END DO
+
+! Automatically activate surface model analyze flag
+DoFieldAnalyze = .TRUE.
+
+! 2.) Create Mapping from floating boundary condition BC index to BCState
+ALLOCATE(FPC%BCState(FPC%nUniqueFPCBounds))
+FPC%BCState = 0
+DO iBC=1,nBCs
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(BCType.NE.20) CYCLE
+  BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
+  iUniqueFPCBC = FPC%Group(BCState,2)
+  FPC%BCState(iUniqueFPCBC) = BCState
+END DO
+
+! Allocate the containers
+! This container is not deallocated for MPIRoot when performing load balance (only root needs this info to write it to .csv)
+IF(.NOT.ALLOCATED(FPC%Voltage))THEN
+  ALLOCATE(FPC%Voltage(1:FPC%nUniqueFPCBounds))
+  FPC%Voltage = 0.
+END IF ! .NOT.ALLOCATED(FPC%Voltage)
+ALLOCATE(FPC%VoltageProc(1:FPC%nUniqueFPCBounds))
+FPC%VoltageProc = 0.
+! This container is not deallocated for MPIRoot when performing load balance as this process updates the information on the new
+! sub-communicator processes during load balance
+IF(.NOT.ALLOCATED(FPC%Charge))THEN
+  ALLOCATE(FPC%Charge(1:FPC%nUniqueFPCBounds))
+  FPC%Charge = 0.
+END IF ! .NOT.ALLOCATED(FPC%Charge)
+ALLOCATE(FPC%ChargeProc(1:FPC%nUniqueFPCBounds))
+FPC%ChargeProc = 0.
+
+!! 3.) Create Mapping from field BC index to floating boundary condition BC index
+!ALLOCATE(FPC%BCIDToFPCBCID(nBCs))
+!FPC%BCIDToFPCBCID = -1
+!DO iFPCBC = 1, FPC%NBoundaries
+!  iBC = EDC%FieldBoundaries(iEDCBC)
+!  EDC%BCIDToEDCBCID(iBC) = iEDCBC
+!END DO ! iEDCBC = 1, EDC%NBoundaries
+
+! Get processor-local number of FPC sides associated with each i-th FPC boundary
+! Check local sides
+DO SideID=1,nBCSides
+  iBC    = BC(SideID)
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
+  BCState = BoundaryType(iBC,BC_STATE) ! BCState corresponds to iFPC
+  FPC%Group(BCState,3) = FPC%Group(BCState,3) + 1
+END DO ! SideID=1,nBCSides
+
+#if USE_MPI
+! 4.0) Check if field BC is on current proc (or MPI root)
+ALLOCATE(BConProc(FPC%nUniqueFPCBounds))
+BConProc = .FALSE.
+IF(MPIRoot)THEN
+  BConProc = .TRUE.
+ELSE
+
+  ! Check local sides
+  DO SideID=1,nBCSides
+    iBC    = BC(SideID)
+    BCType = BoundaryType(iBC,BC_TYPE)
+    IF(BCType.NE.20) CYCLE ! Skip non-FPC boundaries
+    BCState = BoundaryType(iBC,BC_STATE) ! BCState corresponds to iFPC
+    iUniqueFPCBC = FPC%Group(BCState,2)
+    BConProc(iUniqueFPCBC) = .TRUE.
+  END DO ! SideID=1,nBCSides
+
+#if defined(PARTICLES)
+  ! Check if all FPCs have already been found
+  IF(.NOT.(ALL(BConProc)) )THEN
+    ! Particles might impact the FPC on another proc/node. Therefore check if a particle can travel from a local element to an
+    ! element that has at least one side, which is an FPC
+    ! 4.1.) Each processor loops over all of his elements
+    iElemLoop: DO iElem = 1+offsetElem, nElems+offsetElem
+
+      iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
+                            SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
+                            SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+      iElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
+                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
+                                BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+
+      ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
+      ! Loop ALL compute-node elements (use global element index)
+      iCNElemLoop: DO iCNElem = 1,nComputeNodeTotalElems
+        iGlobElem = GetGlobalElemID(iCNElem)
+
+        ! Skip my own elements as they have already been tested when the local sides are checked
+        IF(ElementOnProc(iGlobElem)) CYCLE iCNElemLoop
+
+        ! Check if one of the six sides of the compute-node element is a FPC
+        ! Note that iSide is in the range of 1:nNonUniqueGlobalSides
+        DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+          ! Get BC index of the global side index
+          BCIndex = SideInfo_Shared(SIDE_BCID,iSide)
+          ! Only check BC sides with BC index > 0
+          IF(BCIndex.GT.0)THEN
+            ! Get boundary type
+            BCType = BoundaryType(BCIndex,BC_TYPE)
+            ! Check if FPC has been found
+            IF(BCType.EQ.20)THEN
+
+              ! Check if the BC can be reached
+              iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
+                                        SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
+                                        SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
+              iGlobElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
+                                            BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
+                                            BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
+
+              ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
+              IF (VECNORM( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
+                BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iFPC
+                IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
+                iUniqueFPCBC = FPC%Group(BCState,2)
+                ! Flag the i-th FPC
+                BConProc(iUniqueFPCBC) = .TRUE.
+                ! Check if all FPCs have been found -> exit complete loop
+                IF(ALL(BConProc)) EXIT iElemLoop
+                ! Go to next element
+                CYCLE iCNElemLoop
+              END IF ! VECNORM( ...
+            END IF ! BCType.EQ.20
+          END IF ! BCIndex.GT.0
+        END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+      END DO iCNElemLoop ! iCNElem = 1,nComputeNodeTotalElems
+    END DO iElemLoop ! iElem = 1, nElems
+  END IF ! .NOT.(ALL(BConProc))
+#endif /*defined(PARTICLES)*/
+
+END IF ! MPIRoot
+
+! 5.) Create MPI sub-communicators
+ALLOCATE(FPC%COMM(FPC%nUniqueFPCBounds))
+DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+  ! create new communicator
+  color = MERGE(iUniqueFPCBC, MPI_UNDEFINED, BConProc(iUniqueFPCBC))
+
+  ! set communicator id
+  FPC%COMM(iUniqueFPCBC)%ID=iUniqueFPCBC
+
+  ! create new emission communicator for floating boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, FPC%COMM(iUniqueFPCBC)%UNICATOR, iError)
+
+  ! Find my rank on the shared communicator, comm size and proc name
+  IF(BConProc(iUniqueFPCBC))THEN
+    CALL MPI_COMM_RANK(FPC%COMM(iUniqueFPCBC)%UNICATOR, FPC%COMM(iUniqueFPCBC)%MyRank, iError)
+    CALL MPI_COMM_SIZE(FPC%COMM(iUniqueFPCBC)%UNICATOR, FPC%COMM(iUniqueFPCBC)%nProcs, iError)
+
+    ! inform about size of emission communicator
+    IF (FPC%COMM(iUniqueFPCBC)%MyRank.EQ.0) THEN
+#if USE_LOADBALANCE
+      IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+          WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0)') ' Floating boundary condition: Emission-Communicator ',iUniqueFPCBC,' on ',&
+              FPC%COMM(iUniqueFPCBC)%nProcs,' procs for BCState ',FPC%BCState(iUniqueFPCBC)
+    END IF
+  END IF ! BConProc(iUniqueFPCBC)
+END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+DEALLOCATE(BConProc)
+
+! Get the number of procs that actually have a local BC side that is an FPC (required for voltage output to .csv)
+! Procs might have zero FPC sides but are in the group because 1.) MPIRoot or 2.) the FPC is in the halo region
+! Because only the MPI root process writes the .csv data, the information regarding the voltage on each FPC must be
+! communicated with this process even though it might not be connected to each FPC boundary
+DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+  ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR, nProcsWithSides => FPC%COMM(iUniqueFPCBC)%nProcsWithSides )
+    IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+      ! Check if the current processor is actually connected to the FPC via a BC side
+      IF(FPC%Group(FPC%BCState(iUniqueFPCBC),3).EQ.0)THEN
+        WithSides = 0
+      ELSE
+        WithSides = 1
+      END IF ! FPC%Group(FPC%BCState(iUniqueFPCBC),3).EQ.0
+      ! Calculate the sum across the sub-communicator. Only the MPI root process needs this information
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(WithSides, nProcsWithSides, 1 ,MPI_INTEGER, MPI_SUM, 0, COMM, iError)
+        ! Sanity check
+        IF(nProcsWithSides.EQ.0) CALL abort(__STAMP__,'Found FPC with no processors connected to it')
+      ELSE
+        CALL MPI_REDUCE(WithSides, 0              , 1 ,MPI_INTEGER, MPI_SUM, 0, COMM, IError)
+      END IF ! MPIRoot
+    END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
+  END ASSOCIATE
+END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+#endif /*USE_MPI*/
+
+! When restarting, load the deposited charge on each FPC from the .h5 state file
+CALL ReadFPCDataFromH5()
+
+END SUBROUTINE InitFPC
+
+!===================================================================================================================================
+!> Read the electric charge that resides on each FPC boundary from .h5 state file.
+!> 1. The MPI root process reads the info and checks data consistency
+!> 2. The MPI root process distributes the information among the sub-communicator processes for each FPC
+!===================================================================================================================================
+SUBROUTINE ReadFPCDataFromH5()
+! MODULES
+USE MOD_io_hdf5
+USE MOD_Globals            ,ONLY: UNIT_stdOut,MPIRoot,IERROR,IK,abort
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
+USE MOD_IO_HDF5            ,ONLY: OpenDataFile,CloseDataFile,File_ID
+USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartFile
+USE MOD_HDF5_Input         ,ONLY: DatasetExists,ReadArray,GetDataSize
+USE MOD_HDG_Vars           ,ONLY: FPC
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iUniqueFPCBC,nFPCHDF5,nDimsFPC
+CHARACTER(255)     :: ContainerName
+CHARACTER(1000)    :: TmpStr
+LOGICAL            :: FPCExists
+REAL,ALLOCATABLE   :: FPCDataHDF5(:)
+INTEGER(HSIZE_T), POINTER :: HSizeFPC(:)
+!===================================================================================================================================
+! Only required during restart
+IF(.NOT.DoRestart) RETURN
+
+#if USE_LOADBALANCE
+! Do not try to read the data from .h5 if load balance is performed without creating a .h5 restart file
+IF(PerformLoadBalance.AND..NOT.(UseH5IOLoadBalance)) RETURN
+#endif /*USE_LOADBALANCE*/
+
+! 1. The MPI root process reads the info and checks data consistency
+! Only root reads the values and distributes them via MPI Broadcast
+IF(MPIRoot)THEN
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+  ! Check old parameter name
+  ContainerName='FloatingPotentialCharge'
+  CALL DatasetExists(File_ID,TRIM(ContainerName),FPCExists)
+  ! Check for new parameter name
+  IF(FPCExists)THEN
+    CALL GetDataSize(File_ID,TRIM(ContainerName),nDimsFPC,HSizeFPC)
+    CHECKSAFEINT(HSizeFPC(2),4)
+    nFPCHDF5=INT(HSizeFPC(2),4)
+    DEALLOCATE(HSizeFPC)
+    IF(nFPCHDF5.NE.FPC%nUniqueFPCBounds)THEN
+      WRITE(UNIT_StdOut,*) "nFPCHDF5 (restart file) must be equal FPC%nUniqueFPCBounds"
+      WRITE(UNIT_StdOut,*) "nFPCHDF5             =", nFPCHDF5
+      WRITE(UNIT_StdOut,*) "FPC%nUniqueFPCBounds =", FPC%nUniqueFPCBounds
+      CALL abort(__STAMP__,'Restarting with a different number of FPC boundaries, which is not implemented!')
+    END IF ! nFPCHDF5.NE.FPC%nUniqueFPCBounds
+
+    ! Allocate the containers
+    ALLOCATE(FPCDataHDF5(FPC%nUniqueFPCBounds))
+    CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , INT(FPC%nUniqueFPCBounds,IK)/) , 0_IK , 1 , RealArray=FPCDataHDF5)
+    TmpStr=''
+    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      ! Output in this format: ", 1: 1.312e2 [C]" + ", 2: 3.352e3 [C]" + ...
+      WRITE(TmpStr,'(A,I0,A,ES10.3,A)') TRIM(TmpStr)//', ',iUniqueFPCBC,': ',FPCDataHDF5(iUniqueFPCBC),' [C]'
+    END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+    TmpStr(1:1) = ' ' ! Remove first comma
+    TmpStr      = ADJUSTL(TmpStr) ! Remove leading white spaces
+    WRITE(UNIT_stdOut,'(A)') " Read floating boundary condition charges from restart file ["//TRIM(RestartFile)//"]: "//TRIM(TmpStr)
+    FPC%Charge(:) = FPCDataHDF5
+    DEALLOCATE(FPCDataHDF5)
+  END IF ! FPCExists
+  CALL CloseDataFile()
+END IF ! MPIRoot
+
+#if USE_MPI
+! 2. The MPI root process distributes the information among the sub-communicator processes for each FPC
+CALL SynchronizeChargeOnFPC()
+#endif /*USE_MPI*/
+
+END SUBROUTINE ReadFPCDataFromH5
+
+
+#if USE_MPI
+!===================================================================================================================================
+!> The MPI root process distributes the information among the sub-communicator processes for each FPC
+!===================================================================================================================================
+SUBROUTINE SynchronizeChargeOnFPC()
+! MODULES
+USE MOD_HDG_Vars ,ONLY: FPC
+USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
+! insert modules here
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iUniqueFPCBC
+!===================================================================================================================================
+DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+  ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR )
+    IF(COMM.NE.MPI_COMM_NULL)THEN
+      ! Broadcast from root to other processors on the sub-communicator
+      CALL MPI_BCAST(FPC%Charge(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, 0, COMM, IERROR)
+    END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
+  END ASSOCIATE
+END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+END SUBROUTINE SynchronizeChargeOnFPC
+#endif /*USE_MPI*/
 
 
 !===================================================================================================================================
@@ -679,8 +1111,8 @@ IF(UseBRElectronFluid) THEN
     ForceCGSolverIteration_loc = MERGE(ForceCGSolverIteration_opt, .FALSE., PRESENT(ForceCGSolverIteration_opt))
     CALL HDGNewton(t, U_out, iter, ForceCGSolverIteration_loc)
   ELSE
-    CALL abort(__STAMP__,'Defined HDGNonLinSolver not implemented (HDGFixPoint has been removed!) HDGNonLinSolver = ',&
-    IntInfoOpt=HDGNonLinSolver)
+    CALL CollectiveStop(__STAMP__,'Defined HDGNonLinSolver not implemented (HDGFixPoint has been removed!) HDGNonLinSolver = ',&
+    IntInfo=HDGNonLinSolver)
   END IF
 ELSE
 #endif /*defined(PARTICLES)*/
@@ -758,6 +1190,7 @@ USE MOD_MPI_Vars
 #endif
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG
 #endif
+USE MOD_Globals_Vars    ,ONLY: ElementaryCharge,eps0
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -787,7 +1220,11 @@ PetscReal            :: petscnorm
 INTEGER              :: ElemID,iBCSide,locBCSideID, PETScLocalID
 INTEGER              :: PETScID_start, PETScID_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
+REAL                 :: RHS_conductor(nGP_face)
 #endif
+#if USE_PETSC
+INTEGER              :: iUniqueFPCBC
+#endif /*USE_PETSC*/
 !===================================================================================================================================
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
@@ -866,6 +1303,28 @@ DO iVar = 1, PP_nVar
     END DO !BCsideID=1,nDirichletBCSides
   END IF
 #endif
+
+  ! Floating boundary BCs
+#if USE_PETSC && defined(PARTICLES)
+  IF(FPC%nFPCBounds.GT.0)THEN
+#if USE_MPI
+    ! Communicate the accumulated charged on each BC to all processors on the communicator
+    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR)
+        IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+          CALL MPI_ALLREDUCE(MPI_IN_PLACE, FPC%ChargeProc(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, MPI_SUM, COMM, IERROR)
+          FPC%Charge(iUniqueFPCBC) = FPC%Charge(iUniqueFPCBC) + FPC%ChargeProc(iUniqueFPCBC)
+        END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
+      END ASSOCIATE
+    END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+#else
+    FPC%Charge = FPC%Charge + FPC%ChargeProc
+#endif /*USE_MPI*/
+    FPC%ChargeProc = 0.
+    ! Apply charge to RHS, which this is done below: RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
+
+  END IF ! FPC%nFPCBounds.GT.0
+#endif /*USE_PETSC && defined(PARTICLES)*/
 
   ! Check if zero potential sides are present
   IF(ZeroPotentialSideID.GT.0) lambda(iVar,:,ZeroPotentialSideID) = ZeroPotentialValue
@@ -978,24 +1437,44 @@ DO iVar=1, PP_nVar
 
 #if USE_PETSC
   ! Fill right hand side
-  !PetscCallA(VecZeroEntries(RHS_petsc,ierr))
+  PetscCallA(VecZeroEntries(RHS_petsc,ierr))
   TimeStartPiclas=PICLASTIME()
   DO PETScLocalID=1,nPETScUniqueSides
     SideID=PETScLocalToSideID(PETScLocalID)
     !VecSetValuesBlockedLocal somehow not working...
     PetscCallA(VecSetValuesBlocked(RHS_petsc,1,PETScGlobal(SideID),RHS_face(1,:,SideID),INSERT_VALUES,ierr))
   END DO
+  ! The MPIRoot process has charge and voltage of all FPCs, there, this process sets all conductor RHS information
+  IF(MPIRoot)THEN
+    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      RHS_conductor(:)=0.
+      RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
+      PetscCallA(VecSetValuesBlocked(RHS_petsc,1,nPETScUniqueSidesGlobal-1-FPC%nUniqueFPCBounds+iUniqueFPCBC,RHS_conductor,INSERT_VALUES,ierr))
+    END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+  END IF ! MPIRoot
   PetscCallA(VecAssemblyBegin(RHS_petsc,ierr))
   PetscCallA(VecAssemblyEnd(RHS_petsc,ierr))
-  
+
   ! Calculate lambda
   PetscCallA(KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr))
   TimeEndPiclas=PICLASTIME()
   PetscCallA(KSPGetIterationNumber(ksp,iterations,ierr))
   PetscCallA(KSPGetConvergedReason(ksp,reason,ierr))
   PetscCallA(KSPGetResidualNorm(ksp,petscnorm,ierr))
+  ! reason - negative value indicates diverged, positive value converged, see KSPConvergedReason
+  !  -2: KSP_DIVERGED_NULL
+  !  -3: KSP_DIVERGED_ITS            -> Ran out of iterations before any convergence criteria was reached
+  !  -4: KSP_DIVERGED_DTOL           -> norm(r) >= dtol*norm(b)
+  !  -5: KSP_DIVERGED_BREAKDOWN      -> Breakdown in the Krylov method: the method could not continue to enlarge the Krylov space
+  !  -6: KSP_DIVERGED_BREAKDOWN_BICG -> Breakdown in the Krylov method: the method could not continue to enlarge the Krylov space
+  !  -7: KSP_DIVERGED_NONSYMMETRIC   -> It appears the operator or preconditioner is not symmetric and this Krylov method
+  !  -8: KSP_DIVERGED_INDEFINITE_PC  -> It appears the preconditioner is indefinite
+  !  -9: KSP_DIVERGED_NANORINF
+  ! -10: KSP_DIVERGED_INDEFINITE_MAT
+  ! -11: KSP_DIVERGED_PC_FAILED      -> It was not possible to build or use the requested preconditioner
+  ! -11: KSP_DIVERGED_PCSETUP_FAILED_DEPRECATED
   IF(reason.LT.0)THEN
-    SWRITE(*,*) 'Attention: PETSc not converged! Reason: ', reason 
+    SWRITE(*,*) 'Attention: PETSc not converged! Reason: ', reason
   END IF
   IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, petscnorm)
 
@@ -1008,8 +1487,59 @@ DO iVar=1, PP_nVar
     PETScID_start=1+(PETScLocalID-1)*nGP_face
     PETScID_stop=PETScLocalID*nGP_face
     lambda(1,:,SideID) = lambda_pointer(PETScID_start:PETScID_stop)
-  END DO 
+  END DO
   PetscCallA(VecRestoreArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
+
+  ! Fill Conductor lambda
+  IF(FPC%nFPCBounds.GT.0)THEN
+    PetscCallA(VecScatterBegin(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
+    PetscCallA(VecScatterEnd(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
+    PetscCallA(VecGetArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
+    FPC%VoltageProc = 0. ! nullify just to be safe
+    ! TODO multiple conductors
+    DO BCsideID=1,nConductorBCsides
+      SideID=ConductorBC(BCSideID)
+      BCState=BoundaryType(BC(SideID),BC_STATE)
+      DO i=1,nGP_face
+        lambda(1,:,SideID) = lambda_pointer(1 + (FPC%Group(BCState,2) - 1) * nGP_face)
+      END DO
+      ! Copy the value to the FPC container for output to .csv (only mpi root does this)
+      FPC%VoltageProc(FPC%Group(BCState,2)) = lambda(1,1,SideID)
+    END DO
+#if USE_MPI
+    ! Sum the voltages across each sub-group and divide by the size of the group to get the voltage. This is required if the MPI
+    ! root is not connected to every FPC (which is usually the case)
+    !
+    ! 1. Communicate the accumulated voltage (should be the same on each proc that has such a BC) on each BC to all processors on the
+    ! communicator
+    FPC%Voltage = 0.
+    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR )
+        IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+          ASSOCIATE( VoltageProc => FPC%VoltageProc(iUniqueFPCBC), Voltage => FPC%Voltage(iUniqueFPCBC) )
+            IF(MPIroot)THEN
+              CALL MPI_REDUCE(VoltageProc, Voltage, 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, iError)
+            ELSE
+              CALL MPI_REDUCE(VoltageProc, 0      , 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IError)
+            END IF ! MPIroot
+          END ASSOCIATE
+        END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
+      END ASSOCIATE
+    END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+
+    ! 2. Divide by group size (procs that have an actual FPC BC side -> FPC%COMM(iUniqueFPCBC)%nProcsWithSides).
+    !    The MPI root process definitely has the size of each group, which is at least 1.
+    IF(MPIRoot)THEN
+      DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+        FPC%Voltage(iUniqueFPCBC) = FPC%Voltage(iUniqueFPCBC) / REAL(FPC%COMM(iUniqueFPCBC)%nProcsWithSides)
+      END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+    END IF ! MPIRoot
+#else
+    FPC%Voltage = FPC%VoltageProc
+#endif /*USE_MPI*/
+    PetscCallA(VecRestoreArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
+  END IF ! FPC%nFPCBounds.GT.0
+
   ! PETSc Calculate lambda at small mortars from big mortars
   CALL BigToSmallMortar_HDG(1,lambda)
 #if USE_MPI
@@ -1140,7 +1670,7 @@ REAL    :: tLBStart
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
 #if (PP_nVar!=1)
-  CALL abort(__STAMP__,'Nonlinear Newton solver only available with EQ-system Poisson!')
+  CALL CollectiveStop(__STAMP__,'Nonlinear Newton solver only available with EQ-system Poisson!')
 #endif
 Norm_r2=0.
 
@@ -1408,9 +1938,7 @@ ELSE
       IPWRITE(UNIT_StdOut,*) "Norm_r2       =", Norm_r2
       IPWRITE(UNIT_StdOut,*) "iter          =", iter
       IPWRITE(UNIT_StdOut,*) "MaxIterNewton =", MaxIterNewton
-      CALL abort(&
-        __STAMP__&
-        ,'HDGNewton: Newton Iteration has NOT converged!')
+      CALL abort(__STAMP__,'HDGNewton: Newton Iteration has NOT converged!')
     END IF
 
     CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))
@@ -1451,7 +1979,10 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_HDG_Vars  ,ONLY: nGP_face
 USE MOD_HDG_Vars  ,ONLY: EpsNonLinear
-USE MOD_Mesh_Vars ,ONLY: nSides,nMPISides_YOUR
+USE MOD_Mesh_Vars ,ONLY: nSides
+#if USE_MPI
+USE MOD_Mesh_Vars ,ONLY: nMPISides_YOUR
+#endif /*USE_MPI*/
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars  ,ONLY: MPIW8TimeField,MPIW8CountField
 #endif /*defined(MEASURE_MPI_WAIT)*/
@@ -1514,7 +2045,10 @@ USE MOD_Preproc
 USE MOD_HDG_Vars           ,ONLY: nGP_face,HDGDisplayConvergence,iteration
 USE MOD_HDG_Vars           ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG
 USE MOD_TimeDisc_Vars      ,ONLY: iter,IterDisplayStep
-USE MOD_Mesh_Vars          ,ONLY: nSides,nMPISides_YOUR
+USE MOD_Mesh_Vars          ,ONLY: nSides
+#if USE_MPI
+USE MOD_Mesh_Vars          ,ONLY: nMPISides_YOUR
+#endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -2046,7 +2580,7 @@ CASE(0)
   ! do nothing, should not be called
 CASE(1) !apply side-block SPD Preconditioner matrix, already Cholesky decomposed
   DO SideID=firstSideID,lastSideID
-    IF(MaskedSide(sideID)) THEN
+    IF(MaskedSide(sideID).GT.0) THEN
       V(:,SideID)=0.
     ELSE
       ! solve the preconditioner linear system
@@ -2055,7 +2589,7 @@ CASE(1) !apply side-block SPD Preconditioner matrix, already Cholesky decomposed
   END DO ! SideID=1,nSides
 CASE(2)
   DO SideID=firstSideID,lastSideID
-    IF(MaskedSide(sideID)) THEN
+    IF(MaskedSide(sideID).GT.0) THEN
       V(:,SideID)=0.
     ELSE
       ! apply inverse of diagonal preconditioned
@@ -2220,6 +2754,30 @@ SDEALLOCATE(InvPrecondDiag)
 SDEALLOCATE(MaskedSide)
 SDEALLOCATE(SmallMortarInfo)
 SDEALLOCATE(IntMatMortar)
+
+#if USE_LOADBALANCE
+! MPIRoot does not deallocate during load balance because this process sends the info to the other processors via the respective
+! sub-communicators after the new domain decomposition is performed
+IF(MPIRoot)THEN
+  IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
+#endif /*USE_LOADBALANCE*/
+    SDEALLOCATE(FPC%Charge)
+    SDEALLOCATE(FPC%Voltage)
+#if USE_LOADBALANCE
+  END IF ! .NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))
+ELSE
+  SDEALLOCATE(FPC%Charge)
+  SDEALLOCATE(FPC%Voltage)
+END IF ! MPIRoot
+#endif /*USE_LOADBALANCE*/
+SDEALLOCATE(ConductorBC)
+SDEALLOCATE(FPC%Group)
+SDEALLOCATE(FPC%BCState)
+SDEALLOCATE(FPC%VoltageProc)
+SDEALLOCATE(FPC%ChargeProc)
+#if USE_MPI
+SDEALLOCATE(FPC%COMM)
+#endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
 IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN

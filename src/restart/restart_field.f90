@@ -45,7 +45,9 @@ SUBROUTINE FieldRestart()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars                ,ONLY: U
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 USE MOD_IO_HDF5
 USE MOD_Restart_Vars           ,ONLY: N_Restart,RestartFile,InterpolateSolution,RestartNullifySolution
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
@@ -81,6 +83,9 @@ USE MOD_HDG_Vars               ,ONLY: lambdaLB
 #endif /*defined(PARTICLES)*/
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
+#if USE_LOADBALANCE
+USE MOD_HDG                    ,ONLY: SynchronizeChargeOnFPC
+#endif /*USE_LOADBALANCE*/
 USE PETSc
 USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
 #endif
@@ -144,9 +149,12 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #if USE_LOADBALANCE
 IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 #if USE_HDG
-  ! ------------------------------------------------
-  ! lambda
-  ! ------------------------------------------------
+
+#if USE_PETSC
+  ! FPC: The MPI root process distributes the information among the sub-communicator processes for each FPC (before and after load
+  !      balance, the root process is always part of each sub-communicator group)
+  CALL SynchronizeChargeOnFPC()
+#endif /*USE_PETSC*/
 
 #if defined(PARTICLES)
   !checkRank=MIN(3,nProcessors-1)

@@ -21,9 +21,9 @@ USE MOD_io_HDF5
 USE MOD_HDF5_output
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
+! Private Part ---------------------------------------------------------------------------------------------------------------------
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
 INTERFACE WriteStateToHDF5
@@ -72,7 +72,7 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: nGP_face, iLocSides
+USE MOD_HDG_Vars               ,ONLY: nGP_face, iLocSides, FPC
 #if PP_nVar==1
 USE MOD_Equation_Vars          ,ONLY: E,Et
 #elif PP_nVar==3
@@ -112,6 +112,8 @@ USE MOD_HDF5_Output_Fields     ,ONLY: WritePMLDataToHDF5
 #endif
 USE MOD_HDF5_Output_ElemData   ,ONLY: WriteAdditionalElemData
 ! IMPLICIT VARIABLE HANDLING
+USE MOD_Analyze_Vars           ,ONLY: OutputErrorNormsToH5
+USE MOD_HDF5_Output_Fields     ,ONLY: WriteErrorNormsToHDF5
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -168,6 +170,8 @@ INTEGER                        :: SortedOffset,SortedStart,SortedEnd
 #ifdef PARTICLES
 INTEGER                        :: i,j,k,iElem
 #endif /*PARTICLES*/
+REAL,ALLOCATABLE               :: FPCDataHDF5(:,:)
+INTEGER                        :: nVarFPC
 #endif /*USE_HDG*/
 !===================================================================================================================================
 #ifdef EXTRAE
@@ -586,6 +590,22 @@ END IF ! CalcBulkElectronTempi.AND.MPIRoot
 #endif /*USE_HDG*/
 #endif /*PARTICLES*/
 
+#if USE_HDG
+IF((FPC%nFPCBounds.GT.0).AND.MPIRoot)THEN
+  nVarFPC = FPC%nUniqueFPCBounds
+  ALLOCATE(FPCDataHDF5(1:nVarFPC,1))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  FPCDataHDF5(1:nVarFPC,1) = FPC%Charge(1:nVarFPC)
+  CALL WriteArrayToHDF5( DataSetName = 'FloatingPotentialCharge' , rank = 2   , &
+                         nValGlobal  = (/1_IK , INT(nVarFPC,IK)/), &
+                         nVal        = (/1_IK , INT(nVarFPC,IK)/), &
+                         offset      = (/0_IK , 0_IK/)                        , &
+                         collective  = .FALSE., RealArray = FPCDataHDF5(1:nVarFPC,1))
+  CALL CloseDataFile()
+  DEALLOCATE(FPCDataHDF5)
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#endif /*USE_HDG*/
+
 #if USE_LOADBALANCE
 ! Write 'ElemTime' to a separate container in the state.h5 file
 CALL WriteElemDataToSeparateContainer(FileName,ElementOut,'ElemTime')
@@ -645,6 +665,8 @@ CALL WriteEmissionVariablesToHDF5(FileName)
 
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+
+IF(OutputErrorNormsToH5) CALL WriteErrorNormsToHDF5(OutputTime_loc)
 
 #if defined(PARTICLES)
 CALL DisplayNumberOfParticles(1)
