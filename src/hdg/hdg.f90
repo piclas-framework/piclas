@@ -40,7 +40,7 @@ PUBLIC :: InitHDG,FinalizeHDG
 PUBLIC :: HDG, RestartHDG
 PUBLIC :: DefineParametersHDG
 #if USE_MPI
-PUBLIC :: SynchronizeChargeOnFPC
+PUBLIC :: SynchronizeChargeOnFPC,SynchronizeVoltageOnEPC
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
@@ -87,6 +87,7 @@ CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence crit
 CALL prms%CreateIntOption(    'HDGZeroPotentialDir'    ,'Direction in which a Dirichlet condition with phi=0 is superimposed on the boundary conditions'&
                                                       //' (1: x, 2: y, 3: z). The default chooses the direction automatically when no other Dirichlet boundary conditions are defined.'&
                                                        ,'-1')
+CALL prms%CreateRealArrayOption( 'EPC-Resistance'      , 'Vector (length corresponds to the number of EPC boundaries) with the resistance for each EPC in Ohm', no=0)
 
 ! --- BR electron fluid
 #if defined(PARTICLES)
@@ -245,7 +246,7 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4,5,6,7) ! Dirichlet
+  CASE(2,4,5,6,7,8) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
   CASE(10,11) ! Neumann
     nNeumannBCsides=nNeumannBCsides+1
@@ -258,6 +259,9 @@ END DO
 
 ! Conductor: Initialize floating boundary condition
 CALL InitFPC()
+
+! Conductor: Initialize electric potential condition (resistive decharging of surface and electric potential calculation)
+CALL InitEPC()
 
 ! Check if zero potential must be set on a boundary (or periodic side)
 CALL InitZeroPotential()
@@ -278,7 +282,7 @@ DO SideID=1,nBCSides
   BCType =BoundaryType(BC(SideID),BC_TYPE)
   BCState=BoundaryType(BC(SideID),BC_STATE)
   SELECT CASE(BCType)
-  CASE(2,4,5,6,7) ! Dirichlet
+  CASE(2,4,5,6,7,8) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
     MaskedSide(SideID)=1
@@ -494,7 +498,7 @@ PetscCallA(ISCreateStride(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,0,1,idx_loc
 PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr))
 PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr))
 
-IF(FPC%nFPCBounds.GT.0)THEN
+IF(UseFPC)THEN
   PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,lambda_local_conductors_petsc,ierr))
   PetscCallA(ISCreateStride(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,0,1,idx_local_conductors_petsc,ierr))
   ALLOCATE(indx(FPC%nUniqueFPCBounds))
@@ -554,7 +558,7 @@ DO iBC=1,nBCs
   SELECT CASE(BCType)
   CASE(1) ! periodic
     ! do nothing
-  CASE(2,4,5,6,7) ! Dirichlet
+  CASE(2,4,5,6,7,8) ! Dirichlet
     ZeroPotentialSideID = 0 ! no zero potential required
     EXIT ! as soon as one Dirichlet BC is found, no zero potential must be used
   CASE(10,11) ! Neumann
@@ -638,7 +642,6 @@ END SUBROUTINE InitZeroPotential
 !===================================================================================================================================
 !> Create containers and communicators for each floating boundary condition where impacting charges are accumulated.
 !>
-!
 !> 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
 !>     contribute to the total floating boundary condition. If yes, then this processor is part of the communicator
 !> 2.) Create Mapping from floating boundary condition BC index to field BC index
@@ -654,7 +657,7 @@ USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_WORLD
 USE MOD_Preproc
 USE MOD_Mesh_Vars          ,ONLY: nBCs,BoundaryType
 USE MOD_Analyze_Vars       ,ONLY: DoFieldAnalyze
-USE MOD_HDG_Vars           ,ONLY: FPC
+USE MOD_HDG_Vars           ,ONLY: UseFPC,FPC
 USE MOD_Mesh_Vars          ,ONLY: nBCSides,BC
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
@@ -689,6 +692,7 @@ CHARACTER(5)        :: hilf,hilf2
 
 ! Get global number of FPC boundaries in [1:nBCs], they might belong to the same group (will be reduced to "nUniqueFPCBounds" below)
 ! FPC boundaries with the same BCState will be in the same group (electrically connected)
+UseFPC = .FALSE.
 FPC%nFPCBounds = 0
 FPC%nUniqueFPCBounds = 0
 DO iBC=1,nBCs
@@ -700,6 +704,8 @@ DO iBC=1,nBCs
 END DO
 
 IF(FPC%nFPCBounds.EQ.0) RETURN ! Already determined in HDG initialization
+
+UseFPC = .TRUE.
 
 ALLOCATE(FPC%Group(1:FPC%nFPCBounds,3))
 FPC%Group = 0 ! Initialize
@@ -790,7 +796,7 @@ ELSE
 
 #if defined(PARTICLES)
   ! Check if all FPCs have already been found
-  IF(.NOT.(ALL(BConProc)) )THEN
+  IF(.NOT.(ALL(BConProc)))THEN
     ! Particles might impact the FPC on another proc/node. Therefore check if a particle can travel from a local element to an
     ! element that has at least one side, which is an FPC
     ! 4.1.) Each processor loops over all of his elements
@@ -913,6 +919,293 @@ CALL ReadFPCDataFromH5()
 
 END SUBROUTINE InitFPC
 
+
+!===================================================================================================================================
+!> Create containers and communicators for each electric potential boundary condition where impacting charges are removed and
+!> subsequently an electric potential is created.
+!>
+!> 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
+!>     contribute to the total floating boundary condition. If yes, then this processor is part of the communicator
+!> 2.) Create Mapping from floating boundary condition BC index to field BC index
+!> 3.) Create Mapping from field BC index to floating boundary condition BC index
+!> 4.0) Check if field BC is on current proc (or MPI root)
+!> 4.1.) Each processor loops over all of his elements
+!> 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
+!> 5.) Create MPI sub-communicators
+!===================================================================================================================================
+SUBROUTINE InitEPC()
+! MODULES
+USE MOD_Globals  ! ,ONLY: MPIRoot,iError,myrank,UNIT_stdOut,MPI_COMM_WORLD
+USE MOD_Preproc
+USE MOD_Mesh_Vars          ,ONLY: nBCs,BoundaryType
+USE MOD_Analyze_Vars       ,ONLY: DoFieldAnalyze
+USE MOD_HDG_Vars           ,ONLY: UseEPC,EPC
+USE MOD_Mesh_Vars          ,ONLY: nBCSides,BC
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+#if USE_MPI && defined(PARTICLES)
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
+USE MOD_Globals            ,ONLY: ElementOnProc
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,SideInfo_Shared
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
+USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps
+USE MOD_Mesh_Vars          ,ONLY: nElems, offsetElem
+#endif /*USE_MPI && defined(PARTICLES)*/
+USE MOD_ReadInTools        ,ONLY: GETREALARRAY
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: BCType,BCState,iUniqueEPCBC
+INTEGER             :: SideID,iBC
+#if USE_MPI
+INTEGER             :: color,WithSides
+LOGICAL,ALLOCATABLE :: BConProc(:)
+#if defined(PARTICLES)
+INTEGER             :: iElem,iCNElem
+REAL                :: iElemCenter(1:3),iGlobElemCenter(1:3)
+REAL                :: iElemRadius,iGlobElemRadius
+INTEGER             :: iGlobElem,BCIndex,iSide
+#endif /*defined(PARTICLES)*/
+#endif /*USE_MPI*/
+CHARACTER(5)        :: hilf,hilf2
+!===================================================================================================================================
+
+! Get global number of EPC boundaries in [1:nBCs], they might belong to the same group (will be reduced to "nUniqueEPCBounds" below)
+! EPC boundaries with the same BCState will be in the same group (electrically connected)
+UseEPC = .FALSE.
+EPC%nEPCBounds = 0
+EPC%nUniqueEPCBounds = 0
+DO iBC=1,nBCs
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(BCType.NE.8) CYCLE ! Skip non-EPC boundaries
+  BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
+  EPC%nEPCBounds=EPC%nEPCBounds+1
+  IF(BCState.LE.0) CALL CollectiveStop(__STAMP__,' BCState for EPC must be >0! BCState=',IntInfo=BCState)
+END DO
+
+IF(EPC%nEPCBounds.EQ.0) RETURN ! Already determined in HDG initialization
+
+UseEPC = .TRUE.
+
+ALLOCATE(EPC%Group(1:EPC%nEPCBounds,3))
+EPC%Group = 0 ! Initialize
+
+! 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
+! contribute to the total floating boundary condition. If yes, then this processor is part of the communicator
+DO iBC=1,nBCs
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(BCType.NE.8) CYCLE ! Skip non-EPC boundaries
+  BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
+  WRITE(UNIT=hilf,FMT='(I0)') BCState
+  WRITE(UNIT=hilf2,FMT='(I0)') EPC%nEPCBounds
+  IF(BCState.GT.EPC%nEPCBounds) CALL CollectiveStop(__STAMP__,&
+      'BCState='//TRIM(hilf)//' must be smaller or equal than the total number of '//TRIM(hilf2)//' EPC boundaries!')
+  EPC%Group(BCState,1) = EPC%Group(BCState,1) + 1
+  IF(EPC%Group(BCState,1).EQ.1) THEN
+    EPC%nUniqueEPCBounds = EPC%nUniqueEPCBounds +1 ! Only count once
+    EPC%Group(BCState,2) = EPC%nUniqueEPCBounds
+  END IF
+END DO
+
+! Automatically activate surface model analyze flag
+DoFieldAnalyze = .TRUE.
+
+! Read resistances for each unique EPC
+EPC%Resistance  = GETREALARRAY('EPC-Resistance',EPC%nUniqueEPCBounds)
+
+! 2.) Create Mapping from floating boundary condition BC index to BCState
+ALLOCATE(EPC%BCState(EPC%nUniqueEPCBounds))
+EPC%BCState = 0
+DO iBC=1,nBCs
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(BCType.NE.8) CYCLE
+  BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
+  iUniqueEPCBC = EPC%Group(BCState,2)
+  EPC%BCState(iUniqueEPCBC) = BCState
+END DO
+
+! Allocate the containers
+! This container is not deallocated for MPIRoot when performing load balance (only root needs this info to write it to .csv)
+IF(.NOT.ALLOCATED(EPC%Voltage))THEN
+  ALLOCATE(EPC%Voltage(1:EPC%nUniqueEPCBounds))
+  EPC%Voltage = 0.
+END IF ! .NOT.ALLOCATED(EPC%Voltage)
+ALLOCATE(EPC%VoltageProc(1:EPC%nUniqueEPCBounds))
+EPC%VoltageProc = 0.
+! This container is not deallocated for MPIRoot when performing load balance as this process updates the information on the new
+! sub-communicator processes during load balance
+IF(.NOT.ALLOCATED(EPC%Charge))THEN
+  ALLOCATE(EPC%Charge(1:EPC%nUniqueEPCBounds))
+  EPC%Charge = 0.
+END IF ! .NOT.ALLOCATED(EPC%Charge)
+ALLOCATE(EPC%ChargeProc(1:EPC%nUniqueEPCBounds))
+EPC%ChargeProc = 0.
+
+!! 3.) Create Mapping from field BC index to floating boundary condition BC index
+!ALLOCATE(EPC%BCIDToEPCBCID(nBCs))
+!EPC%BCIDToEPCBCID = -1
+!DO iEPCBC = 1, EPC%NBoundaries
+!  iBC = EDC%FieldBoundaries(iEDCBC)
+!  EDC%BCIDToEDCBCID(iBC) = iEDCBC
+!END DO ! iEDCBC = 1, EDC%NBoundaries
+
+! Get processor-local number of EPC sides associated with each i-th EPC boundary
+! Check local sides
+DO SideID=1,nBCSides
+  iBC    = BC(SideID)
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(BCType.NE.8) CYCLE ! Skip non-EPC boundaries
+  BCState = BoundaryType(iBC,BC_STATE) ! BCState corresponds to iEPC
+  EPC%Group(BCState,3) = EPC%Group(BCState,3) + 1
+END DO ! SideID=1,nBCSides
+
+#if USE_MPI
+! 4.0) Check if field BC is on current proc (or MPI root)
+ALLOCATE(BConProc(EPC%nUniqueEPCBounds))
+BConProc = .FALSE.
+IF(MPIRoot)THEN
+  BConProc = .TRUE.
+ELSE
+
+  ! Check local sides
+  DO SideID=1,nBCSides
+    iBC    = BC(SideID)
+    BCType = BoundaryType(iBC,BC_TYPE)
+    IF(BCType.NE.8) CYCLE ! Skip non-EPC boundaries
+    BCState = BoundaryType(iBC,BC_STATE) ! BCState corresponds to iEPC
+    iUniqueEPCBC = EPC%Group(BCState,2)
+    BConProc(iUniqueEPCBC) = .TRUE.
+  END DO ! SideID=1,nBCSides
+
+#if defined(PARTICLES)
+  ! Check if all FPCs have already been found
+  IF(.NOT.(ALL(BConProc)))THEN
+    ! Particles might impact the EPC on another proc/node. Therefore check if a particle can travel from a local element to an
+    ! element that has at least one side, which is an EPC
+    ! 4.1.) Each processor loops over all of his elements
+    iElemLoop: DO iElem = 1+offsetElem, nElems+offsetElem
+
+      iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
+                            SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
+                            SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+      iElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
+                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
+                                BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+
+      ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
+      ! Loop ALL compute-node elements (use global element index)
+      iCNElemLoop: DO iCNElem = 1,nComputeNodeTotalElems
+        iGlobElem = GetGlobalElemID(iCNElem)
+
+        ! Skip my own elements as they have already been tested when the local sides are checked
+        IF(ElementOnProc(iGlobElem)) CYCLE iCNElemLoop
+
+        ! Check if one of the six sides of the compute-node element is a EPC
+        ! Note that iSide is in the range of 1:nNonUniqueGlobalSides
+        DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+          ! Get BC index of the global side index
+          BCIndex = SideInfo_Shared(SIDE_BCID,iSide)
+          ! Only check BC sides with BC index > 0
+          IF(BCIndex.GT.0)THEN
+            ! Get boundary type
+            BCType = BoundaryType(BCIndex,BC_TYPE)
+            ! Check if EPC has been found
+            IF(BCType.EQ.8)THEN
+
+              ! Check if the BC can be reached
+              iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
+                                        SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
+                                        SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
+              iGlobElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
+                                            BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
+                                            BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
+
+              ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
+              IF (VECNORM( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
+                BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iEPC
+                IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
+                iUniqueEPCBC = EPC%Group(BCState,2)
+                ! Flag the i-th EPC
+                BConProc(iUniqueEPCBC) = .TRUE.
+                ! Check if all FPCs have been found -> exit complete loop
+                IF(ALL(BConProc)) EXIT iElemLoop
+                ! Go to next element
+                CYCLE iCNElemLoop
+              END IF ! VECNORM( ...
+            END IF ! BCType.EQ.8
+          END IF ! BCIndex.GT.0
+        END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+      END DO iCNElemLoop ! iCNElem = 1,nComputeNodeTotalElems
+    END DO iElemLoop ! iElem = 1, nElems
+  END IF ! .NOT.(ALL(BConProc))
+#endif /*defined(PARTICLES)*/
+
+END IF ! MPIRoot
+
+! 5.) Create MPI sub-communicators
+ALLOCATE(EPC%COMM(EPC%nUniqueEPCBounds))
+DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+  ! create new communicator
+  color = MERGE(iUniqueEPCBC, MPI_UNDEFINED, BConProc(iUniqueEPCBC))
+
+  ! set communicator id
+  EPC%COMM(iUniqueEPCBC)%ID=iUniqueEPCBC
+
+  ! create new emission communicator for floating boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, EPC%COMM(iUniqueEPCBC)%UNICATOR, iError)
+
+  ! Find my rank on the shared communicator, comm size and proc name
+  IF(BConProc(iUniqueEPCBC))THEN
+    CALL MPI_COMM_RANK(EPC%COMM(iUniqueEPCBC)%UNICATOR, EPC%COMM(iUniqueEPCBC)%MyRank, iError)
+    CALL MPI_COMM_SIZE(EPC%COMM(iUniqueEPCBC)%UNICATOR, EPC%COMM(iUniqueEPCBC)%nProcs, iError)
+
+    ! inform about size of emission communicator
+    IF (EPC%COMM(iUniqueEPCBC)%MyRank.EQ.0) THEN
+#if USE_LOADBALANCE
+      IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+          WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0)') ' Floating boundary condition: Emission-Communicator ',iUniqueEPCBC,' on ',&
+              EPC%COMM(iUniqueEPCBC)%nProcs,' procs for BCState ',EPC%BCState(iUniqueEPCBC)
+    END IF
+  END IF ! BConProc(iUniqueEPCBC)
+END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+DEALLOCATE(BConProc)
+
+! Get the number of procs that actually have a local BC side that is an EPC (required for voltage output to .csv)
+! Procs might have zero EPC sides but are in the group because 1.) MPIRoot or 2.) the EPC is in the halo region
+! Because only the MPI root process writes the .csv data, the information regarding the voltage on each EPC must be
+! communicated with this process even though it might not be connected to each EPC boundary
+DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+  ASSOCIATE( COMM => EPC%COMM(iUniqueEPCBC)%UNICATOR, nProcsWithSides => EPC%COMM(iUniqueEPCBC)%nProcsWithSides )
+    IF(EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+      ! Check if the current processor is actually connected to the EPC via a BC side
+      IF(EPC%Group(EPC%BCState(iUniqueEPCBC),3).EQ.0)THEN
+        WithSides = 0
+      ELSE
+        WithSides = 1
+      END IF ! EPC%Group(EPC%BCState(iUniqueEPCBC),3).EQ.0
+      ! Calculate the sum across the sub-communicator. Only the MPI root process needs this information
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(WithSides, nProcsWithSides, 1 ,MPI_INTEGER, MPI_SUM, 0, COMM, iError)
+        ! Sanity check
+        IF(nProcsWithSides.EQ.0) CALL abort(__STAMP__,'Found EPC with no processors connected to it')
+      ELSE
+        CALL MPI_REDUCE(WithSides, 0              , 1 ,MPI_INTEGER, MPI_SUM, 0, COMM, IError)
+      END IF ! MPIRoot
+    END IF ! EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL
+  END ASSOCIATE
+END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+#endif /*USE_MPI*/
+
+! When restarting, load the deposited charge on each EPC from the .h5 state file
+CALL ReadEPCDataFromH5()
+
+END SUBROUTINE InitEPC
+
+
 !===================================================================================================================================
 !> Read the electric charge that resides on each FPC boundary from .h5 state file.
 !> 1. The MPI root process reads the info and checks data consistency
@@ -995,6 +1288,88 @@ CALL SynchronizeChargeOnFPC()
 END SUBROUTINE ReadFPCDataFromH5
 
 
+!===================================================================================================================================
+!> Read the electric potential (voltage) that was applied on each EPC boundary from .h5 state file.
+!> 1. The MPI root process reads the info and checks data consistency
+!> 2. The MPI root process distributes the information among the sub-communicator processes for each EPC
+!===================================================================================================================================
+SUBROUTINE ReadEPCDataFromH5()
+! MODULES
+USE MOD_io_hdf5
+USE MOD_Globals            ,ONLY: UNIT_stdOut,MPIRoot,IERROR,IK,abort
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
+USE MOD_IO_HDF5            ,ONLY: OpenDataFile,CloseDataFile,File_ID
+USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartFile
+USE MOD_HDF5_Input         ,ONLY: DatasetExists,ReadArray,GetDataSize
+USE MOD_HDG_Vars           ,ONLY: EPC
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iUniqueEPCBC,nEPCHDF5,nDimsEPC
+CHARACTER(255)     :: ContainerName
+CHARACTER(1000)    :: TmpStr
+LOGICAL            :: EPCExists
+REAL,ALLOCATABLE   :: EPCDataHDF5(:)
+INTEGER(HSIZE_T), POINTER :: HSizeEPC(:)
+!===================================================================================================================================
+! Only required during restart
+IF(.NOT.DoRestart) RETURN
+
+#if USE_LOADBALANCE
+! Do not try to read the data from .h5 if load balance is performed without creating a .h5 restart file
+IF(PerformLoadBalance.AND..NOT.(UseH5IOLoadBalance)) RETURN
+#endif /*USE_LOADBALANCE*/
+
+! 1. The MPI root process reads the info and checks data consistency
+! Only root reads the values and distributes them via MPI Broadcast
+IF(MPIRoot)THEN
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+  ! Check old parameter name
+  ContainerName='ElectricPotenitalCondition'
+  CALL DatasetExists(File_ID,TRIM(ContainerName),EPCExists)
+  ! Check for new parameter name
+  IF(EPCExists)THEN
+    CALL GetDataSize(File_ID,TRIM(ContainerName),nDimsEPC,HSizeEPC)
+    CHECKSAFEINT(HSizeEPC(2),4)
+    nEPCHDF5=INT(HSizeEPC(2),4)
+    DEALLOCATE(HSizeEPC)
+    IF(nEPCHDF5.NE.EPC%nUniqueEPCBounds)THEN
+      WRITE(UNIT_StdOut,*) "nEPCHDF5 (restart file) must be equal EPC%nUniqueEPCBounds"
+      WRITE(UNIT_StdOut,*) "nEPCHDF5             =", nEPCHDF5
+      WRITE(UNIT_StdOut,*) "EPC%nUniqueEPCBounds =", EPC%nUniqueEPCBounds
+      CALL abort(__STAMP__,'Restarting with a different number of EPC boundaries, which is not implemented!')
+    END IF ! nEPCHDF5.NE.EPC%nUniqueEPCBounds
+
+    ! Allocate the containers
+    ALLOCATE(EPCDataHDF5(EPC%nUniqueEPCBounds))
+    CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , INT(EPC%nUniqueEPCBounds,IK)/) , 0_IK , 1 , RealArray=EPCDataHDF5)
+    TmpStr=''
+    DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+      ! Output in this format: ", 1: 1.312e2 [V]" + ", 2: 3.352e3 [V]" + ...
+      WRITE(TmpStr,'(A,I0,A,ES10.3,A)') TRIM(TmpStr)//', ',iUniqueEPCBC,': ',EPCDataHDF5(iUniqueEPCBC),' [V]'
+    END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+    TmpStr(1:1) = ' ' ! Remove first comma
+    TmpStr      = ADJUSTL(TmpStr) ! Remove leading white spaces
+    WRITE(UNIT_stdOut,'(A)') " Read electric potential condition from restart file ["//TRIM(RestartFile)//"]: "//TRIM(TmpStr)
+    EPC%Voltage(:) = EPCDataHDF5
+    DEALLOCATE(EPCDataHDF5)
+  END IF ! EPCExists
+  CALL CloseDataFile()
+END IF ! MPIRoot
+
+#if USE_MPI
+! 2. The MPI root process distributes the information among the sub-communicator processes for each EPC
+CALL SynchronizeVoltageOnEPC()
+#endif /*USE_MPI*/
+
+END SUBROUTINE ReadEPCDataFromH5
+
+
 #if USE_MPI
 !===================================================================================================================================
 !> The MPI root process distributes the information among the sub-communicator processes for each FPC
@@ -1020,6 +1395,32 @@ DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   END ASSOCIATE
 END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
 END SUBROUTINE SynchronizeChargeOnFPC
+
+
+!===================================================================================================================================
+!> The MPI root process distributes the information among the sub-communicator processes for each EPC
+!===================================================================================================================================
+SUBROUTINE SynchronizeVoltageOnEPC()
+! MODULES
+USE MOD_HDG_Vars ,ONLY: EPC
+USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
+! insert modules here
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iUniqueEPCBC
+!===================================================================================================================================
+DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+  ASSOCIATE( COMM => EPC%COMM(iUniqueEPCBC)%UNICATOR )
+    IF(COMM.NE.MPI_COMM_NULL)THEN
+      ! Broadcast from root to other processors on the sub-communicator
+      CALL MPI_BCAST(EPC%Voltage(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, 0, COMM, IERROR)
+    END IF ! EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL
+  END ASSOCIATE
+END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+END SUBROUTINE SynchronizeVoltageOnEPC
 #endif /*USE_MPI*/
 
 
@@ -1049,6 +1450,9 @@ USE MOD_Analyze_Vars    ,ONLY: CalcElectricTimeDerivative
 USE MOD_Analyze_Vars    ,ONLY: FieldAnalyzeStep
 USE MOD_Dielectric_vars ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps
 #endif /*(USE_HDG && (PP_nVar==1))*/
+#if defined(PARTICLES)
+USE MOD_HDG_Vars        ,ONLY: UseEPC,EPC
+#endif /*defined(PARTICLES)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1064,6 +1468,7 @@ REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 ! LOCAL VARIABLES
 #if defined(PARTICLES)
 LOGICAL :: ForceCGSolverIteration_loc
+INTEGER :: iUniqueEPCBC
 #endif /*defined(PARTICLES)*/
 #if (USE_HDG && (PP_nVar==1))
 INTEGER           :: iDir,iElem
@@ -1103,6 +1508,51 @@ IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
   END IF
 #endif
 END IF
+
+  ! Electric potential condition (EPC)
+#if (USE_HDG && (PP_nVar==1) && defined(PARTICLES))
+  IF(UseEPC)THEN
+#if USE_MPI
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+    IF(iStage.EQ.1)&
+#endif
+      EPC%Charge = 0.
+
+    ! Communicate the accumulated charged on each BC to all processors on the communicator
+    DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+      ASSOCIATE( COMM => EPC%COMM(iUniqueEPCBC)%UNICATOR)
+        IF(EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+          IF(MPIRoot)THEN
+            CALL MPI_REDUCE(MPI_IN_PLACE, EPC%ChargeProc(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
+          ELSE
+            CALL MPI_REDUCE(EPC%ChargeProc(iUniqueEPCBC), 0           , 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
+          END IF ! MPIRoot
+          EPC%Charge(iUniqueEPCBC) = EPC%Charge(iUniqueEPCBC) + EPC%ChargeProc(iUniqueEPCBC)
+        END IF ! EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL
+      END ASSOCIATE
+    END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+#endif /*USE_MPI*/
+    IF(MPIRoot) EPC%Charge(:) = EPC%Charge(:) + EPC%ChargeProc(:)
+    EPC%ChargeProc = 0.
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+    IF(iStage.EQ.nRKStages) THEN
+#endif
+      ! Only root calculates the voltage and then broadcasts it
+      IF(MPIRoot)THEN
+        DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+          ! U = R*I = R*(-dQ/dt)
+          EPC%Voltage(iUniqueEPCBC) = EPC%Resistance(iUniqueEPCBC)*(- EPC%Charge(iUniqueEPCBC) / dt)
+        END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+      END IF ! MPIRoot
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+    END IF !iStage.EQ.nRKStages
+#endif
+#if USE_MPI
+  ! 2. The MPI root process distributes the information among the sub-communicator processes for each EPC
+  CALL SynchronizeVoltageOnEPC()
+#endif /*USE_MPI*/
+  END IF ! UseEPC
+#endif /*(USE_HDG && (PP_nVar==1)&&  defined(PARTICLES))*/
 
 ! Run the appropriate HDG solver: Newton or Linear
 #if defined(PARTICLES)
@@ -1265,6 +1715,11 @@ DO iVar = 1, PP_nVar
         r=q*(PP_N+1) + p+1
         CALL ExactFunc(-3,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iLinState=BCState)
       END DO; END DO !p,q
+    CASE(8) ! exact BC = Dirichlet BC !! ExactFunc via electric potential and decharing of a surface
+      DO q=0,PP_N; DO p=0,PP_N
+        r=q*(PP_N+1) + p+1
+        CALL ExactFunc(-4,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,BCState=BCState)
+      END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nDirichletBCSides
 #if (PP_nVar!=1)
@@ -1306,7 +1761,7 @@ DO iVar = 1, PP_nVar
 
   ! Floating boundary BCs
 #if USE_PETSC && defined(PARTICLES)
-  IF(FPC%nFPCBounds.GT.0)THEN
+  IF(UseFPC)THEN
 #if USE_MPI
     ! Communicate the accumulated charged on each BC to all processors on the communicator
     DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
@@ -1323,7 +1778,7 @@ DO iVar = 1, PP_nVar
     FPC%ChargeProc = 0.
     ! Apply charge to RHS, which this is done below: RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
 
-  END IF ! FPC%nFPCBounds.GT.0
+  END IF ! UseFPC
 #endif /*USE_PETSC && defined(PARTICLES)*/
 
   ! Check if zero potential sides are present
@@ -1491,7 +1946,7 @@ DO iVar=1, PP_nVar
   PetscCallA(VecRestoreArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
 
   ! Fill Conductor lambda
-  IF(FPC%nFPCBounds.GT.0)THEN
+  IF(UseFPC)THEN
     PetscCallA(VecScatterBegin(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
     PetscCallA(VecScatterEnd(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
     PetscCallA(VecGetArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
@@ -1538,7 +1993,7 @@ DO iVar=1, PP_nVar
     FPC%Voltage = FPC%VoltageProc
 #endif /*USE_MPI*/
     PetscCallA(VecRestoreArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
-  END IF ! FPC%nFPCBounds.GT.0
+  END IF ! UseFPC
 
   ! PETSc Calculate lambda at small mortars from big mortars
   CALL BigToSmallMortar_HDG(1,lambda)
@@ -1705,6 +2160,8 @@ DO BCsideID=1,nDirichletBCSides
       r=q*(PP_N+1) + p+1
       CALL ExactFunc(-3,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iLinState=BCState)
     END DO; END DO !p,q
+    CASE(8) ! exact BC = Dirichlet BC !! ExactFunc via electric potential and decharing of a surface
+      CALL abort(__STAMP__,'Dirichlet BC=8 model not implemented for HDG Newton!')
   END SELECT ! BCType
 END DO !BCsideID=1,nDirichletBCSides
 
@@ -2777,6 +3234,29 @@ SDEALLOCATE(FPC%VoltageProc)
 SDEALLOCATE(FPC%ChargeProc)
 #if USE_MPI
 SDEALLOCATE(FPC%COMM)
+#endif /*USE_MPI*/
+
+#if USE_LOADBALANCE
+! MPIRoot does not deallocate during load balance because this process sends the info to the other processors via the respective
+! sub-communicators after the new domain decomposition is performed
+IF(MPIRoot)THEN
+  IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
+#endif /*USE_LOADBALANCE*/
+    SDEALLOCATE(EPC%Voltage)
+#if USE_LOADBALANCE
+  END IF ! .NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))
+ELSE
+  SDEALLOCATE(EPC%Voltage)
+END IF ! MPIRoot
+#endif /*USE_LOADBALANCE*/
+SDEALLOCATE(EPC%Charge)
+SDEALLOCATE(EPC%Resistance)
+SDEALLOCATE(EPC%Group)
+SDEALLOCATE(EPC%BCState)
+SDEALLOCATE(EPC%VoltageProc)
+SDEALLOCATE(EPC%ChargeProc)
+#if USE_MPI
+SDEALLOCATE(EPC%COMM)
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE

@@ -72,7 +72,7 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: nGP_face, iLocSides, FPC
+USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC
 #if PP_nVar==1
 USE MOD_Equation_Vars          ,ONLY: E,Et
 #elif PP_nVar==3
@@ -170,8 +170,8 @@ INTEGER                        :: SortedOffset,SortedStart,SortedEnd
 #ifdef PARTICLES
 INTEGER                        :: i,j,k,iElem
 #endif /*PARTICLES*/
-REAL,ALLOCATABLE               :: FPCDataHDF5(:,:)
-INTEGER                        :: nVarFPC
+REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:)
+INTEGER                        :: nVarFPC,nVarEPC
 #endif /*USE_HDG*/
 !===================================================================================================================================
 #ifdef EXTRAE
@@ -591,7 +591,8 @@ END IF ! CalcBulkElectronTempi.AND.MPIRoot
 #endif /*PARTICLES*/
 
 #if USE_HDG
-IF((FPC%nFPCBounds.GT.0).AND.MPIRoot)THEN
+! Floating boundary condition: Store charge on each FPC
+IF(UseFPC.AND.MPIRoot)THEN
   nVarFPC = FPC%nUniqueFPCBounds
   ALLOCATE(FPCDataHDF5(1:nVarFPC,1))
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
@@ -603,6 +604,20 @@ IF((FPC%nFPCBounds.GT.0).AND.MPIRoot)THEN
                          collective  = .FALSE., RealArray = FPCDataHDF5(1:nVarFPC,1))
   CALL CloseDataFile()
   DEALLOCATE(FPCDataHDF5)
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+! Electric potential condition: Store Voltage on each EPC
+IF(UseEPC.AND.MPIRoot)THEN
+  nVarEPC = EPC%nUniqueEPCBounds
+  ALLOCATE(EPCDataHDF5(1:nVarEPC,1))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  EPCDataHDF5(1:nVarEPC,1) = EPC%Voltage(1:nVarEPC)
+  CALL WriteArrayToHDF5( DataSetName = 'ElectricPotenitalCondition' , rank = 2   , &
+                         nValGlobal  = (/1_IK , INT(nVarEPC,IK)/), &
+                         nVal        = (/1_IK , INT(nVarEPC,IK)/), &
+                         offset      = (/0_IK , 0_IK/)                        , &
+                         collective  = .FALSE., RealArray = EPCDataHDF5(1:nVarEPC,1))
+  CALL CloseDataFile()
+  DEALLOCATE(EPCDataHDF5)
 END IF ! CalcBulkElectronTempi.AND.MPIRoot
 #endif /*USE_HDG*/
 

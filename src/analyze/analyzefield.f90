@@ -73,9 +73,10 @@ USE MOD_Particle_Analyze_Vars ,ONLY: IsRestart
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 USE MOD_Dielectric_Vars       ,ONLY: DoDielectric
 #if USE_HDG
-USE MOD_HDG_Vars              ,ONLY: HDGNorm,iterationTotal,RunTimeTotal,FPC
+USE MOD_HDG_Vars              ,ONLY: HDGNorm,iterationTotal,RunTimeTotal,UseFPC,FPC,UseEPC,EPC
 USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential,CalcAverageElectricPotential,EDC,CalcElectricTimeDerivative
 USE MOD_Mesh_Vars             ,ONLY: BoundaryName
+USE MOD_TimeDisc_Vars         ,ONLY: dt
 #endif /*USE_HDG*/
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolation
@@ -104,7 +105,7 @@ INTEGER,PARAMETER  :: helpInt=0
 #endif /*PP_nVar=8*/
 #if USE_HDG
 INTEGER,PARAMETER  :: helpInt2=4
-INTEGER            :: iEDCBC,iUniqueFPCBC
+INTEGER            :: iEDCBC,iUniqueFPCBC,iUniqueEPCBC
 #else
 INTEGER,PARAMETER  :: helpInt2=0
 #endif /*USE_HDG*/
@@ -164,7 +165,9 @@ IF(MPIROOT)THEN
       !-- Electric displacement current
       IF(CalcElectricTimeDerivative) nOutputVarTotal = nOutputVarTotal + EDC%NBoundaries
       !-- Floating boundary condition
-      IF(FPC%nFPCBounds.GT.0) nOutputVarTotal = nOutputVarTotal + 2*FPC%nUniqueFPCBounds ! Charge and Voltage on each FPC
+      IF(UseFPC) nOutputVarTotal = nOutputVarTotal + 2*FPC%nUniqueFPCBounds ! Charge and Voltage on each FPC
+      !-- Electric potential condition
+      IF(UseEPC) nOutputVarTotal = nOutputVarTotal + 2*EPC%nUniqueEPCBounds ! Current and Voltage on each EPC
 #endif /*USE_HDG*/
 #if (PP_nVar==8)
       IF(.NOT.CalcEpot) nOutputVarTotal = nOutputVarTotal - 5
@@ -215,7 +218,7 @@ IF(MPIROOT)THEN
       END IF
 
       !-- Floating boundary condition
-      IF(FPC%nFPCBounds.GT.0)THEN
+      IF(UseFPC)THEN
         DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
           nOutputVarTotal = nOutputVarTotal + 1
           WRITE(StrVarNameTmp,'(A,I0.3)') 'FPC-Charge-BCState-',FPC%BCState(iUniqueFPCBC)
@@ -224,6 +227,18 @@ IF(MPIROOT)THEN
           WRITE(StrVarNameTmp,'(A,I0.3)') 'FPC-Voltage-BCState-',FPC%BCState(iUniqueFPCBC)
           WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
         END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      END IF
+
+      !-- Electric potential condition
+      IF(UseEPC)THEN
+        DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'EPC-Current-BCState-',EPC%BCState(iUniqueEPCBC)
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'EPC-Voltage-BCState-',EPC%BCState(iUniqueEPCBC)
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+        END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
       END IF
 #endif /*USE_HDG*/
 
@@ -334,11 +349,19 @@ IF(MPIROOT)THEN
   END IF
 
   !-- Floating boundary condition
-  IF(FPC%nFPCBounds.GT.0)THEN
+  IF(UseFPC)THEN
     DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',FPC%Charge(iUniqueFPCBC)
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',FPC%Voltage(iUniqueFPCBC)
     END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+  END IF
+
+  !-- Electric potential condition
+  IF(UseEPC)THEN
+    DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',-EPC%Charge(iUniqueEPCBC)/dt
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',EPC%Voltage(iUniqueEPCBC)
+    END DO !iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
   END IF
 #endif /*USE_HDG*/
   ! ! Add BoundaryFieldOutput for each boundary that is required
