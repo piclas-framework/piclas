@@ -154,8 +154,8 @@ INTEGER           :: PETScLocalID
 INTEGER           :: MortarSideID,iMortar
 INTEGER           :: locSide,nMortarMasterSides,nMortars
 !INTEGER           :: nAffectedBlockSides
-#endif
 INTEGER,ALLOCATABLE :: indx(:)
+#endif
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    LBWRITE(*,*) "InitHDG already called."

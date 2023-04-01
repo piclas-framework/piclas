@@ -107,8 +107,8 @@ INTEGER              :: iBCSide,locBCSideID
 INTEGER              :: iPETScGlobal, jPETScGlobal
 INTEGER              :: iSide,locSideID
 REAL                 :: intMat(nGP_face, nGP_face)
-#endif
 INTEGER              :: BCState
+#endif
 !===================================================================================================================================
 
 #if defined(IMPA) || defined(ROS)
