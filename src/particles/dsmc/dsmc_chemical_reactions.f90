@@ -1830,7 +1830,7 @@ IF(IonizationReaction) THEN
           END IF ! usevMPF
           ! Only store volume-emitted particle data in PartStateBoundary.h5 if the PartBCIndex is greater/equal zero
           IF(PartBCIndex.GE.0) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
-                                      UNITVECTOR(PartState(4:6,iPart)),normal,iBC=PartBCIndex,mode=2,MPF_optIN=MPF)
+                                      UNITVECTOR(PartState(4:6,iPart)),normal,iPartBound=PartBCIndex,mode=2,MPF_optIN=MPF)
         END IF ! DoBoundaryParticleOutputHDF5
       END ASSOCIATE
     END IF

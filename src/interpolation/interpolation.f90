@@ -143,10 +143,7 @@ ELSE
   Ntmp=PP_N
   IF(CountOption('N').EQ.1) Ntmp=GETINT('N')
 END IF
-IF(PP_N.NE.Ntmp) THEN
-  CALL CollectiveStop(__STAMP__,&
-  'N in ini-file is different from hard-compiled N in PICLas. Ini/Compiled:',Ntmp,REAL(PP_N))
-END IF
+IF(PP_N.NE.Ntmp) CALL CollectiveStop(__STAMP__,'N in ini-file is different from hard-compiled N. Ini/Compiled:',Ntmp,REAL(PP_N))
 #endif
 
 ! polynomial degree range for p-Refinement
@@ -155,6 +152,7 @@ WRITE(UNIT=hilf,FMT='(I3)') PP_N
 Nmax = GETINT('Nmax',hilf)
 
 SWRITE(UNIT_stdOut,'(A)') ' NodeType: '//NodeType
+
 ALLOCATE(N_Inter(Nmin:Nmax))
 DO Nloc=Nmin,Nmax
   CALL InitInterpolationBasis(Nloc , N_Inter(Nloc)%xGP     , N_Inter(Nloc)%wGP     , N_Inter(Nloc)%wBary , &

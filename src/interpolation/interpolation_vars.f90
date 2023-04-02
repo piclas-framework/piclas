@@ -78,6 +78,8 @@ END TYPE N_Type_Analyze
 
 TYPE(N_Type_Analyze), DIMENSION(:), ALLOCATABLE :: N_InterAnalyze
 
+REAL,ALLOCATABLE  :: Uex(:,:,:,:,:)              !< Analytic solution Uex(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze,1:nElems)
+
 !==================================================================================================================================
 !@{ Named nodetype parameters
 !==================================================================================================================================
