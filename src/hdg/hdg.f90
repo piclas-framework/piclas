@@ -563,6 +563,8 @@ DO iBC=1,nBCs
     EXIT ! as soon as one Dirichlet BC is found, no zero potential must be used
   CASE(10,11) ! Neumann
     ! do nothing
+  CASE(20) ! FPC
+    ! do nothing
   CASE DEFAULT ! unknown BCType
     CALL CollectiveStop(__STAMP__,' unknown BC Type in hdg.f90!',IntInfo=BCType)
   END SELECT ! BCType
