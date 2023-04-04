@@ -214,7 +214,7 @@ SUBROUTINE GetBoundaryFlux(t,tDeriv,Flux,UPrim_master,NormVec,TangVec1,TangVec2,
 USE MOD_PreProc
 USE MOD_Globals      ,ONLY: Abort
 USE MOD_Mesh_Vars    ,ONLY: nBCSides,nBCs,BoundaryType
-USE MOD_Equation_Vars,ONLY: nBCByType,BCSideID, DVMnVelos, DVMVelos
+USE MOD_Equation_Vars,ONLY: nBCByType,BCSideID, DVMnVelos, DVMVelos, DVMVeloDisc, DVMVeloMax, DVMVeloMin, DVMSpeciesData
 USE MOD_Riemann
 USE MOD_TimeDisc_Vars,ONLY : dt
 USE MOD_DistFunc     ,ONLY: MaxwellDistribution, MacroValuesFromDistribution
@@ -270,29 +270,46 @@ DO iBC=1,nBCs
   !   END DO
 
   CASE(3) ! specular reflection
+    IF(DVMVeloDisc.EQ.2.AND.ANY((DVMVeloMin+DVMVeloMax).NE.0.)) THEN
+      CALL abort(__STAMP__,'Specular reflection only implemented for zero-centered velocity grid')
+    END IF
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-        IF (ABS(NormVec(1,0,0,SideID)).EQ.1.) THEN !x-perpendicular boundary
-          DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-            upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-            upos_sp=(DVMnVelos(1)+1-iVel)+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-            UPrim_boundary(upos_sp,:,:)=UPrim_master(upos,:,:,SideID)
-          END DO; END DO; END DO
-        ELSE IF (ABS(NormVec(2,0,0,SideID)).EQ.1.) THEN !y-perpendicular boundary
-          DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-            upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-            upos_sp=iVel+(DVMnVelos(2)-jVel)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-            UPrim_boundary(upos_sp,:,:)=UPrim_master(upos,:,:,SideID)
-          END DO; END DO; END DO
-        ELSE IF (ABS(NormVec(3,0,0,SideID)).EQ.1.) THEN !z-perpendicular boundary
-          DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-            upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-            upos_sp=iVel+(jVel-1)*DVMnVelos(1)+(DVMnVelos(3)-kVel)*DVMnVelos(1)*DVMnVelos(2)
-            UPrim_boundary(upos_sp,:,:)=UPrim_master(upos,:,:,SideID)
-          END DO; END DO; END DO
-        ELSE
-          CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')
-        END IF
+      IF (ABS(NormVec(1,0,0,SideID)).EQ.1.) THEN !x-perpendicular boundary
+        DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+          upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+          upos_sp=(DVMnVelos(1)+1-iVel)+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+          ! print*, DVMVelos(iVel,1), DVMVelos(DVMnVelos(1)+1-iVel,1)
+          ! read*
+          UPrim_boundary(upos_sp,:,:)=UPrim_master(upos,:,:,SideID)
+          IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+            UPrim_boundary(PP_nVar/2+upos_sp,:,:)=UPrim_master(PP_nVar/2+upos,:,:,SideID)
+          END IF
+        END DO; END DO; END DO
+      ELSE IF (ABS(NormVec(2,0,0,SideID)).EQ.1.) THEN !y-perpendicular boundary
+        DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+          upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+          upos_sp=iVel+(DVMnVelos(2)-jVel)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+          ! print*, DVMnVelos(2), DVMVelos(jVel,2), DVMVelos(DVMnVelos(2)+1-jVel,2)
+          ! print*, upos, upos_sp
+          ! read*
+          UPrim_boundary(upos_sp,:,:)=UPrim_master(upos,:,:,SideID)
+          IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+            UPrim_boundary(PP_nVar/2+upos_sp,:,:)=UPrim_master(PP_nVar/2+upos,:,:,SideID)
+          END IF
+        END DO; END DO; END DO
+      ELSE IF (ABS(NormVec(3,0,0,SideID)).EQ.1.) THEN !z-perpendicular boundary
+        DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+          upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+          upos_sp=iVel+(jVel-1)*DVMnVelos(1)+(DVMnVelos(3)-kVel)*DVMnVelos(1)*DVMnVelos(2)
+          UPrim_boundary(upos_sp,:,:)=UPrim_master(upos,:,:,SideID)
+          IF (DVMSpeciesData%Internal_DOF .GT.0.0) THEN
+            UPrim_boundary(PP_nVar/2+upos_sp,:,:)=UPrim_master(PP_nVar/2+upos,:,:,SideID)
+          END IF
+        END DO; END DO; END DO
+      ELSE
+        CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')
+      END IF
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
 
