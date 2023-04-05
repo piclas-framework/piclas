@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=piclas2vtk
+Exec=piclas2vtk
+Comment=PICLas is a flexible particle-based plasma simulation suite.
+Icon=piclas2vtk
+Categories=Development;
+Terminal=true
