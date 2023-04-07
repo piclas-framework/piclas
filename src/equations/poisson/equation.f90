@@ -520,7 +520,7 @@ CASE(301) ! like CASE=300, but only in positive z-direction the dielectric regio
     CALL abort(__STAMP__,'Dielectric sphere. Invalid radius for exact function!')
   END IF
 
-CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum)
+CASE(400,401) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum)
   !                                                epsR_2 != 1 for x > 0 (dielectric region)
   ! DielectricRadiusValue is used as distance between dielectric interface and position of charged point particle
   ! set radius and angle for DOF position x(1:3)
@@ -531,8 +531,15 @@ CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum
   r1 = SQRT(r_2D**2 + (DielectricRadiusValue-x(3))**2)
   r2 = SQRT(r_2D**2 + (DielectricRadiusValue+x(3))**2)
 
-  eps1 = DielectricEpsR*eps0
-  eps2 = 1.0*eps0
+  IF(ExactFunction.EQ.400)THEN
+    ! Vacuum bottom, dielectric top
+    eps1 = DielectricEpsR*eps0
+    eps2 = 1.0*eps0
+  ELSEIF(ExactFunction.EQ.401)THEN
+    ! Dielectric bottom, vacuum top
+    eps1 = 1.0*eps0
+    eps2 = DielectricEpsR*eps0
+  END IF ! ExactFunction.EQ.400
 #if defined(PARTICLES)
   IF(ALLOCATED(Species).AND.(nSpecies.GT.0))THEN
     IF(ABS(Species(1)%ChargeIC).GT.0.)THEN
