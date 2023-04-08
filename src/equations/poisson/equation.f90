@@ -312,19 +312,20 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 
-SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState,iLinState)
+SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState,iLinState,BCState)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals         ,ONLY: Abort,mpiroot
-USE MOD_Globals_Vars    ,ONLY: PI
+USE MOD_Globals_Vars    ,ONLY: PI,ElementaryCharge,eps0
 USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinPhi,LinPhiHeight,LinPhiNormal,LinPhiBasePoint
 #if defined(PARTICLES)
 USE MOD_Equation_Vars   ,ONLY: CoupledPowerPotential
 #endif /*defined(PARTICLES)*/
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
 USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
+USE MOD_HDG_Vars        ,ONLY: FPC,EPC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -335,14 +336,17 @@ INTEGER,INTENT(IN),OPTIONAL     :: ElemID           ! ElemID
 REAL,INTENT(IN),OPTIONAl        :: t                ! time
 INTEGER,INTENT(IN),OPTIONAL     :: iRefState        ! i-th reference state
 INTEGER,INTENT(IN),OPTIONAL     :: iLinState        ! i-th linear potential state
+INTEGER,INTENT(IN),OPTIONAL     :: BCState          ! BCState
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: Omega,r1,r2,r_2D,r_3D,r_bary,cos_theta,eps1,eps2,xi,a(3),b(3)
+REAL                            :: Omega,r1,r2,r_2D,r_3D,r_bary,cos_theta,eps1,eps2,xi,a(3),b(3),Q
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
+CASE(-4) ! Electric potential condition (EPC) where charge accumulated over one time step is removed and creates a voltage
+  Resu(:) = EPC%Voltage(EPC%Group(BCState,2))
 CASE(-3) ! linear function with base point, normal vector and heigh: Requires BoundaryType = (/7,X/)
   ASSOCIATE( height => LinPhiHeight(iLinState)    ,&
              phi    => LinPhi(iLinState)          )
@@ -517,7 +521,7 @@ CASE(301) ! like CASE=300, but only in positive z-direction the dielectric regio
 
 CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum)
   !                                                epsR_2 != 1 for x > 0 (dielectric region)
-  ! DielectricRadiusValue is used as distance between dielectric interface and position of chargeed point particle
+  ! DielectricRadiusValue is used as distance between dielectric interface and position of charged point particle
   ! set radius and angle for DOF position x(1:3)
   ! Limitations:
   ! only valid for eps_2 = 1
@@ -548,7 +552,42 @@ CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum
     END IF
     resu(1:PP_nVar) = (2./(eps2+eps1)) * 1./r1 /(4*PI)
   END IF
-
+CASE(500) ! Coaxial capacitor with Floating Boundary Condition (FPC) with from
+  ! Chen 2020 "A hybridizable discontinuous Galerkin method for simulation of electrostatic problems with floating potential conductors".
+  r_2D = SQRT(x(1)**2+x(2)**2)
+  Q = 0. ! Initialize
+  IF(ALLOCATED(FPC%Charge)) Q = FPC%Charge(1) ! [C] - accumulated charge on iUniqueFPCBC = 1
+  ASSOCIATE( &
+        V0  => 0                  ,& ! [V]
+        V1  => 10.0               ,& ! [V]
+        r0  => 0.1e-2             ,& ! [m]
+        r1  => 2.0e-2             ,& ! [m]
+        r2  => 0.8e-2             ,& ! [m]
+        r3  => 1.2e-2             ,& ! [m]
+        !eps => ElementaryCharge    & ! [e]
+        eps => eps0                &
+        )
+    ASSOCIATE( C20 => LOG(r2/r0) , C31 => LOG(r3/r1) )
+      ASSOCIATE( b1 => (V1 - V0 - C20*Q/(2*PI*eps))/(C20-C31) )
+        ASSOCIATE( b0 => b1+Q/(2*PI*eps) )
+          ASSOCIATE( a0 => V0-b0*LOG(r0) , a1 => V1-b1*LOG(r1) )
+            ! Check if point is located in first or second region
+            IF(r_2D.LT.(r2+r3)/2.0)THEN
+              resu = a0 + b0 * LOG(r_2D)
+            ELSE
+              resu = a1 + b1 * LOG(r_2D)
+            END IF ! r.LT.(r2+r3)/2.0
+          END ASSOCIATE
+        END ASSOCIATE
+      END ASSOCIATE
+    END ASSOCIATE
+  END ASSOCIATE
+CASE(600) ! 2 cubes with two different charges
+  IF(ALLOCATED(FPC%Charge))THEN
+    FPC%Charge(1)=5.0
+    FPC%Charge(2)=10.0
+  END IF ! ALLOCATED(FPC%Charge)
+  resu = 0.
 CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified!', IntInfoOpt=ExactFunction)
 END SELECT ! ExactFunction

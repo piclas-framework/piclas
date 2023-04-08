@@ -1041,9 +1041,11 @@ IF(meshMode.GT.1)THEN
           SELECT CASE(BCType)
           CASE(1) !periodic
             CALL abort(__STAMP__,'SideID.LE.nBCSides and SideID is periodic should not happen')
-          CASE(2,4,5,6,7) !Dirichlet
+          CASE(2,4,5,6,7,8) ! Dirichlet
             ! do not consider this side
-          CASE(10,11) !Neumann
+          CASE(10,11) ! Neumann
+            HDGSides = HDGSides + 1
+          CASE(20) ! FPC
             HDGSides = HDGSides + 1
           CASE DEFAULT ! unknown BCType
             WRITE(UNIT=hilf,FMT='(I0)') BCType
@@ -1100,7 +1102,7 @@ IF(meshMode.GT.1)THEN
               ELSE ! innerSide: split the weight onto two elements (either periodic or normal inner side)
 
                 ! ===================================================
-                ! method 1: Mortar sides are alyways master and therefore get everything!
+                ! method 1: Mortar sides are always master and therefore get everything!
                 HDGSides = HDGSides + 1
 
                 ! method 2: add half
@@ -1125,6 +1127,9 @@ IF(meshMode.GT.1)THEN
     END IF ! ElemHDGSides(iElem).LE.0
 
   END DO ! iElem=1,PP_nElems
+  ! Sanity check:
+  ! Elements with zero weight are not allowed as they still require some work for 2D to 3D mapping. Add small value.
+  IF(TotalHDGSides.EQ.0) TotalHDGSides = 1
 END IF ! meshMode.GT.1
 #endif /*USE_HDG && USE_LOADBALANCE*/
 
