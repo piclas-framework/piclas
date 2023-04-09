@@ -322,6 +322,7 @@ USE MOD_Globals_Vars    ,ONLY: PI,ElementaryCharge,eps0
 USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinPhi,LinPhiHeight,LinPhiNormal,LinPhiBasePoint
 #if defined(PARTICLES)
 USE MOD_Equation_Vars   ,ONLY: CoupledPowerPotential
+USE MOD_Particle_Vars   ,ONLY: Species,nSpecies
 #endif /*defined(PARTICLES)*/
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
 USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
@@ -519,39 +520,57 @@ CASE(301) ! like CASE=300, but only in positive z-direction the dielectric regio
     CALL abort(__STAMP__,'Dielectric sphere. Invalid radius for exact function!')
   END IF
 
-CASE(400) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum)
+CASE(400,401) ! Point Source in Dielectric Region with epsR_1  = 1 for x < 0 (vacuum)
   !                                                epsR_2 != 1 for x > 0 (dielectric region)
   ! DielectricRadiusValue is used as distance between dielectric interface and position of charged point particle
   ! set radius and angle for DOF position x(1:3)
   ! Limitations:
-  ! only valid for eps_2 = 1
+  ! only valid for eps_2 = 1*eps0
   ! and q = 1
   r_2D   = SQRT(x(1)**2+x(2)**2)
   r1 = SQRT(r_2D**2 + (DielectricRadiusValue-x(3))**2)
   r2 = SQRT(r_2D**2 + (DielectricRadiusValue+x(3))**2)
 
-  eps2=1.0
-  eps1=DielectricEpsR
-
-  IF(x(3).GT.0.0)THEN
-    IF(ALL((/ x(1).EQ.0.0,  x(2).EQ.0.0, x(3).EQ.DielectricRadiusValue /)))THEN
-      print*, "HERE?!?!?!"
-    END IF
-    IF((r1.LE.0.0).OR.(r2.LE.0.0))THEN
-      SWRITE(*,*) "r1=",r1
-      SWRITE(*,*) "r2=",r2
-      CALL abort(__STAMP__,'ExactFunc=400: Point source in dielectric region. Cannot evaluate the exact function at the singularity!')
-    END IF
-    resu(1:PP_nVar) = (1./eps1)*(&
-                                   1./r1 + ((eps1-eps2)/(eps1+eps2))*&
-                                   1./r2 )/(4*PI)
+  IF(ExactFunction.EQ.400)THEN
+    ! Vacuum bottom, dielectric top
+    eps1 = DielectricEpsR*eps0
+    eps2 = 1.0*eps0
+  ELSEIF(ExactFunction.EQ.401)THEN
+    ! Dielectric bottom, vacuum top
+    eps1 = 1.0*eps0
+    eps2 = DielectricEpsR*eps0
+  END IF ! ExactFunction.EQ.400
+#if defined(PARTICLES)
+  IF(ALLOCATED(Species).AND.(nSpecies.GT.0))THEN
+    IF(ABS(Species(1)%ChargeIC).GT.0.)THEN
+      Q = Species(1)%ChargeIC/(4.0*PI)
+    END IF ! Species(1)%ChargeIC.GT.0
   ELSE
-    IF(r1.LE.0.0)THEN
-      SWRITE(*,*) "r1=",r1
-      CALL abort(__STAMP__,'Point source in dielectric region: Cannot evaluate the exact function at the singularity!')
+    Q = 0.
+  END IF ! ALLOCATED(Species
+#else
+  Q = 1.0/(4.0*PI)
+#endif /*defined(PARTICLES)*/
+  ASSOCIATE( eps12 => eps1+eps2 )
+
+    IF(x(3).GT.0.0)THEN
+      IF(ALL((/ x(1).EQ.0.0,  x(2).EQ.0.0, x(3).EQ.DielectricRadiusValue /)))THEN
+        print*, "HERE?!?!?!"
+      END IF
+      IF((r1.LE.0.0).OR.(r2.LE.0.0))THEN
+        SWRITE(*,*) "r1=",r1
+        SWRITE(*,*) "r2=",r2
+        CALL abort(__STAMP__,'ExactFunc=400: Point source in dielectric region. Cannot evaluate the exact function at the singularity!')
+      END IF
+      resu(1:PP_nVar) = (Q/eps1)*(1./r1 - ((eps2-eps1)/eps12)*(1./r2) )
+    ELSE
+      IF(r1.LE.0.0)THEN
+        SWRITE(*,*) "r1=",r1
+        CALL abort(__STAMP__,'Point source in dielectric region: Cannot evaluate the exact function at the singularity!')
+      END IF
+      resu(1:PP_nVar) = (2.0*Q/eps12) * 1./r1 
     END IF
-    resu(1:PP_nVar) = (2./(eps2+eps1)) * 1./r1 /(4*PI)
-  END IF
+  END ASSOCIATE
 CASE(500) ! Coaxial capacitor with Floating Boundary Condition (FPC) with from
   ! Chen 2020 "A hybridizable discontinuous Galerkin method for simulation of electrostatic problems with floating potential conductors".
   r_2D = SQRT(x(1)**2+x(2)**2)
