@@ -35,7 +35,7 @@
 !> file.
 !==================================================================================================================================
 MODULE MOD_ReadInTools
-
+! MODULES
 USE MOD_Globals
 USE MOD_ISO_VARYING_STRING
 USE MOD_Options
@@ -178,10 +178,10 @@ PUBLIC :: PrintOption
 TYPE(Parameters) :: prms
 PUBLIC :: prms
 
-  type, public :: STR255
-     private
-     character(LEN=255) :: chars
-  end type STR255
+TYPE, PUBLIC :: STR255
+   PRIVATE
+   CHARACTER(LEN=255) :: chars
+END TYPE STR255
 !==================================================================================================================================
 
 CONTAINS
@@ -207,7 +207,11 @@ SWRITE(UNIT_stdOut,'(A,I0,A)') ' Following ',this%count_unread(),' Parameters ar
 current => this%firstLink
 DO WHILE (associated(current))
   ! compare name
-  IF (current%opt%isSet.AND.(.NOT.current%opt%isRemoved)) THEN
+  ! current%opt%isSet.:           Parameter is set in INI file
+  ! .NOT.current%opt%isRemoved:   Parameter is used in the code via GET-function
+  ! .NOT.current%opt%isUsedMulti: Parameter containing "$" in its name is set in INI file and at least one correpsonding parameter
+  !                               with a number instead of "$" is used in the code via GET-function
+  IF (current%opt%isSet.AND.(.NOT.current%opt%isRemoved).AND.(.NOT.current%opt%isUsedMulti)) THEN
     CALL set_formatting("red")
     SWRITE(UNIT_stdOut,"(A)") TRIM(current%opt%name)
     CALL clear_formatting()
@@ -325,8 +329,6 @@ CLASS(link),POINTER :: current
 current =>  this%firstLink
 DO WHILE (associated(current%next))
   tmp => current%next%next
-  !this%lastLink => current%next
-  !this%lastLink%next => current%next
   IF (current%next%opt%numberedmulti) THEN
     DEALLOCATE(current%next%opt)
     NULLIFY(current%next%opt)
@@ -338,16 +340,6 @@ DO WHILE (associated(current%next))
   END IF
 END DO
 
-!current =>  this%firstLink
-!IF (associated(current).AND.(current%opt%numberedmulti)) THEN
-!  IF (associated(current%next)) THEN
-!    this%firstLink => current%next
-!  ELSE
-!    this%firstLink => null()
-!    this%LastLink  => null()
-!  END IF
-!END IF
-
 END SUBROUTINE removeUnnecessary
 
 
@@ -357,8 +349,7 @@ END SUBROUTINE removeUnnecessary
 !> types of options.
 !> before creating check if option is already existing
 !==================================================================================================================================
-SUBROUTINE CreateOption(this, opt, name, description, value, multiple, numberedmulti)
-USE MOD_StringTools ,ONLY: LowCase
+SUBROUTINE CreateOption(this, opt, name, description, value, multiple, numberedmulti, removed)
 ! INPUT/OUTPUT VARIABLES
 CLASS(Parameters),INTENT(INOUT)       :: this             !< CLASS(Parameters)
 CLASS(OPTION),INTENT(INOUT)           :: opt              !< option class
@@ -367,10 +358,10 @@ CHARACTER(LEN=*),INTENT(IN)           :: description      !< option description
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL  :: value            !< option value
 LOGICAL,INTENT(IN),OPTIONAL           :: multiple         !< marker if multiple option
 LOGICAL,INTENT(IN),OPTIONAL           :: numberedmulti    !< marker if numbered multiple option
+LOGICAL,INTENT(IN),OPTIONAL           :: removed          !< marker if removed option
 ! LOCAL VARIABLES
 CLASS(link), POINTER :: newLink
 TYPE(Varying_String) :: aStr
-INTEGER              :: ind
 !==================================================================================================================================
 !IF(this%check_options(name)) THEN
 !  CALL Abort(__STAMP__, &
@@ -390,6 +381,7 @@ IF (opt%multiple.AND.opt%hasDefault) THEN
 END IF
 
 opt%numberedmulti = .FALSE.
+
 IF (PRESENT(numberedmulti)) opt%numberedmulti = numberedmulti
 ! Remove/Replace $ occurrences in variable name
 IF(opt%numberedmulti)THEN
@@ -397,21 +389,22 @@ IF(opt%numberedmulti)THEN
   aStr = Replace(aStr,"[]"  ,"$",Every = .true.)
   aStr = Replace(aStr,"[$]" ,"$",Every = .true.)
   aStr = Replace(aStr,"[$$]","$",Every = .true.)
-  CALL LowCase(CHAR(aStr),opt%name)
-  ind = INDEX(TRIM(opt%name),"$")
-  IF(ind.LE.0)THEN
-    CALL abort(&
-    __STAMP__&
-    ,'[numberedmulti] parameter does not contain "$" symbol, which is required for these kinds of variables for ['//TRIM(opt%name)//']')
-  END IF ! ind.LE.0
-ELSE
-  opt%name = name
+  CALL LowCase(TRIM(CHAR(aStr)),opt%namelowercase)
+  opt%ind = INDEX(TRIM(opt%namelowercase),"$")
+  IF(opt%ind.LE.0)THEN
+    CALL abort(__STAMP__&
+    ,'[numberedmulti] parameter does not contain "$" symbol, which is required for these kinds of variables for ['//TRIM(name)//']')
+  END IF ! opt%ind.LE.0
 END IF ! opt%numberedmulti
 
-opt%isSet = .FALSE.
+opt%name        = name
+opt%isSet       = .FALSE.
 opt%description = description
-opt%section = this%actualSection
-opt%isRemoved = .FALSE.
+opt%section     = this%actualSection
+opt%isRemoved   = .FALSE.
+IF (PRESENT(removed)) opt%isRemoved = removed
+opt%isUsedMulti = .FALSE. ! Becomes true, if a variable containing "$" is set in parameter file and used for the corresponding
+                          ! valued parameter
 
 ! insert option into linked list
 IF (.not. associated(this%firstLink)) then
@@ -440,7 +433,7 @@ LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered mul
 CLASS(IntOption),ALLOCATABLE,TARGET :: intopt
 !==================================================================================================================================
 ALLOCATE(intopt)
-CALL this%CreateOption(intopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+CALL this%CreateOption(intopt, name, "[INT] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateIntOption
 
 !==================================================================================================================================
@@ -459,7 +452,7 @@ LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered mul
 CLASS(IntFromStringOption),ALLOCATABLE,TARGET :: intfromstropt
 !==================================================================================================================================
 ALLOCATE(intfromstropt)
-CALL this%CreateOption(intfromstropt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+CALL this%CreateOption(intfromstropt, name, "[INT/STR] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateIntFromStringOption
 
 !==================================================================================================================================
@@ -478,7 +471,7 @@ LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered mul
 CLASS(LogicalOption),ALLOCATABLE,TARGET :: logicalopt
 !==================================================================================================================================
 ALLOCATE(logicalopt)
-CALL this%CreateOption(logicalopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+CALL this%CreateOption(logicalopt, name, "[LOG] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateLogicalOption
 
 !==================================================================================================================================
@@ -497,7 +490,7 @@ LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered mul
 CLASS(RealOption),ALLOCATABLE,TARGET :: realopt
 !==================================================================================================================================
 ALLOCATE(realopt)
-CALL this%CreateOption(realopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+CALL this%CreateOption(realopt, name, "[REAL] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateRealOption
 
 !==================================================================================================================================
@@ -516,13 +509,13 @@ LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered mul
 CLASS(StringOption),ALLOCATABLE,TARGET :: stringopt
 !==================================================================================================================================
 ALLOCATE(stringopt)
-CALL this%CreateOption(stringopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+CALL this%CreateOption(stringopt, name, "[STR] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateStringOption
 
 !==================================================================================================================================
 !> Create a new integer array option. Only calls the general prms\%createoption routine.
 !==================================================================================================================================
-SUBROUTINE CreateIntArrayOption(this, name, description, value, multiple, numberedmulti)
+SUBROUTINE CreateIntArrayOption(this, name, description, value, multiple, numberedmulti, no)
 ! INPUT/OUTPUT VARIABLES
 CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
 CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
@@ -530,18 +523,31 @@ CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
 LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
 LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+INTEGER,INTENT(IN),OPTIONAL          :: no             !< size of array
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(IntArrayOption),ALLOCATABLE,TARGET :: intopt
+INTEGER                              :: commas,ArrDim
+CHARACTER(2)                         :: hilf
 !==================================================================================================================================
 ALLOCATE(intopt)
-CALL this%CreateOption(intopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+IF(PRESENT(value))THEN
+  ! Count number of "," in value
+  commas = COUNT(TRANSFER(value, 'a', LEN(value)) == ",")
+  ArrDim = commas+1
+ELSEIF(PRESENT(no))THEN
+  ArrDim = no
+ELSE
+  CALL CollectiveStop(__STAMP__,'CreateRealArrayOption: Supply either default value or size of array for '//TRIM(name))
+END IF ! PRESENT(value)
+WRITE(UNIT=hilf,FMT='(I0)') ArrDim
+CALL this%CreateOption(intopt, name, "[INTARR-"//TRIM(hilf)//"] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateIntArrayOption
 
 !==================================================================================================================================
 !> Create a new logical array option. Only calls the general prms\%createoption routine.
 !==================================================================================================================================
-SUBROUTINE CreateLogicalArrayOption(this, name, description, value, multiple, numberedmulti)
+SUBROUTINE CreateLogicalArrayOption(this, name, description, value, multiple, numberedmulti, no)
 ! INPUT/OUTPUT VARIABLES
 CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
 CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
@@ -549,18 +555,31 @@ CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
 LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
 LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+INTEGER,INTENT(IN),OPTIONAL          :: no             !< size of array
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(LogicalArrayOption),ALLOCATABLE,TARGET :: logicalopt
+INTEGER                              :: commas,ArrDim
+CHARACTER(2)                         :: hilf
 !==================================================================================================================================
 ALLOCATE(logicalopt)
-CALL this%CreateOption(logicalopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+IF(PRESENT(value))THEN
+  ! Count number of "," in value
+  commas = COUNT(TRANSFER(value, 'a', LEN(value)) == ",")
+  ArrDim = commas+1
+ELSEIF(PRESENT(no))THEN
+  ArrDim = no
+ELSE
+  CALL CollectiveStop(__STAMP__,'CreateRealArrayOption: Supply either default value or size of array for '//TRIM(name))
+END IF ! PRESENT(value)
+WRITE(UNIT=hilf,FMT='(I0)') ArrDim
+CALL this%CreateOption(logicalopt, name, "[LOGARR-"//TRIM(hilf)//"] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateLogicalArrayOption
 
 !==================================================================================================================================
 !> Create a new real array option. Only calls the general prms\%createoption routine.
 !==================================================================================================================================
-SUBROUTINE CreateRealArrayOption(this, name, description, value, multiple, numberedmulti)
+SUBROUTINE CreateRealArrayOption(this, name, description, value, multiple, numberedmulti, no)
 ! INPUT/OUTPUT VARIABLES
 CLASS(Parameters),INTENT(INOUT)      :: this           !< CLASS(Parameters)
 CHARACTER(LEN=*),INTENT(IN)          :: name           !< option name
@@ -568,12 +587,25 @@ CHARACTER(LEN=*),INTENT(IN)          :: description    !< option description
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: value          !< option value
 LOGICAL,INTENT(IN),OPTIONAL          :: multiple       !< marker if multiple option
 LOGICAL,INTENT(IN),OPTIONAL          :: numberedmulti  !< marker if numbered multiple option
+INTEGER,INTENT(IN),OPTIONAL          :: no             !< size of array
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(RealArrayOption),ALLOCATABLE,TARGET :: realopt
+INTEGER                                   :: commas,ArrDim
+CHARACTER(2)                              :: hilf
 !==================================================================================================================================
 ALLOCATE(realopt)
-CALL this%CreateOption(realopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+IF(PRESENT(value))THEN
+  ! Count number of "," in value
+  commas = COUNT(TRANSFER(value, 'a', LEN(value)) == ",")
+  ArrDim = commas+1
+ELSEIF(PRESENT(no))THEN
+  ArrDim = no
+ELSE
+  CALL CollectiveStop(__STAMP__,'CreateRealArrayOption: Supply either default value or size of array for '//TRIM(name))
+END IF ! PRESENT(value)
+WRITE(UNIT=hilf,FMT='(I0)') ArrDim
+CALL this%CreateOption(realopt, name, "[REALARR-"//TRIM(hilf)//"] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 END SUBROUTINE CreateRealArrayOption
 
 !==================================================================================================================================
@@ -592,7 +624,7 @@ END SUBROUTINE CreateRealArrayOption
 !CLASS(StringArrayOption),ALLOCATABLE,TARGET :: stringopt
 !!==================================================================================================================================
 !ALLOCATE(stringopt)
-!CALL this%CreateOption(stringopt, name, description, value=value, multiple=multiple, numberedmulti=numberedmulti)
+!CALL this%CreateOption(stringopt, name, "[INT] "//description, value=value, multiple=multiple, numberedmulti=numberedmulti)
 !END SUBROUTINE CreateStringArrayOption
 
 !==================================================================================================================================
@@ -684,8 +716,8 @@ CLASS(link),POINTER :: current
 count = 0
 ! iterate over all entries and count them
 current => this%firstLink
-DO WHILE (associated(current))
-  IF (current%opt%isSet.AND.(.NOT.current%opt%isRemoved)) count = count + 1
+DO WHILE (ASSOCIATED(current))
+  IF (current%opt%isSet.AND.(.NOT.current%opt%isRemoved).AND.(.NOT.current%opt%isUsedMulti)) count = count + 1
   current => current%next
 END DO
 END FUNCTION  count_unread
@@ -801,8 +833,6 @@ CALL MPI_BCAST(FileContent,LEN(FileContent)*nLines,MPI_CHARACTER,0,MPI_COMM_WORL
 
 ! infinte loop. Exit at EOF
 DO i=1,nLines
-  !! Lower case
-  CALL LowCase(FileContent(i),FileContent(i))
   ! read a line into 'aStr'
   aStr=Var_Str(FileContent(i))
   ! Remove comments with "!"
@@ -818,7 +848,7 @@ DO i=1,nLines
   aStr=Replace(aStr,"/)"," ",Every=.true.)
   ! Lower case
   HelpStr=CHAR(aStr)
-  ! If something remaind, this should be an option
+  ! If something remained, this should be an option
   IF (LEN_TRIM(HelpStr).GT.2) THEN
     ! read the option
     IF (.NOT.this%read_option(HelpStr)) THEN
@@ -843,6 +873,7 @@ current => prms%firstLink
 DO WHILE (associated(current))
   this%maxNameLen = MAX(this%maxNameLen, current%opt%GETNAMELEN())
   this%maxValueLen = MAX(this%maxValueLen, current%opt%GETVALUELEN())
+  this%maxValueLen = MIN(this%maxValueLen, 50)
   current => current%next
 END DO
 
@@ -923,7 +954,7 @@ DO WHILE (associated(current))
   END IF
 END DO
 
-! iterate over all options and compare reduced (all numberes removed) names with numberedmulti options
+! iterate over all options and compare reduced (all numbers removed) names with numberedmulti options
 current => this%firstLink
 DO WHILE (associated(current))
   IF (.NOT.current%opt%numberedmulti) THEN
@@ -941,6 +972,7 @@ DO WHILE (associated(current))
       IF(LEN_TRIM(rest).NE.0)THEN
         CALL newopt%parse(rest)
         newopt%isSet = .TRUE.
+        newopt%isUsedMulti  = .FALSE.
         ! insert option
         CALL insertOption(current, newopt)
       ELSE
@@ -1109,7 +1141,7 @@ DO WHILE (associated(current))
       SELECT TYPE(currentOpt)
       CLASS IS (IntFromStringOption)
         SWRITE(UNIT_StdOut,'(A)') 'Possible options for this parameter are:'
-        WRITE(fmtIntFromStringLength,*) currentOpt%maxLength   ! The biggest lenght of a named option
+        WRITE(fmtIntFromStringLength,*) currentOpt%maxLength   ! The biggest length of a named option
         WRITE(fmtStringIntFromString,*) "(A"//TRIM(fmtIntFromStringLength)//",A,I0,A)"
         DO i=1,SIZE(currentOpt%strList)
           ! Output is in the format STRING (INTEGER)
@@ -1129,7 +1161,7 @@ DO WHILE (associated(current))
   END IF
   current => current%next
 END DO
-END SUBROUTINE
+END SUBROUTINE PrintDefaultParameterFile
 
 !==================================================================================================================================
 !> Creates a new link to a option-object, 'next' is the following link in the linked list
@@ -1187,8 +1219,15 @@ CLASS(link),POINTER          :: check
 CLASS(Option),POINTER        :: multi
 CLASS(OPTION),ALLOCATABLE    :: newopt
 CHARACTER(LEN=:),ALLOCATABLE :: testname
-INTEGER                      :: i
+INTEGER                      :: i,k
 CHARACTER(LEN=20)            :: fmtName
+! Temporary arrays to create new options
+CHARACTER(LEN=255)           :: tmpValue
+CLASS(LogicalOption),ALLOCATABLE,TARGET :: logicalopt
+CLASS(IntOption)    ,ALLOCATABLE,TARGET :: intopt
+CLASS(RealOption)   ,ALLOCATABLE,TARGET :: realopt
+CLASS(StringOption) ,ALLOCATABLE,TARGET :: stringopt
+!==================================================================================================================================
 !==================================================================================================================================
 
 ! iterate over all options
@@ -1251,30 +1290,26 @@ DO WHILE (associated(current))
   ELSE
     ! compare reduced name with reduced option name
     IF (current%opt%NAMEEQUALSNUMBERED(name).AND.(.NOT.current%opt%isRemoved)) THEN
-      ! create new instance of multiple option
-      ALLOCATE(newopt, source=current%opt)
-      ! set name of new option like name in read line and set it being not multiple numbered
-      newopt%name = name
-      newopt%numberedmulti = .FALSE.
-      newopt%isSet = .FALSE.
       ! Check if we can find a general option, applying to all numberedmulti
       SDEALLOCATE(testname) ! safety check
       ALLOCATE(CHARACTER(LEN_TRIM(name)) :: testname)
+      ! Testname must not be trimmed! Otherwise, the INDEX test will fail as testname < name
       testname = name
       DO i = 1, LEN(name)
         ! Start replacing the index from the left
-        IF(INDEX('0123456789',name(i:i)).GT.0) THEN
+        IF(INDEX('0123456789',testname(i:i)).GT.0) THEN
           testname(i:i) = '$'
-          ! Remove multiple $ in case of multi-digit numbers
-          IF(i.GT.1 .AND. testname(i-1:i-1).EQ.'$')THEN
-            testname(i-1:LEN(testname)-1)         = testname(i:LEN(testname))
+          DO k = i+1, LEN(testname)
+            ! Check if it is a multi-digit number and remove all following numbers
+            IF(SCAN(testname(i+1:i+1),'0123456789').EQ.0) EXIT
+
+            testname(i+1:LEN(testname)-1) = testname(i+2:LEN(testname))
             testname(LEN(testname):LEN(testname)) = ' '
-            testname = TRIM(testname)
-          END IF
+          END DO
           ! Check if we can find this name
           check => prms%firstLink
           DO WHILE (associated(check))
-            IF (check%opt%NAMEEQUALS(testname) .AND. check%opt%isSet) THEN
+            IF (check%opt%NAMEEQUALS(TRIM(testname)) .AND. check%opt%isSet) THEN
               multi => check%opt
               ! copy value from option to result variable
               SELECT TYPE (multi)
@@ -1282,23 +1317,40 @@ DO WHILE (associated(current))
                   SELECT TYPE(value)
                     TYPE IS (INTEGER)
                       value = multi%value
+                      ! insert option with numbered name ($ replaced by number)
+                      ALLOCATE(intopt)
+                      WRITE(tmpValue, *) multi%value
+                      CALL prms%CreateOption(intopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
                   END SELECT
                 CLASS IS (RealOption)
                   SELECT TYPE(value)
                     TYPE IS (REAL)
                       value = multi%value
+                      ! insert option with numbered name ($ replaced by number)
+                      ALLOCATE(realopt)
+                      WRITE(tmpValue, *) multi%value
+                      CALL prms%CreateOption(realopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
                   END SELECT
                 CLASS IS (LogicalOption)
                   SELECT TYPE(value)
                     TYPE IS (LOGICAL)
                       value = multi%value
+                      ! insert option with numbered name ($ replaced by number)
+                      ALLOCATE(logicalopt)
+                      WRITE(tmpValue, *) multi%value
+                      CALL prms%CreateOption(logicalopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
                   END SELECT
                 CLASS IS (StringOption)
                   SELECT TYPE(value)
                     TYPE IS (STR255)
                       value%chars = multi%value
+                      ! insert option with numbered name ($ replaced by number)
+                      ALLOCATE(stringopt)
+                      WRITE(tmpValue,'(A)') multi%value
+                      CALL prms%CreateOption(stringopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
                   END SELECT
               END SELECT
+
               ! print option and value to stdout. Custom print, so do it here
               WRITE(fmtName,*) prms%maxNameLen
               SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
@@ -1312,12 +1364,20 @@ DO WHILE (associated(current))
               SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
               CALL clear_formatting()
               SWRITE(UNIT_stdOut,"(a3)") ' | '
+              ! Indicate that parameter was read at least once and therefore remove the warning that the parameter was not used
+              multi%isUsedMulti = .TRUE.
               RETURN
             END IF
             check => check%next
           END DO
         END IF
       END DO
+      ! create new instance of multiple option
+      ALLOCATE(newopt, source=current%opt)
+      ! set name of new option like name in read line and set it being not multiple numbered
+      newopt%name = name
+      newopt%numberedmulti = .FALSE.
+      newopt%isSet = .FALSE.
       ! No catchall option, check if we can find a proposal
       IF ((PRESENT(proposal)).AND.(.NOT. newopt%isSet)) THEN
         proposal_loc = TRIM(proposal)
@@ -1390,8 +1450,13 @@ CLASS(link),POINTER          :: check
 CLASS(Option),POINTER        :: multi
 CLASS(OPTION),ALLOCATABLE    :: newopt
 CHARACTER(LEN=:),ALLOCATABLE :: testname
-INTEGER                      :: i
+INTEGER                      :: i,j,k
 CHARACTER(LEN=20)            :: fmtName
+! Temporary arrays to create new options
+CHARACTER(LEN=255)           :: tmpValue
+CLASS(IntArrayOption)    ,ALLOCATABLE,TARGET :: intopt
+CLASS(RealArrayOption)   ,ALLOCATABLE,TARGET :: realopt
+CLASS(LogicalArrayOption),ALLOCATABLE,TARGET :: logicalopt
 !==================================================================================================================================
 
 ! iterate over all options
@@ -1408,7 +1473,8 @@ DO WHILE (associated(current))
       ! no proposal, no default and also not set in parameter file => abort
       IF ((.NOT.opt%hasDefault).AND.(.NOT.opt%isSet)) THEN
         CALL ABORT(__STAMP__, &
-            "Required option '"//TRIM(name)//"' not set in parameter file and has no default value.")
+            "\n\n Required option '"//TRIM(name)//"' not set in parameter file and has no default value.\n"//&
+            " Try 'piclas --help "//TRIM(name)//"' for more information on this variable\n")
         RETURN
       END IF
     END IF
@@ -1450,7 +1516,7 @@ DO WHILE (associated(current))
   current => current%next
 END DO
 
-! iterate over all options and compare reduced (all numberes removed) names with numberedmulti options
+! iterate over all options and compare reduced (all numbers removed) names with numberedmulti options
 current => prms%firstLink
 DO WHILE (associated(current))
   IF (.NOT.current%opt%numberedmulti) THEN
@@ -1458,26 +1524,22 @@ DO WHILE (associated(current))
   ELSE
     ! compare reduced name with reduced option name
     IF (current%opt%NAMEEQUALSNUMBERED(name).AND.(.NOT.current%opt%isRemoved)) THEN
-      ! create new instance of multiple option
-      ALLOCATE(newopt, source=current%opt)
-      ! set name of new option like name in read line and set it being not multiple numbered
-      newopt%name = name
-      newopt%numberedmulti = .FALSE.
-      newopt%isSet = .FALSE.
       ! Check if we can find a general option, applying to all numberedmulti
       SDEALLOCATE(testname) ! safety check
       ALLOCATE(CHARACTER(LEN_TRIM(name)) :: testname)
+      ! Testname must not be trimmed! Otherwise, the INDEX test will fail as testname < name
       testname = name
       DO i = 1, LEN(name)
         ! Start replacing the index from the left
-        IF(INDEX('0123456789',name(i:i)).GT.0) THEN
+        IF(INDEX('0123456789',testname(i:i)).GT.0) THEN
           testname(i:i) = '$'
-          ! Remove multiple $ in case of multi-digit numbers
-          IF(i.GT.1 .AND. testname(i-1:i-1).EQ.'$')THEN
-            testname(i-1:LEN(testname)-1)         = testname(i:LEN(testname))
+          DO k = i+1, LEN(testname)
+            ! Check if it is a multi-digit number and remove all following numbers
+            IF(SCAN(testname(i+1:i+1),'0123456789').EQ.0) EXIT
+
+            testname(i+1:LEN(testname)-1) = testname(i+2:LEN(testname))
             testname(LEN(testname):LEN(testname)) = ' '
-            testname = TRIM(testname)
-          END IF
+          END DO
           ! Check if we can find this name
           check => prms%firstLink
           DO WHILE (associated(check))
@@ -1490,39 +1552,65 @@ DO WHILE (associated(current))
                   SELECT TYPE(value)
                     TYPE IS (INTEGER)
                     value = multi%value
+                    ! insert option with numbered name ($ replaced by number)
+                    ALLOCATE(intopt)
+                    WRITE(tmpValue,'(*(I0))') (multi%value(j), ",",j=1,no)
+                    ! remove trailing comma
+                    tmpValue(len(TRIM(tmpValue)):len(TRIM(tmpValue))) = ' '
+                    CALL prms%CreateOption(intopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
                   END SELECT
                 CLASS IS (RealArrayOption)
                   IF (SIZE(multi%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
                   SELECT TYPE(value)
                     TYPE IS (REAL)
                     value = multi%value
+                    ! insert option with numbered name ($ replaced by number)
+                    ALLOCATE(realopt)
+                    WRITE(tmpValue,'(*(G0))') (multi%value(j), ",",j=1,no)
+                    ! remove trailing comma
+                    tmpValue(len(TRIM(tmpValue)):len(TRIM(tmpValue))) = ' '
+                    CALL prms%CreateOption(realopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
                   END SELECT
                 CLASS IS (LogicalArrayOption)
                   IF (SIZE(multi%value).NE.no) CALL Abort(__STAMP__,"Array size of option '"//TRIM(name)//"' is not correct!")
                   SELECT TYPE(value)
                     TYPE IS (LOGICAL)
                     value = multi%value
+                    ! insert option with numbered name ($ replaced by number)
+                    ALLOCATE(logicalopt)
+                    ! remove trailing comma
+                    tmpValue(len(TRIM(tmpValue)):len(TRIM(tmpValue))) = ' '
+                    WRITE(tmpValue,'(*(L1))') (multi%value(j), ",",j=1,no)
+                    CALL prms%CreateOption(logicalopt, name, 'description', value=tmpValue, multiple=.FALSE., numberedmulti=.FALSE.,removed=.TRUE.)
                   END SELECT
               END SELECT
               ! print option and value to stdout. Custom print, so do it here
               WRITE(fmtName,*) prms%maxNameLen
-              SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+              SWRITE(UNIT_stdOut,'(A3)', ADVANCE='NO') ' | '
               CALL set_formatting("blue")
               SWRITE(UNIT_stdOut,"(a"//fmtName//")", ADVANCE='NO') TRIM(name)
               CALL clear_formatting()
-              SWRITE(UNIT_stdOut,'(a3)', ADVANCE='NO')  " | "
+              SWRITE(UNIT_stdOut,'(A3)', ADVANCE='NO') ' | '
               CALL multi%printValue(prms%maxValueLen)
               SWRITE(UNIT_stdOut,"(a3)", ADVANCE='NO') ' | '
               CALL set_formatting("blue")
               SWRITE(UNIT_stdOut,'(a7)', ADVANCE='NO')  "*MULTI"
               CALL clear_formatting()
               SWRITE(UNIT_stdOut,"(a3)") ' | '
+              ! Indicate that parameter was read at least once and therefore remove the warning that the parameter was not used
+              multi%isUsedMulti = .TRUE.
               RETURN
             END IF
             check => check%next
           END DO
         END IF
       END DO
+      ! create new instance of multiple option
+      ALLOCATE(newopt, source=current%opt)
+      ! set name of new option like name in read line and set it being not multiple numbered
+      newopt%name = name
+      newopt%numberedmulti = .FALSE.
+      newopt%isSet = .FALSE.
       ! No catchall option, check if we can find a proposal
       IF ((PRESENT(proposal)).AND.(.NOT. newopt%isSet)) THEN
         proposal_loc = TRIM(proposal)
@@ -1694,7 +1782,7 @@ END FUNCTION GETSTRARRAY
 FUNCTION GETDESCRIPTION(name) result(description)
 ! INPUT / OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)          :: name        !< parameter name
-CHARACTER(LEN=1000)                  :: description !< description
+CHARACTER(LEN=1300)                  :: description !< description
 ! LOCAL VARIABLES
 CLASS(link),POINTER :: current
 !==================================================================================================================================
@@ -1728,7 +1816,7 @@ CLASS(link),POINTER           :: check
 CLASS(Option),POINTER         :: multi
 CLASS(OPTION),ALLOCATABLE     :: newopt
 CHARACTER(LEN=:),ALLOCATABLE  :: testname
-INTEGER                       :: iChar
+INTEGER                       :: iChar,kChar
 CHARACTER(LEN=20)             :: fmtName
 !==================================================================================================================================
 ! iterate over all options and compare names
@@ -1798,17 +1886,19 @@ DO WHILE (associated(current))
       newopt%numberedmulti = .FALSE.
       newopt%isSet = .FALSE.
       ! Check if we can find a general option, applying to all numberedmulti
+      ! Testname must not be trimmed! Otherwise, the INDEX test will fail as testname < name
       testname = name
       DO iChar = 1, LEN(name)
         ! Start replacing the index from the left
-        IF(INDEX('0123456789',name(iChar:iChar)).GT.0) THEN
+        IF(INDEX('0123456789',testname(iChar:iChar)).GT.0) THEN
           testname(iChar:iChar) = '$'
-          ! Remove multiple $ in case of multi-digit numbers
-          IF(iChar.GT.1 .AND. testname(iChar-1:iChar-1).EQ.'$')THEN
-            testname(iChar-1:LEN(testname)-1)     = testname(iChar:LEN(testname))
+          DO kChar = iChar+1, LEN(testname)
+            ! Check if it is a multi-digit number and remove all following numbers
+            IF(SCAN(testname(iChar+1:iChar+1),'0123456789').EQ.0) EXIT
+
+            testname(iChar+1:LEN(testname)-1) = testname(iChar+2:LEN(testname))
             testname(LEN(testname):LEN(testname)) = ' '
-            testname = TRIM(testname)
-          END IF
+          END DO
           ! Check if we can find this name
           check => prms%firstLink
           DO WHILE (associated(check))
@@ -2064,7 +2154,7 @@ IMPLICIT NONE
 CLASS(link), POINTER         :: current, tmp
 !===================================================================================================================================
 
-if(associated(prms%firstlink))then
+IF(ASSOCIATED(prms%firstlink))THEN
   current => prms%firstLink
   DO WHILE (associated(current%next))
     DEALLOCATE(current%opt)
@@ -2074,7 +2164,7 @@ if(associated(prms%firstlink))then
     NULLIFY(current)
     current => tmp
   END DO
-end if
+END IF
 prms%firstLink => null()
 prms%lastLink  => null()
 END SUBROUTINE FinalizeParameters
@@ -2083,9 +2173,12 @@ END SUBROUTINE FinalizeParameters
 !==================================================================================================================================
 !> Print name and value for an option to UNIT_StdOut
 !==================================================================================================================================
-SUBROUTINE PrintOption(NameOpt,InfoOpt,IntOpt,RealOpt,LogOpt,StrOpt)
+SUBROUTINE PrintOption(NameOpt,InfoOpt,IntOpt,IntArrayOpt,RealOpt,LogOpt,LogArrayOpt,StrOpt)
 ! MODULES
 USE MOD_Globals               ,ONLY: abort,mpiroot
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -2093,16 +2186,29 @@ CHARACTER(LEN=*),INTENT(IN)            :: NameOpt ! Option name
 CHARACTER(LEN=*),INTENT(IN)            :: InfoOpt ! Option information:
 ! optional
 INTEGER,INTENT(IN),OPTIONAL            :: IntOpt  ! Integer value
+INTEGER,INTENT(IN),OPTIONAL            :: IntArrayOpt(:) ! Integer array value
 REAL,INTENT(IN),OPTIONAL               :: RealOpt ! Real value
 LOGICAL,INTENT(IN),OPTIONAL            :: LogOpt  ! Logical value
+LOGICAL,INTENT(IN),OPTIONAL            :: LogArrayOpt(:) ! Logical array value
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL   :: StrOpt  ! String value
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=20)    :: fmtName
 CHARACTER(LEN=20)    :: fmtValue
-INTEGER              :: Counter
+CHARACTER(LEN=50)    :: tmp
+INTEGER              :: i,Counter,length
 !==================================================================================================================================
 IF(.NOT.MPIRoot)RETURN
+
+! Return if running loadbalance and printing static information
+#if USE_LOADBALANCE
+IF (PerformLoadBalance) THEN
+  SELECT CASE(TRIM(InfoOpt))
+    CASE("INFO","PARAM","CALCUL.","OUTPUT","HDF5")
+      RETURN
+  END SELECT
+END IF
+#endif /*USE_LOADBALANCE*/
 
 ! set length of name
 WRITE(fmtName,*) prms%maxNameLen
@@ -2123,7 +2229,15 @@ IF(PRESENT(IntOpt))THEN
   fmtValue='I'//TRIM(fmtValue)
   Counter=Counter+1
 END IF
+IF(PRESENT(IntArrayOpt))THEN
+  fmtValue='I'//TRIM(fmtValue)
+  Counter=Counter+1
+END IF
 IF(PRESENT(LogOpt))THEN
+  fmtValue='L'//TRIM(fmtValue)
+  Counter=Counter+1
+END IF
+IF(PRESENT(LogArrayOpt))THEN
   fmtValue='L'//TRIM(fmtValue)
   Counter=Counter+1
 END IF
@@ -2142,6 +2256,22 @@ ELSEIF(Counter.GT.1)THEN
       ,'PrintOption: only one option is allowed: [IntOpt,RealOpt,LogOpt]')
 END IF
 
+IF(PRESENT(IntArrayOpt)) THEN
+  length = 3 ! '(/ '
+  DO i=1,SIZE(IntArrayOpt)
+    WRITE(tmp,"(I0)") IntArrayOpt(i)
+    length = length + LEN_TRIM(tmp)
+  END DO
+  length = length + 2*(SIZE(IntArrayOpt)-1) ! ', ' between array elements
+  length = length + 3 ! ' /)'
+END IF
+IF(PRESENT(LogArrayOpt)) THEN
+  length = 3 ! '(/ '
+  length = length + SIZE(LogArrayOpt) ! each value needs only one character
+  length = length + 2*(SIZE(LogArrayOpt)-1) ! ', ' between array elements
+  length = length + 3 ! ' /)'
+END IF
+
 ! write to UNIT_StdOut
 !SWRITE(UNIT_StdOut,'(A3,A'//fmtName//',A3,'//fmtValue//',A3,A7,A3)')' | ',TRIM(NameOpt),' | ',' | ',TRIM('OUTPUT'),' | '
                     WRITE(UNIT_StdOut,'(A3,A'//TRIM(fmtName)//',A3)',ADVANCE='NO')' | ',TRIM(NameOpt),' | '
@@ -2149,6 +2279,24 @@ IF(PRESENT(RealOpt))WRITE(UNIT_StdOut,'('//TRIM(fmtValue)//')',ADVANCE='NO')Real
 IF(PRESENT(IntOpt)) WRITE(UNIT_StdOut,'('//TRIM(fmtValue)//')',ADVANCE='NO')IntOpt
 IF(PRESENT(LogOpt)) WRITE(UNIT_StdOut,'('//TRIM(fmtValue)//')',ADVANCE='NO')LogOpt
 IF(PRESENT(StrOpt)) WRITE(UNIT_StdOut,'('//TRIM(fmtValue)//')',ADVANCE='NO')TRIM(StrOpt)
+IF(PRESENT(IntArrayOpt)) THEN; IF (prms%maxValueLen - length.GT.0) THEN; WRITE(fmtValue,*) (prms%maxValueLen - length)
+                    WRITE(UNIT_stdOut,'('//fmtValue//'(" "))',ADVANCE='NO'); END IF
+                    WRITE(UNIT_stdOut,"(A3)",ADVANCE='NO') "(/ "
+  DO i=1,SIZE(IntArrayOpt); WRITE(fmtValue,'(I0)') IntArrayOpt(i); WRITE(fmtValue,*) LEN_TRIM(fmtValue)
+                    WRITE(UNIT_stdOut,"(I"//fmtValue//")",ADVANCE='NO') IntArrayOpt(i)
+    IF (i.NE.SIZE(IntArrayOpt)) &
+                    WRITE(UNIT_stdOut,"(A2)",ADVANCE='NO') ", "
+  END DO
+                    WRITE(UNIT_stdOut,"(A3)",ADVANCE='NO') " /)"; END IF
+IF(PRESENT(LogArrayOpt)) THEN; IF (prms%maxValueLen - length.GT.0) THEN; WRITE(fmtValue,*) (prms%maxValueLen - length)
+                    WRITE(UNIT_stdOut,'('//fmtValue//'(" "))',ADVANCE='NO'); END IF
+                    WRITE(UNIT_stdOut,"(A3)",ADVANCE='NO') "(/ "
+  DO i=1,SIZE(LogArrayOpt)
+                    WRITE(UNIT_stdOut,"(L1)",ADVANCE='NO') LogArrayOpt(i)
+    IF (i.NE.SIZE(LogArrayOpt)) &
+                    WRITE(UNIT_stdOut,"(A2)",ADVANCE='NO') ", "
+  END DO
+                    WRITE(UNIT_stdOut,"(A3)",ADVANCE='NO') " /)"; END IF
                     WRITE(UNIT_StdOut,'(A3,A7,A3)')' | ',TRIM(InfoOpt),' | '
 END SUBROUTINE PrintOption
 

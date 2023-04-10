@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2018 - 2019 Marcel Pfeiffer
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -68,9 +68,8 @@ CALL prms%CreateIntOption(    'Particles-BGK-MinPartsPerCell',      'Define mini
                                                                     'cell refinement')
 CALL prms%CreateLogicalOption('Particles-BGK-MovingAverage',        'Enable a moving average of variables for the calculation '//&
                                                                     'of the cell temperature for relaxation frequencies','.FALSE.')
-CALL prms%CreateIntOption(    'Particles-BGK-MovingAverageLength',  'Use the moving average with a fixed array length, where '//&
-                                                                    'the first values are dismissed and the last values updated '//&
-                                                                    'with current iteration to account for for unsteady flows','1')
+CALL prms%CreateRealOption(    'Particles-BGK-MovingAverageFac',    'Use the moving average of moments M with  '//&
+                                                                    'M^n+1=AverageFac*M+(1-AverageFac)*M^n','0.01')
 CALL prms%CreateRealOption(   'Particles-BGK-SplittingDens',        'Octree-refinement will only be performed above this number '//&
                                                                     'density', '0.0')
 CALL prms%CreateLogicalOption('Particles-BGK-DoVibRelaxation',      'Enable modelling of vibrational excitation','.TRUE.')
@@ -93,11 +92,14 @@ USE MOD_ReadInTools
 USE MOD_BGK_Vars
 USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
-USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
 USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -110,7 +112,7 @@ INTEGER               :: iSpec, iSpec2
 REAL                  :: delta_ij
 LOGICAL               :: MoleculePresent
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT BGK Solver...'
 MoleculePresent = .FALSE.
 ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
@@ -128,16 +130,12 @@ DO iSpec=1, nSpecies
   END DO
 END DO
 IF ((nSpecies.GT.1).AND.(ANY(SpecDSMC(:)%PolyatomicMol))) THEN
-  CALL abort(&
-__STAMP__&
-,' ERROR Multispec not implemented with polyatomic molecules!')
+  CALL abort(__STAMP__,' ERROR Multispec not implemented with polyatomic molecules!')
 END IF
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
-      CALL abort(&
-__STAMP__&
-,' ERROR Multispec only with ESBGK model!')
+      CALL abort(__STAMP__,' ERROR Multispec only with ESBGK model!')
 END IF
 BGKMixtureModel = GETINT('Particles-BGK-MixtureModel')
 ! ESBGK options
@@ -145,6 +143,9 @@ ESBGKModel = GETINT('Particles-ESBGK-Model')         ! 1: Approximative, 2: Exac
 ! Coupled BGK with DSMC, use a number density as limit above which BGK is used, and below which DSMC is used
 CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
 IF(CoupledBGKDSMC) THEN
+  IF (DoVirtualCellMerge) THEN  
+    CALL abort(__STAMP__,' Virtual cell merge not implemented for coupled DSMC-BGK simulations!')
+  END IF
   BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
 ELSE
   IF(RadialWeighting%DoRadialWeighting) RadialWeighting%PerformCloning = .TRUE.
@@ -155,9 +156,7 @@ IF(DoBGKCellAdaptation) THEN
   BGKMinPartPerCell = GETINT('Particles-BGK-MinPartsPerCell')
   IF(.NOT.DSMC%UseOctree) THEN
     DSMC%UseOctree = .TRUE.
-    IF(NGeo.GT.PP_N) CALL abort(&
-__STAMP__&
-,' Set PP_N to NGeo, otherwise the volume is not computed correctly.')
+    IF(NGeo.GT.PP_N) CALL abort(__STAMP__,' Set PP_N to NGeo, otherwise the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
 END IF
@@ -165,14 +164,10 @@ BGKSplittingDens = GETREAL('Particles-BGK-SplittingDens')
 ! Moving Average
 BGKMovingAverage = GETLOGICAL('Particles-BGK-MovingAverage')
 IF(BGKMovingAverage) THEN
-  CALL abort(__STAMP__,&
-    ' ERROR BGK Init: Moving average is currently not implemented!')
-  BGKMovingAverageLength = GETINT('Particles-BGK-MovingAverageLength')
+  BGKMovingAverageFac= GETREAL('Particles-BGK-MovingAverageFac')
+  IF ((BGKMovingAverageFac.LE.0.0).OR.(BGKMovingAverageFac.GE.1.)) CALL abort(__STAMP__,'Particles-BGK-MovingAverageFac must be between 0 and 1!')
   CALL BGK_init_MovingAverage()
-  IF(RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
-    CALL abort(__STAMP__,&
-      ' ERROR BGK Init: Moving average is neither implemented with radial weighting nor variable time step!')
-  END IF
+  IF(nSpecies.GT.1) CALL abort(__STAMP__,'nSpecies >1 and molecules not implemented for BGK averaging!')
 END IF
 IF(MoleculePresent) THEN
   ! Vibrational modelling
@@ -192,7 +187,7 @@ END IF
 
 BGKInitDone = .TRUE.
 
-SWRITE(UNIT_stdOut,'(A)') ' INIT BGK DONE!'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT BGK DONE!'
 
 END SUBROUTINE InitBGK
 
@@ -202,7 +197,7 @@ SUBROUTINE BGK_init_MovingAverage()
 !> Initialization of the arrays for the sampling of the moving average
 !===================================================================================================================================
 ! MODULES
-USE MOD_BGK_Vars   ,ONLY: ElemNodeAveraging, BGKMovingAverageLength
+USE MOD_BGK_Vars   ,ONLY: ElemNodeAveraging, BGKCollModel
 USE MOD_Mesh_Vars  ,ONLY: nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -217,13 +212,14 @@ INTEGER                       :: iElem
 ALLOCATE(ElemNodeAveraging(nElems))
 DO iElem = 1, nElems
   ALLOCATE(ElemNodeAveraging(iElem)%Root)
-  IF (BGKMovingAverageLength.GT.1) THEN
-    ALLOCATE(ElemNodeAveraging(iElem)%Root%AverageValues(5,BGKMovingAverageLength))
-     ElemNodeAveraging(iElem)%Root%AverageValues = 0.0
-  ELSE
-    ALLOCATE(ElemNodeAveraging(iElem)%Root%AverageValues(5,1))
-    ElemNodeAveraging(iElem)%Root%AverageValues = 0.0
+  IF (BGKCollModel.EQ.1) THEN
+    ALLOCATE(ElemNodeAveraging(iElem)%Root%AverageValues(8))
+  ELSE IF (BGKCollModel.EQ.2) THEN
+    ALLOCATE(ElemNodeAveraging(iElem)%Root%AverageValues(5))
+  ELSE IF (BGKCollModel.EQ.3) THEN
+    ALLOCATE(ElemNodeAveraging(iElem)%Root%AverageValues(2))
   END IF
+  ElemNodeAveraging(iElem)%Root%AverageValues = 0.0
   ElemNodeAveraging(iElem)%Root%CorrectStep = 0
 END DO
 
@@ -248,9 +244,66 @@ IMPLICIT NONE
 !===================================================================================================================================
 
 SDEALLOCATE(SpecBGK)
-SDEALLOCATE(ElemNodeAveraging)
 SDEALLOCATE(BGK_QualityFacSamp)
+IF(BGKMovingAverage) CALL DeleteElemNodeAverage()
 
 END SUBROUTINE FinalizeBGK
+
+SUBROUTINE DeleteElemNodeAverage()
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Delete the pointer tree ElemNodeVol
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_BGK_Vars
+USE MOD_DSMC_Vars              ,ONLY: DSMC
+USE MOD_Mesh_Vars              ,ONLY: nElems
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                 :: iElem
+!===================================================================================================================================
+IF(.NOT.DSMC%UseOctree) RETURN
+DO iElem=1,nElems
+  CALL DeleteNodeAverage(ElemNodeAveraging(iElem)%Root)
+  DEALLOCATE(ElemNodeAveraging(iElem)%Root)
+END DO
+DEALLOCATE(ElemNodeAveraging)
+END SUBROUTINE DeleteElemNodeAverage
+
+
+RECURSIVE SUBROUTINE DeleteNodeAverage(NodeAverage)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! Check if the Node has subnodes and delete them
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_BGK_Vars
+USE MOD_Particle_Vars         ,ONLY: Symmetry
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT VARIABLES
+TYPE (tNodeAverage), INTENT(INOUT)  :: NodeAverage
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER     ::  iLoop, nLoop
+!===================================================================================================================================
+nLoop = 2**Symmetry%Order
+IF(ASSOCIATED(NodeAverage%SubNode)) THEN 
+  DO iLoop = 1, nLoop
+    CALL DeleteNodeAverage(NodeAverage%SubNode(iLoop))
+  END DO
+  DEALLOCATE(NodeAverage%SubNode)
+END IF
+
+END SUBROUTINE DeleteNodeAverage
 
 END MODULE MOD_BGK_Init

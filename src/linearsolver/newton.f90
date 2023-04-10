@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -81,12 +81,13 @@ REAL,INTENT(OUT)           :: Delta_Norm_Rel
 REAL                       :: X,DeltaX
 INTEGER                    :: iElem, i,j,k,iVar
 REAL                       :: rRel
-LOGICAL                    :: warning_linear
 #if USE_MPI
 REAL                       :: NormArray(3), GlobalNormArray(3)
 #endif /*USE_MPI*/
 #if ! (USE_HDG)
-REAL                     :: rTmp(1:8), locMass
+REAL                       :: rTmp(1:8), locMass
+#else
+LOGICAL                    :: warning_linear
 #endif /*DG*/
 !===================================================================================================================================
 
@@ -227,13 +228,11 @@ USE MOD_Particle_Vars          ,ONLY: PartStateN,PartStage
 USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, DelayTime, PEM, PDM
 USE MOD_Part_RHS               ,ONLY: PartVeloToImp
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
-USE MOD_Part_MPFtools          ,ONLY: StartParticleMerge
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_ParticleSolver         ,ONLY: ParticleNewton
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -326,7 +325,6 @@ END IF
   ! finish communication
   CALL MPIParticleRecv()
   ! ALWAYS require
-  PartMPIExchange%nMPIParticles=0
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -534,7 +532,6 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       CALL MPIParticleSend()
       ! finish communication
       CALL MPIParticleRecv()
-      PartMPIExchange%nMPIParticles=0
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -700,7 +697,6 @@ DO WHILE ((nFullNewtonIter.LE.maxFullNewtonIter).AND.(.NOT.IsConverged))
       CALL MPIParticleSend()
       ! finish communication
       CALL MPIParticleRecv()
-      PartMPIExchange%nMPIParticles=0
 #if USE_LOADBALANCE
       CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/

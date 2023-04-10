@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -28,7 +28,6 @@ END INTERFACE
 PUBLIC:: FinalizePiclas
 PUBLIC:: InitPiclas
 !===================================================================================================================================
-!PUBLIC:: InitDefineParameters
 
 CONTAINS
 
@@ -85,8 +84,8 @@ USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC
-USE MOD_Particle_Vars        ,ONLY: VarTimeStep
-USE MOD_Particle_VarTimeStep ,ONLY: VarTimeStep_Init
+USE MOD_Particle_Vars        ,ONLY: UseVarTimeStep, VarTimeStep
+USE MOD_Particle_TimeStep    ,ONLY: InitPartTimeStep
 USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
@@ -95,9 +94,9 @@ USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
 USE MOD_DSMC_Symmetry        ,ONLY: Init_Symmetry
 USE MOD_PICDepo_Method       ,ONLY: InitDepositionMethod
-#ifdef MPI
+#if USE_MPI
 USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
-#endif /* MPI */
+#endif /* USE_MPI */
 #if defined(IMPA) || defined(ROS)
 USE MOD_ParticleSolver       ,ONLY: InitPartSolver
 #endif
@@ -124,8 +123,7 @@ INTEGER                 :: TimeStampLength
 !===================================================================================================================================
 ! Get length of the floating number time stamp
 TimeStampLength = GETINT('TimeStampLength')
-IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(&
-    __STAMP__&
+IF((TimeStampLength.LT.4).OR.(TimeStampLength.GT.30)) CALL abort(__STAMP__&
     ,'TimeStampLength cannot be smaller than 4 and not larger than 30')
 WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
 ! Check if TEnd overflows the output floating format
@@ -144,14 +142,11 @@ CALL Init_Symmetry()
 #endif /*PARTICLES*/
 
 ! Initialization
-!CALL InitInterpolation()
 IF(IsLoadBalance)THEN
   DoRestart=.TRUE.
   RestartInitIsDone=.TRUE.
   InterpolationInitIsDone=.TRUE.
   RestartNullifySolution=.FALSE.
-  !BuildNewMesh       =.FALSE. !not used anymore?
-  !WriteNewMesh       =.FALSE. !not used anymore?
   InterpolateSolution=.FALSE.
   N_Restart=PP_N
   CALL InitMortar()
@@ -166,10 +161,10 @@ END IF
 VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling')
 VarTimeStep%UseDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution')
 IF (VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution)  THEN
-  VarTimeStep%UseVariableTimeStep = .TRUE.
-  IF(.NOT.IsLoadBalance) CALL VarTimeStep_Init()
+  UseVarTimeStep = .TRUE.
+  IF(.NOT.IsLoadBalance) CALL InitPartTimeStep()
 ELSE
-  VarTimeStep%UseVariableTimeStep = .FALSE.
+  UseVarTimeStep = .FALSE.
 END IF
 CALL InitParticleGlobals()
 CALL InitDepositionMethod()
@@ -177,13 +172,10 @@ CALL InitDepositionMethod()
 
 CALL InitMesh(2)
 #if USE_MPI
-CALL InitMPIVars()
+CALL InitMPIvars()
 #endif /*USE_MPI*/
 CALL InitEquation()
 CALL InitBC()
-!#ifdef PARTICLES
-!CALL InitParticles()
-!#endif
 #if !(USE_HDG)
 CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
 #endif /*USE_HDG*/
@@ -192,16 +184,12 @@ CALL InitDG()
 #if defined(ROS) || defined(IMPA)
 CALL InitLinearSolver()
 #endif /*ROS /IMEX*/
-!#if defined(IMEX)
-!CALL InitCSR()
-!#endif /*IMEX*/
 #ifdef PARTICLES
 CALL InitParticleMPI
 CALL InitParticles()
 #if defined(IMPA) || defined(ROS)
 CALL InitPartSolver()
 #endif
-!CALL GetSideType
 #endif
 CALL InitAnalyze()
 CALL InitRecordPoints()
@@ -225,22 +213,21 @@ CALL InitRadiationTransport()
 IF(DoImportTTMFile)THEN
   CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
 END IF
-#ifdef MPI
+#if USE_MPI
 ! New IMD binary format (not TTM needed as this information is stored on the atoms)
 CALL initReadIMDdata()
 CALL read_IMD_results()
-#endif /* MPI */
+#endif /* USE_MPI */
 #endif /*PARTICLES*/
 
 CALL InitInterfaces() ! set Riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
 
-! do this last!
-!CALL IgnoredStrings()
+! !do this last
 ! write out parameters that are not used and remove multiple and unused, that are not needed to do restart if no parameter.ini is
 ! read in
 IF (.NOT.IsLoadBalance) THEN
   CALL prms%WriteUnused()
-  CALL prms%RemoveUnnecessary()
+  ! CALL prms%RemoveUnnecessary() ! We need to keep the numberedMulti in case we want the default value
 END IF
 
 
@@ -293,6 +280,7 @@ USE MOD_Particle_Sampling_Adapt    ,ONLY: FinalizeParticleSamplingAdaptive
 USE MOD_Particle_Boundary_Init     ,ONLY: FinalizeParticleBoundary
 USE MOD_TTMInit                    ,ONLY: FinalizeTTM
 USE MOD_DSMC_Init                  ,ONLY: FinalizeDSMC
+USE MOD_MCC_Init                   ,ONLY: FinalizeMCC
 USE MOD_SurfaceModel_Porous        ,ONLY: FinalizePorousBoundaryCondition
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: FinalizeFPFlow
@@ -301,6 +289,7 @@ USE MOD_FPFlow_Init                ,ONLY: FinalizeFPFlow
 USE MOD_BGK_Init                   ,ONLY: FinalizeBGK
 #endif
 USE MOD_SurfaceModel_Init          ,ONLY: FinalizeSurfaceModel
+USE MOD_SurfaceModel_Analyze       ,ONLY: FinalizeSurfaceModelAnalyze
 USE MOD_Particle_Boundary_Sampling ,ONLY: FinalizeParticleBoundarySampling
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone
 USE MOD_PIC_Vars                   ,ONLY: PICInitIsDone
@@ -309,7 +298,7 @@ USE MOD_Particle_MPI               ,ONLY: FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
-USE MOD_IO_HDF5                    ,ONLY: ClearElemData,ElementOut
+USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut
 USE MOD_TimeDiscInit               ,ONLY: FinalizeTimeDisc
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -321,7 +310,7 @@ LOGICAL,INTENT(IN)      :: IsLoadBalance
 ! LOCAL VARIABLES
 REAL                    :: Time
 !===================================================================================================================================
-CALL ClearElemData(ElementOut)
+CALL FinalizeElemData(ElementOut)
 !Finalize
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()
@@ -330,10 +319,10 @@ CALL FinalizeDG()
 !CALL FinalizeCSR()
 CALL FinalizeLinearSolver()
 #endif /*IMEX*/
+CALL FinalizeDielectric()
 #if !(USE_HDG)
 CALL FinalizePML()
 #else
-CALL FinalizeDielectric()
 CALL FinalizeHDG()
 #endif /*USE_HDG*/
 CALL FinalizeEquation()
@@ -344,6 +333,7 @@ CALL FinalizeMesh()
 CALL FinalizeMortar()
 #ifdef PARTICLES
 CALL FinalizeSurfaceModel()
+CALL FinalizeSurfaceModelAnalyze()
 CALL FinalizeParticleBoundarySampling()
 CALL FinalizePorousBoundaryCondition()
 CALL FinalizeParticleSurfaces()
@@ -355,6 +345,7 @@ CALL FinalizePICInterpolation()
 CALL FinalizeParticleMPI()
 #endif /*USE_MPI*/
 CALL FinalizeDSMC()
+CALL FinalizeMCC()
 #if (PP_TimeDiscMethod==300)
 CALL FinalizeFPFlow()
 #endif
@@ -392,7 +383,6 @@ SDEALLOCATE(RP_Data)
 ! Before program termination: Finalize load balance
 ! Measure simulation duration
 Time=PICLASTIME()
-SWRITE(UNIT_stdOut,'(132("="))')
 CALL FinalizeLoadBalance(IsLoadBalance)
 IF(.NOT.IsLoadBalance)THEN
   CALL DisplaySimulationTime(Time, StartTime, 'FINISHED')
@@ -413,7 +403,12 @@ SUBROUTINE FinalizeLoadBalance(IsLoadBalance)
 ! Deallocate arrays
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_LoadBalance_Vars
+#if USE_LOADBALANCE
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars   ,ONLY: MPI_COMM_SHARED
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -436,12 +431,24 @@ SDEALLOCATE(PartDistri)
 SDEALLOCATE(ElemGlobalTime)
 SDEALLOCATE(ElemHDGSides)
 SDEALLOCATE(ElemTime_tmp)
-SDEALLOCATE(ElemTime)
+!SDEALLOCATE(ElemTime)
 
 IF(.NOT.IsLoadBalance) THEN
 #if USE_LOADBALANCE
+  IF (ASSOCIATED(ElemInfoRank_Shared)) THEN
+    ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+    CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+    CALL UNLOCK_AND_FREE(ElemInfoRank_Shared_Win)
+    CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+
+    ! Then, free the pointers or arrays
+    NULLIFY(ElemInfoRank_Shared)
+  END IF
+
   SDEALLOCATE(tCurrent)
   InitLoadBalanceIsDone = .FALSE.
+
+  SDEALLOCATE(offsetElemMPIOld)
 #endif /*USE_LOADBALANCE*/
 END IF
 

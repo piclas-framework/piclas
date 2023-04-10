@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2019 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -23,6 +23,7 @@ USE MOD_Globals!               ,ONLY: CollectiveStop
 USE MOD_Globals_Init          ,ONLY: InitGlobals
 USE MOD_SuperB_Init           ,ONLY: DefineParametersSuperB, FinalizeSuperB
 USE MOD_SuperB                ,ONLY: SuperB
+USE MOD_SuperB_Vars           ,ONLY: BGFieldTDep
 USE MOD_Globals_Vars          ,ONLY: ParameterFile
 USE MOD_ReadInTools           ,ONLY: prms,PrintDefaultparameterFile,ExtractparameterFile
 USE MOD_Interpolation         ,ONLY: InitInterpolation
@@ -45,6 +46,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: SystemTime
+CHARACTER(32)           :: hilf
 !===================================================================================================================================
 ! Initialize
 !CALL InitializePiclas()
@@ -74,6 +76,8 @@ SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')"superB version 1.0.0"
 SWRITE(UNIT_stdOut,'(132("="))')
 
+GETTIME(StartTime)
+
 CALL ParseCommandlineArguments()
 
 
@@ -93,6 +97,9 @@ CALL DefineParametersOutput()
 CALL DefineParametersMesh()
 CALL DefineParametersEquation()
 CALL DefineParametersSuperB()
+#if USE_MPI
+CALL DefineParametersMPIShared()
+#endif /*USE_MPI*/
 ! check for command line argument --help or --markdown
 IF (doPrintHelp.GT.0) THEN
   CALL PrintDefaultParameterFile(doPrintHelp.EQ.2, Args(1))
@@ -101,13 +108,13 @@ END IF
 
 ParameterFile = Args(1)
 
-StartTime=PICLASTIME()
 CALL prms%read_options(ParameterFile)
 ! Measure init duration
-SystemTime=PICLASTIME()
+GETTIME(SystemTime)
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING INI DONE! [',SystemTime-StartTime,' sec ] NOW '&
-,prms%count_setentries(),' PARAMETERS ARE SET'
+WRITE(UNIT=hilf,FMT='(I0)') prms%count_setentries()
+CALL DisplayMessageAndTime(SystemTime-StartTime, ' READING INI DONE! NOW '//TRIM(hilf)//' PARAMETERS ARE SET',&
+DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL InitOutput()
@@ -132,15 +139,16 @@ CALL InitMesh(3) ! 0: only read and build Elem_xGP,
 CALL SuperB()
 
 ! Deallocation of BGField
+SDEALLOCATE(BGFieldTDep)
 SDEALLOCATE(BGField)
 SDEALLOCATE(BGFieldAnalytic)
 ! Finalize SuperB
 CALL FinalizeSuperB()
 CALL FinalizeMesh()
 
-SystemTime=PICLASTIME()
+GETTIME(SystemTime)
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' SuperB finished! [',SystemTime-StartTime,' sec ] '
+CALL DisplayMessageAndTime(SystemTime-StartTime, ' SuperB finished!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 SWRITE(UNIT_stdOut,'(132("="))')
 ! MPI
 #if USE_MPI

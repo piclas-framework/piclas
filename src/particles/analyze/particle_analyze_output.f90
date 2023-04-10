@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -37,15 +37,12 @@ SUBROUTINE WriteParticleTrackingData(time,iter)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout,DOTPRODUCT
-USE MOD_Restart_Vars     ,ONLY: DoRestart
-USE MOD_Globals          ,ONLY: abort
-
+USE MOD_Globals               ,ONLY: FILEEXISTS,unit_stdout,DOTPRODUCT,abort,MPI_COMM_WORLD,iError,MPIRoot
+USE MOD_Restart_Vars          ,ONLY: DoRestart
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PEM
 USE MOD_Particle_Analyze_Vars ,ONLY: printDiff,printDiffVec,printDiffTime
-#if defined(LSERK) || defined(IMPA) || defined(ROS)
+USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
 USE MOD_Globals_Vars          ,ONLY: c2_inv
-#endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -56,11 +53,7 @@ INTEGER(KIND=8),INTENT(IN)       :: iter
 CHARACTER(LEN=20),PARAMETER              :: outfile='ParticlePosition.csv'
 INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=150)                       :: formatStr
-#if defined(LSERK) || defined(IMPA) || defined(ROS)
 INTEGER,PARAMETER                        :: nOutputVar=10
-#else
-INTEGER,PARAMETER                        :: nOutputVar=9
-#endif
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     '001-time',     &
     'PartNum',  &
@@ -70,9 +63,7 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'PartVelX', &
     'PartVelY', &
     'PartVelZ', &
-#if defined(LSERK) || defined(IMPA) || defined(ROS)
     'gamma',    &
-#endif
     'Element'/)
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: tmpStr ! needed because PerformAnalyze is called multiple times at the beginning
 CHARACTER(LEN=1000)                      :: tmpStr2
@@ -80,6 +71,7 @@ CHARACTER(LEN=1),PARAMETER               :: delimiter=","
 LOGICAL                                  :: FileExist,CreateFile
 REAL                                     :: diffPos,diffVelo
 INTEGER                                  :: iPartState
+REAL                                     :: gamma1
 !===================================================================================================================================
 ! only the root shall write this file
 !IF(.NOT.MPIRoot)RETURN
@@ -95,7 +87,7 @@ INQUIRE(FILE = outfile, EXIST=FileExist)
 IF(.NOT.FileExist)CreateFile=.TRUE.                         ! if no file exists, create one
 
 ! create file with header
-IF(CreateFile) THEN
+IF(MPIRoot.AND.CreateFile) THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
   tmpStr=""
   DO I=1,nOutputVar
@@ -118,24 +110,39 @@ IF(CreateFile) THEN
   CLOSE(ioUnit)
 END IF
 
+#if USE_MPI
+! Barrier is required is root creates file and other processor prints to this file
+IF(CreateFile) CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+#endif /*USE_MPI*/
+
+CALL UpdateNextFreePosition()
+
 ! Print info to file
 IF(FILEEXISTS(outfile))THEN
   OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
   WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
   DO i=1,PDM%ParticleVecLength
+
+    ! Calculate Lorentz factor
+    gamma1 = DOTPRODUCT(PartState(4:6,i))*c2_inv
+    ! Sanity check: Lorentz factor must be below 1.0
+    IF(gamma1.GE.1.0)THEN
+      gamma1=-1.0
+    ELSE
+      gamma1=1.0/SQRT(1.-gamma1)
+    END IF
+
     IF (PDM%ParticleInside(i)) THEN
       WRITE(tmpStr2,formatStr)&
-          " ",time, &                                                                     ! time
-          delimiter,REAL(i), &                                                            ! PartNum
-          delimiter,PartState(1,i), &                                                     ! PartPosX
-          delimiter,PartState(2,i), &                                                     ! PartPosY
-          delimiter,PartState(3,i), &                                                     ! PartPosZ
-          delimiter,PartState(4,i), &                                                     ! PartVelX
-          delimiter,PartState(5,i), &                                                     ! PartVelY
-          delimiter,PartState(6,i), &                                                     ! PartVelZ
-#if defined(LSERK) || defined(IMPA) || defined(ROS)
-          delimiter,1./SQRT(1-(DOTPRODUCT(PartState(4:6,i))*c2_inv)), & ! gamma
-#endif
+          " ",time, &                 ! time
+          delimiter,REAL(i), &        ! PartNum
+          delimiter,PartState(1,i), & ! PartPosX
+          delimiter,PartState(2,i), & ! PartPosY
+          delimiter,PartState(3,i), & ! PartPosZ
+          delimiter,PartState(4,i), & ! PartVelX
+          delimiter,PartState(5,i), & ! PartVelY
+          delimiter,PartState(6,i), & ! PartVelZ
+          delimiter,        gamma1, & ! gamma
           delimiter,REAL(PEM%GlobalElemID(i))                                                  ! Element
       WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
     END IF

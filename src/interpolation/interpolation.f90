@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -123,10 +123,7 @@ CHARACTER(LEN=40)           :: DefStr
 INTEGER                     :: Ntmp
 #endif /*!(PP_N == N)*/
 !============================================================================================================================
-IF (InterpolationInitIsDone) THEN
-  CALL CollectiveStop(__STAMP__,&
-    'InitInterpolation already called.')
-END IF
+IF (InterpolationInitIsDone) CALL CollectiveStop(__STAMP__,'InitInterpolation already called.')
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT INTERPOLATION...'
 
@@ -144,16 +141,12 @@ ELSE
   Ntmp=PP_N
   IF(CountOption('N').EQ.1) Ntmp=GETINT('N')
 END IF
-IF(PP_N.NE.Ntmp) THEN
-  CALL CollectiveStop(__STAMP__,&
-  'N in ini-file is different from hard-compiled N in PICLas. Ini/Compiled:',Ntmp,REAL(PP_N))
-END IF
+IF(PP_N.NE.Ntmp) CALL CollectiveStop(__STAMP__,'N in ini-file is different from hard-compiled N. Ini/Compiled:',Ntmp,REAL(PP_N))
 #endif
 
 SWRITE(UNIT_stdOut,'(A)') ' NodeType: '//NodeType
 !CALL InitInterpolationBasis(PP_N, xGP ,wGP, swGP,wBary ,L_Minus ,L_Plus , L_PlusMinus, wGPSurf, Vdm_Leg ,sVdm_Leg)
-CALL InitInterpolationBasis(PP_N, xGP ,wGP, wBary ,L_Minus ,L_Plus , L_PlusMinus &
-                           ,swGP=swGP,wGPSurf=wGPSurf)
+CALL InitInterpolationBasis(PP_N, xGP, wGP, wBary, L_Minus , L_Plus, L_PlusMinus, swGP=swGP, wGPSurf=wGPSurf)
 
 ! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
 WRITE(DefStr,'(i4)') 2*(PP_N+1)

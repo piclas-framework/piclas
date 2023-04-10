@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -28,9 +28,11 @@ SAVE
 ! GLOBAL VARIABLES
 INTEGER                                   :: nExchangeProcessors            ! number of MPI processes for particles exchange
 INTEGER,ALLOCATABLE                       :: ExchangeProcToGlobalProc(:,:)  ! mapping from exchange proc ID to global proc ID
+LOGICAL                                   :: DoParticleLatencyHiding        ! Activate particle exchange proc latency hiding
 INTEGER,ALLOCATABLE                       :: GlobalProcToExchangeProc(:,:)  ! mapping from global proc ID to exchange proc ID
 LOGICAL                                   :: ParticleMPIInitIsDone=.FALSE.
 LOGICAL                                   :: CheckExchangeProcs             ! On default, check if proc communication is symmetric
+LOGICAL                                   :: AbortExchangeProcs             ! Terminate run if proc communication is non-symmetric
 
 TYPE tPartMPIGROUP
   INTEGER                                 :: COMM                           ! MPI communicator for PIC GTS region
@@ -71,8 +73,12 @@ TYPE (tPartMPIVAR)                        :: PartMPI
 
 REAL                                      :: SafetyFactor                   ! Factor to scale the halo region with MPI
 REAL                                      :: halo_eps_velo                  ! halo_eps_velo
+REAL                                      :: halo_eps_woshape               ! halo_eps_woshape
 REAL                                      :: halo_eps                       ! length of halo-region
 REAL                                      :: halo_eps2                      ! length of halo-region^2
+REAL                                      :: MPI_halo_eps                   ! If running on one node, halo_eps is meaningless.
+                                                                            ! Get a representative MPI_halo_eps for MPI proc
+                                                                            ! identification
 
 #if USE_MPI
 INTEGER                                   :: PartCommSize                   ! Number of REAL entries for particle communication
@@ -113,6 +119,11 @@ TYPE (tParticleMPIExchange)               :: PartMPILocate
 INTEGER,ALLOCATABLE                       :: PartTargetProc(:)              ! local rank id for communication
 REAL, ALLOCATABLE                         :: PartShiftVector(:,:)           ! store particle periodic map
 #endif /*USE_MPI*/
+
+#if defined(MEASURE_MPI_WAIT)
+REAL(KIND=8)                              :: MPIW8TimePart(MPIW8SIZEPART)  ! measure the time on each proc it is in MPI_WAIT() during particle communication
+INTEGER(KIND=8)                           :: MPIW8CountPart(MPIW8SIZEPART) ! counter for measurements on each proc it is in MPI_WAIT() during particle communication
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
 END MODULE MOD_Particle_MPI_Vars

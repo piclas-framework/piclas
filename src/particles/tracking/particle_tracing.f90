@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -54,13 +54,13 @@ SUBROUTINE ParticleTracing()
 !> -- 1. Initialize particle path and tracking info
 !> -- 2. Track particle vector up to final particle position
 !> -- 3. special check if some double check has to be performed (only necessary for bilinear sides)
-!> -- 4. Check if particle intersected a side and also which side (also AuxBCs)
-!>         For each side only one intersection is chosen, but particle might insersect more than one side. Assign pointer list
-!> -- 5. Loop over all intersections in pointer list and check intersection type: inner side, BC, auxBC
+!> -- 4. Check if particle intersected a side and also which side
+!>         For each side only one intersection is chosen, but particle might intersect more than one side. Assign pointer list
+!> -- 5. Loop over all intersections in pointer list and check intersection type: inner side, BC
 !>       and calculate interaction
 !> -- 6. Update particle position and decide if double check might be necessary
 !> -- 7. Correct intersection list if double check will be performed and leave loop to do double check
-!> -- 8. Reset interscetion list if no double check is performed
+!> -- 8. Reset intersection list if no double check is performed
 !> -- 9. If tolerance was marked, check if particle is inside of proc volume and try to find it in case it was lost
 !> ---------------------------------------------------------------------------------------------------------------------------------
 !> - DoubleCheck:
@@ -77,9 +77,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
 USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
-USE MOD_Particle_Mesh_Vars          ,ONLY: ElemRadiusNGeo,ElemHasAuxBCs
-USE MOD_Particle_Boundary_Vars      ,ONLY: nAuxBCs,UseAuxBCs
-USE MOD_Particle_Boundary_Condition ,ONLY: GetBoundaryInteractionAuxBC
+USE MOD_Particle_Mesh_Vars          ,ONLY: ElemRadiusNGeo
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks, MeasureTrackTime, CountNbrOfLostParts, NbrOfLostParticles, DisplayLostParticles
 USE MOD_Particle_Tracking_Vars      ,ONLY: TrackInfo
 USE MOD_Mesh_Tools                  ,ONLY: GetGlobalElemID,GetCNElemID,GetCNSideID
@@ -92,7 +90,6 @@ USE MOD_Particle_Intersection       ,ONLY: ComputeCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarRectInterSection
 USE MOD_Particle_Intersection       ,ONLY: ComputePlanarCurvedIntersection
 USE MOD_Particle_Intersection       ,ONLY: ComputeBiLinearIntersection
-USE MOD_Particle_Intersection       ,ONLY: ComputeAuxBCIntersection
 USE MOD_Eval_xyz                    ,ONLY: GetPositionInRefElem
 USE MOD_Part_Tools                  ,ONLY: StoreLostParticleProperties
 #ifdef CODE_ANALYZE
@@ -109,6 +106,7 @@ USE MOD_TimeDisc_Vars               ,ONLY: iStage
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBElemPauseTime,LBElemSplitTime
 USE MOD_Mesh_Vars                   ,ONLY: offsetElem
+USE MOD_part_tools                  ,ONLY: ParticleOnProc
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -127,7 +125,7 @@ LOGICAL                       :: doPartInExists
 #endif /*IMPA*/
 INTEGER                       :: iPart
 INTEGER                       :: ElemID,CNElemID,OldElemID,firstElem
-INTEGER                       :: ilocSide,SideID,CNSideID,flip,iAuxBC
+INTEGER                       :: ilocSide,SideID,CNSideID,flip
 LOGICAL                       :: dolocSide(1:6)
 LOGICAL                       :: PartisDone,foundHit,markTol,crossedBC,SwitchedElement,isCriticalParallelInFace
 REAL                          :: localpha,xi,eta
@@ -286,7 +284,6 @@ DO iPart=1,PDM%ParticleVecLength
           iLocSide = currentIntersect%Side
           SideID   = GetGlobalNonUniqueSideID(ElemID,iLocSide)
           CNSideID = GetCNSideID(SideID)
-          ! TODO: missing!!! : mapping from GlobalNonUnique to CNtotalsides
           CALL ComputeBiLinearIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID &
               ,alpha2=currentIntersect%alpha)
           currentIntersect%alpha=HUGE(1.)
@@ -321,8 +318,8 @@ DO iPart=1,PDM%ParticleVecLength
         END IF
 
       ELSE ! NOT PartDoubleCheck
-! -- 4. Check if particle intersected a side and also which side (also AuxBCs)
-!       For each side only one intersection is chosen, but particle might insersect more than one side. Assign pointer list
+! -- 4. Check if particle intersected a side and also which side
+!       For each side only one intersection is chosen, but particle might intersect more than one side. Assign pointer list
 #ifdef CODE_ANALYZE
 !---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
         IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN ; IF(iPart.EQ.PARTOUT)THEN
@@ -353,8 +350,8 @@ DO iPart=1,PDM%ParticleVecLength
               CALL ComputePlanarCurvedIntersection( foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,flip,SideID  &
                                                   , isCriticalParallelInFace)
             CASE(CURVED)
-              CALL ComputeCurvedIntersection(       foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,     SideID &
-                                            ,       isCriticalParallelInFace)
+              CALL ComputeCurvedIntersection(       foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,flip,SideID &
+                                                                                            ,isCriticalParallelInFace)
             CASE DEFAULT
               CALL abort(__STAMP__,' Missing required side-data. Please increase halo region. ',SideID)
           END SELECT
@@ -399,56 +396,9 @@ DO iPart=1,PDM%ParticleVecLength
             !IF(locAlpha/lengthPartTrajectory.GE.0.99 .OR. locAlpha/lengthPartTrajectory.LT.0.01) markTol=.TRUE.
           END IF
         END DO ! ilocSide
-        IF (UseAuxBCs) THEN
-          DO iAuxBC=1,nAuxBCs
-            locAlpha=-1
-            isCriticalParallelInFace=.FALSE.
-            IF (ElemHasAuxBCs(ElemID,iAuxBC)) THEN
-              CALL ComputeAuxBCIntersection(foundHit,PartTrajectory,lengthPartTrajectory &
-                  ,iAuxBC,locAlpha,iPart,isCriticalParallelInFace)
-            ELSE
-              foundHit=.FALSE.
-            END IF
-#ifdef CODE_ANALYZE
-!---------------------------------------------CODE_ANALYZE--------------------------------------------------------------------------
-            IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN ; IF(iPart.EQ.PARTOUT)THEN
-              WRITE(UNIT_stdout,'(30("-"))')
-              WRITE(UNIT_stdout,'(A)')        '     | Output after compute AuxBC intersection (particle tracing): '
-              WRITE(UNIT_stdout,'(A,I0,A,L1)') '     | AuxBC: ',iAuxBC,' | Hit: ',foundHit
-              WRITE(UNIT_stdout,'(2(A,G0))')  '     | Alpha: ',locAlpha,' | LengthPartTrajectory: ',lengthPartTrajectory
-            END IF ; END IF
-!-------------------------------------------END-CODE_ANALYZE------------------------------------------------------------------------
-#endif /*CODE_ANALYZE*/
-            ! Particle detected inside of face and PartTrajectory parallel to face
-            IF(isCriticalParallelInFace)THEN
-              IF(DisplayLostParticles)THEN
-                IPWRITE(UNIT_stdOut,'(I0,A)') ' Warning: Particle located inside of BC and moves parallel to side. Undefined position. '
-                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' Removing particle with id: ',iPart
-              END IF ! DisplayLostParticles
-              PartIsDone=.TRUE.
-              PDM%ParticleInside(iPart)=.FALSE.
-#ifdef IMPA
-              DoParticle=.FALSE.
-#endif /*IMPA*/
-              IF(CountNbrOfLostParts) THEN
-                CALL StoreLostParticleProperties(iPart, ElemID)
-                NbrOfLostParticles=NbrOfLostParticles+1
-              END IF
-              EXIT
-            END IF
-            IF(foundHit) THEN
-              ! start from last intersection entry and place current intersection in correct entry position
-              currentIntersect => lastIntersect
-              CALL AssignListPosition(currentIntersect,locAlpha,iAuxBC,2)
-              currentIntersect => lastIntersect
-              lastIntersect    => currentIntersect%next
-              lastIntersect%prev => currentIntersect
-            END IF ! foundHit
-          END DO !iAuxBC
-        END IF !UseAuxBCs
       END IF
 
-! -- 5. Loop over all intersections in pointer list and check intersection type: inner side, BC, auxBC
+! -- 5. Loop over all intersections in pointer list and check intersection type: inner side, BC
 !       and calculate interaction
 #ifdef CODE_ANALYZE
       nIntersections = 0
@@ -508,14 +458,6 @@ DO iPart=1,PDM%ParticleVecLength
             IF (ElemID.NE.OldElemID) THEN
               IF (.NOT.crossedBC) SwitchedElement=.TRUE.
             END IF
-          !------------------------------------
-          CASE(2) ! AuxBC intersection
-          !------------------------------------
-            CALL GetBoundaryInteractionAuxBC( iPart                   &
-                                            , currentIntersect%Side   &
-                                            , crossedBC)
-            IF (.NOT.PDM%ParticleInside(iPart)) PartisDone = .TRUE.
-            dolocSide=.TRUE. !important when in previously traced portion an elemchange occured, check all sides again!
           END SELECT
           PartTrajectory         = TrackInfo%PartTrajectory(1:3)
           lengthPartTrajectory   = TrackInfo%lengthPartTrajectory
@@ -529,8 +471,6 @@ DO iPart=1,PDM%ParticleVecLength
               SELECT CASE(currentIntersect%IntersectCase)
               CASE(1) ! intersection with cell side
                 WRITE(UNIT_stdout,'(A,L1)') '     -> BC was intersected on a side'
-              CASE(2) ! AuxBC intersection
-                WRITE(UNIT_stdout,'(A,L1)') '     -> BC was intersected on an AuxBC'
               END SELECT
             END IF
           END IF ; END IF
@@ -644,8 +584,7 @@ DO iPart=1,PDM%ParticleVecLength
     END DO ! PartisDone=.FALSE.
 
 #if USE_LOADBALANCE
-    IF (PEM%GlobalElemID(iPart).GE.offsetElem+1.AND.PEM%GlobalElemID(iPart).GE.offsetElem+PP_nElems) &
-      CALL LBElemPauseTime(PEM%GlobalElemID(iPart),tLBStart)
+    IF(ParticleOnProc(iPart)) CALL LBElemPauseTime(PEM%LocalElemID(iPart),tLBStart)
 #endif /*USE_LOADBALANCE*/
   END IF ! Part inside
 END DO ! iPart
@@ -820,7 +759,7 @@ USE MOD_Mesh_Vars                   ,ONLY: NGeo
 USE MOD_Particle_Localization       ,ONLY: SinglePointToElement
 USE MOD_Particle_Surfaces_Vars      ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars          ,ONLY: ElemBaryNGeo
-USE MOD_Particle_Vars               ,ONLY: PartState
+USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -837,7 +776,7 @@ REAL,INTENT(INOUT)                :: Eta                      !<
 LOGICAL,INTENT(INOUT)             :: PartIsDone               !< Flag indicating if tracking of PartID is finished
 LOGICAL,INTENT(OUT)               :: crossedBC                !< Flag indicating if BC has been hit
 LOGICAL,INTENT(INOUT)             :: DoLocSide(1:6)           !<
-INTEGER,INTENT(INOUT)             :: ElemID                   !< Element ID particle is currently in
+INTEGER,INTENT(INOUT)             :: ElemID                   !< global Element ID particle is currently in
 REAL,INTENT(INOUT),DIMENSION(1:3) :: PartTrajectory           !< normalized particle trajectory (x,y,z)
 REAL,INTENT(INOUT)                :: lengthPartTrajectory     !< length of particle trajectory
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -851,6 +790,7 @@ REAL                              :: locAlpha,locXi,locEta
 REAL                              :: n_loc(3)
 #ifdef CODE_ANALYZE
 REAL                              :: v1(3),v2(3)
+INTEGER                           :: CNElemID
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
 ! Side is a boundary side
@@ -884,7 +824,8 @@ ELSE
            + BezierControlPoints3D(:,NGeo,0   ,SideID)  &
            + BezierControlPoints3D(:,0   ,NGeo,SideID)  &
            + BezierControlPoints3D(:,NGeo,NGeo,SideID))
-  v2 = v1  - ElemBaryNGeo(:,ElemID)
+  CNElemID = GetCNElemID(ElemID)
+  v2 = v1  - ElemBaryNGeo(:,CNElemID)
 
   IF (DOT_PRODUCT(v2,n_loc).LT.0) THEN
     IPWRITE(UNIT_stdout,*) 'Obtained wrong side orientation from flip. SideID:',SideID,'flip:',flip,'PartID:',PartID
@@ -899,12 +840,6 @@ ELSE
   ! check if the side is a big mortar side
   NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
 
-#ifdef CODE_ANALYZE
-  WRITE(UNIT_stdout,'(30("-"))')
-  WRITE(UNIT_stdout,*) 'ElemID:',ElemID,'PartID',PartID,'SideID:',SideID,'Move rel. to Side:',DOT_PRODUCT(n_loc,PartTrajectory),'NbElemID:',NbElemID, 'PartElem (w/o refl.)', SinglePointToElement(PartState(1:3,PartID),doHalo=.TRUE.)
-  WRITE(UNIT_stdout,*) 'PartPos',PartState(1:3,PartID), 'PartVel:',PartState(4:6,PartID)
-#endif /* CODE_ANALYZE */
-
   IF (NbElemID.LT.0) THEN ! Mortar side
   nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
 
@@ -913,12 +848,12 @@ ELSE
       NbCNSideID = GetCNSideID(NbSideID)
       ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
       ! no way to recover it during runtime
-      IF (NbSideID.LT.1) CALL ABORT(__STAMP__,'Small mortar side not defined!',SideID + iMortar)
+      IF (NbSideID.LT.1) CALL ABORT(__STAMP__,'Small mortar side not defined! SideID + iMortar=',SideID + iMortar)
 
-      NbElemID = SideInfo_Shared(SIDE_ELEMID,nbSideID)
+      NbElemID = SideInfo_Shared(SIDE_ELEMID,NbSideID)
       ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
       ! no way to recover it during runtime
-      IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined!',ElemID)
+      IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined! ElemID=',ElemID)
 
       ! BezierControlPoints are now built in cell local system. We are checking mortar sides, so everything is reversed
       ! locFlip = MERGE(0,MOD(SideInfo_Shared(SIDE_FLIP,nbSideID),10),SideInfo_Shared(SIDE_ID,nbSideID).GT.0)
@@ -926,17 +861,17 @@ ELSE
 
       SELECT CASE(SideType(NbCNSideID))
         CASE(PLANAR_RECT)
-          CALL ComputePlanarRectIntersection(  isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
-                                            ,  locXi,locEta,PartID,0      ,NbSideID)
+          CALL ComputePlanarRectIntersection(   isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
+                                            ,   locXi,locEta,PartID,0      ,NbSideID)
         CASE(BILINEAR,PLANAR_NONRECT)
-          CALL ComputeBiLinearIntersection(    isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
-                                          ,    locXi,locEta,PartID,        NbSideID)
+          CALL ComputeBiLinearIntersection(     isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
+                                          ,     locXi,locEta,PartID,        NbSideID)
         CASE(PLANAR_CURVED)
           CALL ComputePlanarCurvedIntersection(isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
                                           ,    locXi,locEta,PartID,0      ,NbSideID)
         CASE(CURVED)
-          CALL ComputeCurvedIntersection(      isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
-                                        ,      locXi,locEta,PartID,        NbSideID)
+          CALL ComputeCurvedIntersection(       isHit,PartTrajectory,lengthPartTrajectory,locAlpha &
+                                        ,       locXi,locEta,PartID,0      ,NbSideID)
       END SELECT
 
       IF (isHit) THEN
@@ -950,10 +885,10 @@ ELSE
             dolocSide(iLocalSide) = .FALSE.
             EXIT
           END IF
-        END DO
+        END DO ! iLocalSide = 1,6
         RETURN
-      END IF
-    END DO
+      END IF ! isHit
+    END DO ! iMortar = 1,nMortarElems
 
     ! passed none of the mortar elements. Keep particle inside current element and warn
     IPWRITE(UNIT_stdOut,*) 'Boundary issue with inner mortar element', ElemID
@@ -961,9 +896,7 @@ ELSE
   ! regular side
   ELSE
     ElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
-    IF (ElemID.LT.1) &
-      CALL abort(__STAMP__,'ERROR in SelectInterSectionType. No Neighbour Elem found!')
-!      CALL abort(__STAMP__,'ERROR in SelectInterSectionType. No Neighbour Elem found --> increase haloregion')
+    IF (ElemID.LT.1) CALL abort(__STAMP__,'ERROR in SelectInterSectionType. No Neighbour Elem found!')
 
     TrackInfo%CurrElem = ElemID
 
@@ -974,9 +907,9 @@ ELSE
         dolocSide(iLocalSide) = .FALSE.
         EXIT
       END IF
-    END DO
+    END DO ! iLocalSide = 1,6
 
-  END IF
+  END IF ! NbElemID.LT.0
 END IF
 
 END SUBROUTINE SelectInterSectionType

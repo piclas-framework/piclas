@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -21,8 +21,6 @@ MODULE MOD_Mesh_Vars
 IMPLICIT NONE
 PUBLIC
 SAVE
-!-----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL          :: DoWriteStateToHDF5           !< only write HDF5 output if this is true
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! SwapMesh
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -107,6 +105,7 @@ INTEGER,ALLOCATABLE :: ElemInfo(:,:)           !< array containing the node and 
                                                !< mesh file
 INTEGER,ALLOCATABLE :: SideInfo(:,:)           !< array containing the connectivity, flip,... of the sides as stored in the
                                                !< mesh file
+INTEGER,ALLOCATABLE :: SideToNonUniqueGlobalSide(:,:)     !< maps the local SideIDs to global SideIDs (for parallel HDG load balance currently)
 INTEGER,ALLOCATABLE :: ElemToSide(:,:,:) !< SideID    = ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
                                          !< flip      = ElemToSide(E2S_FLIP,ZETA_PLUS,iElem)
 INTEGER,ALLOCATABLE :: SideToElem(:,:)   !< ElemID    = SideToElem(S2E_ELEM_ID,SideID)
@@ -175,7 +174,11 @@ INTEGER(KIND=8),ALLOCATABLE     :: ElemToElemGlob(:,:,:)             !< mapping 
                                                                      !< [1:4] (mortar) neighbors
                                                                      !< [1:6] local sides
                                                                      !< [OffSetElem+1:OffsetElem+PP_nElems]
-INTEGER(KIND=8),ALLOCATABLE     ::  ElemGlobalID(:)                  !< global element id of each element
+INTEGER(KIND=8),ALLOCATABLE     :: ElemGlobalID(:)                   !< global element id of each element
+INTEGER(KIND=8),ALLOCATABLE     :: myInvisibleRank(:)                !< global proc ID which the current proc cannot see (particle
+                                                                     !< communication)
+INTEGER(KIND=8),ALLOCATABLE     :: LostRotPeriodicSides(:)           !< Number of lost sides during rotational periodic search
+!LOGICAL                         :: RotPeriodicReBuild                !< Force re-building of mapping (might already exist)
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=255),ALLOCATABLE   :: BoundaryName(:)
 CHARACTER(LEN=255)               :: MeshFile        !< name of hdf5 meshfile (write with ending .h5!)
@@ -317,54 +320,6 @@ getNewElem%Type=0
 END FUNCTION GETNEWELEM
 
 
-SUBROUTINE createSides(Elem)
-!===================================================================================================================================
-! if element nodes already assigned, create Sides using CGNS standard
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-TYPE(tElem),POINTER :: Elem
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-!side 1
-Elem%Side(1)%sp%Node(1)%np=>Elem%Node(1)%np
-Elem%Side(1)%sp%Node(2)%np=>Elem%Node(4)%np
-Elem%Side(1)%sp%Node(3)%np=>Elem%Node(3)%np
-Elem%Side(1)%sp%Node(4)%np=>Elem%Node(2)%np
-!side 2
-Elem%Side(2)%sp%Node(1)%np=>Elem%Node(1)%np
-Elem%Side(2)%sp%Node(2)%np=>Elem%Node(2)%np
-Elem%Side(2)%sp%Node(3)%np=>Elem%Node(6)%np
-Elem%Side(2)%sp%Node(4)%np=>Elem%Node(5)%np
-!side 3
-Elem%Side(3)%sp%Node(1)%np=>Elem%Node(2)%np
-Elem%Side(3)%sp%Node(2)%np=>Elem%Node(3)%np
-Elem%Side(3)%sp%Node(3)%np=>Elem%Node(7)%np
-Elem%Side(3)%sp%Node(4)%np=>Elem%Node(6)%np
-!side 4
-Elem%Side(4)%sp%Node(1)%np=>Elem%Node(3)%np
-Elem%Side(4)%sp%Node(2)%np=>Elem%Node(4)%np
-Elem%Side(4)%sp%Node(3)%np=>Elem%Node(8)%np
-Elem%Side(4)%sp%Node(4)%np=>Elem%Node(7)%np
-!side 5
-Elem%Side(5)%sp%Node(1)%np=>Elem%Node(1)%np
-Elem%Side(5)%sp%Node(2)%np=>Elem%Node(5)%np
-Elem%Side(5)%sp%Node(3)%np=>Elem%Node(8)%np
-Elem%Side(5)%sp%Node(4)%np=>Elem%Node(4)%np
-!side 6
-Elem%Side(6)%sp%Node(1)%np=>Elem%Node(5)%np
-Elem%Side(6)%sp%Node(2)%np=>Elem%Node(6)%np
-Elem%Side(6)%sp%Node(3)%np=>Elem%Node(7)%np
-Elem%Side(6)%sp%Node(4)%np=>Elem%Node(8)%np
-END SUBROUTINE createSides
-
-
 SUBROUTINE deleteMeshPointer()
 !===================================================================================================================================
 !> Deallocates all pointers used for the mesh readin
@@ -379,13 +334,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER       :: FirstElemInd,LastElemInd
-INTEGER       :: iElem,iLocSide
+INTEGER       :: iElem,iLocSide,iNbLocSide
 INTEGER       :: iMortar,iNode
 TYPE(tElem),POINTER :: aElem
 TYPE(tSide),POINTER :: aSide
 !===================================================================================================================================
 FirstElemInd = offsetElem+1
 LastElemInd  = offsetElem+nElems
+
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
   DO iNode=1,8
@@ -394,27 +350,60 @@ DO iElem=FirstElemInd,LastElemInd
   DEALLOCATE(aElem%Node)
   DO iLocSide=1,6
     aSide=>aElem%Side(iLocSide)%sp
+    ! Free nodes
     DO iNode=1,4
       NULLIFY(aSide%Node(iNode)%np)
     END DO
     DEALLOCATE(aSide%Node)
+    ! Free mortar sides
     DO iMortar=1,aSide%nMortars
-      NULLIFY(aSide%MortarSide(iMortar)%sp)
+      ! Free MPI connection
+      IF (ASSOCIATED(aSide%MortarSide(iMortar)%sp%connection) .AND. aSide%MortarSide(iMortar)%sp%NbProc.NE.-1) THEN
+        ! Free the connected elem
+        DO iNbLocSide=1,6
+          DEALLOCATE(aSide%MortarSide(iMortar)%sp%connection%Elem%Side(iNbLocSide)%sp%Node)
+          DEALLOCATE(aSide%MortarSide(iMortar)%sp%connection%Elem%Side(iNbLocSide)%sp)
+        END DO
+        DEALLOCATE(aSide%MortarSide(iMortar)%sp%connection%Elem%Node)
+        DEALLOCATE(aSide%MortarSide(iMortar)%sp%connection%Elem%Side)
+        DEALLOCATE(aSide%MortarSide(iMortar)%sp%connection%Elem)
+        ! Free the connected size
+        DEALLOCATE(aSide%MortarSide(iMortar)%sp%connection%Node)
+        DEALLOCATE(aSide%MortarSide(iMortar)%sp%connection)
+      END IF
+      DEALLOCATE(aSide%MortarSide(iMortar)%sp%Node)
+      DEALLOCATE(aSide%MortarSide(iMortar)%sp)
     END DO
     IF(ASSOCIATED(aSide%MortarSide)) DEALLOCATE(aSide%MortarSide)
+    ! Free MPI connection
+    IF (ASSOCIATED(aSide%connection) .AND. aSide%NbProc.NE.-1) THEN
+      ! Free the connected elem
+      DO iNbLocSide=1,6
+        DEALLOCATE(aSide%connection%Elem%Side(iNbLocSide)%sp%Node)
+        DEALLOCATE(aSide%connection%Elem%Side(iNbLocSide)%sp)
+      END DO
+      DEALLOCATE(aSide%connection%Elem%Node)
+      DEALLOCATE(aSide%connection%Elem%Side)
+      DEALLOCATE(aSide%connection%Elem)
+      ! Free the connected size
+      DEALLOCATE(aSide%connection%Node)
+      DEALLOCATE(aSide%connection)
+    END IF
     DEALLOCATE(aSide)
   END DO
   DEALLOCATE(aElem%Side)
   DEALLOCATE(aElem)
 END DO
 DEALLOCATE(Elems)
+
+! Free the node pointer
 DO iNode=1,nNodes
   IF(ASSOCIATED(Nodes(iNode)%np))THEN
     DEALLOCATE(Nodes(iNode)%np)
   END IF
 END DO
 !DEALLOCATE(Nodes)
-END SUBROUTINE deleteMeshPointer
 
+END SUBROUTINE deleteMeshPointer
 
 END MODULE MOD_Mesh_Vars

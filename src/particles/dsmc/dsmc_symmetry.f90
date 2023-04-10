@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -104,7 +104,10 @@ USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID
-REAL                            :: radius, triarea(2), CNVolume
+REAL                            :: radius, triarea(2)
+#if USE_MPI
+REAL                            :: CNVolume
+#endif /*USE_MPI*/
 LOGICAL                         :: SymmetryBCExists
 INTEGER                         :: firstElem,lastElem
 !===================================================================================================================================
@@ -137,38 +140,39 @@ DO BCSideID=1,nBCSides
     CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
     iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
     ! Exclude the symmetry axis (y=0)
-    IF(MAXVAL(NodeCoords_Shared(2,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).GT.0.0) THEN
-      ! The z-plane with the positive z component is chosen
-      IF(MINVAL(NodeCoords_Shared(3,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
-        IF(SymmetrySide(locElemID,1).GT.0) THEN
-          CALL abort(__STAMP__&
-            ,'ERROR: PICLas could not determine a unique symmetry surface for 2D/axisymmetric calculation!'//&
-            ' Please orient your mesh with x as the symmetry axis and positive y as the second/radial direction!')
-        END IF
-        SymmetrySide(locElemID,1) = BCSideID
-        SymmetrySide(locElemID,2) = iLocSide
-        ! The volume calculated at this point (final volume for the 2D case) corresponds to the cell face area (z-dimension=1) in
-        ! the xy-plane.
-        ElemVolume_Shared(CNElemID) = 0.0
-        CALL CalcNormAndTangTriangle(area=triarea(1),TriNum=1, SideID=SideID)
-        CALL CalcNormAndTangTriangle(area=triarea(2),TriNum=2, SideID=SideID)
-        ElemVolume_Shared(CNElemID) = triarea(1) + triarea(2)
-        ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/axisymmetric case
-        ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
-        ! requirement.
-        ElemCharLength_Shared(CNElemID) = SQRT(ElemVolume_Shared(CNElemID))
-        ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
-        ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
-        IF (Symmetry%Axisymmetric) THEN
-          radius = 0.
-          DO iNode = 1, 4
-            radius = radius + NodeCoords_Shared(2,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
-          END DO
-          radius = radius / 4.
-          ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) * 2. * Pi * radius
-        END IF
-        SymmetryBCExists = .TRUE.
-      END IF    ! y-coord greater 0.0
+    IF(Symmetry%Axisymmetric) THEN
+      IF(MAXVAL(NodeCoords_Shared(2,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).LE.0.0) CYCLE
+    END IF
+    ! The z-plane with the positive z component is chosen
+    IF(MINVAL(NodeCoords_Shared(3,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
+      IF(SymmetrySide(locElemID,1).GT.0) THEN
+        CALL abort(__STAMP__&
+          ,'ERROR: PICLas could not determine a unique symmetry surface for 2D/axisymmetric calculation!'//&
+          ' Please orient your mesh with x as the symmetry axis and positive y as the second/radial direction!')
+      END IF
+      SymmetrySide(locElemID,1) = BCSideID
+      SymmetrySide(locElemID,2) = iLocSide
+      ! The volume calculated at this point (final volume for the 2D case) corresponds to the cell face area (z-dimension=1) in
+      ! the xy-plane.
+      ElemVolume_Shared(CNElemID) = 0.0
+      CALL CalcNormAndTangTriangle(area=triarea(1),TriNum=1, SideID=SideID)
+      CALL CalcNormAndTangTriangle(area=triarea(2),TriNum=2, SideID=SideID)
+      ElemVolume_Shared(CNElemID) = triarea(1) + triarea(2)
+      ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/axisymmetric case
+      ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
+      ! requirement.
+      ElemCharLength_Shared(CNElemID) = SQRT(ElemVolume_Shared(CNElemID))
+      ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
+      ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
+      IF (Symmetry%Axisymmetric) THEN
+        radius = 0.
+        DO iNode = 1, 4
+          radius = radius + NodeCoords_Shared(2,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
+        END DO
+        radius = radius / 4.
+        ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) * 2. * Pi * radius
+      END IF
+      SymmetryBCExists = .TRUE.
     END IF      ! Greater z-coord
   END IF
 END DO
@@ -527,9 +531,9 @@ USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, RadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: AmbipolElecVelo
 USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive, ElectronicDistriPart
-USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, VarTimeStep
-USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_Particle_VarTimeStep    ,ONLY: CalcVarTimeStep
+USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, Species
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
+USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
 ! IMPLICIT VARIABLE HANDLING
@@ -618,8 +622,8 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   locElemID = PEM%LocalElemID(PositionNbr)
   LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
-  IF (VarTimeStep%UseVariableTimeStep) THEN
-    VarTimeStep%ParticleTimeStep(PositionNbr) = CalcVarTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID)
+  IF (UseVarTimeStep) THEN
+    PartTimeStep(PositionNbr) = GetParticleTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID)
   END IF
   ! Counting the number of clones per cell
   IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
@@ -783,9 +787,12 @@ SUBROUTINE Init_Symmetry()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: Symmetry
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
-USE MOD_ReadInTools             ,ONLY: GETLOGICAL,GETINT
+USE MOD_Particle_Vars    ,ONLY: Symmetry
+USE MOD_DSMC_Vars        ,ONLY: RadialWeighting
+USE MOD_ReadInTools      ,ONLY: GETLOGICAL,GETINT
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -801,8 +808,8 @@ Symmetry%Order = GETINT('Particles-Symmetry-Order')
 Symmetry2D = GETLOGICAL('Particles-Symmetry2D')
 IF(Symmetry2D.AND.(Symmetry%Order.EQ.3)) THEN
   Symmetry%Order = 2
-  SWRITE(*,*) 'WARNING: Particles-Symmetry-Order is set to 2 because of Particles-Symmetry2D=.TRUE. .'
-  SWRITE(*,*) 'Set Particles-Symmetry-Order=2 and remove Particles-Symmetry2D to avoid this warning'
+  LBWRITE(*,*) 'WARNING: Particles-Symmetry-Order is set to 2 because of Particles-Symmetry2D=.TRUE. .'
+  LBWRITE(*,*) 'Set Particles-Symmetry-Order=2 and remove Particles-Symmetry2D to avoid this warning'
 ELSE IF(Symmetry2D) THEN
   CALL ABORT(__STAMP__&
     ,'ERROR: 2D Simulations either with Particles-Symmetry-Order=2 or (but not recommended) with Symmetry2D=.TRUE.')
@@ -857,7 +864,7 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
   IF ((CollisMode.LT.3).AND.(nPart.EQ.1)) THEN
     ! Uneven number of particles in the cell, a single particle is left without a pair
     ! Removing the pairs from the weighting factor and the case num sums
-    CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
+    CollInf%SumPairMPF(Coll_pData(iPair)%PairType) = CollInf%SumPairMPF(Coll_pData(iPair)%PairType) &
       -(GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
     CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
     ! Swapping particle without a pair with the first particle of the current pair
@@ -873,7 +880,7 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
     CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
     Coll_pData(iPair)%PairType = iCase
     ! Adding the pair to the sums of the number of collisions (with and without weighting factor)
-    CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))*0.5
+    CollInf%SumPairMPF(iCase) = CollInf%SumPairMPF(iCase) + (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))*0.5
     ! Calculation of the relative velocity for the new first pair
     Coll_pData(iPair)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
                              + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
@@ -883,10 +890,10 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
     ! "Partner-Tausch": if there are pairs ahead in the pairing list, the next is pair is broken up and collision partners
     ! are swapped
       CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair)%PairType) - 1
-      CollInf%MeanMPF(Coll_pData(iPair)%PairType) = CollInf%MeanMPF(Coll_pData(iPair)%PairType) &
+      CollInf%SumPairMPF(Coll_pData(iPair)%PairType) = CollInf%SumPairMPF(Coll_pData(iPair)%PairType) &
         - 0.5 * (GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))
       CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) = CollInf%Coll_CaseNum(Coll_pData(iPair+1)%PairType) - 1
-      CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) = CollInf%MeanMPF(Coll_pData(iPair+1)%PairType) &
+      CollInf%SumPairMPF(Coll_pData(iPair+1)%PairType) = CollInf%SumPairMPF(Coll_pData(iPair+1)%PairType) &
         - 0.5 * (GetParticleWeight(Coll_pData(iPair+1)%iPart_p1) + GetParticleWeight(Coll_pData(iPair+1)%iPart_p2))
       ! Breaking up the next pair and swapping partners
       tempPart = Coll_pData(iPair)%iPart_p1
@@ -897,13 +904,13 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
       cSpec1 = PartSpecies(iPart_p1); cSpec2 = PartSpecies(iPart_p2)
       iCase = CollInf%Coll_Case(cSpec1, cSpec2)
       CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
+      CollInf%SumPairMPF(iCase) = CollInf%SumPairMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
       Coll_pData(iPair)%PairType = iCase
       ! Calculation of the relative velocity for the new first pair
       Coll_pData(iPair)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
                                + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
                                + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
+      CollInf%SumPairMPF(iCase) = CollInf%SumPairMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
       IF(Coll_pData(iPair)%CRela2.EQ.0.0) THEN
         ! If the relative velocity is still zero, add the pair to the identical particles count
         IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
@@ -915,13 +922,13 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
       cSpec1 = PartSpecies(iPart_p1); cSpec2 = PartSpecies(iPart_p2)
       iCase = CollInf%Coll_Case(cSpec1, cSpec2)
       CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
+      CollInf%SumPairMPF(iCase) = CollInf%SumPairMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
       ! Calculation of the relative velocity for the new follow-up pair
       Coll_pData(iPair+1)%CRela2 = (PartState(4,iPart_p1) - PartState(4,iPart_p2))**2 &
                                  + (PartState(5,iPart_p1) - PartState(5,iPart_p2))**2 &
                                  + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
       Coll_pData(iPair+1)%PairType = iCase
-      CollInf%MeanMPF(iCase) = CollInf%MeanMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
+      CollInf%SumPairMPF(iCase) = CollInf%SumPairMPF(iCase) + 0.5 * (GetParticleWeight(iPart_p1) + GetParticleWeight(iPart_p2))
     ELSE
       ! For the last pair, only invert the velocity in z and calculate new relative velocity
       iPart_p1 = Coll_pData(iPair)%iPart_p1; iPart_p2 = Coll_pData(iPair)%iPart_p2

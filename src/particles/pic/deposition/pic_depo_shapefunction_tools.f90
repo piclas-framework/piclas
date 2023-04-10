@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -289,12 +289,12 @@ SUBROUTINE depoChargeOnDOFsSF(Position, SourceSize, Fac, r_sf, r2_sf, r2_sf_inv)
 ! use MODULES
 USE MOD_Globals
 USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone
-USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,ElemBaryNgeo,FIBGM_offsetElem,FIBGM_nElems,FIBGM_Element,Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #if USE_LOADBALANCE
+USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -385,15 +385,16 @@ SUBROUTINE calcTotalChargePeriodic_cc(Position, Fac, totalCharge, r_sf, r2_sf, r
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars,           ONLY:alpha_sf,ChargeSFDone
-USE MOD_Mesh_Vars,              ONLY:nElems, offSetElem
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
-USE MOD_Particle_Mesh_Vars,     ONLY:ElemRadiusNGeo, ElemsJ
+USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone
+USE MOD_Mesh_Vars          ,ONLY: offSetElem
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ
 USE MOD_Preproc
-USE MOD_Mesh_Tools,             ONLY:GetCNElemID
-USE MOD_Interpolation_Vars,     ONLY:wGP
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
+USE MOD_Interpolation_Vars ,ONLY: wGP
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars,       ONLY:nDeposPerElem
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
@@ -478,13 +479,14 @@ SUBROUTINE depoChargeOnDOFsSFChargeCon(Position,SourceSize,Fac,r_sf, r2_sf, r2_s
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,ChargeSFDone,PartSourceTmp
-USE MOD_Mesh_Vars          ,ONLY: nElems, offSetElem
+USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO, ElemBaryNgeo, FIBGM_offsetElem, FIBGM_nElems, FIBGM_Element, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Interpolation_Vars ,ONLY: wGP
 #if USE_LOADBALANCE
+USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -622,6 +624,11 @@ IF (nUsedElems.GT.0) THEN
   END DO
 END IF
 
+IF(ASSOCIATED(first)) THEN
+  SDEALLOCATE(first%PartSourceLoc)
+  DEALLOCATE(first)
+END IF
+
 END SUBROUTINE depoChargeOnDOFsSFChargeCon
 
 
@@ -633,7 +640,7 @@ SUBROUTINE depoChargeOnDOFsSFAdaptive(Position,SourceSize,Fac,PartIdx)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,SFElemr2_Shared,ChargeSFDone,sfDepo3D,dimFactorSF
-USE MOD_Mesh_Vars          ,ONLY: nElems, offSetElem
+USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNgeo, Elem_xGP_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemsJ, ElemToElemMapping,ElemToElemInfo
 USE MOD_Preproc
@@ -641,6 +648,7 @@ USE MOD_Mesh_Tools         ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_Interpolation_Vars ,ONLY: wGP
 USE MOD_Particle_Vars      ,ONLY: PEM
 #if USE_LOADBALANCE
+USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -764,6 +772,11 @@ IF (nUsedElems.GT.0) THEN
   END DO
 END IF
 
+IF(ASSOCIATED(first)) THEN
+  SDEALLOCATE(first%PartSourceLoc)
+  DEALLOCATE(first)
+END IF
+
 END SUBROUTINE depoChargeOnDOFsSFAdaptive
 
 
@@ -775,10 +788,14 @@ SUBROUTINE UpdatePartSource(dim1,k,l,m,globElemID,Source)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_PICDepo_Vars ,ONLY: PartSource
-USE MOD_Mesh_Tools   ,ONLY: GetCNElemID
+USE MOD_PICDepo_Vars       ,ONLY: PartSource
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #if USE_MPI
-USE MOD_PICDepo_Vars ,ONLY: SendElemShapeID,PartSourceProc
+USE MOD_PICDepo_Vars       ,ONLY: SendElemShapeID, CNRankToSendRank, ShapeMapping !PartSourceGlob
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
+!USE MOD_MPI_Shared_Vars, ONLY: myComputeNodeRank, ComputeNodeRootRank
+!USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems, ElemInfo_Shared
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -792,25 +809,40 @@ REAL, INTENT(IN)    :: Source(dim1:4)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: CNElemID
+INTEGER           :: localElem, CNElemID
+#if USE_MPI
+INTEGER           :: ExRankID
+#endif /*USE_MPI*/
 !===================================================================================================================================
+localElem = globElemID-offSetElem
 CNElemID = GetCNElemID(globElemID)
 #if USE_MPI
 IF (ElemOnMyProc(globElemID)) THEN
 #endif /*USE_MPI*/
-  PartSource(dim1:4,k,l,m,CNElemID) = PartSource(dim1:4,k,l,m,CNElemID) + Source(dim1:4)
+  PartSource(dim1:4,k,l,m,localElem) = PartSource(dim1:4,k,l,m,localElem) + Source(dim1:4)
 !#if !((USE_HDG) && (PP_nVar==1))
 !#endif
 #if USE_MPI
 ELSE
-  ASSOCIATE( ShapeID => SendElemShapeID(CNElemID))
-    IF(ShapeID.EQ.-1)THEN
-      IPWRITE(UNIT_StdOut,*) "CNElemID   =", CNElemID
-      IPWRITE(UNIT_StdOut,*) "globElemID =", globElemID
-      CALL abort(__STAMP__,'SendElemShapeID(CNElemID)=-1 and therefore not correctly mapped. Increase Particles-HaloEpsVelo!')
-    END IF
-    PartSourceProc(dim1:4,k,l,m,ShapeID) = PartSourceProc(dim1:4,k,l,m,ShapeID) + Source(dim1:4)
-  END ASSOCIATE
+!  IF (myComputeNodeRank.EQ.0) THEN  
+!    PartSourceGlob(dim1:4,k,l,m,CNElemID) = PartSourceGlob(dim1:4,k,l,m,CNElemID) + Source(dim1:4)
+!  ELSE
+    ASSOCIATE( ShapeID => SendElemShapeID(CNElemID))
+      IF(ShapeID.EQ.-1)THEN
+        IPWRITE(UNIT_StdOut,*) "CNElemID   =", CNElemID
+        IPWRITE(UNIT_StdOut,*) "globElemID =", globElemID
+        CALL abort(__STAMP__,'SendElemShapeID(CNElemID)=-1 and therefore not correctly mapped. Increase Particles-HaloEpsVelo!')
+      END IF
+!      IF (CNElemID.GT.nComputeNodeElems) THEN
+!        ExRankID = CNRankToSendRank(0)
+!      ELSE        
+!      ExRankID = CNRankToSendRank(ElemInfo_Shared(ELEM_RANK,globElemID)-ComputeNodeRootRank)
+      ExRankID = CNRankToSendRank(ElemInfo_Shared(ELEM_RANK,globElemID))
+!      END IF
+  !    PartSourceProc(dim1:4,k,l,m,ShapeID) = PartSourceProc(dim1:4,k,l,m,ShapeID) + Source(dim1:4)
+      ShapeMapping(ExRankID)%SendBuffer(dim1:4,k,l,m,ShapeID) = ShapeMapping(ExRankID)%SendBuffer(dim1:4,k,l,m,ShapeID) + Source(dim1:4)
+    END ASSOCIATE
+!  END IF
 !#if !((USE_HDG) && (PP_nVar==1))
 !#endif
 END IF
@@ -871,6 +903,8 @@ CASE (2)
   SFNorm = SQRT(v1(dim_sf_dir1)**2+v1(dim_sf_dir2)**2)
 CASE (3)
   SFNorm = VECNORM(v1)
+CASE DEFAULT
+  SFNorm = 0.
 END SELECT
 
 END FUNCTION SFNorm
@@ -901,6 +935,8 @@ CASE (2)
   SFRadius2 = v1(dim_sf_dir1)**2 + v1(dim_sf_dir2)**2
 CASE (3)
   SFRadius2 = SUM(v1(1:3)**2)
+CASE DEFAULT
+  SFRadius2 = 0.
 END SELECT
 
 END FUNCTION SFRadius2
@@ -987,6 +1023,9 @@ USE MOD_ReadInTools        ,ONLY: PrintOption
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Mesh_Vars          ,ONLY: nGlobalElems
 USE MOD_PICDepo_Tools      ,ONLY: beta
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1061,7 +1100,7 @@ SELECT CASE (dim_sf)
     ! set the two perpendicular directions used for deposition
     dim_sf_dir1 = MERGE(1,2,dim_sf_dir.EQ.2)
     dim_sf_dir2 = MERGE(1,MERGE(3,3,dim_sf_dir.EQ.2),dim_sf_dir.EQ.3)
-    SWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' Shape function 2D with const. distribution in dir ',dim_sf_dir,&
+    LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' Shape function 2D with const. distribution in dir ',dim_sf_dir,&
         ' and variable distrbution in ',dim_sf_dir1,' and ',dim_sf_dir2,' (1: x, 2: y and 3: z)'
 
     ! Set shape function length (3D volume)
@@ -1075,14 +1114,14 @@ SELECT CASE (dim_sf)
     w_sf = 1./(2. * BetaFac * REAL(alpha_sf) + 2 * BetaFac) * (REAL(alpha_sf) + 1.)/(PI*(r_sf_loc**3))
 
   CASE DEFAULT
-    CALL abort(__STAMP__,'Shape function dimensio must be 1, 2 or 3')
+    CALL abort(__STAMP__,'Shape function dimension must be 1, 2 or 3')
 END SELECT
 
-SWRITE(UNIT_stdOut,'(A)') ' The complete charge is '//TRIM(hilf_geo)//' distributed (via '//TRIM(hilf_dim)//'D shape function)'
+LBWRITE(UNIT_stdOut,'(A)') ' The complete charge is '//TRIM(hilf_geo)//' distributed (via '//TRIM(hilf_dim)//'D shape function)'
 
 IF(.NOT.sfDepo3D)THEN
-  SWRITE(UNIT_stdOut,'(A)') ' Note that the integral of the charge density over the mesh volume is larger than the complete charge'
-  SWRITE(UNIT_stdOut,'(A)') ' because the charge is spread out over either a line (1D shape function) or an area (2D shape function)!'
+  LBWRITE(UNIT_stdOut,'(A)') ' Note that the integral of the charge density over the mesh volume is larger than the complete charge'
+  LBWRITE(UNIT_stdOut,'(A)') ' because the charge is spread out over either a line (1D shape function) or an area (2D shape function)!'
 END IF
 
 ! 3. Output info regarding charge distribution and points per shape function resolution

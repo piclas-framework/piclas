@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -64,7 +64,7 @@ USE MOD_LinearOperator         ,ONLY: PartMatrixVector, PartVectorDotProduct
 USE MOD_ParticleSolver         ,ONLY: Particle_GMRES
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK,DoFieldUpdate
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
-USE MOD_Particle_Vars          ,ONLY: PartLorentzType,doParticleMerge,PartDtFrac,PartStateN,PartStage,PartQ &
+USE MOD_Particle_Vars          ,ONLY: PartLorentzType,PartDtFrac,PartStateN,PartStage,PartQ &
     ,DoSurfaceFlux,PEM,PDM,Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
@@ -72,12 +72,11 @@ USE MOD_part_RHS               ,ONLY: PartVeloToImp
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Part_RHS               ,ONLY: PartRHS
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
-USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -248,13 +247,6 @@ END IF
 IF(DelayTime.GT.0.)THEN
   IF((iter.EQ.0).AND.(time.LT.DelayTime))THEN
     ! perform normal deposition
-    CALL Deposition()
-#if USE_MPI
-    ! here: finish deposition with delta kernal
-    !       maps source terms in physical space
-    ! ALWAYS require
-    PartMPIExchange%nMPIParticles=0
-#endif /*USE_MPI*/
     CALL Deposition()
   END IF
 END IF
@@ -668,7 +660,6 @@ IF (time.GE.DelayTime) THEN
   CALL MPIParticleSend()
   ! finish communication
   CALL MPIParticleRecv()
-  PartMPIExchange%nMPIParticles=0
 #endif
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PARTCOMM,tLBStart)
@@ -688,43 +679,12 @@ END IF
 IF (useDSMC) THEN
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
-  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
-END IF
-
-!----------------------------------------------------------------------------------------------------------------------------------
-! split and merge
-!----------------------------------------------------------------------------------------------------------------------------------
-IF (doParticleMerge) THEN
-  IF (.NOT.(useDSMC)) THEN
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    ALLOCATE(PEM%pStart(1:PP_nElems)           , &
-             PEM%pNumber(1:PP_nElems)          , &
-             PEM%pNext(1:PDM%maxParticleNumber), &
-             PEM%pEnd(1:PP_nElems) )
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  END IF
 END IF
 
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
-
-IF (doParticleMerge) THEN
-  CALL StartParticleMerge()
-  IF (.NOT.(useDSMC)) THEN
-    DEALLOCATE(PEM%pStart , &
-               PEM%pNumber, &
-               PEM%pNext  , &
-               PEM%pEnd   )
-  END IF
-  CALL UpdateNextFreePosition()
-END IF
 #endif /*PARTICLES*/
 
 END SUBROUTINE TimeStepByRosenbrock
-
 
 END MODULE MOD_TimeStep
 #endif /*ROS  */

@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -52,10 +52,10 @@ USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_MPI_Shared             
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED, nComputeNodeTotalElems
 USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides, SideIsSymSide_Shared, SideIsSymSide_Shared_Win
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID2D_Shared, ElemSideNodeID2D_Shared_Win, SideNormalEdge2D_Shared
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideNormalEdge2D_Shared_Win
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID2D_Shared_Win, SideNormalEdge2D_Shared_Win
 USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank, nComputeNodeProcessors
 #endif /*USE_MPI*/
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID2D_Shared, SideNormalEdge2D_Shared
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -239,8 +239,8 @@ CALL BARRIER_AND_SYNC(ElemRadius2NGeo_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI*/
 
 #if USE_MPI
-firstElem=INT(REAL(myComputeNodeRank*    nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem =INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem=INT(REAL(myComputeNodeRank    )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem =INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem=1
 lastElem=nElems
@@ -300,6 +300,9 @@ USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_Mesh_Vars               ,ONLY: XCL_NGeo
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -315,8 +318,8 @@ REAL                           :: Xi(3,6),Lag(1:3,0:NGeo)
 INTEGER                        :: firstElem, lastElem
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
 
 ! elements
 #if USE_MPI
@@ -348,8 +351,8 @@ END IF
 #endif /*USE_MPI*/
 
 #if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank*   nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -404,7 +407,6 @@ USE MOD_PreProc
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeCL,NodeType
-USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoRef
 USE MOD_Mesh_Vars              ,ONLY: sJ
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemsJ,ElemEpsOneCell
@@ -424,6 +426,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemsJ_Shared_Win,ElemEpsOneCell_Shared_Wi
 #else
 USE MOD_Particle_Mesh_Vars     ,ONLY: nComputeNodeElems
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -448,10 +453,14 @@ REAL                           :: dX_NGeoRef(3,3,0:NGeoRef,0:NGeoRef,0:NGeoRef)
 
 INTEGER                        :: ElemLocID
 #endif /*USE_MPI*/
+REAL                           :: StartT,EndT
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_StdOut,'(A)') ' Building EpsOneCell for all elements ...'
+IF(MPIRoot)THEN
+  LBWRITE(UNIT_StdOut,'(132("-"))')
+  LBWRITE(UNIT_StdOut,'(A)',ADVANCE='NO') ' Building EpsOneCell for all elements ...'
+  GETTIME(StartT)
+END IF ! MPIRoot
 
 ! build sJ for all elements not on local proc
 #if USE_MPI
@@ -465,8 +474,8 @@ END IF
 
 CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -550,6 +559,10 @@ CALL BARRIER_AND_SYNC(ElemEpsOneCell_Shared_Win,MPI_COMM_SHARED)
 !IF(CalcMeshInfo)THEN
 !  CALL AddToElemData(ElementOut,'epsOneCell',RealArray=epsOneCell(1:nElems))
 !END IF
+IF(MPIRoot)THEN
+  GETTIME(EndT)
+  CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
+END IF ! MPIRoot
 
 END SUBROUTINE BuildEpsOneCell
 
@@ -564,7 +577,9 @@ SUBROUTINE BuildBCElemDistance()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+#if USE_MPI
 USE MOD_Globals_Vars           ,ONLY: c
+#endif /*USE_MPI*/
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,SideInfo_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToBCSides,SideBCMetrics
@@ -573,9 +588,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemBaryNGeo,ElemRadiusNGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueBCSides
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
 USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
+USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeProcessors,myComputeNodeRank
@@ -593,6 +608,9 @@ USE MOD_TimeDisc_Vars          ,ONLY: nRKStages,RK_c
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: nComputeNodeElems
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -624,8 +642,8 @@ INTEGER                        :: iStage
 #endif
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_StdOut,'(A)') ' Identifying BC sides and calculating side metrics ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(A)') ' Identifying BC sides and calculating side metrics ...'
 
 ! elements
 #if USE_MPI
@@ -646,8 +664,8 @@ END IF
 
 CALL BARRIER_AND_SYNC(ElemToBCSides_Shared_Win,MPI_COMM_SHARED)
 
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 
 ! if running on one node, halo_eps is meaningless. Get a representative BC_halo_eps for BC side identification
 fullMesh = .FALSE.
@@ -688,16 +706,16 @@ IF (halo_eps.EQ.0) THEN
 
   ! compare halo_eps against global diagonal and reduce if necessary
   IF (.NOT.ALMOSTZERO(BC_halo_eps).AND.(BC_halo_diag.GE.BC_halo_eps)) THEN
-    SWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to ',BC_halo_eps
+    LBWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to ',BC_halo_eps
   ELSEIF (.NOT.ALMOSTZERO(BC_halo_eps).AND.(BC_halo_diag.LT.BC_halo_eps)) THEN
     fullMesh = .TRUE.
     BC_halo_eps = BC_halo_diag
-    SWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to global diag with ',BC_halo_eps
+    LBWRITE(UNIT_stdOUt,'(A,E11.3)') ' | No halo_eps given. Reconstructed to global diag with ',BC_halo_eps
   ! halo_eps still at zero. Set it to global diagonal
   ELSE
     fullMesh = .TRUE.
     BC_halo_eps = BC_halo_diag
-    SWRITE(UNIT_stdOUt,'(A,F11.3)') ' | No halo_eps given and could not be reconstructed. Using global diag with ',BC_halo_eps
+    LBWRITE(UNIT_stdOUt,'(A,F11.3)') ' | No halo_eps given and could not be reconstructed. Using global diag with ',BC_halo_eps
   END IF
 ELSE
   vec(1)   = GEO%xmaxglob-GEO%xminglob
@@ -793,12 +811,12 @@ ELSE
       IF (VECNORM(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
         .GT. (BC_halo_eps + ElemRadiusNGeo(iElem) + ElemRadiusNGeo(BCCNElemID))) CYCLE
 
-!      ! loop over all local sides of the element
-       IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
-         .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
-            nBCSidesElem = nBCSidesElem + 1
-            nBCSidesProc = nBCSidesProc + 1
-       END IF
+      ! loop over all local sides of the element
+      IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
+        .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
+           nBCSidesElem = nBCSidesElem + 1
+           nBCSidesProc = nBCSidesProc + 1
+      END IF
     END DO ! iBCSide
 
     ! Write local mapping from Elem to BC sides. The number is already correct, the offset must be corrected later
@@ -918,13 +936,13 @@ ELSE
       IF (VECNORM(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
         .GT. (BC_halo_eps + ElemRadiusNGeo(iElem) + ElemRadiusNGeo(BCCNElemID))) CYCLE
 
-!      ! loop over all local sides of the element
-       IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
-         .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
-           nBCSidesProc = nBCSidesProc + 1
-           SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)
-           SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(ElemID)
-       END IF
+      ! loop over all local sides of the element
+      IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
+        .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
+          nBCSidesProc = nBCSidesProc + 1
+          SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)
+          SideBCMetrics(BCSIDE_ELEMID,nBCSidesProc+offsetBCSidesProc) = REAL(ElemID)
+      END IF
     END DO ! iBCSide
   END DO ! iElem
 END IF ! fullMesh
@@ -932,8 +950,8 @@ END IF ! fullMesh
 #if USE_MPI
 CALL BARRIER_AND_SYNC(SideBCMetrics_Shared_Win,MPI_COMM_SHARED)
 
-firstSide = INT(REAL( myComputeNodeRank   *nComputeNodeBCSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nComputeNodeBCSides)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeBCSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeBCSides)/REAL(nComputeNodeProcessors))
 #else
 firstSide = 1
 lastSide  = nComputeNodeBCSides
@@ -1039,10 +1057,10 @@ IMPLICIT NONE
 INTEGER,ALLOCATABLE            :: NbrOfElemsOnUniqueNode(:),OffsetNodeToElemMapping(:)
 INTEGER                        :: UniqueNodeID,NonUniqueNodeID,iElem,iNode,TestElemID,jElem,kElem
 INTEGER                        :: OffsetCounter,OffsetElemToElemMapping,OffsetElemToElemCounter
-INTEGER                        :: nNodeToElemMapping,iUniqueNode,firstElem,lastElem,iError,nElemToElemMapping,CountElems
+INTEGER                        :: nNodeToElemMapping,iUniqueNode,firstElem,lastElem,nElemToElemMapping,CountElems
 INTEGER,ALLOCATABLE            :: CheckedElemIDs(:)
 #if USE_MPI
-INTEGER                        :: sendbuf,recvbuf
+INTEGER                        :: sendbuf,recvbuf,iError
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
@@ -1155,8 +1173,8 @@ ALLOCATE(ElemToElemMapping(2,nElems))
 ! 5. Fill ElemToElemMapping = [offset, Nbr of CN elements]
 !    Note that the number of elements stored in ElemToElemMapping(2,iElem) must be shifted after communication with other procs
 #if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -1323,8 +1341,8 @@ ElemBaryNGeo => ElemBaryNGeo_Shared
 ASSOCIATE(XCL_NGeo => XCL_NGeo_Shared)
 
 ! Set ranges
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 ALLOCATE(ElemBaryNGeo(1:3,nComputeNodeElems))
 firstElem = 1
@@ -1451,8 +1469,8 @@ CALL BARRIER_AND_SYNC(ElemRadius2NGeo_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 #if USE_MPI
-firstElem=INT(REAL( myComputeNodeRank*   nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem =INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem=INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem =INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem=1
 lastElem=nElems
@@ -1541,18 +1559,19 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL,PARAMETER                 :: xi(1:2) = 0
 INTEGER                        :: p,q
 INTEGER                        :: iSide,firstSide,lastSide,BCSideID
 INTEGER                        :: nUniqueBCSidesProc,offsetUniqueBCSidesProc
-REAL                           :: origin(1:3),xi(1:2),radius,radiusMax,vec(1:3)
+REAL                           :: origin(1:3),radius,radiusMax,vec(1:3)
 #if USE_MPI
 INTEGER                        :: sendbuf,recvbuf
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
 #if USE_MPI
-firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL( myComputeNodeRank   )*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
 #else
 firstSide = 1
 lastSide  = nNonUniqueGlobalSides
@@ -1631,7 +1650,6 @@ DO iSide = firstSide,lastSide
 
   ! calculate origin, radius for all BC sides
   !> build side origin
-  xi     = 0.
   ! TODO: BezierControlPoints are allocated with global side ID, so this SHOULD work. Breaks if we reduce the halo region
   CALL DeCasteljauInterpolation(NGeo,xi,iSide,origin)
   BCSideMetrics(1:3,BCSideID) = origin(1:3)
@@ -1641,7 +1659,7 @@ DO iSide = firstSide,lastSide
   DO q = 0,NGeo
     DO p = 0,NGeo
       vec(1:3) = BezierControlPoints3D(:,p,q,iSide) - origin
-      radius   = DOT_PRODUCT(Vec,Vec)
+      radius   = DOTPRODUCT(Vec)
       radiusMax= MAX(radiusMax,radius)
     END DO
   END DO
@@ -1678,6 +1696,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: BaseVectorsScale_Shared,BaseVectorsScale_S
 USE MOD_Particle_Mesh_Vars     ,ONLY: BaseVectors0_Shared,BaseVectors1_Shared,BaseVectors2_Shared,BaseVectors3_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: BaseVectors0_Shared_Win,BaseVectors1_Shared_Win,BaseVectors2_Shared_Win,BaseVectors3_Shared_Win
 #endif /* USE_MPI */
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1689,8 +1710,8 @@ INTEGER                        :: iSide,firstSide,lastSide
 REAL                           :: crossVec(3)
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' GET LINEAR SIDE BASEVECTORS...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)', ADVANCE='NO') ' GET LINEAR SIDE BASEVECTORS...'
 #if USE_MPI
 CALL Allocate_Shared((/3,nNonUniqueGlobalSides/),BaseVectors0_Shared_Win,BaseVectors0_Shared)
 CALL MPI_WIN_LOCK_ALL(0,BaseVectors0_Shared_Win,IERROR)
@@ -1708,8 +1729,8 @@ BaseVectors2 => BaseVectors2_Shared
 BaseVectors3 => BaseVectors3_Shared
 BaseVectorsScale => BaseVectorsScale_Shared
 
-firstSide = INT(REAL (myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL (myComputeNodeRank   )*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
 #else
 ALLOCATE( BaseVectors0(1:3,1:nNonUniqueGlobalSides),&
           BaseVectors1(1:3,1:nNonUniqueGlobalSides),&
@@ -1757,8 +1778,8 @@ CALL BARRIER_AND_SYNC(BaseVectors3_Shared_Win    ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(BaseVectorsScale_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI */
 
-SWRITE(UNIT_stdOut,'(A)')' GET LINEAR SIDE BASEVECTORS DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE BuildLinearSideBaseVectors
 
 

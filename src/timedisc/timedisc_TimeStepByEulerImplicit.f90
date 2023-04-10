@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -51,7 +51,7 @@ USE MOD_part_RHS              ,ONLY: CalcPartRHS
 USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolation
 USE MOD_part_emission         ,ONLY: ParticleInserting
 USE MOD_DSMC                  ,ONLY: DSMC_main
-USE MOD_DSMC_Vars             ,ONLY: useDSMC, DSMC_RHS, DSMC
+USE MOD_DSMC_Vars             ,ONLY: useDSMC, DSMC
 USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
 #endif
 USE MOD_Particle_Tracking     ,ONLY: PerformTracking
@@ -128,7 +128,6 @@ CALL DivCleaningDamping()
 CALL UpdateNextFreePosition()
 IF (useDSMC) THEN
   CALL DSMC_main()
-  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
 END IF
 
 END SUBROUTINE TimeStepByEulerImplicit

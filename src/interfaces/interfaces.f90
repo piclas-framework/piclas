@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -74,17 +74,21 @@ SUBROUTINE InitInterfaces
 !>   - vacuum      -> dielectri    : RIEMANN_VAC2DIELECTRIC_NC = 6 ! for non-conservative fluxes (two fluxes)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars,       ONLY:nSides
-#if !(USE_HDG)
-USE MOD_PML_vars,        ONLY:DoPML,isPMLFace
+USE MOD_globals
+USE MOD_Mesh_Vars        ,ONLY: nSides,Face_xGP,NGeo,MortarType
+#if ! (USE_HDG)
+USE MOD_PML_vars         ,ONLY: DoPML,isPMLFace
 #endif /*NOT HDG*/
-USE MOD_Dielectric_vars, ONLY:DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem,DielectricFluxNonConserving
-USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann,InterfacesInitIsDone
-USE MOD_Globals,         ONLY:abort,UNIT_stdOut
+USE MOD_Dielectric_vars  ,ONLY: DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem,DielectricFluxNonConserving
+USE MOD_Interfaces_Vars  ,ONLY: InterfaceRiemann,InterfacesInitIsDone
+USE MOD_Globals          ,ONLY: abort,UNIT_stdOut
 #if USE_MPI
-USE MOD_Globals,         ONLY:mpiroot
+USE MOD_Globals          ,ONLY: mpiroot
 #endif
-USE MOD_Mesh_Vars,       ONLY:SideToElem
+USE MOD_Mesh_Vars        ,ONLY: SideToElem
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -95,19 +99,16 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER            :: SideID,ElemID
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT INTERFACES...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT INTERFACES...'
 ALLOCATE(InterfaceRiemann(1:nSides))
 DO SideID=1,nSides
-  InterfaceRiemann(SideID)=-1 ! set default to invalid number: check later
+  InterfaceRiemann(SideID)=-2 ! set default to invalid number: check later
   ! 0.) Sanity: It is forbidden to connect a PML to a dielectric region because it is not implemented!
 #if !(USE_HDG) /*pure Maxwell simulations*/
   IF(DoPML.AND.DoDielectric)THEN
-    IF(isPMLFace(SideID).AND.isDielectricFace(SideID))THEN
-      CALL abort(&
-      __STAMP__&
-      ,'It is forbidden to connect a PML to a dielectric region! (Not implemented)')
-    END IF
+    IF(isPMLFace(SideID).AND.isDielectricFace(SideID)) CALL abort(__STAMP__,&
+        'It is forbidden to connect a PML to a dielectric region! (Not implemented)')
   END IF
 
   ! 1.) Check Perfectly Matched Layer
@@ -132,7 +133,11 @@ DO SideID=1,nSides
       IF(isDielectricInterFace(SideID))THEN
         ! a) physical <-> dielectric region: for Riemann solver, select A+ and A- as functions of f(Eps0,Mu0) or f(EpsR,MuR)
         ElemID = SideToElem(S2E_ELEM_ID,SideID) ! get master element ID for checking if it is in a physical or dielectric region
-        IF(ElemID.EQ.-1) CYCLE ! skip
+        IF(MortarType(1,SideID).GE.0) CALL abort(__STAMP__,'Mortars not fully implemented for dielectric <-> vacuum interfaces')
+        IF(ElemID.EQ.-1) THEN
+          InterfaceRiemann(SideID)=-1
+          CYCLE ! skip
+        END IF
         IF(isDielectricElem(ElemID))THEN
           ! a1) master is DIELECTRIC and slave PHYSICAL
           IF(DielectricFluxNonConserving)THEN ! use one flux (conserving) or two fluxes (non-conserving) at the interface
@@ -160,17 +165,31 @@ DO SideID=1,nSides
     ! d) no Dielectric, standard flux
     InterfaceRiemann(SideID)=RIEMANN_VACUUM
   END IF ! DoDielectric
+END DO ! SideID
 
-  IF(InterfaceRiemann(SideID).EQ.-1)THEN ! check if the default value remains unchanged
-    CALL abort(&
-    __STAMP__&
-    ,'Interface for Riemann solver not correctly determined (vacuum, dielectric, PML ...)')
+
+! Check if all sides have correctly been set
+DO SideID=1,nSides
+  IF(InterfaceRiemann(SideID).EQ.-2)THEN ! check if the default value remains unchanged
+#if !(USE_HDG) /*pure Maxwell simulations*/
+    IPWRITE(UNIT_StdOut,*) "DoPML                          = ", DoPML
+#endif /*NOT HDG*/
+    IPWRITE(UNIT_StdOut,*) "DoDielectric                   = ", DoDielectric
+    IPWRITE(UNIT_StdOut,*) "SideID                         = ", SideID
+    IPWRITE(UNIT_StdOut,*) "MortarType(1,SideID)           = ", MortarType(1,SideID)
+    IPWRITE(UNIT_StdOut,*) "InterfaceRiemann(SideID)       = ", InterfaceRiemann(SideID)
+    IPWRITE(UNIT_StdOut,*) "SideToElem(S2E_ELEM_ID,SideID) = ", SideToElem(S2E_ELEM_ID,SideID)
+    IPWRITE(UNIT_StdOut,*) "Face_xGP(1:3,0,0,SideID)       = ", Face_xGP(1:3,0,0,SideID)
+    IPWRITE(UNIT_StdOut,*) "Face_xGP(1:3 , 0    , NGeo , SideID) =" , Face_xGP(1:3 , 0    , NGeo , SideID)
+    IPWRITE(UNIT_StdOut,*) "Face_xGP(1:3 , NGeo , 0    , SideID) =" , Face_xGP(1:3 , NGeo , 0    , SideID)
+    IPWRITE(UNIT_StdOut,*) "Face_xGP(1:3 , NGeo , NGeo , SideID) =" , Face_xGP(1:3 , NGeo , NGeo , SideID)
+    CALL abort(__STAMP__,'Interface for Riemann solver not correctly determined (vacuum, dielectric, PML)')
   END IF
 END DO ! SideID
 
 InterfacesInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT INTERFACES DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT INTERFACES DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitInterfaces
 
 
@@ -190,6 +209,9 @@ USE MOD_Globals         ,ONLY: mpiroot
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars       ,ONLY: Elem_xGP
 USE MOD_Dielectric_Vars ,ONLY: DielectricRadiusValueB
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -214,15 +236,18 @@ REAL                :: rInterpolated
 IF(PRESENT(DisplayInfo))THEN
   IF(DisplayInfo)THEN
     IF(ElementIsInside)THEN ! Display information regarding the orientation of the element-region-search
-      SWRITE(UNIT_stdOut,'(A)')'  Checking for elements INSIDE region'
+      LBWRITE(UNIT_stdOut,'(A)')'  Checking for elements INSIDE region'
     ELSE
-      SWRITE(UNIT_stdOut,'(A)')'  Checking for elements OUTSIDE region'
+      LBWRITE(UNIT_stdOut,'(A)')'  Checking for elements OUTSIDE region'
     END IF
   CALL DisplayMinMax(region) ! Display table with min-max info of region
   END IF
 END IF
 
 ! set logical vector for each element with default .FALSE.
+IF(ALLOCATED(isElem))THEN
+  CALL abort(__STAMP__,'Attempting to allocate already allocated LOGICAL,ALLOCATABLE,INTENT(INOUT) variable in FindElementInRegion')
+END IF ! ALLOCATED(isElem)
 ALLOCATE(isElem(1:PP_nElems))
 isElem=.FALSE.
 
@@ -323,9 +348,7 @@ IF(PRESENT(GeometryName))THEN
         dim_2 = 2
       CASE DEFAULT
         SWRITE(UNIT_stdOut,'(A)') ' '
-        CALL abort(&
-            __STAMP__,&
-            'Error in CALL FindElementInRegion(GeometryName): GeometryAxis is wrong!')
+        CALL abort(__STAMP__,'Error in CALL FindElementInRegion(GeometryName): GeometryAxis is wrong!')
     END SELECT
     DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
@@ -347,13 +370,49 @@ IF(PRESENT(GeometryName))THEN
         END IF ! DielectricRadiusValueB.GT.0.0
       END IF ! isElem(iElem).EQV.ElementIsInside
     END DO; END DO; END DO; END DO !iElem,k,j,i
+  CASE('HollowCircle') ! Inner (r.LT.DielectricRadiusValueB) and outer radius (Radius) are checked: region between is excluded
+    SELECT CASE(GeometryAxis)
+      CASE(1) ! x-axis
+        dim_1 = 2
+        dim_2 = 3
+      CASE(2) ! y-axis
+        dim_1 = 1
+        dim_2 = 3
+      CASE(3) ! z-axis
+        dim_1 = 1
+        dim_2 = 2
+      CASE DEFAULT
+        SWRITE(UNIT_stdOut,'(A)') ' '
+        CALL abort(__STAMP__,'Error in CALL FindElementInRegion(GeometryName): GeometryAxis is wrong!')
+    END SELECT
+
+    DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+      IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
+
+        ! Calculate 2D radius for x-y-plane
+        r = SQRT(Elem_xGP(dim_1,i,j,k,iElem)**2 + Elem_xGP(dim_2,i,j,k,iElem)**2)
+
+        ! Check if r is smaller than the supplied value .AND. if r is not almost equal to the radius
+        IF(r.LT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
+          isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
+        END IF
+
+        ! For dielectric regions, check (optional) 2nd radius and INCLUDE regions within the radius
+        ! Check if r is smaller than the radius DielectricRadiusValueB .AND. if r is not almost equal to the radius DielectricRadiusValueB
+        IF(DielectricRadiusValueB.GT.0.0)THEN
+          IF( (r.LT.DielectricRadiusValueB).AND.&
+              (.NOT.ALMOSTEQUALRELATIVE(r,DielectricRadiusValueB,1e-3)))THEN
+            isElem(iElem) = ElementIsInside ! INCLUDE elements smaller than the radius again
+          END IF ! r.LT.DielectricRadiusValueB
+        END IF ! DielectricRadiusValueB.GT.0.0
+      END IF ! isElem(iElem).EQV.ElementIsInside
+    END DO; END DO; END DO; END DO !iElem,k,j,i
   CASE('default')
     ! Nothing to do, because the geometry is set by using the box coordinates
   CASE DEFAULT
     SWRITE(UNIT_stdOut,'(A)') ' '
     SWRITE(UNIT_stdOut,'(A)') ' TRIM(GeometryName)='//TRIM(GeometryName)
-    CALL abort(&
-        __STAMP__,&
+    CALL abort(__STAMP__,&
         'Error in CALL FindElementInRegion(GeometryName): GeometryName is not defined! Even dummy geometries must be defined.')
   END SELECT
 END IF
@@ -521,9 +580,7 @@ DO iSide=1,nSides
                                                                                   BezierControlPoints3D(3,0,NGeo,iSide),&
                                                                                   BezierControlPoints3D(3,NGeo,0,iSide),&
                                                                                   BezierControlPoints3D(3,NGeo,NGeo,iSide)
-    CALL abort(&
-    __STAMP__&
-    ,'isFace_combined(1,0,0,iSide).LT.0. -> ',RealInfoOpt=isFace_combined(1,0,0,iSide))
+    CALL abort(__STAMP__,'isFace_combined(1,0,0,iSide).LT.0. -> ',RealInfoOpt=isFace_combined(1,0,0,iSide))
   END IF
 END DO
 isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
@@ -696,10 +753,13 @@ SUBROUTINE CountAndCreateMappings(TypeName,&
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars,     ONLY: nSides,nGlobalElems
+USE MOD_Mesh_Vars        ,ONLY: nSides,nGlobalElems
 #if USE_MPI
-USE MOD_Mesh_Vars,     ONLY: ElemToSide
+USE MOD_Mesh_Vars        ,ONLY: ElemToSide
 #endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -770,12 +830,12 @@ IF(PRESENT(DisplayInfo))THEN
     sumGlobalFaces      = nFaces
     sumGlobalInterFaces = nInterFaces
 #endif /*USE_MPI*/
-    SWRITE(UNIT_stdOut,'(A,I10,A,I10,A,F6.2,A)')&
+    LBWRITE(UNIT_stdOut,'(A,I10,A,I10,A,F6.2,A)')&
     '  Found [',nGlobalSpecialElems,'] nGlobal'//TRIM(TypeName)//'-Elems      inside of '//TRIM(TypeName)//'-region of ['&
     ,nGlobalElems,'] elems in complete domain [',REAL(nGlobalSpecialElems)/REAL(nGlobalElems)*100.,' %]'
-    SWRITE(UNIT_stdOut,'(A,I10,A)')&
+    LBWRITE(UNIT_stdOut,'(A,I10,A)')&
     '  Found [',nGlobalFaces       ,'] nGlobal'//TRIM(TypeName)//'-Faces      inside of '//TRIM(TypeName)//'-region.'
-    SWRITE(UNIT_stdOut,'(A,I10,A)')&
+    LBWRITE(UNIT_stdOut,'(A,I10,A)')&
     '  Found [',nGlobalInterfaces  ,'] nGlobal'//TRIM(TypeName)//'-InterFaces inside of '//TRIM(TypeName)//'-region.'
   END IF
 END IF
@@ -833,10 +893,13 @@ SUBROUTINE DisplayRanges(useMinMax_Name,useMinMax,xyzMinMax_name,xyzMinMax,Physi
 ! usually a, e.g., PML/dielectric region is specified or the inverse region, i.e., the physical region is specified
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY:UNIT_stdOut
+USE MOD_Globals          ,ONLY: UNIT_stdOut
 #if USE_MPI
-USE MOD_Globals,               ONLY:MPIRoot
+USE MOD_Globals          ,ONLY: MPIRoot
 #endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -850,12 +913,12 @@ LOGICAL,INTENT(IN)                :: useMinMax
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! display ranges of special region depending on useMinMax
-!SWRITE(UNIT_stdOut,'(A,L1,A1)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']'
+!LBWRITE(UNIT_stdOut,'(A,L1,A1)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']'
 IF(useMinMax)THEN
-  SWRITE(UNIT_stdOut,'(A,L1,A1,A)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']',': Ranges '//TRIM(xyzMinMax_name)//'(1:6) are'
+  LBWRITE(UNIT_stdOut,'(A,L1,A1,A)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']',': Ranges '//TRIM(xyzMinMax_name)//'(1:6) are'
   CALL DisplayMinMax(xyzMinMax)
 ELSE
-  SWRITE(UNIT_stdOut,'(A,L1,A1,A)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']',': Ranges '//TRIM(PhysicalMinMax_Name)//'(1:6) are'
+  LBWRITE(UNIT_stdOut,'(A,L1,A1,A)')'  '//TRIM(useMinMax_Name)//'=[',useMinMax,']',': Ranges '//TRIM(PhysicalMinMax_Name)//'(1:6) are'
   CALL DisplayMinMax(xyzPhysicalMinMax)
 END IF
 END SUBROUTINE DisplayRanges
@@ -866,10 +929,13 @@ SUBROUTINE DisplayMinMax(MinMax)
 ! Display the ranges of a x-y-z min-max region in the vector MinMax(xmin,xmax,ymin,ymax,zmin,zmax)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY:UNIT_stdOut
+USE MOD_Globals          ,ONLY: UNIT_stdOut
 #if USE_MPI
-USE MOD_Globals,               ONLY:MPIRoot
+USE MOD_Globals          ,ONLY: MPIRoot
 #endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -881,17 +947,17 @@ REAL,INTENT(IN) :: MinMax(1:6)
 ! LOCAL VARIABLES
 INTEGER :: I
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
+LBWRITE(UNIT_stdOut,'(A)') '       [        x-dir         ] [        y-dir         ] [         z-dir        ]'
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MIN'
 DO I=1,3
-  SWRITE(UNIT_stdOut,WRITEFORMAT,ADVANCE='NO')  MinMax(2*I-1)
+  LBWRITE(UNIT_stdOut,WRITEFORMAT,ADVANCE='NO')  MinMax(2*I-1)
 END DO
-SWRITE(UNIT_stdOut,'(A)') ''
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
+LBWRITE(UNIT_stdOut,'(A)') ''
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  MAX'
 DO I=1,3
-  SWRITE(UNIT_stdOut,WRITEFORMAT,ADVANCE='NO')  MinMax(2*I)
+  LBWRITE(UNIT_stdOut,WRITEFORMAT,ADVANCE='NO')  MinMax(2*I)
 END DO
-SWRITE(UNIT_stdOut,'(A)') ''
+LBWRITE(UNIT_stdOut,'(A)') ''
 END SUBROUTINE DisplayMinMax
 
 
@@ -901,10 +967,13 @@ SUBROUTINE SelectMinMaxRegion(TypeName,useMinMax,region1_name,region1,region2_na
 !
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals,               ONLY:UNIT_stdOut
+USE MOD_Globals          ,ONLY: UNIT_stdOut
 #if USE_MPI
-USE MOD_Globals,               ONLY:MPIRoot
+USE MOD_Globals          ,ONLY: MPIRoot
 #endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -922,14 +991,14 @@ IF(ALMOSTEQUAL(MAXVAL(region1),MINVAL(region1)))THEN ! if still the initialized 
   IF(ALMOSTEQUAL(MAXVAL(region2),MINVAL(region2)))THEN ! if still the initialized values
     region2(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
     useMinMax=.FALSE. ! ! region1 and region2 are undefined -> use HUGE for both
-    SWRITE(UNIT_stdOut,'(A)')'  no '//TRIM(TypeName)//' region supplied, setting '//TRIM(region1_name)//'(1:6): Setting [+-HUGE]'
-    SWRITE(UNIT_stdOut,'(A)')'  no '//TRIM(TypeName)//' region supplied, setting '//TRIM(region2_name)//'(1:6): Setting [+-HUGE]'
+    LBWRITE(UNIT_stdOut,'(A)')'  no '//TRIM(TypeName)//' region supplied, setting '//TRIM(region1_name)//'(1:6): Setting [+-HUGE]'
+    LBWRITE(UNIT_stdOut,'(A)')'  no '//TRIM(TypeName)//' region supplied, setting '//TRIM(region2_name)//'(1:6): Setting [+-HUGE]'
   ELSE
-    SWRITE(UNIT_stdOut,'(A)')'  '//TRIM(TypeName)//' region supplied via '//TRIM(region2_name)//'(1:6)'
+    LBWRITE(UNIT_stdOut,'(A)')'  '//TRIM(TypeName)//' region supplied via '//TRIM(region2_name)//'(1:6)'
     useMinMax=.TRUE. ! region1 is undefined but region2 is not
   END IF
 ELSE
-  SWRITE(UNIT_stdOut,'(A)')'  '//TRIM(TypeName)//' region supplied via '//TRIM(region1_name)//'(1:6)'
+  LBWRITE(UNIT_stdOut,'(A)')'  '//TRIM(TypeName)//' region supplied via '//TRIM(region1_name)//'(1:6)'
 END IF
 END SUBROUTINE SelectMinMaxRegion
 
@@ -960,7 +1029,10 @@ SUBROUTINE SetGeometry(GeometryName)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Interfaces_Vars, ONLY:GeometryIsSet,Geometry,GeometryMin,GeometryMax,GeometryNPoints
+USE MOD_Interfaces_Vars  ,ONLY: GeometryIsSet,Geometry,GeometryMin,GeometryMax,GeometryNPoints
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -977,7 +1049,7 @@ CHARACTER(LEN=*)  ,INTENT(IN)   :: GeometryName             !< name of the pre-d
 !===================================================================================================================================
 IF(GeometryIsSet)RETURN
 
-SWRITE(UNIT_stdOut,'(A)') 'Selecting geometry: ['//TRIM(GeometryName)//']'
+LBWRITE(UNIT_stdOut,'(A)') 'Selecting geometry: ['//TRIM(GeometryName)//']'
 SELECT CASE(TRIM(GeometryName))
 CASE('FH_lens')
   array_shift=0.0 !-0.038812
@@ -1114,29 +1186,23 @@ CASE('FH_lens')
   !Geometry=RESHAPE(temp_array, (/385, 2/))
   Geometry=TRANSPOSE(RESHAPE(temp_array, (/dim_2,GeometryNPoints/)))
   Geometry=Geometry/1000.
-!DO I=1,GeometryNPoints
-  !DO J=1,dim_2
-   !SWRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') Geometry(I,J)
-  !END DO
-   !SWRITE(UNIT_stdOut,'(A)') ' '
-!END DO
   Geometry(:,1)=Geometry(:,1)-array_shift
 
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') "Geometry-MIN="
+  LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') "Geometry-MIN="
   ALLOCATE(GeometryMin(1:dim_2))
   DO I=1,dim_2
     GeometryMin(I)=MINVAL(Geometry(:,I))
-    SWRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') GeometryMin(I)
+    LBWRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') GeometryMin(I)
   END DO
-  SWRITE(UNIT_stdOut,'(A)') ' '
+  LBWRITE(UNIT_stdOut,'(A)') ' '
 
   ALLOCATE(GeometryMax(1:dim_2))
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') "Geometry-MAX="
+  LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') "Geometry-MAX="
   DO I=1,dim_2
     GeometryMax(I)=MAXVAL(Geometry(:,I))
-    SWRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') GeometryMax(I)
+    LBWRITE(UNIT_stdOut,'(F24.12)',ADVANCE='NO') GeometryMax(I)
   END DO
-  SWRITE(UNIT_stdOut,'(A)') ' '
+  LBWRITE(UNIT_stdOut,'(A)') ' '
 
   !!!!               ! use X points for averaged gradient
   !!!!               PMLGradientEntry=0
@@ -1159,14 +1225,14 @@ CASE('DielectricResonatorAntenna') ! Radius only in x-y (not z)
   ! nothing to set, because rotationally symmetric, as defined by a radius in x-y
 CASE('Circle') ! Radius only in x-y (not z)
   ! nothing to set, because rotationally symmetric, as defined by one or two radii in x-y: DielectricRadiusValue and DielectricRadiusValueB (optional)
+CASE('HollowCircle') ! Radius only in x-y (not z)
+  ! nothing to set, because rotationally symmetric, as defined by one or two radii in x-y: DielectricRadiusValue and DielectricRadiusValueB (optional)
 CASE('default')
   ! Nothing to do, because the geometry is set by using the box coordinates
 CASE DEFAULT
   SWRITE(UNIT_stdOut,'(A)') ' '
   SWRITE(UNIT_stdOut,'(A)') ' TRIM(GeometryName)='//TRIM(GeometryName)
-  CALL abort(&
-  __STAMP__,&
-  'Error in CALL SetGeometry(GeometryName): GeometryName is not defined! Even dummy geometries must be defined.')
+  CALL abort(__STAMP__,'Error in SetGeometry(GeometryName): GeometryName is not defined! Even dummy geometries must be defined.')
 END SELECT
 
 GeometryIsSet=.TRUE.
@@ -1216,30 +1282,22 @@ ELSE ! interpolate
       location_Upper = location
       location_Lower = location-1
     ELSE
-      CALL abort(&
-      __STAMP__,&
-      'InterpolateGeometry Error when location is upper of x_IN: interpolated outside of array dimension?!')
+      CALL abort(__STAMP__,'InterpolateGeometry Error when location is upper of x_IN: interpolated outside of array dimension?!')
     END IF
   ELSEIF(x_IN.GE.Geometry(location,dim_x))THEN ! location is lower of x_IN
     IF(location.GE.1)THEN
       location_Upper = location+1
       location_Lower = location
     ELSE
-      CALL abort(&
-      __STAMP__,&
-      'InterpolateGeometry Error when location is lower of x_IN: interpolated outside of array dimension?!')
+      CALL abort(__STAMP__,'InterpolateGeometry Error when location is lower of x_IN: interpolated outside of array dimension?!')
     END IF
   ELSE
-    CALL abort(&
-    __STAMP__,&
-    'InterpolateGeometry Error location: interpolated outside of array dimension?!')
+    CALL abort(__STAMP__,'InterpolateGeometry Error location: interpolated outside of array dimension?!')
   END IF
 
   ! sanity check
   IF((location.LT.1).OR.(location.GT.GeometryNPoints))THEN
-    CALL abort(&
-    __STAMP__,&
-    'InterpolateGeometry Error: interpolated outside of array dimension?!')
+    CALL abort(__STAMP__,'InterpolateGeometry Error: interpolated outside of array dimension?!')
   END IF
   ! do the actual interpolation
   x1 = Geometry(location_Lower,dim_x)

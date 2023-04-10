@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -56,6 +56,10 @@ REAL                :: DielectricConstant_RootInv     ! 1./sqrt(EpsR*MuR)
 REAL                :: eta_c_dielectric               ! ( chi - 1./sqrt(EpsR*MuR) ) * c
 REAL                :: c_dielectric                   ! c/sqrt(EpsR*MuR)
 REAL                :: c2_dielectric                  ! c**2/(EpsR*MuR)
+! dielectric zones
+INTEGER                       :: DielectricNbrOfZones                 ! Number of dielectric zones
+INTEGER,ALLOCATABLE           :: DielectricZoneID(:)                  ! ZONE IDs for all dielectric zones/regions
+REAL,ALLOCATABLE,DIMENSION(:) :: DielectricZoneEpsR,DielectricZoneMuR ! EpsR and MuR for dielectric zones
 ! mapping variables
 INTEGER             :: nDielectricElems,nDielectricFaces,nDielectricInterFaces          ! Number of Dielectric elements and faces
 !                                                                                       ! (mapping)

@@ -1,0 +1,61 @@
+\documentclass[varwidth=15cm]{standalone}
+
+\usepackage[textfont=it]{caption}
+\usepackage{subfigure}
+\usepackage{tikz, pgfplots}
+\usepackage[exponent-product = \cdot]{siunitx}
+
+% Set default column separator for table (csv files)
+\pgfplotsset{compat=1.16,table/col sep=comma}
+% Space as thousand separator.
+\pgfkeys{/pgf/number format/.cd,1000 sep={\,}}
+
+\begin{document}
+\begin{figure}[b!]
+\centering
+    \begin{tikzpicture}
+    \begin{axis}[
+    width=10.0cm,
+    axis equal image,
+    scaled ticks=false,
+    unbounded coords=jump,
+    xmin=-25,
+    xmax=50,
+    ymin=0,
+    ymax=50,
+    xlabel style={name=xlabel},
+    xlabel={$x$ $\left[\si{mm}\right]$},
+    ylabel style={name=ylabel},
+    ylabel={$y$ $\left[\si{mm}\right]$},
+    axis x line*=bottom,
+    axis y line*=left,
+    axis on top=true,
+    clip=false,
+    %%%%%%% Colorbar
+    colormap={rgb}{rgb255=(71,71,219) rgb255=(0,0,91) rgb255=(0,255,255) rgb255=(0,127,0) rgb255=(255,255,0) rgb255=(255,96,0) rgb255=(107,0,0) rgb255=(224,76,76)}, % hot_desaturated
+    point meta min=0, % Grenzwert Farbskala
+    point meta max=1250, % Grenzwert Farbskala
+    colorbar horizontal,
+    %colorbar, %vertikal
+    colorbar style={
+      at={(0.5,1.05)},
+      anchor=south,
+      height=10,
+      scaled ticks=false,
+      xtick pos=right,
+      xtick align=outside,
+      xticklabel style={yshift=1.15cm},
+      xlabel style={yshift=1.8cm},
+      xlabel={$T_\text{trans}$ $\left[\si{K}\right]$}}
+    ]
+    \addplot graphics [xmin=-25,xmax=50,ymin=0,ymax=50] {./dsmc-cone-gmsh-visuDSMC-2ms-TempTransMean.png};
+%    \addplot graphics [xmin=-25,xmax=8,ymin=-35,ymax=0] {./dsmc-cone-visuDSMC-2ms-TempTransMean-point.png};
+%    \addplot [line width=0.5mm] (-25,0) -- (15,0);
+%    \node[above,rotate=90] at (15, 17.5) {original};
+%    \node[above,rotate=90] at (15, -17.5) {interpolated};
+    \end{axis}
+%    \draw [-latex] (xlabel.east) -- ++(0.5,0);
+%    \draw [-latex] (ylabel.east) -- ++(0,0.5);
+    \end{tikzpicture}
+\end{figure}
+\end{document}

@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -46,6 +46,7 @@ INTEGER            :: MPIStatus(MPI_STATUS_SIZE)
 #else
 INTEGER,PARAMETER  :: MPI_COMM_WORLD=-1 ! DUMMY when compiling single (MPI=OFF)
 #endif
+LOGICAL            :: MemoryMonitor      !> Flag for turning RAM monitoring ON/OFF. Used for the detection of RAM overflows (e.g. due to memory leaks)
 
 INTEGER            :: doPrintHelp ! 0: no help, 1: help, 2: markdown-help
 
@@ -55,7 +56,10 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(18)
 INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 #endif
 
-INTEGER(KIND=IK)   :: nGlobalNbrOfParticles
+#if defined(PARTICLES)
+INTEGER(KIND=IK)   :: nGlobalNbrOfParticles(6) !< 1-3: min,max,total number of simulation particles over all processors
+!                                              !< 4-6: peak values over the complete simulation
+#endif /*defined(PARTICLES)*/
 
 INTERFACE ReOpenLogFile
   MODULE PROCEDURE ReOpenLogFile
@@ -155,12 +159,30 @@ INTERFACE TransformVectorFromSphericalCoordinates
   MODULE PROCEDURE TransformVectorFromSphericalCoordinates
 END INTERFACE
 
+#if defined(PARTICLES)
 INTERFACE PARTISELECTRON
   MODULE PROCEDURE PARTISELECTRON
 END INTERFACE
 
 INTERFACE SPECIESISELECTRON
   MODULE PROCEDURE SPECIESISELECTRON
+END INTERFACE
+
+INTERFACE DisplayNumberOfParticles
+  MODULE PROCEDURE DisplayNumberOfParticles
+END INTERFACE
+#endif /*defined(PARTICLES)*/
+
+INTERFACE LOG_RAN
+  MODULE PROCEDURE LOG_RAN
+END INTERFACE
+
+INTERFACE ISNAN
+  MODULE PROCEDURE ISNAN
+END INTERFACE
+
+INTERFACE ISFINITE
+  MODULE PROCEDURE ISFINITE
 END INTERFACE
 
 PUBLIC :: setstacksizeunlimited
@@ -350,7 +372,7 @@ WRITE(UNIT_stdOut,*)'Program abort caused on Proc ',myRank,' in File : ',TRIM(So
 WRITE(UNIT_stdOut,*)'This file was compiled at ',TRIM(CompDate),'  ',TRIM(CompTime)
 WRITE(UNIT_stdOut,'(A10,A)',ADVANCE='NO')'Message: ',TRIM(ErrorMessage)
 IF(PRESENT(IntInfoOpt)) WRITE(UNIT_stdOut,'(I8)',ADVANCE='NO')IntInfo
-IF(PRESENT(RealInfoOpt)) WRITE(UNIT_stdOut,'(E16.8)')RealInfo
+IF(PRESENT(RealInfoOpt)) WRITE(UNIT_stdOut,'(ES25.14E3)')RealInfo
 WRITE(UNIT_stdOut,*)
 WRITE(UNIT_stdOut,'(A,A,A)')'See ',TRIM(ErrorFileName),' for more details'
 WRITE(UNIT_stdOut,*)
@@ -438,6 +460,7 @@ SWRITE(UNIT_stdOut,*) '_________________________________________________________
 
 CALL FLUSH(UNIT_stdOut)
 #if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 CALL MPI_FINALIZE(iError)
 #endif
 ERROR STOP 1
@@ -1091,26 +1114,117 @@ REAL,INTENT(IN)             :: Time, StartTime !< Current simulation time and be
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL :: SimulationTime,mins,secs,hours,days
+REAL              :: SimulationTime,mins,secs,hours,days
+CHARACTER(LEN=60) :: hilf
 !===================================================================================================================================
-IF(.NOT.MPIRoot) RETURN
+! Return with all procs except root if not called during abort
+IF(.NOT.MPIRoot.AND.(Message.NE.'ABORTED')) RETURN
 
+! Output particle info
+#if defined(PARTICLES)
+IF(Message.NE.'RUNNING') CALL DisplayNumberOfParticles(2)
+#endif /*defined(PARTICLES)*/
+
+! Calculate simulation time
 SimulationTime = Time-StartTime
 
 ! Get secs, mins, hours and days
 secs = MOD(SimulationTime,60.)
-SimulationTime = SimulationTime / 60
+SimulationTime = SimulationTime / 60.
 mins = MOD(SimulationTime,60.)
-SimulationTime = SimulationTime / 60
+SimulationTime = SimulationTime / 60.
 hours = MOD(SimulationTime,24.)
-SimulationTime = SimulationTime / 24
+SimulationTime = SimulationTime / 24.
 !days = MOD(SimulationTime,365.) ! Use this if years are also to be displayed
 days = SimulationTime
 
-! Output
-WRITE(UNIT_stdOut,'(A,F16.2,A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [',Time-StartTime,' sec ]'
-WRITE(UNIT_stdOut,'(A2,I6,A1,I0.2,A1,I0.2,A1,I0.2,A1)') ' [',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),']'
+! Output message with all procs, as root might not be the calling process during abort
+IF(MPIRoot.AND.(Message.NE.'ABORTED')) WRITE(UNIT_stdOut,'(132("="))')
+WRITE(hilf,'(F16.2)') Time-StartTime
+WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' PICLAS '//TRIM(Message)//'! [ '//TRIM(ADJUSTL(hilf))//' sec ]'
+WRITE(UNIT_stdOut,'(A3,I0,A1,I0.2,A1,I0.2,A1,I0.2,A2)') ' [ ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),' ]'
 END SUBROUTINE DisplaySimulationTime
+
+
+!===================================================================================================================================
+! Output message to UNIT_stdOut and an elapsed time is seconds as well as min/hour/day format
+!===================================================================================================================================
+SUBROUTINE DisplayMessageAndTime(ElapsedTimeIn, Message, DisplayDespiteLB, DisplayLine, rank)
+! MODULES
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN) :: Message          !< Output message
+REAL,INTENT(IN)             :: ElapsedTimeIn !< Time difference
+LOGICAL,INTENT(IN),OPTIONAL :: DisplayDespiteLB !< Display output even though LB is performed (default is FALSE)
+LOGICAL,INTENT(IN),OPTIONAL :: DisplayLine      !< Display 132*"-" (default is TRUE)
+INTEGER,INTENT(IN),OPTIONAL :: rank             !< if 0, some kind of root is assumed, every other processor return this routine
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL              :: ElapsedTime,mins,secs,hours,days
+LOGICAL           :: DisplayDespiteLBLoc, DisplayLineLoc, LocalRoot
+CHARACTER(LEN=60) :: hilf
+#if !USE_LOADBALANCE
+LOGICAL           :: PerformLoadBalance
+#endif /*!USE_LOADBALANCE*/
+!===================================================================================================================================
+#if !USE_LOADBALANCE
+PerformLoadBalance = .FALSE.
+#endif /*!USE_LOADBALANCE*/
+
+! Define who returns and who does the output (default is MPIRoot)
+LocalRoot = .FALSE. ! default
+IF(PRESENT(rank))THEN
+  IF(rank.EQ.0) LocalRoot = .TRUE.
+ELSE
+  IF(MPIRoot) LocalRoot = .TRUE.
+END IF ! PRESENT(rank)
+
+! Return with all procs except LocalRoot
+IF(.NOT.LocalRoot) RETURN
+
+! Check if output should be performed during LB restarts
+IF(PRESENT(DisplayDespiteLB))THEN
+  DisplayDespiteLBLoc = DisplayDespiteLB
+ELSE
+  DisplayDespiteLBLoc = .FALSE.
+END IF ! PRESENT(DisplayDespiteLB)
+
+! Check if 132*"-" is required
+IF(PRESENT(DisplayLine))THEN
+  DisplayLineLoc = DisplayLine
+ELSE
+  DisplayLineLoc = .TRUE.
+END IF ! PRESENT(DisplayLine)
+
+! Aux variable
+ElapsedTime=ElapsedTimeIn
+
+! Get secs, mins, hours and days
+secs = MOD(ElapsedTime,60.)
+ElapsedTime = ElapsedTime / 60.
+mins = MOD(ElapsedTime,60.)
+ElapsedTime = ElapsedTime / 60.
+hours = MOD(ElapsedTime,24.)
+ElapsedTime = ElapsedTime / 24.
+!days = MOD(ElapsedTime,365.) ! Use this if years are also to be displayed
+days = ElapsedTime
+
+! Output message
+IF(LocalRoot.AND.((.NOT.PerformLoadBalance).OR.DisplayDespiteLBLoc))THEN
+  WRITE(hilf,'(F16.2)')  ElapsedTimeIn
+  WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')  ' '//TRIM(Message)//' [ '//TRIM(ADJUSTL(hilf))//' sec ]'
+  WRITE(UNIT_stdOut,'(A3,I0,A1,I0.2,A1,I0.2,A1,I0.2,A2)') ' [ ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),' ]'
+  IF(DisplayLineLoc) WRITE(UNIT_StdOut,'(132("-"))')
+END IF ! LocalRoot.AND.((.NOT.PerformLoadBalance).OR.DisplayDespiteLBLoc)
+
+END SUBROUTINE DisplayMessageAndTime
 
 
 PPURE LOGICAL FUNCTION StringBeginsWith(MainString,SubString)
@@ -1142,7 +1256,7 @@ ELSE
 END IF ! SubStringLength.GT.0.AND.MainStringLength.GT.0
 END FUNCTION StringBeginsWith
 
-
+#if defined(PARTICLES)
 PPURE FUNCTION PARTISELECTRON(PartID)
 !===================================================================================================================================
 ! check if particle is an electron (species-charge = -1.609)
@@ -1191,6 +1305,186 @@ SPECIESISELECTRON=.FALSE.
 IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
 IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) SPECIESISELECTRON=.TRUE.
 END FUNCTION SPECIESISELECTRON
+#endif /*defined(PARTICLES)*/
+
+
+RECURSIVE FUNCTION LOG_RAN() RESULT(X)
+!===================================================================================================================================
+! check if species is an electron (species-charge = -1.609)
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL               :: iRan
+REAL(KIND=8)       :: X
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+CALL RANDOM_NUMBER(iRan)
+
+IF(iRan.GT.0.0) THEN
+  X = LOG(iRan)
+ELSE
+  X = LOG_RAN()
+END IF
+
+END FUNCTION LOG_RAN
+
+
+!===================================================================================================================================
+!> Check if REAL value is NaN
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION ISNAN(X) RESULT(L)
+! MODULES
+USE, INTRINSIC :: IEEE_ARITHMETIC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: X
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+L = IEEE_IS_NAN(X)
+END FUNCTION ISNAN
+
+
+!===================================================================================================================================
+!> Check if REAL value is finite, i.e., NOT Infinity
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION ISFINITE(X) RESULT(L)
+! MODULES
+USE, INTRINSIC :: IEEE_ARITHMETIC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: X
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+L = IEEE_IS_FINITE(X)
+END FUNCTION ISFINITE
+
+
+!===================================================================================================================================
+!> Check if a <= b or a is almost equal to b via ALMOSTEQUALRELATIVE
+!> Catch tolerance issues when b is only an epsilon smaller than a but the inquiry should be that they are equal
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION LESSEQUALTOLERANCE(a,b,tol)
+! MODULES
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN) :: a,b !< Two real numbers for comparison
+REAL,INTENT(IN) :: tol !< fix for tolerance issues
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF((a.LE.b).OR.(ALMOSTEQUALRELATIVE(a,b,tol)))THEN
+  LESSEQUALTOLERANCE = .TRUE.
+ELSE
+  LESSEQUALTOLERANCE = .FALSE.
+END IF
+END FUNCTION LESSEQUALTOLERANCE
+
+
+!===================================================================================================================================
+!> Check whether element ID is on the current proc
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION ElementOnProc(GlobalElemID) RESULT(L)
+! MODULES
+USE MOD_Preproc
+USE MOD_Mesh_Vars ,ONLY: offSetElem
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN) :: GlobalElemID ! Global element index
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: LocalElemID
+!-----------------------------------------------------------------------------------------------------------------------------------
+!===================================================================================================================================
+LocalElemID = GlobalElemID - offsetElem
+L = (LocalElemID.GE.1).AND.(LocalElemID.LE.PP_nElems)
+END FUNCTION ElementOnProc
+
+
+!===================================================================================================================================
+!> Check whether element ID is on the current node
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION ElementOnNode(GlobalElemID) RESULT(L)
+! MODULES
+USE MOD_Preproc
+#if USE_MPI
+USE MOD_MPI_Vars        ,ONLY: offsetElemMPI
+USE MOD_MPI_Shared_Vars ,ONLY: ComputeNodeRootRank,nComputeNodeProcessors
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN) :: GlobalElemID ! Global element index
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+!===================================================================================================================================
+#if USE_MPI
+L = (GlobalElemID.GE.offsetElemMPI(ComputeNodeRootRank)+1).AND.&
+    (GlobalElemID.LE.offsetElemMPI(ComputeNodeRootRank+nComputeNodeProcessors))
+#else
+L = .TRUE.
+#endif /*USE_MPI*/
+END FUNCTION ElementOnNode
+
+
+#if defined(PARTICLES)
+!===================================================================================================================================
+!> Write min, max, average and total number of simulations particles to stdout stream
+!===================================================================================================================================
+SUBROUTINE DisplayNumberOfParticles(Mode)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: Mode ! 1: during the simulation
+!                          ! 2: at the end of the simulation
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+
+!===================================================================================================================================
+SELECT CASE(Mode)
+CASE(1)
+  SWRITE(UNIT_StdOut,'(4(A,ES16.7))') "#Particles : ", REAL(nGlobalNbrOfParticles(3)),&
+      "    Average particles per proc : ",REAL(nGlobalNbrOfParticles(3))/REAL(nProcessors),&
+      "    Min : ",REAL(nGlobalNbrOfParticles(1)),&
+      "    Max : ",REAL(nGlobalNbrOfParticles(2))
+CASE(2)
+  SWRITE(UNIT_StdOut,'(4(A,ES16.7))') "#Particles : ", REAL(nGlobalNbrOfParticles(6)),&
+      " (peak)         Average (peak) : ",REAL(nGlobalNbrOfParticles(6))/REAL(nProcessors),&
+      "    Min : ",REAL(nGlobalNbrOfParticles(4)),&
+      "    Max : ",REAL(nGlobalNbrOfParticles(5))
+CASE DEFAULT
+  CALL abort(__STAMP__,'DisplayNumberOfParticles() called with unknown Mode=',IntInfoOpt=Mode)
+END SELECT
+END SUBROUTINE DisplayNumberOfParticles
+#endif /*defined(PARTICLES)*/
 
 
 END MODULE MOD_Globals

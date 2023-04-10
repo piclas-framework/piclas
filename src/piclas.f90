@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -19,12 +19,35 @@ PROGRAM Piclas
 ! MODULES
 USE MOD_Globals
 USE MOD_Piclas
-USE MOD_Piclas_init ,ONLY: FinalizePiclas
-USE MOD_TimeDisc    ,ONLY: TimeDisc
+USE MOD_Piclas_init       ,ONLY: FinalizePiclas
+USE MOD_TimeDisc          ,ONLY: TimeDisc
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI               ,ONLY: OutputMPIW8Time
+USE MOD_MPI_Vars          ,ONLY: MPIW8Time,MPIW8TimeSim,MPIW8TimeField,MPIW8TimeBaS,MPIW8TimeMM
+USE MOD_MPI_Vars          ,ONLY: MPIW8Count,MPIW8CountField,MPIW8CountBaS,MPIW8CountMM
+#if defined(PARTICLES)
+USE MOD_Particle_MPI_Vars ,ONLY: MPIW8TimePart,MPIW8CountPart
+#endif /*defined(PARTICLES)*/
+#endif /*defined(MEASURE_MPI_WAIT)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+#if defined(MEASURE_MPI_WAIT)
+MPIW8TimeSim  = 0.
+MPIW8TimeBaS  = 0.
+MPIW8CountBaS = 0_8
+MPIW8TimeMM  = 0.
+MPIW8CountMM = 0_8
+#if defined(PARTICLES)
+MPIW8TimePart   = 0.
+MPIW8CountPart  = 0_8
+#endif /*defined(PARTICLES)*/
+MPIW8TimeField  = 0.
+MPIW8CountField = 0_8
+MPIW8Time       = 0.
+MPIW8Count      = 0_8
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! Initialize
 CALL InitializePiclas()
@@ -34,6 +57,11 @@ CALL TimeDisc()
 
 ! Finalize
 CALL FinalizePiclas(IsLoadBalance=.FALSE.)
+
+#if defined(MEASURE_MPI_WAIT)
+! Collect the MPI_WAIT() over all procs and output
+IF(nProcessors.GT.1) CALL OutputMPIW8Time()
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! MPI
 #if USE_MPI

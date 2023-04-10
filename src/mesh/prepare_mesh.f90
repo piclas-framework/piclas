@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -154,9 +154,7 @@ DO i=1,nBCs
   END IF
 END DO
 IF(ANY(PeriodicBCMap.EQ.-2))&
-  CALL abort(&
-  __STAMP__&
-  ,'Periodic connection not found.')
+  CALL abort(__STAMP__,'Periodic connection not found.')
 
 ! Iterate over all elements and within each element over all sides (6 for hexas) and for each big Mortar side over all
 ! small virtual sides.
@@ -297,9 +295,7 @@ DO iElem=FirstElemInd,LastElemInd
     END DO ! iMortar
   END DO ! iLocSide=1,6
 END DO !iElem
-IF(iSide.NE.nInnerSides+nBCSides+nMortarInnerSides) CALL abort(&
-  __STAMP__&
-  ,'not all SideIDs are set!')
+IF(iSide.NE.nInnerSides+nBCSides+nMortarInnerSides) CALL abort(  __STAMP__,'not all SideIDs are set!')
 LOGWRITE(*,*)'-------------------------------------------------------'
 LOGWRITE(*,'(A22,I8)')'nMortarSides:',nMortarSides
 LOGWRITE(*,'(A22,I8)')'nMortarInnerSides:',nMortarInnerSides
@@ -428,7 +424,8 @@ DO iNbProc=1,nNbProcs
   END DO ! iElem
   DEALLOCATE(SideIDMap)
 END DO !nbProc(i)
-! Iterate over all processors and for each processor over all elements and within each element
+#endif /*USE_MPI*/
+! Iterate (over all processors and for each processor) over all elements and within each element
 ! over all sides (6 for hexas in 3D, 4 for quads in 2D) and for each big Mortar side over all small virtual sides
 ! and revert the negative SideIDs.
 DO iElem=FirstElemInd,LastElemInd
@@ -445,6 +442,7 @@ DO iElem=FirstElemInd,LastElemInd
     END DO ! iMortar
   END DO ! iLocSide
 END DO ! iElem
+#if USE_MPI
 ! Optimize Mortars: Search for big Mortars which only have small virtual MPI_MINE sides. Since the MPI_MINE-sides evaluate
 ! the flux, the flux of the big Mortar side (computed from the 2/4 fluxes of the small virtual sides) can be computed BEFORE
 ! the communication of the fluxes. Therefore those big Mortars can be moved from MPIMortars to the InnerMortars.
@@ -529,8 +527,7 @@ IF(nMortarSides.GT.0)THEN
     nMortarInnerSides=nMortarInnerSides+addToInnerMortars  ! increase number of inner Mortars
     nMortarMPISides  =nMortarMPISides  -addToInnerMortars  ! decrease number of MPI Mortars
 #if USE_HDG
-    IF(nMortarMPISides.NE.0) CALL abort(__STAMP__,&
-        "with HDG there should not be any Big MPIMortarSides")
+    IF(nMortarMPISides.NE.0) CALL abort(__STAMP__,"with HDG there should not be any Big MPIMortarSides")
 #endif /*USE_HDG*/
     iMortarMPISide=nSides-nMortarMPISides                  ! first index of the remaining MPI Mortars
     iMortarInnerSide=nBCSides                              ! first index of the new inner Mortars
@@ -794,6 +791,7 @@ DEALLOCATE(NBinfo_glob,nNBProcs_glob,ProcInfo_glob)
 #endif /*USE_MPI*/
 END SUBROUTINE setLocalSideIDs
 
+
 !===================================================================================================================================
 !> This routine condenses the mesh topology from a pointer-based structure into arrays.
 !> The array ElemToSide contains for each elements local side the global SideID and its
@@ -802,8 +800,11 @@ END SUBROUTINE setLocalSideIDs
 !> as well as the local side IDs of the side within those elements.
 !> The last entry is the flip of the slave with regard to the master element.
 !===================================================================================================================================
-
+#if USE_HDG && USE_LOADBALANCE
+SUBROUTINE fillMeshInfo(meshMode)
+#else
 SUBROUTINE fillMeshInfo()
+#endif /*USE_HDG && USE_LOADBALANCE*/
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
@@ -819,10 +820,19 @@ USE MOD_MPI_vars
 #endif
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemHDGSides,TotalHDGSides
-USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide
+USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide,BoundaryName
 #endif /*USE_HDG && USE_LOADBALANCE*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 ! INPUT VARIABLES
+#if USE_HDG && USE_LOADBALANCE
+INTEGER,INTENT(IN) :: meshMode !< 0: only read and build Elem_xGP,
+                               !< 1: as 0 + build connectivity
+                               !< 2: as 1 + calc metrics
+                               !< 3: as 2 but skip InitParticleMesh
+#endif /*USE_HDG && USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -840,6 +850,7 @@ INTEGER             :: dummy(0:4)
 #if USE_HDG && USE_LOADBALANCE
 INTEGER           :: BCType,nMortars
 INTEGER           :: HDGSides
+CHARACTER(3)      :: hilf
 #endif /*USE_HDG && USE_LOADBALANCE*/
 !===================================================================================================================================
 ! Element to Side mapping
@@ -928,17 +939,17 @@ ELSE
   CALL MPI_REDUCE(nSides_MortarType,nSides_MortarType,3,MPI_INTEGER,MPI_SUM,0,MPI_COMM_WORLD,iError)
 END IF
 #endif /*USE_MPI*/
-SWRITE(UNIT_StdOut,'(132("."))')
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=0     | ',nSides_flip(0)
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=1     | ',nSides_flip(1)
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=2     | ',nSides_flip(2)
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=3     | ',nSides_flip(3)
-SWRITE(*,'(A,A34,I0)')' |','nSides with Flip=4     | ',nSides_flip(4)
-SWRITE(UNIT_StdOut,'(132("."))')
-SWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=1 | ',nSides_MortarType(1)
-SWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=2 | ',nSides_MortarType(2)
-SWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=3 | ',nSides_MortarType(3)
-SWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=0     | ',nSides_flip(0)
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=1     | ',nSides_flip(1)
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=2     | ',nSides_flip(2)
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=3     | ',nSides_flip(3)
+LBWRITE(*,'(A,A34,I0)')' |','nSides with Flip=4     | ',nSides_flip(4)
+LBWRITE(UNIT_StdOut,'(132("."))')
+LBWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=1 | ',nSides_MortarType(1)
+LBWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=2 | ',nSides_MortarType(2)
+LBWRITE(*,'(A,A34,I0)')' |','nSides of MortarType=3 | ',nSides_MortarType(3)
+LBWRITE(UNIT_StdOut,'(132("."))')
 
 LOGWRITE(*,*)'============================= START SIDE CHECKER ==================='
 DO iElem=1,nElems
@@ -1007,119 +1018,119 @@ END DO ! iElem=1,PP_nElems
 
 
 #if USE_HDG && USE_LOADBALANCE
-! Weight elements with HDG sides for load balance
-DO iElem=1,nElems
-  DO ilocSide=1,6
-    HDGSides = 0
-    SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
+IF(meshMode.GT.1)THEN
+  ! Weight elements with HDG sides for load balance
+  DO iElem=1,nElems
+    DO ilocSide=1,6
+      HDGSides = 0
+      SideID = ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
 
-    ! Get BC type
-    IF(BC(SideID).GT.0)THEN
-      BCType = BoundaryType(BC(SideID),BC_TYPE)
-    ELSE
-      BCType=0
-    END IF ! BC(SideID).GT.0
-
-    ! Skip slave sides and add weighting only for master or inner or BC sides
-    IF(SideID.LE.lastMPISide_MINE) THEN
-
-      ! Set BC weights
-      IF(SideID.LE.nBCSides)THEN
-        ! Add weighting depending on BC or inner sides
-        SELECT CASE(BCType)
-        CASE(1) !periodic
-          CALL abort(&
-              __STAMP__&
-              ,'SideID.LE.nBCSides and SideID is periodic should not happen')
-        CASE(2,4,5,6) !Dirichlet
-          ! do not consider this side
-        CASE(10,11) !Neumann
-          HDGSides = HDGSides + 1
-        CASE DEFAULT ! unknown BCType
-          CALL abort(&
-              __STAMP__&
-              ,'Unknown BCType for HDG Load Balancing. BCType=',IntInfoOpt=BCType)
-        END SELECT ! BCType
+      ! Get BC type
+      IF(BC(SideID).GT.0)THEN
+        BCType = BoundaryType(BC(SideID),BC_TYPE)
       ELSE
-        ! Check for Mortars
-        locMortarSide=MortarType(2,SideID)
-        IF(locMortarSide.EQ.-1)THEN ! normal side or small mortar side
-          IF(MortarSlave2MasterInfo(SideID).EQ.-1)THEN
-            ! Normal side
-            IF(SideID.GT.lastInnerSide)THEN ! MINE: take the complete weight
-              HDGSides = HDGSides + 1
-            ELSE ! innerSide: split the weight onto two elements (either periodic or normal inner side)
+        BCType=0
+      END IF ! BC(SideID).GT.0
 
-              ! ===================================================
-              ! method 1: slaves get nothing, masters get all
-              IF(ElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN ! master
+      ! Skip slave sides and add weighting only for master or inner or BC sides
+      IF(SideID.LE.lastMPISide_MINE) THEN
+
+        ! Set BC weights
+        IF(SideID.LE.nBCSides)THEN
+          ! Add weighting depending on BC or inner sides
+          SELECT CASE(BCType)
+          CASE(1) !periodic
+            CALL abort(__STAMP__,'SideID.LE.nBCSides and SideID is periodic should not happen')
+          CASE(2,4,5,6,7,8) ! Dirichlet
+            ! do not consider this side
+          CASE(10,11) ! Neumann
+            HDGSides = HDGSides + 1
+          CASE(20) ! FPC
+            HDGSides = HDGSides + 1
+          CASE DEFAULT ! unknown BCType
+            WRITE(UNIT=hilf,FMT='(I0)') BCType
+            CALL abort(__STAMP__,'Unknown BCType='//TRIM(hilf)//' for '//TRIM(BoundaryName(BC(SideID)))//' (HDG Load Balancing)')
+          END SELECT ! BCType
+        ELSE
+          ! Check for Mortars
+          locMortarSide=MortarType(2,SideID)
+          IF(locMortarSide.EQ.-1)THEN ! normal side or small mortar side
+            IF(MortarSlave2MasterInfo(SideID).EQ.-1)THEN
+              ! Normal side
+              IF(SideID.GT.lastInnerSide)THEN ! MINE: take the complete weight
                 HDGSides = HDGSides + 1
-              ELSE
-                ! do not consider this side
-              END IF
+              ELSE ! innerSide: split the weight onto two elements (either periodic or normal inner side)
 
-              ! method 2: add half
-              !HDGSides = HDGSides + 1
-              ! ===================================================
-            END IF ! SideID.GT.lastInnerSide
-          ELSE
-            ! For small mortar sides where the same proc has the large mortar side (and therefore the virtual side is not created)
-            IF(SideID.GT.lastInnerSide)THEN ! MINE: take the complete weight
-              CALL abort(&
-                  __STAMP__&
-                  ,'small mortar sides cannot be MINE!')
-            ELSE ! innerSide: split the weight onto two elements (either periodic or normal inner side)
+                ! ===================================================
+                ! method 1: slaves get nothing, masters get all
+                IF(ElemToSide(E2S_FLIP,ilocSide,iElem).EQ.0)THEN ! master
+                  HDGSides = HDGSides + 1
+                ELSE
+                  ! do not consider this side
+                END IF
 
-              ! ===================================================
-              ! method 1: slaves get nothing!
-              ! Hence, do not consider this side
+                ! method 2: add half
+                !HDGSides = HDGSides + 1
+                ! ===================================================
+              END IF ! SideID.GT.lastInnerSide
+            ELSE
+              ! For small mortar sides where the same proc has the large mortar side (and therefore the virtual side is not created)
+              IF(SideID.GT.lastInnerSide)THEN ! MINE: take the complete weight
+                CALL abort(__STAMP__,'small mortar sides cannot be MINE!')
+              ELSE ! innerSide: split the weight onto two elements (either periodic or normal inner side)
 
-              ! method 2: add half
-              !ElemHDGWeight = ElemHDGWeight + 0.5
-              ! ===================================================
-            END IF ! SideID.GT.lastInnerSide
-          END IF
-        ELSE ! big mortar side
-          nMortars=MERGE(4,2,MortarType(1,SideID).EQ.1)
-          DO iMortar=1,nMortars
-            SideID2= MortarInfo(MI_SIDEID,iMortar,locMortarSide) ! small SideID
-            IF(SideID2.LE.0)THEN
-              CALL abort(&
-                  __STAMP__&
-                  ,'Small SideID of big mortar side must have an ID!')
-            END IF ! SideID2.LE.0
+                ! ===================================================
+                ! method 1: slaves get nothing!
+                ! Hence, do not consider this side
 
-            ! Only account for master
-            IF(SideID2.GT.lastInnerSide)THEN ! MINE: take the complete weight
-              HDGSides = HDGSides + 1
-            ELSE ! innerSide: split the weight onto two elements (either periodic or normal inner side)
-
-              ! ===================================================
-              ! method 1: Mortar sides are alyways master and therefore get everything!
-              HDGSides = HDGSides + 1
-
-              ! method 2: add half
-              !ElemHDGWeight = ElemHDGWeight + 0.5
-              ! ===================================================
+                ! method 2: add half
+                !ElemHDGWeight = ElemHDGWeight + 0.5
+                ! ===================================================
+              END IF ! SideID.GT.lastInnerSide
             END IF
-          END DO ! iMortar=1,4
-        END IF ! locMortarSide
-      END IF ! SideID.LE.nBCSides
+          ELSE ! big mortar side
+            nMortars=MERGE(4,2,MortarType(1,SideID).EQ.1)
+            DO iMortar=1,nMortars
+              SideID2= MortarInfo(MI_SIDEID,iMortar,locMortarSide) ! small SideID
+              IF(SideID2.LE.0)THEN
+                CALL abort(__STAMP__,'Small SideID of big mortar side must have an ID!')
+              END IF ! SideID2.LE.0
 
-      ElemHDGSides(iElem) = ElemHDGSides(iElem) + HDGSides
-      TotalHDGSides       = TotalHDGSides       + HDGSides
+              ! Only account for master
+              IF(SideID2.GT.lastInnerSide)THEN ! MINE: take the complete weight
+                HDGSides = HDGSides + 1
+              ELSE ! innerSide: split the weight onto two elements (either periodic or normal inner side)
 
-    END IF ! SideID.LE.lastMPISide_MINE
+                ! ===================================================
+                ! method 1: Mortar sides are always master and therefore get everything!
+                HDGSides = HDGSides + 1
 
-  END DO ! ilocSide=1,6
+                ! method 2: add half
+                !ElemHDGWeight = ElemHDGWeight + 0.5
+                ! ===================================================
+              END IF
+            END DO ! iMortar=1,4
+          END IF ! locMortarSide
+        END IF ! SideID.LE.nBCSides
 
+        ElemHDGSides(iElem) = ElemHDGSides(iElem) + HDGSides
+        TotalHDGSides       = TotalHDGSides       + HDGSides
+
+      END IF ! SideID.LE.lastMPISide_MINE
+
+    END DO ! ilocSide=1,6
+
+    ! Sanity check:
+    ! Elements with zero weight are not allowed as they still require some work for 2D to 3D mapping. Add small value.
+    IF(ElemHDGSides(iElem).LE.0)THEN
+      ElemHDGSides(iElem) = 1
+    END IF ! ElemHDGSides(iElem).LE.0
+
+  END DO ! iElem=1,PP_nElems
   ! Sanity check:
   ! Elements with zero weight are not allowed as they still require some work for 2D to 3D mapping. Add small value.
-  IF(ElemHDGSides(iElem).LE.0)THEN
-    ElemHDGSides(iElem) = 1
-  END IF ! ElemHDGSides(iElem).LE.0
-
-END DO ! iElem=1,PP_nElems
+  IF(TotalHDGSides.EQ.0) TotalHDGSides = 1
+END IF ! meshMode.GT.1
 #endif /*USE_HDG && USE_LOADBALANCE*/
 
 
@@ -1194,13 +1205,9 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
   IF(nMPISides_YOUR_Proc(iNbProc).GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(&
-  __STAMP__&
-  ,' MPI-Error during flip-exchange. iError', iERROR)
+  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during flip-exchange. iError', iERROR)
   IF(nMPISides_MINE_Proc(iNBProc).GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(&
-  __STAMP__&
-  ,' MPI-Error during flip-exchange. iError', iERROR)
+  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during flip-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
@@ -1212,8 +1219,7 @@ DO iElem=1,nElems
       IF(aSide%NbProc.EQ.-1) CYCLE !no MPISide
       IF(aSide%SideID.GT.offsetMPISides_YOUR(0))THEN
         IF(aSide%flip.EQ.0)THEN
-          IF(Flip_YOUR(aSide%SideID).EQ.0) CALL abort(__STAMP__&
-              ,'problem in exchangeflip',aSide%SideID,REAL(Flip_Your(aSide%SideID)))
+          IF(Flip_YOUR(aSide%SideID).EQ.0)CALL abort(__STAMP__,'problem in exchangeflip',aSide%SideID,REAL(Flip_Your(aSide%SideID)))
           aSide%flip=Flip_YOUR(aSide%sideID)
         END IF
       ELSE
@@ -1295,14 +1301,10 @@ END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
   nRecVal     =nMPISides_rec(iNbProc,2)
   IF(nRecVal.GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(&
-  __STAMP__&
-  ,' MPI-Error during ElemID-exchange. iError', iERROR)
+  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
   nSendVal    =nMPISides_send(iNBProc,2)
   IF(nSendVal.GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(&
-  __STAMP__&
-  ,' MPI-Error during ElemID-exchange. iError', iERROR)
+  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 
 ! second communication: Master to Slave
@@ -1327,14 +1329,10 @@ END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
   nRecVal     =nMPISides_rec(iNbProc,1)
   IF(nRecVal.GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(&
-  __STAMP__&
-  ,' MPI-Error during ElemID-exchange. iError', iERROR)
+  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
   nSendVal    =nMPISides_send(iNBProc,1)
   IF(nSendVal.GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(&
-  __STAMP__&
-  ,' MPI-Error during ElemID-exchange. iError', iERROR)
+  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 
 DO iElem=1,nElems

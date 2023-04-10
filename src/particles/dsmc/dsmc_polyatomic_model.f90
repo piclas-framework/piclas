@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -183,7 +183,7 @@ SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_
 ! MODULES
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC,PolyatomMolDSMC,VibQuantsPar,BGGas
 USE MOD_Particle_Vars         ,ONLY: PEM, Species
 USE MOD_Particle_Sampling_Vars,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
 USE MOD_DSMC_ElectronicModel  ,ONLY: InitElectronShell
@@ -231,6 +231,14 @@ SELECT CASE (init_or_sf)
     __STAMP__&
     ,'Neither iInit nor SurfaceFlux defined as reference!')
 END SELECT
+
+! Background gas distribution
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  IF(BGGas%BackgroundSpecies(iSpecies).AND.BGGas%UseDistribution) THEN
+    TVib = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpecies),DSMC_TVIB,ElemID)
+    TRot = BGGas%Distribution(BGGas%MapSpecToBGSpec(iSpecies),DSMC_TROT,ElemID)
+  END IF
+END IF
 
 IF (DSMC%ElectronicModel.GT.0) THEN
   CALL InitElectronShell(iSpecies,iPart,iInit,init_or_sf)
@@ -652,7 +660,7 @@ SUBROUTINE DSMC_VibRelaxPoly_ARM(iPair, iPart, FakXi)
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData, RadialWeighting
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -671,7 +679,7 @@ INTEGER,ALLOCATABLE           :: iQuant(:), iMaxQuant(:)
 INTEGER                       :: iDOF,iPolyatMole, iSpec
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
-IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
   Ec = Coll_pData(iPair)%Ec
@@ -717,7 +725,7 @@ SUBROUTINE DSMC_VibRelaxPoly_MH(iPair, iPart,FakXi)
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData, RadialWeighting
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -735,7 +743,7 @@ INTEGER,ALLOCATABLE           :: iQuant(:), iMaxQuant(:)
 INTEGER                       :: iDOF,iPolyatMole, iWalk, iSpec
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
-IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
   Ec = Coll_pData(iPair)%Ec
@@ -784,7 +792,7 @@ SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling(iPair, iPart, FakXi)
 ! MODULES
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData, RadialWeighting
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, VarTimeStep, usevMPF
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -801,7 +809,7 @@ INTEGER,ALLOCATABLE           :: iQuant(:), iMaxQuant(:)
 INTEGER                       :: iDOF, iDOF2, iPolyatMole, iSpec, iLoop
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
-IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarTimeStep%UseVariableTimeStep) THEN
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
   Ec = Coll_pData(iPair)%Ec
@@ -894,9 +902,10 @@ SUBROUTINE DSMC_VibRelaxPolySingle(iPair, iPart, FakXi, DOFRelax)
 ! NOTE: Not compatible for radial weighting yet.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar, Coll_pData, DSMC
-USE MOD_Particle_Vars         ,ONLY: PartSpecies
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar, Coll_pData, DSMC, RadialWeighting
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, usevMPF, UseVarTimeStep
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
+USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -907,18 +916,21 @@ REAL, INTENT(IN)              :: FakXi
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: iRan, MaxColQua
+REAL                          :: iRan, MaxColQua, Ec
 INTEGER                       :: iPolyatMole, iQua, iQuaMax
 !===================================================================================================================================
 ! Not all vibrational energy is redistributed but only the energy of the selected vibrational degree of freedom
-Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,iPart)
+Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,iPart)*GetParticleWeight(iPart)
 
 iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
 ! Adding the vibrational energy of the selected vibrational mode DOFRelax
-Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (VibQuantsPar(iPart)%Quants(DOFRelax) + DSMC%GammaQuant) * BoltzmannConst  &
-                                                * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
+Ec = Ec + (VibQuantsPar(iPart)%Quants(DOFRelax) + DSMC%GammaQuant) * BoltzmannConst  &
+                                                * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)*GetParticleWeight(iPart)
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
+  Ec = Ec / GetParticleWeight(iPart)
+END IF
 ! Determining the maximal quantum number with the available collision energy
-MaxColQua = Coll_pData(iPair)%Ec/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)) - DSMC%GammaQuant
+MaxColQua = Ec/(BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)) - DSMC%GammaQuant
 iQuaMax = MIN(INT(MaxColQua) + 1, PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(DOFRelax))
 ! Get the new vibrational quantum number
 CALL RANDOM_NUMBER(iRan)
@@ -939,9 +951,6 @@ PartStateIntEn(1,iPart) = PartStateIntEn(1,iPart) &
 
 ! Saving the vibrational quantum number
 VibQuantsPar(iPart)%Quants(DOFRelax) = iQua
-! Removing the vibrational energy from the remaining collision energy
-Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
-  - (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(DOFRelax)
 
 END SUBROUTINE DSMC_VibRelaxPolySingle
 

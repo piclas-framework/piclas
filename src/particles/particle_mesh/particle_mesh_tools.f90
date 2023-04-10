@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -14,7 +14,7 @@
 
 MODULE MOD_Particle_Mesh_Tools
 !===================================================================================================================================
-! Contains subroutines to build (curviilinear) meshes and provide metrics, etc.
+! Contains subroutines to build (curvilinear) meshes and provide metrics, etc.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -22,14 +22,6 @@ IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Initialization routines
-INTERFACE InitPEM_LocalElemID
-  MODULE PROCEDURE InitPEM_LocalElemID
-END INTERFACE
-
-INTERFACE InitPEM_CNElemID
-  MODULE PROCEDURE InitPEM_CNElemID
-END INTERFACE
-
 INTERFACE GetGlobalNonUniqueSideID
   MODULE PROCEDURE GetGlobalNonUniqueSideID
 END INTERFACE
@@ -39,8 +31,8 @@ INTERFACE GetSideBoundingBoxTria
 END INTERFACE
 
 PUBLIC :: ParticleInsideQuad3D, InitPEM_LocalElemID, InitPEM_CNElemID, GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
-PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, InitElemNodeIDs
-PUBLIC :: CalcBezierControlPoints, InitParticleGeometry
+PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, InitElemNodeIDs, CalcXCL_NGeo
+PUBLIC :: CalcBezierControlPoints, InitParticleGeometry, ComputePeriodicVec
 !===================================================================================================================================
 CONTAINS
 
@@ -85,8 +77,8 @@ nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIR
 CNElemID = GetCNElemID(ElemID)
 DO iLocSide = 1,nlocSides
   SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
-  IF (SideInfo_Shared(SIDE_LOCALID,SideID).LE.0) CYCLE
   localSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+  IF (localSideID.LE.0) CYCLE
   DO NodeNum = 1,4
     !--- A = vector from particle to node coords
     A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,localSideID,CNElemID)+1) - PartStateLoc(1:3)
@@ -224,8 +216,8 @@ nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIR
 CNElemID = GetCNElemID(ElemID)
 DO iLocSide = 1,nlocSides
   SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
-  IF (SideInfo_Shared(SIDE_LOCALID,SideID).LE.0) CYCLE
-  localSideID = SideInfo_Shared(SIDE_LOCALID,SideID)      ! for all 6 sides of the element
+  localSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+  IF (localSideID.LE.0) CYCLE
   DO NodeNum = 1,4
   !--- A = vector from particle to node coords
     A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,localSideID,CNElemID)+1) - PartStateLoc(1:3)
@@ -522,6 +514,7 @@ DO iSide = firstSide,lastSide
 END DO
 
 ! We should never arrive here
+GetGlobalNonUniqueSideID=-1
 CALL ABORT(__STAMP__,'GlobalSideID not found for Elem',ElemID)
 END FUNCTION GetGlobalNonUniqueSideID
 
@@ -573,6 +566,7 @@ SUBROUTINE GetMeshMinMax()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY: offsetElem,nElems
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,NodeCoords_Shared
@@ -582,6 +576,9 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeSide,nComputeNodeSides
 USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeNode,nComputeNodeNodes
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -677,6 +674,17 @@ GEO%zminglob = GEO%zmin
 GEO%zmaxglob = GEO%zmax
 #endif /*USE_MPI*/
 
+LBWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') ' | Total MESH   Dim (x,y,z): '                                     &
+                                                , MAXVAL(NodeCoords_Shared(1,:))-MINVAL(NodeCoords_Shared(1,:)),', '&
+                                                , MAXVAL(NodeCoords_Shared(2,:))-MINVAL(NodeCoords_Shared(2,:)),', '&
+                                                , MAXVAL(NodeCoords_Shared(3,:))-MINVAL(NodeCoords_Shared(3,:))
+IF (TrackingMethod.EQ.REFMAPPING .OR. TrackingMethod.EQ. TRACING) THEN
+  LBWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') ' | Total BEZIER Dim (x,y,z): '                                   &
+                                                  , GEO%xmaxglob-GEO%xminglob,', '                                  &
+                                                  , GEO%ymaxglob-GEO%yminglob,', '                                  &
+                                                  , GEO%zmaxglob-GEO%zminglob
+END IF
+
 END SUBROUTINE GetMeshMinMax
 
 
@@ -713,6 +721,9 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: SideNormVec_Shared,SideNormVec_Shared_Win
 #else
 USE MOD_Particle_Mesh_Vars     ,ONLY: nComputeNodeElems
 #endif /* USE_MPI */
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -743,8 +754,8 @@ INTEGER                                  :: nLinearElemsTot,nCurvedElemsTot
 !#endif /* USE_MPI */
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
 
 ! elements
 #if USE_MPI
@@ -798,8 +809,8 @@ NGeo3 = NGeo2   *(NGeo+1)
 ! decide if element is (bi-)linear or curved
 ! decide if sides are planar-rect, planar-nonrect, planar-curved, bilinear or curved
 #if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -1056,13 +1067,13 @@ nLinearElemsTot          = nLinearElems
 nCurvedElemsTot          = nCurvedElems
 #endif /* USE_MPI */
 
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-rectangular     faces: ', nPlanarRectangulartot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-non-rectangular faces: ', nPlanarNonRectangulartot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of bi-linear              faces: ', nBilineartot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-curved          faces: ', nPlanarCurvedtot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 faces: ', nCurvedtot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of (bi-)linear            elems: ', nLinearElemsTot
-SWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 elems: ', nCurvedElemsTot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-rectangular     faces: ', nPlanarRectangulartot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-non-rectangular faces: ', nPlanarNonRectangulartot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of bi-linear              faces: ', nBilineartot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of planar-curved          faces: ', nPlanarCurvedtot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 faces: ', nCurvedtot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of (bi-)linear            elems: ', nLinearElemsTot
+LBWRITE(UNIT_StdOut,'(A,I8)') ' | Number of curved                 elems: ', nCurvedElemsTot
 
 END SUBROUTINE IdentifyElemAndSideType
 
@@ -1116,14 +1127,16 @@ SUBROUTINE WeirdElementCheck()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ConcaveElemSide_Shared,ElemSideNodeID_Shared
-USE MOD_Particle_Mesh_Vars        ,ONLY: WeirdElems
-USE MOD_Mesh_Tools                ,ONLY: GetGlobalElemID
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared,ConcaveElemSide_Shared,ElemSideNodeID_Shared,WeirdElems
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
 #if USE_MPI
-USE MOD_MPI_Shared_Vars           ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,myComputeNodeRank
 #else
-USE MOD_Mesh_Vars                 ,ONLY: nElems
+USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1138,12 +1151,12 @@ REAL              :: vec(1:3), Node(1:3,1:4),det(1:3)
 LOGICAL           :: WEIRD, TRICHECK, TRIABSCHECK
 INTEGER           :: firstElem,lastElem
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' CHECKING FOR WEIRD ELEMENTS...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' CHECKING FOR WEIRD ELEMENTS...'
 
 #if USE_MPI
-firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -1254,17 +1267,17 @@ IF(WeirdElems.GT.0) THEN
   CALL abort(__STAMP__,'Weird elements found: it means that part of the element is turned inside-out')
 END IF
 
-SWRITE(UNIT_stdOut,'(A)')' CHECKING FOR WEIRD ELEMENTS DONE!'
+LBWRITE(UNIT_stdOut,'(A)')' CHECKING FOR WEIRD ELEMENTS DONE!'
 
 DEALLOCATE(WeirdElemNbrs)
 
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE WeirdElementCheck
 
 
-SUBROUTINE CalcParticleMeshMetrics()
+SUBROUTINE CalcXCL_NGeo()
 !===================================================================================================================================
-!> calculates XCL_Ngeo and dXCL_Ngeo for global mesh
+!> calculates Chebyshev-Lobatto basis XCL_NGeo(1:3,i,j,k,iElem) i,j,k=[0:NGeo]
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1272,13 +1285,12 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Basis                  ,ONLY: BuildBezierVdm,BuildBezierDMat
 USE MOD_Basis                  ,ONLY: BarycentricWeights,ChebyGaussLobNodesAndWeights,InitializeVandermonde
-USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
-USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo,dXCL_NGeo,Xi_NGeo
-USE MOD_Mesh_Vars              ,ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1,nElems
+USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,wBaryCL_NGeo,XiCL_NGeo,Xi_NGeo
+USE MOD_Mesh_Vars              ,ONLY: wBaryCL_NGeo1,Vdm_CLNGeo1_CLNGeo,XiCL_NGeo1
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Surfaces_Vars ,ONLY: Vdm_Bezier,sVdm_Bezier,D_Bezier
 #if USE_MPI
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem,nElems
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 #endif
@@ -1290,18 +1302,20 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
+#if USE_MPI
 INTEGER                        :: iElem
+#endif /*USE_MPI*/
 REAL                           :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
 !===================================================================================================================================
 
 ! small wBaryCL_NGEO
 ALLOCATE( wBaryCL_NGeo1(            0:1)    ,&
-          XiCL_NGeo1(               0:1)    ,&
-          Vdm_CLNGeo1_CLNGeo(0:NGeo,0:1)    ,&
-! new for curved particle sides
-          Vdm_Bezier(        0:NGeo,0:NGeo) ,&
-          sVdm_Bezier(       0:NGeo,0:NGeo) ,&
-          D_Bezier(          0:NGeo,0:NGeo))
+    XiCL_NGeo1(               0:1)    ,&
+    Vdm_CLNGeo1_CLNGeo(0:NGeo,0:1)    ,&
+    ! new for curved particle sides
+Vdm_Bezier(        0:NGeo,0:NGeo) ,&
+    sVdm_Bezier(       0:NGeo,0:NGeo) ,&
+    D_Bezier(          0:NGeo,0:NGeo))
 
 CALL ChebyGaussLobNodesAndWeights(1,XiCL_NGeo1)
 CALL BarycentricWeights(1,XiCL_NGeo1,wBaryCL_NGeo1)
@@ -1319,36 +1333,89 @@ IF (PerformLoadBalance) RETURN
 #if USE_MPI
 ! This is a trick. Allocate as 1D array and then set a pointer with the proper array bounds
 CALL Allocate_Shared((/3*  (NGeo+1)*(NGeo+1)*(NGeo+1)*nGlobalElems/), XCL_NGeo_Shared_Win,XCL_NGeo_Array)
+CALL MPI_WIN_LOCK_ALL(0,XCL_NGeo_Shared_Win,IERROR)
+XCL_NGeo_Shared (1:3    ,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => XCL_NGeo_Array
+
+DO iElem = 1,nElems
+  XCL_NGeo_Shared (:  ,:,:,:,offsetElem+iElem) = XCL_NGeo (:  ,:,:,:,iElem)
+END DO ! iElem = 1, nElems
+
+! Communicate XCL and dXCL between compute node roots instead of calculating globally
+CALL BARRIER_AND_SYNC(XCL_NGeo_Shared_Win ,MPI_COMM_SHARED)
+
+IF (nComputeNodeProcessors.NE.nProcessors_Global .AND. myComputeNodeRank.EQ.0) THEN
+  CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
+      , 0                             &
+      , MPI_DATATYPE_NULL             &
+      , XCL_NGeo_Shared               &
+      , 3*(NGeo+1)**3*recvcountElem   &
+      , 3*(NGeo+1)**3*displsElem      &
+      , MPI_DOUBLE_PRECISION          &
+      , MPI_COMM_LEADERS_SHARED       &
+      , IERROR)
+END IF
+
+CALL BARRIER_AND_SYNC(XCL_NGeo_Shared_Win ,MPI_COMM_SHARED)
+#else
+XCL_NGeo_Shared  => XCL_NGeo
+#endif /*USE_MPI*/
+
+END SUBROUTINE CalcXCL_NGeo
+
+
+SUBROUTINE CalcParticleMeshMetrics()
+!===================================================================================================================================
+!> calculates dXCL_Ngeo for global mesh
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
+USE MOD_Mesh_Vars              ,ONLY: NGeo,dXCL_NGeo
+USE MOD_Particle_Mesh_Vars
+#if USE_MPI
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem,nElems
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars
+#endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+#if USE_MPI
+INTEGER                        :: iElem
+#endif /*USE_MPI*/
+!===================================================================================================================================
+
+#if USE_LOADBALANCE
+! XCL and dXCL are global and do not change during load balance, return
+IF (PerformLoadBalance) RETURN
+#endif
+
+#if USE_MPI
+! This is a trick. Allocate as 1D array and then set a pointer with the proper array bounds
 CALL Allocate_Shared((/3*  (PP_N+1)*(PP_N+1)*(PP_N+1)*nGlobalElems/), Elem_xGP_Shared_Win,Elem_xGP_Array)
 CALL Allocate_Shared((/3*3*(NGeo+1)*(NGeo+1)*(NGeo+1)*nGlobalElems/),dXCL_NGeo_Shared_Win,dXCL_NGeo_Array)
-CALL MPI_WIN_LOCK_ALL(0,XCL_NGeo_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,Elem_xGP_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,dXCL_NGeo_Shared_Win,IERROR)
-XCL_NGeo_Shared (1:3    ,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => XCL_NGeo_Array
 Elem_xGP_Shared (1:3    ,0:PP_N,0:PP_N,0:PP_N,1:nGlobalElems) => Elem_xGP_Array
 dXCL_NGeo_Shared(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => dXCL_NGeo_Array
 
 DO iElem = 1,nElems
-  XCL_NGeo_Shared (:  ,:,:,:,offsetElem+iElem) = XCL_NGeo (:  ,:,:,:,iElem)
   Elem_xGP_Shared (:  ,:,:,:,offsetElem+iElem) = Elem_xGP (:  ,:,:,:,iElem)
   dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) = dXCL_NGeo(:,:,:,:,:,iElem)
 END DO ! iElem = 1, nElems
 
 ! Communicate XCL and dXCL between compute node roots instead of calculating globally
-CALL BARRIER_AND_SYNC(XCL_NGeo_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(Elem_xGP_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(dXCL_NGeo_Shared_Win,MPI_COMM_SHARED)
 
 IF (nComputeNodeProcessors.NE.nProcessors_Global .AND. myComputeNodeRank.EQ.0) THEN
-  CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
-                     , 0                             &
-                     , MPI_DATATYPE_NULL             &
-                     , XCL_NGeo_Shared               &
-                     , 3*(NGeo+1)**3*recvcountElem   &
-                     , 3*(NGeo+1)**3*displsElem      &
-                     , MPI_DOUBLE_PRECISION          &
-                     , MPI_COMM_LEADERS_SHARED       &
-                     , IERROR)
 
   CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
                      , 0                             &
@@ -1371,11 +1438,9 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global .AND. myComputeNodeRank.EQ.0) T
                      , IERROR)
 END IF
 
-CALL BARRIER_AND_SYNC(XCL_NGeo_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(Elem_xGP_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(dXCL_NGeo_Shared_Win,MPI_COMM_SHARED)
 #else
-XCL_NGeo_Shared  => XCL_NGeo
 Elem_xGP_Shared  => Elem_xGP
 dXCL_NGeo_Shared => dXCL_NGeo
 #endif /*USE_MPI*/
@@ -1432,7 +1497,7 @@ INTEGER                        :: ALLOCSTAT
 IF (PerformLoadBalance) RETURN
 #endif
 
-SWRITE(UNIT_stdOut,'(A)') ' CALCULATING BezierControlPoints ...'
+LBWRITE(UNIT_stdOut,'(A)') ' CALCULATING BezierControlPoints ...'
 
 ! Build BezierControlPoints3D (compute-node local+halo)
 #if USE_MPI
@@ -1458,8 +1523,7 @@ IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'  Cannot allocate BezierControlPoints3
 BezierControlPoints3D         = 0.
 
 IF (BezierElevation.GT.0) THEN
-  ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nNonUniqueGlobalSides) &
-          ,STAT=ALLOCSTAT)
+  ALLOCATE(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nNonUniqueGlobalSides),STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'  Cannot allocate BezierControlPoints3DElevated!')
   BezierControlPoints3DElevated = 0.
 END IF
@@ -1471,10 +1535,10 @@ IF (BezierElevation.GT.0) THEN
   CALL BARRIER_AND_SYNC(BezierControlPoints3DElevated_Shared_Win,MPI_COMM_SHARED)
 END IF
 
-firstElem = INT(REAL( myComputeNodeRank*   nGlobalElems)/REAL(nComputeNodeProcessors))+1
-lastElem  = INT(REAL((myComputeNodeRank+1)*nGlobalElems)/REAL(nComputeNodeProcessors))
-firstSide = INT(REAL (myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
-lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
+firstSide = INT(REAL (myComputeNodeRank   )*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
 #else
 firstElem = 1
 lastElem  = nElems
@@ -1553,6 +1617,9 @@ USE MOD_MPI_Shared_Vars
 USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1570,8 +1637,8 @@ REAL               :: A(3,3),detcon
 INTEGER            :: CornerNodeIDswitch(8)
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PARTICLE GEOMETRY INFORMATION...'
 
 ! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
 CornerNodeIDswitch(1)=1
@@ -1596,8 +1663,8 @@ ASSOCIATE(CNS => CornerNodeIDswitch )
 #if USE_MPI
   CALL Allocate_Shared((/6,nComputeNodeTotalElems/),ConcaveElemSide_Shared_Win,ConcaveElemSide_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ConcaveElemSide_Shared_Win,IERROR)
-  firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-  lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+  firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+  lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
 
   CALL Allocate_Shared((/4,6,nComputeNodeTotalElems/),ElemSideNodeID_Shared_Win,ElemSideNodeID_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemSideNodeID_Shared_Win,IERROR)
@@ -1632,8 +1699,8 @@ ASSOCIATE(CNS => CornerNodeIDswitch )
       ! Get global SideID
       GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
 
-      IF (SideInfo_Shared(SIDE_LOCALID,GlobalSideID).LE.0) CYCLE
       localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+      IF (localSideID.LE.0) CYCLE
       ! Find start of CGNS mapping from flip
       IF (SideInfo_Shared(SIDE_ID,GlobalSideID).GT.0) THEN
         nStart = 0
@@ -1642,12 +1709,12 @@ ASSOCIATE(CNS => CornerNodeIDswitch )
       END IF
       ! Shared memory array starts at 1, but NodeID at 0
       ElemSideNodeID_Shared(1:4,localSideID,iElem) = (/ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart  ,4)+1,localSideID)-1, &
-          ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+1,4)+1,localSideID)-1, &
-          ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+2,4)+1,localSideID)-1, &
-          ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+3,4)+1,localSideID)-1/)
+                                                       ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+1,4)+1,localSideID)-1, &
+                                                       ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+2,4)+1,localSideID)-1, &
+                                                       ElemInfo_Shared(ELEM_FIRSTNODEIND,GlobalElemID)+NodeMap(MOD(nStart+3,4)+1,localSideID)-1/)
 
-    END DO
-  END DO
+    END DO ! iLocSide = 1,nlocSides
+  END DO ! iElem = firstElem,lastElem
 
 END ASSOCIATE
 #if USE_MPI
@@ -1664,8 +1731,8 @@ DO iElem = firstElem,lastElem
     !--- Check whether the bilinear side is concave
     !--- Node Number 4 and triangle 1-2-3
     GlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
-    IF (SideInfo_Shared(SIDE_LOCALID,GlobalSideID).LE.0) CYCLE
     localSideID = SideInfo_Shared(SIDE_LOCALID,GlobalSideID)
+    IF (localSideID.LE.0) CYCLE
     DO NodeNum = 1,3               ! for all 3 nodes of triangle
        A(:,NodeNum) = NodeCoords_Shared(:,ElemSideNodeID_Shared(NodeNum,localSideID,iElem)+1) &
                     - NodeCoords_Shared(:,ElemSideNodeID_Shared(4      ,localSideID,iElem)+1)
@@ -1702,8 +1769,8 @@ CALL BARRIER_AND_SYNC(ElemMidPoint_Shared_Win   ,MPI_COMM_SHARED)
 meshCheckWeirdElements = GETLOGICAL('meshCheckWeirdElements','.TRUE.')
 IF(meshCheckWeirdElements) CALL WeirdElementCheck()
 
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GEOMETRY INFORMATION DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitParticleGeometry
 
 
@@ -1750,8 +1817,8 @@ CornerNodeIDswitch(8)=(Ngeo+1)**2*Ngeo+(Ngeo+1)*Ngeo+1
 ! New crazy corner node switch (philipesque)
 ASSOCIATE(CNS => CornerNodeIDswitch )
 #if USE_MPI
-  firstElem = INT(REAL( myComputeNodeRank   *nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
-  lastElem  = INT(REAL((myComputeNodeRank+1)*nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+  firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+  lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
   CALL Allocate_Shared((/8,nComputeNodeTotalElems/),ElemNodeID_Shared_Win,ElemNodeID_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemNodeID_Shared_Win,IERROR)
 #else
@@ -1781,5 +1848,169 @@ END ASSOCIATE
 CALL BARRIER_AND_SYNC(ElemNodeID_Shared_Win,MPI_COMM_SHARED)
 #endif
 END SUBROUTINE InitElemNodeIDs
+
+
+SUBROUTINE ComputePeriodicVec()
+!===================================================================================================================================
+! Init of Particle mesh
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Mesh_Vars              ,ONLY: NGeo,offsetElem,BoundaryType
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+USE MOD_Particle_Vars          ,ONLY: PartMeshHasPeriodicBCs
+USE MOD_Mesh_Vars              ,ONLY: nElems
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER,PARAMETER              :: iNode=1
+INTEGER                        :: iVec,iBC,iPartBC
+INTEGER                        :: firstElem,lastElem,NbSideID,BCALPHA,flip
+INTEGER                        :: SideID,ElemID,NbElemID,localSideID,localSideNbID,nStart
+INTEGER                        :: CornerNodeIDswitch(8),NodeMap(4,6)
+REAL,DIMENSION(3)              :: MasterCoords,SlaveCoords,Vec
+LOGICAL,ALLOCATABLE            :: PeriodicFound(:)
+#if USE_MPI
+REAL                           :: sendbuf
+REAL,ALLOCATABLE               :: recvbuf(:)
+#endif
+!-----------------------------------------------------------------------------------------------------------------------------------
+
+! the cornernodes are not the first 8 entries (for Ngeo>1) of nodeinfo array so mapping is built
+CornerNodeIDswitch(1)=1
+CornerNodeIDswitch(2)=(NGeo+1)
+CornerNodeIDswitch(3)=(NGeo+1)**2
+CornerNodeIDswitch(4)=(NGeo+1)*NGeo+1
+CornerNodeIDswitch(5)=(NGeo+1)**2*NGeo+1
+CornerNodeIDswitch(6)=(NGeo+1)**2*NGeo+(NGeo+1)
+CornerNodeIDswitch(7)=(NGeo+1)**2*NGeo+(NGeo+1)**2
+CornerNodeIDswitch(8)=(NGeo+1)**2*NGeo+(NGeo+1)*NGeo+1
+
+! Corner node switch to order HOPR coordinates in CGNS format
+ASSOCIATE(CNS => CornerNodeIDswitch )
+! CGNS Mapping
+NodeMap(:,1)=(/CNS(1),CNS(4),CNS(3),CNS(2)/)
+NodeMap(:,2)=(/CNS(1),CNS(2),CNS(6),CNS(5)/)
+NodeMap(:,3)=(/CNS(2),CNS(3),CNS(7),CNS(6)/)
+NodeMap(:,4)=(/CNS(3),CNS(4),CNS(8),CNS(7)/)
+NodeMap(:,5)=(/CNS(1),CNS(5),CNS(8),CNS(4)/)
+NodeMap(:,6)=(/CNS(5),CNS(6),CNS(7),CNS(8)/)
+
+! Find number of periodic vectors
+GEO%nPeriodicVectors = MERGE(MAXVAL(BoundaryType(:,BC_ALPHA)),0,PartMeshHasPeriodicBCs)
+IF (GEO%nPeriodicVectors.EQ.0) RETURN
+
+firstElem = offsetElem+1
+lastElem  = offsetElem+nElems
+
+ALLOCATE(PeriodicFound(1:GEO%nPeriodicVectors))
+PeriodicFound(:) = .FALSE.
+
+ALLOCATE(GEO%PeriodicVectors(1:3,GEO%nPeriodicVectors))
+GEO%PeriodicVectors = 0.
+
+DO ElemID = firstElem,lastElem
+  ! Every periodic vector already found
+  IF (ALL(PeriodicFound(:))) EXIT
+
+SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
+    ! Get BC
+    iBC = SideInfo_Shared(SIDE_BCID,SideID)
+    IF(iBC.EQ.0) CYCLE
+
+    ! Get particle BC
+    iPartBC = PartBound%MapToPartBC(iBC)
+    IF (iPartBC.EQ.0) CYCLE
+
+    ! Boundary is a periodic boundary
+    IF (PartBound%TargetBoundCond(iPartBC).NE.3) CYCLE
+
+    ! Check if side is master side
+    BCALPHA = BoundaryType(iBC,BC_ALPHA)
+
+    IF (BCALPHA.GT.0) THEN
+      ! Periodic vector already found
+      IF (PeriodicFound(BCALPHA)) CYCLE
+
+      ! Periodic slave side has same ID, but negative sign
+      flip          = MERGE(0,MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
+      NbElemID      = SideInfo_Shared(SIDE_NBELEMID,SideID)
+      localSideID   = SideInfo_Shared(SIDE_LOCALID,SideID)
+      localSideNbID = (SideInfo_Shared(SIDE_FLIP,SideID)-flip)/10
+      NbSideID      = GetGlobalNonUniqueSideID(NbElemID,localSideNbID)
+      nStart        = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,NbSideID),10)-1)
+
+      ! Only take the first node into account, no benefit in accuracy if running over others as well
+      MasterCoords  = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)  +NodeMap(iNode                  ,localSideID))
+      SlaveCoords   = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,NbElemID)+NodeMap(MOD(nStart+5-iNode,4)+1,localSideNbID))
+      Vec           = SlaveCoords-MasterCoords
+
+      ! Might consider aborting here, malformed periodic sides
+      IF (VECNORM(Vec).EQ.0) CYCLE
+
+      ! Check if the periodic vector is ALMOST aligned with a Cartesian direction
+      DO iVec = 1,3
+        ! IF (ABS(Vec(iVec)).GT.0 .AND. ABS(Vec(iVec))*VECNORM(Vec).LT.1E-12) CYCLE SideLoop
+        IF (ABS(Vec(iVec)).GT.0 .AND. ABS(Vec(iVec)).LT.1E-12*VECNORM(Vec)) Vec(iVec) = 0.
+      END DO
+
+      GEO%PeriodicVectors(:,BCALPHA) = Vec
+      PeriodicFound(BCALPHA) = .TRUE.
+    END IF
+  END DO SideLoop
+END DO
+
+END ASSOCIATE
+
+#if USE_MPI
+ALLOCATE(recvbuf(0:nProcessors-1))
+sendbuf = 0.
+recvbuf = 0.
+
+DO iVec = 1,GEO%nPeriodicVectors
+  sendbuf = MERGE(VECNORM(GEO%PeriodicVectors(:,iVec)),HUGE(1.),PeriodicFound(iVec))
+
+! Do it by hand, MPI_ALLREDUCE seems problematic with MPI_2DOUBLE_PRECISION and MPI_MINLOC
+! https://stackoverflow.com/questions/56307320/mpi-allreduce-not-synchronizing-properly
+!CALL MPI_ALLREDUCE(MPI_IN_PLACE,sendbuf,GEO%nPeriodicVectors,MPI_2DOUBLE_PRECISION,MPI_MINLOC,MPI_COMM_SHARED,iERROR)
+
+  CALL MPI_ALLGATHER(sendbuf,1,MPI_DOUBLE_PRECISION,recvbuf(:),1,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,iERROR)
+  IF (ALL(recvbuf(:).EQ.HUGE(1.))) CALL CollectiveStop(__STAMP__,'No periodic vector for BC_ALPHA found!',IntInfo=iVec)
+
+  ! MINLOC does not follow array bounds, so root rank = 1
+  CALL MPI_BCAST(GEO%PeriodicVectors(:,iVec),3,MPI_DOUBLE_PRECISION,MINLOC(recvbuf(:),1)-1,MPI_COMM_WORLD,iError)
+END DO
+#endif /*USE_MPI*/
+
+SDEALLOCATE(PeriodicFound)
+
+#if USE_MPI
+IF (myRank.EQ.0) THEN
+#endif /*USE_MPI*/
+  LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Found ',GEO%nPeriodicVectors,' periodic vectors for particle tracking'
+  DO iVec = 1,GEO%nPeriodicVectors
+    LBWRITE(UNIT_stdOut,'(A,I1,A,F12.8,2(", ",F12.8))') ' | Periodic vector ',iVec,': ', GEO%PeriodicVectors(:,iVec)
+  END DO
+
+  ! Sanity check
+  DO iVec = 1,GEO%nPeriodicVectors
+    IF(VECNORM(GEO%PeriodicVectors(:,iVec)).LE.0.)THEN
+      CALL abort(__STAMP__,'Norm of GEO%PeriodicVectors(:,iVec) <= 0 for iVec =',IntInfoOpt=iVec)
+    END IF
+  END DO
+#if USE_MPI
+END IF
+#endif /*USE_MPI*/
+
+END SUBROUTINE ComputePeriodicVec
+
 
 END MODULE MOD_Particle_Mesh_Tools

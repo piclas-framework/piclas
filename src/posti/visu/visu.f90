@@ -79,6 +79,7 @@ CHARACTER(LEN=255),ALLOCATABLE                      :: tmp(:)
 CHARACTER(LEN=255)                                  :: MeshFile_loc
 INTEGER                                             :: Offset=0 ! Every process reads all BCs
 !===================================================================================================================================
+sameVars=.FALSE.
 
 IF (ISVALIDMESHFILE(statefile)) THEN      ! MESH
   SDEALLOCATE(varnames_loc)
@@ -421,7 +422,11 @@ LOGICAL                          :: changedPrmFile
 !
 !**********************************************************************************************
 CALL SetStackSizeUnlimited()
+#if USE_MPI
 CALL InitMPI(mpi_comm_IN)
+#else
+CALL InitMPI()
+#endif /*USE_MPI*/
 CALL InitMPIInfo()
 
 CALL FinalizeParameters()

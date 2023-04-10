@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -68,12 +68,17 @@ IMPLICIT NONE
 REAL                    :: SystemTime
 LOGICAL                 :: userblockFound
 !===================================================================================================================================
-#ifdef EXTRAE
-CALL extrae_eventandcounters(int(9000001), int8(1))
-#endif /*EXTRAE*/
 CALL SetStackSizeUnlimited()
 
 CALL InitMPI()
+
+#if defined(MEASURE_MPI_WAIT)
+IF((MPIW8SIZEFIELD+MPIW8SIZEPART).EQ.0) CALL abort(__STAMP__,'PICLAS_MEASURE_MPI_WAIT=T not implemented for this system')
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
+#ifdef EXTRAE
+CALL extrae_eventandcounters(int(9000001), int8(1))
+#endif /*EXTRAE*/
 
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A)')"                                        _______ _________ _______  _        _______  _______ "
@@ -139,10 +144,10 @@ ELSE IF (STRICMP(GetFileExtension(ParameterFile), "h5")) THEN
   RestartFile = Args(1)
 END IF
 
-StartTime=PICLASTIME()
+GETTIME(StartTime)
 CALL prms%read_options(ParameterFile)
 ! Measure init duration
-SystemTime=PICLASTIME()
+GETTIME(SystemTime)
 SWRITE(UNIT_stdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING INI DONE! [',SystemTime-StartTime,' sec ] NOW '&
 ,prms%count_setentries(),' PARAMETERS ARE SET'
@@ -152,7 +157,7 @@ IF(nArgs.GE.2)THEN
   IF(STRICMP(GetFileExtension(ParameterDSMCFile), "ini")) THEN
     CALL prms%read_options(ParameterDSMCFile,furtherini=.TRUE.)
     ! Measure init duration
-    SystemTime=PICLASTIME()
+    GETTIME(SystemTime)
     SWRITE(UNIT_stdOut,'(132("="))')
     SWRITE(UNIT_stdOut,'(A,F14.2,A,I0,A)') ' READING FURTHER INI DONE! [',SystemTime-StartTime,' sec ] NOW '&
     ,prms%count_setentries(),' PARAMETERS ARE SET'
@@ -181,17 +186,13 @@ CALL InitPiclas(IsLoadBalance=.FALSE.)
 ! Do SwapMesh
 IF(DoSwapMesh)THEN
   ! Measure init duration
-  SystemTime=PICLASTIME()
+  GETTIME(SystemTime)
   IF(MPIroot)THEN
     Call SwapMesh()
-    SWRITE(UNIT_stdOut,'(132("="))')
-    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' SWAPMESH DONE! PICLAS DONE! [',SystemTime-StartTime,' sec ]'
-    SWRITE(UNIT_stdOut,'(132("="))')
+    CALL DisplayMessageAndTime(SystemTime-StartTime, 'SWAPMESH DONE! PICLAS DONE', DisplayDespiteLB=.TRUE.)
     STOP
   ELSE
-  CALL abort(&
-  __STAMP__&
-  ,'DO NOT CALL SWAPMESH WITH MORE THAN 1 Procs!',iError,999.)
+    CALL abort(__STAMP__,'DO NOT CALL SWAPMESH WITH MORE THAN 1 Procs!',iError,999.)
   END IF
 END IF
 LOGWRITE_BARRIER
@@ -208,10 +209,10 @@ IF(DoInitialIonization) CALL InitialIonization()
 #endif /*PARTICLES*/
 
 ! Measure init duration
-SystemTime=PICLASTIME()
+GETTIME(SystemTime)
 InitializationWallTime=SystemTime-StartTime
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
+CALL DisplayMessageAndTime(InitializationWallTime, 'INITIALIZATION DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 SWRITE(UNIT_stdOut,'(132("="))')
 
 #ifdef EXTRAE

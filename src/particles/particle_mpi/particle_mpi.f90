@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -35,10 +35,6 @@ INTERFACE InitParticleCommSize
   MODULE PROCEDURE InitParticleCommSize
 END INTERFACE
 
-INTERFACE InitEmissionComm
-  MODULE PROCEDURE InitEmissionComm
-END INTERFACE
-
 INTERFACE IRecvNbOfParticles
   MODULE PROCEDURE IRecvNbOfParticles
 END INTERFACE
@@ -68,7 +64,6 @@ END INTERFACE
 !END INTERFACE
 
 PUBLIC :: InitParticleMPI
-PUBLIC :: InitEmissionComm
 PUBLIC :: InitParticleCommSize
 PUBLIC :: SendNbOfParticles
 PUBLIC :: IRecvNbOfParticles
@@ -94,6 +89,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars
 USE MOD_ReadInTools       ,ONLY: GETLOGICAL
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -106,12 +104,24 @@ IMPLICIT NONE
 !#endif /*USE_MPI*/
 !===================================================================================================================================
 
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI ... '
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI ... '
 IF(ParticleMPIInitIsDone) CALL ABORT(__STAMP__,' Particle MPI already initialized!')
 
-! Get flag for ignoring the abort if the number of global exchange procs is non-symmetric
+! Get flag for ignoring the check and/or abort if the number of global exchange procs is non-symmetric
 CheckExchangeProcs = GETLOGICAL('CheckExchangeProcs')
+IF(CheckExchangeProcs)THEN
+  AbortExchangeProcs = GETLOGICAL('AbortExchangeProcs')
+ELSE
+  AbortExchangeProcs=.FALSE.
+END IF ! .NOT.CheckExchangeProcs
+
+! Get flag for particle latency hiding based on splitting elements in two groups. This first group has particle communication with
+! other processors and the second does not.
+DoParticleLatencyHiding = GETLOGICAL('DoParticleLatencyHiding')
+#if !(PP_TimeDiscMethod==400)
+IF(DoParticleLatencyHiding) CALL abort(__STAMP__,'DoParticleLatencyHiding=T not imeplemented for this time disc!')
+#endif /*!(PP_TimeDiscMethod==400)*/
 
 #if USE_MPI
 CALL MPI_COMM_DUP (MPI_COMM_WORLD,PartMPI%COMM,iError)
@@ -129,8 +139,8 @@ PartMPI%MPIRoot = .TRUE.
 #endif  /*USE_MPI*/
 
 ParticleMPIInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitParticleMPI
 
@@ -185,7 +195,7 @@ IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     PartCommSize = PartCommSize + 2
   END IF
 ELSE
-  ! PIC simulation with MPI
+  ! PIC simulation with vMPF
   IF (usevMPF) PartCommSize = PartCommSize+1
 END IF
 
@@ -349,17 +359,18 @@ DO iPart=1,PDM%ParticleVecLength
   ! Particle on local proc, do nothing
   IF (ProcID.EQ.myRank) CYCLE
 
-  ! Sanity check (fails here if halo region is too small)
+  ! Sanity check (fails here if halo region is too small or particle is over speed of light because the time step is too large)
   IF(GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0)THEN
     IPWRITE (*,*) "GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) =", GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)
     IPWRITE (*,*) "ProcID                                              =", ProcID
+    IPWRITE (*,*) "global ElemID                                       =", ElemID
+    IPWRITE(UNIT_StdOut,'(I12,A,3(ES25.14E3))') " PartState(1:3,iPart)          =", PartState(1:3,iPart)
     IPWRITE(UNIT_StdOut,'(I12,A,3(ES25.14E3))') " PartState(4:6,iPart)          =", PartState(4:6,iPart)
     IPWRITE(UNIT_StdOut,'(I12,A,ES25.14E3)')    " VECNORM(PartState(4:6,iPart)) =", VECNORM(PartState(4:6,iPart))
     IPWRITE(UNIT_StdOut,'(I12,A,ES25.14E3)')    " halo_eps_velo                 =", halo_eps_velo
-    CALL abort(&
-    __STAMP__&
-    ,'Error: GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) is negative. '//&
-     'The halo region might be too small. Try increasing Particles-HaloEpsVelo!')
+    CALL abort(__STAMP__,'Error: GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID) is negative. '//&
+                         'The halo region might be too small. Try increasing Particles-HaloEpsVelo! '//&
+                         'If this does not help, then maybe the time step is too big. Try reducing ManualTimeStep!')
   END IF ! GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID).LT.0
 
   ! Add particle to target proc count
@@ -407,7 +418,7 @@ END DO ! iProc
 END SUBROUTINE SendNbOfParticles
 
 
-SUBROUTINE MPIParticleSend()
+SUBROUTINE MPIParticleSend(UseOldVecLength)
 !===================================================================================================================================
 ! this routine sends the particles. Following steps are performed
 ! first steps are performed in SendNbOfParticles
@@ -436,7 +447,6 @@ USE MOD_Particle_Vars,           ONLY:Pt_temp
 #endif
 #if defined(ROS) || defined(IMPA)
 USE MOD_LinearSolver_Vars,       ONLY:PartXK,R_PartXK
-USE MOD_Particle_Mesh_Vars,      ONLY:ElemToGlobalElemID
 USE MOD_Particle_MPI_Vars,       ONLY:PartCommSize0
 USE MOD_Particle_Vars,           ONLY:PartStateN,PartStage,PartDtFrac,PartQ
 USE MOD_PICInterpolation_Vars,   ONLY:FieldAtParticle
@@ -447,15 +457,19 @@ USE MOD_Particle_Vars,           ONLY:F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_Par
 USE MOD_Particle_Vars,           ONLY:PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars,           ONLY:PartIsImplicit
 #endif /*IMPA*/
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart,MPIW8CountPart
+#endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL, INTENT(IN), OPTIONAL :: UseOldVecLength
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart,iPos,iProc,jPos
+INTEGER                       :: iPart,iPos,iProc,jPos, nPartLenth
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
 INTEGER                       :: ALLOCSTAT
@@ -467,6 +481,10 @@ INTEGER                       :: iPolyatMole, MsgRecvLengthPoly, MsgRecvLengthEl
 INTEGER                       :: MsgLengthPoly(0:nExchangeProcessors-1), pos_poly(0:nExchangeProcessors-1)
 INTEGER                       :: MsgLengthElec(0:nExchangeProcessors-1), pos_elec(0:nExchangeProcessors-1)
 INTEGER                       :: MsgLengthAmbi(0:nExchangeProcessors-1), pos_ambi(0:nExchangeProcessors-1)
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart(2),CounterEnd(2)
+REAL(KIND=8)                  :: Rate(2)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
 #if defined(ROS)
@@ -481,6 +499,16 @@ PartCommSize=PartCommSize0+iStage*6
 MsgLengthPoly(:) = PartMPIExchange%nPartsSend(2,:)
 MsgLengthElec(:) = PartMPIExchange%nPartsSend(3,:)
 MsgLengthAmbi(:) = PartMPIExchange%nPartsSend(4,:)
+
+IF (PRESENT(UseOldVecLength)) THEN
+  IF (UseOldVecLength) THEN
+    nPartLenth = PDM%ParticleVecLengthOld
+  ELSE
+    nPartLenth = PDM%ParticleVecLength
+  END IF
+ELSE
+  nPartLenth = PDM%ParticleVecLength
+END IF
 
 ! 3) Build Message
 DO iProc=0,nExchangeProcessors-1
@@ -520,7 +548,7 @@ DO iProc=0,nExchangeProcessors-1
     CALL ABORT(__STAMP__,'  Cannot allocate PartSendBuf, local ProcId, ALLOCSTAT',iProc,REAL(ALLOCSTAT))
 
   ! build message
-  DO iPart=1,PDM%ParticleVecLength
+  DO iPart=1,nPartLenth
 
     ! TODO: This seems like a valid check to me, why is it commented out?
     !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -728,17 +756,31 @@ END DO ! iProc
 
 ! 4) Finish Received number of particles
 DO iProc=0,nExchangeProcessors-1
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart(1))
+#endif /*defined(MEASURE_MPI_WAIT)*/
   CALL MPI_WAIT(PartMPIExchange%SendRequest(1,iProc),MPIStatus,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd(1), count_rate=Rate(1))
+  CALL SYSTEM_CLOCK(count=CounterStart(2))
+#endif /*defined(MEASURE_MPI_WAIT)*/
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(1,iProc),recv_status_list(:,iProc),IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
+  MPIW8TimePart(1)  = MPIW8TimePart(1) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
+  MPIW8CountPart(1) = MPIW8CountPart(1) + 1_8
+  MPIW8TimePart(2)  = MPIW8TimePart(2) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+  MPIW8CountPart(2) = MPIW8CountPart(2) + 1_8
+#endif /*defined(MEASURE_MPI_WAIT)*/
 END DO ! iProc
 
 ! total number of received particles
 PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(1,:))
 
 ! nullify data on old particle position for safety
-DO iPart=1,PDM%ParticleVecLength
+DO iPart=1,nPartLenth
   IF(PartTargetProc(iPart).EQ.-1) CYCLE
   PartState(1:6,iPart) = 0.
   PartSpecies(iPart)   = 0
@@ -830,7 +872,7 @@ END DO ! iProc
 END SUBROUTINE MPIParticleSend
 
 
-SUBROUTINE MPIParticleRecv()
+SUBROUTINE MPIParticleRecv(DoMPIUpdateNextFreePos)
 !===================================================================================================================================
 ! this routine finishes the communication and places the particle information in the correct arrays. Following steps are performed
 ! 1) Finish all send requests -> MPI_WAIT
@@ -846,19 +888,22 @@ USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf!,PartMPI
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species
+USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, LastPartPos
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
+USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
+USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
+USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc,DoParticleLatencyHiding
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 #if defined(LSERK)
 USE MOD_Particle_Vars          ,ONLY: Pt_temp
 #endif
 ! variables for parallel deposition
 !USE MOD_Mesh_Vars              ,ONLY: nGlobalMortarSides
 !USE MOD_Particle_Mesh_Vars     ,ONLY: PartElemIsMortar
-USE MOD_Mesh_Vars              ,ONLY: OffSetElem
 #if defined(ROS) || defined(IMPA)
+USE MOD_Mesh_Vars              ,ONLY: OffSetElem
 USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK
 USE MOD_Particle_Vars          ,ONLY: PartStateN,PartStage,PartDtFrac,PartQ
-!USE MOD_Particle_Mesh_Vars     ,ONLY: nTotalElems
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemToGlobalElemID
 USE MOD_Particle_MPI_Vars      ,ONLY: PartCommSize0
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
 USE MOD_Timedisc_Vars          ,ONLY: iStage
@@ -870,24 +915,33 @@ USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 #endif /*IMPA*/
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_RadialWeighting
+USE MOD_part_tools             ,ONLY: ParticleOnProc
 !USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart,MPIW8CountPart
+#endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
+LOGICAL, OPTIONAL             :: DoMPIUpdateNextFreePos
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, TempNextFreePosition
+INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, TempNextFreePosition, ElemID
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles
 #if defined(ROS) || defined(IMPA)
-INTEGER                       :: iCounter, LocElemID,iElem
+INTEGER                       :: iCounter, LocElemID!,iElem
 #endif /*ROS or IMPA*/
 ! Polyatomic Molecules
 INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly, MsgLengthElec, pos_elec, pos_ambi, MsgLengthAmbi
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart(2),CounterEnd(2)
+REAL(KIND=8)                  :: Rate(2)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
 #if defined(ROS)
@@ -902,8 +956,16 @@ DO iProc=0,nExchangeProcessors-1
   ! skip proc if no particles are to be sent
   IF(SUM(PartMPIExchange%nPartsSend(:,iProc)).EQ.0) CYCLE
 
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart(1))
+#endif /*defined(MEASURE_MPI_WAIT)*/
   CALL MPI_WAIT(PartMPIExchange%SendRequest(2,iProc),MPIStatus,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd(1), count_rate=Rate(1))
+  MPIW8TimePart(3) = MPIW8TimePart(3) + REAL(CounterEnd(1)-CounterStart(1),8)/Rate(1)
+  MPIW8CountPart(3) = MPIW8CountPart(3) + 1_8
+#endif /*defined(MEASURE_MPI_WAIT)*/
 END DO ! iProc
 
 nRecv=0
@@ -943,8 +1005,16 @@ DO iProc=0,nExchangeProcessors-1
     MsgLengthElec = 0.
     MsgLengthAmbi = 0.
   END IF
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart(2))
+#endif /*defined(MEASURE_MPI_WAIT)*/
   ! finish communication with iproc
   CALL MPI_WAIT(PartMPIExchange%RecvRequest(2,iProc),recv_status_list(:,iProc),IERROR)
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
+  MPIW8TimePart(4) = MPIW8TimePart(4) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)
+  MPIW8CountPart(4) = MPIW8CountPart(4) + 1_8
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
   ! place particle information in correct arrays
   !>> correct loop shape
@@ -1023,8 +1093,8 @@ DO iProc=0,nExchangeProcessors-1
     jPos=jPos+3
     !>> particle elmentN
     LocElemID = INT(PartRecvBuf(iProc)%content(jPos+1),KIND=4)
-    IF((LocElemID-OffSetElem.GE.1).AND.(LocElemID-OffSetElem.LE.PP_nElems))THEN
-      PEM%GlobalElemID(PartID)=LocElemID-OffSetElem
+    IF(ParticleOnProc(PartID))THEN
+      PEM%GlobalElemID(PartID) = LocElemID+OffSetElem
     ELSE
       ! TODO: This is still broken, halo elems are no longer behind PP_nElems
       CALL ABORT(__STAMP__,'External particles not yet supported with new halo region')
@@ -1196,22 +1266,50 @@ DO iProc=0,nExchangeProcessors-1
     !>> LastGlobalElemID only know to previous proc
     PEM%LastGlobalElemID(PartID) = -888
 #endif
+    IF (PRESENT(DoMPIUpdateNextFreePos)) THEN
+      ElemID = PEM%LocalElemID(PartID)
+      IF (ElemID.LT.1) THEN
+        CALL abort(__STAMP__,'Particle received in not in proc! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
+      END IF
+      IF(DoParticleLatencyHiding)THEN
+        IF(.NOT.IsExchangeElem(ElemID)) THEN
+          IPWRITE(*,*) 'Part Pos + Velo:',PartID,ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc), PartState(1:6,PartID)
+          CALL abort(__STAMP__,'Particle received in non exchange elem! Increase halo size! Elem:',PEM%GlobalElemID(PartID))
+        END IF
+      END IF ! DoParticleLatencyHiding
+      IF (useDSMC) THEN
+        CALL GetPositionInRefElem(PartState(1:3,PartID),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID))
+      END IF
+      IF (useDSMC.OR.usevMPF) THEN
+        IF (PEM%pNumber(ElemID).EQ.0) THEN
+          PEM%pStart(ElemID) = PartID                    ! Start of Linked List for Particles in Elem
+        ELSE
+          PEM%pNext(PEM%pEnd(ElemID)) = PartID            ! Next Particle of same Elem (Linked List)
+        END IF
+        PEM%pEnd(ElemID) = PartID
+        ! Number of Particles in Element
+        PEM%pNumber(ElemID) = PEM%pNumber(ElemID) + 1
+        IF (UseVarTimeStep) THEN
+          PartTimeStep(PartID) = GetParticleTimeStep(PartState(1,PartID),PartState(2,PartID),ElemID)
+        END IF
+      END IF
+    END IF
   END DO
 
 END DO ! iProc
 
-TempNextFreePosition        = PDM%CurrentNextFreePosition
-PDM%ParticleVecLength       = PDM%ParticleVecLength + PartMPIExchange%nMPIParticles
-PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
+TempNextFreePosition          = PDM%CurrentNextFreePosition
+PDM%ParticleVecLength         = PDM%ParticleVecLength + PartMPIExchange%nMPIParticles
+PDM%CurrentNextFreePosition   = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
+PartMPIExchange%nMPIParticles = 0
 IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL ABORT(__STAMP__&
-    ,' ParticleVecLegnth>MaxParticleNumber due to MPI-communication!')
+    ,' ParticleVecLegnth>MaxParticleNumber due to MPI-communication! Increase Part-maxParticleNumber or use more processors.')
 
 IF(RadialWeighting%PerformCloning) THEN
   ! Checking whether received particles have to be cloned or deleted
   DO iPart = 1,nrecv
     PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
-    IF ((PEM%GlobalElemID(PartID).GE.1+offSetElem).AND.(PEM%GlobalElemID(PartID).LE.PP_nElems+offSetElem)) &
-    CALL DSMC_2D_RadialWeighting(PartID,PEM%GlobalElemID(PartID))
+    IF(ParticleOnProc(PartID)) CALL DSMC_2D_RadialWeighting(PartID,PEM%GlobalElemID(PartID))
   END DO
 END IF
 
@@ -1271,509 +1369,6 @@ SDEALLOCATE( PartTargetProc )
 
 ParticleMPIInitIsDone=.FALSE.
 END SUBROUTINE FinalizeParticleMPI
-
-
-SUBROUTINE InitEmissionComm()
-!===================================================================================================================================
-! build emission communicators for particle emission regions
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPI
-USE MOD_Particle_Vars,          ONLY:Species,nSpecies
-USE MOD_Particle_Mesh_Vars,     ONLY:GEO
-#if !(USE_HDG)
-USE MOD_CalcTimeStep,           ONLY:CalcTimeStep
-#endif /*USE_HDG*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                         :: iSpec,iInit,iNode,iRank
-INTEGER                         :: nInitRegions
-LOGICAL                         :: RegionOnProc
-REAL                            :: xCoords(3,8),lineVector(3),radius,height
-REAL                            :: xlen,ylen,zlen
-REAL                            :: dt
-INTEGER                         :: color
-!===================================================================================================================================
-
-! get number of total init regions
-nInitRegions=0
-DO iSpec=1,nSpecies
-  nInitRegions=nInitRegions+Species(iSpec)%NumberOfInits
-END DO ! iSpec
-IF(nInitRegions.EQ.0) RETURN
-
-! allocate communicators
-ALLOCATE( PartMPI%InitGroup(1:nInitRegions))
-
-nInitRegions=0
-DO iSpec=1,nSpecies
-  RegionOnProc=.FALSE.
-  DO iInit=1, Species(iSpec)%NumberOfInits
-    nInitRegions=nInitRegions+1
-    SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
-    CASE ('point')
-       xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC
-       RegionOnProc=PointInProc(xCoords(1:3,1))
-    CASE ('line_with_equidistant_distribution')
-      xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC
-      xCoords(1:3,2)=Species(iSpec)%Init(iInit)%BasePointIC+Species(iSpec)%Init(iInit)%BaseVector1IC
-      RegionOnProc=BoxInProc(xCoords(1:3,1:2),2)
-    CASE ('line')
-      xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC
-      xCoords(1:3,2)=Species(iSpec)%Init(iInit)%BasePointIC+Species(iSpec)%Init(iInit)%BaseVector1IC
-      RegionOnProc=BoxInProc(xCoords(1:3,1:2),2)
-    CASE('disc')
-      xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
-      ylen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
-      zlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
-      ! all 8 edges
-      xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
-      xCoords(1:3,2) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,-zlen/)
-      xCoords(1:3,3) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,-zlen/)
-      xCoords(1:3,4) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,-zlen/)
-      xCoords(1:3,5) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,+zlen/)
-      xCoords(1:3,6) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,+zlen/)
-      xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
-      xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
-      RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-    CASE('photon_SEE_disc')
-      xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
-      ylen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
-      zlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
-      ! all 8 edges
-      xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
-      xCoords(1:3,2) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,-zlen/)
-      xCoords(1:3,3) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,-zlen/)
-      xCoords(1:3,4) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,-zlen/)
-      xCoords(1:3,5) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,+zlen/)
-      xCoords(1:3,6) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,+zlen/)
-      xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
-      xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
-      RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-    CASE('2D_landmark','2D_landmark_copy')
-       ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
-       ! for low-temperature partially magnetized plasmas (2019)
-       ASSOCIATE( x2 => 1.0e-2       ,& ! m
-                  x1 => 0.25e-2      ,& ! m
-                  y2 => GEO%ymaxglob ,& ! m
-                  y1 => GEO%yminglob ,& ! m
-                  z2 => GEO%zmaxglob ,& ! m
-                  z1 => GEO%zminglob )
-        ! Check all 8 edges
-        xCoords(1:3,1) = (/x1,y1,z1/)
-        xCoords(1:3,2) = (/x2,y1,z1/)
-        xCoords(1:3,3) = (/x1,y2,z1/)
-        xCoords(1:3,4) = (/x2,y2,z1/)
-        xCoords(1:3,5) = (/x1,y1,z2/)
-        xCoords(1:3,6) = (/x2,y1,z2/)
-        xCoords(1:3,7) = (/x1,y2,z2/)
-        xCoords(1:3,8) = (/x2,y2,z2/)
-        RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-      END ASSOCIATE
-    CASE('2D_landmark_neutralization')
-      ! Neutralization at const. x-position from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
-      ! for low-temperature partially magnetized plasmas (2019)
-      ! Check 1st region (emission at fixed x-position x=2.4cm)
-      ASSOCIATE( &
-                 x2 => 2.4001e-2    ,& ! m
-                 x1 => 2.3999e-2    ,& ! m
-                 y2 => GEO%ymaxglob ,& ! m
-                 y1 => GEO%yminglob ,& ! m
-                 z2 => GEO%zmaxglob ,& ! m
-                 z1 => GEO%zminglob )
-       ! Check all 8 edges
-       xCoords(1:3,1) = (/x1,y1,z1/)
-       xCoords(1:3,2) = (/x2,y1,z1/)
-       xCoords(1:3,3) = (/x1,y2,z1/)
-       xCoords(1:3,4) = (/x2,y2,z1/)
-       xCoords(1:3,5) = (/x1,y1,z2/)
-       xCoords(1:3,6) = (/x2,y1,z2/)
-       xCoords(1:3,7) = (/x1,y2,z2/)
-       xCoords(1:3,8) = (/x2,y2,z2/)
-       RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-      END ASSOCIATE
-
-      ! Check 2nd region (left boundary where the exiting particles are counted)
-      IF(.NOT.RegionOnProc)THEN
-        ASSOCIATE(&
-                   x2 => 0.0001e-2    ,& ! m
-                   x1 => -0.001e-2    ,& ! m
-                   y2 => GEO%ymaxglob ,& ! m
-                   y1 => GEO%yminglob ,& ! m
-                   z2 => GEO%zmaxglob ,& ! m
-                   z1 => GEO%zminglob )
-         ! Check all 8 edges
-         xCoords(1:3,1) = (/x1,y1,z1/)
-         xCoords(1:3,2) = (/x2,y1,z1/)
-         xCoords(1:3,3) = (/x1,y2,z1/)
-         xCoords(1:3,4) = (/x2,y2,z1/)
-         xCoords(1:3,5) = (/x1,y1,z2/)
-         xCoords(1:3,6) = (/x2,y1,z2/)
-         xCoords(1:3,7) = (/x1,y2,z2/)
-         xCoords(1:3,8) = (/x2,y2,z2/)
-         RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-      END ASSOCIATE
-      END IF ! .NOT.RegionOnProc
-    CASE('circle')
-      xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
-      ylen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
-      zlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
-      ! all 8 edges
-      xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
-      xCoords(1:3,2) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,-zlen/)
-      xCoords(1:3,3) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,-zlen/)
-      xCoords(1:3,4) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,-zlen/)
-      xCoords(1:3,5) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,+zlen/)
-      xCoords(1:3,6) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,+zlen/)
-      xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
-      xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
-      RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-    CASE('gyrotron_circle')
-      Radius=Species(iSpec)%Init(iInit)%RadiusIC+Species(iSpec)%Init(iInit)%RadiusICGyro
-      !xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-      !     SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
-      !ylen=Species(iSpec)%Init(iInit)%RadiusIC * &
-      !     SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
-      xlen=Radius
-      ylen=Radius
-      zlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
-      IF(Species(iSpec)%Init(iInit)%ParticleNumber.NE.0)THEN
-        lineVector(1:3)=(/0.,0.,Species(iSpec)%Init(iInit)%CylinderHeightIC/)
-      ELSE
-#if !(USE_HDG)
-        dt = CALCTIMESTEP()
-#endif /*USE_HDG*/
-        lineVector(1:3)= dt* Species(iSpec)%Init(iInit)%VeloIC/Species(iSpec)%Init(iInit)%alpha
-        zlen=0.
-      END IF
-      xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
-      xCoords(1:3,2) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,-zlen/)
-      xCoords(1:3,3) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,-zlen/)
-      xCoords(1:3,4) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,-zlen/)
-      xCoords(1:3,5) = Species(iSpec)%Init(iInit)%BasePointIC+lineVector+(/-xlen,-ylen,+zlen/)
-      xCoords(1:3,6) = Species(iSpec)%Init(iInit)%BasePointIC+lineVector+(/+xlen,-ylen,+zlen/)
-      xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+lineVector+(/-xlen,+ylen,+zlen/)
-      xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+lineVector+(/+xlen,+ylen,+zlen/)
-      RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-    CASE('circle_equidistant')
-      xlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(1)*Species(iSpec)%Init(iInit)%NormalIC(1))
-      ylen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(2)*Species(iSpec)%Init(iInit)%NormalIC(2))
-      zlen=Species(iSpec)%Init(iInit)%RadiusIC * &
-           SQRT(1.0 - Species(iSpec)%Init(iInit)%NormalIC(3)*Species(iSpec)%Init(iInit)%NormalIC(3))
-      ! all 8 edges
-      xCoords(1:3,1) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,-zlen/)
-      xCoords(1:3,2) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,-zlen/)
-      xCoords(1:3,3) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,-zlen/)
-      xCoords(1:3,4) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,-zlen/)
-      xCoords(1:3,5) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,-ylen,+zlen/)
-      xCoords(1:3,6) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,-ylen,+zlen/)
-      xCoords(1:3,7) = Species(iSpec)%Init(iInit)%BasePointIC+(/-xlen,+ylen,+zlen/)
-      xCoords(1:3,8) = Species(iSpec)%Init(iInit)%BasePointIC+(/+xlen,+ylen,+zlen/)
-      RegionOnProc=BoxInProc(xCoords(1:3,1:8),8)
-    CASE('cuboid')
-      lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
-        Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
-      lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
-        Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(3)
-      lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
-        Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
-      IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-         CALL ABORT(__STAMP__,'BaseVectors are parallel!')
-      ELSE
-        lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
-          lineVector(3) * lineVector(3))
-      END IF
-      xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC
-      xCoords(1:3,2)=Species(iSpec)%Init(iInit)%BasePointIC+Species(iSpec)%Init(iInit)%BaseVector1IC
-      xCoords(1:3,3)=Species(iSpec)%Init(iInit)%BasePointIC+Species(iSpec)%Init(iInit)%BaseVector2IC
-      xCoords(1:3,4)=Species(iSpec)%Init(iInit)%BasePointIC+Species(iSpec)%Init(iInit)%BaseVector1IC&
-                                                           +Species(iSpec)%Init(iInit)%BaseVector2IC
-
-      height= Species(iSpec)%Init(iInit)%CuboidHeightIC
-      DO iNode=1,4
-        xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
-      END DO ! iNode
-      RegionOnProc=BoxInProc(xCoords,8)
-    CASE('sphere')
-      ASSOCIATE ( radius => Species(iSpec)%Init(iInit)%RadiusIC        ,&
-                  origin => Species(iSpec)%Init(iInit)%BasePointIC(1:3) )
-        ! Set the 8 bounding box coordinates depending on the origin and radius
-        xCoords(1:3,1)=origin + (/ radius  , -radius , -radius/)
-        xCoords(1:3,2)=origin + (/ radius  , radius  , -radius/)
-        xCoords(1:3,3)=origin + (/ -radius , radius  , -radius/)
-        xCoords(1:3,4)=origin + (/ -radius , -radius , -radius/)
-        xCoords(1:3,5)=origin + (/ radius  , -radius , radius /)
-        xCoords(1:3,6)=origin + (/ radius  , radius  , radius /)
-        xCoords(1:3,7)=origin + (/ -radius , radius  , radius /)
-        xCoords(1:3,8)=origin + (/ -radius , -radius , radius /)
-      END ASSOCIATE
-      RegionOnProc=BoxInProc(xCoords,8)
-    CASE('cylinder','photon_cylinder')
-      lineVector(1) = Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(3) - &
-        Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(2)
-      lineVector(2) = Species(iSpec)%Init(iInit)%BaseVector1IC(3) * Species(iSpec)%Init(iInit)%BaseVector2IC(1) - &
-        Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(3)
-      lineVector(3) = Species(iSpec)%Init(iInit)%BaseVector1IC(1) * Species(iSpec)%Init(iInit)%BaseVector2IC(2) - &
-        Species(iSpec)%Init(iInit)%BaseVector1IC(2) * Species(iSpec)%Init(iInit)%BaseVector2IC(1)
-      IF ((lineVector(1).eq.0).AND.(lineVector(2).eq.0).AND.(lineVector(3).eq.0)) THEN
-         CALL ABORT(__STAMP__,'BaseVectors are parallel!')
-      ELSE
-        lineVector = lineVector / SQRT(lineVector(1) * lineVector(1) + lineVector(2) * lineVector(2) + &
-          lineVector(3) * lineVector(3))
-      END IF
-      radius = Species(iSpec)%Init(iInit)%RadiusIC
-      ! here no radius, already inclueded
-      xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC-Species(iSpec)%Init(iInit)%BaseVector1IC &
-                                                           -Species(iSpec)%Init(iInit)%BaseVector2IC
-
-      xCoords(1:3,2)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector1IC
-      xCoords(1:3,3)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector2IC
-      xCoords(1:3,4)=xCoords(1:3,1)+2.0*Species(iSpec)%Init(iInit)%BaseVector1IC&
-                                   +2.0*Species(iSpec)%Init(iInit)%BaseVector2IC
-
-      height= Species(iSpec)%Init(iInit)%CylinderHeightIC
-      DO iNode=1,4
-        xCoords(1:3,iNode+4)=xCoords(1:3,iNode)+lineVector*height
-      END DO ! iNode
-      RegionOnProc=BoxInProc(xCoords,8)
-    CASE('cell_local')
-      RegionOnProc=.TRUE.
-    CASE('cuboid_equal')
-       xlen = SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)**2 &
-            + Species(iSpec)%Init(iInit)%BaseVector1IC(2)**2 &
-            + Species(iSpec)%Init(iInit)%BaseVector1IC(3)**2 )
-       ylen = SQRT(Species(iSpec)%Init(iInit)%BaseVector2IC(1)**2 &
-            + Species(iSpec)%Init(iInit)%BaseVector2IC(2)**2 &
-            + Species(iSpec)%Init(iInit)%BaseVector2IC(3)**2 )
-       zlen = ABS(Species(iSpec)%Init(iInit)%CuboidHeightIC)
-
-       ! make sure the vectors correspond to x,y,z-dir
-       IF ((xlen.NE.Species(iSpec)%Init(iInit)%BaseVector1IC(1)).OR. &
-           (ylen.NE.Species(iSpec)%Init(iInit)%BaseVector2IC(2)).OR. &
-           (zlen.NE.Species(iSpec)%Init(iInit)%CuboidHeightIC)) THEN
-          CALL ABORT(__STAMP__&
-          ,'Basevectors1IC,-2IC and CuboidHeightIC have to be in x,y,z-direction, respectively for emission condition')
-       END IF
-       DO iNode=1,8
-        xCoords(1:3,iNode) = Species(iSpec)%Init(iInit)%BasePointIC(1:3)
-       END DO
-       xCoords(1:3,2) = xCoords(1:3,1) + (/xlen,0.,0./)
-       xCoords(1:3,3) = xCoords(1:3,1) + (/0.,ylen,0./)
-       xCoords(1:3,4) = xCoords(1:3,1) + (/xlen,ylen,0./)
-       xCoords(1:3,5) = xCoords(1:3,1) + (/0.,0.,zlen/)
-       xCoords(1:3,6) = xCoords(1:3,5) + (/xlen,0.,0./)
-       xCoords(1:3,7) = xCoords(1:3,5) + (/0.,ylen,0./)
-       xCoords(1:3,8) = xCoords(1:3,5) + (/xlen,ylen,0./)
-       RegionOnProc=BoxInProc(xCoords,8)
-
-     !~j CALL ABORT(&
-     !~j __STAMP__&
-     !~j ,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
-    CASE ('cuboid_with_equidistant_distribution')
-       xlen = SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)**2 &
-            + Species(iSpec)%Init(iInit)%BaseVector1IC(2)**2 &
-            + Species(iSpec)%Init(iInit)%BaseVector1IC(3)**2 )
-       ylen = SQRT(Species(iSpec)%Init(iInit)%BaseVector2IC(1)**2 &
-            + Species(iSpec)%Init(iInit)%BaseVector2IC(2)**2 &
-            + Species(iSpec)%Init(iInit)%BaseVector2IC(3)**2 )
-       zlen = ABS(Species(iSpec)%Init(iInit)%CuboidHeightIC)
-
-       ! make sure the vectors correspond to x,y,z-dir
-       IF ((xlen.NE.Species(iSpec)%Init(iInit)%BaseVector1IC(1)).OR. &
-           (ylen.NE.Species(iSpec)%Init(iInit)%BaseVector2IC(2)).OR. &
-           (zlen.NE.Species(iSpec)%Init(iInit)%CuboidHeightIC)) THEN
-          CALL ABORT(__STAMP__&
-          ,'Basevectors1IC,-2IC and CuboidHeightIC have to be in x,y,z-direction, respectively for emission condition')
-       END IF
-       DO iNode=1,8
-        xCoords(1:3,iNode) = Species(iSpec)%Init(iInit)%BasePointIC(1:3)
-       END DO
-       xCoords(1:3,2) = xCoords(1:3,1) + (/xlen,0.,0./)
-       xCoords(1:3,3) = xCoords(1:3,1) + (/0.,ylen,0./)
-       xCoords(1:3,4) = xCoords(1:3,1) + (/xlen,ylen,0./)
-       xCoords(1:3,5) = xCoords(1:3,1) + (/0.,0.,zlen/)
-       xCoords(1:3,6) = xCoords(1:3,5) + (/xlen,0.,0./)
-       xCoords(1:3,7) = xCoords(1:3,5) + (/0.,ylen,0./)
-       xCoords(1:3,8) = xCoords(1:3,5) + (/xlen,ylen,0./)
-       RegionOnProc=BoxInProc(xCoords,8)
-    CASE('sin_deviation')
-       IF(Species(iSpec)%Init(iInit)%ParticleNumber.NE. &
-            (Species(iSpec)%Init(iInit)%maxParticleNumberX * Species(iSpec)%Init(iInit)%maxParticleNumberY &
-            * Species(iSpec)%Init(iInit)%maxParticleNumberZ)) THEN
-         SWRITE(*,*) 'for species ',iSpec,' does not match number of particles in each direction!'
-         CALL ABORT(__STAMP__&
-         ,'ERROR: Number of particles in init / emission region',iInit)
-       END IF
-       xlen = abs(GEO%xmaxglob  - GEO%xminglob)
-       ylen = abs(GEO%ymaxglob  - GEO%yminglob)
-       zlen = abs(GEO%zmaxglob  - GEO%zminglob)
-       xCoords(1:3,1) = (/GEO%xminglob,GEO%yminglob,GEO%zminglob/)
-       xCoords(1:3,2) = xCoords(1:3,1) + (/xlen,0.,0./)
-       xCoords(1:3,3) = xCoords(1:3,1) + (/0.,ylen,0./)
-       xCoords(1:3,4) = xCoords(1:3,1) + (/xlen,ylen,0./)
-       xCoords(1:3,5) = xCoords(1:3,1) + (/0.,0.,zlen/)
-       xCoords(1:3,6) = xCoords(1:3,5) + (/xlen,0.,0./)
-       xCoords(1:3,7) = xCoords(1:3,5) + (/0.,ylen,0./)
-       xCoords(1:3,8) = xCoords(1:3,5) + (/xlen,ylen,0./)
-       RegionOnProc=BoxInProc(xCoords,8)
-    CASE ('IMD')
-       RegionOnProc=.TRUE.
-    CASE ('background')
-      !
-    CASE DEFAULT
-      IPWRITE(*,*) 'ERROR: Species ', iSpec, 'of', iInit, 'is using an unknown SpaceIC!'
-      CALL ABORT(__STAMP__&
-      ,'ERROR: Given SpaceIC is not implemented: '//TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
-    END SELECT
-
-    ! create new communicator
-    color = MERGE(nInitRegions,MPI_UNDEFINED,RegionOnProc)
-    Species(iSpec)%Init(iInit)%InitCOMM=nInitRegions
-    CALL MPI_COMM_SPLIT(PartMPI%COMM,color,0,PartMPI%InitGroup(nInitRegions)%COMM,iError)
-    IF (RegionOnProc) THEN
-      CALL MPI_COMM_RANK(PartMPI%InitGroup(nInitRegions)%COMM,PartMPI%InitGroup(nInitRegions)%MyRank,iError)
-      CALL MPI_COMM_SIZE(PartMPI%InitGroup(nInitRegions)%COMM,PartMPI%InitGroup(nInitRegions)%nProcs,iError)
-    END IF
-
-    IF(PartMPI%InitGroup(nInitRegions)%MyRank.EQ.0 .AND. RegionOnProc) &
-      WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0,A)') ' Emission-Region,Emission-Communicator:',nInitRegions,' on ',&
-      PartMPI%InitGroup(nInitRegions)%nProcs,' procs ('//TRIM(Species(iSpec)%Init(iInit)%SpaceIC)//', iSpec=',iSpec,')'
-
-    IF(PartMPI%InitGroup(nInitRegions)%COMM.NE.MPI_COMM_NULL) THEN
-      PartMPI%InitGroup(nInitRegions)%MPIRoot=MERGE(.TRUE.,.FALSE.,PartMPI%InitGroup(nInitRegions)%MyRank.EQ.0)
-      ALLOCATE(PartMPI%InitGroup(nInitRegions)%GroupToComm(0:PartMPI%InitGroup(nInitRegions)%nProcs-1))
-      PartMPI%InitGroup(nInitRegions)%GroupToComm(PartMPI%InitGroup(nInitRegions)%MyRank) = PartMPI%MyRank
-      CALL MPI_ALLGATHER(PartMPI%MyRank,1,MPI_INTEGER&
-                        ,PartMPI%InitGroup(nInitRegions)%GroupToComm(0:PartMPI%InitGroup(nInitRegions)%nProcs-1)&
-                       ,1,MPI_INTEGER,PartMPI%InitGroup(nInitRegions)%COMM,iERROR)
-
-      ALLOCATE(PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1))
-      PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1) = -1
-      DO iRank = 0,PartMPI%InitGroup(nInitRegions)%nProcs-1
-        PartMPI%InitGroup(nInitRegions)%CommToGroup(PartMPI%InitGroup(nInitRegions)%GroupToComm(iRank))=iRank
-      END DO ! iRank
-
-    END IF
-  END DO ! iniT
-END DO ! iSpec
-
-END SUBROUTINE InitEmissionComm
-
-
-FUNCTION BoxInProc(CartNodes,nNodes)
-!===================================================================================================================================
-! check if bounding box is on proc
-!===================================================================================================================================
-! MODULES
-USE MOD_Particle_Mesh_Vars,       ONLY:GEO
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN):: nNodes
-REAL,INTENT(IN)   :: CartNodes(1:3,1:nNodes)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL           :: BoxInProc
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER           :: xmin,xmax,ymin,ymax,zmin,zmax,testval
-!===================================================================================================================================
-
-BoxInProc=.FALSE.
-! get background of nodes
-xmin = HUGE(1)
-xmax =-HUGE(1)
-ymin = HUGE(1)
-ymax =-HUGE(1)
-zmin = HUGE(1)
-zmax =-HUGE(1)
-
-testval = CEILING((MINVAL(CartNodes(1,:))-GEO%xminglob)/GEO%FIBGMdeltas(1))
-xmin    = MIN(xmin,testval)
-testval = CEILING((MAXVAL(CartNodes(1,:))-GEO%xminglob)/GEO%FIBGMdeltas(1))
-xmax    = MAX(xmax,testval)
-testval = CEILING((MINVAL(CartNodes(2,:))-GEO%yminglob)/GEO%FIBGMdeltas(2))
-ymin    = MIN(ymin,testval)
-testval = CEILING((MAXVAL(CartNodes(2,:))-GEO%yminglob)/GEO%FIBGMdeltas(2))
-ymax    = MAX(ymax,testval)
-testval = CEILING((MINVAL(CartNodes(3,:))-GEO%zminglob)/GEO%FIBGMdeltas(3))
-zmin    = MIN(zmin,testval)
-testval = CEILING((MAXVAL(CartNodes(3,:))-GEO%zminglob)/GEO%FIBGMdeltas(3))
-zmax    = MAX(zmax,testval)
-
-IF(    ((xmin.LE.GEO%FIBGMimax).AND.(xmax.GE.GEO%FIBGMimin)) &
-  .AND.((ymin.LE.GEO%FIBGMjmax).AND.(ymax.GE.GEO%FIBGMjmin)) &
-  .AND.((zmin.LE.GEO%FIBGMkmax).AND.(zmax.GE.GEO%FIBGMkmin)) ) BoxInProc=.TRUE.
-
-END FUNCTION BoxInProc
-
-
-FUNCTION PointInProc(CartNode)
-!===================================================================================================================================
-! check if point is on proc
-!===================================================================================================================================
-! MODULES
-USE MOD_Particle_Mesh_Vars,       ONLY:GEO
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)   :: CartNode(1:3)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL           :: PointInProc
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER           :: xmin,xmax,ymin,ymax,zmin,zmax,testval
-!===================================================================================================================================
-
-PointInProc=.FALSE.
-! get background of nodes
-xmin = HUGE(1)
-xmax =-HUGE(1)
-ymin = HUGE(1)
-ymax =-HUGE(1)
-zmin = HUGE(1)
-zmax =-HUGE(1)
-
-testval = CEILING((CartNode(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
-xmin    = MIN(xmin,testval)
-testval = CEILING((CartNode(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
-xmax    = MAX(xmax,testval)
-testval = CEILING((CartNode(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-ymin    = MIN(ymin,testval)
-testval = CEILING((CartNode(2)-GEO%yminglob)/GEO%FIBGMdeltas(2))
-ymax    = MAX(ymax,testval)
-testval = CEILING((CartNode(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-zmin    = MIN(zmin,testval)
-testval = CEILING((CartNode(3)-GEO%zminglob)/GEO%FIBGMdeltas(3))
-zmax    = MAX(zmax,testval)
-
-IF(    ((xmin.LE.GEO%FIBGMimax).AND.(xmax.GE.GEO%FIBGMimin)) &
-  .AND.((ymin.LE.GEO%FIBGMjmax).AND.(ymax.GE.GEO%FIBGMjmin)) &
-  .AND.((zmin.LE.GEO%FIBGMkmax).AND.(zmax.GE.GEO%FIBGMkmin)) ) PointInProc=.TRUE.
-
-END FUNCTION PointInProc
-
 #endif /*USE_MPI*/
 
 END MODULE MOD_Particle_MPI

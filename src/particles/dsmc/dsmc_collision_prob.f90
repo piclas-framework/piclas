@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -41,11 +41,11 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting
-USE MOD_DSMC_Vars               ,ONLY: UseMCC, SpecXSec, XSec_NullCollision, CollisMode
-USE MOD_Particle_Vars           ,ONLY: PartSpecies, Species, VarTimeStep
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting, CollisMode
+USE MOD_MCC_Vars                ,ONLY: UseMCC, SpecXSec, XSec_NullCollision
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF, PartTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt
-USE MOD_DSMC_SpecXSec           ,ONLY: XSec_CalcCollisionProb, XSec_CalcReactionProb, XSec_CalcVibRelaxProb
+USE MOD_MCC_XSec                ,ONLY: XSec_CalcCollisionProb, XSec_CalcReactionProb, XSec_CalcVibRelaxProb, XSec_CalcElecRelaxProb
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
@@ -83,21 +83,24 @@ SpecNum2 = CollInf%Coll_SpecPartNum(iSpec_p2)
 
 Weight1 = GetParticleWeight(iPart_p1)
 Weight2 = GetParticleWeight(iPart_p2)
+
 ! Determing the particle weight (2D/VTS: Additional scaling of the weighting according to the position within the cell)
-IF (RadialWeighting%DoRadialWeighting) THEN
-  ! Correction factor: Collision pairs above the mean MPF within the cell will get a higher collision probability
-  ! Not the actual weighting factor, since the weighting factor is included in SpecNum
-    MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) &
-                          / CollInf%MeanMPF(PairType)
+IF (usevMPF) THEN
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    ! Correction factor: Collision pairs above the mean MPF within the cell will get a higher collision probability
+    ! Not the actual weighting factor, since the weighting factor is included in SpecNum
+    MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) / CollInf%SumPairMPF(PairType)
+  ELSE
+    MacroParticleFactor = 1.
+  END IF
   ! Sum over the mean weighting factor of all collision pairs, is equal to the number of collision pairs
   ! (incl. weighting factor)
-  CollCaseNum = CollInf%MeanMPF(PairType)
-ELSE IF (VarTimeStep%UseVariableTimeStep) THEN
+  CollCaseNum = CollInf%SumPairMPF(PairType)
+ELSE IF (UseVarTimeStep) THEN
   ! Not the actual weighting factor, since the weighting factor is included in SpecNum
-  MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) &
-                      / CollInf%MeanMPF(PairType)
-  ! Sum over the mean variable time step factors (NO particle weighting factor included during MeanMPF summation)
-  CollCaseNum = CollInf%MeanMPF(PairType) * Species(1)%MacroParticleFactor
+  MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) / CollInf%SumPairMPF(PairType)
+  ! Sum over the mean variable time step factors (NO particle weighting factor included during SumPairMPF summation)
+  CollCaseNum = CollInf%SumPairMPF(PairType) * Species(1)%MacroParticleFactor
   ! Weighting factor has to be included
   SpecNum1 = SpecNum1 * Species(1)%MacroParticleFactor
   SpecNum2 = SpecNum2 * Species(1)%MacroParticleFactor
@@ -105,9 +108,8 @@ ELSE
   MacroParticleFactor = Species(1)%MacroParticleFactor
   CollCaseNum = REAL(CollInf%Coll_CaseNum(PairType))
 END IF
-
-IF (VarTimeStep%UseVariableTimeStep) THEN
-  dtCell = dt * (VarTimeStep%ParticleTimeStep(iPart_p1) + VarTimeStep%ParticleTimeStep(iPart_p2))*0.5
+IF (UseVarTimeStep) THEN
+  dtCell = dt * (PartTimeStep(iPart_p1) + PartTimeStep(iPart_p2))*0.5
 ELSE
   dtCell = dt
 END IF
@@ -120,21 +122,27 @@ SELECT CASE(iPType)
   ! 5: Atom - Electron, 6: Molecule - Electron, 14: Electron - Atomic Ion, 24: Molecular Ion - Electron
     IF(UseMCC) THEN
       ! Coll_pData(iPair)%Prob is set inside the routine
-      CALL XSec_CalcCollisionProb(iPair,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
+      CALL XSec_CalcCollisionProb(iPair,iElem,SpecNum1,SpecNum2,CollCaseNum,MacroParticleFactor,Volume,dtCell)
       IF(CollisMode.EQ.3) THEN
         ! Chemical reaction with cross-section based probability
         IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
           IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
           ! If standard collision modelling is used, the reaction probability is added to the collision probability
-            CALL XSec_CalcReactionProb(iPair,iCase,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
+            CALL XSec_CalcReactionProb(iPair,iCase,iElem,SpecNum1,SpecNum2,MacroParticleFactor,Volume)
             Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SUM(ChemReac%CollCaseInfo(iCase)%ReactionProb(:))
           END IF
         END IF
       END IF
       IF(SpecXSec(iCase)%UseVibXSec) THEN
         IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
-          CALL XSec_CalcVibRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
+          CALL XSec_CalcVibRelaxProb(iPair,iElem,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
           Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SpecXSec(iCase)%VibProb
+        END IF
+      END IF
+      IF(SpecXSec(iCase)%UseElecXSec) THEN
+        IF(.NOT.SpecXSec(iCase)%UseCollXSec) THEN
+          CALL XSec_CalcElecRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Volume,dtCell)
+          Coll_pData(iPair)%Prob = Coll_pData(iPair)%Prob + SUM(SpecXSec(iCase)%ElecLevel(:)%Prob)
         END IF
       END IF
     ELSE
@@ -184,7 +192,7 @@ SELECT CASE(iPType)
     ELSE
       Coll_pData(iPair)%Prob = SpecNum1*SpecNum2/(1 + CollInf%KronDelta(PairType))  &
         !* CollInf%Cab(PairType)                                               & ! Cab species comb fac
-        * Species(PartSpecies(Coll_pData(iPair)%iPart_p1))%MacroParticleFactor                  &
+        * MacroParticleFactor                  &
           ! weighting Fact, here only one MPF is used!!!
         / CollInf%Coll_CaseNum(PairType)                                      & ! sum of coll cases Sab
         * 1.0E-20 * SQRT(Coll_pData(iPair)%CRela2) * sigma_tot  &
@@ -196,15 +204,12 @@ SELECT CASE(iPType)
   CASE (-1)
     Coll_pData(iPair)%Prob = 0.
   CASE DEFAULT
-    CALL Abort(&
-      __STAMP__&
-      ,'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
+    CALL Abort(__STAMP__,'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
 END SELECT
+
 IF (ISNAN(Coll_pData(iPair)%Prob)) THEN
   IPWRITE(UNIT_errOut,*)iPair,'in',iElem,'is NaN!'
-  CALL Abort(&
-    __STAMP__&
-    ,'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
+  CALL Abort(__STAMP__,'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
 END IF
 IF(DSMC%CalcQualityFactors) THEN
   CollProb = Coll_pData(iPair)%Prob
@@ -213,9 +218,17 @@ IF(DSMC%CalcQualityFactors) THEN
   IF(SpecDSMC(iSpec_p1)%UseCollXSec) THEN
     IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
       IF(XSec_NullCollision) THEN
-        CollProb = CollProb * SpecXSec(iCase)%ProbNull
+        IF(BGGas%UseDistribution) THEN
+          CollProb = CollProb * SpecXSec(iCase)%ProbNullElem(iElem)
+        ELSE
+          CollProb = CollProb * SpecXSec(iCase)%ProbNull
+        END IF
       ELSE
-        CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+        IF(BGGas%UseDistribution)THEN
+          CollProb = CollProb * BGGas%SpeciesFractionElem(BGGas%MapSpecToBGSpec(iSpec_p2),iElem)
+        ELSE
+          CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+        END IF ! BGGas%UseDistribution
       END IF
     END IF
   END IF
@@ -232,9 +245,17 @@ IF(ChemReac%NumOfReact.GT.0) THEN
       ! Calculate the collision probability for the null collision probability case
       IF(BGGas%BackgroundSpecies(iSpec_p2)) THEN
         IF(XSec_NullCollision) THEN
-          CollProb = CollProb * SpecXSec(iCase)%ProbNull
+          IF(BGGas%UseDistribution) THEN
+            CollProb = CollProb * SpecXSec(iCase)%ProbNullElem(iElem)
+          ELSE
+            CollProb = CollProb * SpecXSec(iCase)%ProbNull
+          END IF
         ELSE
-          CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+          IF(BGGas%UseDistribution)THEN
+            CollProb = CollProb * BGGas%SpeciesFractionElem(BGGas%MapSpecToBGSpec(iSpec_p2),iElem)
+          ELSE
+            CollProb = CollProb * BGGas%SpeciesFraction(BGGas%MapSpecToBGSpec(iSpec_p2))
+          END IF ! BGGas%UseDistribution
         END IF
       END IF
     END IF

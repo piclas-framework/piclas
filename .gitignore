@@ -26,6 +26,11 @@ userguide.pdf
 developerguide.pdf
 # when building the user/dev guide, a new template might be created
 template.tex
+# read the docs stuff
+_build/
+
+# Doxygen
+doxygen/
 
 # regression test
 regressioncheck/reggie/*
@@ -61,6 +66,7 @@ out.*.dat
 userblock.tmp
 *f90.orig
 commit.h
+
 CMakeCache.txt
 ctags.txt
 CMakeFiles/
@@ -68,3 +74,9 @@ CMakeFiles/
 
 # comma separated files
 *.csv
+
+# doxygen build folder
+doxygen/
+
+# unit test
+unitTests/bin/

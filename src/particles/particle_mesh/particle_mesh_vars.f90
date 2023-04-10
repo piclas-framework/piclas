@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -45,6 +45,9 @@ INTEGER            :: offsetComputeNodeSide                 !> side offset of co
 INTEGER            :: offsetComputeNodeNode                 !> node offset of compute-node root
 INTEGER            :: nUniqueGlobalNodes                    !> MAXVAL(NodeInfo_Shared)
 
+#if USE_MPI
+LOGICAL, ALLOCATABLE :: IsExchangeElem(:) !> Exchange elements may receive particles during MPI communication and cannot be used for latency hiding
+#endif /*USE_MPI*/
 ! ====================================================================
 ! MPI3 shared variables
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: ElemBaryNGeo       ! element local basis: origin
@@ -91,7 +94,7 @@ INTEGER,ALLOCPOINT,DIMENSION(:)          :: FIBGMProcs
 ! Shared arrays containing information for complete mesh
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: ElemInfo_Shared
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: SideInfo_Shared
-INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeInfo_Shared !> Contains the 8 corner nodes of an element (global "unique node IDs")
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: NodeCoords_Shared
 
 ! Shared arrays for halo debug information
@@ -134,10 +137,10 @@ REAL,ALLOCPOINT    :: ElemRadius2NGeo_Shared(:)
 REAL,ALLOCPOINT    :: XiEtaZetaBasis_Shared(:,:,:)
 REAL,ALLOCPOINT    :: slenXiEtaZetaBasis_Shared(:,:)
 
-LOGICAL,ALLOCPOINT :: ElemCurved_Shared(:)                 !> Flag if an element is curved
+LOGICAL,ALLOCPOINT :: ElemCurved_Shared(:)         !> Flag if an element is curved
 LOGICAL,ALLOCPOINT :: ConcaveElemSide_Shared(:,:)
-INTEGER,ALLOCPOINT :: ElemNodeID_Shared(:,:)               !> Contains the 8 corner nodes of an element, important for NGeo > 1
-INTEGER,ALLOCPOINT :: ElemSideNodeID_Shared(:,:,:)         !> Contains the 4 corner nodes of the local sides in an element
+INTEGER,ALLOCPOINT :: ElemNodeID_Shared(:,:)       !> Contains the 8 corner nodes of an element (global "non-unique node IDs"), important for NGeo > 1
+INTEGER,ALLOCPOINT :: ElemSideNodeID_Shared(:,:,:) !> Contains the 4 corner nodes of the local sides in an element
 REAL,ALLOCPOINT    :: ElemMidPoint_Shared(:,:)
 
 REAL,ALLOCPOINT    :: SideSlabNormals_Shared(:,:,:)
@@ -254,8 +257,6 @@ INTEGER         :: ElemCharLengthZ_Shared_Win
 
 ! periodic sides
 LOGICAL         :: MeshHasPeriodic,MeshHasRotPeriodic
-REAL,POINTER    :: DistanceOfElemCenter_Shared(:)
-INTEGER         :: DistanceOfElemCenter_Shared_Win
 #endif
 
 ! ElemID for WriteHaloInfo
@@ -266,10 +267,6 @@ INTEGER,ALLOCATABLE                      :: ElemHaloID(:)
 ! periodic case
 INTEGER,ALLOCATABLE                      :: PeriodicSFCaseMatrix(:,:)   ! matrix to compute periodic cases
 INTEGER                                  :: NbrOfPeriodicSFCases        ! Number of periodic cases
-! Still required for PIC depo, should be remove later
-!! ====================================================================
-LOGICAL,ALLOCATABLE :: ElemHasAuxBCs(:,:)
-! Still required for PIC depo, should be remove later
 ! ====================================================================
 INTEGER                                 :: RefMappingGuess    ! select guess for mapping into reference
                                                               ! element
@@ -300,7 +297,6 @@ INTEGER                                  :: FIBGMCellPadding(1:3)
 TYPE tGeometry
   LOGICAL                                :: RotPeriodicBC            ! Flag for rotational periodicity
   INTEGER                                :: RotPeriodicAxi           ! Axis of rotational periodicity
-  REAL                                   :: RotPeriodicAngle         ! Angle of rotational periodicity
   REAL                                   :: CNxmin                   ! minimum x coord of all compute-node nodes
   REAL                                   :: CNxmax                   ! minimum y coord of all compute-node nodes
   REAL                                   :: CNymin                   ! minimum z coord of all compute-node nodes
@@ -369,7 +365,7 @@ INTEGER                                  :: WeirdElems                        ! 
                                                                               ! into themselves)
 LOGICAL                                  :: meshCheckWeirdElements            ! Flag for checking if elements are turned inside out
 !                                                                             ! (default=F)
-LOGICAL                                  :: FindNeighbourElems=.FALSE.        ! Flag defining if mapping for neighbour elements
+LOGICAL                                  :: FindNeighbourElems                ! Flag defining if mapping for neighbour elements
 
 REAL,ALLOCATABLE                         :: ElemTolerance(:)
 INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id is built via nodes

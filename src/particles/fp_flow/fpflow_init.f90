@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2018 - 2019 Marcel Pfeiffer
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -72,9 +72,12 @@ USE MOD_Globals_Vars          ,ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
-USE MOD_PARTICLE_Vars         ,ONLY: nSpecies, Species
+USE MOD_PARTICLE_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
 USE MOD_FPFlow_Vars
 USE MOD_BGK_Vars              ,ONLY: DoBGKCellAdaptation, BGKMinPartPerCell
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -85,7 +88,7 @@ USE MOD_BGK_Vars              ,ONLY: DoBGKCellAdaptation, BGKMinPartPerCell
 ! LOCAL VARIABLES
   INTEGER               :: iSpec, iSpec2
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)') ' INIT FP Solver...'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT FP Solver...'
 
 ALLOCATE(SpecFP(nSpecies))
 
@@ -120,10 +123,15 @@ END IF
 FPDoVibRelaxation = GETLOGICAL('Particles-FP-DoVibRelaxation')
 FPUseQuantVibEn = GETLOGICAL('Particles-FP-UseQuantVibEn')
 CoupledFPDSMC = GETLOGICAL('Particles-CoupledFPDSMC')
-IF(CoupledFPDSMC) FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens')
+IF(CoupledFPDSMC) THEN
+  IF (DoVirtualCellMerge) THEN  
+    CALL abort(__STAMP__,' Virtual cell merge not implemented for coupled DSMC-FP simulations!')
+  END IF
+  FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens')
+END IF
 
 FPInitDone = .TRUE.
-SWRITE(UNIT_stdOut,'(A)') ' INIT FP-FLOW DONE!'
+LBWRITE(UNIT_stdOut,'(A)') ' INIT FP-FLOW DONE!'
 
 END SUBROUTINE InitFPFlow
 

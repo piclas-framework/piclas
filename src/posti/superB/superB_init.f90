@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2019 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -46,7 +46,7 @@ CALL prms%CreateIntOption(      'NumOfPermanentMagnets'             , 'Number of
 CALL prms%CreateStringOption(   'PermanentMagnet[$]-Type'           , 'Permanent magnet type: cuboid, sphere, cylinder, conic', &
                                                                       numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BasePoint'      , 'Origin (vector) for geometry parametrization', &
-                                                                      numberedmulti=.TRUE.)
+                                                                      numberedmulti=.TRUE., no=3)
 CALL prms%CreateIntOption(      'PermanentMagnet[$]-NumNodes'       , 'Number of Gauss points for the discretization of the '//&
                                                                       'permanent magnet:\n'//&
                                                                       'Cuboid: N points in each direction (total number: 6N^2)\n'//&
@@ -57,26 +57,26 @@ CALL prms%CreateIntOption(      'PermanentMagnet[$]-NumNodes'       , 'Number of
                                                                       'the top and bottom face\n'//&
                                                                       'Conic: see the cylinder NumNodes description', &
                                                                       numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('PermanentMagnet[$]-Magnetisation'  , 'Magnetisation vector in [A/m]', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector1'    , 'Vector 1 spanning the cuboid', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector2'    , 'Vector 2 spanning the cuboid', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector3'    , 'Vector 3 spanning the cuboid', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('PermanentMagnet[$]-Magnetisation'  , 'Magnetisation vector in [A/m]', numberedmulti=.TRUE., no=3)
+CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector1'    , 'Vector 1 spanning the cuboid', numberedmulti=.TRUE., no=3)
+CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector2'    , 'Vector 2 spanning the cuboid', numberedmulti=.TRUE., no=3)
+CALL prms%CreateRealArrayOption('PermanentMagnet[$]-BaseVector3'    , 'Vector 3 spanning the cuboid', numberedmulti=.TRUE., no=3)
 CALL prms%CreateRealOption(     'PermanentMagnet[$]-Radius'         , 'Radius of a spheric, cylindric and conic (first radius) '//&
                                                                       'permanent magnet', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'PermanentMagnet[$]-Radius2'        , 'Radius of the second radius of the conic permanent magnet'//&
                                                                       ' or inner radius for hollow cylinders', &
                                                                       numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('PermanentMagnet[$]-HeightVector'   , 'Height vector of cylindric and conic permanent magnet', &
-                                                                      numberedmulti=.TRUE.)
+                                                                      numberedmulti=.TRUE., no=3)
 
 ! Input of coils
 CALL prms%SetSection('Input of coils')
 CALL prms%CreateIntOption(      'NumOfCoils'            , 'Number of coils','0')
 CALL prms%CreateStringOption(   'Coil[$]-Type'          , 'Coil type: custom, circle, rectangular, linear conductor (straight '//&
                                                           'wire)', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Coil[$]-BasePoint'     , 'Origin vector of the coil/linear conductor', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Coil[$]-BasePoint'     , 'Origin vector of the coil/linear conductor', numberedmulti=.TRUE., no=3)
 CALL prms%CreateRealArrayOption('Coil[$]-LengthVector'  , 'Length vector of the coil/linear conductor, normal to the cross-'//&
-                                                          'sectional area', numberedmulti=.TRUE.)
+                                                          'sectional area', numberedmulti=.TRUE., no=3)
 CALL prms%CreateRealOption(     'Coil[$]-Current'       , 'Electrical coil current [A]', numberedmulti=.TRUE.)
 
 ! Linear conductor (calculated from the number of loops and points per loop for coils)
@@ -86,7 +86,7 @@ CALL prms%CreateIntOption(      'Coil[$]-NumNodes'      , 'Number of nodes for a
 CALL prms%CreateIntOption(      'Coil[$]-LoopNum'       , 'Number of coil loops', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Coil[$]-PointsPerLoop' , 'Number of points per loop (azimuthal discretization)', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Coil[$]-AxisVec1'      , 'Axial vector defines the orientation of the cross-section together '//&
-                                                          'with the length vector', numberedmulti=.TRUE.)
+                                                          'with the length vector', numberedmulti=.TRUE., no=3)
 ! Custom coils
 CALL prms%SetSection('Custom coils')
 CALL prms%CreateIntOption(      'Coil[$]-NumOfSegments' , 'Number of segments for the custom coil definition', numberedmulti=.TRUE.)
@@ -94,7 +94,7 @@ CALL prms%CreateStringOption(   'Coil[$]-Segment[$]-SegmentType'  , 'Possible se
 CALL prms%CreateIntOption(      'Coil[$]-Segment[$]-NumOfPoints'  , 'Number of points to discretize the segment', &
                                                                     numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('Coil[$]-Segment[$]-LineVector'   , 'Line segment: Vector (x,y) in the cross-sectional plane '//&
-                                                                    'defined by the length and axial vector', numberedmulti=.TRUE.)
+                                                                    'defined by the length and axial vector', numberedmulti=.TRUE., no=2)
 CALL prms%CreateRealOption(     'Coil[$]-Segment[$]-Radius'       , 'Circle segment: Radius in the cross-sectional plane '//&
                                                                     'defined by the length and axial vector', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Coil[$]-Segment[$]-Phi1'         , 'Circle segment: Initial angle in [deg]', numberedmulti=.TRUE.)
@@ -105,17 +105,16 @@ CALL prms%CreateRealOption(     'Coil[$]-Radius'        , 'Radius for circular c
 
 ! Rectangle coils
 CALL prms%CreateRealArrayOption('Coil[$]-RectVec1'      , 'Vector 1 (x,y) in the cross-sectional plane defined by the length '//&
-                                                          'and axial vector, spanning the rectangular coil', numberedmulti=.TRUE.)
+                                                          'and axial vector, spanning the rectangular coil', numberedmulti=.TRUE., no=2)
 CALL prms%CreateRealArrayOption('Coil[$]-RectVec2'      , 'Vector 2 (x,y) in the cross-sectional plane defined by the length '//&
-                                                          'and axial vector, spanning the rectangular coil', numberedmulti=.TRUE.)
+                                                          'and axial vector, spanning the rectangular coil', numberedmulti=.TRUE., no=2)
 
 ! Time-dependent coils
 CALL prms%SetSection('Time-dependent coils')
 CALL prms%CreateLogicalOption(  'Coil[$]-TimeDepCoil'     , 'Use time-dependent current (sinusoidal curve) for coil', &
                                                             '.FALSE.', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Coil[$]-CurrentAmplitude', 'Current amplitude [A]', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Coil[$]-CurrentFrequency', 'Current frequency [1/s]', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Coil[$]-CurrentPhase'    , 'Current phase shift [rad]', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Coil[$]-CurrentPhase'    , 'Current phase shift [rad]','0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'nTimePoints'             , 'Number of points for the discretization of the sinusoidal curve')
 
 END SUBROUTINE DefineParametersSuperB
@@ -145,8 +144,9 @@ USE MOD_Interpolation      ,ONLY: GetVandermonde
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: iMagnet, iCoil, iSegment
+INTEGER            :: iMagnet, iCoil, iSegment, NbrOfTimeDepCoils
 CHARACTER(LEN=32)  :: hilf,hilf2
+REAL               :: FrequencyTmp
 !===================================================================================================================================
 
 ! Get logical for calculating the error norms L2 and LInf of magnetic field
@@ -216,7 +216,9 @@ IF (NumOfPermanentMagnets.GT.0) THEN
 END IF
 
 ! Get the number of coils/conductors
-NumOfCoils               = GETINT('NumOfCoils','0')
+NumOfCoils        = GETINT('NumOfCoils','0')
+NbrOfTimeDepCoils = 0. ! Initialize
+FrequencyTmp      = 0. ! Initialize
 ALLOCATE(CoilInfo(NumOfCoils))
 ALLOCATE(TimeDepCoil(NumOfCoils))
 ALLOCATE(CurrentInfo(NumOfCoils))
@@ -297,18 +299,25 @@ IF (NumOfCoils.GT.0) THEN
     ! --------------------- Time-dependent current ---------------------------------------
     TimeDepCoil(iCoil) = GETLOGICAL('Coil'//TRIM(hilf)//'-TimeDepCoil')
     IF(TimeDepCoil(iCoil)) THEN
-      CurrentInfo(iCoil)%CurrentAmpl = GETREAL('Coil'//TRIM(hilf)//'-CurrentAmplitude')
+      NbrOfTimeDepCoils = NbrOfTimeDepCoils + 1
       CurrentInfo(iCoil)%CurrentFreq = GETREAL('Coil'//TRIM(hilf)//'-CurrentFrequency')
       CurrentInfo(iCoil)%CurrentPhase = GETREAL('Coil'//TRIM(hilf)//'-CurrentPhase')
-    ELSE
-      CoilInfo(iCoil)%Current = GETREAL('Coil'//TRIM(hilf)//'-Current')
+      ! Check that all time-dependent coils use the same frequency
+      IF((NbrOfTimeDepCoils.GT.1).AND.(.NOT.ALMOSTEQUALRELATIVE(CurrentInfo(iCoil)%CurrentFreq,FrequencyTmp,1e-5)))THEN
+        CALL abort(__STAMP__,'All time-dependent coils must have the same frequency!')
+      END IF
+      FrequencyTmp = CurrentInfo(iCoil)%CurrentFreq
     END IF
+    CoilInfo(iCoil)%Current = GETREAL('Coil'//TRIM(hilf)//'-Current')
   END DO
 END IF
 
 ! Discretisation in time
+UseTimeDepCoil=.FALSE.
 IF (ANY(TimeDepCoil)) THEN
-  nTimePoints = GETINT('nTimePoints','0')
+  UseTimeDepCoil = .TRUE.
+  nTimePoints    = GETINT('nTimePoints')
+  IF(nTimePoints.LT.2) CALL abort(__STAMP__,'nTimePoints cannot be smaller than 2')
 END IF
 
 END SUBROUTINE InitializeSuperB

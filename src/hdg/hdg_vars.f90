@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -11,11 +11,17 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
+#if USE_PETSC
+#include "petsc/finclude/petsc.h"
+#endif
 !===================================================================================================================================
 !> Contains global variables used by the HDG modules.
 !===================================================================================================================================
 MODULE MOD_HDG_Vars
 ! MODULES
+#if USE_PETSC
+USE PETSc
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -27,6 +33,27 @@ SAVE
 INTEGER             :: nGP_vol                !< =(PP_N+1)**3
 INTEGER             :: nGP_face               !< =(PP_N+1)**2
 
+#if USE_PETSC
+Mat                 :: Smat_petsc
+Vec                 :: RHS_petsc
+Vec                 :: lambda_petsc
+KSP                 :: ksp
+Vec                 :: lambda_local_petsc
+VecScatter          :: scatter_petsc
+IS                  :: idx_local_petsc
+IS                  :: idx_global_petsc
+Vec                 :: lambda_local_conductors_petsc
+VecScatter          :: scatter_conductors_petsc
+IS                  :: idx_local_conductors_petsc
+IS                  :: idx_global_conductors_petsc
+INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the local SideID to global PETScSideID 
+INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)  !< PETScLocalToSideID(PETScLocalSideID) maps the local PETSc side to SideID
+REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
+REAL,ALLOCATABLE    :: Smat_zeroPotential(:,:,:) !< side to side matrix for zero potential Side, (ngpface,ngpface,6Sides)
+INTEGER             :: nPETScSides            !< nSides - nDirichletSides - nZeroPotentialSides
+INTEGER             :: nPETScUniqueSides      !< nPETScSides - nMPISides_YOUR
+INTEGER             :: nPETScUniqueSidesGlobal
+#endif
 LOGICAL             :: useHDG=.FALSE.
 LOGICAL             :: ExactLambda =.FALSE.   !< Flag to initialize exact function for lambda
 REAL,ALLOCATABLE    :: InvDhat(:,:,:)         !< Inverse of Dhat matrix (nGP_vol,nGP_vol,nElems)
@@ -34,6 +61,8 @@ REAL,ALLOCATABLE    :: Ehat(:,:,:,:)          !< Ehat matrix (nGP_Face,nGP_vol,6
 REAL,ALLOCATABLE    :: wGP_vol(:)             !< 3D quadrature weights
 REAL,ALLOCATABLE    :: JwGP_vol(:,:)          !< 3D quadrature weights*Jacobian for all elements
 REAL,ALLOCATABLE    :: lambda(:,:,:)          !< lambda, ((PP_N+1)^2,nSides)
+REAL,ALLOCATABLE    :: lambdaLB(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
+REAL,ALLOCATABLE    :: iLocSides(:,:,:)       !< iLocSides, ((PP_N+1)^2,nSides) - used for I/O and ALLGATHERV of lambda
 REAL,ALLOCATABLE    :: RHS_vol(:,:,:)         !< Source RHS
 REAL,ALLOCATABLE    :: Tau(:)                 !< Stabilization parameter, per element
 REAL,ALLOCATABLE    :: Smat(:,:,:,:,:)        !< side to side matrix, (ngpface, ngpface, 6sides, 6sides, nElems)
@@ -48,6 +77,8 @@ INTEGER             :: HDGZeroPotentialDir    !< Direction in which a Dirichlet 
                                               !< conditions. Default chooses the direction automatically when no other Dirichlet
                                               !< boundary conditions are defined.
 INTEGER             :: nNeumannBCsides
+INTEGER             :: nConductorBCsides      !< Number of processor-local sides that are conductors (FPC) in [1:nBCSides]
+INTEGER,ALLOCATABLE :: ConductorBC(:)
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)
 LOGICAL             :: HDGnonlinear           !< Use non-linear sources for HDG? (e.g. Boltzmann electrons)
@@ -74,16 +105,23 @@ LOGICAL             :: UseRelativeAbortCrit
 LOGICAL             :: HDGInitIsDone=.FALSE.
 INTEGER             :: HDGSkip, HDGSkipInit
 REAL                :: HDGSkip_t0
-LOGICAL,ALLOCATABLE :: MaskedSide(:)          !< 1:nSides: all sides which are set to zero in matvec
+INTEGER,ALLOCATABLE :: MaskedSide(:)          !< 1:nSides: all sides which are set to zero in matvec
 !mortar variables
 REAL,ALLOCATABLE    :: IntMatMortar(:,:,:,:)  !< Interpolation matrix for mortar: (nGP_face,nGP_Face,1:4(iMortar),1:3(MortarType))
 INTEGER,ALLOCATABLE :: SmallMortarInfo(:)     !< 1:nSides: info on small Mortar sides:
                                               !< -1: is neighbor small mortar , 0: not a small mortar, 1: small mortar on big side
+#if USE_PETSC
+INTEGER,ALLOCATABLE :: SmallMortarType(:,:)   !< Type of Mortar side ([1] Type, [2] Side, nSides)
+                                              !< [1] Type: mortar type this small side belongs to (1-3)
+                                              !< [2] Side: Small side number (1-4)
+#endif
 LOGICAL             :: HDGDisplayConvergence  !< Display divergence criteria: Iterations, Runtime and Residual
 REAL                :: RunTime                !< CG Solver runtime
 REAL                :: RunTimePerIteration    !< CG Solver runtime per iteration
 REAL                :: HDGNorm                !< Norm
 INTEGER             :: iteration              !< number of iterations to achieve the norm
+INTEGER             :: iterationTotal         !< number of iterations over the course of a time step (possibly multiple stages)
+REAL                :: RunTimeTotal           !< CG Solver runtime sum over the course of a time step (possibly multiple stages)
 
 ! --- Boltzmann relation (BR) electron fluid
 LOGICAL               :: UseBRElectronFluid            !< Indicates usage of BR electron fluid model
@@ -118,8 +156,83 @@ REAL                  :: DeltaTimeBRWindow             !< Time length when BR is
 LOGICAL               :: BRNullCollisionDefault        !< Flag (backup of read-in parameter) whether null collision method
                                                        !< (determining number of pairs based on maximum relaxation frequency) is used
 #endif /*defined(PARTICLES)*/
+
+! --- Sub-communicator groups
+
+#if USE_MPI
+TYPE tMPIGROUP
+  INTEGER                     :: ID                  !< MPI communicator ID
+  INTEGER                     :: UNICATOR            !< MPI communicator for floating boundary condition
+  INTEGER                     :: Request             !< MPI request for asynchronous communication
+  INTEGER                     :: nProcs              !< number of MPI processes part of the FPC group
+  INTEGER                     :: nProcsWithSides     !< number of MPI processes part of the FPC group and actual FPC sides
+  INTEGER                     :: MyRank              !< MyRank of PartMPIVAR%COMM
+  LOGICAL                     :: MPIRoot             !< Root, MPIRank=0
+  INTEGER,ALLOCATABLE         :: GroupToComm(:)      !< list containing the rank in PartMPI%COMM
+  INTEGER,ALLOCATABLE         :: CommToGroup(:)      !< list containing the rank in PartMPI%COMM
+END TYPE
+#endif /*USE_MPI*/
+
+!===================================================================================================================================
+!-- Floating boundary condition
 !===================================================================================================================================
 
+LOGICAL                       :: UseFPC             !< Automatic flag when FPCs are active
+
+TYPE tFPC
+  REAL,ALLOCATABLE            :: Voltage(:)         !< Electric potential on floating boundary condition for each (required) BC index over all processors. This is the value that is reduced to the MPI root process
+  REAL,ALLOCATABLE            :: VoltageProc(:)     !< Electric potential on floating boundary condition for each (required) BC index for a single processor. This value is non-zero only when the processor has an actual FPC side
+  REAL,ALLOCATABLE            :: Charge(:)          !< Accumulated charge on floating boundary condition for each (required) BC index over all processors
+  REAL,ALLOCATABLE            :: ChargeProc(:)      !< Accumulated charge on floating boundary condition for each (required) BC index for a single processor
+#if USE_MPI
+  TYPE(tMPIGROUP),ALLOCATABLE :: COMM(:)            !< communicator and ID for parallel execution
+#endif /*USE_MPI*/
+  !INTEGER                     :: NBoundaries       !< Total number of boundaries where the floating boundary condition is evaluated
+  INTEGER                     :: nFPCBounds         !< Global number of boundaries that are FPC with BCType=20 in [1:nBCs],
+!                                                   !< they might belong to the same group (electrically connected)
+  INTEGER                     :: nUniqueFPCBounds   !< Global number of independent FPC after grouping certain BC sides together
+!                                                   !< (electrically connected) with the same BCState ID
+  INTEGER,ALLOCATABLE         :: BCState(:)         !< BCState of the i-th FPC index
+  !INTEGER,ALLOCATABLE         :: BCIDToFPCBCID(:)  !< Mapping BCID to FPC BCID (1:nPartBound)
+  INTEGER,ALLOCATABLE         :: Group(:,:)         !< FPC%Group(1:FPC%nFPCBounds,3)
+                                                    !<   1: BCState
+                                                    !<   2: iUniqueFPC (i-th FPC group ID)
+                                                    !<   3: number of BCSides for each FPC group
+  INTEGER,ALLOCATABLE         :: GroupGlobal(:)     !< Sum of nSides associated with each i-th FPC boundary
+END TYPE
+
+TYPE(tFPC)   :: FPC
+!===================================================================================================================================
+!-- Electric Potential Condition (for decharging )
+!===================================================================================================================================
+
+LOGICAL                       :: UseEPC             !< Automatic flag when EPCs are active
+
+TYPE tEPC
+  REAL,ALLOCATABLE            :: Voltage(:)         !< Electric potential on floating boundary condition for each (required) BC index over all processors. This is the value that is reduced to the MPI root process
+  REAL,ALLOCATABLE            :: VoltageProc(:)     !< Electric potential on floating boundary condition for each (required) BC index for a single processor. This value is non-zero only when the processor has an actual EPC side
+  REAL,ALLOCATABLE            :: Charge(:)          !< Accumulated charge on floating boundary condition for each (required) BC index over all processors
+  REAL,ALLOCATABLE            :: ChargeProc(:)      !< Accumulated charge on floating boundary condition for each (required) BC index for a single processor
+  REAL,ALLOCATABLE            :: Resistance(:)      !< Vector (length corresponds to the number of EPC boundaries) with the resistance for each EPC in Ohm
+#if USE_MPI
+  TYPE(tMPIGROUP),ALLOCATABLE :: COMM(:)            !< communicator and ID for parallel execution
+#endif /*USE_MPI*/
+  !INTEGER                     :: NBoundaries       !< Total number of boundaries where the floating boundary condition is evaluated
+  INTEGER                     :: nEPCBounds         !< Global number of boundaries that are EPC with BCType=20 in [1:nBCs],
+!                                                   !< they might belong to the same group (electrically connected)
+  INTEGER                     :: nUniqueEPCBounds   !< Global number of independent EPC after grouping certain BC sides together
+!                                                   !< (electrically connected) with the same BCState ID
+  INTEGER,ALLOCATABLE         :: BCState(:)         !< BCState of the i-th EPC index
+  !INTEGER,ALLOCATABLE         :: BCIDToEPCBCID(:)  !< Mapping BCID to EPC BCID (1:nPartBound)
+  INTEGER,ALLOCATABLE         :: Group(:,:)         !< EPC%Group(1:EPC%nEPCBounds,3)
+                                                    !<   1: BCState
+                                                    !<   2: iUniqueEPC (i-th EPC group ID)
+                                                    !<   3: number of BCSides for each EPC group
+  INTEGER,ALLOCATABLE         :: GroupGlobal(:)     !< Sum of nSides associated with each i-th EPC boundary
+END TYPE
+
+TYPE(tEPC)   :: EPC
+!===================================================================================================================================
 
 #if USE_MPI
 !no interface for reshape inout vector

@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -47,25 +47,26 @@ USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,dt_Min,dtWeight
 USE MOD_TimeDisc_Vars          ,ONLY: RKdtFracTotal,RKdtFrac
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
-USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM, &
-                                      doParticleMerge,DoSurfaceFlux,DoForceFreeSurfaceFlux,DoFieldIonization
+USE MOD_Particle_Vars          ,ONLY: PartState, Pt, Pt_temp, LastPartPos, DelayTime,  PEM, PDM
+USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux, DoFieldIonization
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
-USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
+USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcCoupledPowerPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
+USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
+USE MOD_vMPF                   ,ONLY: SplitAndMerge
+USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
@@ -168,9 +169,7 @@ IF (time.GE.DelayTime) THEN
           CALL RANDOM_NUMBER(RandVal)
           IF (DoForceFreeSurfaceFlux) Pt(1:3,iPart)=0.
         ELSE
-          CALL abort(&
-__STAMP__&
-,'Error in LSERK-HDG-Timedisc: This case should be impossible...')
+          CALL abort(__STAMP__,'Error in LSERK-HDG-Timedisc: This case should be impossible...')
         END IF
         Pa_rebuilt(:,:)=0.
         ! Don't push the velocity component of neutral particles!
@@ -205,6 +204,9 @@ __STAMP__&
         PDM%dtFracPush(iPart) = .FALSE.
         IF (.NOT.DoForceFreeSurfaceFlux) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
       END IF !IsNewPart
+
+      CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
+
       ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
     END IF
@@ -332,6 +334,9 @@ DO iStage=2,nRKStages
           END IF
           IF (.NOT.DoForceFreeSurfaceFlux .OR. iStage.EQ.nRKStages) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
         END IF !IsNewPart
+
+        CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
+      
         ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
         IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
       END IF
@@ -362,36 +367,7 @@ DO iStage=2,nRKStages
 END DO
 
 #ifdef PARTICLES
-#if USE_MPI
-PartMPIExchange%nMPIParticles=0 ! and set number of received particles to zero for deposition
-#endif
-IF (doParticleMerge) THEN
-  IF (.NOT.useDSMC) THEN
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    ALLOCATE(PEM%pStart(1:PP_nElems)           , &
-             PEM%pNumber(1:PP_nElems)          , &
-             PEM%pNext(1:PDM%maxParticleNumber), &
-             PEM%pEnd(1:PP_nElems) )
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  END IF
-END IF
-
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
-
-IF (doParticleMerge) THEN
-  CALL StartParticleMerge()
-  IF (.NOT.useDSMC) THEN
-    DEALLOCATE(PEM%pStart , &
-               PEM%pNumber, &
-               PEM%pNext  , &
-               PEM%pEnd   )
-  END IF
-  CALL UpdateNextFreePosition()
-END IF
 
 IF (useDSMC) THEN
   IF (time.GE.DelayTime) THEN
@@ -399,7 +375,7 @@ IF (useDSMC) THEN
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-    PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
+    IF(UseSplitAndMerge) CALL SplitAndMerge()
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_DSMC,tLBStart)
 #endif /*USE_LOADBALANCE*/

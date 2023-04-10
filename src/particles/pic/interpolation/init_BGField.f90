@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -70,12 +70,17 @@ USE MOD_Mesh_Vars             ,ONLY: OffsetElem,nGlobalElems
 USE MOD_Preproc
 USE MOD_ReadInTools           ,ONLY: GETSTR,GETINT,GETREAL
 USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataProps,DatasetExists
+USE MOD_HDF5_Input            ,ONLY: GetDataSize
 USE MOD_PICInterpolation_Vars ,ONLY: CalcBField
 USE MOD_Interpolation_Vars    ,ONLY: NBG,BGType,BGField
 USE MOD_Interpolation_Vars    ,ONLY: BGField_xGP,BGField_wBary,BGDataSize
 USE MOD_Interpolation_Vars    ,ONLY: NodeType
 USE MOD_ReadInTools           ,ONLY: PrintOption
 USE MOD_SuperB                ,ONLY: SuperB
+USE MOD_SuperB_Vars           ,ONLY: BGFieldFrequency,UseTimeDepCoil,nTimePoints,BGFieldTDep
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -88,17 +93,18 @@ INTEGER                                 :: nVar_BField,N_in,nElems_BGField
 CHARACTER(LEN=255)                      :: BGFileName,NodeType_BGField,BGFieldName
 CHARACTER(LEN=40)                       :: DefaultValue
 CHARACTER(LEN=255),ALLOCATABLE          :: VarNames(:)
-REAL,ALLOCATABLE                        :: BGField_tmp(:,:,:,:,:), Vdm_BGFieldIn_BGField(:,:)
+REAL,ALLOCATABLE                        :: BGField_tmp(:,:,:,:,:), Vdm_BGFieldIn_BGField(:,:),BGFieldTDep_tmp(:,:,:,:,:,:)
 REAL,ALLOCATABLE                        :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:)
-INTEGER                                 :: iElem,i,j,k
+INTEGER                                 :: iElem,i,j,k,iField,nFields,nDimsOffset
 REAL                                    :: BGFieldScaling
 LOGICAL                                 :: BGFieldExists,DG_SolutionExists
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)')' INIT BACKGROUND FIELD...'
+LBWRITE(UNIT_stdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT BACKGROUND FIELD...'
 
 ! 1) Determine whether a field will be read-in or calculated
+UseTimeDepCoil=.FALSE.! Initialize
 BGFileName = GETSTR('PIC-BGFileName')
 IF(TRIM(BGFileName).NE.'none') THEN
   ! 1a) Read-in of background field name, if supplied -> read-in of the field
@@ -108,8 +114,8 @@ ELSE
   IF(FILEEXISTS(TRIM(BGFileName))) THEN
   ! 1b) If a filename not given, check if the BGField for the current case exists, if it does -> read-in of the available field
     CalcBField = .FALSE.
-    SWRITE(UNIT_stdOut,'(A)')' No file name for the background field was given, but an existing file was found!'
-    SWRITE(UNIT_stdOut,*) 'File name: ', TRIM(BGFileName)
+    LBWRITE(UNIT_stdOut,'(A)')' No file name for the background field was given, but an existing file was found!'
+    LBWRITE(UNIT_stdOut,*) 'File name: ', TRIM(BGFileName)
   ELSE
   ! 1c) If no filename was given and no current BGField for this case exists, check if permanent magnets/coils were given -> superB
     CalcBField = .TRUE.
@@ -131,11 +137,21 @@ ELSE
   ELSEIF(DG_SolutionExists) THEN
     BGFieldName = 'DG_Solution'
   ELSE
-    CALL abort(&
-      __STAMP__&
-      ,' ERROR Background Field: BGField container was not found in the given file!')
+    CALL abort(__STAMP__,' ERROR Background Field: BGField container was not found in the given file!')
   END IF
-  CALL GetDataProps(TRIM(BGFieldName) , nVar_BField , N_in , nElems_BGField , NodeType_BGField)
+
+  ! Check if time-dependent BGField is in h5 file
+  ! Read-in of dimensions of the field array (might have an additional dimension, i.e., rank is 6 instead of 5)
+  CALL GetDataSize(File_ID,TRIM(BGFieldName),nDims,HSize)
+  ! Check the number of fields in the file, if more than 5 dimensions, the 6th dimensions carries the number of fields
+  nFields     = MERGE(1 , INT(HSize(nDims)) , nDims.EQ.5)
+  nDimsOffset = MERGE(0 , 1                 , nDims.EQ.5)
+  IF(nFields.GT.1)THEN
+    nTimePoints = nFields
+    UseTimeDepCoil=.TRUE.
+    CALL ReadAttribute(File_ID,'BGFieldFrequency',1,RealScalar=BGFieldFrequency)
+  END IF ! nFields.GT.1
+  CALL GetDataProps(TRIM(BGFieldName) , nVar_BField , N_in , nElems_BGField , NodeType_BGField, nDimsOffset)
 END IF
 
 ! 3) Initialize the background field arrays, depending on the selected order and the node type
@@ -145,13 +161,11 @@ ALLOCATE(BGField_xGP(0:NBG), BGField_wBary(0:NBG))
 ! 4) Determine the Gauss points and barycentric weights for the background field
 SELECT CASE(TRIM(NodeType_BGField))
   CASE("GAUSS")
-  CALL LegendreGaussNodesAndWeights(NBG,BGField_xGP)
+    CALL LegendreGaussNodesAndWeights(NBG,BGField_xGP)
   CASE("GAUSS-LOBATTO")
-  CALL LegGaussLobNodesAndWeights(NBG,BGField_xGP)
+    CALL LegGaussLobNodesAndWeights(NBG,BGField_xGP)
   CASE DEFAULT
-    CALL abort(&
-    __STAMP__&
-    ,' ERROR Background Field: Nodetype is not implemented! Use Gauss or Gauss-Lobatto.')
+    CALL abort(__STAMP__,' ERROR Background Field: Nodetype is not implemented! Use Gauss or Gauss-Lobatto.')
 END SELECT
 CALL BarycentricWeights(NBG,BGField_xGP,BGField_wBary)
 
@@ -160,30 +174,33 @@ IF (CalcBField) THEN
   ! Calculate the background B-field via SuperB
   CALL SuperB()
 ELSE
-  SWRITE(UNIT_stdOut,'(A)')' Reading background field from file... '
+  LBWRITE(UNIT_stdOut,'(A)')' Reading background field from file ['//TRIM(BGFileName)//']... '
   ALLOCATE(VarNames(nVar_BField))
   CALL ReadAttribute(File_ID,'VarNames',nVar_BField,StrArray=VarNames)
 
   IF(MPIRoot)THEN
-    IF(nElems_BGField.NE.nGlobalElems)  CALL abort(&
-        __STAMP__&
-        ,' ERROR Background Field: Mesh files have a different number of elements!')
+    IF(nElems_BGField.NE.nGlobalElems)THEN
+      WRITE (*,*) "nElems_BGField =", nElems_BGField
+      WRITE (*,*) "nGlobalElems   =", nGlobalElems
+      CALL abort(__STAMP__,' Background Field: Mesh files have a different number of elements!')
+    END IF
   END IF
 
   BGType=0
   IF(nVar_BField.EQ.3) THEN
     BGDataSize=3
     IF(TRIM(VarNames(1)).EQ.'BG-ElectricFieldX') THEN
+      ! Ex, Ey, Ez
       BGType=1
     ELSE IF(TRIM(VarNames(1)).EQ.'BG-MagneticFieldX') THEN
+      ! Bx, By, Bz
       BGType=2
     ELSE
-      CALL abort(&
-      __STAMP__&
-    ,'ERROR Background Field: Variable names do not seem to be correct!')
+      CALL abort(__STAMP__,'ERROR Background Field: Variable names do not seem to be correct!')
     END IF
   ELSE
     BGDataSize=6
+    ! Ex,Ey,Ez,Bx,By,Bz
     BGType=3
   END IF
 
@@ -192,15 +209,33 @@ ELSE
         BGdatasize    => INT(BGdatasize,IK) ,&
         N_in          => INT(N_in,IK)       ,&
         PP_nElems     => INT(PP_nElems,IK)  ,&
+        nTimePoints   => INT(nTimePoints,IK),&
         NBG           => INT(NBG,IK)        ,&
         OffsetElem    => INT(OffsetElem,IK) )
+
+    ! Allocate arrays
+    ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
+    IF(UseTimeDepCoil) ALLOCATE(BGFieldTDep(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems,1:nTimePoints))
+
+    ! Check if the polynomial degree changed and/or a time-dependent background field is read from h5
     IF(NBG.EQ.N_IN)THEN
-      ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
-      CALL ReadArray(TRIM(BGFieldName),5,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems/),OffsetElem,5,RealArray=BGField)
+      IF(UseTimeDepCoil)THEN
+        CALL ReadArray(TRIM(BGFieldName),6,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems,nTimePoints/),&
+                       OffsetElem,5,RealArray=BGFieldTDep)
+      ELSE
+        CALL ReadArray(TRIM(BGFieldName),5,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems/),&
+                       OffsetElem,5,RealArray=BGField)
+      END IF ! UseTimeDepCoil
     ELSE
-      ALLOCATE(BGField_tmp(1:BGDataSize,0:N_in,0:N_in,0:N_in,1:PP_nElems))
-      ALLOCATE(BGField(1:BGDataSize,0:NBG,0:NBG,0:NBG,1:PP_nElems))
-      CALL ReadArray(TRIM(BGFieldName),5,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems/),OffsetElem,5,RealArray=BGField_tmp)
+      IF(UseTimeDepCoil)THEN
+        ALLOCATE(BGFieldTDep_tmp(1:BGDataSize,0:N_in,0:N_in,0:N_in,1:PP_nElems,nTimePoints))
+        CALL ReadArray(TRIM(BGFieldName),6,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems,nTimePoints/),&
+                       OffsetElem,5,RealArray=BGFieldTDep_tmp)
+      ELSE
+        ALLOCATE(BGField_tmp(1:BGDataSize,0:N_in,0:N_in,0:N_in,1:PP_nElems))
+        CALL ReadArray(TRIM(BGFieldName),5,(/BGdatasize,N_in+1_IK,N_in+1_IK,N_in+1_IK,PP_nElems/),&
+                       OffsetElem,5,RealArray=BGField_tmp)
+      END IF ! UseTimeDepCoil
     END IF
   END ASSOCIATE
 
@@ -209,9 +244,9 @@ ELSE
   ! END IF
 
   IF(NBG.NE.N_In)THEN
-    SWRITE(UNIT_stdOut,'(A)')' Changing polynomial degree of BG-Field.'
+    LBWRITE(UNIT_stdOut,'(A)')' Changing polynomial degree of BG-Field.'
     IF(NBG.GT.N_IN) THEN
-      SWRITE(UNIT_stdOut,'(A)')' WARNING: BG-Field is used with higher polynomial degree than given!'
+      LBWRITE(UNIT_stdOut,'(A)')' WARNING: BG-Field is used with higher polynomial degree than given!'
     END IF
     ALLOCATE( Vdm_BGFieldIn_BGField(0:NBG,0:N_IN) &
             , wGP_tmp(0:N_in)                     &
@@ -224,16 +259,26 @@ ELSE
     CASE("GAUSS-LOBATTO")
       CALL LegGaussLobNodesAndWeights(N_In,xGP_tmp,wGP_tmp)
     CASE DEFAULT
-      CALL abort(&
-      __STAMP__&
-      ,' Not type of BackGround-Field is not implemented!')
+      CALL abort(__STAMP__,' Not type of BackGround-Field is not implemented!')
     END SELECT
     CALL BarycentricWeights(N_In,xGP_tmp,wBary_tmp)
     CALL InitializeVandermonde(N_In,NBG,wBary_tmp,xGP_tmp,BGField_xGP,Vdm_BGFieldIn_BGField)
     ! ChangeBasis3D to lower or higher polynomial degree
-    DO iElem=1,PP_nElems
-      CALL ChangeBasis3D(BGDataSize,N_In,NBG,Vdm_BGFieldIn_BGField,BGField_tmp(:,:,:,:,iElem),BGField(:,:,:,:,iElem))
-    END DO ! iElem
+
+    IF(UseTimeDepCoil)THEN
+      DO iField = 1, nFields
+        DO iElem=1,PP_nElems
+          CALL ChangeBasis3D(BGDataSize,N_In,NBG,Vdm_BGFieldIn_BGField,&
+                             BGFieldTDep_tmp(:,:,:,:,iElem,iField),BGFieldTDep(:,:,:,:,iElem,iField))
+        END DO ! iElem
+      END DO ! iField = 1, nFields
+    ELSE
+      DO iElem=1,PP_nElems
+        CALL ChangeBasis3D(BGDataSize,N_In,NBG,Vdm_BGFieldIn_BGField,&
+                           BGField_tmp(:,:,:,:,iElem),BGField(:,:,:,:,iElem))
+      END DO ! iElem
+    END IF ! UseTimeDepCoil
+
   END IF
 
   ! scaling of BGField
@@ -244,25 +289,27 @@ ELSE
   END DO ! PP_nElems
 
   SDEALLOCATE(BGField_tmp)
+  SDEALLOCATE(BGFieldTDep_tmp)
   SDEALLOCATE(VDM_BGFieldIn_BGField)
   SDEALLOCATE(wGP_tmp)
   SDEALLOCATE(wBary_tmp)
   SDEALLOCATE(xGP_tmp)
 END IF ! CalcBField
 
-SWRITE(UNIT_stdOut,'(A)')' INIT BACKGROUND FIELD DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT BACKGROUND FIELD DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 
 END SUBROUTINE InitializeBackgroundField
 
 
-SUBROUTINE FinalizeBackgroundField
+SUBROUTINE FinalizeBackgroundField()
 !===================================================================================================================================
 ! deallocate used memory
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Interpolation_Vars, ONLY:BGField_xGP,BGField_wBary,BGField,BGField,BGFieldAnalytic
+USE MOD_SuperB_Vars        ,ONLY: BGFieldTDep
+USE MOD_Interpolation_Vars ,ONLY: BGField_xGP,BGField_wBary,BGField,BGField,BGFieldAnalytic
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -272,6 +319,7 @@ USE MOD_Interpolation_Vars, ONLY:BGField_xGP,BGField_wBary,BGField,BGField,BGFie
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+SDEALLOCATE(BGFieldTDep)
 SDEALLOCATE(BGField)
 SDEALLOCATE(BGFieldAnalytic)
 SDEALLOCATE(BGField_xGP)

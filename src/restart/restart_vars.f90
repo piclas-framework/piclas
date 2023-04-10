@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -28,11 +28,10 @@ INTEGER            :: N_Restart = 0
 INTEGER            :: nElems_Restart
 LOGICAl            :: RestartInitIsDone   = .FALSE.
 LOGICAl            :: DoRestart           = .FALSE.
+LOGICAl            :: FlushInitialState   = .FALSE. !< During restart delete the state restart file when FlushInitialState=T
 LOGICAl            :: DoInitialAutoRestart= .FALSE.
-LOGICAl            :: IAR_PerformPartWeightLB= .FALSE.
+LOGICAl            :: InitialAutoRestartPartWeight= .FALSE.
 INTEGER            :: InitialAutoRestartSample
-LOGICAl            :: BuildNewMesh        = .TRUE.
-LOGICAl            :: WriteNewMesh        = .TRUE.
 LOGICAL            :: InterpolateSolution =.FALSE.
 CHARACTER(LEN=300) :: RestartFile = ""
 CHARACTER(LEN=255) :: NodeType_Restart

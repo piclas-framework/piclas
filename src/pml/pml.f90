@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -94,10 +94,13 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_PML_Vars
-USE MOD_HDF5_output       ,ONLY: GatheredWriteArray,GenerateFileSkeleton,WriteAttributeToHDF5,WriteHDF5Header
+USE MOD_HDF5_output       ,ONLY: GatheredWriteArray,WriteAttributeToHDF5,WriteHDF5Header
 USE MOD_HDF5_Output_Fields,ONLY: WritePMLzetaGlobalToHDF5
 USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
 USE MOD_IO_HDF5           ,ONLY: AddToElemData,ElementOut
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -107,14 +110,14 @@ USE MOD_IO_HDF5           ,ONLY: AddToElemData,ElementOut
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT PML...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT PML...'
 !===================================================================================================================================
 ! Readin
 !===================================================================================================================================
 DoPML                  = GETLOGICAL('DoPML','.FALSE.')
 IF(.NOT.DoPML) THEN
-  SWRITE(UNIT_stdOut,'(A)') ' PML region deactivated. '
+  LBWRITE(UNIT_stdOut,'(A)') ' PML region deactivated. '
   PMLnVar=0
   nPMLElems=0
   RETURN
@@ -148,13 +151,11 @@ IF(ANY((/PMLTimeRamptStart,PMLTimeRamptEnd/).LT.0.0))THEN
   DoPMLTimeRamp        = .FALSE.
 ELSE
   IF(ALMOSTEQUALRELATIVE(PMLTimeRamptStart,PMLTimeRamptEnd,1E-3))THEN
-    SWRITE(UNIT_stdOut,'(A)') ' WARNING: PML time ramp uses the same times for tStart and tEnd. Relative difference is < 1E-3'
+    LBWRITE(UNIT_stdOut,'(A)') ' WARNING: PML time ramp uses the same times for tStart and tEnd. Relative difference is < 1E-3'
     PMLsDeltaT         = 1e12 ! set no a very high value
   ELSE
     IF(PMLTimeRamptStart.GT.PMLTimeRamptEnd)THEN
-      CALL abort(&
-      __STAMP__,&
-      ' PMLTimeRamptStart must be smaller than PMLTimeRamptEnd.')
+      CALL abort(__STAMP__,' PMLTimeRamptStart must be smaller than PMLTimeRamptEnd.')
     END IF
     PMLsDeltaT         = 1/(PMLTimeRamptEnd-PMLTimeRamptStart)
     PMLTimeRampCoeff   = -PMLTimeRamptStart * PMLsDeltaT
@@ -212,8 +213,8 @@ CALL SetPMLdampingProfile()
 CALL WritePMLzetaGlobalToHDF5()
 
 PMLInitIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT PML DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT PML DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitPML
 
 
@@ -224,7 +225,7 @@ PPURE SUBROUTINE PMLTimeRamping(t,RampingFactor)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_PML_Vars,      ONLY: PMLTimeRamptStart,PMLTimeRamptEnd,PMLsDeltaT,PMLTimeRampCoeff
+USE MOD_PML_Vars,      ONLY: PMLTimeRamptStart,PMLTimeRamptEnd,PMLsDeltaT,PMLTimeRampCoeff,DoPMLTimeRamp
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -237,6 +238,9 @@ REAL,INTENT(OUT)   :: RampingFactor
 ! LOCAL VARIABLES
 !INTEGER             :: i,j,k,iPMLElem,m
 !===================================================================================================================================
+IF(.NOT.DoPMLTimeRamp) RETURN
+
+! Ramp if t in [0,1]
 IF(t.LT.PMLTimeRamptStart)THEN
   RampingFactor = 0.0                             ! set PMLTimeRamp to 0.0
 ELSEIF(t.GT.PMLTimeRamptEnd)THEN
@@ -357,7 +361,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER             :: i,j,k,iPMLElem
 REAL                :: XiN
-REAL                :: function_type
+REAL                :: fFuncType
 INTEGER             :: iDir,PMLDir
 REAL                :: xMin,xMax
 !===================================================================================================================================
@@ -419,7 +423,7 @@ IF(usePMLMinMax)THEN ! use xyPMLMinMax -> define the PML region
          (Elem_xGP(PMLDir,i,j,k,PMLToElem(iPMLElem)).LE.xyzPMLMinMax(2*PMLDir)))THEN ! point is in [PMLDir]-direction region
         xMin = xyzPMLMinMax(2*PMLDir-1)-xyzPMLzetaShapeOrigin(PMLDir)               ! min of region defined for PML region
         xMax = xyzPMLMinMax(2*PMLDir  )-xyzPMLzetaShapeOrigin(PMLDir)               ! max of region defined for PML region
-        PMLzeta(PMLDir,i,j,k,iPMLElem) = PMLzeta0*function_type(&
+        PMLzeta(PMLDir,i,j,k,iPMLElem) = PMLzeta0*fFuncType(&
                                        ( Elem_xGP(PMLDir,i,j,k,PMLToElem(iPMLElem))-xyzPMLzetaShapeOrigin(PMLDir)-MIN(xMin,xMax) )/&
                                        ( MAX(xMin,xMax)                                                          -MIN(xMin,xMax) ),&
                                        PMLzetashape)
@@ -432,11 +436,11 @@ ELSE ! use xyzPhysicalMinMax -> define the physical region
       IF          (Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)) .LT.   xyzPhysicalMinMax(2*iDir-1)) THEN ! region is in lower part
         XiN = (ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem))) - ABS(xyzPhysicalMinMax(2*iDir-1)))/&   ! of the domain
               (ABS(xyzMinMax(2*iDir-1))                      - ABS(xyzPhysicalMinMax(2*iDir-1)))
-                    PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*function_type(XiN,PMLzetaShape)
+                    PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*fFuncType(XiN,PMLzetaShape)
       ELSEIF      (Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem)) .GT.   xyzPhysicalMinMax(2*iDir)) THEN ! region is in upper part
         XiN = (ABS(Elem_xGP(iDir,i,j,k,PMLToElem(iPMLElem))) - ABS(xyzPhysicalMinMax(2*iDir)))/&   ! of the domain
               (ABS(xyzMinMax(2*iDir))                        - ABS(xyzPhysicalMinMax(2*iDir)))
-                    PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*function_type(XiN,PMLzetaShape)
+                    PMLzeta(iDir,i,j,k,iPMLElem)   = PMLzeta0*fFuncType(XiN,PMLzetaShape)
       END IF
     END DO
   END DO; END DO; END DO; END DO !iElem,k,j,i
@@ -472,7 +476,7 @@ ELSE ! use xyzPhysicalMinMax -> define the physical region
 !    FIX this     END IF
 !    FIX this     delta(2)=MAXVAL((/0.,xi/L/))
 !    FIX this     ! set the ramp value from 1 down to 0: use the larged value of "delta"
-!    FIX this     PMLRamp(j,k,iPMLElem) = 1. - function_type(MAXVAL(delta),PMLzetaShape)
+!    FIX this     PMLRamp(j,k,iPMLElem) = 1. - fFuncType(MAXVAL(delta),PMLzetaShape)
 !    FIX this   END DO; END DO; END DO !iPMLElem,k,j
 END IF ! usePMLMinMax
 ! ----------------------------------------------------------------------------------------------------------------------------------
@@ -613,37 +617,14 @@ END SUBROUTINE FinalizePML
 
 END MODULE MOD_PML
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-!===================================================================================================================================
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! local SUBROUTINES and FUNCTIONS
+!-----------------------------------------------------------------------------------------------------------------------------------
 
-
-REAL FUNCTION function_type(x,PMLzetaShape)
 !===================================================================================================================================
 ! switch between different types of ramping functions for the calculation of the local zeta damping value field
 !===================================================================================================================================
+REAL FUNCTION fFuncType(x,PMLzetaShape)
 ! MODULES
 USE MOD_Globals,       ONLY: abort
 ! IMPLICIT VARIABLE HANDLING
@@ -658,28 +639,27 @@ INTEGER, INTENT(IN) :: PMLzetaShape ! linear, polynomial, const., sinusoidal ram
 ! LOCAL VARIABLES
 REAL                :: fLinear,fSinus,fPolynomial
 !===================================================================================================================================
+fFuncType=0. ! Initialize
 SELECT CASE (PMLzetaShape)
 CASE(0) !Constant Distribution of the Damping Coefficient
-  function_type=1.
+  fFuncType=1.
 CASE(1) ! Linear Distribution of the Damping Coefficient
-  function_type=fLinear(x)
+  fFuncType=fLinear(x)
 CASE(2) ! Sinusoidal  Distribution of the Damping Coefficient
-  function_type=fSinus(x)
+  fFuncType=fSinus(x)
 CASE(3) ! polynomial
-  function_type=fPolynomial(x)
+  fFuncType=fPolynomial(x)
 CASE DEFAULT
-  CALL abort(&
-  __STAMP__&
-  ,'Shape function for damping coefficient in PML region not specified!',999,999.)
+  CALL abort(__STAMP__,'Shape function for damping coefficient in PML region not specified!')
 END SELECT ! PMLzetaShape
 
-END FUNCTION function_type
+END FUNCTION fFuncType
 
 
+!===================================================================================================================================
+! Evaluates a linear function
+!===================================================================================================================================
 REAL FUNCTION fLinear(x)
-!===================================================================================================================================
-!
-!===================================================================================================================================
 ! MODULES
 USE MOD_PML_Vars,            ONLY: PMLRampLength
 ! IMPLICIT VARIABLE HANDLING
@@ -702,10 +682,10 @@ END IF
 END FUNCTION fLinear
 
 
+!===================================================================================================================================
+! Evaluates a sin function
+!===================================================================================================================================
 REAL FUNCTION fSinus(x)
-!===================================================================================================================================
-!
-!===================================================================================================================================
 ! MODULES
 USE MOD_PML_Vars,            ONLY: PMLRampLength
 ! IMPLICIT VARIABLE HANDLING
@@ -728,11 +708,10 @@ END IF
 END FUNCTION fSinus
 
 
-
+!===================================================================================================================================
+! Evaluates the polynomial -3x^4 + 4x^3
+!===================================================================================================================================
 REAL FUNCTION fPolynomial(x)
-!===================================================================================================================================
-!
-!===================================================================================================================================
 ! MODULES
 USE MOD_PML_Vars,            ONLY: PMLRampLength
 ! IMPLICIT VARIABLE HANDLING
@@ -753,5 +732,3 @@ ELSE
   fPolynomial = 1.
 END IF
 END FUNCTION fPolynomial
-
-

@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -49,10 +49,10 @@ CALL prms%SetSection("LoadBalance")
 
 #if USE_LOADBALANCE
 CALL prms%CreateLogicalOption('DoLoadBalance'           , 'Set flag for doing dynamic LoadBalance.', '.FALSE.')
+CALL prms%CreateLogicalOption('UseH5IOLoadBalance'      , 'Use hdf5 IO for dynamic load balancing instead of MPI_ALLGATHERV', '.FALSE.')
 CALL prms%CreateIntOption(    'LoadBalanceSample'       , 'Define number of iterations (before Analyze_dt)'//&
                                                           ' that are used for calculation of elemtime information', value='1')
-CALL prms%CreateIntOption(    'LoadBalanceMaxSteps'     , 'Define number of maximum load balacing steps'//&
-                                                          ' that are allowed.', value='1')
+CALL prms%CreateIntOption(    'LoadBalanceMaxSteps'     , 'Define number of maximum load balacing steps that are allowed.', value='1')
 CALL prms%CreateLogicalOption('PartWeightLoadBalance'   , 'Set flag for doing LoadBalance with partMPIWeight instead of '//&
                                                           'elemtimes. Elemtime array in state file is filled with '//&
                                                           'nParts*PartMPIWeight for each Elem. '//&
@@ -71,7 +71,7 @@ CALL prms%CreateIntOption(    'WeightDistributionMethod', 'Method for distributi
                                                           ' 2: NOT WORKING\n'//&
                                                           ' 3: TODO DEFINE\n'//&
                                                           ' 4: TODO DEFINE\n'//&
-                                                          ' 5/6: iterative smoothing of loads towards last proc\n')
+                                                          ' 5/6: iterative smoothing of loads towards last proc\n',value='1')
 
 END SUBROUTINE DefineParametersLoadBalance
 
@@ -86,6 +86,10 @@ USE MOD_Preproc
 USE MOD_LoadBalance_Vars
 USE MOD_ReadInTools      ,ONLY: GETLOGICAL, GETREAL, GETINT
 USE MOD_ReadInTools      ,ONLY: PrintOption
+#if defined(PARTICLES)
+USE MOD_LoadBalance_Vars ,ONLY: MPInElemSend,MPIoffsetElemSend,MPInElemRecv,MPIoffsetElemRecv
+#endif /*defined(PARTICLES)*/
+USE MOD_LoadBalance_Vars ,ONLY: MPInSideSend,MPIoffsetSideSend,MPInSideRecv,MPIoffsetSideRecv
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -95,29 +99,27 @@ USE MOD_ReadInTools      ,ONLY: PrintOption
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SWRITE(UNIT_StdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT LOAD BALANCE ...'
 
 #ifdef PARTICLES
 ! Read particle MPI weight in order to determine the ElemTime when no time measurement is performed
 ! Must be read in init (only once) and before the first load balance is determined because if no ElemTimes are used they are
 ! calculated with ParticleMPIWeight
 ParticleMPIWeight = GETREAL('Particles-MPIWeight','0.02')
-IF (ParticleMPIWeight.LT.0.0) THEN
-  CALL abort(&
-      __STAMP__&
-      ,' ERROR: Particle weight cannot be negative!')
-END IF
+IF (ParticleMPIWeight.LT.0.0) CALL abort(__STAMP__,' ERROR: Particle weight cannot be negative!')
 #endif /*PARTICLES*/
 
+UseH5IOLoadBalance=.FALSE. ! Default
 #if USE_LOADBALANCE
 IF(nProcessors.EQ.1)THEN
   DoLoadBalance=.FALSE. ! deactivate loadbalance for single computations
   CALL PrintOption('No LoadBalance (nProcessors=1): DoLoadBalance','INFO',LogOpt=DoLoadBalance)
   DeviationThreshold=HUGE(1.0)
 ELSE
-  DoLoadBalance       = GETLOGICAL('DoLoadBalance','F')
-  DeviationThreshold  = GETREAL('Load-DeviationThreshold','0.10')
+  DoLoadBalance       = GETLOGICAL('DoLoadBalance')
+  DeviationThreshold  = GETREAL('Load-DeviationThreshold')
+  UseH5IOLoadBalance  = GETLOGICAL('UseH5IOLoadBalance')
 END IF
 LoadBalanceSample   = GETINT('LoadBalanceSample')
 LoadBalanceMaxSteps = GETINT('LoadBalanceMaxSteps')
@@ -129,6 +131,7 @@ ELSE IF (LoadBalanceSample.EQ.0) THEN
   PerformPartWeightLB = .TRUE. ! loadbalance (elemtimes) is done with partmpiweight if loadbalancesampling is set to zero
   CALL PrintOption('LoadbalanceSample = 0 : PartWeightLoadBalance','INFO',LogOpt=PerformPartWeightLB)
 END IF
+WeightDistributionMethod = GETINT('WeightDistributionMethod')
 #else
 DoLoadBalance=.FALSE. ! deactivate loadbalance if no preproc flag is set
 DeviationThreshold=HUGE(1.0)
@@ -144,11 +147,19 @@ ALLOCATE(tCurrent(1:LB_NTIMES))
 ! Allocation length (1:number of loadbalance times)
 ! look into piclas.h for more info about time names
 tCurrent=0.
+
+#if defined(PARTICLES)
+IF(.NOT.UseH5IOLoadBalance)THEN
+  ALLOCATE(MPInElemSend(nProcessors),MPIoffsetElemSend(nProcessors),MPInElemRecv(nProcessors),MPIoffsetElemRecv(nProcessors))
+  ALLOCATE(MPInPartSend(nProcessors),MPIoffsetPartSend(nProcessors),MPInPartRecv(nProcessors),MPIoffsetPartRecv(nProcessors))
+END IF ! .NOT.UseH5IOLoadBalance
+#endif /*defined(PARTICLES)*/
+ALLOCATE(MPInSideSend(nProcessors),MPIoffsetSideSend(nProcessors),MPInSideRecv(nProcessors),MPIoffsetSideRecv(nProcessors))
 #endif /*USE_LOADBALANCE*/
 
 InitLoadBalanceIsDone=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT LOAD BALANCE DONE!'
-SWRITE(UNIT_StdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT LOAD BALANCE DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitLoadBalance
 
 
@@ -198,7 +209,6 @@ ElemTimeFieldTot = 0.
 #ifdef PARTICLES
   ElemTimePartTot = 0.
 #endif /*PARTICLES*/
-
 ! If elem times are calculated by time measurement (PerformLBSample) and no Partweight Loadbalance is enabled
 IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
 
@@ -308,8 +318,7 @@ ELSE IF(PerformLBSample .AND. LoadBalanceSample.EQ.0) THEN
   END DO ! iElem=1,PP_nElems
   IF((MAXVAL(nPartsPerElem).GT.0).AND.(MAXVAL(ElemTime).LE.1.0))THEN
     IPWRITE (*,*) "parts, time =", MAXVAL(nPartsPerElem),MAXVAL(ElemTime)
-    CALL abort(&
-        __STAMP__&
+    CALL abort(__STAMP__&
         ,' ERROR: MAXVAL(nPartsPerElem).GT.0 but MAXVAL(ElemTime).LE.1.0 with ParticleMPIWeight=',RealInfoOpt=ParticleMPIWeight)
   END IF
 #endif /*PARTICLES*/
@@ -344,20 +353,26 @@ SUBROUTINE LoadBalance()
 !===================================================================================================================================
 ! USED MODULES
 USE MOD_Globals
-USE MOD_Globals_vars     ,ONLY: InitializationWallTime
+USE MOD_Globals_vars      ,ONLY: InitializationWallTime
 USE MOD_Preproc
-USE MOD_Restart          ,ONLY: Restart
-USE MOD_Piclas_Init      ,ONLY: InitPiclas,FinalizePiclas
-USE MOD_LoadBalance_Vars ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
+USE MOD_LoadBalance_Vars  ,ONLY: CurrentImbalance,MaxWeight,MinWeight
+USE MOD_LoadBalance_Vars  ,ONLY: Currentimbalance,PerformLoadBalance,LoadBalanceMaxSteps
+USE MOD_LoadBalance_Vars  ,ONLY: ElemTimeField
+USE MOD_LoadBalance_Vars  ,ONLY: ElemTime,nLoadBalanceSteps,NewImbalance,MinWeight,MaxWeight
+USE MOD_Piclas_Init       ,ONLY: InitPiclas,FinalizePiclas
+USE MOD_Restart           ,ONLY: Restart
+USE MOD_StringTools       ,ONLY: set_formatting,clear_formatting
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars     ,ONLY: DepositionType
-USE MOD_Particle_MPI     ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
+USE MOD_LoadBalance_Vars  ,ONLY: ElemTimePart
+USE MOD_LoadBalance_Vars  ,ONLY: ElemInfoRank_Shared,ElemInfoRank_Shared_Win
+USE MOD_LoadBalance_Vars  ,ONLY: nElemsOld,offsetElemOld
+USE MOD_Mesh_Vars         ,ONLY: nGlobalElems,nElems,offsetElem
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars   ,ONLY: myComputeNodeRank,MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars,ONLY: ElemInfo_Shared
+USE MOD_Particle_MPI      ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
+USE MOD_PICDepo_Vars      ,ONLY: DepositionType
 #endif /*PARTICLES*/
-USE MOD_LoadBalance_Vars ,ONLY: CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars ,ONLY: Currentimbalance, PerformLoadBalance,LoadBalanceMaxSteps
-USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
-USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -384,18 +399,32 @@ END IF
 CALL extrae_eventandcounters(int(9000001), int8(2))
 #endif /*EXTRAE*/
 
-SWRITE(UNIT_StdOut,'(1X)')
-SWRITE(UNIT_StdOut,'(1X)')
+!SWRITE(UNIT_StdOut,'(1X)')
+!SWRITE(UNIT_StdOut,'(1X)')
 SWRITE(UNIT_StdOut,'(132("="))')
 nLoadBalanceSteps=nLoadBalanceSteps+1
 CALL set_formatting("green")
-SWRITE(UNIT_stdOut,'(A,I0,A,I0,A)') ' PERFORMING LOAD BALANCE ',nLoadBalanceSteps,' of ',LoadBalanceMaxSteps,' ...'
+SWRITE(UNIT_stdOut,'(A,I0,A,I0,A)',ADVANCE='NO') ' PERFORMING LOAD BALANCE ',nLoadBalanceSteps,' of ',LoadBalanceMaxSteps,' ...'
 CALL clear_formatting()
+SWRITE(UNIT_StdOut,'(1X)')
 ! Measure init duration
 LB_StartTime=PICLASTIME()
 
 ! Finalize all arrays
 CALL FinalizePiclas(IsLoadBalance=.TRUE.)
+
+#if defined(PARTICLES)
+IF (.NOT.ASSOCIATED(ElemInfoRank_Shared)) THEN
+  CALL Allocate_Shared((/nGlobalElems/),ElemInfoRank_Shared_Win,ElemInfoRank_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,ElemInfoRank_Shared_Win,IERROR)
+END IF
+
+nElemsOld     = nElems
+offsetElemOld = offsetElem
+IF (myComputeNodeRank.EQ.0) ElemInfoRank_Shared = ElemInfo_Shared(ELEM_RANK,:)
+CALL BARRIER_AND_SYNC(ElemInfoRank_Shared_Win,MPI_COMM_SHARED)
+#endif /*PARTICLES*/
+
 ! reallocate
 CALL InitPiclas(IsLoadBalance=.TRUE.) ! determines new imbalance in InitMesh() -> ReadMesh()
 
@@ -437,8 +466,9 @@ END IF
 ! Measure init duration
 LB_Time=PICLASTIME()
 InitializationWallTime=LB_Time-LB_StartTime
+SWRITE(UNIT_StdOut,'(132("="))')
 SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' INITIALIZATION DONE! [',InitializationWallTime,' sec ]'
-SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
+!SWRITE(UNIT_stdOut,'(A)')' LOAD BALANCE DONE!'
 SWRITE(UNIT_StdOut,'(132("="))')
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
@@ -496,6 +526,8 @@ ELSE
 #endif /*PARTICLES*/
   ! send WeightSum from MPI root to all other procs
   CALL MPI_BCAST(WeightSum,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+  ! Sanity check
+  IF(.NOT.ISFINITE(WeightSum)) CALL abort(__STAMP__,'Loadbalance: WeightSum is infinite!')
 
   WeightSum_loc=SUM(ElemTime)
   !IPWRITE(UNIT_StdOut,*) "SUM(ElemTime) =", SUM(ElemTime)

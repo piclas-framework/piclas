@@ -1,0 +1,98 @@
+\documentclass[varwidth=20cm]{standalone}
+
+\usepackage[textfont=it]{caption}
+\usepackage{subfigure}
+\usepackage{tikz, pgfplots}
+\usepgfplotslibrary{colorbrewer}
+\pgfplotsset{cycle list/Dark2-8}
+\usepackage[exponent-product = \cdot]{siunitx}
+\usepackage[version=4]{mhchem}
+
+% Set default column separator for table (csv files)
+\pgfplotsset{compat=1.17,table/col sep=comma}
+% Space as thousand separator.
+\pgfkeys{/pgf/number format/.cd,1000 sep={\,}}
+
+\begin{document}
+\begin{figure}[b!]
+\centering
+    \begin{tikzpicture}
+    \begin{semilogxaxis}[
+    width=5.0cm,
+    height=5.0cm,
+    scale only axis,
+    scaled ticks=false,
+    unbounded coords=jump,
+    xmin=1e-8,
+    xmax=0.0015,
+    log basis x={10},
+    ymin=0,
+    ymax=20000,
+    xlabel style={name=xlabel},
+    xlabel={$t$ $\left[\si{s}\right]$},
+    ylabel style={name=ylabel},
+    ylabel={Number of simulation particles $\left[-\right]$},
+    axis x line*=bottom,
+    axis y line*=left,
+    legend style={at={(0.5,1.1)},anchor=south, legend cell align=left,legend columns=3, /tikz/every even column/.append style={column sep=0.5cm}}
+    ]
+    \addplot[smooth,color=black]  table [col sep=comma, x=001-TIME, y=002-nPart-Spec-001] {./dsmc-reservoir-reaction.csv};
+    \addlegendentry{\ce{CO2}};
+    \addplot[smooth,dotted,color=black]  table [col sep=comma, x=001-TIME, y=003-nPart-Spec-002] {./dsmc-reservoir-reaction.csv};
+    \addlegendentry{\ce{CO}};
+    \addplot[smooth,dashed,color=black]  table [col sep=comma, x=001-TIME, y=004-nPart-Spec-003] {./dsmc-reservoir-reaction.csv};
+    \addlegendentry{\ce{O}};
+    \end{semilogxaxis}
+    \draw [-latex] (xlabel.east) -- ++(0.5,0);
+    \draw [-latex] (ylabel.east) -- ++(0,0.5);
+    \end{tikzpicture}
+    \begin{tikzpicture}
+    \begin{semilogxaxis}[
+    width=5.0cm,
+    height=5.0cm,
+    scale only axis,
+    scaled ticks=false,
+    unbounded coords=jump,
+    xmin=1e-8,
+    xmax=0.0015,
+    log basis x={10},
+    ymin=0,
+    ymax=1e-16,
+    xlabel style={name=xlabel},
+    xlabel={$t$ $\left[\si{s}\right]$},
+    ylabel style={name=ylabel},
+    ylabel={Rate of \ce{CO2} dissociation $\left[\si{\cubic\metre\per\second}\right]$},
+    axis x line*=bottom,
+    axis y line*=right
+    ]
+    \addplot[smooth,index of colormap=0 of Dark2-8]  table [col sep=comma, x=001-TIME, y=DISS] {./dsmc-reservoir-reaction.csv}; \label{DISS}
+    \end{semilogxaxis}
+    \draw [-latex] (ylabel.east) -- ++(0,0.5);
+    \begin{semilogxaxis}[
+    width=5.0cm,
+    height=5.0cm,
+    scale only axis,
+    scaled ticks=false,
+    unbounded coords=jump,
+    xmin=1e-8,
+    xmax=0.0015,
+    log basis x={10},
+    ymin=5000,
+    ymax=10000,
+    xlabel style={name=xlabel},
+    xlabel={$t$ $\left[\si{s}\right]$},
+    ylabel style={name=ylabel},
+    ylabel={Temperature $T$ $\left[\si{K}\right]$},
+    axis x line*=bottom,
+    axis y line*=left,
+    legend style={at={(0.5,1.1)},anchor=south, legend cell align=left,legend columns=2, /tikz/every even column/.append style={column sep=0.5cm}}
+    ]
+    \addplot[smooth,index of colormap=1 of Dark2-8]  table [col sep=comma, x=001-TIME, y=022-TempTotal004] {./dsmc-reservoir-reaction.csv};
+    \addlegendentry{$T$};
+    \addlegendimage{/pgfplots/refstyle=DISS}\addlegendentry{Rate};
+    \end{semilogxaxis}
+    \draw [-latex] (xlabel.east) -- ++(0.5,0);
+    \draw [-latex] (ylabel.east) -- ++(0,0.5);
+    \end{tikzpicture}
+\end{figure}
+\end{document}

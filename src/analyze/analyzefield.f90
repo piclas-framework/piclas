@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -73,8 +73,10 @@ USE MOD_Particle_Analyze_Vars ,ONLY: IsRestart
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 USE MOD_Dielectric_Vars       ,ONLY: DoDielectric
 #if USE_HDG
-USE MOD_HDG_Vars              ,ONLY: HDGNorm,iteration,Runtime,RunTimePerIteration
-USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential,CalcAverageElectricPotential
+USE MOD_HDG_Vars              ,ONLY: HDGNorm,iterationTotal,RunTimeTotal,UseFPC,FPC,UseEPC,EPC
+USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential,CalcAverageElectricPotential,EDC,CalcElectricTimeDerivative
+USE MOD_Mesh_Vars             ,ONLY: BoundaryName
+USE MOD_TimeDisc_Vars         ,ONLY: dt
 #endif /*USE_HDG*/
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolation
@@ -103,6 +105,7 @@ INTEGER,PARAMETER  :: helpInt=0
 #endif /*PP_nVar=8*/
 #if USE_HDG
 INTEGER,PARAMETER  :: helpInt2=4
+INTEGER            :: iEDCBC,iUniqueFPCBC,iUniqueEPCBC
 #else
 INTEGER,PARAMETER  :: helpInt2=0
 #endif /*USE_HDG*/
@@ -124,7 +127,7 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
 #endif /*USE_HDG*/
     /)
 CHARACTER(LEN=255),ALLOCATABLE :: tmpStr(:) ! needed because PerformAnalyze is called multiple times at the beginning
-CHARACTER(LEN=1000)            :: tmpStr2
+CHARACTER(LEN=5000)            :: tmpStr2
 CHARACTER(LEN=1),PARAMETER     :: delimiter=","
 INTEGER                        :: I,iBoundary
 CHARACTER(LEN=255) :: StrVarNameTmp
@@ -157,7 +160,14 @@ IF(MPIROOT)THEN
       nOutputVarTotal = nOutputVar
 #endif /*PP_nVar>=6*/
 #if USE_HDG
+      ! Add averaged electric field (integrated and averaged along y-z-direction)
       IF(CalcAverageElectricPotential) nOutputVarTotal = nOutputVarTotal + 1
+      !-- Electric displacement current
+      IF(CalcElectricTimeDerivative) nOutputVarTotal = nOutputVarTotal + EDC%NBoundaries
+      !-- Floating boundary condition
+      IF(UseFPC) nOutputVarTotal = nOutputVarTotal + 2*FPC%nUniqueFPCBounds ! Charge and Voltage on each FPC
+      !-- Electric potential condition
+      IF(UseEPC) nOutputVarTotal = nOutputVarTotal + 2*EPC%nUniqueEPCBounds ! Current and Voltage on each EPC
 #endif /*USE_HDG*/
 #if (PP_nVar==8)
       IF(.NOT.CalcEpot) nOutputVarTotal = nOutputVarTotal - 5
@@ -197,6 +207,39 @@ IF(MPIROOT)THEN
         nOutputVarTotal = nOutputVarTotal + 1
         WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-AverageElectricPotential"'
       END IF ! CalcAverageElectricPotential
+
+      !-- Electric displacement current
+      IF(CalcElectricTimeDerivative)THEN
+        DO iEDCBC = 1, EDC%NBoundaries
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3,A)') 'ElecDisplCurrent-',iEDCBC,'-'//TRIM(BoundaryName(EDC%FieldBoundaries(iEDCBC)))
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+        END DO ! iEDCBC = 1, EDC%NBoundaries
+      END IF
+
+      !-- Floating boundary condition
+      IF(UseFPC)THEN
+        DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'FPC-Charge-BCState-',FPC%BCState(iUniqueFPCBC)
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'FPC-Voltage-BCState-',FPC%BCState(iUniqueFPCBC)
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+        END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      END IF
+
+      !-- Electric potential condition
+      IF(UseEPC)THEN
+        DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'EPC-Current-BCState-',EPC%BCState(iUniqueEPCBC)
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+          nOutputVarTotal = nOutputVarTotal + 1
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'EPC-Voltage-BCState-',EPC%BCState(iUniqueEPCBC)
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+        END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+      END IF
 #endif /*USE_HDG*/
 
       ! Add BoundaryFieldOutput for each boundary that is required
@@ -259,6 +302,9 @@ IF(.NOT.DoInterpolation)THEN
 #ifdef PARTICLES
 END IF ! .NOT.DoInterpolation
 #endif /*PARTICLES*/
+#if USE_HDG
+IF(CalcElectricTimeDerivative) CALL CalculateElectricDisplacementCurrentSurface()
+#endif /*USE_HDG*/
 
 IF(MPIROOT)THEN
   WRITE(unit_index,'(E23.16E3)',ADVANCE='NO') Time
@@ -272,9 +318,13 @@ IF(MPIROOT)THEN
 #endif /*PP_nVar=8*/
   END IF
 #if USE_HDG
-  WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(iteration)
-  WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', Runtime
-  WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RunTimePerIteration
+  WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(iterationTotal)
+  WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RunTimeTotal
+  IF(iterationTotal.GT.0)THEN
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RunTimeTotal/REAL(iterationTotal)
+  ELSE
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.
+  END IF ! iterationTotal.GT.0
   WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', HDGNorm
 #endif /*USE_HDG*/
 #if (PP_nVar>=6)
@@ -290,6 +340,29 @@ IF(MPIROOT)THEN
   IF(CalcAverageElectricPotential)THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',AverageElectricPotential
   END IF ! CalcAverageElectricPotential
+
+  !-- Electric displacement current
+  IF(CalcElectricTimeDerivative)THEN
+    DO iEDCBC = 1, EDC%NBoundaries
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',EDC%Current(iEDCBC)
+    END DO ! iEDCBC = 1, EDC%NBoundaries
+  END IF
+
+  !-- Floating boundary condition
+  IF(UseFPC)THEN
+    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',FPC%Charge(iUniqueFPCBC)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',FPC%Voltage(iUniqueFPCBC)
+    END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+  END IF
+
+  !-- Electric potential condition
+  IF(UseEPC)THEN
+    DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',-EPC%Charge(iUniqueEPCBC)/dt
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',EPC%Voltage(iUniqueEPCBC)
+    END DO !iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
+  END IF
 #endif /*USE_HDG*/
   ! ! Add BoundaryFieldOutput for each boundary that is required
   IF(CalcBoundaryFieldOutput)THEN
@@ -579,7 +652,12 @@ USE MOD_Dielectric_Vars ,ONLY: isDielectricFace,PoyntingUseMuR_Inv
 USE MOD_Globals         ,ONLY: abort
 #if USE_MPI
 USE MOD_Globals
+#else
+USE MOD_Globals         ,ONLY: CollectiveStop
 #endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -600,7 +678,7 @@ INTEGER             :: PoyntingNormalDir1,PoyntingNormalDir2
 INTEGER             :: nPoyntingIntSides    !< Sides for the calculation of the Poynting vector integral
 !===================================================================================================================================
 
-SWRITE(UNIT_stdOut,'(A)') ' GET PLANES TO CALCULATE POYNTING VECTOR INTEGRAL ...'
+LBWRITE(UNIT_stdOut,'(A)') ' GET PLANES TO CALCULATE POYNTING VECTOR INTEGRAL ...'
 
 ! Initialize number of Poynting plane sides zero and set all sides to false
 nPoyntingIntSides=0
@@ -621,9 +699,7 @@ SELECT CASE (PoyntingMainDir)
     PoyntingNormalDir1=1
     PoyntingNormalDir2=2
   CASE DEFAULT
-    CALL abort(&
-    __STAMP__&
-    ,'Poynting vector itnegral currently only in x,y,z!')
+    CALL CollectiveStop(__STAMP__,'Poynting vector itnegral currently only in x,y,z!')
 END SELECT
 ALLOCATE(PosPoyntingInt(nPoyntingIntPlanes))
 ALLOCATE(SideIDToPoyntingSide(nSides))
@@ -693,8 +769,7 @@ DO iPlane = 1, nPoyntingIntPlanes
                         IPWRITE(UNIT_stdOut,*) " "
                         IPWRITE(UNIT_stdOut,*) "Found illegal Poyting plane side. SideID= ",SideID,&
                             " z-coordinate= ",PosPoyntingInt(iPlane)
-                        CALL abort(&
-                            __STAMP__&
+                        CALL abort(__STAMP__&
                             ,'GetPoyntingIntPlane: Found SideID for Poynting vector integral which is attached to an element'//&
                             ' within which the dielectric permittivity mu_r is not euqal to 1.0 everywhere. The value could be'//&
                             ' unequal to 1.0 on the interface and this is not implemented. TODO: determine mu_r on interface,'//&
@@ -749,15 +824,15 @@ sumAllFaces=nPoyntingIntSides
 #endif /*USE_MPI*/
 
 DO iPlane= 1, nPoyntingIntPlanes
-  SWRITE(UNIT_stdOut,'(A,I2,A,I10,A)') 'Processed plane no.: ',iPlane,'. Found ',sumFaces(iPlane),' surfaces.'
+  LBWRITE(UNIT_stdOut,'(A,I2,A,I10,A)') 'Processed plane no.: ',iPlane,'. Found ',sumFaces(iPlane),' surfaces.'
 END DO
-SWRITE(UNIT_stdOut,'(A,I10,A)') 'A total of',sumAllFaces, &
+LBWRITE(UNIT_stdOut,'(A,I10,A)') 'A total of',sumAllFaces, &
                         ' surfaces for the poynting vector integral calculation are found.'
 
 ALLOCATE(S    (1:3,0:PP_N,0:PP_N,1:nPoyntingIntSides) , &
          STEM     (0:PP_N,0:PP_N,1:nPoyntingIntSides)  )
 
-SWRITE(UNIT_stdOut,'(A)') ' ... POYNTING VECTOR INTEGRAL INITIALIZATION DONE.'
+LBWRITE(UNIT_stdOut,'(A)') ' ... POYNTING VECTOR INTEGRAL INITIALIZATION DONE.'
 
 END SUBROUTINE GetPoyntingIntPlane
 
@@ -1277,7 +1352,7 @@ END SUBROUTINE SetDielectricFaceProfileForPoynting
 #if USE_HDG
 SUBROUTINE CalculateAverageElectricPotential()
 !===================================================================================================================================
-! Calculation of the average electric potential with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is 
+! Calculation of the average electric potential with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is
 ! missing ... ups
 !===================================================================================================================================
 ! MODULES
@@ -1521,8 +1596,7 @@ IF(MPIRoot)THEN
 #endif /*USE_MPI*/
   IF(AverageElectricPotentialFaces.EQ.0)THEN
     SWRITE(UNIT_stdOut,*) 'ERROR with: PosAverageElectricPotential = ',PosAverageElectricPotential
-    CALL abort(&
-    __STAMP__&
+    CALL abort(__STAMP__&
     ,'Found zero faces for averaging the electric potential. Please make sure \nthat the x-coordinate coincides with element'//&
     ' interfaces. Planes cutting through elements in currently not implemented.')
   END IF ! AverageElectricPotentialFaces.EQ.0
@@ -1551,6 +1625,175 @@ IMPLICIT NONE
 ! DEALLOCATE ALL
 SDEALLOCATE(isAverageElecPotSide)
 END SUBROUTINE FinalizeAverageElectricPotential
+
+
+SUBROUTINE CalculateElectricDisplacementCurrentSurface()
+!===================================================================================================================================
+!> Calculation of the average electric potential with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is
+!> missing ... ups
+!>
+!> 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
+!      interpolate the vector field Et = (/Etx, Ety, Etz/) to the boundary face
+!> 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
+!      Store result of dot product in first array index
+!> 3.) Get BC index and EDC index and the mapping of the SideID boundary to the EDC boundary ID and store the integrated current
+!> 4.) Communicate the integrated current values on each boundary to the MPI root process (the root outputs the values to .csv)
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Vars          ,ONLY: SurfElem,SideToElem,nBCSides,NormVec,BC
+USE MOD_Analyze_Vars       ,ONLY: EDC
+USE MOD_Interpolation_Vars ,ONLY: L_Minus,L_Plus,wGPSurf
+USE MOD_Equation_Vars      ,ONLY: Et
+#if USE_MPI
+USE MOD_Globals
+#endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER          :: ElemID,SideID,ilocSide
+INTEGER          :: p,q,l
+REAL             :: Uface(1:3,0:PP_N,0:PP_N)
+INTEGER          :: iBC,iEDCBC
+!REAL             :: SIP(0:PP_N,0:PP_N)
+!REAL             :: AverageElectricPotentialProc
+!REAL             :: area_loc,integral_loc
+!===================================================================================================================================
+! Nullify
+EDC%Current = 0.
+
+! 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
+!     interpolate the vector field Et = (/Etx, Ety, Etz/) to the boundary face
+DO SideID=1,nBCSides
+  ElemID   = SideToElem(S2E_ELEM_ID,SideID)
+  ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
+#if (PP_NodeType==1) /* for Gauss-points*/
+  SELECT CASE(ilocSide)
+  CASE(XI_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,q,p)=Et(:,0,p,q,ElemID)*L_Minus(0)
+        DO l=1,PP_N
+          ! switch to right hand system
+          Uface(:,q,p)=Uface(:,q,p)+Et(:,l,p,q,ElemID)*L_Minus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ETA_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,p,q)=Et(:,p,0,q,ElemID)*L_Minus(0)
+        DO l=1,PP_N
+          Uface(:,p,q)=Uface(:,p,q)+Et(:,p,l,q,ElemID)*L_Minus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ZETA_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,q,p)=Et(:,p,q,0,ElemID)*L_Minus(0)
+        DO l=1,PP_N
+          ! switch to right hand system
+          Uface(:,q,p)=Uface(:,q,p)+Et(:,p,q,l,ElemID)*L_Minus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! qfirst stuff
+  CASE(XI_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,p,q)=Et(:,0,p,q,ElemID)*L_Plus(0)
+        DO l=1,PP_N
+          Uface(:,p,q)=Uface(:,p,q)+Et(:,l,p,q,ElemID)*L_Plus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ETA_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,PP_N-p,q)=Et(:,p,0,q,ElemID)*L_Plus(0)
+        DO l=1,PP_N
+          ! switch to right hand system
+          Uface(:,PP_N-p,q)=Uface(:,PP_N-p,q)+Et(:,p,l,q,ElemID)*L_Plus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  CASE(ZETA_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,p,q)=Et(:,p,q,0,ElemID)*L_Plus(0)
+        DO l=1,PP_N
+          Uface(:,p,q)=Uface(:,p,q)+Et(:,p,q,l,ElemID)*L_Plus(l)
+        END DO ! l
+      END DO ! p
+    END DO ! q
+  END SELECT
+#else /* for Gauss-Lobatto-points*/
+  SELECT CASE(ilocSide)
+  CASE(XI_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,q,p)=Et(:,0,p,q,ElemID)
+      END DO ! p
+    END DO ! q
+  CASE(ETA_MINUS)
+    Uface(:,:,:)=Et(:,:,0,:,ElemID)
+  CASE(ZETA_MINUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,q,p)=Et(:,p,q,0,ElemID)
+      END DO ! p
+    END DO ! q
+  CASE(XI_PLUS)
+    Uface(:,:,:)=Et(:,PP_N,:,:,ElemID)
+  CASE(ETA_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,PP_N-p,q)=Et(:,p,PP_N,q,ElemID)
+      END DO ! p
+    END DO ! q
+  CASE(ZETA_PLUS)
+    DO q=0,PP_N
+      DO p=0,PP_N
+        Uface(:,p,q)=Et(:,p,q,PP_N,ElemID)
+      END DO ! p
+    END DO ! q
+  END SELECT
+#endif
+
+
+  ! 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
+  !     Store result of dot product in first array index
+  Uface(1,:,:) =   Uface(1,:,:) * NormVec(1,:,:,SideID) &
+                 + Uface(2,:,:) * NormVec(2,:,:,SideID) &
+                 + Uface(3,:,:) * NormVec(3,:,:,SideID)
+
+  ! 3.) Get BC index and EDC index and the mapping of the SideID boundary to the EDC boundary ID and store the integrated current
+  iBC    = BC(SideID)
+  iEDCBC = EDC%BCIDToEDCBCID(iBC)
+  EDC%Current(iEDCBC) = EDC%Current(iEDCBC) + SUM(Uface(1,:,:) * SurfElem(:,:,SideID) * wGPSurf(:,:))
+
+END DO
+
+#if USE_MPI
+! 4.) Communicate the integrated current values on each boundary to the MPI root process (the root outputs the values to .csv)
+DO iEDCBC = 1, EDC%NBoundaries
+  IF(EDC%COMM(iEDCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+    ASSOCIATE( Current => EDC%Current(iEDCBC), COMM => EDC%COMM(iEDCBC)%UNICATOR)
+      IF(MPIroot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE , Current , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , COMM , IERROR)
+      ELSE
+        CALL MPI_REDUCE(Current      , 0       , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , COMM , IERROR)
+      END IF ! myLeaderGroupRank.EQ.0
+    END ASSOCIATE
+  END IF ! EDC%COMM(iEDCBC)%UNICATOR.NE.MPI_COMM_NULL
+END DO ! iEDCBC = 1, EDC%NBoundaries
+#endif /*USE_MPI*/
+
+END SUBROUTINE CalculateElectricDisplacementCurrentSurface
 #endif /*USE_HDG*/
 
 !===================================================================================================================================
@@ -1575,8 +1818,11 @@ REAL,INTENT(OUT)   :: BoundaryFieldOutput(1:PP_nVar)
 ! LOCAL VARIABLES
 #if USE_HDG
 INTEGER           :: BCType,BCState
+#else
+INTEGER           :: dummy
 #endif /*USE_HDG*/
 !===================================================================================================================================
+BoundaryFieldOutput=0.!Initialize
 #if USE_HDG
 #if (PP_nVar==1)
 BCType =BoundaryType(iBC,BC_TYPE)
@@ -1598,6 +1844,9 @@ CALL abort(__STAMP__,'CalculateBoundaryFieldOutput is not implemented for PP_nVa
 #endif /*PP_nVar==1*/
 #else
 CALL abort(__STAMP__,'CalculateBoundaryFieldOutput is not implemented for other equation systems yet (only HDG)')
+! Suppress warnings
+dummy=iBC
+dummy=INT(Time)
 #endif /*USE_HDG*/
 
 END SUBROUTINE CalculateBoundaryFieldOutput

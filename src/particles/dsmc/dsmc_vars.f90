@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -35,11 +35,8 @@ END TYPE
 
 TYPE(tTLU_Data)                           :: TLU_Data
 
-
-REAL                          :: Debug_Energy(2)=0.0        ! debug variable energy conservation
 INTEGER                       :: DSMCSumOfFormedParticles   !number of formed particles per iteration in chemical reactions
                                                             ! for counting the nextfreeparticleposition
-REAL  , ALLOCATABLE           :: DSMC_RHS(:,:)              ! RHS of the DSMC Method/ deltaV (npartmax, direction)
 INTEGER                       :: CollisMode                 ! Mode of Collision:, ini_1
                                                             !    0: No Collisions (=free molecular flow with DSMC-Sampling-Routines)
                                                             !    1: Elastic Collision
@@ -165,44 +162,17 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
                                                             ! ionization)
   ! Collision cross-sections for MCC
   LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
-                                                            ! treated with read-in collision cross-section (currently only with BGG)
+                                                            ! treated with read-in collision cross-section
   LOGICAL                           :: UseVibXSec           ! Flag if the vibrational relaxation probability should be treated,
+                                                            ! using read-in cross-sectional data
+  LOGICAL                           :: UseElecXSec          ! Flag if the electronic relaxation probability should be treated,
                                                             ! using read-in cross-sectional data (currently only with BGG)
+  REAL,ALLOCATABLE                  :: CollFreqPreFactor(:) ! Prefactors for calculating the collision frequency in each time step
+  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:) ! Correction factor for electronical landau-teller relaxation
+  REAL                              :: MaxMeanXiElec(2)     ! 1: max mean XiElec 2: Temperature corresponding to max mean XiElec
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
-
-TYPE tXSecData
-  REAL,ALLOCATABLE                  :: XSecData(:,:)        ! Cross-section as read-in from the database
-                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
-                                                            ! 2: Cross-section at the respective energy level [m^2]
-  REAL                              :: Prob                 ! Event probability
-END TYPE tXSecData
-
-TYPE tSpeciesXSec
-  LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species pair should be treated with
-                                                            ! read-in collision cross-section (currently only with BGG)
-  LOGICAL                           :: CollXSec_Effective   ! Flag whether the given cross-section data is "effective" (complete set
-                                                            ! including other processes such as e.g.excitation and ionization) or
-                                                            ! "elastic", including only the elastic collision cross-section.
-  REAL                              :: CrossSection         ! Current collision cross-section
-  REAL,ALLOCATABLE                  :: CollXSecData(:,:)    ! Collision cross-section as read-in from the database
-                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
-                                                            ! 2: Cross-section at the respective energy level [m^2]
-  REAL,ALLOCATABLE                  :: VibXSecData(:,:)     ! Vibrational cross-section as read-in from the database
-                                                            ! 1: Energy (at read-in in [eV], during simulation in [J])
-                                                            ! 2: Cross-section at the respective energy level [m^2]
-  REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
-                                                            ! null collision method of MCC
-  LOGICAL                           :: UseVibXSec           ! Flag if cross-section data will be used for the relaxation probability
-  TYPE(tXSecData),ALLOCATABLE       :: VibMode(:)           ! Vibrational cross-sections (nVib: Number of levels found in database)
-  REAL                              :: VibProb              ! Relaxation probability
-  REAL                              :: VibCount             ! Event counter
-  INTEGER                           :: SpeciesToRelax       ! Save which species shall use the vibrational cross-sections
-  TYPE(tXSecData),ALLOCATABLE       :: ReactionPath(:)      ! Reaction cross-sections (nPaths: Number of reactions for that case)
-END TYPE tSpeciesXSec
-
-TYPE(tSpeciesXSec), ALLOCATABLE     :: SpecXSec(:)          ! Species cross-section related data (CollCase)
 
 TYPE tDSMC
   INTEGER                       :: ElectronSpecies          ! Species of the electron
@@ -293,24 +263,44 @@ END TYPE tDSMC
 
 TYPE(tDSMC)                     :: DSMC
 
+TYPE tRegion
+  CHARACTER(40)                 :: Type             ! Geometric type of the region, e.g. cylinder
+                                ! Region-Type: cylinder
+  REAL                          :: RadiusIC
+  REAL                          :: Radius2IC
+  REAL                          :: CylinderHeightIC
+  REAL                          :: BasePointIC(3)
+  REAL                          :: BaseVector1IC(3)
+  REAL                          :: BaseVector2IC(3)
+  REAL                          :: NormalVector(3)
+END TYPE tRegion
+
 TYPE tBGGas
   INTEGER                       :: NumberOfSpecies          ! Number of background gas species
   LOGICAL, ALLOCATABLE          :: BackgroundSpecies(:)     ! Flag, if a species is a background gas species, [1:nSpecies]
   INTEGER, ALLOCATABLE          :: MapSpecToBGSpec(:)       ! Input: [1:nSpecies], output is the corresponding background species
   INTEGER, ALLOCATABLE          :: MapBGSpecToSpec(:)       ! Input: [1:nBGSpecies], output is the corresponding species index
   REAL, ALLOCATABLE             :: SpeciesFraction(:)       ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
+  REAL, ALLOCATABLE             :: SpeciesFractionElem(:,:) ! Fraction of background species (sum is 1), [1:BGGas%NumberOfSpecies]
+                                                            ! per element
   REAL, ALLOCATABLE             :: NumberDensity(:)         ! Number densities of the background gas, [1:BGGas%NumberOfSpecies]
   INTEGER, ALLOCATABLE          :: PairingPartner(:)        ! Index of the background particle generated for the pairing with a
                                                             ! regular particle
+  LOGICAL                       :: UseDistribution          ! Flag for the utilization of a background gas distribution as read-in
+                                                            ! from a previous DSMC/BGK simulation result
+  REAL, ALLOCATABLE             :: Distribution(:,:,:)      ! Element local background gas [1:BGGSpecies,1:10,1:nElems]
+  REAL, ALLOCATABLE             :: DistributionNumDens(:)   ! When CalcNumDens=T, pre-calculate the density once at the beginning
+  INTEGER, ALLOCATABLE          :: DistributionSpeciesIndex(:)  ! Index of species in the read-in DSMCState file to use
+                                                                ! as a background distribution [1:nSpecies]
+  LOGICAL, ALLOCATABLE          :: TraceSpecies(:)          ! Flag, if species is a trace element, Input: [1:nSpecies]
+  REAL                          :: MaxMPF                   ! Maximum weighting factor of the background gas species
+  INTEGER                       :: nRegions                 ! Number of different background gas regions (read-in)
+  LOGICAL                       :: UseRegions               ! Flag for the definition of different background gas regions (set after read-in)
+  INTEGER, ALLOCATABLE          :: RegionElemType(:)        ! 0: outside, positive integers: inside region number
+  TYPE(tRegion), ALLOCATABLE    :: Region(:)                ! Type for the geometry definition of the different regions [1:nRegions]
 END TYPE tBGGas
 
 TYPE(tBGGas)                    :: BGGas
-
-LOGICAL                             :: UseMCC               ! Flag (set automatically) to differentiate between MCC/XSec and regular DSMC
-CHARACTER(LEN=256)                  :: XSec_Database        ! Name of the cross-section database
-LOGICAL                             :: XSec_NullCollision   ! Flag (read-in) whether null collision method (determining number of pairs based on maximum relaxation frequency)
-LOGICAL                             :: XSec_Relaxation      ! Flag (set automatically): usage of XSec data for the total relaxation probability
-INTEGER                             :: MCC_TotalPairNum     ! Total number of collision pairs for the MCC method
 
 TYPE tPairData
   REAL                          :: CRela2                       ! squared relative velo of the particles in a pair
@@ -318,11 +308,6 @@ TYPE tPairData
   INTEGER                       :: iPart_p1                     ! first particle of the pair
   INTEGER                       :: iPart_p2                     ! second particle of the pair
   INTEGER                       :: PairType                     ! type of pair (=iCase, CollInf%Coll_Case)
-  REAL, ALLOCATABLE             :: Sigma(:)                     ! cross sections sigma of the pair
-                                                                  !       0: sigma total
-                                                                  !       1: sigma elast
-                                                                  !       2: sigma ionization
-                                                                  !       3: sigma excitation
   REAL                          :: Ec                           ! Collision Energy
   LOGICAL                       :: NeedForRec                   ! Flag if pair is needed for Recombination
 END TYPE tPairData
@@ -346,7 +331,7 @@ TYPE tCollInf     ! Collision information
   REAL          , ALLOCATABLE   :: Cab(:)                       ! species factor for cross section (#of case)
   INTEGER       , ALLOCATABLE   :: KronDelta(:)                 ! (number of case)
   REAL          , ALLOCATABLE   :: FracMassCent(:,:)            ! mx/(my+mx) (nSpec, number of cases)
-  REAL          , ALLOCATABLE   :: MeanMPF(:)
+  REAL          , ALLOCATABLE   :: SumPairMPF(:)                ! Summation of the pair MPFs (average between two particles if not the same)
   REAL          , ALLOCATABLE   :: MassRed(:)                   ! reduced mass (number of cases)
   REAL          , ALLOCATABLE   :: Tref(:,:)                    ! collision model: reference temperature     , ini_2
   REAL          , ALLOCATABLE   :: dref(:,:)                    ! collision model: reference diameter        , ini_2
@@ -415,10 +400,11 @@ TYPE tChemReactions
                                                             !    R (molecular recombination
                                                             !    D (molecular dissociation)
                                                             !    E (molecular exchange reaction)
-  CHARACTER(LEN=5),ALLOCATABLE    :: ReactModel(:)          ! Model of Reaction (reaction num)
+  CHARACTER(LEN=15),ALLOCATABLE   :: ReactModel(:)          ! Model of Reaction (reaction num)
                                                             !    TCE (total collision energy)
                                                             !    QK (quantum kinetic)
                                                             !    phIon (photon-ionization)
+                                                            !    phIonXSec (photon-ionization based on cross-section data)
                                                             !    XSec (based on cross-section data)
   INTEGER, ALLOCATABLE            :: Reactants(:,:)         ! Reactants: indices of the species starting the reaction [NumOfReact,3]
   INTEGER, ALLOCATABLE            :: Products(:,:)          ! Products: indices of the species resulting from the reaction [NumOfReact,4]
@@ -453,7 +439,7 @@ TYPE tChemReactions
   REAL, ALLOCATABLE               :: CrossSection(:)        ! Cross-section of the given photo-ionization reaction
   TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase)
   ! XSec Chemistry
-  LOGICAL                         :: AnyXSecReaction          ! Defines if any QK reaction present
+  LOGICAL                         :: AnyXSecReaction        ! Defines if any XSec reaction is present
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac
@@ -490,34 +476,21 @@ TYPE tAmbipolElecVelo !DSMC Species Param
 END TYPE
 
 TYPE (tAmbipolElecVelo), ALLOCATABLE    :: AmbipolElecVelo(:)
+INTEGER, ALLOCATABLE            :: AmbiPolarSFMapping(:,:)
 INTEGER, ALLOCATABLE            :: iPartIndx_NodeNewAmbi(:)
 INTEGER                         :: newAmbiParts
+
+INTEGER, ALLOCATABLE            :: iPartIndx_NodeNewElecRelax(:)
+INTEGER                         :: newElecRelaxParts
+INTEGER, ALLOCATABLE            :: iPartIndx_NodeElecRelaxChem(:)
+INTEGER                         :: nElecRelaxChemParts
+LOGICAL, ALLOCATABLE            :: ElecRelaxPart(:)
 
 TYPE tElectronicDistriPart !DSMC Species Param
   REAL, ALLOCATABLE               :: DistriFunc(:)            ! Vib quants of each DOF for each particle
 END TYPE
 
 TYPE (tElectronicDistriPart), ALLOCATABLE    :: ElectronicDistriPart(:)
-
-REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)      ! variables,p,q,sides
-REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)! Macrovalues for Species specific surface output
-                                                                   ! (4,p,q,nSurfSides,nSpecies)
-                                                                   ! 1: Surface Collision Counter
-                                                                   ! 2: Accomodation
-                                                                   ! 3: Coverage
-                                                                   ! 4 (or 2): Impact energy trans
-                                                                   ! 5 (or 3): Impact energy rot
-                                                                   ! 6 (or 4): Impact energy vib
-
-! some variables redefined
-!TYPE tMacroSurfaceVal                                       ! DSMC sample for Wall
-!  REAL                           :: Heatflux                !
-!  REAL                           :: Force(3)                ! x, y, z direction
-!  REAL, ALLOCATABLE              :: Counter(:)              ! Wall-Collision counter of all Species
-!  REAL                           :: CounterOut              ! Wall-Collision counter for Output
-!END TYPE
-!
-!TYPE(tMacroSurfaceVal), ALLOCATABLE     :: MacroSurfaceVal(:) ! Wall sample array (number of BC-Sides)
 
 ! MacValout and MacroVolSample have to be separated due to autoinitialrestart
 INTEGER(KIND=8)                  :: iter_macvalout             ! iterations since last macro volume output
@@ -541,28 +514,21 @@ REAL,ALLOCATABLE          :: DSMC_Solution(:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evi
 TYPE tTreeNode
 !  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode
   TYPE (tTreeNode), POINTER       :: ChildNode       => null()       !8 Childnodes of Octree Treenode
-  REAL                            :: MidPoint(1:3)          ! approx Middle Point of Treenode
   INTEGER                         :: PNum_Node              ! Particle Number of Treenode
   INTEGER, ALLOCATABLE            :: iPartIndx_Node(:)      ! Particle Index List of Treenode
   REAL, ALLOCATABLE               :: MappedPartStates(:,:)  ! PartPos in [-1,1] Space
-  LOGICAL, ALLOCATABLE            :: MatchedPart(:)         ! Flag signaling that mapped particle is inside of macroparticle
-  REAL                            :: NodeVolume(8)
   INTEGER                         :: NodeDepth
 END TYPE
 
 TYPE tNodeVolume
-    TYPE (tNodeVolume), POINTER             :: SubNode1 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode2 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode3 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode4 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode5 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode6 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode7 => null()
-    TYPE (tNodeVolume), POINTER             :: SubNode8 => null()
+    TYPE (tNodeVolume), POINTER             :: SubNode(:) => null()
+    REAL                                    :: VrelSimgaMax(2)
     REAL                                    :: Volume
     REAL                                    :: Area
     REAL                                    :: Length
     REAL,ALLOCATABLE                        :: PartNum(:,:)
+    REAL                                    :: MidPoint(1:3)
+    INTEGER                                 :: NodeDepth
 END TYPE
 
 TYPE tElemNodeVolumes

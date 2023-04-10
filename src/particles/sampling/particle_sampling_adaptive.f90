@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -281,7 +281,7 @@ IF (DoRestart) THEN
     CALL DatasetExists(File_ID,'AdaptiveRunningAverage',RunningAverageExists)
     IF(RunningAverageExists)THEN
       ! Read-in the number of sampling iterations from the restart file (might differ from the current number)
-      IF(.NOT.PerformLoadBalance) CALL ReadAttribute(File_ID,'AdaptBCSampIter',1,IntegerScalar=AdaptBCSampIterReadIn)
+      IF(.NOT.PerformLoadBalance) CALL ReadAttribute(File_ID,'AdaptBCSampIter',1,IntScalar=AdaptBCSampIterReadIn)
       ! Get the data size of the read-in array
       CALL GetDataSize(File_ID,'AdaptiveRunningAverage',nDims,HSize)
       nVar=INT(HSize(2),4)
@@ -406,6 +406,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, Species, nSpecies, PEM, usevMPF
 USE MOD_Timedisc_Vars          ,ONLY: iter
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
+!USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame,RotRefFrameOmega
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
 USE MOD_LoadBalance_vars       ,ONLY: nPartsPerBCElem
@@ -446,6 +447,7 @@ ELSE
 END IF
 
 CalcValues = .FALSE.
+RestartSampIter = 0
 
 ! If no particles are present during the initial sampling, leave the routine, otherwise initial variables for the
 ! adaptive inlet surface flux will be overwritten by zero's.
@@ -474,7 +476,7 @@ IF(.NOT.initTruncAverage) THEN
     ! Cycle particles inside non-sampling elements
     IF(SampleElemID.LE.0) CYCLE
 #if USE_LOADBALANCE
-    nPartsPerBCElem(ElemID) = nPartsPerBCElem(ElemID) + PEM%pNumber(ElemID)
+    nPartsPerBCElem(ElemID) = nPartsPerBCElem(ElemID) + 1
 #endif /*USE_LOADBALANCE*/
     ! Sample the particle properties
     iSpec = PartSpecies(iPart)
@@ -504,7 +506,7 @@ IF(initSampling) THEN
 ELSE
   RelaxationFactor = AdaptBCRelaxFactor
   IF(AdaptBCSampIter.GT.0) THEN
-    IF(AdaptBCTruncAverage.AND.(RestartSampIter.LT.AdaptBCSampIter)) THEN
+    IF(AdaptBCTruncAverage.AND.(RestartSampIter.GT.0).AND.(RestartSampIter.LT.AdaptBCSampIter)) THEN
       ! Truncated average: get the correct number of samples to calculate the average number density while the 
       ! sampling array is populated
       SamplingIteration = RestartSampIter

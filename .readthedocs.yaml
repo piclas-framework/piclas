@@ -1,0 +1,29 @@
+# File: .readthedocs.yaml
+
+version: 2
+
+# Set the version of Python and other tools you might need
+build:
+  os: ubuntu-22.04
+  tools:
+    python: "3.10"
+  jobs:
+    pre_create_environment:
+      - echo "Command run at 'pre_create_environment' step"
+    post_build:
+      - echo "Command run at 'post_build' step"
+      - echo `date`
+
+sphinx:
+  builder: html
+  configuration: docs/documentation/conf.py
+
+python:
+  install:
+    - requirements: docs/documentation/requirements.txt
+
+# Build PDF & ePub
+formats:
+    - htmlzip
+    - epub
+    - pdf

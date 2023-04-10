@@ -2,25 +2,16 @@
 ! Here, preprocessor variables for different equation systems and abbreviations for specific expressions are defined
 !===================================================================================================================================
 
-! Abbrevations
-#ifdef SUN
-#  define __DATE__ '__TIME__ and __DATE__ not'
-#  define __TIME__ 'available for SUN COMPILER'
-#  define IEEE_ISNAN
-#elif SX
-#  define __DATE__ '__TIME__ and __DATE__ not'
-#  define __TIME__ 'available for SX COMPILER'
-#elif PGI
-#  define NO_ISNAN
+! From include/petsc/finclude/petscsys.h: #define PetscCallA(func) call func; CHKERRA(ierr)
+#if USE_PETSC_FIX317
+#define PetscCallA(a) CALL a; PetscCall(ierr)
 #endif
+
+! Abbrevations
 #ifndef __FILENAME__
 #define __FILENAME__ __FILE__
 #endif
 #define __STAMP__ __FILENAME__,__LINE__,__DATE__,__TIME__
-
-#ifdef GNU
-#  define IEEE_IS_NAN ISNAN
-#endif
 
 ! Calculate GCC version
 #define GCC_VERSION (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__)
@@ -35,7 +26,24 @@
 #define SIZE_CHAR KIND('a')
 
 #ifdef DEBUG_MEMORY
-#define Allocate_Shared(a,b,c,d)   Allocate_Shared_DEBUG(a,b,c,d,'c')
+#define Allocate_Shared(a,b,c)   Allocate_Shared_DEBUG(a,b,c,'b')
+#endif
+
+#ifdef MEASURE_MPI_WAIT
+! Field solver
+#if USE_HDG
+#define MPIW8SIZEFIELD 4
+#else
+#define MPIW8SIZEFIELD 2
+#endif
+! Particle solver
+#ifdef PARTICLES
+#define MPIW8SIZEPART 6
+#else
+#define MPIW8SIZEPART 0
+#endif
+! Combination
+#define MPIW8SIZE (2+MPIW8SIZEFIELD+MPIW8SIZEPART)
 #endif
 
 ! Deactivate PURE subroutines/functions when using DEBUG
@@ -49,8 +57,8 @@
 #define UNLOCK_AND_FREE(a)   UNLOCK_AND_FREE_DUMMY(a,'a')
 
 #ifdef GNU
-#define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  k).OR.x<-HUGE(1_  k))       CALL ABORT(__STAMP__,'Integer conversion failed: out of range!')
-#define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ k).OR.x<-HUGE(1._ k))       CALL ABORT(__STAMP__,'Real conversion failed: out of range!')
+#define CHECKSAFEINT(x,k)  IF(x>HUGE(1_  k).OR.x<-HUGE(1_  k))       CALL ABORT(__STAMP__,'Integer KIND=k conversion failed: out of range!')
+#define CHECKSAFEREAL(x,k) IF(x>HUGE(1._ k).OR.x<-HUGE(1._ k))       CALL ABORT(__STAMP__,'Real KIND=k conversion failed: out of range!')
 #elif CRAY
 #define CHECKSAFEINT(x,k)
 #define CHECKSAFEREAL(x,k)
@@ -72,12 +80,20 @@
 
 #if USE_MPI
 #  define SWRITE IF(MPIRoot) WRITE
+#if USE_LOADBALANCE
+#  define LBWRITE IF(MPIRoot.AND.(.NOT.PerformLoadBalance)) WRITE
+#else /*USE_LOADBALANCE*/
+#  define LBWRITE IF(MPIRoot) WRITE
+#endif /*USE_LOADBALANCE*/
 #  define IPWRITE(a,b) WRITE(a,b)myRank,
 #  define LWRITE IF(myComputeNodeRank.EQ.0) WRITE
+#  define GETTIME(a) a=MPI_WTIME()
 #else
 #  define SWRITE WRITE
+#  define LBWRITE WRITE
 #  define IPWRITE(a,b) WRITE(a,b)0,
 #  define LWRITE WRITE
+#  define GETTIME(a) CALL CPU_TIME(a)
 #endif
 #define ERRWRITE(a,b) WRITE(UNIT_errOut,b)
 #define LOGWRITE(a,b)  IF(Logging) WRITE(UNIT_logOut,b)
@@ -156,6 +172,7 @@
 ! Entry position in FIBGMToProc
 #define FIBGM_FIRSTPROCIND 1
 #define FIBGM_NPROCS       2
+#define FIBGM_NLOCALPROCS  3
 
 ! Entry position in SideBCMetrics
 #define BCSIDE_SIDEID      1
@@ -289,6 +306,8 @@
 
 #define SAMPWALL_NVARS            11
 
+#define MACROSURF_NVARS           6
+
 ! Tracking method
 #define REFMAPPING    1
 #define TRACING       2
@@ -300,3 +319,5 @@
 #define DT_END        3
 #define DT_BR_SWITCH  4
 
+! Secondary electron emission
+#define SEE_MODELS_ID 5,6,7,8,9,10,11

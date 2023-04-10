@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2015 - 2019 Wladimir Reschke
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -30,61 +30,81 @@ PUBLIC :: SurfaceModel_ParticleEmission, SurfaceModel_EnergyAccommodation, GetWa
 
 CONTAINS
 
-SUBROUTINE SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy)
 !===================================================================================================================================
 !> Routine for the particle emission at a surface
 !===================================================================================================================================
+SUBROUTINE SurfaceModel_ParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobElemID,POI_vec)
+! MODULES
 USE MOD_Globals                   ,ONLY: OrthoNormVec
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
 USE MOD_part_operations           ,ONLY: CreateParticle
-USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues, LastPartPos, PEM
+USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModEnergyDistribution
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
-USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
+USE MOD_Particle_Vars             ,ONLY: usevMPF,PartMPF
+USE MOD_part_tools                ,ONLY: CalcRadWeightMPF
+USE MOD_Particle_Mesh_Vars        ,ONLY: BoundsOfElem_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)             :: n_loc(1:3)
-INTEGER,INTENT(IN)          :: PartID, SideID
-INTEGER,INTENT(IN)          :: ProductSpec(2)   !< 1: product species of incident particle (also used for simple reflection)
-                                                !< 2: additional species added or removed from surface
-                                                !< If productSpec is negative, then the respective particles are adsorbed
-                                                !< If productSpec is positive the particle is reflected/emitted
-                                                !< with respective species
-INTEGER,INTENT(IN)          :: ProductSpecNbr   !< number of emitted particles for ProductSpec(1)
-REAL,INTENT(IN)             :: TempErgy(2)               !< temperature, energy or velocity used for VeloFromDistribution
+REAL,INTENT(IN)    :: n_loc(1:3)       !< normal vector of the surface
+REAL,INTENT(IN)    :: POI_vec(1:3)     !< Point Of Intersection
+INTEGER,INTENT(IN) :: PartID, SideID   !< Particle index and side index
+INTEGER,INTENT(IN) :: GlobElemID       !< global element ID of the impacting particle (used for creating a new particle)
+INTEGER,INTENT(IN) :: ProductSpec(2)   !< 1: product species of incident particle (also used for simple reflection)
+                                       !< 2: additional species added or removed from surface
+                                       !< If productSpec is negative, then the respective particles are adsorbed
+                                       !< If productSpec is positive the particle is reflected/emitted
+                                       !< with respective species
+INTEGER,INTENT(IN) :: ProductSpecNbr   !< number of emitted particles for ProductSpec(1)
+REAL,INTENT(IN)    :: TempErgy         !< temperature, energy or velocity used for VeloFromDistribution
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: iNewPart, NewPartID, locBCID, SurfSideID
-REAL                             :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), POI_vec(3)
+INTEGER            :: iNewPart, NewPartID, locBCID, SurfSideID
+REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), OldMPF, BoundsOfElemCenter(1:3),NewPos(1:3)
+REAL,PARAMETER     :: eps=1e-6
+REAL,PARAMETER     :: eps2=1.0-eps
 !===================================================================================================================================
-locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+locBCID    = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
-WallTemp = PartBound%WallTemp(locBCID)
-WallVelo = PartBound%WallVelo(1:3,locBCID)
+WallTemp   = PartBound%WallTemp(locBCID)
+WallVelo   = PartBound%WallVelo(1:3,locBCID)
 
 IF(PartBound%RotVelo(locBCID)) THEN
-  POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
-  CALL CalcRotWallVelo(locBCID,POI_vec,WallVelo)
+  WallVelo(1:3) = CalcRotWallVelo(locBCID,POI_vec)
 END IF
 
 CALL OrthoNormVec(n_loc,tang1,tang2)
+
+! Get Elem Center
+BoundsOfElemCenter(1:3) = (/SUM(BoundsOfElem_Shared(1:2,1,GlobElemID)), &
+                            SUM(BoundsOfElem_Shared(1:2,2,GlobElemID)), &
+                            SUM(BoundsOfElem_Shared(1:2,3,GlobElemID)) /) / 2.
 
 ! Create new particles
 DO iNewPart = 1, ProductSpecNbr
   ! create new particle and assign correct energies
   ! sample newly created velocity
-  NewVelo(1:3) = VeloFromDistribution(SurfModEnergyDistribution(locBCID),TempErgy(2))
+  NewVelo(1:3) = VeloFromDistribution(SurfModEnergyDistribution(locBCID),TempErgy,iNewPart,ProductSpecNbr)
   ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
   NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
-  ! Create new particle and get a free particle index
-  CALL CreateParticle(ProductSpec(2),LastPartPos(1:3,PartID),PEM%GlobalElemID(PartID),NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
+  ! Create new position by using POI and moving the particle by eps in the direction of the element center
+  NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*POI_vec(1:3)
+  IF(usevMPF)THEN
+    ! Get MPF of old particle
+    OldMPF = PartMPF(PartID)
+    ! New particle acquires the MPF of the impacting particle (not necessarily the MPF of the newly created particle species)
+    CALL CreateParticle(ProductSpec(2),NewPos(1:3),GlobElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID, NewMPF=OldMPF)
+  ELSE
+    ! New particle acquires the MPF of the new particle species
+    CALL CreateParticle(ProductSpec(2),NewPos(1:3),GlobElemID,NewVelo(1:3),0.,0.,0.,NewPartID=NewPartID)
+  END IF ! usevMPF
   ! Adding the energy that is transferred from the surface onto the internal energies of the particle
   CALL SurfaceModel_EnergyAccommodation(NewPartID,locBCID,WallTemp)
   ! Sampling of newly created particles
@@ -122,7 +142,7 @@ REAL,INTENT(IN)       :: WallTemp
 ! LOCAL VARIABLES
 INTEGER               :: SpecID, vibQuant, vibQuantNew, VibQuantWall
 REAL                  :: RanNum
-REAL                  :: TransACC, VibACC, RotACC, ElecACC
+REAL                  :: VibACC, RotACC, ElecACC
 REAL                  :: ErotNew, ErotWall, EVibNew
 ! Polyatomic Molecules
 REAL                  :: NormProb, VibQuantNewR
@@ -131,7 +151,6 @@ INTEGER               :: iPolyatMole, iDOF
 INTEGER, ALLOCATABLE  :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 SpecID    = PartSpecies(PartID)
-TransACC  = PartBound%TransACC(locBCID)
 VibACC    = PartBound%VibACC(locBCID)
 RotACC    = PartBound%RotACC(locBCID)
 ElecACC   = PartBound%ElecACC(locBCID)
@@ -311,44 +330,43 @@ CalcPostWallCollVelo(3)  = Cmr * VeloCz
 END FUNCTION CalcPostWallCollVelo
 
 
-SUBROUTINE CalcRotWallVelo(locBCID,POI,WallVelo)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Calculation of additional velocity through the rotating wall. The velocity is equal to circumferential speed at
-! the point of intersection (POI):
-! The direction is perpendicular to the rotational axis (vec_axi) AND the distance vector (vec_axi -> POI).
-! Rotation direction based on Right-hand rule.
-! The magnitude of the velocity depends on radius and rotation frequency.
-!----------------------------------------------------------------------------------------------------------------------------------!
+PPURE FUNCTION CalcRotWallVelo(locBCID,POI)
+!===================================================================================================================================
+!> Calculation of additional velocity through the rotating wall. The velocity is equal to circumferential speed at
+!> the point of intersection (POI):
+!> The direction is perpendicular to the rotational axis (vec_axi) AND the distance vector (vec_axi -> POI).
+!> Rotation direction based on Right-hand rule. The magnitude of the velocity depends on radius and rotation frequency.
+!> Currently implemented: simplified version assuming that the rotational axis is one of the major axis x,y or z.
+!===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Globals                 ,ONLY: CROSSNORM,VECNORM
+USE MOD_Globals                 ,ONLY: CROSS
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Globals_Vars            ,ONLY: PI
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
+! INPUT VARIABLES
 INTEGER,INTENT(IN)    :: locBCID
 REAL,INTENT(IN)       :: POI(3)
-REAL,INTENT(INOUT)    :: WallVelo(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                  :: CalcRotWallVelo(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                  :: vec_r(1:3),vec_a(1:3), vec_t(1:3), vec_OrgPOI(1:3),vec_axi_norm(1:3)
-REAL                  :: radius, circ_speed
 !===================================================================================================================================
 
-ASSOCIATE ( vec_org  => PartBound%RotOrg(1:3,locBCID) ,&
-            RotFreq  => PartBound%RotFreq(locBCID)    ,&
-            vec_axi  => PartBound%RotAxi(1:3,locBCID)   )
-  vec_OrgPOI(1:3) = POI(1:3) - vec_org(1:3)
-  vec_axi_norm = vec_axi / VECNORM(vec_axi)
-  vec_a(1:3) = DOT_PRODUCT(vec_axi_norm,vec_OrgPOI) * vec_axi_norm(1:3)
-  vec_r(1:3) = vec_OrgPOI(1:3) - vec_a(1:3)
-  radius = SQRT( vec_r(1)*vec_r(1) + vec_r(2)*vec_r(2) + vec_r(3)*vec_r(3) )
-  circ_speed = 2.0 * PI * radius * RotFreq
-  vec_t = CROSSNORM(vec_axi_norm,vec_r)
-  WallVelo(1:3) = circ_speed * vec_t(1:3)
-END ASSOCIATE
+! Case: rotational axis is NOT one of the major axis (x,y,z)
+! vec_OrgPOI(1:3) = POI(1:3) - PartBound%RotOrg(1:3,locBCID)
+! vec_axi_norm = PartBound%RotAxis(1:3,locBCID) / VECNORM(PartBound%RotAxis(1:3,locBCID))
+! vec_a(1:3) = DOT_PRODUCT(vec_axi_norm,vec_OrgPOI) * vec_axi_norm(1:3)
+! vec_r(1:3) = vec_OrgPOI(1:3) - vec_a(1:3)
+! radius = SQRT( vec_r(1)*vec_r(1) + vec_r(2)*vec_r(2) + vec_r(3)*vec_r(3) )
+! circ_speed = 2.0 * PI * radius * PartBound%RotFreq(locBCID)
+! vec_t = CROSSNORM(vec_axi_norm,vec_r)
+! WallVelo(1:3) = circ_speed * vec_t(1:3)
 
-END SUBROUTINE CalcRotWallVelo
+! Case: rotational is one of the major axis (x,y,z)
+CalcRotWallVelo(1:3) = CROSS(PartBound%RotOmega(1:3,locBCID),POI(1:3))
+
+END FUNCTION CalcRotWallVelo
 
 
 END MODULE MOD_SurfaceModel_Tools

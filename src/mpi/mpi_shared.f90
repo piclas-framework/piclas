@@ -48,6 +48,7 @@ INTERFACE Allocate_Shared
   MODULE PROCEDURE Allocate_Shared_Int_2
   MODULE PROCEDURE Allocate_Shared_Int_3
   MODULE PROCEDURE Allocate_Shared_Int_4
+  ! MODULE PROCEDURE Allocate_Shared_Int_1_Kind_IK
   MODULE PROCEDURE Allocate_Shared_Real_1
   MODULE PROCEDURE Allocate_Shared_Real_2
   MODULE PROCEDURE Allocate_Shared_Real_3
@@ -98,7 +99,10 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !==================================================================================================================================
-CALL prms%SetSection         ("MPI Shared")
+CALL prms%SetSection(     'MPI Shared')
+#if ! (CORE_SPLIT==0)
+CALL prms%CreateIntOption('NbrOfPhysicalNodes' , 'Number of physical nodes (as opposed to virtual nodes). Required for RAM monitoring when using more than one virtual compute node per physical node.', '-1')
+#endif /*! (CORE_SPLIT==0)*/
 
 END SUBROUTINE DefineParametersMPIShared
 
@@ -111,6 +115,9 @@ SUBROUTINE InitMPIShared()
 USE MOD_Globals
 USE MOD_MPI_Vars
 USE MOD_MPI_Shared_Vars
+#if ! (CORE_SPLIT==0)
+USE MOD_Readintools     ,ONLY: GETINT
+#endif /*! (CORE_SPLIT==0)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -125,13 +132,35 @@ SWRITE(UNIT_stdOut,'(A)') ' INIT MPI SHARED COMMUNICATION ...'
 ! Save the global number of procs
 nProcessors_Global = nProcessors
 
+MemoryMonitor = .TRUE.
+#if ! (CORE_SPLIT==0)
+! When core-level splitting is used, it is not clear how many cores are on the same physical compute node.
+#if USE_MPI
+NbrOfPhysicalNodes =  GETINT('NbrOfPhysicalNodes')
+IF(NbrOfPhysicalNodes.LE.0) MemoryMonitor = .FALSE.
+#endif /*USE_MPI*/
+#endif /*! (CORE_SPLIT==0)*/
+
 ! Split the node communicator (shared memory) from the global communicator on physical processor or node level
-#if USE_CORE_SPLIT
+#if (CORE_SPLIT==1)
   CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,myRank,0,MPI_COMM_SHARED,iError)
-#else
+#elif (CORE_SPLIT==0)
   ! Note that using SharedMemoryMethod=OMPI_COMM_TYPE_CORE somehow does not work in every case (intel/amd processors)
   ! Also note that OMPI_COMM_TYPE_CORE is undefined when not using OpenMPI
   CALL MPI_COMM_SPLIT_TYPE(MPI_COMM_WORLD,SharedMemoryMethod,0,MPI_INFO_NULL,MPI_COMM_SHARED,IERROR)
+#else
+  ! Check if more nodes than procs are required or
+  ! if the resulting split would create unequal procs per node
+  IF((CORE_SPLIT.GE.nProcessors_Global).OR.(MOD(nProcessors_Global,CORE_SPLIT).GT.0))THEN
+    SWRITE (*,'(A,I0,A,I0,A,F0.2,A)') ' WARNING: Either more nodes than cores selected (nodes: ',CORE_SPLIT,', cores: ',&
+        nProcessors_Global,') OR unequal number of cores per node (=',REAL(nProcessors_Global)/REAL(CORE_SPLIT),&
+        '). Setting 1 core per node for MPI_COMM_SHARED!'
+    color = myRank
+  ELSE
+    ! Group procs so that every CORE_SPLIT procs are in the same group
+    color = INT(REAL(myRank)/REAL(CORE_SPLIT))
+  END IF ! (CORE_SPLIT.GE.nProcessors_Global).OR.(MOD().GT.0)
+  CALL MPI_COMM_SPLIT(MPI_COMM_WORLD,color,0,MPI_COMM_SHARED,iError)
 #endif
 
 ! Find my rank on the shared communicator, comm size and proc name
@@ -142,11 +171,12 @@ CALL MPI_COMM_SIZE(MPI_COMM_SHARED, nComputeNodeProcessors,IERROR)
 IF (MOD(nProcessors_Global,nComputeNodeProcessors).NE.0) &
   CALL ABORT(__STAMP__,'MPI shared communication currently only supported with equal procs per node!')
 
-IF (nProcessors_Global/nComputeNodeProcessors.EQ.1) THEN
+IF (nProcessors_Global.EQ.nComputeNodeProcessors) THEN
   SWRITE(UNIT_stdOUt,'(A,I0,A,I0,A)') ' | Starting shared communication with ',nComputeNodeProcessors,' procs on ',1,' node'
 ELSE
-  SWRITE(UNIT_stdOUt,'(A,I0,A,I0,A)') ' | Starting shared communication with ',nComputeNodeProcessors,' procs on ',         &
-                                                            nProcessors_Global/nComputeNodeProcessors,' nodes'
+  SWRITE(UNIT_stdOUt,'(A,I0,A,I0,A,I0,A)') ' | Starting shared communication with ',nComputeNodeProcessors,' procs on ',         &
+                                                         nProcessors_Global/nComputeNodeProcessors,' nodes for a total number of ',&
+                                                         nProcessors_Global,' procs'
 END IF
 
 ! Send rank of compute node root to all procs on shared comm
@@ -504,6 +534,60 @@ END IF
 CALL C_F_POINTER(SM_PTR, DataPointer,nVal)
 
 END SUBROUTINE ALLOCATE_SHARED_INT_4
+
+
+!==================================================================================================================================
+!> Allocate data with MPI-3 shared memory option
+!==================================================================================================================================
+!SUBROUTINE Allocate_Shared_Int_1_Kind_IK(nVal,SM_WIN,DataPointer&
+!#ifdef DEBUG_MEMORY
+!        ,SM_WIN_NAME&
+!#endif /*DEBUG_MEMORY*/
+!)
+!! MODULES
+!USE,INTRINSIC :: ISO_C_BINDING
+!USE MOD_Globals
+!USE MOD_MPI_Vars
+!USE MOD_MPI_Shared_Vars
+!IMPLICIT NONE
+!!----------------------------------------------------------------------------------------------------------------------------------
+!! INPUT/OUTPUT VARIABLES
+!INTEGER,INTENT(IN)                        :: nVal(1)                  !> Local number of variables in each rank
+!INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+!INTEGER(KIND=IK),INTENT(OUT),POINTER      :: DataPointer(:)           !> Pointer to the RMA window
+!#ifdef DEBUG_MEMORY
+!CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
+!#endif /*DEBUG_MEMORY*/
+!!----------------------------------------------------------------------------------------------------------------------------------
+!! LOCAL VARIABLES
+!TYPE(C_PTR)                               :: SM_PTR                   !> Base pointer, translated to DataPointer later
+!INTEGER                                   :: DISP_UNIT                !> Displacement unit
+!INTEGER(KIND=MPI_ADDRESS_KIND)            :: WIN_SIZE                 !> Size of the allocated memory window on current proc
+!!==================================================================================================================================
+!! Only node MPI root actually allocates the memory, all other nodes allocate memory with zero length but use the same displacement
+!WIN_SIZE  = MERGE(MPI_SIZE(PRODUCT(INT(nVal,KIND=8)),KIND(DataPointer)),INT(0,MPI_ADDRESS_KIND),myComputeNodeRank.EQ.0)
+!DISP_UNIT = 1
+
+!#ifdef DEBUG_MEMORY
+!LWRITE(UNIT_stdOut,'(A,I7,A65,I20)') "myrank=",myrank," Allocated "//TRIM(SM_WIN_NAME)//" with WIN_SIZE = ",WIN_SIZE
+!#endif /*DEBUG_MEMORY*/
+
+!IF (ASSOCIATED(DataPointer)) CALL abort(&
+!__STAMP__&
+!,'ERROR: Datapointer (Int1) already associated')
+
+!! Allocate MPI-3 remote memory access (RMA) type memory window
+!CALL MPI_WIN_ALLOCATE_SHARED(WIN_SIZE, DISP_UNIT, MPI_INFO_SHARED_LOOSE, MPI_COMM_SHARED, SM_PTR, SM_WIN,IERROR)
+
+!! Node MPI root already knows the location in virtual memory, all other find it here
+!IF (myComputeNodeRank.NE.0) THEN
+!  CALL MPI_WIN_SHARED_QUERY(SM_WIN, 0, WIN_SIZE, DISP_UNIT, SM_PTR,IERROR)
+!END IF
+
+!! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
+!CALL C_F_POINTER(SM_PTR, DataPointer,nVal)
+
+!END SUBROUTINE ALLOCATE_SHARED_INT_1_KIND_IK
 
 
 !==================================================================================================================================
@@ -887,6 +971,9 @@ END SUBROUTINE ALLOCATE_SHARED_REAL_6
 SUBROUTINE BARRIER_AND_SYNC(SharedWindow,Communicator) !,Barrier_Opt)
 ! MODULES
 USE MOD_Globals
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI_Vars          ,ONLY: MPIW8TimeBaS,MPIW8CountBaS
+#endif /*defined(MEASURE_MPI_WAIT)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -897,13 +984,26 @@ INTEGER,INTENT(INOUT)       :: Communicator !> Shared memory communicator
 ! LOGICAL,INTENT(IN)          :: Barrier_Opt  !
 ! LOCAL VARIABLES
 ! LOGICAL                     :: Barrier
+#if defined(MEASURE_MPI_WAIT)
+INTEGER(KIND=8)               :: CounterStart,CounterEnd
+REAL(KIND=8)                  :: Rate
+#endif /*defined(MEASURE_MPI_WAIT)*/
 !==================================================================================================================================
 ! Barrier = MERGE(Barrier_Opt,.TRUE.,PRESENT(Barrier_Opt)
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 CALL MPI_WIN_SYNC(SharedWindow,iError)
 ! IF (Barrier) CALL MPI_BARRIER (Communicator,iError)
 CALL MPI_BARRIER (Communicator,iError)
 CALL MPI_WIN_SYNC(SharedWindow,iError)
+
+#if defined(MEASURE_MPI_WAIT)
+CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+MPIW8TimeBaS  = MPIW8TimeBaS + REAL(CounterEnd-CounterStart,8)/Rate
+MPIW8CountBaS = MPIW8CountBaS + 1_8
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! IF(iError.NE.0)THEN
 !   CALL abort(__STAMP__,'ERROR in MPI_WIN_SYNC() for '//TRIM(SM_WIN_NAME)//': iError returned non-zero value =',IntInfoOpt=iError)

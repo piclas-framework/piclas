@@ -1,7 +1,7 @@
 !==================================================================================================================================
 ! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
 !
-! This file is part of PICLas (gitlab.com/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
 ! of the License, or (at your option) any later version.
 !
@@ -71,7 +71,7 @@ USE MOD_LinearSolver_Vars      ,ONLY: ExplicitPartSource
 USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_LinearSolver_Vars      ,ONLY: DoUpdateInStage,PartXk
 USE MOD_Predictor              ,ONLY: PartPredictor,PredictorType
-USE MOD_Particle_Vars          ,ONLY: PartIsImplicit,PartLorentzType,doParticleMerge,PartDtFrac &
+USE MOD_Particle_Vars          ,ONLY: PartIsImplicit,PartLorentzType,PartDtFrac &
                                       ,DoForceFreeSurfaceFlux,PartStateN,PartStage,PartQ,DoSurfaceFlux,PEM,PDM  &
                                       , Pt,LastPartPos,DelayTime,PartState,PartMeshHasReflectiveBCs,PartDeltaX
 USE MOD_PICDepo                ,ONLY: Deposition
@@ -80,7 +80,7 @@ USE MOD_part_RHS               ,ONLY: PartVeloToImp
 USE MOD_part_emission          ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux      ,ONLY: ParticleSurfaceflux
 USE MOD_DSMC                   ,ONLY: DSMC_main
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, DSMC_RHS
+USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_Particle_Tracing       ,ONLY: ParticleTracing
 USE MOD_Particle_RefTracking   ,ONLY: ParticleRefTracking
@@ -90,7 +90,6 @@ USE MOD_ParticleSolver         ,ONLY: ParticleNewton, SelectImplicitParticles
 USE MOD_Part_RHS               ,ONLY: PartRHS
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToSingleParticle
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
-USE MOD_part_MPFtools          ,ONLY: StartParticleMerge
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
@@ -529,8 +528,6 @@ DO iStage=2,nRKStages
     CALL MPIParticleSend()
     ! finish communication
     CALL MPIParticleRecv()
-    ! set exchanged number of particles to zero
-    PartMPIExchange%nMPIParticles=0
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
     CALL LBSplitTime(LB_PARTCOMM,tLBStart)
@@ -543,7 +540,6 @@ DO iStage=2,nRKStages
 #endif /*USE_LOADBALANCE*/
     ! deposit explicit, local particles
     CALL Deposition(doParticle_In=.NOT.PartIsImplicit(1:PDM%ParticleVecLength))
-    !PartMPIExchange%nMPIParticles=0
     IF(DoDeposition) THEN
       DO iElem=1,PP_nElems
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -833,39 +829,10 @@ END IF
 IF (useDSMC) THEN ! UpdateNextFreePosition is only required for DSMC
   CALL UpdateNextFreePosition()
   CALL DSMC_main()
-  PartState(4:6,1:PDM%ParticleVecLength) = PartState(4:6,1:PDM%ParticleVecLength) + DSMC_RHS(1:3,1:PDM%ParticleVecLength)
-END IF
-
-!----------------------------------------------------------------------------------------------------------------------------------
-! split and merge
-!----------------------------------------------------------------------------------------------------------------------------------
-IF (doParticleMerge) THEN
-  IF (.NOT.(useDSMC)) THEN
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    ALLOCATE(PEM%pStart(1:PP_nElems)           , &
-             PEM%pNumber(1:PP_nElems)          , &
-             PEM%pNext(1:PDM%maxParticleNumber), &
-             PEM%pEnd(1:PP_nElems) )
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_SPLITMERGE,tLBStart)
-#endif /*USE_LOADBALANCE*/
-  END IF
 END IF
 
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()
 
-IF (doParticleMerge) THEN
-  CALL StartParticleMerge()
-  IF (.NOT.(useDSMC)) THEN
-    DEALLOCATE(PEM%pStart , &
-               PEM%pNumber, &
-               PEM%pNext  , &
-               PEM%pEnd   )
-  END IF
-  CALL UpdateNextFreePosition()
-END IF
 #endif /*PARTICLES*/
 
 END SUBROUTINE TimeStepByImplicitRK
