@@ -221,7 +221,7 @@ END IF
 ! 5.) Determine the new rotational and vibrational state of molecules undergoing a relaxation
 IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
 
-  CALL CalcTRelax(ERotSpec, Xi_RotSpec, EVibSpec, totalWeightSpec, CellTemp, relaxfreq, rotrelaxfreqSpec, &
+  CALL CalcTRelax(ERotSpec, Xi_RotSpec, EVibSpec, totalWeightSpec, totalWeight, CellTemp, relaxfreq, rotrelaxfreqSpec, &
     vibrelaxfreqSpec, ERotTtransSpecMean, EVibTtransSpecMean, Xi_VibRelSpec, Xi_vib_DOF, nXiVibDOF, CellTempRel)
 
   CALL RelaxInnerEnergy(nVibRelax, nRotRelax, iPartIndx_NodeRelaxVib, iPartIndx_NodeRelaxRot, nXiVibDOF, Xi_vib_DOF, &
@@ -890,7 +890,7 @@ END DO
 END SUBROUTINE DetermineRelaxPart
 
 
-SUBROUTINE CalcTRelax(ERotSpec, Xi_RotSpec, EVibSpec, totalWeightSpec, CellTemp, relaxfreq, rotrelaxfreqSpec, &
+SUBROUTINE CalcTRelax(ERotSpec, Xi_RotSpec, EVibSpec, totalWeightSpec, totalWeight, CellTemp, relaxfreq, rotrelaxfreqSpec, &
     vibrelaxfreqSpec, ERotTtransSpecMean, EVibTtransSpecMean, Xi_VibRelSpec, Xi_vib_DOF, nXiVibDOF, CellTempRel)
 !===================================================================================================================================
 !> Calculate the relaxation energies and temperatures
@@ -907,7 +907,7 @@ USE MOD_Globals               ,ONLY: abort
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: nXiVibDOF
 REAL, INTENT(IN)              :: ERotSpec(nSpecies), Xi_RotSpec(nSpecies), EVibSpec(nSpecies)
-REAL, INTENT(IN)              :: totalWeightSpec(nSpecies), CellTemp!, MassFraction(nSpecies)
+REAL, INTENT(IN)              :: totalWeightSpec(nSpecies), totalWeight, CellTemp!, MassFraction(nSpecies)
 REAL, INTENT(IN)              :: relaxfreq, rotrelaxfreqSpec(nSpecies), vibrelaxfreqSpec(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -975,14 +975,14 @@ DO iSpec = 1, nSpecies
 
     ! Mean translational energy per particle to satisfy the Landau-Teller equation
     ETransRelMean = ETransRelMean + (3./2. * BoltzmannConst * CellTemp - (rotrelaxfreqSpec(iSpec)/relaxfreq) * &
-      (ERotTtransSpecMean(iSpec)-ERotSpecMean(iSpec))) * totalWeightSpec(iSpec)
+      (ERotTtransSpecMean(iSpec)-ERotSpecMean(iSpec))) * totalWeightSpec(iSpec)/totalWeight
     IF (BGKDoVibRelaxation) THEN
       ETransRelMean = ETransRelMean - (vibrelaxfreqSpec(iSpec)/relaxfreq)*(EVibTtransSpecMean(iSpec)-EVibSpecMean(iSpec)) * &
-        totalWeightSpec(iSpec)
+        totalWeightSpec(iSpec)/totalWeight
     END IF
   ELSE
     ! Mean translational energy per particle to satisfy the Landau-Teller equation
-    ETransRelMean = ETransRelMean + 3./2. * BoltzmannConst * CellTemp * totalWeightSpec(iSpec)
+    ETransRelMean = ETransRelMean + 3./2. * BoltzmannConst * CellTemp * totalWeightSpec(iSpec)/totalWeight
   END IF
 END DO
 
@@ -1108,13 +1108,8 @@ IF (nRelax.GT.0) THEN
             KronDelta = 0.0
           END IF
           ! Fill symmetric transformation matrix SMat with anisotopic matrix A = SS
-          ! = Open work: calculation per species? ==========================================================================
-          SMat(fillMa1, fillMa2)= KronDelta*CellTempRel*BoltzmannConst/MassIC_Mixture - (1.-Prandtl)/(2.*Prandtl) &
-            *(u0ij(fillMa1, fillMa2)-KronDelta*CellTemp*BoltzmannConst/MassIC_Mixture)
-          ! SMat(fillMa1, fillMa2)= KronDelta*CellTempRel/CellTemp - (1.-Prandtl)/(2.*Prandtl) &
-          !   *(3./u2*u0ij(fillMa1, fillMa2)-KronDelta)
-          ! SMat(fillMa1, fillMa2)= KronDelta*CellTempRel - (1.-Prandtl)/(2.*Prandtl) &
-          !   *(u0ij(fillMa1, fillMa2)-KronDelta*CellTemp)
+          SMat(fillMa1, fillMa2)= KronDelta*CellTempRel/CellTemp - (1.-Prandtl)/(2.*Prandtl) &
+            *(3./u2*u0ij(fillMa1, fillMa2)-KronDelta)
         END DO
       END DO
       SMat(2,1)=SMat(1,2)
@@ -1198,9 +1193,12 @@ IF (nRelax.GT.0) THEN
     iPart = iPartIndx_NodeRelax(iLoop)
     iSpec = PartSpecies(iPart)
     ! Calculation of new velocities of all particles
-    IF ((BGKCollModel.EQ.1).AND.(ESBGKModel.NE.3)) THEN
+    IF ((BGKCollModel.EQ.1).AND.(ESBGKModel.EQ.1)) THEN
       ! Transformation of normalized thermal velocity vector tempVelo (sampled from a Maxwellian distribution) to a thermal velocity
       ! vector sampled from the ESBGK target distribution function (anisotropic Gaussian distribution)
+      tempVelo(1:3) = SQRT(BoltzmannConst*CellTempRel/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
+      PartState(4:6,iPart) = vBulkAll(1:3) + MATMUL(SMat,tempVelo)
+    ELSE IF ((BGKCollModel.EQ.1).AND.(ESBGKModel.EQ.2)) THEN
       tempVelo(1:3) = SQRT(MassIC_Mixture/Species(iSpec)%MassIC)*iRanPart(1:3,iLoop)
       PartState(4:6,iPart) = vBulkAll(1:3) + MATMUL(SMat,tempVelo)
     ELSE IF ((BGKCollModel.EQ.1).AND.(ESBGKModel.EQ.3)) THEN
