@@ -567,7 +567,8 @@ ELSE
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
   ! sum up potential halo elements and create correct offset mapping via ElemInfo_Shared
-  nHaloElems = COUNT(ElemInfo_Shared(ELEM_HALOFLAG,:).EQ.2)
+  nHaloElems = COUNT(ElemInfo_Shared(ELEM_HALOFLAG,firstElem:lastElem).EQ.2)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,nHaloElems,1,MPI_LOGICAL,MPI_SUM,MPI_COMM_SHARED,iError)
 
   ALLOCATE(offsetCNHalo2GlobalElem(1:nHaloElems))
   offsetCNHalo2GlobalElem = -1
