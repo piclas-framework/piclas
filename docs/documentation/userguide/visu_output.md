@@ -361,6 +361,7 @@ greater or equal 1.
 |         :--------:         | :---------: | :-------------------------------------------------------------------------------------------------------------: | :--------: | :--------: |
 | CalcElectricTimeDerivative |      F      |   time derivative $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$   |     yes    |     no     |
 |     CalcPotentialEnergy    |      F      |                                      potential field energy of the EM field                                     |     yes    |     yes    |
+|   CalcBoundaryFieldOutput  |      F      |                                 electric potential at user-specified boundaries                                 |     yes    |     no     |
 
 
 **Displacement current:** The temporal change of the electric displacement field $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$
@@ -369,7 +370,7 @@ can be stored for Poisson's equation (`PICLAS_EQNSYSNAME=poisson`) by setting
     CalcElectricTimeDerivative = T
 
 The integrated displacement current that traverses each field boundary (except periodic BCs) can be analyzed over time
-and is written to FieldAnalyze.csv for each boundary separately, e.g. "007-ElecDisplCurrent-001-BC_left".
+and is written to FieldAnalyze.csv for each boundary separately, e.g. *"007-ElecDisplCurrent-001-BC_left"*.
 The electric displacement current is also considered when the total electric current on specific surfaces is calculated, for details
 see BoundaryParticleOutput (BPO) in Section {ref}`sec:integral-surface-variables`.
 
@@ -378,9 +379,20 @@ by setting
 
     CalcPotentialEnergy = T
 
-and is written to FieldAnalyze.csv, e.g. "002-E-El" and "003-E-Mag" (magnetic energy is only calculated for Maxwell's equations').
-Additionally, but only when solving Maxwell's equations, the energy stored in the divergence correction fields "004-E-phi" and
-"005-E-psi" as well as the total potential energy "006-E-pot", respectively, can be analyzed.
+and is written to FieldAnalyze.csv, e.g. *"002-E-El" and "003-E-Mag"* (magnetic energy is only calculated for Maxwell's equations').
+Additionally, but only when solving Maxwell's equations, the energy stored in the divergence correction fields *"004-E-phi"* and
+*"005-E-psi"* as well as the total potential energy *"006-E-pot"*, respectively, can be analyzed.
+
+**Boundary Field Output** The electric potential for specific boundaries can be analyzed over time by setting
+
+    CalcBoundaryFieldOutput = T
+    BFO-NFieldBoundaries    = 3         ! Nbr of boundaries
+    BFO-FieldBoundaries     = (/1,3,5/) ! Field-Boundary1, 3 and 5
+
+where `BFO-NFieldBoundaries` defines the number of boundaries that are of interest and `BFO-FieldBoundaries` the boundary IDs of the
+field boundaries where the electric potential is to be recorded. Note that this output is only meaningful when a scalar potential is
+used on the corresponding boundary. Therefore, this output is only available for certain BCTypes, e.g., 2, 4, 5 and 6. The output is
+written to FieldAnalyze.csv for each boundary separately, e.g. *"006-BFO-boundary001"*.
 
 ### Particle Variables
 **WIP**
