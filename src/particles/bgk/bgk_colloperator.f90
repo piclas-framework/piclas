@@ -218,15 +218,14 @@ IF(BGKDoVibRelaxation) THEN
   END IF
 END IF
 
-! 5.) Determine the new rotational and vibrational state of molecules undergoing a relaxation
-IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
-
-  CALL CalcTRelax(ERotSpec, Xi_RotSpec, EVibSpec, totalWeightSpec, totalWeight, CellTemp, relaxfreq, rotrelaxfreqSpec, &
+! 5.) Determine the relaxation temperatures and energies as well as the new rotational and vibrational states of molecules
+!     undergoing a relaxation
+CALL CalcTRelax(ERotSpec, Xi_RotSpec, EVibSpec, totalWeightSpec, totalWeight, CellTemp, relaxfreq, rotrelaxfreqSpec, &
     vibrelaxfreqSpec, ERotTtransSpecMean, EVibTtransSpecMean, Xi_VibRelSpec, Xi_vib_DOF, nXiVibDOF, CellTempRel)
 
+IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
   CALL RelaxInnerEnergy(nVibRelax, nRotRelax, iPartIndx_NodeRelaxVib, iPartIndx_NodeRelaxRot, nXiVibDOF, Xi_vib_DOF, &
     Xi_VibRelSpec, Xi_RotSpec, VibEnergyDOF, CellTemp, NewEnVib, NewEnRot)
-
 ELSE
   CellTempRel = CellTemp
 END IF
@@ -926,7 +925,7 @@ ERotSpecMean=0.0; ERotTtransSpecMean=0.0; EVibSpecMean=0.0; EVibTtransSpecMean=0
 ETransRelMean=0.0; CellTempRel=0.0
 
 DO iSpec = 1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN ! molecules
     ! Mean rotational energy per particle of a species
     ERotSpecMean(iSpec) = ERotSpec(iSpec)/totalWeightSpec(iSpec)
     ! Mean rotational energy per particle of a species for the mixture translational temperature, ERot(Ttrans)
@@ -980,7 +979,7 @@ DO iSpec = 1, nSpecies
       ETransRelMean = ETransRelMean - (vibrelaxfreqSpec(iSpec)/relaxfreq)*(EVibTtransSpecMean(iSpec)-EVibSpecMean(iSpec)) * &
         totalWeightSpec(iSpec)/totalWeight
     END IF
-  ELSE
+  ELSE ! atomic
     ! Mean translational energy per particle to satisfy the Landau-Teller equation
     ETransRelMean = ETransRelMean + 3./2. * BoltzmannConst * CellTemp * totalWeightSpec(iSpec)/totalWeight
   END IF
