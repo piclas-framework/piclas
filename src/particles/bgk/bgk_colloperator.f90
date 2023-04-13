@@ -89,7 +89,7 @@ REAL,PARAMETER        :: RelMomTol=1e-6  ! Relative tolerance applied to conserv
 REAL,PARAMETER        :: RelEneTol=1e-12 ! Relative tolerance applied to conservation of energy before/after reaction
 #endif /* CODE_ANALYZE */
 REAL                  :: totalWeightSpec(nSpecies), totalWeight, partWeight, CellTemptmp, MassIC_Mixture
-REAL                  :: EVibSpec(nSpecies), ERotSpec(nSpecies), Xi_VibSpec(nSpecies), Xi_RotSpec(nSpecies),Xi_Vib_oldSpec(nSpecies)
+REAL                  :: EVibSpec(nSpecies), ERotSpec(nSpecies), Xi_VibSpec(nSpecies), Xi_RotSpec(nSpecies)
 REAL                  :: ERotTtransSpecMean(nSpecies), EVibTtransSpecMean(nSpecies), Xi_VibRelSpec(nSpecies), CellTempRel
 REAL                  :: TVibSpec(nSpecies), TRotSpec(nSpecies), VibRelaxWeightSpec(nSpecies), RotRelaxWeightSpec(nSpecies)
 REAL                  :: collisionfreqSpec(nSpecies),rotrelaxfreqSpec(nSpecies), vibrelaxfreqSpec(nSpecies)
@@ -139,9 +139,11 @@ END IF
 nXiVibDOF=0.0 ! Initialize
 DO iSpec = 1, nSpecies
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-      nXiVibDOFSpec(iSpec) = PolyatomMolDSMC(iPolyatMole)%VibDOF
+    IF(BGKDoVibRelaxation) THEN
+      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+        nXiVibDOFSpec(iSpec) = PolyatomMolDSMC(iPolyatMole)%VibDOF
+      END IF
     END IF
   END IF
 END DO
@@ -149,8 +151,7 @@ nXiVibDOF = MAXVAL(nXiVibDOFSpec(:))
 ALLOCATE(Xi_vib_DOF(nSpecies,nXiVibDOF))
 Xi_vib_DOF = 0.0
 
-CALL CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, TRotSpec, InnerDOF, Xi_VibSpec, Xi_Vib_oldSpec &
-    ,Xi_RotSpec)
+CALL CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, TRotSpec, InnerDOF, Xi_VibSpec, Xi_RotSpec)
 
 ! 2.) Calculation of the relaxation frequency of the distribution function towards the target distribution function
 CALL CalcGasProperties(nSpec, dens, InnerDOF, totalWeightSpec, totalWeight, TotalMass, u2Spec, u0ij, u2, SpecTemp, CellTemp, &
@@ -217,6 +218,7 @@ IF(BGKDoVibRelaxation) THEN
     ALLOCATE(VibEnergyDOF(nVibRelax,nXiVibDOF))
   END IF
 END IF
+VibEnergyDOF = 0.0
 
 ! 5.) Determine the relaxation temperatures and energies as well as the new rotational and vibrational states of molecules
 !     undergoing a relaxation
@@ -578,8 +580,7 @@ END IF
 END SUBROUTINE DoAveraging
 
 
-SUBROUTINE CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, TRotSpec, InnerDOF, Xi_VibSpec, Xi_Vib_oldSpec &
-    ,Xi_RotSpec)
+SUBROUTINE CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, TRotSpec, InnerDOF, Xi_VibSpec, Xi_RotSpec)
 !===================================================================================================================================
 !> Determine the internal degrees of freedom and the respective temperature (rotation/vibration) for diatomic/polyatomic species
 !===================================================================================================================================
@@ -597,14 +598,14 @@ INTEGER, INTENT(IN)           :: nSpec(nSpecies)
 REAL, INTENT(IN)              :: EVibSpec(nSpecies), ERotSpec(nSpecies), totalWeightSpec(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: TVibSpec(nSpecies), TRotSpec(nSpecies), InnerDOF, Xi_VibSpec(nSpecies), Xi_Vib_oldSpec(nSpecies)
+REAL, INTENT(OUT)             :: TVibSpec(nSpecies), TRotSpec(nSpecies), InnerDOF, Xi_VibSpec(nSpecies)
 REAL, INTENT(OUT)             :: Xi_RotSpec(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPolyatMole, iSpec, iDOF
 REAL                          :: exparg
 !===================================================================================================================================
-Xi_VibSpec=0.; InnerDOF=0.; Xi_RotSpec=0.; Xi_Vib_oldSpec=0.; TVibSpec=0.; TRotSpec=0.
+Xi_VibSpec=0.; InnerDOF=0.; Xi_RotSpec=0.; TVibSpec=0.; TRotSpec=0.
 DO iSpec = 1, nSpecies
   IF (nSpec(iSpec).EQ.0) CYCLE
   ! Only for molecules
@@ -637,7 +638,6 @@ DO iSpec = 1, nSpecies
           Xi_VibSpec(iSpec) = 2.* EVibSpec(iSpec) / (totalWeightSpec(iSpec)*BoltzmannConst*TVibSpec(iSpec))
         END IF
       END IF
-      Xi_Vib_oldSpec(iSpec) = Xi_VibSpec(iSpec)
     END IF
     Xi_RotSpec(iSpec) = SpecDSMC(iSpec)%Xi_Rot
     ! Calculation of rotational temperature from Pfeiffer, Physics of Fluids 30, 116103 (2018), "Extending the particle ellipsoidal
@@ -949,7 +949,7 @@ DO iSpec = 1, nSpecies
           TVibRelPoly = EVibTtransPoly / (BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))
           IF (TVibRelPoly.GT.0.0) THEN
             TVibRelPoly = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/LOG(1. + 1./TVibRelPoly)
-            ! Calculation of the vibrational degrees of freedeom to satisfy the Landau-Teller equation
+            ! Calculation of the vibrational degrees of freedom to satisfy the Landau-Teller equation
             Xi_vib_DOF(iSpec,iDOF) = 2.* EVibTtransPoly / (BoltzmannConst*TVibRelPoly)
           ELSE
             Xi_vib_DOF(iSpec,iDOF) = 0.0
@@ -963,7 +963,7 @@ DO iSpec = 1, nSpecies
         TVibRelSpecMean = EVibTtransSpecMean(iSpec) / (BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)
         IF (TVibRelSpecMean.GT.0.0) THEN
           TVibRelSpecMean = SpecDSMC(iSpec)%CharaTVib/LOG(1. + 1./(TVibRelSpecMean))
-          ! Calculation of the vibrational degrees of freedeom to satisfy the Landau-Teller equation
+          ! Calculation of the vibrational degrees of freedom to satisfy the Landau-Teller equation
           Xi_VibRelSpec(iSpec) = 2.* EVibTtransSpecMean(iSpec) / (BoltzmannConst*TVibRelSpecMean)
         ! No negative temperature possible
         ELSE
