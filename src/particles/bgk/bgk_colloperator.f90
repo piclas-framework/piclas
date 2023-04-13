@@ -139,11 +139,9 @@ END IF
 nXiVibDOF=0.0 ! Initialize
 DO iSpec = 1, nSpecies
   IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    IF(BGKDoVibRelaxation) THEN
-      IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-        iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-        nXiVibDOFSpec(iSpec) = PolyatomMolDSMC(iPolyatMole)%VibDOF
-      END IF
+    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+      nXiVibDOFSpec(iSpec) = PolyatomMolDSMC(iPolyatMole)%VibDOF
     END IF
   END IF
 END DO
@@ -218,7 +216,6 @@ IF(BGKDoVibRelaxation) THEN
     ALLOCATE(VibEnergyDOF(nVibRelax,nXiVibDOF))
   END IF
 END IF
-VibEnergyDOF = 0.0
 
 ! 5.) Determine the relaxation temperatures and energies as well as the new rotational and vibrational states of molecules
 !     undergoing a relaxation
@@ -228,8 +225,6 @@ CALL CalcTRelax(ERotSpec, Xi_RotSpec, EVibSpec, totalWeightSpec, totalWeight, Ce
 IF(ANY(SpecDSMC(:)%InterID.EQ.2).OR.ANY(SpecDSMC(:)%InterID.EQ.20)) THEN
   CALL RelaxInnerEnergy(nVibRelax, nRotRelax, iPartIndx_NodeRelaxVib, iPartIndx_NodeRelaxRot, nXiVibDOF, Xi_vib_DOF, &
     Xi_VibRelSpec, Xi_RotSpec, VibEnergyDOF, CellTemp, NewEnVib, NewEnRot)
-ELSE
-  CellTempRel = CellTemp
 END IF
 
 ! 6.) Sample new particle velocities from the target distribution function, depending on the chosen model
