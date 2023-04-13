@@ -135,20 +135,6 @@ IF (BGKMovingAverage) THEN
   CALL DoAveraging(dens, u2, u0ij, u2i, CellTemp, AveragingValues)
 END IF
 
-! Allocate Xi_vib_DOF
-nXiVibDOF=0.0 ! Initialize
-DO iSpec = 1, nSpecies
-  IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
-    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
-      iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-      nXiVibDOFSpec(iSpec) = PolyatomMolDSMC(iPolyatMole)%VibDOF
-    END IF
-  END IF
-END DO
-nXiVibDOF = MAXVAL(nXiVibDOFSpec(:))
-ALLOCATE(Xi_vib_DOF(nSpecies,nXiVibDOF))
-Xi_vib_DOF = 0.0
-
 CALL CalcInnerDOFs(nSpec, EVibSpec, ERotSpec, totalWeightSpec, TVibSpec, TRotSpec, InnerDOF, Xi_VibSpec, Xi_RotSpec)
 
 ! 2.) Calculation of the relaxation frequency of the distribution function towards the target distribution function
@@ -210,10 +196,14 @@ CALL DetermineRelaxPart(nPart, iPartIndx_Node, relaxfreq, dtCell, nRelax, nRotRe
 ! Return if no particles are undergoing a relaxation
 IF ((nRelax.EQ.0).AND.(nRotRelax.EQ.0).AND.(nVibRelax.EQ.0)) RETURN
 
-! Allocate VibEnergyDOF
+! Allocate Xi_vib_DOF
 IF(BGKDoVibRelaxation) THEN
-  IF(ANY(SpecDSMC(:)%PolyatomicMol)) THEN
+  IF(DSMC%NumPolyatomMolecs.GT.0) THEN
+    nXiVibDOF = MAXVAL(PolyatomMolDSMC(:)%VibDOF)
+    ALLOCATE(Xi_vib_DOF(DSMC%NumPolyatomMolecs,nXiVibDOF))
+    ! Allocate VibEnergyDOF
     ALLOCATE(VibEnergyDOF(nVibRelax,nXiVibDOF))
+    VibEnergyDOF = 0.0
   END IF
 END IF
 
@@ -891,7 +881,7 @@ SUBROUTINE CalcTRelax(ERotSpec, Xi_RotSpec, EVibSpec, totalWeightSpec, totalWeig
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: nSpecies
-USE MOD_DSMC_Vars             ,ONLY: PolyatomMolDSMC, SpecDSMC
+USE MOD_DSMC_Vars             ,ONLY: PolyatomMolDSMC, SpecDSMC, DSMC
 USE MOD_BGK_Vars              ,ONLY: BGKDoVibRelaxation
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Globals               ,ONLY: abort
@@ -906,7 +896,7 @@ REAL, INTENT(IN)              :: relaxfreq, rotrelaxfreqSpec(nSpecies), vibrelax
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL, INTENT(OUT)             :: ERotTtransSpecMean(nSpecies), EVibTtransSpecMean(nSpecies)
-REAL, INTENT(OUT)             :: Xi_VibRelSpec(nSpecies), Xi_vib_DOF(nSpecies,nXiVibDOF), CellTempRel
+REAL, INTENT(OUT)             :: Xi_VibRelSpec(nSpecies), Xi_vib_DOF(DSMC%NumPolyatomMolecs,nXiVibDOF), CellTempRel
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iSpec, iDOF, iPolyatMole
@@ -945,9 +935,9 @@ DO iSpec = 1, nSpecies
           IF (TVibRelPoly.GT.0.0) THEN
             TVibRelPoly = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/LOG(1. + 1./TVibRelPoly)
             ! Calculation of the vibrational degrees of freedom to satisfy the Landau-Teller equation
-            Xi_vib_DOF(iSpec,iDOF) = 2.* EVibTtransPoly / (BoltzmannConst*TVibRelPoly)
+            Xi_vib_DOF(iPolyatMole,iDOF) = 2.* EVibTtransPoly / (BoltzmannConst*TVibRelPoly)
           ELSE
-            Xi_vib_DOF(iSpec,iDOF) = 0.0
+            Xi_vib_DOF(iPolyatMole,iDOF) = 0.0
           END IF
         END DO
 
@@ -997,7 +987,7 @@ SUBROUTINE RelaxInnerEnergy(nVibRelax, nRotRelax, iPartIndx_NodeRelaxVib, iPartI
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, nSpecies
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, PartStateIntEn, PolyatomMolDSMC
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, PartStateIntEn, PolyatomMolDSMC, DSMC
 USE MOD_BGK_Vars              ,ONLY: BGKDoVibRelaxation
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
@@ -1007,7 +997,7 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)           :: nXiVibDOF
 INTEGER, INTENT(IN)           :: nVibRelax, nRotRelax, iPartIndx_NodeRelaxVib(nVibRelax), iPartIndx_NodeRelaxRot(nRotRelax)
-REAL, INTENT(IN)              :: Xi_vib_DOF(nSpecies,nXiVibDOF), Xi_VibSpec(nSpecies), Xi_RotSpec(nSpecies)
+REAL, INTENT(IN)              :: Xi_vib_DOF(DSMC%NumPolyatomMolecs,nXiVibDOF), Xi_VibSpec(nSpecies), Xi_RotSpec(nSpecies)
 REAL, INTENT(IN)              :: CellTemp
 REAL, INTENT(INOUT)           :: NewEnVib(nSpecies), NewEnRot(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1033,7 +1023,7 @@ IF(BGKDoVibRelaxation) THEN
       ! Polyatomic Species in Hypersonic Flow around a Flat-faced Cylinder", AIP Conference Proceedings 2132, 100001 (2019)
       DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
         CALL RANDOM_NUMBER(iRan)
-        VibEnergyDOF(iLoop,iDOF) = - LOG(iRan)*Xi_vib_DOF(iSpec,iDOF)/2.*CellTemp*BoltzmannConst
+        VibEnergyDOF(iLoop,iDOF) = - LOG(iRan)*Xi_vib_DOF(iPolyatMole,iDOF)/2.*CellTemp*BoltzmannConst
         PartStateIntEn(1,iPart) = PartStateIntEn(1,iPart)+VibEnergyDOF(iLoop,iDOF)
       END DO
     ! ELSE: diatomic, only one vibrational DOF, calculate new vibrational energy according to M. Pfeiffer, "Extending the particle
