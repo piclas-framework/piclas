@@ -72,7 +72,7 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC
+USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC,UseBiasVoltage,BiasVoltage,BVDataLength
 #if PP_nVar==1
 USE MOD_Equation_Vars          ,ONLY: E,Et
 #elif PP_nVar==3
@@ -170,8 +170,8 @@ INTEGER                        :: SortedOffset,SortedStart,SortedEnd
 #ifdef PARTICLES
 INTEGER                        :: i,j,k,iElem
 #endif /*PARTICLES*/
-REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:)
-INTEGER                        :: nVarFPC,nVarEPC
+REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:),BVDataHDF5(:,:)
+INTEGER                        :: nVarFPC,nVarEPC,nVarBV
 #endif /*USE_HDG*/
 !===================================================================================================================================
 #ifdef EXTRAE
@@ -591,6 +591,20 @@ END IF ! CalcBulkElectronTempi.AND.MPIRoot
 #endif /*PARTICLES*/
 
 #if USE_HDG
+! Bias voltage
+IF(UseBiasVoltage.AND.MPIRoot)THEN
+  nVarBV = BVDataLength
+  ALLOCATE(BVDataHDF5(1:nVarBV,1))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  BVDataHDF5(1:nVarBV,1) = BiasVoltage%BVData(1:nVarBV)
+  CALL WriteArrayToHDF5( DataSetName = 'BiasVoltage' , rank = 2   , &
+                         nValGlobal  = (/1_IK , INT(nVarBV,IK)/), &
+                         nVal        = (/1_IK , INT(nVarBV,IK)/), &
+                         offset      = (/0_IK , 0_IK/)                        , &
+                         collective  = .FALSE., RealArray = BVDataHDF5(1:nVarBV,1))
+  CALL CloseDataFile()
+  DEALLOCATE(BVDataHDF5)
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
 ! Floating boundary condition: Store charge on each FPC
 IF(UseFPC.AND.MPIRoot)THEN
   nVarFPC = FPC%nUniqueFPCBounds

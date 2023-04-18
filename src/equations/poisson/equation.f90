@@ -43,8 +43,16 @@ END INTERFACE
 INTERFACE FinalizeEquation
   MODULE PROCEDURE FinalizeEquation
 END INTERFACE
+#if USE_MPI
+INTERFACE SynchronizeCPP
+  MODULE PROCEDURE SynchronizeCPP
+END INTERFACE
+#endif /*USE_MPI*/
 
-PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation, CalcSourceHDG,DivCleaningDamping
+PUBLIC :: InitEquation,ExactFunc,CalcSource,FinalizeEquation, CalcSourceHDG,DivCleaningDamping
+#if USE_MPI
+PUBLIC :: SynchronizeCPP
+#endif /*USE_MPI*/
 !===================================================================================================================================
 PUBLIC::DefineParametersEquation
 CONTAINS
@@ -129,7 +137,6 @@ IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
 END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT POISSON...'
-!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
@@ -255,6 +262,7 @@ END SUBROUTINE InitEquation
 !===================================================================================================================================
 !> Initialize containers for coupled power potential (CPP) for adjusting the electric potential on a BC to meet a specific power
 !> absorbed by the charged particles
+!>
 !> 1.) Get global number of coupled power potential boundaries in [1:nBCs]
 !> 2.) Get parameters
 !> 3.) Establish sub-communicator (all BCs directly connected to a coupled power potential boundary); MPIRoot is always in the group)
@@ -281,6 +289,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER, PARAMETER :: BCTypeCPP(1:2) = (/2,52/) ! BCType which allows coupled power potential control
+!                                               !  2: DC potential adjustment
+!                                               ! 52: bias voltage + cos(wt) function + coupled power for AC potential adjustment
 INTEGER            :: iBC,CPPBoundaries,BCType,BCState
 #if USE_MPI
 LOGICAL            :: BConProc
@@ -319,8 +329,6 @@ IF(.NOT.PerformLoadBalance)THEN
   CoupledPowerRelaxFac = GETREAL('CoupledPowerRelaxFac')
   IF(CoupledPowerRelaxFac.LE.0.) CALL CollectiveStop(__STAMP__,'CoupledPowerRelaxFac must be > 0.')
 #if USE_LOADBALANCE
-ELSE
-  CoupledPowerPotential(1:3) = 0.
 END IF ! .NOT.PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
@@ -330,6 +338,7 @@ BConProc = .FALSE.
 IF(MPIRoot)THEN
   BConProc = .TRUE.
 ELSE
+  CoupledPowerPotential(1:3) = 0.
   ! Check local sides
   DO SideID=1,nBCSides
     iBC    = BC(SideID)
@@ -463,7 +472,7 @@ USE MOD_Globals         ,ONLY: Abort,mpiroot
 USE MOD_Globals_Vars    ,ONLY: PI,ElementaryCharge,eps0
 USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinPhi,LinPhiHeight,LinPhiNormal,LinPhiBasePoint
 #if defined(PARTICLES)
-USE MOD_HDG_Vars        ,ONLY: CoupledPowerPotential
+USE MOD_HDG_Vars        ,ONLY: CoupledPowerPotential,BiasVoltage
 USE MOD_Particle_Vars   ,ONLY: Species,nSpecies
 #endif /*defined(PARTICLES)*/
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
@@ -488,6 +497,10 @@ REAL,INTENT(OUT)                :: Resu(1:PP_nVar)    ! state in conservative va
 REAL                            :: Omega,r1,r2,r_2D,r_3D,r_bary,cos_theta,eps1,eps2,xi,a(3),b(3),Q
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
+#if defined(PARTICLES)
+CASE(-5) ! Bias voltage DC boundary
+  Resu(:) = BiasVoltage%BVData(1)
+#endif /*defined(PARTICLES)*/
 CASE(-4) ! Electric potential condition (EPC) where charge accumulated over one time step is removed and creates a voltage
   Resu(:) = EPC%Voltage(EPC%Group(BCState,2))
 CASE(-3) ! linear function with base point, normal vector and heigh: Requires BoundaryType = (/7,X/)

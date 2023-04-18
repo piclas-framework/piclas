@@ -238,15 +238,37 @@ TYPE(tEPC)   :: EPC
 !-- Special BC with floating potential that is defined by the absorbed power of the charged particles
 !===================================================================================================================================
 
-LOGICAL :: CalcPCouplElectricPotential! Switch calculation on/off
+LOGICAL :: CalcPCouplElectricPotential ! Switch calculation on/off
 
 #if USE_MPI
-TYPE(tMPIGROUP) :: CPPCOMM         !< communicator and ID for parallel execution
+TYPE(tMPIGROUP) :: CPPCOMM       !< communicator and ID for parallel execution
 #endif /*USE_MPI*/
 
-REAL :: CoupledPowerPotential(3)   !< (/min, start, max/) electric potential at all BoundaryType = (/2,2/)
-REAL :: CoupledPowerTarget         !< Target input power at all BoundaryType = (/2,2/)
-REAL :: CoupledPowerRelaxFac       !< Relaxation factor for calculation of new electric potential
+REAL :: CoupledPowerPotential(3) !< (/min, start, max/) electric potential at all BoundaryType = (/2,2/)
+REAL :: CoupledPowerTarget       !< Target input power at all BoundaryType = (/2,2/)
+REAL :: CoupledPowerRelaxFac     !< Relaxation factor for calculation of new electric potential
+
+!===================================================================================================================================
+!-- Bias Voltage (for calculating a BC voltage bias for certain BCs)
+!===================================================================================================================================
+
+LOGICAL           :: UseBiasVoltage !< Automatic flag when bias voltage is to be used
+INTEGER,PARAMETER :: BVDataLength=3 !< Number of variables in BVData
+
+TYPE tBV
+#if USE_MPI
+  TYPE(tMPIGROUP)     :: COMM                 !< communicator and ID for parallel execution
+#endif /*USE_MPI*/
+  INTEGER             :: NPartBoundaries      !< Total number of boundaries where the particles are counted
+  INTEGER,ALLOCATABLE :: PartBoundaries(:)    !< Part-boundary number on which the particles are counted
+  REAL                :: Frequency            !< Frequency with which the bias voltage is adjusted (every period T = 1/f the bias voltage is changed)
+  REAL                :: Delta                !< Voltage difference used to change the current bias voltage (may also be adjusted over time automatically)
+  REAL                :: BVData(BVDataLength) !< 1: bias voltage
+!                                             !< 2: Ion excess
+!                                             !< 3: sim. time when next adjustment happens
+END TYPE
+
+TYPE(tBV)   :: BiasVoltage
 #endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 
