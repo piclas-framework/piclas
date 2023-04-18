@@ -88,6 +88,10 @@ INTERFACE CalcVectorAdditionCoeffs
 END INTERFACE
 #endif /*CODE_ANALYZE*/
 
+INTERFACE InsideQuadrilateral
+  MODULE PROCEDURE InsideQuadrilateral
+END INTERFACE
+
 !===================================================================================================================================
 PUBLIC :: CalcVelocity_taylorgreenvortex, CalcVelocity_gyrotroncircle
 PUBLIC :: IntegerDivide,SetParticleChargeAndMass,SetParticleMPF,CalcVelocity_maxwell_lpn,SamplePoissonDistri
@@ -111,6 +115,7 @@ PUBLIC :: SetParticlePositionLiu2010Neutralization3D
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
 PUBLIC :: CountNeutralizationParticles
+PUBLIC :: InsideQuadrilateral
 !===================================================================================================================================
 CONTAINS
 
@@ -2155,6 +2160,69 @@ ASSOCIATE( x => x(1), y => x(2) )
   L = DOT_PRODUCT(corner,normal).GT.0.0
 END ASSOCIATE
 END FUNCTION InsideHexagon
+
+!===================================================================================================================================
+!> Calculate determinant of 3 points
+!===================================================================================================================================
+PPURE REAL FUNCTION pointDet(P1,P2,P3)
+! MODULES
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN)     :: P1(2),P2(2),P3(2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+pointDet = (P1(1)-P3(1))*(P2(2)-P3(2)) - (P2(1)-P3(1))*(P1(2)-P3(2))
+END FUNCTION pointDet
+
+!===================================================================================================================================
+!> Check if x,y is inside side
+!===================================================================================================================================
+PPURE LOGICAL FUNCTION InsideQuadrilateral(X,SideID) RESULT(L)
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: x(2)
+INTEGER,INTENT(IN) :: SideID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL         :: pos,neg
+INTEGER         :: iNode,ElemID,locSideID
+REAL            :: normal(2),corner(2),P(1:2,1:4),d(3)
+!===================================================================================================================================
+ElemID    = SideToElem(S2E_ELEM_ID,SideID)
+locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
+
+DO iNode = 1,4
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,locSideID,ElemID)+1)
+END DO
+
+d(1) = pointDet(X,P(1:2,1),P(1:2,2))
+d(2) = pointDet(X,P(1:2,2),P(1:2,3))
+d(3) = pointDet(X,P(1:2,3),P(1:2,1))
+
+pos = (d(1).GT.0).OR.(d(2).GT.0).OR.(d(3).GT.0)
+neg = (d(1).LT.0).OR.(d(2).LT.0).OR.(d(3).LT.0)
+
+L = .NOT.(pos.AND.neg)
+
+IF(.NOT.L)THEN
+  d(1) = pointDet(X,P(1:2,1),P(1:2,3))
+  d(2) = pointDet(X,P(1:2,3),P(1:2,4))
+  d(3) = pointDet(X,P(1:2,4),P(1:2,1))
+
+  pos = (d(1).GT.0).OR.(d(2).GT.0).OR.(d(3).GT.0)
+  neg = (d(1).LT.0).OR.(d(2).LT.0).OR.(d(3).LT.0)
+
+  L = .NOT.(pos.AND.neg)
+END IF ! .NOT.L
+
+END FUNCTION InsideQuadrilateral
 
 
 SUBROUTINE SetParticlePositionLandmark(chunkSize,particle_positions,mode)
