@@ -268,8 +268,8 @@ CALL InitEPC()
 ! BCType: 51,X for bias voltage + cos(wt) function
 ! BCType: 52,X for bias voltage + cos(wt) function + coupled power adjustment (for AC and not DC in this case)
 !CALL InitBV()
-write(*,*) "2.) CALL InitBV()"
-IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+!write(*,*) "2.) CALL InitBV()"
+!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 ! Check if zero potential must be set on a boundary (or periodic side)
 CALL InitZeroPotential()

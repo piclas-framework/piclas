@@ -107,11 +107,6 @@ USE MOD_Mesh_Vars          ,ONLY: nSides
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-#if defined(PARTICLES)
-USE MOD_IO_HDF5            ,ONLY: OpenDataFile,CloseDataFile,File_ID
-USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartFile
-USE MOD_HDF5_Input         ,ONLY: DatasetExists,ReadArray
-#endif /*defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -134,7 +129,7 @@ IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
 END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT POISSON...'
-IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
 
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
@@ -258,33 +253,49 @@ END SUBROUTINE InitEquation
 
 #if defined(PARTICLES)
 !===================================================================================================================================
-!> Initialize containers for coupled power potential for adjusting the electric potential on a BC to meet a specific power absorbed
-!> by the charged particles
+!> Initialize containers for coupled power potential (CPP) for adjusting the electric potential on a BC to meet a specific power
+!> absorbed by the charged particles
+!> 1.) Get global number of coupled power potential boundaries in [1:nBCs]
+!> 2.) Get parameters
+!> 3.) Establish sub-communicator (all BCs directly connected to a coupled power potential boundary); MPIRoot is always in the group)
+!> 4.) When restarting, load the last known values of CoupledPowerPotential(1:3) from the .h5 state file
 !===================================================================================================================================
 SUBROUTINE InitCoupledPowerPotential()
 ! MODULES
-! insert modules here
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+USE MOD_Globals          ,ONLY: CollectiveStop
+USE MOD_HDG_Vars         ,ONLY: CalcPCouplElectricPotential,CoupledPowerPotential,CoupledPowerTarget,CoupledPowerRelaxFac
+USE MOD_ReadInTools      ,ONLY: GETREALARRAY,GETREAL,GETINT,CountOption
+USE MOD_Mesh_Vars        ,ONLY: BoundaryType,nBCs
+#if USE_MPI
+USE MOD_Globals          ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
+USE MOD_Globals          ,ONLY: UNIT_StdOut
+USE MOD_HDG_Vars         ,ONLY: CPPCOMM
+USE MOD_Mesh_Vars        ,ONLY: nBCSides,BC
+#endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
-! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER, PARAMETER :: BCTypeCPP(1:2) = (/2,52/)
-#if defined(PARTICLES)
-CHARACTER(255)     :: ContainerName
-LOGICAL            :: CoupledPowerPotentialExists
-REAL               :: TmpArray2(3),CoupledPowerPotentialHDF5(3)
-#endif /*defined(PARTICLES)*/
-INTEGER           :: CPPBoundaries
+INTEGER, PARAMETER :: BCTypeCPP(1:2) = (/2,52/) ! BCType which allows coupled power potential control
+INTEGER            :: iBC,CPPBoundaries,BCType,BCState
+#if USE_MPI
+LOGICAL            :: BConProc
+INTEGER            :: color,SideID
+#endif /*USE_MPI*/
 !===================================================================================================================================
-! Get global number of coupled power potential boundaries in [1:nBCs]
-CalcPCouplElectricPotential=.FALSE.
+
+! 1.) Get global number of coupled power potential boundaries in [1:nBCs]
+CalcPCouplElectricPotential = .FALSE.
 CPPBoundaries = 0
+! Loop over global BC list
 DO iBC=1,nBCs
   BCType = BoundaryType(iBC,BC_TYPE)
   IF(.NOT.ANY(BCType.EQ.BCTypeCPP)) CYCLE ! Skip non-CPP boundaries
-  BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
+  BCState = BoundaryType(iBC,BC_STATE) ! BCState of the corresponding BCType
   IF((BCType.EQ.2).AND.(BCState.NE.2)) CYCLE ! BCType=2 must be combined with BCState=2
   CPPBoundaries=CPPBoundaries+1
   IF(BCState.LE.0) CALL CollectiveStop(__STAMP__,' BCState for FPC must be >0! BCState=',IntInfo=BCState)
@@ -294,6 +305,7 @@ IF(CPPBoundaries.EQ.0) RETURN ! Already determined in HDG initialization
 
 CalcPCouplElectricPotential = .TRUE.
 
+! 2.) Get parameters
 #if USE_LOADBALANCE
 ! Do not set during load balance in order to keep the old value
 IF(.NOT.PerformLoadBalance)THEN
@@ -302,57 +314,143 @@ IF(.NOT.PerformLoadBalance)THEN
   CoupledPowerPotential = GETREALARRAY('CoupledPowerPotential',3)
   ! Get target power value
   CoupledPowerTarget = GETREAL('CoupledPowerTarget')
-  IF(CoupledPowerTarget.LE.0.) CALL abort(__STAMP__,'CoupledPowerTarget must be > 0.')
+  IF(CoupledPowerTarget.LE.0.) CALL CollectiveStop(__STAMP__,'CoupledPowerTarget must be > 0.')
   ! Get relaxation factor
   CoupledPowerRelaxFac = GETREAL('CoupledPowerRelaxFac')
-  IF(CoupledPowerRelaxFac.LE.0.) CALL abort(__STAMP__,'CoupledPowerRelaxFac must be > 0.')
+  IF(CoupledPowerRelaxFac.LE.0.) CALL CollectiveStop(__STAMP__,'CoupledPowerRelaxFac must be > 0.')
 #if USE_LOADBALANCE
+ELSE
+  CoupledPowerPotential(1:3) = 0.
 END IF ! .NOT.PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
-! When restarting, load the last known values of CoupledPowerPotential(1:3) from the .h5 state file
+#if USE_MPI
+! 3.) Establish sub-communicator (all BCs directly connected to a coupled power potential boundary); MPIRoot is always in the group
+BConProc = .FALSE.
+IF(MPIRoot)THEN
+  BConProc = .TRUE.
+ELSE
+  ! Check local sides
+  DO SideID=1,nBCSides
+    iBC    = BC(SideID)
+    BCType = BoundaryType(iBC,BC_TYPE)
+    IF(.NOT.ANY(BCType.EQ.BCTypeCPP)) CYCLE ! Skip other boundaries
+    BCState = BoundaryType(iBC,BC_STATE) ! BCState of the corresponding BCType
+    IF((BCType.EQ.2).AND.(BCState.NE.2)) CYCLE ! BCType=2 must be combined with BCState=2
+    BConProc = .TRUE.
+  END DO ! SideID=1,nBCSides
+END IF ! MPIRoot
+
+! create new communicator
+color = MERGE(CPPBoundaries, MPI_UNDEFINED, BConProc)
+
+! set communicator id
+CPPCOMM%ID = CPPBoundaries
+
+! create new emission communicator for electric potential boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
+CALL MPI_COMM_SPLIT(MPI_COMM_WORLD, color, MPI_INFO_NULL, CPPCOMM%UNICATOR, iError)
+
+! Find my rank on the shared communicator, comm size and proc name
+IF(BConProc)THEN
+  CALL MPI_COMM_RANK(CPPCOMM%UNICATOR, CPPCOMM%MyRank, iError)
+  CALL MPI_COMM_SIZE(CPPCOMM%UNICATOR, CPPCOMM%nProcs, iError)
+
+  ! inform about size of emission communicator
+  IF (CPPCOMM%MyRank.EQ.0) THEN
+#if USE_LOADBALANCE
+    IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+        WRITE(UNIT_StdOut,'(A,I0,A)') ' Coupled power potential boundary condition: Emission-Communicator on ',&
+            CPPCOMM%nProcs,' procs'
+  END IF
+END IF ! BConProc
+#endif /*USE_MPI*/
+
+! 4.) When restarting, load the last known values of CoupledPowerPotential(1:3) from the .h5 state file
 CALL ReadCPPDataFromH5()
 
-
-
-
-
-      ! Restart: Only root reads state file to prevent access with a large number of processors
-      IF(DoRestart)THEN
-        ! Only root reads the values and distributes them via MPI Broadcast
-        IF(MPIRoot)THEN
-          CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
-          ! Check old parameter name
-          ContainerName='CoupledPowerPotential'
-          CALL DatasetExists(File_ID,TRIM(ContainerName),CoupledPowerPotentialExists)
-          ! Check for new parameter name
-          IF(CoupledPowerPotentialExists)THEN
-            CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , 3_IK/) , 0_IK , 1 , RealArray=TmpArray2)
-            CoupledPowerPotentialHDF5 = TmpArray2
-            WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read CoupledPowerPotential from restart file ["//TRIM(RestartFile)//"] min[V]: ",&
-                CoupledPowerPotentialHDF5(1),", current[V]: ",CoupledPowerPotentialHDF5(2),", max[V]: ",CoupledPowerPotentialHDF5(3)
-          END IF ! CoupledPowerPotentialExists
-          CALL CloseDataFile()
-        END IF ! MPIRoot
-#if USE_MPI
-        ! Broadcast from root to other processors
-        CALL MPI_BCAST(CoupledPowerPotentialHDF5,3, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
-#endif /*USE_MPI*/
-      END IF ! DoRestart
-
-      ! Over-write during restart with values from hdf5 state file
-      IF(DoRestart) CoupledPowerPotential = CoupledPowerPotentialHDF5
-
-    END IF ! BCState.EQ.1
-
-
-
-
-
-
-
-
 END SUBROUTINE InitCoupledPowerPotential
+
+
+!===================================================================================================================================
+!> Read the coupled power potential (CPP) data from a .h5 state file.
+!> 1. The MPI root process reads the info and checks data consistency
+!> 2. The MPI root process distributes the information among the sub-communicator processes connected to the CPP boundary.
+!===================================================================================================================================
+SUBROUTINE ReadCPPDataFromH5()
+! MODULES
+USE MOD_io_hdf5
+USE MOD_Globals          ,ONLY: UNIT_stdOut,MPIRoot,IK,abort
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
+USE MOD_IO_HDF5          ,ONLY: OpenDataFile,CloseDataFile,File_ID
+USE MOD_Restart_Vars     ,ONLY: DoRestart,RestartFile
+USE MOD_HDF5_Input       ,ONLY: DatasetExists,ReadArray,GetDataSize
+USE MOD_HDG_Vars         ,ONLY: CoupledPowerPotential
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(255) :: ContainerName
+LOGICAL        :: CPPExists
+REAL           :: CPPDataHDF5(1:3)
+!===================================================================================================================================
+! Only required during restart
+IF(.NOT.DoRestart) RETURN
+
+#if USE_LOADBALANCE
+! Do not try to read the data from .h5 if load balance is performed without creating a .h5 restart file
+IF(PerformLoadBalance.AND..NOT.(UseH5IOLoadBalance)) RETURN
+#endif /*USE_LOADBALANCE*/
+
+! 1. The MPI root process reads the info and checks data consistency
+! Only root reads the values and distributes them via MPI Broadcast
+IF(MPIRoot)THEN
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+  ! Check old parameter name
+  ContainerName='CoupledPowerPotential'
+  CALL DatasetExists(File_ID,TRIM(ContainerName),CPPExists)
+  ! Check for new parameter name
+  IF(CPPExists)THEN
+    CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , 3_IK/) , 0_IK , 1 , RealArray=CPPDataHDF5)
+    WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read CoupledPowerPotential from restart file ["//TRIM(RestartFile)//"] min[V]: ",&
+        CPPDataHDF5(1),", current[V]: ",CPPDataHDF5(2),", max[V]: ",CPPDataHDF5(3)
+    CoupledPowerPotential = CPPDataHDF5
+  END IF ! CPPExists
+  CALL CloseDataFile()
+END IF ! MPIRoot
+
+#if USE_MPI
+! 2. The MPI root process distributes the information among the sub-communicator processes for each EPC
+CALL SynchronizeCPP()
+#endif /*USE_MPI*/
+
+END SUBROUTINE ReadCPPDataFromH5
+
+
+#if USE_MPI
+!===================================================================================================================================
+!> Communicate the CPP values from MPIRoot to sub-communicator processes
+!===================================================================================================================================
+SUBROUTINE SynchronizeCPP()
+! MODULES
+USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
+USE MOD_HDG_Vars ,ONLY: CPPCOMM
+USE MOD_HDG_Vars ,ONLY: CoupledPowerPotential
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(CPPCOMM%UNICATOR.NE.MPI_COMM_NULL)THEN
+  ! Broadcast from root to other processors on the sub-communicator
+  CALL MPI_BCAST(CoupledPowerPotential, 3, MPI_DOUBLE_PRECISION, 0, CPPCOMM%UNICATOR, IERROR)
+END IF
+END SUBROUTINE SynchronizeCPP
+#endif /*USE_MPI*/
 #endif /*defined(PARTICLES)*/
 
 
@@ -365,7 +463,7 @@ USE MOD_Globals         ,ONLY: Abort,mpiroot
 USE MOD_Globals_Vars    ,ONLY: PI,ElementaryCharge,eps0
 USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinPhi,LinPhiHeight,LinPhiNormal,LinPhiBasePoint
 #if defined(PARTICLES)
-USE MOD_Equation_Vars   ,ONLY: CoupledPowerPotential
+USE MOD_HDG_Vars        ,ONLY: CoupledPowerPotential
 USE MOD_Particle_Vars   ,ONLY: Species,nSpecies
 #endif /*defined(PARTICLES)*/
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR

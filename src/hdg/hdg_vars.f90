@@ -203,7 +203,7 @@ END TYPE
 
 TYPE(tFPC)   :: FPC
 !===================================================================================================================================
-!-- Electric Potential Condition (for decharging )
+!-- Electric Potential Condition (for decharging)
 !===================================================================================================================================
 
 LOGICAL                       :: UseEPC             !< Automatic flag when EPCs are active
@@ -232,6 +232,22 @@ TYPE tEPC
 END TYPE
 
 TYPE(tEPC)   :: EPC
+#if defined(PARTICLES)
+!===================================================================================================================================
+!-- Coupled Power Potential (CPP)
+!-- Special BC with floating potential that is defined by the absorbed power of the charged particles
+!===================================================================================================================================
+
+LOGICAL :: CalcPCouplElectricPotential! Switch calculation on/off
+
+#if USE_MPI
+TYPE(tMPIGROUP) :: CPPCOMM         !< communicator and ID for parallel execution
+#endif /*USE_MPI*/
+
+REAL :: CoupledPowerPotential(3)   !< (/min, start, max/) electric potential at all BoundaryType = (/2,2/)
+REAL :: CoupledPowerTarget         !< Target input power at all BoundaryType = (/2,2/)
+REAL :: CoupledPowerRelaxFac       !< Relaxation factor for calculation of new electric potential
+#endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 
 #if USE_MPI

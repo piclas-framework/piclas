@@ -138,7 +138,7 @@ USE MOD_Mesh_Vars             ,ONLY: ElemBaryNGeo
 USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp,BRAutomaticElectronRef
-USE MOD_Equation_Vars         ,ONLY: CalcPCouplElectricPotential
+USE MOD_HDG_Vars              ,ONLY: CalcPCouplElectricPotential
 #endif /*USE_HDG*/
 USE MOD_Particle_Analyze_Tools,ONLY: CalcNumberDensityBGGasDistri
 #if USE_LOADBALANCE
@@ -852,7 +852,7 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,CalcRelaxRatesEl
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,BRAutomaticElectronRef,RegionElectronRef
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
-USE MOD_Equation_Vars          ,ONLY: CalcPCouplElectricPotential,CoupledPowerPotential
+USE MOD_HDG_Vars               ,ONLY: CalcPCouplElectricPotential,CoupledPowerPotential
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculatePCouplElectricPotential
 #endif /*USE_HDG*/
 USE MOD_Globals_Vars           ,ONLY: eV2Kelvin

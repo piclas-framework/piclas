@@ -3094,7 +3094,7 @@ END SUBROUTINE CalcCoupledPowerPart
 SUBROUTINE CalculatePCouplElectricPotential()
 ! MODULES
 USE MOD_Globals
-USE MOD_Equation_Vars         ,ONLY: CoupledPowerPotential,CoupledPowerTarget,CoupledPowerRelaxFac
+USE MOD_HDG_Vars              ,ONLY: CoupledPowerPotential,CoupledPowerTarget,CoupledPowerRelaxFac
 USE MOD_Particle_Analyze_Vars ,ONLY: PCoupl
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
