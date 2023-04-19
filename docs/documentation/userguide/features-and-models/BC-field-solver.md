@@ -96,6 +96,9 @@ as detailed in the following table.
 |      (/11,0/)      |  Neumann  | q*n=1                                                                                                                      |
 |                    |           |                                                                                                                            |
 |      (/20,1/)      |    FPC    | 1: Assign BC to FPC group nbr. 1 (different BCs can be assigned the same FPC), see {ref}`sec:floating-boundary-condition`  |
+|                    |           |                                                                                                                            |
+|      (/50,0/)      | Dirichlet | Bias voltage for DC BCs (0: this number has no meaning). For more details, see {ref}`sec:bias-voltage-for-dc`              |
+|                    |           |                                                                                                                            |
 
 ### RefState boundaries {-}
 
@@ -232,6 +235,42 @@ To selected the direction by hand, simply supply the desired direction via
     HDGZeroPotentialDir = 1
 
 with 1: x-, 2: y-, 3: z-direction.
+
+(sec:bias-voltage-for-dc)=
+### Bias Voltage: DC boundary
+A bias voltage develops if charged particles impact on an electrode that is connected via capacitor to a matching box. Hence, if
+there is an overhead of electrons impacting on the electrode, a negative bias voltage arises, which counters the flow of electrons
+to that boundary. This feature only works when `PARTICLES=ON` is enabled and Poisson's equation is solved `PICLAS_EQNSYSNAME=poisson`.
+The following parameters are required
+
+    UseBiasVoltage              = T       ! Activate bias voltage model
+    BiasVoltage-NPartBoundaries = 2       ! Nbr of particle boundaries where the ion excess is measured
+    Biasvoltage-PartBoundaries  = (/1,2/) ! Particle boundary index of where the ion excess is measured
+    BiasVoltage-Frequency       = 3e9     ! Frequency with which the bias voltage is adapted
+    BiasVoltage-Delta           = 1.0     ! Voltage difference used for adapting the bias voltage
+
+where `UseBiasVoltage` switches the modell on/off, `BiasVoltage-NPartBoundaries` defines the number of boundaries over which the
+total electric charge is summarized, `Biasvoltage-PartBoundaries` specifies the indices of the particle boundaries where the total
+electric charge is summarized, e.g., the powered and the grounded electrode., `BiasVoltage-Frequency` is the frequency with which
+the bias voltage is updated by the voltage difference `BiasVoltage-Delta`.
+
+Additionally, the field boundary must be defined
+
+    BoundaryName = BC_left
+    BoundaryType = (/50,0/) ! Dirichlet with 0V initial BC
+
+where the value *50* is used for for pure DC boundaries.
+Furthermore, the bias voltage model relies on the functionality of the integral particle flux measurement on the corresponding
+boundaries, see *BoundaryParticleOutput (BPO)* in Section {ref}`sec:integral-surface-variables`.
+The definition of BPO variables must include at least the ones above, e.g.
+
+    CalcBoundaryParticleOutput  = T
+    BPO-NPartBoundaries         = 2
+    BPO-PartBoundaries          = (/1,2/)
+    BPO-NSpecies                = 3
+    BPO-Species                 = (/2,3,4/)
+
+where the defined species information must consider all relevant charged particle species that affect the bias voltage.
 
 ## Dielectric Materials
 
