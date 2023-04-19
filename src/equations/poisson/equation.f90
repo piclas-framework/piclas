@@ -130,6 +130,8 @@ INTEGER            :: i,BCType,BCState
 CHARACTER(LEN=255) :: BCName
 INTEGER            :: nRefStateMax
 INTEGER            :: nLinState,nLinStateMax
+INTEGER,PARAMETER  :: BYTypeRefstate(1:2)=(/5,51/)
+CHARACTER(LEN=32)  :: hilf
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    LBWRITE(*,*) "InitPoisson not ready to be called or already called."
@@ -149,14 +151,15 @@ DO i=1,nBCs
   BCType  = BoundaryType(i,BC_TYPE)
   BCState = BoundaryType(i,BC_STATE)
   BCName  = BoundaryName(i)
-  IF(BCType.EQ.5.AND.BCState.LE.0) THEN
+  IF(ANY(BCType.EQ.BYTypeRefstate).AND.BCState.LE.0) THEN
     SWRITE(*,'(A)') "Error found for the following boundary condition"
     SWRITE(*,'(A,I0)') "   BC: ",i
     SWRITE(*,'(A,I0)') " Type: ",BCType
     SWRITE(*,'(A,I0)') "State: ",BCState
     SWRITE(*,'(A)')    " Name: "//TRIM(BCName)
-    CALL abort(__STAMP__,'BCState is <= 0 for BCType=5 is not allowed! Set a positive integer for the n-th RefState')
-  ELSEIF(BCType.EQ.5.AND.BCState.GT.0)THEN
+    WRITE(UNIT=hilf,FMT='(I0)') BCType
+    CALL abort(__STAMP__,'BCState is <= 0 for BCType='//TRIM(hilf)//' is not allowed! Set a positive integer for the n-th RefState')
+  ELSEIF(ANY(BCType.EQ.BYTypeRefstate).AND.BCState.GT.0)THEN
     nRefStateMax = MAX(nRefStateMax,BCState)
   ELSEIF(BCType.EQ.7.AND.BCState.GT.0)THEN
     nLinStateMax = MAX(nLinStateMax,BCState)
@@ -527,12 +530,14 @@ CASE(-2) ! Signal without zero-crossing (always positive or negative), otherwise
   Omega   = 2.*PI*RefState(2,iRefState)
   r1      = RefState(1,iRefState) / 2.0
   Resu(:) = r1*(COS(Omega*t+RefState(3,iRefState)) + 1.0)
-CASE(-1) ! Signal with zero-crossing: Amplitude, Frequency and Phase Shift supplied by RefState
+CASE(-1,51) ! Signal with zero-crossing: Amplitude, Frequency and Phase Shift supplied by RefState
   ! RefState(1,iRefState): amplitude
   ! RefState(2,iRefState): frequency
   ! RefState(3,iRefState): phase shift
   Omega   = 2.*PI*RefState(2,iRefState)
   Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
+  ! Add bias potential (only if bias voltage model is activated)
+  IF(ExactFunction.EQ.51) Resu(:) = Resu(:) + BiasVoltage%BVData(1)
 CASE(0) ! constant 0.
     Resu(:)=0.
 #if defined(PARTICLES)

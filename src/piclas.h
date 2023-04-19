@@ -324,5 +324,5 @@
 
 #if USE_HDG
 ! HDG Dirichlet BC Side IDs
-#define HDGDIRICHLETBCSIDEIDS 2,4,5,6,7,8,50
+#define HDGDIRICHLETBCSIDEIDS 2,4,5,6,7,8,50,51
 #endif
