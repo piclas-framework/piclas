@@ -83,9 +83,9 @@ as detailed in the following table.
 |                    |           |                                                                                                                            |
 |      (/4,0/)       | Dirichlet | zero-potential (Phi=0)                                                                                                     |
 |                    |           |                                                                                                                            |
-|      (/5,1/)       | Dirichlet | 1: use RefState Nbr 1 and $\cos(\omega t)$ function (see details below)                                                    |
+|      (/5,1/)       | Dirichlet | 1: use RefState Nbr 1 and $\cos(\omega t)$ function (for details see {ref}`sec:ref-state-bcs`)                             |
 |                    |           |                                                                                                                            |
-|      (/6,1/)       | Dirichlet | 1: use RefState Nbr 1 and $\cos(\omega t)+1$ function that does not switch sign (see details below)                        |
+|      (/6,1/)       | Dirichlet | 1: use RefState Nbr 1 and $\cos(\omega t)+1$ function that does not switch sign (for details see {ref}`sec:ref-state-bcs`) |
 |                    |           |                                                                                                                            |
 |      (/7,1/)       | Dirichlet | 1: use LinState Nbr 1, linear function for Phi, see {ref}`sec:linear-potential`                                            |
 |                    |           |                                                                                                                            |
@@ -97,10 +97,12 @@ as detailed in the following table.
 |                    |           |                                                                                                                            |
 |      (/20,1/)      |    FPC    | 1: Assign BC to FPC group nbr. 1 (different BCs can be assigned the same FPC), see {ref}`sec:floating-boundary-condition`  |
 |                    |           |                                                                                                                            |
-|      (/50,0/)      | Dirichlet | Bias voltage for DC BCs (0: this number has no meaning). For more details, see {ref}`sec:bias-voltage-for-dc`              |
+|      (/50,0/)      | Dirichlet | Bias voltage for ***DC*** BCs (0: this number has no meaning). For more details, see {ref}`sec:bias-voltage-for-dc`          |
+|      (/51,1/)      | Dirichlet | Bias voltage for **AC** BCs (1: use RefState Nbr 1). For more details, see {ref}`sec:bias-voltage-for-ac`                  |
 |                    |           |                                                                                                                            |
 
-### RefState boundaries {-}
+(sec:ref-state-bcs)=
+### RefState boundaries
 
 For each boundary of type *5* (reference state boundary *RefState*), e.g., by setting the boundary in the *parameter.ini* file
 
@@ -116,14 +118,14 @@ function (a frequency of 0 results in a fixed potential over time) and phase shi
 
 This yields the three parameters used in the cosine function
 
-    Phi(t) = A*COS(2*pi*f*t + psi)
+$$\Phi(t)=A\cos (2\pi f t + \psi)$$
 
 where *A=-0.18011* is the amplitude, *t* is the time, *f=1* is the frequency and *psi=0* is the phase shift.
 
 Similar to boundary type *5* is type *6*, which simply uses a cosine function that always has the same sign, depending on the
 amplitude *A*
 
-    Phi(t) = (A/2) * (COS(2*pi*f*t + psi) + 1)
+$$\Phi(t)=\frac{A}{2}(\cos (2\pi f t + \psi)+1)$$
 
 (sec:linear-potential)=
 ### Linear potential function
@@ -271,6 +273,17 @@ The definition of BPO variables must include at least the ones above, e.g.
     BPO-Species                 = (/2,3,4/)
 
 where the defined species information must consider all relevant charged particle species that affect the bias voltage.
+
+(sec:bias-voltage-for-ac)=
+### Bias Voltage: AC boundary
+If an AC potential boundary is coupled with a bias potential, the `BoundaryType` has to be changed as compared with the previous
+section 
+
+    BoundaryName = BC_left
+    BoundaryType = (/51,1/) ! Dirichlet with 0V initial BC
+
+Furthermore, a RefState must be defined, which specifies the parameters for the $cos(\omega t)$ function, for details, see
+{ref}`sec:ref-state-bcs`. Note that this BC is only implemented with zero crossing.
 
 ## Dielectric Materials
 
