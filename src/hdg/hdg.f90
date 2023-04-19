@@ -1255,16 +1255,17 @@ LOGICAL             :: BConProc
 ! Activate model
 UseBiasVoltage = GETLOGICAL('UseBiasVoltage')
 
+! Count the number of boundaries that allow bias voltage
+BVBoundaries = 0
+DO iBC=1,nBCs
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(.NOT.ANY(BCType.EQ.BCTypeBV)) CYCLE ! Skip other boundaries
+  BVBoundaries = BVBoundaries + 1
+END DO
+
 ! Skip the following if bias voltage is not active
 IF(.NOT.UseBiasVoltage)THEN
   ! Sanity check before returning: bias voltage BCs cannot be used without activating the bias voltage model
-  ! Count the number of boundaries that allow bias voltage
-  BVBoundaries = 0
-  DO iBC=1,nBCs
-    BCType = BoundaryType(iBC,BC_TYPE)
-    IF(.NOT.ANY(BCType.EQ.BCTypeBV)) CYCLE ! Skip other boundaries
-    BVBoundaries = BVBoundaries + 1
-  END DO
   IF(BVBoundaries.GT.0) CALL CollectiveStop(__STAMP__,' Bias voltage BCs require UseBiasVoltage=T!')
 
   ! Exit this subroutine
@@ -1274,14 +1275,7 @@ END IF
 ! CalcBoundaryParticleOutput=T and boundaries must be set correctly
 IF(.NOT.CalcBoundaryParticleOutput) CALL CollectiveStop(__STAMP__,' UseBiasVoltage=T requires CalcBoundaryParticleOutput=T!')
 
-! Count the number of boundaries that allow bias voltage
-BVBoundaries = 0
-DO iBC=1,nBCs
-  BCType = BoundaryType(iBC,BC_TYPE)
-  IF(.NOT.ANY(BCType.EQ.BCTypeBV)) CYCLE ! Skip other boundaries
-  BVBoundaries = BVBoundaries + 1
-END DO
-
+! Check the number of boundaries that allow bias voltage: Must be exactly 1
 IF(BVBoundaries.NE.1) CALL CollectiveStop(__STAMP__,' UseBiasVoltage=T requires exactly one boundary with this feature!')
 
 !> 2.) Get bias voltage parameters
@@ -1290,10 +1284,15 @@ BiasVoltage%PartBoundaries  = GETINTARRAY('Biasvoltage-PartBoundaries',biasvolta
 BiasVoltage%Frequency       = GETReal('BiasVoltage-Frequency')
 BiasVoltage%Delta           = GETReal('BiasVoltage-Delta')
 #if USE_LOADBALANCE
-! Do not set during load balance in order to keep the old value
-IF(.NOT.PerformLoadBalance)&
+! Do not nullify during load balance in order to keep the old value on the MPIRoot
+IF((.NOT.PerformLoadBalance).OR.(.NOT.MPIRoot))THEN
 #endif /*USE_LOADBALANCE*/
   BiasVoltage%BVData = 0.
+  ! Update time
+  IF(BiasVoltage%Frequency.GT.0.0) BiasVoltage%BVData(3) = 1.0/BiasVoltage%Frequency
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
 
 IF(BiasVoltage%NPartBoundaries.LT.1) CALL CollectiveStop(__STAMP__,' UseBiasVoltage=T requires one or more particle boundaries!')
 
@@ -1316,7 +1315,6 @@ BConProc = .FALSE.
 IF(MPIRoot)THEN
   BConProc = .TRUE.
 ELSE
-  BiasVoltage%BVData = 0.
   ! Check local sides
   DO SideID=1,nBCSides
     iBC    = BC(SideID)

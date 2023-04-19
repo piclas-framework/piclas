@@ -171,7 +171,7 @@ INTEGER                        :: SortedOffset,SortedStart,SortedEnd
 INTEGER                        :: i,j,k,iElem
 #endif /*PARTICLES*/
 REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:),BVDataHDF5(:,:)
-INTEGER                        :: nVarFPC,nVarEPC,nVarBV
+INTEGER                        :: nVarFPC,nVarEPC
 #endif /*USE_HDG*/
 !===================================================================================================================================
 #ifdef EXTRAE
@@ -593,15 +593,14 @@ END IF ! CalcBulkElectronTempi.AND.MPIRoot
 #if USE_HDG
 ! Bias voltage
 IF(UseBiasVoltage.AND.MPIRoot)THEN
-  nVarBV = BVDataLength
-  ALLOCATE(BVDataHDF5(1:nVarBV,1))
+  ALLOCATE(BVDataHDF5(BVDataLength,1))
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  BVDataHDF5(1:nVarBV,1) = BiasVoltage%BVData(1:nVarBV)
+  BVDataHDF5(BVDataLength,1) = BiasVoltage%BVData(BVDataLength)
   CALL WriteArrayToHDF5( DataSetName = 'BiasVoltage' , rank = 2   , &
-                         nValGlobal  = (/1_IK , INT(nVarBV,IK)/), &
-                         nVal        = (/1_IK , INT(nVarBV,IK)/), &
+                         nValGlobal  = (/1_IK , INT(BVDataLength,IK)/), &
+                         nVal        = (/1_IK , INT(BVDataLength,IK)/), &
                          offset      = (/0_IK , 0_IK/)                        , &
-                         collective  = .FALSE., RealArray = BVDataHDF5(1:nVarBV,1))
+                         collective  = .FALSE., RealArray = BVDataHDF5(BVDataLength,1))
   CALL CloseDataFile()
   DEALLOCATE(BVDataHDF5)
 END IF ! CalcBulkElectronTempi.AND.MPIRoot

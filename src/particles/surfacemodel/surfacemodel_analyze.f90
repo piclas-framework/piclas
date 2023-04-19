@@ -375,30 +375,30 @@ IF(PartMPI%MPIRoot)THEN
         END IF ! CalcElectronSEE
       END DO ! iBoundary = 1, BiasVoltage%NPartBoundaries
 
-      ! Add total electric charge (without displacement current!)
-      BiasVoltage%BVData(2) = BiasVoltage%BVData(2) + TotalElectricCharge
+      ASSOCIATE( V => BiasVoltage%BVData(1), Q => BiasVoltage%BVData(2), tBV => BiasVoltage%BVData(3) )
+        ! Add total electric charge (without displacement current!)
+        Q = Q + TotalElectricCharge
 
-      ! Simulation time threshold
-      IF(time.GE.BiasVoltage%BVData(3))THEN
-        ! Update time
-        IF(BiasVoltage%Frequency.GT.0.0)THEN
-          BiasVoltage%BVData(3) = BiasVoltage%BVData(3) + 1.0/BiasVoltage%Frequency
-        END IF ! BiasVoltage%Frequency.GT.0.0
+        ! Simulation time threshold
+        IF(time.GE.tBV)THEN
+          ! Update time
+          IF(BiasVoltage%Frequency.GT.0.0) tBV = tBV + 1.0/BiasVoltage%Frequency
 
-        ! Update Voltage
-        IF(BiasVoltage%BVData(2).GT.0.0)THEN
-          ! Increase voltage
-          BiasVoltage%BVData(1) = BiasVoltage%BVData(1) + BiasVoltage%Delta
-        ELSEIF(BiasVoltage%BVData(2).LT.0.0)THEN
-          ! Decrease voltage
-          BiasVoltage%BVData(1) = BiasVoltage%BVData(1) - BiasVoltage%Delta
-        ELSE
-          ! do nothing
-        END IF ! BiasVoltage%BVData(2).LT.0.0
+          ! Update Voltage
+          IF(Q.GT.0.0)THEN
+            ! Increase voltage
+            V = V + BiasVoltage%Delta
+          ELSEIF(Q.LT.0.0)THEN
+            ! Decrease voltage
+            V = V - BiasVoltage%Delta
+          ELSE
+            ! do nothing
+          END IF ! Q.LT.0.0
 
-        ! Reset ion excess counter
-        BiasVoltage%BVData(2) = 0.
-      END IF ! time.GE.BiasVoltage%BVData(3)
+          ! Reset ion excess counter
+          Q = 0.
+        END IF ! time.GE.tBV
+      END ASSOCIATE
 
       ! Write: Voltage, Ion excess and simulation update time
       DO i = 1, 3

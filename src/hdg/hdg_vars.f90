@@ -261,7 +261,7 @@ TYPE tBV
 #endif /*USE_MPI*/
   INTEGER             :: NPartBoundaries      !< Total number of boundaries where the particles are counted
   INTEGER,ALLOCATABLE :: PartBoundaries(:)    !< Part-boundary number on which the particles are counted
-  REAL                :: Frequency            !< Frequency with which the bias voltage is adjusted (every period T = 1/f the bias voltage is changed)
+  REAL                :: Frequency            !< Adaption nrequency with which the bias voltage is adjusted (every period T = 1/f the bias voltage is changed)
   REAL                :: Delta                !< Voltage difference used to change the current bias voltage (may also be adjusted over time automatically)
   REAL                :: BVData(BVDataLength) !< 1: bias voltage
 !                                             !< 2: Ion excess
