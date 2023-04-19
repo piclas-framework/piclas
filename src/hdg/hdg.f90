@@ -40,8 +40,11 @@ PUBLIC :: InitHDG,FinalizeHDG
 PUBLIC :: HDG, RestartHDG
 PUBLIC :: DefineParametersHDG
 #if USE_MPI
-PUBLIC :: SynchronizeChargeOnFPC,SynchronizeVoltageOnEPC,SynchronizeBV
-#endif /*USE_MPI*/
+PUBLIC :: SynchronizeChargeOnFPC,SynchronizeVoltageOnEPC
+#if defined(PARTICLES)
+ PUBLIC :: SynchronizeBV 
+#endif /*defined(PARTICLES)*/
+#endif /*USE_MPI */
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -1220,7 +1223,7 @@ END SUBROUTINE InitEPC
 !===================================================================================================================================
 SUBROUTINE InitBV()
 ! MODULES
-USE MOD_Globals                   ,ONLY: CollectiveStop
+USE MOD_Globals                   ,ONLY: CollectiveStop,UNIT_StdOut
 USE MOD_ReadInTools               ,ONLY: GETLOGICAL,GETREAL,GETINT,GETINTARRAY
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_Mesh_Vars                 ,ONLY: nBCs,BoundaryType,BoundaryName
@@ -1231,7 +1234,6 @@ USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
 USE MOD_Globals                   ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPI_COMM_WORLD,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
-USE MOD_Globals                   ,ONLY: UNIT_StdOut
 USE MOD_Mesh_Vars                 ,ONLY: nBCSides,BC
 #endif /*USE_MPI*/
 IMPLICIT NONE
@@ -1413,6 +1415,7 @@ CALL SynchronizeBV()
 END SUBROUTINE ReadBVDataFromH5
 
 
+#if USE_MPI
 !===================================================================================================================================
 !> Communicate the bias voltage values from MPIRoot to sub-communicator processes
 !===================================================================================================================================
@@ -1432,6 +1435,7 @@ IF(BiasVoltage%COMM%UNICATOR.NE.MPI_COMM_NULL)THEN
   CALL MPI_BCAST(BiasVoltage%BVData, BVDataLength, MPI_DOUBLE_PRECISION, 0, BiasVoltage%COMM%UNICATOR, IERROR)
 END IF
 END SUBROUTINE SynchronizeBV
+#endif /*USE_MPI*/
 #endif /*defined(PARTICLES)*/
 
 

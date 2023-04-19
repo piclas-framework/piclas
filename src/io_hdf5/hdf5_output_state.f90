@@ -72,7 +72,7 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #if USE_HDG
-USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC,UseBiasVoltage,BiasVoltage,BVDataLength
+USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC
 #if PP_nVar==1
 USE MOD_Equation_Vars          ,ONLY: E,Et
 #elif PP_nVar==3
@@ -93,6 +93,7 @@ USE MOD_Mesh_Tools             ,ONLY: GetMasteriLocSides
 USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID
 USE MOD_Analyze_Vars           ,ONLY: CalcElectricTimeDerivative
 #ifdef PARTICLES
+USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,BiasVoltage,BVDataLength
 USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
@@ -587,10 +588,6 @@ IF(CalcPCouplElectricPotential.AND.MPIRoot)THEN
                          collective  = .FALSE., RealArray = TmpArray2(1:3,1))
   CALL CloseDataFile()
 END IF ! CalcBulkElectronTempi.AND.MPIRoot
-#endif /*USE_HDG*/
-#endif /*PARTICLES*/
-
-#if USE_HDG
 ! Bias voltage
 IF(UseBiasVoltage.AND.MPIRoot)THEN
   ALLOCATE(BVDataHDF5(BVDataLength,1))
@@ -604,6 +601,10 @@ IF(UseBiasVoltage.AND.MPIRoot)THEN
   CALL CloseDataFile()
   DEALLOCATE(BVDataHDF5)
 END IF ! CalcBulkElectronTempi.AND.MPIRoot
+#endif /*USE_HDG*/
+#endif /*PARTICLES*/
+
+#if USE_HDG
 ! Floating boundary condition: Store charge on each FPC
 IF(UseFPC.AND.MPIRoot)THEN
   nVarFPC = FPC%nUniqueFPCBounds

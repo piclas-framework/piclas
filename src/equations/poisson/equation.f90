@@ -43,16 +43,14 @@ END INTERFACE
 INTERFACE FinalizeEquation
   MODULE PROCEDURE FinalizeEquation
 END INTERFACE
-#if USE_MPI
+
+PUBLIC :: InitEquation,ExactFunc,CalcSource,FinalizeEquation, CalcSourceHDG,DivCleaningDamping
+#if USE_MPI && defined(PARTICLES)
 INTERFACE SynchronizeCPP
   MODULE PROCEDURE SynchronizeCPP
 END INTERFACE
-#endif /*USE_MPI*/
-
-PUBLIC :: InitEquation,ExactFunc,CalcSource,FinalizeEquation, CalcSourceHDG,DivCleaningDamping
-#if USE_MPI
 PUBLIC :: SynchronizeCPP
-#endif /*USE_MPI*/
+#endif /*USE_MPI && defined(PARTICLES)*/
 !===================================================================================================================================
 PUBLIC::DefineParametersEquation
 CONTAINS
@@ -536,8 +534,10 @@ CASE(-1,51) ! Signal with zero-crossing: Amplitude, Frequency and Phase Shift su
   ! RefState(3,iRefState): phase shift
   Omega   = 2.*PI*RefState(2,iRefState)
   Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
+#if defined(PARTICLES)
   ! Add bias potential (only if bias voltage model is activated)
   IF(ExactFunction.EQ.51) Resu(:) = Resu(:) + BiasVoltage%BVData(1)
+#endif /*defined(PARTICLES)*/
 CASE(0) ! constant 0.
     Resu(:)=0.
 #if defined(PARTICLES)

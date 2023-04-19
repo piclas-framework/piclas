@@ -159,7 +159,9 @@ USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,Neutralizati
 USE MOD_Analyze_Vars              ,ONLY: EDC
 USE MOD_Analyze_Vars              ,ONLY: CalcElectricTimeDerivative
 USE MOD_HDG_Vars                  ,ONLY: UseBiasVoltage,BiasVoltage
+#if USE_MPI
 USE MOD_HDG                       ,ONLY: SynchronizeBV
+#endif /*USE_MPI*/
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

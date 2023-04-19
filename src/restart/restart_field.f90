@@ -74,10 +74,12 @@ USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_Equation               ,ONLY: SynchronizeCPP
-USE MOD_HDG                    ,ONLY: SynchronizeVoltageOnEPC,SynchronizeBV
-USE MOD_HDG_Vars               ,ONLY: UseEPC,UseBiasVoltage,CalcPCouplElectricPotential
+USE MOD_HDG                    ,ONLY: SynchronizeVoltageOnEPC
+USE MOD_HDG_Vars               ,ONLY: UseEPC
 #if defined(PARTICLES)
+USE MOD_Equation               ,ONLY: SynchronizeCPP
+USE MOD_HDG                    ,ONLY: SynchronizeBV
+USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,CalcPCouplElectricPotential
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide,nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInSideSend,MPInSideRecv,MPIoffsetSideSend,MPIoffsetSideRecv
@@ -153,14 +155,6 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #if USE_LOADBALANCE
 IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 #if USE_HDG
-  ! Coupled Bias voltage (BV): The MPI root process distributes the information among the sub-communicator processes
-  !      (before and after load balancing, the root process is always part of each sub-communicator group)
-  IF(UseBiasVoltage) CALL SynchronizeBV()
-
-  ! Coupled Power Potential (CPP): The MPI root process distributes the information among the sub-communicator processes
-  !      (before and after load balancing, the root process is always part of each sub-communicator group)
-  IF(CalcPCouplElectricPotential) CALL SynchronizeCPP()
-
 #if USE_PETSC
   ! FPC: The MPI root process distributes the information among the sub-communicator processes for each FPC
   !      (before and after load balancing, the root process is always part of each sub-communicator group)
@@ -171,6 +165,14 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   IF(UseEPC) CALL SynchronizeVoltageOnEPC()
 
 #if defined(PARTICLES)
+  ! Coupled Bias voltage (BV): The MPI root process distributes the information among the sub-communicator processes
+  !      (before and after load balancing, the root process is always part of each sub-communicator group)
+  IF(UseBiasVoltage) CALL SynchronizeBV()
+
+  ! Coupled Power Potential (CPP): The MPI root process distributes the information among the sub-communicator processes
+  !      (before and after load balancing, the root process is always part of each sub-communicator group)
+  IF(CalcPCouplElectricPotential) CALL SynchronizeCPP()
+
   !checkRank=MIN(3,nProcessors-1)
   ! Store lambda solution on global non-unique array for MPI communication
   ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
