@@ -649,12 +649,12 @@ IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibir
 
 ! ! 6a.) Determine the correct velocity in case of a rotational frame of reference
 NewVeloPush(1:3) = NewVelo(1:3)
-! IF(UseRotRefFrame) THEN
-!   IF(InRotRefFrameCheck(PartID)) THEN
-!     NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
-!     NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(PartID,NewVeloPush(1:3)) * dtVar
-!   END IF
-! END IF
+IF(UseRotRefFrame) THEN
+  IF(InRotRefFrameCheck(PartID)) THEN
+    NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
+    NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(PartID,NewVeloPush(1:3)) * dtVar
+  END IF
+END IF
 
 PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVeloPush(1:3)
 
