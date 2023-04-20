@@ -1400,7 +1400,7 @@ IF(MPIRoot)THEN
   ! Check for new parameter name
   IF(BVExists)THEN
     CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , INT(BVDataLength,IK)/) , 0_IK , 1 , RealArray=BVDataHDF5)
-    WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read CoupledPowerPotential from restart file ["//TRIM(RestartFile)//&
+    WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read bias voltage from restart file ["//TRIM(RestartFile)//&
         "] Bias voltage[V]: ",BVDataHDF5(1),", Ion excess[C]: ",BVDataHDF5(2),", next adjustment time[s]: ",BVDataHDF5(3)
     BiasVoltage%BVData = BVDataHDF5
   END IF ! BVExists
