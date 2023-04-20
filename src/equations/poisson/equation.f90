@@ -541,7 +541,7 @@ CASE(-1) ! Signal with zero-crossing: Amplitude, Frequency and Phase Shift suppl
 #if defined(PARTICLES)
   ! Match coupled power by adjusting the coefficient of the cos function
   IF(UseCoupledPowerPotential)THEN
-    Resu(:) = CoupledPowerPotential(2)*RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
+    Resu(:) = CoupledPowerPotential(2)*COS(Omega*t+RefState(3,iRefState))
   ELSE
 #endif /*defined(PARTICLES)*/
     Resu(:) = RefState(1,iRefState)*COS(Omega*t+RefState(3,iRefState))
