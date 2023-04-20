@@ -1798,7 +1798,7 @@ END SUBROUTINE CalculateElectricDisplacementCurrentSurface
 #endif /*USE_HDG*/
 
 !===================================================================================================================================
-!> Determine the field boundary condition values for the given iBC
+!> Determine the field boundary output (BFO) values for the given iBC
 !===================================================================================================================================
 SUBROUTINE CalculateBoundaryFieldOutput(iBC,Time,BoundaryFieldOutput)
 ! MODULES
