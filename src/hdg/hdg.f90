@@ -1933,7 +1933,7 @@ DO iVar = 1, PP_nVar
         r=q*(PP_N+1) + p+1
        lambda(iVar,r:r,SideID)=0.
       END DO; END DO !p,q
-    CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional) for reference state (with zero crossing)
+    CASE(5,51,52,60) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional) for reference state (with zero crossing)
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
         CALL ExactFunc(-1,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time,iRefState=BCState)
@@ -1957,11 +1957,6 @@ DO iVar = 1, PP_nVar
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
         CALL ExactFunc(-5,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,BCState=BCState)
-      END DO; END DO !p,q
-    CASE(51) ! exact BC = Dirichlet BC !! ExactFunc via DC bias voltage
-      DO q=0,PP_N; DO p=0,PP_N
-        r=q*(PP_N+1) + p+1
-        CALL ExactFunc(51,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iRefState=BCState)
       END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nDirichletBCSides
@@ -2403,8 +2398,8 @@ DO BCsideID=1,nDirichletBCSides
       r=q*(PP_N+1) + p+1
       CALL ExactFunc(-3,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iLinState=BCState)
     END DO; END DO !p,q
-    CASE(8,50,51) ! exact BC = Dirichlet BC !! ExactFunc via electric potential and decharing of a surface
-      CALL abort(__STAMP__,'Dirichlet BC=8,50,51 model not implemented for HDG Newton!')
+    CASE(8,50,51,52,60) ! exact BC = Dirichlet BC !! ExactFunc via electric potential and decharing of a surface
+      CALL abort(__STAMP__,'Dirichlet BC=8,50,51,52,60 model not implemented for HDG Newton!')
   END SELECT ! BCType
 END DO !BCsideID=1,nDirichletBCSides
 

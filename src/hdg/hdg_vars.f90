@@ -238,15 +238,16 @@ TYPE(tEPC)   :: EPC
 !-- Special BC with floating potential that is defined by the absorbed power of the charged particles
 !===================================================================================================================================
 
-LOGICAL :: CalcPCouplElectricPotential ! Switch calculation on/off
+LOGICAL           :: UseCoupledPowerPotential !< Switch calculation on/off
+INTEGER,PARAMETER :: CPPDataLength=3          !< Number of variables in BVData
 
 #if USE_MPI
 TYPE(tMPIGROUP) :: CPPCOMM       !< communicator and ID for parallel execution
 #endif /*USE_MPI*/
 
-REAL :: CoupledPowerPotential(3) !< (/min, start, max/) electric potential at all BoundaryType = (/2,2/)
-REAL :: CoupledPowerTarget       !< Target input power at all BoundaryType = (/2,2/)
-REAL :: CoupledPowerRelaxFac     !< Relaxation factor for calculation of new electric potential
+REAL :: CoupledPowerPotential(CPPDataLength) !< (/min, start, max/) electric potential, e.g., used at all BoundaryType = (/2,2/)
+REAL :: CoupledPowerTarget                   !< Target input power at all BoundaryType = (/2,2/)
+REAL :: CoupledPowerRelaxFac                 !< Relaxation factor for calculation of new electric potential
 
 !===================================================================================================================================
 !-- Bias Voltage (for calculating a BC voltage bias for certain BCs)
