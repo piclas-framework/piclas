@@ -321,3 +321,8 @@
 
 ! Secondary electron emission
 #define SEE_MODELS_ID 5,6,7,8,9,10,11
+
+#if USE_HDG
+! HDG Dirichlet BC Side IDs
+#define HDGDIRICHLETBCSIDEIDS 2,4,5,6,7,8,50,51,52,60
+#endif

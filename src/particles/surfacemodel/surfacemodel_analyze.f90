@@ -158,6 +158,10 @@ USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,Neutralizati
 #if USE_HDG
 USE MOD_Analyze_Vars              ,ONLY: EDC
 USE MOD_Analyze_Vars              ,ONLY: CalcElectricTimeDerivative
+USE MOD_HDG_Vars                  ,ONLY: UseBiasVoltage,BiasVoltage
+#if USE_MPI
+USE MOD_HDG                       ,ONLY: SynchronizeBV
+#endif /*USE_MPI*/
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -175,7 +179,7 @@ INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionN
 INTEGER             :: iBC,iPartBound,iSEE,iBPO,iSpec
 REAL                :: charge,TotalElectricCharge
 #if USE_HDG
-INTEGER             :: iEDCBC
+INTEGER             :: iEDCBC,i,iBoundary,iPartBound2
 #endif /*USE_HDG*/
 !===================================================================================================================================
 IF((nComputeNodeSurfSides.EQ.0).AND.(.NOT.CalcBoundaryParticleOutput).AND.(.NOT.UseNeutralization).AND.(.NOT.CalcElectronSEE)) RETURN
@@ -237,6 +241,20 @@ IF(PartMPI%MPIRoot)THEN
           END DO
         END IF ! BPO%OutputTotalElectricCurrent
       END IF
+#if USE_HDG
+      ! Output of bias voltage variables
+      IF(UseBiasVoltage)THEN
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-BiasVoltage[V]'
+        OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-BiasVoltageIonExcess[C]'
+        OutputCounter = OutputCounter + 1
+        WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+        WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-BiasVoltageUpdateTime[s]'
+        OutputCounter = OutputCounter + 1
+      END IF ! UseBiasVoltage
+#endif /*USE_HDG*/
       IF(UseNeutralization)THEN ! Ion thruster neutralization current (virtual cathode electrons)
         CALL WriteDataHeaderInfo(unit_index,'NeutralizationParticles',OutputCounter)
       END IF ! UseNeutralization
@@ -298,7 +316,7 @@ IF(PartMPI%MPIRoot)THEN
     ! Output of total electric current
     IF(BPO%OutputTotalElectricCurrent)THEN
       DO iBPO = 1, BPO%NPartBoundaries
-        TotalElectricCharge = 0. ! initialize
+        TotalElectricCharge = 0. ! Initialize total charge for each boundary
         IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
           CALL WriteDataInfo(unit_index,1,RealArray=(/0.0/))
         ELSE
@@ -330,18 +348,79 @@ IF(PartMPI%MPIRoot)THEN
           ! Sampling time has already been considered due to the displacement current
           CALL WriteDataInfo(unit_index,RealScalar=TotalElectricCharge)
         END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
-      END DO
+      END DO ! iBPO = 1, BPO%NPartBoundaries
     END IF ! BPO%OutputTotalElectricCurrent
-    ! Reset
+#if USE_HDG
+    ! Bias voltage
+    IF(UseBiasVoltage)THEN
+      TotalElectricCharge = 0. ! Initialize sum over all boundaries
+      ! Ion excess
+      DO iBoundary = 1, BiasVoltage%NPartBoundaries
+        iPartBound = BiasVoltage%PartBoundaries(iBoundary)
+        iBPO = BPO%BCIDToBPOBCID(iPartBound)
+        ! Sum over all fluxes (only if the species has a charge)
+        DO iSpec = 1, BPO%NSpecies
+          charge = Species(BPO%Species(iSpec))%ChargeIC
+          ! Impacting charged particles: positive number for positive ions (+) and negative number for electrons (-)
+          IF(ABS(charge).GT.0.0) TotalElectricCharge = TotalElectricCharge + BPO%RealPartOut(iBPO,iSpec)*charge
+        END DO
+        ! Released secondary electrons (always a positive number). SEE%BCIDToSEEBCID(iPartBound) yields the iSEEBCIndex
+        IF(CalcElectronSEE)THEN
+          ! Get particle boundary ID
+          iPartBound2 = BPO%PartBoundaries(iBPO)
+          ! Sanity Check
+          IF(iPartBound.NE.iPartBound2) CALL abort(__STAMP__,'AnalyzeSurface(): Wrong particle boundary encountered!')
+          ! Get SEE ID
+          iSEE = SEE%BCIDToSEEBCID(iPartBound)
+          ! Add SEE current if this BC has secondary electron emission
+          IF(iSEE.GT.0) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOut(iSEE)
+        END IF ! CalcElectronSEE
+      END DO ! iBoundary = 1, BiasVoltage%NPartBoundaries
+
+      ASSOCIATE( V => BiasVoltage%BVData(1), Q => BiasVoltage%BVData(2), tBV => BiasVoltage%BVData(3) )
+        ! Add total electric charge (without displacement current!)
+        Q = Q + TotalElectricCharge
+
+        ! Simulation time threshold
+        IF(time.GE.tBV)THEN
+          ! Update time
+          IF(BiasVoltage%Frequency.GT.0.0) tBV = tBV + 1.0/BiasVoltage%Frequency
+
+          ! Update Voltage
+          IF(Q.GT.0.0)THEN
+            ! Increase voltage
+            V = V + BiasVoltage%Delta
+          ELSEIF(Q.LT.0.0)THEN
+            ! Decrease voltage
+            V = V - BiasVoltage%Delta
+          ELSE
+            ! do nothing
+          END IF ! Q.LT.0.0
+
+          ! Reset ion excess counter
+          Q = 0.
+        END IF ! time.GE.tBV
+      END ASSOCIATE
+
+      ! Write: Voltage, Ion excess and simulation update time
+      DO i = 1, 3
+        CALL WriteDataInfo(unit_index, RealScalar=BiasVoltage%BVData(i))
+      END DO ! i = 1, 3
+    END IF ! UseBiasVoltage
+#endif /*USE_HDG*/
+
+    ! Reset BPO containers
     DO iPartBound = 1, BPO%NPartBoundaries
       DO iSpec = 1, BPO%NSpecies
         ! Reset PartMPI%MPIRoot counters after writing the data to the file,
         ! non-PartMPI%MPIRoot are reset in SyncBoundaryParticleOutput()
         BPO%RealPartOut(iPartBound,iSpec) = 0.
-      END DO
-    END DO
-  END IF
+      END DO ! iSpec = 1, BPO%NSpecies
+    END DO ! iPartBound = 1, BPO%NPartBoundaries
+  END IF ! CalcBoundaryParticleOutput
+
   IF(UseNeutralization) CALL WriteDataInfo(unit_index,RealScalar=REAL(NeutralizationBalanceGlobal))
+
   IF(CalcElectronSEE)THEN
     DO iPartBound = 1, SEE%NPartBoundaries
       IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
@@ -357,6 +436,11 @@ IF(PartMPI%MPIRoot)THEN
   WRITE(unit_index,'(A)') ''
 #if USE_MPI
 END IF
+!-----------------------------------------------------------------------------------------------------------------------------------
+#if USE_HDG
+  ! Bias voltage: Update values of sub-communicator processes (broadcast from MPIRoot to all sub-communicator processes)
+  IF(UseBiasVoltage) CALL SynchronizeBV()
+#endif /*USE_HDG*/
 #endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 SurfModelAnalyzeSampleTime = Time ! Backup "old" time value for next output

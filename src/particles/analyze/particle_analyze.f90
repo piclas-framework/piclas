@@ -138,7 +138,7 @@ USE MOD_Mesh_Vars             ,ONLY: ElemBaryNGeo
 USE MOD_Particle_Analyze_Tools,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell,AllocateCalcElectronEnergy
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: CalcBRVariableElectronTemp,BRAutomaticElectronRef
-USE MOD_Equation_Vars         ,ONLY: CalcPCouplElectricPotential
+USE MOD_HDG_Vars              ,ONLY: UseCoupledPowerPotential
 #endif /*USE_HDG*/
 USE MOD_Particle_Analyze_Tools,ONLY: CalcNumberDensityBGGasDistri
 #if USE_LOADBALANCE
@@ -563,7 +563,7 @@ END IF
 !-- Coupled Power
 CalcCoupledPower = GETLOGICAL('CalcCoupledPower')
 #if USE_HDG
-IF(CalcPCouplElectricPotential.AND.(.NOT.CalcCoupledPower)) CALL abort(__STAMP__,'BoundaryType = (/2,2/) requires CalcCoupledPower=T') 
+IF(UseCoupledPowerPotential.AND.(.NOT.CalcCoupledPower)) CALL abort(__STAMP__,'Coupled power potential requires CalcCoupledPower=T') 
 #endif /*USE_HDG*/
 
 IF(CalcCoupledPower) THEN
@@ -852,7 +852,7 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,CalcRelaxRatesEl
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,BRAutomaticElectronRef,RegionElectronRef
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
-USE MOD_Equation_Vars          ,ONLY: CalcPCouplElectricPotential,CoupledPowerPotential
+USE MOD_HDG_Vars               ,ONLY: UseCoupledPowerPotential,CoupledPowerPotential
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculatePCouplElectricPotential
 #endif /*USE_HDG*/
 USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
@@ -1253,9 +1253,9 @@ REAL                :: tmpArray(1:2)
             OutputCounter = OutputCounter + 1
           END DO
         END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
-        IF(CalcPCouplElectricPotential)THEN
+        IF(UseCoupledPowerPotential)THEN
           WRITE(unit_index,'(A1,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-CoupledPowerPotential-[V]'
-        END IF ! CalcPCouplElectricPotential
+        END IF ! UseCoupledPowerPotential
 #endif /*USE_HDG*/
         IF(CalcBulkElectronTemp)THEN
           WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-BulkElectronTemp-[K]'
@@ -1359,7 +1359,7 @@ REAL                :: tmpArray(1:2)
     CALL MPI_ALLREDUCE(MPI_IN_PLACE , tmpArray , 2 , MPI_DOUBLE_PRECISION , MPI_SUM , MPI_COMM_WORLD , IERROR)
     PCoupl        = tmpArray(1)
     PCouplAverage = tmpArray(2)
-    ! Only the root process keeps PCouplAverage, but all processes require PCoupl if CalcPCouplElectricPotential=T
+    ! Only the root process keeps PCouplAverage, but all processes require PCoupl if UseCoupledPowerPotential=T
     IF(.NOT.MPIRoot) PCouplAverage = 0.
   END IF
   ! Switch between root and non-root processes
@@ -1390,7 +1390,7 @@ IF(CalcCoupledPower) THEN
 END IF
 #if USE_HDG
 ! Calculate electric potential for special BCs BoundaryType = (/2,2/) to meet a specific input power
-IF((iter.GT.0).AND.CalcPCouplElectricPotential) CALL CalculatePCouplElectricPotential()
+IF((iter.GT.0).AND.UseCoupledPowerPotential) CALL CalculatePCouplElectricPotential()
 #endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Perform averaging/summation of the MPI communicated variables on the root only (and for the non-MPI case, MPIRoot is set to true)
@@ -1637,9 +1637,9 @@ IF (PartMPI%MPIROOT) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RegionElectronRef(3,iRegions)*ElementaryCharge/BoltzmannConst ! convert eV to K
     END DO
   END IF ! CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef
-  IF(CalcPCouplElectricPotential)THEN
+  IF(UseCoupledPowerPotential)THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', CoupledPowerPotential(2) ! Electric potential in V
-  END IF ! CalcPCouplElectricPotential
+  END IF ! UseCoupledPowerPotential
 #endif /*USE_HDG*/
   IF(CalcBulkElectronTemp)THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BulkElectronTemp*eV2Kelvin ! Temperature in Kelvin
