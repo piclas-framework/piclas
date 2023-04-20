@@ -256,6 +256,7 @@ END IF
 
 ! Remaining vibrational (+ translational) energy + rotational energy for translation and rotation
 OldEn = OldEn + OldEnRot
+Xi_RotTotal = 0.0
 DO iSpec = 1, nSpecies
   ! = tbd ======= nRotRelaxSpec or RotRelaxWeightSpec? =======================================================================
   Xi_RotTotal = Xi_RotTotal + Xi_RotSpec(iSpec)*RotRelaxWeightSpec(iSpec)
@@ -1006,7 +1007,6 @@ DO iSpec = 1, nSpecies
   END IF
 END DO
 TEqui = TEquiNum/TEquiDenom
-print*, CellTemp, TEqui, CellTempRel, 'start'
 
 ! Solving of equation system until accuracy eps_prec is reached
 DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
@@ -1048,8 +1048,6 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
     END IF
   END DO
   TEqui = TEquiNum/TEquiDenom
-  print*, TEqui, betaR
-  read*
   ! - tbc - additional round for VibDOF(TEqui) and then TEqui with BGKDoVibRelaxation -------------------------------------------
 END DO
 
