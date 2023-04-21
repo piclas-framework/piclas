@@ -66,6 +66,12 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_nTotalElems  !> FastInitBackgr
 INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_nElems       !> FastInitBackgroundMesh of compute node
 INTEGER,ALLOCPOINT,DIMENSION(:,:,:)      :: FIBGM_offsetElem   !> element offsets in 1D FIBGM_Element_Shared array
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: FIBGM_Element      !> element offsets in 1D FIBGM_Element_Shared array
+#if USE_MPI
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: CNTotalElem2GlobalElem !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: GlobalElem2CNTotalElem !> Reverse Mapping
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: CNTotalSide2GlobalSide !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
+INTEGER,ALLOCPOINT,DIMENSION(:)          :: GlobalSide2CNTotalSide !> Reverse Mapping
+#endif /*USE_MPI*/
 
 LOGICAL,ALLOCPOINT,DIMENSION(:)          :: ElemCurved         !> flag if an element is curved
 
@@ -121,6 +127,11 @@ INTEGER,ALLOCPOINT :: FIBGM_offsetElem_Shared(:)
 INTEGER,ALLOCPOINT :: FIBGMToProc_Shared(:,:,:,:)
 LOGICAL,ALLOCPOINT :: FIBGMToProcFlag_Shared(:)
 INTEGER,ALLOCPOINT :: FIBGMProcs_Shared(:)
+
+INTEGER,ALLOCPOINT :: CNTotalElem2GlobalElem_Shared(:)         !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
+INTEGER,ALLOCPOINT :: GlobalElem2CNTotalElem_Shared(:)         !> Reverse Mapping
+INTEGER,ALLOCPOINT :: CNTotalSide2GlobalSide_Shared(:)         !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
+INTEGER,ALLOCPOINT :: GlobalSide2CNTotalSide_Shared(:)         !> Reverse Mapping
 
 REAL,ALLOCPOINT    :: BoundsOfElem_Shared(:,:,:)           !> Cartesian bounding box around element
 
@@ -198,6 +209,11 @@ INTEGER         :: FIBGM_offsetElem_Shared_Win
 INTEGER         :: FIBGMToProc_Shared_Win
 INTEGER         :: FIBGMToProcFlag_Shared_Win
 INTEGER         :: FIBGMProcs_Shared_Win
+
+INTEGER           :: CNTotalElem2GlobalElem_Shared_Win
+INTEGER           :: GlobalElem2CNTotalElem_Shared_Win
+INTEGER           :: CNTotalSide2GlobalSide_Shared_Win
+INTEGER           :: GlobalSide2CNTotalSide_Shared_Win
 
 INTEGER         :: BoundsOfElem_Shared_Win
 
