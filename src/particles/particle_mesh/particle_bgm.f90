@@ -1486,14 +1486,17 @@ CALL UNLOCK_AND_FREE(FIBGM_offsetElem_Shared_Win)
 CALL UNLOCK_AND_FREE(FIBGM_Element_Shared_Win)
 CALL UNLOCK_AND_FREE(FIBGMToProc_Shared_Win)
 CALL UNLOCK_AND_FREE(FIBGMProcs_Shared_Win)
-CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
-CALL UNLOCK_AND_FREE(GlobalSide2CNTotalSide_Shared_Win)
-CALL UNLOCK_AND_FREE(CNTotalElem2GlobalElem_Shared_Win)
-CALL UNLOCK_AND_FREE(CNTotalSide2GlobalSide_Shared_Win)
+IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+  CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
+  CALL UNLOCK_AND_FREE(GlobalSide2CNTotalSide_Shared_Win)
+  CALL UNLOCK_AND_FREE(CNTotalElem2GlobalElem_Shared_Win)
+  CALL UNLOCK_AND_FREE(CNTotalSide2GlobalSide_Shared_Win)
+END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 ! Then, free the pointers or arrays
+<<<<<<< HEAD:src/particles/particle_mesh/particle_bgm.f90
 SDEALLOCATE(CNTotalElem2GlobalElem)
 SDEALLOCATE(CNTotalSide2GlobalSide)
 SDEALLOCATE(GlobalSide2CNTotalSide)
@@ -1513,14 +1516,16 @@ ADEALLOCATE(FIBGMToProc)
 ADEALLOCATE(FIBGMToProc_Shared)
 ADEALLOCATE(FIBGMProcs)
 ADEALLOCATE(FIBGMProcs_Shared)
-ADEALLOCATE(GlobalElem2CNTotalElem)
-ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
-ADEALLOCATE(GlobalSide2CNTotalSide)
-ADEALLOCATE(GlobalSide2CNTotalSide_Shared)
-ADEALLOCATE(CNTotalElem2GlobalElem)
-ADEALLOCATE(CNTotalElem2GlobalElem_Shared)
-ADEALLOCATE(CNTotalSide2GlobalSide)
-ADEALLOCATE(CNTotalSide2GlobalSide_Shared)
+IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+  ADEALLOCATE(GlobalElem2CNTotalElem)
+  ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
+  ADEALLOCATE(GlobalSide2CNTotalSide)
+  ADEALLOCATE(GlobalSide2CNTotalSide_Shared)
+  ADEALLOCATE(CNTotalElem2GlobalElem)
+  ADEALLOCATE(CNTotalElem2GlobalElem_Shared)
+  ADEALLOCATE(CNTotalSide2GlobalSide)
+  ADEALLOCATE(CNTotalSide2GlobalSide_Shared)
+END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 
 #if USE_MPI
 CALL FinalizeHaloInfo()
