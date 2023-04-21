@@ -568,7 +568,7 @@ ELSE
 
   ! sum up potential halo elements and create correct offset mapping via ElemInfo_Shared
   nHaloElems = COUNT(ElemInfo_Shared(ELEM_HALOFLAG,firstElem:lastElem).EQ.2)
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,nHaloElems,1,MPI_LOGICAL,MPI_SUM,MPI_COMM_SHARED,iError)
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,nHaloElems,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
 
   ALLOCATE(offsetCNHalo2GlobalElem(1:nHaloElems))
   offsetCNHalo2GlobalElem = -1
