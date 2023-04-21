@@ -592,12 +592,12 @@ END IF ! CalcBulkElectronTempi.AND.MPIRoot
 IF(UseBiasVoltage.AND.MPIRoot)THEN
   ALLOCATE(BVDataHDF5(BVDataLength,1))
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  BVDataHDF5(BVDataLength,1) = BiasVoltage%BVData(BVDataLength)
+  BVDataHDF5(1:BVDataLength,1) = BiasVoltage%BVData(1:BVDataLength)
   CALL WriteArrayToHDF5( DataSetName = 'BiasVoltage' , rank = 2   , &
                          nValGlobal  = (/1_IK , INT(BVDataLength,IK)/), &
                          nVal        = (/1_IK , INT(BVDataLength,IK)/), &
                          offset      = (/0_IK , 0_IK/)                        , &
-                         collective  = .FALSE., RealArray = BVDataHDF5(BVDataLength,1))
+                         collective  = .FALSE., RealArray = BVDataHDF5(1:BVDataLength,1))
   CALL CloseDataFile()
   DEALLOCATE(BVDataHDF5)
 END IF ! CalcBulkElectronTempi.AND.MPIRoot
