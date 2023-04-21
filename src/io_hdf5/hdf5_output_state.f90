@@ -134,7 +134,7 @@ INTEGER(KIND=IK)               :: nVar
 REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #if USE_HDG
-REAL                           :: TmpArray2(3,1)
+REAL,ALLOCATABLE               :: CPPDataHDF5(:,:)
 #endif /*USE_HDG*/
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
@@ -579,25 +579,27 @@ IF(CalcBulkElectronTemp.AND.MPIRoot)THEN
 END IF ! CalcBulkElectronTempi.AND.MPIRoot
 #if USE_HDG
 IF(UseCoupledPowerPotential.AND.MPIRoot)THEN
+  ALLOCATE(CPPDataHDF5(1:CPPDataLength,1))
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  TmpArray2(1:CPPDataLength,1) = CoupledPowerPotential(1:CPPDataLength)
+  CPPDataHDF5(1:CPPDataLength,1) = CoupledPowerPotential(1:CPPDataLength)
   CALL WriteArrayToHDF5( DataSetName = 'CoupledPowerPotential' , rank = 2 , &
                          nValGlobal  = (/1_IK , INT(CPPDataLength,IK)/)   , &
                          nVal        = (/1_IK , INT(CPPDataLength,IK)/)   , &
                          offset      = (/0_IK , 0_IK/)                    , &
-                         collective  = .FALSE., RealArray = TmpArray2(1:CPPDataLength,1))
+                         collective  = .FALSE., RealArray = CPPDataHDF5(1:CPPDataLength,1))
   CALL CloseDataFile()
+  DEALLOCATE(CPPDataHDF5)
 END IF ! CalcBulkElectronTempi.AND.MPIRoot
 ! Bias voltage
 IF(UseBiasVoltage.AND.MPIRoot)THEN
-  ALLOCATE(BVDataHDF5(BVDataLength,1))
+  ALLOCATE(BVDataHDF5(1:BVDataLength,1))
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  BVDataHDF5(BVDataLength,1) = BiasVoltage%BVData(BVDataLength)
+  BVDataHDF5(1:BVDataLength,1) = BiasVoltage%BVData(1:BVDataLength)
   CALL WriteArrayToHDF5( DataSetName = 'BiasVoltage' , rank = 2   , &
                          nValGlobal  = (/1_IK , INT(BVDataLength,IK)/), &
                          nVal        = (/1_IK , INT(BVDataLength,IK)/), &
                          offset      = (/0_IK , 0_IK/)                        , &
-                         collective  = .FALSE., RealArray = BVDataHDF5(BVDataLength,1))
+                         collective  = .FALSE., RealArray = BVDataHDF5(1:BVDataLength,1))
   CALL CloseDataFile()
   DEALLOCATE(BVDataHDF5)
 END IF ! CalcBulkElectronTempi.AND.MPIRoot
