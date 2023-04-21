@@ -820,8 +820,8 @@ INTEGER                       :: iSpec, iDOF, iPolyatMole
 REAL                          :: RotFracSpec(nSpecies), VibFracSpec(nSpecies)
 REAL                          :: ERotSpecMean(nSpecies), EVibSpecMean(nSpecies), EVibTtransPoly, ETransRelMean
 REAL                          :: ERotTtransSpecMean(nSpecies), EVibTtransSpecMean(nSpecies)
-REAL                          :: TEqui_Old, TEquiNum, TEquiDenom, exparg
-REAL                          :: eps_prec=1.0E-0
+REAL                          :: TEqui_Old, TEqui_Old2, TEquiNum, TEquiDenom, exparg
+REAL                          :: eps_prec=1.0E-1
 !===================================================================================================================================
 ! According to J. Mathiaud et. al., "An ES-BGK model for diatomic gases with correct relaxation rates for internal energies",
 ! European Journal of Mechanics - B/Fluids, 96, pp. 65-77, 2022
@@ -880,7 +880,7 @@ DO iSpec = 1, nSpecies
       ! Calculate number of vibrational relaxing molecules
       VibFracSpec(iSpec) = totalWeightSpec(iSpec)*(vibrelaxfreqSpec(iSpec)/relaxfreq)*(1.-EXP(-relaxfreq*dtCell))
     END IF
-!   - tbd - Calculation xi necessary here? -----------------------------------------------------------------------------
+    ! - tbd - Calculation xi necessary here? -----------------------------------------------------------------------------
 
     ! Mean translational energy per particle to satisfy the Landau-Teller equation
     ETransRelMean = ETransRelMean + (3./2. * BoltzmannConst * CellTemp - (rotrelaxfreqSpec(iSpec)/relaxfreq) * &
@@ -971,6 +971,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
     END IF
   END DO
   TEqui_Old = TEqui
+  TEqui_Old2 = TEqui
   ! new calculation of equilibrium temperature with new RotFracSpec, new VibFracSpec, new VibDOF(TEqui) in denominator
   TEquiNum = 3.*(nPart-1.)*CellTemp
   TEquiDenom = 3.*(nPart-1.)
@@ -985,9 +986,9 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   TEqui = TEquiNum/TEquiDenom
   IF(BGKDoVibRelaxation) THEN
     ! accuracy eps_prec not reached yet
-    DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
+    DO WHILE ( ABS( TEqui - TEqui_Old2 ) .GT. eps_prec )
       ! mean value of old and new equilibrium temperature
-      TEqui = (TEqui + TEqui_Old) * 0.5
+      TEqui = (TEqui + TEqui_Old2) * 0.5
       DO iSpec = 1, nSpecies
         IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
           ! new calculation of the vibrational degrees of freedom per species
@@ -1019,7 +1020,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
           END IF
         END IF
       END DO
-      TEqui_Old = TEqui
+      TEqui_Old2 = TEqui
       ! new calculation of equilibrium temperature with new RotFracSpec, new VibFracSpec, new VibDOF(TEqui) in denominator
       TEquiNum = 3.*(nPart-1.)*CellTemp
       TEquiDenom = 3.*(nPart-1.)
