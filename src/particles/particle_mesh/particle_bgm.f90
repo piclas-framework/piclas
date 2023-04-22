@@ -1100,6 +1100,9 @@ ELSE
     END DO
   END IF ! myComputeNodeRank.EQ.0
 
+  CALL MPI_BCAST(nComputeNodeTotalSides,1,MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+  CALL MPI_BCAST(nComputeNodeTotalNodes,1,MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
+
   CALL BARRIER_AND_SYNC(CNTotalElem2GlobalElem_Shared_Win,MPI_COMM_SHARED)
   CALL BARRIER_AND_SYNC(GlobalElem2CNTotalElem_Shared_Win,MPI_COMM_SHARED)
 END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
@@ -1443,6 +1446,8 @@ IF (myComputeNodeRank.EQ.0) THEN
   IF (nComputeNodeTotalSides.NE.MessageSize) &
     CALL ABORT(__STAMP__,'Error with number of halo sides on compute node')
 END IF ! myComputeNodeRank.EQ.0
+
+CALL MPI_BCAST(nComputeNodeSides,1,MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 
 CALL BARRIER_AND_SYNC(CNTotalSide2GlobalSide_Shared_Win,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(GlobalSide2CNTotalSide_Shared_Win,MPI_COMM_SHARED)
