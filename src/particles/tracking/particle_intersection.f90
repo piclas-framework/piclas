@@ -149,7 +149,7 @@ RETURN
 END SUBROUTINE IntersectionWithWall
 
 
-SUBROUTINE ParticleThroughSideCheck3DFast(PartID,iLocSide,Element,ThroughSide,TriNum, IsMortar)
+PPURE SUBROUTINE ParticleThroughSideCheck3DFast(PartID,iLocSide,Element,ThroughSide,TriNum, IsMortar)
 !===================================================================================================================================
 !> Routine to check whether a particle crossed the given triangle of a side. The determinant between the normalized trajectory
 !> vector and the vectors from two of the three nodes to the old particle position is calculated. If the determinants for the three

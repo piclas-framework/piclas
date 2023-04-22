@@ -300,7 +300,7 @@ END TYPE
 
 INTEGER                                  :: nPartBound                    ! number of particle boundaries
 TYPE(tPartBoundary)                      :: PartBound                     ! Boundary Data for Particles
-REAL, PARAMETER                          :: RotPeriodicTol = 0.99999      ! Tolerance for rotationally periodic BC
+REAL, PARAMETER                          :: RotPeriodicTol = 0.9999       ! Tolerance for rotationally periodic BC
 
 LOGICAL                                  :: AdaptWallTemp
 
