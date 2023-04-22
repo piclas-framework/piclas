@@ -463,8 +463,8 @@ END SUBROUTINE InitPEM_CNElemID
 !==================================================================================================================================!
 PPURE FUNCTION GetGlobalElem2CNTotalElem_iPart(iPart)
 ! MODULES
-USE MOD_MPI_Shared_Vars ,ONLY: GlobalElem2CNTotalElem
-USE MOD_Particle_Vars   ,ONLY: PEM
+USE MOD_Particle_Mesh_Vars ,ONLY: GlobalElem2CNTotalElem
+USE MOD_Particle_Vars      ,ONLY: PEM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

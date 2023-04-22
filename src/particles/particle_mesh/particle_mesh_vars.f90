@@ -210,10 +210,10 @@ INTEGER         :: FIBGMToProc_Shared_Win
 INTEGER         :: FIBGMToProcFlag_Shared_Win
 INTEGER         :: FIBGMProcs_Shared_Win
 
-INTEGER           :: CNTotalElem2GlobalElem_Shared_Win
-INTEGER           :: GlobalElem2CNTotalElem_Shared_Win
-INTEGER           :: CNTotalSide2GlobalSide_Shared_Win
-INTEGER           :: GlobalSide2CNTotalSide_Shared_Win
+INTEGER         :: CNTotalElem2GlobalElem_Shared_Win
+INTEGER         :: GlobalElem2CNTotalElem_Shared_Win
+INTEGER         :: CNTotalSide2GlobalSide_Shared_Win
+INTEGER         :: GlobalSide2CNTotalSide_Shared_Win
 
 INTEGER         :: BoundsOfElem_Shared_Win
 

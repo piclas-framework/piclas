@@ -123,6 +123,10 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: offsetComputeNodeElem,nComputeNodeSides,FI
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared_Win,FIBGMToProc_Shared_Win,FIBGM_Element_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared_Win,BoundsOfElem_Shared_Win,ElemToBGM_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems,FIBGM_nTotalElems_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalSide2CNTotalSide_Shared,GlobalSide2CNTotalSide_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalSide2GlobalSide_Shared,CNTotalSide2GlobalSide_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNTotalElem_Shared,GlobalElem2CNTotalElem_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalElem2GlobalElem_Shared,CNTotalElem2GlobalElem_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic,MeshHasRotPeriodic
 USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalSide2CNTotalSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalSide2GlobalSide
@@ -867,10 +871,10 @@ END IF
 ! MPI shared memory is continuous, beginning from 1. All shared arrays have to
 ! be shifted to BGM[i]min with pointers
 CALL Allocate_Shared((/(BGMiDelta+1)*(BGMjDelta+1)*(BGMkDelta+1)/),FIBGM_nElems_Shared_Win,FIBGM_nElems_Shared)
-CALL MPI_WIN_LOCK_ALL(0,FIBGM_nElems_Shared_Win,IERROR)
+CALL MPI_WIN_LOCK_ALL(0,FIBGM_nElems_Shared_Win,iError)
 ! allocated shared memory for BGM cell offset in 1D array of BGM to element mapping
 CALL Allocate_Shared((/(BGMiDelta+1)*(BGMjDelta+1)*(BGMkDelta+1)/),FIBGM_offsetElem_Shared_Win,FIBGM_offsetElem_Shared)
-CALL MPI_WIN_LOCK_ALL(0,FIBGM_offsetElem_Shared_Win,IERROR)
+CALL MPI_WIN_LOCK_ALL(0,FIBGM_offsetElem_Shared_Win,iError)
 FIBGM_nElems     (BGMimin:BGMimax, BGMjmin:BGMjmax, BGMkmin:BGMkmax) => FIBGM_nElems_Shared
 FIBGM_offsetElem (BGMimin:BGMimax, BGMjmin:BGMjmax, BGMkmin:BGMkmax) => FIBGM_offsetElem_Shared
 
@@ -909,7 +913,7 @@ END DO ! iBGM
 #if USE_MPI
 ! allocate 1D array for mapping of BGM cell to Element indices
 CALL Allocate_Shared((/FIBGM_offsetElem(BGMimax,BGMjmax,BGMkmax)+FIBGM_nElems(BGMimax,BGMjmax,BGMkmax)/),FIBGM_Element_Shared_Win,FIBGM_Element_Shared)
-CALL MPI_WIN_LOCK_ALL(0,FIBGM_Element_Shared_Win,IERROR)
+CALL MPI_WIN_LOCK_ALL(0,FIBGM_Element_Shared_Win,iError)
 FIBGM_Element => FIBGM_Element_Shared
 #else
 ALLOCATE( FIBGM_Element(1:FIBGM_offsetElem(BGMimax,BGMjmax,BGMkmax) + &
@@ -1043,15 +1047,9 @@ ELSE
     END IF
   END DO
 
-#if USE_LOADBALANCE
-  IF (.NOT.PerformLoadBalance) THEN
-#endif /*USE_LOADBALANCE*/
-    CALL Allocate_Shared((/nGlobalElems          /),GlobalElem2CNTotalElem_Shared_Win,GlobalElem2CNTotalElem_Shared)
-    CALL MPI_WIN_LOCK_ALL(0,GlobalElem2CNTotalElem_Shared_Win,iERROR)
-    GlobalElem2CNTotalElem => GlobalElem2CNTotalElem_Shared
-#if USE_LOADBALANCE
-  END IF
-#endif /*USE_LOADBALANCE*/
+  CALL Allocate_Shared((/nGlobalElems          /),GlobalElem2CNTotalElem_Shared_Win,GlobalElem2CNTotalElem_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,GlobalElem2CNTotalElem_Shared_Win,iERROR)
+  GlobalElem2CNTotalElem => GlobalElem2CNTotalElem_Shared
   CALL Allocate_Shared((/nComputeNodeTotalElems/),CNTotalElem2GlobalElem_Shared_Win,CNTotalElem2GlobalElem_Shared)
   CALL MPI_WIN_LOCK_ALL(0,CNTotalElem2GlobalElem_Shared_Win,iERROR)
   CNTotalElem2GlobalElem => CNTotalElem2GlobalElem_Shared
@@ -1307,7 +1305,7 @@ CALL MPI_BCAST(nFIBGMToProc,1,MPI_INTEGER,0,MPI_COMM_SHARED,iError)
 
 ! Allocate shared array to hold the proc information
 CALL Allocate_Shared((/nFIBGMToProc/),FIBGMProcs_Shared_Win,FIBGMProcs_Shared)
-CALL MPI_WIN_LOCK_ALL(0,FIBGMProcs_Shared_Win,IERROR)
+CALL MPI_WIN_LOCK_ALL(0,FIBGMProcs_Shared_Win,iError)
 FIBGMProcs => FIBGMProcs_Shared
 
 IF (myComputeNodeRank.EQ.0) FIBGMProcs= -1
@@ -1463,7 +1461,6 @@ USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
-USE MOD_MPI_Shared_Vars    ,ONLY: GlobalElem2CNTotalElem
 !USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
 #endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1478,6 +1475,24 @@ USE MOD_MPI_Shared_Vars    ,ONLY: GlobalElem2CNTotalElem
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
+#if USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+  ! Mapping arrays are only allocated if not running on one node
+  ! IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+  !   CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
+  ! END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+  CALL UNLOCK_AND_FREE(GlobalSide2CNTotalSide_Shared_Win)
+#if USE_LOADBALANCE
+END IF
+IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
+  ! Mapping arrays are only allocated if not running on one node
+  IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+    CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
+  END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
+#endif /*USE_LOADBALANCE*/
+
 !CALL UNLOCK_AND_FREE(ElemToBGM_Shared_Win)
 CALL UNLOCK_AND_FREE(BoundsOfElem_Shared_Win)
 CALL UNLOCK_AND_FREE(FIBGM_nTotalElems_Shared_Win)
@@ -1486,20 +1501,28 @@ CALL UNLOCK_AND_FREE(FIBGM_offsetElem_Shared_Win)
 CALL UNLOCK_AND_FREE(FIBGM_Element_Shared_Win)
 CALL UNLOCK_AND_FREE(FIBGMToProc_Shared_Win)
 CALL UNLOCK_AND_FREE(FIBGMProcs_Shared_Win)
+! Mapping arrays are only allocated if not running on one node
 IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-  CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
-  CALL UNLOCK_AND_FREE(GlobalSide2CNTotalSide_Shared_Win)
   CALL UNLOCK_AND_FREE(CNTotalElem2GlobalElem_Shared_Win)
-  CALL UNLOCK_AND_FREE(CNTotalSide2GlobalSide_Shared_Win)
 END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+CALL UNLOCK_AND_FREE(CNTotalSide2GlobalSide_Shared_Win)
 
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 ! Then, free the pointers or arrays
-<<<<<<< HEAD:src/particles/particle_mesh/particle_bgm.f90
-SDEALLOCATE(CNTotalElem2GlobalElem)
-SDEALLOCATE(CNTotalSide2GlobalSide)
-SDEALLOCATE(GlobalSide2CNTotalSide)
+#if USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+  ! Mapping arrays are only allocated if not running on one node
+  ! IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+  !   ADEALLOCATE(GlobalElem2CNTotalElem)
+  !   ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
+  ! END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+  ADEALLOCATE(GlobalSide2CNTotalSide)
+  ADEALLOCATE(GlobalSide2CNTotalSide_Shared)
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
 !ADEALLOCATE(ElemToBGM_Shared)
@@ -1516,16 +1539,13 @@ ADEALLOCATE(FIBGMToProc)
 ADEALLOCATE(FIBGMToProc_Shared)
 ADEALLOCATE(FIBGMProcs)
 ADEALLOCATE(FIBGMProcs_Shared)
+! Mapping arrays are only allocated if not running on one node
 IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-  ADEALLOCATE(GlobalElem2CNTotalElem)
-  ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
-  ADEALLOCATE(GlobalSide2CNTotalSide)
-  ADEALLOCATE(GlobalSide2CNTotalSide_Shared)
   ADEALLOCATE(CNTotalElem2GlobalElem)
   ADEALLOCATE(CNTotalElem2GlobalElem_Shared)
-  ADEALLOCATE(CNTotalSide2GlobalSide)
-  ADEALLOCATE(CNTotalSide2GlobalSide_Shared)
 END IF ! nComputeNodeProcessors.NE.nProcessors_Global
+ADEALLOCATE(CNTotalSide2GlobalSide)
+ADEALLOCATE(CNTotalSide2GlobalSide_Shared)
 
 #if USE_MPI
 CALL FinalizeHaloInfo()
@@ -1536,7 +1556,11 @@ CALL FinalizeHaloInfo()
 !IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)).AND.DoDeposition) )THEN
 ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
 IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
-    SDEALLOCATE(GlobalElem2CNTotalElem)
+  ! Mapping arrays are only allocated if not running on one node
+  IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+    ADEALLOCATE(GlobalElem2CNTotalElem)
+    ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
+  END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
 #endif /*USE_LOADBALANCE*/
 
