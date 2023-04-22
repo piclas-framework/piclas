@@ -1041,11 +1041,14 @@ ELSE
   nComputeNodeTotalElems = 0
   nComputeNodeTotalSides = 0
   nComputeNodeTotalNodes = 0
-  DO iElem = 1, nGlobalElems
+
+  ! Sum up all elements on the compute node
+  DO iElem = firstElem, lastElem
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).NE.0) THEN
       nComputeNodeTotalElems = nComputeNodeTotalElems + 1
     END IF
   END DO
+  CALL MPI_ALLREDUCE(MPI_IN_PLACE,nComputeNodeTotalElems,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
 
   CALL Allocate_Shared((/nGlobalElems          /),GlobalElem2CNTotalElem_Shared_Win,GlobalElem2CNTotalElem_Shared)
   CALL MPI_WIN_LOCK_ALL(0,GlobalElem2CNTotalElem_Shared_Win,iERROR)
