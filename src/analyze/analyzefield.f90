@@ -367,7 +367,7 @@ IF(MPIROOT)THEN
   ! ! Add BoundaryFieldOutput for each boundary that is required
   IF(CalcBoundaryFieldOutput)THEN
     DO iBoundary=1,BFO%NFieldBoundaries
-      CALL CalculateBoundaryFieldOutput(iBoundary,Time,BoundaryFieldOutput)
+      CALL CalculateBoundaryFieldOutput(BFO%FieldBoundaries(iBoundary),Time,BoundaryFieldOutput)
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',',BoundaryFieldOutput
     END DO
   END IF ! CalcBoundaryFieldOutput
