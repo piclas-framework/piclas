@@ -93,6 +93,7 @@ USE MOD_Mesh_Tools             ,ONLY: GetMasteriLocSides
 USE MOD_Mesh_Vars              ,ONLY: GlobalUniqueSideID
 USE MOD_Analyze_Vars           ,ONLY: CalcElectricTimeDerivative
 #ifdef PARTICLES
+USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,BiasVoltage,BVDataLength
 USE MOD_PICInterpolation_Vars  ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 USE MOD_Analyze_Vars           ,ONLY: AverageElectricPotential
 USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
@@ -101,7 +102,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronIonDensity,CalcElectronTempera
 USE MOD_Particle_Analyze_Tools ,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
 USE MOD_HDF5_Output_Particles  ,ONLY: AddBRElectronFluidToPartSource
-USE MOD_Equation_Vars          ,ONLY: CoupledPowerPotential,CalcPCouplElectricPotential
+USE MOD_HDG_Vars               ,ONLY: CoupledPowerPotential,CalcPCouplElectricPotential
 #endif /*PARTICLES*/
 #endif /*USE_HDG*/
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
@@ -170,7 +171,7 @@ INTEGER                        :: SortedOffset,SortedStart,SortedEnd
 #ifdef PARTICLES
 INTEGER                        :: i,j,k,iElem
 #endif /*PARTICLES*/
-REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:)
+REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:),BVDataHDF5(:,:)
 INTEGER                        :: nVarFPC,nVarEPC
 #endif /*USE_HDG*/
 !===================================================================================================================================
@@ -586,6 +587,19 @@ IF(CalcPCouplElectricPotential.AND.MPIRoot)THEN
                          offset      = (/0_IK , 0_IK/)                    , &
                          collective  = .FALSE., RealArray = TmpArray2(1:3,1))
   CALL CloseDataFile()
+END IF ! CalcBulkElectronTempi.AND.MPIRoot
+! Bias voltage
+IF(UseBiasVoltage.AND.MPIRoot)THEN
+  ALLOCATE(BVDataHDF5(BVDataLength,1))
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  BVDataHDF5(1:BVDataLength,1) = BiasVoltage%BVData(1:BVDataLength)
+  CALL WriteArrayToHDF5( DataSetName = 'BiasVoltage' , rank = 2   , &
+                         nValGlobal  = (/1_IK , INT(BVDataLength,IK)/), &
+                         nVal        = (/1_IK , INT(BVDataLength,IK)/), &
+                         offset      = (/0_IK , 0_IK/)                        , &
+                         collective  = .FALSE., RealArray = BVDataHDF5(1:BVDataLength,1))
+  CALL CloseDataFile()
+  DEALLOCATE(BVDataHDF5)
 END IF ! CalcBulkElectronTempi.AND.MPIRoot
 #endif /*USE_HDG*/
 #endif /*PARTICLES*/

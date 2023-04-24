@@ -63,6 +63,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Analyze_Vars          ,ONLY: DoFieldAnalyze,CalcEpot,WEl
 USE MOD_Analyze_Vars          ,ONLY: CalcBoundaryFieldOutput,BFO
+USE MOD_Mesh_Vars             ,ONLY: BoundaryName
 #if (PP_nVar>=6)
 USE MOD_Analyze_Vars          ,ONLY: CalcPoyntingInt,nPoyntingIntPlanes,PosPoyntingInt
 #endif /*PP_nVar>=6*/
@@ -75,7 +76,6 @@ USE MOD_Dielectric_Vars       ,ONLY: DoDielectric
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: HDGNorm,iterationTotal,RunTimeTotal,UseFPC,FPC,UseEPC,EPC
 USE MOD_Analyze_Vars          ,ONLY: AverageElectricPotential,CalcAverageElectricPotential,EDC,CalcElectricTimeDerivative
-USE MOD_Mesh_Vars             ,ONLY: BoundaryName
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 #endif /*USE_HDG*/
 #ifdef PARTICLES
@@ -246,8 +246,9 @@ IF(MPIROOT)THEN
       IF(CalcBoundaryFieldOutput)THEN
         DO iBoundary=1,BFO%NFieldBoundaries
           nOutputVarTotal = nOutputVarTotal + 1
-          WRITE(StrVarNameTmp,'(A,I0.3)') 'BFO-boundary',iBoundary
-          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'"'
+          WRITE(StrVarNameTmp,'(A,I0.3)') 'BFO-boundary-',iBoundary
+          WRITE(tmpStr(nOutputVarTotal),'(A,I0.3,A)')delimiter//'"',nOutputVarTotal,'-'//TRIM(StrVarNameTmp)//'-'//&
+              TRIM(BoundaryName(BFO%FieldBoundaries(iBoundary)))//'"'
         END DO
       END IF
 
@@ -1833,10 +1834,16 @@ ASSOCIATE( x => (/0., 0., 0./) )
     CALL ExactFunc(BCState , x , BoundaryFieldOutput , t=Time)
   CASE(4) ! exact BC = Dirichlet BC !! Zero potential
     BoundaryFieldOutput = 0.
-  CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
-    CALL ExactFunc(  -1    , x , BoundaryFieldOutput , t=Time  , iRefState=BCState)
+  CASE(5,51) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional)
+    IF(BCType.EQ.51)THEN
+      CALL ExactFunc(  51    , x , BoundaryFieldOutput , t=Time  , iRefState=BCState)
+    ELSE
+      CALL ExactFunc(  -1    , x , BoundaryFieldOutput , t=Time  , iRefState=BCState)
+    END IF ! BCType.EQ.51
   CASE(6) ! exact BC = Dirichlet BC !! ExactFunc via RefState (Time is optional)
     CALL ExactFunc(  -2    , x , BoundaryFieldOutput , t=time  , iRefState=BCState)
+  CASE(50) ! exact BC = Dirichlet BC !! ExactFunc via bias voltage DC
+    CALL ExactFunc(  -5    , x , BoundaryFieldOutput )
   END SELECT ! BCType
 END ASSOCIATE
 #else
