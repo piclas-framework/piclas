@@ -1427,6 +1427,7 @@ END FUNCTION ElementOnProc
 !===================================================================================================================================
 !> Check whether element ID is on the current node
 !===================================================================================================================================
+#if USE_MPI
 PPURE LOGICAL FUNCTION ElementOnNode(GlobalElemID) RESULT(L)
 ! MODULES
 USE MOD_Preproc
@@ -1445,13 +1446,10 @@ INTEGER, INTENT(IN) :: GlobalElemID ! Global element index
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
-#if USE_MPI
 L = (GlobalElemID.GE.offsetElemMPI(ComputeNodeRootRank)+1).AND.&
     (GlobalElemID.LE.offsetElemMPI(ComputeNodeRootRank+nComputeNodeProcessors))
-#else
-L = .TRUE.
-#endif /*USE_MPI*/
 END FUNCTION ElementOnNode
+#endif /*USE_MPI*/
 
 
 #if defined(PARTICLES)
