@@ -158,7 +158,7 @@ USE MOD_Particle_Vars             ,ONLY: nSpecies,UseNeutralization,Neutralizati
 #if USE_HDG
 USE MOD_Analyze_Vars              ,ONLY: EDC
 USE MOD_Analyze_Vars              ,ONLY: CalcElectricTimeDerivative
-USE MOD_HDG_Vars                  ,ONLY: UseBiasVoltage,BiasVoltage
+USE MOD_HDG_Vars                  ,ONLY: UseBiasVoltage,BiasVoltage,BVDataLength
 #if USE_MPI
 USE MOD_HDG                       ,ONLY: SynchronizeBV
 #endif /*USE_MPI*/
@@ -403,7 +403,7 @@ IF(PartMPI%MPIRoot)THEN
       END ASSOCIATE
 
       ! Write: Voltage, Ion excess and simulation update time
-      DO i = 1, 3
+      DO i = 1, BVDataLength
         CALL WriteDataInfo(unit_index, RealScalar=BiasVoltage%BVData(i))
       END DO ! i = 1, 3
     END IF ! UseBiasVoltage

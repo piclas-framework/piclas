@@ -239,15 +239,17 @@ TYPE(tEPC)   :: EPC
 !===================================================================================================================================
 
 LOGICAL           :: UseCoupledPowerPotential !< Switch calculation on/off
-INTEGER,PARAMETER :: CPPDataLength=3          !< Number of variables in BVData
+INTEGER,PARAMETER :: CPPDataLength=6          !< Number of variables in BVData
 
 #if USE_MPI
 TYPE(tMPIGROUP) :: CPPCOMM       !< communicator and ID for parallel execution
 #endif /*USE_MPI*/
 
-REAL :: CoupledPowerPotential(CPPDataLength) !< (/min, start, max/) electric potential, e.g., used at all BoundaryType = (/2,2/)
-REAL :: CoupledPowerTarget                   !< Target input power at all BoundaryType = (/2,2/)
-REAL :: CoupledPowerRelaxFac                 !< Relaxation factor for calculation of new electric potential
+REAL    :: CoupledPowerPotential(CPPDataLength) !< (/min, start, max/) electric potential, e.g., used at all BoundaryType = (/2,2/)
+REAL    :: CoupledPowerTarget                   !< Target input power at all BoundaryType = (/2,2/)
+REAL    :: CoupledPowerRelaxFac                 !< Relaxation factor for calculation of new electric potential
+REAL    :: CoupledPowerFrequency                !< Frequency with which the integrated power is calculated (must be consistent Part-AnalyzeStep, i.e., that one cycle with period T=1/f must be larger than Part-AnalyzeStep * dt)
+INTEGER :: CoupledPowerMode                     !< Method for power adjustment with 1: instantaneous power, 2: moving average power, 3: integrated power
 
 !===================================================================================================================================
 !-- Bias Voltage (for calculating a BC voltage bias for certain BCs)
