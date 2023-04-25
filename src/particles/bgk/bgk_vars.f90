@@ -39,7 +39,6 @@ REAL                                           :: BGKMovingAverageFac
 LOGICAL                                        :: BGKUseQuantVibEn
 LOGICAL                                        :: BGKDoVibRelaxation
 REAL                                           :: BGKSplittingDens
-REAL                                           :: BGKDSMCSwitchDens
 LOGICAL                                        :: CoupledBGKDSMC
 REAL, ALLOCATABLE                              :: BGK_QualityFacSamp(:,:)
 INTEGER                                        :: BGK_MeanRelaxFactorCounter
@@ -54,6 +53,13 @@ REAL                                           :: BGK_ThermalConductivity
 TYPE tElemNodeAveraging
     TYPE (tNodeAverage), POINTER               :: Root => null()
 END TYPE
+
+CHARACTER(LEN=50)                              :: BGKDSMC_SwitchCriterium
+REAL                                           :: BGKDSMCSwitchDens
+INTEGER                                        :: BGK_SwitchIter
+INTEGER, ALLOCATABLE                           :: BGK_Iter_Count(:)
+REAL, ALLOCATABLE                              :: BGK_Avg_SwitchFactor(:)
+LOGICAL,ALLOCATABLE                            :: DoElementDSMC(:)
 
 TYPE tNodeAverage
     TYPE (tNodeAverage), POINTER               :: SubNode(:) => null()

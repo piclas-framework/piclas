@@ -42,13 +42,15 @@ SUBROUTINE BGK_DSMC_main(stage_opt)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
+USE MOD_BGK_DSMC_Coupling
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
-USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKDSMCSwitchDens
-USE MOD_BGK_Vars            ,ONLY: BGKMovingAverage,ElemNodeAveraging
-USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
-USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
-USE MOD_BGK_Vars            ,ONLY: BGK_Viscosity, BGK_ThermalConductivity
+! USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKDSMCSwitchDens
+! USE MOD_BGK_Vars            ,ONLY: BGKMovingAverage,ElemNodeAveraging
+! USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
+! USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK_ExpectedPrandtlNumber
+! USE MOD_BGK_Vars            ,ONLY: BGK_Viscosity, BGK_ThermalConductivity
+USE MOD_BGK_Vars           
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC                ,ONLY: DSMC_main
 USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting, VarWeighting
@@ -71,7 +73,6 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 ! LOCAL VARIABLES
 INTEGER               :: iElem, nPart, iLoop, iPart, CNElemID, stage
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
-LOGICAL               :: DoElement(nElems)
 REAL                  :: dens, partWeight, totalWeight
 !===================================================================================================================================
 IF (PRESENT(stage_opt)) THEN
@@ -79,8 +80,6 @@ IF (PRESENT(stage_opt)) THEN
 ELSE
   stage = 0
 END IF
-
-DoElement = .FALSE.
 
 DO iElem = 1, nElems
 #if USE_MPI
@@ -108,10 +107,45 @@ DO iElem = 1, nElems
     dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
   END IF
 
-  IF (dens.LT.BGKDSMCSwitchDens) THEN
-    DoElement(iElem) = .TRUE.
-    CYCLE
-  END IF
+  SELECT CASE (TRIM(BGKDSMC_SwitchCriterium))
+  CASE('Density')
+    BGK_Avg_SwitchFactor(iElem) = BGK_Avg_SwitchFactor(iElem) + dens 
+    BGK_Iter_Count(iElem) = BGK_Iter_Count(iElem) + 1
+
+    ! Add up the density/quality factor to only sample every certain number of iterations
+    IF (BGK_Iter_Count(iElem).GE.BGK_SwitchIter) THEN
+      ! Check if the average density is smaller than the BGK-DSMC switch criterium
+      IF ((BGK_Avg_SwitchFactor(iElem)/REAL(BGK_Iter_Count(iElem))).LT.BGKDSMCSwitchDens) THEN
+        DoElementDSMC(iElem) = .TRUE.
+      ELSE
+        DoElementDSMC(iElem) = .FALSE.
+      END IF
+      ! reset the counter values
+      BGK_Iter_Count(iElem) = 0
+      BGK_Avg_SwitchFactor(iElem) = 0.
+    END IF
+
+  CASE('LocalKnudsen', 'GlobalKnudsen', 'ThermNonEq', 'Combination')
+    IF (CBC_DoDSMC(iElem)) THEN
+      BGK_Avg_SwitchFactor(iElem) = BGK_Avg_SwitchFactor(iElem) + 1. 
+    END IF
+    BGK_Iter_Count(iElem) = BGK_Iter_Count(iElem) + 1
+  
+    ! Add up the density/quality factor to only sample every certain number of iterations
+    IF (BGK_Iter_Count(iElem).GE.BGK_SwitchIter) THEN
+      ! Check if the average density is smaller than the BGK-DSMC switch criterium
+      IF (NINT(BGK_Avg_SwitchFactor(iElem)/REAL(BGK_Iter_Count(iElem))).EQ.1) THEN
+        DoElementDSMC(iElem) = .TRUE.
+      ELSE
+        DoElementDSMC(iElem) = .FALSE.
+      END IF
+      ! reset the counter values
+      BGK_Iter_Count(iElem) = 0
+      BGK_Avg_SwitchFactor(iElem) = 0.
+    END IF
+  END SELECT
+
+  IF (DoElementDSMC(iElem)) CYCLE
 
   IF (DoBGKCellAdaptation) THEN
     IF(Symmetry%Order.EQ.2) THEN
@@ -153,7 +187,7 @@ DO iElem = 1, nElems
   END IF
 END DO
 
-CALL DSMC_main(DoElement)
+CALL DSMC_main(DoElementDSMC)
 
 END SUBROUTINE BGK_DSMC_main
 

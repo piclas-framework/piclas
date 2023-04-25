@@ -568,8 +568,9 @@ USE MOD_Globals
 USE MOD_DSMC_Vars               
 USE MOD_Particle_Vars           ,ONLY: PEM
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
+USE MOD_Particle_Mesh_Vars      
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -582,15 +583,49 @@ INTEGER, OPTIONAL,INTENT(IN)    :: iPart, iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL                 :: PosIn, RelPos
+REAL                 :: PosIn, RelPos, TempPartPos(3)
+REAL                 :: PartDistDepo(8), DistSum, norm, MPFSum
+LOGICAL              :: SucRefPos
+REAL                 :: alpha1, alpha2, alpha3
+INTEGER              :: NodeID(1:8), iNode
 REAL                 :: PosMax, PosMin, MaxWeight, MinWeight
 INTEGER              :: iScale, CNElemID
 !===================================================================================================================================
 IF (AdaptMPF%UseOptMPF.AND.PRESENT(iElem)) THEN
   ! determine the adaptive MPF
-  CNElemID = GetCNElemID(iElem+offSetElem)
-  CalcVarWeightMPF = OptimalMPF_Shared(CNElemID)
+  CALL GetPositionInRefElem(Pos(1:3),TempPartPos(1:3),(iElem+offSetElem),ForceMode=.TRUE., isSuccessful = SucRefPos)
 
+  IF (SucRefPos) THEN
+    alpha1=0.5*(TempPartPos(1)+1.0)
+    alpha2=0.5*(TempPartPos(2)+1.0)
+    alpha3=0.5*(TempPartPos(3)+1.0)
+
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offSetElem)))
+    CalcVarWeightMPF = &
+    NodeValue(1,NodeID(1)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + NodeValue(1,NodeID(2)) * (alpha1)   * (1-alpha2) * (1-alpha3) + &
+    NodeValue(1,NodeID(3)) * (alpha1)   * (alpha2)   * (1-alpha3) + NodeValue(1,NodeID(4)) * (1-alpha1) * (alpha2)   * (1-alpha3) + &
+    NodeValue(1,NodeID(5)) * (1-alpha1) * (1-alpha2) * (alpha3)   + NodeValue(1,NodeID(6)) * (alpha1)   * (1-alpha2) * (alpha3)   + &
+    NodeValue(1,NodeID(7)) * (alpha1)   * (alpha2)   * (alpha3)   + NodeValue(1,NodeID(8)) * (1-alpha1) * (alpha2)   * (alpha3)
+
+  ELSE
+    MPFSum = 0.
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offSetElem)))
+    DO iNode = 1, 8
+      norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) - Pos(1:3))
+      IF(norm.GT.0.)THEN
+        PartDistDepo(iNode) = 1./norm
+      ELSE
+        PartDistDepo(:) = 0.
+        PartDistDepo(iNode) = 1.0
+        EXIT
+      END IF ! norm.GT.0.
+    END DO
+    DistSum = SUM(PartDistDepo(1:8))
+    DO iNode = 1, 8
+      MPFSum = MPFSum + PartDistDepo(iNode)/DistSum*NodeValue(1,NodeID(iNode)) 
+    END DO
+    CalcVarWeightMPF = MPFSum
+  END IF
 ELSE ! regular routine with variable weights
   ! Linear scaling in all possible directions
   IF (VarWeighting%ScaleAxis.EQ.0) THEN

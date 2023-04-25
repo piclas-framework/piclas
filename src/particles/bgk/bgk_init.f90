@@ -77,7 +77,10 @@ CALL prms%CreateLogicalOption('Particles-BGK-UseQuantVibEn',        'Enable quan
                                                                     '.TRUE.')
 CALL prms%CreateLogicalOption('Particles-CoupledBGKDSMC',           'Perform a coupled DSMC-BGK simulation with a given number '//&
                                                                     'density as a switch parameter','.FALSE.')
-CALL prms%CreateRealOption(   'Particles-BGK-DSMC-SwitchDens',      'Number density [1/m3], above which the BGK method is used, '//&
+CALL prms%CreateStringOption('Particles-BGK-DSMC-SwitchCriterium',  'Continuum-breakdown criterium used for the coupling: Density&
+                                                                     GlobalKnudsen/LocalKnudsen/ThermNonEq/Combination', 'none')
+CALL prms%CreateIntOption(   'Particles-BGK-DSMC-SampleIter',       'Iteration number after which a DSMC-BGK switch can be performed','1')
+CALL prms%CreateRealOption(  'Particles-BGK-DSMC-SwitchDens',       'Number density [1/m3], above which the BGK method is used, '//&
                                                                     'below which DSMC is performed','0.0')
 
 END SUBROUTINE DefineParametersBGK
@@ -135,11 +138,26 @@ BGKMixtureModel = GETINT('Particles-BGK-MixtureModel')
 ESBGKModel = GETINT('Particles-ESBGK-Model')         ! 1: Approximative, 2: Exact, 3: MetropolisHastings
 ! Coupled BGK with DSMC, use a number density as limit above which BGK is used, and below which DSMC is used
 CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
+ALLOCATE(DoElementDSMC(nElems))
+DoElementDSMC = .FALSE.
 IF(CoupledBGKDSMC) THEN
   IF (DoVirtualCellMerge) THEN  
     CALL abort(__STAMP__,' Virtual cell merge not implemented for coupled DSMC-BGK simulations!')
   END IF
-  BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
+  ! Coupling criteria DSMC
+  BGKDSMC_SwitchCriterium    = TRIM(GETSTR('Particles-BGK-DSMC-SwitchCriterium'))
+  SELECT CASE (TRIM(BGKDSMC_SwitchCriterium))
+  CASE('Density')
+    BGKDSMCSwitchDens        = GETREAL('Particles-BGK-DSMC-SwitchDens')
+  CASE DEFAULT
+  END SELECT
+
+  ! Number of iterations between a possible BGK-DSMC switch
+  BGK_SwitchIter = GETINT('Particles-BGK-DSMC-SampleIter')
+  ALLOCATE(BGK_Avg_SwitchFactor(nElems))
+  BGK_Avg_SwitchFactor = 0.0
+  ALLOCATE(BGK_Iter_Count(nElems))
+  BGK_Iter_Count = 0
 ELSE
   IF(RadialWeighting%DoRadialWeighting) THEN
     RadialWeighting%PerformCloning = .TRUE.
@@ -237,6 +255,11 @@ IMPLICIT NONE
 
 SDEALLOCATE(SpecBGK)
 SDEALLOCATE(BGK_QualityFacSamp)
+SDEALLOCATE(DoElementDSMC)
+IF (CoupledBGKDSMC) THEN
+  SDEALLOCATE(BGK_Avg_SwitchFactor)
+  SDEALLOCATE(BGK_Iter_Count)
+END IF
 IF(BGKMovingAverage) CALL DeleteElemNodeAverage()
 
 END SUBROUTINE FinalizeBGK

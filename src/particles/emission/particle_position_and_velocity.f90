@@ -512,7 +512,7 @@ USE MOD_Globals                ,ONLY: myrank,UNIT_StdOut,MPI_COMM_WORLD,abort
 USE MOD_part_tools             ,ONLY: InitializeParticleMaxwell,InterpolateEmissionDistribution2D
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars          ,ONLY: Species, PDM, PartState, PEM, LastPartPos
-USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
+USE MOD_part_emission_tools    ,ONLY: ParticleInsideCheck
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim, EmissionDistributionN
 USE MOD_Interpolation          ,ONLY: GetVandermonde,GetNodesAndWeights

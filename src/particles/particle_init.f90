@@ -398,7 +398,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_InitVarWeighting
-USE MOD_DSMC_Symmetry          ,ONLY: DSMC_InitAdaptiveWeights
+USE MOD_DSMC_AdaptMPF          ,ONLY: DSMC_InitAdaptiveWeights
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh

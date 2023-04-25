@@ -359,6 +359,36 @@ LOGICAL                                  :: FindNeighbourElems                ! 
 REAL,ALLOCATABLE                         :: ElemTolerance(:)
 INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id is built via nodes
 
+! ====================================================================
+REAL,ALLOCATABLE                         :: NodeValue(:,:)
+INTEGER,ALLOCATABLE                      :: NodeSendRankToGlobalRank(:)
+INTEGER,ALLOCATABLE                      :: NodeRecvRankToGlobalRank(:)
+INTEGER,ALLOCATABLE                      :: NodetoGlobalNode(:)
+INTEGER                                  :: nMapNodes
+INTEGER                                  :: nMapNodesTotal
+INTEGER                                  :: nNodeSendExchangeProcs
+INTEGER                                  :: nNodeRecvExchangeProcs
+
+#if USE_MPI
+! Send direction of nodes (can be different from number of receive nodes for each processor)
+TYPE tNodeMappingSend
+  INTEGER,ALLOCATABLE                    :: SendNodeUniqueGlobalID(:)
+  REAL,ALLOCATABLE                       :: SendNodeFilterMPF(:,:) 
+  INTEGER                                :: nSendUniqueNodes
+END TYPE
+TYPE (tNodeMappingSend),ALLOCATABLE      :: NodeMappingSend(:)
+
+! Receive direction of nodes (can be different from number of send nodes for each processor)
+TYPE tNodeMappingRecv
+  INTEGER,ALLOCATABLE                    :: RecvNodeUniqueGlobalID(:)
+  REAL,ALLOCATABLE                       :: RecvNodeFilterMPF(:,:)
+  INTEGER                                :: nRecvUniqueNodes
+END TYPE
+TYPE (tNodeMappingRecv),ALLOCATABLE      :: NodeMappingRecv(:)
+
+INTEGER,ALLOCATABLE :: RecvRequest(:), SendRequest(:), CNRankToSendRank(:)
+INTEGER,ALLOCATABLE :: RecvRequestCN(:), SendRequestCN(:)
+#endif
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Mesh_Vars

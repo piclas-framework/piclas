@@ -108,6 +108,7 @@ PUBLIC :: SetParticlePositionLiu2010Neutralization
 PUBLIC :: SetParticlePositionLiu2010SzaboNeutralization
 PUBLIC :: SetParticlePositionLiu2010Neutralization3D
 PUBLIC :: SetSubcellParticlePosition
+PUBLIC :: ParticleInsideCheck
 #ifdef CODE_ANALYZE
 PUBLIC :: CalcVectorAdditionCoeffs
 #endif /*CODE_ANALYZE*/
@@ -927,7 +928,6 @@ USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
 USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, Symmetry, UseVarTimeStep, PartTimeStep, PartMPF
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 ! IMPLICIT VARIABLE HANDLING
@@ -1057,7 +1057,6 @@ USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
 USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, Symmetry, PartMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2440,7 +2439,6 @@ SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization(chunkSize,particle_posi
 ! modules
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
-USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared
 USE MOD_Particle_Vars          ,ONLY: isNeutralizationElem,NeutralizationBalanceElem
@@ -2599,6 +2597,47 @@ DO iElem = 1, nElems
 END DO ! iElem = 1, nElems
 
 END SUBROUTINE CountNeutralizationParticles
+
+LOGICAL FUNCTION ParticleInsideCheck(Position,iPart,GlobalElemID)
+!===================================================================================================================================
+!> Checks if the position is inside the element with the appropriate routine depending on the TrackingMethod
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
+USE MOD_Particle_Localization   ,ONLY: PartInElemCheck
+USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Vars           ,ONLY: PartPosRef
+!-----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: Position(3)
+INTEGER, INTENT(IN)             :: iPart,GlobalElemID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+ParticleInsideCheck = .FALSE.
+
+SELECT CASE(TrackingMethod)
+CASE(REFMAPPING)
+  CALL GetPositionInRefElem(Position,PartPosRef(1:3,iPart),GlobalElemID)
+  IF (MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) ParticleInsideCheck=.TRUE.
+CASE(TRACING)
+  CALL PartInElemCheck(Position,iPart,GlobalElemID,ParticleInsideCheck)
+CASE(TRIATRACKING)
+  CALL ParticleInsideQuad3D(Position,GlobalElemID,ParticleInsideCheck)
+CASE DEFAULT
+  CALL abort(__STAMP__,'TrackingMethod not implemented! TrackingMethod =',IntInfoOpt=TrackingMethod)
+END SELECT
+
+END FUNCTION ParticleInsideCheck
 
 
 END MODULE MOD_part_emission_tools

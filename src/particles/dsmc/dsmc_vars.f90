@@ -116,11 +116,11 @@ TYPE tAdaptMPF
   LOGICAL                     :: DoAdaptMPF                  ! Enables an automatic adaption of the MPF in each cell
   LOGICAL                     :: UseOptMPF                   ! Changes between the CalcVarMPF, CalcAdaptMPF routine
   LOGICAL                     :: UseMedianFilter             ! Applies median filter to the distribution of the optimal MPF
-  LOGICAL                     :: IncludeSecondNeighbour      ! Inclusion of a second neighbour row in the median filter routine
   REAL, ALLOCATABLE           :: ScaleFactorAdapt(:)         ! Comparison of new and old MPF
   REAL                        :: MinPartNum                  ! Target minimum number of simulation particles per sub-cell
   REAL                        :: MaxPartNum                  ! Target maximum number of simulation particles per sub-cell
   REAL                        :: MaxRatio                    ! Maximum deviation between the particle weights of two neighbouring cells
+  REAL                        :: SymAxis_MinPartNum          ! Target minimum number of simulation particles close to the symmetry axis
   INTEGER                     :: nRefine                     ! Number of times the MPF filter routine is called
 END TYPE tAdaptMPF
 
@@ -128,6 +128,8 @@ TYPE(tAdaptMPF)               :: AdaptMPF
 
 REAL,ALLOCPOINT,DIMENSION(:,:) :: AdaptMPFInfo_Shared
 REAL,ALLOCPOINT,DIMENSION(:)   :: OptimalMPF_Shared
+
+REAL, ALLOCATABLE              :: TestVar(:)
 
 TYPE tClonedParticles
   ! Clone Delay: Clones are inserted at the next time step

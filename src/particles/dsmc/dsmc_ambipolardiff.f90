@@ -464,7 +464,7 @@ USE MOD_DSMC_Vars               ,ONLY: BGGas, CollisMode, DSMC, PartStateIntEn, 
 USE MOD_DSMC_Vars               ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_PARTICLE_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, Species, PartMPF, Symmetry, usevMPF
 USE MOD_PARTICLE_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
-USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
+USE MOD_part_emission_tools     ,ONLY: ParticleInsideCheck
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

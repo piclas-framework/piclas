@@ -342,7 +342,7 @@ IF (Symmetry%Order.LE.2) THEN
 END IF
 
 ! Set logical for building node neighbourhood
-FindNeighbourElems = .FALSE.
+FindNeighbourElems = .TRUE.!.FALSE.
 
 IF (AdaptMPF%UseMedianFilter) THEN
   FindNeighbourElems = .TRUE.
@@ -374,6 +374,9 @@ SELECT CASE(TrackingMethod)
     END IF ! DoInterpolation.OR.DSMC%UseOctree
 
     IF (DoDeposition) CALL BuildEpsOneCell()
+
+    ! TO-DO
+    CALL BuildEpsOneCell()
 
   CASE(TRACING,REFMAPPING)
     ! ElemMidPoint_Shared required

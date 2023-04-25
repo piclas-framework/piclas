@@ -469,7 +469,7 @@ USE MOD_MPI_Shared
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF, CalcRadWeightMPF
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
-USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, BGGas
+USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, CollisMode, SpecDSMC, DSMC, useDSMC, BGGas, TestVar
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF, OptimalMPF_Shared
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
@@ -479,7 +479,8 @@ USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge, VirtMergedCells
 USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
 USE MOD_Restart_Vars           ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
+!USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
+USE MOD_Particle_Mesh_Vars
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly
@@ -494,6 +495,8 @@ REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality+nVarMPF+nVarAdaptMP
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: iElem, CNElemID, iSpec, nVarCount, nSpecTemp, nVarCountRelax, bgSpec
+INTEGER                 :: NodeID(1:8), iNode
+REAL                    :: PartDistDepo(8), DistSum, norm
 REAL                    :: TVib_TempFac, iter_loc
 REAL                    :: MolecPartNum, HeavyPartNum
 !===================================================================================================================================
@@ -812,6 +815,7 @@ IF (DSMC%CalcCellMPF) THEN
   nVarCount = nVarCount + 1
   DEALLOCATE(DSMC%CellMPFSamp)
   
+  ! Enable the calculation of the reference variable weighting factor
   IF (AdaptMPF%DoAdaptMPF) THEN
     AdaptMPF%UseOptMPF = .TRUE.
   END IF
@@ -820,30 +824,11 @@ END IF
 
 ! Visualization for the optimal MPF in the adaptive routine for each sub-cell
 IF (AdaptMPF%DoAdaptMPF) THEN
-  ALLOCATE(AdaptMPF%ScaleFactorAdapt(nElems))
-  AdaptMPF%ScaleFactorAdapt(1:nElems) = 0.0
-
-  ! Enable the calculation of the reference variable weighting factor
-  AdaptMPF%UseOptMPF = .FALSE.
-
   DO iElem=1,nElems
     CNElemID = GetCNElemID(iElem + offsetElem)
-    DSMC_MacroVal(nVarCount+1,iElem) = OptimalMPF_Shared(CNElemID)
-
-    IF (VarWeighting%DoVariableWeighting) THEN
-      AdaptMPF%ScaleFactorAdapt(iElem) = OptimalMPF_Shared(CNElemID)/CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),1)
-    ELSE IF (RadialWeighting%DoRadialWeighting) THEN
-      AdaptMPF%ScaleFactorAdapt(iElem) = OptimalMPF_Shared(CNElemID)/CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID),1)
-    ELSE 
-      AdaptMPF%ScaleFactorAdapt(iElem) = OptimalMPF_Shared(CNElemID)/Species(1)%MacroParticleFactor
-    END IF
-    DSMC_MacroVal(nVarCount+2,iElem) = AdaptMPF%ScaleFactorAdapt(iElem)
+    DSMC_MacroVal(nVarCount+1,iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),1,iElem)
   END DO
-  nVarCount = nVarCount + 2
-
-  AdaptMPF%UseOptMPF = .TRUE.
-
-  DEALLOCATE(AdaptMPF%ScaleFactorAdapt)
+  nVarCount = nVarCount + 1
 
 END IF
 
@@ -971,7 +956,7 @@ ELSE
 END IF
 
 IF(AdaptMPF%DoAdaptMPF) THEN
-  nVarAdaptMPF = 2
+  nVarAdaptMPF = 1
 ELSE
   nVarAdaptMPF = 0
 END IF
@@ -1088,9 +1073,8 @@ END IF
 
 IF(AdaptMPF%DoAdaptMPF) THEN
   StrVarNames(nVarCount+1) = 'OptimalAdaptMPF'
-  StrVarNames(nVarCount+2) = 'ScaleFactorAdaptMPF'
-  nVarCount=nVarCount+2
-  nVarAdaptMPF = 2
+  nVarCount=nVarCount+1
+  nVarAdaptMPF = 1
 ELSE
   nVarAdaptMPF = 0
 END IF
