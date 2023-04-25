@@ -898,12 +898,12 @@ REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velo
 INTEGER             :: dir
 #if USE_HDG
 INTEGER             :: iRegions
-REAL                :: TimeDelta
 #endif /*USE_HDG*/
 #if USE_MPI
 REAL                :: tmpArray(1:2)
 #endif /*USE_MPI*/
 REAL                :: PCouplDelta
+REAL                :: TimeDelta
 !===================================================================================================================================
 IF(DoRestart) isRestart = .true.
 IF(.NOT.DoPartAnalyze) RETURN
