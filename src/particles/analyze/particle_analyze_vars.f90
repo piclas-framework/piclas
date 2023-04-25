@@ -23,6 +23,7 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                       :: ParticleAnalyzeInitIsDone = .FALSE.
+REAL                          :: ParticleAnalyzeSampleTime           !< Accumulated simulation time between two outputs to ParticleAnalyze.csv
 LOGICAL                       :: CalcSimNumSpec                      !< Calculate the number of simulated particles per species
 LOGICAL                       :: CalcNumDens                         !< Calculate the number density per species within the domain
 LOGICAL                       :: CalcSurfFluxInfo                    !< Calculate the current/mass flow through or pressure (adaptive/subsonic BC) at the surface flux boundaries
@@ -39,6 +40,8 @@ REAL                          :: EDiff                               !< Differen
                                                                      !< push (only charged particles)
 REAL                          :: PCoupl                              !< Power that is coupled into plasma in [W]
 REAL                          :: PCouplAverage                       !< Power that is coupled into plasma (moving average) in [W]
+REAL                          :: PCouplIntAverage                    !< Power that is coupled into plasma (moving integrated average) in [W]
+REAL                          :: PCouplAverageOld                    !< Power that is coupled into plasma (moving integrated average) in [W] - old value from last call to PartAnalyze()
 TYPE tPCoupl
   REAL,ALLOCATABLE            :: DensityAvgElem(:)                   !< Power per volume that is coupled into plasma (moving average
                                                                      !< for each element) in [W/m^3]
