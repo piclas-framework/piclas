@@ -99,8 +99,10 @@ USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideI
 ! Non-HDG stuff
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
+#if USE_LOADBALANCE
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
+#endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
 USE MOD_Mesh_Vars              ,ONLY: OffsetElem
 ! IMPLICIT VARIABLE HANDLING
@@ -132,7 +134,9 @@ PetscErrorCode                     :: ierr
 #endif
 #else /*USE_HDG*/
 INTEGER                            :: iElem
+#if USE_LOADBALANCE
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
+#endif /*USE_LOADBALANCE*/
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
